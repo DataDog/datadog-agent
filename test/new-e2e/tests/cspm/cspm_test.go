@@ -23,6 +23,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	scenkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	provkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
@@ -41,6 +42,8 @@ func TestCSPM(t *testing.T) {
 	e2e.Run(t, &cspmTestSuite{}, e2e.WithProvisioner(
 		provkindvm.Provisioner(
 			provkindvm.WithRunOptions(
+				// TODO: Mirror Kubernetes component and workload images internally.
+				scenkindvm.WithInternetAccess(),
 				scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values)),
 				// Surface the EC2 host's dockerd inside the kind nodes so
 				// TestDockerRulesFilteredOnContainerdCRI can reproduce the
@@ -78,22 +81,22 @@ func (s *cspmTestSuite) TestFindings() {
 	}
 }
 
-func (s *cspmTestSuite) waitForSecurityAgentPodReady(namespace, podName string) string {
-	s.T().Helper()
+func waitForSecurityAgentPodReady(t *testing.T, cluster *components.KubernetesCluster, namespace, podName string) string {
+	t.Helper()
 
 	var selectedPodName string
-	require.Eventuallyf(s.T(), func() bool {
-		pod, err := s.Env().KubernetesCluster.Client().CoreV1().Pods(namespace).Get(context.Background(), podName, metav1.GetOptions{})
+	require.Eventuallyf(t, func() bool {
+		pod, err := cluster.Client().CoreV1().Pods(namespace).Get(context.Background(), podName, metav1.GetOptions{})
 		if err != nil {
-			s.T().Logf("unable to get pod %s: %v", podName, err)
+			t.Logf("unable to get pod %s: %v", podName, err)
 			return false
 		}
 		if !podHasContainer(pod, "security-agent") {
-			s.T().Logf("pod %s does not contain security-agent yet", pod.Name)
+			t.Logf("pod %s does not contain security-agent yet", pod.Name)
 			return false
 		}
 		if !isContainerReady(pod, "security-agent") {
-			s.T().Logf("security-agent container is not ready yet in pod %s", pod.Name)
+			t.Logf("security-agent container is not ready yet in pod %s", pod.Name)
 			return false
 		}
 		selectedPodName = pod.Name
@@ -130,7 +133,7 @@ func (s *cspmTestSuite) TestDockerRulesFilteredOnContainerdCRI() {
 	})
 	require.NoError(s.T(), err)
 	require.Len(s.T(), pods.Items, 1)
-	agentPod := s.waitForSecurityAgentPodReady("datadog", pods.Items[0].Name)
+	agentPod := waitForSecurityAgentPodReady(s.T(), s.Env().KubernetesCluster, "datadog", pods.Items[0].Name)
 
 	// Without a reachable dockerd the scope gate would skip docker rules
 	// on its own, so the test would pass for the wrong reason.
@@ -151,9 +154,11 @@ func (s *cspmTestSuite) TestDockerRulesFilteredOnContainerdCRI() {
 	findings, err := parseFindingOutput(dump)
 	require.NoError(s.T(), err)
 
-	for rule := range findings {
-		assert.NotContains(s.T(), rule, "cis-docker-1.2.0-",
-			"CIS Docker rule %q must be filtered when kubelet's CRI runtime is containerd", rule)
+	for rule, results := range findings {
+		for _, r := range results {
+			assert.NotEqual(s.T(), "cis-docker", r["agent_framework_id"],
+				"CIS Docker rule %q must be filtered when kubelet's CRI runtime is containerd", rule)
+		}
 	}
 
 	// The assertion above holds vacuously on an agent that shipped no Docker
@@ -161,7 +166,7 @@ func (s *cspmTestSuite) TestDockerRulesFilteredOnContainerdCRI() {
 	// than missing.
 	_, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(
 		"datadog", agentPod, "security-agent",
-		[]string{"test", "-s", "/etc/datadog-agent/compliance.d/cis-docker-1.2.0.yaml"})
+		[]string{"sh", "-c", `for f in /etc/datadog-agent/compliance.d/cis-docker-*.yaml; do test -s "$f" && exit 0; done; exit 1`})
 	require.NoError(s.T(), err, "the CIS Docker benchmark must ship in the agent image: %s", stderr)
 }
 

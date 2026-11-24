@@ -119,6 +119,15 @@ const (
 )
 
 const (
+	// SpanFillGenericKey is the key to the program that fills the span context of an event and sends it
+	SpanFillGenericKey uint32 = iota
+	// SpanFillSetsockoptKey is the key to the program that fills the span context of a setsockopt event and sends it
+	SpanFillSetsockoptKey
+	// SpanFillExitKey is the key to the program that fills the span context of an exit event, sends it and unregisters the Go labels of the process
+	SpanFillExitKey
+)
+
+const (
 	// CacheSyscallUpdateProcCacheCgroupKey is the key to the program that refreshes the cached cgroup inode of the current process
 	CacheSyscallUpdateProcCacheCgroupKey uint32 = iota
 )

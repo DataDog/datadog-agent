@@ -28,7 +28,7 @@ import (
 // NewStatefulSetRolloutFactory returns a new StatefulSet rollout factory that provides rollout duration metrics
 func NewStatefulSetRolloutFactory(client *apiserver.APIClient, rolloutTracker RolloutOperations) customresource.RegistryFactory {
 	return &statefulSetRolloutFactory{
-		client:         client.Cl,
+		client:         client.InformerCl,
 		rolloutTracker: rolloutTracker,
 	}
 }

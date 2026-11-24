@@ -1,7 +1,30 @@
+load("@package_metadata//purl:purl.bzl", "purl")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_go//go:def.bzl", "go_library")
+load("@rules_license//rules:license.bzl", "license")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
 
-package(default_package_metadata = ["//:package_metadata"])
+# The connector carries its own BSD-3-Clause license (RapDev.IO), shipped as
+# LICENSES/secret-generic-connector-LICENSE.
+package(default_package_metadata = [":package_metadata"])
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [":license"],
+    purl = purl.builder()
+        .type("golang")
+        .namespace("github.com/DataDog")
+        .name("datadog-agent")
+        .subpath("cmd/secret-generic-connector")
+        .build(),
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:BSD-3-Clause"],
+    license_text = "LICENSE",
+)
 
 go_library(
     name = "secret-generic-connector_lib",
@@ -17,19 +40,26 @@ go_library(
 
 dd_agent_go_binary(
     name = "secret-generic-connector",
-    # keep
     srcs = select({
         "@platforms//os:windows": ["//cmd/secret-generic-connector/windows_resources:rsrc"],
         "//conditions:default": [],
     }),
-    # FIPS mode needs cgo for the OpenSSL/systemcrypto bindings; Windows cgo is
-    # provided by dd_agent_go_binary's default for the .syso resource file.
-    cgo = select({
-        "//packages/agent:fips_flavor": True,
-        "@platforms//os:windows": True,
-        "//conditions:default": False,
-    }),
     embed = [":secret-generic-connector_lib"],
+    pure = select({
+        "@platforms//os:linux": "on",
+        "//conditions:default": "auto",
+    }),
     visibility = ["//visibility:public"],
     x_defs = {"github.com/DataDog/datadog-agent/cmd/secret-generic-connector.appVersion": "{agent_version}"},
+)
+
+dd_agent_go_test(
+    name = "secret-generic-connector_test",
+    srcs = ["main_test.go"],
+    embed = [":secret-generic-connector_lib"],
+    deps = [
+        "//cmd/secret-generic-connector/secret",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )

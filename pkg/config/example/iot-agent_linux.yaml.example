@@ -197,6 +197,7 @@ api_key:
 ## On Windows, the core Agent starts the Windows service `dd-procmgr-service` when this option is true.
 ## On Linux, dd-procmgrd is started by systemd (`datadog-agent-procmgr.service` linked to the main Agent unit);
 ## This setting is ignored on Linux and does not enable or disable the systemd unit.
+## On macOS, dd-procmgrd always runs as the LaunchDaemon `com.datadoghq.procmgr`. This setting is not yet supported there.
 #
 # process_manager:
 
@@ -204,6 +205,7 @@ api_key:
 #   # @env DD_PROCESS_MANAGER_ENABLED - boolean - optional - default: true
 #   # When true (Windows only), the core Agent starts the dd-procmgr-service Windows service.
 #   # On Linux, the process manager daemon is started by systemd; this option is ignored.
+#   # On macOS, dd-procmgrd always runs (LaunchDaemon com.datadoghq.procmgr). This option is not yet supported there.
 #
 #   enabled: true
 
@@ -337,6 +339,31 @@ api_key:
 #
 #     endpoints: {}
 
+#   # @param distributions - custom object - optional
+#   # Controls the use of the v3 metrics intake for distribution metrics.
+#
+#   distributions:
+
+#     # @param enabled - string - optional - default: "datadog_only"
+#     # @env DD_USE_V3_API_DISTRIBUTIONS_ENABLED - string - optional - default: "datadog_only"
+#     # Global default for the distribution metrics intake version. Accepted values:
+#     #   - true: v3 for every destination except Observability Pipelines Worker.
+#     #   - datadog_only: v3 only when the destination URL is a Datadog endpoint.
+#     #   - false: v2 everywhere.
+#
+#     enabled: "datadog_only"
+
+#     # @param endpoints - object - optional - default: {}
+#     # @env DD_USE_V3_API_DISTRIBUTIONS_ENDPOINTS - JSON object of string to string - optional - default: {}
+#     # Per-URL override map for distribution metrics intake version. The URL
+#     # must match exactly what was configured under `dd_url` or `additional_endpoints`.
+#     # Accepted values:
+#     #   - true: v3 for every destination except Observability Pipelines Worker.
+#     #   - datadog_only: v3 only when the destination URL is a Datadog endpoint.
+#     #   - false: v2 everywhere.
+#
+#     endpoints: {}
+
 ## @param forwarder_retry_queue_payloads_max_size - integer - optional - default: 15728640
 ## @env DD_FORWARDER_RETRY_QUEUE_PAYLOADS_MAX_SIZE - integer - optional - default: 15728640
 ## It defines the maximum size in bytes of all the payloads in the forwarder's retry queue.
@@ -387,8 +414,8 @@ api_key:
 #
 # forwarder_storage_max_size_in_bytes: 50000000
 
-## @param forwarder_storage_max_disk_ratio - float - optional - default: 0.8
-## @env DD_FORWARDER_STORAGE_MAX_DISK_RATIO - float - optional - default: 0.8
+## @param forwarder_storage_max_disk_ratio - integer - optional - default: 0.8
+## @env DD_FORWARDER_STORAGE_MAX_DISK_RATIO - integer - optional - default: 0.8
 ## `forwarder_storage_max_disk_ratio` defines the disk capacity limit for storing transactions.
 ## `0.8` means the Agent can store transactions on disk until `forwarder_storage_max_size_in_bytes`
 ## is reached or when the disk mount for `forwarder_storage_path` exceeds 80% of the disk capacity,
@@ -423,16 +450,16 @@ api_key:
 #
 # forwarder_requeue_buffer_size: 100
 
-## @param forwarder_backoff_base - integer - optional - default: 2
-## @env DD_FORWARDER_BACKOFF_BASE - integer - optional - default: 2
+## @param forwarder_backoff_base - float - optional - default: 2
+## @env DD_FORWARDER_BACKOFF_BASE - float - optional - default: 2
 ## Defines the rate of exponential growth, and the first retry interval range.
 ## Do not set a lower value than the default. You may increase it if you use a proxy that benefits from a
 ## higher rate of exponential growth.
 #
 # forwarder_backoff_base: 2
 
-## @param forwarder_backoff_max - integer - optional - default: 64
-## @env DD_FORWARDER_BACKOFF_MAX - integer - optional - default: 64
+## @param forwarder_backoff_max - float - optional - default: 64
+## @env DD_FORWARDER_BACKOFF_MAX - float - optional - default: 64
 ## Defines the maximum number of seconds to wait for a retry.
 ## Do not set a lower value than the default. You may increase it if you use a proxy that benefits from a
 ## higher maximum backoff time.
@@ -596,7 +623,8 @@ api_key:
 
 ## @param gpu - custom object - optional
 ## Configuration for GPU Monitoring on non-containerized Linux hosts.
-## Both this section and the gpu_monitoring section in system-probe.yaml must be configured.
+## NVIDIA kernel-level monitoring also requires gpu_monitoring in system-probe.yaml.
+## AMD sysfs monitoring does not require system-probe.
 #
 # gpu:
 
@@ -604,9 +632,42 @@ api_key:
 #   # @env DD_GPU_ENABLED - boolean - optional - default: false
 #   # Set to true to enable the GPU check in the core Agent.
 #   # Required for GPU monitoring on non-containerized Linux hosts.
-#   # Must be used together with gpu_monitoring.enabled: true in system-probe.yaml.
+#   # Enable gpu_monitoring.enabled in system-probe.yaml for NVIDIA kernel-level metrics.
+#   # AMD sysfs metrics require only the core Agent.
+#   # On Linux Agents with NVML support, enabling GPU Monitoring delays readiness
+#   # until NVML initializes or gpu.readiness_timeout expires (one minute by default).
 #
 #   enabled: false
+
+#   # @param readiness_timeout - duration - optional - default: "1m"
+#   # @env DD_GPU_READINESS_TIMEOUT - duration - optional - default: "1m"
+#   # How long the core Agent waits for NVML initialization before reporting GPU
+#   # readiness when gpu.enabled is true. Applies to Linux Agents with NVML support.
+#   # The timeout starts during Agent startup, even if the GPU check is not scheduled.
+#   # It also expires during GPU reset windows, even while GPU collection is paused.
+#   # Hosts without working NVML, including AMD-only hosts, wait for the full timeout
+#   # on every Agent restart. The health probe can take up to 15 additional seconds
+#   # to report readiness. This does not affect liveness or ongoing GPU health checks.
+#   # Use a duration such as 30s or 2m. Set to 0s or a negative duration to disable
+#   # this readiness delay.
+#
+#   readiness_timeout: "1m"
+
+#   # @param legacy_sm_active - boolean - optional - default: false
+#   # @env DD_GPU_LEGACY_SM_ACTIVE - boolean - optional - default: false
+#   # Set to true to restore the legacy mapping of GPM SM utilization to
+#   # gpu.sm_active, matching the behavior of DCGM. On GPM-capable GPUs, the high-priority GPM value is
+#   # reported as both gpu.sm_active and gpu.sm_utilization.
+#
+#   legacy_sm_active: false
+
+#   # @param prefer_gr_engine_sm_active - boolean - optional - default: false
+#   # @env DD_GPU_PREFER_GR_ENGINE_SM_ACTIVE - boolean - optional - default: false
+#   # gpu.sm_active falls back to the GPM GR engine activity (the same value as gpu.gr_engine_active)
+#   # when no other source is available. Set to true to report it with priority over the sampling and
+#   # eBPF sources. This source is not used if gpu.legacy_sm_active is enabled.
+#
+#   prefer_gr_engine_sm_active: false
 
 #   # @param nccl - custom object - optional
 #   # NCCL collective communication metrics. When enabled, the Agent listens on a
@@ -636,6 +697,100 @@ api_key:
 #     # Must be under host_socket_path.
 #
 #     socket_path: "/var/run/datadog/nccl.socket"
+
+#   # @param static_metrics_reporting_interval - duration - optional - default: "15s"
+#   # @env DD_GPU_STATIC_METRICS_REPORTING_INTERVAL - duration - optional - default: "15s"
+#   # Reporting interval for static GPU metrics, including gpu.device.total,
+#   # gpu.memory.limit, gpu.core.limit, and gpu.memory.bar1.total. Samples received
+#   # early are dropped and missing intervals are filled. Use the same value on every
+#   # host in a Datadog organization to avoid inaccurate weighted sums as workloads change.
+#   # Set to 0 to report on every check run.
+#
+#   static_metrics_reporting_interval: "15s"
+
+#   # @param jobs - custom object - optional
+#   # Identify the training job a GPU workload belongs to. The Agent reads the
+#   # configured pod label, pod annotation, or environment variable and attaches
+#   # its value as a tag on GPU metrics.
+#
+#   jobs:
+
+#     # @param run - custom object - optional
+#     # Where to find the unique ID of a single training run.
+#
+#     run:
+
+#       # @param key - string - optional - default: ""
+#       # @env DD_GPU_JOBS_RUN_KEY - string - optional - default: ""
+#       # Name of the pod label, pod annotation, or environment variable holding
+#       # the run ID, for example _RAY_SUBMISSION_ID. Leave empty to disable run tagging.
+#
+#       key: ""
+
+#       # @param type - string - optional - default: "label"
+#       # @env DD_GPU_JOBS_RUN_TYPE - string - optional - default: "label"
+#       # Where key is read from: a pod `label`, a pod `annotation`, or an `env`
+#       # (environment variable of the process using the GPU).
+#
+#       type: "label"
+
+#     # @param group - custom object - optional
+#     # Where to find the ID of the group of related training runs.
+#
+#     group:
+
+#       # @param key - string - optional - default: ""
+#       # @env DD_GPU_JOBS_GROUP_KEY - string - optional - default: ""
+#       # Name of the pod label, pod annotation, or environment variable holding
+#       # the group ID, for example example/job-group-annotation. Leave empty to
+#       # disable group tagging.
+#
+#       key: ""
+
+#       # @param type - string - optional - default: "label"
+#       # @env DD_GPU_JOBS_GROUP_TYPE - string - optional - default: "label"
+#       # Where key is read from: a pod `label`, a pod `annotation`, or an `env`
+#       # (environment variable of the process using the GPU).
+#
+#       type: "label"
+
+#   # @param kai_scheduler - custom object - optional
+#   # Support for workloads scheduled by KAI Scheduler, which lets several pods
+#   # share one GPU. A pod asking for a fraction of a GPU does not request
+#   # `nvidia.com/gpu`, so the GPU it uses cannot be identified from the pod's
+#   # own resource requests; the assignment is read from the reservation pod KAI
+#   # creates for the shared GPU.
+#
+#   kai_scheduler:
+
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_GPU_KAI_SCHEDULER_ENABLED - boolean - optional - default: false
+#     # Set to true to report which GPU each KAI Scheduler fractional workload
+#     # is using, the fraction of it assigned to the workload and the memory
+#     # of that fraction (`gpu.device.sharing_fraction`,
+#     # `gpu.device.sharing_memory`, `gpu_sharing_mode:kai_fraction`).
+#
+#     enabled: false
+
+#   # @param tracing - custom object - optional
+#   # Configure the tracers injected into GPU workloads. The fields match an
+#   # apm_config.instrumentation.targets entry of Single Step Instrumentation.
+#
+#   tracing:
+
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_GPU_TRACING_ENABLED - boolean - optional - default: false
+#     # Set to true to inject tracers into GPU workloads.
+#
+#     enabled: false
+
+#     # @param tracer_versions - object - optional - default: {'c': '0'}
+#     # @env DD_GPU_TRACING_TRACER_VERSIONS - JSON object - optional - default: {'c': '0'}
+#     # Map of tracer language to the tracer version to inject, for example c: "0.24.0".
+#     # Defaults to the latest major version 0 of the C tracer.
+#
+#     tracer_versions:
+#       c: "0.24.0"
 
 ## @param azure_metadata_timeout - integer - optional - default: 300
 ## @env DD_AZURE_METADATA_TIMEOUT - integer - optional - default: 300
@@ -1017,7 +1172,8 @@ api_key:
 
 ## @param secret_refresh_interval - integer - optional - default: 0
 ## @env DD_SECRET_REFRESH_INTERVAL - integer - optional - default: 0
-## `secret_refresh_interval` is the interval (in seconds) at which api/app key secrets are refreshed. A 0 value means the feature is disabled.
+## `secret_refresh_interval` is the interval (in seconds) at which eligible Agent and integration secrets are refreshed.
+## This also retries integration secrets that could not be resolved initially. A 0 value means the feature is disabled.
 ## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management/#refreshing-apiapp-keys-at-runtime
 #
 # secret_refresh_interval: 0
@@ -1249,8 +1405,8 @@ api_key:
 #
 #   compression_level: 6
 
-#   # @param batch_wait - float - optional - default: 5
-#   # @env DD_LOGS_CONFIG_BATCH_WAIT - float - optional - default: 5
+#   # @param batch_wait - integer - optional - default: 5
+#   # @env DD_LOGS_CONFIG_BATCH_WAIT - integer - optional - default: 5
 #   # The maximum time (in seconds) the Datadog Agent waits to fill each batch of logs before sending.
 #
 #   batch_wait: 5
@@ -1334,6 +1490,67 @@ api_key:
 #     #   * Linux: /var/log/datadog/streamlogs_info/streamlogs.log
 #
 #     streamlogs_log_file: "/var/log/datadog/streamlogs_info/streamlogs.log"
+
+#   # @param tag_filters - object - optional - default: {}
+#   # @env DD_LOGS_CONFIG_TAG_FILTERS - JSON object - optional - default: {}
+#   # Filter tags from logs before sending them to Datadog. Each pattern must use "key:value"
+#   # syntax. Keys are matched exactly; values may contain "*" to match zero or more characters.
+#   # Matching ignores ASCII letter case. Exclude removes matching tags, while include preserves
+#   # exceptions to exclusions. Per-source filters override global filters. Excluding source,
+#   # service, or host logs a warning because those attributes are sent separately and remain.
+#
+#   tag_filters:
+#     exclude:
+#       - "container_id:*"
+#       - "kube_namespace:*"
+#     include:
+#       # Keep namespace tags for production workloads.
+#       - "kube_namespace:production-*"
+
+#   # @param unreliable_mount - custom object - optional
+#   # Node-wide profile for log files on mounts with stale page-cache or file-handle
+#   # behavior during rotation, such as CIFS/SMB and Azure Files. It selects direct
+#   # fingerprint reads on Linux, smaller fingerprint defaults, a separate
+#   # rotation drain timeout, and a sequential handoff after rotation. Normal log
+#   # tailing keeps buffered reads.
+#
+#   unreliable_mount:
+
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_LOGS_CONFIG_UNRELIABLE_MOUNT_ENABLED - boolean - optional - default: false
+#     # Enable the unreliable-mount profile for all file log sources on this Agent.
+#     # Restart the Agent after changing this setting. On Linux, fingerprint reads
+#     # use O_DIRECT, including when a source overrides the checksum settings.
+#     # Other platforms keep buffered fingerprint reads.
+#     # If no global fingerprint strategy is explicitly set, use line_checksum with
+#     # one line. In line mode, global max_bytes defaults to 4096 unless explicitly
+#     # configured. Explicit checksum settings, including disabled, are preserved.
+#     # Use rotation_drain_timeout in place of close_timeout for rotated files.
+#     # After a rotation detected by fingerprint, the replacement tailer does not
+#     # open the path until the rotated tailer has closed it. The rotated tailer
+#     # stops once its file has gone 30 seconds without new reads, or at
+#     # rotation_drain_timeout. The path is not collected until then, so a file
+#     # rotated away sooner than that after the previous rotation is not read.
+#     # A failed fingerprint prevents a new tailer from starting. An active tailer
+#     # keeps collecting, but cannot check fingerprint rotation until a later read
+#     # succeeds. Failures appear in the Agent log and status; status clears on recovery.
+#     # Linux does not retry a failed direct read using buffered I/O.
+#     # Direct reads fetch the whole fingerprint window on each scan. Scan frequency
+#     # is unchanged; consider raising logs_config.file_scan_period to reduce I/O.
+#
+#     enabled: false
+
+#     # @param rotation_drain_timeout - integer - optional - default: 60
+#     # @env DD_LOGS_CONFIG_UNRELIABLE_MOUNT_ROTATION_DRAIN_TIMEOUT - integer - optional - default: 60
+#     # Maximum seconds a tailer keeps reading a rotated file through its
+#     # already-open descriptor before closing it, used in place of close_timeout
+#     # when unreliable_mount.enabled is true. A rotated file that a replacement
+#     # tailer is waiting on closes earlier, once it has gone 30 seconds without
+#     # new reads. On these mounts a fresh open of the
+#     # path can fail while the open descriptor still drains. Values at or below
+#     # zero use the 60-second default.
+#
+#     rotation_drain_timeout: 60
 
 #############################
 ## DogStatsD Configuration ##
@@ -1629,8 +1846,8 @@ api_key:
 #
 #     evaluation_interval: "30s"
 
-#     # @param range_epsilon - float - optional - default: 0
-#     # @env DD_METRIC_LOOKBACK_MONITOR_RANGE_EPSILON - float - optional - default: 0
+#     # @param range_epsilon - integer - optional - default: 0
+#     # @env DD_METRIC_LOOKBACK_MONITOR_RANGE_EPSILON - integer - optional - default: 0
 #     # Monitor max-minus-min threshold. The Agent fails to start when this value is negative.
 #     # The monitor computes a window range as the maximum retained point value minus the minimum
 #     # retained point value in each completed evaluation window, or in each configured tag partition.
@@ -1780,3 +1997,27 @@ api_key:
 ## of all the goroutines are logged.
 #
 # log_all_goroutines_when_unhealthy: false
+
+## @param security_agent - custom object - optional
+## Settings specific to the security Agent process.
+#
+# security_agent:
+
+#   # @param log_level - string - optional - default: ""
+#   # @env DD_SECURITY_AGENT_LOG_LEVEL - string - optional - default: ""
+#   # Overrides the global `log_level` for the security Agent only.
+#   # Leave empty to use the global `log_level`.
+#
+#   log_level: ""
+
+## @param system_probe - custom object - optional
+## system-probe settings the core Agent owns and streams to system-probe.
+#
+# system_probe:
+
+#   # @param log_level - string - optional - default: ""
+#   # @env DD_SYSTEM_PROBE_LOG_LEVEL - string - optional - default: ""
+#   # Overrides the global `log_level` for system-probe only.
+#   # Leave empty to use the global `log_level`.
+#
+#   log_level: ""

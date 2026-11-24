@@ -4,11 +4,8 @@
     <dict>
         <key>Label</key>
         <string>com.datadoghq.installer</string>
-        <!-- RunAtLoad starts the daemon at boot, with no login session. -->
         <key>RunAtLoad</key>
         <true/>
-        <!-- SuccessfulExit false: a clean exit is respected, so the daemon can exit 0 when
-             remote_updates is off without launchd relaunching it, while a crash is relaunched. -->
         <key>KeepAlive</key>
         <dict>
             <key>SuccessfulExit</key>
@@ -19,8 +16,6 @@
             <key>DD_LOG_TO_CONSOLE</key>
             <string>false</string>
         </dict>
-        <!-- The program is the façade, never the pool: this definition is written by both
-             install paths and must be correct for every version, forever. -->
         <key>ProgramArguments</key>
         <array>
             <string>/opt/datadog-agent/embedded/bin/installer</string>

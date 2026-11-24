@@ -8,15 +8,15 @@ args:
   - '__SECURITY_ETC_ROOT__/security-agent.yaml'
   - --sysprobe-config
   - '__SECURITY_ETC_ROOT__/system-probe.yaml'
-auto_start: false
+# Keep true with SCM suppression: false leaves no security-agent when the legacy service is skipped.
+auto_start: true
 condition_path_exists: '__SECURITY_INSTALL_ROOT__/bin/agent/security-agent.exe'
-# Gate matches the cws dependent service (sysprobeConf). Compliance-only is omitted:
-# Windows does not start datadog-security-agent for that case today.
+# cws Servicedef (sysprobeConf). Compliance-only omitted: Windows does not start SCM for that today.
 condition_config_any:
   - path: '__SECURITY_ETC_ROOT__/system-probe.yaml'
     keys:
       - runtime_security_config.enabled
-# on-failure: security-agent exits 0 when all components are disabled; `always` would respawn.
+# on-failure: disabled security-agent exits 0; `always` would respawn.
 restart: on-failure
 restart_sec: 2
 start_limit_interval_sec: 10

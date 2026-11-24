@@ -71,7 +71,8 @@ func GetHostname(hostname **C.char) {
 //
 //export GetHostTags
 func GetHostTags(hostTags **C.char) {
-	tags := hosttags.Get(context.Background(), true, pkgconfigsetup.Datadog())
+	// Python checks may attach these to metrics: omit infra_mode.
+	tags := hosttags.Get(context.Background(), true, pkgconfigsetup.Datadog(), false)
 	tagsBytes, err := json.Marshal(tags)
 	if err != nil {
 		log.Warnf("Error getting host tags: %v. Invalid tags: %v", err, tags)
@@ -406,6 +407,7 @@ var defaultSQLPlanNormalizeSettings = obfuscate.JSONConfig{
 		"CTE Name",
 		"Custom Plan Provider",
 		"Deforming",
+		"Disabled",
 		"Emission",
 		"Exact Heap Blocks",
 		"Execution Time",
@@ -491,8 +493,8 @@ var defaultSQLPlanNormalizeSettings = obfuscate.JSONConfig{
 	},
 }
 
-// defaultSQLPlanObfuscateSettings builds upon sqlPlanNormalizeSettings by including cost & row estimates in the keep
-// list
+// defaultSQLPlanObfuscateSettings builds upon defaultSQLPlanNormalizeSettings by including cost & row estimates and
+// display-only plan metadata in the keep list without changing normalized plan signatures
 var defaultSQLPlanObfuscateSettings = obfuscate.JSONConfig{
 	Enabled: true,
 	KeepValues: append([]string{
@@ -503,6 +505,8 @@ var defaultSQLPlanObfuscateSettings = obfuscate.JSONConfig{
 		"rows_examined_per_scan",
 		"rows_produced_per_join",
 		// postgres
+		"Inner Unique",
+		"Operation",
 		"Plan Rows",
 		"Plan Width",
 		"Startup Cost",

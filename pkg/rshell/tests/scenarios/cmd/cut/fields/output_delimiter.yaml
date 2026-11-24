@@ -1,0 +1,13 @@
+description: cut --output-delimiter replaces field separator in output.
+setup:
+  files:
+    - path: input.txt
+      content: "a:b:c\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut -d: -f1,2,3 --output-delimiter=' | ' input.txt
+expect:
+  stdout: "a | b | c\n"
+  stderr: ""
+  exit_code: 0

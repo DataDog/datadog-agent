@@ -8,6 +8,7 @@ End-to-End (E2E) tests validate complete user workflows in production-like envir
 - [Writing tests](writing.md) — provisioners, environments, and assertions
 - [Test dependencies](dependencies.md) — how to get a tool, image, or artifact onto a test host without reaching the public internet
 - [Custom AMIs](custom-amis.md) — how machine images are selected, and how to add, bump or pin one
+- [Performance benchmark](benchmarkeks/index.md) — `benchmarkeks`, which compares the resource usage of two Agent versions on EKS
 
 ## Prerequisites
 
@@ -34,6 +35,8 @@ The simplest path is to run E2E tests from a [developer environment](../../../tu
 
 You need access to the `account-admin-8h` role on the `agent-sandbox` AWS account. If `dda inv e2e.setup` (below) reports it can't reach that account, you don't have access yet — ask #agent-devx-help for it; the request process is documented internally on Confluence.
 
+Kubernetes tests also need the `agent-dev` role on the `agent-qa` AWS account, to pull images from the ECR pull-through cache (see [Dependencies](dependencies.md)).
+
 For Azure / GCP tests, pass `--with-azure` / `--with-gcp` when running the setup task (see below).
 
 ### One-time setup
@@ -57,6 +60,17 @@ dda inv e2e.setup --with-azure --with-gcp
 ```
 
 The configuration is persisted to `~/.test_infra_config.yaml` (chmod `0600`, since it contains the auto-generated Pulumi passphrase). Re-running `dda inv e2e.setup` is idempotent — it prints `✓ already configured` checks and exits.
+
+### GCP authentication
+
+Local GCP provisioning uses Application Default Credentials (ADC), configured with
+`gcloud auth application-default login`. GKE access through `gke-gcloud-auth-plugin`
+also requires a valid gcloud CLI login, configured separately with `gcloud auth login`.
+The framework checks the CLI credentials before creating a local GKE cluster and
+returns instructions to log in again if they have expired.
+
+CI supplies a service account key through `GOOGLE_APPLICATION_CREDENTIALS`; the
+framework activates that account for gcloud as before and skips the local CLI check.
 
 ### Workspace support
 The e2e test framework tooling supports being run from Datadog workspaces just like developer laptops. 

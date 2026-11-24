@@ -11,9 +11,9 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -23,6 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/lifecycle"
 	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
+	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
+	serverlessinitmock "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/mock"
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -157,25 +159,86 @@ func TestMicroVM_Run_InitMode_ThreadsChildLiveness(t *testing.T) {
 	}
 	saved := os.Args
 	defer func() { os.Args = saved }()
-	os.Args = []string{"datadog-init", "sh", "-c", "sleep 0.3"}
+	releaseFile := filepath.Join(t.TempDir(), "release")
+	os.Args = []string{"datadog-init", "sh", "-c", `while [ ! -f "$1" ]; do sleep 0.01; done`, "sh", releaseFile}
 
 	child := lifecycle.NewChild()
 	m := &MicroVM{child: child}
 
-	var midRunAlive atomic.Bool
-	probeDone := make(chan struct{})
+	result := make(chan error, 1)
+	// Release and join the subprocess even if the liveness assertion fails,
+	// before restoring os.Args or removing the temporary directory.
+	defer func() {
+		assert.NoError(t, os.WriteFile(releaseFile, nil, 0600))
+		select {
+		case err := <-result:
+			assert.NoError(t, err)
+			assert.False(t, child.IsAlive(), "child must be dead after Run returns")
+		case <-time.After(10 * time.Second):
+			t.Error("timed out waiting for Run to return")
+		}
+	}()
 	go func() {
-		defer close(probeDone)
-		time.Sleep(100 * time.Millisecond)
-		midRunAlive.Store(child.IsAlive())
+		result <- m.Run(mode.Conf{SidecarMode: false}, &serverlessInitLog.Config{})
 	}()
 
-	err := m.Run(mode.Conf{SidecarMode: false}, &serverlessInitLog.Config{})
-	<-probeDone
+	// The child stays alive until released, so polling cannot miss its lifetime.
+	require.Eventually(t, child.IsAlive, 10*time.Second, 10*time.Millisecond,
+		"child must be alive while Run is blocked on the subprocess")
+}
 
-	require.NoError(t, err)
-	assert.True(t, midRunAlive.Load(), "child must be alive while Run is blocked on the subprocess")
-	assert.False(t, child.IsAlive(), "child must be dead after Run returns")
+func TestMicroVMGetMetadata(t *testing.T) {
+	t.Setenv(serverlessenv.MicroVMImageARNEnvVar, testImageARN)
+	m := &MicroVM{}
+	assert.True(t, m.CanCollectMetadata())
+
+	image := serverlessdef.CloudServiceMetadata{
+		WorkloadType:     "aws_lambda_microvm",
+		ParentResourceID: testImageARN,
+		ResourceName:     "my-image",
+		Region:           "us-east-1",
+		AWSAccountID:     "123456789012",
+	}
+	assert.Equal(t, image, m.GetMetadata(), "the resource identity waits for the /run instance ID")
+
+	instanceID := "vm-abc123"
+	m.instanceID.Store(&instanceID)
+	instance := image
+	instance.ResourceID = "vm-abc123"
+	assert.Equal(t, instance, m.GetMetadata())
+}
+
+func TestMicroVMGetMetadataMalformedARN(t *testing.T) {
+	for _, arn := range []string{
+		"",
+		"arn:aws:lambda",
+		"not-an-arn",
+		"arn:aws:lambda:us-east-1:123456789012:function:my-function",
+		"arn:aws:lambda::123456789012:microvm-image:my-image",
+		"arn:aws:lambda:us-east-1::microvm-image:my-image",
+		"arn:aws:lambda:us-east-1:123456789012:microvm-image:",
+	} {
+		t.Run(arn, func(t *testing.T) {
+			t.Setenv(serverlessenv.MicroVMImageARNEnvVar, arn)
+			assert.Equal(t, serverlessdef.CloudServiceMetadata{WorkloadType: "aws_lambda_microvm"}, (&MicroVM{}).GetMetadata(),
+				"a malformed ARN supplies no metadata")
+		})
+	}
+}
+
+func TestMicroVMMetadataReporter(t *testing.T) {
+	m := &MicroVM{}
+	reportedIDs := make(chan string, 2)
+	reporter := m.MetadataReporter(serverlessinitmock.New(t, 2, func() { reportedIDs <- m.GetMetadata().ResourceID }))
+	for _, id := range []string{"vm-A", "vm-B"} {
+		reporter.ReportMetadata(id)
+		select {
+		case reported := <-reportedIDs:
+			assert.Equal(t, id, reported, "the instance ID is stored before the report")
+		case <-time.After(5 * time.Second):
+			t.Fatal("no metadata report")
+		}
+	}
 }
 
 func TestParseMicroVMARNWithColonInName(t *testing.T) {

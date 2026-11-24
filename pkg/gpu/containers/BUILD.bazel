@@ -3,7 +3,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "containers",
-    srcs = ["containers.go"],
+    srcs = [
+        "cdi.go",
+        "containers.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/gpu/containers",
     visibility = ["//visibility:public"],
     deps = select({
@@ -25,7 +28,10 @@ go_library(
 
 dd_agent_go_test(
     name = "containers_test",
-    srcs = ["containers_test.go"],
+    srcs = [
+        "cdi_test.go",
+        "containers_test.go",
+    ],
     embed = [":containers"],
     gotags_sets = [["nvml"]],
     include_default = False,

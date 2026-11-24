@@ -1,0 +1,11 @@
+# -W values below minWait (100ms) are clamped with a stderr warning.
+# DNS fails immediately on the unresolvable host so the test exits fast.
+description: "ping -W with value below minimum emits clamping warning"
+input:
+  script: |+
+    ping -c 1 -W 50ms no-such-host-xyzzy.invalid
+expect:
+  stdout: ""
+  stderr_contains: ["ping: warning: -W 50ms out of range"]
+  exit_code: 1
+skip_assert_against_bash: true

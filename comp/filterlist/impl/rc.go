@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/twmb/murmur3"
 )
 
 type statsdFilterListUpdate struct {
@@ -75,16 +74,14 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 	fl.log.Debugf("onFilterListUpdateCallback received updates: %d", len(updates))
 
 	// special case: we received a response from RC, but RC didn't have any
-	// configuration for this agent, let's restore the local config and return
+	// configuration for this agent, so clear the RC layer and restore from config.
 	if len(updates) == 0 {
 		fl.config.UnsetForSource("metric_filterlist", model.SourceRC)
 		fl.config.UnsetForSource("metric_filterlist_match_prefix", model.SourceRC)
 		fl.config.UnsetForSource("metric_filterlist_prefix", model.SourceRC)
-		fl.config.UnsetForSource("statsd_metric_blocklist", model.SourceRC)
-		fl.config.UnsetForSource("statsd_metric_blocklist_match_prefix", model.SourceRC)
 		fl.config.UnsetForSource("metric_tag_filterlist", model.SourceRC)
-		fl.restoreMetricFilterListFromLocalConfig()
-		fl.restoreTagFilterListFromLocalConfig()
+		fl.restoreMetricFilterListFromConfig()
+		fl.restoreTagFilterListFromConfig()
 		return
 	}
 
@@ -125,9 +122,6 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 	}
 
 	// Exact and prefix-rule lists are separate RC fields; resolve them independently.
-	effectiveNames := fl.localFilterListConfig.metricNames
-	effectiveMatchPrefix := fl.localFilterListConfig.matchPrefix
-
 	metricNames := fl.buildMetricFilterListConfig(metricFilterListUpdates)
 	// RC metric names are exact; per-entry prefixes use metric_filterlist_prefix.
 	metricNames = normalizeMetricNames(metricNames, false, fl.log)
@@ -137,49 +131,33 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 		// in `agent config` calls.
 		fl.config.Set("metric_filterlist", metricNames, model.SourceRC)
 		fl.config.Set("metric_filterlist_match_prefix", false, model.SourceRC)
-		if len(fl.localFilterListConfig.metricNames) > 0 {
-			fl.config.Set("statsd_metric_blocklist", []string{}, model.SourceRC)
-			fl.config.Set("statsd_metric_blocklist_match_prefix", false, model.SourceRC)
-		}
-
-		effectiveNames = metricNames
-		effectiveMatchPrefix = false
 	} else {
 		fl.config.UnsetForSource("metric_filterlist", model.SourceRC)
 		fl.config.UnsetForSource("metric_filterlist_match_prefix", model.SourceRC)
-		fl.config.UnsetForSource("statsd_metric_blocklist", model.SourceRC)
-		fl.config.UnsetForSource("statsd_metric_blocklist_match_prefix", model.SourceRC)
 	}
-
-	effectivePrefixRules := fl.localFilterListConfig.metricPrefixRules
 
 	prefixEntries := fl.buildMetricPrefixListConfig(metricPrefixListUpdates)
 	if len(prefixEntries) > 0 {
 		fl.config.Set("metric_filterlist_prefix", prefixEntries, model.SourceRC)
-
-		effectivePrefixRules = normalizeMetricPrefixList(prefixEntries, fl.log)
 	} else {
 		fl.config.UnsetForSource("metric_filterlist_prefix", model.SourceRC)
 	}
 
-	fl.SetMetricFilterList(effectiveNames, effectiveMatchPrefix, effectivePrefixRules)
+	fl.restoreMetricFilterListFromConfig()
 
-	tags, tagEntries := fl.buildTagFilterListConfig(tagFilterListUpdates)
+	tagEntries := fl.buildTagFilterListConfig(tagFilterListUpdates)
 
-	if len(tags) > 0 {
+	if len(tagEntries) > 0 {
 		// Convert map to slice for config storage
 		// update the runtime config to be consistent
 		// in `agent config` calls.
 		fl.config.Set("metric_tag_filterlist", tagEntries, model.SourceRC)
 
 		// apply this new blocklist to all the running workers
-		fl.setTagFilterList(tagMatcher{
-			MetricTags: tags,
-		})
+		fl.setTagFilterList(loadTagFilterList(tagEntries, fl.log))
 	} else {
-		// special case: if the metric names list is empty, fallback to local
 		fl.config.UnsetForSource("metric_tag_filterlist", model.SourceRC)
-		fl.restoreTagFilterListFromLocalConfig()
+		fl.restoreTagFilterListFromConfig()
 	}
 }
 
@@ -214,47 +192,24 @@ func (*FilterList) buildMetricPrefixListConfig(metricPrefixListUpdates []filtere
 	return prefixEntries
 }
 
-// buildConfig builds the configuration to use.
-// The first result contains the hashed tags that the filterlist uses, second result is the entry with unhashed tags
-// used to override the configuration file entry.
+// buildTagFilterListConfig merges the tag filterlist entries received from RC into one entry per metric name.
 //
 // There is nothing stopping the tags for a given metric name being configured multiple times. Conflicts are handled
 // by the following rules:
 // - If the action is the same for both metrics, the list of tags is merged.
 // - If the action is different, always take the exclude list.
-func (fl *FilterList) buildTagFilterListConfig(tagFilterListUpdates []filteredTags) (map[string]hashedMetricTagList, []MetricTagListEntry) {
-	tags := make(map[string]hashedMetricTagList)
+func (fl *FilterList) buildTagFilterListConfig(tagFilterListUpdates []filteredTags) []MetricTagListEntry {
 	tagEntries := make(map[string]MetricTagListEntry)
 
 	for _, update := range tagFilterListUpdates {
 		for _, metric := range update.ByName.Metrics {
-			currentHashed, ok := tags[metric.Name]
-			currentEntry := tagEntries[metric.Name]
-
-			actionStr := "include"
-			if metric.ExcludeTag {
-				actionStr = "exclude"
-			}
-
-			if ok {
+			if currentEntry, ok := tagEntries[metric.Name]; ok {
 				// Metric has already been defined, merge it.
-				hashed, entry := fl.mergeMetricTagListEntry(metric, currentHashed, currentEntry)
-				tags[metric.Name] = hashed
-				tagEntries[metric.Name] = entry
+				tagEntries[metric.Name] = fl.mergeMetricTagListEntry(metric, currentEntry)
 			} else {
-				hashedTags := hashTags(metric.Tags)
-				var rcAction action
-				if metric.ExcludeTag {
-					rcAction = exclude
-				} else {
-					rcAction = include
-				}
-				tags[metric.Name] = newHashedMetricTagList(rcAction, hashedTags)
-
-				// Store unhashed entry
 				tagEntries[metric.Name] = MetricTagListEntry{
 					MetricName: metric.Name,
-					Action:     actionStr,
+					Action:     tagEntryAction(metric),
 					Tags:       metric.Tags,
 				}
 			}
@@ -266,47 +221,35 @@ func (fl *FilterList) buildTagFilterListConfig(tagFilterListUpdates []filteredTa
 		tagEntriesSlice = append(tagEntriesSlice, entry)
 	}
 
-	return tags, tagEntriesSlice
+	return tagEntriesSlice
+}
+
+func tagEntryAction(metric tagEntry) string {
+	if metric.ExcludeTag {
+		return "exclude"
+	}
+	return "include"
 }
 
 // mergeMetricTagListEntry merges the given metric entry with the current entry.
-// It needs to merge with both the hashed and unhashed variants.
-func (fl *FilterList) mergeMetricTagListEntry(metric tagEntry, currentHashed hashedMetricTagList, currentEntry MetricTagListEntry) (hashedMetricTagList, MetricTagListEntry) {
-	if (currentHashed.action == exclude) == metric.ExcludeTag {
+func (fl *FilterList) mergeMetricTagListEntry(metric tagEntry, currentEntry MetricTagListEntry) MetricTagListEntry {
+	if currentEntry.Action == tagEntryAction(metric) {
 		// Both metrics define the same action so we can just merge the list.
-		currentHashed.tags = append(currentHashed.tags, hashTags(metric.Tags)...)
-		slices.Sort(currentHashed.tags)
-
-		// Merge unhashed tags too
 		currentEntry.Tags = append(currentEntry.Tags, metric.Tags...)
-		return currentHashed, currentEntry
-	} else if currentHashed.action == include {
-		// We always prefer the exclude tag, overwrite the existing config with this one.
-		hashedTags := hashTags(metric.Tags)
+		return currentEntry
+	}
 
-		// Overwrite unhashed entry with exclude
-		hashed := newHashedMetricTagList(exclude, hashedTags)
-
-		entry := MetricTagListEntry{
+	// We always prefer the exclude tag.
+	fl.log.Debugf("tag filterlist configures conflicting tags for metric %v", metric.Name)
+	if currentEntry.Action == "include" {
+		// Overwrite the existing include config with this exclude one.
+		return MetricTagListEntry{
 			MetricName: metric.Name,
 			Action:     "exclude",
 			Tags:       metric.Tags,
 		}
-		fl.log.Debugf("tag filterlist configures conflicting tags for metric %v", metric.Name)
-
-		return hashed, entry
 	}
 
-	// We always prefer the exclude tag, ignore this include tag configuration.
-	fl.log.Debugf("tag filterlist configures conflicting tags for metric %v", metric.Name)
-	return currentHashed, currentEntry
-}
-
-func hashTags(tags []string) []uint64 {
-	hashed := make([]uint64, 0, len(tags))
-	for _, tag := range tags {
-		hashed = append(hashed, murmur3.StringSum64(tag))
-	}
-
-	return hashed
+	// Ignore this include tag configuration.
+	return currentEntry
 }

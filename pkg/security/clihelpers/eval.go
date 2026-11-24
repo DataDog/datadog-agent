@@ -131,7 +131,7 @@ func evalRule(provider rules.PolicyProvider, decoder *json.Decoder, evalArgs Eva
 	}
 
 	if !evalArgs.UseWindowsModel {
-		approvers, _, _, err := ruleSet.GetApprovers(kfilters.GetCapababilities())
+		approvers, _, _, err := ruleSet.GetApprovers(kfilters.Models())
 		if err != nil {
 			report.Error = err
 		} else {

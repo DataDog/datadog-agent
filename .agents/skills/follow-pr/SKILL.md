@@ -1,15 +1,15 @@
 ---
 name: follow-pr
 description: >-
-  Monitor the current PR's GitLab pipeline to completion, then report success, auto-fix, or investigate a failure.
+  Monitor the current PR's GitLab pipeline to completion, then report success, retry, auto-fix, or investigate a failure.
   Use when the user asks to follow, babysit, watch, or wait on a PR/pipeline, or just after pushing to / creating a PR.
-argument-hint: "[<ref> | --pipeline <id>] [--fix-mode autofix|no-autofix|ask] [--max-fix-cycles N] [--policy TEXT]"
+argument-hint: "[<ref> | --pipeline <id>] [--fix-mode autofix|retries|no-autofix|ask] [--max-fix-cycles N] [--policy TEXT]"
 model: sonnet
 ---
 
 # Follow PR
 
-Watch the latest Gitlab CI pipeline for the current PR to a terminal state, report the outcome, and — for failures reliably caused by this PR — autonomously fix and push bounded ones under the resolved autonomy policy while investigating the rest locally.
+Watch the latest Gitlab CI pipeline for the current PR to a terminal state, retry eligible transient failures after triage, and — for failures reliably caused by this PR — autonomously fix and push bounded ones under the resolved autonomy policy while investigating the rest locally.
 
 **Owning team:** `@DataDog/agent-devx`
 
@@ -54,7 +54,7 @@ The script tries every authenticated `gh` account (the PR may live in either the
 
 ## Step 3: Resolve the autonomy policy
 
-Before starting the monitoring loop, resolve how this run should handle failures caused by the PR's own code:
+Before starting the monitoring loop, resolve this run's retry and code-fix permissions:
 
 ```bash
 python3 .agents/skills/follow-pr/scripts/config.py resolve \
@@ -64,10 +64,21 @@ python3 .agents/skills/follow-pr/scripts/config.py resolve \
 Pass through any `--fix-mode`, `--max-fix-cycles`, or policy text given in this invocation; otherwise the script falls back to environment variables, then worktree-local config, then global config, then its own default (`autofix`).
 > If the config ended up resolving using only the default values, suggest the user create a global/local config file with the settings he just chose for future invocations. Check the script contents to get the appropriate paths and formats.
 
-- **Resolved mode is `autofix` or `no-autofix`:** report the resolved mode, cycle budget, and whether a custom policy is active, then continue to [Step 4](#step-4-start-monitoring).
-- **Resolved mode is `ask`, or the script errors:** ask the user directly, before monitoring starts, whether PR-caused failures this run should be fixed and pushed (`autofix`) or only investigated locally (`no-autofix`). Offer to persist the answer (worktree-local or global config) if they don't want to be asked again; otherwise use it for this run only.
+- **Resolved mode is `autofix`, `retries`, or `no-autofix`:** report the resolved mode, cycle budget, and whether a custom policy is active, then continue to [Step 4](#step-4-start-monitoring).
+- **Resolved mode is `ask`, or the script errors:** ask the user directly, before monitoring starts, to choose `autofix`, `retries`, or `no-autofix` for this invocation. Ask again on each invocation that resolves to `ask`. Offer to persist the answer (worktree-local or global config) if they don't want to be asked again; otherwise use it for this run only.
 
-Keep the resolved mode, cycle budget (default `2`), and policy text in context — you'll pass them straight through as `--mode`/`--max-fix-cycles`/`--policy` to subskills that might need it.
+| Mode | Retry eligible jobs | Automatically commit and push safe fixes |
+|---|---|---|
+| `autofix` (default) | Yes | Yes |
+| `retries` | Yes | No |
+| `no-autofix` | No | No |
+| `ask` | Resolve per invocation | Resolve per invocation |
+
+Both `retries` and `no-autofix` permit local investigation and uncommitted candidate edits.
+
+Keep the resolved mode, cycle budget (default `3`), and policy text in context — you'll pass them straight through as `--mode`/`--max-fix-cycles`/`--policy` to subskills that might need it.
+
+`max_fix_cycles` is one shared recovery budget for the entire invocation: **one batch of job retries or one code-fix push consumes one cycle**, regardless of the number of jobs or commits. Keep the counter across replacement pipelines and new job-attempt IDs. GitLab's own automatic retries, triage, monitoring, and unpushed candidate work do not consume it. Once exhausted, continue monitoring the last action and investigating failures, but issue no more retries or code-fix commits/pushes.
 
 ## Step 4: Start monitoring
 
@@ -130,17 +141,27 @@ You may see:
 
 Invoke `/triage-ci-failure` on the pipeline id from the `[FINAL]` line; it returns one `CI triage result` block per failed job.
 
+Choose at most one recovery action per triage pass. In `autofix` mode, process any `pr-code` blocks first and follow Step 9; do not also retry jobs from the old pipeline. Otherwise, collect all eligible `infra`/`flake` jobs into one retry batch before handling the remaining verdicts.
+
 Route each block by its `Blame` field — never by whether `Incident` happens to be `none`, since that value alone doesn't tell you the job wasn't PR-caused:
 
 - **`upstream`:** if `Incident` is active and still breaking, continue to [Step 8](#step-8-watch-an-unresolved-incident) and wait it out. If `stable` or `resolved`, tell the user it's safe to rebase onto `main` and re-run — say plainly that `stable` is a weaker signal than `resolved` (the fix may still be in progress). If no incident is declared at all, say CI looks broken on `main` with nothing declared for it — worth surfacing loudly. Investigation ends here for that job.
-- **`infra` or `flake`:** report the verdict and its suggested action (typically a retry, citing the evidence `/triage-ci-failure` gave you). Investigation ends here for that job.
+- **`infra` or `flake`:** report the verdict and its suggested action (typically a retry, citing the evidence `/triage-ci-failure` gave you). Under `retries` or `autofix`, with shared cycle budget remaining and a terminal failed pipeline, retry the collected jobs as one batch:
+  1. Make sure the job supports being retried: some e2e or KMT jobs provision infra in a separate job and do not support being retried by Gitlab.
+  2. Make sure no new pipeline has been issued for the ref by checking `ddgl pipelines get --ref <ref>`
+  3. Refresh the latest job attempts using `ddgl --no-cache jobs list --pipeline <pipeline-id> --failed --json --no-pager`; select only jobs still failed, not already pending/running. Never retry allowed-to-fail jobs.
+  4. Issue a retry for the affected jobs:
+  ```bash
+  ddgl --yes retry --pipeline <pipeline-id> --job <job-id> [--job <another-id> ...]
+  ```
+  5. Report any retry errors without resubmitting. If at least one retry was accepted, increment the shared cycle count once for the whole batch, record the retried jobs, and return to Step 4 to monitor them, even if other retries were rejected or this consumed the last cycle. Re-triage the fresh outcome before another recovery action. If no retries were accepted, consume no cycle; stop on error, otherwise continue routing the remaining verdicts.
 - **`inconclusive`:** report the evidence and the two most likely readings. Investigation ends here for that job.
 - **`pr-code`:** collect every `pr-code` block from this pipeline. Before invoking the handler, check for repeats against every push made earlier in this same run:
   1. If any `Failure signature` matches one from an earlier push, that fix didn't work — tell `/handle-pr-ci-failure` explicitly that this failure already survived one autonomous attempt, so it treats that root cause as blocked rather than reattempting it as `safe`.
-  2. If the fix-cycle budget is already fully consumed, tell `/handle-pr-ci-failure` it has no push budget left this run, so it should investigate every root cause without committing or pushing, same as `no-autofix`.
+  2. If the shared cycle budget is already fully consumed, tell `/handle-pr-ci-failure` it has no push budget left this run, so it should investigate every root cause without committing or pushing, same as `no-autofix`.
   3. Otherwise, nothing to flag — invoke it normally.
 
-  Either way, invoke `/handle-pr-ci-failure` once with all of this pipeline's `pr-code` blocks together, passing `--mode`/`--max-fix-cycles`/`--policy` set to the values resolved in [Step 3](#step-3-resolve-the-autonomy-policy). Continue to [Step 9](#step-9-decide-whether-to-keep-going) with its result.
+  Either way, invoke `/handle-pr-ci-failure` once with all of this pipeline's `pr-code` blocks together, passing `--mode`/`--max-fix-cycles`/`--policy` set to the values resolved in [Step 3](#step-3-resolve-the-autonomy-policy), plus the cycles already consumed and remaining. Continue to [Step 9](#step-9-decide-whether-to-keep-going) with its result.
 
 ## Step 8: watch an unresolved incident
 
@@ -168,11 +189,11 @@ Once `main` is clean, tell the user it's time to rebase onto `main` and re-run.
 
 Read `/handle-pr-ci-failure`'s result block:
 
-- **`Outcome: pushed`:** record its `Failure signatures` and increment the cycle count — [Step 7](#step-7-follow-up-on-failures) needs both for the repeat/budget checks on the *next* pipeline. Go back to [Step 4](#step-4-start-monitoring) to watch the replacement pipeline at the `Pushed SHA` regardless of whether the budget is now exhausted; you still need to confirm this fix actually worked before you can stop. Return here through Step 7 once it finishes.
+- **`Outcome: pushed`:** record its `Failure signatures` and increment the shared cycle count once for the push — [Step 7](#step-7-follow-up-on-failures) needs both for the repeat/budget checks on the *next* pipeline. Go back to [Step 4](#step-4-start-monitoring) to watch the replacement pipeline at the `Pushed SHA` regardless of whether the budget is now exhausted; you still need to confirm this fix actually worked before you can stop. Return here through Step 7 once it finishes.
 - **`Outcome: committed-not-pushed`:** report the local commit and the remaining complex root cause(s) blocking a push using the [final report](#final-report) template, then stop and let the user decide.
 - **`Outcome: needs-user` or `blocked`:** report the evidence and the specific question `/handle-pr-ci-failure` asked for using the [final report](#final-report) template, then stop.
 
-Every trip back through this loop re-runs `/triage-ci-failure` from scratch on the new pipeline — never reuse an earlier verdict for a different pipeline.
+Every trip back through this loop re-runs `/triage-ci-failure` from scratch, including after retries on the same pipeline — never reuse an earlier verdict for a fresh outcome.
 
 ## Final report
 
@@ -183,7 +204,8 @@ Follow-PR report
 Pipeline: <final pipeline id> (<SHA>)
 Status: succeeded | failed | needs-user
 Fixes pushed: <count> — <commit SHAs, or none>
-Cycles consumed: <N>/<max_fix_cycles>
+Cycles consumed: <N>/<max_fix_cycles> (retry batches: <R>, fix pushes: <F>; N = R + F)
+Job retries: <pipeline/job name: count for each retried job, or none>
 Remaining issues: <summary, or none>
 User decision needed: <question, or none>
 End follow-PR report
@@ -191,6 +213,8 @@ End follow-PR report
 
 ## Examples
 
-- A missed rename breaks a lint job. `/triage-ci-failure` returns one `pr-code` block; `/handle-pr-ci-failure` classifies it `safe`, fixes it, verifies with `dda inv linter.go`, commits, and pushes. Step 9 sees `Outcome: pushed` (cycle 1 of 2), goes back to Step 4, and the replacement pipeline goes green.
+- In `retries` mode, triage confirms five independently rerunnable jobs are flaky. Retry them as one batch, consuming one cycle, then resume monitoring and re-triage. In `no-autofix` mode, only report the recommendation.
+- Two retry batches followed by one code-fix push consume the default budget of three cycles. Monitor the replacement pipeline, but issue no further retries or pushes if it fails again.
+- A missed rename breaks a lint job. `/triage-ci-failure` returns one `pr-code` block; `/handle-pr-ci-failure` classifies it `safe`, fixes it, verifies with `dda inv linter.go`, commits, and pushes. Step 9 sees `Outcome: pushed` (cycle 1 of 3), goes back to Step 4, and the replacement pipeline goes green.
 - A test fails intermittently under `-race`. `/handle-pr-ci-failure` classifies it `complex`, reproduces it locally, tries two distinct hypotheses, and stops with `Outcome: needs-user` and an uncommitted candidate diff — nothing is pushed.
 - A pushed fix's replacement pipeline fails again with the same `Failure signature`. Step 7 recognizes the repeat before invoking the handler, tells it not to reattempt a fix, and it investigates instead — no second push happens.

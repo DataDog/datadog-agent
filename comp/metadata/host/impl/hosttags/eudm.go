@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	"github.com/DataDog/datadog-agent/pkg/gohai/memory"
 	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
@@ -17,17 +18,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const infrastructureModeEndUserDevice = "end_user_device"
-
 // collectEUDMTagsFunc is overridable in tests.
 var collectEUDMTagsFunc = collectEUDMHardwareTags
+
+func getEUDMModeTag() []string {
+	return []string{configUtils.InfraModeTagKey + ":" + configUtils.InfraModeEndUserDevice}
+}
 
 // getEUDMTags returns host tags describing the device when running in
 // end_user_device infrastructure mode. Hardware/OS tags are only collected on
 // macOS and Windows to mirror the hostsysteminfo metadata gate.
 func getEUDMTags() []string {
-	tags := []string{"infra_mode:" + infrastructureModeEndUserDevice}
-	return append(tags, collectEUDMTagsFunc()...)
+	return append(getEUDMModeTag(), collectEUDMTagsFunc()...)
 }
 
 func collectEUDMHardwareTags() []string {

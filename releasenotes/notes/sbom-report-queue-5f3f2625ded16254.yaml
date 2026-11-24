@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    system-probe keeps the latest runtime usage report of each container for
+    the core agent, up to 100 containers, and keeps a report whose send fails
+    for the next connection. Reports were dropped while the core agent was
+    unreachable, and when the stream broke during a send.

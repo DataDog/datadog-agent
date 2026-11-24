@@ -61,7 +61,6 @@ type Installer interface {
 	InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations, decryptedSecrets map[string]string) error
 	RemoveConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
-	ResumeConfigExperiments(ctx context.Context) error
 
 	InstallExtensions(ctx context.Context, url string, extensionList []string) error
 	RemoveExtensions(ctx context.Context, pkg string, extensionList []string) error
@@ -592,16 +591,6 @@ func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string)
 	return i.hooks.PostPromoteConfigExperiment(ctx, pkg)
 }
 
-// ResumeConfigExperiments recovers any configuration experiment left running unsupervised by a
-// prior process of this daemon that did not shut down cleanly (crash, kill, reboot). Called once
-// on daemon startup; a no-op on platforms or packages with no experiment to recover.
-func (i *installerImpl) ResumeConfigExperiments(ctx context.Context) error {
-	i.m.Lock()
-	defer i.m.Unlock()
-
-	return i.hooks.ResumeConfigExperiment(ctx, packageDatadogAgent)
-}
-
 // Purge removes all packages.
 func (i *installerImpl) Purge(ctx context.Context) {
 	i.m.Lock()
@@ -645,7 +634,12 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	//       This is used to prevent the agent from being uninstalled when purge is
 	//       called from within the MSI.
 	if uninstallAgent, ok := os.LookupEnv("DD_NO_AGENT_UNINSTALL"); !ok || strings.ToLower(uninstallAgent) != "true" {
-		err = i.hooks.PreRemove(ctx, packageDatadogAgent, packages.PackageTypeOCI, false)
+		var windowsArgs []string
+		if runtime.GOOS == "windows" {
+			// Keep Fleet hook suppression while requesting complete MSI service cleanup.
+			windowsArgs = []string{"FLEET_PURGE=1"}
+		}
+		err = i.hooks.PreRemove(ctx, packageDatadogAgent, packages.PackageTypeOCI, false, windowsArgs...)
 		if err != nil {
 			log.Warnf("could not remove agent: %v", err)
 		}

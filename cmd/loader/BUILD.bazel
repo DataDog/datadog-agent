@@ -3,9 +3,9 @@
 load("@rules_go//go:def.bzl", "go_library")
 load(
     "@rules_pkg//pkg:mappings.bzl",
-    "pkg_attributes",
-    "pkg_files",
+    "pkg_filegroup",
 )
+load("//bazel/rules/dd_packaging:agent_binary.bzl", "agent_binary_for_package")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
 load("//tasks:build_tags.bzl", "LOADER_TAGS")
 
@@ -19,22 +19,19 @@ exports_files(
     visibility = ["//packages/heroku:__subpackages__"],
 )
 
-pkg_files(
-    name = "trace_loader_all_files",
-    srcs = select({
-        "//packages/agent:linux_default": [
-            ":loader",
-        ],
-        "//packages/agent:linux_fips": [
-            ":loader",
-        ],
-        "@platforms//os:macos": [
-            ":loader",
-        ],
+agent_binary_for_package(
+    name = "loader_binary",
+    prefix = "embedded/bin",
+    target = ":loader",
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],
     }),
-    attributes = pkg_attributes(mode = "755"),
-    prefix = "embedded/bin",
+)
+
+pkg_filegroup(
+    name = "trace_loader_all_files",
+    srcs = [":loader_binary"],
 )
 
 go_library(
@@ -50,6 +47,7 @@ go_library(
         "@rules_go//go/platform:android": [
             "//comp/core/delegatedauth/noop-impl/types",
             "//comp/core/log/def",
+            "//comp/core/schema/noop-impl",
             "//comp/core/secrets/noop-impl/types",
             "//comp/otelcol/otlp/configcheck",
             "//pkg/config/env",
@@ -65,6 +63,7 @@ go_library(
         "@rules_go//go/platform:darwin": [
             "//comp/core/delegatedauth/noop-impl/types",
             "//comp/core/log/def",
+            "//comp/core/schema/noop-impl",
             "//comp/core/secrets/noop-impl/types",
             "//comp/otelcol/otlp/configcheck",
             "//pkg/config/env",
@@ -80,6 +79,7 @@ go_library(
         "@rules_go//go/platform:ios": [
             "//comp/core/delegatedauth/noop-impl/types",
             "//comp/core/log/def",
+            "//comp/core/schema/noop-impl",
             "//comp/core/secrets/noop-impl/types",
             "//comp/otelcol/otlp/configcheck",
             "//pkg/config/env",
@@ -95,6 +95,7 @@ go_library(
         "@rules_go//go/platform:linux": [
             "//comp/core/delegatedauth/noop-impl/types",
             "//comp/core/log/def",
+            "//comp/core/schema/noop-impl",
             "//comp/core/secrets/noop-impl/types",
             "//comp/otelcol/otlp/configcheck",
             "//pkg/config/env",

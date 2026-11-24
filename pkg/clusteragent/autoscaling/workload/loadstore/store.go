@@ -87,13 +87,6 @@ type Store interface {
 // createEntitiesFromPayload is a helper function used for creating entities from the metric payload.
 func createEntitiesFromPayload(payload *gogen.MetricPayload) map[*Entity]*EntityValue {
 	entities := make(map[*Entity]*EntityValue)
-	splitTag := func(tag string) (key string, value string) {
-		splitIndex := strings.Index(tag, ":")
-		if splitIndex < -1 {
-			return "", ""
-		}
-		return tag[:splitIndex], tag[splitIndex+1:]
-	}
 	for _, series := range payload.Series {
 		metricName := series.GetMetric()
 		points := series.GetPoints()
@@ -107,7 +100,10 @@ func createEntitiesFromPayload(payload *gogen.MetricPayload) map[*Entity]*Entity
 			PodOwnerkind: Unsupported,
 		}
 		for _, tag := range tags {
-			k, v := splitTag(tag)
+			k, v, ok := strings.Cut(tag, ":")
+			if !ok {
+				continue
+			}
 			switch k {
 			case "display_container_name":
 				entity.EntityType = ContainerType

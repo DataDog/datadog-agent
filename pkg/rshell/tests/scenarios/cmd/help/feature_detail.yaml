@@ -1,0 +1,23 @@
+description: Help for an rshell feature prints detailed supported and unsupported information.
+skip_assert_against_bash: true
+input:
+  script: |+
+    help variables
+expect:
+  stdout: |+
+    variables - Assignments, expansion, inline env, command substitution; no arrays/arithmetic/advanced params.
+
+    Supported:
+      - VAR=value assignment and expansion with $VAR or ${VAR}.
+      - Inline assignment with VAR=value command, scoped to that command.
+      - $? expands to the previous command's exit code.
+      - Command substitution with $(cmd), legacy backquotes, and $(<file) when cat is allowed; output is capped at 1 MiB.
+
+    Not supported:
+      - Arithmetic expansion: $(( expr )).
+      - Arrays and array assignments.
+      - Append assignment with VAR+=value.
+      - Advanced parameter expansion operations such as ${#var}, defaults, slicing, pattern replacement, indirect expansion, and case conversion.
+      - Positional parameters ($1, $@, $#, $0) and special variables such as $! and $LINENO.
+  stderr: ""
+  exit_code: 0

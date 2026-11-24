@@ -1,0 +1,13 @@
+description: Each level of nested subshells has its own variable scope; mutations do not leak outward.
+input:
+  script: |+
+    a=1
+    (a=2; (a=3; echo $a); echo $a)
+    echo $a
+expect:
+  stdout: |+
+    3
+    2
+    1
+  stderr: ""
+  exit_code: 0

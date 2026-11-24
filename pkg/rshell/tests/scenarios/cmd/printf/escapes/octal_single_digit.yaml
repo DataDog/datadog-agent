@@ -1,0 +1,7 @@
+description: Single octal digit escape in format string.
+input:
+  script: |+
+    printf "\1"
+expect:
+  stdout: "\x01"
+  exit_code: 0

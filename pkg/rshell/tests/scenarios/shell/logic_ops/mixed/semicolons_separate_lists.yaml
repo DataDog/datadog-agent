@@ -1,0 +1,10 @@
+description: Semicolons separate independent and-or lists on the same line.
+input:
+  script: |+
+    false && echo no; true && echo yes; false || echo fallback
+expect:
+  stdout: |+
+    yes
+    fallback
+  stderr: ""
+  exit_code: 0

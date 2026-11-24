@@ -1,0 +1,8 @@
+description: Explicit fd 1 redirect to /dev/null (1>/dev/null).
+input:
+  script: |+
+    echo hello 1>/dev/null
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

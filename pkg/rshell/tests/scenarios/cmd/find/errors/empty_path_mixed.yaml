@@ -1,0 +1,16 @@
+description: find reports error for empty path but still walks valid paths.
+setup:
+  files:
+    - path: dir/file.txt
+      content: "x"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find "" dir -maxdepth 0 -print
+expect:
+  stdout: |+
+    dir
+  stderr: |+
+    find: '': No such file or directory
+  exit_code: 1

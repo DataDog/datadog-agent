@@ -52,6 +52,7 @@ func computeRawsTable() map[string]uint64 {
 		OffsetInodeMtime:                          104,
 		OffsetInodeCtime:                          120,
 		OffsetNameSuperBlockStructSFlags:          80,
+		OffsetNameSignalStructLive:                4,
 		OffsetNameBPFMapStructMapType:             24,
 		OffsetNameBPFProgStructType:               4,
 		OffsetNameBPFProgStructExpectedAttachType: 8,
@@ -78,6 +79,7 @@ func computeRawsTable() map[string]uint64 {
 		OffsetNameVfsmountMntRoot:                 0,
 		OffsetNameDentryDName:                     32,
 		OffsetNameQstrName:                        8,
+		OffsetNameQstrLen:                         4,
 		OffsetNameDentryDParent:                   24,
 		OffsetNameVfsmountMntSb:                   8,
 		OffsetNameSockCommonStructSKCNum:          14,
@@ -101,6 +103,8 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 	return map[string]func(*kernel.Version) uint64{
 		SizeOfInode:                           getSizeOfStructInode,
 		OffsetNameSuperBlockStructSMagic:      getSuperBlockMagicOffset,
+		OffsetNameSignalStructGroupExitCode:   getSignalGroupExitCodeOffset,
+		OffsetNameSignalStructFlags:           getSignalFlagsOffset,
 		OffsetNameSignalStructStructTTY:       getSignalTTYOffset,
 		OffsetNameTTYStructStructName:         getTTYNameOffset,
 		OffsetNameCredStructUID:               getCredsUIDOffset,
@@ -156,6 +160,9 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 		OffsetNameTaskStructTGID:              getTaskStructTGIDOffset,
 		OffsetNameTaskStructThread:            getTaskStructThreadOffset,
 		OffsetNameThreadStructTp:              getThreadStructTpOffset,
+
+		OffsetNameCPUVFSCapDataStructPermitted:   getCPUVFSCapDataPermittedOffset,
+		OffsetNameCPUVFSCapDataStructInheritable: getCPUVFSCapDataInheritableOffset,
 	}
 }
 
@@ -275,6 +282,23 @@ func getNoHzOffset() uint64 {
 	return 8
 }
 
+// 4.19 added the `multiprocess` hlist_head before group_exit_code. Debian PREEMPT_RT kernels
+// have group_exit_code 40 bytes further (4.9, 4.19 and 5.10 in BTFHub).
+func getSignalGroupExitCodeOffset(kv *kernel.Version) uint64 {
+	var offset uint64 = 96
+	if kv.Code != 0 && kv.Code < kernel.Kernel4_19 {
+		offset = 88
+	}
+	if kv.IsDebianKernel() && strings.Contains(kv.UnameRelease, "-rt-") {
+		offset += 40
+	}
+	return offset
+}
+
+func getSignalFlagsOffset(kv *kernel.Version) uint64 {
+	return getSignalGroupExitCodeOffset(kv) + 20
+}
+
 func getSignalTTYOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsRH7Kernel():
@@ -360,6 +384,27 @@ func getCredsUIDOffset(kv *kernel.Version) uint64 {
 
 func getCredCapInheritableOffset(kv *kernel.Version) uint64 {
 	return getCredsUIDOffset(kv) + 36
+}
+
+// Linux 6.3 changed kernel_cap_t to a 64-bit value and moved rootid before the
+// capability masks. BTF/BTFHub remain preferred to handle vendor backports.
+func getCPUVFSCapDataPermittedOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.Code == 0:
+		return 0
+	case kv.Code >= kernel.Kernel6_3:
+		return 8
+	default:
+		return 4
+	}
+}
+
+func getCPUVFSCapDataInheritableOffset(kv *kernel.Version) uint64 {
+	permittedOffset := getCPUVFSCapDataPermittedOffset(kv)
+	if permittedOffset == 0 {
+		return 0
+	}
+	return permittedOffset + 8
 }
 
 func getBpfMapIDOffset(kv *kernel.Version) uint64 {

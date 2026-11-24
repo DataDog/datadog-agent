@@ -460,3 +460,24 @@ func TestMatchesGroupVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestDiscoverCRDResourceKind(t *testing.T) {
+	discovery := &DiscoveryCollector{cache: DiscoveryCache{
+		CollectorForVersion: map[CollectorVersion]struct{}{
+			{GroupVersion: "example.com/v1", Kind: "people"}: {},
+		},
+		Resources: []*v1.APIResourceList{
+			{GroupVersion: "other.com/v1", APIResources: []v1.APIResource{
+				{Name: "people", Kind: "OtherPerson"},
+			}},
+			{GroupVersion: "example.com/v1", APIResources: []v1.APIResource{
+				{Name: "people/status", Kind: "Status"},
+				{Name: "people", Kind: "Person"},
+			}},
+		},
+	}}
+	collector, err := discovery.DiscoverCRDResource("people", "example.com/v1")
+	if assert.NoError(t, err) {
+		assert.Equal(t, "Person", collector.Metadata().Kind)
+	}
+}

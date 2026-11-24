@@ -20,4 +20,6 @@ const (
 	Netflow Integration = "netflow"
 	// NetworkConfigManagement the Network Configuration Management integration
 	NetworkConfigManagement Integration = "network-configuration-management"
+	// Autodiscovery the network device autodiscovery integration
+	Autodiscovery Integration = "autodiscovery"
 )

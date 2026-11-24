@@ -46,19 +46,23 @@ import (
 // The test loops, launching a new process each iteration, until no events
 // contain missing type information — proving the feedback loop converges.
 func TestMissingTypeRecompilation(t *testing.T) {
+	found127 := false
+	for _, cfg := range testprogs.MustGetCommonConfigs(t) {
+		if cfg.GOARCH != runtime.GOARCH ||
+			(!strings.HasPrefix(cfg.GOTOOLCHAIN, "go1.26") && !strings.HasPrefix(cfg.GOTOOLCHAIN, "go1.27")) {
+			continue
+		}
+		found127 = found127 || cfg.GOTOOLCHAIN == "go1.27.3"
+		t.Run(cfg.String(), func(t *testing.T) { testMissingTypeRecompilation(t, cfg) })
+	}
+	require.True(t, found127, "Go 1.27.3 is required in the default fixture matrix")
+}
+
+func testMissingTypeRecompilation(t *testing.T, cfg testprogs.Config) {
 	dyninsttest.SkipIfKernelNotSupported(t)
 	current := goleak.IgnoreCurrent()
 	t.Cleanup(func() { goleak.VerifyNone(t, current) })
 
-	cfgs := testprogs.MustGetCommonConfigs(t)
-
-	// Use the first config that matches our GOARCH.
-	var cfg testprogs.Config
-	cfgIdx := slices.IndexFunc(cfgs, func(c testprogs.Config) bool {
-		return c.GOARCH == runtime.GOARCH && strings.Contains(c.GOTOOLCHAIN, "go1.26")
-	})
-	require.NotEqual(t, -1, cfgIdx, "no config for current arch and go1.26")
-	cfg = cfgs[cfgIdx]
 	bin := testprogs.MustGetBinary(t, "sample", cfg)
 
 	tempDir, cleanup := dyninsttest.PrepTmpDir(t, "dyninst-missing-type-recomp")

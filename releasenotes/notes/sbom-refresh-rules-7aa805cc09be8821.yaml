@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    With CWS, the SBOM of a workload is scanned again when a process that wrote
+    its package database exits for any reason, a signal included, and the apk
+    database under ``/usr/lib/apk/db`` of a merged ``/usr`` is watched too.

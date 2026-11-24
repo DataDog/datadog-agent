@@ -2,17 +2,19 @@
 
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
-load("//packages/agent:defs.bzl", "ETC_DIR_SELECTOR")
+load("//packages/rules:agent_path.bzl", "etc_dir")
 
 pkg_files(
     name = "config_files",
     srcs = [
         "//pkg/config:agent_config",
-        "//pkg/config:system_probe_config",
     ],
     attributes = pkg_attributes(mode = "0644"),
-    prefix = select(ETC_DIR_SELECTOR),
-    visibility = ["//packages/agent:__subpackages__"],
+    prefix = etc_dir(),
+    renames = {
+        "//pkg/config:agent_config": "datadog.yaml.example",
+    },
+    visibility = ["//packages:__subpackages__"],
 )
 
 pkg_filegroup(
@@ -24,10 +26,15 @@ pkg_filegroup(
         "@platforms//os:windows": ["//cmd/agent/dist/protected:all_files"],
         "//conditions:default": [],
     }),
-    visibility = [
-        "//packages/agent:__subpackages__",
-        "//packages/heroku:__subpackages__",
-    ],
+    visibility = ["//packages:__subpackages__"],
+)
+
+pkg_files(
+    name = "dd_agent_stub",
+    srcs = ["dd-agent"],
+    attributes = pkg_attributes(mode = "0755"),
+    prefix = "/usr/bin",
+    visibility = ["//packages:__subpackages__"],
 )
 
 pkg_files(
@@ -36,7 +43,7 @@ pkg_files(
         "config.py",
     ],
     attributes = pkg_attributes(mode = "0644"),
-    prefix = select(ETC_DIR_SELECTOR),
+    prefix = "bin/agent/dist",
 )
 
 pkg_filegroup(
@@ -48,8 +55,7 @@ pkg_filegroup(
     ],
     visibility = [
         "//cmd/agent:__subpackages__",
-        "//packages/agent:__subpackages__",
-        "//packages/heroku:__subpackages__",
+        "//packages:__subpackages__",
     ],
 )
 

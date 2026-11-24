@@ -1,0 +1,14 @@
+# Base datadog.yaml of every scenario: the scenario configuration is appended to it.
+# It's a text/template: RunPath is a temporary directory and IntakeURL is the in-process fakeintake. Both are written
+# as double-quoted strings escaped by printf "%q", so any path, Windows backslashes included, is kept as-is.
+api_key: "0000001"
+# the loader would otherwise set HOST_ETC process-wide when /host/etc exists, as on a containerized runner
+ignore_host_etc: true
+run_path: {{printf "%q" .RunPath}}
+health_platform:
+  enabled: true
+  # the issues are persisted under run_path, even when the test runs on Kubernetes
+  persist_on_kubernetes: true
+  forwarder:
+    dd_url: {{printf "%q" .IntakeURL}}
+    interval: 100ms

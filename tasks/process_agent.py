@@ -41,15 +41,13 @@ def build(
     flavor = AgentFlavor[flavor]
 
     if enable_bazel:
-        bazel_args = [f"--//packages/agent:flavor={flavor.name}"]
         if race:
             raise NotImplementedError("--enable-bazel does not support --race.")
         if build_include is not None or build_exclude is not None:
             raise NotImplementedError("--enable-bazel does not support --build-include/--build-exclude.")
         if install_path is not None:
             raise NotImplementedError("--enable-bazel does not support --install-path.")
-
-        build_binary_with_bazel(BAZEL_TARGET, args=bazel_args, bin_path=BIN_PATH)
+        build_binary_with_bazel(BAZEL_TARGET, bin_path=BIN_PATH, fips_backend=flavor.fips_backend())
         return
 
     ldflags, gcflags, env = get_build_flags(
@@ -59,13 +57,14 @@ def build(
 
     # generate windows resources
     if sys.platform == 'win32':
-        build_messagetable(ctx)
+        build_messagetable(ctx, fips_backend=flavor.fips_backend())
         vars = versioninfo_vars(ctx)
         build_rc(
             ctx,
             "cmd/process-agent/windows_resources/process-agent.rc",
             vars=vars,
             out="cmd/process-agent/rsrc.syso",
+            fips_backend=flavor.fips_backend(),
         )
 
     goenv = {}
@@ -95,6 +94,7 @@ def build(
         env=env,
         check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
         coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
+        fips_backend=flavor.fips_backend(),
     )
 
 

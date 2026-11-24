@@ -9,6 +9,9 @@ package procfs
 
 import (
 	"context"
+	"errors"
+	"io/fs"
+	"os"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -45,13 +48,26 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 	scanPath, err := getPath(request)
 	if err != nil {
 		return sbom.ScanResult{
-			Error: err,
+			RequestID: request.ID(),
+			Error:     err,
 		}
 	}
 
-	report, err := c.trivyCollector.ScanFilesystem(ctx, scanPath, c.opts, true)
+	return c.scanRoot(ctx, request.ID(), scanPath)
+}
+
+// scanRoot scans root, the root filesystem of the container with id. It
+// returns ErrNotFound when root went away during the scan, which reads a
+// missing root as an empty filesystem.
+func (c *Collector) scanRoot(ctx context.Context, id, root string) sbom.ScanResult {
+	report, err := c.trivyCollector.ScanFilesystem(ctx, root, c.opts, true)
+	if err == nil {
+		if _, statErr := os.Stat(root); errors.Is(statErr, fs.ErrNotExist) {
+			return sbom.ScanResult{RequestID: id, Error: ErrNotFound}
+		}
+	}
 	return sbom.ScanResult{
-		RequestID:        request.ID(),
+		RequestID:        id,
 		Error:            err,
 		Report:           report,
 		GenerationMethod: "filesystem",

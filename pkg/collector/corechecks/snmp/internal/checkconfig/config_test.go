@@ -1183,6 +1183,27 @@ community_string: "abc"
 	assert.EqualError(t, err, "namespace cannot be empty")
 }
 
+func Test_buildConfig_inventoryID(t *testing.T) {
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+inventory_id: 3f1c9a2e-8b47-4d6a-9e05-7c2d1b8a4f60
+`)
+	conf, err := NewCheckConfig(rawInstanceConfig, []byte(``), nil)
+	require.NoError(t, err)
+	assert.Equal(t, "3f1c9a2e-8b47-4d6a-9e05-7c2d1b8a4f60", conf.InventoryID)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	conf, err = NewCheckConfig(rawInstanceConfig, []byte(``), nil)
+	require.NoError(t, err)
+	assert.Empty(t, conf.InventoryID)
+}
+
 func Test_buildConfig_UseDeviceIDAsHostname(t *testing.T) {
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -1825,6 +1846,7 @@ func TestCheckConfig_Copy(t *testing.T) {
 	config := CheckConfig{
 		Network:         "127.0.0.0/30",
 		IPAddress:       "127.0.0.5",
+		InventoryID:     "3f1c9a2e-8b47-4d6a-9e05-7c2d1b8a4f60",
 		Port:            161,
 		CommunityString: "public",
 		SnmpVersion:     "2",

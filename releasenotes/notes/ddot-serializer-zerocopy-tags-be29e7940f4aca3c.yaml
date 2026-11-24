@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    OTel Agent: the OTLP metrics path no longer allocates a tag slice per metric point.
+    The serializer's tag container already holds two slices, so the exporter's configured
+    extra tags and the per-point tags are now handed to it directly instead of being
+    concatenated into a new slice for every point. The tags on the emitted payloads are
+    unchanged, in the same order as before.

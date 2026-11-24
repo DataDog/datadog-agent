@@ -1,0 +1,18 @@
+# skip: allowed_commands is rshell-specific sandbox behaviour with no bash equivalent.
+skip_assert_against_bash: true
+description: Command names produced by variable expansion and command substitution remain gated by allowed_commands.
+input:
+  allowed_commands:
+    - rshell:echo
+  script: |+
+    C=cat
+    $C /dev/null
+    $(echo cat) /dev/null
+    echo after
+expect:
+  stdout: |+
+    after
+  stderr: |+
+    rshell: cat: command not allowed
+    rshell: cat: command not allowed
+  exit_code: 0

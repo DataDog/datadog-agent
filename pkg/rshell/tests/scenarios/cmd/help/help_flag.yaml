@@ -1,0 +1,11 @@
+description: Help --help prints usage.
+skip_assert_against_bash: true
+input:
+  script: |+
+    help --help
+expect:
+  stdout: |+
+    Usage: help [--all] [feature|command]
+    Display help for rshell features and commands.
+  stderr: ""
+  exit_code: 0

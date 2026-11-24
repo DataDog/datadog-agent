@@ -1,0 +1,12 @@
+# skip: rshell reports different error format than bash for unavailable commands
+skip_assert_against_bash: true
+description: The python command is not a builtin and is rejected as unknown.
+input:
+  script: |+
+    python -c "print('hello')"
+expect:
+  stdout: ""
+  stderr: |+
+    rshell: python: unknown command
+    Run 'help' to see available commands.
+  exit_code: 127

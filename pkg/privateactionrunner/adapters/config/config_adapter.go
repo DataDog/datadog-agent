@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/httpdomain"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/gobwas/glob"
@@ -21,8 +22,9 @@ import (
 )
 
 type Config struct {
-	ActionsAllowlist                   map[string]sets.Set[string] // map of allowed bundle IDs to a set of allowed action names
+	ActionsAllowlist                   ActionsAllowlist
 	Allowlist                          []string
+	DomainAllowlist                    []string
 	AllowIMDSEndpoint                  bool
 	KubernetesAllowedCustomResources   []string
 	RShellAllowedPaths                 []string
@@ -34,8 +36,7 @@ type Config struct {
 	RShellPrivilegedElevatableCommands []string
 	RShellAllowedCommandsConfigured    bool
 	RShellAllowedPathsConfigured       bool
-	DDHost                             string
-	DDApiHost                          string
+	APIBaseURL                         string
 	Modes                              []modes.Mode
 	OrgId                              int64
 	PrivateKey                         *ecdsa.PrivateKey
@@ -77,7 +78,15 @@ type Config struct {
 }
 
 func (c *Config) IsActionAllowed(bundleId, actionName string) bool {
-	if c.ActionsAllowlist[bundleId].Has(actionName) {
+	return c.ActionsAllowlist.IsActionAllowed(bundleId, actionName)
+}
+
+// ActionsAllowlist maps bundle IDs to allowed action names, including wildcards.
+type ActionsAllowlist map[string]sets.Set[string]
+
+// IsActionAllowed matches exact actions and integration/sub-bundle wildcards.
+func (a ActionsAllowlist) IsActionAllowed(bundleId, actionName string) bool {
+	if a[bundleId].Has(actionName) {
 		return true
 	}
 
@@ -93,7 +102,7 @@ func (c *Config) IsActionAllowed(bundleId, actionName string) bool {
 		}
 	}
 	for len(parts) >= 3 {
-		if c.ActionsAllowlist[strings.Join(parts, ".")].Has("*") {
+		if a[strings.Join(parts, ".")].Has("*") {
 			return true
 		}
 		parts = parts[:len(parts)-1]
@@ -133,6 +142,16 @@ func (c *Config) IsURLInAllowlist(urlStr string) bool {
 	}
 
 	return false
+}
+
+// IsDomainAllowed reports whether hostname equals an entry of DomainAllowlist or
+// is a subdomain of a *.domain entry, comparing the ASCII form net/http dials.
+// A nil DomainAllowlist allows every domain.
+func (c *Config) IsDomainAllowed(hostname string) bool {
+	if c.DomainAllowlist == nil {
+		return true
+	}
+	return httpdomain.AllowsHost(c.DomainAllowlist, hostname)
 }
 
 func (c *Config) IdentityIsIncomplete() bool {

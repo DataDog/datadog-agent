@@ -363,7 +363,7 @@ namespace Datadog.CustomActions
             return yaml;
         }
 
-        private static ActionResult WriteConfig(ISession session)
+        internal static ActionResult WriteConfig(ISession session)
         {
             var configFolder = session.Property("APPLICATIONDATADIRECTORY");
             try
@@ -376,6 +376,7 @@ namespace Datadog.CustomActions
                             "system-probe.yaml",
                             "security-agent.yaml",
                             "apm-inject.yaml",
+                            Path.Combine("private-action-runner", "powershell-script-config.yaml"),
                             Path.Combine("conf.d", "win32_event_log.d", "profiles", "dd_security_events_high.yaml"),
                             Path.Combine("conf.d", "win32_event_log.d", "profiles", "dd_security_events_low.yaml"),
                         }

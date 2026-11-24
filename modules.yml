@@ -62,6 +62,10 @@ modules:
   comp/core/log/impl-trace: default
   comp/core/log/mock:
     used_by_otel: true
+  comp/core/schema/def:
+    used_by_otel: true
+  comp/core/schema/noop-impl:
+    used_by_otel: true
   comp/core/secrets/def:
     used_by_otel: true
   comp/core/secrets/fx:
@@ -157,10 +161,10 @@ modules:
     used_by_otel: true
   comp/trace/compression/impl-zstd:
     used_by_otel: true
-  internal/qbranch/anomalydetection-scorer:
+  internal/anomalydetection/scorer:
     independent: false
     should_test_condition: never
-  internal/qbranch/anomalydetection-testbench:
+  internal/anomalydetection/testbench:
     independent: false
     should_test_condition: never
   internal/tools:
@@ -208,11 +212,16 @@ modules:
   pkg/config/nodetreemodel:
     used_by_otel: true
   pkg/config/remote: default
-  pkg/config/schema: default
+  pkg/config/schema:
+    used_by_otel: true
   pkg/config/setup:
     used_by_otel: true
   pkg/config/setup/constants:
     used_by_otel: true
+  pkg/config/setup/generatedsettings:
+    should_test_condition: never
+    used_by_otel: true
+    workspace_path: pkg/config/setup/generatedsettings_local
   pkg/config/structure:
     used_by_otel: true
   pkg/config/utils:
@@ -274,7 +283,9 @@ modules:
     used_by_otel: true
   pkg/remoteflags:
     used_by_otel: true
-  pkg/security/resolvers/process/testdata: ignored
+  pkg/rshell:
+    should_test_condition: not_aix
+  pkg/security/golabels/testdata: ignored
   pkg/security/secl: default
   pkg/security/seclwin:
     should_test_condition: never

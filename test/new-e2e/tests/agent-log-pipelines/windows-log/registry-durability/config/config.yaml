@@ -1,0 +1,6 @@
+logs:
+  - type: file
+    path: 'C:\logs\registry-durability.log'
+    service: registry-durability
+    source: e2e
+    start_position: beginning

@@ -1,0 +1,13 @@
+description: sort works correctly in a pipeline.
+setup:
+  files:
+    - path: file.txt
+      content: "banana\napple\ncherry\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat file.txt | sort
+expect:
+  stdout: "apple\nbanana\ncherry\n"
+  stderr: ""
+  exit_code: 0

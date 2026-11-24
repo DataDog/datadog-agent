@@ -12,7 +12,7 @@ Review the [supported environments](../README.md#supported-environments) before 
 
 Before deploying, make sure you have:
 
-- [OpenTelemetry Operator](https://opentelemetry.io/docs/kubernetes/operator/) installed.
+- [OpenTelemetry Operator](https://opentelemetry.io/docs/kubernetes/operator/) version **0.142.0** or later.
 - A namespace for the Host Profiler. You can reuse an existing namespace or create a dedicated one.
 - A Datadog API key available to the Collector as `DD_API_KEY`.
 
@@ -35,6 +35,7 @@ Before deploying, update the provided manifests for your environment:
    - To use another Datadog container registry, replace the `registry.datadoghq.com` prefix in the Host Profiler image with your preferred registry prefix. See [Changing your container registry](https://docs.datadoghq.com/containers/guide/changing_container_registry/).
    - Review the resource requests and limits under `spec.resources`. For expected overhead, default limits, and tuning guidance, see [Overhead and resource usage](../faq.md#what-overhead-should-i-expect).
    - Review the OpenTelemetry Collector configuration under `spec.config`. Adapt it like any other [OpenTelemetry Collector configuration](https://opentelemetry.io/docs/collector/configuration/).
+   - To tag profiles by cluster, see [Cluster name](#cluster-name).
 
 3. Choose a network policy manifest:
    - If your cluster enforces Kubernetes NetworkPolicy, use [`operator/network-policy.yaml`](operator/network-policy.yaml) by default.
@@ -42,6 +43,12 @@ Before deploying, update the provided manifests for your environment:
    - If you change the namespace or `OpenTelemetryCollector` name, update the policy metadata and pod selectors.
 
 If your cluster does not enforce NetworkPolicy resources, these manifests do not restrict egress; use your cluster's supported network controls instead.
+
+## Kubernetes cluster name
+
+In [`operator/collector.yaml`](operator/collector.yaml), uncomment the detector and its config. For an explicit name, uncomment `env` and `OTEL_RESOURCE_ATTRIBUTES` in `spec.env`.
+
+Cloud detector requirements vary by provider. See the [OpenTelemetry resource detection docs](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/resourcedetectionprocessor/README.md#supported-detectors) to enable one.
 
 ## Collector health metrics
 
@@ -74,6 +81,18 @@ After you apply the manifests, the OpenTelemetry Operator reconciles the Custom 
 
 After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
 
+## Running as non-root (optional)
+
+By default, the Host Profiler container runs as root. To run it as a non-privileged user (UID/GID `100`) instead, add `runAsUser`, `runAsGroup`, and `runAsNonRoot` to the `securityContext` in [`operator/collector.yaml`](operator/collector.yaml):
+
+```yaml
+securityContext:
+  # ... existing fields ...
+  runAsUser: 100
+  runAsGroup: 100
+  runAsNonRoot: true
+```
+
 ## AppArmor (optional)
 
 AppArmor provides extra hardening on Linux distributions and Kubernetes clusters where AppArmor is available. The Host Profiler does not require AppArmor to run.
@@ -91,3 +110,9 @@ securityContext:
 ```
 
 The provided profile limits what the Host Profiler container can execute. It allows `objcopy`, which is used for debug symbol extraction.
+
+## Partial deployment (optional)
+
+To run the Host Profiler on selected Linux nodes, add the labels that identify those nodes to `spec.nodeSelector` in [`operator/collector.yaml`](operator/collector.yaml). Keep `kubernetes.io/os: linux`. For more complex rules, use [required node affinity](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity) under `spec.affinity.nodeAffinity`. If taints block scheduling, add matching [tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/) under `spec.tolerations`.
+
+After rollout, verify that every intended node runs a Collector pod and that no Collector pods run on other nodes.

@@ -12,102 +12,68 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
+	"slices"
+	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/processmanager"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-// watchConfigExperimentCommand is the package-command name the detached watcher process runs,
-// dispatched through runDatadogAgentPackageCommand (see packages_darwin.go's packageCommands).
-const watchConfigExperimentCommand = "watchConfigExperiment"
-
 var datadogAgentPackage = hooks{
-	preInstall:  preInstallDatadogAgent,
-	postInstall: postInstallDatadogAgent,
 	preRemove:   preRemoveDatadogAgent,
-
-	preStartExperiment:   preStartExperimentDatadogAgent,
-	prePromoteExperiment: prePromoteExperimentDatadogAgent,
-
-	postStartConfigExperiment:   postStartConfigExperimentDatadogAgent,
-	preStopConfigExperiment:     preStopConfigExperimentDatadogAgent,
-	postPromoteConfigExperiment: postPromoteConfigExperimentDatadogAgent,
-	resumeConfigExperiment:      resumeConfigExperimentDatadogAgent,
+	postInstall: postInstallDatadogAgent,
 }
 
-const (
-	// convenienceLinkDir is where the user-facing commands live. /usr/local/bin rather than
-	// /usr/bin: /usr/bin is on the read-only system volume and cannot be written to.
-	convenienceLinkDir = "/usr/local/bin"
-)
+// datadogAgentLaunchdJobs are the launchd jobs of the Agent package, in the shape of
+// datadogAgentService on Linux.
+type datadogAgentLaunchdJobs struct {
+	// LaunchdMainJobStable is the core Agent's job.
+	LaunchdMainJobStable string
+	// LaunchdJobsStable are the jobs that run normally, in the order they are loaded.
+	LaunchdJobsStable []string
+}
 
-// agentLayout is where the hooks find what they manage on disk. The .dmg's preinstall and
-// postinstall scripts create the account and the install root's directories, with their
-// ownership, modes and access control lists, so the hooks never do.
+// agentLaunchdJobs are the jobs the Agent package installs.
 //
-// It is parameterised on its roots so the tests can run against temporary directories as an
-// unprivileged user. Production always uses defaultAgentLayout.
-type agentLayout struct {
-	// installRoot is the single root everything the Agent owns lives under: the binaries
-	// alongside etc, etc-exp, run and logs. Created once, preserved across every upgrade.
-	installRoot string
-	// linkDir is where the convenience commands are linked from.
-	linkDir string
-	// packagesRoot is the root of the OCI package repositories the shared installer code keeps.
-	// It sits outside the install root, and macOS stores nothing of its own there.
-	packagesRoot string
+// The process manager is loaded first, so it is up before the processes it will supervise. It
+// is a stable job only: unlike on Linux, it will get no experiment variant, since a configuration
+// experiment swaps the Agent's own jobs, not the daemon that supervises them.
+//
+// The root installer daemon is loaded last, once the Agent it reports on is up.
+var agentLaunchdJobs = datadogAgentLaunchdJobs{
+	LaunchdMainJobStable: "com.datadoghq.agent",
+	LaunchdJobsStable: []string{
+		procmgrLabel,
+		"com.datadoghq.agent",
+		"com.datadoghq.sysprobe",
+		"com.datadoghq.data-plane",
+		"com.datadoghq.installer",
+	},
 }
 
-var defaultAgentLayout = agentLayout{
-	installRoot:  filepath.Dir(paths.AgentConfigDir),
-	linkDir:      convenienceLinkDir,
-	packagesRoot: paths.PackagesPath,
-}
+const procmgrLabel = "com.datadoghq.procmgr"
 
-// convenienceLinks are the user-facing commands the .dmg links. They name the install root, which
-// is the same address for the life of the machine, so they never need updating.
-func (l agentLayout) convenienceLinks() map[string]string {
-	return map[string]string{
-		filepath.Join(l.linkDir, "datadog-agent"):     filepath.Join(l.installRoot, "bin", "agent", "agent"),
-		filepath.Join(l.linkDir, "datadog-installer"): filepath.Join(l.installRoot, "embedded", "bin", "installer"),
-	}
-}
+// ensureInstallerDataDir creates the installer's root-owned state directories. Indirected so the
+// hook tests can run unprivileged.
+var ensureInstallerDataDir = paths.EnsureInstallerDataDir
 
-// agentJobs are the launchd jobs that are defined in both variants, in the order they are loaded.
-// These are the jobs a configuration experiment swaps.
-var agentJobs = []string{
-	"com.datadoghq.agent",
-	"com.datadoghq.sysprobe",
-	"com.datadoghq.data-plane",
-}
+// packagesRoot is the root of the package repositories the shared installer code keeps.
+// Indirected so the hook tests can run against a temporary directory.
+var packagesRoot = paths.PackagesPath
 
-// installerJob is the daemon that drives experiments. It has no experiment variant: the process
-// that starts and stops an experiment cannot be part of the set it swaps, or it would stop itself
-// halfway through.
-const installerJob = "com.datadoghq.installer"
-
-// stableJobs are the launchd jobs that run normally, in the order they are loaded.
-var stableJobs = append(append([]string{}, agentJobs...), installerJob)
-
-// experimentJobs are the jobs an experiment runs under, by full label.
-var experimentJobs = experimentLabels()
-
-func experimentLabels() []string {
-	labels := make([]string, 0, len(agentJobs))
-	for _, label := range agentJobs {
-		labels = append(labels, label+string(launchd.Experiment))
-	}
-	return labels
+// agentUserExists reports whether the Agent's account exists. Indirected so the hook tests do not
+// depend on the account of the machine they run on.
+var agentUserExists = func() bool {
+	_, err := user.Lookup(agentUser)
+	return err == nil
 }
 
 // launchdClient and launchdJobDir are indirected so the hook tests can run without launchd.
@@ -116,98 +82,178 @@ var (
 	launchdJobDir = launchd.System.Dir()
 )
 
-// agentJobSet is the swappable set, in the system domain. It excludes the installer daemon.
-func agentJobSet() launchd.JobSet {
-	return launchd.JobSet{Labels: agentJobs, Dir: launchdJobDir, Client: launchdClient()}
-}
+// Indirected so the hook tests never touch the real install root.
+var (
+	writeProcmgrCatalog  = processmanager.WriteDarwinProcmgrCatalog
+	removeProcmgrCatalog = processmanager.RemoveDarwinProcmgrCatalog
+)
 
-// stableJob returns the job definition record for a label in the system domain.
-func stableJob(label string) launchd.Job {
-	return launchd.Job{
-		Label:     label,
-		PlistPath: filepath.Join(launchdJobDir, label+".plist"),
-		Domain:    launchd.System,
-	}
-}
-
-// registerPackageRepository registers the Agent in the OCI package repository the shared installer
-// code keeps for every package.
+// installStableJobs writes and loads the stable launchd job set from the embedded definitions.
 //
-// macOS installs the Agent from a .dmg rather than from an OCI package, so nothing else on this
-// platform ever creates that repository -- but the shared code reads it unconditionally.
-// InstallConfigExperiment cleans the package repository before it writes the configuration
-// experiment, so on a host without one the read fails with ENOENT and no configuration experiment
-// can start at all.
-//
-// The version directory the links resolve to is a placeholder. macOS keeps no versioned package
-// pool: the files the entry stands for live in the install root, and are replaced there by the
-// next .dmg rather than installed alongside. What the shared code needs is a repository whose
-// stable and experiment links resolve, which is what this creates.
-//
-// The version it is registered under is not a placeholder, though: it is what Fleet Automation
-// reads as the host's stable version and health-checks the running Agent against, so it has to
-// name the Agent actually installed -- see registeredVersion -- and has to move forward when a
-// .dmg replaces that Agent.
-func registerPackageRepository(ctx HookContext, layout agentLayout) (err error) {
-	span, ctx := ctx.StartSpan("register_package_repository")
+// Every job is loaded even if an earlier one fails: the jobs do not depend on one another to load,
+// and one that fails must not also leave the others stopped.
+func installStableJobs(ctx HookContext) (err error) {
+	span, ctx := ctx.StartSpan("install_stable_jobs")
 	defer func() {
 		span.Finish(err)
 	}()
 
-	if err = os.MkdirAll(layout.packagesRoot, 0755); err != nil {
-		return fmt.Errorf("failed to create %s: %w", layout.packagesRoot, err)
+	client := launchdClient()
+	var errs []error
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
+		if err := loadStableJob(ctx, client, label); err != nil {
+			errs = append(errs, err)
+		}
 	}
-	repositories := repository.NewRepositories(layout.packagesRoot, AsyncPreRemoveHooks)
+	return errors.Join(errs...)
+}
 
-	state, err := repositories.GetState(ctx.Package)
+// loadStableJob writes one stable job definition from the embedded copy and loads it.
+func loadStableJob(ctx context.Context, client *launchd.Client, label string) error {
+	definition, err := embedded.GetLaunchdJob(label)
 	if err != nil {
-		return fmt.Errorf("failed to read the %s package state: %w", ctx.Package, err)
+		return fmt.Errorf("failed to read job definition %s: %w", label, err)
 	}
-	if state.HasStable() {
-		isPlaceholder, err := stableIsPlaceholder(repositories, ctx.Package)
-		if err != nil {
-			return err
-		}
-		// A real package is left alone. Repository.Create removes whatever it finds before
-		// writing, so re-registering would discard it: once the Agent can be installed from an OCI
-		// package, doInstall has registered that package and pointed stable at it before the
-		// wrapped .pkg runs -- and the .pkg's postinstall script is the same one a .dmg install
-		// runs, so it reaches this code with the real package already in place. Its version is the
-		// one the Agent underneath reports anyway, so there is nothing to refresh.
-		if !isPlaceholder {
-			return nil
-		}
-		// A placeholder this function registered on an earlier .dmg install. The .dmg replaces the
-		// Agent in the install root without touching this entry, so after an upgrade it still
-		// names the version installed first while the binaries it stands for are newer. The entry
-		// is what Fleet Automation health-checks the host against, so it has to move forward with
-		// the Agent: fall through and register it again under the current version.
-		if state.Stable == registeredVersion() {
-			return nil
-		}
+	job := launchd.Job{Label: label, Dir: launchdJobDir}
+	// Unload before rewriting so the new definition is the one launchd runs: launchd caches the
+	// definition it loaded, and bootstrapping over a loaded job is a no-op. If the job can't be
+	// unloaded, leave its file untouched and fail: the file then still matches what launchd runs,
+	// and the failed install says the new definition is not in use.
+	if err := client.Bootout(ctx, label); err != nil {
+		return fmt.Errorf("failed to unload %s before reloading it: %w", label, err)
 	}
-
-	// Create wants a source directory to move in as the version, and takes ownership of it. An
-	// empty one stands in for the package pool this platform does not have.
-	placeholder, err := repositories.MkdirTemp()
-	if err != nil {
-		return fmt.Errorf("failed to create the placeholder package directory: %w", err)
+	if err := job.Write(definition); err != nil {
+		return fmt.Errorf("failed to write job definition %s: %w", label, err)
 	}
-	// Only reached if Create failed before moving it.
-	defer os.RemoveAll(placeholder)
-
-	if err = repositories.Create(ctx, ctx.Package, registeredVersion(), placeholder); err != nil {
-		return fmt.Errorf("failed to register %s as a package: %w", ctx.Package, err)
+	// A persistent disabled override prevents bootstrap, not just process startup.
+	if err := client.Enable(ctx, label); err != nil {
+		return fmt.Errorf("failed to enable %s: %w", label, err)
+	}
+	// Every job sets RunAtLoad, so bootstrapping it starts it. It is not kickstarted on top: a job
+	// launchd cannot spawn, for instance one whose account is missing, would block that call.
+	if err := client.Bootstrap(ctx, job); err != nil {
+		return fmt.Errorf("failed to load %s: %w", label, err)
 	}
 	return nil
 }
 
-// registeredVersion is the version the placeholder package entry is registered under.
+// postInstallDatadogAgent loads the stable job set.
+//
+// The Agent reaches macOS as a .dmg, so that is the only package type it handles.
+func postInstallDatadogAgent(ctx HookContext) error {
+	switch ctx.PackageType {
+	case PackageTypeDMG:
+		return postInstallDMG(ctx)
+	default:
+		return fmt.Errorf("unsupported package type for %s on macOS: %s", ctx.Package, ctx.PackageType)
+	}
+}
+
+// postInstallDMG is the post-install the .dmg's postinstall script delegates to
+// `installer postinst datadog-agent dmg`: setting up the account, directories, configuration,
+// application and links (setUpDMGInstall), writing the processes.d catalog, registering the Agent
+// as a package, loading the stable job set, and installing the GUI LaunchAgents (startDMGGUI). If
+// it fails, the script fails the install. The catalog is written first, so dd-procmgrd reads it
+// when its job loads. A catalog write error is only logged.
+//
+// Every step runs even if an earlier one fails, and in this order so the installer daemon finds its
+// directories and the package registered when it starts: a failed registration only leaves Fleet
+// without the Agent's version, and must not also leave the Agent stopped.
+func postInstallDMG(ctx HookContext) error {
+	var errs []error
+	env := readInstallEnv(defaultDmgLayout)
+	if err := setUpDMGInstall(ctx, defaultDmgLayout); err != nil {
+		errs = append(errs, err)
+	}
+	if err := writeProcmgrCatalog(defaultDmgLayout.installDir); err != nil {
+		log.Warnf("failed to write the processes.d catalog: %v", err)
+	}
+	// The packages root holds the package entry the installer daemon reports the Agent from, and
+	// only root may write to it. Create it, or repair it, before the entry is registered below.
+	if err := ensureInstallerDataDir(); err != nil {
+		errs = append(errs, err)
+	}
+	if err := linkPackageEntry(ctx, defaultDmgLayout.installDir); err != nil {
+		errs = append(errs, err)
+	}
+	// The Agent's jobs run as its account, and launchd cannot start them without it. If the account
+	// could not be created, they are left unloaded and the hook fails, so the postinstall script
+	// fails the install instead of waiting on jobs that will never run.
+	if agentUserExists() {
+		if err := installStableJobs(ctx); err != nil {
+			errs = append(errs, err)
+		}
+	} else {
+		errs = append(errs, fmt.Errorf("not loading the Agent's jobs: %s does not exist", agentUser))
+	}
+	startDMGGUI(ctx, defaultDmgLayout, env)
+	return errors.Join(errs...)
+}
+
+// linkPackageEntry gives the Agent its entry in the package repository the shared installer code
+// keeps for every package, /opt/datadog-packages/datadog-agent. The installer daemon reads that
+// entry to report the packages installed on the host, and configuration experiments clean it before
+// they start.
+//
+// The repository is a versioned package pool, with stable and experiment pointing at the versions
+// in use. A .dmg install has a single version, installed in place in the install root, so the
+// entry links there, the same links the deb and rpm packages ship on Linux
+// (packages/agent/linux/BUILD.bazel):
+//
+//	/opt/datadog-packages/run/datadog-agent/<version> -> /opt/datadog-agent
+//	/opt/datadog-packages/datadog-agent/stable -> /opt/datadog-packages/run/datadog-agent/<version>
+//	/opt/datadog-packages/datadog-agent/experiment -> /opt/datadog-packages/datadog-agent/stable
+//
+// The version link lives outside the repository, where its garbage collection never looks, so a
+// link to the install root is never taken for a package to delete. It is named after the Agent
+// actually installed -- see registeredVersion -- because Fleet Automation reads it as the host's
+// stable version and health-checks the running Agent against it, and it moves forward on every
+// .dmg upgrade, which removes the previous version's link and the placeholder directories earlier
+// builds registered. A real package already registered at stable, a directory with content, is
+// left alone.
+func linkPackageEntry(ctx HookContext, installDir string) (err error) {
+	span, _ := ctx.StartSpan("link_package_entry")
+	defer func() {
+		span.Finish(err)
+	}()
+
+	root := filepath.Join(packagesRoot, ctx.Package)
+	versionsDir := filepath.Join(packagesRoot, "run", ctx.Package)
+	for _, dir := range []string{root, versionsDir} {
+		if err = os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("failed to create %s: %w", dir, err)
+		}
+	}
+	isReal, err := stableIsRealPackage(root)
+	if err != nil {
+		return err
+	}
+	if isReal {
+		return nil
+	}
+
+	pkgVersion := registeredVersion()
+	versionLink := filepath.Join(versionsDir, pkgVersion)
+	stableLink := filepath.Join(root, "stable")
+	for _, link := range [][2]string{
+		{versionLink, installDir},
+		{stableLink, versionLink},
+		{filepath.Join(root, "experiment"), stableLink},
+	} {
+		if err = symlink.Set(link[0], link[1]); err != nil {
+			return fmt.Errorf("failed to link %s to %s: %w", link[0], link[1], err)
+		}
+	}
+	removeOtherEntries(root, "stable", "experiment")
+	removeOtherEntries(versionsDir, pkgVersion)
+	return nil
+}
+
+// registeredVersion is the version the package entry is registered under.
 //
 // It has to be the same value the installer daemon reports as the package's running version, which
 // is version.AgentPackageVersion (see runningVersions in pkg/fleet/daemon/daemon.go): Fleet
-// Automation decides whether a host is healthy by comparing the two, and fails every deployment to
-// it before pushing any configuration when they differ. version.AgentVersion is not
+// Automation decides whether a host is healthy by comparing the two. version.AgentVersion is not
 // interchangeable -- it is the human-facing form and uses '+' where AgentPackageVersion uses '.'.
 func registeredVersion() string {
 	if version.AgentPackageVersion != "" {
@@ -218,299 +264,196 @@ func registeredVersion() string {
 	return version.AgentVersion
 }
 
-// stableIsPlaceholder reports whether the package's stable link resolves to a placeholder entry --
-// the empty directory registerPackageRepository moves in -- rather than to a real package.
-//
-// It is what tells an entry this function owns, and may replace to move the version forward, apart
-// from one an OCI install registered, which holds the package's files and must not be touched.
-func stableIsPlaceholder(repositories *repository.Repositories, pkg string) (bool, error) {
-	stablePath := repositories.Get(pkg).StablePath()
-	entries, err := os.ReadDir(stablePath)
-	if err != nil {
-		return false, fmt.Errorf("failed to read the %s stable package directory %s: %w", pkg, stablePath, err)
+// stableIsRealPackage reports whether the package's stable link resolves to a real package: a
+// directory in the repository with content, as an OCI install registers. A version link to the
+// install root, an empty placeholder directory from earlier builds, or no stable link at all is not.
+func stableIsRealPackage(root string) (bool, error) {
+	target, err := os.Readlink(filepath.Join(root, "stable"))
+	if os.IsNotExist(err) {
+		return false, nil
 	}
-	return len(entries) == 0, nil
+	if err != nil {
+		return false, fmt.Errorf("failed to read the stable link in %s: %w", root, err)
+	}
+	if !filepath.IsAbs(target) {
+		target = filepath.Join(root, target)
+	}
+	info, err := os.Lstat(target)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("failed to read the stable package %s: %w", target, err)
+	}
+	if !info.IsDir() {
+		return false, nil
+	}
+	entries, err := os.ReadDir(target)
+	if err != nil {
+		return false, fmt.Errorf("failed to read the stable package %s: %w", target, err)
+	}
+	return len(entries) > 0, nil
 }
 
-// installStableJobs writes and loads the stable launchd job set, including the installer daemon.
-//
-// Both install paths run this, from the same embedded definitions, so a host installed from the
-// .dmg and a host installed by Fleet end up with byte-identical job definitions.
-//
-// Every job is loaded even if an earlier one fails: the jobs do not depend on one another to load,
-// and one that fails must not also leave the others stopped -- the installer daemon, loaded last,
-// is what lets Fleet repair the host remotely.
-func installStableJobs(ctx HookContext) (err error) {
-	span, ctx := ctx.StartSpan("install_stable_jobs")
-	defer func() {
-		span.Finish(err)
-	}()
-
-	client := launchdClient()
-	var errs []error
-	for _, label := range stableJobs {
-		if err := loadStableJob(ctx, client, label); err != nil {
-			errs = append(errs, err)
+// removeOtherEntries removes every entry of dir but the ones named in keep: links are removed
+// themselves, never what they point to, and empty directories (the placeholders earlier builds
+// registered) are removed. Anything else is left and logged.
+func removeOtherEntries(dir string, keep ...string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		log.Warnf("could not list %s: %v", dir, err)
+		return
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if slices.Contains(keep, name) {
+			continue
 		}
-	}
-	return errors.Join(errs...)
-}
-
-// loadStableJob writes one stable job definition from the embedded copy and loads it.
-func loadStableJob(ctx context.Context, client *launchd.Client, label string) error {
-	definition, err := embedded.GetLaunchdJob(label, embedded.LaunchdStable)
-	if err != nil {
-		return fmt.Errorf("failed to read job definition %s: %w", label, err)
-	}
-	job := stableJob(label)
-	if err := job.Write(definition); err != nil {
-		return fmt.Errorf("failed to write job definition %s: %w", label, err)
-	}
-	// Bootout first so a rewritten definition is the one launchd is running: launchd
-	// caches the definition it loaded, and bootstrapping over a loaded job is a no-op.
-	if err := client.Bootout(ctx, label); err != nil {
-		log.Warnf("failed to unload %s before reloading it: %v", label, err)
-	}
-	// A persistent disabled override prevents bootstrap, not just process startup.
-	if err := client.Enable(ctx, label); err != nil {
-		return fmt.Errorf("failed to enable %s: %w", label, err)
-	}
-	if err := client.Bootstrap(ctx, job); err != nil {
-		return fmt.Errorf("failed to load %s: %w", label, err)
-	}
-	if err := client.Kickstart(ctx, label, false); err != nil {
-		return fmt.Errorf("failed to start %s: %w", label, err)
-	}
-	return nil
-}
-
-// removeJobs unloads the given jobs and removes their definitions. Every step is allowed to fail:
-// it runs on the uninstall path, where a job that is already gone is the desired outcome.
-func removeJobs(ctx HookContext, labels []string) {
-	client := launchdClient()
-	for _, label := range labels {
-		removeJob(ctx, client, label)
-	}
-}
-
-// removeJob unloads one job and removes its definition.
-func removeJob(ctx context.Context, client *launchd.Client, label string) {
-	if err := client.Bootout(ctx, label); err != nil {
-		log.Warnf("failed to unload %s: %v", label, err)
-	}
-	if err := stableJob(label).Remove(); err != nil {
-		log.Warnf("failed to remove job definition %s: %v", label, err)
-	}
-}
-
-// uninstallFilesystem removes the symlinks the install created. The install root itself is left
-// alone: it holds configuration, and an uninstall is not a licence to discard it.
-func uninstallFilesystem(ctx HookContext, layout agentLayout) {
-	for link := range layout.convenienceLinks() {
-		if err := file.EnsureSymlinkAbsent(ctx, link); err != nil {
-			log.Warnf("failed to remove convenience link %s: %v", link, err)
+		path := filepath.Join(dir, name)
+		switch {
+		case entry.Type()&os.ModeSymlink != 0:
+			if err := os.Remove(path); err != nil {
+				log.Warnf("could not remove %s: %v", path, err)
+			}
+		case entry.IsDir():
+			if err := os.Remove(path); err != nil {
+				log.Warnf("leaving %s in place: %v", path, err)
+			}
+		default:
+			log.Warnf("leaving unexpected file %s in place", path)
 		}
 	}
 }
 
-// preInstallDatadogAgent stops the stable job set so the binaries it is running can be replaced.
-// All the steps are allowed to fail: there may be nothing installed yet.
-func preInstallDatadogAgent(ctx HookContext) error {
-	client := launchdClient()
-	for _, label := range stableJobs {
-		if err := client.Bootout(ctx, label); err != nil {
-			log.Warnf("failed to unload %s: %v", label, err)
-		}
-	}
-	return nil
-}
-
-// postInstallDatadogAgent registers the Agent as a package and loads the stable job set.
+// preRemoveDatadogAgent unloads the stable job set and removes its definitions, in the reverse of
+// the order they are loaded in. The .dmg's preinstall script runs it through the installed
+// version's `installer prerm --upgrade datadog-agent dmg`, before the new payload replaces it, so
+// the version being replaced takes down exactly the jobs it installed -- including any the next
+// version no longer knows about, whose definitions launchd would otherwise load again at boot.
 //
-// The Agent reaches macOS only as a .dmg, run directly or wrapped in an OCI package, so those are
-// the only package types it handles.
-func postInstallDatadogAgent(ctx HookContext) error {
-	switch ctx.PackageType {
-	case PackageTypeOCI:
-		// The OCI layer wraps a .pkg installer payload rather than raw binaries, mirroring how
-		// datadog_agent_windows.go wraps an MSI: doInstall's Create() call has already moved the
-		// extracted layer into the package repository and flipped stable/experiment to it before
-		// this hook runs, so registerPackageRepository has nothing left to do. What remains is
-		// running the wrapped .pkg, whose own postinstall script sets up the filesystem and runs
-		// the dmg branch below -- the same script a real .dmg install runs directly.
-		return installWrappedPackage(ctx)
-	case PackageTypeDMG:
-		return postInstallDMG(ctx, defaultAgentLayout)
-	default:
-		return fmt.Errorf("unsupported package type for %s on macOS: %s", ctx.Package, ctx.PackageType)
-	}
-}
-
-// postInstallDMG is the part of the post-install the .dmg's postinstall script delegates to
-// `installer postinst datadog-agent dmg`: registering the Agent as a package and loading the stable
-// job set.
+// The definitions are removed on an upgrade too: both install paths write every definition from
+// scratch, so nothing is lost.
 //
-// The script creates the account and the directories, with their ownership, modes and access
-// control lists, and writes the install info itself, so none of that happens here.
+// The processes.d entries are removed too, so a downgrade never inherits an entry it does not know.
 //
-// Both steps run even if the other fails, and in this order so the daemon finds the package
-// registered when it starts: a failed registration only disables configuration experiments, and
-// must not also leave the Agent stopped.
-func postInstallDMG(ctx HookContext, layout agentLayout) error {
-	var errs []error
-	if err := registerPackageRepository(ctx, layout); err != nil {
-		errs = append(errs, err)
-	}
-	if err := installStableJobs(ctx); err != nil {
-		errs = append(errs, err)
-	}
-	return errors.Join(errs...)
-}
-
-// installWrappedPackage runs the .pkg installer payload an OCI-delivered Agent package wraps.
+// When the Agent is uninstalled rather than upgraded, as cmd/agent/macos/uninstall_mac_os.sh does
+// through `installer prerm datadog-agent dmg`, the rest of the install goes too (uninstallAgent).
 //
-// macOS has no OCI/MSI-equivalent silent-install mechanism of its own: the only way to run a .pkg
-// non-interactively is Apple's installer(8). ctx.PackagePath is the version directory Create()
-// already moved the extracted OCI layer into (repository.Repository.StablePath() or
-// ExperimentPath(), via hooksCLI.getPath()), so the payload to run is whatever single .pkg that
-// layer contains.
-func installWrappedPackage(ctx HookContext) (err error) {
-	span, ctx := ctx.StartSpan("install_wrapped_package")
-	defer func() {
-		span.Finish(err)
-	}()
-
-	matches, err := filepath.Glob(filepath.Join(ctx.PackagePath, "*.pkg"))
-	if err != nil {
-		return fmt.Errorf("failed to look for a .pkg in %s: %w", ctx.PackagePath, err)
-	}
-	if len(matches) == 0 {
-		return fmt.Errorf("no .pkg found in %s", ctx.PackagePath)
-	}
-	if len(matches) > 1 {
-		return fmt.Errorf("multiple .pkg found in %s: %v", ctx.PackagePath, matches)
-	}
-
-	cmd := telemetry.CommandContext(ctx, "installer", "-pkg", matches[0], "-target", "/")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err = cmd.Run(); err != nil {
-		return fmt.Errorf("failed to run installer on %s: %w", matches[0], err)
-	}
-	return nil
-}
-
-// preRemoveDatadogAgent stops and removes both job sets.
-// All the steps are allowed to fail.
+// Every step runs even if an earlier one fails. On an upgrade nothing is reported: a job that is
+// already gone is the desired outcome, the next version's postinstall reloads the jobs, and an
+// error would only stop it from installing. On an uninstall, the jobs that could not be unloaded
+// are reported once the rest is removed, so the uninstall script removes them itself instead of
+// leaving them registered against binaries that are gone.
 func preRemoveDatadogAgent(ctx HookContext) error {
-	// The experiment set first: a leftover -exp job would otherwise keep running against a
-	// configuration that is about to be removed.
-	removeJobs(ctx, experimentJobs)
-	removeJobs(ctx, stableJobs)
-	if !ctx.Upgrade {
-		uninstallFilesystem(ctx, defaultAgentLayout)
-		installinfo.RemoveInstallInfo()
-	}
-	return nil
-}
-
-// errVersionExperimentNotSupported is returned for a version experiment: nothing on macOS swaps the
-// running binaries yet, so with no hook to refuse it the installer would switch the experiment
-// pointer, restart nothing, and report the task as done.
-var errVersionExperimentNotSupported = errors.New("version experiments are not supported on macOS")
-
-// preStartExperimentDatadogAgent refuses a version experiment before the installer sets it, so the
-// package repository is left as it was and the task is reported as failed.
-func preStartExperimentDatadogAgent(_ HookContext) error {
-	return errVersionExperimentNotSupported
-}
-
-// prePromoteExperimentDatadogAgent refuses to promote a version experiment, for the same reason
-// preStartExperimentDatadogAgent refuses to start one.
-func prePromoteExperimentDatadogAgent(_ HookContext) error {
-	return errVersionExperimentNotSupported
-}
-
-// postStartConfigExperimentDatadogAgent hands the Agent over to the experiment job set, then
-// launches the detached watcher process that supervises it. The installer has already published
-// the experiment configuration directory by the time it runs.
-//
-// A watcher that fails to launch is treated the same as a failed start: an experiment running
-// with no process watching its deadline or its exit is exactly the gap this feature exists to
-// close, so it is reverted rather than left running unsupervised.
-//
-// Every failure hands the Agent back to the stable job set, so the experiment configuration
-// directory the installer published is discarded with it: the installer returns the error without
-// removing it, and left in place it would have the failed experiment reported as running.
-func postStartConfigExperimentDatadogAgent(ctx HookContext) (err error) {
-	defer func() {
-		if err == nil {
-			return
+	client := launchdClient()
+	var errs []error
+	for _, label := range slices.Backward(agentLaunchdJobs.LaunchdJobsStable) {
+		if err := client.Bootout(ctx, label); err != nil {
+			// As in loadStableJob, a job that can't be unloaded keeps its definition, so launchd is
+			// never left running a job whose file is gone, and the postinstall script reloads it.
+			log.Warnf("failed to unload %s: %v", label, err)
+			errs = append(errs, fmt.Errorf("failed to unload %s: %w", label, err))
+			continue
 		}
-		if discardErr := discardExperimentConfig(ctx); discardErr != nil {
-			err = fmt.Errorf("%w, and %w", err, discardErr)
+		if err := os.Remove(launchd.Job{Label: label, Dir: launchdJobDir}.Path()); err != nil && !os.IsNotExist(err) {
+			log.Warnf("failed to remove job definition %s: %v", label, err)
+			errs = append(errs, fmt.Errorf("failed to remove job definition %s: %w", label, err))
 		}
-	}()
-	if err = (configExperiment{jobs: agentJobSet()}).Start(ctx); err != nil {
-		return err
 	}
-	if watcherErr := launchConfigExperimentWatcher(ctx); watcherErr != nil {
-		log.Errorf("could not launch the configuration experiment watcher, reverting: %v", watcherErr)
-		if revertErr := (configExperiment{jobs: agentJobSet()}).Stop(context.WithoutCancel(ctx)); revertErr != nil {
-			return fmt.Errorf("watcher failed to launch (%w) and the experiment could not be reverted: %w", watcherErr, revertErr)
-		}
-		return fmt.Errorf("watcher failed to launch, experiment reverted: %w", watcherErr)
+	if err := removeProcmgrCatalog(defaultDmgLayout.installDir); err != nil {
+		log.Warnf("failed to remove the processes.d catalog: %v", err)
 	}
-	return nil
+	if ctx.Upgrade {
+		return nil
+	}
+	uninstallAgent(ctx, defaultUninstallLayout)
+	return errors.Join(errs...)
 }
 
-// launchConfigExperimentWatcher starts the detached watcher process, mirroring the Windows
-// experiment watchdog's launchPackageCommandInBackground: it re-execs the installer binary with
-// the hidden `package-command` subcommand, detached from this process's context so it outlives
-// the hook that launched it.
+// uninstallLayout is everything an uninstall removes besides the LaunchDaemons. It is the same
+// list cmd/agent/macos/uninstall_mac_os.sh removes for versions without the installer.
 //
-// Indirected so tests can stub it without spawning a real process, the same way launchdClient is
-// indirected for launchd.
-var launchConfigExperimentWatcher = func(ctx context.Context) error {
-	installerBin, err := exec.GetExecutable()
+// It is parameterised on its paths so the tests can run against temporary directories.
+type uninstallLayout struct {
+	// guiLabels are the per-user LaunchAgents, booted out for every logged-in user.
+	guiLabels []string
+	// processPatterns are the pkill -f patterns of the GUI processes left behind.
+	processPatterns []string
+	// paths are removed in order, recursively. The install root, which holds the installer that is
+	// running this, goes last.
+	paths []string
+}
+
+var defaultUninstallLayout = uninstallLayout{
+	guiLabels: []string{
+		"com.datadoghq.gui",
+		"com.datadoghq.ai-usage-agent.desktop-monitor",
+		"com.datadoghq.ai-prompt-logger.desktop-monitor",
+	},
+	processPatterns: []string{
+		"Datadog Agent.app",
+		"ai-usage-agent-native-host.*--desktop-monitor",
+		"ai-prompt-logger-native-host.*--desktop-monitor",
+	},
+	paths: []string{
+		"/Library/LaunchAgents/com.datadoghq.gui.plist",
+		"/Library/LaunchAgents/com.datadoghq.ai-usage-agent.desktop-monitor.plist",
+		"/Library/LaunchAgents/com.datadoghq.ai-prompt-logger.desktop-monitor.plist",
+		"/Applications/Datadog Agent.app",
+		"/usr/local/bin/datadog-agent",
+		"/usr/local/bin/datadog-installer",
+		"/var/log/datadog",
+		"/private/var/root/datadog-install",
+		paths.PackagesPath,
+		filepath.Dir(paths.AgentConfigDir),
+	},
+}
+
+// hostCommand runs the system commands the install and uninstall need: launchctl, dscl, chmod,
+// pkill, who and the like. Indirected so the hook tests can run without them.
+var hostCommand = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+	return telemetry.CommandContext(ctx, name, args...).Output()
+}
+
+// uninstallAgent stops the GUI for every logged-in user and removes what the install left besides
+// the LaunchDaemons: the LaunchAgents, the application, the links and the install root. Every step
+// is allowed to fail, so one missing piece doesn't stop the rest from going.
+func uninstallAgent(ctx context.Context, layout uninstallLayout) {
+	for _, uid := range loggedInUIDs(ctx) {
+		for _, label := range layout.guiLabels {
+			_, _ = hostCommand(ctx, "launchctl", "bootout", "gui/"+uid+"/"+label)
+		}
+	}
+	for _, pattern := range layout.processPatterns {
+		_, _ = hostCommand(ctx, "pkill", "-f", pattern)
+	}
+	// os.RemoveAll removes a link itself rather than what it points to.
+	for _, path := range layout.paths {
+		if err := os.RemoveAll(path); err != nil {
+			log.Warnf("failed to remove %s: %v", path, err)
+		}
+	}
+}
+
+// loggedInUIDs returns the uids of the users with a login session, whose GUI domains hold the
+// Agent's LaunchAgents.
+func loggedInUIDs(ctx context.Context) []string {
+	out, err := hostCommand(ctx, "who")
 	if err != nil {
-		return fmt.Errorf("could not get the installer executable path: %w", err)
+		log.Warnf("could not list logged-in users: %v", err)
+		return nil
 	}
-	installerBin, err = filepath.EvalSymlinks(installerBin)
-	if err != nil {
-		return fmt.Errorf("could not resolve the installer executable path: %w", err)
+	var uids []string
+	for _, line := range strings.Split(string(out), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		u, err := user.Lookup(fields[0])
+		if err != nil || slices.Contains(uids, u.Uid) {
+			continue
+		}
+		uids = append(uids, u.Uid)
 	}
-	installer := exec.NewInstallerExec(env.FromEnv(), installerBin)
-	return installer.StartPackageCommandDetached(ctx, agentPackage, watchConfigExperimentCommand)
-}
-
-// runDatadogAgentPackageCommand dispatches commands run by a detached process launched via
-// launchConfigExperimentWatcher. Registered into packageCommands in packages_darwin.go.
-func runDatadogAgentPackageCommand(ctx context.Context, command string) (err error) {
-	span, ctx := telemetry.StartSpanFromContext(ctx, command)
-	defer func() { span.Finish(err) }()
-
-	switch command {
-	case watchConfigExperimentCommand:
-		return watchExperiment(ctx)
-	default:
-		return fmt.Errorf("unknown package command: %s", command)
-	}
-}
-
-// preStopConfigExperimentDatadogAgent hands the Agent back to the stable job set, before the
-// installer discards the experiment configuration directory.
-//
-// The context is detached from cancellation: the experiment is being torn down, and stopping
-// halfway would leave the host running neither set.
-func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
-	ctx.Context = context.WithoutCancel(ctx.Context)
-	return configExperiment{jobs: agentJobSet()}.Stop(ctx)
-}
-
-// postPromoteConfigExperimentDatadogAgent hands the Agent back to the stable job set, which now
-// reads the promoted configuration.
-func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
-	ctx.Context = context.WithoutCancel(ctx.Context)
-	return configExperiment{jobs: agentJobSet()}.Promote(ctx)
+	return uids
 }

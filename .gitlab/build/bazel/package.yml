@@ -1,0 +1,34 @@
+bazel:package:linux-amd64:
+  extends: .bazel:runner:linux-amd64
+  stage: packaging
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs: ["setup_agent_version"]
+  script:
+    - PACKAGE_VERSION="$(dda inv -- agent.version --url-safe)" || exit $?
+    - export PACKAGE_VERSION
+    - TARGETS="$(dda inv -- bazel-parity.targets --product agent)" || exit $?
+    - BAZEL_FLAGS="--//:install_stripped_binaries"
+    - bazel build $BAZEL_FLAGS $TARGETS
+    - mkdir -p bazel-packages
+    - EXECUTION_ROOT="$(bazel info execution_root)"
+    - PACKAGE_FILES="$(bazel cquery $BAZEL_FLAGS --output=files "set($TARGETS)")" || exit $?
+    - |
+      for file in $PACKAGE_FILES; do
+        case "$file" in
+          *.deb|*.rpm) ln -L "$EXECUTION_ROOT/$file" bazel-packages/ ;;
+          *) echo "Unexpected output from a package target: $file" >&2; exit 1 ;;
+        esac
+      done
+    - !reference [.log_dd_pkg_version]
+    - dd-pkg lint bazel-packages/*.deb bazel-packages/*.rpm
+    - dd-pkg check-files --required-files test/required_files/agent-deb.txt bazel-packages/datadog-agent_*.deb
+    - dd-pkg check-files --required-files test/required_files/agent-rpm.txt bazel-packages/datadog-agent-[0-9]*.rpm
+    - dd-pkg sign --key-id "${PIPELINE_KEY_ALIAS}" bazel-packages
+  artifacts:
+    when: always
+    expire_in: 2 weeks
+    paths:
+      - bazel-packages/
+  allow_failure: true

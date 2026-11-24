@@ -36,6 +36,15 @@ var (
 		"Number of sbom failures by (source, type, reason)",
 		commonOpts,
 	)
+	// SBOMOSFallbacks tracks sbom scans with application analyzers that ran
+	// out of time and reported the OS packages alone.
+	SBOMOSFallbacks = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+		Subsystem,
+		"os_fallbacks",
+		[]string{"source", "type"},
+		"Number of sbom scans that reported the OS packages alone by (source, type)",
+		commonOpts,
+	)
 
 	// SBOMGenerationDuration measures the time that it takes to generate SBOMs
 	// in seconds.

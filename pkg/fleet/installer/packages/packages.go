@@ -40,7 +40,6 @@ type hooks struct {
 	postStartConfigExperiment   packageHook
 	preStopConfigExperiment     packageHook
 	postPromoteConfigExperiment packageHook
-	resumeConfigExperiment      packageHook
 
 	preInstallExtension  packageHook
 	preRemoveExtension   packageHook
@@ -50,7 +49,7 @@ type hooks struct {
 // Hooks is the interface for the hooks.
 type Hooks interface {
 	PreInstall(ctx context.Context, pkg string, pkgType PackageType, upgrade bool) error
-	PreRemove(ctx context.Context, pkg string, pkgType PackageType, upgrade bool) error
+	PreRemove(ctx context.Context, pkg string, pkgType PackageType, upgrade bool, windowsArgs ...string) error
 	PostInstall(ctx context.Context, pkg string, pkgType PackageType, upgrade bool, winArgs []string) error
 
 	PreStartExperiment(ctx context.Context, pkg string) error
@@ -63,7 +62,6 @@ type Hooks interface {
 	PostStartConfigExperiment(ctx context.Context, pkg string) error
 	PreStopConfigExperiment(ctx context.Context, pkg string) error
 	PostPromoteConfigExperiment(ctx context.Context, pkg string) error
-	ResumeConfigExperiment(ctx context.Context, pkg string) error
 
 	PreInstallExtension(ctx context.Context, pkg string, extension string) error
 	PreRemoveExtension(ctx context.Context, pkg string, extension string) error
@@ -89,8 +87,8 @@ func (h *hooksCLI) PreInstall(ctx context.Context, pkg string, pkgType PackageTy
 }
 
 // PreRemove calls the pre-remove hook for the package.
-func (h *hooksCLI) PreRemove(ctx context.Context, pkg string, pkgType PackageType, upgrade bool) error {
-	return h.callHook(ctx, false, pkg, "preRemove", pkgType, upgrade, nil, "")
+func (h *hooksCLI) PreRemove(ctx context.Context, pkg string, pkgType PackageType, upgrade bool, windowsArgs ...string) error {
+	return h.callHook(ctx, false, pkg, "preRemove", pkgType, upgrade, windowsArgs, "")
 }
 
 // PostInstall calls the post-install hook for the package.
@@ -141,11 +139,6 @@ func (h *hooksCLI) PreStopConfigExperiment(ctx context.Context, pkg string) erro
 // PostPromoteConfigExperiment calls the post-promote-config-experiment hook for the package.
 func (h *hooksCLI) PostPromoteConfigExperiment(ctx context.Context, pkg string) error {
 	return h.callHook(ctx, false, pkg, "postPromoteConfigExperiment", PackageTypeOCI, false, nil, "")
-}
-
-// ResumeConfigExperiment calls the resume-config-experiment hook for the package.
-func (h *hooksCLI) ResumeConfigExperiment(ctx context.Context, pkg string) error {
-	return h.callHook(ctx, false, pkg, "resumeConfigExperiment", PackageTypeOCI, false, nil, "")
 }
 
 // PreInstallExtension calls the pre-install-extension hook for the package.
@@ -372,8 +365,6 @@ func getHook(pkg string, name string) packageHook {
 		return h.preStopConfigExperiment
 	case "postPromoteConfigExperiment":
 		return h.postPromoteConfigExperiment
-	case "resumeConfigExperiment":
-		return h.resumeConfigExperiment
 	case "preInstallExtension":
 		return h.preInstallExtension
 	case "preRemoveExtension":

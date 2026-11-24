@@ -76,15 +76,13 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction WriteInstallInfo { get; }
 
-        public ManagedAction ReportInstallFailure { get; }
-
-        public ManagedAction ReportInstallSuccess { get; }
-
         public ManagedAction EnsureNpmServiceDepdendency { get; }
 
         public ManagedAction ConfigureServices { get; }
 
         public ManagedAction ConfigureServicesRollback { get; }
+
+        public ManagedAction StopDDServicesRollback { get; }
 
         public ManagedAction StopDDServices { get; }
 
@@ -207,20 +205,6 @@ namespace WixSetup.Datadog_Agent
                 Execute = Execute.deferred,
                 Impersonate = false
             };
-
-            ReportInstallFailure = new CustomAction<CustomActions>(
-                    new Id(nameof(ReportInstallFailure)),
-                    CustomActions.ReportFailure,
-                    Return.ignore,
-                    When.After,
-                    Step.InstallInitialize
-                )
-            {
-                Execute = Execute.rollback,
-                Impersonate = false
-            }
-                .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
-                .HideTarget(true);
 
             EnsureNpmServiceDepdendency = new CustomAction<CustomActions>(
                 new Id(nameof(EnsureNpmServiceDepdendency)),
@@ -571,6 +555,8 @@ namespace WixSetup.Datadog_Agent
                            "APIKEY=[APIKEY]," +
                            "SITE=[SITE]," +
                            "DD_LOG_LEVEL=[DD_LOG_LEVEL]," +
+                           "DD_ENV=[DD_ENV]," +
+                           "DD_SYSTEM_PROBE_NETWORK_ENABLED=[DD_SYSTEM_PROBE_NETWORK_ENABLED]," +
                            "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL]," +
                            "DD_APM_INSTRUMENTATION_ENABLED=[DD_APM_INSTRUMENTATION_ENABLED]," +
                            "DD_APM_INSTRUMENTATION_LIBRARIES=[DD_APM_INSTRUMENTATION_LIBRARIES]," +
@@ -638,20 +624,6 @@ namespace WixSetup.Datadog_Agent
                                "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]," +
                                "SKIP_INSTALL_INFO=[SKIP_INSTALL_INFO]");
 
-            // Hitting this CustomAction always means the install succeeded
-            // because when an install fails, it rollbacks from the `InstallFinalize`
-            // step.
-            ReportInstallSuccess = new CustomAction<CustomActions>(
-                    new Id(nameof(ReportInstallSuccess)),
-                    CustomActions.ReportSuccess,
-                    Return.ignore,
-                    When.After,
-                    Step.InstallFinalize,
-                    Conditions.FirstInstall | Conditions.Upgrading | Conditions.Maintenance
-                )
-                .SetProperties("APIKEY=[APIKEY], SITE=[SITE]")
-                .HideTarget(true);
-
             // Enables the user to change the service accounts during upgrade/change
             // Relies on StopDDServices/StartDDServices to ensure the services are restarted
             // so that the new configuration is used.
@@ -689,15 +661,33 @@ namespace WixSetup.Datadog_Agent
             // WiX built-in StopServices only stops services if the component is changing.
             // This means that the services associated with MainApplication won't be restarted
             // during change operations.
+            // Only removal disables services; incoming installs/repairs still stop them.
             StopDDServices = new CustomAction<CustomActions>(
                 new Id(nameof(StopDDServices)),
                 CustomActions.StopDDServices,
                 Return.check,
                 When.Before,
-                Step.StopServices
+                Step.StopServices,
+                Condition.Always
             )
             {
                 Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties("REMOVE=[REMOVE], RollbackDisabled=[RollbackDisabled]");
+
+            // Removal rollback re-enables this package's active services after
+            // its service, file and user rollback actions have completed.
+            StopDDServicesRollback = new CustomAction<CustomActions>(
+                new Id(nameof(StopDDServicesRollback)),
+                CustomActions.StopDDServicesRollback,
+                Return.ignore,
+                When.Before,
+                new Step(StopDDServices.Id),
+                Conditions.Uninstalling | Conditions.RemovingForUpgrade
+            )
+            {
+                Execute = Execute.rollback,
                 Impersonate = false
             };
 
@@ -718,7 +708,7 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties("DD_INSTALL_ONLY=[DD_INSTALL_ONLY]");
 
-            // Rollback StartDDServices stops the the services so that any file locks are released.
+            // Rollback StartDDServices stops services so that any file locks are released.
             StartDDServicesRollback = new CustomAction<CustomActions>(
                 new Id(nameof(StartDDServicesRollback)),
                 CustomActions.StartDDServicesRollback,

@@ -18,7 +18,6 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -359,6 +358,43 @@ func TestCollectProcessMemory(t *testing.T) {
 	}
 }
 
+// TestProcessMemoryDoesNotAttributeProcessesToMIGParent checks that the processes NVML lists on a MIG parent,
+// which are the ones running on its MIG devices, are not attributed to the parent.
+func TestProcessMemoryDoesNotAttributeProcessesToMIGParent(t *testing.T) {
+	processes := []testutil.MockProcessData{{Pid: 1234, UsedGpuMemory: 1 << 30}}
+
+	t.Run("MIG parent", func(t *testing.T) {
+		device := setupMockDevice(t,
+			testutil.WithDeviceFeatureMode(testutil.DeviceFeatureMIG),
+			testutil.WithDeviceOptions(0, testutil.WithMIGChildUUIDs(map[int]string{0: testutil.MIGUUIDs[0]})),
+			testutil.WithProcessData(processes, nvml.SUCCESS),
+		)
+		require.True(t, isMIGParent(device))
+
+		samples, _, err := processMemorySample(device)
+		require.NoError(t, err)
+
+		metrics := requireMetrics(t, samples)
+		require.Len(t, metrics, 1)
+		require.Equal(t, "memory.limit", metrics[0].Name)
+		require.Empty(t, metrics[0].associatedWorkloads, "memory.limit of a MIG parent should not carry process tags")
+	})
+
+	t.Run("physical device", func(t *testing.T) {
+		device := setupMockDevice(t, testutil.WithProcessData(processes, nvml.SUCCESS))
+		require.False(t, isMIGParent(device))
+
+		samples, _, err := processMemorySample(device)
+		require.NoError(t, err)
+
+		names := make([]string, 0, len(samples))
+		for _, metric := range requireMetrics(t, samples) {
+			names = append(names, metric.Name)
+		}
+		require.ElementsMatch(t, []string{"process.memory.usage", "memory.limit"}, names)
+	})
+}
+
 // TestCollectProcessMemory_Error tests error handling with API failures
 func TestCollectProcessMemory_Error(t *testing.T) {
 	// Override API factory to only include process memory
@@ -642,21 +678,25 @@ func TestNVLinkCollector_Collection(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			// Verify metrics, as we still expect to have all 3 metrics even if some errors were returned
-			require.Len(t, allMetrics, 3)
-			collectedMetrics := requireMetrics(t, allMetrics)
-
-			// Check total links metric
-			require.Equal(t, float64(len(tt.nvlinkStates)), collectedMetrics[0].Value)
-			require.Equal(t, metrics.GaugeType, collectedMetrics[0].Type)
-
-			// Check active links metric
-			require.Equal(t, float64(tt.expectedActive), collectedMetrics[1].Value)
-			require.Equal(t, metrics.GaugeType, collectedMetrics[1].Type)
-
-			// Check inactive links metric
-			require.Equal(t, float64(tt.expectedInactive), collectedMetrics[2].Value)
-			require.Equal(t, metrics.GaugeType, collectedMetrics[2].Type)
+			// The 3 count metrics are reported even if some links can't be read, plus one
+			// nvlink.link_up per readable link
+			require.Len(t, allMetrics, 3+tt.expectedActive+tt.expectedInactive)
+			counts := map[string]float64{}
+			linkUp := 0
+			for _, m := range requireMetrics(t, allMetrics) {
+				require.Equal(t, metrics.GaugeType, m.Type)
+				if m.Name == "nvlink.link_up" {
+					linkUp++
+				} else {
+					counts[m.Name] = m.Value
+				}
+			}
+			require.Equal(t, tt.expectedActive+tt.expectedInactive, linkUp)
+			require.Equal(t, map[string]float64{
+				"nvlink.count.total":    float64(len(tt.nvlinkStates)),
+				"nvlink.count.active":   float64(tt.expectedActive),
+				"nvlink.count.inactive": float64(tt.expectedInactive),
+			}, counts)
 		})
 	}
 }
@@ -831,125 +871,6 @@ func TestProcessDetailListArchitectureSupport(t *testing.T) {
 				return api.Name == "process_detail_list"
 			})
 			require.Equal(t, tt.supported, hasProcessDetailAPICall)
-		})
-	}
-}
-
-func TestDeviceUnhealthyMetricFeatureGate(t *testing.T) {
-	tests := []struct {
-		name          string
-		features      []env.Feature
-		expectMetrics bool
-		expectError   bool
-	}{
-		{
-			name:          "not emitted when kubernetes device plugins feature is absent",
-			features:      nil,
-			expectMetrics: false,
-			expectError:   true,
-		},
-		{
-			name:          "emitted when kubernetes device plugins feature is present",
-			features:      []env.Feature{env.KubernetesDevicePlugins},
-			expectMetrics: true,
-			expectError:   false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			env.SetFeatures(t, tt.features...)
-
-			device := setupMockDevice(t)
-			wmeta := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
-			apis := createStatelessAPIs(&CollectorDependencies{Workloadmeta: wmeta})
-			deviceUnhealthyAPI := findAPICallByName(t, apis, "device_unhealthy_count")
-
-			gotSamples, _, err := deviceUnhealthyAPI.Handler(device, 0)
-			if tt.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-
-			if tt.expectMetrics {
-				gotMetrics := requireMetrics(t, gotSamples)
-				require.Len(t, gotMetrics, 1)
-				require.Equal(t, "device.unhealthy", gotMetrics[0].Name)
-			} else {
-				require.Empty(t, gotSamples)
-			}
-		})
-	}
-}
-
-func TestPCIELinkBytesPerSecond(t *testing.T) {
-	// This table was generated from https://en.wikipedia.org/wiki/PCI_Express#Hardware_protocol_summary:~:text=and%20other%20features.-,Comparison%20table,-%5Bedit%5D
-	tests := map[string]struct {
-		gen      int
-		width    int
-		wantErr  bool
-		expected float64
-	}{
-		// PCIe 1.0 — 2.5 GT/s, 8b/10b
-		"gen1 x1":  {gen: 1, width: 1, expected: 0.25e9},
-		"gen1 x2":  {gen: 1, width: 2, expected: 0.5e9},
-		"gen1 x4":  {gen: 1, width: 4, expected: 1e9},
-		"gen1 x8":  {gen: 1, width: 8, expected: 2e9},
-		"gen1 x16": {gen: 1, width: 16, expected: 4e9},
-
-		// PCIe 2.0 — 5.0 GT/s, 8b/10b
-		"gen2 x1":  {gen: 2, width: 1, expected: 0.5e9},
-		"gen2 x2":  {gen: 2, width: 2, expected: 1e9},
-		"gen2 x4":  {gen: 2, width: 4, expected: 2e9},
-		"gen2 x8":  {gen: 2, width: 8, expected: 4e9},
-		"gen2 x16": {gen: 2, width: 16, expected: 8e9},
-
-		// PCIe 3.0 — 8.0 GT/s, 128b/130b
-		"gen3 x1":  {gen: 3, width: 1, expected: 0.985e9},
-		"gen3 x2":  {gen: 3, width: 2, expected: 1.969e9},
-		"gen3 x4":  {gen: 3, width: 4, expected: 3.938e9},
-		"gen3 x8":  {gen: 3, width: 8, expected: 7.877e9},
-		"gen3 x16": {gen: 3, width: 16, expected: 15.754e9},
-
-		// PCIe 4.0 — 16.0 GT/s, 128b/130b
-		"gen4 x1":  {gen: 4, width: 1, expected: 1.969e9},
-		"gen4 x2":  {gen: 4, width: 2, expected: 3.938e9},
-		"gen4 x4":  {gen: 4, width: 4, expected: 7.877e9},
-		"gen4 x8":  {gen: 4, width: 8, expected: 15.754e9},
-		"gen4 x16": {gen: 4, width: 16, expected: 31.508e9},
-
-		// PCIe 5.0 — 32.0 GT/s, 128b/130b
-		"gen5 x1":  {gen: 5, width: 1, expected: 3.938e9},
-		"gen5 x2":  {gen: 5, width: 2, expected: 7.877e9},
-		"gen5 x4":  {gen: 5, width: 4, expected: 15.754e9},
-		"gen5 x8":  {gen: 5, width: 8, expected: 31.508e9},
-		"gen5 x16": {gen: 5, width: 16, expected: 63.015e9},
-
-		// PCIe 6.0 — 64.0 GT/s, PAM4 + 242B/256B FLIT
-		"gen6 x1":  {gen: 6, width: 1, expected: 7.563e9},
-		"gen6 x2":  {gen: 6, width: 2, expected: 15.125e9},
-		"gen6 x4":  {gen: 6, width: 4, expected: 30.25e9},
-		"gen6 x8":  {gen: 6, width: 8, expected: 60.5e9},
-		"gen6 x16": {gen: 6, width: 16, expected: 121e9},
-
-		// Error cases
-		"unknown gen 0":  {gen: 0, width: 16, wantErr: true},
-		"unknown gen 7":  {gen: 7, width: 16, wantErr: true},
-		"negative gen":   {gen: -1, width: 16, wantErr: true},
-		"zero width":     {gen: 4, width: 0, wantErr: true},
-		"negative width": {gen: 4, width: -1, wantErr: true},
-	}
-
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			actual, err := pcieLinkBytesPerSecond(test.gen, test.width)
-			if test.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			require.InDelta(t, test.expected, actual, 1e6) // tolerate 1 MB/s drift
 		})
 	}
 }
@@ -1215,6 +1136,81 @@ func TestNeedsRecoverySampleUnsupported(t *testing.T) {
 	require.True(t, safenvml.IsAPIUnsupportedOnDevice(err, device))
 }
 
+func TestFabricHealthToSamples(t *testing.T) {
+	// HealthMask with every field reported as FALSE (healthy) and configuration NONE.
+	const healthyMask = nvml.GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_FALSE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_DEGRADED_BW |
+		nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_RECOVERY_FALSE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_RECOVERY |
+		nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_UNHEALTHY_FALSE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_UNHEALTHY |
+		nvml.GPU_FABRIC_HEALTH_MASK_ACCESS_TIMEOUT_RECOVERY_FALSE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ACCESS_TIMEOUT_RECOVERY |
+		nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_NONE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION
+
+	tests := []struct {
+		name     string
+		info     nvml.GpuFabricInfo_v3
+		expected map[string]float64 // metric name and fabric_issue tag -> value
+	}{
+		{
+			// As reported by a GB200 NVL72 GPU on driver R580.
+			name:     "registered and healthy",
+			info:     nvml.GpuFabricInfo_v3{State: nvml.GPU_FABRIC_STATE_COMPLETED, Status: uint32(nvml.SUCCESS), HealthMask: healthyMask, HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_HEALTHY},
+			expected: map[string]float64{"fabric.registered": 1, "fabric.health.unhealthy": 0},
+		},
+		{
+			name:     "registration in progress, no health summary on older drivers",
+			info:     nvml.GpuFabricInfo_v3{State: nvml.GPU_FABRIC_STATE_IN_PROGRESS, Status: uint32(nvml.SUCCESS)},
+			expected: map[string]float64{"fabric.registered": 0},
+		},
+		{
+			name:     "registration failed",
+			info:     nvml.GpuFabricInfo_v3{State: nvml.GPU_FABRIC_STATE_COMPLETED, Status: uint32(nvml.ERROR_UNKNOWN)},
+			expected: map[string]float64{"fabric.registered": 0},
+		},
+		{
+			name: "limited capacity with degraded bandwidth and insufficient NVLinks",
+			info: nvml.GpuFabricInfo_v3{
+				State:  nvml.GPU_FABRIC_STATE_COMPLETED,
+				Status: uint32(nvml.SUCCESS),
+				HealthMask: nvml.GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_TRUE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_DEGRADED_BW |
+					nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_RECOVERY_FALSE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_RECOVERY |
+					nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_UNHEALTHY_TRUE<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_UNHEALTHY |
+					nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INSUFFICIENT_NVLINKS<<nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION,
+				HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_LIMITED_CAPACITY,
+			},
+			expected: map[string]float64{
+				"fabric.registered":                                      1,
+				"fabric.health.unhealthy":                                1,
+				"fabric.health.issue|bandwidth_degraded":                 1,
+				"fabric.health.issue|route_unhealthy":                    1,
+				"fabric.health.issue|misconfigured_insufficient_nvlinks": 1,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := make(map[string]float64)
+			for _, metric := range requireMetrics(t, fabricHealthToSamples(tt.info)) {
+				require.Equal(t, metrics.GaugeType, metric.Type)
+				parts := []string{metric.Name}
+				for _, tag := range metric.Tags() {
+					parts = append(parts, strings.TrimPrefix(tag, "fabric_issue:"))
+				}
+				got[strings.Join(parts, "|")] = metric.Value
+			}
+			require.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestFabricHealthSampleUnsupported(t *testing.T) {
+	// The default NVML mock does not expose the versioned fabric API, like GPUs without NVLink fabric.
+	device := setupMockDevice(t)
+
+	_, _, err := fabricHealthSample(device)
+	require.Error(t, err)
+	require.True(t, safenvml.IsAPIUnsupportedOnDevice(err, device))
+}
+
 func TestRetiredPagesSample(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -1461,4 +1457,23 @@ func findAPICallByName(t *testing.T, apis []apiCallInfo, name string) apiCallInf
 
 	require.FailNowf(t, "api call not found", "expected API call %q to exist", name)
 	return apiCallInfo{}
+}
+
+func TestRecoveryActionTagValue(t *testing.T) {
+	for _, tc := range []struct {
+		code     int64
+		expected string
+	}{
+		{0, "none"},
+		{1, "reset"},
+		{2, "reboot"},
+		{3, "drain"},
+		{4, "drain_and_reset"},
+		{99, "unknown_99"},
+		{-1, "unknown_-1"},
+	} {
+		t.Run(tc.expected, func(t *testing.T) {
+			require.Equal(t, tc.expected, recoveryActionTagValue(tc.code))
+		})
+	}
 }

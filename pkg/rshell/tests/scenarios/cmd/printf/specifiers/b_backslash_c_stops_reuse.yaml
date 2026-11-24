@@ -1,0 +1,7 @@
+description: "%b \\c stops all output including format reuse."
+input:
+  script: |+
+    printf "%b %s\n" 'stop\c' notprinted extra
+expect:
+  stdout: "stop"
+  exit_code: 0

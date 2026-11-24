@@ -70,8 +70,10 @@ type Resolver struct {
 	networkNamespaces   *simplelru.LRU[uint32, *NetworkNamespace]
 	tcRequests          chan TcClassifierRequest
 	netnsHandleRequests chan networkNamespaceHandleRequest
+	netnsMountRequests  chan networkNamespaceMountRequest
 	errorCounters       map[string]*atomic.Int64
 	ctx                 context.Context
+	cancel              context.CancelFunc
 	wg                  sync.WaitGroup
 }
 
@@ -86,6 +88,7 @@ func NewResolver(config *config.Config, manager *manager.Manager, statsdClient s
 		ctx:        context.Background(),
 
 		netnsHandleRequests: make(chan networkNamespaceHandleRequest, 1024),
+		netnsMountRequests:  make(chan networkNamespaceMountRequest, 64),
 
 		errorCounters: newErrorCounters(),
 	}
@@ -98,7 +101,6 @@ func NewResolver(config *config.Config, manager *manager.Manager, statsdClient s
 		// must only release the resources and never mutate the LRU (doing so would
 		// re-enter this callback and deadlock on value's lock)
 		nr.flushNetworkNamespaceResources(value)
-		tcResolver.FlushNetworkNamespaceID(value.nsID, manager)
 	})
 	if err != nil {
 		return nil, err
@@ -357,15 +359,23 @@ func (nr *Resolver) Start(ctx context.Context) error {
 		return nil
 	}
 
-	nr.ctx = ctx
+	nr.ctx, nr.cancel = context.WithCancel(ctx)
 	nr.startTcClassifierLoopGoroutine()
 
 	nr.wg.Add(1)
 	go func() {
 		defer nr.wg.Done()
-		nr.flushNamespaces(ctx)
+		nr.flushNamespaces(nr.ctx)
 	}()
 	return nil
+}
+
+// Stop stops the goroutines started by Start and waits for them to exit
+func (nr *Resolver) Stop() {
+	if nr.cancel != nil {
+		nr.cancel()
+	}
+	nr.wg.Wait()
 }
 
 func (nr *Resolver) manualFlushNamespaces() {
@@ -394,7 +404,6 @@ func (nr *Resolver) flushNamespaces(ctx context.Context) {
 }
 
 // FlushNetworkNamespace flushes the cached entries for the provided network namespace.
-// (WARNING: you probably want to use probe.FlushNetworkNamespace instead)
 func (nr *Resolver) FlushNetworkNamespace(netns *NetworkNamespace) {
 	nr.Lock()
 	defer nr.Unlock()
@@ -440,7 +449,7 @@ func (nr *Resolver) flushNetworkNamespaceResources(netns *NetworkNamespace) {
 	}
 
 	// remove all references to this network namespace from the manager
-	_ = nr.manager.CleanupNetworkNamespace(netns.nsID)
+	nr.tcResolver.CleanupNetworkNamespace(netns.nsID, nr.manager)
 }
 
 // preventNetworkNamespaceDrift ensures that we do not keep network namespace handles indefinitely
@@ -453,6 +462,11 @@ func (nr *Resolver) preventNetworkNamespaceDrift(probesCount map[uint32]int) {
 
 	// compute the list of network namespaces without any probe
 	for _, nsID := range nr.networkNamespaces.Keys() {
+		// snapshots clone TC programs that the manager tears down right after the resolver stops
+		if nr.ctx.Err() != nil {
+			return
+		}
+
 		netns, _ := nr.networkNamespaces.Peek(nsID)
 
 		netns.Lock()
@@ -479,7 +493,6 @@ func (nr *Resolver) preventNetworkNamespaceDrift(probesCount map[uint32]int) {
 			deviceCountNoLoopbackNoDummy := nr.snapshotNetworkDevices(netns)
 			if deviceCountNoLoopbackNoDummy == 0 {
 				nr.flushNetworkNamespace(netns)
-				nr.tcResolver.FlushNetworkNamespaceID(netns.nsID, nr.manager)
 			}
 		}
 	}
@@ -525,9 +538,7 @@ func (nr *Resolver) SendStats() error {
 
 // Close closes this resolver and frees all the resources
 func (nr *Resolver) Close() {
-	close(nr.tcRequests)
-
-	nr.wg.Wait()
+	nr.Stop()
 
 	if nr.networkNamespaces != nil {
 		nr.Lock()

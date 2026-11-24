@@ -7,12 +7,26 @@
 
 package helm
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+)
 
 type taggedRelease struct {
 	release                 *release
 	commonTags              []string // tags for service checks, metrics, and events
-	tagsForMetricsAndEvents []string // tags only for metrics and events
+	tagsForMetricsAndEvents []string // tags only for metrics and events, excluding the generated revision
+}
+
+// allTags builds an independent tag list from cached tags, adding the revision
+// explicitly when needed. Callers can modify the result without changing the cache.
+func (rel *taggedRelease) allTags(includeRevision bool) []string {
+	tags := make([]string, 0, len(rel.commonTags)+len(rel.tagsForMetricsAndEvents)+1)
+	tags = append(tags, rel.commonTags...)
+	if includeRevision {
+		tags = append(tags, fmt.Sprintf("helm_revision:%d", rel.release.Version))
+	}
+	return append(tags, rel.tagsForMetricsAndEvents...)
 }
 
 type releasesStore struct {

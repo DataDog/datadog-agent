@@ -16,59 +16,81 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// nvlinkSample handles NVLink metrics collection logic
-func nvlinkSample(device ddnvml.Device) ([]Sample, uint64, error) {
+// nvlinkLinkStates returns whether each NVLink link of the device is active, by link index,
+// for the links whose state could be read. States other than enabled and disabled are left
+// out. It returns errUnsupportedDevice when the device has no NVLink.
+func nvlinkLinkStates(device ddnvml.Device) (map[int]bool, error) {
 	totalNVLinks := device.GetDeviceInfo().NVLinkLinkCount
 	if totalNVLinks <= 0 {
-		return nil, 0, errUnsupportedDevice
+		return nil, errUnsupportedDevice
 	}
 
-	// Collect NVLink states
 	var multiErr []error
-	active, inactive := 0, 0
-
-	// Iterate over all existing nvlinks for the device
+	states := make(map[int]bool, totalNVLinks)
 	for i := 0; i < totalNVLinks; i++ {
-		state, err := device.GetNvLinkState(i)
+		active, ok, err := nvlinkLinkState(device, i)
 		if err != nil {
-			multiErr = append(multiErr, fmt.Errorf("failed to get NVLink state for link %d: %w", i, err))
+			multiErr = append(multiErr, err)
+		} else if ok {
+			states[i] = active
+		}
+	}
+	return states, errors.Join(multiErr...)
+}
+
+// nvlinkLinkState returns whether an NVLink link is active. ok is false when its state is
+// neither enabled nor disabled.
+func nvlinkLinkState(device ddnvml.Device, link int) (active, ok bool, err error) {
+	state, err := device.GetNvLinkState(link)
+	if err != nil {
+		return false, false, fmt.Errorf("failed to get NVLink state for link %d: %w", link, err)
+	}
+	if state != nvml.FEATURE_ENABLED && state != nvml.FEATURE_DISABLED {
+		return false, false, nil
+	}
+	return state == nvml.FEATURE_ENABLED, true, nil
+}
+
+// nvlinkSample handles NVLink metrics collection logic
+func nvlinkSample(device ddnvml.Device) ([]Sample, uint64, error) {
+	states, err := nvlinkLinkStates(device)
+	if errors.Is(err, errUnsupportedDevice) {
+		return nil, 0, err
+	}
+
+	totalNVLinks := device.GetDeviceInfo().NVLinkLinkCount
+	active, inactive := 0, 0
+	var samples []Sample
+	for i := 0; i < totalNVLinks; i++ {
+		isActive, ok := states[i]
+		if !ok {
 			continue
 		}
-
-		// Count active and inactive links
-		if state == nvml.FEATURE_ENABLED {
+		if isActive {
 			active++
-		} else if state == nvml.FEATURE_DISABLED {
+		} else {
 			inactive++
 		}
+		samples = append(samples, &Metric{
+			baseSample: baseSample{tags: []string{nvlinkPortTag(i + 1)}},
+			Name:       "nvlink.link_up",
+			Value:      boolToFloat(isActive),
+			Type:       metrics.GaugeType,
+		})
 	}
 
-	// Return metrics
-	allSamples := []Sample{
-		&Metric{
-			Name:  "nvlink.count.total",
-			Value: float64(totalNVLinks),
-			Type:  metrics.GaugeType,
-		},
-		&Metric{
-			Name:  "nvlink.count.active",
-			Value: float64(active),
-			Type:  metrics.GaugeType,
-		},
-		&Metric{
-			Name:  "nvlink.count.inactive",
-			Value: float64(inactive),
-			Type:  metrics.GaugeType,
-		},
-	}
-
-	return allSamples, 0, errors.Join(multiErr...)
+	samples = append(samples,
+		&Metric{Name: "nvlink.count.total", Value: float64(totalNVLinks), Type: metrics.GaugeType},
+		&Metric{Name: "nvlink.count.active", Value: float64(active), Type: metrics.GaugeType},
+		&Metric{Name: "nvlink.count.inactive", Value: float64(inactive), Type: metrics.GaugeType},
+	)
+	return samples, 0, err
 }
 
 type processMemoryUsageData struct {
@@ -79,6 +101,14 @@ type processMemoryUsageData struct {
 func processMemoryUsage(device ddnvml.Device, usage []processMemoryUsageData, priority MetricPriority) []Sample {
 	var processSamples []Sample
 	var allWorkloadIDs []workloadmeta.EntityID
+
+	// For a GPU in MIG mode, NVML lists the processes running on any of its MIG devices as processes of the
+	// parent too. They are already reported on the MIG device they run on, where the rest of the per-process
+	// metrics are also reported (the per-process utilization API is not supported on the parent), so don't
+	// attribute them to the parent as well: it would show the same process on two devices.
+	if isMIGParent(device) {
+		usage = nil
+	}
 
 	for _, usage := range usage {
 		workloads := []workloadmeta.EntityID{{
@@ -334,6 +364,17 @@ var gpuRecoveryActionToTag = map[nvml.DeviceGpuRecoveryAction]string{
 	nvml.GPU_RECOVERY_ACTION_DRAIN_AND_RESET: "drain_and_reset",
 }
 
+// recoveryActionTagValue returns the recovery_action tag value for an NVML GPU
+// recovery action code. Unknown future values are tagged with the raw code
+// ("unknown_<n>") so they are not silently dropped. It is shared with the XID
+// 154 event tags so events and metrics use the same vocabulary.
+func recoveryActionTagValue(code int64) string {
+	if tag, ok := gpuRecoveryActionToTag[nvml.DeviceGpuRecoveryAction(code)]; ok {
+		return tag
+	}
+	return "unknown_" + strconv.FormatInt(code, 10)
+}
+
 // needsRecoverySample queries the GPU recovery action field and emits a single
 // device.needs_recovery metric: 0 when no action is required, 1 otherwise. The
 // metric is tagged with the specific recovery action.
@@ -344,12 +385,7 @@ func needsRecoverySample(device ddnvml.Device) ([]Sample, uint64, error) {
 	}
 
 	recoveryAction := nvml.DeviceGpuRecoveryAction(action)
-	actionTag, ok := gpuRecoveryActionToTag[recoveryAction]
-	if !ok {
-		// Unknown future action value: still report that recovery is needed,
-		// tagging it with the raw value so it's not silently dropped.
-		actionTag = "unknown_" + strconv.Itoa(action)
-	}
+	actionTag := recoveryActionTagValue(int64(action))
 
 	return []Sample{&Metric{
 		baseSample: baseSample{tags: []string{"recovery_action:" + actionTag}},
@@ -359,54 +395,84 @@ func needsRecoverySample(device ddnvml.Device) ([]Sample, uint64, error) {
 	}}, 0, nil
 }
 
-// pcieGenSpec describes the physical-layer characteristics of a PCIe generation. Values come from the PCI-SIG base
-// specification and are fixed by the standard.
-type pcieGenSpec struct {
-	// gtPerSecondPerLane is the raw per-lane transfer rate in GT/s.
-	gtPerSecondPerLane float64
-	// encodedBytesPerTransfer is the useful data bytes carried per raw transfer,
-	// accounting for line-coding overhead (8b/10b, 128b/130b, etc.).
-	encodedBytesPerTransfer float64
+// fabricHealthIssues maps the 2-bit NVML fabric health mask fields to the
+// fabric_issue tag value reported when the field is set to TRUE.
+var fabricHealthIssues = []struct {
+	issue string
+	shift uint32
+	width uint32
+	value uint32
+}{
+	{"bandwidth_degraded", nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_DEGRADED_BW, nvml.GPU_FABRIC_HEALTH_MASK_WIDTH_DEGRADED_BW, nvml.GPU_FABRIC_HEALTH_MASK_DEGRADED_BW_TRUE},
+	{"route_recovery", nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_RECOVERY, nvml.GPU_FABRIC_HEALTH_MASK_WIDTH_ROUTE_RECOVERY, nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_RECOVERY_TRUE},
+	{"route_unhealthy", nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ROUTE_UNHEALTHY, nvml.GPU_FABRIC_HEALTH_MASK_WIDTH_ROUTE_UNHEALTHY, nvml.GPU_FABRIC_HEALTH_MASK_ROUTE_UNHEALTHY_TRUE},
+	{"access_timeout_recovery", nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_ACCESS_TIMEOUT_RECOVERY, nvml.GPU_FABRIC_HEALTH_MASK_WIDTH_ACCESS_TIMEOUT_RECOVERY, nvml.GPU_FABRIC_HEALTH_MASK_ACCESS_TIMEOUT_RECOVERY_TRUE},
 }
 
-// pcieGenTable provides a lookup for encoding keyed off of the PCIe generation.
-var pcieGenTable = map[uint32]pcieGenSpec{
-	// Source: PCI Express Base Specification 1.0a (PCI-SIG, 2003).
-	// 2.5 GT/s per lane, 8b/10b encoding → 250 MB/s per lane.
-	1: {gtPerSecondPerLane: 2.5, encodedBytesPerTransfer: 8.0 / 10.0 / 8.0},
-	// Source: PCI Express Base Specification 2.0 (PCI-SIG, 2007).
-	// 5.0 GT/s per lane, 8b/10b encoding → 500 MB/s per lane.
-	2: {gtPerSecondPerLane: 5.0, encodedBytesPerTransfer: 8.0 / 10.0 / 8.0},
-	// Source: PCI Express Base Specification 3.0 (PCI-SIG, 2010).
-	// 8.0 GT/s per lane, 128b/130b encoding → 985 MB/s per lane.
-	3: {gtPerSecondPerLane: 8.0, encodedBytesPerTransfer: 128.0 / 130.0 / 8.0},
-	// Source: PCI Express Base Specification 4.0 (PCI-SIG, 2017).
-	// 16.0 GT/s per lane, 128b/130b encoding → ~1.969 GB/s per lane.
-	4: {gtPerSecondPerLane: 16.0, encodedBytesPerTransfer: 128.0 / 130.0 / 8.0},
-	// Source: PCI Express Base Specification 5.0 (PCI-SIG, 2019).
-	// 32.0 GT/s per lane, 128b/130b NRZ encoding → ~3.938 GB/s per lane.
-	5: {gtPerSecondPerLane: 32.0, encodedBytesPerTransfer: 128.0 / 130.0 / 8.0},
-	// Source: PCI Express Base Specification 6.0 (PCI-SIG, 2022).
-	// 64.0 GT/s per lane with PAM4 signaling, no line-coding overhead (1b/1b).
-	// FLIT mode frames data as 256-byte FLITs with 14 bytes of CRC+FEC+framing
-	// overhead, giving 242 bytes of usable payload per 256 wire bytes
-	// → ~7.563 GB/s per lane of usable bandwidth.
-	6: {gtPerSecondPerLane: 64.0, encodedBytesPerTransfer: 242.0 / 256.0 / 8.0},
+// fabricConfigIssues maps the NVML incorrect-configuration values to fabric_issue tag values.
+var fabricConfigIssues = map[uint32]string{
+	nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INCORRECT_SYSGUID:    "misconfigured_sysguid",
+	nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INCORRECT_CHASSIS_SN: "misconfigured_chassis_sn",
+	nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_NO_PARTITION:         "misconfigured_no_partition",
+	nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INSUFFICIENT_NVLINKS: "misconfigured_insufficient_nvlinks",
+	nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INCOMPATIBLE_GPU_FW:  "misconfigured_incompatible_gpu_fw",
+	nvml.GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INVALID_LOCATION:     "misconfigured_invalid_location",
 }
 
-// pcieLinkBytesPerSecond returns the usable bandwidth for a given generation and lane width.
-func pcieLinkBytesPerSecond(gen int, width int) (float64, error) {
-	spec, ok := pcieGenTable[uint32(gen)]
-	if !ok {
-		return 0, fmt.Errorf("unknown PCIe generation %d (extend pcieGenTable)", gen)
+// fabricHealthSample reports whether the GPU joined its NVLink fabric and the
+// fabric health. GPUs without a fabric (no NVSwitch) are unsupported.
+func fabricHealthSample(device ddnvml.Device) ([]Sample, uint64, error) {
+	if _, ok := device.(*ddnvml.PhysicalDevice); !ok {
+		return nil, 0, errUnsupportedDevice
 	}
-	if width < 1 {
-		return 0, fmt.Errorf("invalid PCIe link width: %d", width)
+	info, err := device.GetGpuFabricInfoV3()
+	if err != nil {
+		return nil, 0, err
+	}
+	if info.State == nvml.GPU_FABRIC_STATE_NOT_SUPPORTED {
+		return nil, 0, errUnsupportedDevice
+	}
+	return fabricHealthToSamples(info), 0, nil
+}
+
+func fabricHealthToSamples(info nvml.GpuFabricInfo_v3) []Sample {
+	registered := info.State == nvml.GPU_FABRIC_STATE_COMPLETED && nvml.Return(info.Status) == nvml.SUCCESS
+	samples := []Sample{&Metric{
+		Name:  "fabric.registered",
+		Value: boolToFloat(registered),
+		Type:  metrics.GaugeType,
+	}}
+
+	if info.HealthSummary != nvml.GPU_FABRIC_HEALTH_SUMMARY_NOT_SUPPORTED {
+		unhealthy := info.HealthSummary == nvml.GPU_FABRIC_HEALTH_SUMMARY_UNHEALTHY ||
+			info.HealthSummary == nvml.GPU_FABRIC_HEALTH_SUMMARY_LIMITED_CAPACITY
+		samples = append(samples, &Metric{
+			Name:  "fabric.health.unhealthy",
+			Value: boolToFloat(unhealthy),
+			Type:  metrics.GaugeType,
+		})
 	}
 
-	// bytes/sec = GT/s/lane * 1e9 transfers/sec/GT * bytes/transfer * lanes
-	bps := spec.gtPerSecondPerLane * 1e9 * spec.encodedBytesPerTransfer * float64(width)
-	return bps, nil
+	// Issues are only reported while set, to avoid one series per possible issue on every GPU.
+	var issues []string
+	for _, field := range fabricHealthIssues {
+		if (info.HealthMask>>field.shift)&field.width == field.value {
+			issues = append(issues, field.issue)
+		}
+	}
+	configValue := (info.HealthMask >> nvml.GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION) & nvml.GPU_FABRIC_HEALTH_MASK_WIDTH_INCORRECT_CONFIGURATION
+	if issue, ok := fabricConfigIssues[configValue]; ok {
+		issues = append(issues, issue)
+	}
+	for _, issue := range issues {
+		samples = append(samples, &Metric{
+			baseSample: baseSample{tags: []string{"fabric_issue:" + issue}},
+			Name:       "fabric.health.issue",
+			Value:      1,
+			Type:       metrics.GaugeType,
+		})
+	}
+	return samples
 }
 
 func pcieLinkMetrics(device ddnvml.Device) ([]Sample, uint64, error) {
@@ -429,7 +495,7 @@ func pcieLinkMetrics(device ddnvml.Device) ([]Sample, uint64, error) {
 	if err != nil {
 		return samplesOut, 0, fmt.Errorf("get current PCIe link generation: %w", err)
 	}
-	currentSpeed, err := pcieLinkBytesPerSecond(currentGeneration, currentWidth)
+	currentSpeed, err := gpuutil.PCIeLinkBytesPerSecond(currentGeneration, currentWidth)
 	if err != nil {
 		return samplesOut, 0, fmt.Errorf("compute current PCIe link speed: %w", err)
 	}
@@ -439,7 +505,7 @@ func pcieLinkMetrics(device ddnvml.Device) ([]Sample, uint64, error) {
 	if err != nil {
 		return samplesOut, 0, fmt.Errorf("get max PCIe link generation: %w", err)
 	}
-	maxSpeed, err := pcieLinkBytesPerSecond(maxGeneration, maxWidth)
+	maxSpeed, err := gpuutil.PCIeLinkBytesPerSecond(maxGeneration, maxWidth)
 	if err != nil {
 		return samplesOut, 0, fmt.Errorf("compute max PCIe link speed: %w", err)
 	}
@@ -823,24 +889,6 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 			},
 		},
 		{
-			Name: "device_unhealthy_count",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
-				if !env.IsFeaturePresent(env.KubernetesDevicePlugins) {
-					return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("GetUnhealthyDevices", nvml.ERROR_NOT_SUPPORTED)
-				}
-
-				gpu, err := deps.Workloadmeta.GetGPU(device.GetDeviceInfo().UUID)
-				if err != nil {
-					return nil, 0, err
-				}
-				var count float64
-				if !gpu.Healthy {
-					count = 1
-				}
-				return []Sample{&Metric{Name: "device.unhealthy", Value: count, Type: metrics.GaugeType}}, 0, nil
-			},
-		},
-		{
 			Name: "clock_throttle_reasons",
 			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				reasons, err := device.GetCurrentClocksThrottleReasons()
@@ -899,6 +947,12 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 			Name: "needs_recovery",
 			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				return needsRecoverySample(device)
+			},
+		},
+		{
+			Name: "fabric_health",
+			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
+				return fabricHealthSample(device)
 			},
 		},
 		// Process memory APIs (stateless - just current snapshot)
@@ -966,24 +1020,7 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 	apis = append(apis, apiCallInfo{
 		Name: "device_unavailable",
 		Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
-			physicalDevice, ok := device.(*ddnvml.PhysicalDevice)
-			if !ok || physicalDevice.HasMIGFeatureEnabled {
-				return nil, 0, errUnsupportedDevice
-			}
-
-			value := 0.0
-			if _, err := device.GetIndex(); err != nil {
-				if !ddnvml.IsGPULost(err) {
-					return nil, 0, err
-				}
-				value = 1
-			}
-			return []Sample{&Metric{
-				baseSample: baseSample{tags: []string{"unavailable_reason:lost"}},
-				Name:       "device.unavailable",
-				Value:      value,
-				Type:       metrics.GaugeType,
-			}}, 0, nil
+			return deviceUnavailableSample(device, deps)
 		},
 	})
 

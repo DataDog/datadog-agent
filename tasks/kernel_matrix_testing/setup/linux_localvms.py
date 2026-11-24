@@ -58,7 +58,7 @@ class NFSKernelServer(Requirement):
             if not fix:
                 return RequirementState(Status.FAIL, "NFS kernel server is not enabled.", fixable=True)
 
-            ctx.run(f"sudo systemctl enable --now {service_name}")
+            ctx.run(f"sudo -n systemctl enable --now {service_name}")
 
         return RequirementState(Status.OK, "NFS kernel server is enabled.")
 
@@ -92,7 +92,7 @@ class LinuxQemuConfig(Requirement):
             return RequirementState(Status.OK, "QEMU config is correct.")
         elif fix:
             try:
-                sudo = "sudo" if not is_root() else ""
+                sudo = "sudo -n" if not is_root() else ""
                 ctx.run(f"{sudo} systemctl restart libvirtd.service")
             except Exception as e:
                 return RequirementState(Status.WARN, f"Failed to restart libvirtd to apply changes {e}")
@@ -110,8 +110,8 @@ class NFSExport(Requirement):
             return RequirementState(Status.FAIL, "NFS export missing.", fixable=True)
 
         try:
-            ctx.run(f"sudo sh -c 'echo \"{export_line}\" >> /etc/exports'")
-            ctx.run("sudo exportfs -a")
+            ctx.run(f"sudo -n sh -c 'echo \"{export_line}\" >> /etc/exports'")
+            ctx.run("sudo -n exportfs -a")
         except Exception as e:
             return RequirementState(Status.FAIL, f"Failed to add NFS export: {e}")
 

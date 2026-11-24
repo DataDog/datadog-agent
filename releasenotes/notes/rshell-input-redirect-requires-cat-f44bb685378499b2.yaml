@@ -1,0 +1,8 @@
+---
+security:
+  - |
+    The Private Action Runner's restricted shell (rshell) now authorizes
+    ``<`` input redirection as an implicit ``cat``. A ``< file`` redirect is
+    refused unless ``rshell:cat`` is in the allowed command list, matching
+    the existing rule for the ``$(<file)`` shortcut. The platform's null
+    device (``/dev/null`` on Unix, ``NUL`` on Windows) is exempt.

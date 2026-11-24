@@ -3,6 +3,7 @@ name: "Tidy Dependencies"
 on:
   pull_request:
     types:
+      - labeled
       - opened
       - synchronize
 
@@ -10,14 +11,16 @@ permissions: {}
 
 jobs:
   go_mod_tidy:
-    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-go') }}
+    if: ${{ contains(fromJSON('["DataDog/datadog-agent", "ddoghq/datadog-agent"]'), github.repository) && github.event.pull_request.user.login == 'renovate[bot]' && github.actor == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-go') && (github.event.action != 'labeled' || github.event.label.name == 'dependencies-go') }}
     concurrency:
       group: deps-tidy-go-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     permissions:
+      contents: read
       id-token: write # Required for dd-octo-sts OIDC token
       pull-requests: write # Required to auto-close PRs that bump the root go directive
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -57,13 +60,15 @@ jobs:
           commit-message: "[renovate skip] Auto-generate go.sum and LICENSE-3rdparty.csv changes"
 
   cargo_tidy:
-    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-cargo') }}
+    if: ${{ contains(fromJSON('["DataDog/datadog-agent", "ddoghq/datadog-agent"]'), github.repository) && github.event.pull_request.user.login == 'renovate[bot]' && github.actor == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-cargo') && (github.event.action != 'labeled' || github.event.label.name == 'dependencies-cargo') }}
     concurrency:
       group: deps-tidy-cargo-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     permissions:
+      contents: read
       id-token: write # Required for dd-octo-sts OIDC token
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -71,7 +76,7 @@ jobs:
       - uses: ./.github/actions/deps-tidy-setup
         id: setup
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # v1
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
           toolchain: stable
       - name: Repin Bazel Rust lockfile
@@ -88,8 +93,12 @@ jobs:
           commit-message: "[renovate skip] Auto-repin Bazel Rust lockfile and regenerate Rust licenses"
 
   bazel_native_tidy:
-    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-bazel-native') }}
+    if: ${{ contains(fromJSON('["DataDog/datadog-agent", "ddoghq/datadog-agent"]'), github.repository) && github.event.pull_request.user.login == 'renovate[bot]' && github.actor == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-bazel-native') && (github.event.action != 'labeled' || github.event.label.name == 'dependencies-bazel-native') }}
+    concurrency:
+      group: deps-tidy-bazel-native-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     permissions:
+      contents: read
       id-token: write # Required for dd-octo-sts OIDC token
     runs-on: ubuntu-latest
     steps:
@@ -113,13 +122,15 @@ jobs:
           commit-message: "[renovate skip] Auto-refresh http_archive sha256"
 
   bazel_tidy:
-    if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-bazel') }}
+    if: ${{ contains(fromJSON('["DataDog/datadog-agent", "ddoghq/datadog-agent"]'), github.repository) && github.event.pull_request.user.login == 'renovate[bot]' && github.actor == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-bazel') && (github.event.action != 'labeled' || github.event.label.name == 'dependencies-bazel') }}
     concurrency:
       group: deps-tidy-bazel-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     permissions:
+      contents: read
       id-token: write # Required for dd-octo-sts OIDC token
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -130,6 +141,9 @@ jobs:
         run: |
           bazel mod tidy
           bazel mod deps
+          bazel run @maven2//:pin
+          bazel run //deps:py_agent_integrations_tool_requirements.update
+          bazel run //deps:py_dev_requirements.update
       - uses: ./.github/actions/deps-tidy-push
         with:
           token: ${{ steps.setup.outputs.token }}

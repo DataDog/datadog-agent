@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    The overlayfs direct scan of Docker and containerd images
+    (``sbom.container_image.overlayfs_direct_scan``) reads the image
+    configuration from the container runtime when the image history does not
+    match its layers, as for images built without history. It exported the
+    whole image to a temporary file, and on nodes that discard compressed
+    image layers, such as EKS and GKE nodes, the export failed the scan.

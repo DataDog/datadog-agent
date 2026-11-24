@@ -1,0 +1,13 @@
+description: Input redirection works within a for loop body iterating over filenames.
+setup:
+  files:
+    - path: nums.txt
+      content: "1\n2\n3\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    for f in nums.txt; do cat < "$f"; done
+expect:
+  stdout: "1\n2\n3\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,13 @@
+description: Default IFS splits on spaces, tabs, and newlines.
+input:
+  script: |+
+    A="hello	world"
+    for w in $A; do
+      echo "$w"
+    done
+expect:
+  stdout: |+
+    hello
+    world
+  stderr: ""
+  exit_code: 0

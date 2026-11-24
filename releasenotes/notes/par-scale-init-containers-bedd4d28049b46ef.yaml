@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    The Kubernetes actions for vertically scaling Deployments and StatefulSets
+    now support updating CPU and memory requests and limits for init containers,
+    including restartable init sidecars, through the existing container updates input.

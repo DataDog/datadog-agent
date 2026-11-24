@@ -24,6 +24,7 @@ import (
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -202,6 +203,12 @@ func (m *Manager) GenerateTranscoding(params *api.TranscodingRequestParams) (*ap
 	// open and parse input file
 	if err := ad.Profile.Decode(params.GetActivityDumpFile()); err != nil {
 		err := fmt.Errorf("couldn't parse input file %s: %w", params.GetActivityDumpFile(), err)
+		return &api.TranscodingRequestMessage{Error: err.Error()}, err
+	}
+
+	// the name is read from the input file and is used to build the output file path
+	if err := storage.ValidateProfileName(ad.Profile.Metadata.Name); err != nil {
+		err := fmt.Errorf("couldn't transcode input file %s: %w", params.GetActivityDumpFile(), err)
 		return &api.TranscodingRequestMessage{Error: err.Error()}, err
 	}
 

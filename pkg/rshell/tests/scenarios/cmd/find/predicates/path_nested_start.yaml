@@ -1,0 +1,18 @@
+description: find -path with non-dot start path produces forward-slash-separated output.
+setup:
+  files:
+    - path: src/sub/file.go
+      content: "package sub"
+      chmod: 0644
+    - path: src/sub/other.txt
+      content: "other"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find src -path 'src/sub/*.go' -type f
+expect:
+  stdout: |+
+    src/sub/file.go
+  stderr: ""
+  exit_code: 0

@@ -34,7 +34,6 @@ type Workload struct {
 	GCroupCacheEntry *cgroupModel.CacheEntry
 	Tags             []string
 	Selector         cgroupModel.WorkloadSelector
-	retries          int
 }
 
 // GetWorkloadID returns the workload ID for a workload
@@ -73,11 +72,7 @@ func (t *LinuxResolver) Start(ctx context.Context) error {
 		return err
 	}
 
-	if err := t.cgroupResolver.RegisterListener(cgroup.CGroupCreated, func(cgce *cgroupModel.CacheEntry) {
-		workload := &Workload{GCroupCacheEntry: cgce, retries: 3}
-		t.workloads[cgce.GetCGroupContext().CGroupID] = workload
-		t.checkTags(workload)
-	}); err != nil {
+	if err := t.cgroupResolver.RegisterListener(cgroup.CGroupCreated, t.onCGroupCreated); err != nil {
 		return err
 	}
 
@@ -103,17 +98,7 @@ func (t *LinuxResolver) Start(ctx context.Context) error {
 			case <-ctx.Done():
 				return
 			case <-delayerTick.C:
-
-			WORKLOAD:
-				// we want to process approximately the number of workloads in the queue
-				for workloadCount := len(t.workloadsWithoutTags); workloadCount > 0; workloadCount-- {
-					select {
-					case workload := <-t.workloadsWithoutTags:
-						t.checkTags(workload)
-					default:
-						break WORKLOAD
-					}
-				}
+				t.retryWorkloadsWithoutTags()
 			}
 		}
 	}()
@@ -121,31 +106,60 @@ func (t *LinuxResolver) Start(ctx context.Context) error {
 	return nil
 }
 
+// onCGroupCreated tracks the workload of a new cgroup and resolves its tags
+func (t *LinuxResolver) onCGroupCreated(cgce *cgroupModel.CacheEntry) {
+	workload := &Workload{GCroupCacheEntry: cgce}
+	t.workloads[cgce.GetCGroupContext().CGroupID] = workload
+	t.checkTags(workload)
+}
+
+// retryWorkloadsWithoutTags checks again the tags of the workloads queued without them
+func (t *LinuxResolver) retryWorkloadsWithoutTags() {
+	// we want to process approximately the number of workloads in the queue
+	for workloadCount := len(t.workloadsWithoutTags); workloadCount > 0; workloadCount-- {
+		select {
+		case workload := <-t.workloadsWithoutTags:
+			t.checkTags(workload)
+		default:
+			return
+		}
+	}
+}
+
+// queueWithoutTags queues a workload to check its tags again. A full queue drops
+// the workload that waited longest, the least likely to get its tags.
+func (t *LinuxResolver) queueWithoutTags(workload *Workload) {
+	select {
+	case t.workloadsWithoutTags <- workload:
+		return
+	default:
+	}
+	select {
+	case dropped := <-t.workloadsWithoutTags:
+		seclog.Debugf("Dropped workload %v from tags retrieval", dropped.GetWorkloadID())
+	default:
+	}
+	select {
+	case t.workloadsWithoutTags <- workload:
+	default:
+		seclog.Warnf("Failed to requeue workload %v for tags retrieval", workload.GetWorkloadID())
+	}
+}
+
 func needsTagsResolution(workload *Workload) bool {
 	// Container or cgroup workloads need tags resolution if they don't have a ready selector
 	return (len(workload.GCroupCacheEntry.GetContainerID()) != 0 || len(workload.GCroupCacheEntry.GetCGroupID()) != 0) && !workload.Selector.IsReady()
 }
 
-// checkTags checks if the tags of a workload were properly set
-func (t *LinuxResolver) checkTags(pendingWorkload *Workload) {
-	workload := pendingWorkload
+// checkTags checks if the tags of a workload were properly set, and queues it to
+// check again while its cgroup lives
+func (t *LinuxResolver) checkTags(workload *Workload) {
 	// check if the workload tags were found or if it was deleted
 	if !workload.GCroupCacheEntry.IsDeleted() && needsTagsResolution(workload) {
 		// this is an alive cgroup, try to resolve its tags now
 		err := t.fetchTags(workload)
 		if err != nil || needsTagsResolution(workload) {
-			if pendingWorkload.retries--; pendingWorkload.retries >= 0 {
-				// push to the workloadsWithoutTags chan so that its tags can be resolved later
-				select {
-				case t.workloadsWithoutTags <- pendingWorkload:
-				default:
-					workloadID := workload.GetWorkloadID()
-					seclog.Warnf("Failed to requeue workload %v for tags retrieval", workloadID)
-				}
-			} else {
-				workloadID := workload.GetWorkloadID()
-				seclog.Debugf("Failed to resolve tags for workload %v", workloadID)
-			}
+			t.queueWithoutTags(workload)
 			return
 		}
 

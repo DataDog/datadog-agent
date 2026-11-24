@@ -1,0 +1,26 @@
+# skip: AllowedPaths sandbox restriction is an rshell-specific feature.
+skip_assert_against_bash: true
+description: |
+  vuln-hunt E1 (2026-05-18-initial-audit): when the inline-assignment value
+  comes from a command substitution that is denied by AllowedPaths, the
+  failed expansion must not leak the secret into the parent shell — the
+  prior value of A is restored after the command.
+  (POSIX expands command args BEFORE inline assigns, so `$A` inside `echo`
+  resolves to the parent's value, not the cmdsub result — this is correct
+  and tested elsewhere; we only assert the post-restore here.)
+setup:
+  files:
+    - path: allowed/keep.txt
+      content: "ok"
+    - path: secret/data.txt
+      content: "leaked-via-cmdsub"
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    A=orig
+    A=$(cat secret/data.txt) echo done
+    echo "after=[$A]"
+expect:
+  stdout_contains: ["after=[orig]"]
+  stderr_contains: ["permission denied"]
+  exit_code: 0

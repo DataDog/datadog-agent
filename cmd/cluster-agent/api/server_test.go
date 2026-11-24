@@ -24,6 +24,7 @@ func TestValidateTokenMiddleware(t *testing.T) {
 	mockConfig.SetInTest("cluster_agent.auth_token", "abc123")
 	util.InitDCAAuthToken(mockConfig)
 	ipcComp := ipcmock.New(t)
+	ipcToken := ipcComp.GetAuthToken()
 
 	tests := []struct {
 		path, authToken    string
@@ -55,8 +56,100 @@ func TestValidateTokenMiddleware(t *testing.T) {
 			http.StatusOK,
 		},
 		{
+			// node agents read the conditions and cordon state of their node with the cluster agent token
+			"/api/v1/info/node/node-1/status",
+			"abc123",
+			http.StatusOK,
+		},
+		{
+			"/api/v1/info/node/node-1/status",
+			"imposter",
+			http.StatusForbidden,
+		},
+		{
+			// node agents read the system info of their node with the cluster agent token
+			"/api/v1/info/node/node-1",
+			"abc123",
+			http.StatusOK,
+		},
+		{
+			"/api/v1/info/node/node-1?filter=kubeletVersion&filter=kernelVersion",
+			"abc123",
+			http.StatusOK,
+		},
+		{
+			"/api/v1/info/node/node-1",
+			"imposter",
+			http.StatusForbidden,
+		},
+		{
+			"/api/v1/info/node/",
+			"abc123",
+			http.StatusForbidden,
+		},
+		{
+			"/api/v1/info/node/node-1/other",
+			"abc123",
+			http.StatusForbidden,
+		},
+		{
+			"/api/v1/info/node/node-1?x=/status",
+			"abc123",
+			http.StatusOK,
+		},
+		{
+			"/api/v1/info/node/node-1/status?x=1",
+			"abc123",
+			http.StatusOK,
+		},
+		{
+			"/api/v1/info/node//status",
+			"abc123",
+			http.StatusForbidden,
+		},
+		{
 			"/version",
 			"bandit!",
+			http.StatusForbidden,
+		},
+		{
+			"/stop",
+			ipcToken,
+			http.StatusOK,
+		},
+		{
+			"/stop",
+			"abc123",
+			http.StatusForbidden,
+		},
+		{
+			"/api/v1/clusterchecks/rebalance",
+			ipcToken,
+			http.StatusOK,
+		},
+		{
+			"/api/v1/clusterchecks/rebalance",
+			"abc123",
+			http.StatusForbidden,
+		},
+		{
+			"/version",
+			ipcToken,
+			http.StatusForbidden,
+		},
+		{
+			"/version?x=1",
+			"abc123",
+			http.StatusOK,
+		},
+		{
+			"/version?x=1",
+			ipcToken,
+			http.StatusForbidden,
+		},
+		{
+			"/stop?x=/version",
+			"abc123",
 			http.StatusForbidden,
 		},
 	}
@@ -70,7 +163,9 @@ func TestValidateTokenMiddleware(t *testing.T) {
 
 			rr := httptest.NewRecorder()
 
+			handlerCalled := false
 			nopHandler := func(w http.ResponseWriter, _ *http.Request) {
+				handlerCalled = true
 				w.WriteHeader(http.StatusOK)
 			}
 
@@ -79,6 +174,7 @@ func TestValidateTokenMiddleware(t *testing.T) {
 			handler.ServeHTTP(rr, req)
 
 			assert.Equal(t, tt.expectedStatusCode, rr.Code)
+			assert.Equal(t, tt.expectedStatusCode == http.StatusOK, handlerCalled)
 		})
 	}
 }

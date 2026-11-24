@@ -197,6 +197,7 @@ api_key:
 ## On Windows, the core Agent starts the Windows service `dd-procmgr-service` when this option is true.
 ## On Linux, dd-procmgrd is started by systemd (`datadog-agent-procmgr.service` linked to the main Agent unit);
 ## This setting is ignored on Linux and does not enable or disable the systemd unit.
+## On macOS, dd-procmgrd always runs as the LaunchDaemon `com.datadoghq.procmgr`. This setting is not yet supported there.
 #
 # process_manager:
 
@@ -204,6 +205,7 @@ api_key:
 #   # @env DD_PROCESS_MANAGER_ENABLED - boolean - optional - default: true
 #   # When true (Windows only), the core Agent starts the dd-procmgr-service Windows service.
 #   # On Linux, the process manager daemon is started by systemd; this option is ignored.
+#   # On macOS, dd-procmgrd always runs (LaunchDaemon com.datadoghq.procmgr). This option is not yet supported there.
 #
 #   enabled: true
 
@@ -337,6 +339,31 @@ api_key:
 #
 #     endpoints: {}
 
+#   # @param distributions - custom object - optional
+#   # Controls the use of the v3 metrics intake for distribution metrics.
+#
+#   distributions:
+
+#     # @param enabled - string - optional - default: "datadog_only"
+#     # @env DD_USE_V3_API_DISTRIBUTIONS_ENABLED - string - optional - default: "datadog_only"
+#     # Global default for the distribution metrics intake version. Accepted values:
+#     #   - true: v3 for every destination except Observability Pipelines Worker.
+#     #   - datadog_only: v3 only when the destination URL is a Datadog endpoint.
+#     #   - false: v2 everywhere.
+#
+#     enabled: "datadog_only"
+
+#     # @param endpoints - object - optional - default: {}
+#     # @env DD_USE_V3_API_DISTRIBUTIONS_ENDPOINTS - JSON object of string to string - optional - default: {}
+#     # Per-URL override map for distribution metrics intake version. The URL
+#     # must match exactly what was configured under `dd_url` or `additional_endpoints`.
+#     # Accepted values:
+#     #   - true: v3 for every destination except Observability Pipelines Worker.
+#     #   - datadog_only: v3 only when the destination URL is a Datadog endpoint.
+#     #   - false: v2 everywhere.
+#
+#     endpoints: {}
+
 ## @param forwarder_retry_queue_payloads_max_size - integer - optional - default: 15728640
 ## @env DD_FORWARDER_RETRY_QUEUE_PAYLOADS_MAX_SIZE - integer - optional - default: 15728640
 ## It defines the maximum size in bytes of all the payloads in the forwarder's retry queue.
@@ -387,8 +414,8 @@ api_key:
 #
 # forwarder_storage_max_size_in_bytes: 50000000
 
-## @param forwarder_storage_max_disk_ratio - float - optional - default: 0.8
-## @env DD_FORWARDER_STORAGE_MAX_DISK_RATIO - float - optional - default: 0.8
+## @param forwarder_storage_max_disk_ratio - integer - optional - default: 0.8
+## @env DD_FORWARDER_STORAGE_MAX_DISK_RATIO - integer - optional - default: 0.8
 ## `forwarder_storage_max_disk_ratio` defines the disk capacity limit for storing transactions.
 ## `0.8` means the Agent can store transactions on disk until `forwarder_storage_max_size_in_bytes`
 ## is reached or when the disk mount for `forwarder_storage_path` exceeds 80% of the disk capacity,
@@ -423,16 +450,16 @@ api_key:
 #
 # forwarder_requeue_buffer_size: 100
 
-## @param forwarder_backoff_base - integer - optional - default: 2
-## @env DD_FORWARDER_BACKOFF_BASE - integer - optional - default: 2
+## @param forwarder_backoff_base - float - optional - default: 2
+## @env DD_FORWARDER_BACKOFF_BASE - float - optional - default: 2
 ## Defines the rate of exponential growth, and the first retry interval range.
 ## Do not set a lower value than the default. You may increase it if you use a proxy that benefits from a
 ## higher rate of exponential growth.
 #
 # forwarder_backoff_base: 2
 
-## @param forwarder_backoff_max - integer - optional - default: 64
-## @env DD_FORWARDER_BACKOFF_MAX - integer - optional - default: 64
+## @param forwarder_backoff_max - float - optional - default: 64
+## @env DD_FORWARDER_BACKOFF_MAX - float - optional - default: 64
 ## Defines the maximum number of seconds to wait for a retry.
 ## Do not set a lower value than the default. You may increase it if you use a proxy that benefits from a
 ## higher maximum backoff time.
@@ -596,7 +623,8 @@ api_key:
 
 ## @param gpu - custom object - optional
 ## Configuration for GPU Monitoring on non-containerized Linux hosts.
-## Both this section and the gpu_monitoring section in system-probe.yaml must be configured.
+## NVIDIA kernel-level monitoring also requires gpu_monitoring in system-probe.yaml.
+## AMD sysfs monitoring does not require system-probe.
 #
 # gpu:
 
@@ -604,9 +632,42 @@ api_key:
 #   # @env DD_GPU_ENABLED - boolean - optional - default: false
 #   # Set to true to enable the GPU check in the core Agent.
 #   # Required for GPU monitoring on non-containerized Linux hosts.
-#   # Must be used together with gpu_monitoring.enabled: true in system-probe.yaml.
+#   # Enable gpu_monitoring.enabled in system-probe.yaml for NVIDIA kernel-level metrics.
+#   # AMD sysfs metrics require only the core Agent.
+#   # On Linux Agents with NVML support, enabling GPU Monitoring delays readiness
+#   # until NVML initializes or gpu.readiness_timeout expires (one minute by default).
 #
 #   enabled: false
+
+#   # @param readiness_timeout - duration - optional - default: "1m"
+#   # @env DD_GPU_READINESS_TIMEOUT - duration - optional - default: "1m"
+#   # How long the core Agent waits for NVML initialization before reporting GPU
+#   # readiness when gpu.enabled is true. Applies to Linux Agents with NVML support.
+#   # The timeout starts during Agent startup, even if the GPU check is not scheduled.
+#   # It also expires during GPU reset windows, even while GPU collection is paused.
+#   # Hosts without working NVML, including AMD-only hosts, wait for the full timeout
+#   # on every Agent restart. The health probe can take up to 15 additional seconds
+#   # to report readiness. This does not affect liveness or ongoing GPU health checks.
+#   # Use a duration such as 30s or 2m. Set to 0s or a negative duration to disable
+#   # this readiness delay.
+#
+#   readiness_timeout: "1m"
+
+#   # @param legacy_sm_active - boolean - optional - default: false
+#   # @env DD_GPU_LEGACY_SM_ACTIVE - boolean - optional - default: false
+#   # Set to true to restore the legacy mapping of GPM SM utilization to
+#   # gpu.sm_active, matching the behavior of DCGM. On GPM-capable GPUs, the high-priority GPM value is
+#   # reported as both gpu.sm_active and gpu.sm_utilization.
+#
+#   legacy_sm_active: false
+
+#   # @param prefer_gr_engine_sm_active - boolean - optional - default: false
+#   # @env DD_GPU_PREFER_GR_ENGINE_SM_ACTIVE - boolean - optional - default: false
+#   # gpu.sm_active falls back to the GPM GR engine activity (the same value as gpu.gr_engine_active)
+#   # when no other source is available. Set to true to report it with priority over the sampling and
+#   # eBPF sources. This source is not used if gpu.legacy_sm_active is enabled.
+#
+#   prefer_gr_engine_sm_active: false
 
 #   # @param nccl - custom object - optional
 #   # NCCL collective communication metrics. When enabled, the Agent listens on a
@@ -636,6 +697,100 @@ api_key:
 #     # Must be under host_socket_path.
 #
 #     socket_path: "/var/run/datadog/nccl.socket"
+
+#   # @param static_metrics_reporting_interval - duration - optional - default: "15s"
+#   # @env DD_GPU_STATIC_METRICS_REPORTING_INTERVAL - duration - optional - default: "15s"
+#   # Reporting interval for static GPU metrics, including gpu.device.total,
+#   # gpu.memory.limit, gpu.core.limit, and gpu.memory.bar1.total. Samples received
+#   # early are dropped and missing intervals are filled. Use the same value on every
+#   # host in a Datadog organization to avoid inaccurate weighted sums as workloads change.
+#   # Set to 0 to report on every check run.
+#
+#   static_metrics_reporting_interval: "15s"
+
+#   # @param jobs - custom object - optional
+#   # Identify the training job a GPU workload belongs to. The Agent reads the
+#   # configured pod label, pod annotation, or environment variable and attaches
+#   # its value as a tag on GPU metrics.
+#
+#   jobs:
+
+#     # @param run - custom object - optional
+#     # Where to find the unique ID of a single training run.
+#
+#     run:
+
+#       # @param key - string - optional - default: ""
+#       # @env DD_GPU_JOBS_RUN_KEY - string - optional - default: ""
+#       # Name of the pod label, pod annotation, or environment variable holding
+#       # the run ID, for example _RAY_SUBMISSION_ID. Leave empty to disable run tagging.
+#
+#       key: ""
+
+#       # @param type - string - optional - default: "label"
+#       # @env DD_GPU_JOBS_RUN_TYPE - string - optional - default: "label"
+#       # Where key is read from: a pod `label`, a pod `annotation`, or an `env`
+#       # (environment variable of the process using the GPU).
+#
+#       type: "label"
+
+#     # @param group - custom object - optional
+#     # Where to find the ID of the group of related training runs.
+#
+#     group:
+
+#       # @param key - string - optional - default: ""
+#       # @env DD_GPU_JOBS_GROUP_KEY - string - optional - default: ""
+#       # Name of the pod label, pod annotation, or environment variable holding
+#       # the group ID, for example example/job-group-annotation. Leave empty to
+#       # disable group tagging.
+#
+#       key: ""
+
+#       # @param type - string - optional - default: "label"
+#       # @env DD_GPU_JOBS_GROUP_TYPE - string - optional - default: "label"
+#       # Where key is read from: a pod `label`, a pod `annotation`, or an `env`
+#       # (environment variable of the process using the GPU).
+#
+#       type: "label"
+
+#   # @param kai_scheduler - custom object - optional
+#   # Support for workloads scheduled by KAI Scheduler, which lets several pods
+#   # share one GPU. A pod asking for a fraction of a GPU does not request
+#   # `nvidia.com/gpu`, so the GPU it uses cannot be identified from the pod's
+#   # own resource requests; the assignment is read from the reservation pod KAI
+#   # creates for the shared GPU.
+#
+#   kai_scheduler:
+
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_GPU_KAI_SCHEDULER_ENABLED - boolean - optional - default: false
+#     # Set to true to report which GPU each KAI Scheduler fractional workload
+#     # is using, the fraction of it assigned to the workload and the memory
+#     # of that fraction (`gpu.device.sharing_fraction`,
+#     # `gpu.device.sharing_memory`, `gpu_sharing_mode:kai_fraction`).
+#
+#     enabled: false
+
+#   # @param tracing - custom object - optional
+#   # Configure the tracers injected into GPU workloads. The fields match an
+#   # apm_config.instrumentation.targets entry of Single Step Instrumentation.
+#
+#   tracing:
+
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_GPU_TRACING_ENABLED - boolean - optional - default: false
+#     # Set to true to inject tracers into GPU workloads.
+#
+#     enabled: false
+
+#     # @param tracer_versions - object - optional - default: {'c': '0'}
+#     # @env DD_GPU_TRACING_TRACER_VERSIONS - JSON object - optional - default: {'c': '0'}
+#     # Map of tracer language to the tracer version to inject, for example c: "0.24.0".
+#     # Defaults to the latest major version 0 of the C tracer.
+#
+#     tracer_versions:
+#       c: "0.24.0"
 
 ## @param azure_metadata_timeout - integer - optional - default: 300
 ## @env DD_AZURE_METADATA_TIMEOUT - integer - optional - default: 300
@@ -936,9 +1091,9 @@ api_key:
 #
 #   apm_dd_url: <ENDPOINT>:<PORT>
 
-#   # @param max_traces_per_second - float - optional - default: 10
-#   # @env DD_APM_MAX_TPS - float - optional - default: 10
-#   # @env DD_MAX_TPS - float - optional - default: 10
+#   # @param max_traces_per_second - integer - optional - default: 10
+#   # @env DD_APM_MAX_TPS - integer - optional - default: 10
+#   # @env DD_MAX_TPS - integer - optional - default: 10
 #   # DEPRECATED - please use `target_traces_per_second` instead.
 #   #
 #   # The target traces per second to sample. Sampling rates to apply are adjusted given
@@ -949,8 +1104,8 @@ api_key:
 #
 #   max_traces_per_second: 10
 
-#   # @param target_traces_per_second - float - optional - default: 10
-#   # @env DD_APM_TARGET_TPS - float - optional - default: 10
+#   # @param target_traces_per_second - integer - optional - default: 10
+#   # @env DD_APM_TARGET_TPS - integer - optional - default: 10
 #   # The target traces per second to sample. Sampling rates to apply are adjusted given
 #   # the received traffic and communicated to tracers. This configures head-based sampling.
 #   # As of 7.35.0 sampling cannot be disabled and setting 'max_traces_per_second' to 0 no longer
@@ -959,17 +1114,17 @@ api_key:
 #
 #   target_traces_per_second: 10
 
-#   # @param errors_per_second - float - optional - default: 10
-#   # @env DD_APM_ERROR_TPS - float - optional - default: 10
+#   # @param errors_per_second - integer - optional - default: 10
+#   # @env DD_APM_ERROR_TPS - integer - optional - default: 10
 #   # The target error trace chunks to receive per second. The TPS is spread
 #   # to catch all combinations of service, name, resource, http.status, and error.type.
 #   # Set to 0 to disable the errors sampler.
 #
 #   errors_per_second: 10
 
-#   # @param max_events_per_second - float - optional - default: 200
-#   # @env DD_APM_MAX_EPS - float - optional - default: 200
-#   # @env DD_MAX_EPS - float - optional - default: 200
+#   # @param max_events_per_second - integer - optional - default: 200
+#   # @env DD_APM_MAX_EPS - integer - optional - default: 200
+#   # @env DD_MAX_EPS - integer - optional - default: 200
 #   # **Deprecated.** APM events are a deprecated feature related to legacy App Analytics. This setting
 #   # caps sampling for that legacy path only. It does not limit trace volume, spans, or general APM
 #   # ingestion; for trace sampling, see `max_traces_per_second` and `target_traces_per_second` above.
@@ -977,8 +1132,8 @@ api_key:
 #
 #   max_events_per_second: 200
 
-#   # @param max_memory - float - optional - default: "5e+08"
-#   # @env DD_APM_MAX_MEMORY - float - optional - default: "5e+08"
+#   # @param max_memory - integer - optional - default: 500000000.0
+#   # @env DD_APM_MAX_MEMORY - integer - optional - default: 500000000.0
 #   # This value is what the Agent aims to use in terms of memory. If surpassed, the API
 #   # rate limits incoming requests to aim and stay below this value.
 #   # Note: The Agent process is killed if it uses more than 150% of `max_memory`.
@@ -986,8 +1141,8 @@ api_key:
 #
 #   max_memory: 500000000.0
 
-#   # @param max_cpu_percent - float - optional - default: 50
-#   # @env DD_APM_MAX_CPU_PERCENT - float - optional - default: 50
+#   # @param max_cpu_percent - integer - optional - default: 50
+#   # @env DD_APM_MAX_CPU_PERCENT - integer - optional - default: 50
 #   # The CPU percentage that the Agent aims to use. If surpassed, the API rate limits
 #   # incoming requests to aim and stay below this value. Examples: 50 = half a core, 200 = two cores.
 #   # Set `max_cpu_percent` to `0` to disable rate limiting based on CPU usage.
@@ -1335,6 +1490,13 @@ api_key:
 #
 #   ignore_resources: ["(GET|POST) /healthcheck"]
 
+#   # @param log_level - string - optional - default: ""
+#   # @env DD_APM_LOG_LEVEL - string - optional - default: ""
+#   # Overrides the global `log_level` for the trace Agent only.
+#   # Leave empty to use the global `log_level`.
+#
+#   log_level: ""
+
 #   # @param log_file - string - optional - default: ""
 #   # @env DD_APM_LOG_FILE - string - optional - default: ""
 #   # The full path to the file where APM-agent logs are written.
@@ -1472,8 +1634,8 @@ api_key:
 #
 #     enabled: false
 
-#     # @param sampling_percentage - float - optional - default: 0
-#     # @env DD_APM_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE - float - optional - default: 0
+#     # @param sampling_percentage - integer - optional - default: 0
+#     # @env DD_APM_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE - integer - optional - default: 0
 #     # Samples this percentage (0-100) of traffic
 #
 #     sampling_percentage: 0
@@ -1522,6 +1684,18 @@ api_key:
 #   # DD_APM_ADDITIONAL_PROFILE_TAGS='{"_dd.origin":"appservice","secondtag":"custom"}'
 #
 #   additional_profile_tags: {}
+
+#   # @param traces_send_to_main_endpoint - boolean - optional - default: true
+#   # @env DD_APM_TRACES_SEND_TO_MAIN_ENDPOINT - boolean - optional - default: true
+#   # For internal use. We expect to remove this setting in a future version.
+#   #
+#   # When false, the trace-agent trace and stats writers skip the main endpoint
+#   # (api_key + apm_config.apm_dd_url) and send only to apm_config.additional_endpoints.
+#   # The main endpoint's API key is still used by the other trace-agent proxies.
+#   # The configuration is rejected if no additional endpoint would remain. This is
+#   # the traces/stats counterpart of apm_config.profiling_send_to_main_endpoint.
+#
+#   traces_send_to_main_endpoint: true
 
 #############################
 ## DogStatsD Configuration ##
@@ -1817,8 +1991,8 @@ api_key:
 #
 #     evaluation_interval: "30s"
 
-#     # @param range_epsilon - float - optional - default: 0
-#     # @env DD_METRIC_LOOKBACK_MONITOR_RANGE_EPSILON - float - optional - default: 0
+#     # @param range_epsilon - integer - optional - default: 0
+#     # @env DD_METRIC_LOOKBACK_MONITOR_RANGE_EPSILON - integer - optional - default: 0
 #     # Monitor max-minus-min threshold. The Agent fails to start when this value is negative.
 #     # The monitor computes a window range as the maximum retained point value minus the minimum
 #     # retained point value in each completed evaluation window, or in each configured tag partition.
@@ -2040,6 +2214,18 @@ api_key:
 #   <LABEL_NAME>: <TAG_KEY>
 #   <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
 
+## @param container_image_annotations_as_tags - object - optional - default: {}
+## @env DD_CONTAINER_IMAGE_ANNOTATIONS_AS_TAGS - JSON object of string to string - optional - default: {}
+## The Agent can extract container image OCI annotation values and set them as tags associated to a <TAG_KEY>.
+## These tags are attached to container image entities (appearing on the Container Images page) and are also
+## applied to the containers using the image, so they show up on container.* metrics.
+## If you prefix your tag name with `+`, it will only be added to high cardinality metrics. (Supported container
+## runtimes: Containerd, CRI-O).
+#
+# container_image_annotations_as_tags:
+#   <ANNOTATION_NAME>: <TAG_KEY>
+#   <HIGH_CARDINALITY_ANNOTATION_NAME>: +<TAG_KEY>
+
 ###################################
 ## ECS integration Configuration ##
 ###################################
@@ -2169,3 +2355,27 @@ api_key:
 ## Set the duration to 0 to disable this filtering.
 #
 # kubernetes_pod_expiration_duration: 900
+
+## @param security_agent - custom object - optional
+## Settings specific to the security Agent process.
+#
+# security_agent:
+
+#   # @param log_level - string - optional - default: ""
+#   # @env DD_SECURITY_AGENT_LOG_LEVEL - string - optional - default: ""
+#   # Overrides the global `log_level` for the security Agent only.
+#   # Leave empty to use the global `log_level`.
+#
+#   log_level: ""
+
+## @param system_probe - custom object - optional
+## system-probe settings the core Agent owns and streams to system-probe.
+#
+# system_probe:
+
+#   # @param log_level - string - optional - default: ""
+#   # @env DD_SYSTEM_PROBE_LOG_LEVEL - string - optional - default: ""
+#   # Overrides the global `log_level` for system-probe only.
+#   # Leave empty to use the global `log_level`.
+#
+#   log_level: ""

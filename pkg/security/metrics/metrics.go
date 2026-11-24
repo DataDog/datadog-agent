@@ -213,6 +213,9 @@ var (
 	// MetricProcessResolverFlushed is the name of the metric used to report the number cache flush
 	// Tags: -
 	MetricProcessResolverFlushed = newRuntimeMetric(".process_resolver.flushed")
+	// MetricProcessResolverContainerContextCleared is the name of the metric used to report the number of container contexts cleared
+	// Tags: -
+	MetricProcessResolverContainerContextCleared = newRuntimeMetric(".process_resolver.container_context_cleared")
 	// MetricProcessResolverArgsTruncated is the name of the metric used to report the number of args truncated
 	// Tags: -
 	MetricProcessResolverArgsTruncated = newRuntimeMetric(".process_resolver.args.truncated")
@@ -418,8 +421,10 @@ var (
 
 	// Security Profile metrics
 
-	// MetricSecurityProfileProfiles is the name of the metric used to report the count of Security Profiles per category
-	// Tags: in_kernel (true or false), anomaly_detection (true or false), workload_hardening (true or false)
+	// MetricSecurityProfileProfiles is the gauge of security profiles currently tracked by the
+	// Security Profile V2 manager on this host, enabled or disabled, per image. A profile disabled
+	// after reaching the max dump size stays tracked until it is removed.
+	// Tags: profile_image_name
 	MetricSecurityProfileProfiles = newRuntimeMetric(".security_profile.profiles")
 	// MetricSecurityProfileCacheLen is the name of the metric used to report the size of the Security Profile cache
 	// Tags: -
@@ -599,8 +604,9 @@ var (
 	// Tags: source (runtime, replay or related), event_type
 	MetricSecurityProfileV2EventsImmediate = newRuntimeMetric(".security_profile_v2.events.immediate")
 
-	// MetricSecurityProfileV2InsertionErrors is the name of the metric used to report activity-tree
-	// insertion failures that are not routine filtering rejections (i.e. unexpected errors).
+	// MetricSecurityProfileV2InsertionErrors is the name of the metric used to report events that carry
+	// an error and activity-tree insertion failures that are not routine filtering rejections
+	// (i.e. unexpected errors). Such events are dropped.
 	// Tags: event_type, error_type
 	MetricSecurityProfileV2InsertionErrors = newRuntimeMetric(".security_profile_v2.insertion_errors")
 
@@ -621,6 +627,10 @@ var (
 	// MetricSecurityProfileV2TagResolutionEventsDropped is the name of the metric used to report events dropped due to 10s stale timeout
 	// Tags: source (runtime or replay)
 	MetricSecurityProfileV2TagResolutionEventsDropped = newRuntimeMetric(".security_profile_v2.tag_resolution.events_dropped")
+
+	// MetricSecurityProfileV2TagResolutionEventsCapped is the name of the metric used to report events not queued because the tag resolution queue is full
+	// Tags: limit (cgroup or total)
+	MetricSecurityProfileV2TagResolutionEventsCapped = newRuntimeMetric(".security_profile_v2.tag_resolution.events_capped")
 
 	// MetricSecurityProfileV2TagResolutionCgroupsExpired is the name of the metric used to report cgroups cleaned up after 60s without ever resolving tags
 	// Tags: -
@@ -676,6 +686,16 @@ var (
 	// Tags: -
 	MetricSecurityProfileV2SampleRefreshMisses = newRuntimeMetric(".security_profile_v2.sample_refresh.misses")
 
+	// Path pattern metrics
+
+	// MetricSecurityProfileV2PathPatternsFileNodesMerged counts FileNode siblings absorbed by path-pattern merging.
+	// Tags: tree_type
+	MetricSecurityProfileV2PathPatternsFileNodesMerged = newRuntimeMetric(".security_profile_v2.path_patterns.file_nodes_merged")
+
+	// MetricSecurityProfileV2PathPatternsLookupHits counts path components absorbed by an existing pattern node instead of a node of their own name.
+	// Tags: tree_type
+	MetricSecurityProfileV2PathPatternsLookupHits = newRuntimeMetric(".security_profile_v2.path_patterns.lookup_hits")
+
 	// MetricSecurityProfileV2ProfileSize is the unified size metric for active security profiles.
 	// Tags: profile_image_name, profile_image_tag, storage (ram|disk).
 	// Note: profile_image_* is used instead of image_* to avoid collision with Datadog's
@@ -691,6 +711,22 @@ var (
 	// MetricEventSampleSampled is the name of the metric used to report events that were sampled in kernel
 	// Tags: event_type
 	MetricEventSampleSampled = newRuntimeMetric(".event_sample.sampled")
+
+	// MetricEventSampleSentBelowThreshold is the name of the metric used to report events allowed below the pressure threshold
+	// Tags: event_type
+	MetricEventSampleSentBelowThreshold = newRuntimeMetric(".event_sample.sent_below_threshold")
+
+	// MetricEventSampleAllowedBetween is the name of the metric used to report events allowed by the rate limiter between the pressure thresholds
+	// Tags: event_type
+	MetricEventSampleAllowedBetween = newRuntimeMetric(".event_sample.allowed_between")
+
+	// MetricEventSampleDroppedBetween is the name of the metric used to report events dropped by the rate limiter between the pressure thresholds
+	// Tags: event_type
+	MetricEventSampleDroppedBetween = newRuntimeMetric(".event_sample.dropped_between")
+
+	// MetricEventSampleDroppedAboveCritical is the name of the metric used to report events dropped above the critical pressure threshold
+	// Tags: event_type
+	MetricEventSampleDroppedAboveCritical = newRuntimeMetric(".event_sample.dropped_above_critical")
 
 	// MetricSamplingPressureLevel is the name of the metric used to report the current sampling pressure level
 	// Tags: -

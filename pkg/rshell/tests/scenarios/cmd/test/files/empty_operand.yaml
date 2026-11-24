@@ -1,0 +1,17 @@
+# Empty filename operand should always return false
+description: "test file operators return false for empty operand"
+input:
+  script: |+
+    test -e ""
+    echo "e: $?"
+    test -f ""
+    echo "f: $?"
+    test -d ""
+    echo "d: $?"
+expect:
+  stdout: |
+    e: 1
+    f: 1
+    d: 1
+  stderr: ""
+  exit_code: 0

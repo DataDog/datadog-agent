@@ -111,8 +111,7 @@ func (cp *configPoller) stream(ch chan struct{}, provider types.StreamingConfigP
 
 				for _, added := range changes.Schedule {
 					added.Provider = cp.provider.String()
-					resolvedChanges := ac.processNewConfig(added)
-					ac.applyChanges(resolvedChanges)
+					ac.processNewConfig(added)
 				}
 			}
 
@@ -195,8 +194,7 @@ func (cp *configPoller) collectOnce(ctx context.Context, provider types.Collecti
 		}
 
 		config.Provider = cp.provider.String()
-		changes := ac.processNewConfig(config)
-		ac.applyChanges(changes)
+		ac.processNewConfig(config)
 	}
 
 }

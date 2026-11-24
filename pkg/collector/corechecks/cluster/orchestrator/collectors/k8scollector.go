@@ -55,11 +55,16 @@ func (cv *CollectorVersions) CollectorForVersion(groupVersion string) (K8sCollec
 type OrchestratorInformerFactory struct {
 	InformerFactory              informers.SharedInformerFactory
 	UnassignedPodInformerFactory informers.SharedInformerFactory
-	TerminatedPodInformerFactory informers.SharedInformerFactory
 	DynamicInformerFactory       dynamicinformer.DynamicSharedInformerFactory
-	MetadataInformerFactory      metadatainformer.SharedInformerFactory
 	CRDInformerFactory           externalversions.SharedInformerFactory
 	VPAInformerFactory           vpai.SharedInformerFactory
+	// HelmReleaseConfigMapInformerFactory only watches the ConfigMaps Helm uses to store releases.
+	HelmReleaseConfigMapInformerFactory informers.SharedInformerFactory
+	// ConfigMapMetadataInformerFactory watches ConfigMap metadata. It excludes Helm releases when they are collected
+	// separately.
+	ConfigMapMetadataInformerFactory metadatainformer.SharedInformerFactory
+	// SecretMetadataInformerFactory watches Secret metadata.
+	SecretMetadataInformerFactory metadatainformer.SharedInformerFactory
 }
 
 // NewK8sProcessorContext creates a new processor context for k8s resources.

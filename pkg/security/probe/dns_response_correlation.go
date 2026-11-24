@@ -32,6 +32,21 @@ func newCorrelatedDNSEvent(ev *model.Event, entry *model.ProcessCacheEntry, id u
 	}
 }
 
+// needsDNSRequestTracking reports whether the process that sent a DNS request has to be remembered, so that the
+// response can be attributed to it. Security profiles only cover containers, and a placeholder can't be remembered:
+// each event of an unresolved process gets a new one, which would make its retransmissions look ambiguous.
+func needsDNSRequestTracking(event *model.Event) bool {
+	process := &event.ProcessContext.Process
+	return event.Error == nil && !process.ContainerContext.IsNull() && process.Source != model.ProcessCacheEntryFromPlaceholder
+}
+
+// needsDNSResponseCorrelation reports whether a full DNS response can only reach the profiles through the process of
+// its request, as it has no resolved process in a container of its own
+func needsDNSResponseCorrelation(event *model.Event) bool {
+	process := &event.ProcessContext.Process
+	return process.ContainerContext.IsNull() || process.Source == model.ProcessCacheEntryFromPlaceholder
+}
+
 // correlateDNSResponseForActivityDump attributes a DNS response to the process that sent the request
 // and hands it to the profile manager. It skips DispatchEvent so that rules don't match the same
 // DNS request twice.

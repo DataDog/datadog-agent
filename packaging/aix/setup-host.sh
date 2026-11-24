@@ -56,16 +56,19 @@ log "Refreshing dnf metadata"
 dnf_install \
     cyrus-sasl \
     gcc8 gcc8-c++ \
-    git make cmake binutils diffutils \
+    git make cmake binutils diffutils rsync \
     protobuf protobuf-compiler \
     zstd xz curl bash \
     libffi-devel ncurses-devel readline-devel libxslt-devel libiconv \
     python3.12-pydantic-core
 
 # ── Step 3: Go toolchain at /opt/go ───────────────────────────────────────────
-# The AIX Toolbox golang maxes at 1.26.5 but .go-version requires 1.26.6, so
-# install the official aix-ppc64 tarball.
-if [ -x /opt/go/bin/go ] && [ "$(/opt/go/bin/go version | awk '{print $3}')" = "go${GO_VERSION}" ]; then
+# The AIX Toolbox golang lags behind .go-version, so install the official
+# aix-ppc64 tarball.
+# GOTOOLCHAIN=local: env.sh isn't sourced yet, and with the default (auto) the
+# go.work `go` directive makes an older /opt/go switch to a downloaded
+# toolchain and report its version instead of the installed one.
+if [ -x /opt/go/bin/go ] && [ "$(GOTOOLCHAIN=local /opt/go/bin/go version | awk '{print $3}')" = "go${GO_VERSION}" ]; then
     log "Go ${GO_VERSION} already installed"
 else
     log "Installing Go ${GO_VERSION} (aix-ppc64)"
@@ -187,6 +190,7 @@ verify "g++-8"      "/opt/freeware/bin/g++-8 --version | head -1" "8\\."        
 verify "go"         "/opt/go/bin/go version" "go${GO_VERSION}"                       || _rc=1
 verify "pydantic"   "/opt/freeware/bin/python3.12 -c 'import pydantic;print(pydantic.VERSION)'" "2.11" || _rc=1
 verify "git"        "git --version" "git version"                                  || _rc=1
+verify "rsync"      "/opt/freeware/bin/rsync --version | head -1" "rsync"           || _rc=1
 verify "make"       "make --version | head -1" "GNU Make"                         || _rc=1
 verify "cmake"      "cmake --version | head -1" "cmake version"                   || _rc=1
 verify "protoc"     "protoc --version" "libprotoc"                                || _rc=1

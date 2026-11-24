@@ -1,0 +1,10 @@
+description: Case-like text in a comment remains inert and is not validated as executable syntax.
+input:
+  script: |+
+    # case x in x) echo hidden;; esac
+    echo after
+expect:
+  stdout: |+
+    after
+  stderr: ""
+  exit_code: 0
