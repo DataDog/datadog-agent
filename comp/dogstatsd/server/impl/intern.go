@@ -24,12 +24,9 @@ import (
 // take advantage of the new "Unique" api that is proposed below.
 // ref: https://github.com/golang/go/issues/62483
 type stringInterner struct {
-	strings   map[string]string
-	prev      map[string]string
-	currBytes int
-	prevBytes int
-	maxSize   int
-	id        string
+	strings map[string]string
+	maxSize int
+	id      string
 
 	telemetry *stringInternerInstanceTelemetry
 }
@@ -40,7 +37,6 @@ func newStringInterner(maxSize int, internerID int, siTelemetry *stringInternerT
 	id := fmt.Sprintf("interner_%d", internerID)
 	i := &stringInterner{
 		strings:   make(map[string]string),
-		prev:      make(map[string]string),
 		id:        id,
 		maxSize:   maxSize,
 		telemetry: siTelemetry.PrepareForID(id),
@@ -49,24 +45,10 @@ func newStringInterner(maxSize int, internerID int, siTelemetry *stringInternerT
 	return i
 }
 
-func (i *stringInterner) rotate() {
-	if i.maxSize <= 0 {
-		i.telemetry.Rotate(len(i.strings), i.currBytes)
-		clear(i.strings)
-		i.currBytes = 0
-		return
-	}
-	i.telemetry.Rotate(len(i.prev), i.prevBytes)
-	clear(i.prev)
-	i.prev, i.strings = i.strings, i.prev
-	i.prevBytes, i.currBytes = i.currBytes, 0
-}
-
 // LoadOrStore always returns the string from the cache, adding it into the
 // cache if needed.
 // If we need to store a new entry and the cache is at its maximum capacity,
-// the active map rotates into prev so hot strings can be promoted without
-// re-allocating, and the previous generation's map buckets are reused.
+// it is reset.
 func (i *stringInterner) LoadOrStore(key []byte) string {
 	// here is the string interner trick: the map lookup using
 	// string(key) doesn't actually allocate a string, but is
@@ -78,25 +60,14 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 		return s
 	}
 
-	if s, found := i.prev[string(key)]; found {
-		delete(i.prev, s)
-		i.prevBytes -= len(s)
-		if len(i.strings) >= i.maxSize {
-			i.rotate()
-		}
-		i.strings[s] = s
-		i.currBytes += len(s)
-		i.telemetry.Hit()
-		return s
-	}
-
 	if len(i.strings) >= i.maxSize {
-		i.rotate()
+		i.telemetry.Reset(len(i.strings))
+
+		clear(i.strings)
 	}
 
 	s := string(key)
 	i.strings[s] = s
-	i.currBytes += len(s)
 
 	i.telemetry.Miss(len(s))
 
