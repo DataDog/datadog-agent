@@ -25,6 +25,7 @@ import (
 // ref: https://github.com/golang/go/issues/62483
 type stringInterner struct {
 	strings map[string]string
+	prev    map[string]string
 	maxSize int
 	id      string
 
@@ -37,6 +38,7 @@ func newStringInterner(maxSize int, internerID int, siTelemetry *stringInternerT
 	id := fmt.Sprintf("interner_%d", internerID)
 	i := &stringInterner{
 		strings:   make(map[string]string),
+		prev:      make(map[string]string),
 		id:        id,
 		maxSize:   maxSize,
 		telemetry: siTelemetry.PrepareForID(id),
@@ -45,10 +47,17 @@ func newStringInterner(maxSize int, internerID int, siTelemetry *stringInternerT
 	return i
 }
 
+func (i *stringInterner) rotate() {
+	i.telemetry.Reset(len(i.strings))
+	clear(i.prev)
+	i.prev, i.strings = i.strings, i.prev
+}
+
 // LoadOrStore always returns the string from the cache, adding it into the
 // cache if needed.
 // If we need to store a new entry and the cache is at its maximum capacity,
-// it is reset.
+// the active map rotates into prev so hot strings can be promoted without
+// re-allocating, and the previous generation's map buckets are reused.
 func (i *stringInterner) LoadOrStore(key []byte) string {
 	// here is the string interner trick: the map lookup using
 	// string(key) doesn't actually allocate a string, but is
@@ -60,10 +69,17 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 		return s
 	}
 
-	if len(i.strings) >= i.maxSize {
-		i.telemetry.Reset(len(i.strings))
+	if s, found := i.prev[string(key)]; found {
+		if len(i.strings) >= i.maxSize {
+			i.rotate()
+		}
+		i.strings[s] = s
+		i.telemetry.Hit()
+		return s
+	}
 
-		i.strings = make(map[string]string)
+	if len(i.strings) >= i.maxSize {
+		i.rotate()
 	}
 
 	s := string(key)
