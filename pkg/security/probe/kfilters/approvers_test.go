@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -34,12 +35,12 @@ func TestApproverAncestors1(t *testing.T) {
 	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 	rules.AddTestRuleExpr(t, rs, `open.file.path == "/etc/passwd" && process.ancestors.file.name == "vipw"`, `open.file.path == "/etc/shadow" && process.ancestors.file.name == "vipw"`)
 
-	capabilities, exists := allCapabilities["open"]
+	approverModel, exists := models["open"]
 	if !exists {
-		t.Fatal("no capabilities for open")
+		t.Fatal("no approver model for open")
 	}
 
-	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", approverModel)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,11 +76,11 @@ func TestApproverAncestors2(t *testing.T) {
 
 	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 	rules.AddTestRuleExpr(t, rs, `(open.file.path == "/etc/shadow" || open.file.path == "/etc/gshadow") && process.ancestors.file.path not in ["/usr/bin/dpkg"]`)
-	capabilities, exists := allCapabilities["open"]
+	approverModel, exists := models["open"]
 	if !exists {
-		t.Fatal("no capabilities for open")
+		t.Fatal("no approver model for open")
 	}
-	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", approverModel)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,11 +115,11 @@ func TestApproverGlob(t *testing.T) {
 
 	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 	rules.AddTestRuleExpr(t, rs, `open.file.path =~ "/var/run/secrets/eks.amazonaws.com/serviceaccount/*/token" && process.file.path not in ["/bin/kubectl"]`)
-	capabilities, exists := allCapabilities["open"]
+	approverModel, exists := models["open"]
 	if !exists {
-		t.Fatal("no capabilities for open")
+		t.Fatal("no approver model for open")
 	}
-	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", approverModel)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,11 +143,11 @@ func TestApproverGlobWithWildcard(t *testing.T) {
 
 	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 	rules.AddTestRuleExpr(t, rs, `open.file.path =~ "/var/run/secrets/eks.amazonaws.com/serviceaccount/*/token*" && process.file.path not in ["/bin/kubectl"]`)
-	capabilities, exists := allCapabilities["open"]
+	approverModel, exists := models["open"]
 	if !exists {
-		t.Fatal("no capabilities for open")
+		t.Fatal("no approver model for open")
 	}
-	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", approverModel)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,11 +171,11 @@ func TestApproverFlags(t *testing.T) {
 
 	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 	rules.AddTestRuleExpr(t, rs, `open.flags & (O_SYNC | O_NOCTTY) > 0`)
-	capabilities, exists := allCapabilities["open"]
+	approverModel, exists := models["open"]
 	if !exists {
-		t.Fatal("no capabilities for open")
+		t.Fatal("no approver model for open")
 	}
-	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", approverModel)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,11 +199,11 @@ func TestApproverWildcardBasename(t *testing.T) {
 
 	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 	rules.AddTestRuleExpr(t, rs, `open.file.path =~ "/var/run/secrets/*"`)
-	capabilities, exists := allCapabilities["open"]
+	approverModel, exists := models["open"]
 	if !exists {
-		t.Fatal("no capabilities for open")
+		t.Fatal("no approver model for open")
 	}
-	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", approverModel)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,11 +219,11 @@ func TestApproverParentWildcardBasename(t *testing.T) {
 
 	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 	rules.AddTestRuleExpr(t, rs, `open.file.path =~ "/var/run/test-*/*"`)
-	capabilities, exists := allCapabilities["open"]
+	approverModel, exists := models["open"]
 	if !exists {
-		t.Fatal("no capabilities for open")
+		t.Fatal("no approver model for open")
 	}
-	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", approverModel)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -242,11 +243,11 @@ func TestApproverParentBasenameWeightVsFlags(t *testing.T) {
 
 	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 	rules.AddTestRuleExpr(t, rs, `open.file.path =~ "/var/run/secrets/*" && open.flags & O_CREAT > 0`)
-	capabilities, exists := allCapabilities["open"]
+	approverModel, exists := models["open"]
 	if !exists {
-		t.Fatal("no capabilities for open")
+		t.Fatal("no approver model for open")
 	}
-	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", approverModel)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,11 +279,11 @@ func TestApproverLeafBasenameWeightVsFlags(t *testing.T) {
 
 	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 	rules.AddTestRuleExpr(t, rs, `open.file.path =~ "/var/run/secret*" && open.flags & O_CREAT > 0`)
-	capabilities, exists := allCapabilities["open"]
+	approverModel, exists := models["open"]
 	if !exists {
-		t.Fatal("no capabilities for open")
+		t.Fatal("no approver model for open")
 	}
-	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", approverModel)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -311,11 +312,11 @@ func TestApproverInUpperLayer(t *testing.T) {
 	t.Run("in_upper_layer-ok-1", func(t *testing.T) {
 		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 		rules.AddTestRuleExpr(t, rs, `open.file.in_upper_layer`)
-		capabilities, exists := allCapabilities["open"]
+		approverModel, exists := models["open"]
 		if !exists {
-			t.Fatal("no capabilities for open")
+			t.Fatal("no approver model for open")
 		}
-		approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+		approvers, _, _, err := rs.GetEventTypeApprovers("open", approverModel)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -332,11 +333,11 @@ func TestApproverInUpperLayer(t *testing.T) {
 	t.Run("in_upper_layer-ok-2", func(t *testing.T) {
 		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 		rules.AddTestRuleExpr(t, rs, `open.file.in_upper_layer == true`)
-		capabilities, exists := allCapabilities["open"]
+		approverModel, exists := models["open"]
 		if !exists {
-			t.Fatal("no capabilities for open")
+			t.Fatal("no approver model for open")
 		}
-		approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+		approvers, _, _, err := rs.GetEventTypeApprovers("open", approverModel)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -353,11 +354,11 @@ func TestApproverInUpperLayer(t *testing.T) {
 	t.Run("in_upper_layer-ko", func(t *testing.T) {
 		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 		rules.AddTestRuleExpr(t, rs, `!open.file.in_upper_layer`)
-		capabilities, exists := allCapabilities["open"]
+		approverModel, exists := models["open"]
 		if !exists {
-			t.Fatal("no capabilities for open")
+			t.Fatal("no approver model for open")
 		}
-		approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+		approvers, _, _, err := rs.GetEventTypeApprovers("open", approverModel)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -365,6 +366,29 @@ func TestApproverInUpperLayer(t *testing.T) {
 			t.Fatalf("expected approver not found: %v", values)
 		}
 	})
+}
+
+// The intersection of a conjunction with a disjunction keeps the audit uids of
+// the disjunction in the range of the conjunction.
+func TestApproverAUIDIntersection(t *testing.T) {
+	ruleOpts, evalOpts := rules.NewBothOpts(map[eval.EventType]bool{"*": true})
+	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	rules.AddTestRuleExpr(t, rs, `open.file.path != "" && (process.auid >= 1000 || process.auid == 0 || process.auid == AUDIT_AUID_UNSET) && process.auid != AUDIT_AUID_UNSET`)
+
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", models["open"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	kfilters, err := NewKFilters("open", approvers)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.Len(t, kfilters, 2)
+	assert.Contains(t, kfilters, makeKFilterKey(auidApproversTable, ebpf.Uint32MapItem(0)))
+	if entry, ok := kfilters[makeKFilterKey(auidRangeApproversTable, model.FileOpenEventType)].(*hashKFilter); assert.True(t, ok) {
+		assert.Equal(t, &ebpf.UInt32RangeMapItem{Min: 1000, Max: sharedconsts.AuditUIDUnset - 1}, entry.value)
+	}
 }
 
 func TestApproverAUIDRange(t *testing.T) {
@@ -378,11 +402,11 @@ func TestApproverAUIDRange(t *testing.T) {
 		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 		rules.AddTestRuleExpr(t, rs, ruleDefs...)
 
-		capabilities, exists := allCapabilities["open"]
+		approverModel, exists := models["open"]
 		if !exists {
-			t.Fatal("no capabilities for open")
+			t.Fatal("no approver model for open")
 		}
-		approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+		approvers, _, _, err := rs.GetEventTypeApprovers("open", approverModel)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -390,7 +414,7 @@ func TestApproverAUIDRange(t *testing.T) {
 			t.Fatalf("expected approver not found: %+v", values)
 		}
 
-		kfilters, _, err := KFilterGetters["open"](approvers)
+		kfilters, err := NewKFilters("open", approvers)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -416,28 +440,31 @@ func TestApproverAUIDRange(t *testing.T) {
 		}
 	}
 
-	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid > 1000 && process.auid < 2000`}, 0, maxAUID)
-	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid > 1000`}, 1001, maxAUID)
+	// the intersection of the ranges of a conjunction
+	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid > 1000 && process.auid < 2000`}, 1001, 1999)
+	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid > 1000`}, 1001, sharedconsts.AuditUIDUnset)
 	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid < 1000`}, 0, 999)
-	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid >= 1000 && process.auid <= 2000`}, 0, maxAUID)
-	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid >= 1000`}, 1000, maxAUID)
+	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid >= 1000 && process.auid <= 2000`}, 1000, 2000)
+	assert(t, []string{`open.file.path != "" && process.auid >= 1000 && process.auid != AUDIT_AUID_UNSET`}, 1000, sharedconsts.AuditUIDUnset-1)
+	assert(t, []string{`open.file.path != "" && process.auid != AUDIT_AUID_UNSET && process.auid >= 1000`}, 1000, sharedconsts.AuditUIDUnset-1)
+	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid >= 1000`}, 1000, sharedconsts.AuditUIDUnset)
 	assert(t, []string{`open.file.path =~ "/*mp/*" && process.auid <= 1000`}, 0, 1000)
 
 	assert(t, []string{
 		`open.file.path =~ "/*mp/*" && process.auid > 1000`,
 		`open.file.path =~ "/*mp/*" && process.auid < 500`,
-	}, 0, maxAUID)
+	}, 0, sharedconsts.AuditUIDUnset)
 	assert(t, []string{
 		`open.file.path =~ "/*mp/*" && process.auid >= 1000`,
 		`open.file.path =~ "/*mp/*" && process.auid > 1500`,
-	}, 1000, maxAUID)
+	}, 1000, sharedconsts.AuditUIDUnset)
 	assert(t, []string{
 		`open.file.path =~ "/*mp/*" && process.auid < 1000`,
 		`open.file.path =~ "/*mp/*" && process.auid < 500`,
 	}, 0, 999)
 	assert(t, []string{
 		`open.file.path =~ "/*mp/*" && process.auid != AUDIT_AUID_UNSET`,
-	}, 0, maxAUID)
+	}, 0, sharedconsts.AuditUIDUnset-1)
 }
 
 func TestApproversConnect(t *testing.T) {
@@ -473,12 +500,12 @@ func TestApproversConnect(t *testing.T) {
 				rules.AddTestRuleExpr(t, rs, expr)
 			}
 
-			capabilities, exists := allCapabilities["connect"]
+			approverModel, exists := models["connect"]
 			if !exists {
-				t.Fatal("no capabilities for connect")
+				t.Fatal("no approver model for connect")
 			}
 
-			approvers, _, _, err := rs.GetEventTypeApprovers("connect", capabilities)
+			approvers, _, _, err := rs.GetEventTypeApprovers("connect", approverModel)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -520,12 +547,9 @@ func TestApproversBind(t *testing.T) {
 					t.Fatal("expected bind.addr.port approver")
 				}
 
-				kfilters, fieldHandled, err := bindKFiltersGetter(approvers)
+				kfilters, err := NewKFilters("bind", approvers)
 				if err != nil {
 					t.Fatal(err)
-				}
-				if len(fieldHandled) != 1 || fieldHandled[0] != "bind.addr.port" {
-					t.Fatalf("expected bind.addr.port to be handled, got %v", fieldHandled)
 				}
 				if len(kfilters) != 1 {
 					t.Fatalf("expected a single address family kfilter, got %d", len(kfilters))
@@ -602,12 +626,12 @@ func TestApproversBind(t *testing.T) {
 				rules.AddTestRuleExpr(t, rs, expr)
 			}
 
-			capabilities, exists := allCapabilities["bind"]
+			approverModel, exists := models["bind"]
 			if !exists {
-				t.Fatal("no capabilities for bind")
+				t.Fatal("no approver model for bind")
 			}
 
-			approvers, _, _, err := rs.GetEventTypeApprovers("bind", capabilities)
+			approvers, _, _, err := rs.GetEventTypeApprovers("bind", approverModel)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -686,12 +710,12 @@ func TestApproversSetSockOpt(t *testing.T) {
 				rules.AddTestRuleExpr(t, rs, expr)
 			}
 
-			capabilities, exists := allCapabilities["setsockopt"]
+			approverModel, exists := models["setsockopt"]
 			if !exists {
-				t.Fatal("no capabilities for setsockopt")
+				t.Fatal("no approver model for setsockopt")
 			}
 
-			approvers, _, _, err := rs.GetEventTypeApprovers("setsockopt", capabilities)
+			approvers, _, _, err := rs.GetEventTypeApprovers("setsockopt", approverModel)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -708,11 +732,11 @@ func TestApproverFlagsRdOnlyScalar(t *testing.T) {
 
 	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 	rules.AddTestRuleExpr(t, rs, `open.flags == O_RDONLY`)
-	capabilities, exists := allCapabilities["open"]
+	approverModel, exists := models["open"]
 	if !exists {
-		t.Fatal("no capabilities for open")
+		t.Fatal("no approver model for open")
 	}
-	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", approverModel)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -736,11 +760,11 @@ func TestApproverFlagsRdOnlyWithMask(t *testing.T) {
 
 	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 	rules.AddTestRuleExpr(t, rs, `open.flags & O_ACCMODE == O_RDONLY`)
-	capabilities, exists := allCapabilities["open"]
+	approverModel, exists := models["open"]
 	if !exists {
-		t.Fatal("no capabilities for open")
+		t.Fatal("no approver model for open")
 	}
-	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", approverModel)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -765,11 +789,11 @@ func TestApproverFlagsMixedScalarAndMask(t *testing.T) {
 	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 	rules.AddTestRuleExpr(t, rs, `(open.flags & O_CREAT > 0)`, `(open.flags & O_ACCMODE == O_RDONLY)`)
 
-	capabilities, exists := allCapabilities["open"]
+	approverModel, exists := models["open"]
 	if !exists {
-		t.Fatal("no capabilities for open")
+		t.Fatal("no approver model for open")
 	}
-	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", approverModel)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -806,11 +830,11 @@ func TestApproverFlagsZeroValueFlag(t *testing.T) {
 
 	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 	rules.AddTestRuleExpr(t, rs, `open.flags & (O_CREAT|O_RDONLY) > 0`)
-	capabilities, exists := allCapabilities["open"]
+	approverModel, exists := models["open"]
 	if !exists {
-		t.Fatal("no capabilities for open")
+		t.Fatal("no approver model for open")
 	}
-	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", approverModel)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -863,9 +887,9 @@ func TestApproversUnshare(t *testing.T) {
 		},
 	}
 
-	capabilities, exists := allCapabilities["unshare"]
+	approverModel, exists := models["unshare"]
 	if !exists {
-		t.Fatal("no capabilities for unshare")
+		t.Fatal("no approver model for unshare")
 	}
 
 	for _, tc := range testCases {
@@ -875,7 +899,7 @@ func TestApproversUnshare(t *testing.T) {
 			rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 			rules.AddTestRuleExpr(t, rs, tc.ruleExpression)
 
-			approvers, _, _, err := rs.GetEventTypeApprovers("unshare", capabilities)
+			approvers, _, _, err := rs.GetEventTypeApprovers("unshare", approverModel)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -893,18 +917,17 @@ func TestApproversUnshare(t *testing.T) {
 			assert.Equal(t, tc.expectedValue, valueInt)
 			assert.Equal(t, tc.expectedType, values[0].Type)
 
-			kfilters, fieldHandled, err := unshareKFiltersGetter(approvers)
+			kfilters, err := NewKFilters("unshare", approvers)
 			if err != nil {
 				t.Fatal(err)
 			}
-			assert.Equal(t, []eval.Field{"unshare.flags"}, fieldHandled)
 			assert.Len(t, kfilters, 1)
 		})
 	}
 }
 
 func TestLastApproverEventType(t *testing.T) {
-	approversCopy := maps.Clone(KFilterGetters)
+	approversCopy := maps.Clone(models)
 
 	for eventType := model.FirstEventType; eventType <= model.LastApproverEventType; eventType++ {
 		delete(approversCopy, eventType.String())
