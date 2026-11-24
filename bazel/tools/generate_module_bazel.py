@@ -1,7 +1,6 @@
 """Generate MODULE.bazel files from overlay directory structure."""
 
 import argparse
-import json
 import sys
 from pathlib import Path
 from urllib.parse import urlparse
@@ -31,41 +30,18 @@ def generate_module_bazel(args, files):
         "",
         """http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")""",
         "",
+        "http_archive(",
+        f'    name = "{args.module}",',
+        "    files = {",
     ]
-    if args.constants:
-        lines.extend(
-            [
-                """constants_repo = use_repo_rule("//bazel/repo:constants_repo.bzl", "constants_repo")""",
-                "",
-                "constants_repo(",
-                f'    name = "{args.module}_constants",',
-                "    items = {",
-            ]
-        )
-        for constant in sorted(args.constants):
-            key, _, value = constant.partition("=")
-            lines.append(f"        {json.dumps(key)}: {json.dumps(value)},")
-        lines.extend(["    },", ")", ""])
-    lines.extend(
-        [
-            "http_archive(",
-            f'    name = "{args.module}",',
-            "    files = {",
-        ]
-    )
 
     # Add files entries
     for path in sorted(files.keys()):
         lines.append(f'        "{path}": "{files[path]}",')
 
-    lines.append("    },")
-    if args.patches:
-        lines.append(f"    patch_strip = {args.patch_strip},")
-        lines.append("    patches = [")
-        lines.extend(f'        "{patch}",' for patch in args.patches)
-        lines.append("    ],")
     lines.extend(
         [
+            "    },",
             f'    sha256 = "{args.sha256}",',
             f'    strip_prefix = "{args.strip_prefix}",',
         ]
@@ -88,11 +64,6 @@ def main():
     parser.add_argument("--url", action="append", dest="urls", required=True, help="URLs for http_archive")
     parser.add_argument("--sha256", help="SHA256 hash")
     parser.add_argument("--strip_prefix", help="Strip prefix for archive")
-    parser.add_argument("--patch", action="append", dest="patches", default=[], help="Patch label to apply")
-    parser.add_argument("--patch_strip", type=int, default=0, help="Leading path components to strip from patches")
-    parser.add_argument(
-        "--constant", action="append", dest="constants", default=[], help="KEY=VALUE for the constants repo"
-    )
     parser.add_argument(
         "--output", nargs="?", default=None, help="Path to write output MODULE.bazel file (default: stdout)"
     )

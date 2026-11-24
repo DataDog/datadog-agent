@@ -1,14 +1,20 @@
-# This file is generated. Do not hand edit.
-
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 constants_repo = use_repo_rule("//bazel/repo:constants_repo.bzl", "constants_repo")
 
+KRB5_VERSION = "1.22.2"
+
+KRB5_URL = "https://kerberos.org/dist/krb5/{}/krb5-{}.tar.gz".format(
+    ".".join(KRB5_VERSION.split(".")[:2]),
+    KRB5_VERSION,
+)
+
+# Read by the overlay BUILD file for the package_metadata purl.
 constants_repo(
     name = "krb5_constants",
     items = {
-        "URL": "https://kerberos.org/dist/krb5/1.22/krb5-1.22.2.tar.gz",
-        "VERSION": "1.22.2",
+        "URL": KRB5_URL,
+        "VERSION": KRB5_VERSION,
     },
 )
 
@@ -39,6 +45,6 @@ http_archive(
         "//deps/krb5:0005-Resolve-LIBDIR-token-from-the-loaded-library-on-Unix.patch",
     ],
     sha256 = "3243ffbc8ea4d4ac22ddc7dd2a1dc54c57874c40648b60ff97009763554eaf13",
-    strip_prefix = "krb5-1.22.2",
-    url = "https://kerberos.org/dist/krb5/1.22/krb5-1.22.2.tar.gz",
+    strip_prefix = "krb5-{}".format(KRB5_VERSION),
+    url = KRB5_URL,
 )
