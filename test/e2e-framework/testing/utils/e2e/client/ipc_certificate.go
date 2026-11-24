@@ -27,7 +27,8 @@ const defaultIPCCertRefetchInterval = 10 * time.Second
 // verify client certificates or expect another CA.
 type ipcCertProvider struct {
 	fetch           func() (string, error) // reads the certificate file from the host
-	refetchInterval time.Duration          // test override of defaultIPCCertRefetchInterval
+	logf            func(format string, args ...any)
+	refetchInterval time.Duration // test override of defaultIPCCertRefetchInterval
 
 	mu        sync.Mutex
 	cert      *tls.Certificate
@@ -35,8 +36,8 @@ type ipcCertProvider struct {
 	lastFetch time.Time
 }
 
-func newIPCCertProvider(fetch func() (string, error)) *ipcCertProvider {
-	return &ipcCertProvider{fetch: fetch, refetchInterval: defaultIPCCertRefetchInterval}
+func newIPCCertProvider(fetch func() (string, error), logf func(format string, args ...any)) *ipcCertProvider {
+	return &ipcCertProvider{fetch: fetch, logf: logf, refetchInterval: defaultIPCCertRefetchInterval}
 }
 
 // getCertificate implements tls.Config.GetClientCertificate.
@@ -81,20 +82,24 @@ func (p *ipcCertProvider) fetchLocked() {
 
 	content, err := p.fetch()
 	if err != nil {
+		p.logf("could not read the IPC certificate file: %v", err)
 		return
 	}
 	// The file holds both the certificate and the key; X509KeyPair picks the
 	// right PEM block from each argument.
 	cert, err := tls.X509KeyPair([]byte(content), []byte(content))
 	if err != nil {
+		p.logf("could not parse the IPC certificate: %v", err)
 		return
 	}
 	leaf, err := x509.ParseCertificate(cert.Certificate[0])
 	if err != nil {
+		p.logf("could not parse the IPC certificate: %v", err)
 		return
 	}
 	p.cert = &cert
 	p.subject = leaf.RawSubject
+	p.logf("loaded the IPC certificate for client authentication")
 }
 
 // fetchIPCCert reads ipc_cert.pem from the host.

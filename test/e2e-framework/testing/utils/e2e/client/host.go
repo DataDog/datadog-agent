@@ -125,7 +125,7 @@ func NewHost(context Context, hostOutput remote.HostOutput) (*Host, error) {
 		osFamily:             hostOutput.OSFamily,
 	}
 
-	host.ipcCert = newIPCCertProvider(host.fetchIPCCert)
+	host.ipcCert = newIPCCertProvider(host.fetchIPCCert, host.context.Logf)
 	host.httpTransport = host.newHTTPTransport()
 
 	err = host.Reconnect()

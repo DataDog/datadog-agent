@@ -111,7 +111,7 @@ func TestIPCCertProviderPresentsCertToIPCServer(t *testing.T) {
 	provider := newIPCCertProvider(func() (string, error) {
 		fetches.Add(1)
 		return file, nil
-	})
+	}, t.Logf)
 
 	server := newIPCCertServer(t, certPEM, keyPEM, certPEM, func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -140,7 +140,7 @@ func TestIPCCertProviderNoCertForOtherCA(t *testing.T) {
 	provider := newIPCCertProvider(func() (string, error) {
 		fetches.Add(1)
 		return ipcFile, nil
-	})
+	}, t.Logf)
 
 	// Server verifying against its own CA, like the cluster-agent trust domain
 	server := newIPCCertServer(t, serverCAPEM, serverCAKey, serverCAPEM, func(w http.ResponseWriter, _ *http.Request) {
@@ -166,7 +166,7 @@ func TestIPCCertProviderRefetchesStaleCert(t *testing.T) {
 	newFile := string(newCertPEM) + "\n" + string(newKeyPEM) + "\n"
 
 	current := &oldFile
-	provider := newIPCCertProvider(func() (string, error) { return *current, nil })
+	provider := newIPCCertProvider(func() (string, error) { return *current, nil }, t.Logf)
 	provider.refetchInterval = 0 // allow immediate refetch
 
 	server := newIPCCertServer(t, newCertPEM, newKeyPEM, newCertPEM, func(w http.ResponseWriter, _ *http.Request) {
@@ -190,7 +190,7 @@ func TestIPCCertProviderFetchFailureSendsNoCert(t *testing.T) {
 
 	provider := newIPCCertProvider(func() (string, error) {
 		return "", assert.AnError
-	})
+	}, t.Logf)
 
 	// No certificate available: send an empty certificate instead of failing.
 	// An empty non-nil Certificate means "no client certificate".
