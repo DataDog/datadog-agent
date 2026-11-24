@@ -368,6 +368,34 @@ func TestDeploymentIDNonBlockingRetriesWhenPodBecomesReady(t *testing.T) {
 	}
 }
 
+func TestClusterIDNonBlockingBackoffGrows(t *testing.T) {
+	env.SetFeatures(t, env.Kubernetes)
+	synctest.Test(t, func(t *testing.T) {
+		calls := 0
+		stubClusterIDFuncs(t, func() (string, error) {
+			calls++
+			return "", errors.New("unreachable")
+		}, func() (string, error) { return "", errors.New("unused") })
+		s := New(nil)
+		lookup := func() {
+			s.ClusterIDNonBlocking()
+			synctest.Wait()
+		}
+
+		lookup()
+		assert.Equal(t, 1, calls)
+		time.Sleep(minClusterBackoff)
+		lookup()
+		assert.Equal(t, 2, calls, "the first retry waits the minimum backoff")
+		time.Sleep(minClusterBackoff)
+		lookup()
+		assert.Equal(t, 2, calls, "the backoff doubles after another failure")
+		time.Sleep(minClusterBackoff)
+		lookup()
+		assert.Equal(t, 3, calls)
+	})
+}
+
 func TestClusterIDNonBlockingRetriesAfterFailure(t *testing.T) {
 	env.SetFeatures(t, env.Kubernetes)
 	synctest.Test(t, func(t *testing.T) {
@@ -385,6 +413,14 @@ func TestClusterIDNonBlockingRetriesAfterFailure(t *testing.T) {
 		synctest.Wait()
 		assert.Equal(t, 1, calls)
 		assert.Nil(t, s.clusterID.Load())
+
+		// Within the backoff window a call must not start another lookup.
+		assert.Empty(t, s.ClusterIDNonBlocking())
+		synctest.Wait()
+		assert.Equal(t, 1, calls, "a failed lookup must back off before retrying")
+
+		// Once the backoff expires the next call retries and caches the result.
+		time.Sleep(time.Second)
 		assert.Empty(t, s.ClusterIDNonBlocking())
 		synctest.Wait()
 		assert.Equal(t, "identity", s.ClusterIDNonBlocking())

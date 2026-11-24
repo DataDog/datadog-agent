@@ -52,6 +52,7 @@ dd_agent_go_test(
         "//pkg/config/model",
         "//pkg/errors",
         "//pkg/util/log",
+        "//pkg/util/retry",
         "//pkg/version",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

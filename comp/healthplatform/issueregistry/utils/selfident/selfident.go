@@ -56,6 +56,12 @@ type SelfIdent struct {
 	clusterResolveMu sync.Mutex
 	clusterResolving chan struct{}
 	clusterID        atomic.Pointer[string]
+	// clusterRetryAfter is set after a failed cluster lookup and prevents
+	// immediately hammering the Cluster Agent on each non-blocking call.
+	clusterRetryAfter time.Time
+	// clusterBackoff is the wait after the last failed lookup; it doubles on
+	// each failure up to maxClusterBackoff.
+	clusterBackoff time.Duration
 }
 
 // New creates a SelfIdent. Outside Kubernetes it returns a no-op instance that
@@ -167,7 +173,7 @@ func (s *SelfIdent) ClusterIDNonBlocking() string {
 	if cached := s.clusterID.Load(); cached != nil {
 		return *cached
 	}
-	s.startClusterResolve()
+	s.startClusterResolve(true)
 	return ""
 }
 
@@ -178,7 +184,7 @@ func (s *SelfIdent) ClusterIDWithContext(ctx context.Context) string {
 			return *cached
 		}
 		select {
-		case <-s.startClusterResolve():
+		case <-s.startClusterResolve(false):
 		case <-ctx.Done():
 			return ""
 		}
@@ -194,8 +200,19 @@ func (s *SelfIdent) ClusterIDWithContext(ctx context.Context) string {
 	return ""
 }
 
+// minClusterBackoff and maxClusterBackoff bound the wait between non-blocking
+// cluster ID lookups after failures.
+const (
+	minClusterBackoff = time.Second
+	maxClusterBackoff = 5 * time.Minute
+)
+
 // The lookup has no context, so callers share a goroutine and bound their own wait.
-func (s *SelfIdent) startClusterResolve() <-chan struct{} {
+// honorBackoff skips the lookup while a previous failure's backoff is running.
+// Only non-blocking callers set it: they can be called on every hot-path event,
+// whereas blocking callers already pace retries with resolveRetryDelay and stop
+// when their context expires.
+func (s *SelfIdent) startClusterResolve(honorBackoff bool) <-chan struct{} {
 	s.clusterResolveMu.Lock()
 	defer s.clusterResolveMu.Unlock()
 	if s.clusterResolving != nil {
@@ -210,6 +227,12 @@ func (s *SelfIdent) startClusterResolve() <-chan struct{} {
 		close(done)
 		return done
 	}
+	// Honor the backoff set after a previous failed lookup to avoid hammering
+	// the Cluster Agent on every non-blocking call.
+	if honorBackoff && !s.clusterRetryAfter.IsZero() && time.Now().Before(s.clusterRetryAfter) {
+		close(done)
+		return done
+	}
 	s.clusterResolving = done
 	go func() {
 		// Clear clusterResolving before closing done so a caller woken by the
@@ -218,6 +241,12 @@ func (s *SelfIdent) startClusterResolve() <-chan struct{} {
 		defer close(done)
 		defer func() {
 			s.clusterResolveMu.Lock()
+			if s.clusterID.Load() == nil {
+				// Lookup failed; back off, doubling the wait up to
+				// maxClusterBackoff while the Cluster Agent stays unreachable.
+				s.clusterBackoff = min(max(2*s.clusterBackoff, minClusterBackoff), maxClusterBackoff)
+				s.clusterRetryAfter = time.Now().Add(s.clusterBackoff)
+			}
 			s.clusterResolving = nil
 			s.clusterResolveMu.Unlock()
 		}()

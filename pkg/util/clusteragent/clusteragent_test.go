@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 type dummyClusterAgent struct {
@@ -943,4 +944,29 @@ func (suite *clusterAgentSuite) TestInitHTTPClientConcurrent() {
 		})
 	}
 	wg.Wait()
+}
+
+// TestGetClusterAgentClientConcurrentFirstUse verifies that concurrent first
+// callers share one client whose retrier is configured before it is published.
+func TestGetClusterAgentClientConcurrentFirstUse(t *testing.T) {
+	resetGlobalClusterAgentClient()
+	t.Cleanup(resetGlobalClusterAgentClient)
+
+	var wg sync.WaitGroup
+	for range 32 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			// The lookup may fail without a Cluster Agent configured; only the
+			// shared client matters here.
+			_, _ = GetClusterAgentClient()
+		}()
+	}
+	wg.Wait()
+
+	globalClusterAgentClientMu.Lock()
+	client := globalClusterAgentClient
+	globalClusterAgentClientMu.Unlock()
+	require.NotNil(t, client)
+	assert.NotEqual(t, retry.NeedSetup, client.initRetry.RetryStatus(), "the published client must have its retrier configured")
 }
