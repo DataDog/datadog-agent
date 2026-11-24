@@ -92,7 +92,8 @@ func runFor(t *testing.T, client *flakyClient, d time.Duration) []time.Duration 
 	ipc := ipcmock.New(t)
 	var gaps []time.Duration
 	synctest.Test(t, func(*testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
+		// cannot use t.Context() here because it will be canceled when the test finishes
+		ctx, cancel := context.WithCancel(context.Background())
 		collector := &GenericCollector{
 			CollectorID:   "test",
 			StreamHandler: nopHandler{},

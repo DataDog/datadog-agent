@@ -1235,7 +1235,7 @@ func (s *TracerSuite) TestConnectionAssured() {
 		},
 	}
 
-	err := server.Run(clientMessageSize)
+	err := server.Run(t.Context(), clientMessageSize)
 	require.NoError(t, err)
 	t.Cleanup(server.Shutdown)
 
@@ -1277,7 +1277,7 @@ func (s *TracerSuite) TestConnectionNotAssured() {
 		},
 	}
 
-	err := server.Run(clientMessageSize)
+	err := server.Run(t.Context(), clientMessageSize)
 	require.NoError(t, err)
 	t.Cleanup(server.Shutdown)
 
@@ -1810,13 +1810,13 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 	}
 
 	s1 := createReuseServer(0)
-	err := s1.Run(clientMessageSize)
+	err := s1.Run(t.Context(), clientMessageSize)
 	assignedPort := s1.ln.LocalAddr().(*net.UDPAddr).Port
 	require.NoError(t, err)
 	t.Cleanup(s1.Shutdown)
 
 	s2 := createReuseServer(assignedPort)
-	err = s2.Run(clientMessageSize)
+	err = s2.Run(t.Context(), clientMessageSize)
 	require.NoError(t, err)
 	t.Cleanup(s2.Shutdown)
 
@@ -2091,7 +2091,7 @@ func (s *TracerSuite) TestSendfileRegression() {
 					},
 				}
 				t.Cleanup(server.Shutdown)
-				require.NoError(t, server.Run(1024))
+				require.NoError(t, server.Run(t.Context(), 1024))
 
 				// Connect to UDP server
 				c, err := net.DialTimeout(server.network, server.address, time.Second)
@@ -2706,7 +2706,7 @@ func (s *TracerSuite) TestUDPIncomingDirectionFix() {
 	cfg.ProtocolClassificationEnabled = false
 	tr := setupTracer(t, cfg)
 
-	err := server.Run(64)
+	err := server.Run(t.Context(), 64)
 	require.NoError(t, err)
 	t.Cleanup(server.Shutdown)
 

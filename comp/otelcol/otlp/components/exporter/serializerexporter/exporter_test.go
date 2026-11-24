@@ -2023,7 +2023,7 @@ func TestNativeOTelHistogramsGateRequiresV3Sketches(t *testing.T) {
 	})
 
 	t.Run("agent OTLP ingest is not checked", func(t *testing.T) {
-		f := NewFactoryForAgent(&MockSerializer{}, func(ctx context.Context) (string, error) { return "", nil }, nil, TelemetryStore{})
+		f := NewFactoryForAgent(&MockSerializer{}, func(_ context.Context) (string, error) { return "", nil }, nil, TelemetryStore{})
 		cfg := f.CreateDefaultConfig().(*ExporterConfig)
 		_, err := f.CreateMetrics(ctx, exportertest.NewNopSettings(component.MustNewType("serializer")), cfg)
 		require.NoError(t, err)
