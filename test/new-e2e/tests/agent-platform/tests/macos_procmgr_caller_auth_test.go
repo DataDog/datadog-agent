@@ -7,6 +7,7 @@ package agentplatform
 
 import (
 	"encoding/json"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -73,6 +74,60 @@ func macosProcmgrListNames(t *testing.T, client *common.MacOSTestClient, command
 		names = append(names, process.Name)
 	}
 	return names, true
+}
+
+// healMacosCallerAuthLeftovers undoes a failed restore from an earlier attempt, which would fail the
+// pristine-catalog precondition. Only a restart drops runtime entries, so it restarts only when one
+// of this test's own entries is listed, after killing its child, which would outlive the restart.
+// Failures are logged, not asserted, so a daemon that is still starting gets the precondition's wait.
+func healMacosCallerAuthLeftovers(t *testing.T, client *common.MacOSTestClient) {
+	t.Helper()
+	if _, err := client.Execute("sudo rm -f " + macosProcessesDir + "/" + macosCallerAuthReloadEntry + ".yaml"); err != nil {
+		t.Logf("heal: failed to remove %s: %v", macosCallerAuthReloadEntry, err)
+	}
+	out, err := client.Execute("sudo " + macosProcmgrCLI + " list --json")
+	if err != nil {
+		t.Logf("heal: failed to list processes: %v", err)
+		return
+	}
+	var list []struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &list); err != nil {
+		t.Logf("heal: failed to parse dd-procmgr list output: %v\n%s", err, out)
+		return
+	}
+	found := false
+	for _, process := range list {
+		if !slices.Contains([]string{macosCallerAuthEntry, macosCallerAuthAgentEntry, macosCallerAuthStartEntry, macosCallerAuthReloadEntry}, process.Name) {
+			continue
+		}
+		found = true
+		pid := 0
+		if out, err := client.Execute("sudo " + macosProcmgrCLI + " describe " + process.Name + " --json"); err == nil {
+			var detail macosProcmgrDetail
+			if json.Unmarshal([]byte(strings.TrimSpace(out)), &detail) == nil {
+				pid = detail.Pid
+			}
+		}
+		if _, err := client.Execute("sudo " + macosProcmgrCLI + " stop " + process.Name); err != nil {
+			t.Logf("heal: failed to stop %s: %v", process.Name, err)
+		}
+		if pid == 0 {
+			continue
+		}
+		// A stop can report Stopped while the child is alive, and the pid may have been reused.
+		pidArg := strconv.Itoa(pid)
+		if _, err := client.Execute("sudo sh -c 'case \"$(ps -o command= -p " + pidArg + ")\" in \"/bin/sleep \"[0-9]*) kill " + pidArg + ";; esac'"); err != nil {
+			t.Logf("heal: failed to kill pid %d of %s: %v", pid, process.Name, err)
+		}
+	}
+	if !found {
+		return
+	}
+	if _, err := client.Execute("sudo launchctl kickstart -k system/com.datadoghq.procmgr"); err != nil {
+		t.Logf("heal: failed to restart dd-procmgrd: %v", err)
+	}
 }
 
 // ZX sorts before the ZY tests, which must find the shipped catalog.
@@ -154,6 +209,7 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 	})
 	macosLogDiagnosticsOnFailure(t, client)
 
+	healMacosCallerAuthLeftovers(t, client)
 	assertMacosProcmgrAnswers(t, client, 1)
 	require.False(t, t.Failed(), "preconditions failed")
 	statOut, statErr := client.Execute("sudo stat -f '%Su:%Sg %Lp' " + macosProcmgrSocket)
