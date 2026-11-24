@@ -1435,6 +1435,7 @@ def eval_bayesian(
         resume: Continue a remote study with the original seed and inputs.
         scenarios_dir: Directory containing scenario subdirectories.
         sigma: Gaussian width in seconds for F1 scoring.
+        time_mode: Episode timestamp for F1: historical (default) or trigger. Overrides the DDEval template.
         seed: Random seed for TPE sampler reproducibility.
         build: Whether to build testbench and scorer first.
         timeout: Per-scenario time budget in seconds (rolling). 0 = no limit.
@@ -1546,6 +1547,7 @@ def eval_bayesian(
             resume=resume,
             seed=seed,
             sigma=sigma,
+            time_mode=time_mode,
             dataset=ddeval_dataset,
             dataset_version=ddeval_dataset_version,
             jobs=ddeval_jobs,
@@ -1746,6 +1748,7 @@ def _remote_ablation(
     resume,
     seed,
     sigma,
+    time_mode,
     dataset,
     dataset_version,
     jobs,
@@ -1798,6 +1801,7 @@ def _remote_ablation(
         raise Exit("A testbench S3 URI and lowercase SHA-256 are required (directly or in the config template)")
     executor["binary_artifacts"] = {"testbench": {**artifact, "uri": uri}}
     executor["sigma"] = sigma
+    executor["time_mode"] = time_mode
     source_commit = ctx.run("git rev-parse HEAD", hide=True).stdout.strip()
     code_dir = Path(__file__).parent / "libs" / "anomalydetection"
     spec = {
@@ -1981,6 +1985,7 @@ def eval_pipeline(
             Requires the original explicit seed and inputs.
         scenarios_dir: Directory containing scenario subdirectories.
         sigma: Gaussian width in seconds for F1 scoring.
+        time_mode: Episode timestamp for F1: historical (default) or trigger. Overrides the DDEval template.
         seed: Base seed for deterministic reproducibility.
         build: Whether to build testbench and scorer first.
         force_enable: Comma-separated components always present in every combination.
@@ -2012,6 +2017,8 @@ def eval_pipeline(
         raise Exit("The metric pipeline cannot be disabled through component selections")
     if use_metric_pipeline and eval_backend != "local":
         raise Exit("--use-metric-pipeline is supported only for local evaluation")
+    if time_mode not in ("historical", "trigger"):
+        raise Exit("--time-mode must be 'historical' or 'trigger'")
     sigma = float(sigma)
     if eval_backend == "ddeval":
         if scenarios:
@@ -2022,6 +2029,7 @@ def eval_pipeline(
             resume=resume,
             seed=seed,
             sigma=sigma,
+            time_mode=time_mode,
             dataset=ddeval_dataset,
             dataset_version=ddeval_dataset_version,
             jobs=ddeval_jobs,
