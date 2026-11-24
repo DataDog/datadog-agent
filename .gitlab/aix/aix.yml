@@ -109,8 +109,7 @@ cleanup_aix-ppc64:
   rules:
     - !reference [.except_light_pipeline]
     - !reference [.on_scheduled_main]
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      when: manual
+    - when: manual
       allow_failure: true
       variables:
         AIX_CLEANUP_FORCE: "1"
