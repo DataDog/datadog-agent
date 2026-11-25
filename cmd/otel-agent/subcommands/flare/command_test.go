@@ -33,6 +33,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 // testAPIKey looks like a real API key so that the scrubber recognizes it
@@ -673,20 +674,24 @@ func newSecretBackend(t *testing.T, script string) string {
 	return backend
 }
 
-// flareAPIKey builds the configuration of the flare command like it runs, and returns the API key
-// the flare would be uploaded with.
-func flareAPIKey(t *testing.T, params *subcommands.GlobalParams) string {
+// flareConfig builds the configuration of the flare command like it runs
+func flareConfig(t *testing.T, params *subcommands.GlobalParams) config.Component {
 	// the flare rebuilds the global config: the mock restores it after the test
 	configmock.New(t)
 
-	var apiKey string
+	var cfg config.Component
 	fxutil.TestOneShotSubcommand(t,
 		[]*cobra.Command{MakeCommand(func() *subcommands.GlobalParams { return params })},
 		[]string{"flare", "--send"},
 		makeFlare,
-		func(cfg config.Component) { apiKey = cfg.GetString("api_key") },
+		func(c config.Component) { cfg = c },
 	)
-	return apiKey
+	return cfg
+}
+
+// flareAPIKey returns the API key the flare would be uploaded with
+func flareAPIKey(t *testing.T, params *subcommands.GlobalParams) string {
+	return flareConfig(t, params).GetString("api_key")
 }
 
 // TestFlareCommandResolvesSecrets checks that the flare resolves the ENC[] handles of the
@@ -720,4 +725,89 @@ func TestFlareCommandSecretBackendFailure(t *testing.T) {
 
 	assert.Equal(t, "ENC[flare_api_key]", flareAPIKey(t, &subcommands.GlobalParams{ConfigName: "datadog-otel"}))
 	assert.Contains(t, output.String(), "could not resolve the secrets")
+}
+
+// TestMain keeps the tests off the configuration file of an Agent installed on the machine
+func TestMain(m *testing.M) {
+	defaultConfFile = func() string { return "" }
+	os.Exit(m.Run())
+}
+
+// useDefaultConfFile makes the flare command look for its default datadog.yaml at path
+func useDefaultConfFile(t *testing.T, path string) {
+	previous := defaultConfFile
+	defaultConfFile = func() string { return path }
+	t.Cleanup(func() { defaultConfFile = previous })
+}
+
+// TestFlareCommandAppliesEnvironmentSettings checks that the flare applies the settings that the
+// environment gives when there is no configuration file, like `otel-agent run` does.
+func TestFlareCommandAppliesEnvironmentSettings(t *testing.T) {
+	t.Run("proxy", func(t *testing.T) {
+		t.Setenv("DD_PROXY_HTTPS", "http://proxy.example.com:3128")
+
+		cfg := flareConfig(t, &subcommands.GlobalParams{ConfigName: "datadog-otel"})
+
+		assert.Equal(t, "http://proxy.example.com:3128", cfg.GetString("proxy.https"))
+	})
+
+	t.Run("scrubber keys", func(t *testing.T) {
+		t.Setenv("DD_SCRUBBER_ADDITIONAL_KEYS", "flare-test-additional-key")
+
+		flareConfig(t, &subcommands.GlobalParams{ConfigName: "datadog-otel"})
+
+		scrubbed, err := scrubber.ScrubYamlString("flare-test-additional-key: some-value\n")
+		require.NoError(t, err)
+		assert.NotContains(t, scrubbed, "some-value")
+	})
+}
+
+// TestFlareCommandResolvesSecretProxy checks that the proxy can be given by a secret handle, which is
+// why the proxy is loaded before the secrets are resolved.
+func TestFlareCommandResolvesSecretProxy(t *testing.T) {
+	backend := newSecretBackend(t, "#!/bin/sh\necho '{\"flare_proxy\": {\"value\": \"http://proxy.example.com:3128\"}}'\n")
+	t.Setenv("DD_PROXY_HTTPS", "ENC[flare_proxy]")
+	t.Setenv("DD_SECRET_BACKEND_COMMAND", backend)
+
+	cfg := flareConfig(t, &subcommands.GlobalParams{ConfigName: "datadog-otel"})
+
+	assert.Equal(t, "http://proxy.example.com:3128", cfg.GetString("proxy.https"))
+}
+
+// TestFlareCommandDefaultCoreConfig checks that, like `otel-agent run`, the flare loads the default
+// datadog.yaml of the Agent when --core-config isn't given, unless the collector is standalone.
+func TestFlareCommandDefaultCoreConfig(t *testing.T) {
+	newConfFile := func(apiKey string) string {
+		path := filepath.Join(t.TempDir(), "datadog.yaml")
+		require.NoError(t, os.WriteFile(path, []byte("api_key: "+apiKey+"\n"), 0o600))
+		return path
+	}
+	useDefaultConfFile(t, newConfFile(testAPIKey))
+
+	t.Run("bundled", func(t *testing.T) {
+		t.Setenv("DD_OTEL_STANDALONE", "false")
+
+		assert.Equal(t, testAPIKey, flareAPIKey(t, &subcommands.GlobalParams{}))
+	})
+
+	t.Run("standalone", func(t *testing.T) {
+		t.Setenv("DD_OTEL_STANDALONE", "true")
+
+		assert.NotEqual(t, testAPIKey, flareAPIKey(t, &subcommands.GlobalParams{}), "the default datadog.yaml was loaded")
+	})
+
+	t.Run("explicit path", func(t *testing.T) {
+		t.Setenv("DD_OTEL_STANDALONE", "false")
+
+		assert.Equal(t, "another-key", flareAPIKey(t, &subcommands.GlobalParams{CoreConfPath: newConfFile("another-key")}))
+	})
+}
+
+// TestFlareCommandIgnoresBrokenCoreConfig checks that a configuration file that can't be loaded
+// doesn't prevent the flare, which is run to diagnose such problems, like the core Agent flare.
+func TestFlareCommandIgnoresBrokenCoreConfig(t *testing.T) {
+	broken := filepath.Join(t.TempDir(), "datadog.yaml")
+	require.NoError(t, os.WriteFile(broken, []byte("api_key: [unterminated\n  foo: : :\n"), 0o600))
+
+	assert.NotPanics(t, func() { flareConfig(t, &subcommands.GlobalParams{CoreConfPath: broken}) })
 }

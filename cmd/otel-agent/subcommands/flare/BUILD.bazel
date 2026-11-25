@@ -5,6 +5,7 @@ go_library(
     name = "flare",
     srcs = [
         "command.go",
+        "coreconfig.go",
         "envvars.go",
         "logfiles.go",
     ],
@@ -61,6 +62,7 @@ dd_agent_go_test(
         "//pkg/config/mock",
         "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",
+        "//pkg/util/scrubber",
         "@com_github_fatih_color//:color",
         "@com_github_spf13_cobra//:cobra",
         "@com_github_stretchr_testify//assert",

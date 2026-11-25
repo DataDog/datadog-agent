@@ -100,6 +100,9 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 			globalParams := globalConfGetter()
 			cliParams.GlobalParams = globalParams
 			cliParams.args = args
+			if globalParams.CoreConfPath == "" {
+				globalParams.CoreConfPath = defaultCoreConfPath()
+			}
 
 			flareParams := flare.NewLocalParams(
 				"", // distPath - not used for OTel Agent
@@ -113,7 +116,7 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 			return fxutil.OneShot(makeFlare,
 				fx.Supply(cliParams),
 				flareConfigModule(globalParams),
-				fx.Invoke(resolveSecrets),
+				fx.Invoke(applyEnvironmentSettings),
 				fx.Supply(log.ForOneShot(globalParams.LoggerName, "info", false)),
 				logfx.Module(),
 				secretsnoopfx.Module(),
@@ -148,10 +151,23 @@ func flareConfigModule(params *subcommands.GlobalParams) fx.Option {
 		fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Warning: could not build the configuration from the collector configuration: %v", err)))
 	}
 	return fx.Options(
-		fx.Supply(config.NewAgentParams(params.CoreConfPath, config.WithConfigName(params.ConfigName))),
+		// Like the core Agent flare, go on when the configuration file can't be loaded
+		fx.Supply(config.NewAgentParams(params.CoreConfPath, config.WithConfigName(params.ConfigName), config.WithIgnoreErrors(true))),
 		config.Module(),
 		schemanoopfx.Module(),
 	)
+}
+
+// applyEnvironmentSettings applies the settings that loading the configuration file applies, and that
+// `otel-agent run` applies by itself, but that the loading skips when it finds no file, as when the
+// collector is configured by environment variables only: the proxy, the secrets, and the keys that the
+// scrubber must hide.
+func applyEnvironmentSettings(cfg config.Component) {
+	// The proxy comes first, so that a secret handle can be given by a proxy variable
+	pkgconfigsetup.LoadProxyFromEnv(cfg)
+	resolveSecrets(cfg)
+	scrubber.AddStrippedKeys(cfg.GetStringSlice("flare_stripped_keys"))
+	scrubber.AddStrippedKeys(cfg.GetStringSlice("scrubber.additional_keys"))
 }
 
 // resolveSecrets resolves the ENC[] handles of the configuration with its secret backend, like the

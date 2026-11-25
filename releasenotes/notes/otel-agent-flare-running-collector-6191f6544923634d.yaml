@@ -31,6 +31,13 @@ fixes:
     configuration with the configured secret backend, like the core Agent flare
     does, so the flare is uploaded with the resolved API key instead of the
     ``ENC[...]`` handle.
+  - |
+    ``otel-agent flare`` now applies the proxy and the ``scrubber.additional_keys``
+    that environment variables give, like ``otel-agent run`` does, even when
+    there is no ``datadog.yaml``. Unless the collector is standalone, it also
+    loads the default ``datadog.yaml`` of the Agent when ``--core-config`` is
+    not given, like ``otel-agent run`` does, and it no longer stops when that
+    file can't be loaded.
 issues:
   - |
     ``otel-agent flare`` has these known limitations:
