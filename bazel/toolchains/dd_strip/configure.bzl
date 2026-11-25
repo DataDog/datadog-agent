@@ -92,7 +92,8 @@ find "$STRIPPED_OUT" -mindepth 1 -exec chmod u+w {{}} +
 # a .dbg twin.
 find "$STRIPPED_OUT" -type f -print0 | while IFS= read -r -d '' f; do
     # Use raw ELF magic bytes (\\x7fELF) to identify ELF files as targets for stripping.
-    if [ "$(od -An -N4 -tx1 "$f" | tr -d ' \\n')" = "7f454c46" ]; then
+    IFS= read -r -n 4 -d '' magic < "$f" || true
+    if [ "$magic" = $'\\x7fELF' ]; then
         rel="${{f#$STRIPPED_OUT/}}"
         dbg="$DEBUG_OUT/$rel.dbg"
         mkdir -p "$(dirname "$dbg")"
