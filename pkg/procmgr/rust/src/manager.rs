@@ -474,9 +474,7 @@ impl ProcessManager {
         &self,
         exit_tx: &mpsc::Sender<ExitEvent>,
     ) -> Result<ReloadResult, Status> {
-        // A catalog that could not be read keeps the current processes, not an empty catalog: the
-        // config path is not a directory or is a dangling link, the directory could not be
-        // checked or listed, or a read did not finish or failed in a way that clears on its own.
+        // A catalog that could not be read keeps the current processes, not an empty catalog.
         let catalog = self.config_loader.try_load().map_err(|err| {
             let message = format!("config reload refused, keeping the current processes: {err:#}");
             warn!("{message}");

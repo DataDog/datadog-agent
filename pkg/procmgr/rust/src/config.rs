@@ -62,14 +62,8 @@ impl LoadedCatalog {
 
 pub trait ConfigLoader: Send + Sync {
     fn load(&self) -> LoadedCatalog;
-    /// The catalog for a reload. Unlike [`ConfigLoader::load`], an error means the catalog could
-    /// not be read and the reload keeps the current processes. That is the case when the config
-    /// path or a parent is not a directory or is a dangling link, when the directory could not
-    /// be checked or listed, and when a read did not finish or failed in a way that clears on
-    /// its own (a timeout, a stale network handle, a busy or locked file). A file that is read
-    /// and fails for another reason is still an invalid entry, which stops that process on
-    /// reload. Every loader chooses its own behavior, so a new one cannot inherit the lenient
-    /// `load`.
+    /// The catalog for a reload. An error means it could not be read, and the reload keeps the
+    /// current processes. Required, so a loader cannot inherit the lenient `load`.
     fn try_load(&self) -> Result<LoadedCatalog>;
     fn source(&self) -> &str;
     fn location(&self) -> String;
@@ -191,23 +185,19 @@ fn kind_of(meta: &std::fs::Metadata) -> DirKind {
     }
 }
 
-/// What `dir` is. It is absent only when its deepest existing component is a directory that
-/// resolves, and `dir` is `NotFound` below it, or when it is a relative path (or empty) with
-/// nothing existing in it. Any other failure is an error, so a reload is refused instead of
-/// reading the catalog as empty.
+/// What `dir` is. It is absent only when a resolving directory has no `dir` below it, or the path
+/// is relative with nothing in it. Any other failure is an error, so a reload is refused.
 fn classify_dir(dir: &Path) -> std::io::Result<DirKind> {
     use std::io::ErrorKind::{NotADirectory, NotFound};
-    // A trailing separator or `.` makes `ancestors` skip the leaf and the OS follow a leaf link.
+    // A trailing separator or `.` would hide a leaf link from `ancestors`.
     let dir: PathBuf = dir.components().collect();
     let first = match std::fs::metadata(&dir) {
         Ok(meta) => return Ok(kind_of(&meta)),
-        // A file in the path, as Windows reports below.
         Err(err) if err.kind() == NotADirectory => return Ok(DirKind::NotDir),
         Err(err) if err.kind() == NotFound => err,
         Err(err) => return Err(err),
     };
-    // A dangling link, as the path or a parent (replaced during a package switch), is unreadable
-    // for now, not absent. Look at the deepest component that exists.
+    // A dangling link, as the path or a parent, is unreadable for now, not absent.
     for candidate in dir.ancestors() {
         let link = match std::fs::symlink_metadata(candidate) {
             Ok(link) => link,
@@ -219,11 +209,10 @@ fn classify_dir(dir: &Path) -> std::io::Result<DirKind> {
                 Ok(DirKind::DanglingLink)
             }
             Err(err) => Err(err),
-            // A file in the path (Unix reports it as `ENOTDIR` above, Windows as `NotFound`).
+            // Windows reports a file in the path as `NotFound`.
             Ok(meta) if !meta.is_dir() => Ok(DirKind::NotDir),
             Ok(_) if candidate == dir => Ok(DirKind::Dir),
-            // The path was `NotFound` and its deepest existing component resolves to a directory.
-            // A link repointed since the first check can make `dir` exist now, so look again.
+            // A link repointed since the first check can make `dir` exist now.
             Ok(_) => match std::fs::metadata(&dir) {
                 Ok(meta) => Ok(kind_of(&meta)),
                 Err(err) if err.kind() == NotFound => Ok(DirKind::Missing),
@@ -231,8 +220,7 @@ fn classify_dir(dir: &Path) -> std::io::Result<DirKind> {
             },
         };
     }
-    // Nothing in a rooted path exists, as on an unmounted drive or an unreachable share. A
-    // drive-relative path (`Z:dir`) has a prefix but no root.
+    // An unmounted drive or unreachable share. `Z:dir` has a prefix but no root.
     if dir.has_root()
         || matches!(
             dir.components().next(),
@@ -250,11 +238,9 @@ impl YamlConfigLoader {
         Self { dir: config_dir() }
     }
 
-    /// Startup loads leniently and reload strictly (see `load_configs_with`). A strict load also
-    /// fails on a non-directory or a dangling link in the config path or one of its parents. A
-    /// dangling link for a single file inside the directory is an invalid entry, so one broken
-    /// link does not block every reload. A directory that is missing under a link that resolves
-    /// is absent in both modes.
+    /// Startup loads leniently and reload strictly. A strict load also fails on a non-directory
+    /// or a dangling link in the config path or a parent. A dangling link for one file inside the
+    /// directory is an invalid entry, so one broken link does not block every reload.
     fn load_with(&self, strict: bool) -> Result<LoadedCatalog> {
         let owned = self.dir.clone();
         let kind = crate::stop::bounded(&self.dir, move || classify_dir(&owned))
@@ -582,10 +568,8 @@ impl fmt::Display for UnfinishedRead {
 
 impl std::error::Error for UnfinishedRead {}
 
-/// Whether a config read did not finish, or failed in a way that clears on its own (a timeout, a
-/// stale network handle, a busy or locked file). A reload refuses it. Any other read error is an
-/// invalid entry, as a parse error is. `read_to_string` retries `Interrupted` itself, and a
-/// read that a stop interrupted arrives as `UnfinishedRead`.
+/// Whether a read did not finish or failed in a way that clears on its own, so a reload refuses
+/// it. Any other read error is an invalid entry, as a parse error is.
 fn is_stalled_read(err: &anyhow::Error) -> bool {
     err.downcast_ref::<UnfinishedRead>().is_some()
         || err
@@ -598,8 +582,7 @@ fn clears_on_its_own(err: &std::io::Error) -> bool {
     if matches!(err.kind(), TimedOut | StaleNetworkFileHandle | ResourceBusy) {
         return true;
     }
-    // ERROR_SHARING_VIOLATION and ERROR_LOCK_VIOLATION: an installer, editor or scanner has the
-    // file open for a moment.
+    // ERROR_SHARING_VIOLATION and ERROR_LOCK_VIOLATION.
     #[cfg(windows)]
     if matches!(err.raw_os_error(), Some(32 | 33)) {
         return true;
@@ -653,7 +636,7 @@ mod tests {
         crate::stop::testing::stall(&path);
     }
 
-    /// A FIFO entry is invalid without being opened, at startup and on reload.
+    /// A FIFO entry is invalid without being opened.
     #[cfg(unix)]
     #[test]
     fn a_fifo_entry_is_invalid_without_being_opened() {
@@ -689,7 +672,6 @@ mod tests {
         }
     }
 
-    /// On reload a stalled config file fails the whole load, not just that entry.
     #[test]
     fn a_stalled_config_file_fails_a_reload_load() {
         let dir = tempfile::tempdir().unwrap();
@@ -708,8 +690,6 @@ mod tests {
         assert_eq!(unfinished.0.kind(), std::io::ErrorKind::TimedOut);
     }
 
-    /// A read the bounded call could not run fails a reload. An error from the read itself does
-    /// only when it clears on its own.
     #[test]
     fn only_a_read_that_did_not_finish_fails_a_reload() {
         let kind = std::io::Error::from;
@@ -736,7 +716,6 @@ mod tests {
         }
     }
 
-    /// A sharing or lock violation is a file another program has open for a moment.
     #[cfg(windows)]
     #[test]
     fn a_sharing_violation_fails_a_reload() {
@@ -746,7 +725,7 @@ mod tests {
         }
     }
 
-    /// At startup the same stall marks the file invalid and keeps the rest of the catalog.
+    /// A stalled config file is invalid and the rest of the catalog still loads.
     #[test]
     fn a_stalled_config_file_is_invalid_at_startup() {
         let dir = tempfile::tempdir().unwrap();
@@ -765,7 +744,6 @@ mod tests {
         assert_eq!(catalog.invalid.len(), 1);
     }
 
-    /// A config path that is a file reads as an empty catalog at startup, and fails a reload.
     #[test]
     fn a_config_path_that_is_a_file_fails_only_a_reload() {
         let dir = tempfile::tempdir().unwrap();
@@ -797,7 +775,6 @@ mod tests {
         assert!(catalog.processes.is_empty() && catalog.invalid.is_empty());
     }
 
-    /// A file in the config path is not a directory on any platform, so a reload refuses it.
     #[test]
     fn a_file_in_the_config_path_fails_only_a_reload() {
         let root = tempfile::tempdir().unwrap();
@@ -819,7 +796,6 @@ mod tests {
         assert!(catalog.processes.is_empty() && catalog.invalid.is_empty());
     }
 
-    /// An unreadable config directory is empty at startup and refuses a reload.
     #[cfg(unix)]
     #[test]
     fn an_unreadable_config_directory_fails_only_a_reload() {
@@ -849,7 +825,6 @@ mod tests {
         assert!(startup.processes.is_empty() && startup.invalid.is_empty());
     }
 
-    /// A trailing separator or `.` must not hide a dangling link from the check.
     #[cfg(unix)]
     #[test]
     fn a_trailing_separator_does_not_hide_a_dangling_link() {
@@ -876,8 +851,7 @@ mod tests {
         assert_eq!(catalog.processes.len(), 1);
     }
 
-    /// A dangling link for one entry is an invalid entry, not a refused reload: one broken link
-    /// must not block every reload.
+    /// One broken entry link must not block every reload.
     #[cfg(unix)]
     #[test]
     fn a_dangling_entry_link_is_an_invalid_entry() {
@@ -897,7 +871,6 @@ mod tests {
         assert_eq!(catalog.invalid[0].name, "broken");
     }
 
-    /// A dangling parent link fails a reload. A missing directory under a live link is absent.
     #[cfg(unix)]
     #[test]
     fn a_dangling_parent_link_fails_only_a_reload() {
@@ -927,7 +900,6 @@ mod tests {
         assert!(catalog.processes.is_empty() && catalog.invalid.is_empty());
     }
 
-    /// A read error that does not clear on its own is an invalid entry on reload too.
     #[test]
     fn a_permanently_unreadable_config_is_invalid_on_reload() {
         let dir = tempfile::tempdir().unwrap();
