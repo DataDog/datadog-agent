@@ -243,12 +243,8 @@ func TestHPAV2Beta2Factory_ListWatch(t *testing.T) {
 		fakeWatcher.Error(status)
 		fakeWatcher.Modify(&unstructured.Unstructured{Object: map[string]interface{}{"spec": "invalid"}})
 
-		nextEvent := func() watch.Event {
-			// In the synctest bubble, a missing event is reported as a deadlock.
-			return <-w.ResultChan()
-		}
-
-		event := nextEvent()
+		// In the synctest bubble, a missing event is reported as a deadlock.
+		event := <-w.ResultChan()
 		assert.Equal(t, watch.Added, event.Type)
 		addedHPA, ok := event.Object.(*autoscalingv2.HorizontalPodAutoscaler)
 		require.True(t, ok, "watched object should be a *autoscalingv2.HorizontalPodAutoscaler, got %T", event.Object)
@@ -257,10 +253,10 @@ func TestHPAV2Beta2Factory_ListWatch(t *testing.T) {
 		assert.Equal(t, "requests_per_s", addedHPA.Spec.Metrics[0].External.Metric.Name)
 
 		// error events are passed through untouched
-		assert.Equal(t, watch.Event{Type: watch.Error, Object: status}, nextEvent())
+		assert.Equal(t, watch.Event{Type: watch.Error, Object: status}, <-w.ResultChan())
 
 		// objects that cannot be converted are turned into error events
-		event = nextEvent()
+		event = <-w.ResultChan()
 		assert.Equal(t, watch.Error, event.Type)
 		assert.IsType(t, &metav1.Status{}, event.Object)
 	})
