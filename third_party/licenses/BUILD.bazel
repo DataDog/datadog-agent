@@ -1,0 +1,2 @@
+# TODO(ABLD-604): placeholder until https://github.com/DataDog/datadog-agent/pull/59924
+exports_files(glob(["text/**"]))

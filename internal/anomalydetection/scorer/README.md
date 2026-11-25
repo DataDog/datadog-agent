@@ -1,7 +1,7 @@
 # High-severity onset and recovery F1
 
 The default scorer evaluates **new high-severity anomaly-scorer episode starts**.
-It reads `anomaly_periods[].period_start` only for patterns beginning with
+It reads `anomaly_periods[].period_start` and the optional dual timestamps for patterns beginning with
 `anomaly_scorer_high:`. Medium-threshold episodes, TimeCluster correlations and
 raw detector anomalies are excluded; they cannot substitute for high-severity
 starts. Their count is reported as `num_filtered_non_high`.

@@ -171,8 +171,9 @@ func runFakeDataPlane() int {
 	adpLog(os.Stdout, "INFO", "agent_data_plane::cli::run",
 		fmt.Sprintf("Agent Data Plane starting... (mode %s)", mode))
 	// The real binary always emits this because preflight mode sets standalone_mode. Every
-	// mode emits it so the expected-warning filter is exercised on every run.
-	adpLog(os.Stderr, "WARN", "agent_data_plane::internal::env",
+	// mode emits it so the expected-warning filter is exercised on every run. The target is the
+	// one ADP 1.8.0 and later log it under.
+	adpLog(os.Stderr, "WARN", "datadog_agent_runtime::env",
 		"Running in standalone mode. Origin detection/enrichment and other features dependent upon the Datadog Agent will not be available.")
 
 	switch mode {

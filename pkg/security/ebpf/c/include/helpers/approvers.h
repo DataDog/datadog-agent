@@ -330,6 +330,19 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_by_basename(str
         }
     }
 
+    struct dentry *d_parent = NULL;
+    read_dentry_parent(dentry, &d_parent);
+    if (d_parent && d_parent != dentry) {
+        struct basename_t parent_basename = {
+            .type = PARENT_BASENAME,
+        };
+        get_dentry_name(d_parent, parent_basename.value, sizeof(parent_basename.value));
+        if (is_basename_in_map(&parent_basename, event_type)) {
+            monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
+            return APPROVED;
+        }
+    }
+
     return DISCARDED;
 }
 

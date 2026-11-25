@@ -257,3 +257,138 @@ func TestDispatcherResetClearsKnownLevelForNewSubscribers(t *testing.T) {
 		t.Fatalf("expected post-reset event to be Low->High, got %+v", l.events[1])
 	}
 }
+
+func TestDispatcherAdvanceWithDiscovery(t *testing.T) {
+	t.Run("activates historical medium and holds it", func(t *testing.T) {
+		l := &collectingListener{}
+		d := newTestDispatcher(l, severityeventsdef.SeverityEventsConfiguration{CooldownSecs: 3})
+
+		d.AdvanceWithDiscovery(1005, severityeventsdef.SeverityLow, severityeventsdef.SeverityMedium, 1000)
+		if len(l.events) != 1 {
+			t.Fatalf("expected 1 Medium discovery event, got %v", l.events)
+		}
+		if l.events[0].ToLevel != severityeventsdef.SeverityMedium {
+			t.Fatalf("expected Medium, got %v", l.events[0].ToLevel)
+		}
+		if l.events[0].Timestamp != 1005 || l.events[0].HistoricalTimestamp != 1000 {
+			t.Fatalf("expected trigger 1005 and crossing 1000, got %+v", l.events[0])
+		}
+
+		d.Advance(1006, severityeventsdef.SeverityLow)
+		if len(l.events) != 1 {
+			t.Fatalf("the discovered Medium hold must block Low, got %v", l.events)
+		}
+
+		d.Advance(1008, severityeventsdef.SeverityLow)
+		if len(l.events) != 2 {
+			t.Fatalf("Medium must fall back to Low after cooldown, got %v", l.events)
+		}
+	})
+
+	t.Run("distinct medium renews hold without another event", func(t *testing.T) {
+		l := &collectingListener{}
+		d := newTestDispatcher(l, severityeventsdef.SeverityEventsConfiguration{CooldownSecs: 5})
+
+		d.AdvanceWithDiscovery(1000, severityeventsdef.SeverityMedium, severityeventsdef.SeverityMedium, 1000)
+		d.AdvanceWithDiscovery(1003, severityeventsdef.SeverityLow, severityeventsdef.SeverityMedium, 1003)
+		if len(l.events) != 1 {
+			t.Fatalf("expected no transition for the renewed Medium hold, got %v", l.events)
+		}
+
+		d.Advance(1007, severityeventsdef.SeverityLow)
+		if len(l.events) != 1 {
+			t.Fatalf("the renewed Medium hold must still block Low, got %v", l.events)
+		}
+		d.Advance(1008, severityeventsdef.SeverityLow)
+		if len(l.events) != 2 {
+			t.Fatalf("expected Medium to fall back to Low, got %v", l.events)
+		}
+	})
+
+	t.Run("continuous medium does not renew hold", func(t *testing.T) {
+		l := &collectingListener{}
+		d := newTestDispatcher(l, severityeventsdef.SeverityEventsConfiguration{CooldownSecs: 3})
+
+		d.Advance(1000, severityeventsdef.SeverityMedium)
+		d.Advance(1002, severityeventsdef.SeverityMedium)
+		d.Advance(1003, severityeventsdef.SeverityLow)
+		if len(l.events) != 2 || l.events[1].ToLevel != severityeventsdef.SeverityLow {
+			t.Fatalf("continuous Medium must not renew its hold, got %v", l.events)
+		}
+	})
+
+	t.Run("high preempts medium atomically", func(t *testing.T) {
+		l := &collectingListener{}
+		d := newTestDispatcher(l, severityeventsdef.SeverityEventsConfiguration{})
+
+		d.AdvanceWithDiscovery(1000, severityeventsdef.SeverityMedium, severityeventsdef.SeverityHigh, 999)
+		if len(l.events) != 1 || l.events[0].ToLevel != severityeventsdef.SeverityHigh || l.events[0].HistoricalTimestamp != 999 {
+			t.Fatalf("expected one atomic High discovery, got %v", l.events)
+		}
+	})
+
+	t.Run("medium does not affect high hold", func(t *testing.T) {
+		l := &collectingListener{}
+		d := newTestDispatcher(l, severityeventsdef.SeverityEventsConfiguration{CooldownSecs: 5})
+
+		d.Advance(1000, severityeventsdef.SeverityHigh)
+		d.AdvanceWithDiscovery(1001, severityeventsdef.SeverityMedium, severityeventsdef.SeverityMedium, 1000)
+		if len(l.events) != 1 {
+			t.Fatalf("the Medium discovery must not affect the High hold, got %v", l.events)
+		}
+
+		d.Advance(1004, severityeventsdef.SeverityLow)
+		if len(l.events) != 1 {
+			t.Fatalf("the Medium discovery must not end the High hold early, got %v", l.events)
+		}
+		d.Advance(1005, severityeventsdef.SeverityLow)
+		if len(l.events) != 2 || l.events[1].ToLevel != severityeventsdef.SeverityLow {
+			t.Fatalf("expected High to expire on its own cooldown, got %v", l.events)
+		}
+	})
+
+	t.Run("medium starts after high cooldown expires", func(t *testing.T) {
+		l := &collectingListener{}
+		d := newTestDispatcher(l, severityeventsdef.SeverityEventsConfiguration{CooldownSecs: 3})
+
+		d.Advance(1000, severityeventsdef.SeverityHigh)
+		d.Advance(1002, severityeventsdef.SeverityMedium)
+		if len(l.events) != 1 {
+			t.Fatalf("expected the High de-escalation to be blocked, got %v", l.events)
+		}
+		d.Advance(1003, severityeventsdef.SeverityMedium)
+		if len(l.events) != 2 || l.events[1].ToLevel != severityeventsdef.SeverityMedium {
+			t.Fatalf("expected High to fall back to Medium, got %v", l.events)
+		}
+
+		d.Advance(1005, severityeventsdef.SeverityLow)
+		if len(l.events) != 2 {
+			t.Fatalf("the fresh Medium hold must block Low, got %v", l.events)
+		}
+		d.Advance(1006, severityeventsdef.SeverityLow)
+		if len(l.events) != 3 {
+			t.Fatalf("expected Medium to fall back to Low, got %v", l.events)
+		}
+	})
+
+	t.Run("historical medium wins at high expiry", func(t *testing.T) {
+		l := &collectingListener{}
+		d := newTestDispatcher(l, severityeventsdef.SeverityEventsConfiguration{CooldownSecs: 3})
+
+		d.Advance(1000, severityeventsdef.SeverityHigh)
+		d.AdvanceWithDiscovery(1003, severityeventsdef.SeverityLow, severityeventsdef.SeverityMedium, 1001)
+		if len(l.events) != 2 || l.events[1].ToLevel != severityeventsdef.SeverityMedium || l.events[1].HistoricalTimestamp != 1001 {
+			t.Fatalf("expected a historical Medium activation at High expiry, got %v", l.events)
+		}
+	})
+
+	t.Run("raw and discovery levels are coalesced", func(t *testing.T) {
+		l := &collectingListener{}
+		d := newTestDispatcher(l, severityeventsdef.SeverityEventsConfiguration{})
+
+		d.AdvanceWithDiscovery(1000, severityeventsdef.SeverityHigh, severityeventsdef.SeverityMedium, 999)
+		if len(l.events) != 1 || l.events[0].ToLevel != severityeventsdef.SeverityHigh {
+			t.Fatalf("expected one coalesced High transition, got %v", l.events)
+		}
+	})
+}

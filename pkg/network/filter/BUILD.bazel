@@ -82,10 +82,14 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/util/sync",
+            "@com_github_google_gopacket//pcap",
+            "@com_github_google_gopacket//pcapgo",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/util/sync",
+            "@com_github_google_gopacket//pcap",
+            "@com_github_google_gopacket//pcapgo",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:linux": [

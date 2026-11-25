@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -91,100 +92,112 @@ func newTestTelemetryStore(t testing.TB) *adtelemetry.Store {
 // TestWorker_Success_TriggersCallbackOnce: a probe that returns valid JSON
 // fires onResult exactly once and does not retry.
 func TestWorker_Success_TriggersCallbackOnce(t *testing.T) {
-	const svcID = "docker://svc-1"
-	disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
-		return `[{"instances":[{"host":"x"}]}]`, nil
-	}}
-	lookup := &fixedLookup{services: map[string]ServiceInfo{svcID: newSvc(svcID)}}
-	cb := &recordingCallback{}
-	telStore := newTestTelemetryStore(t)
+	synctest.Test(t, func(t *testing.T) {
+		const svcID = "docker://svc-1"
+		disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
+			return `[{"instances":[{"host":"x"}]}]`, nil
+		}}
+		lookup := &fixedLookup{services: map[string]ServiceInfo{svcID: newSvc(svcID)}}
+		cb := &recordingCallback{}
+		telStore := newTestTelemetryStore(t)
 
-	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 3, RetryDelay: 10 * time.Millisecond}, telStore)
-	w.Enqueue(svcID, testTplDigest, "myinteg")
-	assert.Equal(t, float64(1), telStore.DiscoveryQueueDepth.WithValues("myinteg", "docker").Get())
+		w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 3, RetryDelay: 10 * time.Millisecond}, telStore)
+		defer w.queue.ShutDown()
+		w.Enqueue(svcID, testTplDigest, "myinteg")
+		assert.Equal(t, float64(1), telStore.DiscoveryQueueDepth.WithValues("myinteg", "docker").Get())
 
-	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
-	defer cancel()
-	w.runOnce(ctx)
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+		defer cancel()
+		w.runOnce(ctx)
+		synctest.Wait()
 
-	require.Eventually(t, func() bool { return len(cb.snapshot()) == 1 }, time.Second, 5*time.Millisecond)
-	got := cb.snapshot()[0]
-	assert.Equal(t, svcID, got.svcID)
-	assert.Equal(t, testTplDigest, got.tplDigest)
-	require.Len(t, got.configs, 1)
-	assert.Equal(t, "myinteg", got.configs[0].Name)
-	assert.Equal(t, 1, disco.callCount())
-	assert.Equal(t, float64(0), telStore.DiscoveryQueueDepth.WithValues("myinteg", "docker").Get())
-	assert.Equal(t, float64(1), telStore.DiscoveryResults.WithValues("myinteg", "success", "docker").Get())
+		require.Len(t, cb.snapshot(), 1)
+		got := cb.snapshot()[0]
+		assert.Equal(t, svcID, got.svcID)
+		assert.Equal(t, testTplDigest, got.tplDigest)
+		require.Len(t, got.configs, 1)
+		assert.Equal(t, "myinteg", got.configs[0].Name)
+		assert.Equal(t, 1, disco.callCount())
+		assert.Equal(t, float64(0), telStore.DiscoveryQueueDepth.WithValues("myinteg", "docker").Get())
+		assert.Equal(t, float64(1), telStore.DiscoveryResults.WithValues("myinteg", "success", "docker").Get())
+	})
 }
 
 // TestWorker_RetriesUpToMax: a probe that always returns an error retries
 // until maxAttempts is reached, then gives up — onResult is never fired.
 func TestWorker_RetriesUpToMax(t *testing.T) {
-	const svcID = "containerd://svc-1"
-	disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
-		return "", errors.New("nope")
-	}}
-	lookup := &fixedLookup{services: map[string]ServiceInfo{svcID: newSvc(svcID)}}
-	cb := &recordingCallback{}
-	telStore := newTestTelemetryStore(t)
+	synctest.Test(t, func(t *testing.T) {
+		const svcID = "containerd://svc-1"
+		disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
+			return "", errors.New("nope")
+		}}
+		lookup := &fixedLookup{services: map[string]ServiceInfo{svcID: newSvc(svcID)}}
+		cb := &recordingCallback{}
+		telStore := newTestTelemetryStore(t)
 
-	const max = 4
-	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: max, RetryDelay: 5 * time.Millisecond}, telStore)
-	w.Start()
-	defer w.Stop()
-	w.Enqueue(svcID, testTplDigest, "myinteg")
-	assert.Equal(t, float64(1), telStore.DiscoveryQueueDepth.WithValues("myinteg", "containerd").Get())
+		const max = 4
+		w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: max, RetryDelay: 5 * time.Millisecond}, telStore)
+		w.Start()
+		defer w.Stop()
+		w.Enqueue(svcID, testTplDigest, "myinteg")
+		assert.Equal(t, float64(1), telStore.DiscoveryQueueDepth.WithValues("myinteg", "containerd").Get())
 
-	require.Eventually(t, func() bool { return disco.callCount() >= max }, time.Second, 2*time.Millisecond)
-	// Give one extra retry window to confirm there's no (max+1)th attempt.
-	time.Sleep(20 * time.Millisecond)
-	assert.Equal(t, max, disco.callCount(), "worker should give up after max attempts")
-	assert.Empty(t, cb.snapshot(), "onResult should never fire when discovery fails")
-	assert.Equal(t, float64(0), telStore.DiscoveryQueueDepth.WithValues("myinteg", "containerd").Get())
-	assert.Equal(t, float64(1), telStore.DiscoveryResults.WithValues("myinteg", "max_attempts_exceeded", "containerd").Get())
+		time.Sleep(time.Minute)
+		synctest.Wait()
+		assert.Equal(t, max, disco.callCount(), "worker should give up after max attempts")
+		assert.Empty(t, cb.snapshot(), "onResult should never fire when discovery fails")
+		assert.Equal(t, float64(0), telStore.DiscoveryQueueDepth.WithValues("myinteg", "containerd").Get())
+		assert.Equal(t, float64(1), telStore.DiscoveryResults.WithValues("myinteg", "max_attempts_exceeded", "containerd").Get())
+	})
 }
 
 // TestWorker_PermFail_DropsImmediately: a PermFail error drops the job after
 // the first attempt without consuming any retry budget.
 func TestWorker_PermFail_DropsImmediately(t *testing.T) {
-	disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
-		return "", PermFail{Err: errors.New("permanent")}
-	}}
-	lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": newSvc("svc-1")}}
-	cb := &recordingCallback{}
+	synctest.Test(t, func(t *testing.T) {
+		disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
+			return "", PermFail{Err: errors.New("permanent")}
+		}}
+		lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": newSvc("svc-1")}}
+		cb := &recordingCallback{}
 
-	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 10, RetryDelay: 5 * time.Millisecond}, nil)
-	w.Start()
-	defer w.Stop()
-	w.Enqueue("svc-1", testTplDigest, "myinteg")
+		w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 10, RetryDelay: 5 * time.Millisecond}, nil)
+		w.Start()
+		defer w.Stop()
+		w.Enqueue("svc-1", testTplDigest, "myinteg")
 
-	require.Eventually(t, func() bool { return disco.callCount() >= 1 }, time.Second, 2*time.Millisecond)
-	assert.Equal(t, 1, disco.callCount(), "PermFail must not trigger a retry")
-	assert.Empty(t, cb.snapshot())
+		time.Sleep(time.Minute)
+		synctest.Wait()
+		assert.Equal(t, 1, disco.callCount(), "PermFail must not trigger a retry")
+		assert.Empty(t, cb.snapshot())
+	})
 }
 
 // TestWorker_RetriesOnEmptyResult: an empty-array result is treated the same
 // as an error and retried.
 func TestWorker_RetriesOnEmptyResult(t *testing.T) {
-	attempts := atomic.NewInt32(0)
-	disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
-		n := attempts.Add(1)
-		if n < 3 {
-			return `[]`, nil
-		}
-		return `[{"instances":[{}]}]`, nil
-	}}
-	lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": newSvc("svc-1")}}
-	cb := &recordingCallback{}
+	synctest.Test(t, func(t *testing.T) {
+		attempts := atomic.NewInt32(0)
+		disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
+			n := attempts.Add(1)
+			if n < 3 {
+				return `[]`, nil
+			}
+			return `[{"instances":[{}]}]`, nil
+		}}
+		lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": newSvc("svc-1")}}
+		cb := &recordingCallback{}
 
-	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 5, RetryDelay: 5 * time.Millisecond}, nil)
-	w.Start()
-	defer w.Stop()
-	w.Enqueue("svc-1", testTplDigest, "myinteg")
+		w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 5, RetryDelay: 5 * time.Millisecond}, nil)
+		w.Start()
+		defer w.Stop()
+		w.Enqueue("svc-1", testTplDigest, "myinteg")
 
-	require.Eventually(t, func() bool { return len(cb.snapshot()) == 1 }, time.Second, 2*time.Millisecond)
-	assert.GreaterOrEqual(t, int(attempts.Load()), 3, "worker must have retried until the integration returned configs")
+		time.Sleep(time.Minute)
+		synctest.Wait()
+		assert.Len(t, cb.snapshot(), 1)
+		assert.Equal(t, int32(3), attempts.Load(), "worker must have retried until the integration returned configs")
+	})
 }
 
 // TestWorker_ServiceRemovedBetweenRetries: once the caller removes the
@@ -192,84 +205,97 @@ func TestWorker_RetriesOnEmptyResult(t *testing.T) {
 // the failed-then-retried call doesn't fire again. Service removal is the
 // worker's only cancellation primitive — no separate Forget API.
 func TestWorker_ServiceRemovedBetweenRetries(t *testing.T) {
-	// Block the discoverer mid-call so the test controls when the first
-	// probe completes, giving us a deterministic window to remove the
-	// service before the retry pop.
-	release := make(chan struct{})
-	called := atomic.NewInt32(0)
-	disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
-		called.Add(1)
-		<-release
-		return "", errors.New("released")
-	}}
-	lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": newSvc("svc-1")}}
-	cb := &recordingCallback{}
+	synctest.Test(t, func(t *testing.T) {
+		// Block the discoverer mid-call so the test controls when the first
+		// probe completes, giving us a deterministic window to remove the
+		// service before the retry pop.
+		release := make(chan struct{})
+		called := atomic.NewInt32(0)
+		disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
+			called.Add(1)
+			<-release
+			return "", errors.New("released")
+		}}
+		lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": newSvc("svc-1")}}
+		cb := &recordingCallback{}
 
-	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 5, RetryDelay: 5 * time.Millisecond}, nil)
-	w.Start()
-	defer w.Stop()
-	w.Enqueue("svc-1", testTplDigest, "myinteg")
-	// Wait until the first DiscoverConfig call is in flight.
-	require.Eventually(t, func() bool { return called.Load() == 1 }, time.Second, 2*time.Millisecond)
+		w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 5, RetryDelay: 5 * time.Millisecond}, nil)
+		w.Start()
+		defer w.Stop()
+		releaseProbes := sync.OnceFunc(func() { close(release) })
+		defer releaseProbes()
+		w.Enqueue("svc-1", testTplDigest, "myinteg")
+		// Wait until the first DiscoverConfig call is in flight.
+		synctest.Wait()
+		require.Equal(t, int32(1), called.Load())
 
-	// Simulate processDelService removing the service from activeServices.
-	lookup.remove("svc-1")
-	close(release)
+		// Simulate processDelService removing the service from activeServices.
+		lookup.remove("svc-1")
+		releaseProbes()
 
-	// Wait long enough that any retry would have run.
-	time.Sleep(50 * time.Millisecond)
-	assert.Equal(t, int32(1), called.Load(), "removing the service must stop further probes")
-	assert.Empty(t, cb.snapshot())
+		// Wait long enough that any retry would have run.
+		time.Sleep(time.Minute)
+		synctest.Wait()
+		assert.Equal(t, int32(1), called.Load(), "removing the service must stop further probes")
+		assert.Empty(t, cb.snapshot())
+	})
 }
 
 // TestWorker_DropsWhenServiceGone: if the service has disappeared from the
 // lookup, the worker drops the job without calling DiscoverConfig at all.
 func TestWorker_DropsWhenServiceGone(t *testing.T) {
-	const svcID = "process://svc-gone"
-	disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
-		return "", errors.New("should not be called")
-	}}
-	lookup := &fixedLookup{services: map[string]ServiceInfo{}} // empty
-	cb := &recordingCallback{}
-	telStore := newTestTelemetryStore(t)
+	synctest.Test(t, func(t *testing.T) {
+		const svcID = "process://svc-gone"
+		disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
+			return "", errors.New("should not be called")
+		}}
+		lookup := &fixedLookup{services: map[string]ServiceInfo{}} // empty
+		cb := &recordingCallback{}
+		telStore := newTestTelemetryStore(t)
 
-	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 3, RetryDelay: 5 * time.Millisecond}, telStore)
-	w.Enqueue(svcID, testTplDigest, "myinteg")
-	assert.Equal(t, float64(1), telStore.DiscoveryQueueDepth.WithValues("myinteg", "process").Get())
+		w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 3, RetryDelay: 5 * time.Millisecond}, telStore)
+		w.Enqueue(svcID, testTplDigest, "myinteg")
+		assert.Equal(t, float64(1), telStore.DiscoveryQueueDepth.WithValues("myinteg", "process").Get())
 
-	w.Start()
-	defer w.Stop()
+		w.Start()
+		defer w.Stop()
 
-	require.Eventually(t, func() bool {
-		return telStore.DiscoveryQueueDepth.WithValues("myinteg", "process").Get() == float64(0)
-	}, time.Second, 2*time.Millisecond, "worker must drain queue depth")
-	assert.Zero(t, disco.callCount())
-	assert.Empty(t, cb.snapshot())
-	assert.Equal(t, float64(1), telStore.DiscoveryResults.WithValues("myinteg", "service_not_found", "process").Get())
+		synctest.Wait()
+		assert.Equal(t, float64(0), telStore.DiscoveryQueueDepth.WithValues("myinteg", "process").Get(), "worker must drain queue depth")
+		assert.Zero(t, disco.callCount())
+		assert.Empty(t, cb.snapshot())
+		assert.Equal(t, float64(1), telStore.DiscoveryResults.WithValues("myinteg", "service_not_found", "process").Get())
+	})
 }
 
 // TestWorker_NoHost_TriggersRetry: a service whose GetHosts returns nothing
 // usable is treated as a transient failure (typical container-startup race)
 // and retried.
 func TestWorker_NoHost_TriggersRetry(t *testing.T) {
-	disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
-		return "", errors.New("should not be reached")
-	}}
-	noHost := &fakeService{id: "svc-1", hosts: map[string]string{}}
-	lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": noHost}}
-	cb := &recordingCallback{}
+	synctest.Test(t, func(t *testing.T) {
+		disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
+			return "", errors.New("should not be reached")
+		}}
+		noHost := &fakeService{id: "svc-1", hosts: map[string]string{}}
+		lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": noHost}}
+		cb := &recordingCallback{}
 
-	const max = 3
-	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: max, RetryDelay: 5 * time.Millisecond}, nil)
-	w.Start()
-	defer w.Stop()
-	w.Enqueue("svc-1", testTplDigest, "myinteg")
+		const max = 3
+		w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: max, RetryDelay: 5 * time.Millisecond}, nil)
+		w.Start()
+		defer w.Stop()
+		w.Enqueue("svc-1", testTplDigest, "myinteg")
 
-	// We never expect DiscoverConfig to be called (no host) but the worker
-	// should walk through its retry budget anyway.
-	time.Sleep(50 * time.Millisecond)
-	assert.Zero(t, disco.callCount())
-	assert.Empty(t, cb.snapshot())
+		// We never expect DiscoverConfig to be called (no host) but the worker
+		// should walk through its retry budget anyway.
+		time.Sleep(time.Minute)
+		synctest.Wait()
+		assert.Zero(t, disco.callCount())
+		assert.Empty(t, cb.snapshot())
+		w.m.Lock()
+		defer w.m.Unlock()
+		assert.Empty(t, w.attempts, "retry budget must be exhausted and the job dropped")
+	})
 }
 
 // TestWorker_NoBookkeepingLeakAfterServiceRemoval confirms there are no
@@ -278,67 +304,77 @@ func TestWorker_NoHost_TriggersRetry(t *testing.T) {
 // the workqueue's own dedupe, the only state the worker holds is bounded
 // by the number of currently-retrying jobs.
 func TestWorker_NoBookkeepingLeakAfterServiceRemoval(t *testing.T) {
-	called := atomic.NewInt32(0)
-	disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
-		called.Add(1)
-		return "", errors.New("fail")
-	}}
-	lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": newSvc("svc-1")}}
-	cb := &recordingCallback{}
+	synctest.Test(t, func(t *testing.T) {
+		called := atomic.NewInt32(0)
+		disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
+			called.Add(1)
+			return "", errors.New("fail")
+		}}
+		lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": newSvc("svc-1")}}
+		cb := &recordingCallback{}
 
-	w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 5, RetryDelay: 5 * time.Millisecond}, nil)
-	w.Start()
-	defer w.Stop()
+		w := NewWorker(disco, lookup, cb.callback, Config{MaxAttempts: 5, RetryDelay: 5 * time.Millisecond}, nil)
+		w.Start()
+		defer w.Stop()
 
-	w.Enqueue("svc-1", testTplDigest, "myinteg")
-	// One failure populates an attempts entry.
-	require.Eventually(t, func() bool { return called.Load() >= 1 }, time.Second, 2*time.Millisecond)
+		w.Enqueue("svc-1", testTplDigest, "myinteg")
+		// One failure populates an attempts entry.
+		synctest.Wait()
+		require.Equal(t, int32(1), called.Load())
 
-	// Remove the service. The next retry pop will see ServiceLookup return
-	// false and call dropAttempts, clearing the entry.
-	lookup.remove("svc-1")
+		// Remove the service. The next retry pop will see ServiceLookup return
+		// false and call dropAttempts, clearing the entry.
+		lookup.remove("svc-1")
 
-	require.Eventually(t, func() bool {
+		time.Sleep(time.Minute)
+		synctest.Wait()
+		assert.Equal(t, int32(1), called.Load())
 		w.m.Lock()
 		defer w.m.Unlock()
-		return len(w.attempts) == 0
-	}, time.Second, 2*time.Millisecond, "attempts map must be reaped after the service is removed")
+		assert.Empty(t, w.attempts, "attempts map must be reaped after the service is removed")
+	})
 }
 
 // TestWorker_ParallelProbes_DifferentServices verifies that the worker pool
 // processes probes for different services in parallel.
 func TestWorker_ParallelProbes_DifferentServices(t *testing.T) {
-	const workers = 4
+	synctest.Test(t, func(t *testing.T) {
+		const workers = 4
 
-	release := make(chan struct{})
-	inFlight := atomic.NewInt32(0)
-	disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
-		inFlight.Add(1)
-		// This will block all of the workers from processing the next job.
-		<-release
-		inFlight.Add(-1)
-		return `[{"instances":[{}]}]`, nil
-	}}
+		release := make(chan struct{})
+		inFlight := atomic.NewInt32(0)
+		disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
+			inFlight.Add(1)
+			// This will block all of the workers from processing the next job.
+			<-release
+			inFlight.Add(-1)
+			return `[{"instances":[{}]}]`, nil
+		}}
 
-	services := map[string]ServiceInfo{}
-	for i := range workers {
-		id := fmt.Sprintf("svc-%d", i)
-		services[id] = newSvc(id)
-	}
-	lookup := &fixedLookup{services: services}
-	cb := &recordingCallback{}
+		services := map[string]ServiceInfo{}
+		for i := range workers {
+			id := fmt.Sprintf("svc-%d", i)
+			services[id] = newSvc(id)
+		}
+		lookup := &fixedLookup{services: services}
+		cb := &recordingCallback{}
 
-	w := NewWorker(disco, lookup, cb.callback, Config{Workers: workers, MaxAttempts: 1, RetryDelay: 5 * time.Millisecond}, nil)
-	w.Start()
-	defer w.Stop()
-	for id := range services {
-		w.Enqueue(id, testTplDigest, "myinteg")
-	}
+		w := NewWorker(disco, lookup, cb.callback, Config{Workers: workers, MaxAttempts: 1, RetryDelay: 5 * time.Millisecond}, nil)
+		w.Start()
+		defer w.Stop()
+		releaseProbes := sync.OnceFunc(func() { close(release) })
+		defer releaseProbes()
+		for id := range services {
+			w.Enqueue(id, testTplDigest, "myinteg")
+		}
 
-	require.Eventually(t, func() bool { return inFlight.Load() == workers }, time.Second, 50*time.Millisecond,
-		"expected %d concurrent probes, got %d", workers, inFlight.Load())
-	close(release)
-	require.Eventually(t, func() bool { return inFlight.Load() == 0 }, time.Second, 50*time.Millisecond)
+		synctest.Wait()
+		require.Equal(t, int32(workers), inFlight.Load(), "expected %d concurrent probes", workers)
+		releaseProbes()
+		synctest.Wait()
+		require.Zero(t, inFlight.Load())
+		assert.Len(t, cb.snapshot(), workers)
+	})
 }
 
 // TestWorker_SameKeyStillSerial verifies that the workqueue's per-key
@@ -346,28 +382,44 @@ func TestWorker_ParallelProbes_DifferentServices(t *testing.T) {
 // times while a probe is in flight never yields more than one concurrent
 // probe for that key.
 func TestWorker_SameKeyStillSerial(t *testing.T) {
-	release := make(chan struct{})
-	inFlight := atomic.NewInt32(0)
-	disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
-		inFlight.Add(1)
-		<-release
-		inFlight.Add(-1)
-		return "", errors.New("fail")
-	}}
-	lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": newSvc("svc-1")}}
-	cb := &recordingCallback{}
+	synctest.Test(t, func(t *testing.T) {
+		release := make(chan struct{})
+		inFlight := atomic.NewInt32(0)
+		maxInFlight := atomic.NewInt32(0)
+		disco := &fakeDiscoverer{fn: func(_, _ string) (string, error) {
+			n := inFlight.Add(1)
+			for {
+				m := maxInFlight.Load()
+				if n <= m || maxInFlight.CompareAndSwap(m, n) {
+					break
+				}
+			}
+			<-release
+			inFlight.Add(-1)
+			return "", errors.New("fail")
+		}}
+		lookup := &fixedLookup{services: map[string]ServiceInfo{"svc-1": newSvc("svc-1")}}
+		cb := &recordingCallback{}
 
-	w := NewWorker(disco, lookup, cb.callback, Config{Workers: 4, MaxAttempts: 10, RetryDelay: 5 * time.Millisecond}, nil)
-	w.Start()
-	defer w.Stop()
-	for range 20 {
-		w.Enqueue("svc-1", testTplDigest, "myinteg")
-	}
+		w := NewWorker(disco, lookup, cb.callback, Config{Workers: 4, MaxAttempts: 10, RetryDelay: 5 * time.Millisecond}, nil)
+		w.Start()
+		defer w.Stop()
+		releaseProbes := sync.OnceFunc(func() { close(release) })
+		defer releaseProbes()
+		for range 20 {
+			w.Enqueue("svc-1", testTplDigest, "myinteg")
+		}
 
-	require.Eventually(t, func() bool { return inFlight.Load() == 1 }, time.Second, 50*time.Millisecond)
-	require.Never(t, func() bool { return inFlight.Load() != 1 }, 250*time.Millisecond, 25*time.Millisecond)
-	close(release)
-	require.Eventually(t, func() bool { return inFlight.Load() == 0 }, time.Second, 50*time.Millisecond)
+		time.Sleep(time.Minute)
+		synctest.Wait()
+		require.Equal(t, int32(1), inFlight.Load())
+		releaseProbes()
+		time.Sleep(time.Minute)
+		synctest.Wait()
+		require.Zero(t, inFlight.Load())
+		assert.Equal(t, int32(1), maxInFlight.Load())
+		assert.Equal(t, 10, disco.callCount())
+	})
 }
 
 // TestWorker_StopIsIdempotent: extra Stop calls do not panic and the worker

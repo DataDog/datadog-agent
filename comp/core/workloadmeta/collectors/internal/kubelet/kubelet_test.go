@@ -60,7 +60,8 @@ func TestDisabledCLCRunner(t *testing.T) {
 
 // TestDisabledNodefilter verifies that this collector steps aside for the
 // nodefilter collector whenever the configuration selects nodefilter
-// (otel-agent running in DDOT standalone mode, opted in to nodefilter).
+// (otel-agent running in DDOT standalone mode, unless opted in to this
+// collector).
 func TestDisabledNodefilter(t *testing.T) {
 	pkgconfigenv.SetFeatures(t, pkgconfigenv.Kubernetes)
 

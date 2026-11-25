@@ -17,6 +17,7 @@ go_library(
         "//pkg/fleet/installer/setup/common",
         "//pkg/fleet/installer/setup/defaultscript",
         "//pkg/fleet/installer/setup/djm",
+        "//pkg/fleet/installer/setup/gpu",
     ] + select({
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/bootstrap",
