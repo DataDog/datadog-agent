@@ -492,14 +492,21 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 						continue
 					}
 
-					// whether the value is an array is told by its evaluator: an iterated
-					// field is one, the metadata of its field says otherwise
-					evaluator, _, err := rs.compileActionValue(actionDef.Set.Field)
+					// whether the value is an array is told by the evaluator of the field:
+					// an iterated field is one, the metadata of its field says otherwise.
+					// Only the field is compiled, its subscript can read a variable
+					// declared by a rule not loaded yet. An index or a key is a single
+					// value, but a key in an iterated dictionary, one per element.
+					evaluator, err := rs.model.GetEvaluator(field.name, "", 0)
 					if err != nil {
-						errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("failed to compile action expression: %w", err))
+						errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("failed to get field '%s': %w", field.name, err))
 						continue
 					}
-					isArray = isArrayEvaluator(evaluator)
+					if field.indexed {
+						_, isArray = evaluator.(*eval.StringMapArrayEvaluator)
+					} else {
+						isArray = isArrayEvaluator(evaluator)
+					}
 
 					// the values of a dictionary are strings
 					if field.indexed && kind == reflect.Map {

@@ -3262,7 +3262,7 @@ func TestActionSetVariableValidation(t *testing.T) {
 	// an action isn't evaluated over the elements of an iterator, so an iterator
 	// variable is rejected wherever it is in its source, a macro included
 	for name, set := range map[string]*SetDefinition{
-		"field":           {Name: "var1", Field: `process.ancestors[A].file.name`},
+		"field":           {Name: "var1", Field: `process.ancestors[A].file.name`, Append: true},
 		"field-subscript": {Name: "var1", Field: `process.argv[process.ancestors[A].uid[0]]`},
 		"field-macro":     {Name: "var1", Field: `process.argv[first_ancestor_uid + 0]`},
 		"expression":      {Name: "var1", Expression: `"%{process.ancestors[A].file.name}"`, DefaultValue: ""},
@@ -3286,6 +3286,53 @@ func TestActionSetVariableValidation(t *testing.T) {
 				t.Errorf("expected the iterator variable to be rejected, got %v", err)
 			}
 		})
+	}
+}
+
+// The subscript of a set field can read a variable declared by a rule loaded
+// after it: the variables are declared before any field is compiled.
+func TestActionSetVariableSubscriptVariable(t *testing.T) {
+	testPolicy := &PolicyDef{Rules: []*RuleDefinition{{
+		ID:         "set_value",
+		Expression: `open.file.path == "/tmp/value"`,
+		Actions:    []*ActionDefinition{{Set: &SetDefinition{Name: "value", Field: `process.env[${key}]`}}},
+	}, {
+		ID:         "set_key",
+		Expression: `open.file.path == "/tmp/key"`,
+		Actions:    []*ActionDefinition{{Set: &SetDefinition{Name: "key", Value: "LD_PRELOAD"}}},
+	}, {
+		ID:         "check",
+		Expression: `open.file.path == "/tmp/check" && ${value} == "x.so"`,
+	}}}
+
+	tmpDir := t.TempDir()
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rs := newRuleSet()
+	if _, err := rs.LoadPolicies(NewPolicyLoader(provider), PolicyLoaderOpts{}); err != nil {
+		t.Fatal(err)
+	}
+
+	newEvent := func(path string) *model.Event {
+		event := model.NewFakeEvent()
+		event.Type = uint32(model.FileOpenEventType)
+		event.ProcessCacheEntry = &model.ProcessCacheEntry{}
+		event.SetFieldValue("open.file.path", path)
+		event.ProcessContext.Process.Env = map[string]string{"LD_PRELOAD": "x.so"}
+		return event
+	}
+	for _, path := range []string{"/tmp/key", "/tmp/value"} {
+		if !rs.Evaluate(newEvent(path)) {
+			t.Fatalf("expected the rule of %s to match", path)
+		}
+	}
+	if !rs.Evaluate(newEvent("/tmp/check")) {
+		t.Error("expected the value to be read at the key of the variable")
 	}
 }
 
