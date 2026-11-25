@@ -74,10 +74,10 @@ func addDiscarder(handler discarderHandler, fields ...eval.Field) {
 }
 
 // addFileDiscarder declares the inode discarder of an event type, which discards
-// the path and the name of the file together
+// the path, the name and the extension of the file together
 func addFileDiscarder(prefix string, eventType model.EventType, getter inodeEventGetter) {
 	pathField := prefix + ".file.path"
-	addDiscarder(filenameDiscarderWrapper(eventType, pathField, getter), pathField, prefix+".file.name")
+	addDiscarder(filenameDiscarderWrapper(eventType, pathField, getter), pathField, prefix+".file.name", prefix+".file.extension")
 }
 
 // bumpDiscardersRevision sends an eRPC request to bump the discarders revisionr

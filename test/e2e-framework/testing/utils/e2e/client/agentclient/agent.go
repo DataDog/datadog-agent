@@ -29,6 +29,9 @@ type Agent interface {
 	// Diagnose runs diagnose command and returns its output
 	Diagnose(commandArgs ...AgentArgsOption) string
 
+	// DiagnoseWithError runs diagnose command and returns its output or an error
+	DiagnoseWithError(commandArgs ...AgentArgsOption) (string, error)
+
 	// Flare runs flare command and returns the output. You should use the FakeIntake client to fetch the flare archive
 	Flare(commandArgs ...AgentArgsOption) string
 

@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    Add the ``job_scheduler_events`` check to the Cluster Agent. It sends the
+    events of Kueue Workloads and KAI Scheduler PodGroups from the Cluster Agent
+    leader, using the Workloads and PodGroups the Cluster Agent already has in its
+    workloadmeta. Enable it with ``cluster_agent.kueue.events.enabled`` and
+    ``cluster_agent.kai_scheduler.events.enabled``, both ``false`` by default, and
+    turn off the events of the ``kueue`` and ``kai_scheduler`` integration checks
+    when you do, or each event is sent twice. Requires ``leader_election``.
