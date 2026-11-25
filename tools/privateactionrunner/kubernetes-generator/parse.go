@@ -103,7 +103,7 @@ func generateBundle(sdkRoot, target, source string, cfg targetConfig) (map[strin
 		if slices.Contains(manual, a.Name) {
 			return nil, fmt.Errorf("action %s is both handwritten and generated", a.Name)
 		}
-		filename := snake(a.Name) + ".gen.go"
+		filename := actionFilename(a.Name)
 		content, err := render("actions", a)
 		if err != nil {
 			return nil, fmt.Errorf("render %s: %w", a.Name, err)

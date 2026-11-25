@@ -69,7 +69,7 @@ type HorizontalPodAutoscalerInterface interface {
 		require.NoError(t, err)
 	}
 
-	create := string(files["create_horizontal_pod_autoscaler.gen.go"])
+	create := string(files["create_hpa.gen.go"])
 	for _, want := range []string{
 		`v1 "k8s.io/api/autoscaling/v2"`,
 		`metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"`,
@@ -81,11 +81,11 @@ type HorizontalPodAutoscalerInterface interface {
 	}
 	require.NotContains(t, create, "TypeMeta")
 
-	list := string(files["list_horizontal_pod_autoscaler.gen.go"])
+	list := string(files["list_hpa.gen.go"])
 	require.NotContains(t, list, "namespace is required", "List must allow all namespaces")
 	require.Contains(t, list, "Items:")
 	require.Contains(t, list, "ListMeta:")
-	patch := string(files["patch_horizontal_pod_autoscaler.gen.go"])
+	patch := string(files["patch_hpa.gen.go"])
 	for _, want := range []string{"inputs.PatchFields == nil", "json.Marshal(inputs.Body)", "typesv1.JSONPatchType"} {
 		require.Contains(t, patch, want)
 	}
@@ -132,6 +132,35 @@ func TestMethodContracts(t *testing.T) {
 			get, ok := methodAction("Get", "networking", cfg, res)
 			require.True(t, ok)
 			require.Equal(t, "get"+tc.name, get.Name)
+		})
+	}
+}
+
+func TestActionFilenames(t *testing.T) {
+	for _, tc := range []struct {
+		bundle, name, plural, stem, pluralStem string
+	}{
+		{"admission", "MutatingWebhookConfiguration", "MutatingWebhookConfigurations", "mutating_webhook", "mutating_webhooks"},
+		{"admission", "ValidatingWebhookConfiguration", "ValidatingWebhookConfigurations", "validating_webhook", "validating_webhooks"},
+		{"admission", "ValidatingAdmissionPolicy", "ValidatingAdmissionPolicies", "vap", "vaps"},
+		{"admission", "ValidatingAdmissionPolicyBinding", "ValidatingAdmissionPolicyBindings", "vap_binding", "vap_bindings"},
+		{"autoscaling", "HorizontalPodAutoscaler", "HorizontalPodAutoscalers", "hpa", "hpas"},
+		{"core", "Pod", "Pods", "pod", "pods"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, method := range []string{"Create", "Get", "List", "Update", "Patch", "Delete", "DeleteCollection"} {
+				a, ok := methodAction(method, tc.bundle, targetConfig{}, resource{Name: tc.name, NamePluralized: tc.plural})
+				require.True(t, ok)
+				prefix, stem := snake(method), tc.stem
+				if method == "DeleteCollection" {
+					prefix, stem = "delete_multiple", tc.pluralStem
+				}
+				filename := actionFilename(a.Name)
+				require.Equal(t, prefix+"_"+stem+".gen.go", filename)
+				// Match the Windows checkout prefix and maximum in tasks/linter.py:filenames.
+				rel := "pkg/privateactionrunner/bundles/kubernetes/" + tc.bundle + "/" + filename
+				require.LessOrEqual(t, 159+len(rel), 255, rel)
+			}
 		})
 	}
 }

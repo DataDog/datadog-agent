@@ -215,6 +215,18 @@ func title(name string) string {
 	return strings.ToUpper(name[:1]) + name[1:]
 }
 
+// Shorten long resource names to fit the Windows release checkout path budget.
+// Only filenames use these abbreviations; action names and Go identifiers stay intact.
+func actionFilename(name string) string {
+	return strings.NewReplacer(
+		"horizontal_pod_autoscaler", "hpa",
+		"mutating_webhook_configuration", "mutating_webhook",
+		"validating_webhook_configuration", "validating_webhook",
+		"validating_admission_policies", "vaps",
+		"validating_admission_policy", "vap",
+	).Replace(snake(name)) + ".gen.go"
+}
+
 func snake(name string) string {
 	runes := []rune(name)
 	var out strings.Builder
