@@ -21,11 +21,13 @@ static __always_inline int create_tcp_conn(conn_t *conn, struct sock *sk, sk_tcp
     if (!read_conn_tuple_sk(&conn->tup, sk)) {
         return 0;
     }
-    // Without a pid stored with the socket, only an iterated task tells who owns it. The other
-    // callers run in the orphan iterator (system-probe) or when the socket is destroyed or
-    // disconnected (often from a softirq or a timer, in whatever task it interrupted), so the
-    // current task isn't the socket's owner there, and pid 0 is reported rather than a wrong one.
-    // tcp_close_entry stores the pid of the closing process for those.
+    // The socket's pid is normally stored in sk_stats at connect or accept. It's missing when no
+    // hook saw either, e.g. for a socket created before system-probe started. Then only an
+    // iterated task (bpf_iter__task_file_socket) tells who owns the socket. The other callers
+    // run in the orphan iterator (system-probe) or when the socket is destroyed or disconnected
+    // (often from a softirq or a timer, in whatever task it interrupted), so the current task
+    // isn't the socket's owner there, and pid 0 is reported rather than a wrong one.
+    // tcp_close_entry stores the pid of the closing process if it's still missing then.
     if (!conn->tup.pid && task) {
         conn->tup.pid = task->tgid;
     }
