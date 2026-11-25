@@ -159,6 +159,8 @@ func sudoTegraStatsCommand(ctx context.Context, sudoPath, binary string, args []
 	// Let sudo forward SIGTERM to the privileged command instead.
 	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
 	// Bound the wait on inherited output pipes if sudo exits or can be killed.
+	// If sudo execs tegrastats directly (use_pty, pam_session and pam_setcred all
+	// disabled), we cannot signal it. We rely on it dying of SIGPIPE once stdout closes.
 	cmd.WaitDelay = tegraStatsWaitDelay
 	return cmd
 }
