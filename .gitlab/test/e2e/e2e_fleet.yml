@@ -66,7 +66,13 @@ new-e2e-fleet-upgrade-history:
     - !reference [.on_deploy]
     # Keep main pushes manual before evaluating the path-based rules.
     - !reference [.on_main_manual]
-    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.except_light_pipeline]
+    - changes:
+        paths:
+          - test/new-e2e/tests/fleet/**/*
+          - test/e2e-framework/**/*
+        compare_to: $COMPARE_TO_BRANCH
+      when: on_success
     - !reference [.manual]
   timeout: 1h 25m
   variables:
