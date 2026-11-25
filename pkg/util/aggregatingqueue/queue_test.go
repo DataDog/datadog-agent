@@ -6,80 +6,38 @@
 package queue
 
 import (
-	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 )
 
-func newMockFlush[T any]() (callback func([]T), waitCallbackCalled func(int), getAccumulator func() [][]T) {
-	accumulator := [][]T{}
-	nbCalled := 0
-	var mutex sync.Mutex
-	cond := sync.NewCond(&mutex)
-
-	callback = func(elems []T) {
-		mutex.Lock()
-		defer mutex.Unlock()
-		accumulator = append(accumulator, elems)
-		nbCalled++
-		cond.Signal()
-	}
-
-	waitCallbackCalled = func(nb int) {
-		mutex.Lock()
-		defer mutex.Unlock()
-		for nbCalled < nb {
-			cond.Wait()
-		}
-	}
-
-	getAccumulator = func() [][]T {
-		mutex.Lock()
-		defer mutex.Unlock()
-		return accumulator
-	}
-
-	return
-}
-
 func TestQueue(t *testing.T) {
-	callback, wait, accumulator := newMockFlush[int]()
-	cl := clock.NewMock()
-	queue := newQueue(3, 1*time.Minute, callback, cl)
+	synctest.Test(t, func(t *testing.T) {
+		// The callback is invoked from the queue goroutine. Reading the
+		// accumulator after synctest.Wait() is race-free: Wait() guarantees
+		// that the queue goroutine is durably blocked.
+		var accumulator [][]int
+		queue := NewQueue(3, 1*time.Minute, func(elems []int) {
+			accumulator = append(accumulator, elems)
+		})
 
-	for i := 0; i <= 10; i++ {
-		queue <- i
-	}
+		for i := 0; i <= 10; i++ {
+			queue <- i
+		}
+		synctest.Wait()
 
-	wait(3) // wait callback to have been called 3 times
+		want := [][]int{{0, 1, 2}, {3, 4, 5}, {6, 7, 8}}
+		assert.Equal(t, want, accumulator)
 
-	assert.Equal(
-		t,
-		[][]int{
-			{0, 1, 2},
-			{3, 4, 5},
-			{6, 7, 8},
-		},
-		accumulator(),
-	)
+		// Elements 9 and 10 are flushed once the retention time has elapsed.
+		time.Sleep(2 * time.Minute)
+		synctest.Wait()
 
-	cl.Add(2 * time.Minute)
+		want = append(want, []int{9, 10})
+		assert.Equal(t, want, accumulator)
 
-	wait(4) // wait callback to have been called one more time
-
-	assert.Equal(
-		t,
-		[][]int{
-			{0, 1, 2},
-			{3, 4, 5},
-			{6, 7, 8},
-			{9, 10},
-		},
-		accumulator(),
-	)
-
-	close(queue)
+		close(queue)
+	})
 }
