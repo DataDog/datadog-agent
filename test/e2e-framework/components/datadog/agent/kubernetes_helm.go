@@ -110,8 +110,8 @@ type HelmComponent struct {
 
 func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi.ResourceOption) (*HelmComponent, error) {
 	credentials := pulumi.StringMap{"api-key": e.AgentAPIKey()}
-	hasAppKey := e.HasAgentAPPKey()
-	if hasAppKey {
+	noAppKey := e.AgentNoAPPKey()
+	if !noAppKey {
 		credentials["app-key"] = e.AgentAPPKey()
 	}
 	baseName := args.BaseName
@@ -244,7 +244,7 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 		values = buildLinuxHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentImagePath, clusterAgentImageTag, randomClusterAgentToken.Result, !args.DisableLogsContainerCollectAll, e.TestingWorkloadDeploy(), args.FIPS, true)
 	}
 	values.configureImagePullSecret(imgPullSecret)
-	if !hasAppKey {
+	if noAppKey {
 		values.dropAppKeySecret()
 	}
 	if err := values.configureFakeintake(e, args.Fakeintake, args.DualShipping); err != nil {
@@ -301,7 +301,7 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 	if args.DeployWindows {
 		values := buildWindowsHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentImagePath, clusterAgentImageTag)
 		values.configureImagePullSecret(imgPullSecret)
-		if !hasAppKey {
+		if noAppKey {
 			values.dropAppKeySecret()
 		}
 		if err := values.configureFakeintake(e, args.Fakeintake, args.DualShipping); err != nil {

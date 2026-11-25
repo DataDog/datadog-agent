@@ -36,7 +36,7 @@ scenario_name = "aws/eks"
         "kube_version": doc.kubernetes_version,
         "interactive": doc.interactive,
         "app_key": "Require an app key and give it to the agent (default). --no-app-key deploys without one, for "
-        "an agent that never calls the Datadog API.",
+        "an agent that never calls the Datadog API; pair it with --no-install-workload, whose autoscaling needs one.",
     }
 )
 def create_eks(
@@ -127,6 +127,7 @@ def create_eks(
         scenario_name,
         debug=debug,
         app_key_required=app_key,
+        no_app_key=not app_key,
         stack_name=stack_name,
         pipeline_id=pipeline_id,
         install_agent=install_agent,

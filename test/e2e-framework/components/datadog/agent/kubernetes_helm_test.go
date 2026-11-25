@@ -15,8 +15,9 @@ import (
 
 func TestDropAppKeySecret(t *testing.T) {
 	for name, values := range map[string]HelmValues{
-		"linux":   buildLinuxHelmValues("dda", "agent", "7", "cluster-agent", "7", pulumi.String("token"), true, false, false, false),
-		"windows": buildWindowsHelmValues("dda", "agent", "7", "cluster-agent", "7"),
+		"linux":           buildLinuxHelmValues("dda", "agent", "7", "cluster-agent", "7", pulumi.String("token"), true, false, false, false),
+		"linux autopilot": buildLinuxHelmValuesAutopilot("dda", "agent", "7", "cluster-agent", "7", pulumi.String("token")),
+		"windows":         buildWindowsHelmValues("dda", "agent", "7", "cluster-agent", "7"),
 	} {
 		t.Run(name, func(t *testing.T) {
 			datadog, ok := values["datadog"].(pulumi.Map)

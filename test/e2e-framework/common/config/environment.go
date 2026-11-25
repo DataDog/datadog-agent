@@ -64,6 +64,7 @@ const (
 	DDImagePullPasswordParamName         = "imagePullPassword"
 	DDAgentAPIKeyParamName               = "apiKey"
 	DDAgentAPPKeyParamName               = "appKey"
+	DDAgentNoAPPKeyParamName             = "noAppKey"
 	DDAgentFakeintake                    = "fakeintake"
 	DDAgentDualShipping                  = "dualshipping"
 	DDAGentFakeintakeRetentionPeriod     = "fakeintakeRetentionPeriod"
@@ -144,7 +145,7 @@ type Env interface {
 	ImagePullPassword() pulumi.StringOutput
 	AgentAPIKey() pulumi.StringOutput
 	AgentAPPKey() pulumi.StringOutput
-	HasAgentAPPKey() bool
+	AgentNoAPPKey() bool
 	AgentUseFakeintake() bool
 	TestingWorkloadDeploy() bool
 	InitOnly() bool
@@ -387,11 +388,10 @@ func (e *CommonEnvironment) AgentAPPKey() pulumi.StringOutput {
 	return e.AgentConfig.RequireSecret(DDAgentAPPKeyParamName)
 }
 
-// HasAgentAPPKey reports whether an app key is configured. A deployment that never calls the Datadog API can run
-// without one.
-func (e *CommonEnvironment) HasAgentAPPKey() bool {
-	_, err := e.AgentConfig.TrySecret(DDAgentAPPKeyParamName)
-	return err == nil
+// AgentNoAPPKey reports whether the deployment explicitly runs without an app key, for an agent that never calls
+// the Datadog API. Otherwise a missing app key is an error.
+func (e *CommonEnvironment) AgentNoAPPKey() bool {
+	return e.GetBoolWithDefault(e.AgentConfig, DDAgentNoAPPKeyParamName, false)
 }
 
 func (e *CommonEnvironment) AgentUseFakeintake() bool {
