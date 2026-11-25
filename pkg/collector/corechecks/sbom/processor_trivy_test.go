@@ -9,6 +9,7 @@ package sbom
 
 import (
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
@@ -23,6 +24,11 @@ import (
 // the repo tags and digests the image has, though the SBOM of the store, the
 // copy its runtime usage merged into, lists those of an earlier time.
 func TestImageSBOMListsCurrentRepoNames(t *testing.T) {
+	ensureBubbleGlobals(t)
+	synctest.Test(t, testImageSBOMListsCurrentRepoNames)
+}
+
+func testImageSBOMListsCurrentRepoNames(t *testing.T) {
 	const (
 		repoTagProperty    = "aquasecurity:trivy:RepoTag"
 		repoDigestProperty = "aquasecurity:trivy:RepoDigest"
