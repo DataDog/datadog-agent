@@ -2461,3 +2461,229 @@ func BenchmarkPool(b *testing.B) {
 		pool.pool.Put(ctx)
 	}
 }
+
+func TestDict(t *testing.T) {
+	event := &testEvent{
+		process: testProcess{
+			name: "ls",
+			env:  map[string]string{"PATH": "/usr/bin:/bin", "HOME": "/root", "EMPTY": ""},
+			array: []*testItem{
+				{key: 1000, env: map[string]string{"PATH": "/usr/bin", "LANG": "C"}},
+				{key: 1002, env: map[string]string{"PATH": "/opt/bin"}},
+			},
+		},
+	}
+
+	tests := []struct {
+		Expr     string
+		Expected bool
+	}{
+		{Expr: `process.env["PATH"] == "/usr/bin:/bin"`, Expected: true},
+		{Expr: `process.env["PATH"] == "/root"`, Expected: false},
+		{Expr: `process.env["PATH"] != "/root"`, Expected: true},
+		{Expr: `"/root" == process.env["HOME"]`, Expected: true},
+		{Expr: `process.env["PATH"] == process.env["HOME"]`, Expected: false},
+		{Expr: `process.env["EMPTY"] == ""`, Expected: true},
+		{Expr: `process.env["MISSING"] == ""`, Expected: true},
+		{Expr: `process.env["path"] == "/usr/bin:/bin"`, Expected: false},
+		{Expr: `process.env["PATH"] =~ "/usr/*"`, Expected: true},
+		{Expr: `process.env["PATH"] =~ r"^/usr/bin:"`, Expected: true},
+		{Expr: `process.env["HOME"] in ["/root", "/home/*"]`, Expected: true},
+		{Expr: `process.env["HOME"] not in [~"/home/*"]`, Expected: true},
+		{Expr: `process.env["HOME"] == "/root" && process.name == "ls"`, Expected: true},
+		{Expr: `%{process.env["HOME"]} == "/root"`, Expected: true},
+		{Expr: `process.name == %{process.env["HOME"]}`, Expected: false},
+		{Expr: `process . env [ "HOME" ] == "/root"`, Expected: true},
+
+		{Expr: `process.array.env["PATH"] == "/opt/bin"`, Expected: true},
+		{Expr: `process.array.env["LANG"] == "C"`, Expected: true},
+		{Expr: `process.array.env["PATH"] == "/root"`, Expected: false},
+		{Expr: `"/usr/bin" in process.array.env["PATH"]`, Expected: true},
+		{Expr: `process.array[A].env["PATH"] == "/opt/bin" && process.array[A].key == 1002`, Expected: true},
+		{Expr: `process.array[A].env["PATH"] == "/opt/bin" && process.array[A].key == 1000`, Expected: false},
+		{Expr: `process.array[A].env["LANG"] == "C" && process.array[A].env["PATH"] == "/usr/bin"`, Expected: true},
+		{Expr: `process.array[A].env["LANG"] == "C" && process.array[A].env["PATH"] == "/opt/bin"`, Expected: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Expr, func(t *testing.T) {
+			ctx := NewContext(event)
+
+			result, _, err := eval(ctx, test.Expr)
+			if err != nil {
+				t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+			}
+
+			if result != test.Expected {
+				t.Errorf("expected result `%t` not found, got `%t`\n%s", test.Expected, result, test.Expr)
+			}
+		})
+	}
+}
+
+// A subscript can be any integer or string, evaluated with the field it
+// subscripts.
+func TestSubscript(t *testing.T) {
+	event := &testEvent{
+		process: testProcess{
+			name: "ls",
+			uid:  1,
+			env:  map[string]string{"ls": "list", "1": "one", "ls_1": "both"},
+			array: []*testItem{
+				{key: 1000, value: "ls", env: map[string]string{"ls": "first"}},
+				{key: 1002, value: "PATH", env: map[string]string{"ls": "second"}},
+			},
+		},
+	}
+
+	tests := []struct {
+		Expr     string
+		Expected bool
+	}{
+		{Expr: `process.env[process.name] == "list"`, Expected: true},
+		{Expr: `process.env[%{process.name}] == "list"`, Expected: true},
+		{Expr: `process.env["%{process.name}_%{process.uid}"] == "both"`, Expected: true},
+		{Expr: `process.env["%{process.uid}"] == "one"`, Expected: true},
+		{Expr: `process.env[process.name] == process.env["ls"]`, Expected: true},
+		{Expr: `process.array.env[process.name] == "second"`, Expected: true},
+		{Expr: `process.array[A].env[process.name] == "first" && process.array[A].key == 1000`, Expected: true},
+		{Expr: `process.array[A].env[process.name] == "first" && process.array[A].key == 1002`, Expected: false},
+		{Expr: `process.array.key[process.uid] == 1002`, Expected: true},
+		{Expr: `process.array.key[process.uid - 1] == 1000`, Expected: true},
+		{Expr: `process.array.key[process.uid + 1] == 0`, Expected: true},
+		{Expr: `process.array.value[1 - process.uid] == "ls"`, Expected: true},
+		{Expr: `process.array.key[1 & 3] == 1002`, Expected: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Expr, func(t *testing.T) {
+			ctx := NewContext(event)
+
+			result, _, err := eval(ctx, test.Expr)
+			if !assert.NoError(t, err) {
+				return
+			}
+			assert.Equal(t, test.Expected, result)
+		})
+	}
+
+	// the fields of a subscript are fields of the rule
+	rule, err := parseRule(`process.env[process.name] == "list"`, &testModel{}, newOptsWithParams(testConstants, nil))
+	if assert.NoError(t, err) {
+		assert.ElementsMatch(t, []Field{"process.env", "process.name"}, rule.GetFields())
+	}
+}
+
+func TestSubscriptErrors(t *testing.T) {
+	tests := []struct {
+		Expr  string
+		Error string
+	}{
+		{Expr: `process.env[process.array.value] == "a"`, Error: "a subscript is an integer or a string"},
+		{Expr: `process.env[~"PA*"] == "a"`, Error: "a subscript is an integer or a string"},
+		{Expr: `process.env[r"PA.*"] == "a"`, Error: "a subscript is an integer or a string"},
+		{Expr: `process.array.key[1s] == 1`, Error: "a subscript is an integer or a string"},
+		{Expr: `process.env[process.uid == 1] == "a"`, Error: "expected `]`"},
+		{Expr: `process.env[process.uid] == "a"`, Error: "field 'process.env' is not an array"},
+		{Expr: `process.array.key[process.name] == 1`, Error: "field 'process.array.key' is not a dictionary"},
+		{Expr: `process.env[process.unknown] == "a"`, Error: "field `process.unknown` not found"},
+		{Expr: `process.env[process.env] == "a"`, Error: "a subscript is an integer or a string"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Expr, func(t *testing.T) {
+			_, err := parseRule(test.Expr, &testModel{}, newOptsWithParams(testConstants, nil))
+			assert.ErrorContains(t, err, test.Error)
+		})
+	}
+}
+
+func TestDictIn(t *testing.T) {
+	event := &testEvent{
+		process: testProcess{
+			name: "ls",
+			env:  map[string]string{"PATH": "/bin", "EMPTY": "", "LD_PRELOAD": "x.so", "ls": "list"},
+			array: []*testItem{
+				{key: 1000, value: "MISSING", env: map[string]string{"LANG": "C"}},
+				{key: 1002, value: "PATH", env: map[string]string{"TERM": "xterm"}},
+			},
+		},
+	}
+
+	tests := []struct {
+		Expr     string
+		Expected bool
+	}{
+		{Expr: `"PATH" in process.env`, Expected: true},
+		{Expr: `"EMPTY" in process.env`, Expected: true},
+		{Expr: `"MISSING" in process.env`, Expected: false},
+		{Expr: `"path" in process.env`, Expected: false},
+		{Expr: `"MISSING" not in process.env`, Expected: true},
+		{Expr: `"PATH" not in process.env`, Expected: false},
+		{Expr: `~"LD_*" in process.env`, Expected: true},
+		{Expr: `~"XX_*" in process.env`, Expected: false},
+		{Expr: `r"^LD_P" in process.env`, Expected: true},
+		{Expr: `["MISSING", "PATH"] in process.env`, Expected: true},
+		{Expr: `["MISSING", "OTHER"] in process.env`, Expected: false},
+		{Expr: `["MISSING", ~"LD_*"] in process.env`, Expected: true},
+		{Expr: `[r"^XX", "MISSING"] not in process.env`, Expected: true},
+		{Expr: `process.name in process.env`, Expected: true},
+		{Expr: `"%{process.name}" in process.env`, Expected: true},
+		{Expr: `process.array.value in process.env`, Expected: true},
+		{Expr: `"LANG" in process.array.env`, Expected: true},
+		{Expr: `"HOME" in process.array.env`, Expected: false},
+		{Expr: `"TERM" in process.array[A].env && process.array[A].key == 1002`, Expected: true},
+		{Expr: `"TERM" in process.array[A].env && process.array[A].key == 1000`, Expected: false},
+		{Expr: `["PATH", "EMPTY"] allin process.env`, Expected: true},
+		{Expr: `["PATH", "MISSING"] allin process.env`, Expected: false},
+		{Expr: `"PATH" allin process.env`, Expected: true},
+		{Expr: `["PATH", ~"LD_*"] allin process.env`, Expected: true},
+		{Expr: `["PATH", ~"XX_*"] allin process.env`, Expected: false},
+		{Expr: `process.array.value allin process.env`, Expected: false},
+		{Expr: `["LANG"] allin process.array.env`, Expected: true},
+		{Expr: `["LANG", "TERM"] allin process.array.env`, Expected: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Expr, func(t *testing.T) {
+			result, _, err := eval(NewContext(event), test.Expr)
+			if !assert.NoError(t, err) {
+				return
+			}
+			assert.Equal(t, test.Expected, result)
+		})
+	}
+
+	_, err := parseRule(`process.name == "ls" && 1 in process.env`, &testModel{}, newOptsWithParams(testConstants, nil))
+	assert.ErrorContains(t, err, "string expected: 1:25")
+}
+
+func TestDictFields(t *testing.T) {
+	rule, err := parseRule(`process.env["HOME"] == "/root" && process.array[A].env["PATH"] == "/usr/bin"`, &testModel{}, newOptsWithParams(testConstants, nil))
+	if !assert.NoError(t, err) {
+		return
+	}
+	assert.ElementsMatch(t, []Field{"process.env", "process.array.env"}, rule.GetFields())
+}
+
+func TestDictErrors(t *testing.T) {
+	tests := []struct {
+		Expr  string
+		Error string
+	}{
+		{Expr: `"/root" == process.env`, Error: `string expected`},
+		{Expr: `"/root" == %{process.env}`, Error: `string expected`},
+		{Expr: `process.name["HOME"] == "/root"`, Error: `field 'process.name' is not a dictionary`},
+		{Expr: `%{process.name["HOME"]} == "/root"`, Error: `field 'process.name' is not a dictionary`},
+		{Expr: `"home:%{process.env}" == "home:/root"`, Error: `field type not supported 'process.env'`},
+		{Expr: `process.env[1] == "/root"`, Error: `field 'process.env' is not an array`},
+		{Expr: `process.unknown["HOME"] == "/root"`, Error: "field `process.unknown` not found"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Expr, func(t *testing.T) {
+			_, err := parseRule(test.Expr, &testModel{}, newOptsWithParams(testConstants, nil))
+			assert.ErrorContains(t, err, test.Error)
+		})
+	}
+}

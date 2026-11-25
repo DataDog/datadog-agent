@@ -439,10 +439,8 @@ func (b *Backend) getCatalog(upgradeHistory bool) (*Catalog, error) {
 		var branch Branch
 		switch {
 		case strings.HasPrefix(url, "installtesting.datad0g.com"):
-			url = strings.Replace(url, "installtesting.datad0g.com", "installtesting.datad0g.com.internal.dda-testing.com", 1)
 			branch = BranchTesting
 		case strings.HasPrefix(url, "install.datadoghq.com"):
-			// The dda-testing mirror only covers the datad0g registries, so stable images are pulled directly.
 			branch = BranchStable
 		default:
 			return nil, fmt.Errorf("unsupported URL: %s", url)

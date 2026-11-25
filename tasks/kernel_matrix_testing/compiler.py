@@ -226,16 +226,79 @@ class CompilerImage:
             self.start()
 
     def ensure_in_git_repo(self):
-        # The compiler requires a .git directory to be present and valid, so if we're running in a git worktree
-        # we'll get failures as it cannot find the root .git directory.
+        self.host_git_mounts()
+
+    def host_git_mounts(self) -> list[Path]:
+        """Return the host git directories outside the repo root that git in the container needs.
+
+        They are mounted at the same absolute path: a worktree's .git file and an alternates file
+        point to them by absolute path. Raises Exit for layouts that cannot be resolved this way.
+        """
         repo_root = get_repo_root()
-        git_dir = repo_root / ".git"
-        if not git_dir.exists():
+        dotgit = repo_root / ".git"
+        mounts: list[Path] = []
+        if dotgit.is_dir():
+            common_dir = dotgit
+        elif dotgit.is_file():
+            content = dotgit.read_text().strip()
+            if not content.startswith("gitdir:"):
+                raise Exit(f"[-] {dotgit} is not a valid git worktree file")
+            git_dir = Path(content.removeprefix("gitdir:").strip())
+            if not git_dir.is_absolute():
+                raise Exit(
+                    f"[-] {dotgit} uses a relative gitdir, which cannot resolve inside the compiler container. "
+                    "Run `git worktree repair --no-relative-paths` to make it absolute"
+                )
+            commondir_file = git_dir / "commondir"
+            common_dir = git_dir
+            if commondir_file.is_file():
+                common_dir = Path(os.path.normpath(git_dir / commondir_file.read_text().strip()))
+            mounts.append(common_dir)
+            if not git_dir.is_relative_to(common_dir):
+                mounts.append(git_dir)
+        else:
             raise Exit(
                 f"[-] .git directory not found in {repo_root}, this command needs to be run from a git repository"
             )
-        elif not git_dir.is_dir():
-            raise Exit(f"[-] .git directory is not a directory in {repo_root}, git worktrees are not supported")
+
+        # Git follows alternates recursively, so walk the chain; `seen` guards against cycles.
+        pending = [common_dir / "objects"]
+        seen = {os.path.realpath(pending[0])}
+        while pending:
+            alternates = pending.pop(0) / "info" / "alternates"
+            if not alternates.is_file():
+                continue
+            for line in alternates.read_text().splitlines():
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                alternate = Path(line)
+                if not alternate.is_absolute():
+                    raise Exit(f"[-] {alternates} lists a relative path ({line}), which is not supported")
+                if os.path.realpath(alternate) in seen:
+                    continue
+                seen.add(os.path.realpath(alternate))
+                mounts.append(alternate)
+                pending.append(alternate)
+        return mounts
+
+    def ensure_mounts_current_repo(self):
+        """Fail when the existing container was started from a different checkout."""
+        if self.ctx.config.run["dry"] or not self.is_loaded:
+            return
+        res = self.ctx.run(f"docker inspect --format '{{{{json .Mounts}}}}' {self.name}", hide=True, warn=True)
+        if res is None or not res.ok:
+            return
+        mounted = {m["Destination"]: os.path.realpath(m["Source"]) for m in json.loads(res.stdout)}
+        repo_root = get_repo_root()
+        expected = {CONTAINER_AGENT_PATH: repo_root, **{str(p): p for p in self.host_git_mounts()}}
+        for target, source in expected.items():
+            if mounted.get(target) != os.path.realpath(source):
+                raise Exit(
+                    f"[-] Compiler container {self.name} does not mount {source} at {target}: it was started from "
+                    f"another checkout ({mounted.get(CONTAINER_AGENT_PATH)}) or git layout. "
+                    "Run `dda inv kmt.start-compiler` from this checkout to replace it"
+                )
 
     def host_repository_cache(self) -> Path | None:
         """Return the host Bazel repository_cache path when it exists, else None.
@@ -328,7 +391,7 @@ class CompilerImage:
         if self.is_loaded:
             self.stop()
 
-        self.ensure_in_git_repo()
+        git_mounts = self.host_git_mounts()
 
         # Check if the image exists
         res = self.ctx.run(f"docker image inspect {self.expected_image_name}", hide=True, warn=True)
@@ -351,6 +414,9 @@ class CompilerImage:
             platform = f"--platform linux/{self.arch.go_arch}"
 
         mounts = [f"--mount type=bind,source={get_repo_root()},target={CONTAINER_AGENT_PATH}"]
+        for git_mount in git_mounts:
+            mounts.append(f"--mount {shlex.quote(f'type=bind,source={git_mount},target={git_mount}')}")
+            info(f"[*] Mounting host git directory {git_mount}")
         repo_cache = self.host_repository_cache()
         if repo_cache is not None:
             # Same absolute path so an explicit workspace/user.bazelrc --repository_cache= still matches.
@@ -504,6 +570,8 @@ Architectures: {arch.go_arch}
 
 def get_compiler(ctx: Context):
     cc = CompilerImage(ctx, Arch.local())
+    # Check the mounts first: refreshing the image replaces the container, which could be another checkout's.
+    cc.ensure_mounts_current_repo()
     cc.ensure_version()
     cc.ensure_running()
 

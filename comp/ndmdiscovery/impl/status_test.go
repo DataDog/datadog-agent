@@ -168,7 +168,7 @@ func TestRunCycleRecordsARangeWithNoUsableProbe(t *testing.T) {
 	cfg.Probes.SNMP.CredIDs = []string{"cred-missing"}
 	sr := addStatusRange(d, cfg)
 
-	d.sched.runCycle(context.Background(), sr, time.Hour)
+	d.sched.runCycle(context.Background(), sr, time.Hour, false)
 
 	issues := statusAt(d, statusNowMs).Ranges[0].Issues
 	require.NotEmpty(t, issues)
@@ -182,7 +182,7 @@ func TestAReplacedCycleDoesNotRecordIssuesOnItsReplacement(t *testing.T) {
 	replaced := addStatusRange(d, cfg)
 	addStatusRange(d, testRangeConfig("ad-1", "10.0.0.0/24"))
 
-	d.sched.runCycle(context.Background(), replaced, time.Hour)
+	d.sched.runCycle(context.Background(), replaced, time.Hour, false)
 
 	assert.Empty(t, statusAt(d, statusNowMs).Ranges[0].Issues)
 }

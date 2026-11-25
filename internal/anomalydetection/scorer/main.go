@@ -33,6 +33,7 @@ func main() {
 	scenariosDir := flag.String("scenarios-dir", "./comp/anomalydetection/observer/scenarios", "Directory containing scenario subdirectories (for episode.json lookup)")
 	groundTruthTS := flag.Int64("ground-truth-ts", 0, "Ground truth disruption onset timestamp in unix seconds (overrides episode.json)")
 	sigma := flag.Float64("sigma", 30.0, "Gaussian width in seconds")
+	timeMode := flag.String("time-mode", timeModeHistorical, "Episode timestamp used for scoring: historical (default) or trigger")
 	jsonOutput := flag.Bool("json", false, "Output result as JSON")
 	scoreTP := flag.Bool("score-tp", false, "Score true positive detection using metric ground truth from ground_truth.json. Requires passthrough correlator output.")
 	scoreNoFault := flag.Bool("score-no-faults", false, "Count High-severity episode starts inside an explicitly healthy evaluation window")
@@ -43,12 +44,17 @@ func main() {
 	}
 
 	if *outputPath == "" {
-		fmt.Fprintf(os.Stderr, "Usage: anomalydetection-scorer --input <path> [--scenarios-dir <dir>] [--ground-truth-ts <unix>] [--sigma <seconds>] [--score-tp | --score-no-faults] [--json]\n")
+		fmt.Fprintf(os.Stderr, "Usage: anomalydetection-scorer --input <path> [--scenarios-dir <dir>] [--ground-truth-ts <unix>] [--sigma <seconds>] [--time-mode historical|trigger] [--score-tp | --score-no-faults] [--json]\n")
+		os.Exit(1)
+	}
+	mode, err := normalizeTimeMode(*timeMode)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Invalid --time-mode: %v\n", err)
 		os.Exit(1)
 	}
 
 	if *scoreNoFault {
-		result, err := scoreNoFaults(*outputPath, *scenariosDir)
+		result, err := scoreNoFaults(*outputPath, *scenariosDir, mode)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "No-fault scoring failed: %v\n", err)
 			os.Exit(1)
@@ -87,7 +93,7 @@ func main() {
 		return
 	}
 
-	result, err := ScoreOutputFile(*outputPath, gtTimestamps, *scenariosDir, *sigma)
+	result, err := ScoreOutputFile(*outputPath, gtTimestamps, *scenariosDir, *sigma, mode)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Scoring failed: %v\n", err)
 		os.Exit(1)
@@ -106,6 +112,7 @@ func main() {
 	// Text output: timestamp score
 	fmt.Printf("Gaussian F1 Score\n")
 	fmt.Printf("  Input:       %s\n", *outputPath)
+	fmt.Printf("  Time mode:   %s\n", mode)
 	fmt.Printf("  Sigma:       %.1fs\n", *sigma)
 	fmt.Printf("  Predictions: %d high-severity after warmup, %d warmup filtered, %d subsequent incident starts ignored\n",
 		result.NumPredictions, result.NumFilteredWarmup, result.NumFilteredCascading)

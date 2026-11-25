@@ -97,14 +97,24 @@ func (cgce *CacheEntry) IsCGroupContextNull() bool {
 	return cgce.cgroupContext.IsNull()
 }
 
-// CallReleaseCallbacks releases the callbacks of the cache entry
-func (cgce *CacheEntry) CallReleaseCallbacks() {
-	if cgce.containerContext.Releasable != nil {
-		cgce.containerContext.Releasable.CallReleaseCallback()
-	}
+// CallCGroupReleaseCallback calls the release callback of the cgroup context
+func (cgce *CacheEntry) CallCGroupReleaseCallback() {
 	if cgce.cgroupContext.Releasable != nil {
 		cgce.cgroupContext.Releasable.CallReleaseCallback()
 	}
+}
+
+// CallContainerReleaseCallback calls the release callback of the container context
+func (cgce *CacheEntry) CallContainerReleaseCallback() {
+	if cgce.containerContext.Releasable != nil {
+		cgce.containerContext.Releasable.CallReleaseCallback()
+	}
+}
+
+// CallReleaseCallbacks releases the callbacks of the cache entry
+func (cgce *CacheEntry) CallReleaseCallbacks() {
+	cgce.CallContainerReleaseCallback()
+	cgce.CallCGroupReleaseCallback()
 }
 
 // GetPIDs returns the list of pids
@@ -120,6 +130,14 @@ func (cgce *CacheEntry) GetPIDs() []uint32 {
 	}
 
 	return pids
+}
+
+// HasPIDs returns whether the cache entry contains at least one pid
+func (cgce *CacheEntry) HasPIDs() bool {
+	cgce.lock.RLock()
+	defer cgce.lock.RUnlock()
+
+	return len(cgce.pids) > 0
 }
 
 // RemovePID removes the provided pid from the list of pids and return the new size

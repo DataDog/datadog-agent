@@ -60,6 +60,7 @@ type suiteCapabilities interface {
 	FakeIntake() *components.FakeIntake
 	Agent() agentclient.Agent
 	QuerySysprobe(path string) (string, error)
+	GPUHost() *components.RemoteHost
 	RunContainerWorkloadWithGPUs(image string, arguments ...string) (string, error)
 	GetRestartCount(component agentComponent) int
 	CheckWorkloadErrors(containerID string) error
@@ -77,6 +78,10 @@ var _ suiteCapabilities = &hostCapabilities{}
 // FakeIntake returns the FakeIntake component of the test environment
 func (c *hostCapabilities) FakeIntake() *components.FakeIntake {
 	return c.suite.Env().FakeIntake
+}
+
+func (c *hostCapabilities) GPUHost() *components.RemoteHost {
+	return c.suite.Env().RemoteHost
 }
 
 // Agent returns the Agent client of the test environment, which communicates directly
@@ -197,9 +202,14 @@ func (c *hostCapabilities) ExpectedWorkloadTags() []string {
 	return []string{"container_id", "container_name", "short_image"}
 }
 
+type gpuK8sEnvironment struct {
+	environments.Kubernetes
+	RemoteHost *components.RemoteHost
+}
+
 // kubernetesCapabilities is an implementation of suiteCapabilities for the Kubernetes environment
 type kubernetesCapabilities struct {
-	suite          *e2e.BaseSuite[environments.Kubernetes]
+	suite          *e2e.BaseSuite[gpuK8sEnvironment]
 	containerToJob map[string]string // maps container ID to job name
 }
 
@@ -208,6 +218,10 @@ var _ suiteCapabilities = &kubernetesCapabilities{}
 // FakeIntake returns the FakeIntake component of the test environment
 func (c *kubernetesCapabilities) FakeIntake() *components.FakeIntake {
 	return c.suite.Env().FakeIntake
+}
+
+func (c *kubernetesCapabilities) GPUHost() *components.RemoteHost {
+	return c.suite.Env().RemoteHost
 }
 
 // Agent returns the Agent client of the test environment, which communicates with the agent

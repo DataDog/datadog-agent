@@ -897,10 +897,14 @@ func (tb *Bench) GetStatus() StatusResponse {
 		} else {
 			periods := []scoring.Period{}
 			for _, corr := range tb.correlationsLocked(sv) {
-				periods = append(periods, scoring.Period{Pattern: corr.Pattern, Start: float64(corr.FirstSeen), End: float64(corr.LastUpdated)})
+				start := corr.HistoricalFirstSeen
+				if start == 0 {
+					start = corr.FirstSeen
+				}
+				periods = append(periods, scoring.Period{Pattern: corr.Pattern, Start: float64(start), End: float64(corr.LastUpdated)})
 			}
 			var err error
-			noFaultEvaluation, err = scoring.ScoreNoFaults(periods, tb.episodeInfo.HealthyEpisode)
+			noFaultEvaluation, err = scoring.ScoreNoFaults(periods, tb.episodeInfo.HealthyEpisode, "historical")
 			if err != nil {
 				evaluationError = err.Error()
 			}
