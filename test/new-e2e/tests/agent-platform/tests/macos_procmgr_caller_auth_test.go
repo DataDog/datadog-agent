@@ -24,8 +24,13 @@ const (
 	macosCallerAuthAgentEntry  = "e2e-caller-auth-agent"
 	macosCallerAuthStartEntry  = "e2e-caller-auth-start"
 	macosCallerAuthReloadEntry = "e2e-caller-auth-reload"
+	// SSH commands have no deadline, so each dd-procmgr call runs under a perl alarm. The alarm is set
+	// inside sudo so it reaches dd-procmgr itself, and a failed exec exits with an error.
+	macosBoundedPerl        = "perl -e 'alarm shift; exec @ARGV or die \"exec: $!\\n\"' "
+	macosProcmgrRPCTimeout  = "30"
+	macosProcmgrStopTimeout = "120"
 	// _dd-agent is in group daemon, so it can reach the socket, but it is not root.
-	macosCallerAuthAgentCLI = "sudo -u _dd-agent " + macosProcmgrCLI
+	macosCallerAuthAgentCLI = "sudo -u _dd-agent " + macosBoundedPerl + macosProcmgrRPCTimeout + " " + macosProcmgrCLI
 
 	macosProcmgrSocket = "/var/run/datadog-procmgrd/dd-procmgrd.sock"
 	// Holds the sleep argument of a run whose child may outlive it, so a retry can reap it.
@@ -41,7 +46,7 @@ type macosProcmgrDetail struct {
 
 func macosProcmgrDescribe(t *testing.T, client *common.MacOSTestClient, name string) macosProcmgrDetail {
 	t.Helper()
-	out, err := client.Execute("sudo " + macosProcmgrCLI + " describe " + name + " --json")
+	out, err := client.Execute(macosBoundedProcmgrCommand(macosProcmgrRPCTimeout, "describe "+name+" --json"))
 	require.NoError(t, err, "dd-procmgr describe %s failed:\n%s", name, out)
 	var detail macosProcmgrDetail
 	require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(out)), &detail), "dd-procmgr describe output:\n%s", out)
@@ -82,10 +87,9 @@ func macosSleepPattern(sleepArg string) string {
 	return "^/bin/sleep " + sleepArg + "$"
 }
 
-// macosBoundedProcmgrCommand runs dd-procmgr under sudo with SIGALRM after the given seconds. The alarm is set
-// inside sudo so it reaches dd-procmgr itself, and a failed exec exits with an error instead of empty output.
+// macosBoundedProcmgrCommand returns a command that runs dd-procmgr as root and sends it SIGALRM after the given seconds.
 func macosBoundedProcmgrCommand(seconds, args string) string {
-	return "sudo perl -e 'alarm shift; exec @ARGV or die \"exec: $!\\n\"' " + seconds + " " + macosProcmgrCLI + " " + args
+	return "sudo " + macosBoundedPerl + seconds + " " + macosProcmgrCLI + " " + args
 }
 
 // waitMacosSleepGone polls until a probe finds no child. A probe error only ends the wait at the deadline.
@@ -209,10 +213,10 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 		if bodyFailed {
 			// Bounded because a stop can take up to about 100s (90s graceful plus the force-kill wait), and an
 			// unanswered RPC would hang cleanup.
-			if _, err := client.Execute(macosBoundedProcmgrCommand("120", "stop "+macosCallerAuthEntry)); err != nil {
+			if _, err := client.Execute(macosBoundedProcmgrCommand(macosProcmgrStopTimeout, "stop "+macosCallerAuthEntry)); err != nil {
 				t.Logf("cleanup: failed to stop %s: %v", macosCallerAuthEntry, err)
 			}
-			if _, err := client.Execute(macosBoundedProcmgrCommand("120", "stop "+macosCallerAuthStartEntry)); err != nil {
+			if _, err := client.Execute(macosBoundedProcmgrCommand(macosProcmgrStopTimeout, "stop "+macosCallerAuthStartEntry)); err != nil {
 				t.Logf("cleanup: failed to stop %s: %v", macosCallerAuthStartEntry, err)
 			}
 		}
@@ -264,17 +268,17 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 
 	_, err := client.Execute("printf '%s\\n' " + sleepArg + " | sudo tee " + macosCallerAuthSleepMarker + " >/dev/null")
 	require.NoError(t, err)
-	_, err = client.Execute("sudo " + macosProcmgrCLI + " create --name " + macosCallerAuthEntry + " --command /bin/sleep --args " + sleepArg + " --no-auto-start --restart-policy never")
+	_, err = client.Execute(macosBoundedProcmgrCommand(macosProcmgrRPCTimeout, "create --name "+macosCallerAuthEntry+" --command /bin/sleep --args "+sleepArg+" --no-auto-start --restart-policy never"))
 	require.NoError(t, err)
 	created := macosProcmgrDescribe(t, client, macosCallerAuthEntry)
 	assert.Equal(t, "Skipped", created.State)
 	assert.Equal(t, 0, created.Pid)
 	assert.Equal(t, []string{"auto_start_false"}, created.SkipReasons)
 
-	_, err = client.Execute("sudo " + macosProcmgrCLI + " start " + macosCallerAuthEntry)
+	_, err = client.Execute(macosBoundedProcmgrCommand(macosProcmgrRPCTimeout, "start "+macosCallerAuthEntry))
 	require.NoError(t, err)
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		out, err := client.Execute("sudo " + macosProcmgrCLI + " describe " + macosCallerAuthEntry + " --json")
+		out, err := client.Execute(macosBoundedProcmgrCommand(macosProcmgrRPCTimeout, "describe "+macosCallerAuthEntry+" --json"))
 		if !assert.NoError(c, err, "dd-procmgr describe failed:\n%s", out) {
 			return
 		}
@@ -304,7 +308,7 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 
 	// A regression must not launch a second system-probe next to the legacy LaunchDaemon, which
 	// cleanup cannot tell apart.
-	_, err = client.Execute("sudo " + macosProcmgrCLI + " create --name " + macosCallerAuthStartEntry + " --command /bin/sleep --args " + sleepArg + " --no-auto-start --restart-policy never")
+	_, err = client.Execute(macosBoundedProcmgrCommand(macosProcmgrRPCTimeout, "create --name "+macosCallerAuthStartEntry+" --command /bin/sleep --args "+sleepArg+" --no-auto-start --restart-policy never"))
 	require.NoError(t, err)
 	deniedTarget := macosProcmgrDescribe(t, client, macosCallerAuthStartEntry)
 	assert.Equal(t, "Skipped", deniedTarget.State)
@@ -328,7 +332,7 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 	stillSkipped := macosProcmgrDescribe(t, client, macosCallerAuthStartEntry)
 	assert.Equal(t, "Skipped", stillSkipped.State)
 	assert.Equal(t, 0, stillSkipped.Pid)
-	if names, ok := macosProcmgrListNames(t, client, "sudo "+macosProcmgrCLI+" list --json"); ok {
+	if names, ok := macosProcmgrListNames(t, client, macosBoundedProcmgrCommand(macosProcmgrRPCTimeout, "list --json")); ok {
 		assert.NotContains(t, names, macosCallerAuthAgentEntry)
 		assert.NotContains(t, names, macosCallerAuthReloadEntry)
 	}
@@ -338,13 +342,13 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 	assert.Equal(t, []string{"auto_start_false"}, sysprobe.SkipReasons)
 	assert.Equal(t, 0, sysprobe.Pid)
 
-	_, err = client.Execute("sudo " + macosProcmgrCLI + " stop " + macosCallerAuthEntry)
+	_, err = client.Execute(macosBoundedProcmgrCommand(macosProcmgrStopTimeout, "stop "+macosCallerAuthEntry))
 	if assert.NoError(t, err, "dd-procmgr stop %s", macosCallerAuthEntry) {
 		stopped := macosProcmgrDescribe(t, client, macosCallerAuthEntry)
 		assert.Equal(t, "Stopped", stopped.State)
 		assert.Equal(t, 0, stopped.Pid)
 	}
-	reloadOut, err := client.Execute("sudo " + macosProcmgrCLI + " reload --json")
+	reloadOut, err := client.Execute(macosBoundedProcmgrCommand(macosProcmgrRPCTimeout, "reload --json"))
 	require.NoError(t, err, "dd-procmgr reload")
 	var reload struct {
 		Added     []string `json:"added"`
