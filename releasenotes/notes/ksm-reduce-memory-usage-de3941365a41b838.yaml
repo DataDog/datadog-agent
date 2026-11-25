@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Reduce the memory usage of the ``kubernetes_state_core`` check, which
+    grows with the number of Kubernetes objects of the cluster. The check
+    keeps the labels of its series in a more compact form, and reuses the tags
+    of its series from one run to the next instead of building them again,
+    which also reduces its allocations.

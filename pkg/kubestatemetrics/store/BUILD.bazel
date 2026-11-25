@@ -5,6 +5,7 @@ go_library(
     name = "store",
     srcs = [
         "event_callbacks.go",
+        "labels.go",
         "store.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store",
@@ -21,7 +22,10 @@ go_library(
 
 dd_agent_go_test(
     name = "store_test",
-    srcs = ["store_test.go"],
+    srcs = [
+        "store_bench_test.go",
+        "store_test.go",
+    ],
     embed = [":store"],
     gotags_sets = [[
         "cel",

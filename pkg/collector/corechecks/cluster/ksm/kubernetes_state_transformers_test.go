@@ -46,11 +46,11 @@ func Test_resourcequotaTransformer(t *testing.T) {
 				name: "kube_resourcequota",
 				metric: ksmstore.DDMetric{
 					Val: 15000,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource":      "pods",
 						"type":          "hard",
 						"resourcequota": "gke-resource-quotas",
-					},
+					}),
 				},
 				tags:     []string{"resourcequota:gke-resource-quotas", "foo:bar"},
 				hostname: "foo",
@@ -68,11 +68,11 @@ func Test_resourcequotaTransformer(t *testing.T) {
 				name: "kube_resourcequota",
 				metric: ksmstore.DDMetric{
 					Val: 7,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource":      "pods",
 						"type":          "used",
 						"resourcequota": "gke-resource-quotas",
-					},
+					}),
 				},
 				tags: []string{"resourcequota:gke-resource-quotas", "foo:bar"},
 			},
@@ -88,10 +88,10 @@ func Test_resourcequotaTransformer(t *testing.T) {
 				name: "kube_resourcequota",
 				metric: ksmstore.DDMetric{
 					Val: 7,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"type":          "used",
 						"resourcequota": "gke-resource-quotas",
-					},
+					}),
 				},
 				tags: []string{"resourcequota:gke-resource-quotas", "foo:bar"},
 			},
@@ -103,10 +103,10 @@ func Test_resourcequotaTransformer(t *testing.T) {
 				name: "kube_resourcequota",
 				metric: ksmstore.DDMetric{
 					Val: 7,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource":      "pods",
 						"resourcequota": "gke-resource-quotas",
-					},
+					}),
 				},
 				tags: []string{"resourcequota:gke-resource-quotas", "foo:bar"},
 			},
@@ -148,10 +148,10 @@ func Test_cronJobNextScheduleTransformer(t *testing.T) {
 				name: "kube_cronjob_next_schedule_time",
 				metric: ksmstore.DDMetric{
 					Val: 1595501615,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"cronjob":   "foo",
 						"namespace": "default",
-					},
+					}),
 				},
 				tags:     []string{"cronjob:foo", "namespace:default"},
 				hostname: "foo",
@@ -171,10 +171,10 @@ func Test_cronJobNextScheduleTransformer(t *testing.T) {
 				name: "kube_cronjob_next_schedule_time",
 				metric: ksmstore.DDMetric{
 					Val: 1595501615,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"cronjob":   "foo",
 						"namespace": "default",
-					},
+					}),
 				},
 				tags: []string{"cronjob:foo", "namespace:default"},
 				now:  func() time.Time { return time.Unix(int64(1595501615+2), 0) },
@@ -215,10 +215,10 @@ func Test_cronJobLastScheduleTransformer(t *testing.T) {
 				name: "kube_cronjob_status_last_schedule_time",
 				metric: ksmstore.DDMetric{
 					Val: 1595501615,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"cronjob":   "foo",
 						"namespace": "default",
-					},
+					}),
 				},
 				tags:     []string{"cronjob:foo", "namespace:default"},
 				hostname: "foo",
@@ -260,10 +260,10 @@ func Test_cronJobLastSuccessfulTransformer(t *testing.T) {
 				name: "kube_cronjob_status_last_successful_time",
 				metric: ksmstore.DDMetric{
 					Val: 1595501615,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"cronjob":   "foo",
 						"namespace": "default",
-					},
+					}),
 				},
 				tags:     []string{"cronjob:foo", "namespace:default"},
 				hostname: "foo",
@@ -305,10 +305,10 @@ func Test_jobCompleteTransformer(t *testing.T) {
 				name: "kube_job_complete",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"job_name":  "foo-1509998340",
 						"namespace": "default",
-					},
+					}),
 				},
 				tags: []string{"job_name:foo-1509998340", "namespace:default"},
 			},
@@ -324,10 +324,10 @@ func Test_jobCompleteTransformer(t *testing.T) {
 				name: "kube_job_complete",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"job":       "foo-1509998340",
 						"namespace": "default",
-					},
+					}),
 				},
 				tags: []string{"job:foo-1509998340", "namespace:default"},
 			},
@@ -343,10 +343,10 @@ func Test_jobCompleteTransformer(t *testing.T) {
 				name: "kube_job_complete",
 				metric: ksmstore.DDMetric{
 					Val: 0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"job_name":  "foo-1509998340",
 						"namespace": "default",
-					},
+					}),
 				},
 				tags: []string{"job_name:foo-1509998340", "namespace:default"},
 			},
@@ -381,10 +381,10 @@ func Test_jobDurationTransformer(t *testing.T) {
 				name: "kube_job_duration",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"job_name":  "foo-1509998340",
 						"namespace": "default",
-					},
+					}),
 				},
 				tags: []string{"job_name:foo-1509998340", "namespace:default"},
 			},
@@ -400,10 +400,10 @@ func Test_jobDurationTransformer(t *testing.T) {
 				name: "kube_job_duration",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"job":       "foo-1509998340",
 						"namespace": "default",
-					},
+					}),
 				},
 				tags: []string{"job:foo-1509998340", "namespace:default"},
 			},
@@ -419,10 +419,10 @@ func Test_jobDurationTransformer(t *testing.T) {
 				name: "kube_job_duration",
 				metric: ksmstore.DDMetric{
 					Val: 0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"job_name":  "foo-1509998340",
 						"namespace": "default",
-					},
+					}),
 				},
 				tags: []string{"job_name:foo-1509998340", "namespace:default"},
 			},
@@ -458,11 +458,11 @@ func Test_jobFailedTransformer(t *testing.T) {
 				name: "kube_job_failed",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"job_name":  "foo-1509998340",
 						"namespace": "default",
 						"condition": "true",
-					},
+					}),
 				},
 				tags: []string{"job_name:foo-1509998340", "namespace:default", "condition:true"},
 			},
@@ -483,11 +483,11 @@ func Test_jobFailedTransformer(t *testing.T) {
 				name: "kube_job_failed",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"job":       "foo-1509998340",
 						"namespace": "default",
 						"condition": "true",
-					},
+					}),
 				},
 				tags: []string{"job:foo-1509998340", "namespace:default", "condition:true"},
 			},
@@ -508,11 +508,11 @@ func Test_jobFailedTransformer(t *testing.T) {
 				name: "kube_job_failed",
 				metric: ksmstore.DDMetric{
 					Val: 0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"job_name":  "foo-1509998340",
 						"namespace": "default",
 						"condition": "true",
-					},
+					}),
 				},
 				tags: []string{"job_name:foo-1509998340", "namespace:default", "condition:true"},
 			},
@@ -554,10 +554,10 @@ func Test_jobStatusSucceededTransformer(t *testing.T) {
 				name: "kube_job_status_succeeded",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"job_name":  "foo-1509998340",
 						"namespace": "default",
-					},
+					}),
 				},
 				tags: []string{"job_name:foo-1509998340", "namespace:default"},
 			},
@@ -573,10 +573,10 @@ func Test_jobStatusSucceededTransformer(t *testing.T) {
 				name: "kube_job_status_succeeded",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"job":       "foo-1509998340",
 						"namespace": "default",
-					},
+					}),
 				},
 				tags: []string{"job:foo-1509998340", "namespace:default"},
 			},
@@ -592,10 +592,10 @@ func Test_jobStatusSucceededTransformer(t *testing.T) {
 				name: "kube_job_status_succeeded",
 				metric: ksmstore.DDMetric{
 					Val: 0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"job_name":  "foo-1509998340",
 						"namespace": "default",
-					},
+					}),
 				},
 				tags: []string{"job_name:foo-1509998340", "namespace:default"},
 			},
@@ -630,11 +630,11 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 				name: "kube_job_status_failed",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"job_name":  "foo-1509998340",
 						"namespace": "default",
 						"reason":    "BackoffLimitExceeded",
-					},
+					}),
 				},
 				tags: []string{"job_name:foo-1509998340", "namespace:default", "reason:BackoffLimitExceeded"},
 			},
@@ -650,11 +650,11 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 				name: "kube_job_status_failed",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"job":       "foo-1509998340",
 						"namespace": "default",
 						"reason":    "BackoffLimitExceeded",
-					},
+					}),
 				},
 				tags: []string{"job:foo-1509998340", "namespace:default", "reason:BackoffLimitExceeded"},
 			},
@@ -670,11 +670,11 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 				name: "kube_job_status_failed",
 				metric: ksmstore.DDMetric{
 					Val: 0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"job":       "foo-1509998340",
 						"namespace": "default",
 						"reason":    "BackoffLimitExceeded",
-					},
+					}),
 				},
 				tags: []string{"job:foo-1509998340", "namespace:default", "reason:backofflimitexceeded"},
 			},
@@ -686,11 +686,11 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 				name: "kube_job_status_failed",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"job":       "foo-1509998340",
 						"namespace": "default",
 						"reason":    "BackoffLimitExceeded",
-					},
+					}),
 				},
 				tags: []string{"job:foo-1509998340", "namespace:default", "reason:backofflimitexceeded"},
 			},
@@ -706,11 +706,11 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 				name: "kube_job_status_failed",
 				metric: ksmstore.DDMetric{
 					Val: 0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"job":       "foo-1509998340",
 						"namespace": "default",
 						"reason":    "DeadlineExceeded",
-					},
+					}),
 				},
 				tags: []string{"job:foo-1509998340", "namespace:default", "reason:deadlineexceeded"},
 			},
@@ -722,11 +722,11 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 				name: "kube_job_status_failed",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"job":       "foo-1509998340",
 						"namespace": "default",
 						"reason":    "DeadlineExceeded",
-					},
+					}),
 				},
 				tags: []string{"job:foo-1509998340", "namespace:default", "reason:deadlineexceeded"},
 			},
@@ -742,11 +742,11 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 				name: "kube_job_status_failed",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"job":       "foo-1509998340",
 						"namespace": "default",
 						"reason":    "DeadlineExceeded",
-					},
+					}),
 				},
 				tags: []string{"job:foo-1509998340", "namespace:default", "reason:deadlineexceeded"},
 			},
@@ -762,11 +762,11 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 				name: "kube_job_status_failed",
 				metric: ksmstore.DDMetric{
 					Val: 0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"job":       "foo-1509998340",
 						"namespace": "default",
 						"reason":    "Evicted",
-					},
+					}),
 				},
 				tags: []string{"job:foo-1509998340", "namespace:default", "reason:Evicted"},
 			},
@@ -778,11 +778,11 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 				name: "kube_job_status_failed",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"job":       "foo-1509998340",
 						"namespace": "default",
 						"reason":    "Evicted",
-					},
+					}),
 				},
 				tags: []string{"job:foo-1509998340", "namespace:default", "reason:Evicted"},
 			},
@@ -798,10 +798,10 @@ func Test_jobStatusFailedTransformer(t *testing.T) {
 				name: "kube_job_status_failed",
 				metric: ksmstore.DDMetric{
 					Val: 0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"job_name":  "foo-1509998340",
 						"namespace": "default",
-					},
+					}),
 				},
 				tags: []string{"job_name:foo-1509998340", "namespace:default"},
 			},
@@ -840,10 +840,10 @@ func Test_pvPhaseTransformer(t *testing.T) {
 				name: "kube_persistentvolume_status_phase",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"persistentvolume": "local-pv-103fef5d",
 						"phase":            "Available",
-					},
+					}),
 				},
 				tags: []string{"persistentvolume:local-pv-103fef5d", "phase:Available"},
 			},
@@ -859,10 +859,10 @@ func Test_pvPhaseTransformer(t *testing.T) {
 				name: "kube_persistentvolume_status_phase",
 				metric: ksmstore.DDMetric{
 					Val: 0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"persistentvolume": "local-pv-103fef5d",
 						"phase":            "Available",
-					},
+					}),
 				},
 				tags: []string{"persistentvolume:local-pv-103fef5d", "phase:Available"},
 			},
@@ -897,11 +897,11 @@ func Test_serviceTypeTransformer(t *testing.T) {
 				name: "kube_service_spec_type",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"namespace": "default",
 						"service":   "kubernetes",
 						"type":      "ClusterIP",
-					},
+					}),
 				},
 				tags: []string{"namespace:default", "service:kubernetes", "type:ClusterIP"},
 			},
@@ -917,11 +917,11 @@ func Test_serviceTypeTransformer(t *testing.T) {
 				name: "kube_service_spec_type",
 				metric: ksmstore.DDMetric{
 					Val: 0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"namespace": "default",
 						"service":   "kubernetes",
 						"type":      "ClusterIP",
-					},
+					}),
 				},
 				tags: []string{"namespace:default", "service:kubernetes", "type:ClusterIP"},
 			},
@@ -956,11 +956,11 @@ func Test_podPhaseTransformer(t *testing.T) {
 				name: "kube_pod_status_phase",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"pod":       "foo",
 						"phase":     "Failed",
 						"namespace": "default",
-					},
+					}),
 				},
 				tags: []string{"pod:foo", "phase:Failed", "namespace:default"},
 			},
@@ -976,11 +976,11 @@ func Test_podPhaseTransformer(t *testing.T) {
 				name: "kube_pod_status_phase",
 				metric: ksmstore.DDMetric{
 					Val: 0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"pod":       "foo",
 						"phase":     "Failed",
 						"namespace": "default",
-					},
+					}),
 				},
 				tags: []string{"pod:foo", "phase:Failed", "namespace:default"},
 			},
@@ -1015,12 +1015,12 @@ func Test_containerWaitingReasonTransformer(t *testing.T) {
 				name: "kube_pod_container_status_waiting_reason",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"container": "foo",
 						"pod":       "bar",
 						"namespace": "default",
 						"reason":    "CrashLoopBackOff",
-					},
+					}),
 				},
 				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:CrashLoopBackOff"},
 			},
@@ -1036,12 +1036,12 @@ func Test_containerWaitingReasonTransformer(t *testing.T) {
 				name: "kube_pod_container_status_waiting_reason",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"container": "foo",
 						"pod":       "bar",
 						"namespace": "default",
 						"reason":    "ErrImagePull",
-					},
+					}),
 				},
 				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:ErrImagePull"},
 			},
@@ -1057,12 +1057,12 @@ func Test_containerWaitingReasonTransformer(t *testing.T) {
 				name: "kube_pod_container_status_waiting_reason",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"container": "foo",
 						"pod":       "bar",
 						"namespace": "default",
 						"reason":    "ImagePullBackoff",
-					},
+					}),
 				},
 				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:ImagePullBackoff"},
 			},
@@ -1078,12 +1078,12 @@ func Test_containerWaitingReasonTransformer(t *testing.T) {
 				name: "kube_pod_container_status_waiting_reason",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"container": "foo",
 						"pod":       "bar",
 						"namespace": "default",
 						"reason":    "ContainerCreating",
-					},
+					}),
 				},
 				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:ContainerCreating"},
 			},
@@ -1099,12 +1099,12 @@ func Test_containerWaitingReasonTransformer(t *testing.T) {
 				name: "kube_pod_container_status_waiting_reason",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"container": "foo",
 						"pod":       "bar",
 						"namespace": "default",
 						"reason":    "CreateContainerError",
-					},
+					}),
 				},
 				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:CreateContainerError"},
 			},
@@ -1120,12 +1120,12 @@ func Test_containerWaitingReasonTransformer(t *testing.T) {
 				name: "kube_pod_container_status_waiting_reason",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"container": "foo",
 						"pod":       "bar",
 						"namespace": "default",
 						"reason":    "CreateContainerConfigError",
-					},
+					}),
 				},
 				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:CreateContainerConfigError"},
 			},
@@ -1141,12 +1141,12 @@ func Test_containerWaitingReasonTransformer(t *testing.T) {
 				name: "kube_pod_container_status_waiting_reason",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"container": "foo",
 						"pod":       "bar",
 						"namespace": "default",
 						"reason":    "InvalidImageName",
-					},
+					}),
 				},
 				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:InvalidImageName"},
 			},
@@ -1185,12 +1185,12 @@ func Test_containerTerminatedReasonTransformer(t *testing.T) {
 				name: "kube_pod_container_status_terminated_reason",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"container": "foo",
 						"pod":       "bar",
 						"namespace": "default",
 						"reason":    "OOMKilled",
-					},
+					}),
 				},
 				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:OOMKilled"},
 			},
@@ -1206,12 +1206,12 @@ func Test_containerTerminatedReasonTransformer(t *testing.T) {
 				name: "kube_pod_container_status_terminated_reason",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"container": "foo",
 						"pod":       "bar",
 						"namespace": "default",
 						"reason":    "ContainerCannotRun",
-					},
+					}),
 				},
 				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:ContainerCannotRun"},
 			},
@@ -1227,12 +1227,12 @@ func Test_containerTerminatedReasonTransformer(t *testing.T) {
 				name: "kube_pod_container_status_terminated_reason",
 				metric: ksmstore.DDMetric{
 					Val: 1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"container": "foo",
 						"pod":       "bar",
 						"namespace": "default",
 						"reason":    "Error",
-					},
+					}),
 				},
 				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:Error"},
 			},
@@ -1271,11 +1271,11 @@ func Test_limitrangeTransformer(t *testing.T) {
 				name: "kube_limitrange",
 				metric: ksmstore.DDMetric{
 					Val: 0.1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"constraint": "defaultRequest",
 						"limitrange": "limits",
 						"resource":   "cpu",
-					},
+					}),
 				},
 				tags: []string{"constraint:default_request", "limitrange:limits", "resource:cpu"},
 			},
@@ -1291,10 +1291,10 @@ func Test_limitrangeTransformer(t *testing.T) {
 				name: "kube_limitrange",
 				metric: ksmstore.DDMetric{
 					Val: 0.1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"limitrange": "limits",
 						"resource":   "cpu",
-					},
+					}),
 				},
 				tags: []string{"limitrange:limits", "resource:cpu"},
 			},
@@ -1306,11 +1306,11 @@ func Test_limitrangeTransformer(t *testing.T) {
 				name: "kube_limitrange",
 				metric: ksmstore.DDMetric{
 					Val: 0.1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"constraint": "foo",
 						"limitrange": "limits",
 						"resource":   "cpu",
-					},
+					}),
 				},
 				tags: []string{"constraint:foo", "limitrange:limits", "resource:cpu"},
 			},
@@ -1322,10 +1322,10 @@ func Test_limitrangeTransformer(t *testing.T) {
 				name: "kube_limitrange",
 				metric: ksmstore.DDMetric{
 					Val: 0.1,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"constraint": "defaultRequest",
 						"limitrange": "limits",
-					},
+					}),
 				},
 				tags: []string{"constraint:default_request", "limitrange:limits"},
 			},
@@ -1360,9 +1360,9 @@ func Test_nodeUnschedulableTransformer(t *testing.T) {
 				name: "kube_node_spec_unschedulable",
 				metric: ksmstore.DDMetric{
 					Val: 0.0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"node": "foo",
-					},
+					}),
 				},
 				tags: []string{"node:foo"},
 			},
@@ -1378,9 +1378,9 @@ func Test_nodeUnschedulableTransformer(t *testing.T) {
 				name: "kube_node_spec_unschedulable",
 				metric: ksmstore.DDMetric{
 					Val: 1.0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"node": "foo",
-					},
+					}),
 				},
 				tags: []string{"node:foo"},
 			},
@@ -1396,9 +1396,9 @@ func Test_nodeUnschedulableTransformer(t *testing.T) {
 				name: "kube_node_spec_unschedulable",
 				metric: ksmstore.DDMetric{
 					Val: 2.0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"node": "foo",
-					},
+					}),
 				},
 				tags: []string{"node:foo"},
 			},
@@ -1434,11 +1434,11 @@ func Test_nodeConditionTransformer(t *testing.T) {
 				name: "kube_node_status_condition",
 				metric: ksmstore.DDMetric{
 					Val: 1.0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"node":      "foo",
 						"condition": "Ready",
 						"status":    "true",
-					},
+					}),
 				},
 				tags: []string{"node:foo", "condition:Ready", "status:true"},
 			},
@@ -1460,11 +1460,11 @@ func Test_nodeConditionTransformer(t *testing.T) {
 				name: "kube_node_status_condition",
 				metric: ksmstore.DDMetric{
 					Val: 1.0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"node":      "foo",
 						"condition": "Ready",
 						"status":    "false",
-					},
+					}),
 				},
 				tags: []string{"node:foo", "condition:Ready", "status:false"},
 			},
@@ -1486,11 +1486,11 @@ func Test_nodeConditionTransformer(t *testing.T) {
 				name: "kube_node_status_condition",
 				metric: ksmstore.DDMetric{
 					Val: 1.0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"node":      "foo",
 						"condition": "Ready",
 						"status":    "unknown",
-					},
+					}),
 				},
 				tags: []string{"node:foo", "condition:Ready", "status:unknown"},
 			},
@@ -1512,11 +1512,11 @@ func Test_nodeConditionTransformer(t *testing.T) {
 				name: "kube_node_status_condition",
 				metric: ksmstore.DDMetric{
 					Val: 0.0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"node":      "foo",
 						"condition": "Ready",
 						"status":    "true",
-					},
+					}),
 				},
 				tags: []string{"node:foo", "condition:Ready", "status:true"},
 			},
@@ -1529,11 +1529,11 @@ func Test_nodeConditionTransformer(t *testing.T) {
 				name: "kube_node_status_condition",
 				metric: ksmstore.DDMetric{
 					Val: 1.0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"node":      "foo",
 						"condition": "foo",
 						"status":    "unknown",
-					},
+					}),
 				},
 				tags: []string{"node:foo", "condition:foo", "status:unknown"},
 			},
@@ -1550,10 +1550,10 @@ func Test_nodeConditionTransformer(t *testing.T) {
 				name: "kube_node_status_condition",
 				metric: ksmstore.DDMetric{
 					Val: 1.0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"node":   "foo",
 						"status": "unknown",
-					},
+					}),
 				},
 				tags: []string{"node:foo", "status:unknown"},
 			},
@@ -1566,11 +1566,11 @@ func Test_nodeConditionTransformer(t *testing.T) {
 				name: "kube_node_status_condition",
 				metric: ksmstore.DDMetric{
 					Val: 1.0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"node":      "foo",
 						"condition": "Ready",
 						"status":    "foo",
-					},
+					}),
 				},
 				tags: []string{"node:foo", "condition:Ready", "status:foo"},
 			},
@@ -1592,10 +1592,10 @@ func Test_nodeConditionTransformer(t *testing.T) {
 				name: "kube_node_status_condition",
 				metric: ksmstore.DDMetric{
 					Val: 1.0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"node":      "foo",
 						"condition": "Ready",
-					},
+					}),
 				},
 				tags: []string{"node:foo", "condition:Ready"},
 			},
@@ -1612,11 +1612,11 @@ func Test_nodeConditionTransformer(t *testing.T) {
 				name: "kube_node_status_condition",
 				metric: ksmstore.DDMetric{
 					Val: 1.0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"node":      "foo",
 						"condition": "OutOfDisk",
 						"status":    "false",
-					},
+					}),
 				},
 				tags: []string{"node:foo", "condition:OutOfDisk", "status:false"},
 			},
@@ -1638,11 +1638,11 @@ func Test_nodeConditionTransformer(t *testing.T) {
 				name: "kube_node_status_condition",
 				metric: ksmstore.DDMetric{
 					Val: 1.0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"node":      "foo",
 						"condition": "OutOfDisk",
 						"status":    "true",
-					},
+					}),
 				},
 				tags: []string{"node:foo", "condition:OutOfDisk", "status:true"},
 			},
@@ -1664,11 +1664,11 @@ func Test_nodeConditionTransformer(t *testing.T) {
 				name: "kube_node_status_condition",
 				metric: ksmstore.DDMetric{
 					Val: 1.0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"node":      "foo",
 						"condition": "DiskPressure",
 						"status":    "true",
-					},
+					}),
 				},
 				tags: []string{"node:foo", "condition:DiskPressure", "status:true"},
 			},
@@ -1690,11 +1690,11 @@ func Test_nodeConditionTransformer(t *testing.T) {
 				name: "kube_node_status_condition",
 				metric: ksmstore.DDMetric{
 					Val: 1.0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"node":      "foo",
 						"condition": "NetworkUnavailable",
 						"status":    "true",
-					},
+					}),
 				},
 				tags: []string{"node:foo", "condition:NetworkUnavailable", "status:true"},
 			},
@@ -1716,11 +1716,11 @@ func Test_nodeConditionTransformer(t *testing.T) {
 				name: "kube_node_status_condition",
 				metric: ksmstore.DDMetric{
 					Val: 1.0,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"node":      "foo",
 						"condition": "MemoryPressure",
 						"status":    "true",
-					},
+					}),
 				},
 				tags: []string{"node:foo", "condition:MemoryPressure", "status:true"},
 			},
@@ -1852,10 +1852,10 @@ func Test_initContainerResourceRequestsTransformer(t *testing.T) {
 				name: "kube_pod_init_container_resource_requests",
 				metric: ksmstore.DDMetric{
 					Val: 50000000,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "memory",
 						"unit":     "byte",
-					},
+					}),
 				},
 				tags:     []string{"cluster_name:rick-sanchez"},
 				hostname: "garage",
@@ -1873,10 +1873,10 @@ func Test_initContainerResourceRequestsTransformer(t *testing.T) {
 				name: "kube_pod_init_container_resource_requests",
 				metric: ksmstore.DDMetric{
 					Val: 2,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "cpu",
 						"unit":     "core",
-					},
+					}),
 				},
 				tags:     []string{"cluster_name:rick-sanchez"},
 				hostname: "garage",
@@ -1919,10 +1919,10 @@ func Test_containerResourceRequestsTransformer(t *testing.T) {
 				name: "kube_pod_container_effective_resource_requests",
 				metric: ksmstore.DDMetric{
 					Val: 50000000,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "memory",
 						"unit":     "byte",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -1940,10 +1940,10 @@ func Test_containerResourceRequestsTransformer(t *testing.T) {
 				name: "kube_pod_container_effective_resource_requests",
 				metric: ksmstore.DDMetric{
 					Val: 2,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "cpu",
 						"unit":     "core",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -1961,10 +1961,10 @@ func Test_containerResourceRequestsTransformer(t *testing.T) {
 				name: "kube_pod_container_extended_resource_requests",
 				metric: ksmstore.DDMetric{
 					Val: 2,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "kubernetes_io_network_bandwidth",
 						"unit":     "byte",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -1982,7 +1982,7 @@ func Test_containerResourceRequestsTransformer(t *testing.T) {
 				name: "kube_pod_container_effective_resource_requests",
 				metric: ksmstore.DDMetric{
 					Val:    2,
-					Labels: map[string]string{"unit": "core"},
+					Labels: ksmstore.LabelsFromMap(map[string]string{"unit": "core"}),
 				},
 				tags: []string{"foo:bar"},
 			},
@@ -2048,7 +2048,7 @@ func Test_containerSpecResourceRequestsTransformer(t *testing.T) {
 			s.SetupAcceptAll()
 			metric := ksmstore.DDMetric{
 				Val:    1,
-				Labels: map[string]string{"resource": tt.resource},
+				Labels: ksmstore.LabelsFromMap(map[string]string{"resource": tt.resource}),
 			}
 
 			containerSpecResourceRequestsTransformer(s, "kube_pod_container_resource_requests", metric, "foo", []string{"foo:bar"}, time.Time{})
@@ -2075,10 +2075,10 @@ func Test_initContainerResourceLimitsTransformer(t *testing.T) {
 				name: "kube_pod_init_container_resource_limits",
 				metric: ksmstore.DDMetric{
 					Val: 50000000,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "memory",
 						"unit":     "byte",
-					},
+					}),
 				},
 				tags:     []string{"cluster_name:rick-sanchez"},
 				hostname: "garage",
@@ -2096,10 +2096,10 @@ func Test_initContainerResourceLimitsTransformer(t *testing.T) {
 				name: "kube_pod_init_container_resource_limits",
 				metric: ksmstore.DDMetric{
 					Val: 2,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "cpu",
 						"unit":     "core",
-					},
+					}),
 				},
 				tags:     []string{"cluster_name:rick-sanchez"},
 				hostname: "garage",
@@ -2141,10 +2141,10 @@ func Test_containerResourceLimitsTransformer(t *testing.T) {
 				name: "kube_pod_container_resource_limits",
 				metric: ksmstore.DDMetric{
 					Val: 50000000,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "memory",
 						"unit":     "byte",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -2162,10 +2162,10 @@ func Test_containerResourceLimitsTransformer(t *testing.T) {
 				name: "kube_pod_container_resource_limits",
 				metric: ksmstore.DDMetric{
 					Val: 2,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "cpu",
 						"unit":     "core",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -2183,10 +2183,10 @@ func Test_containerResourceLimitsTransformer(t *testing.T) {
 				name: "kube_pod_container_resource_limits",
 				metric: ksmstore.DDMetric{
 					Val: 4,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "nvidia_com_gpu",
 						"unit":     "integer",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -2204,10 +2204,10 @@ func Test_containerResourceLimitsTransformer(t *testing.T) {
 				name: "kube_pod_container_resource_limits",
 				metric: ksmstore.DDMetric{
 					Val: 4,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "nvidia_com_mig_2g_4gb",
 						"unit":     "integer",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -2225,10 +2225,10 @@ func Test_containerResourceLimitsTransformer(t *testing.T) {
 				name: "kube_pod_container_resource_limits",
 				metric: ksmstore.DDMetric{
 					Val: 4,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "amd_com_gpu",
 						"unit":     "integer",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -2246,10 +2246,10 @@ func Test_containerResourceLimitsTransformer(t *testing.T) {
 				name: "kube_pod_container_resource_limits",
 				metric: ksmstore.DDMetric{
 					Val: 4,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "gpu_intel_com_i915",
 						"unit":     "integer",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -2267,10 +2267,10 @@ func Test_containerResourceLimitsTransformer(t *testing.T) {
 				name: "kube_pod_container_resource_limits",
 				metric: ksmstore.DDMetric{
 					Val: 2,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "kubernetes_io_network_bandwidth",
 						"unit":     "byte",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -2288,10 +2288,10 @@ func Test_containerResourceLimitsTransformer(t *testing.T) {
 				name: "kube_pod_container_resource_limits",
 				metric: ksmstore.DDMetric{
 					Val: 2,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "cpu",
 						"unit":     "core",
-					},
+					}),
 				},
 				tags: []string{"foo:bar"},
 			},
@@ -2326,10 +2326,10 @@ func Test_nodeAllocatableTransformer(t *testing.T) {
 				name: "kube_node_status_allocatable",
 				metric: ksmstore.DDMetric{
 					Val: 50000000,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "memory",
 						"unit":     "byte",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -2347,10 +2347,10 @@ func Test_nodeAllocatableTransformer(t *testing.T) {
 				name: "kube_node_status_allocatable",
 				metric: ksmstore.DDMetric{
 					Val: 4,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "cpu",
 						"unit":     "core",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -2368,10 +2368,10 @@ func Test_nodeAllocatableTransformer(t *testing.T) {
 				name: "kube_node_status_allocatable",
 				metric: ksmstore.DDMetric{
 					Val: 4,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "nvidia_com_gpu",
 						"unit":     "integer",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -2389,10 +2389,10 @@ func Test_nodeAllocatableTransformer(t *testing.T) {
 				name: "kube_node_status_allocatable",
 				metric: ksmstore.DDMetric{
 					Val: 4,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "amd_com_gpu",
 						"unit":     "integer",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -2410,10 +2410,10 @@ func Test_nodeAllocatableTransformer(t *testing.T) {
 				name: "kube_node_status_allocatable",
 				metric: ksmstore.DDMetric{
 					Val: 4,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "gpu_intel_com_i915",
 						"unit":     "integer",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -2431,10 +2431,10 @@ func Test_nodeAllocatableTransformer(t *testing.T) {
 				name: "kube_node_status_allocatable",
 				metric: ksmstore.DDMetric{
 					Val: 4,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "nvidia_com_mig_2c_4g_20gb",
 						"unit":     "integer",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -2452,10 +2452,10 @@ func Test_nodeAllocatableTransformer(t *testing.T) {
 				name: "kube_node_status_allocatable",
 				metric: ksmstore.DDMetric{
 					Val: 100,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "pods",
 						"unit":     "integer",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -2473,10 +2473,10 @@ func Test_nodeAllocatableTransformer(t *testing.T) {
 				name: "kube_node_status_allocatable",
 				metric: ksmstore.DDMetric{
 					Val: 64,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "ephemeral_storage",
 						"unit":     "byte",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -2494,10 +2494,10 @@ func Test_nodeAllocatableTransformer(t *testing.T) {
 				name: "kube_node_status_allocatable",
 				metric: ksmstore.DDMetric{
 					Val: 64,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "kubernetes_io_network_bandwidth",
 						"unit":     "byte",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -2515,10 +2515,10 @@ func Test_nodeAllocatableTransformer(t *testing.T) {
 				name: "kube_node_status_allocatable",
 				metric: ksmstore.DDMetric{
 					Val: 4,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "cpu",
 						"unit":     "core",
-					},
+					}),
 				},
 				tags: []string{"foo:bar"},
 			},
@@ -2553,10 +2553,10 @@ func Test_nodeCapacityTransformer(t *testing.T) {
 				name: "kube_node_status_capacity",
 				metric: ksmstore.DDMetric{
 					Val: 50000000,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "memory",
 						"unit":     "byte",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -2574,10 +2574,10 @@ func Test_nodeCapacityTransformer(t *testing.T) {
 				name: "kube_node_status_capacity",
 				metric: ksmstore.DDMetric{
 					Val: 2,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "cpu",
 						"unit":     "core",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -2595,10 +2595,10 @@ func Test_nodeCapacityTransformer(t *testing.T) {
 				name: "kube_node_status_capacity",
 				metric: ksmstore.DDMetric{
 					Val: 4,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "nvidia_com_gpu",
 						"unit":     "integer",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -2616,10 +2616,10 @@ func Test_nodeCapacityTransformer(t *testing.T) {
 				name: "kube_node_status_capacity",
 				metric: ksmstore.DDMetric{
 					Val: 4,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "amd_com_gpu",
 						"unit":     "integer",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -2637,10 +2637,10 @@ func Test_nodeCapacityTransformer(t *testing.T) {
 				name: "kube_node_status_capacity",
 				metric: ksmstore.DDMetric{
 					Val: 4,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "gpu_intel_com_i915",
 						"unit":     "integer",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -2658,10 +2658,10 @@ func Test_nodeCapacityTransformer(t *testing.T) {
 				name: "kube_node_status_capacity",
 				metric: ksmstore.DDMetric{
 					Val: 4,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "nvidia_com_mig_2c_4g_20gb",
 						"unit":     "integer",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -2679,10 +2679,10 @@ func Test_nodeCapacityTransformer(t *testing.T) {
 				name: "kube_node_status_capacity",
 				metric: ksmstore.DDMetric{
 					Val: 100,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "pods",
 						"unit":     "integer",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -2700,10 +2700,10 @@ func Test_nodeCapacityTransformer(t *testing.T) {
 				name: "kube_node_status_capacity",
 				metric: ksmstore.DDMetric{
 					Val: 129,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "ephemeral_storage",
 						"unit":     "byte",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -2721,10 +2721,10 @@ func Test_nodeCapacityTransformer(t *testing.T) {
 				name: "kube_node_status_capacity",
 				metric: ksmstore.DDMetric{
 					Val: 64,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "kubernetes_io_network_bandwidth",
 						"unit":     "byte",
-					},
+					}),
 				},
 				tags:     []string{"foo:bar"},
 				hostname: "foo",
@@ -2742,10 +2742,10 @@ func Test_nodeCapacityTransformer(t *testing.T) {
 				name: "kube_node_status_capacity",
 				metric: ksmstore.DDMetric{
 					Val: 4,
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"resource": "cpu",
 						"unit":     "core",
-					},
+					}),
 				},
 				tags: []string{"foo:bar"},
 			},
@@ -2772,9 +2772,9 @@ func Test_timestampTransformers(t *testing.T) {
 	argsTemplate := args{
 		metric: ksmstore.DDMetric{
 			Val: 1595501615,
-			Labels: map[string]string{
+			Labels: ksmstore.LabelsFromMap(map[string]string{
 				"foo": "bar",
-			},
+			}),
 		},
 		tags: []string{"foo:bar"},
 		now:  func() time.Time { return time.Unix(int64(1595501615+86400), 0) },
@@ -2904,7 +2904,7 @@ func Test_endpointAddressTransformer_emitsZeroForOppositeReadyState(t *testing.T
 				labels["ready"] = tt.ready
 				inputTags = append(inputTags, "ready:"+tt.ready)
 			}
-			endpointAddressTransformer(s, "kube_endpoint_address", ksmstore.DDMetric{Val: 1, Labels: labels}, "host", inputTags, time.Now())
+			endpointAddressTransformer(s, "kube_endpoint_address", ksmstore.DDMetric{Val: 1, Labels: ksmstore.LabelsFromMap(labels)}, "host", inputTags, time.Now())
 			if tt.wantAvailable != nil {
 				s.AssertMetric(t, "Gauge", "kubernetes_state.endpoint.address_available", *tt.wantAvailable, "host", stripped)
 			}

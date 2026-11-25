@@ -74,7 +74,7 @@ func TestProcessMetrics(t *testing.T) {
 						Name: "kube_pod_container_status_running",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"container": "kube-state-metrics", "namespace": "default", "pod": "kube-state-metrics-b7fbc487d-4phhj", "uid": "bec19172-8abf-11ea-8546-42010a80022c"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"container": "kube-state-metrics", "namespace": "default", "pod": "kube-state-metrics-b7fbc487d-4phhj", "uid": "bec19172-8abf-11ea-8546-42010a80022c"}),
 								Val:    1,
 							},
 						},
@@ -84,7 +84,7 @@ func TestProcessMetrics(t *testing.T) {
 						Name: "kube_pod_container_status_running",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"container": "hello", "namespace": "default", "pod": "hello-1509998340-k4f8q", "uid": "05e99c5f-8a64-11ea-8546-42010a80022c"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"container": "hello", "namespace": "default", "pod": "hello-1509998340-k4f8q", "uid": "05e99c5f-8a64-11ea-8546-42010a80022c"}),
 								Val:    0,
 							},
 						},
@@ -116,7 +116,7 @@ func TestProcessMetrics(t *testing.T) {
 						Name: "kube_pod_container_status_running",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"container": "kube-state-metrics", "namespace": "default", "pod": "kube-state-metrics-b7fbc487d-4phhj"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"container": "kube-state-metrics", "namespace": "default", "pod": "kube-state-metrics-b7fbc487d-4phhj"}),
 								Val:    1,
 							},
 						},
@@ -126,7 +126,7 @@ func TestProcessMetrics(t *testing.T) {
 			metricsToGet: []ksmstore.DDMetricsFam{
 				{
 					Name:        "kube_pod_info",
-					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"created_by_kind": "ReplicaSet", "created_by_name": "kube-state-metrics-b7fbc487d", "host_ip": "192.168.99.100", "namespace": "default", "node": "minikube", "pod": "kube-state-metrics-b7fbc487d-4phhj", "pod_ip": "172.17.0.7"}}},
+					ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{"created_by_kind": "ReplicaSet", "created_by_name": "kube-state-metrics-b7fbc487d", "host_ip": "192.168.99.100", "namespace": "default", "node": "minikube", "pod": "kube-state-metrics-b7fbc487d-4phhj", "pod_ip": "172.17.0.7"})}},
 				},
 			},
 			metricTransformers: defaultMetricTransformers(nil),
@@ -149,7 +149,7 @@ func TestProcessMetrics(t *testing.T) {
 						Name: "kube_pod_info",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"created_by_kind": "ReplicaSet", "created_by_name": "kube-state-metrics-b7fbc487d", "host_ip": "192.168.99.100", "namespace": "default", "node": "minikube", "pod": "kube-state-metrics-b7fbc487d-4phhj", "pod_ip": "172.17.0.7"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"created_by_kind": "ReplicaSet", "created_by_name": "kube-state-metrics-b7fbc487d", "host_ip": "192.168.99.100", "namespace": "default", "node": "minikube", "pod": "kube-state-metrics-b7fbc487d-4phhj", "pod_ip": "172.17.0.7"}),
 								Val:    1,
 							},
 						},
@@ -170,7 +170,7 @@ func TestProcessMetrics(t *testing.T) {
 						Name: "kube_deployment_status_replicas",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"namespace": "default", "deployment": "redis"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"namespace": "default", "deployment": "redis"}),
 								Val:    1,
 							},
 						},
@@ -180,7 +180,7 @@ func TestProcessMetrics(t *testing.T) {
 			metricsToGet: []ksmstore.DDMetricsFam{
 				{
 					Name:        "kube_deployment_labels",
-					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"namespace": "default", "deployment": "redis", "label_tags_datadoghq_com_env": "dev", "label_tags_datadoghq_com_service": "redis", "label_tags_datadoghq_com_version": "v1"}}},
+					ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{"namespace": "default", "deployment": "redis", "label_tags_datadoghq_com_env": "dev", "label_tags_datadoghq_com_service": "redis", "label_tags_datadoghq_com_version": "v1"})}},
 				},
 			},
 			metricTransformers: defaultMetricTransformers(nil),
@@ -203,7 +203,7 @@ func TestProcessMetrics(t *testing.T) {
 						Name: "kube_deployment_status_replicas",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"namespace": "default", "deployment": "mysql"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"namespace": "default", "deployment": "mysql"}),
 								Val:    1,
 							},
 						},
@@ -215,7 +215,7 @@ func TestProcessMetrics(t *testing.T) {
 					Name: "kube_deployment_labels",
 					ListMetrics: []ksmstore.DDMetric{
 						{
-							Labels: map[string]string{
+							Labels: ksmstore.LabelsFromMap(map[string]string{
 								"namespace":                          "default",
 								"deployment":                         "mysql",
 								"label_app_kubernetes_io_name":       "mysql",
@@ -225,7 +225,7 @@ func TestProcessMetrics(t *testing.T) {
 								"label_app_kubernetes_io_part_of":    "my-app",
 								"label_app_kubernetes_io_managed_by": "helm",
 								"label_helm_sh_chart":                "mysql-2.35.6",
-							},
+							}),
 						},
 					},
 				},
@@ -260,7 +260,7 @@ func TestProcessMetrics(t *testing.T) {
 						Name: "kube_statefulset_replicas",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"namespace": "default", "statefulset": "redis"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"namespace": "default", "statefulset": "redis"}),
 								Val:    1,
 							},
 						},
@@ -270,7 +270,7 @@ func TestProcessMetrics(t *testing.T) {
 			metricsToGet: []ksmstore.DDMetricsFam{
 				{
 					Name:        "kube_statefulset_labels",
-					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"namespace": "default", "statefulset": "redis", "label_tags_datadoghq_com_env": "dev", "label_tags_datadoghq_com_service": "redis", "label_tags_datadoghq_com_version": "v1"}}},
+					ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{"namespace": "default", "statefulset": "redis", "label_tags_datadoghq_com_env": "dev", "label_tags_datadoghq_com_service": "redis", "label_tags_datadoghq_com_version": "v1"})}},
 				},
 			},
 			metricTransformers: defaultMetricTransformers(nil),
@@ -293,7 +293,7 @@ func TestProcessMetrics(t *testing.T) {
 						Name: "kube_deployment_status_replicas",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"namespace": "default", "deployment": "redis"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"namespace": "default", "deployment": "redis"}),
 								Val:    1,
 							},
 						},
@@ -303,7 +303,7 @@ func TestProcessMetrics(t *testing.T) {
 			metricsToGet: []ksmstore.DDMetricsFam{
 				{
 					Name:        "kube_deployment_labels",
-					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"namespace": "default", "deployment": "redis", "label_tags_datadoghq_com_env": "dev", "ignore": "this_label"}}},
+					ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{"namespace": "default", "deployment": "redis", "label_tags_datadoghq_com_env": "dev", "ignore": "this_label"})}},
 				},
 			},
 			metricTransformers: defaultMetricTransformers(nil),
@@ -326,7 +326,7 @@ func TestProcessMetrics(t *testing.T) {
 						Name: "kube_pod_status_phase",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"namespace": "default", "pod": "redis-599d64fcb9-c654j", "phase": "Running"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"namespace": "default", "pod": "redis-599d64fcb9-c654j", "phase": "Running"}),
 								Val:    1,
 							},
 						},
@@ -358,7 +358,7 @@ func TestProcessMetrics(t *testing.T) {
 						Name: "kube_pod_unknown_metric",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"container": "kube-state-metrics", "namespace": "default", "pod": "kube-state-metrics-b7fbc487d-4phhj", "uid": "bec19172-8abf-11ea-8546-42010a80022c"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"container": "kube-state-metrics", "namespace": "default", "pod": "kube-state-metrics-b7fbc487d-4phhj", "uid": "bec19172-8abf-11ea-8546-42010a80022c"}),
 								Val:    1,
 							},
 						},
@@ -368,7 +368,7 @@ func TestProcessMetrics(t *testing.T) {
 						Name: "kube_pod_unknown_metric",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"container": "hello", "namespace": "default", "pod": "hello-1509998340-k4f8q", "uid": "05e99c5f-8a64-11ea-8546-42010a80022c"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"container": "hello", "namespace": "default", "pod": "hello-1509998340-k4f8q", "uid": "05e99c5f-8a64-11ea-8546-42010a80022c"}),
 								Val:    0,
 							},
 						},
@@ -389,7 +389,7 @@ func TestProcessMetrics(t *testing.T) {
 						Name: "kube_node_spec_taint",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"node": "nodename", "key": "dedicated", "value": "experiment", "effect": "NoSchedule"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"node": "nodename", "key": "dedicated", "value": "experiment", "effect": "NoSchedule"}),
 								Val:    1,
 							},
 						},
@@ -417,7 +417,7 @@ func TestProcessMetrics(t *testing.T) {
 						Name: "kube_node_status_capacity",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"node": "nodename", "resource": "cpu", "unit": "core"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"node": "nodename", "resource": "cpu", "unit": "core"}),
 								Val:    4,
 							},
 						},
@@ -427,7 +427,7 @@ func TestProcessMetrics(t *testing.T) {
 			metricsToGet: []ksmstore.DDMetricsFam{
 				{
 					Name:        "kube_node_labels",
-					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "nodename", "label_foo": "bar", "label_topology_kubernetes_io_region": "europe-west1", "label_topology_kubernetes_io_zone": "europe-west1-b"}}},
+					ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{"node": "nodename", "label_foo": "bar", "label_topology_kubernetes_io_region": "europe-west1", "label_topology_kubernetes_io_zone": "europe-west1-b"})}},
 				},
 			},
 			metricTransformers: defaultMetricTransformers(nil),
@@ -455,7 +455,7 @@ func TestProcessMetrics(t *testing.T) {
 						Name: "kube_node_status_capacity",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"node": "nodename", "resource": "cpu", "unit": "core"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"node": "nodename", "resource": "cpu", "unit": "core"}),
 								Val:    4,
 							},
 						},
@@ -465,7 +465,7 @@ func TestProcessMetrics(t *testing.T) {
 			metricsToGet: []ksmstore.DDMetricsFam{
 				{
 					Name:        "kube_node_info",
-					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "nodename", "container_runtime_version": "docker://19.3.15", "kernel_version": "5.4.109+", "kubelet_version": "v1.18.20-gke.901", "os_image": "Container-Optimized OS from Google"}}},
+					ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{"node": "nodename", "container_runtime_version": "docker://19.3.15", "kernel_version": "5.4.109+", "kubelet_version": "v1.18.20-gke.901", "os_image": "Container-Optimized OS from Google"})}},
 				},
 			},
 			metricTransformers: defaultMetricTransformers(nil),
@@ -493,7 +493,7 @@ func TestProcessMetrics(t *testing.T) {
 						Name: "kube_pod_status_phase",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"namespace": "default", "pod": "redis", "phase": "Running"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"namespace": "default", "pod": "redis", "phase": "Running"}),
 								Val:    1,
 							},
 						},
@@ -521,7 +521,7 @@ func TestProcessMetrics(t *testing.T) {
 						Name: "kube_persistentvolumeclaim_status_phase",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"namespace": "default", "persistentvolumeclaim": "pvc", "phase": "Bound"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"namespace": "default", "persistentvolumeclaim": "pvc", "phase": "Bound"}),
 								Val:    1,
 							},
 						},
@@ -549,7 +549,7 @@ func TestProcessMetrics(t *testing.T) {
 						Name: "kube_namespace_status_phase",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"namespace": "default", "phase": "Active"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"namespace": "default", "phase": "Active"}),
 								Val:    1,
 							},
 						},
@@ -577,7 +577,7 @@ func TestProcessMetrics(t *testing.T) {
 						Name: "kube_ingress_path",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"namespace": "default", "ingress": "ingress", "service_name": "svc", "service_port": "80", "host": "host", "path": "path"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"namespace": "default", "ingress": "ingress", "service_name": "svc", "service_port": "80", "host": "host", "path": "path"}),
 								Val:    1,
 							},
 						},
@@ -605,7 +605,7 @@ func TestProcessMetrics(t *testing.T) {
 						Name: "kube_networkpolicy_spec_ingress_rules",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"namespace": "default", "networkpolicy": "deny-all"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"namespace": "default", "networkpolicy": "deny-all"}),
 								Val:    2,
 							},
 						},
@@ -617,7 +617,7 @@ func TestProcessMetrics(t *testing.T) {
 						Name: "kube_networkpolicy_spec_egress_rules",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"namespace": "kube-system", "networkpolicy": "allow-dns"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"namespace": "kube-system", "networkpolicy": "allow-dns"}),
 								Val:    1,
 							},
 						},
@@ -651,7 +651,7 @@ func TestProcessMetrics(t *testing.T) {
 						Name: "kube_networkpolicy_spec_ingress_rules",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"namespace": "default", "networkpolicy": "web"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"namespace": "default", "networkpolicy": "web"}),
 								Val:    1,
 							},
 						},
@@ -661,7 +661,7 @@ func TestProcessMetrics(t *testing.T) {
 			metricsToGet: []ksmstore.DDMetricsFam{
 				{
 					Name:        "kube_networkpolicy_labels",
-					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"namespace": "default", "networkpolicy": "web", "label_tags_datadoghq_com_env": "staging", "label_tags_datadoghq_com_service": "webapp", "label_tags_datadoghq_com_version": "v2"}}},
+					ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{"namespace": "default", "networkpolicy": "web", "label_tags_datadoghq_com_env": "staging", "label_tags_datadoghq_com_service": "webapp", "label_tags_datadoghq_com_version": "v2"})}},
 				},
 			},
 			metricTransformers: defaultMetricTransformers(nil),
@@ -684,7 +684,7 @@ func TestProcessMetrics(t *testing.T) {
 						Name: "kube_node_status_capacity",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"node": "nodename", "resource": "nvidia_com_gpu", "unit": "integer"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"node": "nodename", "resource": "nvidia_com_gpu", "unit": "integer"}),
 								Val:    4,
 							},
 						},
@@ -694,7 +694,7 @@ func TestProcessMetrics(t *testing.T) {
 			metricsToGet: []ksmstore.DDMetricsFam{
 				{
 					Name:        "kube_node_info",
-					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "nodename", "container_runtime_version": "docker://19.3.15", "kernel_version": "5.4.109+", "kubelet_version": "v1.18.20-gke.901", "os_image": "Container-Optimized OS from Google"}}},
+					ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{"node": "nodename", "container_runtime_version": "docker://19.3.15", "kernel_version": "5.4.109+", "kubelet_version": "v1.18.20-gke.901", "os_image": "Container-Optimized OS from Google"})}},
 				},
 			},
 			metricTransformers: defaultMetricTransformers(nil),
@@ -722,7 +722,7 @@ func TestProcessMetrics(t *testing.T) {
 						Name: "kube_node_status_capacity",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"node": "nodename", "resource": "amd_com_gpu", "unit": "integer"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"node": "nodename", "resource": "amd_com_gpu", "unit": "integer"}),
 								Val:    4,
 							},
 						},
@@ -732,7 +732,7 @@ func TestProcessMetrics(t *testing.T) {
 			metricsToGet: []ksmstore.DDMetricsFam{
 				{
 					Name:        "kube_node_info",
-					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "nodename", "container_runtime_version": "docker://19.3.15", "kernel_version": "5.4.109+", "kubelet_version": "v1.18.20-gke.901", "os_image": "Container-Optimized OS from Google"}}},
+					ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{"node": "nodename", "container_runtime_version": "docker://19.3.15", "kernel_version": "5.4.109+", "kubelet_version": "v1.18.20-gke.901", "os_image": "Container-Optimized OS from Google"})}},
 				},
 			},
 			metricTransformers: defaultMetricTransformers(nil),
@@ -760,7 +760,7 @@ func TestProcessMetrics(t *testing.T) {
 						Name: "kube_node_status_capacity",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"node": "nodename", "resource": "gpu_intel_com_i915", "unit": "integer"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"node": "nodename", "resource": "gpu_intel_com_i915", "unit": "integer"}),
 								Val:    4,
 							},
 						},
@@ -770,7 +770,7 @@ func TestProcessMetrics(t *testing.T) {
 			metricsToGet: []ksmstore.DDMetricsFam{
 				{
 					Name:        "kube_node_info",
-					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "nodename", "container_runtime_version": "docker://19.3.15", "kernel_version": "5.4.109+", "kubelet_version": "v1.18.20-gke.901", "os_image": "Container-Optimized OS from Google"}}},
+					ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{"node": "nodename", "container_runtime_version": "docker://19.3.15", "kernel_version": "5.4.109+", "kubelet_version": "v1.18.20-gke.901", "os_image": "Container-Optimized OS from Google"})}},
 				},
 			},
 			metricTransformers: defaultMetricTransformers(nil),
@@ -798,7 +798,7 @@ func TestProcessMetrics(t *testing.T) {
 						Name: "kube_node_status_capacity",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"node": "nodename", "resource": "nvidia_com_mig_2c_4g_20gb", "unit": "integer"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"node": "nodename", "resource": "nvidia_com_mig_2c_4g_20gb", "unit": "integer"}),
 								Val:    4,
 							},
 						},
@@ -808,7 +808,7 @@ func TestProcessMetrics(t *testing.T) {
 			metricsToGet: []ksmstore.DDMetricsFam{
 				{
 					Name:        "kube_node_info",
-					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "nodename", "container_runtime_version": "docker://19.3.15", "kernel_version": "5.4.109+", "kubelet_version": "v1.18.20-gke.901", "os_image": "Container-Optimized OS from Google"}}},
+					ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{"node": "nodename", "container_runtime_version": "docker://19.3.15", "kernel_version": "5.4.109+", "kubelet_version": "v1.18.20-gke.901", "os_image": "Container-Optimized OS from Google"})}},
 				},
 			},
 			metricTransformers: defaultMetricTransformers(nil),
@@ -836,11 +836,11 @@ func TestProcessMetrics(t *testing.T) {
 						Name: "kube_customresource_metric_info",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{
+								Labels: ksmstore.LabelsFromMap(map[string]string{
 									"namespace": "default",
 									"name":      "example1",
 									"attribute": "value",
-								},
+								}),
 								Val: 1,
 							},
 						},
@@ -910,7 +910,7 @@ func TestProcessTelemetry(t *testing.T) {
 						Name: "kube_pod_container_status_running",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"container": "kube-state-metrics", "namespace": "default", "pod": "kube-state-metrics-b7fbc487d-4phhj", "uid": "bec19172-8abf-11ea-8546-42010a80022c"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"container": "kube-state-metrics", "namespace": "default", "pod": "kube-state-metrics-b7fbc487d-4phhj", "uid": "bec19172-8abf-11ea-8546-42010a80022c"}),
 								Val:    1,
 							},
 						},
@@ -920,11 +920,11 @@ func TestProcessTelemetry(t *testing.T) {
 						Name: "kube_pod_container_status_running",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"container": "hello", "namespace": "default", "pod": "hello-1509998340-k4f8q"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"container": "hello", "namespace": "default", "pod": "hello-1509998340-k4f8q"}),
 								Val:    0,
 							},
 							{
-								Labels: map[string]string{"container": "hello", "namespace": "default", "pod": "hello-1509998340-csfgb"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"container": "hello", "namespace": "default", "pod": "hello-1509998340-csfgb"}),
 								Val:    0,
 							},
 						},
@@ -947,7 +947,7 @@ func TestProcessTelemetry(t *testing.T) {
 						Name: "kube_deployment_status_replicas",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"namespace": "default", "deployment": "redis"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"namespace": "default", "deployment": "redis"}),
 								Val:    1,
 							},
 						},
@@ -970,7 +970,7 @@ func TestProcessTelemetry(t *testing.T) {
 						Name: "kube_deployment_status_replicas",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"namespace": "default", "deployment": "redis"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"namespace": "default", "deployment": "redis"}),
 								Val:    1,
 							},
 						},
@@ -993,7 +993,7 @@ func TestProcessTelemetry(t *testing.T) {
 						Name: "kube_unknown_metric",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"foo": "bar"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"foo": "bar"}),
 								Val:    1,
 							},
 						},
@@ -1016,7 +1016,7 @@ func TestProcessTelemetry(t *testing.T) {
 						Name: "kube_customresource_foo_info",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"foo": "bar"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"foo": "bar"}),
 								Val:    1,
 							},
 						},
@@ -1039,7 +1039,7 @@ func TestProcessTelemetry(t *testing.T) {
 						Name: "kube_pod_container_status_running",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"container": "kube-state-metrics", "namespace": "default", "pod": "kube-state-metrics-b7fbc487d-4phhj", "uid": "bec19172-8abf-11ea-8546-42010a80022c"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"container": "kube-state-metrics", "namespace": "default", "pod": "kube-state-metrics-b7fbc487d-4phhj", "uid": "bec19172-8abf-11ea-8546-42010a80022c"}),
 								Val:    1,
 							},
 						},
@@ -1049,7 +1049,7 @@ func TestProcessTelemetry(t *testing.T) {
 						Name: "kube_pod_container_status_running",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"container": "hello", "namespace": "default", "pod": "hello-1509998340-k4f8q", "uid": "05e99c5f-8a64-11ea-8546-42010a80022c"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"container": "hello", "namespace": "default", "pod": "hello-1509998340-k4f8q", "uid": "05e99c5f-8a64-11ea-8546-42010a80022c"}),
 								Val:    0,
 							},
 						},
@@ -1061,7 +1061,7 @@ func TestProcessTelemetry(t *testing.T) {
 						Name: "kube_deployment_status_replicas",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"namespace": "default", "deployment": "redis"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"namespace": "default", "deployment": "redis"}),
 								Val:    1,
 							},
 						},
@@ -1073,7 +1073,7 @@ func TestProcessTelemetry(t *testing.T) {
 						Name: "kube_unknown_metric",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{"foo": "bar"},
+								Labels: ksmstore.LabelsFromMap(map[string]string{"foo": "bar"}),
 								Val:    1,
 							},
 						},
@@ -1200,7 +1200,7 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 				metricsToGet: []ksmstore.DDMetricsFam{
 					{
 						Name:        "foo",
-						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"foo_label": "foo_value", "bar_label": "bar_value", "baz_label": "baz_value"}}},
+						ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{"foo_label": "foo_value", "bar_label": "bar_value", "baz_label": "baz_value"})}},
 					},
 				},
 			},
@@ -1222,7 +1222,7 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 				metricsToGet: []ksmstore.DDMetricsFam{
 					{
 						Name:        "foo",
-						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"foo_label": "foo_value", "bar_label": "bar_value", "baz_label": "baz_value"}}},
+						ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{"foo_label": "foo_value", "bar_label": "bar_value", "baz_label": "baz_value"})}},
 					},
 				},
 			},
@@ -1244,7 +1244,7 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 				metricsToGet: []ksmstore.DDMetricsFam{
 					{
 						Name:        "foo",
-						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"bar_label": "bar_value", "baz_label": "baz_value"}}},
+						ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{"bar_label": "bar_value", "baz_label": "baz_value"})}},
 					},
 				},
 			},
@@ -1266,7 +1266,7 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 				metricsToGet: []ksmstore.DDMetricsFam{
 					{
 						Name:        "bar",
-						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"foo_label": "foo_value", "bar_label": "bar_value"}}},
+						ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{"foo_label": "foo_value", "bar_label": "bar_value"})}},
 					},
 				},
 			},
@@ -1292,11 +1292,11 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 				metricsToGet: []ksmstore.DDMetricsFam{
 					{
 						Name:        "foo",
-						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"foo_label": "foo_value", "bar_label": "bar_value", "baz_label": "baz_value"}}},
+						ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{"foo_label": "foo_value", "bar_label": "bar_value", "baz_label": "baz_value"})}},
 					},
 					{
 						Name:        "bar",
-						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"bar_label": "bar_value", "baf_label": "baf_value"}}},
+						ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{"bar_label": "bar_value", "baf_label": "baf_value"})}},
 					},
 				},
 			},
@@ -1318,7 +1318,7 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 				metricsToGet: []ksmstore.DDMetricsFam{
 					{
 						Name:        "foo",
-						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"foo_label": "foo_value", "bar_label": "bar_value", "baz_label": "baz_value"}}},
+						ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{"foo_label": "foo_value", "bar_label": "bar_value", "baz_label": "baz_value"})}},
 					},
 				},
 			},
@@ -1361,7 +1361,7 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 				metricsToGet: []ksmstore.DDMetricsFam{
 					{
 						Name:        "foo",
-						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"foo_label": "foo_value", "node": "foo", "bar_label": "bar_value"}}},
+						ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{"foo_label": "foo_value", "node": "foo", "bar_label": "bar_value"})}},
 					},
 				},
 			},
@@ -1393,7 +1393,7 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 				metricsToGet: []ksmstore.DDMetricsFam{
 					{
 						Name:        "foo",
-						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"foo_label": "foo_value", "node": "foo", "bar_label": "bar_value"}}},
+						ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{"foo_label": "foo_value", "node": "foo", "bar_label": "bar_value"})}},
 					},
 				},
 				clusterName: "bar",
@@ -1416,7 +1416,7 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 				metricsToGet: []ksmstore.DDMetricsFam{
 					{
 						Name:        "foo",
-						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"foo_label": "foo_value", "created_by_kind": "DaemonSet", "created_by_name": "foo_name"}}},
+						ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{"foo_label": "foo_value", "created_by_kind": "DaemonSet", "created_by_name": "foo_name"})}},
 					},
 				},
 			},
@@ -1438,7 +1438,7 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 				metricsToGet: []ksmstore.DDMetricsFam{
 					{
 						Name:        "foo",
-						ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"foo_label": "foo_value", "owner_kind": "DaemonSet", "owner_name": "foo_name"}}},
+						ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{"foo_label": "foo_value", "owner_kind": "DaemonSet", "owner_name": "foo_name"})}},
 					},
 				},
 			},
@@ -1467,7 +1467,7 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 				labelJoiner.insertFamily(metricFam)
 			}
 
-			hostname, tags := kubeStateMetricsSCheck.hostnameAndTags("", tt.args.labels, labelJoiner, tt.args.lMapperOverride)
+			hostname, tags := kubeStateMetricsSCheck.hostnameAndTags("", ksmstore.LabelsFromMap(tt.args.labels), labelJoiner, tt.args.lMapperOverride)
 			assert.ElementsMatch(t, tt.wantTags, tags)
 			assert.Equal(t, tt.wantHostname, hostname)
 		})
@@ -1537,26 +1537,26 @@ func TestKSMCheck_hostnameAndTagsArgoRollout(t *testing.T) {
 			labelJoiner := newLabelJoiner(config.labelJoins)
 			labelJoiner.insertFamily(ksmstore.DDMetricsFam{
 				Name: "kube_pod_labels",
-				ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{
+				ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{
 					namespaceKey:         namespace,
 					"pod":                podName,
 					argoRolloutLabelName: tt.argoRolloutLabel,
-				}}},
+				})}},
 			})
 			labelJoiner.insertFamily(ksmstore.DDMetricsFam{
 				Name: "kube_pod_info",
-				ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{
+				ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{
 					namespaceKey:     namespace,
 					"pod":            podName,
 					createdByKindKey: tt.ownerKind,
 					createdByNameKey: tt.ownerName,
-				}}},
+				})}},
 			})
 
-			_, actualTags := check.hostnameAndTags("kube_pod_status_ready", map[string]string{
+			_, actualTags := check.hostnameAndTags("kube_pod_status_ready", ksmstore.LabelsFromMap(map[string]string{
 				namespaceKey: namespace,
 				"pod":        podName,
-			}, labelJoiner, nil)
+			}), labelJoiner, nil)
 
 			assert.ElementsMatch(t, tt.expectedTags, actualTags)
 		})
@@ -2395,7 +2395,7 @@ func TestOwnerTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.tc, func(t *testing.T) {
-			actualTags, actualDeployment := ownerTags(tt.kind, tt.name)
+			actualTags, actualDeployment := (&KSMCheck{}).appendOwnerTags(nil, tt.kind, tt.name)
 			assert.EqualValues(t, tt.want, actualTags)
 			assert.Equal(t, tt.wantDeployment, actualDeployment)
 		})
@@ -2403,17 +2403,21 @@ func TestOwnerTags(t *testing.T) {
 }
 
 func BenchmarkOwnerTags(b *testing.B) {
+	// The check is reused, as across the series and the runs, so that the
+	// tags come from its cache.
 	b.Run("ReplicaSet", func(b *testing.B) {
+		k := &KSMCheck{}
 		b.ReportAllocs()
 		for b.Loop() {
-			_, _ = ownerTags("ReplicaSet", "foo-6768ddc4d")
+			_, _ = k.appendOwnerTags(nil, "ReplicaSet", "foo-6768ddc4d")
 		}
 	})
 
 	b.Run("Job", func(b *testing.B) {
+		k := &KSMCheck{}
 		b.ReportAllocs()
 		for b.Loop() {
-			_, _ = ownerTags("Job", "foo-1627309500")
+			_, _ = k.appendOwnerTags(nil, "Job", "foo-1627309500")
 		}
 	})
 }
@@ -2425,7 +2429,7 @@ func TestProcessMetrics_SuppressModeMatrix(t *testing.T) {
 		"kube_pod_container_resource_with_owner_tag_requests": {{
 			Name: "kube_pod_container_resource_with_owner_tag_requests",
 			ListMetrics: []ksmstore.DDMetric{{
-				Labels: map[string]string{"namespace": "kube-system", "container": "kindnet", "owner_name": "kindnet", "owner_kind": "DaemonSet", "resource": "cpu"},
+				Labels: ksmstore.LabelsFromMap(map[string]string{"namespace": "kube-system", "container": "kindnet", "owner_name": "kindnet", "owner_kind": "DaemonSet", "resource": "cpu"}),
 				Val:    0.1,
 			}},
 		}},
@@ -2433,7 +2437,7 @@ func TestProcessMetrics_SuppressModeMatrix(t *testing.T) {
 		"kube_pod_info": {{
 			Name: "kube_pod_info",
 			ListMetrics: []ksmstore.DDMetric{{
-				Labels: map[string]string{"namespace": "default", "pod": "p1", "uid": "u1", "node": "node-a", "created_by_kind": "Deployment", "created_by_name": "d1"},
+				Labels: ksmstore.LabelsFromMap(map[string]string{"namespace": "default", "pod": "p1", "uid": "u1", "node": "node-a", "created_by_kind": "Deployment", "created_by_name": "d1"}),
 				Val:    1,
 			}},
 		}},
@@ -2525,7 +2529,7 @@ func TestProcessMetrics_ClusterAggregatesOnly_EmitsOnlyTotalFamily(t *testing.T)
 		"kube_pod_container_resource_with_owner_tag_requests": {{
 			Name: "kube_pod_container_resource_with_owner_tag_requests",
 			ListMetrics: []ksmstore.DDMetric{{
-				Labels: map[string]string{"namespace": "kube-system", "container": "kindnet", "owner_name": "kindnet", "owner_kind": "DaemonSet", "resource": "cpu"},
+				Labels: ksmstore.LabelsFromMap(map[string]string{"namespace": "kube-system", "container": "kindnet", "owner_name": "kindnet", "owner_kind": "DaemonSet", "resource": "cpu"}),
 				Val:    0.1,
 			}},
 		}},
@@ -2533,7 +2537,7 @@ func TestProcessMetrics_ClusterAggregatesOnly_EmitsOnlyTotalFamily(t *testing.T)
 		"kube_pod_info": {{
 			Name: "kube_pod_info",
 			ListMetrics: []ksmstore.DDMetric{{
-				Labels: map[string]string{"namespace": "default", "pod": "p1", "uid": "u1", "node": "node-a", "created_by_kind": "Deployment", "created_by_name": "d1"},
+				Labels: ksmstore.LabelsFromMap(map[string]string{"namespace": "default", "pod": "p1", "uid": "u1", "node": "node-a", "created_by_kind": "Deployment", "created_by_name": "d1"}),
 				Val:    1,
 			}},
 		}},
@@ -3193,31 +3197,31 @@ func TestKSMCheck_hostnameAndTagsAutoscalers(t *testing.T) {
 			labelJoiner := newLabelJoiner(config.labelJoins)
 			labelJoiner.insertFamily(ksmstore.DDMetricsFam{
 				Name: "kube_pod_labels",
-				ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{
+				ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{
 					namespaceKey:         "default",
 					"pod":                podName,
 					argoRolloutLabelName: tt.argoRolloutLabel,
-				}}},
+				})}},
 			})
 			labelJoiner.insertFamily(ksmstore.DDMetricsFam{
 				Name: "kube_pod_info",
-				ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{
+				ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{
 					namespaceKey:     "default",
 					"pod":            podName,
 					createdByKindKey: tt.podOwnerKind,
 					createdByNameKey: tt.podOwnerName,
-				}}},
+				})}},
 			})
 			labelJoiner.insertFamily(ksmstore.DDMetricsFam{
 				Name: "kube_replicaset_labels",
-				ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{
+				ListMetrics: []ksmstore.DDMetric{{Labels: ksmstore.LabelsFromMap(map[string]string{
 					namespaceKey:         "default",
 					replicaSetKey:        "web-7f59c78c9b",
 					argoRolloutLabelName: tt.argoRolloutLabel,
-				}}},
+				})}},
 			})
 
-			_, tagList := check.hostnameAndTags(tt.metricName, tt.labels, labelJoiner, labelsMapperOverride(tt.metricName))
+			_, tagList := check.hostnameAndTags(tt.metricName, ksmstore.LabelsFromMap(tt.labels), labelJoiner, labelsMapperOverride(tt.metricName))
 			assert.ElementsMatch(t, tt.expectedTags, filterAutoscalerTags(tagList))
 		})
 	}
@@ -3267,11 +3271,11 @@ func TestKSMCheck_hostnameAndTagsNodeKubeletAutoscalers(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, tagList := check.hostnameAndTags("kube_pod_status_ready", map[string]string{
+			_, tagList := check.hostnameAndTags("kube_pod_status_ready", ksmstore.LabelsFromMap(map[string]string{
 				namespaceKey: "default",
 				podKey:       test.pod,
 				uidKey:       test.uid,
-			}, labelJoiner, labelsMapperOverride("kube_pod_status_ready"))
+			}), labelJoiner, labelsMapperOverride("kube_pod_status_ready"))
 
 			assert.ElementsMatch(t, test.expectedTags, filterAutoscalerTags(tagList))
 		})
@@ -3295,25 +3299,25 @@ func TestProcessMetrics_NodeKubeletAggregatedAutoscalerTags(t *testing.T) {
 				Name: "kube_pod_info",
 				ListMetrics: []ksmstore.DDMetric{
 					{
-						Labels: map[string]string{
+						Labels: ksmstore.LabelsFromMap(map[string]string{
 							"namespace":       "default",
 							"pod":             "web-7f59c78c9b-abcde",
 							"uid":             "web-uid",
 							"node":            "node-a",
 							"created_by_kind": "ReplicaSet",
 							"created_by_name": "web-7f59c78c9b",
-						},
+						}),
 						Val: 1,
 					},
 					{
-						Labels: map[string]string{
+						Labels: ksmstore.LabelsFromMap(map[string]string{
 							"namespace":       "default",
 							"pod":             "plain-5c8d7b9f4-fghij",
 							"uid":             "plain-uid",
 							"node":            "node-a",
 							"created_by_kind": "ReplicaSet",
 							"created_by_name": "plain-5c8d7b9f4",
-						},
+						}),
 						Val: 1,
 					},
 				},
@@ -3324,7 +3328,7 @@ func TestProcessMetrics_NodeKubeletAggregatedAutoscalerTags(t *testing.T) {
 				Name: "kube_pod_container_resource_with_owner_tag_requests",
 				ListMetrics: []ksmstore.DDMetric{
 					{
-						Labels: map[string]string{
+						Labels: ksmstore.LabelsFromMap(map[string]string{
 							"namespace":  "default",
 							"pod":        "web-7f59c78c9b-abcde",
 							"uid":        "web-uid",
@@ -3332,11 +3336,11 @@ func TestProcessMetrics_NodeKubeletAggregatedAutoscalerTags(t *testing.T) {
 							"owner_kind": "Deployment",
 							"owner_name": "web",
 							"resource":   "cpu",
-						},
+						}),
 						Val: 0.1,
 					},
 					{
-						Labels: map[string]string{
+						Labels: ksmstore.LabelsFromMap(map[string]string{
 							"namespace":  "default",
 							"pod":        "plain-5c8d7b9f4-fghij",
 							"uid":        "plain-uid",
@@ -3344,7 +3348,7 @@ func TestProcessMetrics_NodeKubeletAggregatedAutoscalerTags(t *testing.T) {
 							"owner_kind": "Deployment",
 							"owner_name": "plain",
 							"resource":   "cpu",
-						},
+						}),
 						Val: 0.1,
 					},
 				},

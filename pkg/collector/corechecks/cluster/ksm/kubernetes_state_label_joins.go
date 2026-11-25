@@ -147,13 +147,18 @@ func resolveTag(labelName string, config *joinsConfig) string {
 	)
 }
 
+// maxLabelsToGetByLookup is the number of labels to get up to which a label join
+// looks them up in the labels of a metric, rather than looking the labels of
+// the metric up in the labels to get.
+const maxLabelsToGetByLookup = 4
+
 func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *joinsConfig, tree *node) {
 	current := tree
 
 	// Parse the tree from the root to the leaf and add missing nodes on the way.
 	nbLabelsToMatch := len(config.labelsToMatch)
 	for i, labelToMatch := range config.labelsToMatch {
-		labelValue, found := metric.Labels[labelToMatch]
+		labelValue, found := metric.Labels.Lookup(labelToMatch)
 		if !found {
 			return
 		}
@@ -176,10 +181,10 @@ func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *joinsConfi
 	// Fill the `labelsToAdd` on the leaf node.
 	if config.getAllLabels {
 		if current.labelsToAdd == nil {
-			current.labelsToAdd = make([]label, 0, max(0, len(metric.Labels)-len(config.labelsToMatch)))
+			current.labelsToAdd = make([]label, 0, max(0, metric.Labels.Len()-len(config.labelsToMatch)))
 		}
 
-		for labelName, labelValue := range metric.Labels {
+		for labelName, labelValue := range metric.Labels.All() {
 			isALabelToMatch := slices.Contains(config.labelsToMatch, labelName)
 			if !isALabelToMatch {
 				if ddTagKey, found := config.labelsToGet[labelName]; found {
@@ -197,10 +202,20 @@ func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *joinsConfi
 			current.labelsToAdd = make([]label, 0, len(config.labelsToGet))
 		}
 
-		for labelToGet, ddTagKey := range config.labelsToGet {
-			labelValue, found := metric.Labels[labelToGet]
-			if found && labelValue != "" {
-				current.labelsToAdd = append(current.labelsToAdd, label{ddTagKey, labelValue})
+		// A lookup in the labels is a linear scan: when the join gets more
+		// than a few labels, the labels of the metric are looked up in
+		// labelsToGet, a map, instead.
+		if len(config.labelsToGet) <= maxLabelsToGetByLookup {
+			for labelToGet, ddTagKey := range config.labelsToGet {
+				if labelValue, found := metric.Labels.Lookup(labelToGet); found && labelValue != "" {
+					current.labelsToAdd = append(current.labelsToAdd, label{ddTagKey, labelValue})
+				}
+			}
+		} else {
+			for labelName, labelValue := range metric.Labels.All() {
+				if ddTagKey, found := config.labelsToGet[labelName]; found && labelValue != "" {
+					current.labelsToAdd = append(current.labelsToAdd, label{ddTagKey, labelValue})
+				}
 			}
 		}
 	}
@@ -231,10 +246,10 @@ func (lj *labelJoiner) insertFamilies(metrics map[string][]ksmstore.DDMetricsFam
 	}
 }
 
-func (lj *labelJoiner) getLabelsToAddOne(inputLabels map[string]string, config *joinsConfig, tree *node, labelsToAdd *[]label) {
+func (lj *labelJoiner) getLabelsToAddOne(inputLabels ksmstore.Labels, config *joinsConfig, tree *node, labelsToAdd *[]label) {
 	node := tree
 	for _, labelToMatch := range config.labelsToMatch {
-		labelValue, found := inputLabels[labelToMatch]
+		labelValue, found := inputLabels.Lookup(labelToMatch)
 		if !found {
 			return
 		}
@@ -248,7 +263,7 @@ func (lj *labelJoiner) getLabelsToAddOne(inputLabels map[string]string, config *
 	*labelsToAdd = append(*labelsToAdd, node.labelsToAdd...)
 }
 
-func (lj *labelJoiner) getLabelsToAdd(inputLabels map[string]string) (labelsToAdd []label) {
+func (lj *labelJoiner) getLabelsToAdd(inputLabels ksmstore.Labels) (labelsToAdd []label) {
 	for _, metricToJoin := range lj.metricsToJoin {
 		lj.getLabelsToAddOne(inputLabels, metricToJoin.config, metricToJoin.tree, &labelsToAdd)
 	}
