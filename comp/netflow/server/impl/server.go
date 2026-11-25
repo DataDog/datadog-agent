@@ -145,7 +145,7 @@ func (s *Server) Start() error {
 	s.logger.Debugf("NetFlow Server configs (aggregator_buffer_size=%d, aggregator_flush_interval=%d, aggregator_flow_context_ttl=%d)", s.config.AggregatorBufferSize, s.config.AggregatorFlushInterval, s.config.AggregatorFlowContextTTL)
 	for _, listenerConfig := range s.config.Listeners {
 		s.logger.Infof("Starting Netflow listener for flow type %s on %s", listenerConfig.FlowType, listenerConfig.Addr())
-		listener, err := startFlowListener(listenerConfig, s.FlowAgg, s.logger)
+		listener, err := startFlowListener(listenerConfig, s.config.TemplateCacheMaxSize, s.FlowAgg, s.logger)
 		if err != nil {
 			s.logger.Warnf("Error starting listener for config (flow_type:%s, bind_Host:%s, port:%d): %s", listenerConfig.FlowType, listenerConfig.BindHost, listenerConfig.Port, err)
 			continue

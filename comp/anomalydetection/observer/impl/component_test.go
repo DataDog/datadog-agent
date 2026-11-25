@@ -154,7 +154,7 @@ anomaly_detection:
       - Gauge
       - bogus_type
 `,
-			errContains: `anomaly_detection.metrics.allowed_types: invalid metric type "bogus_type" (valid types: Unknown, Gauge, Rate, Count, MonotonicCount, Counter, Histogram, Historate, Set, Distribution, GaugeWithTimestamp, CountWithTimestamp)`,
+			errContains: `anomaly_detection.metrics.allowed_types: invalid metric type "bogus_type" (valid types: Unknown, Gauge, Rate, Count, MonotonicCount, Counter, Histogram, Historate, Set, Distribution, GaugeWithTimestamp, CountWithTimestamp, HistogramBucket)`,
 		},
 	}
 
