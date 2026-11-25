@@ -60,11 +60,42 @@ var Targets = []Target{
 	{Name: "sbom-alpine", Image: "wbitt/network-multitool:latest@sha256:db2810fe2c8d36db074eab5d98fbf861c8ed55e0786d648d3477b3de9135632e", ShortImage: "network-multitool"}, // Alpine (apk, musl), apk-owned setuid ping
 }
 
-// K8sAppDefinition deploys one Deployment per SBOM target. Each container is kept
-// alive with `tail -f /dev/null` so its image stays resident in the host
-// containerd for the Agent to scan. `sleep infinity` is not used because the
-// busybox sleep in the golang:alpine target rejects it and crash loops the pod.
-func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...pulumi.ResourceOption) (*componentskube.Workload, error) {
+// App is an SBOM target that runs its application, whose runs put its
+// packages in use.
+type App struct {
+	Target
+	// Command runs the application. The command of the image runs when it is
+	// empty.
+	Command []string
+	// CPU and Memory are the limits of the container.
+	CPU, Memory string
+}
+
+// Apps are the SBOM targets that run their application, pinned as Targets
+// are:
+//
+//	tomcat            - Debian (dpkg), the jars of Tomcat and a JRE
+//	distroless python - Debian packages listed in status.d alone, run by python3
+var Apps = []App{
+	{
+		Target: Target{Name: "sbom-tomcat", Image: "tomcat:10.1.62-jre21@sha256:465ea45da84a7414252f3b85b1aeda06e3cc09d506a9fc9f79c890dbb9d81acc", ShortImage: "tomcat"},
+		CPU:    "500m",
+		Memory: "512Mi",
+	},
+	{
+		Target:  Target{Name: "sbom-distroless-python", Image: "gcr.io/distroless/python3-debian12:latest@sha256:2fdb05402a2cf21cf78fdb3ba4c5db167241e9e498140f5bf689d7efb773731f", ShortImage: "python3-debian12"},
+		Command: []string{"python3", "-c", "import json, time\nwhile True:\n    json.dumps({})\n    time.sleep(15)"},
+		CPU:     "100m",
+		Memory:  "64Mi",
+	},
+}
+
+// K8sAppDefinition deploys one Deployment per SBOM target, and one per app of
+// apps. Each target container is kept alive with `tail -f /dev/null` so its
+// image stays resident in the host containerd for the Agent to scan. `sleep
+// infinity` is not used because the busybox sleep in the golang:alpine target
+// rejects it and crash loops the pod.
+func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, apps []App, opts ...pulumi.ResourceOption) (*componentskube.Workload, error) {
 	opts = append(opts, pulumi.Provider(kubeProvider), pulumi.Parent(kubeProvider), pulumi.DeletedWith(kubeProvider))
 
 	k8sComponent := &componentskube.Workload{}
@@ -95,49 +126,61 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 	}
 
 	for _, t := range Targets {
-		if _, err := appsv1.NewDeployment(e.Ctx(), t.Name, &appsv1.DeploymentArgs{
-			Metadata: &metav1.ObjectMetaArgs{
-				Name:      pulumi.String(t.Name),
-				Namespace: pulumi.String(Namespace),
-				Labels:    pulumi.StringMap{"app": pulumi.String(t.Name)},
-			},
-			Spec: &appsv1.DeploymentSpecArgs{
-				Replicas: pulumi.Int(1),
-				Selector: &metav1.LabelSelectorArgs{
-					MatchLabels: pulumi.StringMap{"app": pulumi.String(t.Name)},
-				},
-				Template: &corev1.PodTemplateSpecArgs{
-					Metadata: &metav1.ObjectMetaArgs{
-						Labels: pulumi.StringMap{"app": pulumi.String(t.Name)},
-					},
-					Spec: &corev1.PodSpecArgs{
-						ImagePullSecrets: imagePullSecrets,
-						Containers: corev1.ContainerArray{
-							&corev1.ContainerArgs{
-								Name:    pulumi.String("main"),
-								Image:   pulumi.String(mirroredImage(e, t.Image)),
-								Command: pulumi.StringArray{pulumi.String("tail"), pulumi.String("-f"), pulumi.String("/dev/null")},
-								Resources: &corev1.ResourceRequirementsArgs{
-									Limits: pulumi.StringMap{
-										"cpu":    pulumi.String("100m"),
-										"memory": pulumi.String("64Mi"),
-									},
-									Requests: pulumi.StringMap{
-										"cpu":    pulumi.String("10m"),
-										"memory": pulumi.String("32Mi"),
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		}, opts...); err != nil {
+		if err := newDeployment(e, App{Target: t, Command: []string{"tail", "-f", "/dev/null"}, CPU: "100m", Memory: "64Mi"}, imagePullSecrets, opts...); err != nil {
+			return nil, err
+		}
+	}
+	for _, app := range apps {
+		if err := newDeployment(e, app, imagePullSecrets, opts...); err != nil {
 			return nil, err
 		}
 	}
 
 	return k8sComponent, nil
+}
+
+// newDeployment deploys app in a Deployment of its name.
+func newDeployment(e config.Env, app App, imagePullSecrets corev1.LocalObjectReferenceArray, opts ...pulumi.ResourceOption) error {
+	container := &corev1.ContainerArgs{
+		Name:  pulumi.String("main"),
+		Image: pulumi.String(mirroredImage(e, app.Image)),
+		Resources: &corev1.ResourceRequirementsArgs{
+			Limits: pulumi.StringMap{
+				"cpu":    pulumi.String(app.CPU),
+				"memory": pulumi.String(app.Memory),
+			},
+			Requests: pulumi.StringMap{
+				"cpu":    pulumi.String("10m"),
+				"memory": pulumi.String("32Mi"),
+			},
+		},
+	}
+	if len(app.Command) > 0 {
+		container.Command = pulumi.ToStringArray(app.Command)
+	}
+	_, err := appsv1.NewDeployment(e.Ctx(), app.Name, &appsv1.DeploymentArgs{
+		Metadata: &metav1.ObjectMetaArgs{
+			Name:      pulumi.String(app.Name),
+			Namespace: pulumi.String(Namespace),
+			Labels:    pulumi.StringMap{"app": pulumi.String(app.Name)},
+		},
+		Spec: &appsv1.DeploymentSpecArgs{
+			Replicas: pulumi.Int(1),
+			Selector: &metav1.LabelSelectorArgs{
+				MatchLabels: pulumi.StringMap{"app": pulumi.String(app.Name)},
+			},
+			Template: &corev1.PodTemplateSpecArgs{
+				Metadata: &metav1.ObjectMetaArgs{
+					Labels: pulumi.StringMap{"app": pulumi.String(app.Name)},
+				},
+				Spec: &corev1.PodSpecArgs{
+					ImagePullSecrets: imagePullSecrets,
+					Containers:       corev1.ContainerArray{container},
+				},
+			},
+		},
+	}, opts...)
+	return err
 }
 
 // mirroredImage routes a docker.io image reference through the internal ECR

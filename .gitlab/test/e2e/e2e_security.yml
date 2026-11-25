@@ -31,6 +31,7 @@
         - pkg/system-probe/config/adjust_security.go
         - pkg/system-probe/config/config.go
         - pkg/util/trivy/**/*
+        - test/e2e-framework/components/datadog/apps/sbomtargets/**/*
         - test/new-e2e/tests/sbom/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
