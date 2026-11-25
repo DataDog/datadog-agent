@@ -26,9 +26,9 @@ func TestGetInstanceID(t *testing.T) {
 	expected := "ins-nad6bga0"
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		lastRequest = r
 		w.Header().Set("Content-Type", "text/plain")
 		io.WriteString(w, expected)
-		lastRequest = r
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
@@ -47,9 +47,9 @@ func TestGetHostAliases(t *testing.T) {
 	expected := "ins-nad6bga0"
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		lastRequest = r
 		w.Header().Set("Content-Type", "text/plain")
 		io.WriteString(w, expected)
-		lastRequest = r
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
