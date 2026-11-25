@@ -474,7 +474,12 @@ impl ProcessManager {
         &self,
         exit_tx: &mpsc::Sender<ExitEvent>,
     ) -> Result<ReloadResult, Status> {
-        let catalog = self.config_loader.load();
+        // A failed or stalled read keeps the current processes, not an empty catalog.
+        let catalog = self.config_loader.try_load().map_err(|err| {
+            Status::unavailable(format!(
+                "config reload refused, keeping the current processes: {err:#}"
+            ))
+        })?;
         let valid_order: Vec<String> = catalog.processes.iter().map(|pd| pd.name.clone()).collect();
         let invalid_order: Vec<String> = catalog.invalid.iter().map(|e| e.name.clone()).collect();
         let mut valid: std::collections::HashMap<String, config::ProcessConfig> = catalog
@@ -1525,6 +1530,61 @@ mod tests {
         let result = mgr.handle_stop("crit").await?;
         assert_eq!(result.state, ProcessState::Stopped);
         assert_eq!(mgr.supervisor_exit_code(), Some(0));
+        Ok(())
+    }
+
+    /// A catalog whose reads can be made to fail.
+    struct FlakyCatalog {
+        inner: Arc<MutableConfigLoader>,
+        fail: std::sync::atomic::AtomicBool,
+    }
+
+    impl ConfigLoader for FlakyCatalog {
+        fn load(&self) -> LoadedCatalog {
+            self.inner.load()
+        }
+        fn try_load(&self) -> anyhow::Result<LoadedCatalog> {
+            if self.fail.load(std::sync::atomic::Ordering::SeqCst) {
+                anyhow::bail!("catalog read stalled");
+            }
+            Ok(self.inner.load())
+        }
+        fn source(&self) -> &str {
+            self.inner.source()
+        }
+        fn location(&self) -> String {
+            self.inner.location()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_reload_with_a_stalled_catalog_keeps_the_current_set() -> anyhow::Result<()> {
+        let inner = Arc::new(MutableConfigLoader::new(vec![sleep_def("keep")]));
+        let loader = Arc::new(FlakyCatalog {
+            inner: inner.clone(),
+            fail: std::sync::atomic::AtomicBool::new(false),
+        });
+        let mgr = ProcessManager::new(loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.start(&exit_tx).await;
+
+        inner.set(vec![]);
+        loader.fail.store(true, std::sync::atomic::Ordering::SeqCst);
+        let err = match mgr.handle_reload_config(&exit_tx).await {
+            Ok(_) => panic!("a stalled read must refuse the reload"),
+            Err(err) => err,
+        };
+        assert_eq!(err.code(), tonic::Code::Unavailable);
+        let procs = mgr.processes().await;
+        assert_eq!(procs.len(), 1, "the current set must be kept");
+        assert!(
+            procs[0].is_running(),
+            "the kept process must still be running"
+        );
+        // Shutdown takes the write lock.
+        drop(procs);
+
+        mgr.shutdown().await;
         Ok(())
     }
 

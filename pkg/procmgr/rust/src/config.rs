@@ -62,6 +62,11 @@ impl LoadedCatalog {
 
 pub trait ConfigLoader: Send + Sync {
     fn load(&self) -> LoadedCatalog;
+    /// Like [`ConfigLoader::load`], but a failed or stalled read is an error, so a reload keeps
+    /// the current processes.
+    fn try_load(&self) -> Result<LoadedCatalog> {
+        Ok(self.load())
+    }
     fn source(&self) -> &str;
     fn location(&self) -> String;
 }
@@ -158,9 +163,79 @@ pub struct YamlConfigLoader {
     dir: PathBuf,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DirKind {
+    Dir,
+    NotDir,
+    DanglingLink,
+    Missing,
+}
+
+/// What `dir` is. It is absent only on `NotFound` with no dangling link in its path.
+fn classify_dir(dir: &Path) -> std::io::Result<DirKind> {
+    use std::io::ErrorKind::NotFound;
+    match std::fs::metadata(dir) {
+        Ok(meta) if meta.is_dir() => return Ok(DirKind::Dir),
+        Ok(_) => return Ok(DirKind::NotDir),
+        Err(err) if err.kind() == NotFound => {}
+        Err(err) => return Err(err),
+    }
+    // A dangling link, as the path or a parent (replaced during a package switch), is unreadable
+    // for now, not absent. Look at the deepest component that exists.
+    for candidate in dir.ancestors() {
+        match std::fs::symlink_metadata(candidate) {
+            Ok(meta) => {
+                let dangling = meta.file_type().is_symlink()
+                    && matches!(std::fs::metadata(candidate),
+                        Err(err) if err.kind() == NotFound);
+                return Ok(if dangling {
+                    DirKind::DanglingLink
+                } else {
+                    DirKind::Missing
+                });
+            }
+            Err(err) if err.kind() == NotFound => {}
+            Err(err) => return Err(err),
+        }
+    }
+    Ok(DirKind::Missing)
+}
+
 impl YamlConfigLoader {
     pub fn from_env() -> Self {
         Self { dir: config_dir() }
+    }
+
+    /// Startup loads leniently and reload strictly (see `load_configs_with`). A strict load also
+    /// fails on a non-directory or a dangling link.
+    fn load_with(&self, strict: bool) -> Result<LoadedCatalog> {
+        let owned = self.dir.clone();
+        let kind = crate::stop::bounded(&self.dir, move || classify_dir(&owned))
+            .and_then(|result| result)
+            .with_context(|| format!("cannot check config directory {}", self.dir.display()))?;
+        let dir = self.dir.display();
+        let problem = match kind {
+            DirKind::Dir => None,
+            DirKind::Missing => Some(format!("config directory {dir} does not exist")),
+            DirKind::NotDir => Some(format!("config path {dir} is not a directory")),
+            DirKind::DanglingLink => Some(format!("config path {dir} is a dangling link")),
+        };
+        if let Some(problem) = problem {
+            if strict && kind != DirKind::Missing {
+                anyhow::bail!("{problem}");
+            }
+            info!("{problem}, no processes to manage");
+            return Ok(LoadedCatalog::default());
+        }
+
+        let catalog = load_configs_with(&self.dir, strict)?;
+        info!(
+            "loaded {} process config(s) ({} invalid) from {}",
+            catalog.processes.len(),
+            catalog.invalid.len(),
+            self.dir.display()
+        );
+        Ok(catalog)
     }
 }
 
@@ -174,39 +249,17 @@ impl ConfigLoader for YamlConfigLoader {
     }
 
     fn load(&self) -> LoadedCatalog {
-        let owned = self.dir.clone();
-        match crate::stop::bounded(&self.dir, move || owned.is_dir()) {
-            Ok(true) => {}
-            Ok(false) => {
-                info!(
-                    "config directory {} does not exist, no processes to manage",
-                    self.dir.display()
-                );
-                return LoadedCatalog::default();
-            }
-            Err(err) => {
-                warn!(
-                    "cannot check config directory {}: {err}",
-                    self.dir.display()
-                );
-                return LoadedCatalog::default();
-            }
-        }
+        self.load_with(false).unwrap_or_else(|err| {
+            warn!(
+                "cannot read config directory {}: {err:#}",
+                self.dir.display()
+            );
+            LoadedCatalog::default()
+        })
+    }
 
-        let catalog = match load_configs(&self.dir) {
-            Ok(c) => c,
-            Err(e) => {
-                warn!("cannot read config directory {}: {e:#}", self.dir.display());
-                return LoadedCatalog::default();
-            }
-        };
-        info!(
-            "loaded {} process config(s) ({} invalid) from {}",
-            catalog.processes.len(),
-            catalog.invalid.len(),
-            self.dir.display()
-        );
-        catalog
+    fn try_load(&self) -> Result<LoadedCatalog> {
+        self.load_with(true)
     }
 }
 
@@ -370,6 +423,12 @@ pub fn config_dir() -> PathBuf {
 /// The process name is derived from the filename (without extension).
 /// Files that fail to parse are logged and returned as invalid catalog entries.
 pub fn load_configs(dir: &Path) -> Result<LoadedCatalog> {
+    load_configs_with(dir, false)
+}
+
+/// `strict` is the reload mode: a stalled read or an unreadable entry fails the whole load,
+/// since treating it as invalid or missing would stop a running process.
+fn load_configs_with(dir: &Path, strict: bool) -> Result<LoadedCatalog> {
     // Entries are listed and stat-ed on the helper thread, since iterating a ReadDir blocks on a
     // stalled mount. A FIFO, socket or device would block a read for good, so it is an invalid
     // entry in both modes. A failed stat leaves the entry to the read to report.
@@ -394,6 +453,10 @@ pub fn load_configs(dir: &Path) -> Result<LoadedCatalog> {
     for entry in entries {
         match entry {
             Ok(entry) => listed.push(entry),
+            Err(e) if strict => {
+                return Err(anyhow::Error::new(e)
+                    .context(format!("failed to read an entry in {}", dir.display())));
+            }
             Err(e) => warn!("skipping unreadable entry in {}: {e}", dir.display()),
         }
     }
@@ -413,7 +476,7 @@ pub fn load_configs(dir: &Path) -> Result<LoadedCatalog> {
     let mut processes = Vec::new();
     let mut invalid = Vec::new();
     for (entry, regular) in yaml_files {
-        if crate::stop::stop_requested_flag() {
+        if !strict && crate::stop::stop_requested_flag() {
             break;
         }
         let path = entry.path();
@@ -430,6 +493,7 @@ pub fn load_configs(dir: &Path) -> Result<LoadedCatalog> {
         };
         match parsed {
             Ok(config) => processes.push(ProcessDefinition { name, config }),
+            Err(e) if strict && is_stalled_read(&e) => return Err(e),
             Err(e) => {
                 let error = truncate_config_error(&format!("{e:#}"), STORED_CONFIG_ERROR_MAX_CHARS);
                 warn!("[{name}] skipping config: {error}");
@@ -458,6 +522,30 @@ pub fn load_configs(dir: &Path) -> Result<LoadedCatalog> {
     Ok(LoadedCatalog { processes, invalid })
 }
 
+/// A config read that the bounded call gave up on or could not run.
+#[derive(Debug)]
+struct UnfinishedRead(std::io::Error);
+
+impl fmt::Display for UnfinishedRead {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
+}
+
+impl std::error::Error for UnfinishedRead {}
+
+/// Whether a config read did not finish or timed out. It may succeed later, so a reload refuses
+/// it. Any other read error is an invalid entry, as a parse error is.
+fn is_stalled_read(err: &anyhow::Error) -> bool {
+    err.downcast_ref::<UnfinishedRead>().is_some()
+        || err.downcast_ref::<std::io::Error>().is_some_and(|io| {
+            matches!(
+                io.kind(),
+                std::io::ErrorKind::TimedOut | std::io::ErrorKind::Interrupted
+            )
+        })
+}
+
 fn is_yaml_name(path: &Path) -> bool {
     path.extension()
         .is_some_and(|ext| ext == "yaml" || ext == "yml")
@@ -465,13 +553,14 @@ fn is_yaml_name(path: &Path) -> bool {
 
 fn parse_config(path: &Path) -> Result<ProcessConfig> {
     let owned = path.to_path_buf();
-    let contents = crate::stop::bounded(path, move || {
+    let read = crate::stop::bounded(path, move || {
         #[cfg(test)]
         crate::stop::testing::park_if_stalled(&owned);
         std::fs::read_to_string(owned)
     })
-    .and_then(|result| result)
+    .map_err(UnfinishedRead)
     .with_context(|| format!("reading {}", path.display()))?;
+    let contents = read.with_context(|| format!("reading {}", path.display()))?;
     let config: ProcessConfig =
         serde_yaml::from_str(&contents).with_context(|| format!("parsing {}", path.display()))?;
     validate_identity(&config.identity, HostOs::CURRENT)
@@ -503,7 +592,7 @@ mod tests {
         crate::stop::testing::stall(&path);
     }
 
-    /// A FIFO entry is invalid without being opened.
+    /// A FIFO entry is invalid without being opened, at startup and on reload.
     #[cfg(unix)]
     #[test]
     fn a_fifo_entry_is_invalid_without_being_opened() {
@@ -517,26 +606,67 @@ mod tests {
         };
 
         let started = std::time::Instant::now();
-        let catalog = loader.load();
+        let reload = loader.try_load().expect("a FIFO must not fail a reload");
+        let startup = loader.load();
         assert!(
             started.elapsed() < crate::stop::CALL_DEADLINE,
             "a FIFO entry was opened"
         );
-        assert_eq!(catalog.processes.len(), 1, "the valid config must load");
-        let mut names: Vec<_> = catalog.invalid.iter().map(|e| e.name.as_str()).collect();
-        names.sort();
-        assert_eq!(names, ["blocked", "linked"]);
-        assert!(
-            catalog
-                .invalid
-                .iter()
-                .all(|e| e.error.contains("not a regular file")),
-            "{:?}",
-            catalog.invalid.iter().map(|e| &e.error).collect::<Vec<_>>()
-        );
+        for catalog in [reload, startup] {
+            assert_eq!(catalog.processes.len(), 1, "the valid config must load");
+            let mut names: Vec<_> = catalog.invalid.iter().map(|e| e.name.as_str()).collect();
+            names.sort();
+            assert_eq!(names, ["blocked", "linked"]);
+            assert!(
+                catalog
+                    .invalid
+                    .iter()
+                    .all(|e| e.error.contains("not a regular file")),
+                "{:?}",
+                catalog.invalid.iter().map(|e| &e.error).collect::<Vec<_>>()
+            );
+        }
     }
 
-    /// A stalled config file is invalid and the rest of the catalog still loads.
+    /// On reload a stalled config file fails the whole load, not just that entry.
+    #[test]
+    fn a_stalled_config_file_fails_a_reload_load() {
+        let dir = tempfile::tempdir().unwrap();
+        stalled_config(dir.path(), "blocked.yaml");
+
+        let loader = YamlConfigLoader {
+            dir: dir.path().to_path_buf(),
+        };
+        let err = match loader.try_load() {
+            Ok(_) => panic!("a stalled read must fail the reload load"),
+            Err(err) => err,
+        };
+        let unfinished = err
+            .downcast_ref::<UnfinishedRead>()
+            .expect("the stall must stay an unfinished read");
+        assert_eq!(unfinished.0.kind(), std::io::ErrorKind::TimedOut);
+    }
+
+    /// A read the bounded call could not run fails a reload. An error from the read itself does
+    /// only as `TimedOut` or `Interrupted`.
+    #[test]
+    fn only_a_read_that_did_not_finish_fails_a_reload() {
+        let kind = std::io::Error::from;
+        let would_block = || kind(std::io::ErrorKind::WouldBlock);
+        let unfinished = anyhow::Error::new(UnfinishedRead(would_block())).context("reading x");
+        assert!(is_stalled_read(&unfinished));
+        let failed = anyhow::Error::new(would_block()).context("reading x");
+        assert!(!is_stalled_read(&failed));
+        for stalled in [
+            std::io::ErrorKind::TimedOut,
+            std::io::ErrorKind::Interrupted,
+        ] {
+            let err = anyhow::Error::new(kind(stalled)).context("reading x");
+            assert!(is_stalled_read(&err), "{stalled:?} from the read can clear");
+        }
+    }
+
+    /// At startup the same stall marks the file invalid and keeps the rest of the catalog.
     #[test]
     fn a_stalled_config_file_is_invalid_at_startup() {
         let dir = tempfile::tempdir().unwrap();
@@ -553,6 +683,87 @@ mod tests {
             "the valid config must still load"
         );
         assert_eq!(catalog.invalid.len(), 1);
+    }
+
+    /// A config path that is a file reads as an empty catalog at startup, and fails a reload.
+    #[test]
+    fn a_config_path_that_is_a_file_fails_only_a_reload() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("processes.d");
+        fs::write(&file, "").unwrap();
+        let loader = YamlConfigLoader { dir: file };
+
+        assert!(
+            loader.try_load().is_err(),
+            "a reload must refuse a non-directory"
+        );
+        let catalog = loader.load();
+        assert!(catalog.processes.is_empty() && catalog.invalid.is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_dangling_config_link_fails_only_a_reload() {
+        let dir = tempfile::tempdir().unwrap();
+        let link = dir.path().join("processes.d");
+        std::os::unix::fs::symlink(dir.path().join("gone"), &link).unwrap();
+        let loader = YamlConfigLoader { dir: link };
+
+        assert!(
+            loader.try_load().is_err(),
+            "a reload must refuse a dangling link"
+        );
+        let catalog = loader.load();
+        assert!(catalog.processes.is_empty() && catalog.invalid.is_empty());
+    }
+
+    /// A dangling parent link fails a reload. A missing directory under a live link is absent.
+    #[cfg(unix)]
+    #[test]
+    fn a_dangling_parent_link_fails_only_a_reload() {
+        let root = tempfile::tempdir().unwrap();
+        let link = root.path().join("current");
+        std::os::unix::fs::symlink(root.path().join("gone"), &link).unwrap();
+        let loader = YamlConfigLoader {
+            dir: link.join("processes.d"),
+        };
+        assert!(
+            loader.try_load().is_err(),
+            "a reload must refuse a dangling parent link"
+        );
+        let catalog = loader.load();
+        assert!(catalog.processes.is_empty() && catalog.invalid.is_empty());
+
+        let real = root.path().join("real");
+        fs::create_dir(&real).unwrap();
+        let resolving = root.path().join("resolving");
+        std::os::unix::fs::symlink(&real, &resolving).unwrap();
+        let loader = YamlConfigLoader {
+            dir: resolving.join("processes.d"),
+        };
+        let catalog = loader
+            .try_load()
+            .expect("a missing directory under a resolving link is absent");
+        assert!(catalog.processes.is_empty() && catalog.invalid.is_empty());
+    }
+
+    /// A read error that does not clear on its own is an invalid entry on reload too.
+    #[test]
+    fn a_permanently_unreadable_config_is_invalid_on_reload() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("bad.yaml"), b"command: \xff\xfe\n").unwrap();
+        fs::write(dir.path().join("good.yaml"), "command: /bin/true\n").unwrap();
+        let loader = YamlConfigLoader {
+            dir: dir.path().to_path_buf(),
+        };
+
+        let catalog = match loader.try_load() {
+            Ok(catalog) => catalog,
+            Err(err) => panic!("a reload must not refuse invalid UTF-8: {err:#}"),
+        };
+        assert_eq!(catalog.processes.len(), 1);
+        assert_eq!(catalog.invalid.len(), 1);
+        assert_eq!(catalog.invalid[0].name, "bad");
     }
 
     #[test]
