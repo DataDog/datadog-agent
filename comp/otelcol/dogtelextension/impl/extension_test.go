@@ -70,7 +70,7 @@ func TestStart_StandaloneMode_TaggerDisabled(t *testing.T) {
 	ext := &dogtelExtension{
 		config:     cfg,
 		log:        logmock.New(t),
-		coreConfig: configmock.NewMockWithOverrides(t, map[string]interface{}{"otel_standalone": true}),
+		coreConfig: configmock.NewMockWithOverrides(t, map[string]interface{}{"otel_standalone": true, "enable_metadata_collection": false}),
 		serializer: serializer,
 		hostname:   hostname,
 		telemetry:  noopsimpl.GetCompatComponent(),
@@ -197,7 +197,7 @@ func TestStart_StandaloneMode_NoopSecretsWarning(t *testing.T) {
 	ext := &dogtelExtension{
 		config:     cfg,
 		log:        logmock.New(t),
-		coreConfig: configmock.NewMockWithOverrides(t, map[string]interface{}{"otel_standalone": true}),
+		coreConfig: configmock.NewMockWithOverrides(t, map[string]interface{}{"otel_standalone": true, "enable_metadata_collection": false}),
 		serializer: sz,
 		hostname:   hostname,
 		telemetry:  noopsimpl.GetCompatComponent(),
@@ -267,7 +267,7 @@ func TestStart_StandaloneMode_InitializesLivenessChannel(t *testing.T) {
 	ext := &dogtelExtension{
 		config:     cfg,
 		log:        logmock.New(t),
-		coreConfig: configmock.NewMockWithOverrides(t, map[string]interface{}{"otel_standalone": true}),
+		coreConfig: configmock.NewMockWithOverrides(t, map[string]interface{}{"otel_standalone": true, "enable_metadata_collection": false}),
 		serializer: sz,
 		hostname:   hostname,
 		telemetry:  noopsimpl.GetCompatComponent(),
