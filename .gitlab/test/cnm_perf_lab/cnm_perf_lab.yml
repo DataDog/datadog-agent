@@ -22,6 +22,13 @@ cnm-perf-lab:
   # One driver: runs queue rather than overlap, and a retry would start a second multi-hour run
   resource_group: cnm-perf-lab
   retry: 0
+  id_tokens:
+    # A job's own id_tokens replace the default ones: keep the CI identities token.
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
+    # Exchanged with dd-sts for the lab's staging API key (policy datadog-agent-cnm-perf-lab in dd-source)
+    DD_STS_OIDC_TOKEN:
+      aud: dd-sts
   variables:
     CNM_PERF_LAB_MODE: smoke # or rounds
     # release: A = latest 7.x GA, B = the anchor release, C = main's nightly, each pinned to a digest at the start.
@@ -30,6 +37,11 @@ cnm-perf-lab:
   before_script:
     - dda self dep sync -f legacy-tasks
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+    # The lab's agents report to staging with a short-lived key; the run task hands it to the driver
+    - >-
+      CNM_PERF_LAB_STAGING_API_KEY=$(curl -sf --max-time 30 -H "Authorization: Bearer $DD_STS_OIDC_TOKEN"
+      "https://dd-sts.us1.ddbuild.io/sts/datadog/exchange?policy=datadog-agent-cnm-perf-lab"
+      | python3 -c 'import json,sys;print(json.load(sys.stdin)["api_key"])') || exit $?; export CNM_PERF_LAB_STAGING_API_KEY
   script:
     - dda inv -- -e cnm-perf-lab.run --mode "$CNM_PERF_LAB_MODE" --variants "$CNM_PERF_LAB_VARIANTS"
   after_script:

@@ -26,6 +26,9 @@ CI_ROLE_EXTERNAL_ID = "ddbuild-cnm-perf-lab-ci"
 DRIVER_TAG = "cnm-perf-lab-driver"  # tag:service on the driver instance
 BUCKET = "datadog-cnm-perf-lab"
 LAB_TARBALL_KEY = "inputs/cnm-perf-lab.tgz"
+# The driver reads the agents' staging API key from this secret (JSON with api_key); the run refreshes it from
+# CNM_PERF_LAB_STAGING_API_KEY when that is set
+LAB_KEYS_SECRET = "cnm-perf-lab/staging-keys"
 RUN_COMMENT = "cnm-perf-lab run"  # prefix of the SSM command comment, to find a run in progress
 MARKER = Path("cnm-perf-lab-command-id")  # "<instance id> [<command id>]", for the cancel task
 # The driver-run.sh steps' limits plus teardown sum to about 5 h 20 min; add the driver setup
@@ -314,6 +317,13 @@ def run(
     busy = _runs_in_progress(aws, instance_id)
     if busy:
         raise Exit(f"another lab run is in progress on the driver (SSM {', '.join(busy)}); not starting", code=1)
+    staging_key = os.environ.get("CNM_PERF_LAB_STAGING_API_KEY")
+    if staging_key:
+        aws.client("secretsmanager").put_secret_value(
+            SecretId=LAB_KEYS_SECRET, SecretString=json.dumps({"api_key": staging_key})
+        )
+    else:
+        print(f"CNM_PERF_LAB_STAGING_API_KEY not set; the driver uses the key already in {LAB_KEYS_SECRET}")
     MARKER.write_text(f"{instance_id}\n")  # cancel stops the driver if no run was handed over yet
     _start_driver(aws, instance_id)
     command_id = aws.client("ssm").send_command(

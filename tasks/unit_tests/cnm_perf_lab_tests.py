@@ -162,11 +162,17 @@ class TestRun(_InTempDir):
     RUN_ID = "ci-42-smoke"
     REFS = {"A": ("ga", "datadog/agent@sha256:" + "a" * 64)}
 
-    def _expect_start(self, aws):
+    def _expect_start(self, aws, staging_key=None):
         ec2, ssm = aws.stub("ec2"), aws.stub("ssm")
         aws.stub("s3").add_response("head_object", {}, {"Bucket": lab.BUCKET, "Key": lab.LAB_TARBALL_KEY})
         ec2.add_response("describe_instances", _instances("stopped"), {"Filters": ANY})
         ssm.add_response("list_commands", {"Commands": []}, {"InstanceId": INSTANCE, "MaxResults": 50})
+        if staging_key:
+            aws.stub("secretsmanager").add_response(
+                "put_secret_value",
+                {},
+                {"SecretId": lab.LAB_KEYS_SECRET, "SecretString": json.dumps({"api_key": staging_key})},
+            )
         ec2.add_response("describe_instances", _instances("running"), {"InstanceIds": [INSTANCE]})
         ec2.add_response("describe_instances", _instances("running"), {"InstanceIds": [INSTANCE]})
         ssm.add_response(
@@ -196,13 +202,27 @@ class TestRun(_InTempDir):
         )
         aws.downloads.update({prefix + name: text for name, text in files.items()})
 
-    def _run(self, aws, **kw):
+    def _run(self, aws, env=None, **kw):
         with (
             patch.object(lab, "_Aws", return_value=aws),
             patch.object(lab, "_release_refs", return_value=self.REFS),
-            patch.dict(os.environ, {"CI_JOB_ID": "42"}),
+            patch.dict(os.environ, {"CI_JOB_ID": "42", **(env or {})}),
         ):
+            if not env:
+                os.environ.pop("CNM_PERF_LAB_STAGING_API_KEY", None)
             lab.run(MockContext(), mode="smoke", variants="release", **kw)
+
+    def test_hands_the_staging_key_to_the_driver_before_starting_it(self):
+        aws = _FakeAws()
+        self._expect_start(aws, staging_key="k" * 32)
+        invocation = {"CommandId": COMMAND, "InstanceId": INSTANCE}
+        aws.stub("ssm").add_response("get_command_invocation", {"Status": "Success"}, invocation)
+        log_key = {"Bucket": lab.BUCKET, "Key": f"runs/{self.RUN_ID}/driver.log"}
+        aws.stub("s3").add_client_error("get_object", "NoSuchKey", expected_params=log_key)
+        aws.stub("s3").add_client_error("get_object", "NoSuchKey", expected_params=log_key)
+        self._expect_results(aws, f"runs/{self.RUN_ID}/", {"EXIT_CODE": "0\n"})
+        self._run(aws, env={"CNM_PERF_LAB_STAGING_API_KEY": "k" * 32}, send_metrics=False)
+        aws.assert_done()
 
     def test_successful_run_collects_results_and_sends_metrics(self):
         aws = _FakeAws()
