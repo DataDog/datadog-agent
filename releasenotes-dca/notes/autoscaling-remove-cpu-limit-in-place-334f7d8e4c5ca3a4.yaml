@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed in-place vertical scaling of ``DatadogPodAutoscaler`` containers
+    whose ``controlledValues`` is ``CPURequestsRemoveLimitsMemoryRequestsAndLimits``.
+    The resize patch carried an invalid CPU limit of ``-1``, which Kubernetes
+    rejected, so every vertical change evicted the pods. The CPU limit is now
+    removed from the patch, and pods without a CPU limit are resized in place.
