@@ -1111,7 +1111,7 @@ replace github.com/hashicorp/vault/sdk => github.com/hashicorp/vault/sdk v0.19.1
 // Use custom Trivy fork to reduce binary size
 // Pull in replacements needed by upstream Trivy
 // Maps to Trivy fork https://github.com/DataDog/trivy/tree/djc/main-dd-0762
-replace github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.76.3-0.20261120175539-df87a6225efc
+replace github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.76.3-0.20261125100339-eea73948877d
 
 // Stub the progress UI in trivy-db; cheggaaa/pb/v3 transitively activates
 // reflect.MethodByName via text/template, defeating Go's linker DCE.
