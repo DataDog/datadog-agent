@@ -1075,6 +1075,147 @@ func TestReplayDiscoversHighInCatchupAtCurrentTick(t *testing.T) {
 	require.Equal(t, severityeventsdef.SeverityLow, listener.events[len(listener.events)-1].ToLevel)
 }
 
+func mediumTestAnomaly(ts int64, name string) observer.Anomaly {
+	anomaly := makeAnomaly("scanmw", ts, scorePtr(9))
+	anomaly.Source.Name = name
+	return anomaly
+}
+
+func TestReplayDiscoversEndedMediumAtCurrentTick(t *testing.T) {
+	cfg := highDiscoveryConfig()
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{}, listener)
+
+	s.Advance(1000)
+	s.ProcessAnomaly(mediumTestAnomaly(1000, "weak"))
+	s.Advance(1010)
+
+	require.Len(t, listener.events, 1)
+	require.Equal(t, severityeventsdef.SeverityMedium, listener.events[0].ToLevel)
+	require.EqualValues(t, 1010, listener.events[0].Timestamp)
+	require.EqualValues(t, 1000, listener.events[0].HistoricalTimestamp)
+
+	s.Advance(1011)
+	require.Len(t, listener.events, 2)
+	require.Equal(t, severityeventsdef.SeverityLow, listener.events[1].ToLevel)
+}
+
+func TestReplayDistinctMediumRenewsHoldWithoutRepeat(t *testing.T) {
+	cfg := highDiscoveryConfig()
+	cfg.CooldownSecs = 5
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{CooldownSecs: 5}, listener)
+
+	s.Advance(999)
+	s.ProcessAnomaly(mediumTestAnomaly(1000, "first"))
+	s.Advance(1000)
+	require.Len(t, listener.events, 1)
+
+	s.Advance(1001)
+	require.Len(t, listener.events, 1, "the first Medium hold must block Low")
+	s.ProcessAnomaly(mediumTestAnomaly(1002, "second"))
+	s.Advance(1002)
+	require.Len(t, listener.events, 1, "a distinct Medium period must renew without a second event")
+
+	s.Advance(1006)
+	require.Len(t, listener.events, 1, "the renewed Medium hold must still block Low")
+	s.Advance(1007)
+	require.Len(t, listener.events, 2)
+	require.Equal(t, severityeventsdef.SeverityLow, listener.events[1].ToLevel)
+}
+
+func TestReplayMediumExtendingIntoCatchupIsNotDuplicated(t *testing.T) {
+	cfg := highDiscoveryConfig()
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{}, listener)
+
+	s.Advance(1000)
+	s.ProcessAnomaly(mediumTestAnomaly(1000, "late"))
+	s.ProcessAnomaly(mediumTestAnomaly(1001, "forward"))
+	s.Advance(1010)
+
+	require.Len(t, listener.events, 1)
+	require.Equal(t, severityeventsdef.SeverityMedium, listener.events[0].ToLevel)
+	require.EqualValues(t, 1010, listener.events[0].Timestamp)
+	require.EqualValues(t, 1000, listener.events[0].HistoricalTimestamp)
+}
+
+func TestReplayMediumExtensionDoesNotRenew(t *testing.T) {
+	cfg := highDiscoveryConfig()
+	cfg.WindowSecs = 3
+	cfg.CooldownSecs = 5
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{CooldownSecs: 5}, listener)
+
+	s.Advance(999)
+	s.ProcessAnomaly(mediumTestAnomaly(1000, "first"))
+	s.Advance(1000)
+	require.Len(t, listener.events, 1)
+
+	s.Advance(1001)
+	s.ProcessAnomaly(mediumTestAnomaly(1002, "first"))
+	s.Advance(1002)
+	require.Len(t, listener.events, 1, "extending the known Medium period must not renew")
+
+	s.Advance(1005)
+	require.Len(t, listener.events, 2, "the original hold expires at its original time")
+	require.Equal(t, severityeventsdef.SeverityLow, listener.events[1].ToLevel)
+}
+
+func TestReplayMediumUpgradeProducesHigh(t *testing.T) {
+	cfg := highDiscoveryConfig()
+	cfg.WindowSecs = 3
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{}, listener)
+
+	s.Advance(999)
+	s.ProcessAnomaly(mediumTestAnomaly(1000, "weak"))
+	s.Advance(1000)
+	require.Len(t, listener.events, 1)
+	require.Equal(t, severityeventsdef.SeverityMedium, listener.events[0].ToLevel)
+
+	strong := makeAnomaly("scanmw", 1000, scorePtr(20))
+	strong.Source.Name = "weak"
+	s.ProcessAnomaly(strong)
+	s.Advance(1001)
+
+	require.Len(t, listener.events, 2)
+	require.Equal(t, severityeventsdef.SeverityHigh, listener.events[1].ToLevel)
+	require.EqualValues(t, 1001, listener.events[1].Timestamp)
+	require.EqualValues(t, 1000, listener.events[1].HistoricalTimestamp)
+}
+
+func TestReplayPrefersHighOverMediumDiscovery(t *testing.T) {
+	cfg := highDiscoveryConfig()
+	cfg.CooldownSecs = 3
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{CooldownSecs: 3}, listener)
+
+	s.Advance(1000)
+	s.ProcessAnomaly(mediumTestAnomaly(998, "medium"))
+	strong := makeAnomaly("bocpd", 1000, nil)
+	strong.Source.Name = "high"
+	s.ProcessAnomaly(strong)
+	s.Advance(1010)
+
+	require.Len(t, listener.events, 1)
+	require.Equal(t, severityeventsdef.SeverityHigh, listener.events[0].ToLevel)
+	require.EqualValues(t, 1010, listener.events[0].Timestamp)
+	require.EqualValues(t, 1000, listener.events[0].HistoricalTimestamp)
+
+	s.Advance(1011)
+	require.Len(t, listener.events, 1, "the High hold must block Low")
+	s.Advance(1013)
+	require.Len(t, listener.events, 2, "the suppressed Medium must not reappear")
+	require.Equal(t, severityeventsdef.SeverityLow, listener.events[1].ToLevel)
+}
+
 func TestClampCatchupDoesNotDeliverProvisionalHigh(t *testing.T) {
 	cfg := highDiscoveryConfig()
 	cfg.ReorderingWindowSecs = 3
@@ -1094,7 +1235,7 @@ func TestClampCatchupDoesNotDeliverProvisionalHigh(t *testing.T) {
 	// Clamping the weaker inputs to 1005 lowers the score below High.
 	slot := replaySlot(1005, len(s.replay.checkpoints))
 	require.Equal(t, severityeventsdef.SeverityMedium, s.replay.checkpoints[slot].state.level)
-	require.False(t, s.replay.recognizedHighAt(1005))
+	require.False(t, s.replay.recognizedAt(1005, severityeventsdef.SeverityHigh))
 	for _, evt := range listener.events {
 		require.NotEqual(t, severityeventsdef.SeverityHigh, evt.ToLevel)
 	}
@@ -1201,7 +1342,7 @@ func TestScorerChronologicalBaseline(t *testing.T) {
 
 	// Zero cooldown exposes the raw severity transitions, including hysteresis.
 	require.Equal(t, []severityeventsdef.SeverityEvent{
-		{Timestamp: 1000, FromLevel: severityeventsdef.SeverityLow, ToLevel: severityeventsdef.SeverityMedium, Direction: severityeventsdef.SeverityEventEscalation},
+		{Timestamp: 1000, HistoricalTimestamp: 1000, FromLevel: severityeventsdef.SeverityLow, ToLevel: severityeventsdef.SeverityMedium, Direction: severityeventsdef.SeverityEventEscalation},
 		{Timestamp: 1001, HistoricalTimestamp: 1001, FromLevel: severityeventsdef.SeverityMedium, ToLevel: severityeventsdef.SeverityHigh, Direction: severityeventsdef.SeverityEventEscalation},
 		{Timestamp: 1003, FromLevel: severityeventsdef.SeverityHigh, ToLevel: severityeventsdef.SeverityMedium, Direction: severityeventsdef.SeverityEventDeescalation},
 		{Timestamp: 1006, FromLevel: severityeventsdef.SeverityMedium, ToLevel: severityeventsdef.SeverityLow, Direction: severityeventsdef.SeverityEventDeescalation},
@@ -2188,6 +2329,81 @@ func TestPendingEvents_EpisodeStartedIncludesContributors(t *testing.T) {
 	if contributors[0].Handle != handle || contributors[0].Weight != 3 || contributors[0].Share != 1 {
 		t.Errorf("unexpected contributor: %+v", contributors[0])
 	}
+}
+
+func TestPendingEventsHistoricalMediumThreshold(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.CorrelationEvents = true
+	cfg.CorrelationEventThreshold = "medium"
+	cfg.ReorderingWindowSecs = 600
+	s := newScorerWithTelemetry(cfg)
+
+	s.Advance(1000)
+	s.ProcessAnomaly(mediumTestAnomaly(1000, "historical"))
+	s.Advance(1010)
+
+	events := s.PendingEvents()
+	require.Len(t, events, 1)
+	require.Equal(t, observer.CorrelatorEventEpisodeStarted, events[0].Kind)
+	require.Equal(t, severityeventsdef.SeverityMedium, events[0].ToLevel)
+	require.EqualValues(t, 1010, events[0].Timestamp)
+	require.EqualValues(t, 1000, events[0].HistoricalTimestamp)
+	require.Len(t, s.ActiveCorrelations(), 1)
+
+	s.Advance(1011)
+	events = s.PendingEvents()
+	require.Len(t, events, 1)
+	require.Equal(t, observer.CorrelatorEventEpisodeEnded, events[0].Kind)
+	require.Empty(t, s.ActiveCorrelations())
+}
+
+func TestHistoricalMediumUpgradeDoesNotReopenMediumEpisode(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.CorrelationEvents = true
+	cfg.CorrelationEventThreshold = "medium"
+	cfg.ReorderingWindowSecs = 600
+	s := newScorerWithTelemetry(cfg)
+
+	s.Advance(1000)
+	s.ProcessAnomaly(mediumTestAnomaly(1000, "historical"))
+	s.Advance(1010)
+	require.Len(t, s.PendingEvents(), 1)
+	require.Len(t, s.ActiveCorrelations(), 1)
+
+	strong := makeAnomaly("scanmw", 1000, scorePtr(20))
+	strong.Source.Name = "historical"
+	s.ProcessAnomaly(strong)
+	s.Advance(1011)
+	require.Empty(t, s.PendingEvents(), "Medium to High must not open a second episode")
+	require.Len(t, s.ActiveCorrelations(), 1)
+
+	s.Advance(1012)
+	events := s.PendingEvents()
+	require.Len(t, events, 1)
+	require.Equal(t, observer.CorrelatorEventEpisodeEnded, events[0].Kind)
+	require.Equal(t, severityeventsdef.SeverityHigh, events[0].FromLevel)
+}
+
+func TestHistoricalMediumReaderAndRenewal(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.ReorderingWindowSecs = 600
+	cfg.CooldownSecs = 5
+	s := newScorerWithTelemetry(cfg)
+	readerSub, err := s.SubscribeSeverityEventsReader(severityeventsdef.SeverityEventsConfiguration{
+		CooldownSecs: cfg.CooldownSecs,
+	})
+	require.NoError(t, err)
+	defer readerSub.Unsubscribe()
+
+	s.Advance(999)
+	s.ProcessAnomaly(mediumTestAnomaly(1000, "first"))
+	s.Advance(1000)
+	require.Equal(t, severityeventsdef.SeverityMedium, readerSub.Reader.GetSeverity())
+
+	s.Advance(1001)
+	s.ProcessAnomaly(mediumTestAnomaly(1002, "second"))
+	s.Advance(1002)
+	require.Equal(t, severityeventsdef.SeverityMedium, readerSub.Reader.GetSeverity())
 }
 
 // TestPendingEvents_EpisodeEnded verifies that PendingEvents returns an EpisodeEnded
