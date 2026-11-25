@@ -4,6 +4,11 @@ extensions:
     tagger_server_port: 15555
     tagger_server_addr: "0.0.0.0"
     enable_metadata_collection: true
+    # Send the host aliases every minute, the shortest accepted interval,
+    # instead of 5, 15, then every 30 minutes: the tests that flush fakeintake
+    # would otherwise discard them, and a test asserting the otel-agent sends
+    # none would have to wait for its next payload.
+    metadata_interval: 60
   pprof:
   health_check:
   zpages:
