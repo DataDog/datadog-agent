@@ -27,16 +27,21 @@ static __always_inline bool normalize_tuple(conn_tuple_t *t) {
         return false;
     }
 
-    if ((!is_ephemeral_port(t->sport) && is_ephemeral_port(t->dport)) || t->dport > t->sport) {
-        // flip the tuple if:
-        // 1) the tuple is currently in the (server, client) format;
-        // 2) unlikely: if both ports are in the same range we ensure that sport > dport to make
-        // this function return a deterministic result for a given pair of ports;
+    // flip the tuple if:
+    // 1) the tuple is currently in the (server, client) format;
+    // 2) unlikely: if both ports are in the same range we ensure that sport > dport to make
+    // this function return a deterministic result for a given pair of ports;
+    // 3) rare: if the ports are equal we ensure that saddr > daddr, for the same reason. Without
+    // it both directions of an equal-port connection keep their own orientation and normalize
+    // to different keys.
+    // The equal-port check comes last, so the addresses are only compared when the ports match.
+    bool flip = (!is_ephemeral_port(t->sport) && is_ephemeral_port(t->dport)) || t->dport > t->sport ||
+                (t->sport == t->dport &&
+                 (t->daddr_h > t->saddr_h || (t->daddr_h == t->saddr_h && t->daddr_l > t->saddr_l)));
+    if (flip) {
         flip_tuple(t);
-        return true;
     }
-
-    return false;
+    return flip;
 }
 
 #endif

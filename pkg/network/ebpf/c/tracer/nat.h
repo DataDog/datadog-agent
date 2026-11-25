@@ -34,8 +34,9 @@ static __always_inline bool conntrack_entry_maps_back(conntrack_tuple_t *other, 
 
 // get_skb_tuple finds the tuple the protocol classifier saw for a socket whose packets were NAT'd. sock_tup is the
 // socket's tuple, netns included; norm_sock_tup is the same tuple normalized, without netns and pid. On success
-// skb_tup holds the packets' tuple, normalized, without netns and pid.
-static __always_inline bool get_skb_tuple(conn_tuple_t *sock_tup, conn_tuple_t *norm_sock_tup, conn_tuple_t *skb_tup) {
+// skb_tup holds the packets' tuple, normalized, without netns and pid, and, unless flipped is NULL, flipped says whether
+// normalizing it flipped it from the socket's side (the socket's end as the source).
+static __always_inline bool get_skb_tuple(conn_tuple_t *sock_tup, conn_tuple_t *norm_sock_tup, conn_tuple_t *skb_tup, bool *flipped) {
     __u64 mode = nat_lookup_mode();
     if (mode == NAT_LOOKUP_SKB_CACHE) {
         goto skb_cache;
@@ -64,7 +65,10 @@ static __always_inline bool get_skb_tuple(conn_tuple_t *sock_tup, conn_tuple_t *
         skb_tup->sport = key.dport;
         skb_tup->dport = key.sport;
         skb_tup->metadata = sock_tup->metadata;
-        normalize_tuple(skb_tup);
+        bool f = normalize_tuple(skb_tup);
+        if (flipped) {
+            *flipped = f;
+        }
         return true;
     }
 
@@ -73,13 +77,17 @@ static __always_inline bool get_skb_tuple(conn_tuple_t *sock_tup, conn_tuple_t *
     }
 
 skb_cache:
-    // without the conntracker's map, the net_dev_queue probe recorded the mapping
+    // without the conntracker's map, the net_dev_queue probe recorded the mapping, with the packets' tuple as it left
+    // the socket
     conn_tuple_t *cached = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, norm_sock_tup);
     if (!cached) {
         return false;
     }
     *skb_tup = *cached;
-    normalize_tuple(skb_tup);
+    bool f = normalize_tuple(skb_tup);
+    if (flipped) {
+        *flipped = f;
+    }
     return true;
 }
 
