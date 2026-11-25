@@ -114,11 +114,6 @@ LABEL org.opencontainers.image.title="Otel Agent"
 # Copy the built OTel agent from the builder stage
 COPY --from=builder /workspace/datadog-agent/bin/otel-agent/otel-agent /opt/datadog-agent/embedded/bin/otel-agent
 COPY --from=builder /workspace/datadog-agent/bin/otel-agent/dist/otel-config.yaml /etc/datadog-agent/otel-config.yaml
-# secret-generic-connector, run to resolve ENC[] handles with secret_backend_type. The
-# secrets component looks for it at this hard-coded path. The source directory is empty
-# when the base image already ships it (FIPS); the check in each final stage below fails
-# the build if neither provides it, or if it can't start.
-COPY --from=builder /workspace/datadog-agent/bin/secret-generic-connector/ /opt/datadog-agent/embedded/bin/
 # Find all directories and files in /etc with world-writable permissions and remove write permissions for group and others
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 
@@ -133,9 +128,14 @@ CMD ["run", "--config", "file:/etc/datadog-agent/otel-config.yaml"]
 
 # ------------------------------
 # Final images: release-fips, built on the FIPS Agent image, and release (the default)
+#
+# secret-generic-connector is run to resolve ENC[] handles with secret_backend_type, from
+# the hard-coded path below. Each final stage checks that it is there and can start.
 # ------------------------------
 
 FROM release-common AS release-fips
+# Keep the FIPS connector the base image ships: never copy the one from the builder
+# stage, which is not a FIPS build when built from source.
 # The FIPS connector loads OpenSSL at runtime and, having no RPATH, gets the system
 # libcrypto, which can't enable FIPS mode on its own: the connector panics on start.
 # Point OpenSSL at the Agent's embedded configuration and FIPS provider, as the core
@@ -146,4 +146,5 @@ ENV OPENSSL_CONF=/opt/datadog-agent/embedded/ssl/openssl.cnf \
 RUN /opt/datadog-agent/embedded/bin/secret-generic-connector --version
 
 FROM release-common AS release
+COPY --from=builder /workspace/datadog-agent/bin/secret-generic-connector/ /opt/datadog-agent/embedded/bin/
 RUN /opt/datadog-agent/embedded/bin/secret-generic-connector --version
