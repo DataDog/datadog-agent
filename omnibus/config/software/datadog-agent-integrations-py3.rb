@@ -58,7 +58,8 @@ build do
   if fips_mode?
     if linux_target?
       # Raises unless every OpenSSL library that `so` loads, directly or through its dependencies, is the Agent's
-      # own copy in `embedded/lib`.
+      # own copy in `embedded/lib`. Call it with `instance_exec` from inside a `block`: `shellout!` is only
+      # available on the builder that runs blocks, not in the context where this lambda is defined.
       agent_lib_dir = "#{install_dir}/embedded/lib"
       verify_agent_openssl = lambda do |so|
         resolved = shellout!("ldd #{so}").stdout.scan(/^\s*(lib(?:ssl|crypto)\S*) => (\S+)/)
@@ -76,7 +77,7 @@ build do
         libssl_matches = Dir.glob("#{cryptography_folder}.libs/libssl-*.so.3")
         libcrypto_matches = Dir.glob("#{cryptography_folder}.libs/libcrypto-*.so.3")
         if libssl_matches.empty? && libcrypto_matches.empty?
-          verify_agent_openssl.call(so_to_patch)
+          instance_exec(so_to_patch, &verify_agent_openssl)
           next
         end
         raise "expected exactly one match for 'libssl-*.so.3' but got: #{libssl_matches}" if libssl_matches.size != 1
@@ -103,7 +104,7 @@ build do
           Dir.glob("#{psycopg_folder}.libs/libpq-*.so*").fetch(0),
         ]
         if libssl_matches.empty? && libcrypto_matches.empty?
-          sos_to_patch.each { |so| verify_agent_openssl.call(so) }
+          sos_to_patch.each { |so| instance_exec(so, &verify_agent_openssl) }
           next
         end
         raise "expected exactly one match for 'libssl-*.so.3' but got: #{libssl_matches}" if libssl_matches.size != 1
