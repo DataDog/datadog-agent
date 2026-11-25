@@ -40,7 +40,7 @@ func newTestCheck(t *testing.T, leader func() (bool, error)) (*Check, *mocksende
 
 	submit := func(e event.Event) { c.send(e) }
 	c.kueue = newKueueEvents(newTestTagger(t, nil), newTestIndex(), started, submit)
-	c.kueue.now = func() time.Time { return after(1000) }
+	c.kueue.now = func() time.Time { return afterSeconds(1000) }
 	return c, sender
 }
 
@@ -51,7 +51,7 @@ func setKueue(w *kueueView) workloadmeta.Event {
 
 func TestRunSendsEventsOfQueuedUpdatesWhenLeader(t *testing.T) {
 	c, sender := newTestCheck(t, func() (bool, error) { return true, nil })
-	c.queue = []workloadmeta.Event{setKueue(kueueWorkload(after(5)))}
+	c.queue = []workloadmeta.Event{setKueue(kueueWorkload(afterSeconds(5)))}
 
 	require.NoError(t, c.Run())
 
@@ -64,7 +64,7 @@ func TestRunKeepsStateButSendsNothingWhenFollower(t *testing.T) {
 	leader := false
 	c, sender := newTestCheck(t, func() (bool, error) { return leader, nil })
 
-	c.queue = []workloadmeta.Event{setKueue(kueueWorkload(after(5)))}
+	c.queue = []workloadmeta.Event{setKueue(kueueWorkload(afterSeconds(5)))}
 	require.NoError(t, c.Run())
 	sender.AssertNumberOfCalls(t, "Event", 0)
 	require.Contains(t, c.kueue.states, "uid-1")
@@ -72,7 +72,7 @@ func TestRunKeepsStateButSendsNothingWhenFollower(t *testing.T) {
 	// After taking the lead, only what changed since is reported, not the
 	// creation that the previous leader already reported.
 	leader = true
-	c.queue = []workloadmeta.Event{setKueue(kueueWorkload(after(5), kueueCondition("Finished", "True", "Succeeded", after(30))))}
+	c.queue = []workloadmeta.Event{setKueue(kueueWorkload(afterSeconds(5), kueueCondition("Finished", "True", "Succeeded", afterSeconds(30))))}
 	require.NoError(t, c.Run())
 	sender.AssertNumberOfCalls(t, "Event", 1)
 }
@@ -89,7 +89,7 @@ func TestIsLeaderIsFalseWithoutErrorWhenLeaderElectionIsOff(t *testing.T) {
 func TestRunHandlesUpdatesAsAFollowerWhenTheLeaderIsUnknown(t *testing.T) {
 	failure := errors.New("no leader election")
 	c, sender := newTestCheck(t, func() (bool, error) { return false, failure })
-	c.queue = []workloadmeta.Event{setKueue(kueueWorkload(after(5)))}
+	c.queue = []workloadmeta.Event{setKueue(kueueWorkload(afterSeconds(5)))}
 
 	err := c.Run()
 
@@ -101,7 +101,7 @@ func TestRunHandlesUpdatesAsAFollowerWhenTheLeaderIsUnknown(t *testing.T) {
 	// Once the leader is known, only what changes after is sent: the creation
 	// was recorded and is not reported.
 	c.leader = func() (bool, error) { return true, nil }
-	c.queue = []workloadmeta.Event{setKueue(kueueWorkload(after(5), kueueCondition("Finished", "True", "Succeeded", after(30))))}
+	c.queue = []workloadmeta.Event{setKueue(kueueWorkload(afterSeconds(5), kueueCondition("Finished", "True", "Succeeded", afterSeconds(30))))}
 	require.NoError(t, c.Run())
 	sender.AssertNumberOfCalls(t, "Event", 1)
 	assert.Empty(t, c.queue)
@@ -114,7 +114,7 @@ func TestDedupeTagsKeepsFirstOccurrences(t *testing.T) {
 
 func TestRunForgetsUnsetWorkloads(t *testing.T) {
 	c, _ := newTestCheck(t, func() (bool, error) { return true, nil })
-	w := kueueWorkload(after(5))
+	w := kueueWorkload(afterSeconds(5))
 	c.queue = []workloadmeta.Event{setKueue(w)}
 	require.NoError(t, c.Run())
 	require.Contains(t, c.kueue.states, "uid-1")
@@ -142,7 +142,7 @@ func TestReceiveQueuesAndAcknowledgesBundles(t *testing.T) {
 	go func() { c.receive(updates); close(done) }()
 
 	ack := make(chan struct{})
-	updates <- workloadmeta.EventBundle{Ch: ack, Events: []workloadmeta.Event{setKueue(kueueWorkload(after(5)))}}
+	updates <- workloadmeta.EventBundle{Ch: ack, Events: []workloadmeta.Event{setKueue(kueueWorkload(afterSeconds(5)))}}
 	select {
 	case <-ack:
 	case <-time.After(5 * time.Second):
@@ -268,7 +268,7 @@ func TestConfigureSubscribesToTheKindsWithEventsOn(t *testing.T) {
 
 			// A bundle sent by the store is acknowledged and reaches the next run.
 			ack := make(chan struct{})
-			wmeta.updates <- workloadmeta.EventBundle{Ch: ack, Events: []workloadmeta.Event{setKueue(kueueWorkload(after(5)))}}
+			wmeta.updates <- workloadmeta.EventBundle{Ch: ack, Events: []workloadmeta.Event{setKueue(kueueWorkload(afterSeconds(5)))}}
 			select {
 			case <-ack:
 			case <-time.After(5 * time.Second):

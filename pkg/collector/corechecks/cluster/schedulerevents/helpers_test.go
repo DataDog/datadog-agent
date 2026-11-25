@@ -18,10 +18,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
-var (
-	started = time.Date(2026, 11, 19, 10, 0, 0, 0, time.UTC)
-	after   = func(seconds int) time.Time { return started.Add(time.Duration(seconds) * time.Second) }
-)
+var started = time.Date(2026, 11, 19, 10, 0, 0, 0, time.UTC)
+
+// afterSeconds returns the instant that is the given number of seconds after started.
+func afterSeconds(seconds int) time.Time {
+	return started.Add(time.Duration(seconds) * time.Second)
+}
 
 // failingTagger is a tagger whose lookups fail. Only Tag is used by the events.
 type failingTagger struct {

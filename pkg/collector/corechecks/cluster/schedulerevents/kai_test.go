@@ -53,7 +53,7 @@ func newTestKAI(t *testing.T, evictEvents []corev1.Event) (*kaiEvents, *collecte
 	kai := newKAIEvents(newTestIndex(), started, out.submit, func(context.Context, string) ([]corev1.Event, error) {
 		return evictEvents, nil
 	})
-	kai.now = func() time.Time { return after(1000) }
+	kai.now = func() time.Time { return afterSeconds(1000) }
 	return kai, out
 }
 
@@ -61,12 +61,12 @@ func TestKAIPodGroupThatExistedBeforeStartIsOnlyRecorded(t *testing.T) {
 	kai, out := newTestKAI(t, nil)
 
 	existing := podGroup(started.Add(-time.Hour))
-	existing.LastStartTime = after(-60)
+	existing.LastStartTime = afterSeconds(-60)
 	kai.set(existing, true)
 	assert.Empty(t, out.events)
 
 	restarted := podGroup(started.Add(-time.Hour))
-	restarted.LastStartTime = after(20)
+	restarted.LastStartTime = afterSeconds(20)
 	kai.set(restarted, true)
 	assert.Equal(t, []string{"kai.podgroup.admitted"}, out.types())
 }
@@ -74,9 +74,9 @@ func TestKAIPodGroupThatExistedBeforeStartIsOnlyRecorded(t *testing.T) {
 func TestKAICreatedAndPendingWithReasons(t *testing.T) {
 	kai, out := newTestKAI(t, nil)
 
-	pg := podGroup(after(5))
+	pg := podGroup(afterSeconds(5))
 	pg.SchedulingConditions = []podGroupCondition{
-		unschedulable("gpu", after(6),
+		unschedulable("gpu", afterSeconds(6),
 			podGroupExplanation{Reason: "OverLimit", Message: "queue limit reached"},
 			podGroupExplanation{Reason: "NodeSelector", Message: "no matching node"},
 		),
@@ -105,7 +105,7 @@ func TestKAIPendingTextDoesNotEndWithRepeatedPeriods(t *testing.T) {
 	pg := podGroup(started.Add(-time.Hour))
 	kai.set(pg, true)
 	// The message KAI gave on a real cluster ends with two periods.
-	condition := unschedulable("gpu", after(6))
+	condition := unschedulable("gpu", afterSeconds(6))
 	condition.Message = "NonPreemptibleOverQuota: Non-preemptible workload is over quota. Use a preemptible workload to go over quota.."
 	pg.SchedulingConditions = []podGroupCondition{condition}
 	kai.set(pg, true)
@@ -120,12 +120,12 @@ func TestKAIPendingIsNotRepeatedWhileTheMessageChanges(t *testing.T) {
 	pg := podGroup(started.Add(-time.Hour))
 	kai.set(pg, true)
 
-	pg.SchedulingConditions = []podGroupCondition{unschedulable("gpu", after(6))}
+	pg.SchedulingConditions = []podGroupCondition{unschedulable("gpu", afterSeconds(6))}
 	kai.set(pg, true)
 	require.Len(t, out.events, 1)
 
 	// KAI resets the transition time when only the message changes.
-	pg.SchedulingConditions = []podGroupCondition{unschedulable("gpu", after(9))}
+	pg.SchedulingConditions = []podGroupCondition{unschedulable("gpu", afterSeconds(9))}
 	kai.set(pg, true)
 	assert.Len(t, out.events, 1)
 }
@@ -134,11 +134,11 @@ func TestKAIPendingAgainAfterANewStart(t *testing.T) {
 	kai, out := newTestKAI(t, nil)
 
 	pg := podGroup(started.Add(-time.Hour))
-	pg.SchedulingConditions = []podGroupCondition{unschedulable("gpu", after(-100))}
+	pg.SchedulingConditions = []podGroupCondition{unschedulable("gpu", afterSeconds(-100))}
 	kai.set(pg, true)
 
-	pg.LastStartTime = after(10)
-	pg.SchedulingConditions = []podGroupCondition{unschedulable("gpu", after(20))}
+	pg.LastStartTime = afterSeconds(10)
+	pg.SchedulingConditions = []podGroupCondition{unschedulable("gpu", afterSeconds(20))}
 	kai.set(pg, true)
 
 	// The condition came back at 20s, after the start at 10s, so the events follow that order.
@@ -148,9 +148,9 @@ func TestKAIPendingAgainAfterANewStart(t *testing.T) {
 func TestKAIAdmittedWaitCountsFromCreation(t *testing.T) {
 	kai, out := newTestKAI(t, nil)
 
-	pg := podGroup(after(5))
+	pg := podGroup(afterSeconds(5))
 	kai.set(pg, true)
-	pg.LastStartTime = after(45)
+	pg.LastStartTime = afterSeconds(45)
 	kai.set(pg, true)
 
 	require.Equal(t, []string{"kai.podgroup.created", "kai.podgroup.admitted"}, out.types())
@@ -161,11 +161,11 @@ func TestKAIAdmittedAfterEvictionWaitsFromTheEviction(t *testing.T) {
 	kai, out := newTestKAI(t, nil)
 
 	pg := podGroup(started.Add(-time.Hour))
-	pg.LastStartTime = after(-300)
+	pg.LastStartTime = afterSeconds(-300)
 	kai.set(pg, true)
 
-	pg.LastEvictionTime = after(10)
-	pg.LastStartTime = after(70)
+	pg.LastEvictionTime = afterSeconds(10)
+	pg.LastStartTime = afterSeconds(70)
 	kai.set(pg, true)
 
 	require.Equal(t, []string{"kai.podgroup.evicted", "kai.podgroup.admitted"}, out.types())
@@ -188,15 +188,15 @@ func TestKAIEvictedWithDetailsFromTheEvictEvent(t *testing.T) {
 		kaiEvictorNamespaceAnnotation: "other",
 	}
 	kai, out := newTestKAI(t, []corev1.Event{
-		evictEvent("uid-1", after(100), annotations, "Preempted by big-job"), // belongs to an earlier eviction
-		evictEvent("uid-2", after(20), annotations, "Another PodGroup"),      // another PodGroup
-		evictEvent("uid-1", after(20), nil, "Combined event"),                // without KAI annotations
-		evictEvent("uid-1", after(20), annotations, "Evicted to make room."), // the match
+		evictEvent("uid-1", afterSeconds(100), annotations, "Preempted by big-job"), // belongs to an earlier eviction
+		evictEvent("uid-2", afterSeconds(20), annotations, "Another PodGroup"),      // another PodGroup
+		evictEvent("uid-1", afterSeconds(20), nil, "Combined event"),                // without KAI annotations
+		evictEvent("uid-1", afterSeconds(20), annotations, "Evicted to make room."), // the match
 	})
 
 	pg := podGroup(started.Add(-time.Hour))
 	kai.set(pg, true)
-	pg.LastEvictionTime = after(20)
+	pg.LastEvictionTime = afterSeconds(20)
 	kai.set(pg, true)
 
 	require.Len(t, out.events, 1)
@@ -211,7 +211,7 @@ func TestKAIEvictedWithoutMatchingEvictEvent(t *testing.T) {
 
 	pg := podGroup(started.Add(-time.Hour))
 	kai.set(pg, true)
-	pg.LastEvictionTime = after(20)
+	pg.LastEvictionTime = afterSeconds(20)
 	kai.set(pg, true)
 
 	require.Len(t, out.events, 1)
@@ -227,7 +227,7 @@ func TestKAIEvictEventListFailureDoesNotStopTheEvent(t *testing.T) {
 
 	pg := podGroup(started.Add(-time.Hour))
 	kai.set(pg, true)
-	pg.LastEvictionTime = after(20)
+	pg.LastEvictionTime = afterSeconds(20)
 	kai.set(pg, true)
 
 	require.Len(t, out.events, 1)
@@ -237,15 +237,15 @@ func TestKAIEvictEventListFailureDoesNotStopTheEvent(t *testing.T) {
 func TestKAIFollowerRecordsStateWithoutEvents(t *testing.T) {
 	kai, out := newTestKAI(t, nil)
 
-	pg := podGroup(after(5))
-	pg.LastStartTime = after(10)
+	pg := podGroup(afterSeconds(5))
+	pg.LastStartTime = afterSeconds(10)
 	kai.set(pg, false)
 	assert.Empty(t, out.events)
 
 	kai.set(pg, true)
 	assert.Empty(t, out.events)
 
-	pg.LastEvictionTime = after(30)
+	pg.LastEvictionTime = afterSeconds(30)
 	kai.set(pg, true)
 	assert.Equal(t, []string{"kai.podgroup.evicted"}, out.types())
 }
@@ -253,14 +253,14 @@ func TestKAIFollowerRecordsStateWithoutEvents(t *testing.T) {
 func TestKAIDefaultNodePoolFromLabel(t *testing.T) {
 	kai, out := newTestKAI(t, nil)
 
-	pg := podGroup(after(5))
+	pg := podGroup(afterSeconds(5))
 	pg.Labels = map[string]string{kaiNodePoolLabel: "pool-b"}
 	kai.set(pg, true)
 
 	require.Len(t, out.events, 1)
 	requireTag(t, out.events[0], "kai_nodepool:pool-b")
 
-	other := podGroup(after(6))
+	other := podGroup(afterSeconds(6))
 	other.UID = "uid-2"
 	kai.set(other, true)
 	requireTag(t, out.events[1], "kai_nodepool:default")
@@ -268,7 +268,7 @@ func TestKAIDefaultNodePoolFromLabel(t *testing.T) {
 
 func TestKAIUnsetForgetsThePodGroup(t *testing.T) {
 	kai, out := newTestKAI(t, nil)
-	kai.set(podGroup(after(5)), true)
+	kai.set(podGroup(afterSeconds(5)), true)
 	require.Len(t, out.events, 1)
 
 	kai.unset("uid-1")
@@ -281,11 +281,11 @@ func TestKAIPendingOnSeveralNodePoolsIsSentInNodePoolOrder(t *testing.T) {
 	// Map iteration order is random, so repeat to catch an unsorted result.
 	for i := 0; i < 20; i++ {
 		kai, out := newTestKAI(t, nil)
-		pg := podGroup(after(5))
+		pg := podGroup(afterSeconds(5))
 		pg.SchedulingConditions = []podGroupCondition{
-			unschedulable("pool-c", after(6)),
-			unschedulable("pool-a", after(6)),
-			unschedulable("pool-b", after(6)),
+			unschedulable("pool-c", afterSeconds(6)),
+			unschedulable("pool-a", afterSeconds(6)),
+			unschedulable("pool-b", afterSeconds(6)),
 		}
 
 		kai.set(pg, true)
@@ -325,7 +325,7 @@ func TestKAIPodGroupCreatedInTheStartSecondIsReported(t *testing.T) {
 // without details, and that the next batch lists again.
 func TestKAIEvictLookupsShareOneBudgetPerBatch(t *testing.T) {
 	out := &collected{}
-	clock := after(1000)
+	clock := afterSeconds(1000)
 	var listed []string
 	var deadlines []time.Duration
 	kai := newKAIEvents(newTestIndex(), started, out.submit, func(ctx context.Context, namespace string) ([]corev1.Event, error) {
@@ -342,7 +342,7 @@ func TestKAIEvictLookupsShareOneBudgetPerBatch(t *testing.T) {
 		pg := podGroup(started.Add(-time.Hour))
 		pg.UID, pg.Namespace, pg.Name = "uid-"+name, namespace, name
 		kai.set(pg, true)
-		pg.LastEvictionTime = after(20)
+		pg.LastEvictionTime = afterSeconds(20)
 		kai.set(pg, true)
 	}
 	evict("ns-a", "a")
@@ -361,7 +361,7 @@ func TestKAIEvictLookupsShareOneBudgetPerBatch(t *testing.T) {
 
 func TestKAIEvictLookupUsesWhatIsLeftOfTheBudget(t *testing.T) {
 	out := &collected{}
-	clock := after(1000)
+	clock := afterSeconds(1000)
 	var timeouts []time.Duration
 	kai := newKAIEvents(newTestIndex(), started, out.submit, func(ctx context.Context, _ string) ([]corev1.Event, error) {
 		deadline, _ := ctx.Deadline()
