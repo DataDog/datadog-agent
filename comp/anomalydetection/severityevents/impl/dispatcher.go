@@ -48,7 +48,7 @@ func (d *Dispatcher) DeliverInitial(sec int64, level severityeventsdef.SeverityL
 		ToLevel:   level,
 		Direction: severityeventsdef.SeverityEventEscalation,
 	}
-	if eventFilterMatches(d.filter, evt) {
+	if EventFilterMatches(d.filter, evt) {
 		d.cooldownStartedAt = sec
 		d.listener.OnSeverityTransition(evt)
 	}
@@ -92,7 +92,7 @@ func (d *Dispatcher) transition(sec int64, next severityeventsdef.SeverityLevel,
 	d.lastSec = sec
 	d.cooldownStartedAt = sec
 
-	if eventFilterMatches(d.filter, evt) {
+	if EventFilterMatches(d.filter, evt) {
 		d.listener.OnSeverityTransition(evt)
 	}
 }
@@ -111,7 +111,8 @@ func eventDirection(from, to severityeventsdef.SeverityLevel) severityeventsdef.
 	return severityeventsdef.SeverityEventDeescalation
 }
 
-func eventFilterMatches(f severityeventsdef.SeverityEventFilter, evt severityeventsdef.SeverityEvent) bool {
+// EventFilterMatches reports whether evt matches filter.
+func EventFilterMatches(f severityeventsdef.SeverityEventFilter, evt severityeventsdef.SeverityEvent) bool {
 	if len(f.FromLevels) > 0 {
 		found := false
 		for _, l := range f.FromLevels {

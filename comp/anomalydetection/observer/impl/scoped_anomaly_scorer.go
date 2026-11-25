@@ -1,0 +1,328 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package observerimpl
+
+import (
+	"errors"
+	"slices"
+	"strings"
+	"sync"
+	"sync/atomic"
+
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
+	severityeventsimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/impl"
+)
+
+const (
+	scopedAnomalyScorerName            = "scoped_anomaly_scorer"
+	defaultScopedScorerMaxScopes       = 128
+	defaultScopedScorerIdleEvictionSec = 600
+)
+
+// ScopedAnomalyScorerConfig configures a service-scoped anomaly scorer router.
+type ScopedAnomalyScorerConfig struct {
+	// Scorer configures per-service child scorers (CorrelationEvents and Logs are forced false).
+	Scorer AnomalyScorerConfig
+	// MaxScopes caps active per-service scorers (<= 0 uses defaultScopedScorerMaxScopes).
+	MaxScopes int
+	// IdleEvictionSec sets idle TTL in data-time seconds after returning to Low (<= 0 uses default).
+	IdleEvictionSec int64
+	// OnScopeEvicted is called when a scope is evicted ("idle" or "capacity").
+	OnScopeEvicted func(reason string)
+}
+
+type scopedSubscription struct {
+	cfg      severityeventsdef.SeverityEventsConfiguration
+	listener severityeventsdef.ScopedSeverityEventListener
+}
+
+type scopedChildDispatcher struct {
+	sub        *scopedSubscription
+	dispatcher *severityeventsimpl.Dispatcher
+	adapter    *scopedListenerAdapter
+}
+
+type scopedListenerAdapter struct {
+	key      severityeventsdef.ScopeKey
+	listener severityeventsdef.ScopedSeverityEventListener
+	level    atomic.Int32
+}
+
+func (adapter *scopedListenerAdapter) OnSeverityTransition(evt severityeventsdef.SeverityEvent) {
+	adapter.level.Store(int32(evt.ToLevel))
+	adapter.listener.OnScopedSeverityTransition(severityeventsdef.ScopedSeverityEvent{
+		ScopeKey: adapter.key,
+		Event:    evt,
+	})
+}
+
+type scopedScorerEntry struct {
+	key         severityeventsdef.ScopeKey
+	scorer      *anomalyScorer
+	dispatchers []scopedChildDispatcher
+}
+
+// scopedAnomalyScorer routes anomalies by service ScopeKey into lazy per-service scorers.
+type scopedAnomalyScorer struct {
+	cfg ScopedAnomalyScorerConfig
+
+	mu              sync.Mutex
+	entries         map[severityeventsdef.ScopeKey]*scopedScorerEntry
+	subs            []*scopedSubscription
+	lastAdvancedSec int64
+}
+
+var (
+	_ observerdef.Correlator             = (*scopedAnomalyScorer)(nil)
+	_ severityeventsdef.ScopedSubscriber = (*scopedAnomalyScorer)(nil)
+)
+
+func newScopedAnomalyScorer(cfg ScopedAnomalyScorerConfig) *scopedAnomalyScorer {
+	cfg.Scorer.CorrelationEvents = false
+	cfg.Scorer.Logs = false
+	if cfg.MaxScopes <= 0 {
+		cfg.MaxScopes = defaultScopedScorerMaxScopes
+	}
+	if cfg.IdleEvictionSec <= 0 {
+		cfg.IdleEvictionSec = defaultScopedScorerIdleEvictionSec
+	}
+	return &scopedAnomalyScorer{
+		cfg:     cfg,
+		entries: make(map[severityeventsdef.ScopeKey]*scopedScorerEntry),
+	}
+}
+
+func anomalyService(anomaly observerdef.Anomaly) string {
+	if anomaly.Context != nil && anomaly.Context.Service != "" {
+		return anomaly.Context.Service
+	}
+	var service string
+	anomaly.Source.Tags.Find(func(tag string) bool {
+		if strings.HasPrefix(tag, "service:") && len(tag) > len("service:") {
+			service = tag[len("service:"):]
+			return true
+		}
+		return false
+	})
+	return service
+}
+
+// Name implements observerdef.Correlator.
+func (router *scopedAnomalyScorer) Name() string {
+	return scopedAnomalyScorerName
+}
+
+// ActiveScopeCount returns the number of active per-service child scorers.
+func (router *scopedAnomalyScorer) ActiveScopeCount() int {
+	router.mu.Lock()
+	defer router.mu.Unlock()
+	return len(router.entries)
+}
+
+// ProcessAnomaly implements observerdef.Correlator.
+func (router *scopedAnomalyScorer) ProcessAnomaly(anomaly observerdef.Anomaly) {
+	key := severityeventsdef.ScopeKeyForService(anomalyService(anomaly))
+	if key == 0 {
+		return
+	}
+
+	router.mu.Lock()
+	entry, ok := router.entries[key]
+	if !ok {
+		entry = router.createEntryLocked(key)
+	}
+	router.mu.Unlock()
+
+	entry.scorer.ProcessAnomaly(anomaly)
+}
+
+func (router *scopedAnomalyScorer) createEntryLocked(key severityeventsdef.ScopeKey) *scopedScorerEntry {
+	child := newAnomalyScorerBase(router.cfg.Scorer)
+	if router.lastAdvancedSec > 0 {
+		child.advanceStates(router.lastAdvancedSec)
+	}
+	entry := &scopedScorerEntry{
+		key:         key,
+		scorer:      child,
+		dispatchers: make([]scopedChildDispatcher, 0, len(router.subs)),
+	}
+	for _, sub := range router.subs {
+		adapter := &scopedListenerAdapter{key: key, listener: sub.listener}
+		entry.dispatchers = append(entry.dispatchers, scopedChildDispatcher{
+			sub:        sub,
+			dispatcher: severityeventsimpl.NewDispatcher(sub.cfg, adapter),
+			adapter:    adapter,
+		})
+	}
+	router.entries[key] = entry
+	return entry
+}
+
+// Advance implements observerdef.Correlator.
+func (router *scopedAnomalyScorer) Advance(dataTime int64) {
+	type advanceEntry struct {
+		entry       *scopedScorerEntry
+		dispatchers []scopedChildDispatcher
+	}
+
+	router.mu.Lock()
+	if dataTime > router.lastAdvancedSec {
+		router.lastAdvancedSec = dataTime
+	}
+	if len(router.entries) == 0 {
+		router.mu.Unlock()
+		return
+	}
+	snapshot := make([]advanceEntry, 0, len(router.entries))
+	for _, entry := range router.entries {
+		snapshot = append(snapshot, advanceEntry{
+			entry:       entry,
+			dispatchers: entry.dispatchers,
+		})
+	}
+	router.mu.Unlock()
+
+	for _, item := range snapshot {
+		states, missedHigh := item.entry.scorer.advanceStates(dataTime)
+		for _, st := range states {
+			for _, child := range item.dispatchers {
+				feedDispatcherState(child.dispatcher, dataTime, st, missedHigh)
+			}
+		}
+	}
+}
+
+// ActiveCorrelations implements observerdef.Correlator.
+func (router *scopedAnomalyScorer) ActiveCorrelations() []observerdef.ActiveCorrelation {
+	return nil
+}
+
+// PendingEvents implements observerdef.Correlator.
+func (router *scopedAnomalyScorer) PendingEvents() []observerdef.CorrelatorEvent {
+	return nil
+}
+
+// Reset implements observerdef.Correlator.
+func (router *scopedAnomalyScorer) Reset() {
+	router.mu.Lock()
+	router.entries = make(map[severityeventsdef.ScopeKey]*scopedScorerEntry)
+	router.lastAdvancedSec = 0
+	router.mu.Unlock()
+}
+
+// SubscribeScopedSeverityEvents implements severityeventsdef.ScopedSubscriber.
+func (router *scopedAnomalyScorer) SubscribeScopedSeverityEvents(
+	cfg severityeventsdef.SeverityEventsConfiguration,
+	listener severityeventsdef.ScopedSeverityEventListener,
+) (severityeventsdef.ScopedSeverityEventsSubscription, error) {
+	if listener == nil {
+		return severityeventsdef.ScopedSeverityEventsSubscription{}, errors.New("nil scoped severity event listener")
+	}
+
+	router.mu.Lock()
+	sub := &scopedSubscription{
+		cfg:      cfg,
+		listener: listener,
+	}
+	router.subs = append(router.subs, sub)
+	snapshot := make([]*scopedScorerEntry, 0, len(router.entries))
+	for _, entry := range router.entries {
+		snapshot = append(snapshot, entry)
+	}
+	lastSec := router.lastAdvancedSec
+	router.mu.Unlock()
+
+	type pendingChildSub struct {
+		entry *scopedScorerEntry
+		child scopedChildDispatcher
+	}
+	attached := make([]pendingChildSub, 0, len(snapshot))
+	for _, entry := range snapshot {
+		score, entryLastSec := entry.scorer.rawScoreSnapshot()
+		adapter := &scopedListenerAdapter{key: entry.key, listener: listener}
+		dispatcher := severityeventsimpl.NewDispatcher(cfg, adapter)
+		if score.initialized {
+			dispatcher.DeliverInitial(entryLastSec, score.level)
+		}
+		attached = append(attached, pendingChildSub{
+			entry: entry,
+			child: scopedChildDispatcher{
+				sub:        sub,
+				dispatcher: dispatcher,
+				adapter:    adapter,
+			},
+		})
+	}
+
+	var staleDeescalations []severityeventsdef.ScopedSeverityEvent
+
+	router.mu.Lock()
+	subActive := slices.Contains(router.subs, sub)
+	for _, pending := range attached {
+		if subActive && router.entries[pending.entry.key] == pending.entry {
+			next := make([]scopedChildDispatcher, len(pending.entry.dispatchers)+1)
+			copy(next, pending.entry.dispatchers)
+			next[len(pending.entry.dispatchers)] = pending.child
+			pending.entry.dispatchers = next
+			continue
+		}
+		if subActive {
+			deliveredLevel := severityeventsdef.SeverityLevel(pending.child.adapter.level.Load())
+			if deliveredLevel > severityeventsdef.SeverityLow {
+				evt := severityeventsdef.SeverityEvent{
+					Timestamp: max(lastSec, router.lastAdvancedSec),
+					FromLevel: deliveredLevel,
+					ToLevel:   severityeventsdef.SeverityLow,
+					Direction: severityeventsdef.SeverityEventDeescalation,
+				}
+				if severityeventsimpl.EventFilterMatches(cfg.Filter, evt) {
+					staleDeescalations = append(staleDeescalations, severityeventsdef.ScopedSeverityEvent{
+						ScopeKey: pending.entry.key,
+						Event:    evt,
+					})
+				}
+			}
+		}
+	}
+	router.mu.Unlock()
+
+	for _, evt := range staleDeescalations {
+		listener.OnScopedSeverityTransition(evt)
+	}
+
+	var unsubOnce sync.Once
+	return severityeventsdef.ScopedSeverityEventsSubscription{
+		Unsubscribe: func() {
+			unsubOnce.Do(func() {
+				router.unsubscribe(sub)
+			})
+		},
+	}, nil
+}
+
+func (router *scopedAnomalyScorer) unsubscribe(sub *scopedSubscription) {
+	router.mu.Lock()
+	subIdx := slices.Index(router.subs, sub)
+	if subIdx < 0 {
+		router.mu.Unlock()
+		return
+	}
+	router.subs = slices.Delete(router.subs, subIdx, subIdx+1)
+	for _, entry := range router.entries {
+		for idx, child := range entry.dispatchers {
+			if child.sub != sub {
+				continue
+			}
+			next := make([]scopedChildDispatcher, 0, len(entry.dispatchers)-1)
+			next = append(next, entry.dispatchers[:idx]...)
+			next = append(next, entry.dispatchers[idx+1:]...)
+			entry.dispatchers = next
+			break
+		}
+	}
+	router.mu.Unlock()
+}
