@@ -53,11 +53,13 @@ func TestCatalogPreviousMinorVersions(t *testing.T) {
 		{"N-3", 3, []string{"7.84.0-1"}},
 		{"N-4", 4, []string{"7.83.0-1"}},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			versions, err := catalog.PreviousMinorVersions(BranchStable, "datadog-agent", "v7.87.0-devel.git.123-1", tc.offset)
-			require.NoError(t, err)
-			require.Equal(t, tc.versions, versions)
-		})
+		for _, current := range []string{"v7.87.0-devel.git.123-1", "7.87.0-devel.git.1099.0920558.pipeline.155663328-1"} {
+			t.Run(tc.name+"/"+current, func(t *testing.T) {
+				versions, err := catalog.PreviousMinorVersions(BranchStable, "datadog-agent", current, tc.offset)
+				require.NoError(t, err)
+				require.Equal(t, tc.versions, versions)
+			})
+		}
 	}
 }
 
