@@ -16,6 +16,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.schema.merge_schema import resolve_schema
+from tasks.schema.produce_byproduct import AGENT_FORMATS
 
 SCHEMA_DIR = os.path.join("pkg", "config", "schema", "yaml")
 EXCEPTIONS_FILE = os.path.join(os.path.dirname(__file__), "lint_exceptions.yaml")
@@ -389,16 +390,16 @@ def check_public_section_has_public_child(path, schema):
 
 
 # ---------------------------------------------------------------------------
-# Check 11: Text fields (description, example, title) must not contain
+# Check 11: Text fields (description, example, title, banner) must not contain
 #           literal \\n escape sequences and use scalars instead
 # ---------------------------------------------------------------------------
 
-_TEXT_LINEBREAK_RE = re.compile(r'(?m)^\s*(description|example|title):\s*"[^"]*\\n')
+_TEXT_LINEBREAK_RE = re.compile(r'(?m)^\s*(description|example|title|banner):\s*"[^"]*\\n')
 
 
 def check_text_scalar_mode(path):
     """
-    Check that 'description', 'example', and 'title' fields do not contain
+    Check that 'description', 'example', 'title' and 'banner' fields do not contain
     literal \\n escape sequences in double-quoted YAML strings.
 
     Reads the raw file (no YAML parsing) and searches for the literal two-character
@@ -754,6 +755,195 @@ def check_sensitive(path, schema):
 
 
 # ---------------------------------------------------------------------------
+# Check 19: no setting accepts null
+# ---------------------------------------------------------------------------
+#
+# Why null is a problem: the Agent configuration has no null value.
+#
+#   - An empty or null value in a configuration file (`infrastructure_mode:`)
+#     is treated as "not set": the setting keeps its default, IsConfigured()
+#     returns false and the value is not even passed to schema validation.
+#     Allowing null in the schema documents a value the Agent never holds.
+#
+#   - In JSON Schema, null is a type of its own: a `type: string` setting
+#     rejects null before `enum` is checked. A null in such an enum is dead: the
+#     Agent's validator, IDEs and every other JSON Schema tool still reject
+#     null ("got null, want string"). It also misleads users, since validation
+#     errors list it as an allowed value ("must be one of 'basic', ..., <nil>").
+#
+#   - Actually accepting null would need `type: [string, "null"]`, and it would
+#     still mean nothing: the Agent treats that null as "not set" (see above),
+#     exactly like omitting the setting.
+#
+# To describe "no value", omit the setting or rely on its default.
+#
+# The two exceptions in lint_exceptions.yaml (`null_value`) predate this check:
+# they were copied from the remote-config validator (#58436) and are already
+# rejected by their `type`, so removing them changes nothing at runtime. No new
+# exception may be added: an exception can't make null work, it can only add a
+# misleading value. Remove entries instead; tests enforce the list only shrinks.
+
+# Keywords whose value is instance data rather than a schema: never walked.
+_NULL_CHECK_INSTANCE_KEYS = frozenset({"default", "const", "enum", "examples", "example"})
+
+
+def _find_null_values(node, node_path):
+    """
+    Yield (location, reason) for every way the value schema *node* accepts null:
+    an `enum` listing null, `const: null`, or a `type` that is or includes "null".
+
+    Walks every sub-schema of the value (`items`, `properties`,
+    `additionalProperties`, `anyOf`, ...), but never the instance data under
+    `default`/`enum`/`examples`, whose content is a config value, not a schema.
+    """
+    if isinstance(node, list):
+        for i, item in enumerate(node):
+            yield from _find_null_values(item, f"{node_path}[{i}]")
+        return
+    if not isinstance(node, dict):
+        return
+    enum = node.get("enum")
+    if isinstance(enum, list) and None in enum:
+        yield node_path, "'enum' lists null"
+    if "const" in node and node["const"] is None:
+        yield node_path, "'const' is null"
+    type_val = node.get("type")
+    types = type_val if isinstance(type_val, list) else [type_val]
+    if "null" in types or ("type" in node and None in types):
+        yield node_path, f"'type' accepts null ({type_val!r})"
+    for key, value in node.items():
+        if key in _NULL_CHECK_INSTANCE_KEYS:
+            continue
+        if key in ("properties", "patternProperties", "$defs", "dependentSchemas") and isinstance(value, dict):
+            for name, sub in value.items():
+                yield from _find_null_values(sub, f"{node_path}.{key}.{name}")
+        elif isinstance(value, dict | list):
+            yield from _find_null_values(value, f"{node_path}.{key}")
+
+
+def check_no_null_values(path, schema, null_value_exceptions=None):
+    """
+    Check that no setting accepts null as a value. See the comment above for why
+    null is a problem and why no new exception may be granted.
+
+    *null_value_exceptions* is a set of dotted setting paths exempt from this check.
+
+    Returns a list of error strings.
+    """
+    if null_value_exceptions is None:
+        null_value_exceptions = set()
+    errors = []
+    for node_path, node in walk_nodes(schema):
+        if node_path in null_value_exceptions:
+            continue
+        if node.get("node_type") == "section":
+            # A section's 'properties' are its child nodes, which walk_nodes yields on their own: only check the
+            # section's own keywords.
+            node = {k: v for k, v in node.items() if k != "properties"}
+        for location, reason in _find_null_values(node, node_path):
+            errors.append(
+                f"{path}: [{location}] {reason}, but a setting can't be null: an empty or null value in a "
+                f"configuration file is treated as 'not set' and the setting keeps its default. "
+                f"Fix: remove null; to describe 'no value', rely on the setting's default. "
+                f"Do not add an exception, see check_no_null_values in tasks/schema/lint.py."
+            )
+    return errors
+
+
+# ---------------------------------------------------------------------------
+# Check 20: settings use 'banner', not 'title', to start a template banner
+# ---------------------------------------------------------------------------
+
+
+def check_no_title_on_settings(path, schema):
+    """
+    Check that no setting node has a 'title'.
+
+    A banner in the generated config example (datadog.yaml.example) is set with
+    the Agent's 'banner' keyword. 'title' is a standard JSON Schema keyword: the
+    short label of a value, which IDEs and other external tools show when
+    hovering or completing a setting. On a setting used to start a group of
+    settings, it would label that one setting with the group's name (e.g.
+    'api_key' shown as "Basic Configuration"). Sections may keep a 'title': it
+    is both their banner and a correct label for them.
+
+    Returns a list of error strings.
+    """
+    errors = []
+    for node_path, node in walk_nodes(schema):
+        if node.get("node_type") == "setting" and "title" in node:
+            errors.append(
+                f"{path}: [{node_path}] Setting has a 'title' ({node['title']!r}). 'title' is the label IDEs show "
+                f"for this setting's value, not a banner. "
+                f"Fix: to start a banner in the config example, rename 'title' to 'banner'; "
+                f"otherwise remove it and document the setting with 'description'."
+            )
+    return errors
+
+
+# ---------------------------------------------------------------------------
+# Check 21: 'format' names an Agent format, on a string
+# ---------------------------------------------------------------------------
+
+
+def _iter_value_schemas(node, node_path):
+    """
+    Yield (location, schema) for *node* and every sub-schema of its value
+    (`items`, `properties` of an object value, `anyOf`, ...), never walking the
+    instance data under `default`/`enum`/`examples`.
+    """
+    if isinstance(node, list):
+        for i, item in enumerate(node):
+            yield from _iter_value_schemas(item, f"{node_path}[{i}]")
+        return
+    if not isinstance(node, dict):
+        return
+    yield node_path, node
+    for key, value in node.items():
+        if key in _NULL_CHECK_INSTANCE_KEYS:
+            continue
+        if key in ("properties", "patternProperties", "$defs", "dependentSchemas") and isinstance(value, dict):
+            for name, sub in value.items():
+                yield from _iter_value_schemas(sub, f"{node_path}.{key}.{name}")
+        elif isinstance(value, dict | list):
+            yield from _iter_value_schemas(value, f"{node_path}.{key}")
+
+
+def check_formats(path, schema):
+    """
+    Check that every 'format' is one of the Agent formats (AGENT_FORMATS in
+    produce_byproduct.py), used on a string.
+
+    The published and embedded schemas replace an Agent format with its pattern;
+    any other format would be kept as is, and silently not validated by most
+    JSON Schema tools (a typo like 'format: uri' would disable the validation).
+
+    Returns a list of error strings.
+    """
+    errors = []
+    for node_path, node in walk_nodes(schema):
+        if node.get("node_type") == "section":
+            # A section's 'properties' are its child nodes, which walk_nodes yields on their own.
+            node = {k: v for k, v in node.items() if k != "properties"}
+        for location, sub in _iter_value_schemas(node, node_path):
+            if "format" not in sub:
+                continue
+            name = sub["format"]
+            if name not in AGENT_FORMATS:
+                errors.append(
+                    f"{path}: [{location}] Unknown format {name!r}. "
+                    f"Fix: use one of {sorted(AGENT_FORMATS)}, or a 'pattern'; to add a format, "
+                    f"register it in AGENT_FORMATS in tasks/schema/produce_byproduct.py."
+                )
+            elif sub.get("type") != "string":
+                errors.append(
+                    f"{path}: [{location}] 'format: {name}' only applies to strings, but the type is "
+                    f"{sub.get('type')!r}. Fix: set 'type: string' or remove 'format'."
+                )
+    return errors
+
+
+# ---------------------------------------------------------------------------
 # Exception list loading
 # ---------------------------------------------------------------------------
 
@@ -765,14 +955,16 @@ def load_exceptions(exceptions_file=EXCEPTIONS_FILE):
     Returns a dict with keys:
       - array_no_items: set of dotted paths
       - non_snake_case: set of dotted paths
+      - null_value: set of dotted paths
     """
     if not os.path.isfile(exceptions_file):
-        return {"array_no_items": set(), "non_snake_case": set()}
+        return {"array_no_items": set(), "non_snake_case": set(), "null_value": set()}
     with open(exceptions_file) as f:
         data = yaml.safe_load(f) or {}
     return {
         "array_no_items": set(data.get("array_no_items", []) or []),
         "non_snake_case": set(data.get("non_snake_case", []) or []),
+        "null_value": set(data.get("null_value", []) or []),
     }
 
 
@@ -829,6 +1021,9 @@ def lint(ctx, schema_dir=SCHEMA_DIR, exceptions_file=EXCEPTIONS_FILE):
         all_errors.extend(check_snake_case_names(schema_path, schema, exc["non_snake_case"]))
         all_errors.extend(check_template_section_on_public(schema_path, schema))
         all_errors.extend(check_sensitive(schema_path, schema))
+        all_errors.extend(check_no_null_values(schema_path, schema, exc["null_value"]))
+        all_errors.extend(check_no_title_on_settings(schema_path, schema))
+        all_errors.extend(check_formats(schema_path, schema))
 
     if all_errors:
         print(f"\nFound {len(all_errors)} schema linting error(s):\n")

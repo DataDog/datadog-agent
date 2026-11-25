@@ -48,7 +48,7 @@ func (m *HistogramBucket) GetTags(_, metricBuffer tagset.TagsAccumulator, _ tagg
 
 // GetMetricType implements MetricSampleContext#GetMetricType.
 func (m *HistogramBucket) GetMetricType() MetricType {
-	return HistogramType
+	return HistogramBucketType
 }
 
 // IsNoIndex returns if the metric must not be indexed.

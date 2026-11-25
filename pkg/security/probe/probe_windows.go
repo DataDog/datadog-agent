@@ -1641,19 +1641,16 @@ func NewProbe(config *config.Config, hostname string, opts Opts) (*Probe, error)
 func (p *WindowsProbe) setApprovers(_ eval.EventType, approvers rules.Approvers) error {
 	for name, els := range approvers {
 		for _, el := range els {
-			if el.Type == eval.ScalarValueType || el.Type == eval.PatternValueType {
-				value, ok := el.Value.(string)
-				if !ok {
-					return errors.New("invalid pattern type")
-				}
-
-				ap, err := newPatternApprover(value)
-				if err != nil {
-					return err
-				}
-				l := p.approvers[name]
-				p.approvers[name] = append(l, ap)
+			filePattern, ok := el.Approver.(kfilters.FilePattern)
+			if !ok {
+				return fmt.Errorf("invalid approver %T of %s", el.Approver, name)
 			}
+
+			ap, err := newPatternApprover(filePattern.Pattern)
+			if err != nil {
+				return err
+			}
+			p.approvers[name] = append(p.approvers[name], ap)
 		}
 	}
 

@@ -49,8 +49,8 @@ type collector struct {
 
 	// nodefilterEnabled reports whether the configuration selects the
 	// nodefilter collector, in which case this collector steps aside for it:
-	// otel-agent running in DDOT standalone mode uses this collector unless
-	// opted in to nodefilter.
+	// otel-agent running in DDOT standalone mode uses nodefilter unless
+	// opted in to this collector.
 	nodefilterEnabled func() bool
 
 	kubeUtil             kubelet.KubeUtilInterface

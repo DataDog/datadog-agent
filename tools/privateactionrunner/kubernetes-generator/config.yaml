@@ -1,0 +1,47 @@
+apps:
+  version: v1
+  copyrightYear: 2025
+  resources:
+    - ControllerRevision
+    - DaemonSet
+    - Deployment
+    - ReplicaSet
+    - StatefulSet
+batch:
+  version: v1
+  copyrightYear: 2025
+  resources:
+    - CronJob
+    - Job
+core:
+  version: v1
+  copyrightYear: 2025
+  resources:
+    - ConfigMap
+    - Endpoints
+    - Event
+    - LimitRange
+    - Namespace
+    - Node
+    - PersistentVolume
+    - PersistentVolumeClaim
+    - Pod
+    - PodTemplate
+    - ReplicationController
+    - ResourceQuota
+    - Service
+    - ServiceAccount
+discovery:
+  version: v1
+  copyrightYear: 2026
+  resources:
+    - EndpointSlice
+networking:
+  version: v1
+  copyrightYear: 2025
+  resources:
+    - Ingress
+    - IngressClass
+    - IPAddress
+    - NetworkPolicy
+    - ServiceCIDR

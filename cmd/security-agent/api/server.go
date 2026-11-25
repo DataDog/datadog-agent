@@ -57,7 +57,7 @@ func NewServer(statusComponent status.Component, settings settings.Component, wm
 
 	return &Server{
 		listener:            listener,
-		agent:               agent.NewAgent(statusComponent, settings, wmeta, secrets),
+		agent:               agent.NewAgent(statusComponent, settings, wmeta, secrets, ipc),
 		tlsConfig:           ipc.GetTLSServerConfig(),
 		authMiddleware:      ipc.HTTPMiddleware,
 		telemetryMiddleware: telemetryMiddleware,

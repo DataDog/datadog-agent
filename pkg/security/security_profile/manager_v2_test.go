@@ -9,11 +9,14 @@
 package securityprofile
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -28,11 +31,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -96,7 +101,7 @@ func TestManagerV2_persistProfile_persistsDisabledState(t *testing.T) {
 		require.False(t, p.IsEnabled())
 		require.True(t, p.ActivityTree.IsEmpty())
 
-		m.persistProfile(p)
+		require.NoError(t, m.persistProfile(p))
 
 		assert.False(t, p.HasAlreadyBeenSent(), "persisting a disabled profile must not open the send-gated learning window")
 		filePath := filepath.Join(dir, "disabled."+config.Profile.String())
@@ -116,7 +121,7 @@ func TestManagerV2_persistProfile_persistsDisabledState(t *testing.T) {
 		p := newTestProfileWithNodes("enabled", 8)
 		require.True(t, p.IsEnabled())
 
-		m.persistProfile(p)
+		require.NoError(t, m.persistProfile(p))
 
 		reloaded := profile.New(profile.WithWorkloadSelector(selector))
 		ok, err := m.localStorage.Load(&selector, reloaded)
@@ -660,15 +665,17 @@ func newInsertionTestManagerV2(t *testing.T) (*ManagerV2, *[]*model.Event) {
 	m := &ManagerV2{
 		config: &config.Config{
 			RuntimeSecurity: &config.RuntimeSecurityConfig{
-				SecurityProfileEnabled:                          true,
-				SecurityProfileV2Enabled:                        true,
-				SecurityProfileMaxImageTags:                     20,
-				AnomalyDetectionEnabled:                         true,
-				SecurityProfileV2EventTypes:                     []model.EventType{model.ExecEventType, model.FileOpenEventType, model.DNSEventType, model.BindEventType, model.ConnectEventType},
-				SecurityProfileV2MaxDumpSize:                    func() int { return maxSize },
-				SecurityProfileV2ProfileReportingDelayTimeBased: true,
-				SecurityProfileDNSMatchMaxDepth:                 3,
-				SecurityProfileCleanupDelay:                     time.Minute,
+				SecurityProfileEnabled:                                  true,
+				SecurityProfileV2Enabled:                                true,
+				SecurityProfileMaxImageTags:                             20,
+				AnomalyDetectionEnabled:                                 true,
+				SecurityProfileV2EventTypes:                             []model.EventType{model.ExecEventType, model.FileOpenEventType, model.DNSEventType, model.BindEventType, model.ConnectEventType},
+				SecurityProfileV2MaxDumpSize:                            func() int { return maxSize },
+				SecurityProfileV2ProfileReportingDelayTimeBased:         true,
+				SecurityProfileDNSMatchMaxDepth:                         3,
+				SecurityProfileCleanupDelay:                             time.Minute,
+				SecurityProfileV2TagResolutionMaxPendingEvents:          100,
+				SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup: 100,
 			},
 		},
 		statsdClient: &statsd.NoOpClient{},
@@ -678,19 +685,25 @@ func newInsertionTestManagerV2(t *testing.T) (*ManagerV2, *[]*model.Event) {
 			TimeResolver:   timeResolver,
 			HashResolver:   &hash.Resolver{},
 		},
-		kernelVersion:          &kernel.Version{},
-		pathsReducer:           activity_tree.NewPathsReducer(),
-		profiles:               make(map[cgroupModel.WorkloadSelector]*profile.Profile),
-		localStorage:           localStorage,
-		eventFiltering:         make(map[eventFilteringEntry]*atomic.Uint64),
-		insertionErrors:        make(map[insertionErrorKey]*atomic.Uint64),
-		pendingProfileRemovals: make(map[cgroupModel.WorkloadSelector]time.Time),
-		sampleCookieMap:        cookieMap,
-		sampleRefreshReceived:  atomic.NewUint64(0),
-		sampleRefreshHits:      atomic.NewUint64(0),
-		sampleRefreshMisses:    atomic.NewUint64(0),
-		cleanupProfilesRemoved: atomic.NewUint64(0),
-		imageExcluder:          imgExcluder,
+		kernelVersion:             &kernel.Version{},
+		pathsReducer:              activity_tree.NewPathsReducer(),
+		profiles:                  make(map[cgroupModel.WorkloadSelector]*profile.Profile),
+		profilePendingEvents:      make(map[containerutils.CGroupID]*pendingProfile),
+		queueSize:                 atomic.NewUint64(0),
+		pendingProfiles:           atomic.NewUint64(0),
+		tagResolutionCappedCgroup: atomic.NewUint64(0),
+		tagResolutionCappedTotal:  atomic.NewUint64(0),
+		resolvedCgroups:           make(map[containerutils.CGroupID]struct{}),
+		localStorage:              localStorage,
+		eventFiltering:            make(map[eventFilteringEntry]*atomic.Uint64),
+		insertionErrors:           make(map[insertionErrorKey]*atomic.Uint64),
+		pendingProfileRemovals:    make(map[cgroupModel.WorkloadSelector]time.Time),
+		sampleCookieMap:           cookieMap,
+		sampleRefreshReceived:     atomic.NewUint64(0),
+		sampleRefreshHits:         atomic.NewUint64(0),
+		sampleRefreshMisses:       atomic.NewUint64(0),
+		cleanupProfilesRemoved:    atomic.NewUint64(0),
+		imageExcluder:             imgExcluder,
 		sendAnomalyDetection: func(event *model.Event) {
 			anomalies = append(anomalies, event)
 		},
@@ -712,6 +725,8 @@ func newTestEventV2(eventType model.EventType, imageTag string, variant string) 
 	entry := model.NewPlaceholderProcessCacheEntry(42, 42, false)
 	entry.ContainerContext.ContainerID = containerutils.ContainerID(testContainerID)
 	entry.ContainerContext.Tags = []string{"image_name:" + testImageName, "image_tag:" + imageTag}
+	entry.CGroup.CGroupID = containerutils.CGroupID("/docker/" + testContainerID)
+	entry.CGroup.CGroupPathKey = model.PathKey{Inode: 4242, MountID: 1}
 	entry.FileEvent.PathnameStr = "/usr/bin/proc"
 	entry.FileEvent.BasenameStr = "proc"
 	// a file with an inode but without mount ID would be seen as fileless
@@ -1115,6 +1130,70 @@ func TestManagerV2_cleanupPendingProfiles(t *testing.T) {
 		m.cleanupPendingProfiles()
 		assert.Contains(t, m.profiles, testSelector)
 	})
+
+	t.Run("cleanup after profile lookup does not detach revived profile", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		m.config.RuntimeSecurity.SecurityProfileCleanupDelay = cleanupDelay
+		dir := t.TempDir()
+		localStorage, err := storage.NewDirectory(dir, 100)
+		require.NoError(t, err)
+		m.localStorage = localStorage
+		m.configuredStorageRequests = perFormatStorageRequests([]config.StorageRequest{
+			config.NewStorageRequest(config.LocalStorage, config.Profile, false, dir),
+		})
+
+		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		require.True(t, inserted)
+		require.NotNil(t, p)
+
+		cgce := m.resolvers.CGroupResolver.GetCacheEntryContainerID(containerutils.ContainerID(testContainerID))
+		require.NotNil(t, cgce)
+		m.onCGroupDeleted(cgce)
+		require.Empty(t, p.Instances)
+		m.pendingProfileRemovals[testSelector] = time.Now().Add(-2 * cleanupDelay)
+
+		lookupDone := make(chan struct{})
+		resumeInsertion := make(chan struct{})
+		m.afterProfileLookup = func() {
+			close(lookupDone)
+			<-resumeInsertion
+		}
+
+		var resumedProfile *profile.Profile
+		var resumedInserted bool
+		insertDone := make(chan struct{})
+		go func() {
+			defer close(insertDone)
+			resumedProfile, resumedInserted = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "new"))
+		}()
+
+		select {
+		case <-lookupDone:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for profile lookup")
+		}
+		m.cleanupPendingProfiles()
+		close(resumeInsertion)
+		select {
+		case <-insertDone:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for profile insertion")
+		}
+
+		require.True(t, resumedInserted)
+		assert.Same(t, p, resumedProfile)
+		assert.Same(t, p, m.profiles[testSelector])
+		assert.NotContains(t, m.pendingProfileRemovals, testSelector)
+		assert.Len(t, p.Instances, 1)
+		assert.NotNil(t, findTestEventNode(m.profiles[testSelector], model.ExecEventType, "new"))
+
+		m.persistAllProfiles()
+		reloaded := profile.New(profile.WithWorkloadSelector(testSelector))
+		ok, err := m.localStorage.Load(&testSelector, reloaded)
+		require.NoError(t, err)
+		require.True(t, ok)
+		assert.NotNil(t, findTestEventNode(reloaded, model.ExecEventType, "new"))
+	})
 }
 
 // TestManagerV2_onCGroupDeleted goes through the actual lifecycle of a workload, instead of queuing the removal
@@ -1141,6 +1220,62 @@ func TestManagerV2_onCGroupDeleted(t *testing.T) {
 	m.pendingProfileRemovals[testSelector] = queuedAt.Add(-2 * cleanupDelay)
 	m.cleanupPendingProfiles()
 	assert.NotContains(t, m.profiles, testSelector, "the profile should be removed once the cleanup delay is over")
+
+	t.Run("multi-cgroup container stays linked when a child cgroup is deleted", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		rootCGroupID := containerutils.CGroupID("/docker/" + testContainerID)
+		childCGroup := model.CGroupContext{
+			CGroupID:      containerutils.CGroupID("/docker/" + testContainerID + "/init.scope"),
+			CGroupPathKey: model.PathKey{Inode: 4243, MountID: 1},
+		}
+		m.resolvedCgroups = map[containerutils.CGroupID]struct{}{
+			rootCGroupID:         {},
+			childCGroup.CGroupID: {},
+		}
+		require.NoError(t, m.resolvers.CGroupResolver.RegisterListener(cgroup.CGroupDeleted, m.onCGroupDeleted))
+		require.NotNil(t, m.resolvers.CGroupResolver.Add(childCGroup))
+
+		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		require.True(t, inserted)
+		require.Len(t, p.Instances, 1)
+
+		m.resolvers.CGroupResolver.Delete(childCGroup.CGroupPathKey.Inode)
+		assert.Len(t, p.Instances, 1)
+		assert.NotContains(t, m.resolvedCgroups, childCGroup.CGroupID)
+		assert.Contains(t, m.resolvedCgroups, rootCGroupID)
+		assert.NotContains(t, m.pendingProfileRemovals, testSelector)
+
+		nextEvent := newTestEventV2(model.DNSEventType, "v1", "new")
+		nextEvent.ProcessCacheEntry.Pid = 99
+		nextEvent.ProcessCacheEntry.FileEvent.Inode = 99
+		nextEvent.ProcessCacheEntry.CGroup.CGroupPathKey.Inode = 4242
+		_, inserted = m.insertEventIntoProfile(nextEvent)
+		assert.True(t, inserted)
+		assert.Zero(t, m.insertionErrors[insertionErrorKey{eventType: model.DNSEventType, errorType: activity_tree.InsertionErrorProcessNodeNotCreated, outcome: insertionErrorDropped}].Load())
+
+		m.resolvers.CGroupResolver.Delete(4242)
+		assert.Empty(t, p.Instances)
+		assert.Empty(t, m.resolvedCgroups)
+		assert.Contains(t, m.pendingProfileRemovals, testSelector)
+	})
+
+	t.Run("inode fallback rejects deleted or mismatched cgroup entries", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+
+		otherCGroup := model.CGroupContext{
+			CGroupID:      "/docker/fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+			CGroupPathKey: model.PathKey{Inode: 9999, MountID: 1},
+		}
+		require.NotNil(t, m.resolvers.CGroupResolver.Add(otherCGroup))
+		m.resolvers.CGroupResolver.Delete(4242)
+
+		event := newTestEventV2(model.ExecEventType, "v1", "known")
+		event.ProcessContext.Process.CGroup.CGroupPathKey.Inode = 4242
+		assert.Nil(t, m.getOrCreateWorkload(event, testSelector, containerutils.ContainerID(testContainerID)))
+
+		event.ProcessContext.Process.CGroup.CGroupPathKey.Inode = otherCGroup.CGroupPathKey.Inode
+		assert.Nil(t, m.getOrCreateWorkload(event, testSelector, containerutils.ContainerID(testContainerID)))
+	})
 }
 
 // TestManagerV2_ProcessEventWithoutCWS verifies that without CWS, whatever the profile flags,
@@ -1239,6 +1374,176 @@ func TestManagerV2_ProcessEvent_capsPendingEventsTotal(t *testing.T) {
 	assert.EqualValues(t, maxPending, m.queueSize.Load())
 	assert.EqualValues(t, 1, m.tagResolutionCappedTotal.Load())
 	assert.Zero(t, m.tagResolutionCappedCgroup.Load())
+}
+
+func TestManagerV2_eventsWithError(t *testing.T) {
+	brokenLineage := &model.ErrProcessBrokenLineage{Err: errors.New("missing parent")}
+	countOf := func(m *ManagerV2, eventType model.EventType, errorType string, outcome string) uint64 {
+		return m.insertionErrors[insertionErrorKey{eventType: eventType, errorType: errorType, outcome: outcome}].Load()
+	}
+	total := func(m *ManagerV2) uint64 {
+		var total uint64
+		for _, count := range m.insertionErrors {
+			total += count.Load()
+		}
+		return total
+	}
+	// breakLineage makes the lineage of the event stop at its parent, which is the container shim on a host cgroup
+	// unless insideContainer is set
+	breakLineage := func(event *model.Event, insideContainer bool) {
+		event.ProcessCacheEntry.Ancestor.Pid = 41
+		if insideContainer {
+			event.ProcessCacheEntry.Ancestor.ContainerContext.ContainerID = testContainerID
+		} else {
+			event.ProcessCacheEntry.Ancestor.CGroup.CGroupID = "/system.slice/containerd.service"
+			event.ProcessCacheEntry.Ancestor.CGroup.CGroupPathKey = model.PathKey{Inode: 4141, MountID: 1}
+		}
+		event.Error = brokenLineage
+	}
+
+	t.Run("dropped before insertion", func(t *testing.T) {
+		m := newTagResolutionTestManagerV2(t, 10, 10)
+		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		event.Error = model.ErrNoProcessContext
+
+		m.ProcessEvent(event)
+
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorNoProcessContext, insertionErrorDropped))
+		assert.EqualValues(t, 1, total(m))
+		assert.Empty(t, m.profiles)
+		assert.Empty(t, m.resolvedCgroups)
+		assert.Empty(t, m.profilePendingEvents)
+	})
+
+	t.Run("broken lineage goes through", func(t *testing.T) {
+		m := newTagResolutionTestManagerV2(t, 10, 10)
+		event := newUntaggedTestEventV2(0)
+		event.Error = brokenLineage
+
+		m.ProcessEvent(event)
+
+		require.Contains(t, m.profilePendingEvents, untaggedTestCGroupID(0))
+		assert.Equal(t, 1, m.profilePendingEvents[untaggedTestCGroupID(0)].events.Len())
+		assert.Zero(t, total(m))
+	})
+
+	for _, tt := range []struct {
+		name  string
+		setup func(*model.Event)
+	}{
+		{"host process", func(e *model.Event) { e.ProcessContext.Process.ContainerContext.ContainerID = "" }},
+		{"untraced event type", func(e *model.Event) { e.Type = uint32(model.FileChmodEventType) }},
+		{"full DNS response with another error", func(e *model.Event) { e.Type = uint32(model.FullDNSResponseEventType) }},
+	} {
+		t.Run("not counted: "+tt.name, func(t *testing.T) {
+			m := newTagResolutionTestManagerV2(t, 10, 10)
+			event := newTestEventV2(model.FileOpenEventType, "v1", "known")
+			event.Error = model.ErrNoProcessContext
+			tt.setup(event)
+
+			m.ProcessEvent(event)
+
+			assert.Zero(t, total(m))
+		})
+	}
+
+	t.Run("undecoded full DNS response counted as dns", func(t *testing.T) {
+		m := newTagResolutionTestManagerV2(t, 10, 10)
+		event := newTestEventV2(model.FullDNSResponseEventType, "v1", "known")
+		event.Error = model.ErrFailedDNSPacketDecoding
+
+		m.ProcessEvent(event)
+
+		assert.EqualValues(t, 1, countOf(m, model.DNSEventType, activity_tree.InsertionErrorDNSDecoding, insertionErrorDropped))
+		assert.EqualValues(t, 1, total(m))
+	})
+
+	t.Run("dropped during insertion", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		event.Error = &path.ErrPathResolution{Err: errors.New("dentry not found")}
+
+		_, inserted := m.insertEventIntoProfile(event)
+
+		assert.False(t, inserted)
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorPathResolution, insertionErrorDropped))
+		assert.EqualValues(t, 1, total(m))
+	})
+
+	t.Run("broken lineage outside of the container is kept", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		breakLineage(event, false)
+
+		p, inserted := m.insertEventIntoProfile(event)
+
+		require.NotNil(t, p)
+		assert.True(t, inserted)
+		assert.NotNil(t, findTestEventNode(p, model.FileOpenEventType, "known"))
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorBrokenLineage, insertionErrorKept))
+		assert.Zero(t, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorBrokenLineage, insertionErrorDropped))
+	})
+
+	t.Run("broken lineage inside of the container is dropped", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		breakLineage(event, true)
+
+		_, inserted := m.insertEventIntoProfile(event)
+
+		assert.False(t, inserted)
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorBrokenLineage, insertionErrorDropped))
+		assert.Zero(t, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorBrokenLineage, insertionErrorKept))
+		assert.EqualValues(t, 1, total(m))
+	})
+
+	t.Run("insertion failure unrelated to the error of the event", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.ExecEventType, "v1", "known")
+		event.Error = &path.ErrPathResolution{Err: errors.New("dentry not found")}
+		event.ProcessCacheEntry.Ancestor = nil
+
+		_, inserted := m.insertEventIntoProfile(event)
+
+		assert.False(t, inserted)
+		assert.EqualValues(t, 1, countOf(m, model.ExecEventType, activity_tree.InsertionErrorBrokenLineage, insertionErrorDropped))
+		assert.EqualValues(t, 1, total(m))
+	})
+
+	t.Run("undecoded full DNS response failing insertion counted as dns", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.FullDNSResponseEventType, "v1", "known")
+		event.Error = model.ErrFailedDNSPacketDecoding
+
+		_, inserted := m.insertEventIntoProfile(event)
+
+		assert.False(t, inserted)
+		assert.EqualValues(t, 1, countOf(m, model.DNSEventType, activity_tree.InsertionErrorDNSDecoding, insertionErrorDropped))
+		assert.EqualValues(t, 1, total(m))
+	})
+
+	t.Run("broken lineage inside of the container is kept for a known process", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		execTime := time.Now()
+		known := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		known.ProcessCacheEntry.Cookie = 42
+		known.ProcessCacheEntry.ExecTime = execTime
+		_, inserted := m.insertEventIntoProfile(known)
+		require.True(t, inserted)
+
+		event := newTestEventV2(model.FileOpenEventType, "v1", "new")
+		event.ProcessCacheEntry.Cookie = 42
+		event.ProcessCacheEntry.ExecTime = execTime
+		breakLineage(event, true)
+
+		p, inserted := m.insertEventIntoProfile(event)
+
+		require.NotNil(t, p)
+		assert.True(t, inserted)
+		assert.NotNil(t, findTestEventNode(p, model.FileOpenEventType, "new"))
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorBrokenLineage, insertionErrorKept))
+		assert.Zero(t, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorBrokenLineage, insertionErrorDropped))
+	})
 }
 
 func TestManagerV2_seedMountsForWorkload(t *testing.T) {
@@ -1509,11 +1814,10 @@ func TestManagerV2_seedMountsForWorkload_maxSize(t *testing.T) {
 
 		selector, err := m.buildWorkloadSelector(ev)
 		require.NoError(t, err)
-		p, err := m.getOrCreateProfile(selector, ev)
-		require.NoError(t, err)
 		workload := m.getOrCreateWorkload(ev, selector, getWorkloadIDFromEvent(ev))
 		require.NotNil(t, workload)
-		m.linkWorkloadToProfile(p, workload)
+		p, err := m.getOrCreateProfile(selector, ev, workload)
+		require.NoError(t, err)
 		return m, p, workload, ev
 	}
 
@@ -1557,5 +1861,378 @@ func TestManagerV2_seedMountsForWorkload_maxSize(t *testing.T) {
 		assert.False(t, p.IsEnabled())
 		assert.True(t, p.ActivityTree.IsEmpty(), "a disabled profile drops its activity tree")
 		assert.Zero(t, p.ComputeHeapSize())
+	})
+}
+
+type subscribableFakeTagger struct {
+	tags map[types.EntityID][]string
+	ch   chan []types.EntityEvent
+}
+
+type fakeSubscription struct {
+	ch chan []types.EntityEvent
+}
+
+func (s *fakeSubscription) EventsChan() chan []types.EntityEvent { return s.ch }
+func (s *fakeSubscription) ID() string                           { return "test" }
+func (s *fakeSubscription) Unsubscribe()                         {}
+
+func (f *subscribableFakeTagger) Tag(id types.EntityID, _ types.TagCardinality) ([]string, error) {
+	return f.tags[id], nil
+}
+
+func (f *subscribableFakeTagger) GlobalTags(types.TagCardinality) ([]string, error) {
+	return nil, nil
+}
+
+func (f *subscribableFakeTagger) Subscribe(_ string, _ *types.Filter) (types.Subscription, error) {
+	return &fakeSubscription{ch: f.ch}, nil
+}
+
+func TestManagerV2_SubscriptionDrainsShortLivedContainerPendingEvents(t *testing.T) {
+	m, anomalies := newInsertionTestManagerV2(t)
+	m.config.RuntimeSecurity.RuntimeEnabled = true
+
+	tagger := &subscribableFakeTagger{
+		tags: make(map[types.EntityID][]string),
+		ch:   make(chan []types.EntityEvent, 4),
+	}
+	m.resolvers.TagsResolver = tags.NewResolver(0, tagger, m.resolvers.CGroupResolver, nil)
+
+	nopTriggered := make(chan struct{}, 4)
+	var failFirstNop atomic.Bool
+	failFirstNop.Store(true)
+	m.triggerNopEvent = func() error {
+		nopTriggered <- struct{}{}
+		if failFirstNop.CompareAndSwap(true, false) {
+			return assert.AnError
+		}
+		return nil
+	}
+
+	ctx := t.Context()
+	require.NoError(t, m.resolvers.TagsResolver.SubscribeContainerTags(ctx, "security-profile-v2", m.onTagsUpdated))
+
+	ev := newTestEventV2(model.ExecEventType, "v1", "known")
+	ev.ProcessContext.Process.ContainerContext.Tags = nil
+	m.ProcessEvent(ev)
+
+	require.Equal(t, uint64(1), m.queueSize.Load())
+	require.Equal(t, uint64(1), m.pendingProfiles.Load())
+	assert.Empty(t, m.profiles)
+
+	containerEntityID := types.NewEntityID(types.ContainerID, testContainerID)
+	imageEntityID := types.NewEntityID(types.ContainerImageMetadata, "sha256:testimage")
+
+	tagger.tags[containerEntityID] = []string{"image_name:" + testImageName, "image_id:sha256:testimage"}
+	tagger.ch <- []types.EntityEvent{{
+		EventType: types.EventTypeAdded,
+		Entity:    types.Entity{ID: containerEntityID},
+	}}
+
+	waitForNop := func() {
+		t.Helper()
+		select {
+		case <-nopTriggered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for nop wakeup")
+		}
+	}
+
+	waitForNop()
+	tagger.ch <- []types.EntityEvent{{
+		EventType: types.EventTypeModified,
+		Entity:    types.Entity{ID: containerEntityID},
+	}}
+	waitForNop()
+	m.DrainPendingEvents()
+	require.Equal(t, uint64(1), m.queueSize.Load(), "events must remain queued until image_tag is available")
+
+	m.nopWakeupPending.Store(true)
+	m.DrainPendingEvents()
+	assert.False(t, m.nopWakeupPending.Load())
+
+	cgce := m.resolvers.CGroupResolver.GetCacheEntryContainerID(containerutils.ContainerID(testContainerID))
+	require.NotNil(t, cgce)
+	m.resolvers.CGroupResolver.Delete(cgce.GetCGroupInode())
+	m.onCGroupDeleted(cgce)
+
+	tagger.tags[imageEntityID] = []string{"image_tag:v1"}
+	tagger.ch <- []types.EntityEvent{{
+		EventType: types.EventTypeAdded,
+		Entity:    types.Entity{ID: imageEntityID},
+	}}
+
+	waitForNop()
+	m.DrainPendingEvents()
+
+	require.Equal(t, uint64(0), m.queueSize.Load())
+	require.Equal(t, uint64(0), m.pendingProfiles.Load())
+	assert.Empty(t, m.resolvedCgroups)
+
+	p := m.profiles[testSelector]
+	require.NotNil(t, p)
+	assert.Empty(t, p.Instances)
+	assert.Contains(t, m.pendingProfileRemovals, testSelector)
+	assert.NotNil(t, findTestEventNode(p, model.ExecEventType, "known"))
+	require.Len(t, *anomalies, 1)
+	assert.Equal(t, p.Metadata.Name, (*anomalies)[0].SecurityProfileContext.Name)
+	assert.Contains(t, (*anomalies)[0].SecurityProfileContext.Tags, "image_tag:v1")
+}
+
+type lateFirstLookupTagger struct {
+	calls int
+	tags  []string
+}
+
+func (f *lateFirstLookupTagger) Tag(types.EntityID, types.TagCardinality) ([]string, error) {
+	f.calls++
+	if f.calls == 1 {
+		return nil, nil
+	}
+	return f.tags, nil
+}
+
+func (f *lateFirstLookupTagger) GlobalTags(types.TagCardinality) ([]string, error) {
+	return nil, nil
+}
+
+func TestManagerV2_ProcessEventDrainsWhenTagsResolveDuringInitialQueue(t *testing.T) {
+	m, _ := newInsertionTestManagerV2(t)
+	m.config.RuntimeSecurity.RuntimeEnabled = true
+
+	tagger := &lateFirstLookupTagger{
+		tags: []string{"image_name:" + testImageName, "image_tag:v1"},
+	}
+	m.resolvers.TagsResolver = tags.NewResolver(0, tagger, m.resolvers.CGroupResolver, nil)
+
+	ev := newTestEventV2(model.ExecEventType, "v1", "known")
+	ev.ProcessContext.Process.ContainerContext.Tags = nil
+	m.ProcessEvent(ev)
+
+	assert.Equal(t, uint64(0), m.queueSize.Load())
+	assert.Equal(t, uint64(0), m.pendingProfiles.Load())
+	assert.Contains(t, m.resolvedCgroups, ev.ProcessContext.Process.CGroup.CGroupID)
+	p := m.profiles[testSelector]
+	require.NotNil(t, p)
+	assert.NotNil(t, findTestEventNode(p, model.ExecEventType, "known"))
+}
+
+type fakeActivityDumpHandler struct {
+	err       error
+	persisted int
+}
+
+func (f *fakeActivityDumpHandler) HandleActivityDump(_ string, _ string, _ []byte, _ []byte) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.persisted++
+	return nil
+}
+
+func TestManagerV2_ActivityDumpCLI(t *testing.T) {
+	t.Run("list and stop by container ID, cgroup ID, and name", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		dir := t.TempDir()
+		localStorage, err := storage.NewDirectory(dir, 100)
+		require.NoError(t, err)
+		m.localStorage = localStorage
+		m.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout = 30 * time.Minute
+		m.configuredStorageRequests = perFormatStorageRequests([]config.StorageRequest{
+			config.NewStorageRequest(config.LocalStorage, config.Profile, false, dir),
+			config.NewStorageRequest(config.LocalStorage, config.JSON, false, dir),
+		})
+
+		secondContainerID := "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+		secondCGroupID := "/docker/" + secondContainerID
+		secondEntry := m.resolvers.CGroupResolver.Add(model.CGroupContext{
+			CGroupID:      containerutils.CGroupID(secondCGroupID),
+			CGroupPathKey: model.PathKey{Inode: 4243, MountID: 1},
+		})
+		require.NotNil(t, secondEntry)
+
+		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		require.True(t, inserted)
+		require.NotNil(t, p)
+
+		secondEvent := newTestEventV2(model.ExecEventType, "v1", "new")
+		secondEvent.ProcessCacheEntry.ContainerContext.ContainerID = containerutils.ContainerID(secondContainerID)
+		_, inserted = m.insertEventIntoProfile(secondEvent)
+		require.True(t, inserted)
+
+		listMsg, err := m.ListActivityDumps(&api.ActivityDumpListParams{})
+		require.NoError(t, err)
+		require.Len(t, listMsg.GetDumps(), 1)
+		assert.Equal(t, p.Metadata.Name, listMsg.GetDumps()[0].GetMetadata().GetName())
+		assert.Equal(t, secondContainerID, listMsg.GetDumps()[0].GetMetadata().GetContainerID())
+
+		for _, stopParams := range []*api.ActivityDumpStopParams{
+			{ContainerID: testContainerID},
+			{ContainerID: secondContainerID},
+			{CGroupID: "/docker/" + testContainerID},
+			{CGroupID: secondCGroupID},
+			{Name: p.Metadata.Name},
+		} {
+			stopMsg, err := m.StopActivityDump(stopParams)
+			require.NoError(t, err)
+			assert.Empty(t, stopMsg.GetError())
+		}
+		assert.False(t, p.HasAlreadyBeenSent(), "on-demand stop flush must not open the anomaly reporting window")
+
+		m.onCGroupDeleted(secondEntry)
+		listMsg, err = m.ListActivityDumps(&api.ActivityDumpListParams{})
+		require.NoError(t, err)
+		require.Len(t, listMsg.GetDumps(), 1)
+		assert.Equal(t, testContainerID, listMsg.GetDumps()[0].GetMetadata().GetContainerID())
+
+		_, err = m.StopActivityDump(&api.ActivityDumpStopParams{ContainerID: secondContainerID})
+		require.Error(t, err, "exited container must not match while another container of the image is active")
+
+		firstEntry := m.resolvers.CGroupResolver.GetCacheEntryContainerID(containerutils.ContainerID(testContainerID))
+		require.NotNil(t, firstEntry)
+		m.onCGroupDeleted(firstEntry)
+		stopMsg, err := m.StopActivityDump(&api.ActivityDumpStopParams{ContainerID: testContainerID})
+		require.NoError(t, err, "last exited container must still match during the cleanup grace window")
+		assert.Empty(t, stopMsg.GetError())
+
+		profilePath := filepath.Join(dir, p.Metadata.Name+"."+config.Profile.String())
+		jsonPath := filepath.Join(dir, p.Metadata.Name+"."+config.JSON.String())
+		_, err = os.Stat(profilePath)
+		require.NoError(t, err)
+		_, err = os.Stat(jsonPath)
+		require.NoError(t, err)
+	})
+
+	t.Run("validation, disabled manager, and partial storage errors", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		require.True(t, inserted)
+		require.NotNil(t, p)
+
+		stopMsg, err := m.StopActivityDump(&api.ActivityDumpStopParams{})
+		require.Error(t, err)
+		assert.Contains(t, stopMsg.GetError(), "you must specify one selector")
+
+		stopMsg, err = m.StopActivityDump(&api.ActivityDumpStopParams{ContainerID: "missing"})
+		require.Error(t, err)
+		assert.Contains(t, stopMsg.GetError(), "missing")
+
+		brokenDir := filepath.Join(t.TempDir(), "profiles")
+		localStorage, err := storage.NewDirectory(brokenDir, 100)
+		require.NoError(t, err)
+		require.NoError(t, os.Remove(brokenDir))
+		require.NoError(t, os.WriteFile(brokenDir, []byte("not-a-dir"), 0600))
+
+		remoteHandler := &fakeActivityDumpHandler{err: errors.New("remote down")}
+		remoteStorage, err := storage.NewActivityDumpRemoteStorageForwarder(remoteHandler)
+		require.NoError(t, err)
+
+		m.localStorage = localStorage
+		m.remoteStorage = remoteStorage
+		m.configuredStorageRequests = perFormatStorageRequests([]config.StorageRequest{
+			config.NewStorageRequest(config.LocalStorage, config.JSON, false, brokenDir),
+			config.NewStorageRequest(config.RemoteStorage, config.Profile, true, ""),
+		})
+
+		require.Error(t, m.persistProfile(p))
+		assert.False(t, p.HasAlreadyBeenSent(), "profile must not be marked sent when all storage backends fail")
+
+		remoteHandler.err = nil
+		stopMsg, err = m.StopActivityDump(&api.ActivityDumpStopParams{Name: p.Metadata.Name})
+		require.Error(t, err)
+		assert.NotEmpty(t, stopMsg.GetError())
+		assert.Equal(t, 1, remoteHandler.persisted, "remote storage must still be attempted when local storage fails")
+		assert.False(t, p.HasAlreadyBeenSent(), "on-demand stop must not mark profile as sent")
+
+		require.Error(t, m.persistProfile(p))
+		assert.Equal(t, 2, remoteHandler.persisted)
+		assert.True(t, p.HasAlreadyBeenSent(), "periodic persist marks profile sent when at least one backend succeeds")
+
+		m.config.RuntimeSecurity.SecurityProfileV2Enabled = false
+		_, err = m.ListActivityDumps(&api.ActivityDumpListParams{})
+		assert.ErrorIs(t, err, ErrSecurityProfileManagerDisabled)
+		_, err = m.StopActivityDump(&api.ActivityDumpStopParams{Name: p.Metadata.Name})
+		assert.ErrorIs(t, err, ErrSecurityProfileManagerDisabled)
+	})
+
+	t.Run("shutdown flushes local storage without remote upload", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		m.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout = 30 * time.Minute
+		dir := t.TempDir()
+		localStorage, err := storage.NewDirectory(dir, 100)
+		require.NoError(t, err)
+		remoteHandler := &fakeActivityDumpHandler{}
+		remoteStorage, err := storage.NewActivityDumpRemoteStorageForwarder(remoteHandler)
+		require.NoError(t, err)
+
+		m.localStorage = localStorage
+		m.remoteStorage = remoteStorage
+		m.configuredStorageRequests = perFormatStorageRequests([]config.StorageRequest{
+			config.NewStorageRequest(config.LocalStorage, config.Profile, false, dir),
+			config.NewStorageRequest(config.RemoteStorage, config.Profile, true, ""),
+		})
+
+		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		require.True(t, inserted)
+		require.NotNil(t, p)
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		m.Start(ctx)
+
+		_, err = os.Stat(filepath.Join(dir, p.Metadata.Name+"."+config.Profile.String()))
+		require.NoError(t, err)
+		assert.Equal(t, 0, remoteHandler.persisted)
+		assert.False(t, p.HasAlreadyBeenSent())
+	})
+
+	t.Run("concurrent insert, list, and stop", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		dir := t.TempDir()
+		localStorage, err := storage.NewDirectory(dir, 100)
+		require.NoError(t, err)
+		m.localStorage = localStorage
+		m.configuredStorageRequests = perFormatStorageRequests([]config.StorageRequest{
+			config.NewStorageRequest(config.LocalStorage, config.Profile, false, dir),
+		})
+
+		secondContainerID := "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+		require.NotNil(t, m.resolvers.CGroupResolver.Add(model.CGroupContext{
+			CGroupID:      containerutils.CGroupID("/docker/" + secondContainerID),
+			CGroupPathKey: model.PathKey{Inode: 4244, MountID: 1},
+		}))
+
+		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		require.True(t, inserted)
+		require.NotNil(t, p)
+
+		var wg sync.WaitGroup
+		wg.Add(3)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 20; i++ {
+				ev := newTestEventV2(model.ExecEventType, "v1", "known")
+				if i%2 == 1 {
+					ev.ProcessCacheEntry.ContainerContext.ContainerID = containerutils.ContainerID(secondContainerID)
+				}
+				m.insertEventIntoProfile(ev)
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 20; i++ {
+				_, err := m.ListActivityDumps(&api.ActivityDumpListParams{})
+				assert.NoError(t, err)
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 10; i++ {
+				_, err := m.StopActivityDump(&api.ActivityDumpStopParams{ContainerID: testContainerID})
+				assert.NoError(t, err)
+			}
+		}()
+		wg.Wait()
 	})
 }
