@@ -61,6 +61,7 @@ network_devices:
 			expectedConfig: NetflowConfig{
 				Enabled:                                true,
 				StopTimeout:                            10,
+				TemplateCacheMaxSize:                   10000,
 				AggregatorBufferSize:                   20,
 				AggregatorFlushInterval:                30,
 				AggregatorFlowContextTTL:               40,
@@ -100,6 +101,7 @@ network_devices:
 			expectedConfig: NetflowConfig{
 				Enabled:                                true,
 				StopTimeout:                            5,
+				TemplateCacheMaxSize:                   10000,
 				AggregatorBufferSize:                   10000,
 				AggregatorFlushInterval:                300,
 				AggregatorFlowContextTTL:               300,
@@ -131,6 +133,7 @@ network_devices:
 			expectedConfig: NetflowConfig{
 				Enabled:                                true,
 				StopTimeout:                            5,
+				TemplateCacheMaxSize:                   10000,
 				AggregatorBufferSize:                   10000,
 				AggregatorFlushInterval:                50,
 				AggregatorFlowContextTTL:               50,
@@ -188,6 +191,7 @@ network_devices:
 			expectedConfig: NetflowConfig{
 				Enabled:                                true,
 				StopTimeout:                            5,
+				TemplateCacheMaxSize:                   10000,
 				AggregatorBufferSize:                   10000,
 				AggregatorFlushInterval:                300,
 				AggregatorFlowContextTTL:               300,
