@@ -8,14 +8,17 @@ package main
 
 import (
 	"context"
+	"errors"
+	"flag"
 	"fmt"
 	"os"
 
+	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/pclntab"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbol"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbolcopier"
 )
 
-func extractDebugInfos(elfFile, outFile string) error {
+func extractDebugInfos(elfFile, outFile string, stream bool) error {
 	ef, err := symbol.NewElfFromDisk(elfFile)
 	if err != nil {
 		return fmt.Errorf("failed to open elf file: %w", err)
@@ -37,19 +40,45 @@ func extractDebugInfos(elfFile, outFile string) error {
 		sectionsToKeep = ef.GetSectionsRequiredForDynamicSymbols()
 	}
 
+	if stream {
+		return streamSymbols(elfFile, outFile, goPCLnTabInfo, sectionsToKeep)
+	}
 	return symbolcopier.CopySymbols(context.Background(), elfFile, outFile, goPCLnTabInfo, sectionsToKeep)
 }
 
+// streamSymbols exports elfFile with elfstream, as the uploader does with
+// stream_symbols, but uncompressed so ELF tools can read the result.
+func streamSymbols(elfFile, outFile string, goPCLnTabInfo *pclntab.GoPCLnTabInfo, sectionsToKeep []symbol.SectionInfo) error {
+	input, err := os.Open(elfFile)
+	if err != nil {
+		return err
+	}
+	defer input.Close()
+	stat, err := input.Stat()
+	if err != nil {
+		return err
+	}
+	ctx := context.Background()
+	stream, err := symbolcopier.NewSymbolStream(ctx, input, stat.Size(), goPCLnTabInfo, sectionsToKeep)
+	if err != nil {
+		return err
+	}
+	output, err := os.Create(outFile)
+	if err != nil {
+		return err
+	}
+	return errors.Join(stream.Write(ctx, output), output.Close())
+}
+
 func main() {
-	if len(os.Args) != 3 {
-		fmt.Printf("Usage: %s <elf-file> <debug-file>\n", os.Args[0])
+	stream := flag.Bool("stream", false, "export with elfstream instead of objcopy")
+	flag.Parse()
+	if flag.NArg() != 2 {
+		fmt.Printf("Usage: %s [-stream] <elf-file> <debug-file>\n", os.Args[0])
 		return
 	}
 
-	elfFile := os.Args[1]
-	outFile := os.Args[2]
-
-	err := extractDebugInfos(elfFile, outFile)
+	err := extractDebugInfos(flag.Arg(0), flag.Arg(1), *stream)
 
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
