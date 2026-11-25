@@ -367,9 +367,7 @@ func (m *Manager) cleanupTracedPids(ad *dump.ActivityDump) {
 	// Try to get workload from cgroup resolver
 	if ad.Profile.Metadata.ContainerID != "" {
 		// Container workload
-		if cacheEntry := m.resolvers.CGroupResolver.GetCacheEntryContainerID(ad.Profile.Metadata.ContainerID); cacheEntry != nil {
-			pids = cacheEntry.GetPIDs()
-		}
+		pids = m.resolvers.CGroupResolver.GetContainerPIDs(ad.Profile.Metadata.ContainerID)
 	} else if ad.Profile.Metadata.CGroupContext.CGroupID != "" {
 		// Host workload
 		if cachedEntry := m.resolvers.CGroupResolver.GetCacheEntryByCgroupID(ad.Profile.Metadata.CGroupContext.CGroupID); cachedEntry != nil {

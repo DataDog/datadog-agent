@@ -643,21 +643,27 @@ func (tkn *SQLTokenizer) scanFormatParameter(_ rune) (TokenKind, []byte) {
 // scanDollarQuotedString scans a Postgres dollar-quoted string constant.
 // See: https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-DOLLAR-QUOTING
 func (tkn *SQLTokenizer) scanDollarQuotedString() (TokenKind, []byte) {
-	kind, tag := tkn.scanString('$', String)
-	if kind == LexError {
-		return kind, tkn.bytes()
+	// The opening '$' has already been consumed. A tag cannot contain '$', so the
+	// first '$' always ends the opening delimiter. Unlike in scanString, a doubled
+	// '$' is not an escaped delimiter: in `$tag$$tag$` the content is empty.
+	delim := []byte{'$'}
+	for {
+		ch := tkn.lastChar
+		tkn.advance()
+		if ch == '$' {
+			break
+		}
+		if ch == EndChar {
+			tkn.setErr("unexpected EOF in string")
+			return LexError, tkn.bytes()
+		}
+		delim = utf8.AppendRune(delim, ch)
 	}
+	delim = append(delim, '$')
 	var (
 		got int
 		buf bytes.Buffer
 	)
-	delim := tag
-	// on empty strings, tkn.scanString returns the delimiters
-	if string(delim) != "$$" {
-		// on non-empty strings, the delimiter is $tag$
-		delim = append([]byte{'$'}, delim...)
-		delim = append(delim, '$')
-	}
 	for {
 		ch := tkn.lastChar
 		tkn.advance()
@@ -679,6 +685,12 @@ func (tkn *SQLTokenizer) scanDollarQuotedString() (TokenKind, []byte) {
 				return LexError, buf.Bytes()
 			}
 			got = 0
+			// The tag holds no '$', so a partial match can only restart at the
+			// current character, as in the '$$' of `$tag$$$tag$`.
+			if ch == '$' {
+				got = 1
+				continue
+			}
 		}
 		buf.WriteRune(ch)
 	}

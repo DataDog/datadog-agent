@@ -46,6 +46,7 @@ type testOpts struct {
 	enableFIM                               bool // only valid on windows
 	networkIngressEnabled                   bool
 	networkRawPacketEnabled                 bool
+	networkTCXEnabled                       bool
 	disableOnDemandRateLimiter              bool
 	ebpfLessEnabled                         bool
 	dontWaitEBPFLessClient                  bool

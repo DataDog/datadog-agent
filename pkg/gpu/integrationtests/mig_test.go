@@ -56,8 +56,9 @@ func TestMIGDeviceListing(t *testing.T) {
 	}
 }
 
-// TestMIGParentChildCoreCount tests that the parent device's core count equals
-// the sum of its MIG children's core counts.
+// TestMIGParentChildCoreCount tests that the parent device's core count and memory are at least the sum of its MIG
+// children's: the parent reports the largest capacity any GPU instance profile provides (e.g. 7g.141gb on an H200,
+// 132 SMs), which can be more than what the current MIG devices add up to (e.g. 7 x 1g.18gb, 112 SMs).
 func TestMIGParentChildCoreCount(t *testing.T) {
 	testutil.RequireGPU(t)
 	requireMIGTests(t)
@@ -82,25 +83,22 @@ func TestMIGParentChildCoreCount(t *testing.T) {
 		parentInfo := physDev.GetDeviceInfo()
 
 		childCoreSum := 0
-		distinctProfiles := make(map[string]struct{})
+		childMemorySum := uint64(0)
+		gpuInstancesSeen := make(map[int]struct{})
 		for _, migChild := range physDev.MIGChildren {
 			childInfo := migChild.GetDeviceInfo()
 			childCoreSum += childInfo.CoreCount
-			distinctProfiles[migChild.Profile] = struct{}{}
+			// The compute instances of a GPU instance share its memory: count it once
+			if _, seen := gpuInstancesSeen[migChild.MIGInstanceID]; !seen {
+				gpuInstancesSeen[migChild.MIGInstanceID] = struct{}{}
+				childMemorySum += childInfo.Memory
+			}
 		}
 
-		// The parent's MIG-mode core estimate is derived from a single GPU
-		// instance profile (device.go), so parent/child equality only holds
-		// for uniform layouts. Mixed layouts -- e.g. 3x 1g.35gb + 1x 1g.18gb
-		// on the same card -- legitimately add up to less than the estimate.
-		if len(distinctProfiles) > 1 {
-			t.Logf("Physical device %s has a mixed MIG layout (%d distinct profiles, %d children, child sum %d vs parent estimate %d); skipping core-count comparison",
-				parentInfo.UUID, len(distinctProfiles), len(physDev.MIGChildren), childCoreSum, parentInfo.CoreCount)
-			continue
-		}
-
-		require.Equal(t, parentInfo.CoreCount, childCoreSum,
-			"Parent device core count should equal sum of MIG children core counts")
+		require.GreaterOrEqual(t, parentInfo.CoreCount, childCoreSum,
+			"Parent device core count should be at least the sum of MIG children core counts")
+		require.GreaterOrEqual(t, parentInfo.Memory, childMemorySum,
+			"Parent device memory should be at least the sum of MIG children memory")
 		t.Logf("Parent device %s has %d cores, sum of MIG children core counts is %d", parentInfo.UUID, parentInfo.CoreCount, childCoreSum)
 	}
 

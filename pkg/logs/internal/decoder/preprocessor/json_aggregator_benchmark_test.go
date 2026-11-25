@@ -94,3 +94,44 @@ func BenchmarkJSONAggregator_UnbalancedBraces(b *testing.B) {
 		aggregator.Flush()
 	}
 }
+
+func BenchmarkJSONAggregator_PlainText(b *testing.B) {
+	aggregator := NewJSONAggregator(true, 10000)
+	plainContent := `2024-01-01T00:00:00Z INFO test message user_id=12345 request_id=abc-123 duration_ms=150`
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		msg := newTestMessage(plainContent)
+		result := aggregator.Process(msg)
+		if len(result) != 1 {
+			b.Fatal("Expected 1 message")
+		}
+	}
+}
+
+func BenchmarkJSONAggregator_Mixed(b *testing.B) {
+	aggregator := NewJSONAggregator(true, 10000)
+	plainLine := `2024-01-01T00:00:00Z INFO test message user_id=12345 request_id=abc-123 duration_ms=150`
+	singleJSON := `{"timestamp":"2024-01-01T00:00:00Z","level":"info","message":"test message","user_id":12345}`
+	multiPart1 := `{"timestamp":"2024-01-01T00:00:00Z","level":"info",`
+	multiPart2 := `"message":"test message","user_id":12345}`
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		// 7 plain-text lines, 2 single-line JSON, 1 2-line multiline JSON
+		for j := 0; j < 7; j++ {
+			if len(aggregator.Process(newTestMessage(plainLine))) != 1 {
+				b.Fatal("Expected 1 message for plain text")
+			}
+		}
+		for j := 0; j < 2; j++ {
+			if len(aggregator.Process(newTestMessage(singleJSON))) != 1 {
+				b.Fatal("Expected 1 message for single-line JSON")
+			}
+		}
+		aggregator.Process(newTestMessage(multiPart1))
+		if len(aggregator.Process(newTestMessage(multiPart2))) != 1 {
+			b.Fatal("Expected 1 message for multiline JSON")
+		}
+	}
+}

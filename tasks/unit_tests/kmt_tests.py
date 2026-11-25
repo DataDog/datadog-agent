@@ -1,5 +1,8 @@
+import json
 import os
+import tempfile
 import unittest
+from pathlib import Path
 from typing import TYPE_CHECKING, cast
 from unittest.mock import MagicMock, patch
 
@@ -246,6 +249,112 @@ class TestCompilerUser(unittest.TestCase):
         )
         self.assertEqual((self.cc.compiler_user, self.cc.compiler_home), ("root", "/root"))
         exec_.assert_called_once_with("getent passwd 0", user="root")
+
+
+class TestCompilerGitMounts(unittest.TestCase):
+    def setUp(self):
+        self.tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.main = self.tmp / "main"
+        (self.main / ".git" / "objects" / "info").mkdir(parents=True)
+        self.repo_root = self.main
+        self.enterContext(patch.object(compiler, "get_repo_root", side_effect=lambda: self.repo_root))
+        self.ctx = MagicMock()
+        self.ctx.config.run = {"dry": False, "echo": False}
+        self.cc = compiler.CompilerImage(self.ctx, Arch.local())
+
+    def _worktree(self, gitdir: str | None = None) -> Path:
+        git_dir = self.main / ".git" / "worktrees" / "wt"
+        git_dir.mkdir(parents=True)
+        (git_dir / "commondir").write_text("../..\n")
+        wt = self.tmp / "wt"
+        wt.mkdir()
+        (wt / ".git").write_text(f"gitdir: {gitdir or git_dir}\n")
+        self.repo_root = wt
+        return git_dir
+
+    def _docker_run_cmd(self) -> str:
+        """Run start() up to `docker run`, which fails, and return that command."""
+        self.enterContext(patch.object(compiler.CompilerImage, "is_loaded", False))
+        self.enterContext(patch.object(compiler.CompilerImage, "expected_image_name", "img"))
+        self.enterContext(patch.object(compiler.CompilerImage, "host_repository_cache", return_value=None))
+        self.enterContext(patch.object(compiler.CompilerImage, "host_go_caches", return_value={}))
+        self.ctx.run.side_effect = lambda cmd, **_: _result(not cmd.startswith("docker run"))
+        with self.assertRaises(ValueError):
+            self.cc.start()
+        return next(c.args[0] for c in self.ctx.run.call_args_list if c.args[0].startswith("docker run"))
+
+    def test_clone_mounts_only_repo_root(self):
+        cmd = self._docker_run_cmd()
+        self.assertIn(f"source={self.main},target={compiler.CONTAINER_AGENT_PATH}", cmd)
+        self.assertEqual(cmd.count("--mount"), 1)
+
+    def test_worktree_mounts_common_dir_at_same_path(self):
+        self._worktree()
+        common = self.main / ".git"
+        cmd = self._docker_run_cmd()
+        self.assertIn(f"source={self.repo_root},target={compiler.CONTAINER_AGENT_PATH}", cmd)
+        self.assertIn(f"type=bind,source={common},target={common}", cmd)
+
+    def test_worktree_with_relative_gitdir_is_refused(self):
+        self._worktree(gitdir="../main/.git/worktrees/wt")
+        with self.assertRaises(ie.Exit):
+            self.cc.host_git_mounts()
+
+    def test_missing_git_dir_is_refused(self):
+        self.repo_root = self.tmp
+        with self.assertRaises(ie.Exit):
+            self.cc.host_git_mounts()
+
+    def test_absolute_alternates_are_mounted(self):
+        store = self.tmp / "store" / "objects"
+        (self.main / ".git" / "objects" / "info" / "alternates").write_text(f"# comment\n{store}\n")
+        self.assertEqual(self.cc.host_git_mounts(), [store])
+
+    def test_relative_alternates_are_refused(self):
+        (self.main / ".git" / "objects" / "info" / "alternates").write_text("../../store/objects\n")
+        with self.assertRaises(ie.Exit):
+            self.cc.host_git_mounts()
+
+    def _inspect(self, mounts: list[dict]):
+        self.enterContext(patch.object(compiler.CompilerImage, "is_loaded", True))
+        self.ctx.run.return_value = _result(True, json.dumps(mounts))
+
+    def test_container_from_same_worktree_is_reused(self):
+        self._worktree()
+        common = str(self.main / ".git")
+        self._inspect(
+            [
+                {"Source": str(self.repo_root), "Destination": compiler.CONTAINER_AGENT_PATH},
+                {"Source": common, "Destination": common},
+            ]
+        )
+        self.cc.ensure_mounts_current_repo()
+
+    def test_container_from_other_checkout_is_refused(self):
+        self._worktree()
+        self._inspect([{"Source": str(self.main), "Destination": compiler.CONTAINER_AGENT_PATH}])
+        with self.assertRaises(ie.Exit):
+            self.cc.ensure_mounts_current_repo()
+
+    def test_chained_alternates_are_mounted_once(self):
+        first = self.tmp / "first" / "objects"
+        second = self.tmp / "second" / "objects"
+        (first / "info").mkdir(parents=True)
+        (second / "info").mkdir(parents=True)
+        (self.main / ".git" / "objects" / "info" / "alternates").write_text(f"{first}\n")
+        (first / "info" / "alternates").write_text(f"{second}\n")
+        (second / "info" / "alternates").write_text(f"{first}\n")  # cycle back to the first store
+        self.assertEqual(self.cc.host_git_mounts(), [first, second])
+
+    def test_other_checkout_is_refused_before_image_refresh(self):
+        self._worktree()
+        self._inspect([{"Source": str(self.main), "Destination": compiler.CONTAINER_AGENT_PATH}])
+        self.enterContext(patch.object(compiler.CompilerImage, "running_image_name", "old"))
+        self.enterContext(patch.object(compiler.CompilerImage, "expected_image_name", "new"))
+        start = self.enterContext(patch.object(compiler.CompilerImage, "start"))
+        with self.assertRaises(ie.Exit):
+            compiler.get_compiler(self.ctx)
+        start.assert_not_called()
 
 
 def _proc(code: int) -> MagicMock:
