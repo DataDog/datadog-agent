@@ -5,7 +5,8 @@ fixes:
     the ``host_metrics`` receiver under their current names, not only their
     deprecated aliases. A pipeline that already lists ``cumulative_to_delta`` no
     longer gets a second, auto-injected copy, and the connected-mode warning
-    fires for a ``host_metrics`` receiver. The auto-injected processor is now
-    named ``cumulative_to_delta/dd-autoconfigured``, so DDOT no longer logs a
+    for a ``host_metrics`` receiver shows in the logs and in ``agent status``.
+    The auto-injected processor is now named
+    ``cumulative_to_delta/dd-autoconfigured``, so DDOT no longer logs a
     deprecated-alias warning for it. In the DaemonSet+Gateway setup, a DaemonSet
     exporting through ``load_balancing`` now gets the processor too.
