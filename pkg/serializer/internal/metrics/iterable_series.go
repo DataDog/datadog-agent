@@ -81,8 +81,7 @@ func (series *IterableSeries) WriteCurrentItem(stream *jsoniter.Stream) error {
 }
 
 func writeItem(stream *jsoniter.Stream, serie *metrics.Serie) error {
-	serie.PopulateDeviceField()
-	serie.PopulateResources()
+	serie.PopulateDeviceAndResources()
 	encodeSerie(serie, stream)
 	return stream.Flush()
 }
@@ -285,8 +284,7 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 		return nil
 	}
 
-	serie.PopulateDeviceField()
-	serie.PopulateResources()
+	serie.PopulateDeviceAndResources()
 
 	pb.buf.Reset()
 	err := pb.ps.Embedded(payloadSeries, func(ps *molecule.ProtoStream) error {
