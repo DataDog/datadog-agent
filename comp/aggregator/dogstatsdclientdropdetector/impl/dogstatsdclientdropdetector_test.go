@@ -343,6 +343,27 @@ func TestComponentRetriesDroppedStaleResolution(t *testing.T) {
 	require.Nil(t, healthPlatform.GetIssue("stale"))
 }
 
+func TestComponentRetriesDroppedStaleResolutionWhileIssueActive(t *testing.T) {
+	detector, healthPlatform := newTestComponent(t)
+	advance := useTestClock(detector)
+	unhealthy := clientByteStats{sent: 980, dropped: 20}
+	completeWindow(detector, unhealthy)
+	advance(detector.unhealthyConfirmationDuration)
+	completeWindow(detector, unhealthy)
+	state := goClientState(detector)
+	require.True(t, state.issueActive)
+
+	// The replacement is reported, but the stale ID's resolution was dropped.
+	require.NoError(t, healthPlatform.ReportIssue(&healthplatformpayload.Issue{Id: "stale", IssueName: "t"}))
+	state.staleIssueIDs = []string{"stale"}
+
+	// The client goes quiet: a window with no traffic must still retry it.
+	completeWindow(detector, clientByteStats{})
+	require.Empty(t, state.staleIssueIDs)
+	require.Nil(t, healthPlatform.GetIssue("stale"))
+	require.True(t, state.issueActive, "the current issue is unaffected")
+}
+
 func TestComponentMaintainsIndependentIssuesPerClientLibrary(t *testing.T) {
 	detector, healthPlatform := newTestComponent(t)
 	advance := useTestClock(detector)

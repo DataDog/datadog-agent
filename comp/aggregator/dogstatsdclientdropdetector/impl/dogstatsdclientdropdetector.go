@@ -287,8 +287,9 @@ func (d *component) handleHealthyWindow(state *clientState) {
 }
 
 // retryDroppedResolutions retries resolutions the queue dropped: the current
-// issue once its recovery was confirmed, and stale issue IDs, which stay
-// tracked after the current issue resolves.
+// issue once its recovery was confirmed, and stale issue IDs, whose
+// resolution can be dropped while the current issue is active or after it
+// resolved.
 func (d *component) retryDroppedResolutions(state *clientState) {
 	if state.resolutionPending {
 		if !d.resolveIssue(state) {
@@ -298,7 +299,9 @@ func (d *component) retryDroppedResolutions(state *clientState) {
 		d.resetPendingTransition(state)
 		return
 	}
-	if !state.issueActive && len(state.staleIssueIDs) > 0 {
+	// Stale IDs are safe to resolve once no issue is active, or once the
+	// current issue was reported under its own ID (issueNeedsRefresh is false).
+	if len(state.staleIssueIDs) > 0 && (!state.issueActive || !state.issueNeedsRefresh) {
 		d.resolveStaleIssues(state)
 	}
 }
