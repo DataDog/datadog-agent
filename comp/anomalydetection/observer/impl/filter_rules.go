@@ -51,7 +51,7 @@ const (
 // metricTypeFilter is a bitmask of allowed metric types.
 // A zero value means all metric types (including UnknownType) are allowed.
 // Bit (1 << uint(mt+1)) corresponds to mt, so bit 0 is UnknownType (-1)
-// and bits 1..NumMetricTypes are metrics.GaugeType..metrics.CountWithTimestampType.
+// and bits 1..NumMetricTypes are metrics.GaugeType..metrics.NumMetricTypes-1.
 type metricTypeFilter uint32
 
 func metricTypeBit(mt metrics.MetricType) (uint32, bool) {

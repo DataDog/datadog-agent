@@ -292,6 +292,13 @@ func TestIsParentDiscarder(t *testing.T) {
 	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", merged+"/var/log/other", 2, merged); !is {
 		t.Error("should be a parent discarder")
 	}
+
+	rs = rules.NewRuleSet(&model.Model{}, newFakeEvent, &opts, &evalOpts)
+	rules.AddTestRuleExpr(t, rs, `open.file.extension == "php"`)
+
+	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", "/var/www/index.html", 1, ""); is {
+		t.Error("shouldn't be a parent discarder")
+	}
 }
 
 func TestIsGrandParentDiscarder(t *testing.T) {

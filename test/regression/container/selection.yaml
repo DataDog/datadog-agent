@@ -18,13 +18,17 @@
 always:
   - quality_gates/**
   - metrics/**
-  - openmetrics/**
 
 codeowners:
+  agent-integrations:
+    - openmetrics/**
   agent-log-pipelines:
     - logs/general/**
   agent-metric-pipelines:
     - agent-metric-pipelines/**
+    - openmetrics/**
+  agent-runtimes:
+    - openmetrics/**
 
 labels:
   smp/logs/syslog:

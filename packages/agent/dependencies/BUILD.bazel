@@ -106,6 +106,12 @@ dd_collect_dependencies(
             "//cmd/trace-agent",
             "@openssl//:openssl_bin_pkg",
         ],
+        # Not part of :all_files on Windows (CPython is installed by
+        # datadog-agent-integrations-py3.rb); listed here so that
+        # :license_files picks up the CPython license.
+        "@platforms//os:windows": [
+            "@cpython//:all_files",
+        ],
         "//conditions:default": [],
     }),
 )

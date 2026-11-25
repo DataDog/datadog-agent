@@ -146,8 +146,7 @@ func (p AgentDemultiplexerPrinter) GetMetricsDataForPrint() map[string]interface
 		metrics := make([]interface{}, len(series))
 		// Workaround to get the sequence of metrics as plain interface{}
 		for i, serie := range series {
-			serie.PopulateDeviceField()
-			serie.PopulateResources()
+			serie.PopulateDeviceAndResources()
 			sj, _ := json.Marshal(serie)
 			json.Unmarshal(sj, &metrics[i]) //nolint:errcheck
 		}

@@ -115,6 +115,10 @@ static __always_inline int handle_open(ctx_t *ctx, struct path *path) {
         syscall->state = INTERNAL;
     }
 
+    if (syscall->state == DISCARDED) {
+        return 0;
+    }
+
     syscall->resolver.key = syscall->open.file.path_key;
     syscall->resolver.dentry = syscall->open.dentry;
     syscall->resolver.event_type = syscall->type;
@@ -126,6 +130,9 @@ static __always_inline int handle_open(ctx_t *ctx, struct path *path) {
 
     // tail call
     resolve_dentry(ctx, KPROBE_OR_FENTRY_TYPE);
+
+    // if the tail call fails, we need to pop the syscall cache entry
+    pop_syscall(EVENT_OPEN);
 
     return 0;
 }
