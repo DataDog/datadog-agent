@@ -61,13 +61,7 @@ func (i *InstallerExec) newInstallerCmdCustomPathDetached(ctx context.Context, c
 	cmd.Stdin = nil
 	cmd.Stdout = nil
 	cmd.Stderr = nil
-	iCmd := i.setupInstallerCmd(ctx, span, cmd)
-	// newInstallerCmdPlatform sets Cancel on every command to tie it to its context, but exec
-	// refuses to start a command that has a Cancel and was not built with CommandContext, which
-	// this one deliberately isn't.
-	iCmd.Cmd.Cancel = nil
-	detachCmdPlatform(iCmd.Cmd)
-	return iCmd
+	return i.setupInstallerCmd(ctx, span, cmd)
 }
 
 func (i *InstallerExec) newInstallerCmdCustomPath(ctx context.Context, command string, path string, args ...string) *installerCmd {
