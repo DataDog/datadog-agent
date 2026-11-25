@@ -114,6 +114,7 @@ new-e2e-unit-tests:
         paths:
           - test/e2e-framework/**/*
           - tasks/new_e2e_tests.py
+          - tasks/gotest.py
           - tasks/e2e_framework/**/*
           - .gitlab/build/source_test/linux.yml
           - .gitlab/.pre/deps_fetch/deps_fetch.yml
