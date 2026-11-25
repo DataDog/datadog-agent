@@ -139,6 +139,7 @@ installer-install-scripts:
     - dda inv -- -e installer.build-linux-script "default" "$VERSION" "installer-amd64" "installer-arm64" "install.sh" --package="agent-package"
     - dda inv -- -e installer.build-linux-script "APM SSI" "$VERSION" "installer-amd64" "installer-arm64" "install-ssi.sh" --package="agent-package"
     - dda inv -- -e installer.build-linux-script "databricks" "$VERSION" "installer-amd64" "installer-arm64" "install-databricks.sh"
+    - dda inv -- -e installer.build-linux-script "databricks-gpu" "$VERSION" "installer-amd64" "installer-arm64" "install-databricks-gpu.sh"
     - dda inv -- -e installer.build-linux-script "emr" "$VERSION" "installer-amd64" "installer-arm64" "install-emr.sh"
     - dda inv -- -e installer.build-linux-script "dataproc" "$VERSION" "installer-amd64" "installer-arm64" "install-dataproc.sh"
     - mv ./bin/installer/install*.sh $OMNIBUS_PACKAGE_DIR/

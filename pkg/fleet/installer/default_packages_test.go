@@ -39,6 +39,7 @@ func TestDefaultPackagesAPMInjectEnabled(t *testing.T) {
 		"oci://install.datadoghq.com/apm-library-python-package:4",
 		"oci://install.datadoghq.com/apm-library-php-package:1",
 		"oci://install.datadoghq.com/apm-library-nginx-package:1",
+		"oci://install.datadoghq.com/apm-library-httpd-package:1",
 	}, packages)
 }
 
@@ -73,10 +74,10 @@ func TestDefaultPackagesAPMLibrariesIncludingIIS(t *testing.T) {
 		"oci://install.datadoghq.com/apm-library-python-package:4",
 		"oci://install.datadoghq.com/apm-library-php-package:1",
 		"oci://install.datadoghq.com/apm-library-nginx-package:1",
+		"oci://install.datadoghq.com/apm-library-httpd-package:1",
 		"oci://install.datadoghq.com/agent-package:latest",
 		"oci://install.datadoghq.com/apm-library-iis-package:1",
 		"oci://install.datadoghq.com/apm-library-iis-rum-package:1",
-		"oci://install.datadoghq.com/apm-library-httpd-package:1",
 		"oci://install.datadoghq.com/apm-library-c-package:1",
 	}, packages)
 }
@@ -100,7 +101,6 @@ func TestPreRegisteredPackagesNotSelectedByDefault(t *testing.T) {
 			for _, url := range packages {
 				assert.NotContains(t, url, "apm-library-iis-package")
 				assert.NotContains(t, url, "apm-library-iis-rum-package")
-				assert.NotContains(t, url, "apm-library-httpd-package")
 				assert.NotContains(t, url, "apm-library-c-package")
 			}
 		})
@@ -125,6 +125,7 @@ func TestCentos6PackagesAPMInjectEnabled(t *testing.T) {
 		"oci://install.datadoghq.com/apm-library-python-package:4",
 		"oci://install.datadoghq.com/apm-library-php-package:1",
 		"oci://install.datadoghq.com/apm-library-nginx-package:1",
+		"oci://install.datadoghq.com/apm-library-httpd-package:1",
 	}, packages)
 }
 
