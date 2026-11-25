@@ -306,8 +306,8 @@ func (s *extensionsSuite) setInstallerRegistryConfig(registryURL ...string) {
 	case e2eos.LinuxFamily:
 		// Replace an existing installer registry URL or append the block if absent.
 		_, err := s.Env().RemoteHost.Execute(
-			`if grep -qE '^\s+url:.*datad0g\.com' /etc/datadog-agent/datadog.yaml; then ` +
-				`sudo sed -i 's|^\(\s*url: \).*datad0g\.com.*|\1` + url + `|' /etc/datadog-agent/datadog.yaml; ` +
+			`if grep -qE '^\s+url:\s+install(testing)?\.' /etc/datadog-agent/datadog.yaml; then ` +
+				`sudo sed -i 's|^\(\s*url:\s*\)install\(testing\)\?\..*|\1` + url + `|' /etc/datadog-agent/datadog.yaml; ` +
 				`else sudo sh -c 'printf "\ninstaller:\n  registry:\n    url: ` + url + `\n" >> /etc/datadog-agent/datadog.yaml'; ` +
 				`fi`)
 		s.Require().NoError(err)
@@ -315,8 +315,8 @@ func (s *extensionsSuite) setInstallerRegistryConfig(registryURL ...string) {
 		// Replace an existing installer registry URL or append the block if absent.
 		_, err := s.Env().RemoteHost.Execute(
 			`$f = 'C:\ProgramData\Datadog\datadog.yaml'; $c = Get-Content $f -Raw; ` +
-				`if ($c -match '(?m)^\s+url:\s+\S+datad0g\.com\S*') { ` +
-				`$c = $c -replace '(?m)^(\s+url:\s+)\S+datad0g\.com\S*', '${1}` + url + `'; ` +
+				`if ($c -match '(?m)^\s+url:\s+install(testing)?\.\S*') { ` +
+				`$c = $c -replace '(?m)^(\s+url:\s+)install(testing)?\.\S*', '${1}` + url + `'; ` +
 				`} else { ` +
 				"$c += \"`ninstaller:`n  registry:`n    url: " + url + "\"; " +
 				`} Set-Content $f -Value $c -NoNewline`)
