@@ -59,8 +59,10 @@ func assertMacosProcmgrRequiresRoot(t *testing.T, client *common.MacOSTestClient
 	t.Helper()
 	_, err := client.Execute(command)
 	require.Error(t, err, command)
-	// The Rust tests pin this message to PermissionDenied. Match only the message, not the status code.
+	// The Rust tests pin this message to PermissionDenied. The CLI prints the status description with it,
+	// so a different status carrying the same message does not pass.
 	assert.Contains(t, err.Error(), "operation requires root")
+	assert.Contains(t, err.Error(), "does not have permission to execute the specified operation")
 	return err.Error()
 }
 
@@ -279,7 +281,7 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 				t.Errorf("cleanup: /bin/sleep %s remained after the restart: %v\n%s", sleepArg, err, left)
 			} else if restarted {
 				if _, rmErr := client.Execute("sudo rm -f " + macosCallerAuthSleepMarker); rmErr != nil {
-					t.Logf("cleanup: failed to remove %s: %v", macosCallerAuthSleepMarker, rmErr)
+					t.Errorf("cleanup: failed to remove %s: %v", macosCallerAuthSleepMarker, rmErr)
 				}
 			}
 		}()
