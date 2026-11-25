@@ -66,7 +66,7 @@ func (h *logsHandler) HasSection(cr *datadoghq.DatadogInstrumentation) bool {
 // SupportsTarget returns whether log delivery supports the target kind.
 func (h *logsHandler) SupportsTarget(ref autoscalingv2.CrossVersionObjectReference) bool {
 	switch ref.Kind {
-	case kubernetes.DeploymentKind, kubernetes.DaemonSetKind, kubernetes.StatefulSetKind, kubernetes.CronJobKind, kubernetes.JobKind, kubernetes.RolloutKind, kubernetes.StrimziPodSetKind:
+	case kubernetes.DeploymentKind, kubernetes.DaemonSetKind, kubernetes.StatefulSetKind, kubernetes.CronJobKind, kubernetes.JobKind, kubernetes.RolloutKind, kubernetes.StrimziPodSetKind, kubernetes.WorkflowKind, kubernetes.CronWorkflowKind:
 		return true
 	default:
 		return false

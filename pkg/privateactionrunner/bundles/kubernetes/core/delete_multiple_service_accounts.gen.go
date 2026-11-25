@@ -7,6 +7,7 @@ package com_datadoghq_kubernetes_core
 
 import (
 	"context"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 
@@ -36,6 +37,10 @@ func (h *DeleteMultipleServiceAccountsHandler) Run(
 	inputs, err := types.ExtractInputs[DeleteMultipleServiceAccountsInputs](task)
 	if err != nil {
 		return nil, err
+	}
+
+	if inputs.Namespace == "" {
+		return nil, errors.New("namespace is required")
 	}
 
 	client, err := support.KubeClient(credential)

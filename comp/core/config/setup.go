@@ -6,6 +6,7 @@
 package config
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -51,7 +52,7 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 	}
 
 	// load the configuration
-	err := pkgconfigsetup.LoadDatadog(config, secretComp, delegatedAuthComp, schemaComp)
+	err := pkgconfigsetup.LoadDatadog(config, secretComp, delegatedAuthComp, schemaComp, p.ignoreMissingConfigFileError)
 
 	if err != nil && (!errors.Is(err, pkgconfigmodel.ErrConfigFileNotFound) || confFilePath != "") {
 		// special-case permission-denied with a clearer error message
@@ -62,7 +63,7 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 				err = fmt.Errorf("cannot access the Datadog config file (%w); try running the command under the same user as the Datadog Agent", err)
 			}
 		} else {
-			err = fmt.Errorf("unable to load Datadog config file: %w", err)
+			err = fmt.Errorf("unable to load Datadog config: %w", err)
 		}
 		return err
 	}
@@ -88,6 +89,9 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 		pkgconfigsetup.ApplyUseDogstatsdSuppression(config)
 		pkgconfigsetup.ComputeDataPlaneStopTimeout(config)
 		pkgconfigsetup.SanitizeDataPlaneConfig(config)
+		// The same goes for delegated-auth endpoint directives: re-run the scan over
+		// the merged values (already-registered directives are replaced in place).
+		pkgconfigsetup.ConfigureDelegatedAuthEndpoints(context.Background(), config, delegatedAuthComp)
 	}
 
 	for k, v := range p.cliOverride {

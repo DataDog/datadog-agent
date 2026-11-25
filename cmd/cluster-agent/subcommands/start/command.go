@@ -38,6 +38,7 @@ import (
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
@@ -119,6 +120,7 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	clusterAgentFlare "github.com/DataDog/datadog-agent/pkg/flare/clusteragent"
+	parDeployment "github.com/DataDog/datadog-agent/pkg/privateactionrunner/deployment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -162,6 +164,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/schedulerevents"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 
@@ -295,6 +298,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 func start(log log.Component,
 	config config.Component,
+	delegatedAuth delegatedauth.Component,
 	taggerComp tagger.Component,
 	telemetry telemetry.Component,
 	demultiplexer demultiplexer.Component,
@@ -595,6 +599,7 @@ func start(log log.Component,
 			})
 			// Set cluster checks handler in clusterchecks component
 			clusterChecksMetadataComp.SetClusterHandler(clusterCheckHandler)
+			api.SetKubeMetadataClusterChecks(clusterCheckHandler)
 		} else {
 			pkglog.Errorf("Error while setting up cluster check Autodiscovery, CLC API endpoints won't be available, err: %v", err)
 		}
@@ -728,7 +733,7 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("private_action_runner.enabled") {
-		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc, demultiplexer, helmactions, kubeActions)
+		drain, err := startPrivateActionRunner(mainCtx, config, delegatedAuth, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc, demultiplexer, helmactions, kubeActions)
 		if err != nil {
 			log.Errorf("Cannot start private action runner: %v", err)
 		} else {
@@ -904,6 +909,7 @@ func setupClusterCheck(ctx context.Context, ac autodiscovery.Component, tagger t
 func startPrivateActionRunner(
 	ctx context.Context,
 	config config.Component,
+	delegatedAuth delegatedauth.Component,
 	hostnameGetter hostnameinterface.Component,
 	rcClient *rcclient.Client,
 	le *leaderelection.LeaderEngine,
@@ -916,6 +922,9 @@ func startPrivateActionRunner(
 	ha helmactions.Component,
 	ka kubeactionscomp.Component,
 ) (func(), error) {
+	if err := parDeployment.EnsureSupported(config); err != nil {
+		return nil, err
+	}
 	if rcClient == nil {
 		return nil, errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for private action runner")
 	}
@@ -934,7 +943,7 @@ func startPrivateActionRunner(
 
 	// No packet capture uploader: its only user, the packet capture bundle, is
 	// not registered in the Cluster Agent.
-	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform, nil, ipc, metricsClient, ha, ka, enrollment.NewIdentityStorage(config, le))
+	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, delegatedAuth, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform, nil, ipc, metricsClient, ha, ka, enrollment.NewIdentityStorage(config, le))
 	if err != nil {
 		return nil, err
 	}
@@ -982,5 +991,6 @@ func registerChecks(wlm workloadmeta.Component, tagger tagger.Component, cfg con
 	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory(tagger, nil)) // wmeta is not used in KSM when running from cluster-agent, so we can pass nil here
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
 	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory(wlm, cfg, tagger))
+	corecheckLoader.RegisterCheck(schedulerevents.CheckName, schedulerevents.Factory(wlm, tagger, cfg))
 	corecheckLoader.RegisterCheck(agentprofiling.CheckName, agentprofiling.Factory(clusterAgentFlare.NewCreator(cfg, statusComponent, diagnoseComp, ipc), cfg))
 }

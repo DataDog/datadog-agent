@@ -77,7 +77,7 @@ func (h *checksHandler) HasSection(cr *datadoghq.DatadogInstrumentation) bool {
 // SupportsTarget returns whether Autodiscovery check delivery supports the target kind.
 func (h *checksHandler) SupportsTarget(ref autoscalingv2.CrossVersionObjectReference) bool {
 	switch ref.Kind {
-	case kubernetes.DeploymentKind, kubernetes.DaemonSetKind, kubernetes.StatefulSetKind, kubernetes.CronJobKind, kubernetes.JobKind, kubernetes.RolloutKind, kubernetes.StrimziPodSetKind:
+	case kubernetes.DeploymentKind, kubernetes.DaemonSetKind, kubernetes.StatefulSetKind, kubernetes.CronJobKind, kubernetes.JobKind, kubernetes.RolloutKind, kubernetes.StrimziPodSetKind, kubernetes.WorkflowKind, kubernetes.CronWorkflowKind:
 		return true
 	case kubernetes.ServiceKind:
 		// Service target support is backed by endpoint slices CR provider. If Endpointslice collection

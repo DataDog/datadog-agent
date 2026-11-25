@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    APM: The Agent no longer logs a ``profiling proxy error`` warning when a
+    profiler closes its connection before Datadog answers the profile upload.
+    This message is now logged at debug level. Timeouts and network errors
+    are still logged as warnings.

@@ -1,0 +1,7 @@
+enhancements:
+  - |
+    When primary intake WIF and Private Action Runner self-enrollment are enabled,
+    the node Agent replaces a saved runner with a new WIF runner on startup if its
+    enrollment organization or site differs from the configuration or is missing.
+    The new identity is saved after successful enrollment and reused across restarts
+    and intake API-key rotations. Failed enrollment leaves the saved identity intact.

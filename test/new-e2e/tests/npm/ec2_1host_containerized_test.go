@@ -142,28 +142,26 @@ func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM_DockerRequests() {
 
 // TestFakeIntakeNPM600cnxBucket_HostRequests Validate the agent can communicate with the (fake) backend and send connections
 // every 30 seconds with a maximum of 600 connections per payloads, if more another payload will follow.
-//   - looking for 1 host to send CollectorConnections payload to the fakeintake
-//   - looking for n payloads and check if the last 2 have a maximum span of 200ms
+//   - looking for a collection split into several payloads of at most 600 connections, sent together
 func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
-	// generate connections
-	v.Env().RemoteHost.MustExecute("ab -n 600 -c 600 " + testURL)
-
-	test1HostFakeIntakeNPM600cnxBucket(&v.BaseSuite, v.Env().FakeIntake)
+	test1HostFakeIntakeNPM600cnxBucket(&v.BaseSuite, v.Env().FakeIntake, v.Env().HTTPBinHost.Address, func() {
+		// generate connections
+		v.Env().RemoteHost.MustExecute("ab -n 1500 -c 600 " + testURL)
+	})
 }
 
 // TestFakeIntakeNPM600cnxBucket_DockerRequests Validate the agent can communicate with the (fake) backend and send connections
 // every 30 seconds with a maximum of 600 connections per payloads, if more another payload will follow.
-//   - looking for 1 host to send CollectorConnections payload to the fakeintake
-//   - looking for n payloads and check if the last 2 have a maximum span of 200ms
+//   - looking for a collection split into several payloads of at most 600 connections, sent together
 func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM600cnxBucket_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
-	// generate connections
-	v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " ab -n 600 -c 600 " + testURL)
-
-	test1HostFakeIntakeNPM600cnxBucket(&v.BaseSuite, v.Env().FakeIntake)
+	test1HostFakeIntakeNPM600cnxBucket(&v.BaseSuite, v.Env().FakeIntake, v.Env().HTTPBinHost.Address, func() {
+		// generate connections
+		v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " ab -n 1500 -c 600 " + testURL)
+	})
 }
 
 // TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests validate we received tcp, udp, and DNS connections

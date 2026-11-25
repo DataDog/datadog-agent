@@ -566,9 +566,7 @@ func (s *packageAgentSuite) TestInstallFips() {
 	s.waitForCoreUnitsActive()
 	s.host.WaitForUnitExited(s.T(), 0, processUnit, dataPlaneUnit)
 
-	// Remote Config is disabled by default for FIPS/FED agents, so the RC client fails to init and the unit exits with code 255.
-	// If remote_configuration.enabled is explicitly set to true, the daemon would start normally.
-	s.host.WaitForUnitExited(s.T(), 255, installerUnit)
+	s.host.WaitForUnitExited(s.T(), 0, installerUnit)
 
 	state := s.host.State()
 	s.assertUnits(state, true)

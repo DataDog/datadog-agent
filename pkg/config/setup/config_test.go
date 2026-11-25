@@ -61,7 +61,7 @@ func TestLoadCustomSchemaEnforcement(t *testing.T) {
 			config.SetConfigFile(configPath)
 
 			// schema.enforce is read once the file is loaded, so it can come from the file itself
-			require.NoError(t, loadCustom(config, hostnameViolationValidator{}, config))
+			require.NoError(t, loadCustom(config, hostnameViolationValidator{}, config, false))
 			assert.Equal(t, tc.hostname, config.GetString("hostname"))
 		})
 	}
@@ -79,7 +79,7 @@ func TestLoadCustomSchemaEnforcementFromAnotherConfig(t *testing.T) {
 			require.NoError(t, os.WriteFile(configPath, []byte("hostname: invalid\n"), 0o600))
 			config.SetConfigFile(configPath)
 
-			require.NoError(t, loadCustom(config, hostnameViolationValidator{}, ddConf))
+			require.NoError(t, loadCustom(config, hostnameViolationValidator{}, ddConf, false))
 			if enforce {
 				assert.Equal(t, "", config.GetString("hostname"))
 			} else {
@@ -149,6 +149,59 @@ logs_config:
 	} {
 		require.Contains(t, paramsByKey, key)
 		assert.True(t, paramsByKey[key].AllowAsyncStartup)
+	}
+}
+
+func TestDelegatedAuthScansStartupTimeout(t *testing.T) {
+	for _, scan := range []struct {
+		name string
+		run  func(context.Context, pkgconfigmodel.Config, delegatedauth.Component) error
+	}{
+		{"initial", configureDelegatedAuth},
+		{"rescan", func(ctx context.Context, config pkgconfigmodel.Config, comp delegatedauth.Component) error {
+			ConfigureDelegatedAuthEndpoints(ctx, config, comp)
+			return nil
+		}},
+	} {
+		for _, timeout := range []int{-1, 0, 5} {
+			t.Run(fmt.Sprintf("%s/timeout_%d", scan.name, timeout), func(t *testing.T) {
+				config := confFromYAML(t, `
+additional_endpoints:
+  https://metrics.datadoghq.com:
+    - DELA[map-org, aws]
+logs_config:
+  force_use_http: true
+  additional_endpoints:
+    - host: logs.datadoghq.com
+      api_key: DELA[list-org, aws]
+`)
+				config.SetInTest("delegated_auth.startup_timeout_secs", timeout)
+				parent, cancelParent := context.WithCancel(context.Background())
+				defer cancelParent()
+				var contexts []context.Context
+				comp := &delegatedauthmock.Mock{AddInstanceFunc: func(ctx context.Context, _ delegatedauth.InstanceParams) error {
+					require.NoError(t, ctx.Err())
+					contexts = append(contexts, ctx)
+					return nil
+				}}
+
+				startedAt := time.Now()
+				require.NoError(t, scan.run(parent, config, comp))
+				require.Len(t, contexts, 2)
+				assert.Same(t, contexts[0], contexts[1])
+				require.NoError(t, parent.Err())
+				if timeout > 0 {
+					deadline, ok := contexts[0].Deadline()
+					require.True(t, ok)
+					assert.WithinDuration(t, startedAt.Add(time.Duration(timeout)*time.Second), deadline, time.Second)
+					assert.ErrorIs(t, contexts[0].Err(), context.Canceled)
+				} else {
+					assert.Same(t, parent, contexts[0])
+					cancelParent()
+					assert.ErrorIs(t, contexts[0].Err(), context.Canceled)
+				}
+			})
+		}
 	}
 }
 
@@ -529,12 +582,13 @@ func TestProxy(t *testing.T) {
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t,
 					&pkgconfigmodel.Proxy{
-						HTTP:  "http_url",
-						HTTPS: "https_url",
+						HTTP:    "http_url",
+						HTTPS:   "https_url",
+						NoProxy: []string{},
 					},
 					config.GetProxies())
 				fmt.Printf("%#v\n", config.Get("proxy.no_proxy"))
-				assert.Equal(t, []string(nil), config.Get("proxy.no_proxy"))
+				assert.Equal(t, []string{}, config.Get("proxy.no_proxy"))
 			},
 			proxyForCloudMetadata: true,
 		},
@@ -589,7 +643,7 @@ func TestProxy(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), noopSchemaValidator{})
+			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), noopSchemaValidator{}, false)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -706,7 +760,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), noopSchemaValidator{})
+			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), noopSchemaValidator{}, false)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -902,6 +956,35 @@ logon_duration:
 		"explicit user logon_duration.enabled=false should override the EUD default")
 }
 
+// System-probe clears its env layer and applies the core config stream snapshot on startup,
+// which rebuilds the config from its layers. The end_user_device defaults must survive that,
+// otherwise the software_inventory module is never registered.
+func TestInfrastructureModeEndUserDeviceSurvivesLayerRebuild(t *testing.T) {
+	config := confFromYAML(t, `
+infrastructure_mode: end_user_device
+`)
+	applyInfrastructureModeOverrides(config)
+
+	control, ok := config.(pkgconfigmodel.EnvVarControl)
+	require.True(t, ok)
+	control.ClearEnvVars()
+
+	for _, key := range []string{
+		"software_inventory.enabled",
+		"notable_events.enabled",
+		"logon_duration.enabled",
+		"process_config.process_collection.enabled",
+	} {
+		assert.True(t, config.GetBool(key), "%s should stay enabled after a layer rebuild", key)
+		assert.Equal(t, pkgconfigmodel.SourceInfraMode, config.GetSource(key), key)
+	}
+
+	// The flare's runtime_config_dump.yaml is built from AllSettingsWithoutSecrets.
+	softwareInventory, ok := config.AllSettingsWithoutSecrets()["software_inventory"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, true, softwareInventory["enabled"])
+}
+
 func TestApplyUseDogstatsdSuppression(t *testing.T) {
 	t.Run("use_dogstatsd=false forces data_plane.dogstatsd.enabled=false", func(t *testing.T) {
 		cfg := confFromYAML(t, `
@@ -1012,9 +1095,24 @@ func TestDataPlaneDefaults(t *testing.T) {
 	assert.False(t, cfg.GetBool("data_plane.telemetry_enabled"))
 	assert.Equal(t, "tcp://0.0.0.0:5102", cfg.GetString("data_plane.telemetry_listen_addr"))
 	assert.Equal(t, defaultpaths.GetDefaultDataPlaneLogFile(), cfg.GetString("data_plane.log_file"))
-	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.traces.enabled"))
-	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.metrics.enabled"))
-	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.logs.enabled"))
+	assert.False(t, cfg.GetBool(DataPlaneOTLPEnabled))
+	assert.Equal(t, "127.0.0.1:4319", cfg.GetString(DataPlaneExperimentalOTLPProxyAgentReceiverGRPCEndpoint))
+	assert.Equal(t, "127.0.0.1:4320", cfg.GetString(DataPlaneExperimentalOTLPProxyAgentReceiverHTTPEndpoint))
+	for _, signal := range []string{"logs", "metrics", "traces"} {
+		key := DataPlaneExperimentalOTLPProxySection + "." + signal
+		assert.True(t, cfg.IsKnown(key))
+		assert.False(t, cfg.GetBool(key))
+		assert.False(t, cfg.IsConfigured(key))
+	}
+	for _, key := range []string{
+		"data_plane.otlp.proxy.enabled",
+		"data_plane.otlp.proxy.logs.enabled",
+		"data_plane.otlp.proxy.metrics.enabled",
+		"data_plane.otlp.proxy.traces.enabled",
+		"data_plane.otlp.proxy.receiver.protocols.grpc.endpoint",
+	} {
+		assert.False(t, cfg.IsKnown(key), "%s must not have a compatibility alias", key)
+	}
 }
 
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
@@ -1436,7 +1534,7 @@ func TestConfigAssignAtPath(t *testing.T) {
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config, noopSchemaValidator{}, config)
+	err := loadCustom(config, noopSchemaValidator{}, config, false)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
@@ -1484,7 +1582,7 @@ func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config, noopSchemaValidator{}, config)
+	err := loadCustom(config, noopSchemaValidator{}, config, false)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
@@ -1499,17 +1597,16 @@ func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 	require.Equal(t, "different", config.Get("secret_backend_command"))
 
 	assert.Equal(t,
-		map[string]interface{}(
-			map[string]interface{}{
-				"https://url1.com": []interface{}{"first", "changed"},
-				"https://url2.eu":  []interface{}{"third"},
-			}),
+		map[string][]string{
+			"https://url1.com": {"first", "changed"},
+			"https://url2.eu":  {"third"},
+		},
 		config.Get("additional_endpoints"))
 	assert.Equal(t,
-		map[string]interface{}(
-			map[string]interface{}{
-				"https://url1.com": []interface{}{"fourth", "fifth"},
-				"https://url2.eu":  []interface{}{"modified"}}),
+		map[string][]string{
+			"https://url1.com": {"fourth", "fifth"},
+			"https://url2.eu":  {"modified"},
+		},
 		config.Get("process_config.additional_endpoints"))
 }
 
@@ -1526,7 +1623,7 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 	os.WriteFile(configPath, testSimpleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config, noopSchemaValidator{}, config)
+	err := loadCustom(config, noopSchemaValidator{}, config, false)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_arguments", "0"}, "password1")
@@ -1579,7 +1676,7 @@ use_proxy_for_cloud_metadata: true
 		"diff_url": "second_value",
 	})
 
-	err := loadCustom(config, noopSchemaValidator{}, config)
+	err := loadCustom(config, noopSchemaValidator{}, config, false)
 	assert.NoError(t, err)
 
 	err = resolveSecrets(config, resolver, "unit_test")
@@ -1626,15 +1723,40 @@ additional_endpoints:
 	os.WriteFile(configPath, testIntKeysConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config, noopSchemaValidator{}, config)
+	err := loadCustom(config, noopSchemaValidator{}, config, false)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"additional_endpoints", "2"}, "cherry")
 	assert.NoError(t, err)
 
 	assert.Equal(t,
-		map[string]string{"0": "apple", "1": "banana", "2": "cherry"},
-		config.GetStringMapString("additional_endpoints"),
+		map[string][]string{"0": {"apple"}, "1": {"banana"}, "2": {"cherry"}},
+		config.GetStringMapStringSlice("additional_endpoints"),
+	)
+}
+
+func TestConfigAssignAtPathStringMap(t *testing.T) {
+	testStringMapConf := []byte(`
+kubernetes_node_labels_as_tags:
+  label.one: ENC[tag1]
+  label.two: ENC[tag2]
+`)
+	config := newTestConf(t)
+	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+	os.WriteFile(configPath, testStringMapConf, 0o600)
+	config.SetConfigFile(configPath)
+
+	err := loadCustom(config, noopSchemaValidator{}, config, false)
+	assert.NoError(t, err)
+
+	err = configAssignAtPath(config, []string{"kubernetes_node_labels_as_tags", "label.one"}, "first")
+	assert.NoError(t, err)
+	err = configAssignAtPath(config, []string{"kubernetes_node_labels_as_tags", "label.two"}, "second")
+	assert.NoError(t, err)
+
+	assert.Equal(t,
+		map[string]string{"label.one": "first", "label.two": "second"},
+		config.GetStringMapString("kubernetes_node_labels_as_tags"),
 	)
 }
 
@@ -1775,7 +1897,7 @@ flare_stripped_keys:
 	require.NoError(t, err)
 	cfg.SetConfigFile(configPath)
 
-	err = LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t), noopSchemaValidator{})
+	err = LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t), noopSchemaValidator{}, false)
 	require.NoError(t, err)
 
 	stringToScrub := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'

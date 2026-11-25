@@ -16,7 +16,6 @@ unless do_repackage?
   # creates required build directories
   dependency 'datadog-agent-prepare'
 
-  dependency "python3"
   dependency 'datadog-agent-integrations-py3'
 
   host_distribution = ""
@@ -96,7 +95,6 @@ build do
     command "bazel run #{omnibazel_flags} -- //rtloader:install_static --destdir=\"#{project_dir}/rtloader/build/rtloader\"",
       :live_stream => Omnibus.logger.live_stream(:info)
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
-    command "dda inv -- -e systray.build #{fips_args}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   else
     command "bazel run #{omnibazel_flags} -- //rtloader:install --destdir='#{install_dir}'",
       :live_stream => Omnibus.logger.live_stream(:info)
@@ -112,13 +110,7 @@ build do
   # target with bazel.
   delete 'bin/agent/dist/datadog.yaml'
 
-  if osx_target?
-    conf_dir = "#{install_dir}/etc"
-  else
-    conf_dir = "#{install_dir}/etc/datadog-agent"
-  end
-
-  command "bazel run #{omnibazel_flags} //packages/agent/product:install_conf_dir_files -- --destdir=\"#{conf_dir}\"", env: env,
+  command "bazel run #{omnibazel_flags} //packages/agent/product:install_conf_dir_files -- --destdir=\"#{install_dir}\"", env: env,
     :live_stream => Omnibus.logger.live_stream(:info)
 
   # TODO(agent-build): sort out the use of bin/agen/dist/conf.d
@@ -141,7 +133,6 @@ build do
   unless windows_target?
     copy 'bin/agent', "#{install_dir}/bin/"
   else
-    copy 'bin/agent/ddtray.exe', "#{install_dir}/bin/agent"
     copy 'bin/agent/agent.exe', "#{install_dir}/bin/agent"
     copy 'bin/agent/agent.exe.pdb', "#{install_dir}/bin/agent"
     copy 'bin/agent/dist', "#{install_dir}/bin/agent"
@@ -240,7 +231,7 @@ build do
       copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
     end
 
-    command "bazel run #{omnibazel_flags} #{host_distribution} //packages/agent/product:install_system_probe -- --destdir=\"#{conf_dir}\"", env: env
+    command "bazel run #{omnibazel_flags} #{host_distribution} //packages/agent/product:install_system_probe -- --destdir=\"#{install_dir}\"", env: env
   end
 
   # System-probe eBPF files
@@ -258,7 +249,7 @@ build do
     delete "#{install_dir}/embedded/share/system-probe/ebpf/usm_events_test*.o"
     copy "pkg/ebpf/bytecode/build/#{arch}/co-re/*.o", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/"
     copy "pkg/ebpf/bytecode/build/runtime/*.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
-    copy "#{ENV['SYSTEM_PROBE_BIN']}/clang-bpf", "#{install_dir}/embedded/bin/clang-bpf"
+    command "bazel run #{omnibazel_flags} //packages/agent/product:install_system_probe_llvm_bpf -- --destdir=\"#{install_dir}\"", env: env
     copy "#{ENV['SYSTEM_PROBE_BIN']}/minimized-btfs.tar.xz", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf/minimized-btfs.tar.xz"
 
     copy 'pkg/ebpf/c/COPYING', "#{install_dir}/embedded/share/system-probe/ebpf/"
@@ -301,8 +292,11 @@ build do
     else
       copy 'bin/secret-generic-connector/secret-generic-connector', "#{install_dir}/embedded/bin"
     end
-    mkdir "#{install_dir}/LICENSES"
-    copy 'cmd/secret-generic-connector/LICENSE', "#{install_dir}/LICENSES/secret-generic-connector-LICENSE"
+    # On Linux, //packages/agent/linux:license_files_install ships this license.
+    unless linux_target?
+      mkdir "#{install_dir}/LICENSES"
+      copy 'cmd/secret-generic-connector/LICENSE', "#{install_dir}/LICENSES/secret-generic-connector-LICENSE"
+    end
   end
 
   if osx_target?
@@ -343,16 +337,6 @@ build do
 
       LINUX_BINARIES.each do |bin|
         fips_check_binary_for_expected_symbol(File.join(install_dir, bin))
-      end
-    end
-  end
-
-  block do
-    python_scripts_dir = "#{project_dir}/omnibus/python-scripts"
-    mkdir "#{install_dir}/python-scripts"
-    Dir.glob("#{python_scripts_dir}/*").each do |file|
-      unless File.basename(file).end_with?('_tests.py')
-        copy file, "#{install_dir}/python-scripts"
       end
     end
   end

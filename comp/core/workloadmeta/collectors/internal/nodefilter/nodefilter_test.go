@@ -111,11 +111,11 @@ func TestApplyTLSSettings(t *testing.T) {
 }
 
 // TestLocalNodeName verifies that only otel-agent running in DDOT standalone
-// mode with use_kubelet_collector opted out of selects this collector
+// mode, unless opted in to use_kubelet_collector, selects this collector
 // (Enabled, which the kubelet collector steps aside on), and that it then
 // only applies on Kubernetes.
 func TestLocalNodeName(t *testing.T) {
-	noKubelet := false
+	useKubelet, noKubelet := true, false
 	tests := []struct {
 		name       string
 		flavor     string
@@ -130,13 +130,18 @@ func TestLocalNodeName(t *testing.T) {
 		wantNodeName string
 	}{
 		{
-			name:   "standalone otel-agent, defaults to kubelet",
+			name:   "standalone otel-agent, defaults to nodefilter",
 			flavor: flavor.OTelAgent, standalone: true, kubernetes: true,
+			wantEnabled: true, wantNodeName: "test-node",
 		},
 		{
-			name:   "standalone otel-agent, opted in to nodefilter",
+			name:   "standalone otel-agent, explicitly set to nodefilter",
 			flavor: flavor.OTelAgent, standalone: true, useKubelet: &noKubelet, kubernetes: true,
 			wantEnabled: true, wantNodeName: "test-node",
+		},
+		{
+			name:   "standalone otel-agent, opted in to kubelet",
+			flavor: flavor.OTelAgent, standalone: true, useKubelet: &useKubelet, kubernetes: true,
 		},
 		{
 			name:   "not standalone",

@@ -7,9 +7,16 @@
 // private action runner.
 package privateactionrunner
 
+import (
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+)
+
 const (
 	Enabled         = "private_action_runner.enabled"
 	LogFile         = "private_action_runner.log_file"
+	APIKey          = "private_action_runner.api_key"
+	RunnerSite      = "private_action_runner.site"
 	RunnerURL       = "private_action_runner.par_dd_url"
 	RemoteConfigURL = "remote_configuration.rc_dd_url"
 
@@ -37,6 +44,9 @@ const (
 	HTTPTimeoutSeconds    = "private_action_runner.http_timeout_seconds"
 	HTTPAllowlist         = "private_action_runner.http_allowlist"
 	HTTPAllowIMDSEndpoint = "private_action_runner.http_allow_imds_endpoint"
+
+	// Domains actions may reach; replaces HTTPAllowlist when set
+	DomainAllowlist = "private_action_runner.domain_allowlist"
 
 	// Kubernetes action related
 	KubernetesAllowedCustomResources = "private_action_runner.kubernetes_allowed_custom_resources"
@@ -67,4 +77,12 @@ type CredentialConfig struct {
 	// Nil leaves destinations unrestricted; an empty list denies every destination.
 	// When set, only HTTP actions may use the credential.
 	AllowedHTTPDomains []string `mapstructure:"allowed_http_domains"`
+}
+
+// EnrollmentAPIKey returns the PAR API key, falling back to the Agent API key.
+func EnrollmentAPIKey(cfg model.Reader) string {
+	if key := configutils.SanitizeAPIKey(cfg.GetString(APIKey)); key != "" {
+		return key
+	}
+	return configutils.SanitizeAPIKey(cfg.GetString("api_key"))
 }

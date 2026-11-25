@@ -9,6 +9,7 @@
 package rules
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -1833,6 +1834,103 @@ func TestActionSetVariableExpression(t *testing.T) {
 	}}, value)
 }
 
+// loadJSONPolicy loads a policy unmarshaled from JSON, without the YAML round trip of loadPolicy
+func loadJSONPolicy(t *testing.T, jsonPolicy string) (*RuleSet, *multierror.Error) {
+	var policyDef PolicyDef
+	require.NoError(t, json.Unmarshal([]byte(jsonPolicy), &policyDef))
+
+	provider := dummyDirProvider{
+		dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+			policy, err := LoadPolicyFromDefinition(&PolicyInfo{Name: "test.policy"}, &policyDef, nil, nil)
+			if err != nil {
+				return nil, multierror.Append(nil, err)
+			}
+			return []*Policy{policy}, nil
+		},
+	}
+
+	rs := newRuleSet()
+	_, errs := rs.LoadPolicies(NewPolicyLoader(provider), PolicyLoaderOpts{})
+
+	return rs, errs
+}
+
+func TestActionSetVariableJSONNumbers(t *testing.T) {
+	t.Run("integers", func(t *testing.T) {
+		rs, errs := loadJSONPolicy(t, `{
+			"rules": [{
+				"id": "test_rule",
+				"expression": "open.file.path == \"/tmp/test\"",
+				"actions": [
+					{"set": {"name": "var_int", "value": 123}},
+					{"set": {"name": "var_big_int", "value": 9007199254740993}},
+					{"set": {"name": "var_ints", "value": [1, 2], "append": true}},
+					{"set": {"name": "var_scoped", "scope": "process", "default_value": -1, "value": 456}},
+					{"set": {"name": "var_pid", "scope": "process", "default_value": -1, "expression": "process.pid"}}
+				]
+			}]
+		}`)
+		require.NoError(t, errs.ErrorOrNil())
+
+		pce := &model.ProcessCacheEntry{
+			ProcessContext: model.ProcessContext{
+				Process: model.Process{
+					PIDContext: model.PIDContext{
+						Pid: 42,
+					},
+				},
+			},
+		}
+		event := fakeOpenEvent("/tmp/test", pce)
+		event.ProcessContext = &pce.ProcessContext
+		require.True(t, rs.Evaluate(event))
+
+		intVar, ok := rs.evalOpts.VariableStore.Get("var_int").(eval.Variable)
+		require.True(t, ok)
+		value, set := intVar.GetValue()
+		assert.True(t, set)
+		assert.Equal(t, 123, value)
+
+		// above 2^53, a float64 would have rounded the value to 9007199254740992
+		bigIntVar, ok := rs.evalOpts.VariableStore.Get("var_big_int").(eval.Variable)
+		require.True(t, ok)
+		value, set = bigIntVar.GetValue()
+		assert.True(t, set)
+		assert.Equal(t, 9007199254740993, value)
+
+		intArrayVar, ok := rs.evalOpts.VariableStore.Get("var_ints").(eval.Variable)
+		require.True(t, ok)
+		value, set = intArrayVar.GetValue()
+		assert.True(t, set)
+		assert.ElementsMatch(t, []int{1, 2}, value)
+
+		ctx := eval.NewContext(event)
+		for name, expected := range map[string]interface{}{
+			"process.var_scoped": 456,
+			"process.var_pid":    42,
+		} {
+			variable, ok := rs.evalOpts.VariableStore.Get(name).(eval.ScopedVariable)
+			require.True(t, ok, name)
+			value, set := variable.GetValue(ctx, false)
+			assert.True(t, set, name)
+			assert.Equal(t, expected, value, name)
+		}
+	})
+
+	t.Run("not an integer", func(t *testing.T) {
+		_, errs := loadJSONPolicy(t, `{
+			"rules": [{
+				"id": "test_rule",
+				"expression": "open.file.path == \"/tmp/test\"",
+				"actions": [
+					{"set": {"name": "var_float", "value": 1.5}}
+				]
+			}]
+		}`)
+		assert.ErrorContains(t, errs.ErrorOrNil(), "invalid type 'float64' for variable 'var_float'")
+	})
+}
+
 func TestActionSetVariableCapture(t *testing.T) {
 	capturePolicy := func(name string, field string, capture string, isAppend bool) *PolicyDef {
 		return &PolicyDef{
@@ -2684,7 +2782,7 @@ func TestActionSetVariableValidation(t *testing.T) {
 		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
-			assert.ErrorContains(t, err, "value and field cardinality mismatch for variable 'connection_hostname': field 'connect.addr.hostname' is an array, but append is not set for variable 'connection_hostname' with value ''")
+			assert.ErrorContains(t, err, "expression 'connect.addr.hostname' for variable 'connection_hostname': incompatible types: expression returns slice but default_value is string")
 		}
 	})
 
@@ -2793,7 +2891,7 @@ func TestActionSetVariableValidation(t *testing.T) {
 		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
 			t.Error("expected policy to fail to load")
 		} else {
-			assert.ErrorContains(t, err, "value and field have different types for variable 'connection_id_pid' (string != int)")
+			assert.ErrorContains(t, err, "expression 'process.pid' for variable 'connection_id_pid': incompatible types: expression returns int but default_value is string")
 		}
 	})
 
@@ -3158,6 +3256,98 @@ func TestActionSetVariableValidation(t *testing.T) {
 			t.Error("expected policy to fail to load because open.file.path is not an array")
 		} else {
 			t.Log(err)
+		}
+	})
+
+	// an action isn't evaluated over the elements of an iterator, so an iterator
+	// variable is rejected wherever it is in its source, a macro included
+	for name, set := range map[string]*SetDefinition{
+		"field":           {Name: "var1", Field: `process.ancestors[A].file.name`},
+		"field-subscript": {Name: "var1", Field: `process.argv[process.ancestors[A].uid[0]]`},
+		"field-macro":     {Name: "var1", Field: `process.argv[first_ancestor_uid + 0]`},
+		"expression":      {Name: "var1", Expression: `"%{process.ancestors[A].file.name}"`, DefaultValue: ""},
+		"scope-field":     {Name: "var1", Value: 1, Scope: "process", ScopeField: `process.ancestors[A].pid`},
+	} {
+		t.Run("iterator-variable/"+name, func(t *testing.T) {
+			testPolicy := &PolicyDef{
+				Macros: []*MacroDefinition{{
+					ID:         "first_ancestor_uid",
+					Expression: `process.ancestors[A].uid[0]`,
+				}},
+				Rules: []*RuleDefinition{{
+					ID:         "test_rule",
+					Expression: `open.file.path == "/tmp/test"`,
+					Actions:    []*ActionDefinition{{Set: set}},
+				}},
+			}
+
+			_, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
+			if err == nil || !strings.Contains(err.Error(), "iterator variables aren't supported in an action") {
+				t.Errorf("expected the iterator variable to be rejected, got %v", err)
+			}
+		})
+	}
+}
+
+// An iterated field is an array of values, one per element, even if its field
+// isn't one: it can only be appended to a variable.
+func TestActionSetVariableIteratedField(t *testing.T) {
+	setRule := func(set *SetDefinition) *PolicyDef {
+		return &PolicyDef{Rules: []*RuleDefinition{{
+			ID:         "test_rule",
+			Expression: `open.file.path == "/tmp/test"`,
+			Actions:    []*ActionDefinition{{Set: set}},
+		}, {
+			ID:         "test_rule2",
+			Expression: `open.file.path == "/tmp/test2" && "bash" in ${ancestors}`,
+		}}}
+	}
+
+	for name, test := range map[string]struct {
+		set *SetDefinition
+		err string
+	}{
+		"without-append": {&SetDefinition{Name: "ancestors", Field: "process.ancestors.file.name"}, "can only be used with 'append: yes'"},
+		"capture":        {&SetDefinition{Name: "ancestors", Field: "process.ancestors.file.name", Capture: "(b.*)"}, "'capture' is not supported on array field"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := loadPolicy(t, setRule(test.set), PolicyLoaderOpts{})
+			if err == nil || !strings.Contains(err.Error(), test.err) {
+				t.Errorf("expected an error containing %q, got %v", test.err, err)
+			}
+		})
+	}
+
+	t.Run("append", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		if err := savePolicy(filepath.Join(tmpDir, "test.policy"), setRule(&SetDefinition{Name: "ancestors", Field: "process.ancestors.file.name", Append: true})); err != nil {
+			t.Fatal(err)
+		}
+		provider, err := NewPoliciesDirProvider(tmpDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rs := newRuleSet()
+		if _, err := rs.LoadPolicies(NewPolicyLoader(provider), PolicyLoaderOpts{}); err != nil {
+			t.Fatal(err)
+		}
+
+		newEvent := func(path string) *model.Event {
+			event := model.NewFakeEvent()
+			event.Type = uint32(model.FileOpenEventType)
+			event.ProcessCacheEntry = &model.ProcessCacheEntry{}
+			event.SetFieldValue("open.file.path", path)
+			parent := &model.ProcessCacheEntry{}
+			parent.Process.FileEvent.BasenameStr = "bash"
+			event.ProcessContext.Ancestor = parent
+			return event
+		}
+
+		if !rs.Evaluate(newEvent("/tmp/test")) {
+			t.Fatal("expected test_rule to match")
+		}
+		if !rs.Evaluate(newEvent("/tmp/test2")) {
+			t.Error("expected the name of the ancestor to be appended to the variable")
 		}
 	})
 }

@@ -140,7 +140,8 @@ func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64) ([]Sam
 
 	allSamples = append(allSamples,
 		&Metric{baseSample: baseSample{priority: Medium}, Name: "sm_active", Value: deviceSmActive, Type: ddmetrics.GaugeType}, // There's an ebpf based fallback for this metric which should have lower priority
-		&Metric{baseSample: baseSample{associatedWorkloads: allWorkloadIDs}, Name: "core.limit", Value: float64(device.GetDeviceInfo().CoreCount), Type: ddmetrics.GaugeType},
+		// MediumLow: above the static core.limit of MIG devices (Low), below the eBPF value (Medium)
+		&Metric{baseSample: baseSample{priority: MediumLow, associatedWorkloads: allWorkloadIDs}, Name: "core.limit", Value: float64(device.GetDeviceInfo().CoreCount), Type: ddmetrics.GaugeType},
 	)
 
 	return allSamples, currentTime, err

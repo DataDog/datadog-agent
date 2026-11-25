@@ -16,7 +16,9 @@ secret_name="$1"
 secret_field="$2"
 secrets_repository="datadog/datadog-agent"
 
-export VAULT_ADDR="${VAULT_ADDR:-https://vault.us1.ddbuild.io}"
+# Talk to Vault directly, like `secrets read` does. On Kubernetes runners VAULT_ADDR
+# points to the Emissary sidecar, which replaces our CI Identity token with the pod's.
+export VAULT_ADDR="https://vault.us1.ddbuild.io"
 
 # CI Identities grants trusted-jobs to protected refs. The pinned client predates
 # `token-claims`, so guess from GitLab and fall back to the other trust level:

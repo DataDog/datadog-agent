@@ -21,6 +21,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -246,6 +248,12 @@ func TestWriteIdentitySecret_CreatesSecret(t *testing.T) {
 	assert.Equal(t, result.OrchClusterID, string(secret.Data[orchClusterIDField]))
 	assert.NotEmpty(t, secret.Data[privateKeyField])
 	assert.Equal(t, "datadog-cluster-agent", secret.Labels["app.kubernetes.io/name"])
+	assert.NotContains(t, secret.Data, wifOrgUUIDField)
+	assert.NotContains(t, secret.Data, wifSiteField)
+	identity, err := parseSecretData(secret, "default", "par-identity")
+	require.NoError(t, err)
+	assert.Empty(t, identity.WIFOrgUUID, "existing secrets without WIF metadata remain readable")
+	assert.Empty(t, identity.WIFSite)
 }
 
 func TestWriteIdentitySecret_UpdatesExistingSecret(t *testing.T) {
@@ -338,6 +346,7 @@ func TestIdentitySecretStoreLoad(t *testing.T) {
 			client := fake.NewSimpleClientset(secretWithHash(tt.secretHash))
 			leader := newFakeLeader(tt.leader)
 			storage := &k8sIdentityStorage{
+				cfg:          configmock.New(t),
 				kubeClient:   func() (kubernetes.Interface, error) { return client, nil },
 				namespace:    ns,
 				secretName:   name,

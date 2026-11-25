@@ -19,6 +19,7 @@ properties:
     description: Set to true to enable the Cluster Agent.
   auth_token:
     node_type: setting
+    sensitive: true
     type: string
     default: ''
     visibility: public
@@ -198,12 +199,14 @@ properties:
   autoscaler_tags:
     node_type: section
     type: object
+    visibility: public
     description: Settings for tagging workloads with the autoscalers that target them.
     properties:
       enabled:
         node_type: setting
         type: boolean
         default: false
+        visibility: public
         description: |-
           Set to true to make the Cluster Agent collect which workloads
           (Deployments, StatefulSets and Argo Rollouts) are targeted by an
@@ -212,7 +215,8 @@ properties:
           as the kube_autoscaler_kind tag (horizontalpodautoscaler,
           verticalpodautoscaler, watermarkpodautoscaler, datadogpodautoscaler,
           keda) on their pods, containers and KSM metrics. The Cluster Agent
-          needs permissions to list and watch these autoscaler resources.
+          needs permissions to list and watch these autoscaler resources. It
+          also collects pods, which uses more memory on large clusters.
   cluster_tagger:
     node_type: section
     type: object
@@ -307,6 +311,18 @@ properties:
         node_type: setting
         type: boolean
         default: false
+      events:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            description: |-
+              Emit KAI PodGroup events from the job_scheduler_events check of the Cluster Agent leader.
+              Requires cluster_agent.kai_scheduler.enabled. Turn off the PodGroup events of the
+              kai_scheduler integration check when enabling it, or each event is sent twice.
   kueue:
     node_type: section
     type: object
@@ -315,6 +331,18 @@ properties:
         node_type: setting
         type: boolean
         default: false
+      events:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            description: |-
+              Emit Kueue Workload events from the job_scheduler_events check of the Cluster Agent leader.
+              Requires cluster_agent.kueue.enabled. Turn off the Workload events of the kueue integration
+              check when enabling it, or each event is sent twice.
       pod_template_tags:
         node_type: setting
         type: boolean
@@ -328,6 +356,15 @@ properties:
           resources maps overrides the same key in the pod maps. Enabled by
           default.
         comment: Requires cluster_agent.kueue.enabled.
+      workloads_per_node:
+        node_type: setting
+        type: boolean
+        default: true
+        description: |-
+          Send each node Agent only the Kueue Workloads of its pods, except the node Agents that run the
+          Kueue check as an endpoints check. Requires cluster_agent.kueue.enabled and cluster checks. Only Cluster Agent leaders know where
+          the Kueue check runs, so node Agents connected to other replicas still receive every Workload.
+          Enabled by default. Set to false to send every Workload to every node Agent.
   language_detection:
     node_type: section
     type: object

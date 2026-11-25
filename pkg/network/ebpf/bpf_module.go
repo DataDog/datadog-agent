@@ -21,17 +21,8 @@ import (
 var prebuiltModulesInUse = map[string]struct{}{}
 var telemetryMu sync.Mutex
 
-// ModuleFileName constructs the module file name based on the module name
-func ModuleFileName(moduleName string, debug bool) string {
-	if debug {
-		return moduleName + "-debug.o"
-	}
-
-	return moduleName + ".o"
-}
-
-func readModule(bpfDir, moduleName string, debug bool) (bytecode.AssetReader, error) {
-	ebpfReader, err := bytecode.GetReader(bpfDir, ModuleFileName(moduleName, debug))
+func readModule(bpfDir, moduleName string) (bytecode.AssetReader, error) {
+	ebpfReader, err := bytecode.GetReader(bpfDir, moduleName+".o")
 	if err != nil {
 		return nil, fmt.Errorf("couldn't find asset: %s", err)
 	}
@@ -43,38 +34,38 @@ func readModule(bpfDir, moduleName string, debug bool) (bytecode.AssetReader, er
 }
 
 // ReadBPFModule from the asset file
-func ReadBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	return readModule(bpfDir, "tracer", debug)
+func ReadBPFModule(bpfDir string) (bytecode.AssetReader, error) {
+	return readModule(bpfDir, "tracer")
 }
 
 // ReadHTTPModule from the asset file
-func ReadHTTPModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	return readModule(bpfDir, "usm", debug)
+func ReadHTTPModule(bpfDir string) (bytecode.AssetReader, error) {
+	return readModule(bpfDir, "usm")
 }
 
 // ReadSharedLibrariesModule from the asset file
-func ReadSharedLibrariesModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	return readModule(bpfDir, "shared-libraries", debug)
+func ReadSharedLibrariesModule(bpfDir string) (bytecode.AssetReader, error) {
+	return readModule(bpfDir, "shared-libraries")
 }
 
 // ReadDNSModule from the asset file
-func ReadDNSModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	return readModule(bpfDir, "dns", debug)
+func ReadDNSModule(bpfDir string) (bytecode.AssetReader, error) {
+	return readModule(bpfDir, "dns")
 }
 
 // ReadOffsetBPFModule from the asset file
-func ReadOffsetBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	return readModule(bpfDir, "offset-guess", debug)
+func ReadOffsetBPFModule(bpfDir string) (bytecode.AssetReader, error) {
+	return readModule(bpfDir, "offset-guess")
 }
 
 // ReadFentryTracerModule from the asset file
-func ReadFentryTracerModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	return readModule(bpfDir, "tracer-fentry", debug)
+func ReadFentryTracerModule(bpfDir string) (bytecode.AssetReader, error) {
+	return readModule(bpfDir, "tracer-fentry")
 }
 
 // ReadConntrackBPFModule from the asset file
-func ReadConntrackBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	return readModule(bpfDir, "conntrack", debug)
+func ReadConntrackBPFModule(bpfDir string) (bytecode.AssetReader, error) {
+	return readModule(bpfDir, "conntrack")
 }
 
 // GetModulesInUse returns a list of modules in use

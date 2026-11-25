@@ -31,10 +31,14 @@ oracle:
       variables:
         ORACLE_PWD: "datad0g"
   variables:
+    GIT_DEPTH: 0
+    COVERAGE_FILE: pkg/collector/corechecks/oracle/coverage.out
     CI_DEBUG_SERVICES: "true"
     FF_KUBERNETES_HONOR_ENTRYPOINT: "false"
     ORACLE_TEST_READY_TIMEOUT: "3m"
     DD_HOSTNAME: "oracle-test"
+    # Fixed resources: static CPUs and explicit limits are part of the test setup
+    DD_DISABLE_VPA: true
     # Configure static CPUs
     KUBERNETES_POD_ANNOTATIONS_1: "ci.ddbuild.io/enforce-static-cpus=true"
     KUBERNETES_CPU_LIMIT: "3"
@@ -48,4 +52,9 @@ oracle:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
   script:
-    - dda inv -- oracle.test
+    - dda inv -- oracle.test --coverage
+  after_script:
+    - !reference [.upload_coverage_datadog]
+  artifacts:
+    paths:
+      - pkg/collector/corechecks/oracle/coverage.out

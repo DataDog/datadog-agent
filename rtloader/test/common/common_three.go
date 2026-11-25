@@ -28,23 +28,19 @@ func GetRtLoader() *C.rtloader_t {
 
 	var pythonHome *C.char
 
-	// Specific setup for when we're running the tests with bazel
-	if isBazel() {
-		if runtime.GOOS == "windows" {
-			// Temporarily add the path to where the "three" dll is available to PATH
-			// so that it can be found by `LoadLibrary`
-			oldPath := os.Getenv("PATH")
-			defer os.Setenv("PATH", oldPath)
-			os.Setenv("PATH", rlocationPathFromEnv("THREE_PATH")+";"+os.Getenv("PATH"))
-			// On Windows, the Python Home is passed directly (as it points to an entire copy of it)
-			pythonHome = C.CString(rlocationPathFromEnv("PYTHON_HOME"))
-			defer C.free(unsafe.Pointer(pythonHome))
-		} else {
-			// Python Home is a level up from the path to the binary
-			pythonHome = C.CString(filepath.Dir(filepath.Dir(rlocationPathFromEnv("PYTHON_BIN"))))
-			defer C.free(unsafe.Pointer(pythonHome))
-		}
+	if runtime.GOOS == "windows" {
+		// Temporarily add the path to where the "three" dll is available to PATH
+		// so that it can be found by `LoadLibrary`
+		oldPath := os.Getenv("PATH")
+		defer os.Setenv("PATH", oldPath)
+		os.Setenv("PATH", rlocationPathFromEnv("THREE_PATH")+";"+os.Getenv("PATH"))
+		// On Windows, the Python Home is passed directly (as it points to an entire copy of it)
+		pythonHome = C.CString(rlocationPathFromEnv("PYTHON_HOME"))
+	} else {
+		// Python Home is a level up from the path to the binary
+		pythonHome = C.CString(filepath.Dir(filepath.Dir(rlocationPathFromEnv("PYTHON_BIN"))))
 	}
+	defer C.free(unsafe.Pointer(pythonHome))
 
 	rtloader := C.make3(pythonHome, executablePath, &err)
 	if err != nil {
@@ -55,19 +51,9 @@ func GetRtLoader() *C.rtloader_t {
 	return rtloader
 }
 
-// addStubsToPythonPath puts Python stubs to the PYTHONPATH, based on whether tests
-// are running from bazel and OS
+// addStubsToPythonPath puts Python stubs to the PYTHONPATH
 func addStubsToPythonPath(rtloader *C.rtloader_t) {
-	if isBazel() {
-		C.add_python_path(rtloader, C.CString(rlocationPathFromEnv("STUBS_LOCATION")))
-	} else {
-		// Pre-bazel default
-		C.add_python_path(rtloader, C.CString("../python"))
-	}
-}
-
-func isBazel() bool {
-	return os.Getenv("BAZEL_TEST") == "1"
+	C.add_python_path(rtloader, C.CString(rlocationPathFromEnv("STUBS_LOCATION")))
 }
 
 func rlocationPathFromEnv(envvar string) string {

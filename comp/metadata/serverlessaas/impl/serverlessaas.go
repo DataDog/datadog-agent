@@ -87,7 +87,7 @@ func NewComponent(deps Requires) Provides {
 
 // InventoryPayload serializes collection and submission. The shared Data helper
 // is private to this provider, and each report gets its own field snapshot.
-func (c *serverlessAASComp) getPayload() marshaler.JSONMarshaler {
+func (c *serverlessAASComp) getPayload() marshaler.TypedJSONMarshaler {
 	if c.fields == nil {
 		return nil
 	}

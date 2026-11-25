@@ -36,13 +36,13 @@ The Datadog Agent collects metrics, traces, logs, and security events and forwar
 
 `doc/` is the sole source of Datadog Agent developer documentation. Consult `docs/README.md` before moving or deleting files remaining in `docs/`.
 
-### Critical: Always use `dda inv`, never raw `go` commands
+### Critical: Use repository tooling for Agent code
 
 This project uses extensive custom Go build tags. Most source files are ignored
 by the standard Go toolchain unless the correct tags are passed. The `dda inv`
-wrapper tasks (defined in `tasks/`) compute the right build tags automatically.
+wrapper tasks (defined in `tasks/`) compute the right flags and build tags automatically.
 
-**Never run these commands directly:**
+**For Agent code, do not run these commands directly:**
 
 | Instead of | Use |
 |---|---|
@@ -52,9 +52,21 @@ wrapper tasks (defined in `tasks/`) compute the right build tags automatically.
 | `go vet …` | `dda inv linter.go` |
 | `golangci-lint run …` | `dda inv linter.go` |
 
-This also applies to indirect usage — do not shell out to `go build` or
-`go test` for compilation checks. If you need to verify that code compiles,
-build the relevant component with `dda inv *.build`.
+This also applies to indirect usage for Agent code — do not shell out to
+`go build` or `go test` for compilation checks. To verify that Agent code
+compiles, build the relevant component with `dda inv *.build`.
+
+The `go test` restriction applies only to testing or compiling Agent code.
+Running `go test` directly is fine for code outside the Agent, such as testing
+a third-party dependency in the Go module cache or running an isolated throwaway
+test of Go language or standard-library behavior.
+
+### Bazel dependency downloads
+
+ADMS is enabled by default for Bazel dependency downloads through
+`common --config=adms` in `.bazelrc`. If the Datadog intranet is unavailable,
+remove or comment out that line before invoking Bazel or `dda inv test`.
+See [Bazel's ADMS guidance](bazel/AGENTS.md#adms-dependency-mirror) for a local override.
 
 ### Common Commands
 
@@ -68,6 +80,17 @@ dda inv linter.all                                    # run all linters
 
 ### Development Configuration
 Place the dev config at `dev/dist/datadog.yaml` (e.g. `echo "api_key: 0000001" > dev/dist/datadog.yaml`); after building it is copied to `bin/agent/dist/datadog.yaml`.
+
+### Before you push
+
+Run these checks on the final tree before each push, and commit the files that they change:
+
+1. `bazel run //:gazelle -- <dir>` for each package with changed `.go` files or imports.
+2. `dda inv tidy` after any new import, test files included. A package in its own Go module (see
+   `modules.yml`) can need a new `require` in its `go.mod`. The `bazel:run-go-mod-tidy` CI job fails
+   when tidy changes a file.
+3. `bazel run //bazel/buildifier:test` when the change touches Bazel files (see [Linting](#linting)).
+4. `dda inv test --targets=<package>` and `dda inv linter.go` for each changed package or module.
 
 ## Key Components
 
@@ -109,6 +132,10 @@ eBPF programs, runtime-compilation bundles, and cgo godefs are built with Bazel 
 Go tests run via `dda inv test --targets=<package>` (see the `dda inv` table above) or `bazel test //pkg/... //comp/...`; Python checks use pytest.
 Both go through Bazel, so a new package has no test target until `bazel run //:gazelle -- <dir>` generates its `BUILD.bazel`.
 Run the same command after adding, removing, or renaming a `.go` file (tests included) or changing imports in an existing package, and commit the `BUILD.bazel` diff with it; otherwise the `bazel:run-gazelle` CI job fails.
+After adding a package or changing imports or build constraints, also run `dda inv go.write-tag-manifest` and commit the generated `bazel/go_tags/closure_tags.bzl` diff. A stale manifest can drop required build tags and cause duplicate-package linker errors; see `bazel/AGENTS.md` for details.
+
+### System-probe and eBPF Tests
+Kernel code needs a Linux kernel to test, and results hold only for the build modes and kernels that ran; see `pkg/ebpf/AGENTS.md` before testing or claiming a system-probe or eBPF change works.
 
 ### End-to-End Tests
 - E2E tests live in `test/new-e2e/tests/` and use the framework in `test/e2e-framework/`
@@ -290,6 +317,7 @@ AGENTS.md                          ← repo-wide: architecture, workflow, review
 ├── test/e2e-framework/AGENTS.md   ← E2E framework: environments, provisioners, agentparams
 ├── test/new-e2e/AGENTS.md         ← E2E test tree: layout, suite naming, build tags
 ├── test/fakeintake/AGENTS.md      ← fakeintake: endpoints, client API, extension guide
+├── pkg/ebpf/AGENTS.md             ← testing system-probe and eBPF changes: KMT workflow, build modes, evidence
 ├── pkg/.../AGENTS.md              ← package-level: structure, patterns, pitfalls
 └── .agents/skills/*/SKILL.md      ← task-specific: step-by-step procedures
 ```

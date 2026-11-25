@@ -6,6 +6,9 @@
 package tokenizer
 
 import (
+	"math"
+	"math/rand/v2"
+	"slices"
 	"strings"
 	"testing"
 
@@ -552,6 +555,57 @@ func FuzzTokenizerDeterminism(f *testing.F) {
 	})
 }
 
+// FuzzTokenizerReuseMatchesFresh checks that a Tokenizer reused for many lines
+// returns the same result as a new Tokenizer for each line.
+//
+// In production, every consumer creates one Tokenizer and calls
+// TokenizeBorrowed on every log line. To avoid allocating on each call, the
+// Tokenizer keeps its internal buffers from one line to the next
+// (perf_contract_test.go checks that it doesn't allocate). The risk is that
+// part of the previous line leaks into the next one. For example, after a
+// 100-token line, a 3-token line must return its 3 tokens and nothing from the
+// 100-token line.
+//
+// Each run tokenizes previous, then line, on the same Tokenizer, and compares
+// the tokens and their byte offsets with what a new Tokenizer returns for
+// line. The other fuzz targets in this file use a new Tokenizer every time, so
+// they cannot catch a leak.
+//
+// It also checks two things AAD relies on:
+//   - TokensToString returns the string of each token, joined together;
+//   - a non-empty line never prints as "", because AAD drops the metric of a
+//     log whose signature is empty.
+func FuzzTokenizerReuseMatchesFresh(f *testing.F) {
+	for i, l := range perfLines {
+		f.Add(l.line, perfLines[(i+1)%len(perfLines)].line, uint16(i%4))
+	}
+	f.Fuzz(func(t *testing.T, line, previous []byte, windowSeed uint16) {
+		// windowSeed 0 to 3 picks a consumer's window (0 means no limit);
+		// any other value is used as the window itself.
+		window := int(windowSeed)
+		if windowSeed < 4 {
+			window = [...]int{0, 60, 2048, 4096}[windowSeed]
+		}
+		reused := NewTokenizer(window)
+		reused.TokenizeBorrowed(previous)
+		got := reused.TokenizeBorrowed(line)
+
+		wantTokens, wantIndices := NewTokenizer(window).Tokenize(line)
+		assert.True(t, slices.Equal(wantTokens, got.Borrow()), "tokens of %q after %q, window %d", line, previous, window)
+		assert.True(t, slices.Equal(wantIndices, got.Indices()), "indices of %q after %q, window %d", line, previous, window)
+
+		var concatenated strings.Builder
+		for _, token := range got.Borrow() {
+			concatenated.WriteString(tokenToString(token))
+		}
+		printed := TokensToString(got.Borrow())
+		assert.Equal(t, concatenated.String(), printed)
+		if len(line) > 0 {
+			assert.NotEmpty(t, printed, "%q printed as an empty string, window %d", line, window)
+		}
+	})
+}
+
 // FuzzTokenizerInputTruncation anchors:
 //
 //	contract Tokenization (tokenizer.allium)
@@ -998,4 +1052,84 @@ func FuzzTokenizerSpecialTokenPromotion(f *testing.F) {
 		assert.Equal(t, expected, actual,
 			"tokenize(%q): expected %v, got %v", input, expected, actual)
 	})
+}
+
+func referenceIsMatch(seqA, seqB []Token, thresh float64) bool {
+	count := min(len(seqB), len(seqA))
+	if count == 0 {
+		return len(seqA) == len(seqB)
+	}
+	requiredMatches := int(math.Round(thresh * float64(count)))
+	match := 0
+	for i := 0; i < count; i++ {
+		if seqA[i] == seqB[i] {
+			match++
+		}
+		if match+(count-i-1) < requiredMatches {
+			return false
+		}
+	}
+	return true
+}
+
+func TestIsMatch_EquivalenceWithReference(t *testing.T) {
+	thresholds := []float64{
+		math.Inf(-1), -0.5, 0, 0.01, 0.25, 0.5, 0.55, 0.75, 0.9, 0.99, 1.0, 1.01, 2.0,
+		math.Inf(1), math.NaN(),
+		math.Nextafter(0.5, 0), math.Nextafter(0.5, 1),
+	}
+
+	// Exhaustive boundary lengths covering scalar (<8), single-word (8..15),
+	// two-ended loop (16..31), and multi-iteration windows (32..257).
+	lengths := []int{0, 1, 2, 5, 7, 8, 9, 15, 16, 17, 23, 24, 25, 31, 32, 33, 63, 64, 65, 170, 257}
+	rng := rand.New(rand.NewPCG(42, 99))
+
+	for _, lenA := range lengths {
+		for _, lenB := range []int{lenA, max(0, lenA-3), lenA + 5} {
+			seqA := make([]Token, lenA)
+			seqB := make([]Token, lenB)
+			for i := range seqA {
+				seqA[i] = Token(rng.IntN(256))
+			}
+			// Test exact match, front mismatch, back mismatch, middle mismatch, and random mismatches.
+			for mode := range 5 {
+				copy(seqB, seqA)
+				for i := lenA; i < lenB; i++ {
+					seqB[i] = Token(rng.IntN(256))
+				}
+				c := min(lenA, lenB)
+				switch mode {
+				case 0: // identical prefix
+				case 1: // differ near start
+					for i := 0; i < min(c, max(1, c/8+1)); i++ {
+						seqB[i] ^= 0x01
+					}
+				case 2: // differ near end (including high-bit flips >= 0x80)
+					for i := max(0, c-max(1, c/8+1)); i < c; i++ {
+						seqB[i] ^= 0x80
+					}
+				case 3: // differ in middle (mixed low/high bit flips)
+					start := c / 3
+					end := min(c, start+max(1, c/6+1))
+					for i := start; i < end; i++ {
+						seqB[i] ^= 0x81
+					}
+				case 4: // random ~10% mismatches across all byte values 0x00..0xFF
+					for i := 0; i < c; i++ {
+						if rng.IntN(10) == 0 {
+							seqB[i] = Token(rng.IntN(256))
+						}
+					}
+				}
+				for _, th := range thresholds {
+					got := IsMatch(seqA, seqB, th)
+					want := referenceIsMatch(seqA, seqB, th)
+					if got != want {
+						t.Fatalf("IsMatch mismatch: lenA=%d lenB=%d mode=%d thresh=%v: got %v want %v",
+							lenA, lenB, mode, th, got, want)
+					}
+				}
+			}
+		}
+	}
 }

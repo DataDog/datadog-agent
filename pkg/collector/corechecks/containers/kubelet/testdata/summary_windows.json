@@ -1,0 +1,132 @@
+{
+    "node": {
+        "nodeName": "windows-node",
+        "systemContainers": [
+            {
+                "name": "pods",
+                "startTime": "2026-11-11T14:20:00Z",
+                "memory": {
+                    "time": "2026-11-11T15:07:26Z",
+                    "workingSetBytes": 266674176
+                }
+            },
+            {
+                "name": "windows-global-commit-memory",
+                "startTime": "2026-11-11T14:20:00Z",
+                "memory": {
+                    "time": "2026-11-11T15:07:26Z",
+                    "availableBytes": 3485908992,
+                    "usageBytes": 2222043136
+                }
+            }
+        ],
+        "startTime": "2026-11-11T14:20:00Z",
+        "cpu": {
+            "time": "2026-11-11T15:07:26Z",
+            "usageNanoCores": 113557098,
+            "usageCoreNanoSeconds": 449531250000
+        },
+        "memory": {
+            "time": "2026-11-11T15:07:26Z",
+            "availableBytes": 3415330816,
+            "usageBytes": 2222043136,
+            "workingSetBytes": 816226304,
+            "rssBytes": 0,
+            "pageFaults": 0,
+            "majorPageFaults": 0
+        },
+        "fs": {
+            "time": "2026-11-11T15:07:26Z",
+            "availableBytes": 57212985344,
+            "capacityBytes": 85897244672,
+            "usedBytes": 28684259328
+        }
+    },
+    "pods": [
+        {
+            "podRef": {
+                "name": "datadog-agent-windows-abcde",
+                "namespace": "datadog",
+                "uid": "windows-pod-uid"
+            },
+            "startTime": "2026-11-11T14:34:05Z",
+            "containers": [
+                {
+                    "name": "agent",
+                    "startTime": "2026-11-11T14:34:25Z",
+                    "cpu": {
+                        "time": "2026-11-11T15:07:26Z",
+                        "usageNanoCores": 25152403,
+                        "usageCoreNanoSeconds": 31734375000
+                    },
+                    "memory": {
+                        "time": "2026-11-11T15:07:26Z",
+                        "workingSetBytes": 112852992
+                    },
+                    "rootfs": {
+                        "time": "2026-11-11T15:07:16Z",
+                        "availableBytes": 57212985344,
+                        "capacityBytes": 85897244672,
+                        "usedBytes": 37748736,
+                        "inodesUsed": 0
+                    }
+                },
+                {
+                    "name": "process-agent",
+                    "startTime": "2026-11-11T14:34:25Z",
+                    "cpu": {
+                        "time": "2026-11-11T15:07:26Z",
+                        "usageNanoCores": 4202347,
+                        "usageCoreNanoSeconds": 9875000000
+                    },
+                    "memory": {
+                        "time": "2026-11-11T15:07:26Z",
+                        "usageBytes": 133685248,
+                        "workingSetBytes": 76791808
+                    },
+                    "rootfs": {
+                        "time": "2026-11-11T15:07:16Z",
+                        "availableBytes": 57212985344,
+                        "capacityBytes": 85897244672,
+                        "usedBytes": 4194304,
+                        "inodesUsed": 0
+                    }
+                },
+                {
+                    "name": "trace-agent",
+                    "startTime": "2026-11-11T14:34:25Z",
+                    "cpu": {
+                        "time": "2026-11-11T15:07:26Z",
+                        "usageNanoCores": 4202348,
+                        "usageCoreNanoSeconds": 7921875000
+                    },
+                    "memory": {
+                        "time": "2026-11-11T15:07:26Z",
+                        "workingSetBytes": 65417216
+                    },
+                    "rootfs": {
+                        "time": "2026-11-11T15:07:16Z",
+                        "availableBytes": 57212985344,
+                        "capacityBytes": 85897244672,
+                        "usedBytes": 2097152,
+                        "inodesUsed": 0
+                    }
+                }
+            ],
+            "cpu": {
+                "time": "2026-11-11T15:07:26Z",
+                "usageNanoCores": 33557098,
+                "usageCoreNanoSeconds": 49531250000
+            },
+            "memory": {
+                "time": "2026-11-11T15:07:26Z",
+                "availableBytes": 0,
+                "usageBytes": 0,
+                "workingSetBytes": 255062016,
+                "rssBytes": 0,
+                "pageFaults": 0,
+                "majorPageFaults": 0
+            }
+        }
+    ]
+}

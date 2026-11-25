@@ -12,7 +12,7 @@ int classifier_ingress(struct __sk_buff *skb) {
     if (!pkt) {
         return TC_ACT_UNSPEC;
     }
-    resolve_pid(skb, pkt);
+    resolve_pid(skb, pkt, PID_RESOLUTION_DEFAULT);
 
     return route_pkt(skb, pkt, INGRESS);
 };
@@ -23,7 +23,7 @@ int classifier_egress(struct __sk_buff *skb) {
     if (!pkt) {
         return TC_ACT_UNSPEC;
     }
-    resolve_pid(skb, pkt);
+    resolve_pid(skb, pkt, PID_RESOLUTION_DEFAULT);
 
     return route_pkt(skb, pkt, EGRESS);
 };
@@ -37,8 +37,6 @@ static __always_inline int prepare_raw_packet_event(struct __sk_buff *skb, struc
 
     evt->process.pid = pkt->pid;
     evt->cgroup.path_key.ino = pkt->cgroup_id;
-
-    bpf_skb_pull_data(skb, 0);
 
     u32 len = *(u32 *)(skb + offsetof(struct __sk_buff, len));
     if (len > sizeof(evt->data)) {
@@ -73,7 +71,7 @@ int classifier_raw_packet_ingress(struct __sk_buff *skb) {
     if (!pkt) {
         return TC_ACT_UNSPEC;
     }
-    resolve_pid(skb, pkt);
+    resolve_pid(skb, pkt, PID_RESOLUTION_DEFAULT);
 
     if (!is_raw_packet_allowed(pkt)) {
         return TC_ACT_UNSPEC;
@@ -105,7 +103,7 @@ int classifier_raw_packet_egress(struct __sk_buff *skb) {
         }
         pkt->network_direction = EGRESS;
     }
-    resolve_pid(skb, pkt);
+    resolve_pid(skb, pkt, PID_RESOLUTION_DEFAULT);
 
     if (pkt->pid) {
         pkt->cgroup_id = get_cgroup_id(pkt->pid);

@@ -107,13 +107,13 @@ func mrfProvisioner() provisioners.Provisioner {
 		}
 		host.Export(ctx, &env.Host.HostOutput)
 
-		mainIntake, err := fakeintake.NewECSFargateInstance(awsEnv, "main")
+		mainIntake, err := fakeintake.NewECSFargateInstance(awsEnv, "main", fakeintake.WithTaskFamilyName("fakeintake-main-ecs"))
 		if err != nil {
 			return err
 		}
 		mainIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
 
-		failoverIntake, err := fakeintake.NewECSFargateInstance(awsEnv, "failover")
+		failoverIntake, err := fakeintake.NewECSFargateInstance(awsEnv, "failover", fakeintake.WithTaskFamilyName("fakeintake-failover-ecs"))
 		if err != nil {
 			return err
 		}

@@ -258,6 +258,7 @@ type Anomaly struct {
 	SourceRef *QueryHandle
 	// DetectorName identifies which detector produced this anomaly.
 	DetectorName string
+	MetricKind   MetricKind // Registration kind; legacy detectors leave UNSET.
 	// Context carries optional enrichment about the originating signal, such as
 	// a synthesized pattern and example source data.
 	Context   *MetricContext
@@ -272,6 +273,23 @@ type Anomaly struct {
 	SamplingIntervalSec int64
 	// DebugInfo contains detector-specific debug information explaining the detection.
 	DebugInfo *AnomalyDebugInfo
+	// LevelChange carries before/after levels of a detected change. Internal
+	// detection evidence, not a reporter payload.
+	LevelChange *LevelChangeEvidence `json:"-"`
+}
+
+func (a Anomaly) DetectorAlgorithm() string {
+	names := strings.Split(a.DetectorName, ":")
+	return names[len(names)-1]
+}
+
+// LevelChangeEvidence holds the two levels of a detected change, in source
+// series units. Scan detectors set both to the medians around their split.
+type LevelChangeEvidence struct {
+	// BeforeMedian is the level of the pre-change segment.
+	BeforeMedian float64
+	// AfterMedian is the level of the post-change segment.
+	AfterMedian float64
 }
 
 // AnomalyDebugInfo provides detailed information about why an anomaly was detected.
@@ -392,6 +410,10 @@ type CorrelatorEvent struct {
 	CorrelatorName string
 	// Timestamp is the data time (unix seconds) when the event occurred.
 	Timestamp int64
+	// HistoricalTimestamp is the Medium or High crossing for a scorer
+	// EpisodeStarted. It equals Timestamp for live events and is earlier for
+	// replayed evidence. Timestamp remains the start of the delivered episode.
+	HistoricalTimestamp int64
 	// Correlation is the pattern associated with this event.
 	// For EpisodeStarted: the newly opened episode (no end time yet).
 	// For EpisodeEnded: the closed episode with the final LastUpdated.
@@ -444,6 +466,10 @@ type AnomalyScorerConfig struct {
 	// function is applied to the number of unique series in the window, not to the
 	// per-second event count.
 	WindowSecs int64 `json:"window_secs"`
+	// ReorderingWindowSecs bounds how far late evidence can revise the score; zero disables replay.
+	ReorderingWindowSecs int64 `json:"anomaly_reordering_window_secs"`
+	// LateAnomalyBehavior controls late evidence older than the reordering window.
+	LateAnomalyBehavior string `json:"late_anomaly_behavior"`
 	// LowThreshold is the EWMA level defining the Low/Medium severity boundary.
 	LowThreshold float64 `json:"low_threshold"`
 	// HighThreshold is the EWMA level defining the Medium/High severity boundary.
@@ -500,6 +526,10 @@ type ActiveCorrelation struct {
 	Anomalies   []Anomaly // the actual anomalies that triggered this correlation
 	FirstSeen   int64     // when pattern first matched (unix seconds, from data)
 	LastUpdated int64     // most recent contributing signal (unix seconds, from data)
+	// HistoricalFirstSeen is the corrected historical onset, when the episode
+	// was delivered later than the data time that crossed the threshold. Zero
+	// means the delivered FirstSeen is already historical.
+	HistoricalFirstSeen int64
 }
 
 // RawAnomalyState provides read access to raw anomalies before correlation processing.
@@ -606,6 +636,10 @@ type MetricKindMatcher interface {
 	// Window returns the bounded history requirement for classification.
 	Window() DetectorPointWindow
 
+	// Classify evaluates the supplied window without updating per-series state.
+	// The caller supplies a complete, chronological, visible window.
+	Classify(points []Point) MetricKind
+
 	// Observe evaluates a chronological window of points up to dataTime against
 	// the series' current committed kind in storage, returning a confirmed transition
 	// when qualified. Points are borrowed and must not be retained by the matcher.
@@ -701,8 +735,9 @@ type StorageReader interface {
 	// do not allocate. Returns false if the series was not found.
 	ForEachPoint(handle SeriesRef, start, end int64, agg Aggregate, fn func(*Series, Point)) bool
 
-	// PointCountUpTo returns the number of raw data points with timestamp <= endTime.
-	// Uses binary search for efficiency. Returns 0 if the series is not found.
+	// PointCountUpTo returns the number of retained logical points with timestamp
+	// <= endTime, including completed implicit zero buckets for log counts.
+	// Returns 0 if the series is not found.
 	PointCountUpTo(handle SeriesRef, endTime int64) int
 
 	// SumRange returns the sum of the specified aggregate over all points with
@@ -713,7 +748,8 @@ type StorageReader interface {
 	SumRange(handle SeriesRef, start, end int64, agg Aggregate) float64
 
 	// WriteGeneration returns a per-series counter that increments on every
-	// write to that series, including same-bucket merges. Use this to detect
+	// write to that series, including same-bucket merges and completion of
+	// implicit zero buckets. Use this to detect
 	// updates to an existing series even when its point count does not change.
 	// Returns 0 if the series is not found.
 	WriteGeneration(handle SeriesRef) int64

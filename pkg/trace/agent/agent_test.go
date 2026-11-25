@@ -27,11 +27,13 @@ import (
 
 	"github.com/golang/mock/gomock" //nolint:depguard // required by datadog-go/v5 statsd mocks compiled against golang/mock
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"google.golang.org/protobuf/proto"
 
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -377,6 +379,132 @@ func TestProcess(t *testing.T) {
 		assert.Equal(t, 42.0, span.Metrics["safe.data"])
 	})
 
+	// Replace rules must not change the env used for sampling and stats (see issue
+	// #21253). Rules named "env" are dropped when the configuration is loaded, so
+	// only "*" rules can reach the span env here.
+	envReplaceRules := []*config.ReplaceRule{{Name: "*", Re: regexp.MustCompile("tracer"), Repl: "redacted"}}
+
+	t.Run("ReplacerDoesNotChangeEnv", func(t *testing.T) {
+		// Payloads without an env take it from the span env tag, after replace
+		// rules ran (setPayloadAttributes).
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		cfg.ReplaceTags = envReplaceRules
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		now := time.Now()
+		span := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
+			Resource: "resource",
+			Start:    now.Add(-time.Second).UnixNano(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+			Meta:     map[string]string{"env": "tracer-env", "custom.tag": "tracer-value"},
+		}
+		agnt.Process(&api.Payload{
+			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(span)),
+			Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
+		})
+
+		assert.Equal(t, "tracer-env", span.Meta["env"])
+		assert.Equal(t, "redacted-value", span.Meta["custom.tag"], "other tags are still replaced")
+		mco := agnt.Concentrator.(*mockConcentrator)
+		require.Len(t, mco.stats, 1)
+		require.Len(t, mco.stats[0].Traces, 1)
+		assert.Equal(t, "tracer-env", mco.stats[0].Traces[0].TracerEnv, "sampling and stats env is unchanged")
+	})
+
+	t.Run("ReplacerDoesNotChangeEnvOTLP", func(t *testing.T) {
+		// The OTLP receiver only takes the payload env from resource attributes,
+		// but spans can set it in their own attributes. The agent then takes it
+		// from the span. (The legacy receiver, disable_receive_resource_spans_v2,
+		// takes the payload env from the first span itself.)
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		cfg.ReplaceTags = envReplaceRules
+		translator, err := attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+		require.NoError(t, err)
+		cfg.OTLPReceiver.AttributesTranslator = translator
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		out := make(chan *api.Payload, 1)
+		rcv := api.NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+		now := uint64(time.Now().UnixNano())
+		req := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{{
+			LibName:    "lib",
+			LibVersion: "1.0",
+			Attributes: map[string]interface{}{"service.name": "svc"},
+			Spans: []*testutil.OTLPSpan{{
+				Name:       "op",
+				Start:      now - uint64(time.Second),
+				End:        now,
+				Attributes: map[string]interface{}{"deployment.environment": "tracer-env", "custom.tag": "tracer-value"},
+			}},
+		}})
+		_, err = rcv.ReceiveResourceSpans(ctx, req.Traces().ResourceSpans().At(0), http.Header{}, nil)
+		require.NoError(t, err)
+		p := <-out
+		require.Empty(t, p.TracerPayload.Env, "the payload env must come from the span for this test")
+		agnt.Process(p)
+
+		mco := agnt.Concentrator.(*mockConcentrator)
+		require.Len(t, mco.stats, 1)
+		require.Len(t, mco.stats[0].Traces, 1)
+		trace := mco.stats[0].Traces[0]
+		assert.Equal(t, "tracer-env", trace.TracerEnv, "sampling and stats env is unchanged")
+		assert.Equal(t, "tracer-env", trace.Root.Meta["env"])
+		assert.Equal(t, "redacted-value", trace.Root.Meta["custom.tag"], "other tags are still replaced")
+	})
+
+	t.Run("ReplacerDoesNotChangeEnvV1", func(t *testing.T) {
+		// Default intake path for msgpack v0.4 payloads: they are converted to V1
+		// (UnmarshalMsgConverted), and converted spans keep env both in the
+		// dedicated env field and in their attributes. The payload env is set at
+		// decode time, before replace rules run, so only the span env is at risk.
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		cfg.ReplaceTags = envReplaceRules
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		now := time.Now()
+		bts, err := pb.Traces{{{
+			TraceID:  1,
+			SpanID:   1,
+			Service:  "service",
+			Name:     "name",
+			Resource: "resource",
+			Start:    now.Add(-time.Second).UnixNano(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+			Meta:     map[string]string{"env": "tracer-env", "custom.tag": "tracer-value"},
+		}}}.MarshalMsg(nil)
+		require.NoError(t, err)
+		tp := &idx.InternalTracerPayload{}
+		_, err = tp.UnmarshalMsgConverted(bts)
+		require.NoError(t, err)
+		agnt.ProcessV1(&api.PayloadV1{
+			TracerPayload: tp,
+			Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
+		})
+
+		mco := agnt.Concentrator.(*mockConcentrator)
+		require.Len(t, mco.statsV1, 1)
+		require.Len(t, mco.statsV1[0].Traces, 1)
+		trace := mco.statsV1[0].Traces[0]
+		assert.Equal(t, "tracer-env", trace.TracerEnv, "sampling and stats env is unchanged")
+		assert.Equal(t, "tracer-env", trace.Root.Env(), "span env is unchanged")
+		envAttr, ok := trace.Root.Attributes()[trace.Root.Strings.Lookup("env")]
+		require.True(t, ok, "converted spans keep env in their attributes")
+		assert.Equal(t, "tracer-env", envAttr.AsString(trace.Root.Strings), "span env attribute is unchanged")
+		custom, _ := trace.Root.GetAttributeAsString("custom.tag")
+		assert.Equal(t, "redacted-value", custom, "other tags are still replaced")
+	})
+
 	t.Run("Blacklister", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
@@ -644,6 +772,25 @@ func TestProcess(t *testing.T) {
 		resultSpan := payloads[0].TracerPayload.Chunks[0].Spans[0]
 		assert.Equal(t, "unnamed_operation", resultSpan.Name())
 		assert.Equal(t, "something_that_should_be_a_metric", resultSpan.Service())
+	})
+
+	t.Run("TraceIDZeroV1", func(t *testing.T) {
+		// A zero trace ID drops the chunk, counted as in the legacy pipeline.
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		ts := agnt.Receiver.Stats.GetTagStats(info.Tags{})
+		chunk := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(idx.NewStringTable()), 2)
+		chunk.TraceID = make([]byte, 16)
+		agnt.ProcessV1(&api.PayloadV1{
+			TracerPayload: testutil.TracerPayloadV1WithChunk(chunk),
+			Source:        ts,
+		})
+		assert.Empty(t, agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1)
+		assert.EqualValues(t, 1, ts.TracesDropped.TraceIDZero.Load())
+		assert.EqualValues(t, 1, ts.SpansDropped.Load())
 	})
 
 	t.Run("normalizingV1-NamesAreKept", func(t *testing.T) {
@@ -1949,26 +2096,45 @@ func TestSampling(t *testing.T) {
 		}
 		return a
 	}
+	// sampledTrace holds the same dummy trace for the legacy and V1 pipelines, which must make the
+	// same sampling decisions.
+	type sampledTrace struct {
+		legacy traceutil.ProcessedTrace
+		v1     traceutil.ProcessedTraceV1
+	}
 	// generateProcessedTrace creates a new dummy trace to send to the samplers.
-	generateProcessedTrace := func(p sampler.SamplingPriority, hasErrors bool) traceutil.ProcessedTrace {
+	generateProcessedTrace := func(p sampler.SamplingPriority, hasErrors bool) sampledTrace {
+		now := time.Now()
 		root := &pb.Span{
 			Service:  "serv1",
-			Start:    time.Now().UnixNano(),
+			Start:    now.UnixNano(),
 			Duration: (100 * time.Millisecond).Nanoseconds(),
 			Metrics:  map[string]float64{"_top_level": 1},
 		}
 		if hasErrors {
 			root.Error = 1
 		}
-		pt := traceutil.ProcessedTrace{TraceChunk: testutil.TraceChunkWithSpan(root), Root: root}
+		pt := traceutil.ProcessedTrace{TraceChunk: testutil.TraceChunkWithSpan(root), Root: root, TracerEnv: "test-env"}
 		pt.TraceChunk.Priority = int32(p)
-		pt.TracerEnv = "test-env"
-		return pt
+
+		strs := idx.NewStringTable()
+		rootV1 := idx.NewInternalSpan(strs, &idx.Span{
+			ServiceRef: strs.Add("serv1"),
+			Start:      uint64(now.UnixNano()),
+			Duration:   uint64((100 * time.Millisecond).Nanoseconds()),
+			Error:      hasErrors,
+			Attributes: map[uint32]*idx.AnyValue{},
+		})
+		rootV1.SetFloat64Attribute("_top_level", 1)
+		ptV1 := traceutil.ProcessedTraceV1{TraceChunk: spansToChunkV1(rootV1), Root: rootV1, TracerEnv: "test-env"}
+		ptV1.TraceChunk.Priority = int32(p)
+		return sampledTrace{legacy: pt, v1: ptV1}
 	}
 	type samplingTestCase struct {
-		trace        traceutil.ProcessedTrace
-		wantSampled  bool
-		expectStatsd func(statsdClient *mockStatsd.MockClientInterface)
+		trace         sampledTrace
+		wantSampled   bool
+		wantProbMarks bool // the probabilistic sampler set the decision maker on the chunk.
+		expectStatsd  func(statsdClient *mockStatsd.MockClientInterface)
 	}
 
 	for name, tt := range map[string]struct {
@@ -2243,8 +2409,9 @@ func TestSampling(t *testing.T) {
 			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 100},
 			testCases: []samplingTestCase{
 				{
-					trace:       generateProcessedTrace(sampler.PriorityNone, false),
-					wantSampled: true,
+					trace:         generateProcessedTrace(sampler.PriorityNone, false),
+					wantSampled:   true,
+					wantProbMarks: true,
 					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
 						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
@@ -2281,8 +2448,9 @@ func TestSampling(t *testing.T) {
 			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 100},
 			testCases: []samplingTestCase{
 				{
-					trace:       generateProcessedTrace(sampler.PriorityUserDrop, false),
-					wantSampled: true,
+					trace:         generateProcessedTrace(sampler.PriorityUserDrop, false),
+					wantSampled:   true,
+					wantProbMarks: true,
 					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
 						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
@@ -2319,8 +2487,9 @@ func TestSampling(t *testing.T) {
 			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 100},
 			testCases: []samplingTestCase{
 				{
-					trace:       generateProcessedTrace(sampler.PriorityUserKeep, false),
-					wantSampled: true,
+					trace:         generateProcessedTrace(sampler.PriorityUserKeep, false),
+					wantSampled:   true,
+					wantProbMarks: true,
 					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
 						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
@@ -2414,8 +2583,9 @@ func TestSampling(t *testing.T) {
 			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, errorsSampled: true, probabilisticSamplerSamplingPercentage: 100},
 			testCases: []samplingTestCase{
 				{
-					trace:       generateProcessedTrace(sampler.PriorityAutoDrop, true),
-					wantSampled: true,
+					trace:         generateProcessedTrace(sampler.PriorityAutoDrop, true),
+					wantSampled:   true,
+					wantProbMarks: true,
 					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
 						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
 						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
@@ -2448,20 +2618,92 @@ func TestSampling(t *testing.T) {
 				},
 			},
 		},
+		// With the probabilistic sampler enabled, rare, probabilistic and errors samplers form a "first
+		// one that keeps wins" chain: the errors sampler (dropping everything here) must not veto a
+		// trace the rare or probabilistic sampler kept.
+		"probabilistic-error-100-errors-unsampled": {
+			agentConfig: agentConfig{rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 100},
+			testCases: []samplingTestCase{
+				{
+					trace:         generateProcessedTrace(sampler.PriorityAutoDrop, true),
+					wantSampled:   true,
+					wantProbMarks: true,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
+			},
+		},
+		// The rare sampler keeps the trace first, so the probabilistic sampler does not run.
+		"probabilistic-rare-error-100-errors-unsampled": {
+			agentConfig: agentConfig{probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 100},
+			testCases: []samplingTestCase{
+				{
+					trace:       generateProcessedTrace(sampler.PriorityAutoDrop, true),
+					wantSampled: true,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:rare", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:rare", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(1), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
+			},
+		},
+		"probabilistic-error-0-errors-unsampled": {
+			agentConfig: agentConfig{rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 0},
+			testCases: []samplingTestCase{
+				{
+					trace:       generateProcessedTrace(sampler.PriorityAutoDrop, true),
+					wantSampled: false,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:error", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
+			},
+		},
 	} {
-		t.Run(name, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			statsdClient := mockStatsd.NewMockClientInterface(ctrl)
-			a := configureAgent(tt.agentConfig, statsdClient)
-			for _, tc := range tt.testCases {
-				sampled, _ := a.traceSampling(time.Now(), &info.TagStats{}, &tc.trace)
-				assert.EqualValues(t, tc.wantSampled, sampled)
-				require.NotNil(t, tc.expectStatsd)
-				tc.expectStatsd(statsdClient)
-				a.SamplerMetrics.Report()
-			}
-		})
+		for _, pipeline := range []string{"legacy", "v1"} {
+			t.Run(name+"/"+pipeline, func(t *testing.T) {
+				ctrl := gomock.NewController(t)
+				defer ctrl.Finish()
+				statsdClient := mockStatsd.NewMockClientInterface(ctrl)
+				a := configureAgent(tt.agentConfig, statsdClient)
+				for _, tc := range tt.testCases {
+					var sampled, probMarks bool
+					if pipeline == "legacy" {
+						sampled, _ = a.traceSampling(time.Now(), &info.TagStats{}, &tc.trace.legacy)
+						probMarks = traceChunkContainsProbabilitySampling(tc.trace.legacy.TraceChunk)
+					} else {
+						sampled, _ = a.traceSamplingV1(time.Now(), &info.TagStats{}, &tc.trace.v1)
+						probMarks = traceChunkContainsProbabilitySamplingV1(tc.trace.v1.TraceChunk)
+					}
+					assert.EqualValues(t, tc.wantSampled, sampled)
+					assert.Equal(t, tc.wantProbMarks, probMarks)
+					require.NotNil(t, tc.expectStatsd)
+					tc.expectStatsd(statsdClient)
+					a.SamplerMetrics.Report()
+				}
+			})
+		}
 	}
 }
 
@@ -5137,4 +5379,182 @@ func TestEnrichTracesWithCtagsV1(t *testing.T) {
 		_, ok := p.TracerPayload.GetAttributeAsString(tagContainersTags)
 		assert.False(t, ok)
 	})
+}
+
+func TestProcessV1ChunkEnvAppVersionOverride(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.RareSamplerEnabled = false
+	agent := NewTestAgent(context.TODO(), cfg, telemetry.NewNoopCollector())
+
+	strs := idx.NewStringTable()
+	newChunk := func(id uint64, env, version string) *idx.InternalTraceChunk {
+		c := spansToChunkV1(idx.NewInternalSpan(strs, &idx.Span{SpanID: id, ServiceRef: strs.Add("a"), NameRef: strs.Add("name"), ResourceRef: strs.Add("resource")}))
+		c.Priority = 2 // user keep, so every chunk is forwarded
+		if env != "" {
+			c.SetEnv(env)
+		}
+		if version != "" {
+			c.SetAppVersion(version)
+		}
+		return c
+	}
+	payload := &api.PayloadV1{Source: info.NewReceiverStats(true).GetTagStats(info.Tags{}), TracerPayload: &idx.InternalTracerPayload{
+		Strings: strs,
+		Chunks:  []*idx.InternalTraceChunk{newChunk(1, "PROD", "v2"), newChunk(2, "staging", ""), newChunk(3, "", "")},
+	}}
+	payload.TracerPayload.SetEnv("payload-env")
+	payload.TracerPayload.SetAppVersion("v1")
+	payload.TracerPayload.SetChunkEnvVersionOverridesEnabled(true)
+
+	agent.ProcessV1(payload)
+	mco := agent.Concentrator.(*mockConcentrator)
+	require.Len(t, mco.statsV1, 1)
+	traces := mco.statsV1[0].Traces
+	require.Len(t, traces, 3)
+	got := [][2]string{}
+	for _, pt := range traces {
+		got = append(got, [2]string{pt.TracerEnv, pt.AppVersion})
+	}
+	assert.ElementsMatch(t, [][2]string{{"prod", "v2"}, {"staging", "v1"}, {"payload-env", "v1"}}, got)
+
+	// The forwarded payload keeps its payload-level env/version and the chunk attributes.
+	payloads := agent.TraceWriterV1.(*mockTraceWriter).payloadsV1
+	require.Len(t, payloads, 1)
+	out := payloads[0].TracerPayload
+	assert.Equal(t, "payload-env", out.Env())
+	assert.Equal(t, "v1", out.AppVersion())
+	envs := []string{}
+	for _, c := range out.Chunks {
+		envs = append(envs, c.Env())
+	}
+	assert.ElementsMatch(t, []string{"prod", "staging", ""}, envs)
+}
+
+// TestProcessV1ConvertedPayloadIgnoresChunkEnvVersionTags checks that legacy chunk tags
+// carried as attributes on a converted payload do not override the payload env/version.
+func TestProcessV1ConvertedPayloadIgnoresChunkEnvVersionTags(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.RareSamplerEnabled = false
+	agent := NewTestAgent(context.TODO(), cfg, telemetry.NewNoopCollector())
+
+	legacy := &pb.TracerPayload{
+		Env:        "prod",
+		AppVersion: "v1",
+		Chunks: []*pb.TraceChunk{{
+			Priority: 2,
+			Tags:     map[string]string{"env": "staging", "version": "v2"},
+			Spans:    []*pb.Span{{TraceID: 1, SpanID: 1, Service: "svc", Name: "op", Resource: "res", Duration: 1}},
+		}},
+	}
+	tp := api.ConvertToIdx(legacy, "v07-pb")
+	require.False(t, tp.ChunkEnvVersionOverridesEnabled())
+	require.Equal(t, "staging", tp.Chunks[0].Env(), "legacy chunk tags are kept as attributes")
+
+	agent.ProcessV1(&api.PayloadV1{Source: info.NewReceiverStats(true).GetTagStats(info.Tags{}), TracerPayload: tp})
+
+	mco := agent.Concentrator.(*mockConcentrator)
+	require.Len(t, mco.statsV1, 1)
+	require.Len(t, mco.statsV1[0].Traces, 1)
+	pt := mco.statsV1[0].Traces[0]
+	assert.Equal(t, "prod", pt.TracerEnv)
+	assert.Equal(t, "v1", pt.AppVersion)
+
+	payloads := agent.TraceWriterV1.(*mockTraceWriter).payloadsV1
+	require.NotEmpty(t, payloads)
+	assert.Equal(t, "prod", payloads[0].TracerPayload.Env())
+	assert.Equal(t, "v1", payloads[0].TracerPayload.AppVersion())
+	assert.Equal(t, "staging", payloads[0].TracerPayload.Chunks[0].Env(), "chunk env tag is not normalized or rewritten")
+}
+
+// TestProcessV1CanonicalizesChunkEnvVersion checks that a forwarded native v1 chunk drops an
+// empty env override and carries the version used in stats through serialization.
+func TestProcessV1CanonicalizesChunkEnvVersion(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.RareSamplerEnabled = false
+	agent := NewTestAgent(context.TODO(), cfg, telemetry.NewNoopCollector())
+
+	strs := idx.NewStringTable()
+	chunk := spansToChunkV1(idx.NewInternalSpan(strs, &idx.Span{SpanID: 1, ServiceRef: strs.Add("a"), NameRef: strs.Add("name"), ResourceRef: strs.Add("resource")}))
+	chunk.Priority = 2
+	chunk.SetEnv("") // empty: no override, dropped before forwarding
+	chunk.SetAppVersion("v2")
+	payload := &api.PayloadV1{Source: info.NewReceiverStats(true).GetTagStats(info.Tags{}), TracerPayload: &idx.InternalTracerPayload{
+		Strings: strs,
+		Chunks:  []*idx.InternalTraceChunk{chunk},
+	}}
+	payload.TracerPayload.SetEnv("payload-env")
+	payload.TracerPayload.SetAppVersion("v1")
+	payload.TracerPayload.SetChunkEnvVersionOverridesEnabled(true)
+
+	agent.ProcessV1(payload)
+
+	mco := agent.Concentrator.(*mockConcentrator)
+	require.Len(t, mco.statsV1, 1)
+	require.Len(t, mco.statsV1[0].Traces, 1)
+	pt := mco.statsV1[0].Traces[0]
+	assert.Equal(t, "payload-env", pt.TracerEnv, "an empty env attribute is no override")
+	assert.Equal(t, "v2", pt.AppVersion)
+
+	payloads := agent.TraceWriterV1.(*mockTraceWriter).payloadsV1
+	require.Len(t, payloads, 1)
+	out := payloads[0].TracerPayload
+
+	// The forwarded chunk, once serialized, carries exactly the values used in stats.
+	bts, err := pb.MarshalAgentPayload(&pb.AgentPayload{IdxTracerPayloads: []*idx.TracerPayload{out.ToProto()}})
+	require.NoError(t, err)
+	var decoded pb.AgentPayload
+	require.NoError(t, proto.Unmarshal(bts, &decoded))
+	require.Len(t, decoded.IdxTracerPayloads, 1)
+	dtp := decoded.IdxTracerPayloads[0]
+	require.Len(t, dtp.Chunks, 1)
+	decodedValues := map[string][]string{}
+	for k, v := range dtp.Chunks[0].Attributes {
+		if name := dtp.Strings[k]; name == "env" || name == "version" {
+			decodedValues[name] = append(decodedValues[name], dtp.Strings[v.GetStringValueRef()])
+		}
+	}
+	assert.Equal(t, map[string][]string{"version": {"v2"}}, decodedValues)
+}
+
+// TestProcessV1ChunkEnvNormalizedToEmpty checks that a chunk env that normalizes to empty is
+// no override: stats use the payload env and the forwarded chunk has no env attribute.
+func TestProcessV1ChunkEnvNormalizedToEmpty(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.RareSamplerEnabled = false
+	agent := NewTestAgent(context.TODO(), cfg, telemetry.NewNoopCollector())
+
+	strs := idx.NewStringTable()
+	chunk := spansToChunkV1(idx.NewInternalSpan(strs, &idx.Span{SpanID: 1, ServiceRef: strs.Add("a"), NameRef: strs.Add("name"), ResourceRef: strs.Add("resource")}))
+	chunk.Priority = 2
+	chunk.SetEnv("!!!")
+	payload := &api.PayloadV1{Source: info.NewReceiverStats(true).GetTagStats(info.Tags{}), TracerPayload: &idx.InternalTracerPayload{
+		Strings: strs,
+		Chunks:  []*idx.InternalTraceChunk{chunk},
+	}}
+	payload.TracerPayload.SetEnv("prod")
+	payload.TracerPayload.SetChunkEnvVersionOverridesEnabled(true)
+
+	agent.ProcessV1(payload)
+
+	mco := agent.Concentrator.(*mockConcentrator)
+	require.Len(t, mco.statsV1, 1)
+	require.Len(t, mco.statsV1[0].Traces, 1)
+	assert.Equal(t, "prod", mco.statsV1[0].Traces[0].TracerEnv)
+
+	payloads := agent.TraceWriterV1.(*mockTraceWriter).payloadsV1
+	require.Len(t, payloads, 1)
+	bts, err := pb.MarshalAgentPayload(&pb.AgentPayload{IdxTracerPayloads: []*idx.TracerPayload{payloads[0].TracerPayload.ToProto()}})
+	require.NoError(t, err)
+	var decoded pb.AgentPayload
+	require.NoError(t, proto.Unmarshal(bts, &decoded))
+	require.Len(t, decoded.IdxTracerPayloads, 1)
+	dtp := decoded.IdxTracerPayloads[0]
+	require.Len(t, dtp.Chunks, 1)
+	for k := range dtp.Chunks[0].Attributes {
+		assert.NotEqual(t, "env", dtp.Strings[k], "the forwarded chunk has no env attribute")
+	}
 }

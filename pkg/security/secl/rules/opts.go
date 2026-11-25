@@ -29,19 +29,22 @@ type RuleActionPerformedCb func(r *Rule, action *ActionDefinition)
 
 // Opts defines rules set options
 type Opts struct {
-	SupportedDiscarders        map[eval.Field]bool
+	SupportedDiscarders        map[eval.Field][]eval.Field
 	SupportedMultiDiscarders   []*MultiDiscarder
 	ExcludedRuleFromDiscarders map[eval.RuleID]bool
-	ReservedRuleIDs            []RuleID
-	EventTypeEnabled           map[eval.EventType]bool
-	StateScopes                map[Scope]VariableProviderFactory
-	Logger                     log.Logger
-	ruleActionPerformedCb      RuleActionPerformedCb
-	RuleCacheEnabled           bool
+	// ExcludedRuleDiscarderFields are the fields of the discarders the excluded rules still take part in
+	ExcludedRuleDiscarderFields []eval.Field
+	ReservedRuleIDs             []RuleID
+	EventTypeEnabled            map[eval.EventType]bool
+	StateScopes                 map[Scope]VariableProviderFactory
+	Logger                      log.Logger
+	ruleActionPerformedCb       RuleActionPerformedCb
+	RuleCacheEnabled            bool
 }
 
-// WithSupportedDiscarders set supported discarders
-func (o *Opts) WithSupportedDiscarders(discarders map[eval.Field]bool) *Opts {
+// WithSupportedDiscarders set supported discarders: the field a discarder is
+// applied on, and the fields whose values it discards together
+func (o *Opts) WithSupportedDiscarders(discarders map[eval.Field][]eval.Field) *Opts {
 	o.SupportedDiscarders = discarders
 	return o
 }

@@ -16,6 +16,7 @@ import tempfile
 import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from pathlib import Path
 
 import yaml
@@ -25,6 +26,7 @@ from invoke.tasks import task
 
 from tasks.e2e_framework import tool
 from tasks.e2e_framework.deploy import get_pipeline_commit_sha
+from tasks.e2e_framework.image_pull import agent_qa_ecr_credential, agent_sandbox_ecr_credential
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
 from tasks.libs.build.bazel import bazel, build_binary_with_bazel
@@ -37,7 +39,9 @@ from tasks.libs.common.utils import (
     color_message,
     environ,
     get_repo_root,
+    gitlab_project_url,
     gitlab_section,
+    is_windows,
     running_in_ci,
     running_in_gitlab_ci,
 )
@@ -154,7 +158,7 @@ def write_test_binaries_bzl(_):
     """
     query_output = bazel(
         "query",
-        "kind(go_test, rdeps(//test/new-e2e/tests/..., //test/e2e-framework/testing/e2e))",
+        r"attr(tags, '\bmanual\b', kind(go_test, rdeps(//test/new-e2e/tests/..., //test/e2e-framework/testing/e2e)))",
         "--output=label",
         capture_output=True,
     )
@@ -270,6 +274,11 @@ GO_TEST_MIN_TIMEOUT_SECONDS = 60
 # Fallback go test timeout when no GitLab CI timeout is available (local runs).
 DEFAULT_GO_TEST_TIMEOUT = "4h"
 
+# Match a complete panic header line, not timeout text embedded in other test logs.
+GO_TEST_TIMEOUT_PANIC_RE = re.compile(
+    r"^panic: test timed out after (?:[0-9]+(?:\.[0-9]+)?(?:ns|[uµμ]s|ms|s|m|h))+\r?$", re.MULTILINE
+)
+
 
 def _format_go_duration(seconds: int) -> str:
     """Format an integer number of seconds as a Go duration literal (e.g. "1h55m0s")."""
@@ -368,7 +377,7 @@ def _compute_go_test_timeout(explicit: str | None, now: datetime.datetime | None
         "flavor": 'Agent package flavor to install (e.g. "datadog-agent")',
         "stack_name_suffix": "Suffix to add to the stack name, it can be useful when your stack is stuck in a weird state and you need to run the tests again",
         "use_bazel_built_binaries": "Build the test binaries with Bazel first instead of building them on the fly, then execute them with gotestsum",
-        "max_retries": "Maximum number of retries for failed tests, only in e2e CI jobs where the job after_script cleans up the stacks",
+        "max_retries": "Maximum number of retries for failed tests (except Go test timeouts), only in e2e CI jobs where the job after_script cleans up the stacks",
         "impacted": "Only run tests that are impacted by the changes (only available in CI for now)",
         "keep_stack": "Keep the stack after running the test, you are responsible for destroying the stack later.",
         "timeout": "Go test timeout (Go duration string, e.g. '1h55m'). Defaults to CI_JOB_TIMEOUT minus a teardown buffer when running in GitLab CI, otherwise to 4h.",
@@ -465,6 +474,9 @@ def run(
     # already carry one, so developers don't have to put the passphrase in their rc file.
     env_vars.update(tool.pulumi_env(skip_update_check=False))
 
+    if not running_in_ci():
+        env_vars.update(_docker_host_env(ctx))
+
     parsed_params = {}
 
     # Image pull credentials: build as aligned lists, then join with commas.
@@ -480,24 +492,15 @@ def run(
         usernames = env_username.split(",") if env_username else []
         passwords = env_password.split(",")
 
-    if not running_in_ci() and not passwords:
-        ecr_password = _get_agent_qa_ecr_password(ctx)
-        if ecr_password:
-            registries.append("669783387624.dkr.ecr.us-east-1.amazonaws.com")
-            usernames.append("AWS")
-            passwords.append(ecr_password)
-
     if not running_in_ci():
         # TODO(agent-devx): Add GCP authentication (follow-up to #47298)
-        # If we use an agent image from sandbox registry we need to authenticate against it
-        if "376334461865" in (agent_image or "") or "376334461865" in (cluster_agent_image or ""):
-            sandbox_pwd = ctx.run(
-                "aws-vault exec sso-agent-sandbox-account-admin-8h -- aws ecr get-login-password",
-                hide=True,
-            ).stdout.strip()
-            registries.append("376334461865.dkr.ecr.us-east-1.amazonaws.com")
-            usernames.append("AWS")
-            passwords.append(sandbox_pwd)
+        local_creds = [agent_sandbox_ecr_credential(ctx, agent_image, cluster_agent_image)]
+        if not passwords:
+            local_creds.insert(0, agent_qa_ecr_credential(ctx))
+        for registry, username, password in filter(None, local_creds):
+            registries.append(registry)
+            usernames.append(username)
+            passwords.append(password)
 
     if passwords:
         env_vars["E2E_IMAGE_PULL_REGISTRY"] = ",".join(registries)
@@ -690,6 +693,19 @@ def run(
         washer = TestWasher(test_output_json_file=partial_result_json)
 
         if remaining_tries > 0:
+            if any(
+                line.action == ActionType.OUTPUT and line.output and GO_TEST_TIMEOUT_PANIC_RE.search(line.output)
+                for line in washer.test_output_json.lines
+            ):
+                # A Go test timeout can leave remote commands running on the stacks that retries would reuse.
+                print(
+                    color_message(
+                        "Go test timed out; skipping retries because remote commands may still be running.",
+                        Color.ORANGE,
+                    )
+                )
+                break
+
             failed_tests = filter_only_leaf_tests(
                 (package, test_name) for package, tests in washer.get_failing_tests().items() for test_name in tests
             )
@@ -898,10 +914,12 @@ def list_stacks(ctx: Context, project: str = "e2eci") -> list[dict]:
 
 
 @task
-def cleanup_remote_stacks(ctx, stack_regex):
+def cleanup_remote_stacks(ctx, stack_regex, pipeline_id=None):
     """
-    Clean up remote stacks created by the pipeline
+    Clean up remote stacks, attributing requests to pipeline_id (current by default).
     """
+    if pipeline_id is not None and not str(pipeline_id).isdecimal():
+        raise Exit("Provide a numeric --pipeline-id", code=1)
     remote_stack_cleaning = os.getenv("REMOTE_STACK_CLEANING") == "true"
     if remote_stack_cleaning:
         print("Using remote stack cleaning")
@@ -927,7 +945,11 @@ def cleanup_remote_stacks(ctx, stack_regex):
     print("About to delete the following stacks:", to_delete_stacks)
 
     with multiprocessing.Pool(len(to_delete_stacks)) as pool:
-        destroy_func = destroy_remote_stack_api if remote_stack_cleaning else destroy_remote_stack_local
+        destroy_func = (
+            partial(destroy_remote_stack_api, pipeline_id=pipeline_id)
+            if remote_stack_cleaning
+            else destroy_remote_stack_local
+        )
         res = pool.map(destroy_func, to_delete_stacks)
         destroyed_stack = set()
         failed_stack = set()
@@ -1020,6 +1042,84 @@ def benchmarkeks_baseline(ctx: Context, output_file: str = "benchmarkeks_baselin
     for name, value in variables.items():
         print(f"  {name}={value}")
     print(f"Written to {output_file}")
+
+
+@task(
+    help={
+        "state": "State of the benchmark the comment shows: pending (to start), running or done",
+        "report_dir": "Directory of the reports of the benchmark, required for the done state",
+    }
+)
+def benchmarkeks_comment(ctx: Context, state: str, report_dir: str = ""):
+    """
+    Update the pull request comment of the benchmarkeks suite (TestBenchmarkEKSSuite) to the state of the benchmark in
+    the current pipeline: pending, with a button linking to its manual job, running, or done, with its results. A
+    pipeline whose commit is no longer the head of the pull request leaves the comment to the pipeline of the head.
+    """
+    from tasks.github_tasks import pr_commenter
+    from tasks.libs.ciproviders.github_api import GithubAPI
+    from tasks.libs.testing.benchmarkeks import (
+        BASELINE_JOB_NAME,
+        BENCHMARK_JOB_NAME,
+        COMMENT_STATES,
+        COMMENT_TITLE,
+        SHORT_SHA_LENGTH,
+        done_comment,
+        pending_comment,
+        read_reports,
+        running_comment,
+    )
+
+    if state not in COMMENT_STATES:
+        message = f"Invalid state {state}: expected one of {', '.join(COMMENT_STATES)}"
+        raise Exit(color_message(message, Color.RED), code=1)
+    if state == "done" and not report_dir:
+        raise Exit(color_message("--report-dir is required for the done state", Color.RED), code=1)
+
+    # Before looking up the jobs, which a superseded pipeline doesn't need
+    sha = os.environ["CI_COMMIT_SHA"]
+    branch = os.environ["CI_COMMIT_BRANCH"]
+    prs = list(GithubAPI().get_pr_for_branch(branch))
+    if len(prs) != 1:
+        print(color_message(f"Found {len(prs)} pull requests for branch {branch}, not commenting", Color.ORANGE))
+        return
+    pr = prs[0]
+    if pr.head.sha != sha:
+        head = pr.head.sha[:SHORT_SHA_LENGTH]
+        print(
+            color_message(
+                f"The head of the pull request is now {head}, leaving the comment to its pipeline", Color.ORANGE
+            )
+        )
+        return
+
+    pipeline_url = os.environ["CI_PIPELINE_URL"]
+    commit = sha[:SHORT_SHA_LENGTH]
+    if state == "pending":
+        body = pending_comment(_pipeline_job_url(BASELINE_JOB_NAME), pipeline_url)
+    else:
+        benchmark_job_url = _pipeline_job_url(BENCHMARK_JOB_NAME) or pipeline_url
+        if state == "running":
+            body = running_comment(benchmark_job_url, pipeline_url, commit, datetime.datetime.now(datetime.UTC))
+        else:
+            body = done_comment(benchmark_job_url, pipeline_url, commit, *read_reports(report_dir))
+    pr_commenter(ctx, title=COMMENT_TITLE, body=body, pr=pr)
+
+
+def _pipeline_job_url(name: str) -> str | None:
+    """
+    Returns the URL of the job name of the current pipeline, whatever its status, or None if it can't be found.
+    """
+    try:
+        pipeline = get_gitlab_repo().pipelines.get(os.environ["CI_PIPELINE_ID"], lazy=True)
+        jobs = pipeline.jobs.list(iterator=True, per_page=100)
+        job_url = next((job.web_url for job in jobs if job.name == name), None)
+    except Exception as e:
+        print(color_message(f"Could not look up job {name}, linking to the pipeline: {e}", Color.ORANGE))
+        return None
+    if job_url is None:
+        print(color_message(f"Job {name} not found, linking to the pipeline", Color.ORANGE))
+    return job_url
 
 
 def post_process_output(path: str, test_depth: int = 1) -> list[tuple[str, str, list[str]]]:
@@ -1176,7 +1276,7 @@ def pretty_print_logs(result_json_path, logs_per_test, max_size=250000, test_dep
     except TooManyLogsError:
         print(
             color_message("WARNING", "yellow")
-            + f": Too many logs to print, skipping logs printing to avoid Gitlab collapse. You can find your logs properly organized in the job artifacts: https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/{os.getenv('CI_JOB_ID')}/artifacts/browse/e2e-output/logs/"
+            + f": Too many logs to print, skipping logs printing to avoid Gitlab collapse. You can find your logs properly organized in the job artifacts: {gitlab_project_url()}/-/jobs/{os.getenv('CI_JOB_ID')}/artifacts/browse/e2e-output/logs/"
         )
 
 
@@ -1385,21 +1485,24 @@ def _is_local_state(pulumi_about: dict) -> bool:
     return url.startswith("file://")
 
 
-def _get_agent_qa_ecr_password(ctx: Context) -> str:
-    from tasks.e2e_framework.setup.aws import DEFAULT_AWS_REGION, ECR_CACHE_PROFILE
+DEFAULT_DOCKER_HOST = "unix:///var/run/docker.sock"
 
-    ecr_password_res = ctx.run(
-        f"aws-vault exec {ECR_CACHE_PROFILE} -- aws ecr get-login-password --region {DEFAULT_AWS_REGION}",
-        hide=True,
-        warn=True,
-    )
-    if ecr_password_res.exited != 0:
-        print(
-            f"WARNING: Could not get ECR password for agent-qa account from the '{ECR_CACHE_PROFILE}' profile. "
-            "Run `dda inv -- e2e.setup` to configure it. Tests pulling images from agent-qa ECR are likely to fail."
-        )
-        return ""
-    return ecr_password_res.stdout.strip()
+
+def _docker_host_env(ctx: Context) -> dict[str, str]:
+    """
+    Set DOCKER_HOST to the local socket of the active Docker context (e.g. Colima's), unless it's
+    already set: the Pulumi Docker provider ignores contexts and only reads DOCKER_HOST. Not done
+    on Windows, which uses the default named pipe.
+    """
+    if "DOCKER_HOST" in os.environ or is_windows():
+        return {}
+    res = ctx.run("docker context inspect --format '{{.Endpoints.docker.Host}}'", hide=True, warn=True)
+    if res.exited != 0:
+        return {}
+    host = res.stdout.strip()
+    if not host.startswith("unix://") or host == DEFAULT_DOCKER_HOST:
+        return {}
+    return {"DOCKER_HOST": host}
 
 
 def _find_recent_successful_pipeline(ctx: Context, branch: str | None = None) -> str | None:

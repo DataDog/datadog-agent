@@ -1,0 +1,8 @@
+---
+upgrade:
+  - |
+    APM: ``apm_config.replace_tags`` (``DD_APM_REPLACE_TAGS``) rules can no longer
+    change the ``env`` of a span, because the Agent uses it for sampling and stats.
+    Rules named ``env`` are ignored, with an error logged at startup, and ``*``
+    rules skip the span ``env``. If you set or renamed the env with a replace
+    rule, set the env in the tracer instead.

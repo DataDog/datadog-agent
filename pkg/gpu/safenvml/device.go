@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
@@ -214,12 +215,23 @@ type DeviceEventData struct {
 
 // DeviceInfo holds common cached properties for a GPU device
 type DeviceInfo struct {
-	SMVersion          uint32
-	UUID               string
-	Name               string
-	CoreCount          int
-	Architecture       nvml.DeviceArchitecture
-	VirtualizationMode nvml.GpuVirtualizationMode
+	SMVersion              uint32
+	UUID                   string
+	Name                   string
+	CoreCount              int
+	Architecture           nvml.DeviceArchitecture
+	VirtualizationMode     nvml.GpuVirtualizationMode
+	VirtualizationModeName string
+	DriverVersion          string
+	MemoryBusWidth         uint32
+	BoardSerial            string
+	ChassisSerial          string
+	FabricGUID             string
+	FabricClusterUUID      string
+	FabricCliqueID         uint32
+	SlotNumber             uint8
+	TrayIndex              uint8
+	ModuleID               uint8
 	// PCIBusID is the normalized PCI BDF from the last successful enumeration.
 	PCIBusID string
 
@@ -319,6 +331,11 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 	if err := device.fillPhysicalDeviceData(safeDev); err != nil {
 		return nil, fmt.Errorf("error filling physical device data: %w", err)
 	}
+	if driverVersion, err := lib.SystemGetDriverVersion(); err == nil {
+		device.DriverVersion = driverVersion
+	} else {
+		singleton.logDeviceWarning(device.UUID, "cannot get driver version: %v", err)
+	}
 
 	// Queried after the required fills, so a device that is already unusable
 	// fails on that rather than here. Non-fatal in its own right: GetMinorNumber
@@ -361,13 +378,25 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 		// using the instance profiles will give us the total capacity available
 		// to MIG instances, without reporting cores that can never be used when
 		// MIG is enabled.
-		profileInfo, err := device.SafeDevice.GetGpuInstanceProfileInfo(0)
+		//
+		// The smallest profile does not give that capacity on its own: on an
+		// H200, 7 x 1g.18gb instances have 112 SMs and 112 GiB, while one
+		// 7g.141gb instance has 132 SMs and 140 GiB and a 1g.35gb instance
+		// has 26 SMs. Take the largest capacity any profile provides, so that
+		// no MIG device reports more memory or cores than the GPU hosting it.
+		profiles, err := device.migInstanceProfiles()
 		if err != nil {
-			return nil, fmt.Errorf("error getting MIG device profile info: %w", err)
+			return nil, err
+		}
+		var multiprocessors, memoryMB uint64
+		for _, info := range profiles {
+			profileMultiprocessors, profileMemoryMB := migProfileCapacity(info)
+			multiprocessors = max(multiprocessors, profileMultiprocessors)
+			memoryMB = max(memoryMB, profileMemoryMB)
 		}
 
-		device.Memory = uint64(profileInfo.MemorySizeMB) * 1024 * 1024 * uint64(profileInfo.InstanceCount)
-		device.CoreCount = int(profileInfo.MultiprocessorCount) * int(profileInfo.InstanceCount) * coresPerMultiprocessor(device.Architecture)
+		device.Memory = memoryMB * 1024 * 1024
+		device.CoreCount = int(multiprocessors) * coresPerMultiprocessor(device.Architecture)
 	} else {
 		cores, err := device.SafeDevice.GetNumGpuCores()
 		if err != nil {
@@ -386,6 +415,54 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 	}
 
 	return device, nil
+}
+
+// lastMIGInstanceProfiles holds the last complete list of GPU instance profiles of each GPU, by GPU UUID, used when
+// an optional profile cannot be queried. The profiles of a GPU do not change while it is in MIG mode.
+var lastMIGInstanceProfiles sync.Map
+
+// migInstanceProfiles returns the GPU instance profiles that the GPU supports, by profile index
+// (nvml.GPU_INSTANCE_PROFILE_*). The first profile is required. The others are skipped when the GPU does not
+// support them; on any other error, the last complete list of the GPU is used, so that a transient failure neither
+// reports a smaller capacity nor drops the GPU, and the profile is skipped if there is none.
+func (d *PhysicalDevice) migInstanceProfiles() (map[int]nvml.GpuInstanceProfileInfo, error) {
+	profiles := make(map[int]nvml.GpuInstanceProfileInfo)
+	complete := true
+	for profile := 0; profile < nvml.GPU_INSTANCE_PROFILE_COUNT; profile++ {
+		info, err := d.SafeDevice.GetGpuInstanceProfileInfo(profile)
+		switch {
+		case err == nil:
+			profiles[profile] = info
+		case profile == nvml.GPU_INSTANCE_PROFILE_1_SLICE:
+			return nil, fmt.Errorf("error getting MIG device profile info: %w", err)
+		case isUnsupportedMIGProfile(err):
+			// profile not supported by this GPU
+		default:
+			complete = false
+			if last, ok := lastMIGInstanceProfiles.Load(d.UUID); ok {
+				singleton.logDeviceWarning(d.UUID, "cannot get the info of MIG profile %d, using the last known profiles: %v", profile, err)
+				return last.(map[int]nvml.GpuInstanceProfileInfo), nil
+			}
+			singleton.logDeviceWarning(d.UUID, "cannot get the info of MIG profile %d, skipping it: %v", profile, err)
+		}
+	}
+	if complete && d.UUID != "" {
+		lastMIGInstanceProfiles.Store(d.UUID, profiles)
+	}
+	return profiles, nil
+}
+
+// isUnsupportedMIGProfile returns true for the errors NVML returns for a GPU instance profile the GPU does not have.
+func isUnsupportedMIGProfile(err error) bool {
+	var nvmlErr *NvmlAPIError
+	return IsUnsupported(err) || IsInvalidArgument(err) ||
+		(errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_NOT_FOUND))
+}
+
+// migProfileCapacity returns the multiprocessors and the memory, in MiB, of all the instances of a GPU instance
+// profile that fit in the GPU.
+func migProfileCapacity(info nvml.GpuInstanceProfileInfo) (multiprocessors uint64, memoryMB uint64) {
+	return uint64(info.MultiprocessorCount) * uint64(info.InstanceCount), info.MemorySizeMB * uint64(info.InstanceCount)
 }
 
 func (d *PhysicalDevice) fillMigChildren() error {
@@ -418,6 +495,7 @@ func (d *PhysicalDevice) fillMigChildren() error {
 		migChildDevice.Architecture = d.Architecture
 		// MIG instances share their parent's PCI function.
 		migChildDevice.PCIBusID = d.PCIBusID
+		migChildDevice.MemoryBusWidth = d.MemoryBusWidth
 		// MIG slices do not have NVLink ports; keep the parent's protocol version for tags.
 		migChildDevice.NVLinkVersion = d.NVLinkVersion
 		migChildDevice.CoreCount *= coresPerMultiprocessor(d.Architecture)
@@ -537,6 +615,7 @@ func (d *DeviceInfo) fillPhysicalDeviceData(dev SafeDevice) error {
 
 	if virtualizationMode, err := dev.GetVirtualizationMode(); err == nil {
 		d.VirtualizationMode = virtualizationMode
+		d.VirtualizationModeName = gpuutil.VirtualizationModeToString(virtualizationMode)
 	} else {
 		singleton.logDeviceWarning(d.UUID, "cannot get virtualization mode: %v", err)
 	}
@@ -551,8 +630,34 @@ func (d *DeviceInfo) fillPhysicalDeviceData(dev SafeDevice) error {
 	}
 
 	d.fillNVLinkDataFromNVML(dev)
+	d.fillStaticAttributes(dev)
 
 	return nil
+}
+
+func (d *DeviceInfo) fillStaticAttributes(dev SafeDevice) {
+	if width, err := dev.GetMemoryBusWidth(); err == nil {
+		d.MemoryBusWidth = width
+	} else if !IsUnsupported(err) {
+		singleton.logDeviceWarning(d.UUID, "cannot get memory bus width: %v", err)
+	}
+	if serial, err := dev.GetSerial(); err == nil {
+		d.BoardSerial = strings.TrimSpace(serial)
+	} else if !IsUnsupported(err) {
+		singleton.logDeviceWarning(d.UUID, "cannot get board serial: %v", err)
+	}
+	if platform, err := dev.GetPlatformInfo(); err == nil {
+		d.FabricGUID = gpuutil.PlatformFabricGUID(platform)
+		d.ChassisSerial = gpuutil.PlatformChassisSerial(platform)
+		d.SlotNumber, d.TrayIndex, d.ModuleID = platform.SlotNumber, platform.TrayIndex, platform.ModuleId
+	} else if !IsUnsupported(err) {
+		singleton.logDeviceWarning(d.UUID, "cannot get platform info: %v", err)
+	}
+	if fabric, err := dev.GetGpuFabricInfo(); err == nil {
+		d.FabricClusterUUID, d.FabricCliqueID, _ = gpuutil.FabricInfoToTags(fabric)
+	} else if !IsUnsupported(err) {
+		singleton.logDeviceWarning(d.UUID, "cannot get fabric info: %v", err)
+	}
 }
 
 func (d *DeviceInfo) fillNVLinkDataFromNVML(dev SafeDevice) {

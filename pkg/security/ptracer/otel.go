@@ -78,9 +78,10 @@ func (ctx *CWSPtracerCtx) resolveOTelProcessContext(process *Process) {
 	}
 }
 
-func (ctx *CWSPtracerCtx) unsetOTelOnExec(pid int) {
+func (ctx *CWSPtracerCtx) unsetSpanContextOnExec(pid int) {
 	if process := ctx.processCache.Get(pid); process != nil {
 		ctx.processCache.unsetOTel(process.Tgid)
+		ctx.processCache.unsetGoLabels(process.Tgid)
 	}
 }
 

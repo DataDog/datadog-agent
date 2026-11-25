@@ -4,8 +4,10 @@ go_library(
     name = "ast",
     srcs = [
         "ast.go",
+        "constant.go",
         "expr.go",
         "literal.go",
+        "name.go",
         "ops.go",
         "print.go",
         "value.go",

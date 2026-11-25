@@ -1,20 +1,77 @@
-bazel:package:linux-amd64:
-  extends: .bazel:runner:linux-amd64
+.bazel:package:
   stage: packaging
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
   needs: ["setup_agent_version"]
+  variables:
+    BAZEL_PACKAGE_DIR: bazel-packages
+    BAZEL_PACKAGE_FLAGS: ""
+    BAZEL_PACKAGE_TARGETS: ""
+    BAZEL_PACKAGE_REQUIRED_FILES: ""
   script:
     - PACKAGE_VERSION="$(dda inv -- agent.version --url-safe)" || exit $?
     - export PACKAGE_VERSION
-    - bazel build //packages/agent/linux:debian //packages/agent/linux:rpm
-    - mkdir -p bazel-packages
-    - BAZEL_PACKAGE_BIN="$(bazel info bazel-bin)/packages/agent/linux"
-    - cp -L "$BAZEL_PACKAGE_BIN"/datadog-agent_*.deb bazel-packages/
-    - cp -L "$BAZEL_PACKAGE_BIN"/datadog-agent-*.rpm bazel-packages/
+    - bazel build $BAZEL_PACKAGE_FLAGS $BAZEL_PACKAGE_TARGETS
+    - mkdir -p "$BAZEL_PACKAGE_DIR"
+    - EXECUTION_ROOT="$(bazel info execution_root)"
+    - PACKAGE_FILES="$(bazel cquery $BAZEL_PACKAGE_FLAGS --output=files "set($BAZEL_PACKAGE_TARGETS)")" || exit $?
+    - |
+      for file in $PACKAGE_FILES; do
+        case "$file" in
+          *.deb|*.rpm) ln -L "$EXECUTION_ROOT/$file" "$BAZEL_PACKAGE_DIR/" ;;
+          *) echo "Unexpected output from a package target: $file" >&2; exit 1 ;;
+        esac
+      done
+    - !reference [.log_dd_pkg_version]
+    - dd-pkg lint "$BAZEL_PACKAGE_DIR"/*
+    - |
+      if [ -n "$BAZEL_PACKAGE_REQUIRED_FILES" ]; then
+        for pkg in "$BAZEL_PACKAGE_DIR"/*; do
+          case "${pkg##*/}" in
+            *-dbg[_-]*) ;;
+            *) dd-pkg check-files --required-files "$BAZEL_PACKAGE_REQUIRED_FILES-${pkg##*.}.txt" "$pkg" || exit $? ;;
+          esac
+        done
+      fi
+    - dd-pkg sign --key-id "${PIPELINE_KEY_ALIAS}" "$BAZEL_PACKAGE_DIR"
   artifacts:
+    when: always
     expire_in: 2 weeks
     paths:
-      - bazel-packages/
+      - $BAZEL_PACKAGE_DIR/
+
+bazel:package:linux-amd64:
+  extends: [.bazel:runner:linux-amd64, .bazel:package]
+  variables:
+    BAZEL_PACKAGE_FLAGS: "--//:install_stripped_binaries"
+    BAZEL_PACKAGE_TARGETS: "//packages/agent/linux:debian //packages/agent/linux:debian_dbg //packages/agent/linux:rpm //packages/agent/linux:rpm_dbg"
+    BAZEL_PACKAGE_REQUIRED_FILES: test/required_files/agent
+
+.bazel:package:iot:
+  extends: .bazel:package
+  variables:
+    BAZEL_PACKAGE_FLAGS: "--//packages/agent:flavor=iot"
+    BAZEL_PACKAGE_TARGETS: "//packages/iot:debian //packages/iot:rpm"
+    BAZEL_PACKAGE_REQUIRED_FILES: test/required_files/iot-agent
+
+bazel:package:iot:linux-amd64:
+  extends: [.bazel:runner:linux-amd64, .bazel:package:iot]
+
+bazel:package:iot:linux-arm64:
+  extends: [.bazel:runner:linux-arm64, .bazel:package:iot]
   allow_failure: true
+
+bazel:package:iot:linux-armhf:
+  extends: [.bazel:runner:linux-arm64, .bazel:package:iot]
+  allow_failure: true
+  variables:
+    BAZEL_PACKAGE_FLAGS: "--//packages/agent:flavor=iot --platforms=//bazel/platforms:linux_armv7"
+
+bazel:package:iot:suse-amd64:
+  extends: [.bazel:runner:linux-amd64, .bazel:package:iot]
+  allow_failure: true
+  variables:
+    BAZEL_PACKAGE_DIR: bazel-packages/suse
+    BAZEL_PACKAGE_FLAGS: "--//packages/agent:flavor=iot --//packages/agent:host_distribution=suse"
+    BAZEL_PACKAGE_TARGETS: "//packages/iot:rpm"

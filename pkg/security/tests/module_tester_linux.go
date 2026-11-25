@@ -85,6 +85,8 @@ event_monitoring_config:
       enabled: {{ .NetworkIngressEnabled }}
     raw_packet:
       enabled: {{ .NetworkRawPacketEnabled}}
+    tcx:
+      enabled: {{ .NetworkTCXEnabled }}
   flush_discarder_window: 0
   event_stream:
     use_fentry: true
@@ -132,18 +134,21 @@ runtime_security_config:
       enabled: {{ .HostSBOMEnabled }}
   activity_dump:
     enabled: false
+{{if .WorkloadProfileStorageDir}}
+    local_storage:
+      output_directory: {{ .WorkloadProfileStorageDir }}
+{{end}}
 {{if .EnableSecurityProfile}}
     cgroup_differentiate_args: {{ .WorkloadProfileDifferentiateArgs }}
 {{if gt .WorkloadProfilePersistencePeriod 0}}
     dump_duration: {{ .WorkloadProfilePersistencePeriod }}
 {{end}}
-{{if .WorkloadProfileStorageDir}}
-    local_storage:
-      output_directory: {{ .WorkloadProfileStorageDir }}
-{{end}}
 {{end}}
   security_profile:
     enabled: {{ .EnableSecurityProfile }}
+{{if gt .SecurityProfileMaxImageTags 0}}
+    max_image_tags: {{ .SecurityProfileMaxImageTags }}
+{{end}}
     v2:
       enabled: true
 {{if .EnableSecurityProfile}}
@@ -707,7 +712,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	if testEnvironment == DockerEnvironment || ebpfLessEnabled {
 		cmdWrapper = newStdCmdWrapper()
 	} else {
-		wrapper, err := newDockerCmdWrapper(st.Root(), st.Root(), "ubuntu", "")
+		wrapper, err := newDockerCmdWrapper(t, st.Root(), st.Root(), "ubuntu", "")
 		if err == nil {
 			cmdWrapper = newMultiCmdWrapper(wrapper, newStdCmdWrapper())
 		} else {
@@ -777,6 +782,12 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	statsdClient := statsdclient.NewStatsdClient()
 
+	// the IPC component is only needed for TCP sockets
+	grpcServer, err := grpcutils.NewServer("unix", "/tmp/runtime-security.sock", nil)
+	if err != nil {
+		return nil, err
+	}
+
 	testMod = &testModule{
 		secconfig:     secconfig,
 		opts:          opts,
@@ -786,7 +797,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		statsdClient:  statsdClient,
 		proFile:       proFile,
 		eventHandlers: eventHandlers{},
-		grpcServer:    grpcutils.NewServer("unix", "/tmp/runtime-security.sock"),
+		grpcServer:    grpcServer,
 	}
 
 	emopts := eventmonitor.Opts{
@@ -830,7 +841,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	if !opts.staticOpts.disableRuntimeSecurity {
 		msgSender := newFakeMsgSender(testMod)
 
-		cmdServer, err := module.NewCommandServer(secconfig.RuntimeSecurity)
+		cmdServer, err := module.NewCommandServer(secconfig.RuntimeSecurity, ipcComp)
 		if err != nil {
 			return nil, err
 		}
@@ -1324,7 +1335,7 @@ func DecodeSecurityProfile(path string) (*profile.Profile, error) {
 
 func (tm *testModule) StartADocker() (*dockerCmdWrapper, error) {
 	// we use alpine to use nslookup on some tests, and validate all busybox specificities
-	docker, err := newDockerCmdWrapper(tm.st.Root(), tm.st.Root(), "alpine", "")
+	docker, err := newDockerCmdWrapper(tm.t, tm.st.Root(), tm.st.Root(), "alpine", "")
 	if err != nil {
 		return nil, err
 	}

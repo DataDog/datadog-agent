@@ -1,0 +1,20 @@
+properties:
+  setting_with_title:
+    node_type: setting
+    title: Basic Configuration
+    type: string
+    default: a
+  setting_with_banner:
+    node_type: setting
+    banner: Advanced Configuration
+    type: string
+    default: a
+  section_with_title:
+    node_type: section
+    title: Trace Collection Configuration
+    properties:
+      nested_setting_with_title:
+        node_type: setting
+        title: Nested
+        type: string
+        default: a

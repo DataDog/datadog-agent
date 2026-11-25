@@ -66,6 +66,41 @@ func TestTimeSeriesStorage_Add(t *testing.T) {
 	assert.Equal(t, 10.0, series.Points[0].Value)
 }
 
+func TestTimeSeriesStorage_FreshSeriesCount(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	updated := s.Add("check", "updated", 1, 10, nil).Ref
+	unchanged := s.Add("check", "unchanged", 1, 10, nil).Ref
+	s.Add(observer.TelemetryNamespace, "internal", 1, 11, nil)
+
+	// Both series are visible at cutoff 10 and newer than the previous cutoff 9.
+	assert.Equal(t, 2, s.FreshSeriesCount(observer.TelemetryNamespace, 10, 9))
+	// Visible, but not newer than the previous cutoff.
+	assert.Equal(t, 0, s.FreshSeriesCount(observer.TelemetryNamespace, 10, 10))
+	// Cutoff below the only visible bucket excludes both.
+	assert.Equal(t, 0, s.FreshSeriesCount(observer.TelemetryNamespace, 9, 8))
+
+	// A same-second merge is not a new visible bucket.
+	s.Add("check", "updated", 2, 10, nil)
+	assert.Equal(t, 0, s.FreshSeriesCount(observer.TelemetryNamespace, 10, 10))
+
+	// A late historical write does not make the series fresh again.
+	s.Add("check", "updated", 3, 9, nil)
+	assert.Equal(t, 0, s.FreshSeriesCount(observer.TelemetryNamespace, 10, 10))
+
+	// A bucket beyond the cutoff is not visible yet and must not count.
+	s.Add("check", "future", 1, 100, nil)
+	assert.Equal(t, 0, s.FreshSeriesCount(observer.TelemetryNamespace, 50, 49))
+	// It counts once, on the advance that makes it visible.
+	assert.Equal(t, 1, s.FreshSeriesCount(observer.TelemetryNamespace, 100, 99))
+	assert.Equal(t, 0, s.FreshSeriesCount(observer.TelemetryNamespace, 101, 100))
+
+	// Re-admission after eviction participates in the next sample.
+	s.RemoveSeriesByRefs([]observer.SeriesRef{updated, unchanged})
+	s.Add("check", "updated", 4, 11, nil)
+	assert.Equal(t, 1, s.FreshSeriesCount(observer.TelemetryNamespace, 11, 10))
+}
+
 func TestTimeSeriesStorage_ContextSnapshots(t *testing.T) {
 	s := newTimeSeriesStorage()
 	result := s.Add("logs", "log.pattern.count", 1, 1, nil)
@@ -217,6 +252,85 @@ func TestTimeSeriesStorage_ForEachLastPoints_Boundaries(t *testing.T) {
 		got = append(got, p.Timestamp)
 	}))
 	assert.Equal(t, []int64{10, 20}, got)
+}
+
+func TestTimeSeriesStorage_SnapshotFirstPointsFrom(t *testing.T) {
+	s := newTimeSeriesStorage()
+	var ref observer.SeriesRef
+	for _, timestamp := range []int64{10, 20, 40, 70, 90} {
+		ref = s.Add("test", "metric", float64(timestamp), timestamp, nil).Ref
+	}
+	s.Add("test", "metric", 60, 20, nil)
+
+	for _, tc := range []struct {
+		name string
+		end  int64
+		n    int
+		agg  Aggregate
+		want []observer.Point
+	}{
+		{name: "before boundary", end: 10, n: 2},
+		{name: "future points excluded", end: 39, n: 2},
+		{name: "inclusive bounds", end: 40, n: 2, want: []observer.Point{{Timestamp: 20, Value: 40}, {Timestamp: 40, Value: 40}}},
+		{name: "first not latest", end: 90, n: 2, want: []observer.Point{{Timestamp: 20, Value: 40}, {Timestamp: 40, Value: 40}}},
+		{name: "sparse points", end: 70, n: 3, want: []observer.Point{{Timestamp: 20, Value: 40}, {Timestamp: 40, Value: 40}, {Timestamp: 70, Value: 70}}},
+		{name: "sum", end: 90, n: 2, agg: AggregateSum, want: []observer.Point{{Timestamp: 20, Value: 80}, {Timestamp: 40, Value: 40}}},
+		{name: "count", end: 90, n: 2, agg: AggregateCount, want: []observer.Point{{Timestamp: 20, Value: 2}, {Timestamp: 40, Value: 1}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			buf := make([]observer.Point, 3)
+			buf[0] = observer.Point{Timestamp: -1, Value: -1}
+			if tc.agg == observer.AggregateNone {
+				tc.agg = AggregateAverage
+			}
+			points, expired := s.snapshotFirstPointsFrom(ref, 20, tc.end, tc.n, tc.agg, buf)
+			require.False(t, expired)
+			if tc.want == nil {
+				require.Empty(t, points)
+				require.Equal(t, observer.Point{Timestamp: -1, Value: -1}, buf[0], "waiting must not copy points")
+				return
+			}
+			require.Equal(t, tc.want, points)
+			require.Same(t, &buf[0], &points[0], "reuse caller scratch")
+			points[0].Value = -1
+			require.Equal(t, float64(40), s.GetSeries("test", "metric", nil, AggregateAverage).Points[1].Value,
+				"the snapshot must not alias storage")
+		})
+	}
+}
+
+func TestTimeSeriesStorage_SnapshotFirstPointsFromExpired(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		cfg  StorageConfig
+	}{
+		{name: "point retention", cfg: StorageConfig{MaxPointsPerSeries: 3}},
+		{name: "duration retention", cfg: StorageConfig{PointRetentionSecs: 25}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newTimeSeriesStorageWith(tc.cfg)
+			var ref observer.SeriesRef
+			for timestamp := int64(10); timestamp <= 30; timestamp += 10 {
+				ref = s.Add("test", "metric", float64(timestamp), timestamp, nil).Ref
+			}
+			points, expired := s.snapshotFirstPointsFrom(ref, 10, 30, 3, AggregateAverage, nil)
+			require.False(t, expired)
+			require.Len(t, points, 3)
+			for timestamp := int64(40); timestamp <= 60; timestamp += 10 {
+				s.Add("test", "metric", float64(timestamp), timestamp, nil)
+			}
+			points, expired = s.snapshotFirstPointsFrom(ref, 10, 60, 3, AggregateAverage, points)
+			require.True(t, expired)
+			require.Empty(t, points, "must not substitute a later window")
+		})
+	}
+
+	s := newTimeSeriesStorage()
+	ref := s.Add("test", "metric", 10, 10, nil).Ref
+	s.RemoveSeriesByRefs([]observer.SeriesRef{ref})
+	points, expired := s.snapshotFirstPointsFrom(ref, 10, 60, 3, AggregateAverage, nil)
+	require.True(t, expired)
+	require.Empty(t, points)
 }
 
 func TestDefaultStorageConfigIncludesInactiveSeriesEviction(t *testing.T) {
@@ -1419,4 +1533,21 @@ func TestInstrumentedStorageSelectionFilters(t *testing.T) {
 			require.NotEqual(t, unknownHash, hash(empty, observer.SeriesFilter{MetricType: &mt}))
 		})
 	}
+}
+
+func TestStorageSeriesCountByKind(t *testing.T) {
+	s := newDetectorTestStorage()
+	stable := addPipelinePoints(s, 1, 1, 3, metrics.GaugeType)
+	linear := addPipelinePoints(s, 2, 1, 3, metrics.GaugeType)
+	addPipelinePoints(s, 3, 1, 3, metrics.CountType)
+	s.AddWithKeyAndHostComposite(observer.TelemetryNamespace, "internal", "", 1, 1, tagset.CompositeTags{}, 4, metrics.GaugeType)
+	s.SetSeriesKind(stable, observer.STABLE)
+	s.SetSeriesKind(linear, observer.LINEAR)
+	require.Equal(t, [metricKindCount]uint64{0, 0, 1, 1}, s.SeriesCountByKind())
+	s.SetSeriesKind(stable, observer.UNKNOWN)
+	require.Equal(t, [metricKindCount]uint64{0, 1, 0, 1}, s.SeriesCountByKind())
+	s.ResetSeriesKinds()
+	require.Equal(t, [metricKindCount]uint64{2, 0, 0, 0}, s.SeriesCountByKind())
+	s.RemoveSeriesByRefs([]observer.SeriesRef{linear})
+	require.Equal(t, [metricKindCount]uint64{1, 0, 0, 0}, s.SeriesCountByKind())
 }
