@@ -201,6 +201,7 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 									Message: "only one action can be specified",
 									Kill: &RuleKillAction{
 										Signal: "SIGKILL",
+										Scope:  "process",
 									},
 									Hash: &HashAction{
 										Enabled: true,
@@ -1083,6 +1084,7 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 									Status: ActionStatusLoaded,
 									Kill: &RuleKillAction{
 										Signal: "SIGKILL",
+										Scope:  "process",
 									},
 								},
 							},
@@ -1111,6 +1113,7 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 									Status: ActionStatusLoaded,
 									Kill: &RuleKillAction{
 										Signal: "SIGKILL",
+										Scope:  "process",
 									},
 								},
 							},

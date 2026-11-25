@@ -222,6 +222,7 @@ func TestRulesetLoadedRejectedActions(t *testing.T) {
 				Status: monitor.ActionStatusLoaded,
 				Kill: &monitor.RuleKillAction{
 					Signal: "SIGKILL",
+					Scope:  "process",
 				},
 			},
 		}, ruleState.Actions)
