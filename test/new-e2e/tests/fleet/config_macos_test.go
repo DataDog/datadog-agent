@@ -1349,17 +1349,18 @@ func (s *configMacOSSuite) agentExpLogLevelRejections() int {
 }
 
 // TestExperimentJobCrashRevertsMacOS covers a crash of any job in a live experiment, with the
-// semantics the Linux experiment units have (pkg/fleet/installer/packages/unit_supervisor_darwin.go):
-// the experiment Agent is the experiment, so its exit reverts every job to stable, the installer
-// daemon included, and keeps the experiment for Fleet's stop, which this test sends itself; every
-// other experiment job is restarted by the unit supervisor, and the experiment goes on. Each subtest
-// crashes a different job:
+// unit supervisor's failure rule (exitFailsExperiment in
+// pkg/fleet/installer/packages/config_experiment_pids_darwin.go): a crash of any experiment job
+// fails the experiment. Every job goes back to stable, the installer daemon included, no job is
+// relaunched, and the experiment is kept for Fleet's stop, which this test sends itself. Unlike the
+// Linux units, where the other jobs are Restart=on-failure, a crash of a job other than the Agent
+// fails the experiment too. Each subtest crashes a different job:
 //
 //   - agent: launchd does not relaunch the crashed experiment Agent, and the revert removes the
 //     experiment job definitions;
-//   - sysprobe: restarted (Restart=on-failure); a SIGKILL'd job is a failed exit;
-//   - installer-daemon: the experiment daemon is restarted the same way, and still reports the
-//     experiment;
+//   - sysprobe: a SIGKILL'd job is a failed exit, and fails the experiment;
+//   - installer-daemon: the experiment daemon is essential, so its exit fails the experiment, and
+//     the stable daemon takes over;
 //   - agent-before-supervised: the Agent fails right after the start, possibly before the unit
 //     supervisor has moved the installer daemon over; either way the supervisor reverts.
 func (s *configMacOSSuite) TestExperimentJobCrashRevertsMacOS() {
@@ -1409,8 +1410,8 @@ func (s *configMacOSSuite) TestExperimentJobCrashRevertsMacOS() {
 		_, err := s.Env().RemoteHost.Execute("sudo launchctl kill SIGKILL system/com.datadoghq.sysprobe-exp")
 		require.NoError(s.T(), err, "sending SIGKILL to the experiment sysprobe job should succeed")
 
-		s.requireRestartedInExperiment("com.datadoghq.sysprobe-exp", pid, deploymentID)
-		s.stopConfigExperimentRC()
+		s.requireFailedAfterJobCrash("com.datadoghq.sysprobe", pid, deploymentID)
+		s.stopFailedExperimentRC()
 	})
 
 	s.runIsolated("installer-daemon", func() {
@@ -1427,9 +1428,8 @@ func (s *configMacOSSuite) TestExperimentJobCrashRevertsMacOS() {
 		_, err := s.Env().RemoteHost.Execute("sudo kill -9 " + pid)
 		require.NoError(s.T(), err)
 
-		s.requireRestartedInExperiment(installerDaemonExperimentLabel, pid, deploymentID)
-		s.waitForDaemon()
-		s.stopConfigExperimentRC()
+		s.requireFailedAfterJobCrash(installerDaemonLabel, pid, deploymentID)
+		s.stopFailedExperimentRC()
 	})
 
 	s.runIsolated("agent-before-supervised", func() {
@@ -1446,21 +1446,22 @@ func (s *configMacOSSuite) TestExperimentJobCrashRevertsMacOS() {
 	})
 }
 
-// requireRestartedInExperiment waits for the unit supervisor to restart the experiment job label
-// after its process pid crashed, and checks the experiment goes on: the experiment Agent and
-// daemon running, the experiment reported as the running configuration, and its deadline kept.
-func (s *configMacOSSuite) requireRestartedInExperiment(label, pid, deploymentID string) {
-	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		restarted := s.jobPID(label)
-		assert.NotEmpty(c, restarted, "%s should be restarted", label)
-		assert.NotEqual(c, pid, restarted, "%s should run as a new process", label)
-	}, 90*time.Second, 2*time.Second)
-	require.NotEmpty(s.T(), s.jobPID("com.datadoghq.agent-exp"), "a child crash must not end the experiment")
-	require.NotEmpty(s.T(), s.jobPID(installerDaemonExperimentLabel), "the experiment daemon should still run")
-	require.True(s.T(), s.pathExists(experimentDeadlinePath), "the experiment should still be bounded")
-	require.True(s.T(), s.waitForPackageState(func(pkg backend.RemoteConfigStatePackage) bool {
-		return pkg.ExperimentConfigVersion == deploymentID && pkg.RunningConfigVersion == deploymentID
-	}, 60*time.Second), "the experiment should still be reported as running")
+// requireFailedAfterJobCrash checks that the crash of the experiment job label (without its -exp
+// suffix), whose process was crashedPID, failed the experiment: launchd does not relaunch the job,
+// every job is back on stable with the experiment job definitions removed, the unit supervisor
+// exits, and the stable daemon answers.
+func (s *configMacOSSuite) requireFailedAfterJobCrash(label, crashedPID, deploymentID string) {
+	experimentLabel := label + "-exp"
+	// Until the revert removes the job, launchd must not have started another process for it.
+	for range 5 {
+		pid := s.jobPID(experimentLabel)
+		require.True(s.T(), pid == "" || pid == crashedPID, "%s was relaunched as pid %s", experimentLabel, pid)
+		time.Sleep(time.Second)
+	}
+	s.requireFailedOnHost(deploymentID)
+	require.False(s.T(), s.pathExists(experimentPlistPath(label)), "the revert should remove the %s job definition", experimentLabel)
+	s.requireSupervisorExits("failed the experiment after " + experimentLabel + " crashed")
+	s.waitForDaemon()
 }
 
 // TestRejectedTasksLeaveNoTraceMacOS pins that a task the daemon fails leaves the host exactly as it
