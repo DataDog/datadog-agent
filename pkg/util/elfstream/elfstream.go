@@ -9,6 +9,7 @@
 package elfstream
 
 import (
+	"context"
 	"debug/elf" //nolint:depguard // ELF encoding structs are not exposed by safeelf.
 	"encoding/binary"
 	"errors"
@@ -25,28 +26,157 @@ func unsupported(format string, args ...any) error {
 }
 
 const (
-	// ELF64 record sizes.
-	ehdrSize = 64 // Elf64_Ehdr
-	phdrSize = 56 // Elf64_Phdr
-	shdrSize = 64 // Elf64_Shdr
+	streamBufferSize = 64 * 1024
 
+	// ELF64 record sizes. debug/elf only exports the symbol's.
+	ehdrSize = 64            // Elf64_Ehdr
+	phdrSize = 56            // Elf64_Phdr
+	shdrSize = 64            // Elf64_Shdr
+	symSize  = elf.Sym64Size // Elf64_Sym
+	chdrSize = 24            // Elf64_Chdr
+
+	// shtRela is elf.SHT_RELA under a name the misspell linter accepts, so the
+	// nolint stays in one place instead of on every use.
+	shtRela = elf.SHT_RELA //nolint:misspell
+
+	// maxAlignment bounds the zero padding a retained section can add.
+	maxAlignment = 1 << 20
 	// maxSectionNames bounds the section-name table read into memory. It matches
 	// the profiler's own ELF reader (pfelf's maxBytesLargeSection).
 	maxSectionNames = 16 << 20
 )
+
+// StreamOptions selects extra content. Debug sections, notes and static symbol
+// tables are always retained; GNU version payloads are always omitted.
+type StreamOptions struct {
+	KeepSections []string // Extra input sections to retain, by name.
+}
 
 // outputSection is one output section: its header and where its bytes come from.
 type outputSection struct {
 	header      elf.Section64 // Output header; Off is the output offset.
 	name        string
 	inputOffset uint64 // Start of the input range to copy.
+	inputSize   uint64 // Length of the input range; 0 copies nothing.
 }
 
-// ELFStream holds the input's metadata, which later steps turn into a plan.
+func (sec *outputSection) typ() elf.SectionType { return elf.SectionType(sec.header.Type) }
+
+// ELFStream writes a debug ELF in one forward pass. Keep its input unchanged
+// until writing is done. Code and data bytes are omitted unless selected;
+// retained section bytes, including existing compressed sections, are copied
+// unchanged.
 type ELFStream struct {
 	input          io.ReaderAt
 	byteOrder      binary.ByteOrder
 	elfHeader      elf.Header64
 	programHeaders []elf.Prog64
 	sections       []outputSection
+	outputSize     uint64
+}
+
+// NewELFStream validates the input and plans every output offset. It reads
+// headers and tables, not section payloads.
+func NewELFStream(ctx context.Context, input io.ReaderAt, inputSize int64, opts StreamOptions) (*ELFStream, error) {
+	s, err := readELF64(ctx, input, inputSize)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.selectSections(opts.KeepSections); err != nil {
+		return nil, err
+	}
+	if err := s.checkRetainedSections(inputSize); err != nil {
+		return nil, err
+	}
+	if err := s.planProgramHeaders(); err != nil {
+		return nil, err
+	}
+	if err := s.planLayout(); err != nil {
+		return nil, err
+	}
+	// Some steps read nothing more and don't check ctx: don't return a plan
+	// once its deadline passed.
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+// Size is the exact number of ELF bytes Write will emit.
+func (s *ELFStream) Size() int64 { return int64(s.outputSize) }
+
+// Write emits the planned ELF with a fixed-size buffer. The plan can be written
+// again, including concurrently if the input supports concurrent ReadAt.
+func (s *ELFStream) Write(ctx context.Context, output io.Writer) error {
+	out := &streamWriter{ctx: ctx, output: output}
+	if err := binary.Write(out, s.byteOrder, s.elfHeader); err != nil {
+		return err
+	}
+	if err := binary.Write(out, s.byteOrder, s.programHeaders); err != nil {
+		return err
+	}
+	for _, sec := range s.sections {
+		if err := binary.Write(out, s.byteOrder, sec.header); err != nil {
+			return err
+		}
+	}
+	copyBuffer := make([]byte, streamBufferSize)
+	for i := 1; i < len(s.sections); i++ {
+		sec := &s.sections[i]
+		if sec.typ() == elf.SHT_NOBITS {
+			continue
+		}
+		clear(copyBuffer) // Pad with zeros, not the previous section's bytes.
+		for out.position < sec.header.Off {
+			if _, err := out.Write(copyBuffer[:min(uint64(len(copyBuffer)), sec.header.Off-out.position)]); err != nil {
+				return err
+			}
+		}
+		copyInput := func(offset, length uint64) error {
+			n, err := io.CopyBuffer(out, io.NewSectionReader(s.input, int64(sec.inputOffset+offset), int64(length)), copyBuffer)
+			// CopyBuffer treats EOF as success; a truncated input range must fail.
+			if err == nil && uint64(n) != length {
+				err = io.ErrUnexpectedEOF
+			}
+			if err == nil && out.ctx.Err() != nil {
+				return out.ctx.Err()
+			}
+			return err
+		}
+		if err := copyInput(0, sec.inputSize); err != nil {
+			return fmt.Errorf("copy section %q: %w", sec.name, err)
+		}
+	}
+	if out.position != s.outputSize {
+		return fmt.Errorf("incomplete ELF output: wrote %d of %d bytes", out.position, s.outputSize)
+	}
+	return ctx.Err()
+}
+
+// streamWriter tracks the output position and checks cancellation between chunks.
+type streamWriter struct {
+	ctx      context.Context
+	output   io.Writer
+	position uint64
+}
+
+func (w *streamWriter) Write(p []byte) (int, error) {
+	written := 0
+	for len(p) != 0 {
+		if err := w.ctx.Err(); err != nil {
+			return written, err
+		}
+		chunk := p[:min(len(p), streamBufferSize)]
+		n, err := w.output.Write(chunk)
+		written += n
+		w.position += uint64(n)
+		if err != nil {
+			return written, err
+		}
+		if n != len(chunk) {
+			return written, io.ErrShortWrite
+		}
+		p = p[n:]
+	}
+	return written, nil
 }
