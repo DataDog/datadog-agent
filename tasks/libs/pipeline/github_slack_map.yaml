@@ -335,6 +335,7 @@
   review:
     name: '#metrics-aggregation'
     id: 'C573SFWSJ'
+# Keep the legacy team mapped while review requests still use its old name.
 '@datadog/ndm-integrations':
   notification:
     name: '#ndm-integrations'
@@ -349,6 +350,13 @@
   review:
     name: '#ndm-core'
     id: 'C07RHJTEFRD'
+'@datadog/network-device-monitoring-integrations':
+  notification:
+    name: '#ndm-integrations'
+    id: 'C07S0UH4R0C'
+  review:
+    name: '#ndm-integrations'
+    id: 'C07S0UH4R0C'
 '@datadog/network-path':
   notification:
     name: '#network-path-dev'
