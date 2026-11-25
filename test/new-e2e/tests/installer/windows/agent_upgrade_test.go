@@ -557,8 +557,22 @@ func (s *testAgentUpgradeSuite) TestUpgradeWithHostNameChange() {
 	// and component init can exceed the default 30s SCM startup timeout
 	// (ServicesPipeTimeout) before reaching StartServiceCtrlDispatcher. SCM then leaves
 	// the service Stopped and never retries. Raise the timeout, which SCM reads at boot.
-	err := windowscommon.SetRegistryDWORDValue(s.Env().RemoteHost, `HKLM:\SYSTEM\CurrentControlSet\Control`, "ServicesPipeTimeout", 120000)
+	host := s.Env().RemoteHost
+	const scmControlKey = `HKLM:\SYSTEM\CurrentControlSet\Control`
+	originalPipeTimeout, err := host.Execute(fmt.Sprintf("(Get-ItemProperty -Path '%s').ServicesPipeTimeout", scmControlKey))
+	s.Require().NoError(err, "should read SCM ServicesPipeTimeout")
+	originalPipeTimeout = strings.TrimSpace(originalPipeTimeout)
+	err = windowscommon.SetRegistryDWORDValue(host, scmControlKey, "ServicesPipeTimeout", 120000)
 	s.Require().NoError(err, "should increase SCM ServicesPipeTimeout")
+	// Restore the original value so later boots of this host, such as a same-host retry, use it.
+	// The running SCM keeps the raised value until the next boot; no other test depends on the default.
+	s.T().Cleanup(func() {
+		if originalPipeTimeout == "" {
+			s.Assert().NoError(windowscommon.DeleteRegistryValue(host, scmControlKey, "ServicesPipeTimeout"))
+			return
+		}
+		s.Assert().NoError(windowscommon.SetTypedRegistryValue(host, scmControlKey, "ServicesPipeTimeout", originalPipeTimeout, "DWORD"))
+	})
 
 	// Act
 	// change the host name

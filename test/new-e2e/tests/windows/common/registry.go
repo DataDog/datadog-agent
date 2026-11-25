@@ -40,6 +40,13 @@ func DeleteRegistryKey(host *components.RemoteHost, path string) error {
 	return err
 }
 
+// DeleteRegistryValue deletes a value from a registry key on the remote host
+func DeleteRegistryValue(host *components.RemoteHost, path string, name string) error {
+	cmd := fmt.Sprintf("Remove-ItemProperty -Path '%s' -Name '%s'", path, name)
+	_, err := host.Execute(cmd)
+	return err
+}
+
 // SetRegistryDWORDValue sets, creating if necessary, a DWORD value at the specified path
 func SetRegistryDWORDValue(host *components.RemoteHost, path string, name string, value int) error {
 	return SetTypedRegistryValue(host, path, name, strconv.Itoa(value), "DWORD")
