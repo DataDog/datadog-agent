@@ -35,7 +35,6 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
 	dto "github.com/prometheus/client_model/go"
 	"go.uber.org/atomic"
@@ -743,7 +742,7 @@ func (a *atel) getAsJSON() ([]byte, error) {
 		return nil, fmt.Errorf("unable to marshal agent telemetry payload: %w", err)
 	}
 
-	jsonPayloadScrubbed, err := scrubber.ScrubJSON(jsonPayload)
+	jsonPayloadScrubbed, err := scrubKeepingTags(jsonPayload)
 	if err != nil {
 		return nil, fmt.Errorf("unable to scrub agent telemetry payload: %w", err)
 	}

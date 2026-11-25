@@ -30,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	hostinfoutils "github.com/DataDog/datadog-agent/pkg/util/hostinfo"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -487,7 +486,7 @@ func (s *senderImpl) sendPayload(ctx context.Context, v any, reqType string) err
 		return fmt.Errorf("marshal %s payload: %w", reqType, err)
 	}
 
-	reqBodyRaw, err := scrubber.ScrubJSON(payloadJSON)
+	reqBodyRaw, err := scrubKeepingTags(payloadJSON)
 	if err != nil {
 		return fmt.Errorf("scrub %s payload: %w", reqType, err)
 	}

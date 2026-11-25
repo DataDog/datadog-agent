@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	agentversion "github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -59,7 +58,7 @@ func (s *senderImpl) sendLogsBatch(ctx context.Context, logs []Log) error {
 	if err != nil {
 		return fmt.Errorf("marshal %s payload: %w", logsPayloadType, err)
 	}
-	reqBodyRaw, err := scrubber.ScrubJSON(payloadJSON)
+	reqBodyRaw, err := scrubKeepingTags(payloadJSON)
 	if err != nil {
 		return fmt.Errorf("scrub %s payload: %w", logsPayloadType, err)
 	}
