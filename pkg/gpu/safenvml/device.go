@@ -788,7 +788,9 @@ const maxC2CLinks = 64
 func (d *DeviceInfo) queryC2CLinkCount(dev SafeDevice) int {
 	countField := []nvml.FieldValue{{FieldId: nvml.FI_DEV_C2C_LINK_COUNT}}
 	if err := dev.GetFieldValues(countField); err != nil {
-		singleton.logDeviceWarning(d.UUID, "cannot get C2C link count: %v", err)
+		if !IsUnsupported(err) {
+			singleton.logDeviceWarning(d.UUID, "cannot get C2C link count: %v", err)
+		}
 		return 0
 	}
 	switch ret := nvml.Return(countField[0].NvmlReturn); ret {

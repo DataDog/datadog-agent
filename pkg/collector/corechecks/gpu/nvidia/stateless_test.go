@@ -538,6 +538,9 @@ func TestNVLinkCollector_Initialization(t *testing.T) {
 			name: "Success with 4 links",
 			mockOpts: []testutil.NvmlMockOption{testutil.WithCustomHook(func(device *testutil.MockDevice) {
 				device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
+					if values[0].FieldId == nvml.FI_DEV_C2C_LINK_COUNT {
+						return nvml.ERROR_NOT_SUPPORTED
+					}
 					require.Len(t, values, 1, "Expected one field value for total number of links, got %d", len(values))
 					require.Equal(t, values[0].FieldId, uint32(nvml.FI_DEV_NVLINK_LINK_COUNT), "Expected field ID to be FI_DEV_NVLINK_LINK_COUNT, got %d", values[0].FieldId)
 					require.Equal(t, values[0].ScopeId, uint32(0), "Expected scope ID to be 0, got %d", values[0].ScopeId)
