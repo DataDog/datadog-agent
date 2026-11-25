@@ -729,7 +729,7 @@ func TestReadStateRefusesWhatItShouldNotRead(t *testing.T) {
 }
 
 // TestRemoveExperimentResetsACorruptState pins the way out of a state file nothing can parse: every
-// other operation refuses it, and the stop or the reinstall's RemoveExperiment discards the
+// other operation refuses it, and a local stop's or the reinstall's RemoveExperiment discards the
 // experiment and replaces the file. A file that is not the installer's own is still refused.
 func TestRemoveExperimentResetsACorruptState(t *testing.T) {
 	dirs := newTestDirectories(t)

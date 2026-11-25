@@ -36,6 +36,8 @@ const (
 
 // errCorruptState is returned, wrapped, for a state file that is the installer's own but cannot be
 // parsed. Only RemoveExperiment, which settles the state file on the directories, recovers from it.
+// Fleet cannot reach it then: the daemon reads the state before it dispatches any request, so the
+// way out is a local `installer remove-config-experiment datadog-agent` or a .dmg reinstall.
 var errCorruptState = errors.New("corrupt configuration state")
 
 // defaultStatePath is where the state file lives when Directories.StatePath is empty.
@@ -238,7 +240,9 @@ func (d *Directories) PromoteExperiment(ctx context.Context) error {
 //
 // A state file of the installer's own that cannot be parsed is replaced: nothing can be told from
 // it, and every other operation refuses it, so the experiment is discarded and the stable ID reset,
-// as on a host with no state file yet. A file that is not the installer's own is still refused.
+// as on a host with no state file yet. This runs for a local stop or a .dmg reinstall: a Fleet stop
+// is refused earlier, when the daemon reads the state. A file that is not the installer's own is
+// still refused.
 func (d *Directories) RemoveExperiment(_ context.Context) error {
 	recorded, settled, _, err := d.resolve()
 	corrupt := errors.Is(err, errCorruptState)
