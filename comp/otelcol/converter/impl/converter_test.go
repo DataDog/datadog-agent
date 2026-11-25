@@ -760,14 +760,14 @@ func TestHostmetricsWarning(t *testing.T) {
 		},
 		{
 			name:        "named host_metrics instance in connected mode emits warning",
-			provided:    "receivers/hostmetrics-warning/new-name-named-instance/config.yaml",
-			agentConfig: "receivers/hostmetrics-warning/new-name-named-instance/acfg.yaml",
+			provided:    "receivers/hostmetrics-warning/new-named/config.yaml",
+			agentConfig: "receivers/hostmetrics-warning/new-named/acfg.yaml",
 			wantWarning: true,
 		},
 		{
 			name:        "host_metrics in standalone mode no warning",
-			provided:    "receivers/hostmetrics-warning/new-name-standalone/config.yaml",
-			agentConfig: "receivers/hostmetrics-warning/new-name-standalone/acfg.yaml",
+			provided:    "receivers/hostmetrics-warning/new-standalone/config.yaml",
+			agentConfig: "receivers/hostmetrics-warning/new-standalone/acfg.yaml",
 			wantWarning: false,
 		},
 	}
