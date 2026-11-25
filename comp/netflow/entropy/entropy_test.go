@@ -15,9 +15,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 )
@@ -123,6 +123,30 @@ func TestComputeEntropy(t *testing.T) {
 			assert.Equal(t, tt.wantDistinct, r.DistinctCount)
 			assert.Equal(t, ingress, r.observationPoint)
 		})
+	}
+}
+
+func TestReport_SubmitEntropy(t *testing.T) {
+	flows := make([]*common.Flow, 0, 8)
+	for i := range 8 {
+		flows = append(flows, ingressFlow(byte(i+1), 100, 1, 1))
+	}
+	report := closeWindowW(t, testConfig(), w-1, flows)
+
+	sender := mocksender.NewMockSender(t, "")
+	sender.SetupAcceptAll()
+	report.Submit(sender)
+	tags := []string{"device_namespace:ns", "exporter_ip:127.0.0.1", "interface_index:1", "observation_point:ingress",
+		"dd.internal.resource:ndm_device:ns:127.0.0.1"}
+	near := func(want float64) any {
+		return mock.MatchedBy(func(v float64) bool { return math.Abs(v-want) < 1e-9 })
+	}
+	windowEnd := float64(w + 300)
+	for _, name := range []string{"byte_weighted", "packet_weighted", "record_weighted"} {
+		sender.AssertCalled(t, "GaugeWithTimestamp", "datadog.netflow.entropy."+name, near(3), "",
+			mocksender.MatchTagsContains(tags), windowEnd)
+		sender.AssertCalled(t, "GaugeWithTimestamp", "datadog.netflow.entropy.normalized_"+name, near(1), "",
+			mocksender.MatchTagsContains(tags), windowEnd)
 	}
 }
 
@@ -264,7 +288,7 @@ func TestAccumulator_DropReasons(t *testing.T) {
 
 	sender := mocksender.NewMockSender(t, "")
 	sender.SetupAcceptAll()
-	report.Submit(sender, logmock.New(t))
+	report.Submit(sender)
 	sender.AssertMetric(t, "Count", "datadog.netflow.entropy.interface_records_dropped", 2, "",
 		[]string{"reason:no_output_interface", "device_namespace:ns", "exporter_ip:127.0.0.1"})
 	sender.AssertMetric(t, "Count", "datadog.netflow.entropy.interface_records_dropped", 2, "",

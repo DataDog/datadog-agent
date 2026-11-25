@@ -420,7 +420,7 @@ func (agg *FlowAggregator) flush(ctx common.FlushContext) int {
 	agg.sendExporterMetadata(flowsToFlush, ctx.FlushTime)
 
 	if agg.entropy != nil {
-		agg.entropy.CloseWindows(ctx.FlushTime).Submit(agg.sender, agg.logger)
+		agg.entropy.CloseWindows(ctx.FlushTime).Submit(agg.sender)
 	}
 
 	flushCount := len(flowsToFlush)
