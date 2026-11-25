@@ -148,6 +148,12 @@ include:
   - local: .gitlab/.post/**.yml
   # AIX jobs
   - local: .gitlab/aix/**.yml
+  # Installer lint has its own change rules, independent of the broader Windows gates.
+  - local: .gitlab/windows/build/lint/windows.yml
+    rules:
+      - if: $SKIP_WINDOWS == "true"
+        when: never
+      - when: always
   # Windows jobs - set SKIP_WINDOWS=true to exclude all Windows-related jobs
   - local: .gitlab/windows/**.yml
     rules:
@@ -334,7 +340,6 @@ variables:
   GPG_TEST_KEY_ID: crypto/k8s/keys/k8s_gitlab-runner-datadog-agent_datadog-agent_testing_signing-key
   DOCKER_REGISTRY_URL: docker.io
   CLANG_LLVM_VER: 12.0.1
-  CLANG_BUILD_VERSION: "v150220922-61ce1181"
   KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-05b3973acf5422348"
   KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-0b5f838a19d37fc61"
   RUN_E2E_TESTS: "auto" # Should be "off", "auto" or "on" it will change the trigger condition for new-e2e tests on branch != main
@@ -757,6 +762,15 @@ workflow:
   - <<: *if_tagged_commit
   - <<: *if_release_branch
   - if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH =~ /^(nightly|oldnightly|beta|stable)$/
+
+.on_windows_installer_format_changes:
+  - changes:
+      paths:
+        - .editorconfig
+        - tools/windows/DatadogAgentInstaller/**/*
+        - tasks/winbuildscripts/Invoke-Linters.ps1
+        - .gitlab/windows/build/lint/windows.yml
+      compare_to: $COMPARE_TO_BRANCH
 
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy

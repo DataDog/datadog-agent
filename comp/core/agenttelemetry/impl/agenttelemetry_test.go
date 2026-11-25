@@ -886,18 +886,23 @@ func TestNoTagSpecifiedAggregationHistogram(t *testing.T) {
 }
 
 func TestMandatoryEmitterLocalFlavor(t *testing.T) {
+	const clcRunnerYAML = "clc_runner_enabled: true\nconfig_providers:\n  - name: clusterchecks\n"
 	for _, testCase := range []struct {
 		name   string
 		flavor string
+		extra  string
 		want   string
 	}{
 		{name: "normalizes underscores", flavor: "trace_agent", want: "trace-agent"},
 		{name: "falls back for empty flavor", flavor: "", want: "agent"},
+		{name: "cluster check runner", flavor: "agent", extra: clcRunnerYAML, want: "cluster-checks-runner"},
+		{name: "clc_runner_enabled without clusterchecks provider", flavor: "agent", extra: "clc_runner_enabled: true\n", want: "agent"},
+		{name: "clc config ignored for other flavors", flavor: "trace_agent", extra: clcRunnerYAML, want: "trace-agent"},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			flavor.SetTestFlavor(t, testCase.flavor)
 			provides := NewComponent(Requires{
-				Config: configmock.NewFromYAML(t, "agent_telemetry:\n  enabled: false"),
+				Config: configmock.NewFromYAML(t, "agent_telemetry:\n  enabled: false\n"+testCase.extra),
 				Log:    makeLogMock(t),
 			})
 			a := provides.Comp.(*atel)

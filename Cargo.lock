@@ -125,6 +125,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fb5dfbc6d8d2675589ccbe4d0fd61df2419075625f8c1a62325e718e2b0049f9"
 
 [[package]]
+name = "arc-swap"
+version = "1.9.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "84a22b5d51209f6de83d37a0b33d320acb8da88823e42a94c075140708f032a5"
+dependencies = [
+ "rustversion",
+]
+
+[[package]]
 name = "arraydeque"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -550,9 +559,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.6.7"
+version = "4.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa8876b300ab35ba921adea3dfd70157a46249b33f95c9084ae5709785478946"
+checksum = "ac230478587d0269d8d6998b82ae69ea51509d55df66d9e92edd1f986904cd4a"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -572,14 +581,14 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "4.6.7"
+version = "4.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9c751b79415d4e559e3d1fcf128e09e720eb673a06d26cf6f392d37d75b66e0"
+checksum = "895c9d8d2ac2dd8b8a29f3724a14e72aaaa6debcf8c38c82f97305c6a172767a"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
  "quote",
- "syn 3.0.2",
+ "syn 3.0.10",
 ]
 
 [[package]]
@@ -637,12 +646,6 @@ name = "compression-core"
 version = "0.4.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cc14f565cf027a105f7a44ccf9e5b424348421a1d8952a8fc9d499d313107789"
-
-[[package]]
-name = "const-oid"
-version = "0.9.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
 
 [[package]]
 name = "const-oid"
@@ -886,11 +889,14 @@ dependencies = [
 [[package]]
 name = "datadog-agent-commons"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.8.1#c6767594b9d677d78bd209888d47587fbc6aaaa2"
+source = "git+https://github.com/DataDog/saluki?tag=1.9.0#367716251455329e5d18c795470872613b45f76c"
 dependencies = [
  "backon",
+ "bytes",
  "datadog-protos",
  "futures",
+ "http",
+ "http-body-util",
  "pin-project-lite",
  "rustls",
  "rustls-pki-types",
@@ -898,6 +904,8 @@ dependencies = [
  "saluki-io",
  "saluki-metadata",
  "saluki-tls",
+ "serde",
+ "serde_json",
  "tokio",
  "tokio-vsock",
  "tonic",
@@ -908,7 +916,7 @@ dependencies = [
 [[package]]
 name = "datadog-protos"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.8.1#c6767594b9d677d78bd209888d47587fbc6aaaa2"
+source = "git+https://github.com/DataDog/saluki?tag=1.9.0#367716251455329e5d18c795470872613b45f76c"
 dependencies = [
  "bytes",
  "piecemeal",
@@ -1040,7 +1048,7 @@ dependencies = [
 [[package]]
 name = "ddsketch"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.8.1#c6767594b9d677d78bd209888d47587fbc6aaaa2"
+source = "git+https://github.com/DataDog/saluki?tag=1.9.0#367716251455329e5d18c795470872613b45f76c"
 dependencies = [
  "datadog-protos",
  "float-cmp",
@@ -1052,21 +1060,11 @@ dependencies = [
 
 [[package]]
 name = "der"
-version = "0.7.10"
+version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7c1832837b905bbfb5101e07cc24c8deddf52f93225eee6ead5f4d63d53ddcb"
+checksum = "6a996a108feb8b427a6e12fcf6af4aa83409b79d72c15337d7741368131ee004"
 dependencies = [
- "const-oid 0.9.6",
- "zeroize",
-]
-
-[[package]]
-name = "der"
-version = "0.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a69dedd701da44b0536442edf09c81a64b0ab97a7a4a5e3d1971f00027cbc63d"
-dependencies = [
- "const-oid 0.10.2",
+ "const-oid",
  "pem-rfc7468",
  "zeroize",
 ]
@@ -1097,7 +1095,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1dd6dbb5841937940781866fa1281a1ff7bd3bf827091440879f9994983d5c2"
 dependencies = [
  "block-buffer 0.12.1",
- "const-oid 0.10.2",
+ "const-oid",
  "crypto-common 0.2.2",
  "ctutils",
 ]
@@ -1150,12 +1148,12 @@ version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0681a4fc24c767085329728d8dfba959af91228aa4610cca4f8ce317ba46ae0"
 dependencies = [
- "der 0.8.1",
+ "der",
  "digest 0.11.3",
  "elliptic-curve",
  "rfc6979",
  "signature",
- "spki 0.8.0",
+ "spki",
  "zeroize",
 ]
 
@@ -1185,7 +1183,7 @@ dependencies = [
  "group",
  "hybrid-array",
  "pem-rfc7468",
- "pkcs8 0.11.0",
+ "pkcs8",
  "rand_core 0.10.1",
  "sec1",
  "subtle",
@@ -1220,7 +1218,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1369,7 +1367,7 @@ checksum = "94e7099f6313ecacbe1256e8ff9d617b75d1bcb16a6fddef94866d225a01a14a"
 dependencies = [
  "io-lifetimes 2.0.4",
  "rustix 1.1.4",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1444,7 +1442,7 @@ checksum = "9fb9654ba8355388abeb8dcb4fc62f511300867002afc858860463bdd9fe0c44"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.2",
+ "syn 3.0.10",
 ]
 
 [[package]]
@@ -2038,7 +2036,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20fd6de4ccfcc187e38bc21cfa543cb5a302cb86a8b114eb7f0bf0dc9f8ac00f"
 dependencies = [
  "io-lifetimes 3.0.1",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -2085,6 +2083,49 @@ name = "itoa"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
+
+[[package]]
+name = "jiff"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5e77cbfb9fff4798e283c2d69dff39fc2c45e7da017e5ce95b654e46ea41236"
+dependencies = [
+ "jiff-core",
+ "jiff-static",
+ "jiff-tzdb",
+ "log",
+ "portable-atomic",
+ "portable-atomic-util",
+ "serde_core",
+ "windows-link 0.2.1",
+]
+
+[[package]]
+name = "jiff-core"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6b46a105a9874634dd96231021526bf24ca04955a5998c59a9c7666e634b7b8"
+dependencies = [
+ "log",
+]
+
+[[package]]
+name = "jiff-static"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9067a0b23e5be3147d56b2dcf652b18e6b1364caca93fb157653b6fbcab23a9"
+dependencies = [
+ "jiff-core",
+ "proc-macro2",
+ "quote",
+ "syn 3.0.10",
+]
+
+[[package]]
+name = "jiff-tzdb"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "12e71a1b68a875a44a33bb7a1dd84392cb77145a3367a552a3cfe6a4f5cf3afc"
 
 [[package]]
 name = "jni"
@@ -2757,15 +2798,12 @@ dependencies = [
 [[package]]
 name = "piecemeal"
 version = "0.1.0"
-source = "git+https://github.com/tobz/piecemeal#ecfd10f759ab6b2c9d5db7fdc55c0b455b9894b6"
-dependencies = [
- "byteorder",
-]
+source = "git+https://github.com/tobz/piecemeal#9bf7fc22f2f28690a8c5062be307e350e36c1853"
 
 [[package]]
 name = "piecemeal-build"
 version = "0.1.0"
-source = "git+https://github.com/tobz/piecemeal#ecfd10f759ab6b2c9d5db7fdc55c0b455b9894b6"
+source = "git+https://github.com/tobz/piecemeal#9bf7fc22f2f28690a8c5062be307e350e36c1853"
 dependencies = [
  "nom 8.0.0",
  "piecemeal",
@@ -2800,23 +2838,12 @@ checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 
 [[package]]
 name = "pkcs1"
-version = "0.7.5"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8ffb9f10fa047879315e6625af03c164b16962a5368d724ed16323b68ace47f"
+checksum = "6250dd7321adbe93d12b750aee0ced159fd13e77f625edcdf1cb6f83cd99f650"
 dependencies = [
- "der 0.7.10",
- "pkcs8 0.10.2",
- "spki 0.7.3",
-]
-
-[[package]]
-name = "pkcs8"
-version = "0.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f950b2377845cebe5cf8b5165cb3cc1a5e0fa5cfa3e1f7f55707d8fd82e0a7b7"
-dependencies = [
- "der 0.7.10",
- "spki 0.7.3",
+ "der",
+ "spki",
 ]
 
 [[package]]
@@ -2825,8 +2852,8 @@ version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "451913da69c775a56034ea8d9003d27ee8948e12443eae7c038ba100a4f21cb7"
 dependencies = [
- "der 0.8.1",
- "spki 0.8.0",
+ "der",
+ "spki",
 ]
 
 [[package]]
@@ -2840,6 +2867,15 @@ name = "portable-atomic"
 version = "1.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d20d5497ef88037a52ff98267d066e7f11fcc5e99bbfbd58a42336193aacec3"
+
+[[package]]
+name = "portable-atomic-util"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "10ab3eb7f3becc3a1cbc4f2c6f20267996cfc1a6467a873763411b136a122715"
+dependencies = [
+ "portable-atomic",
+]
 
 [[package]]
 name = "postgres"
@@ -2937,7 +2973,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2bfe0f4c752e450fc2faf62654f1c134747922825d5b04ca717b8874f41a40c0"
 dependencies = [
  "proc-macro2",
- "syn 3.0.2",
+ "syn 3.0.10",
 ]
 
 [[package]]
@@ -2969,9 +3005,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.106"
+version = "1.0.107"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fd00f0bb2e90d81d1044c2b32617f68fcb9fa3bb7640c23e9c748e53fb30934"
+checksum = "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9"
 dependencies = [
  "unicode-ident",
 ]
@@ -2979,7 +3015,7 @@ dependencies = [
 [[package]]
 name = "process-memory"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.8.1#c6767594b9d677d78bd209888d47587fbc6aaaa2"
+source = "git+https://github.com/DataDog/saluki?tag=1.9.0#367716251455329e5d18c795470872613b45f76c"
 dependencies = [
  "libc",
  "mach2",
@@ -2990,7 +3026,7 @@ dependencies = [
 [[package]]
 name = "prometheus-exposition"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.8.1#c6767594b9d677d78bd209888d47587fbc6aaaa2"
+source = "git+https://github.com/DataDog/saluki?tag=1.9.0#367716251455329e5d18c795470872613b45f76c"
 
 [[package]]
 name = "prost"
@@ -3008,7 +3044,7 @@ version = "0.14.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6e4d69d0fa3e7f6f9cf6b53a0e83e4fc99ba3586f65ce166cff30bd13bb4ad2"
 dependencies = [
- "heck 0.4.1",
+ "heck 0.5.0",
  "itertools",
  "log",
  "multimap",
@@ -3019,7 +3055,7 @@ dependencies = [
  "pulldown-cmark",
  "pulldown-cmark-to-cmark",
  "regex",
- "syn 3.0.2",
+ "syn 3.0.10",
  "tempfile",
 ]
 
@@ -3176,9 +3212,9 @@ dependencies = [
 
 [[package]]
 name = "quote"
-version = "1.0.45"
+version = "1.0.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41f2619966050689382d2b44f664f4bc593e129785a36d6ee376ddf37259b924"
+checksum = "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
 dependencies = [
  "proc-macro2",
 ]
@@ -3340,30 +3376,30 @@ checksum = "2c9283685feec7d69af75fb0e858d5e7378f33fe4fc699383b2916ab9273e03c"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.2",
+ "syn 3.0.10",
 ]
 
 [[package]]
 name = "regex"
-version = "1.13.1"
+version = "1.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f020237b6c8eed93db2e2cb53c00c60a8e1bc73da7d073199a1180401450218d"
+checksum = "9807af0e638c12e753aa1b4e601791bf2a8f71274023c8bbeec12fc149950857"
 dependencies = [
  "aho-corasick",
  "memchr",
  "regex-automata",
- "regex-syntax 0.8.11",
+ "regex-syntax 0.8.12",
 ]
 
 [[package]]
 name = "regex-automata"
-version = "0.4.16"
+version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fcfdb36bda0c880c5931cdc7a2bcdc8ba4556847b9d912bca70bc94708711ad"
+checksum = "41d60ef07df457506a0a1a2073112eb4aae5733dbd2813c3da77d1b0fd441158"
 dependencies = [
  "aho-corasick",
  "memchr",
- "regex-syntax 0.8.11",
+ "regex-syntax 0.8.12",
 ]
 
 [[package]]
@@ -3380,9 +3416,9 @@ checksum = "dbb5fb1acd8a1a18b3dd5be62d25485eb770e05afb408a9627d14d451bae12da"
 
 [[package]]
 name = "regex-syntax"
-version = "0.8.11"
+version = "0.8.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
+checksum = "d902046e6a28a1e4c3cab97258a0ce11e994903f01c2d97a9447a0b3df85f4f6"
 
 [[package]]
 name = "reqwest"
@@ -3492,7 +3528,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.4.15",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3505,7 +3541,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3535,12 +3571,12 @@ dependencies = [
 
 [[package]]
 name = "rustls-cng-crypto"
-version = "0.2.0"
-source = "git+https://github.com/DataDog/rustls-cng-crypto?rev=2498c870c949335cb70dc79ed558917b96e4ff72#2498c870c949335cb70dc79ed558917b96e4ff72"
+version = "0.3.1"
+source = "git+https://github.com/DataDog/rustls-cng-crypto?rev=5870f3c319130b681f45607eb280ee7f93c24eb6#5870f3c319130b681f45607eb280ee7f93c24eb6"
 dependencies = [
  "once_cell",
  "pkcs1",
- "pkcs8 0.11.0",
+ "pkcs8",
  "rustls",
  "sec1",
  "windows",
@@ -3586,7 +3622,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3622,12 +3658,12 @@ checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 [[package]]
 name = "saluki-antithesis"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.8.1#c6767594b9d677d78bd209888d47587fbc6aaaa2"
+source = "git+https://github.com/DataDog/saluki?tag=1.9.0#367716251455329e5d18c795470872613b45f76c"
 
 [[package]]
 name = "saluki-api"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.8.1#c6767594b9d677d78bd209888d47587fbc6aaaa2"
+source = "git+https://github.com/DataDog/saluki?tag=1.9.0#367716251455329e5d18c795470872613b45f76c"
 dependencies = [
  "axum",
  "axum-extra",
@@ -3638,13 +3674,16 @@ dependencies = [
 [[package]]
 name = "saluki-common"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.8.1#c6767594b9d677d78bd209888d47587fbc6aaaa2"
+source = "git+https://github.com/DataDog/saluki?tag=1.9.0#367716251455329e5d18c795470872613b45f76c"
 dependencies = [
+ "arc-swap",
  "bytes",
  "foldhash 0.2.0",
+ "futures",
  "http-body",
  "indexmap 2.14.0",
  "itoa",
+ "jiff",
  "libc",
  "papaya",
  "pin-project",
@@ -3665,7 +3704,7 @@ dependencies = [
 [[package]]
 name = "saluki-core"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.8.1#c6767594b9d677d78bd209888d47587fbc6aaaa2"
+source = "git+https://github.com/DataDog/saluki?tag=1.9.0#367716251455329e5d18c795470872613b45f76c"
 dependencies = [
  "anymap3",
  "async-trait",
@@ -3704,7 +3743,7 @@ dependencies = [
 [[package]]
 name = "saluki-error"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.8.1#c6767594b9d677d78bd209888d47587fbc6aaaa2"
+source = "git+https://github.com/DataDog/saluki?tag=1.9.0#367716251455329e5d18c795470872613b45f76c"
 dependencies = [
  "anyhow",
 ]
@@ -3712,13 +3751,12 @@ dependencies = [
 [[package]]
 name = "saluki-io"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.8.1#c6767594b9d677d78bd209888d47587fbc6aaaa2"
+source = "git+https://github.com/DataDog/saluki?tag=1.9.0#367716251455329e5d18c795470872613b45f76c"
 dependencies = [
  "async-compression",
  "async-trait",
  "axum",
  "bytes",
- "chrono",
  "fs4",
  "futures",
  "h2",
@@ -3764,7 +3802,7 @@ dependencies = [
 [[package]]
 name = "saluki-metadata"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.8.1#c6767594b9d677d78bd209888d47587fbc6aaaa2"
+source = "git+https://github.com/DataDog/saluki?tag=1.9.0#367716251455329e5d18c795470872613b45f76c"
 dependencies = [
  "serde",
 ]
@@ -3772,7 +3810,7 @@ dependencies = [
 [[package]]
 name = "saluki-metrics"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.8.1#c6767594b9d677d78bd209888d47587fbc6aaaa2"
+source = "git+https://github.com/DataDog/saluki?tag=1.9.0#367716251455329e5d18c795470872613b45f76c"
 dependencies = [
  "metrics",
  "papaya",
@@ -3782,17 +3820,17 @@ dependencies = [
 [[package]]
 name = "saluki-metrics-macros"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.8.1#c6767594b9d677d78bd209888d47587fbc6aaaa2"
+source = "git+https://github.com/DataDog/saluki?tag=1.9.0#367716251455329e5d18c795470872613b45f76c"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.2",
+ "syn 3.0.10",
 ]
 
 [[package]]
 name = "saluki-tls"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.8.1#c6767594b9d677d78bd209888d47587fbc6aaaa2"
+source = "git+https://github.com/DataDog/saluki?tag=1.9.0#367716251455329e5d18c795470872613b45f76c"
 dependencies = [
  "rustls",
  "rustls-cng-crypto",
@@ -3880,7 +3918,7 @@ checksum = "d56d437c2f19203ce5f7122e507831de96f3d2d4d3be5af44a0b0a09d8a80e4d"
 dependencies = [
  "base16ct",
  "ctutils",
- "der 0.8.1",
+ "der",
  "hybrid-array",
  "subtle",
  "zeroize",
@@ -3935,7 +3973,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b55fb86dfd3a2f5f76ea78310a88f96c4ea21a3031f8d212443d56123fd0521"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3981,7 +4019,7 @@ checksum = "e7a5d71263a5a7d47b41f6b3f06ba276f10cc18b0931f1799f710578e2309348"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.2",
+ "syn 3.0.10",
 ]
 
 [[package]]
@@ -4215,7 +4253,7 @@ version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "287f59010008f0d7cf5e3b03196d666c1acc46c8d3e9cf34c28a1a7157601e72"
 dependencies = [
- "heck 0.4.1",
+ "heck 0.5.0",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -4233,22 +4271,12 @@ dependencies = [
 
 [[package]]
 name = "spki"
-version = "0.7.3"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d91ed6c858b01f942cd56b37a94b3e0a1798290327d1236e4d9cf4eaca44d29d"
+checksum = "7ef958a98b9d5da290cfc78946e9f3e61e1e62a18db0d92cac0b83cc161491a9"
 dependencies = [
  "base64ct",
- "der 0.7.10",
-]
-
-[[package]]
-name = "spki"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d9efca8738c78ee9484207732f728b1ef517bbb1833d6fc0879ca898a522f6f"
-dependencies = [
- "base64ct",
- "der 0.8.1",
+ "der",
 ]
 
 [[package]]
@@ -4283,7 +4311,7 @@ dependencies = [
 [[package]]
 name = "stringtheory"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/saluki?tag=1.8.1#c6767594b9d677d78bd209888d47587fbc6aaaa2"
+source = "git+https://github.com/DataDog/saluki?tag=1.9.0#367716251455329e5d18c795470872613b45f76c"
 dependencies = [
  "foldhash 0.2.0",
  "protobuf",
@@ -4338,9 +4366,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "3.0.2"
+version = "3.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a207d6d6a2b7fc470b80443726053f18a2481b7e1eee970597051596567987a3"
+checksum = "4ae9ccbea3a7b0b09443036490c8f34a8b1b760fd345e5c0dae0aac718faea79"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4430,10 +4458,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.2",
  "once_cell",
  "rustix 1.1.4",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4473,7 +4501,7 @@ checksum = "fe5197923287db20a58125f0bc85c062f7f2c892de97b18c356f9efb14b28524"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 3.0.2",
+ "syn 3.0.10",
 ]
 
 [[package]]
@@ -4960,9 +4988,9 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 
 [[package]]
 name = "uuid"
-version = "1.29.2"
+version = "1.29.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bed99139f7dac9b5cfe5f17be4d66dc7079a34dee1d74bcc77217119240e267c"
+checksum = "3c14b15dffa2f4bd712103e857140aa04a4f2ff6e955c77d7eb8e53ee02a3b64"
 dependencies = [
  "getrandom 0.4.2",
  "js-sys",
@@ -5217,7 +5245,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5469,7 +5497,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f3fd376f71958b862e7afb20cfe5a22830e1963462f3a17f49d82a6c1d1f42d"
 dependencies = [
  "bitflags",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -5728,9 +5756,9 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "9.6.0"
+version = "9.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80cc68510ea7553c30a69c732de5278e94183f68765af6c642dbccefd6ec777e"
+checksum = "08687262e7c0f1284b259686f322805a8adaa8ef4d7210e76448950b3f083bf7"
 dependencies = [
  "constant_time_eq",
  "crc32fast",
@@ -5739,7 +5767,7 @@ dependencies = [
  "indexmap 2.14.0",
  "libc",
  "memchr",
- "nix 0.32.0",
+ "nix 0.31.3",
  "typed-path",
  "windows-sys 0.61.2",
  "zeroize",

@@ -93,25 +93,35 @@ dda inv -- schema.locate 'apm_config\..*enabled' --json
 
 ## `schema.produce-jsonschema`
 
-Build the pure JSON Schemas published for external tools (IDEs, SchemaStore, CI validators): `datadog.schema.json` for `datadog.yaml` and `system-probe.schema.json` for `system-probe.yaml`.
+Build the JSON Schemas published for external tools (IDEs, SchemaStore, CI validators): `datadog.schema.json` for `datadog.yaml` and `system-probe.schema.json` for `system-probe.yaml`.
 
 ```bash
-dda inv schema.produce-jsonschema /tmp/agent-schemas --version 7.85.1
+dda inv schema.produce-jsonschema -o /tmp/agent-schemas -v 7.87.1-rc.2
 ```
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `output_dir` | yes | Directory to write `datadog.schema.json` and `system-probe.schema.json` into. Created if missing. |
-| `--version` | no | Stable Agent version the schemas are published for (`7.85.1` or `v7.85.1`). Omit it to build the copy published as the latest version. Pre-releases such as `7.85.0-rc.1` are rejected. |
+| `-o`, `--output-dir` | yes | Directory to write `datadog.schema.json` and `system-probe.schema.json` into. Created if missing. Can also be passed as the first argument. |
+| `-v`, `--version` | no | Agent version the schemas are published for, used as given in their `$id`: e.g. `7.87.1`, `7.87.1-rc.2`, or whatever `dda inv agent.version --url-safe` prints. A leading `v` is dropped. It becomes a folder of the published URL, so it can't contain `/`, `\`, `?`, `#`, `%` or whitespace. Omit it to build the copy published as the latest version. |
 
-The output keeps only standard JSON Schema keywords, so any conforming library can use it. It also replaces the Agent formats ([`format: duration`](keywords.md#format-duration), [`format: url`](keywords.md#format-url)) with the `pattern` they stand for.
+The output keeps only standard JSON Schema keywords, so any conforming library can use it, plus `patternErrorMessage` on the format definitions: the error message VS Code shows instead of the regexp, ignored by other tools. It also replaces the Agent formats ([`format: duration`](keywords.md#format-duration), [`format: url`](keywords.md#format-url)) with a reference (`$ref`) to the regexp they stand for, defined once in the schema's `$defs`.
+
+The output declares no `default`, because IDEs copy declared defaults into the configuration when auto-completing:
+
+- Completing a section inserts all of its settings, non-public ones included, set to their default value.
+- These settings are then explicitly set in the user's configuration: if a later Agent version changes a default, the user keeps the old value.
+
+This is common for published schemas: most [SchemaStore](https://www.schemastore.org/) schemas declare few or no defaults.
+
+Instead, the default of each public setting is written at the end of its `description`, where IDEs show it on hover (see [`default`](keywords.md#default)).
 
 Each file's `$id` is the URL it is published at in the [DataDog/schema](https://github.com/DataDog/schema) repository, under the same file name, so the output can be copied there as-is:
 
 | `--version` | `$id` of `datadog.schema.json` |
 | --- | --- |
-| `7.85.1` | `https://raw.githubusercontent.com/DataDog/schema/main/agent/v7.85.1/datadog.schema.json` |
-| omitted | `https://raw.githubusercontent.com/DataDog/schema/main/agent/datadog.schema.json` |
+| `7.87.1` | `https://raw.githubusercontent.com/DataDog/schema/main/datadog-agent/v7.87.1/datadog.schema.json` |
+| `7.87.1-rc.2` | `https://raw.githubusercontent.com/DataDog/schema/main/datadog-agent/v7.87.1-rc.2/datadog.schema.json` |
+| omitted | `https://raw.githubusercontent.com/DataDog/schema/main/datadog-agent/datadog.schema.json` |
 
 ---
 

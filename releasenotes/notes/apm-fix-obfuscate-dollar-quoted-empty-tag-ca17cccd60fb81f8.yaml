@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    APM : The trace-agent no longer fails to obfuscate PostgreSQL dollar-quoted
+    strings whose content starts with ``$``, including empty strings such as
+    ``$tag$$tag$``.

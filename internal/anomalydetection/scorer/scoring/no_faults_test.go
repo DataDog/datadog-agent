@@ -29,7 +29,7 @@ func TestHealthyEpisodeCounting(t *testing.T) {
 		{Pattern: "time_cluster:ignored", Start: start + 40},
 		{Pattern: "anomaly_scorer_high:outside", Start: end},
 	}
-	result, err := ScoreNoFaults(periods, episode)
+	result, err := ScoreNoFaults(periods, episode, "historical")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestRejectsAmbiguousHealthyMetadata(t *testing.T) {
 	} {
 		episode := healthyEpisode()
 		mutate(&episode)
-		if _, err := ScoreNoFaults(nil, episode); err == nil {
+		if _, err := ScoreNoFaults(nil, episode, "historical"); err == nil {
 			t.Fatalf("accepted invalid episode: %+v", episode)
 		}
 	}

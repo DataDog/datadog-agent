@@ -44,12 +44,20 @@ type Resolver struct {
 }
 
 type containerFS struct {
+	cgroupResolver   *cgroup.Resolver
 	cgroupCacheEntry *cgroupModel.CacheEntry
+}
+
+func (fs *containerFS) pids() []uint32 {
+	if fs.cgroupResolver != nil {
+		return fs.cgroupResolver.GetContainerPIDs(fs.cgroupCacheEntry.GetContainerContext().ContainerID)
+	}
+	return fs.cgroupCacheEntry.GetPIDs()
 }
 
 // Open implements the fs.FS interface for containers
 func (fs *containerFS) Open(filename string) (fs.File, error) {
-	for _, rootCandidatePID := range fs.cgroupCacheEntry.GetPIDs() {
+	for _, rootCandidatePID := range fs.pids() {
 		file, err := os.Open(filepath.Join(utils.ProcRootPath(rootCandidatePID), filename))
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -84,7 +92,10 @@ func (r *Resolver) getFilesystem(containerID containerutils.ContainerID) (fs.FS,
 		if cacheEntry == nil {
 			return nil, fmt.Errorf("failed to resolve container %s", containerID)
 		}
-		fsys = &containerFS{cgroupCacheEntry: cacheEntry}
+		fsys = &containerFS{
+			cgroupResolver:   r.cgroupResolver,
+			cgroupCacheEntry: cacheEntry,
+		}
 	} else {
 		fsys = &hostFS{}
 	}
@@ -212,8 +223,14 @@ func (r *Resolver) ResolveGroup(gid int, containerID containerutils.ContainerID)
 
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
 func (r *Resolver) OnCGroupDeletedEvent(cacheEntry *cgroupModel.CacheEntry) {
-	r.nsGroupCache.Remove(cacheEntry.GetContainerContext().ContainerID)
-	r.nsUserCache.Remove(cacheEntry.GetContainerContext().ContainerID)
+	containerID := cacheEntry.GetContainerContext().ContainerID
+	if r.cgroupResolver != nil {
+		if remaining := r.cgroupResolver.GetCacheEntryContainerID(containerID); remaining != nil && remaining != cacheEntry {
+			return
+		}
+	}
+	r.nsGroupCache.Remove(containerID)
+	r.nsUserCache.Remove(containerID)
 }
 
 // NewResolver instantiates a new user and group resolver

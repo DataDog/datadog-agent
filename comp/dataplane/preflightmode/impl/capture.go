@@ -500,8 +500,18 @@ func truncate(s string, max int) string {
 
 // expectedWarnings are warnings preflight mode provokes by construction, matched on target plus
 // a message substring. Without this, findingWarningsInLog would fire on every single run.
+//
+// The target is the Rust module path of the log site, so it changes when ADP moves code, even
+// when the message stays the same. Each entry names one exact target rather than a target
+// suffix or the message alone: a loose match would let an unrelated component's warning that
+// happens to share the wording slip through, and a missed warning costs more than a stale
+// entry. The cost is that a module move in ADP needs a new entry here. Keep the entries for
+// older ADP versions as long as an Agent might bundle them.
 var expectedWarnings = []struct{ target, contains string }{
-	{target: "agent_data_plane::internal::env", contains: "standalone mode"},
+	// "Running in standalone mode. ...", logged because preflight mode sets
+	// data_plane.standalone_mode. ADP 1.8.0 moved it into the shared datadog-agent-runtime crate.
+	{target: "agent_data_plane::internal::env", contains: "Running in standalone mode"}, // ADP 1.7.x and earlier
+	{target: "datadog_agent_runtime::env", contains: "Running in standalone mode"},      // ADP 1.8.0 and later
 }
 
 // isError reports whether the record is an error.

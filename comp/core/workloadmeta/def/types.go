@@ -1721,6 +1721,11 @@ type KubernetesKueueWorkload struct {
 	PodSetAssignments      []KueuePodSetAssignment
 	PodTemplateLabels      map[string]string
 	PodTemplateAnnotations map[string]string
+
+	// SchedulerEvents holds what the Cluster Agent needs to emit Workload
+	// events, and is nil for any other consumer. It is an interface so that the
+	// type that carries the data stays out of the Agents that never emit them.
+	SchedulerEvents any
 }
 
 // GetID implements Entity#GetID.
@@ -1772,6 +1777,11 @@ type KubernetesKAIPodGroup struct {
 	EntityID
 	EntityMeta
 	QueueName string
+
+	// SchedulerEvents holds what the Cluster Agent needs to emit PodGroup
+	// events, and is nil for any other consumer. It is an interface so that the
+	// type that carries the data stays out of the Agents that never emit them.
+	SchedulerEvents any
 }
 
 // GetID implements Entity#GetID.
@@ -2595,7 +2605,7 @@ type GPU struct {
 	// Index is the index of the GPU in the host system. This is useful as sometimes
 	// GPUs will be identified by their index instead of their UUID. Note that the index
 	// is not guaranteed to be stable across reboots, nor is necessarily the same inside
-	// of containers.
+	// of containers. It is the index nvidia-smi or amd-smi reports, -1 when unknown.
 	Index int
 
 	// Architecture contains the architecture of the GPU (e.g., Pascal, Volta, etc.). Optional, can be empty.

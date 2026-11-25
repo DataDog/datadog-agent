@@ -616,3 +616,91 @@ func TestDeviceFailedVirtualizationQueryStaysUnknown(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, device.VirtualizationModeName)
 }
+
+func TestMIGParentCapacityUsesTheLargestProfile(t *testing.T) {
+	// H200 GPU instance profiles (nvidia-smi mig -lgip): ID -> SMs, memory, instances
+	h200Profiles := map[int]nvml.GpuInstanceProfileInfo{
+		nvml.GPU_INSTANCE_PROFILE_1_SLICE:      {MultiprocessorCount: 16, MemorySizeMB: 16384, InstanceCount: 7},   // 1g.18gb
+		nvml.GPU_INSTANCE_PROFILE_2_SLICE:      {MultiprocessorCount: 32, MemorySizeMB: 33280, InstanceCount: 3},   // 2g.35gb
+		nvml.GPU_INSTANCE_PROFILE_3_SLICE:      {MultiprocessorCount: 60, MemorySizeMB: 71424, InstanceCount: 2},   // 3g.71gb
+		nvml.GPU_INSTANCE_PROFILE_4_SLICE:      {MultiprocessorCount: 64, MemorySizeMB: 71424, InstanceCount: 1},   // 4g.71gb
+		nvml.GPU_INSTANCE_PROFILE_7_SLICE:      {MultiprocessorCount: 132, MemorySizeMB: 143360, InstanceCount: 1}, // 7g.141gb
+		nvml.GPU_INSTANCE_PROFILE_1_SLICE_REV2: {MultiprocessorCount: 26, MemorySizeMB: 33280, InstanceCount: 4},   // 1g.35gb
+	}
+	mockNvml := testutil.NewMockNVML(
+		testutil.WithDefaultMIGDevices(),
+		testutil.WithDeviceOptions(testutil.DefaultMIGParentDeviceIdx,
+			testutil.WithArchitecture("hopper"),
+			testutil.WithCustomHook(func(d *testutil.MockDevice) {
+				d.GetGpuInstanceProfileInfoFunc = func(profile int) (nvml.GpuInstanceProfileInfo, nvml.Return) {
+					info, ok := h200Profiles[profile]
+					if !ok {
+						return nvml.GpuInstanceProfileInfo{}, nvml.ERROR_NOT_SUPPORTED
+					}
+					return info, nvml.SUCCESS
+				}
+			}),
+		),
+	)
+	WithMockNVML(t, mockNvml)
+
+	device, err := NewPhysicalDevice(mockNvml.Device(testutil.DefaultMIGParentDeviceIdx))
+	require.NoError(t, err)
+	require.True(t, device.HasMIGFeatureEnabled)
+	// 7g.141gb: more than 7 x 1g.18gb (112 SMs, 112 GiB)
+	require.Equal(t, 132*128, device.CoreCount)
+	require.Equal(t, uint64(143360)*1024*1024, device.Memory)
+}
+
+func TestMIGProfileCapacityTakesIndependentMaxima(t *testing.T) {
+	// The profile with the most SMs is not the one with the most memory
+	profiles := map[int]nvml.GpuInstanceProfileInfo{
+		nvml.GPU_INSTANCE_PROFILE_1_SLICE: {MultiprocessorCount: 14, MemorySizeMB: 10240, InstanceCount: 4}, // 56 SMs, 40 GiB
+		nvml.GPU_INSTANCE_PROFILE_4_SLICE: {MultiprocessorCount: 60, MemorySizeMB: 30720, InstanceCount: 1}, // 60 SMs, 30 GiB
+	}
+	var multiprocessors, memoryMB uint64
+	for _, info := range profiles {
+		m, mem := migProfileCapacity(info)
+		multiprocessors, memoryMB = max(multiprocessors, m), max(memoryMB, mem)
+	}
+	require.Equal(t, uint64(60), multiprocessors)
+	require.Equal(t, uint64(40960), memoryMB)
+}
+
+func TestMIGInstanceProfilesOnOptionalProfileError(t *testing.T) {
+	failing := false
+	mockDevice := &nvmlmock.Device{
+		GetGpuInstanceProfileInfoFunc: func(profile int) (nvml.GpuInstanceProfileInfo, nvml.Return) {
+			switch {
+			case profile == nvml.GPU_INSTANCE_PROFILE_1_SLICE:
+				return nvml.GpuInstanceProfileInfo{MultiprocessorCount: 16, InstanceCount: 7}, nvml.SUCCESS
+			case profile == nvml.GPU_INSTANCE_PROFILE_7_SLICE && failing:
+				return nvml.GpuInstanceProfileInfo{}, nvml.ERROR_UNKNOWN
+			case profile == nvml.GPU_INSTANCE_PROFILE_7_SLICE:
+				return nvml.GpuInstanceProfileInfo{MultiprocessorCount: 132, InstanceCount: 1}, nvml.SUCCESS
+			}
+			return nvml.GpuInstanceProfileInfo{}, nvml.ERROR_NOT_SUPPORTED
+		},
+	}
+	device := &PhysicalDevice{
+		SafeDevice: &safeDeviceImpl{nvmlDevice: mockDevice, lib: &safeNvml{capabilities: maps.Clone(allSymbols)}},
+		DeviceInfo: DeviceInfo{UUID: "GPU-profile-error"},
+	}
+	t.Cleanup(func() { lastMIGInstanceProfiles.Delete(device.UUID) })
+
+	// No previous list: the failing profile is skipped, the GPU is still listed
+	failing = true
+	profiles, err := device.migInstanceProfiles()
+	require.NoError(t, err)
+	require.Len(t, profiles, 1)
+
+	// Once a complete list is known, it is used on errors
+	failing = false
+	profiles, err = device.migInstanceProfiles()
+	require.NoError(t, err)
+	require.Len(t, profiles, 2)
+	failing = true
+	profiles, err = device.migInstanceProfiles()
+	require.NoError(t, err)
+	require.Len(t, profiles, 2)
+}

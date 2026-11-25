@@ -13,6 +13,7 @@ go_library(
         "node.go",
         "parser.go",
         "pod.go",
+        "scheduler_events.go",
         "utils.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers",

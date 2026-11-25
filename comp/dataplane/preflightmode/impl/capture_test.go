@@ -58,6 +58,18 @@ const (
 	realErrorIncompatibleKey = `{"timestamp":"2026-11-23T21:50:56.733914Z","level":"ERROR","message":"Unsupported configuration key with non-default value. ADP cannot run safely with this setting.","key":"heroku_dyno","target":"agent_data_plane_config_system::compatibility","filename":"lib/agent-data-plane-config-system/src/compatibility.rs","line_number":59}`
 )
 
+// The standalone-mode warning as later ADP versions log it, captured verbatim from
+// registry.datadoghq.com/agent-data-plane:<version> run with the preflight mode configuration.
+// The message is unchanged, but ADP 1.8.0 moved the log site into the datadog-agent-runtime
+// crate, so the target and source location differ.
+const (
+	// agent-data-plane 1.7.3, as bundled with Agent 7.85.x.
+	realWarnStandalone173 = `{"timestamp":"2026-11-23T21:48:29.455814Z","level":"WARN","message":"Running in standalone mode. Origin detection/enrichment and other features dependent upon the Datadog Agent will not be available.","target":"agent_data_plane::internal::env","filename":"bin/agent-data-plane/src/internal/env/mod.rs","line_number":64}`
+
+	// agent-data-plane 1.8.1, as bundled with Agent 7.86.x.
+	realWarnStandalone181 = `{"timestamp":"2026-11-23T21:46:24.149655Z","level":"WARN","message":"Running in standalone mode. Origin detection/enrichment and other features dependent upon the Datadog Agent will not be available.","target":"datadog_agent_runtime::env","filename":"lib/datadog-agent/runtime/src/env/mod.rs","line_number":159}`
+)
+
 // captureOf feeds whole lines through a capture and returns what it retained. The tests go
 // through Write rather than calling parseRecord directly wherever the property under test is
 // about the retained set, because ingest is where deduplication and the caps live.
@@ -377,6 +389,24 @@ func TestParseRecordRealRecords(t *testing.T) {
 			wantTarget:      "agent_data_plane::internal::env",
 			wantSigContains: "Running in standalone mode",
 			wantLocation:    sourceLocation{file: "bin/agent-data-plane/src/internal/env/mod.rs", line: "59"},
+		},
+		{
+			name:            "WARN standalone mode (ADP 1.7.3)",
+			line:            realWarnStandalone173,
+			wantOK:          true,
+			wantLevel:       levelWarn,
+			wantTarget:      "agent_data_plane::internal::env",
+			wantSigContains: "Running in standalone mode",
+			wantLocation:    sourceLocation{file: "bin/agent-data-plane/src/internal/env/mod.rs", line: "64"},
+		},
+		{
+			name:            "WARN standalone mode (ADP 1.8.1)",
+			line:            realWarnStandalone181,
+			wantOK:          true,
+			wantLevel:       levelWarn,
+			wantTarget:      "datadog_agent_runtime::env",
+			wantSigContains: "Running in standalone mode",
+			wantLocation:    sourceLocation{file: "lib/datadog-agent/runtime/src/env/mod.rs", line: "159"},
 		},
 		{
 			name:            "ERROR with a multi-line anyhow chain",
@@ -813,6 +843,24 @@ func TestCaptureRealCleanRun(t *testing.T) {
 	assert.Len(t, records, 4)
 }
 
+// TestCaptureCleanRunAcrossADPVersions covers the standalone-mode warning as each ADP version an
+// Agent may bundle logs it. ADP 1.8.0 moved the log site to a different module, which changed
+// the target, so an allowlist written against one version stopped matching the next.
+func TestCaptureCleanRunAcrossADPVersions(t *testing.T) {
+	for name, warn := range map[string]string{
+		"1.4.0": realWarnStandalone,
+		"1.7.3": realWarnStandalone173,
+		"1.8.1": realWarnStandalone181,
+	} {
+		t.Run(name, func(t *testing.T) {
+			records, _ := captureOf(t, realInfoStartup, warn, realInfoListener, realInfoShutdown)
+			assert.False(t, hasUnexpectedWarnings(records),
+				"preflight mode sets standalone_mode itself, so its warning must not be a finding on any ADP version")
+			assert.Empty(t, locationsOf(records, isUnexpectedWarning))
+		})
+	}
+}
+
 // TestCaptureInvalidAPIKey is the case that motivated warnings_in_log. ADP reports a
 // rejected API key at WARN, so before this the single most likely day-one problem produced
 // no finding at all.
@@ -850,6 +898,26 @@ func TestIsExpectedWarning(t *testing.T) {
 		rec, ok := parseRecord(realWarnStandalone)
 		require.True(t, ok)
 		assert.True(t, isExpectedWarning(rec))
+	})
+
+	t.Run("the standalone-mode warning from ADP 1.7.3 is expected", func(t *testing.T) {
+		rec, ok := parseRecord(realWarnStandalone173)
+		require.True(t, ok)
+		assert.True(t, isExpectedWarning(rec))
+	})
+
+	t.Run("the standalone-mode warning from ADP 1.8.1 is expected", func(t *testing.T) {
+		rec, ok := parseRecord(realWarnStandalone181)
+		require.True(t, ok)
+		assert.True(t, isExpectedWarning(rec))
+	})
+
+	t.Run("another warning from an allowlisted target is not expected", func(t *testing.T) {
+		// Guards against the allowlist being matched on target alone, which would hide every
+		// warning the runtime crate logs.
+		rec, ok := parseRecord(`{"level":"WARN","message":"Failed to register with the Datadog Agent.","target":"datadog_agent_runtime::env"}`)
+		require.True(t, ok)
+		assert.False(t, isExpectedWarning(rec))
 	})
 
 	t.Run("an invalid API key is not expected", func(t *testing.T) {
