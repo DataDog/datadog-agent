@@ -286,6 +286,13 @@ mod tests {
     use std::sync::{Mutex, mpsc};
     use windows_sys::Win32::System::Console::STD_OUTPUT_HANDLE;
 
+    fn is_timed_out(error: &anyhow::Error) -> bool {
+        error
+            .chain()
+            .filter_map(|cause| cause.downcast_ref::<std::io::Error>())
+            .any(|e| e.kind() == std::io::ErrorKind::TimedOut)
+    }
+
     fn system_credential() -> SpawnCredential {
         SpawnCredential::from_account(
             crate::platform::windows::local_agent_account::AgentAccount::LocalSystem,
@@ -312,12 +319,21 @@ mod tests {
             Err(err) => err,
         };
         assert!(format!("{err:#}").contains("stalled-stdio.log"), "{err:#}");
+        assert!(is_timed_out(&err), "{err:#}");
 
         // A refusal fails the spawn too.
         let refused = open_log_file("test-proc", path, &credential, |_, _, _| {
             bail!("never reached")
         });
-        assert!(refused.is_err(), "a refused open must fail the spawn");
+        let refused = match refused {
+            Ok(_) => panic!("a refused open must fail the spawn"),
+            Err(err) => err,
+        };
+        assert!(is_timed_out(&refused), "{refused:#}");
+        assert!(
+            format!("{refused:#}").contains("still blocked"),
+            "{refused:#}"
+        );
         let _ = release_tx.send(());
     }
 
