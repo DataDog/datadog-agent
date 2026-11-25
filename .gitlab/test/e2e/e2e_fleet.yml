@@ -61,6 +61,10 @@ new-e2e-fleet-upgrade:
 # Upgrade every released patch in the historical window.
 new-e2e-fleet-upgrade-history:
   extends: .new_e2e_fleet_template
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.on_deploy_nightly_repo_branch]
+    - !reference [.manual]
   timeout: 1h 25m
   variables:
     EXTRA_PARAMS: --run "^TestFleetUpgradeHistory$" --extra-flags=-test.parallel=4
