@@ -133,15 +133,15 @@ api_key:
 
 ### `title`
 
-A short heading used to generate section banners in `datadog.yaml.example`.
+A short, human-readable label for a section. IDEs and other JSON Schema tools show it when hovering or completing the section, and the config example generator also renders it as the section's banner in `datadog.yaml.example`.
 
-- **Available on:** section nodes only.
+- **Available on:** section nodes only. Settings must use [`banner`](#banner) to start a banner: `schema.lint` rejects a `title` on a setting.
 
 /// note
-The Agent schema's use of `title` differs from the JSON Schema standard, where `title` is a concise human-readable summary of a schema. Here, `title` is specifically a banner label applied only to section nodes that begin a new conceptual group in the generated config file.
+In JSON Schema, `title` labels the value of the node it's on. On a setting that starts a group of settings, the group's name would become that one setting's label in IDEs: hovering `api_key` would show "Basic Configuration". A section's `title` names the section itself, so it's a correct label and a correct banner.
 ///
 
-When a section has a `title`, the config example generator produces a banner like this:
+When a section has a `title` (and no `banner`), the config example generator produces a banner like this:
 
 ```
 ####################################
@@ -243,6 +243,70 @@ cel_workload_exclude:
 /// note
 `properties` on a **section** node defines its child settings (Agent schema nodes), not value sub-schemas. The two uses look identical in YAML but have different meanings depending on `node_type`.
 ///
+
+---
+
+### `format`
+
+Marks a `string` setting whose values follow an Agent-specific syntax: `format: duration` or `format: url`.
+
+/// warning
+These are **custom Agent formats, not JSON Schema formats**. JSON Schema has no `url` format, and its `duration` means something else (see below). In the generated schemas, each format is **replaced by a regular expression**: the schema embedded in the Agent and the JSON Schema published for external tools (`dda inv schema.produce-jsonschema`) both turn `format: <name>` into `pattern: <regexp>`. The Agent, IDEs and any other validator therefore check these values the same way, with the same regexp.
+///
+
+- **Valid values:** `duration` or `url`, on a `string` setting only. `schema.lint` rejects any other format: it wouldn't be replaced, and most tools would silently not validate it.
+- **Why a format instead of a `pattern`:** the regexp of each format is written once, in `AGENT_FORMATS` (`tasks/schema/produce_byproduct.py`), so settings sharing a format never copy it.
+
+**Adding a format:**
+
+1. Write its regexp in `tasks/schema/produce_byproduct.py` and register it in `AGENT_FORMATS`. Keep it linear-time (no nested repetition): IDEs use backtracking regex engines, and a regexp that backtracks catastrophically freezes them on invalid input. The schema tests check every registered regexp for this.
+2. Use `format: <name>` on string settings.
+3. Document it below.
+
+#### `format: duration`
+
+Marks a `string` setting holding a time duration, read by the Agent as a Go `time.Duration`.
+
+- **When to use:** on every `string` setting the Agent reads as a duration, so its default is generated as a `time.Duration` and external tools can validate its values.
+- **Valid values:** any value Go's [`time.ParseDuration`](https://pkg.go.dev/time#ParseDuration) accepts: an optional sign, then one or more `<number><unit>` pairs, or a bare `0`. The number can be fractional and the units are `ns`, `us` (or `µs`), `ms`, `s`, `m` and `h`.
+- **Code generation:** the `default` is rendered as a Go `time.Duration` expression (`15s` becomes `15*time.Second`).
+
+| Value | Duration |
+| --- | --- |
+| `15s` | 15 seconds |
+| `1m0s` | 1 minute |
+| `2h30m21s` | 2 hours, 30 minutes and 21 seconds |
+| `1.5h` | 1 hour and 30 minutes |
+| `500ms` | 500 milliseconds |
+
+Units Go doesn't know are invalid: `30min` must be written `30m`, and `1d` must be written `24h`. A number without a unit, such as `30`, is invalid too (only `0` is accepted as-is).
+
+```yaml
+eval_interval:
+  node_type: setting
+  type: string
+  default: 15s
+  format: duration
+```
+
+/// note
+JSON Schema also defines a `format: duration`, but as an [ISO 8601 duration](https://en.wikipedia.org/wiki/ISO_8601#Durations) (`PT15S`), which isn't what the Agent reads: validators checking formats (IDEs, `ajv-formats`, ...) would reject every valid Agent value like `15s`. The generated schemas replace it with a regexp matching exactly what `time.ParseDuration` accepts (`GO_DURATION_PATTERN` in `tasks/schema/produce_byproduct.py`), so the Agent and external tools validate durations the same way.
+///
+
+#### `format: url`
+
+Marks a `string` setting holding the URL of an endpoint the Agent sends data to (`dd_url`, `logs_config.logs_dd_url`, ...).
+
+- **Valid values:** a host, or an `http://` or `https://` URL, with an optional port and path, e.g. `intake.datadoghq.com`, `https://app.datadoghq.com` or `https://proxy.example.com:443/logs`. An empty string is valid and means "unset": the Agent then builds the endpoint from `site`. Spaces, query strings and other schemes (`ftp://`, ...) are invalid.
+- **Validation:** the generated schemas replace `format: url` with its regexp (`URL_PATTERN` in `tasks/schema/produce_byproduct.py`).
+
+```yaml
+dd_url:
+  node_type: setting
+  type: string
+  default: https://app.datadoghq.com
+  format: url
+```
 
 ---
 
@@ -397,6 +461,47 @@ api_key:
 
 /// note
 the configuration examples are generated following the schema order. Where you add you setting in the schema will determine where is will appear in the examples.
+///
+
+---
+
+### `banner`
+
+The text of a banner rendered in `datadog.yaml.example` just before the node, to start a new group of settings.
+
+- **Available on:** all nodes (setting and section). On a setting, it's the only way to get a banner.
+- **Mandatory:** no.
+
+Most top-level settings aren't in a section, so a group of them is started by putting a `banner` on its first setting. Every following setting belongs to the group until the next banner:
+
+```yaml
+api_key:
+  node_type: setting
+  banner: Basic Configuration
+  type: string
+  default: ""
+  visibility: public
+  description: The Datadog API key used by your Agent to submit metrics and events to Datadog.
+```
+
+renders as:
+
+```
+#########################
+## Basic Configuration ##
+#########################
+
+## @param api_key - string - required
+## @env DD_API_KEY - string - required
+## The Datadog API key used by your Agent to submit metrics and events to Datadog.
+```
+
+A section uses its [`title`](#title) as its banner, so it rarely needs a `banner`. If it has both, the `banner` is rendered and the `title` stays the section's label for IDEs.
+
+`banner` is only used to generate the config examples: it's removed from the schema embedded in the Agent and from the JSON Schema published for external tools.
+
+/// note
+Don't use `title` on a setting to get a banner. `title` is the standard JSON Schema label of a value, which IDEs show for that setting: `api_key` would be labelled "Basic Configuration". `schema.lint` rejects a `title` on a setting.
 ///
 
 ---

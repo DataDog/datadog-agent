@@ -8,16 +8,16 @@ require (
 	github.com/DataDog/go-tuf v1.1.1-0.5.2
 	github.com/elastic/go-seccomp-bpf v1.6.0
 	github.com/godbus/dbus/v5 v5.2.4
-	github.com/klauspost/compress v1.20.3
-	github.com/landlock-lsm/go-landlock v0.11.1
+	github.com/klauspost/compress v1.20.4
+	github.com/landlock-lsm/go-landlock v0.11.2
 	github.com/pierrec/lz4/v4 v4.1.33
 	github.com/prometheus-community/pro-bing v0.9.1
 	github.com/spf13/cobra v1.10.2
-	github.com/spf13/pflag v1.0.10
+	github.com/spf13/pflag v1.1.0
 	github.com/stretchr/testify v1.12.1
 	github.com/ulikunitz/xz v0.5.17
 	golang.org/x/sys v0.50.0
-	golang.org/x/term v0.47.0
+	golang.org/x/term v0.48.0
 	golang.org/x/tools v0.52.0
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/yaml.v3 v3.0.1

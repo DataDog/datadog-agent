@@ -18,6 +18,7 @@ import (
 
 // Config holds the configuration for the GPU monitoring probe.
 type Config struct {
+	Resources ResourcesConfig
 	// DisabledCollectors lists Agent GPU collectors that should not be created.
 	DisabledCollectors []string
 	// NVLinkFECLightErrorThreshold is the maximum corrected-error count classified as light.
@@ -72,12 +73,21 @@ type Config struct {
 	// Defaults to 30 seconds. It is used to fix race conditions between systemd and the system-probe permission patching.
 	CgroupReapplyInterval time.Duration
 	// CgroupReapplyInfinitely controls whether the cgroup device configuration should be reapplied infinitely (true) or only once (false).
-	// Defaults to false. When true, the configuration will be reapplied every CgroupReapplyInterval interval.
+	// Defaults to true: the container runtime or systemd can reset the device permissions at any time (agent
+	// container restart, systemctl daemon-reload). When true, the configuration will be reapplied every
+	// CgroupReapplyInterval interval; when false, once more after CgroupReapplyInterval. Only used when
+	// ConfigureCgroupPerms is set.
 	CgroupReapplyInfinitely bool
 	// JobsConfig provides the ability for the user to define run/group identifiers to be attached to traces and metrics.
 	JobsConfig JobsConfig
 	// TracingConfig configures the tracers injected into GPU workloads.
 	TracingConfig TracingConfig
+}
+
+// ResourcesConfig controls GPU inventory publication.
+type ResourcesConfig struct {
+	Enabled bool
+	TTL     time.Duration
 }
 
 // StreamConfig is the configuration for the streams.
@@ -174,6 +184,10 @@ func New() *Config {
 	spCfg := pkgconfigsetup.SystemProbe()
 	agentCfg := pkgconfigsetup.Datadog()
 	return &Config{
+		Resources: ResourcesConfig{
+			Enabled: agentCfg.GetBool("gpu.resources.enabled"),
+			TTL:     agentCfg.GetDuration("gpu.resources.ttl"),
+		},
 		DisabledCollectors:             agentCfg.GetStringSlice("gpu.disabled_collectors"),
 		NVLinkFECLightErrorThreshold:   agentCfg.GetInt("gpu.nvlink.fec_light_error_threshold"),
 		LegacySMActive:                 agentCfg.GetBool("gpu.legacy_sm_active"),

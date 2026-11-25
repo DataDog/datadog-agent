@@ -8,9 +8,12 @@ package schemaimpl
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/stretchr/testify/assert"
@@ -33,6 +36,17 @@ properties:
     type: string
     pattern: "^https://"
     default: ""
+  additional_endpoints:
+    type: object
+    additionalProperties:
+      type: string
+    default: {}
+  logs_config:
+    type: object
+    properties:
+      enabled:
+        type: boolean
+        default: false
 `
 	testSchema        *jsonschema.Schema
 	schemaCompileOnce sync.Once
@@ -41,6 +55,12 @@ properties:
 // newTestValidator returns a schema validator using testYAMLSchema for every known schema ID. The schema getter is
 // restored when the test ends.
 func newTestValidator(t *testing.T) *schemaValidator {
+	v, _ := newTestValidatorWithTelemetry(t)
+	return v
+}
+
+// newTestValidatorWithTelemetry is newTestValidator also returning the telemetry the validator reports to
+func newTestValidatorWithTelemetry(t *testing.T) (*schemaValidator, telemetry.Mock) {
 	schemaCompileOnce.Do(func() {
 		c := jsonschema.NewCompiler()
 
@@ -52,14 +72,21 @@ func newTestValidator(t *testing.T) *schemaValidator {
 		require.NoError(t, err, "could not compile schema")
 	})
 
-	t.Cleanup(func() { schemaGetter = loadSchema })
+	previousInstallMethodGetter := installMethodGetter
+	t.Cleanup(func() {
+		schemaGetter = loadSchema
+		installMethodGetter = previousInstallMethodGetter
+	})
 	schemaGetter = func(schemaID model.SchemaID) (*jsonschema.Schema, error) {
 		if schemaID != model.CoreSchema && schemaID != model.SystemProbeSchema {
 			return nil, fmt.Errorf("unknown schema ID '%s'", schemaID)
 		}
 		return testSchema, nil
 	}
-	return NewComponent().Comp.(*schemaValidator)
+	installMethodGetter = func(model.Reader) string { return "test_tool" }
+
+	tlm := telemetrymock.New(t)
+	return NewComponent(Requires{Telemetry: tlm}).Comp.(*schemaValidator), tlm
 }
 
 // fakeReader is a minimal model.Reader returning a fixed set of non-default settings.
@@ -69,6 +96,23 @@ type fakeReader struct {
 	settings map[string]interface{}
 	// notSettings lists the top-level keys that aren't known settings
 	notSettings map[string]bool
+	// sections lists the known keys that aren't settings
+	sections   map[string]bool
+	sources    map[string]model.Source
+	configFile string
+}
+
+func (f fakeReader) ConfigFileUsed() string { return f.configFile }
+
+func (f fakeReader) GetSource(key string) model.Source {
+	if source, ok := f.sources[key]; ok {
+		return source
+	}
+	return model.SourceFile
+}
+
+func (f fakeReader) IsKnown(key string) bool {
+	return f.sections[key] || f.IsSetting(key)
 }
 
 func (f fakeReader) GetSchemaID() model.SchemaID { return f.schemaID }
@@ -111,6 +155,7 @@ func TestValidateYAMLInvalidType(t *testing.T) {
 		Path:          "/api_key",
 		ActualType:    "number",
 		ExpectedTypes: []string{"string"},
+		Reason:        "got number instead of string",
 	}}, violations)
 
 	violations, err = v.ValidateYAML([]byte("tags:\n  a: \"1234\"\n"), model.CoreSchema)
@@ -120,6 +165,7 @@ func TestValidateYAMLInvalidType(t *testing.T) {
 		Path:          "/tags",
 		ActualType:    "object",
 		ExpectedTypes: []string{"array"},
+		Reason:        "got object instead of array",
 	}}, violations)
 }
 
@@ -153,6 +199,7 @@ func TestValidateConfigTypeViolation(t *testing.T) {
 			SettingKey:    "api_key",
 			ActualType:    "number",
 			ExpectedTypes: []string{"string"},
+			Reason:        "got number instead of string",
 		}}, violations)
 	}
 }
@@ -213,6 +260,73 @@ func TestValidateConfigSkipsSecretPlaceholders(t *testing.T) {
 	}
 }
 
+func TestValidateYAMLReportsNull(t *testing.T) {
+	// without a configuration there is no way to tell which nulls are ignored, so they are all reported
+	v := newTestValidator(t)
+	for _, tc := range []struct {
+		name     string
+		yaml     string
+		wantPath []string
+	}{
+		{"null setting", "api_key:\n", []string{"/api_key"}},
+		{"null section", "logs_config: ~\n", []string{"/logs_config"}},
+		{"null list item", "tags: [a, ~]\n", []string{"/tags/1"}},
+		{"null map setting entry", "additional_endpoints:\n  https://a.test: ~\n", []string{"/additional_endpoints/https:~1~1a.test"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			violations, err := v.ValidateYAML([]byte(tc.yaml), model.CoreSchema)
+			require.NoError(t, err)
+			var paths []string
+			for _, violation := range violations {
+				paths = append(paths, violation.Path)
+			}
+			assert.Equal(t, tc.wantPath, paths)
+		})
+	}
+}
+
+func TestValidateConfigSkipsNull(t *testing.T) {
+	// the configuration ignores a null setting or section and keeps the default instead, but keeps a null within the
+	// value of a setting
+	for _, tc := range []struct {
+		name     string
+		cfg      fakeReader
+		wantPath []string
+	}{
+		{"null setting", fakeReader{settings: map[string]interface{}{"api_key": nil}}, nil},
+		{"null list setting", fakeReader{settings: map[string]interface{}{"tags": nil}}, nil},
+		{
+			"null section",
+			fakeReader{settings: map[string]interface{}{"logs_config": nil}, notSettings: map[string]bool{"logs_config": true}},
+			nil,
+		},
+		{
+			"null setting in a section",
+			fakeReader{settings: map[string]interface{}{"logs_config": map[string]interface{}{"enabled": nil}}, notSettings: map[string]bool{"logs_config": true}},
+			nil,
+		},
+		{"null list item", fakeReader{settings: map[string]interface{}{"tags": []interface{}{"a", nil}}}, []string{"/tags/1"}},
+		{
+			"null map setting entry",
+			fakeReader{settings: map[string]interface{}{"additional_endpoints": map[string]interface{}{"https://a.test": nil}}},
+			[]string{"/additional_endpoints/https:~1~1a.test"},
+		},
+		{"null next to a violation", fakeReader{settings: map[string]interface{}{"api_key": nil, "tags": "not a list"}}, []string{"/tags"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			v := newTestValidator(t)
+			tc.cfg.schemaID = model.CoreSchema
+			violations, err := v.ValidateConfig(tc.cfg)
+			require.NoError(t, err)
+			var paths []string
+			for _, violation := range violations {
+				paths = append(paths, violation.Path)
+			}
+			assert.Equal(t, tc.wantPath, paths)
+		})
+	}
+}
+
 func TestGetViolations(t *testing.T) {
 	v := newTestValidator(t)
 	invalid := fakeReader{schemaID: model.CoreSchema, settings: map[string]interface{}{"api_key": 1234}}
@@ -258,4 +372,71 @@ func TestGetViolationsAfterError(t *testing.T) {
 	_, err = v.ValidateConfig(fakeReader{schemaID: model.CoreSchema, settings: map[string]interface{}{"api_key": 1234}})
 	require.Error(t, err)
 	assert.Nil(t, v.GetViolations(model.CoreSchema))
+}
+
+func TestValidateConfigReportsTelemetry(t *testing.T) {
+	v, tlm := newTestValidatorWithTelemetry(t)
+	getSeries := func() map[string]float64 {
+		// the mock returns an error when the gauge has no series
+		metrics, _ := tlm.GetGaugeMetric("config", "schema_violations")
+		series := map[string]float64{}
+		for _, metric := range metrics {
+			tags := metric.Tags()
+			key := strings.Join([]string{tags["config"], tags["setting"], tags["source"], tags["install_method"], tags["error"]}, "|")
+			series[key] = metric.Value()
+		}
+		return series
+	}
+
+	core := fakeReader{
+		schemaID: model.CoreSchema,
+		settings: map[string]interface{}{
+			"api_key":   1234,
+			"tags":      []interface{}{1, 2},
+			"proxy_url": "http://user:PRIVATE_PASSWORD@proxy.test",
+		},
+		sources: map[string]model.Source{"api_key": model.SourceEnvVar},
+	}
+	_, err := v.ValidateConfig(core)
+	require.NoError(t, err)
+	sysprobe := fakeReader{schemaID: model.SystemProbeSchema, settings: map[string]interface{}{"tags": "abc"}}
+	_, err = v.ValidateConfig(sysprobe)
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]float64{
+		"datadog|api_key|environment-variable|test_tool|got number instead of string": 1,
+		"datadog|tags|file|test_tool|got number instead of string":                    2,
+		"datadog|proxy_url|file|test_tool|does not match pattern ^https://":           1,
+		"system-probe|tags|file|test_tool|got string instead of array":                1,
+	}, getSeries())
+
+	// a new validation replaces the series of its configuration only
+	_, err = v.ValidateConfig(fakeReader{schemaID: model.CoreSchema, settings: map[string]interface{}{"api_key": "abc"}})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]float64{
+		"system-probe|tags|file|test_tool|got string instead of array": 1,
+	}, getSeries())
+
+	// a failed validation doesn't keep reporting the series of a previous one
+	schemaGetter = func(model.SchemaID) (*jsonschema.Schema, error) { return nil, errors.New("no schema") }
+	_, err = v.ValidateConfig(sysprobe)
+	require.Error(t, err)
+	assert.Empty(t, getSeries())
+}
+
+func TestValidateConfigTelemetryDoesNotReportUnknownKeys(t *testing.T) {
+	v, tlm := newTestValidatorWithTelemetry(t)
+	cfg := fakeReader{
+		schemaID:    model.CoreSchema,
+		settings:    map[string]interface{}{"api_key": 1234},
+		notSettings: map[string]bool{"api_key": true},
+	}
+	_, err := v.ValidateConfig(cfg)
+	require.NoError(t, err)
+
+	metrics, err := tlm.GetGaugeMetric("config", "schema_violations")
+	require.NoError(t, err)
+	require.Len(t, metrics, 1)
+	assert.Equal(t, "unknown", metrics[0].Tags()["setting"])
+	assert.Equal(t, "unknown", metrics[0].Tags()["source"])
 }

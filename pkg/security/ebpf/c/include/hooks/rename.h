@@ -110,7 +110,9 @@ int hook_vfs_rename(ctx_t *ctx) {
         get_path_id(inode, syscall->rename.target_file.path_key.mount_id, 0, invalidate_type);
     }
 
-    approve_syscall(syscall, rename_approvers);
+    if (approve_syscall(syscall, rename_approvers) == DISCARDED) {
+        return 0;
+    }
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     syscall->resolver.dentry = syscall->rename.src_dentry;

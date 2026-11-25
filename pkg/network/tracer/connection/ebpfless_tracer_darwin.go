@@ -35,3 +35,10 @@ func createPacketSource(_ *config.Config) (filter.PacketSource, error) {
 	}
 	return packetSrc, nil
 }
+
+// isPlatformFatalPacketSourceError reports whether err is a fatal libpcap source error.
+// The libpcap source stops reading an interface on its own when it fails, and never
+// returns such errors from VisitPackets.
+func isPlatformFatalPacketSourceError(_ error) bool {
+	return false
+}

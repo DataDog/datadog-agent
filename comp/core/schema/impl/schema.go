@@ -19,10 +19,16 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	schema "github.com/DataDog/datadog-agent/comp/core/schema/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigschema "github.com/DataDog/datadog-agent/pkg/config/schema"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
+
+// Requires defines the dependencies of the schema component
+type Requires struct {
+	Telemetry telemetry.Component
+}
 
 // Provides defines the output of the schema component
 type Provides struct {
@@ -37,11 +43,15 @@ type schemaValidator struct {
 	m sync.Mutex
 	// violations holds the result of the last validation of each schema
 	violations map[model.SchemaID][]*model.Violation
+	telemetry  *violationTelemetry
 }
 
 // NewComponent returns the schema component
-func NewComponent() Provides {
-	return Provides{Comp: &schemaValidator{violations: map[model.SchemaID][]*model.Violation{}}}
+func NewComponent(deps Requires) Provides {
+	return Provides{Comp: &schemaValidator{
+		violations: map[model.SchemaID][]*model.Violation{},
+		telemetry:  newViolationTelemetry(deps.Telemetry),
+	}}
 }
 
 // loadSchema decompresses, parses and compiles an embedded schema
@@ -97,10 +107,12 @@ func (s *schemaValidator) ValidateConfig(config model.Reader) ([]*model.Violatio
 	if err != nil {
 		// don't keep reporting the violations of a previous validation
 		delete(s.violations, schemaID)
+		s.telemetry.clear(schemaID)
 		return nil, err
 	}
 
 	s.violations[schemaID] = violations
+	s.telemetry.report(config, schemaID, violations)
 	return violations, nil
 }
 
@@ -143,32 +155,43 @@ func normalizeForSchema(in map[string]any) (map[string]any, error) {
 	return normalized, nil
 }
 
-// collectViolations appends a violation for every leaf of ve to out. When skipSecretPlaceholders is true, the leaves
-// whose value in data is an ENC[] secret placeholder are skipped.
+// collectViolations appends a violation for every leaf of ve to out. When cfg is set, the leaves on a null setting or
+// section are skipped. When skipSecretPlaceholders is true, the leaves whose value in data is an ENC[] secret
+// placeholder are skipped too.
 func collectViolations(ve *jsonschema.ValidationError, cfg model.Reader, data interface{}, skipSecretPlaceholders bool, out *[]*model.Violation) {
 	if len(ve.Causes) == 0 {
 		if skipSecretPlaceholders && isSecretPlaceholder(data, ve.InstanceLocation) {
 			return
 		}
 		settingKey := ""
+		// settingDepth is the number of path chunks forming settingKey
+		settingDepth := 0
 		if cfg != nil {
 			key := ""
-			for _, chunk := range jsonpointer.Pointer(ve.InstanceLocation) {
+			for i, chunk := range jsonpointer.Pointer(ve.InstanceLocation) {
 				if key != "" {
 					key += "."
 				}
 				key += chunk
 				if cfg.IsSetting(key) {
 					settingKey = key
+					settingDepth = i + 1
 					break
 				}
 			}
+		}
+		// without cfg there is no way to tell a null setting or section, ignored by the configuration, from a null
+		// within the value of a setting, kept by the configuration
+		insideSettingValue := settingKey != "" && settingDepth < len(ve.InstanceLocation)
+		if cfg != nil && !insideSettingValue && isNullMapEntry(data, ve.InstanceLocation) {
+			return
 		}
 		path := jsonpointer.Pointer(ve.InstanceLocation).String()
 		violation := &model.Violation{
 			Message:    scrubMessage(ve.Error(), path),
 			Path:       path,
 			SettingKey: settingKey,
+			Reason:     violationReason(ve.ErrorKind),
 		}
 
 		if typeError, ok := ve.ErrorKind.(*kind.Type); ok {
@@ -210,6 +233,24 @@ func scrubMessage(message string, path string) string {
 		return fmt.Sprintf("at '%s': invalid value", path)
 	}
 	return scrubbed
+}
+
+// isNullMapEntry returns true when location is a key of an object in data holding null. The configuration ignores a
+// setting or section with a null value (e.g. a key with no value in a YAML file) and keeps its default instead.
+func isNullMapEntry(data interface{}, location []string) bool {
+	if len(location) == 0 {
+		return false
+	}
+	parent, err := jsonpointer.Pointer(location[:len(location)-1]).Eval(data)
+	if err != nil {
+		return false
+	}
+	container, ok := parent.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	value, ok := container[location[len(location)-1]]
+	return ok && value == nil
 }
 
 // isSecretPlaceholder returns true when the value at location in data is an ENC[] secret placeholder. The

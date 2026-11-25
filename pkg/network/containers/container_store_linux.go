@@ -43,10 +43,12 @@ var containerStoreTelemetry = struct {
 	nonStaleEvictions telemetry.Counter
 	eventsDropped     telemetry.Counter
 	readFailures      telemetry.Counter
+	processExiting    telemetry.Counter
 }{
 	telemetryimpl.GetCompatComponent().NewCounter(moduleName, "non_stale_evicts", []string{}, "Counter measuring the number of evictions of non-stale containers in the container store"),
 	telemetryimpl.GetCompatComponent().NewCounter(moduleName, "events_dropped", []string{}, "Counter measuring the number of dropped process events"),
 	telemetryimpl.GetCompatComponent().NewCounter(moduleName, "read_failures", []string{}, "Counter measuring the number of failures to read container data such as resolv.conf"),
+	telemetryimpl.GetCompatComponent().NewCounter(moduleName, "process_exiting", []string{}, "Counter measuring the number of container data reads dropped because the process was exiting"),
 }
 
 type containerStoreItem struct {
@@ -186,6 +188,9 @@ func (cs *ContainerStore) addProcess(entry *events.Process) {
 		return
 	}
 	if result.noDataReason != "" {
+		if result.noDataReason == noDataProcessExiting {
+			containerStoreTelemetry.processExiting.Inc()
+		}
 		return
 	}
 

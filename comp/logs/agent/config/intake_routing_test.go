@@ -22,6 +22,21 @@ func buildLogsAgentEndpoints(t *testing.T, cfg config.Component, httpConnectivit
 	return endpoints
 }
 
+// routingCandidates returns the indices of the endpoints that intake routing may send to another
+// host, as the logs agent selects them.
+func routingCandidates(endpoints *Endpoints) []int {
+	if !endpoints.UseHTTP {
+		return nil
+	}
+	var indices []int
+	for i := range endpoints.Endpoints {
+		if eligible, _ := endpoints.Endpoints[i].IsIntakeRoutingEligible(); eligible {
+			indices = append(indices, i)
+		}
+	}
+	return indices
+}
+
 func TestLogsIntakeRoutingCandidates(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -82,8 +97,23 @@ func TestLogsIntakeRoutingCandidates(t *testing.T) {
 			},
 		},
 		{
-			name:      "PrivateLink",
-			overrides: map[string]interface{}{"logs_config.logs_dd_url": "https://agent-http-intake-pl.logs.us5.datadoghq.com"},
+			name:      "explicit logs host without the default prefix",
+			overrides: map[string]interface{}{"logs_config.logs_dd_url": "https://foobar.logs.datad0g.com"},
+			expected:  []int{0},
+		},
+		{
+			name:      "explicit logs host with another intake prefix",
+			overrides: map[string]interface{}{"logs_config.logs_dd_url": "https://blahblah-http-intake.logs.datadoghq.com"},
+			expected:  []int{0},
+		},
+		{
+			name:      "explicit user HTTP intake host",
+			overrides: map[string]interface{}{"logs_config.logs_dd_url": "https://http-intake.logs.us5.datadoghq.com"},
+			expected:  []int{0},
+		},
+		{
+			name:      "Datadog host outside the logs subdomain",
+			overrides: map[string]interface{}{"logs_config.logs_dd_url": "https://agent-http-intake.datadoghq.com"},
 		},
 		{
 			name:      "proxy",
@@ -137,15 +167,83 @@ func TestLogsIntakeRoutingCandidates(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			endpoints := buildLogsAgentEndpoints(t, config.NewMockWithOverrides(t, tc.overrides), HTTPConnectivitySuccess)
 			require.True(t, endpoints.UseHTTP)
-			assert.Equal(t, tc.expected, endpoints.LogsIntakeRoutingCandidates())
+			assert.Equal(t, tc.expected, routingCandidates(endpoints))
 		})
 	}
 
 	t.Run("TCP", func(t *testing.T) {
 		endpoints := buildLogsAgentEndpoints(t, config.NewMock(t), HTTPConnectivityFailure)
 		require.False(t, endpoints.UseHTTP)
-		assert.Nil(t, endpoints.LogsIntakeRoutingCandidates())
+		assert.Nil(t, routingCandidates(endpoints))
 	})
+}
+
+func TestIsIntakeRoutingEligible(t *testing.T) {
+	tests := []struct {
+		name      string
+		overrides map[string]interface{}
+		index     int
+		// reason is "" for an eligible endpoint.
+		reason string
+	}{
+		{
+			name: "eligible",
+		},
+		{
+			name:      "custom port",
+			overrides: map[string]interface{}{"logs_config.logs_dd_url": "https://agent-http-intake.logs.datadoghq.com:8443"},
+			reason:    IntakeRoutingIneligiblePort,
+		},
+		{
+			name:      "path prefix",
+			overrides: map[string]interface{}{"logs_config.logs_dd_url": "https://agent-http-intake.logs.datadoghq.com/prefix"},
+			reason:    IntakeRoutingIneligiblePathPrefix,
+		},
+		{
+			name:      "plain HTTP",
+			overrides: map[string]interface{}{"logs_config.logs_dd_url": "http://agent-http-intake.logs.datadoghq.com:80"},
+			reason:    IntakeRoutingIneligibleNoSSL,
+		},
+		{
+			name:      "custom host",
+			overrides: map[string]interface{}{"logs_config.logs_dd_url": "https://logs-proxy.example.com"},
+			reason:    IntakeRoutingIneligibleUnofficialHost,
+		},
+		{
+			name:      "v1 API",
+			overrides: map[string]interface{}{"logs_config.use_v2_api": false},
+			reason:    IntakeRoutingIneligibleIntakeVersion,
+		},
+		{
+			name: "OPW",
+			overrides: map[string]interface{}{
+				"observability_pipelines_worker.logs.enabled": true,
+				"observability_pipelines_worker.logs.url":     "https://agent-http-intake.logs.datadoghq.com",
+			},
+			reason: IntakeRoutingIneligibleObsPipeline,
+		},
+		{
+			name: "MRF",
+			overrides: map[string]interface{}{
+				"multi_region_failover.enabled": true,
+				"multi_region_failover.site":    "us3.datadoghq.com",
+				"multi_region_failover.api_key": "mrfkey",
+			},
+			index:  1,
+			reason: IntakeRoutingIneligibleMRF,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			endpoints := buildLogsAgentEndpoints(t, config.NewMockWithOverrides(t, tc.overrides), HTTPConnectivitySuccess)
+			require.Greater(t, len(endpoints.Endpoints), tc.index)
+			eligible, reason := endpoints.Endpoints[tc.index].IsIntakeRoutingEligible()
+			assert.Equal(t, tc.reason == "", eligible)
+			if !eligible {
+				assert.Equal(t, tc.reason, reason)
+			}
+		})
+	}
 }
 
 func TestWithHostOverrides(t *testing.T) {

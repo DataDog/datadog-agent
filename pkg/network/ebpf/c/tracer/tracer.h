@@ -148,9 +148,15 @@ typedef struct {
 
 typedef struct {
     struct sock *sk;
+    struct sk_buff *skb;
     int segs;
-    __u32 retrans_out_pre;
 } tcp_retransmit_skb_args_t;
+
+typedef struct {
+    __u64 pid_tgid;
+    __u32 cpu;
+    __u32 pad;
+} pending_retransmit_key_t;
 
 typedef struct {
     __u32 netns;
@@ -175,6 +181,13 @@ typedef struct {
     struct sock *sk;
     conn_tuple_t tup;
 } skp_conn_tuple_t;
+
+// A closing TCP socket's tuple, and the tuple its packets carry if they're NAT'd in its namespace.
+typedef struct {
+    conn_tuple_t tup;
+    conn_tuple_t skb_tup;
+    __u8 has_skb_tup;
+} tcp_close_args_t;
 
 typedef struct {
     __u64 pid_tgid;

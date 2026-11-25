@@ -10,7 +10,7 @@ Review the [supported environments](../README.md#supported-environments) before 
 
 ## Prerequisites
 
-Deploy the Datadog Agent with the Datadog Helm chart version **3.240.2** or later. See the [Datadog Agent installation guide](https://app.datadoghq.com/fleet/install-agent/latest?platform=kubernetes).
+Deploy the Datadog Agent with the Datadog Helm chart version **3.273.0** or later. See the [Datadog Agent installation guide](https://app.datadoghq.com/fleet/install-agent/latest?platform=kubernetes).
 
 ## Deploy
 
@@ -55,6 +55,22 @@ After you apply the updated values, Helm rolls out a new Agent DaemonSet revisio
 
 After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
 
+## Running as non-root (optional)
+
+By default, the Host Profiler container runs as root. To run it as the `dd-agent` user (UID/GID `100`) instead, set `datadog.hostProfiler.runAsRoot` to `false`:
+
+```yaml
+datadog:
+  hostProfiler:
+    enabled: true
+    runAsRoot: false
+```
+
+The chart sets `runAsUser`, `runAsGroup`, and `runAsNonRoot` on the host-profiler container and keeps the Linux capabilities the profiler needs.
+
+> [!WARNING]
+> Enabling the Agent IPC Unix socket (`agent_ipc.use_socket: true`) breaks the non-root Host Profiler on Agents earlier than **7.84.0**: the profiler fails to start with a configuration sync error.
+
 ## SELinux
 
 The Datadog Helm chart configures the Host Profiler with the `spc_t` SELinux type by default. If `spc_t` is not available in your environment, set `agents.containers.hostProfiler.securityContext.seLinuxOptions.type` to an equivalent type supported by your distribution and security policy:
@@ -85,3 +101,55 @@ datadog:
 ```
 
 The provided profile limits what the Host Profiler container can execute. It allows `objcopy`, which is used for debug symbol extraction.
+
+## Partial deployment (optional)
+
+The bundled Host Profiler runs wherever the Agent DaemonSet runs.
+
+### Run the Agent and Host Profiler on a subset of nodes
+
+Use one Helm release. In that release’s Helm values, add the [Host Profiler configuration](#deploy) and set `agents.nodeSelector` or `agents.affinity.nodeAffinity`. Nodes that don’t match the selector will stop running the Datadog Agent from this release.
+
+Follow [Assigning Pods to Nodes](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/) for syntax. Use a node selector or **required** node affinity; preferred affinity does not restrict placement.
+
+If taints block scheduling on the target nodes, add matching `agents.tolerations`. [Tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/) allow scheduling on tainted nodes but do not select nodes.
+
+### Profile a subset of nodes while keeping existing Agent coverage
+
+Use two Agent releases with non-overlapping node scopes. Preserve any existing scheduling constraints. For example, use required node affinity with `NotIn` on the primary release and `In` on the second release, using the same label key and value.
+
+| Release | Nodes | `datadog.hostProfiler.enabled` |
+| --- | --- | --- |
+| Primary | All previously monitored nodes except the nodes you want to profile | `false` |
+| Second | Only the nodes you want to profile | `true` |
+
+Set the [Host Profiler image and resource values](#deploy) in the second release. If the primary release runs a Cluster Agent, install the second release in the same namespace and use the primary release's Cluster Agent Service and token Secret names to join it. Disable duplicate Cluster Agent and Operator deployments and prevent the second release from installing CRDs owned by the primary release:
+
+```yaml
+datadog:
+  operator:
+    enabled: false
+clusterAgent:
+  enabled: false
+existingClusterAgent:
+  join: true
+  serviceName: "<PRIMARY_CLUSTER_AGENT_SERVICE>"
+  tokenSecretName: "<PRIMARY_CLUSTER_AGENT_TOKEN_SECRET>"
+datadog-crds:
+  crds:
+    datadogMetrics: false
+    datadogPodAutoscalers: false
+    datadogPodAutoscalerClusterProfiles: false
+    datadogInstrumentations: false
+datadog-instrumentation-crd:
+  crds:
+    datadogInstrumentations: false
+```
+
+Keep both `datadogInstrumentations` entries. Chart versions before `3.241.0` use `datadog-crds` for the instrumentation CRD; `3.241.0` and later use `datadog-instrumentation-crd`.
+
+If the primary release does not run a Cluster Agent, omit `existingClusterAgent`.
+
+### Verify placement
+
+After rollout, verify that each node you intend to monitor runs one Agent pod from these releases and that no other nodes run one. Only Agent pods on the selected nodes should contain the `host-profiler` container.

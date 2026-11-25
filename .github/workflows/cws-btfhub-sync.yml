@@ -16,6 +16,7 @@ permissions: {}
 jobs:
   generate:
     runs-on: ubuntu-26.04
+    timeout-minutes: 70
     permissions:
       contents: read
     strategy:
@@ -68,7 +69,7 @@ jobs:
           features: legacy-tasks
 
       - name: Install go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: '.go-version'
 
@@ -97,6 +98,7 @@ jobs:
   combine:
     needs: generate
     runs-on: ubuntu-26.04
+    timeout-minutes: 70
     permissions:
       contents: read
       id-token: write # This is required for getting the required OIDC token from GitHub
@@ -112,7 +114,7 @@ jobs:
           features: legacy-tasks
 
       - name: Install go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: '.go-version'
 
@@ -139,7 +141,7 @@ jobs:
           scope: ${{ github.repository }}
           policy: self.cws-btfhub-sync.create-pr
 
-      - uses: peter-evans/create-pull-request@15733dbdfeedb4f7fdb73d13c6f5ac83b710fab8 # v8.1.2
+      - uses: peter-evans/create-pull-request@3ffccacd46053766916f087ce41d627c0b8cf2d1 # v8.1.3
         name: Create pull request
         with:
           token: ${{ steps.octo-sts.outputs.token }}

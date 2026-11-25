@@ -10,12 +10,15 @@ PYTHON_MAJOR_MINOR = ".".join(PYTHON_VERSION.split(".")[:2])
 
 PYTHON_MAJOR_MINOR_FLAT = PYTHON_MAJOR_MINOR.replace(".", "")
 
+PYTHON_SOURCE_URL = "https://python.org/ftp/python/{0}/Python-{0}.tgz".format(PYTHON_VERSION)
+
 constants_repo(
     name = "cpython_versions",
     items = {
         "PYTHON_MAJOR_MINOR": PYTHON_MAJOR_MINOR,
         "PYTHON_MAJOR_MINOR_FLAT": PYTHON_MAJOR_MINOR_FLAT,
         "PYTHON_VERSION": PYTHON_VERSION,
+        "PYTHON_SOURCE_URL": PYTHON_SOURCE_URL,
     },
 )
 
@@ -34,7 +37,7 @@ http_archive(
     ],
     sha256 = "99dbc847fb6a3fb26358370fb4c591215864116ebb584f2b89ab0b74c51dfa2a",
     strip_prefix = "Python-{}".format(PYTHON_VERSION),
-    url = "https://python.org/ftp/python/{0}/Python-{0}.tgz".format(PYTHON_VERSION),
+    url = PYTHON_SOURCE_URL,
 )
 
 # CPython's own fixture for the gh-160040 fix (upstream since 3.13.18): a chain

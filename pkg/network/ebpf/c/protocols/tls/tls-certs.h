@@ -17,6 +17,13 @@
 #include "tls-certs-parser.h"
 
 static __always_inline void SSL_report_cert(conn_stats_ts_t *stats) {
+    // Runs on every TCP send and receive; without the cert uprobes the map below is always empty.
+    __u64 cert_collection_enabled = 0;
+    LOAD_CONSTANT("cert_collection_enabled", cert_collection_enabled);
+    if (!cert_collection_enabled) {
+        return;
+    }
+
     __u64 pid_tgid = bpf_get_current_pid_tgid();
 
     void **ssl_ctx_mapval = bpf_map_lookup_elem(&ssl_certs_statem_args, &pid_tgid);

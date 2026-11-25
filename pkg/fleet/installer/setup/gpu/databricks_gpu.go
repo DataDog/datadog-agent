@@ -1,0 +1,140 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+// Package gpu contains GPU Monitoring installation logic
+package gpu
+
+import (
+	"fmt"
+	"os"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
+)
+
+const (
+	// defaultAgentVersion is a major version tag, so every install run pulls
+	// the latest 7.x Agent. Customers can pin it with DD_AGENT_MINOR_VERSION.
+	defaultAgentVersion       = "7"
+	databricksInjectorVersion = "0.71.2-1"
+	// defaultCTracerVersion is a major version tag, so every install run pulls
+	// the latest 0.x release of dd-trace-c.
+	defaultCTracerVersion = "0"
+	// envCTracerVersion lets customers pin the C tracer version, e.g. 0.40.0
+	envCTracerVersion = "DD_C_TRACER_VERSION"
+
+	gpuRestartDelay   = 60 * time.Second
+	gpuRestartLogFile = "/var/log/datadog-gpu-restart"
+)
+
+// fullVersionWithoutRevision matches versions like 0.40.0, which are
+// published with a package revision suffix (0.40.0-1).
+var fullVersionWithoutRevision = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
+
+// clusterNameRegex matches the characters replaced in cluster name tags, like
+// the Data Jobs Monitoring script does.
+var clusterNameRegex = regexp.MustCompile(`[^a-zA-Z0-9_:.-]+`)
+
+// SetupDatabricksGPU sets up GPU Monitoring on Databricks: GPU metrics and
+// GPU traces from the C tracer (dd-trace-c), which the APM injector loads into
+// processes. It does not set up Data Jobs Monitoring.
+func SetupDatabricksGPU(s *common.Setup) error {
+	if os.Getenv("DD_NO_AGENT_INSTALL") != "true" {
+		agentVersion := agentVersion(s)
+		s.Out.WriteString(fmt.Sprintf("Installing the Datadog Agent version %s\n", agentVersion))
+		s.Packages.Install(common.DatadogAgentPackage, agentVersion)
+	}
+	s.Packages.Install(common.DatadogAPMInjectPackage, databricksInjectorVersion)
+	version := cTracerVersion()
+	s.Out.WriteString(fmt.Sprintf("Installing the Datadog C tracer version %s\n", version))
+	s.Packages.Install(common.DatadogAPMLibraryCPackage, version)
+	s.Span.SetTag("c_tracer_version", version)
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		return fmt.Errorf("failed to get hostname: %w", err)
+	}
+	s.Config.DatadogYAML.Hostname = hostname
+	s.Config.DatadogYAML.ExpectedTagsDuration = "10m"
+	s.Config.DatadogYAML.ProcessConfig.ExpvarPort = 6063 // avoid port conflict on 6062
+
+	setupDatabricksHostTags(s)
+	setupGPUCheck(s)
+	return nil
+}
+
+// setupGPUCheck enables the GPU check and schedules an Agent restart, since
+// NVML is initialized after the Databricks init script runs.
+func setupGPUCheck(s *common.Setup) {
+	s.Out.WriteString("Setting up GPU monitoring\n")
+	s.Config.DatadogYAML.GPUCheck.Enabled = config.BoolToPtr(true)
+	s.DelayedAgentRestartConfig.Scheduled = true
+	s.DelayedAgentRestartConfig.Delay = gpuRestartDelay
+	s.DelayedAgentRestartConfig.LogFile = gpuRestartLogFile
+}
+
+// setupDatabricksHostTags sets the Databricks host tags, with the same keys
+// as the Data Jobs Monitoring script, and adds DD_TAGS and DD_EXTRA_TAGS.
+func setupDatabricksHostTags(s *common.Setup) {
+	addTagFromEnv(s, "DB_CLUSTER_ID", "databricks_cluster_id", nil)
+	addTagFromEnv(s, "DB_CLUSTER_ID", "cluster_id", nil)
+	sanitizeClusterName := func(v string) string { return clusterNameRegex.ReplaceAllString(v, "_") }
+	addTagFromEnv(s, "DB_CLUSTER_NAME", "databricks_cluster_name", sanitizeClusterName)
+	addTagFromEnv(s, "DB_CLUSTER_NAME", "cluster_name", sanitizeClusterName)
+	addTagFromEnv(s, "DATABRICKS_WORKSPACE", "databricks_workspace", nil)
+	addTagFromEnv(s, "WORKSPACE_URL", "workspace_url", nil)
+	addTagFromEnv(s, "DB_INSTANCE_TYPE", "databricks_instance_type", nil)
+	addTagFromEnv(s, "DB_IS_JOB_CLUSTER", "databricks_is_job_cluster", nil)
+	addTagFromEnv(s, "DATABRICKS_RUNTIME_VERSION", "databricks_runtime", nil)
+	if os.Getenv("DB_IS_DRIVER") == "TRUE" {
+		s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, "spark_node:driver")
+	} else {
+		s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, "spark_node:worker")
+	}
+
+	// DD_TAGS and DD_EXTRA_TAGS are separated by commas or spaces
+	isSeparator := func(r rune) bool { return r == ',' || r == ' ' }
+	s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, strings.FieldsFunc(os.Getenv("DD_TAGS"), isSeparator)...)
+	s.Config.DatadogYAML.ExtraTags = append(s.Config.DatadogYAML.ExtraTags, strings.FieldsFunc(os.Getenv("DD_EXTRA_TAGS"), isSeparator)...)
+}
+
+func addTagFromEnv(s *common.Setup, envKey, tagKey string, normalize func(string) string) {
+	value, ok := os.LookupEnv(envKey)
+	if !ok {
+		return
+	}
+	if normalize != nil {
+		value = normalize(value)
+	}
+	s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, tagKey+":"+value)
+}
+
+// agentVersion returns the Agent version requested with DD_AGENT_MAJOR_VERSION
+// and DD_AGENT_MINOR_VERSION (e.g. DD_AGENT_MINOR_VERSION=86.0), or the latest
+// Agent 7 when none is requested.
+func agentVersion(s *common.Setup) string {
+	if s.Env == nil {
+		return defaultAgentVersion
+	}
+	version := s.Env.GetAgentVersion()
+	if version == "latest" {
+		return defaultAgentVersion
+	}
+	return version
+}
+
+func cTracerVersion() string {
+	version := os.Getenv(envCTracerVersion)
+	if version == "" {
+		return defaultCTracerVersion
+	}
+	if fullVersionWithoutRevision.MatchString(version) {
+		return version + "-1"
+	}
+	return version
+}
