@@ -10,14 +10,14 @@
   "issues": {
     "invalid-config:/apm_config/apm_dd_url": {
       "category": "configuration",
-      "description": "invalid value for 'apm_config.apm_dd_url'. Error: `at '/apm_config/apm_dd_url': 'https://qa:********@example.test' does not match pattern '^((https?://)?([a-zA-Z0-9\\\\.-]+)(:[0-9]{1,5})?[/\\\\w\\\\.-]*)?$'`",
+      "description": "invalid value for 'apm_config.apm_dd_url'. Error: `at '/apm_config/apm_dd_url': 'https://qa:********@example.test:123456' does not match pattern '^((https?://)?([^\\\\s/?#@]+@)?(\\\\[[^\\\\]\\\\s/]+\\\\]|[a-zA-Z0-9._-]+)(:[0-9]{1,5})?([/?#]\\\\S*)?)?$'`",
       "detected_at": "<timestamp>",
       "extra": {
         "config_path": "/etc/datadog-agent/datadog.yaml",
         "error_count": 1,
         "errors": {
           "/apm_config/apm_dd_url": [
-            "invalid value for 'apm_config.apm_dd_url'. Error: `at '/apm_config/apm_dd_url': 'https://qa:********@example.test' does not match pattern '^((https?://)?([a-zA-Z0-9\\\\.-]+)(:[0-9]{1,5})?[/\\\\w\\\\.-]*)?$'` Check the value and format of `/apm_config/apm_dd_url`."
+            "invalid value for 'apm_config.apm_dd_url'. Error: `at '/apm_config/apm_dd_url': 'https://qa:********@example.test:123456' does not match pattern '^((https?://)?([^\\\\s/?#@]+@)?(\\\\[[^\\\\]\\\\s/]+\\\\]|[a-zA-Z0-9._-]+)(:[0-9]{1,5})?([/?#]\\\\S*)?)?$'` Check the value and format of `/apm_config/apm_dd_url`."
           ]
         },
         "impact": "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured."

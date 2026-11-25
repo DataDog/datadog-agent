@@ -17,6 +17,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
 )
 
 func TestKAIPodGroupGVR(t *testing.T) {
@@ -35,7 +37,7 @@ func TestKAIPodGroupGVR(t *testing.T) {
 
 func TestKAIPodGroupStore(t *testing.T) {
 	wmeta := mockedWorkloadmeta(t)
-	_, store := newKAIPodGroupStore(wmeta, nil, schema.GroupVersionResource{})
+	_, store := newKAIPodGroupStore(wmeta, nil, schema.GroupVersionResource{}, config.NewMock(t))
 
 	newPodGroup := func(namespace, queue string) *unstructured.Unstructured {
 		return &unstructured.Unstructured{Object: map[string]interface{}{

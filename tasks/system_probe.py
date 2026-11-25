@@ -14,7 +14,6 @@ from pathlib import Path
 from subprocess import check_output
 
 import requests
-import yaml
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
@@ -24,7 +23,6 @@ from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from tasks.flavor import FipsBackend
 from tasks.libs.build.bazel import bazel, build_binary_with_bazel
 from tasks.libs.build.ninja import NinjaWriter
-from tasks.libs.ciproviders.gitlab_api import ReferenceTag
 from tasks.libs.common.color import color_message
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
@@ -679,68 +677,18 @@ def check_for_inline(ctx):
         raise Exit(code=1)
 
 
-def get_clang_version_and_build_version() -> tuple[str, str]:
-    gitlab_ci_file = Path(__file__).parent.parent / ".gitlab-ci.yml"
-    yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
-    with open(gitlab_ci_file) as f:
-        ci_config = yaml.safe_load(f)
-
-    ci_vars = ci_config['variables']
-    return ci_vars['CLANG_LLVM_VER'], ci_vars['CLANG_BUILD_VERSION']
-
-
 def setup_runtime_clang(
     ctx: Context, arch: Arch | None = None, target_dir: Path | str = "/opt/datadog-agent/embedded/bin"
 ) -> None:
     target_dir = Path(target_dir)
-    needs_sudo = not os.access(target_dir, os.W_OK)
-    sudo = "sudo" if not is_root() and needs_sudo else ""
+    needs_sudo = not is_root() and not os.access(target_dir, os.W_OK)
 
     if arch is None:
         arch = Arch.local()
 
-    clang_version, clang_build_version = get_clang_version_and_build_version()
-
-    runtime_binaries = {
-        "clang-bpf": {"url_prefix": "clang", "version_line": 0, "needs_download": False},
-        "llvm-strip": {"url_prefix": "llvm-strip", "version_line": 2, "needs_download": False},
-    }
-
-    for binary, meta in runtime_binaries.items():
-        binary_path = target_dir / binary
-        if not arch.is_cross_compiling() and sys.platform == "linux":
-            if not binary_path.exists() or binary_path.stat().st_size == 0:
-                print(f"'{binary}' missing")
-                runtime_binaries[binary]["needs_download"] = True
-                continue
-
-            # We can check the version of the LLVM tools on the system, we have the same arch and can
-            # execute the binaries. This way we can omit the download if the binaries exist and the version
-            # matches the desired one
-            res = ctx.run(f"{sudo} {binary_path} --version", warn=True, hide=True)
-            if res is not None and res.ok:
-                version_str = res.stdout.split("\n")[meta["version_line"]].strip().split(" ")[2].strip()
-                if version_str != clang_version:
-                    print(f"'{binary}' version '{version_str}' is not required version '{clang_version}'")
-                    runtime_binaries[binary]["needs_download"] = True
-        else:
-            # If we're cross-compiling we cannot check the version of the LLVM tools on the system,
-            # so we download them only if they don't exist
-            runtime_binaries[binary]["needs_download"] = not binary_path.exists() or binary_path.stat().st_size == 0
-
-    if not target_dir.exists():
-        ctx.run(f"{sudo} mkdir -p {target_dir}")
-
-    for binary, meta in runtime_binaries.items():
-        if not meta["needs_download"]:
-            continue
-
-        # download correct version from dd-agent-omnibus S3 bucket
-        binary_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/{meta['url_prefix']}-{clang_version}.{arch.name}.{clang_build_version}"
-        binary_path = target_dir / binary
-        print(f"'{binary}' downloading...")
-        ctx.run(f"{sudo} wget -nv {binary_url} -O {binary_path}")
-        ctx.run(f"{sudo} chmod 0755 {binary_path}")
+    _bazel_install(
+        ctx, f"@llvm_bpf_{arch.name}//:install", str(target_dir), sudo=needs_sudo, fips_backend=FipsBackend.none
+    )
 
 
 @task
@@ -949,7 +897,7 @@ def build_object_files(
         ctx.run(f"mkdir -p -m 0755 {runtime_dir}")
         ctx.run(f"mkdir -p -m 0755 {build_dir}/co-re")
 
-        extra_targets = ["@llvm_bpf//:install"]
+        extra_targets = ["//bazel/toolchains/llvm_bpf:install"]
         if not arch_obj.is_cross_compiling():
             extra_targets.extend(t for t, _ in _rust_install_targets())
 
@@ -967,7 +915,12 @@ def build_object_files(
         sudo = "sudo" if needs_sudo else ""
         ctx.run(f"{sudo} mkdir -p /opt/datadog-agent/embedded/bin")
         _bazel_install(
-            ctx, "@llvm_bpf//:install", "/opt/datadog-agent", *arch_flags, sudo=needs_sudo, fips_backend=fips_backend
+            ctx,
+            "//bazel/toolchains/llvm_bpf:install",
+            "/opt/datadog-agent/embedded/bin",
+            *arch_flags,
+            sudo=needs_sudo,
+            fips_backend=fips_backend,
         )
 
     if is_windows:

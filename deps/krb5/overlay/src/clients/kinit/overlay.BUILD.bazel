@@ -1,13 +1,10 @@
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
-load("@@//deps/krb5:krb5_defs.bzl", "KRB5_COPTS", "KRB5_PROGRAM_LOCAL_DEFINES")
+load("//:krb5_defs.bzl", "KRB5_COPTS", "KRB5_PROGRAM_LOCAL_DEFINES")
 load("@rules_cc//cc:defs.bzl", "cc_binary")
 
 package(
     default_package_metadata = ["//:package_metadata"],
-    default_visibility = [
-        "//:__subpackages__",
-        "@@//deps/krb5:__pkg__",
-    ],
+    default_visibility = ["//:__subpackages__"],
 )
 
 # kinit (clients/kinit), the only krb5 program we ship.

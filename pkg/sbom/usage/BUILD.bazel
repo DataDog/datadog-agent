@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "usage",
+    srcs = [
+        "index.go",
+        "key.go",
+        "report.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/sbom/usage",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_twmb_murmur3//:murmur3"],
+)
+
+dd_agent_go_test(
+    name = "usage_test",
+    srcs = [
+        "index_test.go",
+        "key_test.go",
+        "report_test.go",
+    ],
+    embed = [":usage"],
+)
