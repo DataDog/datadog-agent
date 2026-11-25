@@ -1,0 +1,34 @@
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+dd_agent_go_test(
+    name = "checktest_test",
+    srcs = [
+        "collectors_test.go",
+        "dependencies_test.go",
+        "discovery_test.go",
+        "every_resource_test.go",
+        "failures_test.go",
+        "fixtures_test.go",
+        "helpers_test.go",
+        "leadership_test.go",
+        "lifecycle_test.go",
+        "pods_test.go",
+        "runners_test.go",
+        "settings_test.go",
+        "tags_test.go",
+    ],
+    data = glob(["testdata/*.yaml"]),
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
+    include_default = False,
+    deps = [
+        "//pkg/collector/corechecks/cluster/orchestrator/checktest/suite",
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apiextensions_apiserver//pkg/apis/apiextensions/v1:apiextensions",
+    ],
+)

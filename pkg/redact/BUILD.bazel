@@ -7,6 +7,7 @@ go_library(
         "cr.go",
         "data_scrubber.go",
         "metadata.go",
+        "metadata_testing.go",
         "pod.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/redact",

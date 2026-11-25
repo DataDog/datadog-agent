@@ -1,0 +1,112 @@
+apps_v1_statefulsets:
+  manifest:
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      managedFields:
+        - manager: kubectl
+          operation: Apply
+      annotations:
+        kubectl.kubernetes.io/last-applied-configuration: secret
+      labels:
+        app: name
+        tags.datadoghq.com/env: prod
+      name: apps-v1-statefulsets
+      namespace: default
+      resourceVersion: "1"
+      uid: apps_v1_statefulsets
+    spec:
+      serviceName: ""
+      template:
+        spec:
+          containers:
+            - env:
+                - name: PASSWORD
+                  value: secret
+                - name: REGION
+                  value: us-east-1
+              image: image
+              name: c
+    status:
+      availableReplicas: 0
+      replicas: 0
+  live:
+    - envelope: CollectorManifest
+      message:
+        ClusterId: d801b2b1-4811-11ea-8618-121d4d0938a3
+        ClusterName: test-cluster
+        HostName: ""
+        OriginCollector: datadogAgent
+      messageTags: null
+      model:
+        apiVersion: apps/v1
+        content:
+          apiVersion: apps/v1
+          kind: StatefulSet
+          metadata:
+            annotations:
+              kubectl.kubernetes.io/last-applied-configuration: '-'
+            creationTimestamp: null
+            labels:
+              app: name
+              tags.datadoghq.com/env: prod
+            managedFields: <managed fields>
+            name: apps-v1-statefulsets
+            namespace: default
+            resourceVersion: "1"
+            uid: apps_v1_statefulsets
+          spec:
+            selector: null
+            serviceName: ""
+            template:
+              metadata:
+                creationTimestamp: null
+              spec:
+                containers:
+                  - env:
+                      - name: PASSWORD
+                        value: '********'
+                      - name: REGION
+                        value: us-east-1
+                    image: image
+                    name: c
+                    resources: {}
+            updateStrategy: {}
+          status:
+            availableReplicas: 0
+            replicas: 0
+        contentType: json
+        kind: StatefulSet
+        resourceVersion: "1"
+        tags:
+          - env:prod
+          - kube_api_version:apps/v1
+        type: 9
+        uid: apps_v1_statefulsets
+        version: v1
+      type: manifest
+    - envelope: CollectorStatefulSet
+      message:
+        ClusterId: d801b2b1-4811-11ea-8618-121d4d0938a3
+        ClusterName: test-cluster
+      messageTags:
+        - kube_api_version:apps/v1
+      model:
+        metadata:
+          annotations:
+            - kubectl.kubernetes.io/last-applied-configuration:-
+          labels:
+            - app:name
+            - tags.datadoghq.com/env:prod
+          name: apps-v1-statefulsets
+          namespace: default
+          resourceVersion: "1"
+          uid: apps_v1_statefulsets
+        spec:
+          resourceRequirements:
+            - name: c
+              type: 1
+        status: {}
+        tags:
+          - env:prod
+      type: metadata

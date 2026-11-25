@@ -1,0 +1,81 @@
+rbac.authorization.k8s.io_v1_rolebindings:
+  manifest:
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      managedFields:
+        - manager: kubectl
+          operation: Apply
+      annotations:
+        kubectl.kubernetes.io/last-applied-configuration: secret
+      labels:
+        app: name
+        tags.datadoghq.com/env: prod
+      name: rbac-authorization-k8s-io-v1-rolebindings
+      namespace: default
+      resourceVersion: "1"
+      uid: rbac.authorization.k8s.io_v1_rolebindings
+    roleRef:
+      apiGroup: ""
+      kind: ""
+      name: ""
+  live:
+    - envelope: CollectorManifest
+      message:
+        ClusterId: d801b2b1-4811-11ea-8618-121d4d0938a3
+        ClusterName: test-cluster
+        HostName: ""
+        OriginCollector: datadogAgent
+      messageTags: null
+      model:
+        apiVersion: rbac.authorization.k8s.io/v1
+        content:
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: RoleBinding
+          metadata:
+            annotations:
+              kubectl.kubernetes.io/last-applied-configuration: '-'
+            creationTimestamp: null
+            labels:
+              app: name
+              tags.datadoghq.com/env: prod
+            managedFields: <managed fields>
+            name: rbac-authorization-k8s-io-v1-rolebindings
+            namespace: default
+            resourceVersion: "1"
+            uid: rbac.authorization.k8s.io_v1_rolebindings
+          roleRef:
+            apiGroup: ""
+            kind: ""
+            name: ""
+        contentType: json
+        kind: RoleBinding
+        resourceVersion: "1"
+        tags:
+          - env:prod
+          - kube_api_version:rbac.authorization.k8s.io/v1
+        type: 13
+        uid: rbac.authorization.k8s.io_v1_rolebindings
+        version: v1
+      type: manifest
+    - envelope: CollectorRoleBinding
+      message:
+        ClusterId: d801b2b1-4811-11ea-8618-121d4d0938a3
+        ClusterName: test-cluster
+      messageTags:
+        - kube_api_version:rbac.authorization.k8s.io/v1
+      model:
+        metadata:
+          annotations:
+            - kubectl.kubernetes.io/last-applied-configuration:-
+          labels:
+            - app:name
+            - tags.datadoghq.com/env:prod
+          name: rbac-authorization-k8s-io-v1-rolebindings
+          namespace: default
+          resourceVersion: "1"
+          uid: rbac.authorization.k8s.io_v1_rolebindings
+        roleRef: {}
+        tags:
+          - env:prod
+      type: metadata

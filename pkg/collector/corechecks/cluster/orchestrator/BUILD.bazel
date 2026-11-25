@@ -10,6 +10,7 @@ go_library(
         "retrier.go",
         "stub.go",
         "terminated_resource_bundle.go",
+        "testing.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator",
     visibility = ["//visibility:public"],

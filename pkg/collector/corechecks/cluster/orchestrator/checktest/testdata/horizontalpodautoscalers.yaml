@@ -1,0 +1,92 @@
+autoscaling_v2_horizontalpodautoscalers:
+  manifest:
+    apiVersion: autoscaling/v2
+    kind: HorizontalPodAutoscaler
+    metadata:
+      managedFields:
+        - manager: kubectl
+          operation: Apply
+      annotations:
+        kubectl.kubernetes.io/last-applied-configuration: secret
+      labels:
+        app: name
+        tags.datadoghq.com/env: prod
+      name: autoscaling-v2-horizontalpodautoscalers
+      namespace: default
+      resourceVersion: "1"
+      uid: autoscaling_v2_horizontalpodautoscalers
+    spec:
+      maxReplicas: 0
+      scaleTargetRef:
+        kind: ""
+        name: ""
+    status:
+      currentMetrics: null
+      desiredReplicas: 0
+  live:
+    - envelope: CollectorHorizontalPodAutoscaler
+      message:
+        ClusterId: d801b2b1-4811-11ea-8618-121d4d0938a3
+        ClusterName: test-cluster
+      messageTags:
+        - kube_api_version:autoscaling/v2
+      model:
+        metadata:
+          annotations:
+            - kubectl.kubernetes.io/last-applied-configuration:-
+          labels:
+            - app:name
+            - tags.datadoghq.com/env:prod
+          name: autoscaling-v2-horizontalpodautoscalers
+          namespace: default
+          resourceVersion: "1"
+          uid: autoscaling_v2_horizontalpodautoscalers
+        spec:
+          behavior: {}
+          target: {}
+        status: {}
+        tags:
+          - env:prod
+      type: metadata
+    - envelope: CollectorManifest
+      message:
+        ClusterId: d801b2b1-4811-11ea-8618-121d4d0938a3
+        ClusterName: test-cluster
+        HostName: ""
+        OriginCollector: datadogAgent
+      messageTags: null
+      model:
+        apiVersion: autoscaling/v2
+        content:
+          apiVersion: autoscaling/v2
+          kind: HorizontalPodAutoscaler
+          metadata:
+            annotations:
+              kubectl.kubernetes.io/last-applied-configuration: '-'
+            creationTimestamp: null
+            labels:
+              app: name
+              tags.datadoghq.com/env: prod
+            managedFields: <managed fields>
+            name: autoscaling-v2-horizontalpodautoscalers
+            namespace: default
+            resourceVersion: "1"
+            uid: autoscaling_v2_horizontalpodautoscalers
+          spec:
+            maxReplicas: 0
+            scaleTargetRef:
+              kind: ""
+              name: ""
+          status:
+            currentMetrics: null
+            desiredReplicas: 0
+        contentType: json
+        kind: HorizontalPodAutoscaler
+        resourceVersion: "1"
+        tags:
+          - env:prod
+          - kube_api_version:autoscaling/v2
+        type: 23
+        uid: autoscaling_v2_horizontalpodautoscalers
+        version: v1
+      type: manifest

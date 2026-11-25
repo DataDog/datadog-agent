@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/discovery"
 	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
@@ -95,6 +96,32 @@ type OrchestratorCheck struct {
 	apiClient                   *apiserver.APIClient
 	orchestratorInformerFactory *collectors.OrchestratorInformerFactory
 	agentVersion                *model.AgentVersion
+	// deps are the services that the check reaches outside of the process.
+	deps checkDependencies
+}
+
+// checkDependencies are the services that the check reaches outside of the process. Tests replace them to run the
+// check against fake clients.
+type checkDependencies struct {
+	waitForAPIClient         func(ctx context.Context) (*apiserver.APIClient, error)
+	runLeaderElection        func() (leader string, err error)
+	serverGroupsAndResources discovery.ServerGroupsAndResourcesFunc
+	// onDeletion, when set, is called after the check handles the deletion of an object, which tests wait for.
+	onDeletion func(obj interface{})
+}
+
+// withDefaults returns the dependencies, with the production services for the ones that are not set.
+func (d checkDependencies) withDefaults() checkDependencies {
+	if d.waitForAPIClient == nil {
+		d.waitForAPIClient = apiserver.WaitForAPIClient
+	}
+	if d.runLeaderElection == nil {
+		d.runLeaderElection = cluster.RunLeaderElection
+	}
+	if d.serverGroupsAndResources == nil {
+		d.serverGroupsAndResources = discovery.GetServerGroupsAndResources
+	}
+	return d
 }
 
 func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance, cfg configcomp.Component, wlmStore workloadmeta.Component, tagger tagger.Component) *OrchestratorCheck {
@@ -146,6 +173,7 @@ func (o *OrchestratorCheck) Interval() time.Duration {
 // Configure configures the orchestrator check
 func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string, provider string) error {
 	o.BuildID(integrationConfigDigest, config, initConfig)
+	o.deps = o.deps.withDefaults()
 
 	err := o.CommonConfigure(senderManager, initConfig, config, source, provider)
 	if err != nil {
@@ -205,7 +233,7 @@ func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integr
 	apiCtx, apiCancel := context.WithTimeout(context.Background(), maximumWaitForAPIServer)
 	defer apiCancel()
 
-	o.apiClient, err = apiserver.WaitForAPIClient(apiCtx)
+	o.apiClient, err = o.deps.waitForAPIClient(apiCtx)
 	if err != nil {
 		return err
 	}
@@ -354,7 +382,7 @@ func (o *OrchestratorCheck) IsLeader() (bool, error) {
 		return false, log.Errorc("Leader Election not enabled. The cluster-agent will not run the check.", orchestrator.ExtraLogContext...)
 	}
 
-	leader, err := cluster.RunLeaderElection()
+	leader, err := o.deps.runLeaderElection()
 	if err != nil {
 		if err == apiserver.ErrNotLeader {
 			log.Debugf("Not leader (leader is %q). Skipping the Orchestrator check", leader)

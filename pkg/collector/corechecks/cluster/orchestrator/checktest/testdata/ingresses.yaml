@@ -1,0 +1,79 @@
+networking.k8s.io_v1_ingresses:
+  manifest:
+    apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      managedFields:
+        - manager: kubectl
+          operation: Apply
+      annotations:
+        kubectl.kubernetes.io/last-applied-configuration: secret
+      labels:
+        app: name
+        tags.datadoghq.com/env: prod
+      name: networking-k8s-io-v1-ingresses
+      namespace: default
+      resourceVersion: "1"
+      uid: networking.k8s.io_v1_ingresses
+    status:
+      loadBalancer: {}
+  live:
+    - envelope: CollectorIngress
+      message:
+        ClusterId: d801b2b1-4811-11ea-8618-121d4d0938a3
+        ClusterName: test-cluster
+      messageTags:
+        - kube_api_version:networking.k8s.io/v1
+      model:
+        metadata:
+          annotations:
+            - kubectl.kubernetes.io/last-applied-configuration:-
+          labels:
+            - app:name
+            - tags.datadoghq.com/env:prod
+          name: networking-k8s-io-v1-ingresses
+          namespace: default
+          resourceVersion: "1"
+          uid: networking.k8s.io_v1_ingresses
+        spec: {}
+        status: {}
+        tags:
+          - env:prod
+      type: metadata
+    - envelope: CollectorManifest
+      message:
+        ClusterId: d801b2b1-4811-11ea-8618-121d4d0938a3
+        ClusterName: test-cluster
+        HostName: ""
+        OriginCollector: datadogAgent
+      messageTags: null
+      model:
+        apiVersion: networking.k8s.io/v1
+        content:
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            annotations:
+              kubectl.kubernetes.io/last-applied-configuration: '-'
+            creationTimestamp: null
+            labels:
+              app: name
+              tags.datadoghq.com/env: prod
+            managedFields: <managed fields>
+            name: networking-k8s-io-v1-ingresses
+            namespace: default
+            resourceVersion: "1"
+            uid: networking.k8s.io_v1_ingresses
+          spec: {}
+          status:
+            loadBalancer: {}
+        contentType: json
+        kind: Ingress
+        resourceVersion: "1"
+        tags:
+          - env:prod
+          - kube_api_version:networking.k8s.io/v1
+        type: 17
+        uid: networking.k8s.io_v1_ingresses
+        version: v1
+      type: manifest

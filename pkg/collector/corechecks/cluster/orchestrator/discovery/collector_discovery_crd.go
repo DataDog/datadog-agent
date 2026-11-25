@@ -53,11 +53,6 @@ func NewDiscoveryCollector(fetch ServerGroupsAndResourcesFunc) *DiscoveryCollect
 	}
 }
 
-// NewDiscoveryCollectorForInventory returns a new DiscoveryCollector instance backed by the API server.
-func NewDiscoveryCollectorForInventory() *DiscoveryCollector {
-	return NewDiscoveryCollector(GetServerGroupsAndResources)
-}
-
 // GroupsAndResources returns the groups and resources stored in the cache.
 func (d *DiscoveryCollector) GroupsAndResources() ([]*v1.APIGroup, []*v1.APIResourceList) {
 	return d.cache.Groups, d.cache.Resources

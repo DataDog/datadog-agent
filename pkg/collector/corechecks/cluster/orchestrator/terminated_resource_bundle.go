@@ -44,6 +44,9 @@ func NewTerminatedResourceBundle(check *OrchestratorCheck, runCfg *collectors.Co
 
 // Add adds a terminated object into TerminatedResourceBundle
 func (tb *TerminatedResourceBundle) Add(k8sCollector collectors.K8sCollector, obj interface{}) {
+	if onDeletion := tb.check.deps.onDeletion; onDeletion != nil {
+		defer onDeletion(obj)
+	}
 	tb.mu.Lock()
 	defer tb.mu.Unlock()
 
