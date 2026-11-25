@@ -12,29 +12,33 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestTagNameExtraction(t *testing.T) {
-	t.Run("extracts name from tag with value", func(t *testing.T) {
-		assert.Equal(t, "env", tagName("env:prod"))
-		assert.Equal(t, "host", tagName("host:server1"))
-		assert.Equal(t, "version", tagName("version:1.0.0"))
-	})
+// TestKeepTagNormalizesKeys checks that tag keys are compared in the form the
+// intake stores them in.
+func TestKeepTagNormalizesKeys(t *testing.T) {
+	exclude := NewHashedMetricTagList(true, []string{"env", "pod_name", "foo_", ""})
+	for _, tag := range []string{"env:prod", "Env:Prod", "ENV", "env_", "env:", "Pod Name:x", "pod!name:x", "foo_:bar", ":foo", "123:foo"} {
+		assert.False(t, exclude.KeepTag(tag), "tag %q should be stripped", tag)
+	}
+	// Keys that only look similar, or that the intake stores differently.
+	for _, tag := range []string{"envx:prod", "en:v", "foo_", "foo:bar", "pod-name:x", "version:1.0"} {
+		assert.True(t, exclude.KeepTag(tag), "tag %q should be kept", tag)
+	}
+}
 
-	t.Run("handles tag without value", func(t *testing.T) {
-		assert.Equal(t, "env", tagName("env"))
-		assert.Equal(t, "host", tagName("host"))
+// TestShouldStripTagsNormalizesNames checks that metric names are compared in
+// the form the intake stores them in, keeping their case.
+func TestShouldStripTagsNormalizesNames(t *testing.T) {
+	m := NewTagMatcher(map[string]HashedMetricTagList{
+		"my_metric.count": NewHashedMetricTagList(true, []string{"env"}),
 	})
-
-	t.Run("handles tag with empty value", func(t *testing.T) {
-		assert.Equal(t, "env", tagName("env:"))
-	})
-
-	t.Run("handles tag with colon in value", func(t *testing.T) {
-		assert.Equal(t, "url", tagName("url:http://example.com"))
-	})
-
-	t.Run("handles invalid tag", func(t *testing.T) {
-		assert.Equal(t, "", tagName(":invalid"))
-	})
+	for _, name := range []string{"my_metric.count", "my-metric.count", "my metric.count", "1my_metric.count"} {
+		_, ok := m.ShouldStripTags(name)
+		assert.True(t, ok, "metric name %q", name)
+	}
+	for _, name := range []string{"my_metric.counts", "My_metric.count", "other", "123"} {
+		_, ok := m.ShouldStripTags(name)
+		assert.False(t, ok, "metric name %q", name)
+	}
 }
 
 func TestNewHashedMetricTagListTagsAreSorted(t *testing.T) {
@@ -68,11 +72,19 @@ func TestTagMatcherDoesNotAllocate(t *testing.T) {
 		"metric": NewHashedMetricTagList(true, []string{"env", "host"}),
 	})
 
-	allocs := testing.AllocsPerRun(100, func() {
-		tl, ok := m.ShouldStripTags("metric")
-		if !ok || tl.KeepTag("env:prod") {
-			t.Fatal("unexpected match result")
-		}
-	})
-	assert.Zero(t, allocs)
+	// Matching does not allocate, even when normalizing a tag key.
+	for _, tag := range []string{"env:prod", "ENV:prod"} {
+		allocs := testing.AllocsPerRun(100, func() {
+			tl, ok := m.ShouldStripTags("metric")
+			if !ok || tl.KeepTag(tag) {
+				t.Fatal("unexpected match result")
+			}
+		})
+		assert.Zero(t, allocs, "tag %q", tag)
+	}
+
+	// Normalizing a name never allocates.
+	for _, name := range []string{"Metric", "metric-x", "123"} {
+		assert.Zero(t, testing.AllocsPerRun(100, func() { _, _ = m.ShouldStripTags(name) }), "name %q", name)
+	}
 }

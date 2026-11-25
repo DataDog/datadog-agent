@@ -48,6 +48,7 @@ func init() {
 	registerFeature(EKSFargate)
 	registerFeature(KubeOrchestratorExplorer)
 	registerFeature(KubeletConfigOrchestratorCheck)
+	registerFeature(JobSchedulerEvents)
 	registerFeature(ECSOrchestratorExplorer)
 	registerFeature(CloudFoundry)
 	registerFeature(Podman)
@@ -101,6 +102,10 @@ func detectKubernetes(features FeatureMap, cfg model.Reader) {
 		}
 		if cfg.GetBool("orchestrator_explorer.kubelet_config_check.enabled") {
 			features[KubeletConfigOrchestratorCheck] = struct{}{}
+		}
+		if (cfg.GetBool("cluster_agent.kueue.enabled") && cfg.GetBool("cluster_agent.kueue.events.enabled")) ||
+			(cfg.GetBool("cluster_agent.kai_scheduler.enabled") && cfg.GetBool("cluster_agent.kai_scheduler.events.enabled")) {
+			features[JobSchedulerEvents] = struct{}{}
 		}
 	}
 }

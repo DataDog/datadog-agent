@@ -285,8 +285,32 @@ func TokensToString(tokens []Token) string {
 	return b.String()
 }
 
+const (
+	swarLoBits = uint64(0x0101010101010101)
+	swarHiBits = uint64(0x8080808080808080)
+)
+
+// pack8 loads 8 consecutive tokens as a little-endian uint64 without unsafe.
+// The Go compiler lowers this to a single 64-bit load on amd64 and arm64.
+func pack8(s []Token) uint64 {
+	_ = s[7]
+	return uint64(s[0]) | uint64(s[1])<<8 | uint64(s[2])<<16 | uint64(s[3])<<24 |
+		uint64(s[4])<<32 | uint64(s[5])<<40 | uint64(s[6])<<48 | uint64(s[7])<<56
+}
+
+// diffBits8 returns the number of non-zero bytes (0..8) in an XOR difference word,
+// branchlessly and without POPCNT/NEON instructions.
+func diffBits8(d uint64) int {
+	// Each byte in (d | swarHiBits) is >= 0x80, so subtracting swarLoBits never
+	// borrows across lanes; bit 7 of byte k is set iff byte k of d is non-zero.
+	// Shifting right by 7 turns each byte into 0 or 1, and multiplying by
+	// swarLoBits sums all 8 bytes into the top byte (max sum = 8).
+	nonZero := (d | ((d | swarHiBits) - swarLoBits)) & swarHiBits
+	return int(((nonZero >> 7) * swarLoBits) >> 56)
+}
+
 // IsMatch compares two sequences of tokens and returns true if they match within the
-// given threshold. if the token strings are different lengths, the shortest string is
+// given threshold. If the token strings are different lengths, the shortest string is
 // used for comparison. This function is optimized to exit early if the match is impossible
 // without having to compare all of the tokens.
 func IsMatch(seqA []Token, seqB []Token, thresh float64) bool {
@@ -297,14 +321,81 @@ func IsMatch(seqA []Token, seqB []Token, thresh float64) bool {
 	}
 
 	requiredMatches := int(math.Round(thresh * float64(count)))
-	match := 0
 
-	for i := 0; i < count; i++ {
-		if seqA[i] == seqB[i] {
-			match++
+	if requiredMatches <= 0 {
+		return true
+	}
+	if requiredMatches > count {
+		return false
+	}
+
+	maxMismatches := count - requiredMatches
+	a := seqA[:count]
+	b := seqB[:count]
+
+	if count < 8 {
+		mismatches := 0
+		for i := range a {
+			if a[i] != b[i] {
+				mismatches++
+				if mismatches > maxMismatches {
+					return false
+				}
+			}
 		}
-		if match+(count-i-1) < requiredMatches {
-			return false
+		return true
+	}
+
+	// Exact-match fast path (e.g. thresh == 1.0 or short sequences at high threshold).
+	if maxMismatches == 0 {
+		for len(a) >= 8 && len(b) >= 8 {
+			if pack8(a) != pack8(b) {
+				return false
+			}
+			a = a[8:]
+			b = b[8:]
+		}
+		for i := range a {
+			if a[i] != b[i] {
+				return false
+			}
+		}
+		return true
+	}
+
+	// Compare 8 tokens at a time from both ends so both differing prefixes and
+	// shared-prefix / differing-body logs (common when lines share timestamp or
+	// logger headers) exceed maxMismatches and exit early.
+	mismatches := 0
+	for len(a) >= 16 && len(b) >= 16 {
+		n := len(a)
+		d1 := pack8(a) ^ pack8(b)
+		d2 := pack8(a[n-8:]) ^ pack8(b[n-8:])
+		if d1|d2 != 0 {
+			mismatches += diffBits8(d1) + diffBits8(d2)
+			if mismatches > maxMismatches {
+				return false
+			}
+		}
+		a = a[8 : n-8]
+		b = b[8 : n-8]
+	}
+	if len(a) >= 8 && len(b) >= 8 {
+		if d := pack8(a) ^ pack8(b); d != 0 {
+			mismatches += diffBits8(d)
+			if mismatches > maxMismatches {
+				return false
+			}
+		}
+		a = a[8:]
+		b = b[8:]
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			mismatches++
+			if mismatches > maxMismatches {
+				return false
+			}
 		}
 	}
 

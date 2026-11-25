@@ -42,7 +42,7 @@ docker_image_build_otel:
     BUILD_ARG: |
       --build-arg AGENT_VERSION=$CI_COMMIT_REF_NAME
       --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME
-      --build-arg AGENT_DOCKER_REPO=datadog/agent-dev
+      --build-arg AGENT_DOCKER_REPO=registry.datadoghq.com/agent-dev
       --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx
       --build-arg BASE_IMAGE_REGISTRY=registry.ddbuild.io/images/mirror
       --build-arg CI
@@ -151,7 +151,7 @@ docker_image_build_otel:
         --build-arg AGENT_VERSION=$AGENT_VERSION \
         --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
         --build-arg DD_GIT_COMMIT_SHA=$CI_COMMIT_SHA \
-        --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
+        --build-arg AGENT_DOCKER_REPO=registry.datadoghq.com/agent-dev \
         --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
         --build-arg PACKAGE_TYPE=$DDOT_BYOC_PACKAGE_TYPE \
         --build-arg AGENT_OCI=registry.ddbuild.io/ci/remote-updates/datadog-agent:7.78.0-beta-byoc-integration-test-1 \
@@ -223,7 +223,7 @@ ddot_byoc_binary_build_test_ubuntu2004:
         --build-arg AGENT_VERSION=$AGENT_VERSION \
         --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
         --build-arg DD_GIT_COMMIT_SHA=$CI_COMMIT_SHA \
-        --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
+        --build-arg AGENT_DOCKER_REPO=registry.datadoghq.com/agent-dev \
         --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
         --build-arg UBUNTU_VERSION=20.04 \
         --build-arg CI \

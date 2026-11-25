@@ -72,6 +72,9 @@ var DefaultClusterAgentActionFQNs = append([]string{
 	// k8s apps — StatefulSets
 	"com.datadoghq.kubernetes.apps.getStatefulSet",
 	"com.datadoghq.kubernetes.apps.listStatefulSet",
+	// k8s autoscaling — HorizontalPodAutoscalers
+	"com.datadoghq.kubernetes.autoscaling.getHorizontalPodAutoscaler",
+	"com.datadoghq.kubernetes.autoscaling.listHorizontalPodAutoscaler",
 	// k8s core — Pods
 	"com.datadoghq.kubernetes.core.getPod",
 	"com.datadoghq.kubernetes.core.getPodLogs",
@@ -94,6 +97,18 @@ var DefaultClusterAgentActionFQNs = append([]string{
 	"com.datadoghq.kubernetes.batch.listJob",
 	"com.datadoghq.kubernetes.batch.getCronJob",
 	"com.datadoghq.kubernetes.batch.listCronJob",
+	// k8s RBAC — ClusterRoles
+	"com.datadoghq.kubernetes.rbac.getClusterRole",
+	"com.datadoghq.kubernetes.rbac.listClusterRole",
+	// k8s RBAC — ClusterRoleBindings
+	"com.datadoghq.kubernetes.rbac.getClusterRoleBinding",
+	"com.datadoghq.kubernetes.rbac.listClusterRoleBinding",
+	// k8s RBAC — Roles
+	"com.datadoghq.kubernetes.rbac.getRole",
+	"com.datadoghq.kubernetes.rbac.listRole",
+	// k8s RBAC — RoleBindings
+	"com.datadoghq.kubernetes.rbac.getRoleBinding",
+	"com.datadoghq.kubernetes.rbac.listRoleBinding",
 }, defaultCommonActionFQNs...)
 
 // DefaultActionFQNs is a list of action FQNs that are enabled by default

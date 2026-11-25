@@ -2,11 +2,11 @@
     "base_branch": "main",
     "current_milestone": "7.87.0",
     "dependencies": {
-        "INTEGRATIONS_CORE_VERSION": "c6cac33b42ac12ef5f0e84008a7f008068e3bbbb",
+        "INTEGRATIONS_CORE_VERSION": "2dd88f54c8231867ff2b34b38409293257565d3b",
         "INTEGRATIONS_WHEELS_STORAGE": "stable",
         "OMNIBUS_RUBY_VERSION": "564a6f11686c655771da48765ae65a11c479d625",
-        "SECURITY_AGENT_POLICIES_SHA256": "57ce0e30465068e2ead377612d72406ffed347cb80c3cd8cab46dd3ed8db5efe",
-        "SECURITY_AGENT_POLICIES_VERSION": "v0.86.1",
+        "SECURITY_AGENT_POLICIES_SHA256": "3c3c092f77f251e2310ed170c1b641d35638ce6e61206b2ef31e86462de7a270",
+        "SECURITY_AGENT_POLICIES_VERSION": "v0.87.0",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_SHASUM": "4943c83e548d1a49ee3eb1c045d6be2f3888fee343961533c2958bdc8e5002c7",
         "WINDOWS_DDNPM_VERSION": "2.14.0",
@@ -16,6 +16,6 @@
     },
     "last_stable": {
         "6": "6.53.1",
-        "7": "7.85.4"
+        "7": "7.86.0"
     }
 }
