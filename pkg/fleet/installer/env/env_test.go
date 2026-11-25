@@ -216,6 +216,30 @@ func TestFromEnv(t *testing.T) {
 				Hostname:                       "",
 			},
 		},
+		{
+			name: "process manager disabled",
+			envVars: map[string]string{
+				envAPIKey:                "123456",
+				EnvProcessManagerEnabled: "false",
+			},
+			expected: &Env{
+				APIKey:                         "123456",
+				Site:                           "datadoghq.com",
+				ProcessManagerEnabled:          false,
+				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
+				RegistryOverrideByImage:        map[string]string{},
+				RegistryAuthOverrideByImage:    map[string]string{},
+				RegistryUsernameByImage:        map[string]string{},
+				RegistryPasswordByImage:        map[string]string{},
+				DefaultPackagesInstallOverride: map[string]bool{},
+				DefaultPackagesVersionOverride: map[string]string{},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationNotSet,
+				},
+				Tags:     []string{},
+				Hostname: "",
+			},
+		},
 	}
 
 	// Some CI runners inject an egress-proxy sidecar that sets these (and their
@@ -251,16 +275,15 @@ func TestToEnv(t *testing.T) {
 		{
 			name: "All configuration set",
 			env: &Env{
+				APIKey:                "123456",
+				Site:                  "datadoghq.eu",
+				RemoteUpdates:         true,
 				ProcessManagerEnabled: true,
-
-				APIKey:               "123456",
-				Site:                 "datadoghq.eu",
-				RemoteUpdates:        true,
-				Mirror:               "https://mirror.example.com",
-				RegistryOverride:     "registry.example.com",
-				RegistryAuthOverride: "auth",
-				RegistryUsername:     "username",
-				RegistryPassword:     "password",
+				Mirror:                "https://mirror.example.com",
+				RegistryOverride:      "registry.example.com",
+				RegistryAuthOverride:  "auth",
+				RegistryUsername:      "username",
+				RegistryPassword:      "password",
 				RegistryOverrideByImage: map[string]string{
 					"image":         "another.registry.example.com",
 					"another-image": "yet.another.registry.example.com",
@@ -336,11 +359,10 @@ func TestToEnv(t *testing.T) {
 		{
 			name: "PAR enabled without app key",
 			env: &Env{
+				APIKey:                "123456",
 				ProcessManagerEnabled: true,
-
-				APIKey:              "123456",
-				PAREnabled:          true,
-				PARActionsAllowlist: "action1,action2",
+				PAREnabled:            true,
+				PARActionsAllowlist:   "action1,action2",
 			},
 			expected: []string{
 				"DD_API_KEY=123456",
@@ -351,15 +373,23 @@ func TestToEnv(t *testing.T) {
 		{
 			name: "PAR disabled does not emit PAR env vars",
 			env: &Env{
+				APIKey:                "123456",
 				ProcessManagerEnabled: true,
-
-				APIKey:              "123456",
-				PAREnabled:          false,
-				AppKey:              "app_key_123",
-				PARActionsAllowlist: "action1",
+				PAREnabled:            false,
+				AppKey:                "app_key_123",
+				PARActionsAllowlist:   "action1",
 			},
 			expected: []string{
 				"DD_API_KEY=123456",
+			},
+		},
+		{
+			name: "process manager disabled",
+			env: &Env{
+				ProcessManagerEnabled: false,
+			},
+			expected: []string{
+				"DD_PROCESS_MANAGER_ENABLED=false",
 			},
 		},
 	}
@@ -370,18 +400,6 @@ func TestToEnv(t *testing.T) {
 			assert.ElementsMatch(t, tt.expected, result)
 		})
 	}
-}
-
-func TestToEnvProcessManagerEnabled(t *testing.T) {
-	assert.Contains(t, (&Env{ProcessManagerEnabled: false}).ToEnv(), "DD_PROCESS_MANAGER_ENABLED=false")
-	assert.NotContains(t, (&Env{ProcessManagerEnabled: true}).ToEnv(), "DD_PROCESS_MANAGER_ENABLED=false")
-}
-
-func TestFromEnvToEnvProcessManagerEnabled(t *testing.T) {
-	t.Setenv("DD_PROCESS_MANAGER_ENABLED", "FALSE")
-	assert.Contains(t, FromEnv().ToEnv(), "DD_PROCESS_MANAGER_ENABLED=false")
-	t.Setenv("DD_PROCESS_MANAGER_ENABLED", "")
-	assert.NotContains(t, FromEnv().ToEnv(), "DD_PROCESS_MANAGER_ENABLED=false")
 }
 
 func TestFromEnvFIPSMode(t *testing.T) {

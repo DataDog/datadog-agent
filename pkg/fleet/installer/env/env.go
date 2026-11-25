@@ -51,7 +51,7 @@ const (
 	envDDNoProxy             = "DD_PROXY_NO_PROXY"
 	envNoProxy               = "NO_PROXY"
 	envIsFromDaemon          = "DD_INSTALLER_FROM_DAEMON"
-	envProcessManagerEnabled = "DD_PROCESS_MANAGER_ENABLED"
+	EnvProcessManagerEnabled = "DD_PROCESS_MANAGER_ENABLED"
 	// envFIPSMode is the canonical FIPS toggle, also recognized by
 	// pkg/fleet/installer/setup/defaultscript/default_script.go.
 	envFIPSMode = "DD_FIPS_MODE"
@@ -192,7 +192,7 @@ type Env struct {
 	Site                  string
 	RemoteUpdates         bool
 	OTelCollectorEnabled  bool
-	ProcessManagerEnabled bool // Hand-built Envs must set this: ToEnv emits the opt-out when false.
+	ProcessManagerEnabled bool
 	ConfigID              string
 
 	Mirror                      string
@@ -295,7 +295,7 @@ func FromEnv() *Env {
 		Site:                  getEnvOrDefault(envSite, defaultEnv.Site),
 		RemoteUpdates:         strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
 		OTelCollectorEnabled:  strings.ToLower(os.Getenv(envOTelCollectorEnabled)) == "true",
-		ProcessManagerEnabled: processManagerEnabledFromEnv(),
+		ProcessManagerEnabled: strings.ToLower(os.Getenv(EnvProcessManagerEnabled)) != "false",
 
 		Mirror:                      getEnvOrDefault(envMirror, defaultEnv.Mirror),
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
@@ -422,7 +422,7 @@ func (e *Env) ToEnv() []string {
 		env = append(env, envOTelCollectorEnabled+"=true")
 	}
 	if !e.ProcessManagerEnabled {
-		env = append(env, envProcessManagerEnabled+"=false")
+		env = append(env, EnvProcessManagerEnabled+"=false")
 	}
 	env = appendStringEnv(env, envMirror, e.Mirror, "")
 	env = appendStringEnv(env, envRegistryURL, e.RegistryOverride, "")
@@ -572,14 +572,6 @@ func getBoolEnv(env string) *bool {
 	default:
 		return nil
 	}
-}
-
-func processManagerEnabledFromEnv() bool {
-	v := strings.TrimSpace(os.Getenv(envProcessManagerEnabled))
-	if v == "" {
-		return defaultEnv.ProcessManagerEnabled
-	}
-	return !strings.EqualFold(v, "false")
 }
 
 func getProxySetting(ddEnv string, env string) string {
