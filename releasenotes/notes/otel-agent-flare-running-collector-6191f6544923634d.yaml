@@ -38,6 +38,12 @@ fixes:
     loads the default ``datadog.yaml`` of the Agent when ``--core-config`` is
     not given, like ``otel-agent run`` does, and it no longer stops when that
     file can't be loaded.
+  - |
+    When the collector can't be reached, ``otel-agent flare`` now keeps the
+    ``${env:NAME}`` references of the collector configuration as they are, like
+    the live flare does, instead of writing the values of the variables, which
+    can be secrets that no scrubber recognizes. Its ``env-config.yaml`` only has
+    the settings that come from the environment.
 issues:
   - |
     ``otel-agent flare`` has these known limitations:

@@ -474,6 +474,107 @@ func TestFlareConfigUsesExporterAPIKey(t *testing.T) {
 	assert.Equal(t, testAPIKey, cfg.GetString("api_key"))
 }
 
+// TestCreateOTelFlareKeepsEnvironmentValuesOut checks that the flare built from the configuration
+// files, which can't tell which settings are secrets, has the environment references of the
+// configurations as they are, like the configuration of the live flare, and not the values of the
+// variables, that can be secrets with a name that no scrubber recognizes.
+func TestCreateOTelFlareKeepsEnvironmentValuesOut(t *testing.T) {
+	const secret = "hc-secret-value-0123456789"
+	t.Setenv("FLARE_TEST_HEADER", secret)
+	t.Setenv("FLARE_TEST_OTHER_HEADER", secret) // the same value: the names must not be mixed up
+	t.Setenv("FLARE_TEST_ORIGIN", secret)
+	t.Setenv("FLARE_TEST_ATTRIBUTE", secret)
+	t.Setenv("TEST_FLARE_API_KEY", testAPIKey)
+	configPath := filepath.Join(t.TempDir(), "otel-config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`receivers:
+  otlp:
+    protocols:
+      grpc: {}
+      http:
+        cors:
+          allowed_origins:
+            - ${env:FLARE_TEST_ORIGIN}
+processors:
+  attributes:
+    actions:
+      - key: team
+        action: upsert
+        value: ${env:FLARE_TEST_ATTRIBUTE}
+exporters:
+  otlp:
+    endpoint: example.com:4317
+    headers:
+      x-honeycomb-team: ${env:FLARE_TEST_HEADER}
+      x-other-team: ${FLARE_TEST_OTHER_HEADER}
+  datadog:
+    api:
+      key: ${env:TEST_FLARE_API_KEY}
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [attributes]
+      exporters: [otlp, datadog]
+`), 0644))
+	cfg, ipcComp := newUnreachableCollector(t)
+
+	flarePath, err := createOTelFlare(&subcommands.GlobalParams{ConfPaths: []string{"file:" + configPath}}, cfg, ipcComp.GetClient())
+	require.NoError(t, err)
+	defer os.RemoveAll(filepath.Dir(flarePath))
+	files := readZip(t, flarePath)
+
+	for name, content := range files {
+		assert.NotContains(t, string(content), secret, "value of the environment in %s", name)
+	}
+	for _, name := range []string{"config/customer-config.yaml", "config/runtime-config.yaml", "config/env-config.yaml"} {
+		assert.Contains(t, string(files[name]), "x-honeycomb-team: ${env:FLARE_TEST_HEADER}", name)
+		assert.Contains(t, string(files[name]), "x-other-team: ${env:FLARE_TEST_OTHER_HEADER}", name)
+		// in a list of strings, and in a list of maps
+		assert.Contains(t, string(files[name]), "- ${env:FLARE_TEST_ORIGIN}", name)
+		assert.Contains(t, string(files[name]), "value: ${env:FLARE_TEST_ATTRIBUTE}", name)
+	}
+	// like the env configuration of the live flare, only the settings that come from the environment
+	envConfig := string(files["config/env-config.yaml"])
+	assert.NotContains(t, envConfig, "example.com", "env-config.yaml has a setting that doesn't come from the environment")
+	assert.NotContains(t, envConfig, "upsert", "env-config.yaml has the other settings of a list item")
+}
+
+// TestCreateOTelFlareEnvLocation checks that a collector configuration given as an env: location,
+// like the standalone collector of ECS Fargate does, is still loaded from the configuration files,
+// next to another one, and that the references inside it stay references.
+func TestCreateOTelFlareEnvLocation(t *testing.T) {
+	const secret = "hc-secret-value-0123456789"
+	t.Setenv("FLARE_TEST_OTHER_CONFIG", "receivers:\n  otlp:\n    protocols:\n      grpc: {}\n")
+	t.Setenv("FLARE_TEST_HEADER", secret)
+	t.Setenv("FLARE_TEST_CONFIG", `exporters:
+  otlp:
+    endpoint: example.com:4317
+    headers:
+      x-honeycomb-team: ${env:FLARE_TEST_HEADER}
+service:
+  pipelines:
+    traces:
+      exporters: [otlp]
+`)
+	cfg, ipcComp := newUnreachableCollector(t)
+
+	flarePath, err := createOTelFlare(&subcommands.GlobalParams{ConfPaths: []string{"env:FLARE_TEST_CONFIG", "env:FLARE_TEST_OTHER_CONFIG"}}, cfg, ipcComp.GetClient())
+	require.NoError(t, err)
+	defer os.RemoveAll(filepath.Dir(flarePath))
+	files := readZip(t, flarePath)
+
+	for name, content := range files {
+		assert.NotContains(t, string(content), secret, "value of the environment in %s", name)
+	}
+	for _, name := range []string{"config/customer-config.yaml", "config/runtime-config.yaml"} {
+		require.Contains(t, files, name)
+		assert.Contains(t, string(files[name]), "x-honeycomb-team: ${env:FLARE_TEST_HEADER}", name)
+		assert.Contains(t, string(files[name]), "receivers:", "the other location is missing in %s", name)
+	}
+	require.Contains(t, files, "config/env-config.yaml")
+	assert.Contains(t, string(files["config/env-config.yaml"]), "x-honeycomb-team: ${env:FLARE_TEST_HEADER}")
+}
+
 func TestCollectOTelData(t *testing.T) {
 	globalParams := newGlobalParamsTest(t)
 
@@ -509,16 +610,21 @@ func TestCollectOTelData(t *testing.T) {
 }
 
 // TestLoadCustomerConfigEnvReference checks that the references the collector expands from the
-// environment don't make the customer configuration disappear, with or without the env: scheme.
+// environment don't make the customer configuration disappear, with or without the env: scheme,
+// and that they stay references: the value of a variable can be a secret that no scrubber recognizes.
 func TestLoadCustomerConfigEnvReference(t *testing.T) {
 	t.Setenv("TEST_FLARE_API_KEY", testAPIKey)
 
 	tests := []struct {
 		name      string
 		reference string
+		want      string
 	}{
-		{name: "with the env scheme", reference: "${env:TEST_FLARE_API_KEY}"},
-		{name: "without the scheme", reference: "${TEST_FLARE_API_KEY}"},
+		{name: "with the env scheme", reference: "${env:TEST_FLARE_API_KEY}", want: "${env:TEST_FLARE_API_KEY}"},
+		{name: "without the scheme", reference: "${TEST_FLARE_API_KEY}", want: "${env:TEST_FLARE_API_KEY}"},
+		{name: "with a default", reference: "${env:TEST_FLARE_API_KEY:-fallback-value}", want: "${env:TEST_FLARE_API_KEY:-fallback-value}"},
+		{name: "in a string", reference: "prefix-${env:TEST_FLARE_API_KEY}-suffix", want: "prefix-${env:TEST_FLARE_API_KEY}-suffix"},
+		{name: "unset variable", reference: "${env:UNSET_FLARE_TEST_VARIABLE}", want: "${env:UNSET_FLARE_TEST_VARIABLE}"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -528,7 +634,8 @@ func TestLoadCustomerConfigEnvReference(t *testing.T) {
 
 			customerConfig, err := loadCustomerConfig(context.Background(), []string{"file:" + configPath})
 			require.NoError(t, err)
-			assert.Contains(t, customerConfig, testAPIKey, "the reference should be resolved from the environment")
+			assert.Contains(t, customerConfig, "key: "+tt.want, "the reference should stay a reference, like in the live flare")
+			assert.NotContains(t, customerConfig, testAPIKey, "the value of the environment should not be in the configuration")
 		})
 	}
 }

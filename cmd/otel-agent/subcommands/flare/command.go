@@ -428,14 +428,15 @@ func collectConfigData(params *subcommands.GlobalParams) (*extensiontypes.Respon
 
 // loadCustomerConfig loads the customer-provided configuration
 func loadCustomerConfig(ctx context.Context, uris []string) (string, error) {
-	// No remote providers. The env provider is required to resolve ${env:...} references, and is the
+	// No remote providers. The env provider keeps the ${env:...} references as they are, and is the
 	// default scheme like in the collector so that ${...} works too, otherwise the whole customer
 	// config is dropped.
+	references := newEnvReferences(uris)
 	rs := confmap.ResolverSettings{
 		URIs: uris,
 		ProviderFactories: []confmap.ProviderFactory{
 			fileprovider.NewFactory(),
-			envprovider.NewFactory(),
+			references.providerFactory(),
 			yamlprovider.NewFactory(),
 		},
 		DefaultScheme: "env",
@@ -452,6 +453,7 @@ func loadCustomerConfig(ctx context.Context, uris []string) (string, error) {
 	}
 
 	confMap := cfg.ToStringMap()
+	references.restore(confMap)
 	yamlBytes, err := yaml.Marshal(confMap)
 	if err != nil {
 		return "", err
@@ -462,11 +464,12 @@ func loadCustomerConfig(ctx context.Context, uris []string) (string, error) {
 
 // loadRuntimeConfig loads the full runtime configuration with all providers
 func loadRuntimeConfig(ctx context.Context, uris []string) (string, string, error) {
+	references := newEnvReferences(uris)
 	rs := confmap.ResolverSettings{
 		URIs: uris,
 		ProviderFactories: []confmap.ProviderFactory{
 			fileprovider.NewFactory(),
-			envprovider.NewFactory(),
+			references.providerFactory(),
 			yamlprovider.NewFactory(),
 			httpprovider.NewFactory(),
 			httpsprovider.NewFactory(),
@@ -485,63 +488,22 @@ func loadRuntimeConfig(ctx context.Context, uris []string) (string, string, erro
 	}
 
 	confMap := cfg.ToStringMap()
+	references.restore(confMap)
 
-	// Create runtime config with all substitutions
+	// Create runtime config, whose environment references stay references
 	runtimeBytes, err := yaml.Marshal(confMap)
 	if err != nil {
 		return "", "", err
 	}
 
-	// Create env config by replacing environment variable values with placeholders
-	envConfMap := replaceEnvVarsWithPlaceholders(confMap)
+	// Create env config, which has only the settings that come from the environment
+	envConfMap, _ := envReferencesOnly(confMap).(map[string]any)
 	envBytes, err := yaml.Marshal(envConfMap)
 	if err != nil {
 		return "", "", err
 	}
 
 	return string(runtimeBytes), string(envBytes), nil
-}
-
-// replaceEnvVarsWithPlaceholders replaces environment variable values with ${env:VAR_NAME} placeholders
-func replaceEnvVarsWithPlaceholders(confMap map[string]any) map[string]any {
-	result := make(map[string]any)
-
-	// Get all environment variables
-	envVars := getEnvironmentAsMap()
-
-	for key, value := range confMap {
-		result[key] = replaceValueWithEnvPlaceholder(value, envVars)
-	}
-
-	return result
-}
-
-// replaceValueWithEnvPlaceholder recursively replaces values that match environment variables
-func replaceValueWithEnvPlaceholder(value any, envVars map[string]string) any {
-	switch v := value.(type) {
-	case string:
-		// Check if this string value matches any environment variable
-		for envKey, envVal := range envVars {
-			if v == envVal && envVal != "" {
-				return fmt.Sprintf("${env:%s}", envKey)
-			}
-		}
-		return v
-	case map[string]any:
-		result := make(map[string]any)
-		for k, val := range v {
-			result[k] = replaceValueWithEnvPlaceholder(val, envVars)
-		}
-		return result
-	case []any:
-		result := make([]any, len(v))
-		for i, val := range v {
-			result[i] = replaceValueWithEnvPlaceholder(val, envVars)
-		}
-		return result
-	default:
-		return v
-	}
 }
 
 // getEnvironmentAsMap returns all environment variables as a map

@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "command.go",
         "coreconfig.go",
+        "envconfig.go",
         "envvars.go",
         "logfiles.go",
     ],
