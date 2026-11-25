@@ -332,18 +332,6 @@ properties:
     - DD_PROCESS_AGENT_DROP_CHECK_PAYLOADS
     items:
       type: string
-  enable_all_zombie_processes:
-    node_type: setting
-    type: boolean
-    default: false
-    env_vars:
-    - DD_PROCESS_CONFIG_ENABLE_ALL_ZOMBIE_PROCESSES
-    - DD_PROCESS_AGENT_ENABLE_ALL_ZOMBIE_PROCESSES
-    description: |-
-      Restores individual submission of zombie processes that are not using a GPU in standard and realtime
-      process payloads, for backward compatibility with monitors that rely on them.
-      Only enable it when needed for that compatibility.
-      Has no effect when `process_config.ignore_zombie_processes` is true.
   enabled:
     node_type: setting
     type: string
@@ -372,6 +360,18 @@ properties:
     env_vars:
     - DD_PROCESS_CONFIG_IGNORE_ZOMBIE_PROCESSES
     - DD_PROCESS_AGENT_IGNORE_ZOMBIE_PROCESSES
+  enable_all_zombie_processes:
+    node_type: setting
+    type: boolean
+    default: false
+    env_vars:
+    - DD_PROCESS_CONFIG_ENABLE_ALL_ZOMBIE_PROCESSES
+    - DD_PROCESS_AGENT_ENABLE_ALL_ZOMBIE_PROCESSES
+    description: |-
+      Restores individual submission of zombie processes that are not using a GPU in standard and realtime
+      process payloads, for backward compatibility with monitors that rely on them.
+      Only enable it when needed for that compatibility.
+      Has no effect when `process_config.ignore_zombie_processes` is true.
   internal_profiling:
     node_type: section
     type: object
