@@ -101,7 +101,7 @@ BTFHub data for the covered distributions.
 ## Cross-platform and generated artifacts
 
 - Check build tags and platform-specific files for missing implementations,
-  diverging behavior, or compilation regressions on unsupported platforms.
+  diverging behavior, or compilation regressions on supported platforms.
 - Verify that changes requiring generated serializers, easyjson output, protobuf
   artifacts, or mocks update their generated counterparts.
 
