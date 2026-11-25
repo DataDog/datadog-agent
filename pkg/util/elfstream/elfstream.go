@@ -46,33 +46,44 @@ const (
 	maxSectionNames = 16 << 20
 )
 
+// StreamSection supplies an already-extracted section, without copying its data.
+type StreamSection struct {
+	Name    string
+	Address uint64
+	Data    []byte
+}
+
 // StreamOptions selects extra content. Debug sections, notes and static symbol
 // tables are always retained; GNU version payloads are always omitted.
 type StreamOptions struct {
-	KeepSections []string // Extra input sections to retain, by name.
+	KeepSections []string        // Extra input sections to retain, by name.
+	Sections     []StreamSection // Sections to add or replace.
 }
 
-// outputSection is one output section: its header and where its bytes come from.
+// outputSection describes the bytes to emit for one section, not a copy of them:
+// the input range, then its own bytes.
 type outputSection struct {
 	header      elf.Section64 // Output header; Off is the output offset.
 	name        string
 	inputOffset uint64 // Start of the input range to copy.
 	inputSize   uint64 // Length of the input range; 0 copies nothing.
+	ownBytes    []byte // Supplied section bytes, or the rebuilt name table.
 }
 
 func (sec *outputSection) typ() elf.SectionType { return elf.SectionType(sec.header.Type) }
 
-// ELFStream writes a debug ELF in one forward pass. Keep its input unchanged
-// until writing is done. Code and data bytes are omitted unless selected;
-// retained section bytes, including existing compressed sections, are copied
-// unchanged.
+// ELFStream writes a debug ELF in one forward pass. Keep its input, and any
+// supplied StreamSection.Data, unchanged until writing is done. Code and data
+// bytes are omitted unless selected; retained section bytes, including existing
+// compressed sections, are copied unchanged.
 type ELFStream struct {
-	input          io.ReaderAt
-	byteOrder      binary.ByteOrder
-	elfHeader      elf.Header64
-	programHeaders []elf.Prog64
-	sections       []outputSection
-	outputSize     uint64
+	input             io.ReaderAt
+	inputSectionNames []byte // Input section-name table; the output appends to a copy.
+	byteOrder         binary.ByteOrder
+	elfHeader         elf.Header64
+	programHeaders    []elf.Prog64
+	sections          []outputSection
+	outputSize        uint64
 }
 
 // NewELFStream validates the input and plans every output offset. It reads
@@ -83,6 +94,9 @@ func NewELFStream(ctx context.Context, input io.ReaderAt, inputSize int64, opts 
 		return nil, err
 	}
 	if err := s.selectSections(opts.KeepSections); err != nil {
+		return nil, err
+	}
+	if err := s.applySections(opts.Sections); err != nil {
 		return nil, err
 	}
 	if err := s.checkRetainedSections(inputSize); err != nil {
@@ -100,6 +114,15 @@ func NewELFStream(ctx context.Context, input io.ReaderAt, inputSize int64, opts 
 		return nil, err
 	}
 	return s, nil
+}
+
+func (s *ELFStream) sectionIndex(name string) int {
+	for i := range s.sections {
+		if s.sections[i].name == name {
+			return i
+		}
+	}
+	return -1
 }
 
 // Size is the exact number of ELF bytes Write will emit.
@@ -145,6 +168,9 @@ func (s *ELFStream) Write(ctx context.Context, output io.Writer) error {
 		}
 		if err := copyInput(0, sec.inputSize); err != nil {
 			return fmt.Errorf("copy section %q: %w", sec.name, err)
+		}
+		if _, err := out.Write(sec.ownBytes); err != nil {
+			return err
 		}
 	}
 	if out.position != s.outputSize {
