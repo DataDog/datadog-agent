@@ -408,22 +408,36 @@ func readStablePipelineConfig(cfg config.Component) (*StablePipelineConfig, erro
 
 	selected := 0
 	if cfg.HasSection(prefix + "scanmw") {
-		if err := validateStableDetectorBlock(cfg, stablePrefix+".scanmw", "min_points", "max_points"); err != nil {
+		if err := validateStableDetectorBlock(cfg, stablePrefix+".scanmw", "min_points", "max_points", "min_segment"); err != nil {
 			return nil, err
 		}
+		minSeg := cfg.GetInt(prefix + "scanmw.min_segment")
+		if cfg.IsConfigured(prefix+"scanmw.min_segment") && minSeg <= 0 {
+			defaults := DefaultScanMWConfig()
+			logging.Warnf("anomaly_detection.metric_pipeline.stable.scanmw.min_segment=%d must be > 0; using %d", minSeg, defaults.MinSegment)
+			minSeg = defaults.MinSegment
+		}
 		stable.ScanMW = &StableScanMWConfig{
-			MinPoints: cfg.GetInt(prefix + "scanmw.min_points"),
-			MaxPoints: cfg.GetInt(prefix + "scanmw.max_points"),
+			MinPoints:  cfg.GetInt(prefix + "scanmw.min_points"),
+			MaxPoints:  cfg.GetInt(prefix + "scanmw.max_points"),
+			MinSegment: minSeg,
 		}
 		selected++
 	}
 	if cfg.HasSection(prefix + "scanwelch") {
-		if err := validateStableDetectorBlock(cfg, stablePrefix+".scanwelch", "min_points", "max_points"); err != nil {
+		if err := validateStableDetectorBlock(cfg, stablePrefix+".scanwelch", "min_points", "max_points", "min_segment"); err != nil {
 			return nil, err
 		}
+		minSeg := cfg.GetInt(prefix + "scanwelch.min_segment")
+		if cfg.IsConfigured(prefix+"scanwelch.min_segment") && minSeg <= 0 {
+			defaults := DefaultScanWelchConfig()
+			logging.Warnf("anomaly_detection.metric_pipeline.stable.scanwelch.min_segment=%d must be > 0; using %d", minSeg, defaults.MinSegment)
+			minSeg = defaults.MinSegment
+		}
 		stable.ScanWelch = &StableScanWelchConfig{
-			MinPoints: cfg.GetInt(prefix + "scanwelch.min_points"),
-			MaxPoints: cfg.GetInt(prefix + "scanwelch.max_points"),
+			MinPoints:  cfg.GetInt(prefix + "scanwelch.min_points"),
+			MaxPoints:  cfg.GetInt(prefix + "scanwelch.max_points"),
+			MinSegment: minSeg,
 		}
 		selected++
 	}

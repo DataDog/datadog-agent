@@ -149,13 +149,14 @@ The scorer does not own subscription state itself. Each `anomalyScorer` owns a
 plain slice of `severityeventsimpl.Dispatcher` instances (see
 `../AGENTS.md#severity-events-scorer-push-contract` and `../severityevents/`);
 on every `Advance` tick the scorer derives the raw severity level from its
-EWMA and sends the result to each dispatcher. A distinct High discovered
-during replay triggers at the current tick even if it has already ended.
-A catch-up preserves an ordinary forward High entry only if it still belongs
-to a corrected High period that starts during that catch-up.
-A distinct High, whether on time or late, renews an existing High hold
-without producing another transition. Revisions that overlap an already
-recognized High period do not renew the hold.
+EWMA and sends the result to each dispatcher. A distinct Medium or High
+discovered during replay triggers at the current tick even if it has already
+ended. A catch-up preserves an ordinary forward entry only if it still belongs
+to a corrected period of the same severity that starts during that catch-up.
+A distinct period, whether on time or late, renews an existing hold of the
+same severity without producing another transition. Revisions that overlap an
+already recognized period do not renew the hold. High takes priority over
+Medium.
 Each dispatcher binds exactly one listener plus one fixed cooldown/filter state
 machine. `anomalyScorer.SubscribeSeverityEvents` and
 `observerImpl.SubscribeSeverityEvents` are thin wrappers: each call creates one

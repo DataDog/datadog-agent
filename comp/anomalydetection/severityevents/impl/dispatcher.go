@@ -56,8 +56,33 @@ func (d *Dispatcher) DeliverInitial(sec int64, level severityeventsdef.SeverityL
 
 // Advance feeds one raw severity level into the dispatcher state machine.
 func (d *Dispatcher) Advance(sec int64, level severityeventsdef.SeverityLevel) {
-	next := clampSeverityLevel(level)
+	d.AdvanceWithDiscovery(sec, level, severityeventsdef.SeverityLow, 0)
+}
+
+// AdvanceWithDiscovery combines raw severity with an optional discovered
+// period. The stronger level wins. A matching discovery renews the hold.
+// Medium cannot override High during its cooldown.
+func (d *Dispatcher) AdvanceWithDiscovery(
+	sec int64,
+	rawLevel severityeventsdef.SeverityLevel,
+	discoveryLevel severityeventsdef.SeverityLevel,
+	crossingSec int64,
+) {
+	raw := clampSeverityLevel(rawLevel)
+	discovery := clampSeverityLevel(discoveryLevel)
+	next := max(raw, discovery)
+	hasDiscovery := discovery != severityeventsdef.SeverityLow && next == discovery
+	historicalSec := int64(0)
+	if hasDiscovery {
+		historicalSec = crossingSec
+	}
+
 	if next == d.level {
+		if hasDiscovery && next > severityeventsdef.SeverityLow {
+			d.lastSec = sec
+			d.cooldownStartedAt = sec
+			return
+		}
 		d.lastSec = sec
 		return
 	}
@@ -66,18 +91,7 @@ func (d *Dispatcher) Advance(sec int64, level severityeventsdef.SeverityLevel) {
 		d.lastSec = sec
 		return
 	}
-	d.transition(sec, next, 0)
-}
-
-// DiscoverHigh starts or renews this subscriber's hold for a distinct raw High.
-// crossingSec describes the evidence; only triggerSec affects the cooldown.
-func (d *Dispatcher) DiscoverHigh(triggerSec, crossingSec int64) {
-	if d.level == severityeventsdef.SeverityHigh {
-		d.lastSec = triggerSec
-		d.cooldownStartedAt = triggerSec
-		return
-	}
-	d.transition(triggerSec, severityeventsdef.SeverityHigh, crossingSec)
+	d.transition(sec, next, historicalSec)
 }
 
 func (d *Dispatcher) transition(sec int64, next severityeventsdef.SeverityLevel, historicalSec int64) {

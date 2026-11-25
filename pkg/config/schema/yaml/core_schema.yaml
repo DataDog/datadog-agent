@@ -5930,6 +5930,10 @@ properties:
                     node_type: setting
                     type: integer
                     default: 120
+                  min_segment:
+                    node_type: setting
+                    type: integer
+                    default: 12
               scanwelch:
                 node_type: section
                 type: object
@@ -5942,6 +5946,10 @@ properties:
                     node_type: setting
                     type: integer
                     default: 120
+                  min_segment:
+                    node_type: setting
+                    type: integer
+                    default: 12
               bocpd:
                 node_type: section
                 type: object
