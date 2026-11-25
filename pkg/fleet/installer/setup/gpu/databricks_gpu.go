@@ -85,6 +85,7 @@ func SetupDatabricksGPU(s *common.Setup) error {
 // like the Data Jobs Monitoring script. The injector and the C tracer don't
 // read it yet, so setupTracerEnv also exports them in spark-env.sh.
 func setupTracerConfig(s *common.Setup) {
+	s.Out.WriteString("Enabling the C tracer and GPU tracing in application_monitoring.yaml\n")
 	cfg := config.APMConfigurationDefault{}
 	for _, kv := range tracerEnv() {
 		switch kv[0] {
@@ -114,9 +115,12 @@ func setupTracerEnv(s *common.Setup, path string) error {
 		return err
 	}
 	block := []string{sparkEnvBlockStart}
+	var keys []string
 	for _, kv := range tracerEnv() {
 		block = append(block, fmt.Sprintf("export %s=%s", kv[0], shellQuote(kv[1])))
+		keys = append(keys, kv[0])
 	}
+	s.Out.WriteString(fmt.Sprintf("Exporting %s in %s\n", strings.Join(keys, ", "), path))
 	block = append(block, sparkEnvBlockEnd)
 	updated := removeSparkEnvBlock(string(content))
 	if updated != "" && !strings.HasSuffix(updated, "\n") {
@@ -203,6 +207,7 @@ func setupDatabricksEnv(s *common.Setup, configDir string) {
 	if workspace == "" || os.Getenv("DD_ENV") != "" || config.ReadCurrentEnv(configDir) != "" {
 		return
 	}
+	s.Out.WriteString(fmt.Sprintf("Setting the Agent env to the workspace name %s\n", workspace))
 	s.Config.DatadogYAML.Env = workspace
 }
 
