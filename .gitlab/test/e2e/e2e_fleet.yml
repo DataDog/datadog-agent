@@ -88,7 +88,10 @@ new-e2e-fleet-extensions:
 
 new-e2e-installer-script:
   extends: .new_e2e_template
-  timeout: 25m
+  # The tests get about 10 min less than this timeout: about 5 min of job setup, and
+  # go test stops 5 min early to leave room for teardown. Successful runs take up to
+  # 23 min (p99), and failed tests need time to be retried.
+  timeout: 35m
   rules:
     - !reference [.on_installer_or_e2e_changes]
     - !reference [.manual]
