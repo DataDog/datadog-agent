@@ -15,18 +15,20 @@ a new document. The outputs are:
   where it is used solely for JSON-Schema validation, so any keyword the
   validator ignores is dropped to keep the embedded artifact small and runtime
   RSS low.
-- ``json_schema`` -- a *pure* JSON Schema, stripped of every Agent-specific
-  extension so it is 100% compatible with the official specification
-  (https://json-schema.org/) and validates with any conforming library. It
-  keeps every standard validation/annotation keyword (``type``, ``properties``,
-  ``required``, ``enum``, ...) so it can still fully validate an Agent
-  configuration; it only drops the keywords we added on top of the spec
-  (``node_type``, ``platform_default``, ``visibility``, ``env_vars``, ``tags``,
-  ...). It is published for external consumers (e.g. SchemaStore for IDE
-  autocompletion).
+- ``json_schema`` -- the JSON Schema published for external consumers (e.g.
+  SchemaStore for IDE autocompletion), valid for the official specification
+  (https://json-schema.org/) and usable with any conforming library. It drops
+  every keyword we added on top of the spec (``node_type``,
+  ``platform_default``, ``visibility``, ``env_vars``, ``tags``, ...) and
+  ``default``, and keeps every other standard keyword (``type``,
+  ``properties``, ``required``, ``enum``, ...), so it can still fully validate
+  an Agent configuration. Its only non-standard keyword is
+  ``patternErrorMessage``, an editor keyword other tools ignore, on the
+  definitions of the Agent formats.
 
 Both outputs replace the Agent formats (``format: duration``, ``format: url``),
-custom to the Agent, with the regexp they stand for: see ``AGENT_FORMATS``.
+custom to the Agent, with the regexp they stand for, shared through ``$defs``:
+see ``AGENT_FORMATS``.
 
 Future outputs are added by registering another function in ``OUTPUTS``; the
 choice of what each output keeps or drops lives here, not in the build files.
@@ -48,6 +50,7 @@ CLI (so Bazel can run it as a ``py_binary``):
 
 import json
 import sys
+from typing import NamedTuple
 
 import yaml
 
@@ -72,11 +75,13 @@ _NAME_KEYED_KEYS = frozenset({"properties", "patternProperties", "$defs", "defin
 _INSTANCE_DATA_KEYS = frozenset({"default", "const", "enum", "examples", "example"})
 
 # Every keyword defined by JSON Schema draft 2020-12 (the dialect the Agent
-# schema declares via ``$schema``). The ``json_schema`` output keeps ONLY these
-# and drops everything else, so the result is guaranteed to contain no
-# Agent-specific extension and to validate with any conforming library. Listing
-# the full spec vocabulary (not just the keywords currently used) keeps the
-# output correct if the schema starts using more standard keywords later.
+# schema declares via ``$schema``). The ``json_schema`` output keeps only these,
+# except ``default`` (see ``_JSON_SCHEMA_KEYWORDS``), and drops everything else,
+# so no Agent-specific extension can reach the published schema. The only
+# non-standard keyword it contains is added afterwards, on purpose:
+# ``patternErrorMessage``, see ``AGENT_FORMATS``. Listing the full spec
+# vocabulary (not just the keywords currently used) keeps the output correct if
+# the schema starts using more standard keywords later.
 _STANDARD_JSON_SCHEMA_KEYWORDS = frozenset(
     {
         # Core (§8)
@@ -160,9 +165,9 @@ _STANDARD_JSON_SCHEMA_KEYWORDS = frozenset(
 #
 # So the schema only names the format, and every generated schema (the one
 # embedded in the Agent and the JSON Schema published for external tools)
-# replaces `format: <name>` with `pattern: <regexp>`. Each regexp is written
-# once, below, and the Agent, IDEs and any other validator check values the
-# same way.
+# replaces `format: <name>` with `$ref: '#/$defs/<name>'`, a definition holding
+# the regexp: each regexp is written once, below, and once in each generated
+# schema. The Agent, IDEs and any other validator check values the same way.
 #
 # To add a format:
 #   1. Write its regexp below. Use the portable ECMA-262 subset recommended by
@@ -171,7 +176,8 @@ _STANDARD_JSON_SCHEMA_KEYWORDS = frozenset(
 #      repetition. IDEs use backtracking regex engines, and a pattern that
 #      backtracks catastrophically freezes them on invalid input
 #      (tasks/unit_tests/schema_byproduct_tests.py checks every pattern).
-#   2. Register it in AGENT_FORMATS.
+#   2. Register it in AGENT_FORMATS, with the error message IDEs show for a
+#      value that doesn't match: what's expected, and examples of valid values.
 #   3. Use `format: <name>` on string settings in the YAML schema; schema.lint
 #      rejects unregistered formats.
 #   4. Document it in doc/reference/agent-schema/keywords.md.
@@ -186,16 +192,41 @@ _STANDARD_JSON_SCHEMA_KEYWORDS = frozenset(
 # ends with a unit letter, so there is a single way to split a value.
 GO_DURATION_PATTERN = r"^[-+]?(0|(([0-9]+(\.[0-9]*)?|\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+)$"
 
-# An Agent endpoint URL: a host, or an http:// or https:// URL, with an optional
-# port and path, or "" for "unset" (the Agent then uses `site`). URLs can't
-# contain spaces. No nested repetition.
-URL_PATTERN = r"^((https?://)?([a-zA-Z0-9\.-]+)(:[0-9]{1,5})?[/\w\.-]*)?$"
+# An Agent endpoint URL, or "" for "unset" (the Agent then uses `site`).
+# Deliberately lax, since rejecting a working URL is worse than accepting a
+# bad one: an optional http:// or https:// scheme, optional `user:password@`,
+# a host name or a bracketed IPv6 address (`[::1]`), an optional port, then
+# anything without spaces starting with a path, query or fragment (`/`, `?`,
+# `#`). It rejects spaces, other schemes (`ftp://`) and an empty host. Each part
+# ends on a character the next one can't start with, so matching stays fast.
+URL_PATTERN = r"^((https?://)?([^\s/?#@]+@)?(\[[^\]\s/]+\]|[a-zA-Z0-9._-]+)(:[0-9]{1,5})?([/?#]\S*)?)?$"
 
-# The Agent formats, by name: `format: <name>` in the YAML schema is replaced
-# with `pattern: <regexp>` in every generated schema.
+
+class AgentFormat(NamedTuple):
+    """An Agent format: the regexp of its values, and the message IDEs show for a value that doesn't match it."""
+
+    pattern: str
+    error_message: str
+
+
+# The Agent formats, by name: `format: <name>` in the YAML schema becomes a
+# `$ref` to `$defs/<name>`, holding the regexp, in every generated schema.
+#
+# The error message is published as `patternErrorMessage`, an editor keyword
+# read by VS Code's JSON support and its YAML extension: they show it instead
+# of the regexp when a value doesn't match. Other tools ignore it and show
+# their own message. Only the published JSON Schema has it: the Agent's own
+# validator doesn't read it.
 AGENT_FORMATS = {
-    "duration": GO_DURATION_PATTERN,
-    "url": URL_PATTERN,
+    "duration": AgentFormat(
+        GO_DURATION_PATTERN,
+        "Expected a duration: a number with a unit (ns, us, ms, s, m, h), such as 30s, 1m30s or 1.5h. "
+        'Units like "min" or "d" aren\'t supported.',
+    ),
+    "url": AgentFormat(
+        URL_PATTERN,
+        "Expected a URL or a host, such as https://app.datadoghq.com, intake.datadoghq.com:443 or https://[::1]:8443.",
+    ),
 }
 
 
@@ -251,22 +282,118 @@ def _map_schemas(node, transform):
     return node
 
 
-def _format_to_pattern(schema):
-    """Replace an Agent format (``format: <name>``) with its regexp (``pattern``), see ``AGENT_FORMATS``.
+def _formats_to_refs(document, error_messages=False):
+    """Replace every Agent format (``format: <name>``) with a ``$ref`` to a shared definition holding its regexp.
 
-    Formats that aren't Agent formats are left as written (schema.lint rejects them in the YAML schema).
+    The regexp of each format used is written once, in ``$defs/<name>`` at the
+    root of ``document``, and each setting refers to it: ``$ref: '#/$defs/<name>'``.
+    Copying it in every setting instead would repeat the duration regexp about
+    a hundred times. Formats that aren't Agent formats are left as written
+    (schema.lint rejects them in the YAML schema). See ``AGENT_FORMATS``.
+
+    With ``error_messages``, each definition also gets the format's error
+    message as ``patternErrorMessage``, shown by IDEs instead of the regexp.
     """
-    pattern = AGENT_FORMATS.get(schema.get("format"))
-    if pattern is None:
+    used = set()
+
+    def transform(schema):
+        name = schema.get("format")
+        if name not in AGENT_FORMATS:
+            return schema
+        used.add(name)
+        ref = f"#/$defs/{name}"
+        result = {k: v for k, v in schema.items() if k != "format"}
+        if "$ref" in result:
+            # A schema holds one ``$ref``: keep the existing one and require both.
+            result["allOf"] = [*result.get("allOf", []), {"$ref": ref}]
+        else:
+            result["$ref"] = ref
+        return result
+
+    result = _map_schemas(document, transform)
+    if not used:
+        return result
+    defs = dict(result.get("$defs", {}))
+    for name in sorted(used):
+        agent_format = AGENT_FORMATS[name]
+        defs[name] = {"type": "string", "pattern": agent_format.pattern}
+        if error_messages:
+            defs[name]["patternErrorMessage"] = agent_format.error_message
+    return {**result, "$defs": defs}
+
+
+# Platforms of `platform_default`, in the order they're listed, with how they
+# read in a sentence. `other` covers every platform not listed.
+_PLATFORM_PHRASES = {
+    "linux": ("on", "Linux"),
+    "windows": ("on", "Windows"),
+    "darwin": ("on", "macOS"),
+    "aix": ("on", "AIX"),
+    "container": ("in", "containers"),
+    "fargate": ("on", "ECS Fargate"),
+}
+
+
+def _join(words):
+    return words[0] if len(words) == 1 else f"{', '.join(words[:-1])} and {words[-1]}"
+
+
+def _format_default(value):
+    """Write a default in plain text: IDEs don't render a ``description`` as Markdown, so no backticks.
+
+    Strings are quoted as they are (``"info"``, ``""``), without JSON escaping so Windows paths stay readable;
+    other values use their JSON notation (``5000``, ``true``, ``[]``).
+    """
+    if isinstance(value, str):
+        return f'"{value}"'
+    return json.dumps(value, ensure_ascii=False)
+
+
+def platform_defaults_sentence(platform_default):
+    """Describe a ``platform_default`` mapping, e.g. "Default: 5002 on Windows and macOS, -1 elsewhere."
+
+    Platforms sharing a value are grouped, in the order of ``_PLATFORM_PHRASES``, and ``other`` reads "elsewhere".
+    """
+    groups = {}  # rendered value -> platform keys, in insertion order
+    for key in [*_PLATFORM_PHRASES, "other"]:
+        if key in platform_default:
+            groups.setdefault(_format_default(platform_default[key]), []).append(key)
+    parts = []
+    for value, keys in groups.items():
+        where = []
+        if "other" not in keys or len(keys) > 1:
+            # group platform names by preposition: "on Linux and Windows and in containers"
+            by_preposition = {}
+            for key in keys:
+                if key != "other":
+                    preposition, name = _PLATFORM_PHRASES[key]
+                    by_preposition.setdefault(preposition, []).append(name)
+            where = [f"{preposition} {_join(names)}" for preposition, names in by_preposition.items()]
+        if "other" in keys:
+            where.append("elsewhere" if len(groups) > 1 else "on every platform")
+        parts.append(f"{value} {' and '.join(where)}")
+    return f"Default: {', '.join(parts)}."
+
+
+def _describe_default(schema):
+    """Add the default of a public setting to its ``description``, e.g. 'Default: "15s".'.
+
+    The published schema declares no ``default`` (see ``json_schema``), so the
+    description is where users see it: IDEs show it on hover. Built from
+    ``default``, or from ``platform_default`` with each platform's value.
+    Settings that aren't public are left as they are: their description, when
+    they have one, isn't meant for users.
+    """
+    if schema.get("node_type") != "setting" or schema.get("visibility") != "public":
         return schema
-    result = {k: v for k, v in schema.items() if k != "format"}
-    if "pattern" in result:
-        # Keep the setting's own pattern and require both: a schema can only
-        # hold one ``pattern`` keyword.
-        result["allOf"] = [*result.get("allOf", []), {"pattern": pattern}]
+    if isinstance(schema.get("platform_default"), dict):
+        sentence = platform_defaults_sentence(schema["platform_default"])
+    elif "default" in schema:
+        sentence = f"Default: {_format_default(schema['default'])}."
     else:
-        result["pattern"] = pattern
-    return result
+        return schema
+    description = schema.get("description")
+    return {**schema, "description": f"{description.rstrip()}\n\n{sentence}" if description else sentence}
 
 
 def _strip_keys(node, drop_keys):
@@ -288,17 +415,23 @@ def embedded(document):
     are unused at runtime.
 
     The Agent formats (``format: duration``, ``format: url``) are replaced with
-    their regexp so the Agent validates them, see ``AGENT_FORMATS``.
+    a reference to their regexp so the Agent validates them, see
+    ``_formats_to_refs``.
     """
     stripped = _strip_keys(document, frozenset({"description", "example", "title", "banner", "comment", "tags"}))
-    return _map_schemas(stripped, _format_to_pattern)
+    return _formats_to_refs(stripped)
+
+
+# The keywords kept in the published JSON Schema: every standard keyword except
+# ``default`` (see ``json_schema``).
+_JSON_SCHEMA_KEYWORDS = _STANDARD_JSON_SCHEMA_KEYWORDS - {"default"}
 
 
 def json_schema(document):
-    """Pure JSON Schema variant -- 100% compatible with https://json-schema.org/.
+    """JSON Schema variant published for external tools -- valid for https://json-schema.org/.
 
-    Keeps only standard JSON Schema draft 2020-12 keywords and drops every
-    Agent-specific extension (``node_type``, ``platform_default``,
+    Keeps only standard JSON Schema draft 2020-12 keywords, except ``default``,
+    and drops every Agent-specific extension (``node_type``, ``platform_default``,
     ``visibility``, ``env_vars``, ``env_parser``, ``tags``, ``comment``, the
     OpenAPI-style singular ``example``, ...). All standard validation and
     annotation keywords are retained, so the result can still fully validate an
@@ -309,9 +442,20 @@ def json_schema(document):
     automatically, with no change needed here.
 
     The Agent formats (``format: duration``, ``format: url``) are replaced with
-    their regexp, see ``AGENT_FORMATS``: they aren't JSON Schema formats.
+    a reference to their regexp, see ``_formats_to_refs``: they aren't JSON
+    Schema formats. Their definitions also carry ``patternErrorMessage``, the
+    only non-standard keyword of the output: an editor keyword other tools
+    ignore, see ``AGENT_FORMATS``.
+
+    ``default`` is dropped everywhere, as in most published schemas: IDEs
+    insert every declared default when completing an object (the YAML
+    extension fills in each child setting), and a default depending on the
+    platform can't be expressed in a schema serving every platform. The default
+    of each public setting is added to its ``description`` instead, see
+    ``_describe_default``.
     """
-    return _map_schemas(_keep_keys(document, _STANDARD_JSON_SCHEMA_KEYWORDS), _format_to_pattern)
+    described = _map_schemas(document, _describe_default)
+    return _formats_to_refs(_keep_keys(described, _JSON_SCHEMA_KEYWORDS), error_messages=True)
 
 
 # Registry of named schema outputs. Each entry maps a name to ``(transform,

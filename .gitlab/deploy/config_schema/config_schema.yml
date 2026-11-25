@@ -31,10 +31,15 @@ generate_config_json_schema:
   extends: .config_schema_artifacts
   variables:
     JSON_SCHEMA_OUTPUT_DIR: $CI_PROJECT_DIR/json-schema
+  # The artifact mirrors the datadog-agent/ folder of the DataDog/schema repository, where the
+  # release workflow publishes it: the schemas of this version in v<version>/, and the copy
+  # published as the latest release at the root. The two builds differ by their $id (their own
+  # published URL), so the latest copy can't be a copy of the versioned files.
   script:
-    - dda inv -- -e schema.produce-jsonschema --output-dir $JSON_SCHEMA_OUTPUT_DIR
+    - VERSION="$(dda inv -- agent.version --url-safe)" || exit $?
+    - dda inv -- -e schema.produce-jsonschema --output-dir "$JSON_SCHEMA_OUTPUT_DIR/v$VERSION" --version "$VERSION"
+    - dda inv -- -e schema.produce-jsonschema --output-dir "$JSON_SCHEMA_OUTPUT_DIR"
   artifacts:
     expire_in: 3 months
     paths:
-      - json-schema/datadog.json
-      - json-schema/system-probe.json
+      - json-schema/
