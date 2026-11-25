@@ -33,13 +33,15 @@ func EffectivePort(port int) int {
 
 type ddExtensionFactory struct {
 	extension.Factory
-	ipcComp ipc.Component
+	ipcComp   ipc.Component
+	agentConf agentConfigReader
 }
 
 // NewFactoryForAgent creates a factory for Datadog Flare Extension for use with Agent
-func NewFactoryForAgent(ipcComp ipc.Component) extension.Factory {
+func NewFactoryForAgent(ipcComp ipc.Component, agentConf agentConfigReader) extension.Factory {
 	return &ddExtensionFactory{
-		ipcComp: ipcComp,
+		ipcComp:   ipcComp,
+		agentConf: agentConf,
 	}
 }
 
@@ -47,7 +49,7 @@ func NewFactoryForAgent(ipcComp ipc.Component) extension.Factory {
 func (f *ddExtensionFactory) Create(_ context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
 	config := &Config{}
 	config.HTTPConfig = cfg.(*Config).HTTPConfig
-	return NewExtension(config, f.ipcComp, set.TelemetrySettings)
+	return NewExtension(config, f.ipcComp, f.agentConf, set.TelemetrySettings)
 }
 
 func (f *ddExtensionFactory) CreateDefaultConfig() component.Config {

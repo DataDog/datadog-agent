@@ -15,6 +15,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	config "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 
@@ -31,7 +32,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func getTestExtension(optIpc ipc.Component) (*DDExtension, error) {
+func getTestExtension(t *testing.T, optIpc ipc.Component) (*DDExtension, error) {
 	telemetry := component.TelemetrySettings{}
 	cfg := &Config{
 		HTTPConfig: &confighttp.ServerConfig{
@@ -42,7 +43,7 @@ func getTestExtension(optIpc ipc.Component) (*DDExtension, error) {
 		},
 	}
 
-	return NewExtension(cfg, optIpc, telemetry)
+	return NewExtension(cfg, optIpc, config.NewMock(t), telemetry)
 }
 
 func getResponseToHandlerRequest(t *testing.T, ipc ipc.Component, tokenOverride string) *httptest.ResponseRecorder {
@@ -64,7 +65,7 @@ func getResponseToHandlerRequest(t *testing.T, ipc ipc.Component, tokenOverride 
 	rr := httptest.NewRecorder()
 
 	// Create an instance of your handler
-	ddExt, err := getTestExtension(ipc)
+	ddExt, err := getTestExtension(t, ipc)
 	require.NoError(t, err)
 
 	ddExt.telemetry.Logger = zap.New(zap.NewNop().Core())

@@ -148,7 +148,7 @@ func (ext *ddExtension) NotifyConfigSnapshot(_ context.Context, configSnapshot e
 }
 
 // NewComponent creates a new instance of the extension.
-func NewComponent(ctx context.Context, cfg *Config, telemetry component.TelemetrySettings, info component.BuildInfo, ipcComp option.Option[ipc.Component], providedConfigSupported bool, byoc bool) (extensionDef.Component, error) {
+func NewComponent(ctx context.Context, cfg *Config, telemetry component.TelemetrySettings, info component.BuildInfo, agentConfig agentConfigReader, ipcComp option.Option[ipc.Component], providedConfigSupported bool, byoc bool) (extensionDef.Component, error) {
 	ext := &ddExtension{
 		cfg:         cfg,
 		telemetry:   telemetry,
@@ -190,7 +190,7 @@ func NewComponent(ctx context.Context, cfg *Config, telemetry component.Telemetr
 		}
 	}
 
-	ext.server, err = newServer(cfg.HTTPConfig.NetAddr.Endpoint, ext, ipcComp)
+	ext.server, err = newServer(cfg.HTTPConfig.NetAddr.Endpoint, ext, agentConfig, ipcComp)
 	if err != nil {
 		return nil, err
 	}

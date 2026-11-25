@@ -89,7 +89,7 @@ func createTestFactories(t *testing.T) otelcol.Factories {
 	// Note: hpflareextension is passed nil for ipc component since we're only validating config structure
 	extensionFactories := []extension.Factory{
 		ddprofilingextensionimpl.NewFactoryForAgent(nil, nil),
-		hpflareextension.NewFactoryForAgent(nil),
+		hpflareextension.NewFactoryForAgent(nil, config.NewMock(t)),
 	}
 	extensions, err := otelcol.MakeFactoryMap(extensionFactories...)
 	require.NoError(t, err)

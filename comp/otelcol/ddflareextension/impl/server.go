@@ -25,7 +25,12 @@ type server struct {
 	listener net.Listener
 }
 
-func newServer(endpoint string, handler http.Handler, optIpcComp option.Option[ipc.Component]) (*server, error) {
+// agentConfigReader is the subset of config.Component the server needs.
+type agentConfigReader interface {
+	GetBool(key string) bool
+}
+
+func newServer(endpoint string, handler http.Handler, agentConfig agentConfigReader, optIpcComp option.Option[ipc.Component]) (*server, error) {
 	r := http.NewServeMux()
 	r.Handle("/", handler)
 	coverage.SetupCoverageHandler(r)
@@ -43,7 +48,11 @@ func newServer(endpoint string, handler http.Handler, optIpcComp option.Option[i
 	if !ok {
 		return nil, errNoIPCComponent
 	}
+	// mTLS: clients must present the IPC certificate
 	s.TLSConfig = ipcComp.GetTLSServerConfig()
+	if !agentConfig.GetBool("insecure_temporarily_disable_sub_agent_ipc_mtls") {
+		s.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	}
 	s.Handler = ipcComp.HTTPMiddleware(r)
 
 	listener, err := net.Listen("tcp", endpoint)

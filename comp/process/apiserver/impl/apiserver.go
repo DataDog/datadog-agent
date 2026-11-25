@@ -97,7 +97,12 @@ func NewComponent(deps dependencies) (apiserver.Component, error) {
 				return err
 			}
 			go func() {
-				tlsListener := tls.NewListener(ln, deps.IPC.GetTLSServerConfig())
+				// mTLS: clients must present the IPC certificate
+				serverTLSConfig := deps.IPC.GetTLSServerConfig()
+				if !deps.Config.GetBool("insecure_temporarily_disable_sub_agent_ipc_mtls") {
+					serverTLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
+				}
+				tlsListener := tls.NewListener(ln, serverTLSConfig)
 				err = s.server.Serve(tlsListener)
 				if err != nil && !errors.Is(err, http.ErrServerClosed) {
 					_ = deps.Log.Error(err)

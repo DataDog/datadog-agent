@@ -49,6 +49,7 @@ dd_agent_go_test(
     data = glob(["testdata/**"]),
     embed = [":impl"],
     deps = [
+        "//comp/core/config",
         "//comp/core/ipc/def",
         "//comp/core/ipc/mock",
         "//comp/otelcol/converter/impl",

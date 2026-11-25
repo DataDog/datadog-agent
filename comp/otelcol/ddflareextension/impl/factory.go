@@ -32,13 +32,15 @@ type ddExtensionFactory struct {
 	configProviderSettings otelcol.ConfigProviderSettings
 	byoc                   bool
 	ipcComp                option.Option[ipc.Component]
+	agentConfig            agentConfigReader
 }
 
 // NewFactoryForAgent creates a factory for Datadog Flare Extension for use with Agent
-func NewFactoryForAgent(factories *otelcol.Factories, configProviderSettings otelcol.ConfigProviderSettings, ipcComp option.Option[ipc.Component], byoc bool) extension.Factory {
+func NewFactoryForAgent(factories *otelcol.Factories, configProviderSettings otelcol.ConfigProviderSettings, agentConfig agentConfigReader, ipcComp option.Option[ipc.Component], byoc bool) extension.Factory {
 	return &ddExtensionFactory{
 		factories:              factories,
 		configProviderSettings: configProviderSettings,
+		agentConfig:            agentConfig,
 		byoc:                   byoc,
 		ipcComp:                ipcComp,
 	}
@@ -51,7 +53,7 @@ func (f *ddExtensionFactory) CreateExtension(ctx context.Context, set extension.
 		configProviderSettings: f.configProviderSettings,
 	}
 	config.HTTPConfig = cfg.(*Config).HTTPConfig
-	return NewComponent(ctx, config, set.TelemetrySettings, set.BuildInfo, f.ipcComp, true, f.byoc)
+	return NewComponent(ctx, config, set.TelemetrySettings, set.BuildInfo, f.agentConfig, f.ipcComp, true, f.byoc)
 }
 
 // Create creates a new instance of the Datadog Flare Extension, as of v0.112.0 or later
@@ -61,7 +63,7 @@ func (f *ddExtensionFactory) Create(ctx context.Context, set extension.Settings,
 		configProviderSettings: f.configProviderSettings,
 	}
 	config.HTTPConfig = cfg.(*Config).HTTPConfig
-	return NewComponent(ctx, config, set.TelemetrySettings, set.BuildInfo, f.ipcComp, true, f.byoc)
+	return NewComponent(ctx, config, set.TelemetrySettings, set.BuildInfo, f.agentConfig, f.ipcComp, true, f.byoc)
 }
 
 func (f *ddExtensionFactory) CreateDefaultConfig() component.Config {
