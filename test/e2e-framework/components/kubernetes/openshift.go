@@ -21,6 +21,13 @@ import (
 
 const crcVersion = "2.58.0"
 
+// OpenShiftKubeconfigForVM rewrites the kubeconfig CRC writes on a VM so that it can be used from
+// outside the VM, through the forwarding of the API server on the IP of the VM.
+func OpenShiftKubeconfigForVM(kubeconfig, vmIP string) string {
+	allowInsecure := regexp.MustCompile("certificate-authority-data:.+").ReplaceAllString(kubeconfig, "insecure-skip-tls-verify: true")
+	return strings.ReplaceAll(allowInsecure, "api.crc.testing:6443", vmIP+":8443")
+}
+
 // OpenShiftClusterArgs holds the configuration parameters for a CRC-based OpenShift cluster.
 type OpenShiftClusterArgs struct {
 	PullSecretPath string
@@ -216,12 +223,8 @@ exit 0
 		}
 
 		clusterComp.KubeConfig = pulumi.All(kubeConfig.StdoutOutput(), vm.Address, waitControlPlane.StdoutOutput()).ApplyT(func(args []interface{}) string {
-			kubeconfigRaw := args[0].(string)
-			vmIP := args[1].(string)
 			// args[2] is the output from waitControlPlane, ensuring it completes first
-			allowInsecure := regexp.MustCompile("certificate-authority-data:.+").ReplaceAllString(kubeconfigRaw, "insecure-skip-tls-verify: true")
-			updated := strings.ReplaceAll(allowInsecure, "api.crc.testing:6443", vmIP+":8443")
-			return updated
+			return OpenShiftKubeconfigForVM(args[0].(string), args[1].(string))
 		}).(pulumi.StringOutput)
 		clusterComp.ClusterName = openShiftClusterName.ToStringOutput()
 		return nil
