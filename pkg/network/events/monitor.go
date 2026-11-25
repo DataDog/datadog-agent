@@ -25,7 +25,17 @@ import (
 )
 
 const (
-	chanSize = 100
+	// chanSize is the size of the channel the event monitor sends process
+	// events on. The event monitor drops events when the channel is full. When
+	// system-probe starts, it replays every running process at once, and that
+	// replay event is the only one a long-running process gets, so a dropped
+	// one leaves the process's connections without tags or a container ID
+	// until the next restart. The replay burst grows with the number of running
+	// processes, so a large or busy host can still overflow this; overflows show
+	// up as datadog.runtime_security.event_monitoring.events.dropped with
+	// consumer_id:network. A buffered channel allocates its whole buffer up
+	// front (16 bytes per slot here).
+	chanSize = 1024
 )
 
 var (

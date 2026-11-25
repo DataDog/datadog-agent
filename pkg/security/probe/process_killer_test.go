@@ -9,13 +9,19 @@
 package probe
 
 import (
+	"context"
 	"strconv"
+	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -1050,4 +1056,131 @@ func (fpk *FakeProcessKillerOSWithFailures) getProcesses(scope string, ev *model
 		}...)
 	}
 	return kcs, nil
+}
+
+type recordingProcessKillerOS struct {
+	FakeProcessKillerOS
+	mu         sync.Mutex
+	killedPids []uint32
+}
+
+func (r *recordingProcessKillerOS) Kill(sig uint32, kcs []killContext) ([]uint32, []uint32) {
+	failed, killed := r.FakeProcessKillerOS.Kill(sig, kcs)
+	r.mu.Lock()
+	r.killedPids = append(r.killedPids, killed...)
+	r.mu.Unlock()
+	return failed, killed
+}
+
+func (r *recordingProcessKillerOS) hasKilled(pid uint32) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, k := range r.killedPids {
+		if k == pid {
+			return true
+		}
+	}
+	return false
+}
+
+func TestProcessKillerConcurrentWarmupAndTicker(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cfg := &config.Config{
+			RuntimeSecurity: &config.RuntimeSecurityConfig{
+				EnforcementEnabled:                      true,
+				EnforcementDisarmerContainerEnabled:     true,
+				EnforcementDisarmerContainerMaxAllowed:  5,
+				EnforcementDisarmerContainerPeriod:      300 * time.Millisecond,
+				EnforcementDisarmerExecutableEnabled:    true,
+				EnforcementDisarmerExecutableMaxAllowed: 5,
+				EnforcementDisarmerExecutablePeriod:     300 * time.Millisecond,
+				EnforcementRuleSourceAllowed:            []string{"test"},
+			},
+		}
+
+		fakeOS := &recordingProcessKillerOS{}
+		pk, err := NewProcessKiller(cfg, fakeOS)
+		require.NoError(t, err)
+		rule, ruleSet := craftKillRule(t, "test-rule", "process")
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		var wg sync.WaitGroup
+		pk.Start(ctx, &wg)
+		pk.Reset(ruleSet)
+
+		ev0 := craftFakeEvent("container1", "executable1", 999)
+		killed, queuedReport := pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, ev0)
+		require.False(t, killed)
+		require.NotNil(t, queuedReport)
+
+		var workers sync.WaitGroup
+		for g := 0; g < 4; g++ {
+			workers.Add(1)
+			go func(id int) {
+				defer workers.Done()
+				for i := 0; i < 60; i++ {
+					pid := uint32(1000 + id*100 + i)
+					ev := craftFakeEvent("container1", "executable1", pid)
+					_, report := pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, ev)
+					if report != nil {
+						_ = report.IsResolved()
+					}
+					time.Sleep(10 * time.Millisecond)
+				}
+			}(g)
+		}
+
+		workers.Wait()
+		synctest.Wait()
+
+		assert.True(t, fakeOS.hasKilled(999))
+		queuedReport.RLock()
+		assert.Equal(t, KillActionStatusPerformed, queuedReport.Status)
+		queuedReport.RUnlock()
+		_, hasAlarm := pk.getKillQueueAlarm()
+		assert.False(t, hasAlarm)
+
+		cancel()
+		wg.Wait()
+	})
+}
+
+type countingStatsdClient struct {
+	statsd.NoOpClient
+	counts map[string]int64
+}
+
+func (c *countingStatsdClient) Count(name string, value int64, _ []string, _ float64) error {
+	c.counts[name] += value
+	return nil
+}
+
+func TestProcessKillerSendStatsResetsCounters(t *testing.T) {
+	cfg := &config.Config{
+		RuntimeSecurity: &config.RuntimeSecurityConfig{
+			EnforcementEnabled: true,
+		},
+	}
+	pk, err := NewProcessKiller(cfg, &FakeProcessKillerOS{})
+	require.NoError(t, err)
+
+	pk.perRuleStatsLock.Lock()
+	stats := pk.getRuleStats("test-rule")
+	stats.processesKilledDirectly = 2
+	stats.processesKilledAfterQueue = 3
+	stats.killQueued = 4
+	stats.killQueuedDiscardedByDisarm = 5
+	pk.perRuleStatsLock.Unlock()
+
+	client := &countingStatsdClient{counts: make(map[string]int64)}
+	pk.SendStats(client)
+
+	assert.Equal(t, int64(5), client.counts[metrics.MetricEnforcementProcessKilled])
+	assert.Equal(t, int64(4), client.counts[metrics.MetricEnforcementKillQueued])
+	assert.Equal(t, int64(5), client.counts[metrics.MetricEnforcementKillQueuedDiscarded])
+
+	client.counts = make(map[string]int64)
+	pk.SendStats(client)
+	assert.Empty(t, client.counts)
 }

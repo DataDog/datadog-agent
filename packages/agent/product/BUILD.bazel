@@ -42,7 +42,6 @@ pkg_filegroup(
         # TODO: sysprobe - windows
         ":trace_agent_binary",
         ":process_agent_binary",
-        ":privateactionrunner_binary",
         ":secret_generic_connector_binary",
         ":security_agent_binary",
 
@@ -61,8 +60,6 @@ pkg_filegroup(
             "//deps/agent_integrations:integrations_runtime_files",
             "//deps/agent_integrations:requirements_agent_release_file",
             "//pkg/discovery/module/rust:all_files",
-            "//pkg/privateactionrunner/par-control:all_files",
-            "//pkg/privateactionrunner/rshell:all_files_linux",
             "//pkg/procmgr/rust:all_files",
         ],
         "//packages/agent:linux_fips": [
@@ -75,6 +72,10 @@ pkg_filegroup(
             "//pkg/procmgr/rust:all_files",
         ],
         "//conditions:default": [],
+    }) + select({
+        # Private action runner is not supported in FIPS.
+        "//bazel/platforms:fips": [],
+        "//conditions:default": [":privateactionrunner_files"],
     }) + select({
         "@platforms//os:linux": [
             "//cmd/loader:trace_loader_all_files",
@@ -89,7 +90,6 @@ pkg_filegroup(
             ":installer_binary",
             ":systray_binary",
             "//packages/windows:all_files",
-            "//pkg/privateactionrunner/par-control:all_files",
             "//pkg/procmgr/rust:all_files",
             "//rtloader:all_files",
         ],
@@ -109,7 +109,10 @@ pkg_filegroup(
         "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
         "//packages/agent/python-scripts:all_files",
-    ],
+    ] + select({
+        "@platforms//os:windows": [":systray_binary"],
+        "//conditions:default": [],
+    }),
 )
 
 # Temporary during migration, to call from omnibus build after we have built the agent with dda.
@@ -197,6 +200,19 @@ agent_binary_for_package(
     name = "privateactionrunner_binary",
     prefix = "embedded/bin",
     target = "//cmd/privateactionrunner",
+)
+
+# Everything the private action runner ships. Not shipped in FIPS builds (see all_files).
+pkg_filegroup(
+    name = "privateactionrunner_files",
+    srcs = [":privateactionrunner_binary"] + select({
+        "@platforms//os:linux": [
+            "//pkg/privateactionrunner/par-control:all_files",
+            "//pkg/privateactionrunner/rshell:all_files_linux",
+        ],
+        "@platforms//os:windows": ["//pkg/privateactionrunner/par-control:all_files"],
+        "//conditions:default": [],
+    }),
 )
 
 agent_binary_for_package(
@@ -333,7 +349,8 @@ pkg_files(
 pkg_files(
     name = "system_probe_llvm_bpf",
     srcs = select({
-        "@platforms//os:linux": ["@llvm_bpf//:bin/clang-bpf"],
+        "//:linux_x86_64": ["@llvm_bpf_amd64//:clang-bpf"],
+        "//:linux_arm64": ["@llvm_bpf_arm64//:clang-bpf"],
         "//conditions:default": [],
     }),
     attributes = pkg_attributes(mode = "744"),

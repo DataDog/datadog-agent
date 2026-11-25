@@ -237,7 +237,7 @@ func (b *CollectorBuilder) buildCollector(name CollectorName, builder subsystemB
 
 	c, err := builder(dev, deps)
 	if errors.Is(err, errUnsupportedDevice) {
-		log.Warnf("device %s does not support collector %s", deviceUUID, name)
+		log.Debugf("device %s does not support collector %s", deviceUUID, name)
 		deps.Telemetry.addCollectorCreation(name, "unsupported", dev)
 		b.clearFailure(deviceUUID, name)
 		return nil

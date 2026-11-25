@@ -20,8 +20,11 @@
 /.claude/rules/allium.md                        @DataDog/single-machine-performance
 /.claude/rules/bazel.md                         @DataDog/agent-build
 /.claude/rules/msi.md                           @DataDog/windows-products
+/.claude/rules/ndm-testing.md                   @DataDog/network-device-monitoring-core @DataDog/ndm-integrations
 /.claude/rules/systemd.md                       @DataDog/agent-runtimes
+/.claude/rules/system-probe-testing.md          @DataDog/ebpf-platform @DataDog/cloud-network-monitoring
 /.cursor/rules/bazel-buildifier.mdc             @DataDog/agent-build
+/.cursor/rules/system_probe_testing.mdc         @DataDog/ebpf-platform @DataDog/cloud-network-monitoring
 /.agents/*                                      @DataDog/agent-devx
 /.agents/skills/*                               @DataDog/agent-devx
 /.agents/skills/allium/                         @DataDog/single-machine-performance
@@ -453,6 +456,7 @@
 /doc/guidelines/components.md                                @DataDog/agent-runtimes
 /doc/reference/components/                                   @DataDog/agent-runtimes
 /doc/how-to/run-jmxfetch.md                                  @DataDog/agent-runtimes
+/doc/how-to/actions/                                        @DataDog/action-platform
 /docs/public/hostname/                                       @DataDog/agent-runtimes
 /doc/architecture/dogstatsd/                                 @DataDog/agent-metric-pipelines
 /doc/how-to/test/e2e/benchmarkeks/                           @DataDog/container-integrations
@@ -708,6 +712,7 @@
 /comp/core/autodiscovery/listeners/                                   @DataDog/container-platform
 /comp/core/autodiscovery/listeners/cloudfoundry*.go                   @DataDog/agent-integrations
 /comp/core/autodiscovery/listeners/snmp*.go                           @DataDog/network-device-monitoring-core
+/comp/core/autodiscovery/listeners/dbm_*.go                           @DataDog/database-monitoring
 /comp/core/autodiscovery/providers/                                   @DataDog/container-platform
 /comp/core/autodiscovery/providers/file*.go                           @DataDog/agent-log-pipelines
 /comp/core/autodiscovery/providers/config_reader*.go                  @DataDog/container-platform @DataDog/agent-log-pipelines
@@ -834,6 +839,7 @@
 /pkg/fleet/installer/msi/                                             @DataDog/fleet @DataDog/windows-products
 /pkg/fleet/**/windows/                                                @DataDog/fleet @DataDog/windows-products
 /pkg/fleet/installer/setup/djm/                                       @DataDog/fleet @DataDog/data-observability
+/pkg/fleet/installer/setup/gpu/                                       @DataDog/accelerator-telemetry @DataDog/fleet
 /pkg/inventory/                                                       @DataDog/windows-products
 /pkg/inventory/software/                                              @DataDog/windows-products
 /pkg/inventory/systeminfo/                                            @DataDog/windows-products
@@ -1030,6 +1036,7 @@
 /runbooks/ @DataDog/agent-build
 
 /tasks/                                                         @DataDog/agent-devx
+/tasks/oracle.py                                                @DataDog/database-monitoring
 /tasks/macos.py                                                 @DataDog/windows-products
 /tasks/msi.py                                                   @DataDog/windows-products
 /tasks/agent.py                                                 @DataDog/agent-runtimes
@@ -1224,6 +1231,7 @@
 /test/new-e2e/tests/fleet                                       @DataDog/fleet
 /test/new-e2e/tests/installer                                   @DataDog/fleet
 /test/new-e2e/tests/installer/script                            @DataDog/fleet @DataDog/data-observability
+/test/new-e2e/tests/installer/script/databricks_gpu_test.go     @DataDog/accelerator-telemetry @DataDog/fleet
 /test/new-e2e/tests/sbom                                        @DataDog/agent-security
 # windows-products primary owner for windows tests so we get failure notifications
 /test/new-e2e/tests/installer/windows                           @DataDog/windows-products @DataDog/fleet
@@ -1244,8 +1252,10 @@
 /test/regression/container/selection.yaml                         @DataDog/single-machine-performance
 /test/regression/container/logs/                                  @DataDog/agent-log-pipelines
 /test/regression/container/agent-metric-pipelines/                @DataDog/agent-metric-pipelines
+/test/regression/container/openmetrics/                         @DataDog/single-machine-performance @DataDog/agent-integrations
 
 /tools/                                                              @DataDog/agent-devx
+/tools/privateactionrunner/                                          @DataDog/action-platform
 /tools/host-profiler/                                                @DataDog/profiling-full-host
 /tools/bazel*                                                        @DataDog/agent-build
 /tools/ci                                                            @DataDog/agent-devx

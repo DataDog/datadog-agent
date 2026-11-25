@@ -101,7 +101,7 @@ const (
 	metricSourceCount
 )
 
-// insertionErrorKey identifies an unexpected activity-tree insertion failure by
+// insertionErrorKey identifies an event error or an unexpected activity-tree insertion failure by
 // event type and a bounded error-type label.
 type insertionErrorKey struct {
 	eventType model.EventType
@@ -523,10 +523,24 @@ func (m *ManagerV2) onCGroupDeleted(cgce *cgroupModel.CacheEntry) {
 	delete(m.resolvedCgroups, cgroupID)
 	m.resolvedCgroupsLock.Unlock()
 
+	var replacement *cgroupModel.CacheEntry
+	if !cgce.IsContainerContextNull() && m.resolvers != nil && m.resolvers.CGroupResolver != nil {
+		if entry := m.resolvers.CGroupResolver.GetCacheEntryContainerID(cgce.GetContainerID()); entry != nil && entry != cgce && !entry.IsDeleted() {
+			replacement = entry
+		}
+	}
+
 	// Find and unlink this workload from its profile
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 	for selector, prof := range m.profiles {
+		if replacement != nil {
+			if m.replaceContainerWorkloadCGroup(prof, cgce, replacement) {
+				prof.RemoveBaseMountNamespace(cgce.GetCGroupInode())
+				break
+			}
+			continue
+		}
 		if removed, remainingInstances := m.unlinkWorkloadFromProfile(prof, cgce); removed {
 			prof.RemoveBaseMountNamespace(cgce.GetCGroupInode())
 			if remainingInstances == 0 {
@@ -737,7 +751,7 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 	// Filter out systemd cgroups for now, we will add support for them later
 	if event.ProcessContext.Process.ContainerContext.IsNull() {
 		// A host/systemd cgroup that slipped a syscall sample through before being excluded: exclude it now.
-		if m.excludedCgroupsMap != nil && event.GetEventType() == model.SyscallsEventType && m.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
+		if event.Error == nil && m.excludedCgroupsMap != nil && event.GetEventType() == model.SyscallsEventType && m.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
 			if inode := event.ProcessContext.Process.CGroup.CGroupPathKey.Inode; inode != 0 {
 				if err := m.excludedCgroupsMap.Put(inode, uint8(1)); err != nil {
 					seclog.Debugf("couldn't exclude cgroup inode %d from sampling: %v", inode, err)
@@ -752,12 +766,18 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 	}
 
 	// Filter out events that are not in the configured V2 event types
-	if !slices.Contains(m.config.RuntimeSecurity.SecurityProfileV2EventTypes, model.EventType(event.Type)) {
+	eventType := profileEventType(event)
+	if !slices.Contains(m.config.RuntimeSecurity.SecurityProfileV2EventTypes, eventType) {
 		return
 	}
 
 	workloadID := getWorkloadIDFromEvent(event)
 	if workloadID == nil {
+		return
+	}
+
+	if event.Error != nil {
+		m.incrementInsertionError(eventType, event.Error)
 		return
 	}
 
@@ -1176,7 +1196,7 @@ func (m *ManagerV2) SendStats() error {
 		}
 	}
 
-	// Activity-tree insertion errors (unexpected failures only)
+	// Event errors and unexpected activity-tree insertion failures
 	for key, count := range m.insertionErrors {
 		if value := count.Swap(0); value > 0 {
 			tags := []string{"event_type:" + key.eventType.String(), "error_type:" + key.errorType}
@@ -1312,9 +1332,12 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	}
 	secprof.Unlock()
 	if err != nil {
-		if !activity_tree.IsExpectedFilterError(err) {
+		switch {
+		case !activity_tree.IsExpectedFilterError(err):
 			m.incrementInsertionError(event.GetEventType(), err)
 			seclog.Debugf("couldn't insert event into profile: %v", err)
+		case event.Error != nil:
+			m.incrementInsertionError(profileEventType(event), event.Error)
 		}
 		return nil, false
 	}
@@ -1353,6 +1376,15 @@ func (m *ManagerV2) buildWorkloadSelector(event *model.Event) (cgroupModel.Workl
 	return cgroupModel.NewWorkloadSelector(imageName, "*")
 }
 
+// profileEventType returns the type of the event in profiles: a full DNS response is only remapped to a DNS event once
+// decoded, so one that failed decoding is still a DNS event of the profile
+func profileEventType(event *model.Event) model.EventType {
+	if event.GetEventType() == model.FullDNSResponseEventType && errors.Is(event.Error, model.ErrFailedDNSPacketDecoding) {
+		return model.DNSEventType
+	}
+	return event.GetEventType()
+}
+
 // getWorkloadIDFromEvent extracts the workload ID from an event, preferring container ID over cgroup ID
 func getWorkloadIDFromEvent(event *model.Event) containerutils.WorkloadID {
 	if !event.ProcessContext.Process.ContainerContext.IsNull() {
@@ -1367,7 +1399,15 @@ func getWorkloadIDFromEvent(event *model.Event) containerutils.WorkloadID {
 // getOrCreateWorkload creates a workload object from an event for tracking in profile Instances
 func (m *ManagerV2) getOrCreateWorkload(event *model.Event, selector cgroupModel.WorkloadSelector, workloadID containerutils.WorkloadID) *tags.Workload {
 	cacheEntry := m.getCacheEntryForWorkload(workloadID)
-	if cacheEntry == nil {
+	if cacheEntry == nil && m.resolvers != nil && m.resolvers.CGroupResolver != nil {
+		if inode := event.ProcessContext.Process.CGroup.CGroupPathKey.Inode; inode != 0 {
+			if candidate := m.resolvers.CGroupResolver.GetCacheEntryByInode(inode); cacheEntryMatchesWorkloadID(candidate, workloadID) {
+				cacheEntry = candidate
+			}
+		}
+	}
+
+	if !cacheEntryMatchesWorkloadID(cacheEntry, workloadID) {
 		return nil
 	}
 
@@ -1395,6 +1435,20 @@ func (m *ManagerV2) getCacheEntryForWorkload(workloadID containerutils.WorkloadI
 		return nil
 	}
 	return cacheEntry
+}
+
+func cacheEntryMatchesWorkloadID(cacheEntry *cgroupModel.CacheEntry, workloadID containerutils.WorkloadID) bool {
+	if cacheEntry == nil || cacheEntry.IsDeleted() {
+		return false
+	}
+	switch id := workloadID.(type) {
+	case containerutils.ContainerID:
+		return id != "" && cacheEntry.GetContainerID() == id
+	case containerutils.CGroupID:
+		return id != "" && cacheEntry.GetCGroupID() == id
+	default:
+		return false
+	}
 }
 
 func (m *ManagerV2) isWorkloadActive(workloadID containerutils.WorkloadID) bool {
@@ -1529,6 +1583,26 @@ func (m *ManagerV2) seedMountNamespace(secprof *profile.Profile, cgroupInode uin
 		seeded = true
 	}
 	return seeded
+}
+
+func (m *ManagerV2) replaceContainerWorkloadCGroup(prof *profile.Profile, deleted, replacement *cgroupModel.CacheEntry) bool {
+	prof.InstancesLock.Lock()
+	defer prof.InstancesLock.Unlock()
+
+	containerID := deleted.GetContainerID()
+	if containerID == "" {
+		return false
+	}
+
+	for _, w := range prof.Instances {
+		if w.GetWorkloadID() == containerID {
+			if w.GCroupCacheEntry == deleted {
+				w.GCroupCacheEntry = replacement
+			}
+			return true
+		}
+	}
+	return false
 }
 
 // unlinkWorkloadFromProfile removes a workload from a profile's Instances
@@ -1809,8 +1883,8 @@ func (m *ManagerV2) incrementEventFilteringStat(eventType model.EventType, state
 	}
 }
 
-// incrementInsertionError records an unexpected activity-tree insertion failure for the given
-// event type, categorizing err into a bounded error-type label.
+// incrementInsertionError records an event error or an unexpected activity-tree insertion failure
+// for the given event type, categorizing err into a bounded error-type label.
 func (m *ManagerV2) incrementInsertionError(eventType model.EventType, err error) {
 	key := insertionErrorKey{eventType: eventType, errorType: activity_tree.InsertionErrorType(err)}
 	if entry, ok := m.insertionErrors[key]; ok {
@@ -1881,13 +1955,12 @@ func (m *ManagerV2) getNodesForSingleWorkload(workloadID containerutils.Workload
 	pr := m.resolvers.ProcessResolver
 	tagsResolver := m.resolvers.TagsResolver
 
-	var cacheEntry *cgroupModel.CacheEntry
+	var pids []uint32
 	var imageName, imageTag string
 
 	switch id := workloadID.(type) {
 	case containerutils.ContainerID:
-		cacheEntry = cgr.GetCacheEntryContainerID(id)
-		if cacheEntry == nil {
+		if cgr.GetCacheEntryContainerID(id) == nil {
 			return result
 		}
 		tags, err := tagsResolver.ResolveWithErr(id)
@@ -1896,13 +1969,14 @@ func (m *ManagerV2) getNodesForSingleWorkload(workloadID containerutils.Workload
 		}
 		imageName = utils.GetTagValue("image_name", tags)
 		imageTag = utils.GetTagValue("image_tag", tags)
+		pids = cgr.GetContainerPIDs(id)
 
 	case containerutils.CGroupID:
 		// Skip systemd cgroups if containersOnly is true
 		if containersOnly {
 			return result
 		}
-		cacheEntry = cgr.GetCacheEntryByCgroupID(id)
+		cacheEntry := cgr.GetCacheEntryByCgroupID(id)
 		if cacheEntry == nil {
 			return result
 		}
@@ -1912,6 +1986,7 @@ func (m *ManagerV2) getNodesForSingleWorkload(workloadID containerutils.Workload
 		}
 		imageName = utils.GetTagValue("service", tags)
 		imageTag = utils.GetTagValue("version", tags)
+		pids = cacheEntry.GetPIDs()
 
 	default:
 		return result
@@ -1921,8 +1996,7 @@ func (m *ManagerV2) getNodesForSingleWorkload(workloadID containerutils.Workload
 		imageTag = "latest"
 	}
 
-	// Get PIDs and resolve filepaths
-	pids := cacheEntry.GetPIDs()
+	// Resolve filepaths for PIDs
 	key := activity_tree.ImageProcessKey{
 		ImageName: imageName,
 		ImageTag:  imageTag,

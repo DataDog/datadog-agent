@@ -9,6 +9,7 @@
 package nstat
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -33,6 +34,8 @@ const (
 	messageSourceDesc uint32 = 10003
 	messageCounts     uint32 = 10004
 	messageUpdate     uint32 = 10006
+	// messageExtendedUpdate is an update followed by extension items.
+	messageExtendedUpdate uint32 = 10007
 )
 
 const (
@@ -93,6 +96,21 @@ const (
 	udpPID            = 128
 	udpEffectivePID   = 196
 	udpMinimumSize    = 200
+	// macOS 14 inserted persona_id and uid after the uuids, past every field
+	// parseFlow reads, so only the full UDP descriptor length changed.
+	udpDescriptorSizeV12 = 272
+	udpDescriptorSizeV14 = 280
+
+	// Extension items follow the descriptor of an extended update, each a
+	// {type, length} header and data padded to 8 bytes.
+	extensionHeaderSize = 8
+	extensionAlignment  = 8
+	extensionTypeDomain = 1
+	// domainInfoSize is sizeof(nstat_domain_info), which starts with the
+	// NUL-terminated domain name.
+	domainInfoSize   = 1056
+	domainNameLength = 256
+	maxDomainLength  = 253
 
 	sockaddrStorageSize = 28
 	addressFamilyIPv4   = 2
@@ -165,6 +183,24 @@ type Flow struct {
 	Remote          Endpoint
 }
 
+// DomainState describes the domain extension of an update.
+type DomainState uint8
+
+const (
+	// DomainAbsent means the update carried no domain item. The kernel
+	// withholds extensions from unprivileged clients and from sources that
+	// are already gone.
+	DomainAbsent DomainState = iota
+	// DomainEmpty means the update carried a domain item without a usable
+	// name.
+	DomainEmpty
+	// DomainFound means Event.Domain holds the name the source connected to.
+	DomainFound
+	// DomainUnparsed means the update carried extension items that could
+	// not be decoded.
+	DomainUnparsed
+)
+
 // Event is one decoded message from an NStat datagram.
 type Event struct {
 	Kind      EventKind
@@ -174,6 +210,10 @@ type Event struct {
 	Error     uint32
 	Counts    *Counts
 	Flow      *Flow
+	// Domain is lowercased without a trailing dot, as the DNS parser
+	// records names. Only updates set it.
+	Domain      string
+	DomainState DomainState
 }
 
 // IsTCPProvider reports whether provider describes TCP flows.
@@ -265,7 +305,7 @@ func parseMessage(message []byte) (Event, bool, error) {
 			return Event{}, false, err
 		}
 		event.Flow = &flow
-	case messageUpdate:
+	case messageUpdate, messageExtendedUpdate:
 		event.Kind = EventUpdate
 		if !rangeOK(message, updateSourceRef, 8) ||
 			!rangeOK(message, updateProvider, 4) {
@@ -277,7 +317,11 @@ func parseMessage(message []byte) (Event, bool, error) {
 		if err != nil {
 			return Event{}, false, err
 		}
-		flow, err := parseFlow(message, updateData, event.Provider)
+		descriptorEnd := len(message)
+		if messageType == messageExtendedUpdate {
+			descriptorEnd, event.Domain, event.DomainState = parseExtendedUpdate(message, event.Provider)
+		}
+		flow, err := parseFlow(message[:descriptorEnd], updateData, event.Provider)
 		if err != nil {
 			return Event{}, false, err
 		}
@@ -382,6 +426,117 @@ func tcpConnStatusOffset(length int) (int, bool) {
 	default:
 		return 0, false
 	}
+}
+
+// parseExtendedUpdate returns where the descriptor of an extended update ends
+// and the domain its extension items carry. The message does not record the
+// descriptor length, so a candidate length is accepted when the item chain
+// after it ends exactly with the message. When no candidate fits, the
+// descriptor is cut to the fields every layout shares, so connstatus, whose
+// offset depends on the layout, is left unknown.
+func parseExtendedUpdate(message []byte, provider uint32) (int, string, DomainState) {
+	for _, length := range extendedDescriptorLengths(len(message), provider) {
+		if !rangeOK(message, updateData, length) {
+			continue
+		}
+		end := updateData + length
+		if domain, state, ok := parseExtensionItems(message[end:]); ok {
+			return end, domain, state
+		}
+	}
+	return min(len(message), updateData+sharedDescriptorLength(provider)), "", DomainUnparsed
+}
+
+// sharedDescriptorLength is the descriptor prefix all known layouts of a
+// provider share. It holds every field parseFlow reads except connstatus.
+func sharedDescriptorLength(provider uint32) int {
+	switch {
+	case IsTCPProvider(provider):
+		return tcpMinimumSize
+	case IsUDPProvider(provider):
+		return udpMinimumSize
+	default:
+		return 0
+	}
+}
+
+// extendedDescriptorLengths lists the candidate descriptor lengths of an
+// extended update. The first assumes the domain item, the only extension the
+// tracer requests, is the sole item, which still holds if macOS appends
+// descriptor fields. The others are the known full descriptor lengths, newest
+// first; the oldest is the shortest a descriptor can be.
+func extendedDescriptorLengths(messageLength int, provider uint32) []int {
+	var known []int
+	switch {
+	case IsTCPProvider(provider):
+		known = []int{tcpDescriptorSizeV14, tcpDescriptorSizeV12}
+	case IsUDPProvider(provider):
+		known = []int{udpDescriptorSizeV14, udpDescriptorSizeV12}
+	default:
+		return nil
+	}
+	sole := messageLength - updateData - extensionHeaderSize - domainInfoSize
+	if sole < known[len(known)-1] || sole%extensionAlignment != 0 {
+		return known
+	}
+	return append([]int{sole}, known...)
+}
+
+// parseExtensionItems walks the items that follow a descriptor and returns the
+// domain they carry. It reports false unless at least one item is present and
+// the items end exactly with the message.
+func parseExtensionItems(items []byte) (string, DomainState, bool) {
+	domain, state := "", DomainAbsent
+	offset := 0
+	for offset < len(items) {
+		if !rangeOK(items, offset, extensionHeaderSize) {
+			return "", DomainAbsent, false
+		}
+		itemType := binary.LittleEndian.Uint32(items[offset : offset+4])
+		length := int(binary.LittleEndian.Uint32(items[offset+4 : offset+8]))
+		start := offset + extensionHeaderSize
+		padded := (length + extensionAlignment - 1) &^ (extensionAlignment - 1)
+		if length == 0 || !rangeOK(items, start, padded) {
+			return "", DomainAbsent, false
+		}
+		if itemType == extensionTypeDomain {
+			domain, state = parseDomainName(items[start : start+length])
+		}
+		offset = start + padded
+	}
+	return domain, state, offset > 0
+}
+
+// parseDomainName validates and normalizes the NUL-terminated name at the
+// start of an nstat_domain_info.
+func parseDomainName(info []byte) (string, DomainState) {
+	if len(info) < domainNameLength {
+		return "", DomainUnparsed
+	}
+	end := bytes.IndexByte(info[:domainNameLength], 0)
+	if end < 0 {
+		return "", DomainUnparsed
+	}
+	name := bytes.TrimSuffix(info[:end], []byte{'.'})
+	if len(name) == 0 || len(name) > maxDomainLength {
+		return "", DomainEmpty
+	}
+	normalized := make([]byte, len(name))
+	for i, c := range name {
+		switch {
+		case 'A' <= c && c <= 'Z':
+			c += 'a' - 'A'
+		case 'a' <= c && c <= 'z', '0' <= c && c <= '9', c == '-', c == '.', c == '_':
+		default:
+			return "", DomainEmpty
+		}
+		normalized[i] = c
+	}
+	domain := string(normalized)
+	if _, err := netip.ParseAddr(domain); err == nil {
+		return "", DomainEmpty
+	}
+	return domain, DomainFound
 }
 
 func parseEndpoint(data []byte, offset int) (Endpoint, error) {

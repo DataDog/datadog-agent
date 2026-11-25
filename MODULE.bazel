@@ -101,7 +101,7 @@ bazel_dep(name = "rules_python", version = "2.5.1")
 bazel_dep(name = "rules_rs", version = "0.1.3")
 bazel_dep(name = "rules_shell", version = "0.10.0")
 bazel_dep(name = "rules_wine", version = "0.1.3")
-bazel_dep(name = "toml.bzl", version = "0.6.0")
+bazel_dep(name = "toml.bzl", version = "0.6.1")
 bazel_dep(name = "toolchains_msvc", version = "0.1.0")
 bazel_dep(name = "with_cfg.bzl", version = "1.1.0")
 
@@ -304,7 +304,7 @@ llvm_bpf_ext.configure(
         "llvm-strip.arm64": "8a0497a6a951f0d049f80ff318ffd09039b24075f3f5562c078b269ef9c0fc32",
     },
 )
-use_repo(llvm_bpf_ext, "llvm_bpf")
+use_repo(llvm_bpf_ext, "llvm_bpf", "llvm_bpf_amd64", "llvm_bpf_arm64")
 
 register_toolchains("@llvm_bpf//:llvm_bpf_toolchain")
 
