@@ -16,8 +16,6 @@ const (
 	// .dmg set-up (secureConfig) gives the whole configuration tree.
 	AgentGroup = "admin"
 
-	agentConfigUser  = AgentUser
-	agentConfigGroup = AgentGroup
 	// agentConfigFileMode is the mode of every configuration file, the one the
 	// installer's .dmg set-up (secureConfig) gives the whole configuration tree.
 	agentConfigFileMode = 0660

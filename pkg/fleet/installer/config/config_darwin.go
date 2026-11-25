@@ -398,12 +398,12 @@ func setFileOwnershipAndPermissions(ctx context.Context, root *os.Root, path str
 	if err := f.Chmod(agentConfigFileMode); err != nil {
 		return fmt.Errorf("error setting file permissions for %s: %w", path, err)
 	}
-	uid, err := user.GetUserID(ctx, agentConfigUser)
+	uid, err := user.GetUserID(ctx, AgentUser)
 	if err != nil {
 		log.Warnf("error setting file ownership for %s: %v", path, err)
 		return nil
 	}
-	gid, err := user.GetGroupID(ctx, agentConfigGroup)
+	gid, err := user.GetGroupID(ctx, AgentGroup)
 	if err != nil {
 		log.Warnf("error setting file ownership for %s: %v", path, err)
 		return nil

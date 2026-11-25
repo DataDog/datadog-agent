@@ -8,8 +8,8 @@
 package config
 
 const (
-	// agentConfigUser owns the configuration files the Agent reads.
-	agentConfigUser = "dd-agent"
-	// agentConfigGroup is the group of the configuration files the Agent reads.
-	agentConfigGroup = "dd-agent"
+	// AgentUser is the Agent's account, which owns the configuration files the Agent reads.
+	AgentUser = "dd-agent"
+	// AgentGroup is the group of the configuration files the Agent reads.
+	AgentGroup = "dd-agent"
 )

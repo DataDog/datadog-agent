@@ -519,14 +519,14 @@ type configFileSpec struct {
 
 var (
 	allowedConfigFiles = []configFileSpec{
-		{pattern: "/datadog.yaml", owner: agentConfigUser, group: agentConfigGroup, mode: 0640},
-		{pattern: "/otel-config.yaml", owner: agentConfigUser, group: agentConfigGroup, mode: 0640},
-		{pattern: "/security-agent.yaml", owner: "root", group: agentConfigGroup, mode: 0640},
-		{pattern: "/system-probe.yaml", owner: "root", group: agentConfigGroup, mode: 0640},
+		{pattern: "/datadog.yaml", owner: AgentUser, group: AgentGroup, mode: 0640},
+		{pattern: "/otel-config.yaml", owner: AgentUser, group: AgentGroup, mode: 0640},
+		{pattern: "/security-agent.yaml", owner: "root", group: AgentGroup, mode: 0640},
+		{pattern: "/system-probe.yaml", owner: "root", group: AgentGroup, mode: 0640},
 		{pattern: "/application_monitoring.yaml", owner: "root", group: "root", mode: 0644},
-		{pattern: "/conf.d/*.yaml", owner: agentConfigUser, group: agentConfigGroup, mode: 0640},
-		{pattern: "/conf.d/*.d/*.yaml", owner: agentConfigUser, group: agentConfigGroup, mode: 0640},
-		{pattern: "/conf.d/snmp.d/credentials/*.yaml", owner: agentConfigUser, group: agentConfigGroup, mode: 0640},
+		{pattern: "/conf.d/*.yaml", owner: AgentUser, group: AgentGroup, mode: 0640},
+		{pattern: "/conf.d/*.d/*.yaml", owner: AgentUser, group: AgentGroup, mode: 0640},
+		{pattern: "/conf.d/snmp.d/credentials/*.yaml", owner: AgentUser, group: AgentGroup, mode: 0640},
 	}
 
 	legacyPathPrefix = filepath.Join("managed", "datadog-agent", "stable")
@@ -561,7 +561,7 @@ func getConfigFileSpec(file string) *configFileSpec {
 				}
 			}
 		}
-		return &configFileSpec{pattern: normalizedFile, owner: agentConfigUser, group: agentConfigGroup, mode: 0640}
+		return &configFileSpec{pattern: normalizedFile, owner: AgentUser, group: AgentGroup, mode: 0640}
 	}
 
 	for _, spec := range allowedConfigFiles {

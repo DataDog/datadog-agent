@@ -687,8 +687,8 @@ func TestDirSwapRefusesDifferentParents(t *testing.T) {
 // setFileOwnershipAndPermissions only warns on a failed chown -- and leave fleet configuration
 // unreadable by the Agent. The group is the one the installer's .dmg set-up gives the tree.
 func TestAgentAccountIsTheMacOSOne(t *testing.T) {
-	assert.Equal(t, "_dd-agent", agentConfigUser)
-	assert.Equal(t, "admin", agentConfigGroup)
+	assert.Equal(t, "_dd-agent", AgentUser)
+	assert.Equal(t, "admin", AgentGroup)
 }
 
 // TestReadStateRefusesWhatItShouldNotRead pins the checks made before the state file is trusted.
