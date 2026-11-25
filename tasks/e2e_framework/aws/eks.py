@@ -35,6 +35,8 @@ scenario_name = "aws/eks"
         "local_chart_path": doc.local_chart_path,
         "kube_version": doc.kubernetes_version,
         "interactive": doc.interactive,
+        "app_key": "Require an app key and give it to the agent (default). --no-app-key deploys without one, for "
+        "an agent that never calls the Datadog API.",
     }
 )
 def create_eks(
@@ -62,6 +64,7 @@ def create_eks(
     local_chart_path: str | None = None,
     kube_version: str | None = None,
     interactive: bool | None = True,
+    app_key: bool = True,
 ):
     """
     Create a new EKS environment. It lasts around 20 minutes.
@@ -123,7 +126,7 @@ def create_eks(
         ctx,
         scenario_name,
         debug=debug,
-        app_key_required=True,
+        app_key_required=app_key,
         stack_name=stack_name,
         pipeline_id=pipeline_id,
         install_agent=install_agent,

@@ -60,7 +60,10 @@ go_library(
 
 dd_agent_go_test(
     name = "agent_test",
-    srcs = ["docker_image_test.go"],
+    srcs = [
+        "docker_image_test.go",
+        "kubernetes_helm_test.go",
+    ],
     embed = [":agent"],
     tags = ["go_link:enormous"],
     deps = [
@@ -68,5 +71,6 @@ dd_agent_go_test(
         "@com_github_pulumi_pulumi_sdk_v3//go/common/resource",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )
