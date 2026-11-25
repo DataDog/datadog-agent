@@ -66,7 +66,7 @@ func TestRedisMonitoring(t *testing.T) {
 
 func (s *redisProtocolParsingSuite) TestLoadRedisBinary() {
 	t := s.T()
-	for name, debug := range map[string]bool{"enabled": true, "disabled": false} {
+	for name, debug := range bpfDebugValues() {
 		t.Run(name, func(t *testing.T) {
 			cfg := getRedisDefaultTestConfiguration(protocolsUtils.TLSDisabled)
 			cfg.BPFDebug = debug

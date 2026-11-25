@@ -34,26 +34,22 @@ static __always_inline int read_conn_tuple_partial_from_flowi4(conn_tuple_t *t, 
     t->pid = GET_USER_MODE_PID(pid_tgid);
     t->metadata = type;
 
-    if (t->saddr_l == 0) {
-        t->saddr_l = BPF_CORE_READ(fl4, saddr);
-    }
-    if (t->daddr_l == 0) {
-        t->daddr_l = BPF_CORE_READ(fl4, daddr);
-    }
+    // The flow is IPv4 and fl4 holds what the kernel actually sends with. The
+    // failed socket read may have left IPv6 address bits (an AF_INET6 socket
+    // sending to an IPv4-mapped address) or a source that a per-send override
+    // (IP_PKTINFO/IPV6_PKTINFO) replaced, so take everything from fl4.
+    t->saddr_h = 0;
+    t->daddr_h = 0;
+    t->saddr_l = BPF_CORE_READ(fl4, saddr);
+    t->daddr_l = BPF_CORE_READ(fl4, daddr);
 
     if (t->saddr_l == 0 || t->daddr_l == 0) {
         log_debug("ERR(fl4): src/dst addr not set src:%llu,dst:%llu", t->saddr_l, t->daddr_l);
         return 0;
     }
 
-    if (t->sport == 0) {
-        t->sport = BPF_CORE_READ(fl4, fl4_sport);
-        t->sport = bpf_ntohs(t->sport);
-    }
-    if (t->dport == 0) {
-        t->dport = BPF_CORE_READ(fl4, fl4_dport);
-        t->dport = bpf_ntohs(t->dport);
-    }
+    t->sport = bpf_ntohs(BPF_CORE_READ(fl4, fl4_sport));
+    t->dport = bpf_ntohs(BPF_CORE_READ(fl4, fl4_dport));
 
     if (t->sport == 0 || t->dport == 0) {
         log_debug("ERR(fl4): src/dst port not set: src:%d, dst:%d", t->sport, t->dport);
@@ -187,6 +183,11 @@ int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, 
     if (copied < 0) { // error
         return 0;
     }
+    // A peek leaves the data in the receive queue, and the receive that later
+    // consumes it is counted. Counting the peek too would double the received bytes.
+    if (flags & MSG_PEEK) {
+        return 0;
+    }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
     return handle_tcp_recv_btf(pid_tgid, sk, copied);
@@ -200,6 +201,9 @@ int BPF_PROG(tcp_recvmsg_exit_no_addr_len, struct sock *sk, struct msghdr *msg, 
     if (copied < 0) { // error
         return 0;
     }
+    if (flags & MSG_PEEK) { // see tcp_recvmsg_exit
+        return 0;
+    }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
     return handle_tcp_recv_btf(pid_tgid, sk, copied);
@@ -208,6 +212,9 @@ int BPF_PROG(tcp_recvmsg_exit_no_addr_len, struct sock *sk, struct msghdr *msg, 
 SEC("fexit/tcp_recvmsg")
 int BPF_PROG(tcp_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int nonblock, int flags, int *addr_len, int copied) {
     if (copied < 0) { // error
+        return 0;
+    }
+    if (flags & MSG_PEEK) { // see tcp_recvmsg_exit
         return 0;
     }
 
@@ -230,7 +237,7 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     // Pass the entry-time tuple to fexit/tcp_close for protocol-classification
     // cleanup. sk is guaranteed valid here; at fexit it may not be.
     if (is_protocol_classification_supported()) {
-        bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &t, BPF_ANY);
+        store_tcp_close_args(pid_tgid, &t);
     }
 
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
@@ -277,12 +284,12 @@ int BPF_PROG(tcp_close_exit, struct sock *sk, long timeout) {
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    conn_tuple_t *t = bpf_map_lookup_elem(&tcp_close_args, &pid_tgid);
-    if (t == NULL) {
+    tcp_close_args_t *args = bpf_map_lookup_elem(&tcp_close_args, &pid_tgid);
+    if (args == NULL) {
         return 0;
     }
 
-    clean_protocol_classification(t);
+    clean_protocol_classification(args);
     bpf_map_delete_elem(&tcp_close_args, &pid_tgid);
     return 0;
 }
@@ -317,6 +324,7 @@ int BPF_PROG(tcp_done, struct sock *sk) {
         return 0;
     }
 
+    clean_skb_tuple_protocol_classification(&t);
     if (cleanup_conn(ctx, &t, sk) == 0) {
         increment_telemetry_count(tcp_done_connection_flush);
     }

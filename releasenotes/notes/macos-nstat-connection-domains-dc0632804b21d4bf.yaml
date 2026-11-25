@@ -1,0 +1,20 @@
+---
+enhancements:
+  - |
+    On macOS 12.1 and later, network connections collected by Cloud Network
+    Monitoring with the NStat backend now carry the domain name each
+    connection was opened for, as recorded by macOS. Domains appear even
+    when the system's DNS traffic is encrypted or handled by a DNS proxy,
+    which packet capture cannot read. Applications that resolve names
+    themselves, such as a browser using its own secure DNS, are not covered.
+    Domains are reported only while DNS inspection is enabled.
+  - |
+    On macOS, DNS monitoring now also reads the domain names in the DNS
+    traffic of the system's DNS servers on ports other than 53, such as
+    servers set by a file in ``/etc/resolver`` or by a VPN. The servers are
+    read from ``scutil --dns`` every 30 seconds. DNS statistics still cover
+    only the ports in ``network_config.dns_monitoring_ports``.
+  - |
+    On macOS, DNS monitoring now captures the ports listed in
+    ``network_config.dns_monitoring_ports``. It previously captured port 53
+    only.

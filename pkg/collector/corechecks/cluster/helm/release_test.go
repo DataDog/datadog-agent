@@ -8,9 +8,11 @@
 package helm
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetConfigValue(t *testing.T) {
@@ -74,4 +76,18 @@ func TestGetConfigValue(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDecodeReleaseTooLarge(t *testing.T) {
+	// A release whose JSON encoding inflates beyond maxInflatedBufferSize.
+	// It compresses well, so the gzipped payload stays small.
+	tooLarge := &release{
+		Name: strings.Repeat("a", maxInflatedBufferSize),
+	}
+	encoded, err := encodeRelease(tooLarge)
+	require.NoError(t, err)
+
+	rls, err := decodeRelease(encoded)
+	assert.Nil(t, rls)
+	assert.ErrorContains(t, err, "maximum allowed size")
 }

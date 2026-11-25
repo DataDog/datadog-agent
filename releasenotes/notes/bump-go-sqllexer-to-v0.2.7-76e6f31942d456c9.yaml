@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    Bump ``go-sqllexer`` to v0.2.7 so SQL obfuscation no longer leaves literal
+    values in truncated dollar-quoted strings, Oracle ``q'[...]'`` and
+    ``nq'[...]'`` strings, or binary, octal, and signed prefixed numbers.
+    Lexing also continues after a ``$`` that is not a dollar quote, and
+    PostgreSQL dollar quotes with a non-ASCII tag now close correctly.
+
+    When SQL aliases are removed, ``CAST(... AS type)`` and
+    ``WITH ... AS MATERIALIZED`` are preserved. Normalized query text changes
+    for those statements, so query signatures derived from it can change.

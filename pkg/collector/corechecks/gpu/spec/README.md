@@ -63,11 +63,11 @@ Run one or more of these three validation levels:
 
 1. **Mocked NVML against spec** (`TestMetricsFollowSpec`):
 
-   `dda inv test --targets=./pkg/collector/corechecks/gpu -- -tags "test,nvml" -run TestMetricsFollowSpec`
+   `dda inv test --targets=./pkg/collector/corechecks/gpu --test-args=-test.run=TestMetricsFollowSpec`
 
 2. **Real NVML APIs against spec** (`integrationtests`, requires real GPU + NVML):
 
-   `dda inv test --targets=./pkg/collector/corechecks/gpu/integrationtests -- -tags "nvml"`
+   `dda inv test --targets=./pkg/collector/corechecks/gpu/integrationtests`
 
 3. **Live Datadog data against spec** (`spec/metrics-validator` through invoke task):
 

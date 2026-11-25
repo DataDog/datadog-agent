@@ -1,0 +1,64 @@
+---
+include:
+  - local: .gitlab/common/checkout.yml
+
+workflow:
+  # An already-created child survives parent-only graceful cancellation.
+  # Direct pipeline cancellation can still stop jobs; always is not a guarantee.
+  auto_cancel:
+    on_new_commit: none
+    on_job_failure: none
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline" && $POST_VALIDATION_PARENT_ID =~ /^[0-9]+$/
+    - when: never
+
+default:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  retry:
+    max: 1
+    when: always
+  interruptible: false
+  id_tokens:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
+
+stages:
+  - post_validation
+
+new-e2e-cleanup-on-failure:
+  stage: post_validation
+  allow_failure: true
+  variables:
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    CLEANUP_TARGET_PIPELINE_ID: $POST_VALIDATION_PARENT_ID
+    REMOTE_STACK_CLEANING: "true"
+  rules:
+    - if: $POST_VALIDATION_CLEANUP_ENABLED == "true"
+      when: always
+  before_script:
+    - mkdir -p ~/.aws
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E profile >> ~/.aws/config || exit $?
+    - export AWS_PROFILE=agent-qa-ci
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_PUBLIC_KEY_PATH || exit $?
+    - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_PRIVATE_KEY_PATH || exit $?
+    - PULUMI_CONFIG_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E pulumi_passphrase) || exit $?; export PULUMI_CONFIG_PASSPHRASE
+    - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  script:
+    - STACK_REGEX="ci-init-${CLEANUP_TARGET_PIPELINE_ID}-.*"
+    - dda inv -- -e new-e2e-tests.cleanup-remote-stacks --stack-regex "$STACK_REGEX" --pipeline-id "$CLEANUP_TARGET_PIPELINE_ID"
+
+send_pipeline_stats:
+  stage: post_validation
+  allow_failure: true
+  needs: []
+  rules:
+    - if: $POST_VALIDATION_PARENT_SOURCE == "merge_request_event"
+      when: never
+    - when: always
+  before_script:
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+    - dda self dep sync -f legacy-tasks -f legacy-notifications
+  script:
+    - dda inv -- -e notify.send-stats --pipeline-id "$POST_VALIDATION_PARENT_ID"

@@ -47,6 +47,7 @@ var (
 	}
 	scriptTestsWithSkippedFlavors = []installerScriptTestsWithSkippedFlavors{
 		{t: testDatabricksScript},
+		{t: testDatabricksGPUScript},
 		{t: testDefaultScript, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7}},
 		{t: testSSIScript},
 	}

@@ -556,6 +556,26 @@ func TestWarnDirectSendDelegatedAuthDirectives(t *testing.T) {
 	}
 }
 
+func TestWarnDirectSendDelegatedAuthDirectivesSkipsUnknownFlags(t *testing.T) {
+	var output bytes.Buffer
+	logger, err := log.LoggerFromWriterWithMinLevelAndMsgFormat(&output, log.WarnLvl)
+	require.NoError(t, err)
+	log.SetupLogger(logger, log.WarnStr)
+	t.Cleanup(func() {
+		log.SetupLogger(log.Default(), log.DebugStr)
+		logger.Close()
+	})
+
+	config := newEmptyMockConf(t)
+	InitSystemProbeConfig(config)
+	config.BuildSchema()
+	config.SetTestOnlyDynamicSchema(false)
+	require.False(t, config.IsKnown("compliance_config.run_in_system_probe"))
+
+	WarnDirectSendDelegatedAuthDirectives(config)
+	assert.Empty(t, output.String())
+}
+
 func TestConfigureDelegatedAuthEndpointsSkipsResolvedEntries(t *testing.T) {
 	rec := newRecordingComponent()
 	config := confFromYAML(t, `

@@ -286,7 +286,7 @@ func (c *nvlinkFieldsCollector) discoverPortMetrics(port int) ([]Sample, error) 
 		// skip it for this port. Other ports might still be supported (e.g., inactive ports).
 		// Other failures can be transient, so we keep collecting them later.
 		if val.NvmlReturn == uint32(nvml.ERROR_NOT_SUPPORTED) || (val.NvmlReturn == uint32(nvml.ERROR_INVALID_ARGUMENT) && fieldValueMetric.markUnsupportedOnInvalidArgument) {
-			log.Warnf("nvlink: fields collector skipping metric %s for port %d because it's not supported, error: %s", fieldValueMetric.name, port, nvml.ErrorString(nvml.Return(val.NvmlReturn)))
+			log.Debugf("nvlink: fields collector skipping metric %s for port %d because it's not supported, error: %s", fieldValueMetric.name, port, nvml.ErrorString(nvml.Return(val.NvmlReturn)))
 			continue
 		} else if val.NvmlReturn != uint32(nvml.SUCCESS) {
 			log.Warnf("nvlink: fields collector saw error %s for metric %s, port %d. Will keep collecting it later", nvml.ErrorString(nvml.Return(val.NvmlReturn)), fieldValueMetric.name, port)
