@@ -17,26 +17,17 @@ import (
 
 // checkCLCRunnersHealth reports a health platform issue when cluster checks are
 // stranded (stuck undispatched with no eligible worker) and resolves it once they
-// can be placed again.
+// can be placed again. Open and resolve are asymmetric:
+//   - Open once checks have been unplaceable past the unscheduled-check threshold
+//     (debounced, so startup/failover/restart does not alarm).
+//   - Resolve only on positive evidence: every pending check has an eligible worker
+//     (or there are none). While checks have no worker but have not aged yet, hold —
+//     neither report nor resolve — so an inherited/restored issue stays active
+//     instead of flapping resolved→reopened.
 //
-// Opening and resolving are deliberately asymmetric:
-//   - Open when checks have been unplaceable past the unscheduled-check threshold
-//     (debounced, so the transient startup/failover/restart window does not alarm).
-//   - Resolve only on positive evidence of recovery: every pending check now has
-//     an eligible worker (or there are none). In the in-between window — checks
-//     still have no worker but have not aged yet — we hold: neither report nor
-//     resolve. This is what keeps an inherited/restored issue (e.g. after an
-//     unclean restart mid-outage, where replayed checks carry fresh timestamps)
-//     active instead of flapping resolved→reopened.
-//
-// Resolution is edge-triggered off the store's active state rather than a local
-// flag: the store re-emits a resolved tombstone on every ResolveIssue call once a
-// persisted record exists, so we resolve only when the issue is currently active.
-// Reading the active set means a leader that inherited the issue — from a previous
-// leadership term or restored from persistence — still clears it once checks
-// recover, and leadership handoff never emits a spurious tombstone.
-//
-// No-op when health platform reporting is unavailable.
+// Resolution is edge-triggered off the store's active set (not a local flag), so a
+// leader that inherited the issue still clears it on recovery and handoff never
+// emits a spurious tombstone. No-op when health platform reporting is unavailable.
 func (d *dispatcher) checkCLCRunnersHealth() {
 	if d.healthPlatform == nil {
 		return
