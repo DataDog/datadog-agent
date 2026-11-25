@@ -169,7 +169,7 @@ func assertMacosStableLaunchDaemons(t *testing.T, client *common.MacOSTestClient
 // running. auto_start_false must be the only skip reason: a missing binary would add path_missing.
 func assertMacosProcmgrAnswers(t *testing.T, client *common.MacOSTestClient, expected int) {
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		out, err := client.Execute("sudo " + macosProcmgrCLI + " status --json")
+		out, err := client.Execute(macosBoundedProcmgrCommand(macosProcmgrRPCTimeout, "status --json"))
 		if !assert.NoError(c, err, "dd-procmgr status failed:\n%s", out) {
 			return
 		}
@@ -194,7 +194,7 @@ func assertMacosProcmgrAnswers(t *testing.T, client *common.MacOSTestClient, exp
 		return
 	}
 
-	out, err := client.Execute("sudo " + macosProcmgrCLI + " list --json")
+	out, err := client.Execute(macosBoundedProcmgrCommand(macosProcmgrRPCTimeout, "list --json"))
 	require.NoError(t, err, "dd-procmgr list failed:\n%s", out)
 	var list []struct {
 		Name        string   `json:"name"`
@@ -207,7 +207,7 @@ func assertMacosProcmgrAnswers(t *testing.T, client *common.MacOSTestClient, exp
 	assert.Equal(t, "Skipped", list[0].State)
 	assert.Equal(t, []string{"auto_start_false"}, list[0].SkipReasons)
 
-	out, err = client.Execute("sudo " + macosProcmgrCLI + " describe " + macosSysprobeProcess + " --json")
+	out, err = client.Execute(macosBoundedProcmgrCommand(macosProcmgrRPCTimeout, "describe "+macosSysprobeProcess+" --json"))
 	require.NoError(t, err, "dd-procmgr describe failed:\n%s", out)
 	var detail struct {
 		Command string   `json:"command"`
