@@ -86,9 +86,101 @@ func TestResolveFieldsIndex(t *testing.T) {
 	}
 }
 
+// A string subscript ending a name is a key in the dictionary field, kept as an
+// Index of the reference to the field. It can follow an iterator variable.
+func TestResolveFieldsKey(t *testing.T) {
+	legacy := map[string]string{"process.environ": "process.env"}
+
+	for _, test := range []struct {
+		expr  string
+		field *ast.FieldRef
+		key   string
+	}{
+		{`process.env["PATH"]`, &ast.FieldRef{Name: "process.env"}, "PATH"},
+		{`process.env["my-var.1 [x]"]`, &ast.FieldRef{Name: "process.env"}, "my-var.1 [x]"},
+		{`process.env[""]`, &ast.FieldRef{Name: "process.env"}, ""},
+		{`process.environ["PATH"]`, &ast.FieldRef{Name: "process.env"}, "PATH"},
+		{`process.ancestors.env["PATH"]`, &ast.FieldRef{Name: "process.ancestors.env"}, "PATH"},
+		{`process.ancestors[A].env["PATH"]`, &ast.FieldRef{Name: "process.ancestors.env", Iter: &ast.Iteration{Iterator: "process.ancestors", Register: "A"}}, "PATH"},
+	} {
+		t.Run(test.expr, func(t *testing.T) {
+			for _, expr := range []string{test.expr, "%{" + test.expr + "}"} {
+				root, err := parser.ParseExpression(expr)
+				require.NoError(t, err)
+
+				resolved, err := Run(root, ResolveFields(legacy))
+				require.NoError(t, err)
+				index, ok := resolved.(*ast.Index)
+				require.True(t, ok, "%s is an index", ast.Sprint(resolved))
+				field, ok := index.Base.(*ast.FieldRef)
+				require.True(t, ok, "%s is a field reference", ast.Sprint(index.Base))
+				field.Meta = ast.Meta{}
+				require.Equal(t, test.field, field)
+				literal, ok := index.Subscript.(*ast.Literal)
+				require.True(t, ok)
+				require.Equal(t, ast.MakeString(test.key), literal.Value)
+			}
+		})
+	}
+}
+
+// The subscript ending a name, unless a lone identifier, is any operand, its
+// names resolved as fields. It can follow an iterator variable.
+func TestResolveFieldsSubscript(t *testing.T) {
+	legacy := map[string]string{"container.id": "process.container.id"}
+
+	for _, test := range []struct {
+		expr  string
+		field *ast.FieldRef
+		// index is the subscript resolved, printed
+		index string
+		// field of the subscript, if it is one
+		indexField string
+	}{
+		{`process.env[process.file.name]`, &ast.FieldRef{Name: "process.env"}, `process.file.name`, "process.file.name"},
+		{`process.env[container.id]`, &ast.FieldRef{Name: "process.env"}, `process.container.id`, "process.container.id"},
+		{`process.env[%{process.file.name}]`, &ast.FieldRef{Name: "process.env"}, `process.file.name`, "process.file.name"},
+		{`process.env[process.ancestors[A].file.name]`, &ast.FieldRef{Name: "process.env"}, `process.ancestors[A].file.name`, "process.ancestors.file.name"},
+		{`process.env[${key}]`, &ast.FieldRef{Name: "process.env"}, `${key}`, ""},
+		{`process.env["%{process.file.name}_${key}"]`, &ast.FieldRef{Name: "process.env"}, `"%{process.file.name}_${key}"`, ""},
+		{`process.argv[process.pid]`, &ast.FieldRef{Name: "process.argv"}, `process.pid`, "process.pid"},
+		{`process.argv[process.argc - 1]`, &ast.FieldRef{Name: "process.argv"}, `(- process.argc 1)`, ""},
+		{`process.ancestors[A].argv[0]`, &ast.FieldRef{Name: "process.ancestors.argv", Iter: &ast.Iteration{Iterator: "process.ancestors", Register: "A"}}, `0`, ""},
+		{`process.ancestors[A].env[process.ancestors[A].file.name]`, &ast.FieldRef{Name: "process.ancestors.env", Iter: &ast.Iteration{Iterator: "process.ancestors", Register: "A"}}, `process.ancestors[A].file.name`, "process.ancestors.file.name"},
+	} {
+		t.Run(test.expr, func(t *testing.T) {
+			root, err := parser.ParseExpression(test.expr)
+			require.NoError(t, err)
+
+			resolved, err := Run(root, ResolveFields(legacy))
+			require.NoError(t, err)
+			require.False(t, ast.Any(resolved, func(node ast.Node) bool {
+				switch node.(type) {
+				case *ast.Ident, *ast.Selector, *ast.Index:
+					return isName(node)
+				}
+				return false
+			}), "no name is left in %s", ast.Sprint(resolved))
+
+			index, ok := resolved.(*ast.Index)
+			require.True(t, ok, "%s is an index", ast.Sprint(resolved))
+			field, ok := index.Base.(*ast.FieldRef)
+			require.True(t, ok, "%s is a field reference", ast.Sprint(index.Base))
+			field.Meta = ast.Meta{}
+			require.Equal(t, test.field, field)
+			require.Equal(t, test.index, ast.Sprint(index.Subscript))
+			if test.indexField != "" {
+				indexField, ok := index.Subscript.(*ast.FieldRef)
+				require.True(t, ok, "%s is a field reference", ast.Sprint(index.Subscript))
+				require.Equal(t, test.indexField, indexField.Name)
+			}
+		})
+	}
+}
+
 // A tree already resolved, the one of a macro inserted in a rule, is left as is.
 func TestResolveFieldsResolved(t *testing.T) {
-	rule, err := parser.ParseRule(`process.argv[1] == "-c" && process.ancestors[A].uid == 0`)
+	rule, err := parser.ParseRule(`process.argv[1] == "-c" && process.ancestors[A].uid == 0 && process.ancestors[A].env["PATH"] == "/bin"`)
 	require.NoError(t, err)
 
 	once, err := Run(rule, ResolveFields(nil))
@@ -118,13 +210,13 @@ func TestResolveFieldsAfterIdents(t *testing.T) {
 
 func TestResolveFieldsErrors(t *testing.T) {
 	for expr, expected := range map[string]string{
-		`process.ancestors[A].argv[0] == "a"`: "`process.ancestors[A].argv[0]` has more than one subscript",
-		`process.ancestors[A][B].uid == 0`:    "`process.ancestors[A][B].uid` has more than one subscript",
-		`process.ancestors[0].uid == 0`:       "`process.ancestors[0].uid`: cannot index the iterator `process.ancestors` with `0`, use an iterator variable instead",
-		`process.ancestors["a"].uid == 0`:     "`process.ancestors[\"a\"].uid`: cannot index the iterator `process.ancestors` with `\"a\"`, use an iterator variable instead",
-		`process.argv[1s] == "a"`:             "`process.argv[1000000000ns]`: a subscript is an iterator variable or an integer index",
-		`process.argv["a"] == "a"`:            "`process.argv[\"a\"]`: a subscript is an iterator variable or an integer index",
-		`process.argv[a.b] == "a"`:            "`process.argv[a.b]`: a subscript is an iterator variable or an integer index",
+		`process.ancestors[A][B].uid == 0`:                "`process.ancestors[A][B].uid` has more than one subscript",
+		`process.ancestors[A][B].env["a"] == "a"`:         "`process.ancestors[A][B].env` has more than one subscript",
+		`process.ancestors[0].uid == 0`:                   "`process.ancestors[0].uid`: cannot index the iterator `process.ancestors` with `0`, use an iterator variable instead",
+		`process.ancestors[1s].uid == 0`:                  "`process.ancestors[1000000000ns].uid`: cannot index the iterator `process.ancestors` with `1000000000ns`, use an iterator variable instead",
+		`process.ancestors["a"].uid == 0`:                 "`process.ancestors[\"a\"].uid`: cannot index the iterator `process.ancestors` with `\"a\"`, use an iterator variable instead",
+		`process.ancestors[process.pid].uid == 0`:         "`process.ancestors[process.pid].uid`: cannot index the iterator `process.ancestors` with `process.pid`, use an iterator variable instead",
+		`process.env[process.ancestors[A][B].uid] == "a"`: "`process.ancestors[A][B].uid` has more than one subscript",
 	} {
 		t.Run(expr, func(t *testing.T) {
 			rule, err := parser.ParseRule(expr)

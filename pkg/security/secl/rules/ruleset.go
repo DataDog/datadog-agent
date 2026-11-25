@@ -32,11 +32,12 @@ import (
 )
 
 // setField is the field a set action reads its value from: a field,
-// `open.file.path`, or an index in an array field, `process.argv[0]`.
+// `open.file.path`, an index in an array field, `process.argv[0]`, or a key in a
+// dictionary field, `process.env["PATH"]`.
 type setField struct {
-	// name is the name of the field, without its index
+	// name is the name of the field, without its index or its key
 	name string
-	// indexed is whether the value is an index in the field
+	// indexed is whether the value is at an index or a key in the field
 	indexed bool
 }
 
@@ -52,15 +53,22 @@ func (rs *RuleSet) parseSetField(field string) (*setField, error) {
 
 	switch n := node.(type) {
 	case *ast.FieldRef:
-		if n.Iter == nil {
-			return &setField{name: n.Name}, nil
-		}
+		return &setField{name: n.Name}, nil
 	case *ast.Index:
-		if ref, ok := n.Base.(*ast.FieldRef); ok && ref.Iter == nil {
+		if ref, ok := n.Base.(*ast.FieldRef); ok {
 			return &setField{name: ref.Name, indexed: true}, nil
 		}
 	}
-	return nil, fmt.Errorf("invalid field '%s': not a field or an index in an array field", field)
+	return nil, fmt.Errorf("invalid field '%s': not a field, an index in an array field or a key in a dictionary field", field)
+}
+
+// isArrayEvaluator returns whether an evaluator returns an array of values
+func isArrayEvaluator(evaluator eval.Evaluator) bool {
+	switch evaluator.(type) {
+	case *eval.StringArrayEvaluator, *eval.IntArrayEvaluator, *eval.BoolArrayEvaluator, *eval.CIDRArrayEvaluator:
+		return true
+	}
+	return false
 }
 
 // Rule presents a rule in a ruleset
@@ -479,9 +487,23 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 						continue
 					}
 
-					if _, kind, goType, isArray, err = rs.eventCtor().GetFieldMetadata(field.name); err != nil {
+					if _, kind, goType, _, err = rs.eventCtor().GetFieldMetadata(field.name); err != nil {
 						errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("failed to get field '%s': %w", field.name, err))
 						continue
+					}
+
+					// whether the value is an array is told by its evaluator: an iterated
+					// field is one, the metadata of its field says otherwise
+					evaluator, _, err := rs.compileActionValue(actionDef.Set.Field)
+					if err != nil {
+						errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("failed to compile action expression: %w", err))
+						continue
+					}
+					isArray = isArrayEvaluator(evaluator)
+
+					// the values of a dictionary are strings
+					if field.indexed && kind == reflect.Map {
+						kind, goType = reflect.String, "string"
 					}
 				}
 
@@ -493,7 +515,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 						continue
 					}
 
-					if isArray && !field.indexed {
+					if isArray {
 						errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("'capture' is not supported on array field '%s' for variable '%s'", actionDef.Set.Field, actionDef.Set.Name))
 						continue
 					}
@@ -534,7 +556,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					}
 				} else if field != nil {
 					// an index in an array is a single value
-					if isArray && !field.indexed && !actionDef.Set.Append {
+					if isArray && !actionDef.Set.Append {
 						errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("field '%s' is an array and can only be used with 'append: yes' in set action for variable '%s'", actionDef.Set.Field, actionDef.Set.Name))
 						continue
 					}
@@ -640,9 +662,11 @@ func GetRuleEventType(rule *eval.Rule) (eval.EventType, error) {
 	return eventType, nil
 }
 
-// WithExcludedRuleFromDiscarders set excluded rule from discarders
-func (rs *RuleSet) WithExcludedRuleFromDiscarders(excludedRuleFromDiscarders map[eval.RuleID]bool) {
+// WithExcludedRuleFromDiscarders set excluded rule from discarders, but from the
+// discarders of some fields
+func (rs *RuleSet) WithExcludedRuleFromDiscarders(excludedRuleFromDiscarders map[eval.RuleID]bool, discarderFields ...eval.Field) {
 	rs.opts.ExcludedRuleFromDiscarders = excludedRuleFromDiscarders
+	rs.opts.ExcludedRuleDiscarderFields = discarderFields
 }
 
 // AddRule creates the rule evaluator and adds it to the bucket of its events
@@ -811,9 +835,19 @@ func (rs *RuleSet) compileActionValue(expr string) (eval.Evaluator, eval.EventTy
 		return nil, "", err
 	}
 	state := eval.NewState(rs.model)
-	evaluator, _, err := eval.Compile(node, rs.evalOpts, state)
+	evaluator, tree, _, err := eval.Compile(node, rs.evalOpts, state)
 	if err != nil {
 		return nil, "", err
+	}
+
+	// an action isn't evaluated over the elements of an iterator, an iterator
+	// variable would read the element of another evaluation. The tree is the one
+	// compiled, a macro holding one included.
+	if ast.Any(tree, func(n ast.Node) bool {
+		ref, ok := n.(*ast.FieldRef)
+		return ok && ref.Iter != nil
+	}) {
+		return nil, "", errors.New("iterator variables aren't supported in an action")
 	}
 	eventType, err := eval.EventTypeFromState(rs.model, state)
 	return evaluator.(eval.Evaluator), eventType, err
@@ -924,8 +958,8 @@ func (rs *RuleSet) GetBucket(eventType eval.EventType) *RuleBucket {
 	return nil
 }
 
-// GetApprovers returns all approvers
-func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) (map[eval.EventType]Approvers, *ApproverStats, []*Rule, error) {
+// GetApprovers returns the approvers of the event types having an approver model
+func (rs *RuleSet) GetApprovers(models map[eval.EventType]ApproverModel) (map[eval.EventType]Approvers, *ApproverStats, []*Rule, error) {
 	var (
 		approvers        = make(map[eval.EventType]Approvers)
 		noDiscarderRules []*Rule
@@ -933,12 +967,12 @@ func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) 
 	)
 
 	for _, eventType := range rs.GetEventTypes() {
-		caps, exists := fieldCaps[eventType]
+		model, exists := models[eventType]
 		if !exists {
 			continue
 		}
 
-		evtApprovers, evtStats, evtNoDiscarderRules, err := rs.GetEventTypeApprovers(eventType, caps)
+		evtApprovers, evtStats, evtNoDiscarderRules, err := rs.GetEventTypeApprovers(eventType, model)
 		stats.Merge(evtStats)
 
 		if err != nil || len(evtApprovers) == 0 {
@@ -952,15 +986,15 @@ func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) 
 	return approvers, stats, noDiscarderRules, nil
 }
 
-// GetEventTypeApprovers returns approvers for the given event type and the fields
-func (rs *RuleSet) GetEventTypeApprovers(eventType eval.EventType, fieldCaps FieldCapabilities) (Approvers, *ApproverStats, []*Rule, error) {
+// GetEventTypeApprovers returns the approvers of an event type
+func (rs *RuleSet) GetEventTypeApprovers(eventType eval.EventType, model ApproverModel) (Approvers, *ApproverStats, []*Rule, error) {
 	bucket, exists := rs.eventRuleBuckets[eventType]
 	if !exists {
 		return nil, nil, nil, ErrNoEventTypeBucket{EventType: eventType}
 	}
 
 	// all the rules needs to be of the same type
-	return getApprovers(bucket.rules, rs.NewFakeEvent(), fieldCaps)
+	return getApprovers(bucket.rules, model)
 }
 
 // GetFieldValues returns all the values of the given field
@@ -985,7 +1019,9 @@ func (rs *RuleSet) IsDiscarder(ctx *eval.Context, fields []eval.Field, rules []*
 
 	for _, rule := range rules {
 		// ignore rule that can't generate discarders
-		if _, exists := rs.opts.ExcludedRuleFromDiscarders[rule.ID]; exists {
+		if _, exists := rs.opts.ExcludedRuleFromDiscarders[rule.ID]; exists && !slices.ContainsFunc(fields, func(field eval.Field) bool {
+			return slices.Contains(rs.opts.ExcludedRuleDiscarderFields, field)
+		}) {
 			continue
 		}
 

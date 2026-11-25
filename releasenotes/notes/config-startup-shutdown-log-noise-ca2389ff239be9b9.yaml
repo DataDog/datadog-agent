@@ -1,0 +1,17 @@
+---
+fixes:
+  - |
+    System-probe no longer logs an unknown configuration key warning for
+    ``compliance_config.run_in_system_probe`` at startup. The Remote
+    Configuration client no longer logs an error, or reports a failed update,
+    when an update is cancelled because the client is shutting down.
+  - |
+    The configuration warnings no longer report "Unknown environment variable"
+    for ``DD_*`` variables that Agent processes read directly, without a
+    configuration setting: ``DD_ENTITY_ID``, the process manager variables
+    (``DD_PM_CONFIG_DIR``, ``DD_PM_INHERIT_ENV_NAMES``,
+    ``DD_PM_INHERIT_ENV_PREFIXES``, ``DD_PM_IPC_CERT_FILE_PATH`` and
+    ``DD_PM_SOCKET_PATH``), ``DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH``, and
+    the variables of the ``secret-generic-connector`` secret backend
+    (``DD_SECRETS_IMPLICIT_AUTH``, ``DD_SECRETS_SA_TOKEN_PATH``,
+    ``DD_SECRETS_VAULT_AUTH_PATH`` and ``DD_SECRETS_VAULT_ROLE``).
