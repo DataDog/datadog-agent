@@ -109,7 +109,7 @@ func (s *packageDDOTSuite) TestInstallDDOTLegacyPackageInstaller() {
 	}
 
 	// Install ddot
-	s.host.Run("sudo datadog-installer install oci://installtesting.datad0g.com.internal.dda-testing.com/ddot-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID"))
+	s.host.Run("sudo datadog-installer install oci://installtesting.datad0g.com/ddot-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID"))
 	s.host.AssertPackageInstalledByInstaller("datadog-agent-ddot")
 
 	// Check if datadog.yaml exists, if not return an error
@@ -214,7 +214,7 @@ func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
 	}
 
 	// Install the ddot extension via the new datadog-agent otel subcommand.
-	agentPackageURL := "oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID")
+	agentPackageURL := "oci://installtesting.datad0g.com/agent-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID")
 	s.host.Run("sudo datadog-agent otel install --url " + agentPackageURL)
 
 	if s.host.ProcmgrEnabled() {
