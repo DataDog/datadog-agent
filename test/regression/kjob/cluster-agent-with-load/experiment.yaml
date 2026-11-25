@@ -2,6 +2,11 @@ runner: kind
 runtime_config:
   # KWOK puts the activity Pods on one fake Node, so their containers do not run.
   kwok: true
+# CI can replace this image with the Cluster Agent image of the commit.
+parameters:
+  cluster_agent_image:
+    type: image
+    default: "registry.datadoghq.com/cluster-agent:7.84.6"
 # The Cluster Agent payloads go to this receiver, not to public Datadog endpoints.
 blackhole:
   - id: intake

@@ -1,4 +1,4 @@
-{#- PR comment for the single_machine_performance-kjob CI job, rendered by `smp kjob report --template-file`.
+{#- PR comment of the KJob CI jobs, rendered by `smp kjob report --template-file`.
     The pr-commenter service adds the "K8s Regression Detector Results" header, so this template has no header line.
     GitHub renders Markdown after an HTML block only after a blank line, so keep a blank line around each <details> block. -#}
 {#- Show the error of a failed replicate on its failure line when the report has no more than this number of errors. -#}
@@ -33,66 +33,41 @@ no data
 unavailable
 {%- endif %}
 {%- endmacro %}
-{% macro hidden_checks(experiment) -%}
-{% set hidden = namespace(count=0) %}
-{% for check in experiment.checks if not check.passed and check.reasons == ["evaluation_unavailable"] and check.expected_replicates - check.passed_replicates <= experiment.replicates_failed %}
-{% set hidden.count = hidden.count + 1 %}
-{% endfor %}
-{% if hidden.count == 1 %} (1 check has no result){% elif hidden.count > 1 %} ({{ hidden.count }} checks have no result){% endif %}
-{%- endmacro %}
-{#- The cell shows the series without the "target." prefix. GitHub removes <abbr> tooltips from comments. -#}
-{% macro metric(series) -%}
-{{ series | replace("target.", "") }}
-{%- endmacro %}
 {{ summary }}
 {% if report is not none %}
-{% set errors = namespace(count=0, collapsed=false) %}
-{#- "Run errors" shows when the failure lines show only counts, or when they cut an error. -#}
-{% for experiment in report.experiments %}
-{% set errors.count = errors.count + experiment.failures | length %}
-{% endfor %}
-{% set failures = namespace(lines=[]) %}
-{% for experiment in report.experiments %}
-{% if experiment.replicates_failed > 0 %}
-{% if errors.count <= inline_error_limit and experiment.failures | length == experiment.replicates_failed %}
-{% for failure in experiment.failures %}
-{% set error = (failure.error or "no execution error detail is available") | replace("\n", " ") %}
-{% if error | length > error_length_limit %}
-{#- "Run errors" shows the full error. -#}
-{% set errors.collapsed = true %}
-{% set error_html = "<code>" ~ (error[:error_length_limit] | e) ~ "…</code>" %}
-{% else %}
-{% set error_html = "<code>" ~ (error | e) ~ "</code>" %}
-{% endif %}
-{% set failures.lines = failures.lines + ["- ❌ `" ~ experiment.name ~ "` replicate " ~ failure.replicate_index ~ " did not complete" ~ hidden_checks(experiment) ~ ": " ~ error_html] %}
-{% endfor %}
-{% else %}
-{% set errors.collapsed = true %}
-{% set failures.lines = failures.lines + ["- ❌ `" ~ experiment.name ~ "`: " ~ experiment.replicates_failed ~ " of " ~ experiment.replicates_expected ~ " replicates did not complete" ~ hidden_checks(experiment)] %}
-{% endif %}
-{% endif %}
-{% for check in experiment.checks if not check.passed %}
-{#- The replicate line above covers a check that has no result only because its replicates did not complete. -#}
-{% if not (check.reasons == ["evaluation_unavailable"] and check.expected_replicates - check.passed_replicates <= experiment.replicates_failed) %}
-{% set failures.lines = failures.lines + ["- ❌ `" ~ experiment.name ~ "`: `" ~ check.name ~ "` failed in " ~ (check.expected_replicates - check.passed_replicates) ~ " of " ~ check.expected_replicates ~ " replicates, " ~ (check | kjob_relation)] %}
-{% endif %}
-{% endfor %}
-{% endfor %}
-{% if failures.lines %}
+{% set inline = execution_failures | length <= inline_error_limit %}
+{% set errors = namespace(cut=false) %}
+{% if failure_lines %}
 
-{% for line in failures.lines %}
-{{ line }}
-{% endfor %}
 {% endif %}
-{% if errors.collapsed and errors.count > 0 %}
+{% for experiment in report.experiments %}
+{#- A check that has no result only because its replicates did not complete gets no line of its own. -#}
+{% set hidden = namespace(names=[]) %}
+{% for check in experiment.checks if not check.passed and check.reasons == ["evaluation_unavailable"] and check.expected_replicates - check.passed_replicates <= experiment.replicates_failed %}
+{% set hidden.names = hidden.names + [check.name] %}
+{% endfor %}
+{% set hidden_text %}{% if hidden.names | length == 1 %} (1 check has no result){% elif hidden.names %} ({{ hidden.names | length }} checks have no result){% endif %}{% endset %}
+{% if inline %}
+{% for failure in execution_failures if failure.experiment == experiment.name %}
+{% set error = failure.error | replace("\n", " ") %}
+{% if error | length > error_length_limit %}{% set errors.cut = true %}{% endif %}
+- ❌ `{{ experiment.name }}` replicate {{ failure.replicate_index }} did not complete{{ hidden_text }}: <code>{{ error[:error_length_limit] | e }}{% if error | length > error_length_limit %}…{% endif %}</code>
+{% endfor %}
+{% elif experiment.replicates_failed > 0 %}
+- ❌ `{{ experiment.name }}`: {{ experiment.replicates_failed }} of {{ experiment.replicates_expected }} replicates did not complete{{ hidden_text }}
+{% endif %}
+{% for check in experiment.checks if not check.passed and check.name not in hidden.names %}
+- ❌ `{{ experiment.name }}`: `{{ check.name }}` failed in {{ check.expected_replicates - check.passed_replicates }} of {{ check.expected_replicates }} replicates, {{ check | kjob_relation }}
+{% endfor %}
+{% endfor %}
+{#- "Run errors" shows the full errors when the failure lines show only counts, or when they cut an error. -#}
+{% if execution_failures and (not inline or errors.cut) %}
 
 <details>
-<summary>Run errors ({{ errors.count }})</summary>
+<summary>Run errors ({{ execution_failures | length }})</summary>
 
-{% for experiment in report.experiments %}
-{% for failure in experiment.failures %}
-- `{{ experiment.name }}` replicate {{ failure.replicate_index }}: <code>{{ (failure.error or "no execution error detail is available") | replace("\n", " ") | e }}</code>
-{% endfor %}
+{% for failure in execution_failures %}
+- `{{ failure.experiment }}` replicate {{ failure.replicate_index }}: <code>{{ failure.error | replace("\n", " ") | e }}</code>
 {% endfor %}
 
 </details>
@@ -102,8 +77,7 @@ unavailable
 <summary>Detailed Bounds Checks ({{ report.experiments | length }} experiment{% if report.experiments | length != 1 %}s{% endif %})</summary>
 
 {% if rows %}
-{#- The table cells have no code spans, because a code span makes a column wider. -#}
-{#- Failed rows come first. Inside each group, the rows keep the order of the report. -#}
+{#- The cells have no code spans, because a code span makes a column wider. Failed rows come first. -#}
 {% set table = namespace(rows=[]) %}
 {% for passed in [false, true] %}
 {% for experiment in report.experiments %}
@@ -112,7 +86,7 @@ unavailable
     "result": ("✅ " if check.passed else "❌ ") ~ check.passed_replicates ~ "/" ~ check.expected_replicates,
     "experiment": experiment.name,
     "check": check.name,
-    "metric": metric(check.series) | replace("|", "\\|"),
+    "metric": check.series | replace("target.", "") | replace("|", "\\|"),
     "bound": bound(check),
     "max_observed": ("**" ~ observed(check, check.max_observed) ~ "**") if (check.upper_bound is not none and check.max_observed is not none and check.max_observed > check.upper_bound) else observed(check, check.max_observed),
 }] %}
@@ -132,4 +106,4 @@ There are no bounds checks in the experiments run.
 </details>
 {% endif %}
 
-<sub><i><a href="https://github.com/DataDog/datadog-agent/commit/{{ extra.commit }}">Commit {{ extra.commit[:11] }}</a> · <a href="{{ extra.job_url }}">CI job</a>{% if links is not none %} · <a href="{{ links.logs }}" title="Datadog logs of the target containers in all replicates of this run">Target logs</a> · <a href="{{ links.metrics }}" title="Datadog notebook with the metrics of all replicates of this run">Metrics</a>{% endif %}</i></sub>
+<sub><i><a href="https://github.com/DataDog/datadog-agent/commit/{{ extra.commit }}">Commit {{ extra.commit[:11] }}</a> · <a href="{{ extra.job_url }}">CI job</a> · {{ extra.images }}{% if links is not none %} · <a href="{{ links.logs }}" title="Datadog logs of the target containers in all replicates of this run">Target logs</a> · <a href="{{ links.metrics }}" title="Datadog notebook with the metrics of all replicates of this run">Metrics</a>{% endif %}</i></sub>

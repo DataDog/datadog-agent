@@ -23,11 +23,15 @@ spec:
       enabled: false
   override:
     clusterAgent:
+      image:
+        name: "{{overrides.cluster_agent_image}}"
       env:
         # The Cluster Agent collects Kubernetes tags for all Pods, which adds load from the activity Pods.
         - name: DD_CLUSTER_AGENT_COLLECT_KUBERNETES_TAGS
           value: "true"
     nodeAgent:
+      image:
+        name: "{{overrides.node_agent_image}}"
       containers:
         agent:
           env:

@@ -61,7 +61,7 @@ spec:
     spec:
       containers:
         - name: cluster-agent
-          image: registry.datadoghq.com/cluster-agent:7.84.6
+          image: "{{overrides.cluster_agent_image}}"
           env:
             - name: DD_API_KEY
               value: "00000000000000000000000000000000"

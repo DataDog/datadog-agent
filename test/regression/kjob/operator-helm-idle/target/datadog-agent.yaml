@@ -22,7 +22,12 @@ spec:
     remoteConfiguration:
       enabled: false
   override:
+    clusterAgent:
+      image:
+        name: "{{overrides.cluster_agent_image}}"
     nodeAgent:
+      image:
+        name: "{{overrides.node_agent_image}}"
       containers:
         agent:
           env:

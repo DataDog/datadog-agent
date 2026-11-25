@@ -23,6 +23,6 @@ Each bound is the highest value from 10 CI replicates plus 10%, rounded to the n
 
 ## Special Considerations
 
-- The case uses fixed images: the Helm chart `datadog-operator` `2.29.0` installs Operator `1.31.0`, which selects its default Agent images.
+- The Helm chart `datadog-operator` `2.29.0` installs Operator `1.31.0`. The default Agent images are the images that this Operator selects: `agent:7.84.1` and `cluster-agent:7.84.1`. With the `smp-run-k8s-experiments-with-build` label, CI uses the Agent and Cluster Agent images of the commit.
 - The case runs on KinD. The same case with load is `operator-helm-with-load`.
 - The Agent sends its payloads to the HTTP receivers in `experiment.yaml`. Remote Configuration, Agent telemetry and the NTP check are off, because the cluster has no internet access.
