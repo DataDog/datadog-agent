@@ -70,7 +70,7 @@ func (d *Dispatcher) AdvanceWithDiscovery(
 ) {
 	raw := clampSeverityLevel(rawLevel)
 	discovery := clampSeverityLevel(discoveryLevel)
-	next := maxSeverityLevel(raw, discovery)
+	next := max(raw, discovery)
 	hasDiscovery := discovery != severityeventsdef.SeverityLow && next == discovery
 	historicalSec := int64(0)
 	if hasDiscovery {
@@ -171,11 +171,4 @@ func clampSeverityLevel(level severityeventsdef.SeverityLevel) severityeventsdef
 		return severityeventsdef.SeverityHigh
 	}
 	return level
-}
-
-func maxSeverityLevel(left, right severityeventsdef.SeverityLevel) severityeventsdef.SeverityLevel {
-	if left > right {
-		return left
-	}
-	return right
 }

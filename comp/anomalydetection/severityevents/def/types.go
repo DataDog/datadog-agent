@@ -48,9 +48,9 @@ const (
 type SeverityEvent struct {
 	// Timestamp is the data time (Unix seconds) when the transition took effect.
 	Timestamp int64 `json:"timestamp"`
-	// HistoricalTimestamp is the Medium or High period start. It equals
-	// Timestamp for live events and is earlier for replayed evidence.
-	// Cooldown always starts at Timestamp.
+	// HistoricalTimestamp is the Medium or High period start, when known. It
+	// is zero for transitions that do not introduce a new discovery. Cooldown
+	// always starts at Timestamp.
 	HistoricalTimestamp int64 `json:"historical_timestamp,omitempty"`
 	// FromLevel is the state before the transition.
 	FromLevel SeverityLevel `json:"from_level"`

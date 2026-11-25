@@ -1125,6 +1125,23 @@ func TestReplayDistinctMediumRenewsHoldWithoutRepeat(t *testing.T) {
 	require.Equal(t, severityeventsdef.SeverityLow, listener.events[1].ToLevel)
 }
 
+func TestReplayMediumExtendingIntoCatchupIsNotDuplicated(t *testing.T) {
+	cfg := highDiscoveryConfig()
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{}, listener)
+
+	s.Advance(1000)
+	s.ProcessAnomaly(mediumTestAnomaly(1000, "late"))
+	s.ProcessAnomaly(mediumTestAnomaly(1001, "forward"))
+	s.Advance(1010)
+
+	require.Len(t, listener.events, 1)
+	require.Equal(t, severityeventsdef.SeverityMedium, listener.events[0].ToLevel)
+	require.EqualValues(t, 1010, listener.events[0].Timestamp)
+	require.EqualValues(t, 1000, listener.events[0].HistoricalTimestamp)
+}
+
 func TestReplayMediumExtensionDoesNotRenew(t *testing.T) {
 	cfg := highDiscoveryConfig()
 	cfg.WindowSecs = 3

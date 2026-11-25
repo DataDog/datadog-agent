@@ -389,10 +389,11 @@ func (b *topAnomalyBuffer) contributors(maxItems int) []observerdef.ScorerContri
 
 // secState is the per-second scorer state emitted after each Advance step.
 type secState struct {
-	sec       int64
-	ewma      float64
-	level     severityeventsdef.SeverityLevel
-	discovery severityDiscovery
+	sec        int64
+	ewma       float64
+	level      severityeventsdef.SeverityLevel
+	discovery  severityDiscovery
+	replayOnly bool
 }
 
 // severityDiscovery marks the start of a distinct raw Medium or High period.
@@ -973,6 +974,9 @@ func (s *anomalyScorer) Advance(dataTime int64) {
 	s.dispatchersMu.RUnlock()
 	for _, st := range states {
 		for _, dispatcher := range dispatchers {
+			if st.replayOnly && st.sec != dataTime {
+				continue
+			}
 			discovery := st.discovery
 			if st.sec == dataTime {
 				discovery = strongerDiscovery(discovery, missedDiscovery)
@@ -1448,9 +1452,6 @@ func (s *anomalyScorer) replayScoredSeconds(start int64, forward []secState) sev
 		if sec >= forwardStart {
 			st := &forward[sec-forwardStart]
 			ordinary = st.discovery
-			if ordinary.level == severityeventsdef.SeverityHigh {
-				sawHighDiscovery = true
-			}
 			*st = secState{sec: sec, level: next.level, ewma: next.ewma}
 		}
 
@@ -1476,7 +1477,13 @@ func (s *anomalyScorer) replayScoredSeconds(start int64, forward []secState) sev
 						level:    level,
 						crossing: period.start,
 					}
+					if level == severityeventsdef.SeverityHigh {
+						sawHighDiscovery = true
+					}
 					period.known = true
+				} else if sec >= forwardStart && !period.known &&
+					period.start < forwardStart && next.level == level {
+					forward[sec-forwardStart].replayOnly = true
 				}
 			} else if period.start != 0 {
 				if !period.known {
