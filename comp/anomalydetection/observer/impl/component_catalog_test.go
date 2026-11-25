@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TestDefaultCatalog_DetectorTeardownContract is the structural guard that
@@ -222,16 +224,18 @@ anomaly_detection:
 
 func TestSettingsFromAgentConfigStableDetectorSelection(t *testing.T) {
 	tests := []struct {
-		name          string
-		block         string
-		wantDetector  string
-		wantMinPoints int
-		wantMaxPoints int
-		wantWarmup    int
-		wantMaxRun    int
+		name           string
+		block          string
+		wantDetector   string
+		wantMinPoints  int
+		wantMaxPoints  int
+		wantMinSegment int
+		wantWarmup     int
+		wantMaxRun     int
 	}{
-		{name: "scanmw", block: "scanmw:\n        min_points: 42\n        max_points: 84", wantDetector: "scanmw", wantMinPoints: 42, wantMaxPoints: 84},
-		{name: "scanwelch", block: "scanwelch:\n        min_points: 43\n        max_points: 85", wantDetector: "scanwelch", wantMinPoints: 43, wantMaxPoints: 85},
+		{name: "scanmw", block: "scanmw:\n        min_points: 42\n        max_points: 84\n        min_segment: 6", wantDetector: "scanmw", wantMinPoints: 42, wantMaxPoints: 84, wantMinSegment: 6},
+		{name: "scanmw_default_min_segment", block: "scanmw:\n        min_points: 15", wantDetector: "scanmw", wantMinPoints: 15, wantMaxPoints: 120, wantMinSegment: 12},
+		{name: "scanwelch", block: "scanwelch:\n        min_points: 43\n        max_points: 85\n        min_segment: 7", wantDetector: "scanwelch", wantMinPoints: 43, wantMaxPoints: 85, wantMinSegment: 7},
 		{name: "bocpd", block: "bocpd:\n        warmup_points: 44\n        max_run_length: 86", wantDetector: "bocpd", wantWarmup: 44, wantMaxRun: 86},
 	}
 	for _, test := range tests {
@@ -255,9 +259,11 @@ anomaly_detection:
 			case *ScanMWDetector:
 				require.Equal(t, test.wantMinPoints, detector.config.MinPoints)
 				require.Equal(t, test.wantMaxPoints, detector.config.MaxPoints)
+				require.Equal(t, test.wantMinSegment, detector.config.MinSegment)
 			case *ScanWelchDetector:
 				require.Equal(t, test.wantMinPoints, detector.config.MinPoints)
 				require.Equal(t, test.wantMaxPoints, detector.config.MaxPoints)
+				require.Equal(t, test.wantMinSegment, detector.config.MinSegment)
 			case *BOCPDDetector:
 				require.Equal(t, test.wantWarmup, detector.config.WarmupPoints)
 				require.Equal(t, test.wantMaxRun, detector.config.MaxRunLength)
@@ -308,6 +314,84 @@ func TestSettingsFromAgentConfigStableDetectorErrors(t *testing.T) {
 			cfg := configmock.NewFromYAML(t, "anomaly_detection:\n  metric_pipeline:\n    enabled: true\n    stable:\n"+test.yaml)
 			_, err := settingsFromAgentConfig(defaultCatalog(), cfg)
 			require.EqualError(t, err, test.want)
+		})
+	}
+}
+
+func TestSettingsFromAgentConfigStableDetectorMinSegmentFallbackWarning(t *testing.T) {
+	level, err := pkglog.GetLogLevelSpec()
+	require.NoError(t, err)
+	var output bytes.Buffer
+	logger, err := pkglog.LoggerFromWriterWithMinLevelAndMsgFormat(&output, pkglog.WarnLvl)
+	require.NoError(t, err)
+	pkglog.SetupLogger(logger, "warn")
+	t.Cleanup(func() { pkglog.SetupLogger(pkglog.Default(), level) })
+
+	tests := []struct {
+		name           string
+		yaml           string
+		wantMinSegment int
+		wantWarn       string
+	}{
+		{
+			name: "scanmw non-positive min_segment",
+			yaml: `
+      scanmw:
+        min_segment: 0
+`,
+			wantMinSegment: 12,
+			wantWarn:       "anomaly_detection.metric_pipeline.stable.scanmw.min_segment=0 must be > 0; using 12",
+		},
+		{
+			name: "scanmw min_segment exceeds half max_points",
+			yaml: `
+      scanmw:
+        min_segment: 61
+`,
+			wantMinSegment: 12,
+			wantWarn:       "ScanMW min_segment=61 exceeds half of max_points=120; using 12",
+		},
+		{
+			name: "scanwelch non-positive min_segment",
+			yaml: `
+      scanwelch:
+        min_segment: -1
+`,
+			wantMinSegment: 12,
+			wantWarn:       "anomaly_detection.metric_pipeline.stable.scanwelch.min_segment=-1 must be > 0; using 12",
+		},
+		{
+			name: "scanwelch min_segment exceeds half max_points",
+			yaml: `
+      scanwelch:
+        max_points: 40
+        min_segment: 21
+`,
+			wantMinSegment: 12,
+			wantWarn:       "ScanWelch min_segment=21 exceeds half of max_points=40; using 12",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			output.Reset()
+			cfg := configmock.NewFromYAML(t, "anomaly_detection:\n  metric_pipeline:\n    enabled: true\n    stable:\n"+test.yaml)
+			settings, err := settingsFromAgentConfig(defaultCatalog(), cfg)
+			require.NoError(t, err)
+			detectors, _, _, _, _ := instantiateForTest(t, defaultCatalog(), settings)
+			require.Len(t, detectors, 1)
+			pipeline := detectors[0].detector.(*MetricPipeline)
+			stable := pipeline.registrations[0].detector.(*StablePipeline)
+			switch d := stable.detector.(type) {
+			case *ScanMWDetector:
+				require.Equal(t, test.wantMinSegment, d.config.MinSegment)
+			case *ScanWelchDetector:
+				require.Equal(t, test.wantMinSegment, d.config.MinSegment)
+			default:
+				t.Fatalf("unexpected detector type %T", d)
+			}
+			pkglog.Flush()
+			require.Contains(t, output.String(), test.wantWarn)
 		})
 	}
 }
@@ -489,6 +573,28 @@ func TestParseTestbenchSettingsFromJSON(t *testing.T) {
 	require.False(t, explicit.Enabled["anomaly_scorer"])
 	require.Zero(t, explicit.configs["anomaly_scorer"].(AnomalyScorerConfig).CooldownSecs)
 	require.False(t, explicit.configs["anomaly_scorer"].(AnomalyScorerConfig).CorrelationEvents)
+}
+
+func TestTestbenchScorerReorderProfileAndValidation(t *testing.T) {
+	settings := ApplyTestbenchDefaults(ComponentSettings{})
+	scorer := settings.configs["anomaly_scorer"].(AnomalyScorerConfig)
+	require.Equal(t, int64(600), scorer.ReorderingWindowSecs)
+	require.Equal(t, "clamp", scorer.LateAnomalyBehavior)
+
+	explicit, err := ParseTestbenchSettingsFromJSON(map[string]json.RawMessage{
+		"anomaly_scorer": json.RawMessage(`{"anomaly_reordering_window_secs":0}`),
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(0), explicit.configs["anomaly_scorer"].(AnomalyScorerConfig).ReorderingWindowSecs)
+
+	for _, raw := range []json.RawMessage{
+		json.RawMessage(`{"anomaly_reordering_window_secs":3601}`),
+		json.RawMessage(`{"anomaly_reordering_window_secs":-1}`),
+		json.RawMessage(`{"late_anomaly_behavior":"backfill"}`),
+	} {
+		_, err := ParseTestbenchSettingsFromJSON(map[string]json.RawMessage{"anomaly_scorer": raw})
+		require.Error(t, err)
+	}
 }
 
 func instantiateForTest(t testing.TB, catalog *componentCatalog, settings ComponentSettings) (

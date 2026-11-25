@@ -122,11 +122,9 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 
 		// Cluster check runners aren't scheduled on a specific node and don't have a
 		// reachable local kubelet, so skip the node-label based auto discovery to avoid
-		// noisy "Impossible to reach Kubelet" warnings. Neither does otel-agent when its
-		// configuration leaves it without kubelet access, where that discovery could
-		// only fail, possibly after waiting on connection timeouts.
+		// noisy "Impossible to reach Kubelet" warnings.
 		var clusterName string
-		if !helper.IsCLCRunner(pkgconfigsetup.Datadog()) && !ddot.KubeletDisabled(pkgconfigsetup.Datadog()) {
+		if !helper.IsCLCRunner(pkgconfigsetup.Datadog()) {
 			var err error
 			clusterName, err = nodeClusterNameLabel(ctx, data.clusterName)
 			if err != nil {

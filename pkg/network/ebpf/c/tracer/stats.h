@@ -123,11 +123,15 @@ static __always_inline void update_conn_state(conn_tuple_t *t, conn_stats_ts_t *
 //
 // *how is the connection direction determined?*
 //
-// Basically we compare the src-side of the normalized USM tuple (which should
-// contain the client port), with the source port of the TCP *socket* (here
-// supplied as part the `pre_norm_tuple` argument). If they match, we mark the
-// protocol stack with FLAG_CLIENT_SIDE, otherwise we mark it with
-// FLAG_SERVER_SIDE.
+// `flipped` says whether normalize_tuple flipped this socket's view of the
+// tuple, with the socket's end as the source: for the socket's own tuple, and
+// for the NAT'd tuple, the packets' tuple as it leaves the socket. If it didn't
+// flip, this end is the normalized source and we mark the protocol stack with
+// FLAG_CLIENT_SIDE, otherwise with FLAG_SERVER_SIDE. The two ends of a
+// connection see the same normalized tuple in opposite orientations, so for two
+// distinct ends exactly one of them flips it; a self-connect (the same address
+// and port on both ends) flips for neither. Comparing source ports instead fails when the ports are
+// equal, and under the NAT'd tuple when NAT rewrote the socket's own port.
 //
 // *why do we do that?*
 //
@@ -142,8 +146,8 @@ static __always_inline void update_conn_state(conn_tuple_t *t, conn_stats_ts_t *
 // This doesn't matter in our case. Even if FLAG_SERVER_SIDE and
 // FLAG_CLIENT_SIDE are flipped, all we care about is the case where both flags
 // are present.
-static __always_inline void mark_protocol_direction(conn_tuple_t *pre_norm_tuple, conn_tuple_t *norm_tuple, protocol_stack_t *protocol_stack) {
-    if (pre_norm_tuple->sport == norm_tuple->sport) {
+static __always_inline void mark_protocol_direction(bool flipped, protocol_stack_t *protocol_stack) {
+    if (!flipped) {
         set_protocol_flag(protocol_stack, FLAG_CLIENT_SIDE);
         return;
     }
@@ -161,19 +165,19 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     // The key is based of the source & dest addresses and ports, and the metadata.
     conn_tuple_copy.netns = 0;
     conn_tuple_copy.pid = 0;
-    normalize_tuple(&conn_tuple_copy);
+    bool flipped = normalize_tuple(&conn_tuple_copy);
 
     // Using __get_protocol_stack_if_exists and __get_tls_enhanced_tags as `conn_tuple_copy` is already normalized.
     protocol_stack_t *protocol_stack = __get_protocol_stack_if_exists(&conn_tuple_copy);
     set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
-    mark_protocol_direction(t, &conn_tuple_copy, protocol_stack);
+    mark_protocol_direction(flipped, protocol_stack);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
 
     tls_info_t *tls_tags = __get_tls_enhanced_tags(&conn_tuple_copy);
     merge_tls_info(&stats->tls_tags, tls_tags);
 
     conn_tuple_t skb_tup;
-    if (!get_skb_tuple(t, &conn_tuple_copy, &skb_tup)) {
+    if (!get_skb_tuple(t, &conn_tuple_copy, &skb_tup, &flipped)) {
         return;
     }
 
@@ -181,7 +185,7 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     // Using __get_protocol_stack_if_exists and __get_tls_enhanced_tags as `conn_tuple_copy` is already normalized.
     protocol_stack = __get_protocol_stack_if_exists(&conn_tuple_copy);
     set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
-    mark_protocol_direction(t, &conn_tuple_copy, protocol_stack);
+    mark_protocol_direction(flipped, protocol_stack);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
 
     tls_tags = __get_tls_enhanced_tags(&conn_tuple_copy);

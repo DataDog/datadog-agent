@@ -32,7 +32,7 @@ func (s *testDotnetLibraryInstallSuiteWithoutIIS) TestInstallDotnetLibraryPackag
 	// TODO: remove override once image is published in prod
 	_, err := s.Installer().InstallPackage("datadog-apm-library-dotnet",
 		unixinstaller.WithVersion("3.19.0-pipeline.67351320.beta.sha-c05ddfb1-1"),
-		unixinstaller.WithRegistry("install.datad0g.com.internal.dda-testing.com"),
+		unixinstaller.WithRegistry("install.datad0g.com"),
 	)
 	s.Require().NoError(err, "Installing the dotnet library package without IIS should not fail")
 }
@@ -42,7 +42,7 @@ func (s *testDotnetLibraryInstallSuiteWithoutIIS) TestMSIInstallDotnetLibraryFai
 	s.Require().NoError(s.Installer().Install(
 		WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
 		// TODO: remove override once image is published in prod
-		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
+		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
 		WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:"+version),
 		WithMSILogFile("install-rollback.log"),
 	))

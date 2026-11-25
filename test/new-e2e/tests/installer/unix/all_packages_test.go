@@ -272,7 +272,7 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		}
 
 		// Write the playbook. InstallScriptEnv sets datadog_installer_registry to the
-		// pipeline OCI registry (installtesting.datad0g.com.internal.dda-testing.com), which
+		// pipeline OCI registry (installtesting.datad0g.com), which
 		// the role passes as DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE to install-ssi.sh.
 		// The script URL is overridden via -e (extra vars beat set_fact) so ansible fetches
 		// the pipeline-specific install-ssi.sh from S3 instead of the production script.

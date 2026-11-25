@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
@@ -400,13 +401,25 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 		// using the instance profiles will give us the total capacity available
 		// to MIG instances, without reporting cores that can never be used when
 		// MIG is enabled.
-		profileInfo, err := device.SafeDevice.GetGpuInstanceProfileInfo(0)
+		//
+		// The smallest profile does not give that capacity on its own: on an
+		// H200, 7 x 1g.18gb instances have 112 SMs and 112 GiB, while one
+		// 7g.141gb instance has 132 SMs and 140 GiB and a 1g.35gb instance
+		// has 26 SMs. Take the largest capacity any profile provides, so that
+		// no MIG device reports more memory or cores than the GPU hosting it.
+		profiles, err := device.migInstanceProfiles()
 		if err != nil {
-			return nil, fmt.Errorf("error getting MIG device profile info: %w", err)
+			return nil, err
+		}
+		var multiprocessors, memoryMB uint64
+		for _, info := range profiles {
+			profileMultiprocessors, profileMemoryMB := migProfileCapacity(info)
+			multiprocessors = max(multiprocessors, profileMultiprocessors)
+			memoryMB = max(memoryMB, profileMemoryMB)
 		}
 
-		device.Memory = uint64(profileInfo.MemorySizeMB) * 1024 * 1024 * uint64(profileInfo.InstanceCount)
-		device.CoreCount = int(profileInfo.MultiprocessorCount) * int(profileInfo.InstanceCount) * coresPerMultiprocessor(device.Architecture)
+		device.Memory = memoryMB * 1024 * 1024
+		device.CoreCount = int(multiprocessors) * coresPerMultiprocessor(device.Architecture)
 	} else {
 		cores, err := device.SafeDevice.GetNumGpuCores()
 		if err != nil {
@@ -425,6 +438,54 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 	}
 
 	return device, nil
+}
+
+// lastMIGInstanceProfiles holds the last complete list of GPU instance profiles of each GPU, by GPU UUID, used when
+// an optional profile cannot be queried. The profiles of a GPU do not change while it is in MIG mode.
+var lastMIGInstanceProfiles sync.Map
+
+// migInstanceProfiles returns the GPU instance profiles that the GPU supports, by profile index
+// (nvml.GPU_INSTANCE_PROFILE_*). The first profile is required. The others are skipped when the GPU does not
+// support them; on any other error, the last complete list of the GPU is used, so that a transient failure neither
+// reports a smaller capacity nor drops the GPU, and the profile is skipped if there is none.
+func (d *PhysicalDevice) migInstanceProfiles() (map[int]nvml.GpuInstanceProfileInfo, error) {
+	profiles := make(map[int]nvml.GpuInstanceProfileInfo)
+	complete := true
+	for profile := 0; profile < nvml.GPU_INSTANCE_PROFILE_COUNT; profile++ {
+		info, err := d.SafeDevice.GetGpuInstanceProfileInfo(profile)
+		switch {
+		case err == nil:
+			profiles[profile] = info
+		case profile == nvml.GPU_INSTANCE_PROFILE_1_SLICE:
+			return nil, fmt.Errorf("error getting MIG device profile info: %w", err)
+		case isUnsupportedMIGProfile(err):
+			// profile not supported by this GPU
+		default:
+			complete = false
+			if last, ok := lastMIGInstanceProfiles.Load(d.UUID); ok {
+				singleton.logDeviceWarning(d.UUID, "cannot get the info of MIG profile %d, using the last known profiles: %v", profile, err)
+				return last.(map[int]nvml.GpuInstanceProfileInfo), nil
+			}
+			singleton.logDeviceWarning(d.UUID, "cannot get the info of MIG profile %d, skipping it: %v", profile, err)
+		}
+	}
+	if complete && d.UUID != "" {
+		lastMIGInstanceProfiles.Store(d.UUID, profiles)
+	}
+	return profiles, nil
+}
+
+// isUnsupportedMIGProfile returns true for the errors NVML returns for a GPU instance profile the GPU does not have.
+func isUnsupportedMIGProfile(err error) bool {
+	var nvmlErr *NvmlAPIError
+	return IsUnsupported(err) || IsInvalidArgument(err) ||
+		(errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_NOT_FOUND))
+}
+
+// migProfileCapacity returns the multiprocessors and the memory, in MiB, of all the instances of a GPU instance
+// profile that fit in the GPU.
+func migProfileCapacity(info nvml.GpuInstanceProfileInfo) (multiprocessors uint64, memoryMB uint64) {
+	return uint64(info.MultiprocessorCount) * uint64(info.InstanceCount), info.MemorySizeMB * uint64(info.InstanceCount)
 }
 
 func (d *PhysicalDevice) fillMigChildren() error {

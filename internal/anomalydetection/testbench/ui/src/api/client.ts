@@ -168,6 +168,8 @@ export interface Anomaly {
   timestamp: number;
   /** Effective scorer second in detection-time mode. */
   scoringSecond?: number;
+  arrivalSecond?: number;
+  lateAction?: string;
   debugInfo?: AnomalyDebugInfo;
 }
 
@@ -217,6 +219,8 @@ export interface LogAnomaly {
   timestamp: number;
   /** Effective scorer second in detection-time mode. */
   scoringSecond?: number;
+  arrivalSecond?: number;
+  lateAction?: string;
   score?: number;
 }
 
@@ -311,6 +315,8 @@ export interface ReplayStats {
 
 // ---- Scoring pipeline telemetry (matches observer/def ScoreState in Go) ----
 
+export type LateBehavior = 'clamp' | 'ignore';
+
 /** Tunable parameters for the anomaly scoring pipeline. */
 export interface ScorerConfig {
   alpha: number;
@@ -318,6 +324,10 @@ export interface ScorerConfig {
   low_threshold: number;
   high_threshold: number;
   margin_pct: number;
+  /** Bounded reordering window for late evidence; 0 disables replay. */
+  anomaly_reordering_window_secs?: number;
+  /** How late evidence older than the reordering window is handled. */
+  late_anomaly_behavior?: LateBehavior;
   /** Minimum seconds between de-escalation callbacks. Included in /api/scores/config response. */
   cooldown_secs: number;
   /** Per-detector score-to-level thresholds: [low, medium, high, xhigh]. */
@@ -336,6 +346,8 @@ export interface ScoreBucket {
 /** A severity state-machine transition. */
 export interface SeverityEvent {
   timestamp: number;
+  /** Corrected historical High crossing, when the transition was delivered late. */
+  historical_timestamp?: number;
   from_level: number;
   to_level: number;
 }
@@ -352,6 +364,8 @@ export interface ScorerReport {
 /** An anomaly as consumed by the scorer during the original replay. */
 export interface ScorerInput {
   scoringSecond: number;
+  arrivalSecond?: number;
+  lateAction?: string;
   isLog?: boolean;
   source: string;
   sourceSeriesId?: SeriesID;
@@ -364,6 +378,15 @@ export interface ScorerInput {
   timestamp: number;
 }
 
+/** Min/median/max summary for a set of non-negative delays. */
+export interface DelayStats {
+  count: number;
+  late_count: number;
+  min_secs: number;
+  median_secs: number;
+  max_secs: number;
+}
+
 /** Full snapshot of the scorer's state — what /api/scores returns. */
 export interface ScoreState {
   buckets: ScoreBucket[];
@@ -373,6 +396,12 @@ export interface ScoreState {
   available?: boolean;
   cooldown_secs?: number;
   inputs?: ScorerInput[];
+  mode?: string;
+  reorder_window_secs?: number;
+  history_available?: boolean;
+  input_delay?: DelayStats;
+  high_crossing_delay?: DelayStats;
+  outside_window_count?: number;
 }
 
 class ApiClient {
@@ -506,11 +535,11 @@ class ApiClient {
     return this.fetch('/scores/config');
   }
 
-  async replayScores(config: ScorerConfig): Promise<ScoreState> {
+  async replayScores(config: ScorerConfig, mode?: string): Promise<ScoreState> {
     return this.fetch('/scores/replay', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(config),
+      body: JSON.stringify({ ...config, mode }),
     });
   }
 

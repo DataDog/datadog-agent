@@ -34,13 +34,14 @@ jobs:
         # Run tests with both the agent's version and gohai's pinned version
         go-file: [.go-version, pkg/gohai/go.mod]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: ${{ matrix.go-file }}
       - name: Test

@@ -18,7 +18,6 @@ go_library(
         "//pkg/config/setup/constants",
         "//pkg/util/cache",
         "//pkg/util/clusteragent",
-        "//pkg/util/ddot",
         "//pkg/util/kubernetes/apiserver",
         "//pkg/util/kubernetes/hostinfo",
         "//pkg/util/log",
@@ -40,7 +39,6 @@ dd_agent_go_test(
     deps = [
         "//pkg/config/env",
         "//pkg/config/mock",
-        "//pkg/util/flavor",
         "@com_github_stretchr_testify//assert",
     ],
 )

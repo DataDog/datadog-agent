@@ -756,9 +756,9 @@ var _ = declare(TestOTelSpan, testOpts{discardRuntime: true})
 
 // TestOTelSpan covers OTel Thread Local Context Record span collection across
 // every TLS access model a tracer can publish the record through: local-exec
-// from a main executable, both dialects of general-dynamic, initial-exec and
-// local-dynamic from a shared object linked at startup or dlopen'd, and TLSDESC
-// resolving to dynamic TLS.
+// from a main executable, general-dynamic (both dialects on amd64, TLSDESC
+// only on arm64), initial-exec and local-dynamic from a shared object linked
+// at startup or dlopen'd, and TLSDESC resolving to dynamic TLS.
 func TestOTelSpan(t *testing.T) {
 	SkipIfNotAvailable(t)
 	skipIfNoThreadPointer(t)

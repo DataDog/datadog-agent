@@ -190,8 +190,10 @@ func (s *windowsPARSplitLifecycleSuite) TestExecutorPipeAdmitsOnlyIntendedAccoun
 		if !assert.NoError(c, json.Unmarshal([]byte(strings.TrimSpace(lines[len(lines)-1])), &probe), output) {
 			return
 		}
-		// The executor idled out between the two probes; try again.
+		// The executor can idle out between the pipe probes or before its
+		// account is read. Retry incomplete probes before checking permissions.
 		assert.NotEqual(c, errorFileNotFound, probe.ProbeError, "the executor pipe disappeared mid-probe")
+		assert.NotEmpty(c, probe.ExecutorSID, "the executor account was not captured before it exited")
 	}, 3*time.Minute, 5*time.Second, "could not probe the executor pipe")
 
 	s.T().Logf("executor pipe security descriptor: %s", probe.SDDL)
