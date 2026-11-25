@@ -1034,6 +1034,7 @@
 /runbooks/ @DataDog/agent-build
 
 /tasks/                                                         @DataDog/agent-devx
+/tasks/oracle.py                                                @DataDog/database-monitoring
 /tasks/macos.py                                                 @DataDog/windows-products
 /tasks/msi.py                                                   @DataDog/windows-products
 /tasks/agent.py                                                 @DataDog/agent-runtimes
