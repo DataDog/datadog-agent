@@ -27,7 +27,7 @@ type ipcSecurityWindowsSuite struct {
 
 func TestIPCSecurityWindowsSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &ipcSecurityWindowsSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault), ec2.WithInternetAccess())))))
+	e2e.Run(t, &ipcSecurityWindowsSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault), ec2.WithInternetAccess())))))
 }
 
 func (v *ipcSecurityWindowsSuite) TestServersideIPCCertUsage() {
@@ -51,7 +51,7 @@ func (v *ipcSecurityWindowsSuite) TestServersideIPCCertUsage() {
 		agentparams.WithSecurityAgentConfig(securityAgentConfig),
 	}
 	// start the agent with that configuration
-	v.UpdateEnv(awshost.Provisioner(
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(
 		awshost.WithRunOptions(
 			ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 			ec2.WithAgentOptions(agentOptions...),

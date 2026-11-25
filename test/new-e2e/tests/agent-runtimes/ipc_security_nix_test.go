@@ -28,7 +28,7 @@ type ipcSecurityLinuxSuite struct {
 
 func TestIPCSecurityLinuxSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &ipcSecurityLinuxSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
+	e2e.Run(t, &ipcSecurityLinuxSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 
 func (v *ipcSecurityLinuxSuite) TestServersideIPCCertUsage() {
@@ -49,7 +49,7 @@ func (v *ipcSecurityLinuxSuite) TestServersideIPCCertUsage() {
 	coreconfig := fillTmplConfig(v.T(), coreConfigTmpl, templateVars)
 
 	// start the agent with that configuration
-	v.UpdateEnv(awshost.Provisioner(
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(
 		awshost.WithRunOptions(
 			ec2.WithAgentOptions(
 				agentparams.WithAgentConfig(coreconfig),
