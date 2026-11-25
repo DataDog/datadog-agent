@@ -183,7 +183,7 @@ func (nr *Resolver) listHostHooks() ([]hostHook, map[uint32]struct{}, error) {
 		}
 
 		for _, direction := range directions {
-			filters, err := ntl.Sock.FilterList(device, clsactParent(direction))
+			filters, err := listFilters(ntl.Sock, device, clsactParent(direction))
 			if errors.Is(err, unix.ENODEV) {
 				continue
 			}
@@ -206,6 +206,19 @@ func (nr *Resolver) listHostHooks() ([]hostHook, map[uint32]struct{}, error) {
 	nr.listTCXPrograms(handle, hooks, own)
 
 	return hooks, own, nil
+}
+
+// listFilters lists the filters of a hook, retrying like listLinks when concurrent changes interrupt the dump
+func listFilters(sock *netlink.Handle, link netlink.Link, parent uint32) ([]netlink.Filter, error) {
+	var filters []netlink.Filter
+	var err error
+
+	for range linkListAttempts {
+		if filters, err = sock.FilterList(link, parent); !errors.Is(err, unix.EINTR) {
+			break
+		}
+	}
+	return filters, err
 }
 
 // listTCXPrograms adds their TCX programs to the provided hooks. The kernel resolves the interface index of a
