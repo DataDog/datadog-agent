@@ -127,9 +127,12 @@ func readLogTail(path string, limit int64) (content []byte, read int64, err erro
 	if size <= limit {
 		return tail, read, nil
 	}
-	// The cut is in the middle of a line: start at the next one
+	// The cut is in the middle of a line: start at the next one. Without a line break, the tail is the end of one record
+	// whose beginning, with the name of its fields, is cut off, and the scrubber could not recognize the values: drop it.
 	if i := bytes.IndexByte(tail, '\n'); i >= 0 {
 		tail = tail[i+1:]
+	} else {
+		tail = nil
 	}
 	header := fmt.Sprintf("[the flare has the last %d bytes of this file of %d bytes, the beginning is left out]\n", len(tail), size)
 	return append([]byte(header), tail...), read, nil

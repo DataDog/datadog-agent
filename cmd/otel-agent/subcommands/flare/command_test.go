@@ -943,6 +943,21 @@ func TestCollectDebugSourcesBoundsTheSize(t *testing.T) {
 
 // TestCollectLogFilesKeepsABoundedTail checks that only the end of each log file is kept, from the start of a line,
 // that the newest files come first, and that the files that don't fit in the total size are left out.
+// TestReadLogTailDropsAPartialRecord checks that a tail that has no line break, which is the end of one record longer
+// than the limit, is dropped: its beginning, with the name of the field, is cut off, and the scrubber could not
+// recognize the value that stays.
+func TestReadLogTailDropsAPartialRecord(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "otel-agent.log")
+	record := "password=" + "S3cr3tValue0123456789" + strings.Repeat("-more", 4)
+	require.NoError(t, os.WriteFile(path, []byte(record), 0o600))
+
+	content, _, err := readLogTail(path, 30)
+
+	require.NoError(t, err)
+	assert.NotContains(t, string(content), "0123456789", "the end of a record is kept without its beginning")
+	assert.Contains(t, string(content), "the beginning is left out", "the flare still says that the log was cut")
+}
+
 func TestCollectLogFilesKeepsABoundedTail(t *testing.T) {
 	previousFile, previousTotal := maxLogFileBytes, maxLogTotalBytes
 	maxLogFileBytes, maxLogTotalBytes = 1<<10, 2<<10
