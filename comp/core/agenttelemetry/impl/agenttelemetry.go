@@ -303,7 +303,13 @@ func NewComponent(deps Requires) Provides {
 	a.localEmitter = localEmitter
 
 	a.flag = newRemoteFlagHandler(flagTroubleshooting, a.isHealthy)
-	a.errortrackingFlag = a.newErrortrackingFlag()
+	// A disabled component has no configuration or queue: it subscribes only
+	// the profile flag, so the errortracking flag can never switch anything on.
+	subscriber := remoteFlagSubscriber{a.flag}
+	if a.enabled {
+		a.errortrackingFlag = a.newErrortrackingFlag()
+		subscriber = append(subscriber, a.errortrackingFlag)
+	}
 
 	// Register synchronously, not on start, so errors logged while the
 	// component graph is still being built are not dropped.
@@ -326,7 +332,7 @@ func NewComponent(deps Requires) Provides {
 	return Provides{
 		Comp:       a,
 		Endpoint:   api.NewAgentEndpointProvider(a.writePayload, "/metadata/agent-telemetry", "GET"),
-		Subscriber: remoteFlagSubscriber{a.flag, a.errortrackingFlag},
+		Subscriber: subscriber,
 	}
 }
 
@@ -846,9 +852,16 @@ func (a *atel) flushErrortracking(ctx context.Context) {
 		return
 	}
 	sent, err := a.flushErrortrackingQueue(ctx, *ch)
+	if !sent {
+		return
+	}
 	// Only the live queue feeds the health signal: a switch off or on while
-	// this flush ran makes its outcome irrelevant.
-	if !sent || a.errLogsCh.Load() != ch {
+	// this flush ran makes its outcome irrelevant. The check and the update
+	// share errortrackingMu with the switch, so a new activation cannot reset
+	// the counter in between.
+	a.errortrackingMu.Lock()
+	defer a.errortrackingMu.Unlock()
+	if a.errLogsCh.Load() != ch {
 		return
 	}
 	if err != nil {
@@ -899,9 +912,6 @@ func (a *atel) flushErrortrackingQueue(ctx context.Context, ch chan errortrackin
 // healthy; this keeps the recovery monitor from calling a successful
 // rollback a failure.
 func (a *atel) isErrortrackingHealthy() bool {
-	if !a.enabled {
-		return false
-	}
 	return a.errLogsCh.Load() == nil || a.errLogsFlushFailures.Load() < maxConsecutiveFlushFailures
 }
 

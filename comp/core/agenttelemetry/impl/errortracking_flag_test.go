@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgremoteflags "github.com/DataDog/datadog-agent/pkg/remoteflags"
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
@@ -238,18 +239,25 @@ func TestErrortracking_LocalOnIsNotClaimedByTheFlag(t *testing.T) {
 }
 
 // Agent telemetry being off (or excluded) keeps errortracking off whatever
-// the flag says, and the feature reports unhealthy so the client recovers the
-// flag.
+// the flag says: the errortracking handler is never subscribed, so the flag
+// is never delivered to a component without configuration.
 func TestErrortracking_AgentTelemetryDisabled(t *testing.T) {
 	cleanupErrortrackingSlots(t)
-	cfg := configmock.NewFromYAML(t, "agent_telemetry:\n  enabled: false\n")
-	a := createAtel(cfg, makeLogMock(t), makeTelMock(t), &senderMock{}, &runnerMock{})
-	a.errortrackingFlag = a.newErrortrackingFlag()
+	provides := NewComponent(Requires{
+		Config: configmock.NewFromYAML(t, getCommonYAMLConfig(false, "")),
+		Log:    makeLogMock(t),
+		Lc:     compdef.NewTestLifecycle(t),
+	})
+	a := provides.Comp.(*atel)
 
-	setErrortrackingKey(a, true)
+	var names []pkgremoteflags.FlagName
+	for _, h := range provides.Subscriber.Handlers() {
+		names = append(names, h.FlagName())
+	}
 
+	assert.Nil(t, a.errortrackingFlag)
+	assert.NotContains(t, names, pkgremoteflags.FlagName(flagErrortracking))
 	assert.Nil(t, testQueue(a))
-	assert.False(t, a.errortrackingFlag.IsHealthy())
 }
 
 func TestSetErrortracking_AfterStop(t *testing.T) {
@@ -452,6 +460,31 @@ func TestSetErrortracking_StaleFlushDoesNotCountAsFailure(t *testing.T) {
 
 	assert.True(t, a.isErrortrackingHealthy())
 	assert.Zero(t, a.errLogsFlushFailures.Load())
+}
+
+// A flush that outlives its queue must not feed the health signal of the
+// queue that replaced it.
+func TestFlushErrortracking_StaleFlushDoesNotCountAsFailure(t *testing.T) {
+	sndr := newGatedSender(errors.New("intake unavailable"))
+	a, _ := newErrortrackingFlagTestAtel(t, errortrackingLocalUnset, sndr)
+	a.setErrortracking(true)
+	a.SubmitErrorLog(errorLog("buffered"))
+
+	flushed := make(chan struct{})
+	go func() {
+		a.flushErrortracking(context.Background())
+		close(flushed)
+	}()
+	<-sndr.entered // the flush holds the first queue and is blocked in the sender
+	a.setErrortracking(false)
+	a.setErrortracking(true)
+
+	close(sndr.release)
+	<-flushed
+	a.errortrackingDrains.Wait()
+
+	assert.Zero(t, a.errLogsFlushFailures.Load())
+	assert.True(t, a.isErrortrackingHealthy())
 }
 
 // The Remote Flags client runs each OnChange in its own goroutine, so a true

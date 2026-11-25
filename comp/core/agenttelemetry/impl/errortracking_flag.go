@@ -98,11 +98,8 @@ func (a *atel) newErrortrackingFlag() *errortrackingFlagHandler {
 }
 
 // errortrackingLocallyDisabled reports whether the local configuration sets
-// agent_telemetry.errortracking.enabled to false explicitly. A disabled
-// component has no configuration and reports true: nothing can be switched on.
+// agent_telemetry.errortracking.enabled to false explicitly. Only an enabled
+// component subscribes the handler, so the configuration is always present.
 func (a *atel) errortrackingLocallyDisabled() bool {
-	if !a.enabled {
-		return true
-	}
 	return a.cfgComp.IsConfigured(errortrackingEnabledKey) && !a.cfgComp.GetBool(errortrackingEnabledKey)
 }

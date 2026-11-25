@@ -3624,6 +3624,7 @@ agent_telemetry:
 
 // NewComponent must export the subscriber so the remoteflags component can
 // pick it up through the fx group, including when agent telemetry is disabled.
+// A disabled component subscribes only the profile flag.
 func TestRemoteFlagSubscriberIsProvided(t *testing.T) {
 	for _, enabled := range []bool{true, false} {
 		provides := NewComponent(Requires{
@@ -3634,8 +3635,13 @@ func TestRemoteFlagSubscriberIsProvided(t *testing.T) {
 
 		require.NotNil(t, provides.Subscriber)
 		handlers := provides.Subscriber.Handlers()
-		require.Len(t, handlers, 2)
+		require.NotEmpty(t, handlers)
 		assert.Equal(t, pkgremoteflags.FlagName(flagTroubleshooting), handlers[0].FlagName())
+		if !enabled {
+			require.Len(t, handlers, 1)
+			continue
+		}
+		require.Len(t, handlers, 2)
 		assert.Equal(t, pkgremoteflags.FlagName(flagErrortracking), handlers[1].FlagName())
 	}
 }
