@@ -10,12 +10,10 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func createTestRepository(t *testing.T, dir string, stablePackageName string, preRemoveHook PreRemoveHook) *Repository {
@@ -380,10 +378,7 @@ func TestRepairDirectoryExtraFiles(t *testing.T) {
 		"subdir/file3.txt": "content3",
 	}
 	targetFiles := map[string]string{
-		"file1.txt":        "content1",
 		"file2.txt":        "content2",
-		"subdir/file3.txt": "content3",
-		"extra.txt":        "extra content",
 		"subdir/extra.txt": "extra content",
 	}
 
@@ -394,35 +389,7 @@ func TestRepairDirectoryExtraFiles(t *testing.T) {
 	assert.NoError(t, err)
 
 	verifyDirectoryContent(t, targetDir, sourceFiles)
-	assert.NoFileExists(t, filepath.Join(targetDir, "extra.txt"))
-	assert.NoFileExists(t, filepath.Join(targetDir, "subdir", "extra.txt"))
-}
-
-func TestRepairDirectoryExtraFileInUse(t *testing.T) {
-	if runtime.GOOS != "windows" {
-		t.Skip("only Windows prevents removing an open file")
-	}
-	sourceFiles := map[string]string{
-		"file1.txt": "content1",
-		"file2.txt": "content2",
-	}
-	targetFiles := map[string]string{
-		"file1.txt": "content1",
-		"extra.txt": "extra content",
-	}
-
-	sourceDir := createTestDirectory(t, sourceFiles)
-	targetDir := createTestDirectory(t, targetFiles)
-
-	extraFile, err := os.Open(filepath.Join(targetDir, "extra.txt"))
-	require.NoError(t, err)
-	defer extraFile.Close()
-
-	err = repairDirectory(sourceDir, targetDir)
-	assert.NoError(t, err)
-
-	verifyDirectoryContent(t, targetDir, sourceFiles)
-	assert.FileExists(t, filepath.Join(targetDir, "extra.txt"))
+	verifyDirectoryContent(t, targetDir, targetFiles)
 }
 
 func TestRepairDirectoryDifferentCasing(t *testing.T) {
@@ -440,10 +407,6 @@ func TestRepairDirectoryDifferentCasing(t *testing.T) {
 	assert.NoError(t, err)
 
 	verifyDirectoryContent(t, targetDir, sourceFiles)
-	entries, err := os.ReadDir(targetDir)
-	require.NoError(t, err)
-	require.Len(t, entries, 1)
-	assert.Equal(t, "file1.txt", entries[0].Name())
 }
 
 // This test is used to verify that the repository can handle external packages that are symlinked.

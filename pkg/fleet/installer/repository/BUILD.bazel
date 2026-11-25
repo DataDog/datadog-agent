@@ -27,6 +27,5 @@ dd_agent_go_test(
     deps = [
         "//pkg/fleet/installer/symlink",
         "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
     ],
 )
