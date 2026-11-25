@@ -81,6 +81,17 @@ dda inv linter.all                                    # run all linters
 ### Development Configuration
 Place the dev config at `dev/dist/datadog.yaml` (e.g. `echo "api_key: 0000001" > dev/dist/datadog.yaml`); after building it is copied to `bin/agent/dist/datadog.yaml`.
 
+### Before you push
+
+Run these checks on the final tree before each push, and commit the files that they change:
+
+1. `bazel run //:gazelle -- <dir>` for each package with changed `.go` files or imports.
+2. `dda inv tidy` after any new import, test files included. A package in its own Go module (see
+   `modules.yml`) can need a new `require` in its `go.mod`. The `bazel:run-go-mod-tidy` CI job fails
+   when tidy changes a file.
+3. `bazel run //bazel/buildifier:test` when the change touches Bazel files (see [Linting](#linting)).
+4. `dda inv test --targets=<package>` and `dda inv linter.go` for each changed package or module.
+
 ## Key Components
 
 ### Check System
@@ -122,6 +133,9 @@ Go tests run via `dda inv test --targets=<package>` (see the `dda inv` table abo
 Both go through Bazel, so a new package has no test target until `bazel run //:gazelle -- <dir>` generates its `BUILD.bazel`.
 Run the same command after adding, removing, or renaming a `.go` file (tests included) or changing imports in an existing package, and commit the `BUILD.bazel` diff with it; otherwise the `bazel:run-gazelle` CI job fails.
 After adding a package or changing imports or build constraints, also run `dda inv go.write-tag-manifest` and commit the generated `bazel/go_tags/closure_tags.bzl` diff. A stale manifest can drop required build tags and cause duplicate-package linker errors; see `bazel/AGENTS.md` for details.
+
+### System-probe and eBPF Tests
+Kernel code needs a Linux kernel to test, and results hold only for the build modes and kernels that ran; see `pkg/ebpf/AGENTS.md` before testing or claiming a system-probe or eBPF change works.
 
 ### End-to-End Tests
 - E2E tests live in `test/new-e2e/tests/` and use the framework in `test/e2e-framework/`
@@ -303,6 +317,7 @@ AGENTS.md                          ← repo-wide: architecture, workflow, review
 ├── test/e2e-framework/AGENTS.md   ← E2E framework: environments, provisioners, agentparams
 ├── test/new-e2e/AGENTS.md         ← E2E test tree: layout, suite naming, build tags
 ├── test/fakeintake/AGENTS.md      ← fakeintake: endpoints, client API, extension guide
+├── pkg/ebpf/AGENTS.md             ← testing system-probe and eBPF changes: KMT workflow, build modes, evidence
 ├── pkg/.../AGENTS.md              ← package-level: structure, patterns, pitfalls
 └── .agents/skills/*/SKILL.md      ← task-specific: step-by-step procedures
 ```

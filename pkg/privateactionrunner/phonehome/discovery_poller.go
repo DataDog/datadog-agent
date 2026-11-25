@@ -17,6 +17,7 @@ import (
 	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/benbjohnson/clock"
 )
@@ -45,7 +46,7 @@ func NewDiscovery(cfg model.Reader, rc Source) *Discovery {
 	if !Enabled(cfg) || rc == nil {
 		return nil
 	}
-	p := &Discovery{cfg: cfg, clock: clock.New(), rc: rc, key: cfg.GetString("api_key"), endpoint: enrollmentEndpoint(cfg),
+	p := &Discovery{cfg: cfg, clock: clock.New(), rc: rc, key: par.EnrollmentAPIKey(cfg), endpoint: enrollmentEndpoint(cfg),
 		jitter: func(d time.Duration) time.Duration { return time.Duration(rand.Int64N(int64(d) + 1)) },
 		client: &http.Client{Timeout: 10 * time.Second, Transport: httputils.CreateHTTPTransport(cfg), CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
 	p.next = p.clock.Now().Add(p.jitter(time.Minute))

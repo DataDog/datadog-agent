@@ -23,7 +23,7 @@ comp/anomalydetection/
     fx/                  ← production Fx wiring (python build tag)
     fx/fx_noop.go        ← IoT / !python stub
     impl/                ← engine, detectors, correlators, extractors
-      logsignature/      ← log signatures for the log metrics extractor
+      logsignature/      ← bounded shared-tokenizer cache for the log metrics extractor
       patterns/          ← log tokenizer/clusterer subpackage
     scenarios/           ← replay scenario directories (testbench)
   logssource/
@@ -284,7 +284,7 @@ dda inv test --targets=./comp/anomalydetection/reporter/impl/
 dda inv test --targets=./comp/anomalydetection/logssource/impl/
 ```
 
-Benchmarks: `dda inv test --targets=./comp/anomalydetection/observer/impl/ -- -bench=.`
+Benchmarks: `dda inv test --targets=./comp/anomalydetection/observer/impl/ --test-args=-test.bench=.`
 
 ## Sub-Guides
 

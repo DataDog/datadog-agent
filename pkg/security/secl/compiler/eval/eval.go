@@ -11,6 +11,7 @@ package eval
 import (
 	"fmt"
 	"net"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -31,60 +32,183 @@ const (
 // BoolEvalFnc describe a eval function return a boolean
 type BoolEvalFnc = func(ctx *Context) bool
 
-// wrapEvaluatorWithArrayIndex wraps an array evaluator to return a specific index
-func wrapEvaluatorWithArrayIndex(evaluator interface{}, index int, field Field) (Evaluator, error) {
+// wrapEvaluatorWithArrayIndex wraps an array evaluator to return the element
+// at an index, the zero value out of the array
+func wrapEvaluatorWithArrayIndex(evaluator interface{}, index *IntEvaluator, field Field) (Evaluator, error) {
+	indexAt := index.EvalFnc
+	if indexAt == nil {
+		value := index.Value
+		indexAt = func(*Context) int { return value }
+	}
+
 	switch arrayEval := evaluator.(type) {
 	case *StringArrayEvaluator:
 		return &StringEvaluator{
 			EvalFnc: func(ctx *Context) string {
-				array := arrayEval.Eval(ctx).([]string)
-				if index < 0 || index >= len(array) {
+				array, i := arrayEval.Eval(ctx).([]string), indexAt(ctx)
+				if i < 0 || i >= len(array) {
 					return ""
 				}
-				return array[index]
+				return array[i]
 			},
 			Field:  field,
-			Weight: arrayEval.Weight,
+			Weight: arrayEval.Weight + index.Weight,
 		}, nil
 	case *IntArrayEvaluator:
 		return &IntEvaluator{
 			EvalFnc: func(ctx *Context) int {
-				array := arrayEval.Eval(ctx).([]int)
-				if index < 0 || index >= len(array) {
+				array, i := arrayEval.Eval(ctx).([]int), indexAt(ctx)
+				if i < 0 || i >= len(array) {
 					return 0
 				}
-				return array[index]
+				return array[i]
 			},
 			Field:  field,
-			Weight: arrayEval.Weight,
+			Weight: arrayEval.Weight + index.Weight,
 		}, nil
 	case *BoolArrayEvaluator:
 		return &BoolEvaluator{
 			EvalFnc: func(ctx *Context) bool {
-				array := arrayEval.Eval(ctx).([]bool)
-				if index < 0 || index >= len(array) {
+				array, i := arrayEval.Eval(ctx).([]bool), indexAt(ctx)
+				if i < 0 || i >= len(array) {
 					return false
 				}
-				return array[index]
+				return array[i]
 			},
 			Field:  field,
-			Weight: arrayEval.Weight,
+			Weight: arrayEval.Weight + index.Weight,
 		}, nil
 	case *CIDRArrayEvaluator:
 		return &CIDREvaluator{
 			EvalFnc: func(ctx *Context) net.IPNet {
-				array := arrayEval.Eval(ctx).([]net.IPNet)
-				if index < 0 || index >= len(array) {
+				array, i := arrayEval.Eval(ctx).([]net.IPNet), indexAt(ctx)
+				if i < 0 || i >= len(array) {
 					return net.IPNet{}
 				}
-				return array[index]
+				return array[i]
 			},
 			Field:  field,
-			Weight: arrayEval.Weight,
+			Weight: arrayEval.Weight + index.Weight,
 		}, nil
 	default:
 		return nil, fmt.Errorf("field '%s' is not an array type or array type is not supported for index access", field)
 	}
+}
+
+// wrapEvaluatorWithKey wraps a dictionary evaluator to return the value at a
+// key, the empty string for a missing key
+func wrapEvaluatorWithKey(evaluator interface{}, key *StringEvaluator, field Field) (Evaluator, error) {
+	keyOf := key.EvalFnc
+	if keyOf == nil {
+		value := key.Value
+		keyOf = func(*Context) string { return value }
+	}
+
+	switch dictEval := evaluator.(type) {
+	case *StringMapEvaluator:
+		return &StringEvaluator{
+			EvalFnc: func(ctx *Context) string {
+				return dictEval.EvalFnc(ctx)[keyOf(ctx)]
+			},
+			Field:  field,
+			Weight: dictEval.Weight + key.Weight,
+			Offset: dictEval.Offset,
+		}, nil
+	case *StringMapArrayEvaluator:
+		return &StringArrayEvaluator{
+			EvalFnc: func(ctx *Context) []string {
+				dicts, k := dictEval.EvalFnc(ctx), keyOf(ctx)
+				values := make([]string, len(dicts))
+				for i, dict := range dicts {
+					values[i] = dict[k]
+				}
+				return values
+			},
+			Field:  field,
+			Weight: dictEval.Weight + key.Weight,
+			Offset: dictEval.Offset,
+		}, nil
+	default:
+		return nil, fmt.Errorf("field '%s' is not a dictionary, it can't be accessed at a key", field)
+	}
+}
+
+func dictContains(keys interface{}, dict interface{}, all bool, keysPos ast.Position) (*BoolEvaluator, bool, error) {
+	var (
+		dicts  func(ctx *Context) []map[string]string
+		weight int
+	)
+	switch dict := dict.(type) {
+	case *StringMapEvaluator:
+		dicts, weight = func(ctx *Context) []map[string]string { return []map[string]string{dict.EvalFnc(ctx)} }, dict.Weight
+	case *StringMapArrayEvaluator:
+		dicts, weight = dict.EvalFnc, dict.Weight
+	default:
+		return nil, false, nil
+	}
+
+	var (
+		values   *StringValues
+		keysOf   func(ctx *Context) []string
+		matchers []StringMatcher
+	)
+	switch keys := keys.(type) {
+	case *StringEvaluator:
+		if keys.EvalFnc == nil {
+			values = &StringValues{}
+			values.AppendFieldValue(FieldValue{Value: keys.Value, Type: keys.ValueType})
+			break
+		}
+		keysOf, weight = func(ctx *Context) []string { return []string{keys.EvalFnc(ctx)} }, weight+keys.Weight
+	case *StringValuesEvaluator:
+		values = &keys.Values
+	case *StringArrayEvaluator:
+		keysOf, weight = func(ctx *Context) []string { return keys.Eval(ctx).([]string) }, weight+keys.Weight
+	default:
+		return nil, true, NewTypeError(keysPos, reflect.String)
+	}
+
+	if values != nil {
+		if err := values.Compile(StringCmpOpts{}); err != nil {
+			return nil, true, NewError(keysPos, "%s", err)
+		}
+		scalars := values.GetScalarValues()
+		keysOf, matchers = func(*Context) []string { return scalars }, values.GetStringMatchers()
+	}
+
+	matchesAKey := func(matcher StringMatcher, dict map[string]string) bool {
+		for key := range dict {
+			if matcher.Matches(key) {
+				return true
+			}
+		}
+		return false
+	}
+	// holds returns whether a dictionary holds any of the keys, or all of them:
+	// the first key found decides for any, the first one missing for all
+	holds := func(dict map[string]string, keys []string) bool {
+		for _, key := range keys {
+			if _, ok := dict[key]; ok != all {
+				return !all
+			}
+		}
+		for _, matcher := range matchers {
+			if matchesAKey(matcher, dict) != all {
+				return !all
+			}
+		}
+		return all
+	}
+
+	return &BoolEvaluator{Weight: weight, EvalFnc: func(ctx *Context) bool {
+		keys := keysOf(ctx)
+		for _, dict := range dicts(ctx) {
+			if holds(dict, keys) {
+				return true
+			}
+		}
+		return false
+	}}, true, nil
 }
 
 // fieldToEvaluator compiles a reference to a field.

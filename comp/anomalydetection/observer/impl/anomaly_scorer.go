@@ -1123,7 +1123,7 @@ func (s *anomalyScorer) ScoreState() observerdef.AnomalyScoreState {
 
 // advanceSecond consumes pending anomalies and records attribution and debug buckets.
 // Must be called with mu held.
-func (s *anomalyScorer) advanceSecond(sec int64, recognizeHigh bool) secState {
+func (s *anomalyScorer) advanceSecond(sec int64, recognize bool) secState {
 	anomalies := s.pending[sec]
 	delete(s.pending, sec)
 
@@ -1150,7 +1150,7 @@ func (s *anomalyScorer) advanceSecond(sec int64, recognizeHigh bool) secState {
 		discovery = severityDiscovery{level: next.level, crossing: sec}
 	}
 	if s.replay != nil {
-		s.replay.recordSecond(sec, inputs, next, recognizeHigh)
+		s.replay.recordSecond(sec, inputs, next, recognize)
 	}
 	s.score = next
 	s.buckets = append(s.buckets, bucket)

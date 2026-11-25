@@ -21,7 +21,7 @@ package(
 
 # RELEASE names the release of github.com/0intro/openscap that
 # openscap.MODULE.bazel downloads, VERSION the upstream release it holds.
-RELEASE = "1.4.6-dd.20261022.3"
+RELEASE = "1.4.6-dd.20261022.4"
 
 VERSION = RELEASE.split("-")[0]
 
@@ -160,9 +160,10 @@ dd_agent_expand_template(
                         "#cmakedefine PREFERRED_PYTHON_PATH \"@PREFERRED_PYTHON_PATH@\"": "/* #undef PREFERRED_PYTHON_PATH */",
                         "#cmakedefine PYTHON2_PATH \"@PYTHON2_PATH@\"": "/* #undef PYTHON2_PATH */",
                         "#cmakedefine PYTHON3_PATH \"@PYTHON3_PATH@\"": "/* #undef PYTHON3_PATH */",
-                        "@OSCAP_DEFAULT_SCHEMA_PATH@": "{install_dir}/embedded/share/openscap/schemas",
-                        "@OSCAP_DEFAULT_XSLT_PATH@": "{install_dir}/embedded/share/openscap/xsl",
-                        "@OSCAP_DEFAULT_CPE_PATH@": "{install_dir}/embedded/share/openscap/cpe",
+                        "@OSCAP_DEFAULT_SCHEMA_PATH@": "/dev/null/openscap/schemas",
+                        "@OSCAP_DEFAULT_XSLT_PATH@": "/dev/null/openscap/xsl",
+                        "@OSCAP_DEFAULT_CPE_PATH@": "/dev/null/openscap/cpe",
+                        "@OSCAP_LIBDIR_TO_DATADIR@": "../share",
                         "@OSCAP_TEMP_DIR@": "/tmp",
                         "#cmakedefine OPENSCAP_PROBE_UNIX_PROCESS58": "/* #undef OPENSCAP_PROBE_UNIX_PROCESS */",
                     } | {"#cmakedefine {}".format(key): "#define {} 1".format(key) for key in ENABLED_FEATURES} |

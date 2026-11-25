@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    APM: The Agent no longer writes the raw SQL query to its error log when it
+    cannot obfuscate a query in the stats that a tracing library sends. The
+    raw query could contain sensitive values. The message is now logged at
+    debug level, without the query.

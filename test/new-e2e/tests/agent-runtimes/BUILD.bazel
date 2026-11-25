@@ -68,6 +68,8 @@ dd_agent_go_test(
     tags = ["manual"],
     deps = [
         "//pkg/util/option",
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/components/command",
         "//test/e2e-framework/components/datadog/agent",
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/datadog/agentparams/filepermissions",

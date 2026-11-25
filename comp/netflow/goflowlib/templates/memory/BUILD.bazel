@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "memory",
+    srcs = ["memory.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/netflow/goflowlib/templates/memory",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_netsampler_goflow2//decoders/netflow/templates"],
+)
+
+dd_agent_go_test(
+    name = "memory_test",
+    srcs = ["memory_test.go"],
+    embed = [":memory"],
+    deps = [
+        "@com_github_netsampler_goflow2//decoders/netflow/templates",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

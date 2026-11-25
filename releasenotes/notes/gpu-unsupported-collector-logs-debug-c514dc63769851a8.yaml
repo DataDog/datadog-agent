@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    GPU Monitoring: The GPU check no longer logs a warning at startup for each
+    metric that a GPU does not support, such as some NVLink metrics. These
+    expected messages are now logged at debug level.

@@ -468,6 +468,9 @@ func (c *Client) pollLoop() {
 		case <-time.After(interval):
 			err := c.update()
 			if err != nil {
+				if c.ctx.Err() != nil {
+					return
+				}
 				consecutiveFailures++
 				if status.Code(err) == codes.Unimplemented {
 					// Remote Configuration is disabled as the server isn't initialized

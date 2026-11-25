@@ -347,8 +347,7 @@ type HostFromAttributesHandler interface {
 func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttributesHandler) (source.Source, bool) {
 	if function, ok := azureFunctionsResourceFromAttributes(attrs); ok {
 		return source.Source{
-			Kind:       source.AzureFunctionsKind,
-			Identifier: function.name, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+			Kind: source.AzureFunctionsKind,
 			SourceIdentifier: source.SourceIdentifier{
 				Primary: function.name,
 				Dimensions: map[string]string{
@@ -378,8 +377,7 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 
 	if appService, ok := azureAppServiceResourceFromAttributes(attrs); ok {
 		return source.Source{
-			Kind:       source.AzureAppServiceKind,
-			Identifier: appService.name, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+			Kind: source.AzureAppServiceKind,
 			SourceIdentifier: source.SourceIdentifier{
 				Primary: appService.name,
 				Dimensions: map[string]string{
@@ -393,8 +391,7 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 
 	if containerApp, ok := azureContainerAppsResourceFromAttributes(attrs); ok {
 		return source.Source{
-			Kind:       source.AzureContainerAppsKind,
-			Identifier: containerApp.replica, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+			Kind: source.AzureContainerAppsKind,
 			SourceIdentifier: source.SourceIdentifier{
 				Primary: containerApp.replica,
 				Dimensions: map[string]string{
@@ -411,7 +408,6 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 		if taskARN, ok := attrs.Get(string(conventions.AWSECSTaskARNKey)); ok {
 			return source.Source{
 				Kind:             source.AWSECSFargateKind,
-				Identifier:       taskARN.Str(), //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{Primary: taskARN.Str()},
 			}, true
 		}
@@ -423,7 +419,6 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 		}
 		return source.Source{
 			Kind:             source.HostnameKind,
-			Identifier:       host, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 			SourceIdentifier: source.SourceIdentifier{Primary: host},
 		}, true
 	}

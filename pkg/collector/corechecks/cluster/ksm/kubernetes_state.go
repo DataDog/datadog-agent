@@ -339,6 +339,7 @@ type KSMCheck struct {
 	core.CheckBase
 	agentConfig                model.Config
 	instance                   *KSMConfig
+	tagCache                   map[string]map[string]string
 	allStores                  [][]cache.Store
 	telemetry                  *telemetryCache
 	tagger                     tagger.Component
@@ -569,7 +570,7 @@ func (k *KSMCheck) buildStores() error {
 	}
 
 	builder.WithNamespaces(namespaces)
-	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(collectors))
+	allowDenyList, err := allowdenylist.New(k.buildAllowedMetricsSet(), options.MetricSet{})
 	if err != nil {
 		return err
 	}
@@ -965,6 +966,9 @@ func (k *KSMCheck) Run() error {
 
 		log.Tracef("Current leader: %q, running kube-state-metrics core check", leader)
 	}
+
+	// Reset the tag cache at the start of each run
+	k.resetTagCache()
 
 	defer sender.Commit()
 
@@ -1388,16 +1392,27 @@ func (k *KSMCheck) buildTag(key, value string, lMapperOverride map[string]string
 		}
 	}
 
+	if key == "host" || key == "node" {
+		hostname = value
+	}
+
+	// Memoize the built tag per (resolved key, value)
+	valueCache, found := k.tagCache[key]
+	if !found {
+		valueCache = make(map[string]string)
+		k.tagCache[key] = valueCache
+	}
+	if tag, found = valueCache[value]; found {
+		return
+	}
+
 	var sb strings.Builder
 	sb.Grow(len(key) + 1 + len(value))
 	sb.WriteString(key)
 	sb.WriteByte(':')
 	sb.WriteString(value)
 	tag = sb.String()
-
-	if key == "host" || key == "node" {
-		hostname = value
-	}
+	valueCache[value] = tag
 	return
 }
 
@@ -1589,6 +1604,12 @@ func (k *KSMCheck) configurePodCollection(builder *kubestatemetrics.Builder, col
 	}
 }
 
+// resetTagCache discards the tag cache so tag keys that are no longer in use
+// do not accumulate over the check's lifetime
+func (k *KSMCheck) resetTagCache() {
+	k.tagCache = make(map[string]map[string]string)
+}
+
 // processTelemetry accumulates the telemetry metric values, it can be called multiple times
 // during a check run then sendTelemetry should be called to forward the calculated values
 func (k *KSMCheck) processTelemetry(metrics map[string][]ksmstore.DDMetricsFam) {
@@ -1681,6 +1702,7 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Compone
 		CheckBase:                  base,
 		agentConfig:                pkgconfigsetup.Datadog(),
 		instance:                   instance,
+		tagCache:                   make(map[string]map[string]string),
 		telemetry:                  newTelemetryCache(),
 		tagger:                     tagger,
 		isCLCRunner:                helper.IsCLCRunner(pkgconfigsetup.Datadog()),
@@ -1798,49 +1820,36 @@ func defaultCollectors() []string {
 	return collectors
 }
 
-// buildDeniedMetricsSet adds *_created metrics to the default denied metric rules.
-// It allows us to get kube_node_created, kube_pod_created and
-// kube_resourceclaim_created and deny the rest of *_created metrics without
-// relying on a unmaintainable and unreadable regex.
-func buildDeniedMetricsSet(collectors []string) options.MetricSet {
-	deniedMetrics := options.MetricSet{
-		".*_generation":                                    {},
-		".*_metadata_resource_version":                     {},
-		"kube_pod_owner":                                   {},
-		"kube_pod_restart_policy":                          {},
-		"kube_pod_completion_time":                         {},
-		"kube_pod_status_scheduled_time":                   {},
-		"kube_cronjob_status_active":                       {},
-		"kube_node_status_phase":                           {},
-		"kube_cronjob_spec_starting_deadline_seconds":      {},
-		"kube_job_spec_active_deadline_seconds":            {},
-		"kube_job_spec_completions":                        {},
-		"kube_job_spec_parallelism":                        {},
-		"kube_job_status_active":                           {},
-		"kube_job_status_.*_time":                          {},
-		"kube_service_spec_external_ip":                    {},
-		"kube_service_status_load_balancer_ingress":        {},
-		"kube_statefulset_status_current_revision":         {},
-		"kube_statefulset_status_update_revision":          {},
-		"kube_pod_container_status_last_terminated_reason": {},
-		"kube_lease_renew_time":                            {},
+// buildAllowedMetricsSet returns the set of KSM family names the check actually does something with:
+//   - sent via metricNamesMapper
+//   - sent via metricTransformers
+//   - accumulated by a metricAggregator
+//   - consumed as a label-join source
+//
+// All four sources are derived from configuration (defaults plus the check
+// instance's config) and are not modified at runtime based on discovered
+// resources or the metrics store itself.
+func (k *KSMCheck) buildAllowedMetricsSet() options.MetricSet {
+	allowedMetrics := make(options.MetricSet)
+	for name := range k.metricNamesMapper {
+		allowedMetrics["^"+name+"$"] = struct{}{}
 	}
-	for _, resource := range collectors {
-		// resource format: pods, nodes, jobs, deployments...
-		// pods, nodes and resourceclaims keep their *_created metrics:
-		// kube_pod_created / kube_node_created feed pod.age / node.age,
-		// and kube_resourceclaim_created is the timestamp the
-		// resourceclaim.pending.age transformer turns into a wait time.
-		// This runs on the raw collector names, before splitDRACollectors
-		// extracts the DRA names, so the exemption must be here rather than
-		// at the split call site.
-		if resource == "pods" || resource == "nodes" || resource == draResourceClaims {
-			continue
-		}
-		deniedMetrics["kube_"+strings.TrimRight(resource, "s")+"_created"] = struct{}{}
+	for name := range k.metricTransformers {
+		allowedMetrics["^"+name+"$"] = struct{}{}
 	}
-
-	return deniedMetrics
+	for name := range k.metricAggregators {
+		allowedMetrics["^"+name+"$"] = struct{}{}
+	}
+	for name := range k.instance.labelJoins {
+		allowedMetrics["^"+name+"$"] = struct{}{}
+	}
+	// The rollout-tracker families emit no metrics, so they appear in none of
+	// the maps above, but their generators populate the rollout tracker that
+	// the rollout-duration transformers read. Keep them allowed or the
+	// generator filter drops them before the side effects run.
+	allowedMetrics["^"+customresources.ReplicaSetRolloutTrackerFamily+"$"] = struct{}{}
+	allowedMetrics["^"+customresources.ControllerRevisionRolloutTrackerFamily+"$"] = struct{}{}
+	return allowedMetrics
 }
 
 // ownerTags returns kube_<kind> tags based on given kind and name, along with the resolved Deployment name.
