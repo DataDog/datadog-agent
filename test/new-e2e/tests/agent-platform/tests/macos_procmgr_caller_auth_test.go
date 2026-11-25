@@ -126,8 +126,9 @@ func killMacosSleep(t *testing.T, client *common.MacOSTestClient, sleepArg strin
 }
 
 // healMacosCallerAuthLeftovers undoes an earlier failed attempt so the pristine-catalog precondition
-// can pass. The marker is the only trace of a child that outlived a crashed daemon. Restart only when
-// one of this test's entries is listed, since a restart drops runtime entries.
+// can pass. The marker is the only trace of a child that outlived a crashed daemon, so a marker means restart
+// first and reap after the restarted daemon answers. Without a marker, restart only when one of this test's
+// entries is listed, since a restart drops runtime entries.
 func healMacosCallerAuthLeftovers(t *testing.T, client *common.MacOSTestClient) {
 	t.Helper()
 	out, err := client.Execute("sudo sh -c 'if [ -e " + macosCallerAuthSleepMarker + " ]; then cat " + macosCallerAuthSleepMarker + "; fi'")
@@ -136,7 +137,53 @@ func healMacosCallerAuthLeftovers(t *testing.T, client *common.MacOSTestClient) 
 		t.Errorf("heal: failed to read %s: %v", macosCallerAuthSleepMarker, err)
 		return
 	}
-	if previous := strings.TrimSpace(out); previous != "" {
+	previous := strings.TrimSpace(out)
+	if _, err := client.Execute("sudo rm -f " + macosProcessesDir + "/" + macosCallerAuthReloadEntry + ".yaml"); err != nil {
+		t.Logf("heal: failed to remove %s: %v", macosCallerAuthReloadEntry, err)
+	}
+	// A start queued in a stalled daemon can still launch its child, so restart before reaping. The restart drops
+	// runtime entries, and the marker stays until the restarted daemon answers and the child is gone.
+	if previous != "" {
+		if _, err := client.Execute("sudo launchctl kickstart -k system/com.datadoghq.procmgr"); err != nil {
+			t.Errorf("heal: failed to restart dd-procmgrd before reaping %s: %v", previous, err)
+			return
+		}
+	}
+	// A daemon that is still starting must not skip the healing below. A marker means the old daemon may keep
+	// answering with this test's entries until it exits, so poll until the listing is clean. Bound each attempt
+	// because a daemon that accepts the connection and never answers would otherwise hang the loop.
+	var list []struct {
+		Name string `json:"name"`
+	}
+	var found bool
+	for deadline := time.Now().Add(time.Minute); ; time.Sleep(time.Second) {
+		out, err = client.Execute(macosBoundedProcmgrCommand(macosProcmgrHealTimeout, "list --json"))
+		list = nil
+		if err == nil {
+			err = json.Unmarshal([]byte(strings.TrimSpace(out)), &list)
+		}
+		found = false
+		for _, process := range list {
+			if slices.Contains([]string{macosCallerAuthEntry, macosCallerAuthAgentEntry, macosCallerAuthStartEntry, macosCallerAuthReloadEntry}, process.Name) {
+				found = true
+				break
+			}
+		}
+		if err == nil && (previous == "" || !found) || time.Now().After(deadline) {
+			break
+		}
+	}
+	if err != nil {
+		// Fail here, so this run never overwrites a marker that still records a child.
+		t.Errorf("heal: failed to list dd-procmgr processes: %v\n%s", err, out)
+		return
+	}
+	if previous != "" {
+		// A restart drops runtime entries, so a listed entry means the restart did not take effect.
+		if found {
+			t.Errorf("heal: dd-procmgrd still lists this test's entries after the restart")
+			return
+		}
 		if strings.Trim(previous, "0123456789") != "" {
 			t.Logf("heal: ignoring invalid %s content %q", macosCallerAuthSleepMarker, previous)
 		} else {
@@ -151,35 +198,6 @@ func healMacosCallerAuthLeftovers(t *testing.T, client *common.MacOSTestClient) 
 		}
 		if _, err := client.Execute("sudo rm -f " + macosCallerAuthSleepMarker); err != nil {
 			t.Logf("heal: failed to remove %s: %v", macosCallerAuthSleepMarker, err)
-		}
-	}
-	if _, err := client.Execute("sudo rm -f " + macosProcessesDir + "/" + macosCallerAuthReloadEntry + ".yaml"); err != nil {
-		t.Logf("heal: failed to remove %s: %v", macosCallerAuthReloadEntry, err)
-	}
-	// A daemon that is still starting must not skip the healing below. Bound each attempt because a daemon
-	// that accepts the connection and never answers would otherwise hang the loop.
-	for deadline := time.Now().Add(time.Minute); ; time.Sleep(time.Second) {
-		out, err = client.Execute(macosBoundedProcmgrCommand(macosProcmgrHealTimeout, "list --json"))
-		if err == nil || time.Now().After(deadline) {
-			break
-		}
-	}
-	if err != nil {
-		t.Logf("heal: failed to list processes: %v", err)
-		return
-	}
-	var list []struct {
-		Name string `json:"name"`
-	}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &list); err != nil {
-		t.Logf("heal: failed to parse dd-procmgr list output: %v\n%s", err, out)
-		return
-	}
-	found := false
-	for _, process := range list {
-		if slices.Contains([]string{macosCallerAuthEntry, macosCallerAuthAgentEntry, macosCallerAuthStartEntry, macosCallerAuthReloadEntry}, process.Name) {
-			found = true
-			break
 		}
 	}
 	if !found {
