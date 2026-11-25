@@ -33,8 +33,10 @@ LAB_KEYS_SECRET = "cnm-perf-lab/staging-keys"
 KEY_WRITTEN = Path("cnm-perf-lab-key-written")
 RUN_COMMENT = "cnm-perf-lab run"  # prefix of the SSM command comment, to find a run in progress
 MARKER = Path("cnm-perf-lab-command-id")  # "<instance id> [<command id>]", for the cancel task
-# The driver-run.sh steps' limits plus teardown sum to about 5 h 20 min; add the driver setup
+# SSM kills the command at this timeout with SIGKILL, skipping driver-run.sh's teardown. The driver gets a deadline
+# DEADLINE_MARGIN_S before it and stops its steps early enough to tear down by then.
 EXECUTION_TIMEOUT_S = 6 * 3600
+DEADLINE_MARGIN_S = 10 * 60
 # Chained role sessions last at most 1 h, and a full run takes about 3 h: re-assume well before expiry
 SESSION_REFRESH_S = 45 * 60
 METRIC_PREFIX = "cnm_perf_lab"
@@ -197,11 +199,18 @@ def _driver_command(run_id: str, mode: str, refs_key: str | None, check_ndq: boo
     # Results are in S3 by now, so drop earlier runs' copies (driver-run.sh resets the rest of LAB_WORK itself).
     # A previous run's driver-run.sh schedules a poweroff a minute out; cancel it. Power off on any exit, so a failed
     # setup doesn't leave the driver running (driver-run.sh also does, which is harmless).
+    # A run SSM killed at its timeout never uploaded its results: upload what it left, marked killed, before clearing.
     return f"""export HOME=/root PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/go/bin
+export LAB_DEADLINE=$(( $(date +%s) + {EXECUTION_TIMEOUT_S - DEADLINE_MARGIN_S} ))
 set -euo pipefail
 shutdown -c 2>/dev/null || true
 trap 'shutdown -h +1 >/dev/null 2>&1' EXIT
 rm -f /run/cnm-perf-lab-cancel /run/cnm-perf-lab-finishing
+for d in /var/lib/cnm-perf-lab/runs/*/; do
+  [ -d "$d" ] && [ ! -e "$d/EXIT_CODE" ] || continue
+  echo killed > "$d/EXIT_CODE"
+  aws s3 cp --only-show-errors --recursive "$d" "s3://{BUCKET}/runs/$(basename "$d")/" || true
+done
 mkdir -p {lab} && cd {lab}
 aws s3 cp --only-show-errors s3://{BUCKET}/{LAB_TARBALL_KEY} cnm-perf-lab.tgz
 rm -rf cnm-perf-lab /var/lib/cnm-perf-lab/runs /opt/cnm-perf-lab && tar xzf cnm-perf-lab.tgz
@@ -375,6 +384,11 @@ def _run_on_driver(aws, instance_id, run_id, mode, refs_key, check_ndq, results_
     dest = Path(results_dir)
     _download_prefix(aws, f"runs/{run_id}/", dest)
     exit_code = (dest / "EXIT_CODE").read_text().strip() if (dest / "EXIT_CODE").exists() else "unknown"
+    if status == "TimedOut":
+        # SSM killed the run before its teardown, so the driver won't power itself off. The next run destroys the
+        # cluster this one left; stop the driver until then.
+        aws.client("ec2").stop_instances(InstanceIds=[instance_id])
+        print(f"run {run_id}: timed out before teardown; stopped the driver, and the next run destroys its cluster")
     if status != "Success" or exit_code != "0":
         _print_ssm_output(aws, command_id, instance_id)
         _download_prefix(aws, f"ssm/{run_id}/", dest / "ssm")

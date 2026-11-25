@@ -282,6 +282,23 @@ class TestRun(_InTempDir):
         self.assertEqual(len(series), 1)  # the NaN mean is dropped
         self.assertIn("variant_digest:" + "a" * 12, series[0]["tags"])
 
+    def test_timed_out_run_stops_the_driver(self):
+        aws = _FakeAws()
+        self._expect_start(aws)
+        invocation = {"CommandId": COMMAND, "InstanceId": INSTANCE}
+        ssm, s3 = aws.stub("ssm"), aws.stub("s3")
+        ssm.add_response("get_command_invocation", {"Status": "TimedOut"}, invocation)
+        log_key = {"Bucket": lab.BUCKET, "Key": f"runs/{self.RUN_ID}/driver.log"}
+        s3.add_client_error("get_object", "NoSuchKey", expected_params=log_key)
+        s3.add_client_error("get_object", "NoSuchKey", expected_params=log_key)
+        self._expect_results(aws, f"runs/{self.RUN_ID}/", {})
+        aws.stub("ec2").add_response("stop_instances", {}, {"InstanceIds": [INSTANCE]})
+        ssm.add_response("get_command_invocation", {"Status": "TimedOut"}, invocation)
+        self._expect_results(aws, f"ssm/{self.RUN_ID}/", {})
+        with self.assertRaises(Exit):
+            self._run(aws, send_metrics=False)
+        aws.assert_done()
+
     def test_failed_setup_prints_and_downloads_the_ssm_output(self):
         aws = _FakeAws()
         self._expect_start(aws)
