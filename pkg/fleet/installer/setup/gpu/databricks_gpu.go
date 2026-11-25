@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
@@ -47,6 +48,11 @@ var fullVersionWithoutRevision = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 // clusterNameRegex matches the characters replaced in cluster name tags, like
 // the Data Jobs Monitoring script does.
 var clusterNameRegex = regexp.MustCompile(`[^a-zA-Z0-9_:.-]+`)
+
+var (
+	workspaceNameRegex = regexp.MustCompile(`[^\p{L}\p{N}_:./-]+`)
+	dedupeUnderscores  = regexp.MustCompile(`_+`)
+)
 
 // SetupDatabricksGPU sets up GPU Monitoring on Databricks: GPU metrics and
 // GPU traces from the C tracer (dd-trace-c), which the APM injector loads into
@@ -203,7 +209,7 @@ func setupDatabricksHostTags(s *common.Setup) {
 // like the Data Jobs Monitoring script, unless DD_ENV is set or a previous
 // install already configured an env.
 func setupDatabricksEnv(s *common.Setup, configDir string) {
-	workspace := common.NormalizeWorkspaceName(os.Getenv("DATABRICKS_WORKSPACE"))
+	workspace := normalizeWorkspaceName(os.Getenv("DATABRICKS_WORKSPACE"))
 	if workspace == "" || os.Getenv("DD_ENV") != "" || config.ReadCurrentEnv(configDir) != "" {
 		return
 	}
@@ -245,4 +251,35 @@ func cTracerVersion() string {
 		return version + "-1"
 	}
 	return version
+}
+
+// normalizeWorkspaceName normalizes a workspace name to match Python's normalize_tags behavior.
+// It must stay identical to normalizeWorkspaceName in the djm package:
+// 1. Convert to all lowercase unicode string
+// 2. Trim leading/trailing quotes
+// 3. Convert bad characters to underscores
+// 4. Dedupe contiguous underscores
+// 5. Remove initial underscores/digits such that the string starts with an alpha char
+// 6. Truncate to 200 characters
+// 7. Strip trailing underscores
+func normalizeWorkspaceName(value string) string {
+	if value == "" {
+		return ""
+	}
+	normalized := strings.ToLower(value)
+	normalized = strings.Trim(normalized, "\"'")
+	normalized = workspaceNameRegex.ReplaceAllString(normalized, "_")
+	normalized = dedupeUnderscores.ReplaceAllString(normalized, "_")
+
+	if len(normalized) > 0 && (normalized[0] == '_' || normalized[0] == ':') {
+		normalized = strings.TrimLeft(normalized, "_")
+		if len(normalized) > 0 && unicode.IsDigit([]rune(normalized)[0]) {
+			normalized = strings.TrimLeft(normalized, "_:0123456789")
+		}
+	}
+
+	if len(normalized) > 200 {
+		normalized = normalized[:200]
+	}
+	return strings.TrimRight(normalized, "_")
 }
