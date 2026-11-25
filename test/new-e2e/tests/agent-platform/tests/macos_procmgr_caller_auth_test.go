@@ -267,7 +267,7 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 		}
 		_, restartErr := client.Execute("sudo launchctl kickstart -k system/com.datadoghq.procmgr")
 		if restartErr != nil {
-			t.Logf("cleanup: failed to restart dd-procmgrd: %v", restartErr)
+			t.Errorf("cleanup: failed to restart dd-procmgrd: %v", restartErr)
 		}
 		// A start queued in a stalled daemon can launch after the first probe. This deferred check runs even if
 		// assertMacosProcmgrAnswers aborts, and the marker goes only once the restart is verified.
