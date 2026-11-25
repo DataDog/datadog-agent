@@ -61,6 +61,11 @@ fixes:
     configuration files and the ``endpoint`` of a ``pprof``, ``zpages``, or
     ``health_check`` extension is empty or is not a string. It skips that
     extension, with a warning.
+  - |
+    ``otel-agent flare`` now reports an error when it can't write the end of the
+    archive, for example when the disk is full, instead of saying that the
+    archive was created. It also removes its temporary directory when the
+    archive can't be created, and once the upload removed the archive.
 issues:
   - |
     ``otel-agent flare`` has these known limitations:

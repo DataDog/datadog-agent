@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -842,6 +843,39 @@ func TestDiscoverDebugSources(t *testing.T) {
 		assert.Contains(t, zpages.URLs[3], "http://localhost:55679/debug/featurez")
 		assert.Contains(t, zpages.URLs[4], "http://localhost:55679/debug/tracez")
 	}
+}
+
+// failingWriter fails every write, like a disk that is full
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) {
+	return 0, errors.New("no space left on device")
+}
+
+// TestWriteFlareArchiveReportsWriteErrors checks that a failure to write the end of the archive, which the zip writer
+// keeps in a buffer until it is closed, is reported and not lost.
+func TestWriteFlareArchiveReportsWriteErrors(t *testing.T) {
+	// Small enough for nothing to reach the writer before the archive is finished
+	err := writeFlareArchive(failingWriter{}, []flareFile{{name: "a.txt", content: []byte("a"), scrub: true}})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no space left on device")
+}
+
+// TestCreateArchiveInTempDirRemovesTheDirOnFailure checks that the temporary directory of a flare whose archive
+// can't be created is not left behind.
+func TestCreateArchiveInTempDirRemovesTheDirOnFailure(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("TMPDIR", tmp)
+	t.Setenv("TMP", tmp)
+	t.Setenv("TEMP", tmp)
+
+	_, err := createArchiveInTempDir(nil, func(string, []flareFile) error { return errors.New("no space left on device") })
+
+	require.ErrorContains(t, err, "no space left on device")
+	entries, readErr := os.ReadDir(tmp)
+	require.NoError(t, readErr)
+	assert.Empty(t, entries, "the temporary directory is left behind")
 }
 
 // TestDiscoverDebugSourcesOddEndpoints checks that a debug extension whose endpoint is not a string, which a

@@ -240,6 +240,11 @@ func makeFlare(
 	// Upload flare
 	response, e := flareComp.Send(filePath, caseID, customerEmail, helpers.NewLocalFlareSource())
 	fmt.Println(response)
+	if e == nil {
+		// The upload removed the archive, so the directory that was made for it is empty. os.Remove leaves
+		// it when it is not, like with --keep-archive.
+		_ = os.Remove(filepath.Dir(filePath))
+	}
 	return e
 }
 
@@ -263,6 +268,18 @@ func createOTelFlare(params *subcommands.GlobalParams, cfg pkgconfigmodel.Reader
 		files = append(files, flareFile{name: "otel-agent.log", content: []byte(fallbackReason), scrub: true})
 	}
 
+	filePath, err := createArchiveInTempDir(files, createFlareArchive)
+	if err != nil {
+		return "", err
+	}
+
+	fmt.Fprintln(color.Output, color.GreenString("Flare archive created: "+filePath))
+	return filePath, nil
+}
+
+// createArchiveInTempDir creates the flare archive of the given files with create, in a new temporary directory,
+// and returns its path.
+func createArchiveInTempDir(files []flareFile, create func(filePath string, files []flareFile) error) (string, error) {
 	// Private, unpredictable dir (0700 on Unix; per-user temp ACL on Windows) so others can't read/symlink the flare.
 	// Not RemoveAccessToOtherUsers: it grants dd-agent, not the caller, locking out a non-admin operator on Windows.
 	tmpDir, err := os.MkdirTemp("", "")
@@ -274,11 +291,11 @@ func createOTelFlare(params *subcommands.GlobalParams, cfg pkgconfigmodel.Reader
 	filename := fmt.Sprintf("otel-agent-flare_%s.zip", timestamp)
 	filePath := filepath.Join(tmpDir, filename)
 
-	if err := createFlareArchive(filePath, files); err != nil {
+	if err := create(filePath, files); err != nil {
+		// Nothing is left behind: the directory only has a partial archive
+		_ = os.RemoveAll(tmpDir)
 		return "", fmt.Errorf("failed to create flare archive: %w", err)
 	}
-
-	fmt.Fprintln(color.Output, color.GreenString("Flare archive created: "+filePath))
 	return filePath, nil
 }
 
@@ -768,21 +785,30 @@ func responseFiles(data *extensiontypes.Response) []flareFile {
 }
 
 // createFlareArchive creates a zip archive with the given files, scrubbing their content
-func createFlareArchive(filePath string, files []flareFile) error {
-	// Parent dir is created private (0700) by createOTelFlare, so no other user can pre-seed a symlink here.
+func createFlareArchive(filePath string, files []flareFile) (err error) {
+	// Parent dir is created private (0700) by createArchiveInTempDir, so no other user can pre-seed a symlink here.
 	zipFile, err := os.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to create zip file: %w", err)
 	}
-	defer zipFile.Close()
+	defer func() {
+		// Closing can fail, e.g. when the disk is full, and then the archive is not whole
+		if closeErr := zipFile.Close(); err == nil && closeErr != nil {
+			err = fmt.Errorf("failed to close zip file: %w", closeErr)
+		}
+	}()
+	return writeFlareArchive(zipFile, files)
+}
 
-	zipWriter := zip.NewWriter(zipFile)
-	defer zipWriter.Close()
+// writeFlareArchive writes a zip archive of the given files to w, scrubbing their content
+func writeFlareArchive(w io.Writer, files []flareFile) error {
+	zipWriter := zip.NewWriter(w)
 
 	for _, f := range files {
 		content := f.content
 		if f.scrub {
 			// Fail closed: never write a file that could not be scrubbed
+			var err error
 			if content, err = scrubFileContent(f.name, content); err != nil {
 				return fmt.Errorf("failed to scrub %s: %w", f.name, err)
 			}
@@ -790,6 +816,10 @@ func createFlareArchive(filePath string, files []flareFile) error {
 		if err := addFileToZip(zipWriter, f.name, content); err != nil {
 			return err
 		}
+	}
+	// Closing writes the end of the archive, which can fail, e.g. when the disk is full
+	if err := zipWriter.Close(); err != nil {
+		return fmt.Errorf("failed to finish the zip archive: %w", err)
 	}
 	return nil
 }
