@@ -1314,6 +1314,56 @@ func TestScorerHistoryDisabledByDefault(t *testing.T) {
 	require.False(t, scorer.historyState().Available)
 }
 
+func TestScorerHistoryCapturesArrivalsAndAdvances(t *testing.T) {
+	for _, behavior := range []string{"clamp", "ignore"} {
+		t.Run(behavior, func(t *testing.T) {
+			cfg := DefaultAnomalyScorerConfig()
+			cfg.ReorderingWindowSecs = 100
+			cfg.LateAnomalyBehavior = behavior
+			cfg.WindowSecs = 15
+			cfg.MaxBuckets = math.MaxInt64
+			scorer := NewAnomalyScorer(cfg).(*anomalyScorer)
+			scorer.enableHistory()
+
+			scorer.Advance(500)
+			late := makeAnomaly("bocpd", 100, nil)
+			current := makeAnomaly("bocpd", 505, nil)
+			scorer.ProcessAnomaly(late)
+			scorer.ProcessAnomaly(current)
+			scorer.Advance(510)
+			scorer.Advance(520) // empty advance
+
+			history := scorer.historyState()
+			require.True(t, history.Available)
+			require.Len(t, history.Arrivals, 2, "raw arrivals must be captured before filtering")
+			require.Equal(t, int64(100), history.Arrivals[0].Timestamp)
+			require.Equal(t, int64(505), history.Arrivals[1].Timestamp)
+			require.Len(t, history.Advances, 3)
+			require.Equal(t, int64(500), history.Advances[0].DataTime)
+			require.Equal(t, 0, history.Advances[0].ArrivalEnd)
+			require.Equal(t, int64(510), history.Advances[1].DataTime)
+			require.Equal(t, 2, history.Advances[1].ArrivalEnd)
+			require.Equal(t, int64(520), history.Advances[2].DataTime)
+			require.Equal(t, 2, history.Advances[2].ArrivalEnd)
+
+			if behavior == "clamp" {
+				require.Len(t, history.Inputs, 2)
+				require.Equal(t, int64(505), history.Inputs[0].ScoringSecond)
+				require.Equal(t, int64(411), history.Inputs[1].ScoringSecond) // 510 - 100 + 1
+			} else {
+				require.Len(t, history.Inputs, 1)
+				require.Equal(t, int64(505), history.Inputs[0].ScoringSecond)
+			}
+
+			scorer.Reset()
+			history = scorer.historyState()
+			require.Empty(t, history.Arrivals)
+			require.Empty(t, history.Advances)
+			require.Empty(t, history.Inputs)
+		})
+	}
+}
+
 // ---- Severity state machine helpers ----
 
 // TestRawSeverityLevel verifies the initial seeding function.

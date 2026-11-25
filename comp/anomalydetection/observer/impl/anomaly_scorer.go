@@ -649,9 +649,11 @@ type anomalyScorer struct {
 }
 
 type scorerHistory struct {
-	inputs  []ScorerHistoryInput
-	events  []severityeventsdef.SeverityEvent
-	reports []ScorerHistoryReport
+	arrivals []observerdef.Anomaly
+	inputs   []ScorerHistoryInput
+	advances []ScorerHistoryAdvance
+	events   []severityeventsdef.SeverityEvent
+	reports  []ScorerHistoryReport
 }
 
 // StandaloneAnomalyScorer is the public interface for a scorer that is used
@@ -759,6 +761,8 @@ func (s *anomalyScorer) historyState() ScorerHistory {
 		Buckets:      append([]observerdef.AnomalyScoreBucket(nil), s.buckets...),
 		Events:       append([]severityeventsdef.SeverityEvent(nil), s.history.events...),
 		Inputs:       append([]ScorerHistoryInput(nil), s.history.inputs...),
+		Arrivals:     append([]observerdef.Anomaly(nil), s.history.arrivals...),
+		Advances:     append([]ScorerHistoryAdvance(nil), s.history.advances...),
 		Config:       s.config.AnomalyScorerConfig,
 		CooldownSecs: s.config.CooldownSecs,
 	}
@@ -810,10 +814,11 @@ func (s *anomalyScorer) OnSeverityTransition(evt severityeventsdef.SeverityEvent
 		if evt.FromLevel < threshold && evt.ToLevel >= threshold {
 			thresholdName := s.config.CorrelationEventThreshold
 			s.openEpisode = &observerdef.ActiveCorrelation{
-				Pattern:     fmt.Sprintf("anomaly_scorer_%s:%d", thresholdName, evt.Timestamp),
-				Title:       fmt.Sprintf("Anomaly scorer: %s-or-higher severity period", thresholdName),
-				FirstSeen:   evt.Timestamp,
-				LastUpdated: evt.Timestamp,
+				Pattern:             fmt.Sprintf("anomaly_scorer_%s:%d", thresholdName, evt.Timestamp),
+				Title:               fmt.Sprintf("Anomaly scorer: %s-or-higher severity period", thresholdName),
+				FirstSeen:           evt.Timestamp,
+				LastUpdated:         evt.Timestamp,
+				HistoricalFirstSeen: evt.HistoricalTimestamp,
 			}
 			contributors := s.topAnomalies.contributors(s.config.MaxReportedItems)
 			s.pendingEvents = append(s.pendingEvents, observerdef.CorrelatorEvent{
@@ -861,6 +866,10 @@ func (s *anomalyScorer) Name() string { return "anomaly_scorer" }
 func (s *anomalyScorer) ProcessAnomaly(a observerdef.Anomaly) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.history != nil {
+		// Record before clamp/ignore so replays can use other settings.
+		s.history.arrivals = append(s.history.arrivals, a)
+	}
 	sec := a.Timestamp
 	if s.score.initialized && sec <= s.lastAdvancedSec {
 		if s.replay != nil {
@@ -918,6 +927,13 @@ func (s *anomalyScorer) Advance(dataTime int64) {
 				start = sec
 			}
 		}
+	}
+
+	if s.history != nil {
+		s.history.advances = append(s.history.advances, ScorerHistoryAdvance{
+			DataTime:   dataTime,
+			ArrivalEnd: len(s.history.arrivals),
+		})
 	}
 
 	late, replayStart := s.takeLateInputs(dataTime)
