@@ -60,6 +60,67 @@ func TestUnmarshalStreamingString(t *testing.T) {
 	})
 }
 
+func TestUnmarshalStreamingStringUTF8(t *testing.T) {
+	for _, tc := range []struct {
+		name, input, want string
+	}{
+		{"empty", "", ""},
+		{"ascii", "elasticsearch.body", "elasticsearch.body"},
+		{"unicode", "café 日本語 🐶 �", "café 日本語 🐶 �"},
+		{"truncated two-byte rune", "caf\xc3", "caf�"},
+		{"truncated three-byte rune", "body\xe2\x82", "body��"},
+		{"truncated four-byte rune", "body\xf0\x9f\x90", "body���"},
+		{"invalid bytes between runes", "日\xff\xfe本", "日��本"},
+		{"lone continuation byte", "bad\x80value", "bad�value"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			strings := NewStringTable()
+			bts := msgp.AppendString(nil, tc.input)
+			index, rest, err := UnmarshalStreamingString(bts, strings)
+			require.NoError(t, err)
+			assert.Empty(t, rest)
+			assert.Equal(t, tc.want, strings.Get(index))
+
+			ref, rest, err := UnmarshalStreamingString(msgp.AppendUint32(nil, index), strings)
+			require.NoError(t, err)
+			assert.Empty(t, rest)
+			assert.Equal(t, index, ref)
+			assert.Equal(t, tc.want, strings.Get(ref))
+		})
+	}
+}
+
+func TestUnmarshalStreamingStringUTF8Collisions(t *testing.T) {
+	for _, decoder := range []struct {
+		name string
+		read func([]byte, *StringTable) ([]byte, error)
+	}{
+		{"streaming", func(bts []byte, strings *StringTable) ([]byte, error) {
+			_, rest, err := UnmarshalStreamingString(bts, strings)
+			return rest, err
+		}},
+		{"unknown field", harvestUnknownFieldStrings},
+	} {
+		t.Run(decoder.name, func(t *testing.T) {
+			strings := NewStringTable()
+			input := []string{"bad\x80", "bad�", "bad\x81", "tail"}
+			want := []string{"bad�", "bad�", "bad�", "tail"}
+			for _, s := range input {
+				rest, err := decoder.read(msgp.AppendString(nil, s), strings)
+				require.NoError(t, err)
+				require.Empty(t, rest)
+			}
+			require.Equal(t, len(input)+1, strings.Len())
+			for i, s := range want {
+				index, rest, err := UnmarshalStreamingString(msgp.AppendUint32(nil, uint32(i+1)), strings)
+				require.NoError(t, err)
+				assert.Empty(t, rest)
+				assert.Equal(t, s, strings.Get(index))
+			}
+		})
+	}
+}
+
 func TestUnmarshalAnyValue(t *testing.T) {
 	t.Run("string value", func(t *testing.T) {
 		strings := NewStringTable()

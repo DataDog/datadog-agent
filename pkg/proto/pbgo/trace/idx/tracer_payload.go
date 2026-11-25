@@ -176,7 +176,7 @@ func unmarshalStringTable(bts []byte, strings *StringTable) (o []byte, err error
 	for numStrings > 0 {
 		numStrings--
 		var str string
-		str, o, err = msgp.ReadStringBytes(o)
+		str, o, err = readUTF8StringBytes(o)
 		if err != nil {
 			err = msgp.WrapError(err, "Failed to read string")
 			return

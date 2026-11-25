@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
+	"google.golang.org/protobuf/proto"
 )
 
 func (s *StringTable) assertEqual(t *testing.T, expected []string) {
@@ -155,6 +156,85 @@ func TestUnmarshalTracerPayload(t *testing.T) {
 			t.Logf("No panic occurred, error message: %s", err.Error())
 		}
 	})
+}
+
+func TestUnmarshalStringTableUTF8(t *testing.T) {
+	// Distinct wire strings can become equal after repair. Their indices must remain distinct.
+	input := []string{"", "café 日本語 🐶", "body\xe2\x82", "body\xe2\x83", "tail"}
+	want := []string{"", "café 日本語 🐶", "body��", "body��", "tail"}
+	bts := msgp.AppendArrayHeader(nil, uint32(len(input)))
+	for _, s := range input {
+		bts = msgp.AppendString(bts, s)
+	}
+	tail := msgp.AppendBool(nil, true)
+	bts = append(bts, tail...)
+	strings := NewStringTable()
+	rest, err := unmarshalStringTable(bts, strings)
+	require.NoError(t, err)
+	assert.Equal(t, tail, rest)
+	require.Equal(t, len(want), strings.Len())
+	for i, s := range want {
+		assert.Equal(t, s, strings.Get(uint32(i)))
+	}
+}
+
+func TestUnmarshalTracerPayloadUTF8(t *testing.T) {
+	const key = "elasticsearch.body"
+	const body = "日本語\xf0\x9f\x90"
+	for _, encoding := range []string{"inline", "string table", "unknown field"} {
+		t.Run(encoding, func(t *testing.T) {
+			var bts []byte
+			switch encoding {
+			case "inline":
+				bts = msgp.AppendMapHeader(bts, 1)
+			case "string table":
+				bts = msgp.AppendMapHeader(bts, 2)
+				bts = msgp.AppendUint32(bts, 1) // strings
+				bts = msgp.AppendArrayHeader(bts, 3)
+				for _, s := range []string{"", key, body} {
+					bts = msgp.AppendString(bts, s)
+				}
+			case "unknown field":
+				bts = msgp.AppendMapHeader(bts, 2)
+				bts = msgp.AppendUint32(bts, 99)
+				bts = msgp.AppendString(bts, body) // harvested at index 1
+			}
+			bts = msgp.AppendUint32(bts, 11) // chunks
+			bts = msgp.AppendArrayHeader(bts, 1)
+			bts = msgp.AppendMapHeader(bts, 1)
+			bts = msgp.AppendUint32(bts, 4) // spans
+			bts = msgp.AppendArrayHeader(bts, 1)
+			bts = msgp.AppendMapHeader(bts, 1)
+			bts = msgp.AppendUint32(bts, 9) // span attributes
+			bts = msgp.AppendArrayHeader(bts, 3)
+			if encoding == "string table" {
+				bts = msgp.AppendUint32(bts, 1) // key
+			} else {
+				bts = msgp.AppendString(bts, key)
+			}
+			bts = msgp.AppendUint32(bts, 1) // string AnyValue
+			switch encoding {
+			case "inline":
+				bts = msgp.AppendString(bts, body)
+			case "string table":
+				bts = msgp.AppendUint32(bts, 2)
+			case "unknown field":
+				bts = msgp.AppendUint32(bts, 1)
+			}
+
+			tp := &InternalTracerPayload{}
+			rest, err := tp.UnmarshalMsg(bts)
+			require.NoError(t, err)
+			require.Empty(t, rest)
+			require.Len(t, tp.Chunks, 1)
+			require.Len(t, tp.Chunks[0].Spans, 1)
+			value, ok := tp.Chunks[0].Spans[0].GetAttributeAsString(key)
+			require.True(t, ok)
+			assert.Equal(t, "日本語���", value)
+			_, err = proto.Marshal(tp.ToProto())
+			require.NoError(t, err, "a malformed span string must not make the protobuf payload invalid")
+		})
+	}
 }
 
 func TestUnmarshalTraceChunk(t *testing.T) {
