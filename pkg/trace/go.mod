@@ -65,7 +65,7 @@ require (
 	github.com/DataDog/go-sqllexer v0.2.7 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/sketches-go v1.4.8 // indirect
-	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
+	github.com/DataDog/zstd v1.5.8-0.20261125145301-97847ffed8fd // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect

@@ -44,7 +44,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/zstd v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
-	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
+	github.com/DataDog/zstd v1.5.8-0.20261125145301-97847ffed8fd // indirect
 	github.com/Microsoft/go-winio v0.6.4 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/ebitengine/purego v0.11.2 // indirect

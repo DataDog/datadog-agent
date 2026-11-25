@@ -222,7 +222,7 @@ require (
 	github.com/DataDog/jsonapi v0.14.0
 	github.com/DataDog/sketches-go v1.4.8
 	github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20260917081843-fe016948e308
-	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
+	github.com/DataDog/zstd v1.5.8-0.20261125145301-97847ffed8fd
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/Microsoft/go-winio v0.6.4

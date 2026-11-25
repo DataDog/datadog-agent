@@ -27,7 +27,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/DataDog/datadog-agent/pkg/version v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/DataDog/datadog-agent/pkg/zstd v0.0.0-00010101000000-000000000000
-	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
+	github.com/DataDog/zstd v1.5.8-0.20261125145301-97847ffed8fd
 	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/client_model v0.6.3
 	github.com/robfig/cron/v3 v3.0.1

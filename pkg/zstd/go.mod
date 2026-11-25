@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/zstd
 go 1.26.0
 
 require (
-	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571
+	github.com/DataDog/zstd v1.5.8-0.20261125145301-97847ffed8fd
 	github.com/klauspost/compress v1.20.4
 )
 
