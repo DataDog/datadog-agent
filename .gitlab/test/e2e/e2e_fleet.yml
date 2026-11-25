@@ -64,6 +64,9 @@ new-e2e-fleet-upgrade-history:
   rules:
     - !reference [.except_disable_e2e_tests]
     - !reference [.on_deploy_nightly_repo_branch]
+    # Keep main pushes manual before evaluating the path-based rules.
+    - !reference [.on_main_manual]
+    - !reference [.on_installer_or_e2e_changes]
     - !reference [.manual]
   timeout: 1h 25m
   variables:
