@@ -148,13 +148,90 @@
       }
     },
     "gpu_peers": {
-      "type": "array"
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "gpu_uuid": {
+            "type": "string",
+            "required": true
+          },
+          "p2p_capabilities": {
+            "type": "object",
+            "properties": {
+              "read": {
+                "type": "boolean"
+              },
+              "write": {
+                "type": "boolean"
+              },
+              "atomics": {
+                "type": "boolean"
+              },
+              "nvlink": {
+                "type": "boolean"
+              },
+              "pci": {
+                "type": "boolean"
+              }
+            }
+          },
+          "direct_nvlinks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "nvlink_port": {
+                  "type": "int32",
+                  "required": true
+                },
+                "remote_nvlink_port": {
+                  "type": "int32"
+                },
+                "remote_pci_bus_id": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
     },
     "switch_connections": {
       "type": "array"
     },
     "unresolved_nvlinks": {
-      "type": "array"
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "nvlink_port": {
+            "type": "int32",
+            "required": true
+          },
+          "remote_type": {
+            "type": "string",
+            "enum": [
+              "gpu",
+              "switch",
+              "other",
+              "unknown"
+            ]
+          },
+          "remote_pci_bus_id": {
+            "type": "string"
+          },
+          "remote_port": {
+            "type": "int32"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      }
     }
   }
 }

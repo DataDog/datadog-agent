@@ -17,8 +17,9 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
-// Snapshot builds resource fields from cached physical device attributes.
-func Snapshot(devices []safenvml.Device) []Device {
+// Snapshot builds resource fields from cached physical device attributes and the latest
+// PeeringScanner result, keyed by lowercase UUID.
+func Snapshot(devices []safenvml.Device, peering map[string]Peering) []Device {
 	result := make([]Device, 0, len(devices))
 	for _, device := range devices {
 		if _, physical := device.(*safenvml.PhysicalDevice); !physical {
@@ -51,6 +52,8 @@ func Snapshot(devices []safenvml.Device) []Device {
 			d.NVLinkPartition = fmt.Sprintf("%s:%d", info.FabricClusterUUID, clique)
 		}
 		fillPlacement(&d, info)
+		p := peering[d.UUID]
+		d.GPUPeers, d.UnresolvedNVLinks = p.GPUPeers, p.UnresolvedNVLinks
 		result = append(result, d)
 	}
 	return result
