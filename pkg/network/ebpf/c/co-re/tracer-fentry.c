@@ -1,6 +1,8 @@
 // Enables the *_btf helpers in tracer/stats.h. Only the fentry/fexit/tp_btf handlers call *_btf helpers, with BTF
 // pointers (arguments, return values, or pointers loaded directly from them, like skb->sk). The kprobe and raw
 // tracepoint programs in this file keep the probe-read helpers.
+// Never pass a *_btf helper a pointer that came from a map, a probe read or PT_REGS: the direct loads in its body
+// are only valid on BTF-typed pointers, and the verifier rejects them otherwise, so the whole tracer fails to load.
 #define SOCK_PTR_IS_BTF
 #include "ktypes.h"
 #include "bpf_telemetry.h"

@@ -612,18 +612,38 @@ __maybe_unused static __always_inline bool tcp_failed_connections_enabled() {
     return val > 0;
 }
 
-// get_tcp_failure returns an error code for tcp_done/tcp_close, if there was one
-static __always_inline int get_tcp_failure(struct sock *sk) {
+// Field readers for __get_tcp_failure. The _btf variants take a BTF-typed sock pointer and use direct loads.
+static __always_inline void read_sk_err(struct sock *sk, int *err) {
+    BPF_CORE_READ_INTO(err, sk, sk_err);
+}
+
+static __always_inline void read_skc_state(struct sock *sk, unsigned char *state) {
+    struct sock_common *skc = (struct sock_common*) sk;
+    // the fact that this field is volatile breaks BPF_CORE_READ_INTO, so it must be cast separately
+    bpf_probe_read_kernel(state, 1, (unsigned char*) &skc->skc_state);
+}
+
+#ifdef COMPILE_CORE
+static __maybe_unused __always_inline void read_sk_err_btf(struct sock *sk, int *err) {
+    *err = sk->sk_err;
+}
+
+static __maybe_unused __always_inline void read_skc_state_btf(struct sock *sk, unsigned char *state) {
+    *state = sk->__sk_common.skc_state;
+}
+#endif
+
+// __get_tcp_failure returns an error code for tcp_done/tcp_close, if there was one.
+// With btf set, sk must be a BTF-typed pointer.
+static __always_inline int __get_tcp_failure(struct sock *sk, const bool btf) {
     int err = 0;
-    BPF_CORE_READ_INTO(&err, sk, sk_err);
+    BTF_OR_PROBE_READ(btf, read_sk_err, sk, &err);
     if (err != 0) {
         return err;
     }
 
-    struct sock_common *skc = (struct sock_common*) sk;
     unsigned char state = 0;
-    // the fact that this field is volatile breaks BPF_CORE_READ_INTO, so it must be cast separately
-    bpf_probe_read_kernel(&state, 1, (unsigned char*) &skc->skc_state);
+    BTF_OR_PROBE_READ(btf, read_skc_state, sk, &state);
     // we are still in SYN_SENT when the socket closed, meaning the connect was cancelled
     if (state == TCP_SYN_SENT) {
         return TCP_CONN_FAILED_CANCELED;
@@ -656,7 +676,7 @@ static __always_inline void report_unrecognized_tcp_failure(int err) {
     }
 }
 
-// record_tcp_failure adds the error code from get_tcp_failure to the connection tuple's stats
+// record_tcp_failure adds the given TCP failure error code (from __get_tcp_failure) to the connection tuple's stats
 // returns an integer to the caller indicating if there was a failure or not
 static __always_inline bool record_tcp_failure(conn_tuple_t *t, int err) {
     if (err == 0) {
@@ -675,37 +695,24 @@ static __always_inline bool record_tcp_failure(conn_tuple_t *t, int err) {
     return false;
 }
 
-// handle_tcp_failure handles TCP connection failures on the socket pointer and adds them to the connection tuple
-// returns an integer to the caller indicating if there was a failure or not
-static __always_inline bool handle_tcp_failure(struct sock *sk, conn_tuple_t *t) {
+// __handle_tcp_failure handles TCP connection failures on the socket pointer and adds them to the connection tuple
+// returns an integer to the caller indicating if there was a failure or not. With btf set, sk must be a BTF-typed
+// pointer.
+static __always_inline bool __handle_tcp_failure(struct sock *sk, conn_tuple_t *t, const bool btf) {
     if (!tcp_failed_connections_enabled()) {
         return false;
     }
-    return record_tcp_failure(t, get_tcp_failure(sk));
+    return record_tcp_failure(t, __get_tcp_failure(sk, btf));
+}
+
+static __always_inline bool handle_tcp_failure(struct sock *sk, conn_tuple_t *t) {
+    return __handle_tcp_failure(sk, t, false);
 }
 
 #if defined(COMPILE_CORE) && defined(SOCK_PTR_IS_BTF)
-// get_tcp_failure for a BTF-typed sock pointer: direct loads instead of probe reads.
-static __always_inline int get_tcp_failure_btf(struct sock *sk) {
-    int err = sk->sk_err;
-    if (err != 0) {
-        return err;
-    }
-
-    // we are still in SYN_SENT when the socket closed, meaning the connect was cancelled
-    if (sk->__sk_common.skc_state == TCP_SYN_SENT) {
-        return TCP_CONN_FAILED_CANCELED;
-    }
-
-    return 0;
-}
-
 // handle_tcp_failure for a BTF-typed sock pointer.
 static __always_inline bool handle_tcp_failure_btf(struct sock *sk, conn_tuple_t *t) {
-    if (!tcp_failed_connections_enabled()) {
-        return false;
-    }
-    return record_tcp_failure(t, get_tcp_failure_btf(sk));
+    return __handle_tcp_failure(sk, t, true);
 }
 #endif
 
