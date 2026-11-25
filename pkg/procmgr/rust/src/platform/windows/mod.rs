@@ -22,8 +22,10 @@ mod spawn;
 mod token_identity;
 mod wide;
 
+use std::future::Future;
 use std::path::PathBuf;
 use std::sync::OnceLock;
+use std::task::Poll;
 use tokio::sync::Notify;
 
 pub(crate) use spawn::user_profile::UserProfileGuard;
@@ -59,13 +61,18 @@ pub fn start_reaper() -> Reaper {
     Reaper
 }
 
-/// Resolves on a stop request: an SCM stop, or Ctrl+C in console mode.
-///
-/// Both arrive through [`shutdown_notify`], from native handlers that also raise the stop flag
-/// (`service::ctrl_handler`, `service::console_ctrl_handler`). tokio's `ctrl_c` is not used: it
-/// raises the flag only once polled, which a blocked filesystem call prevents.
+/// Resolves on an SCM stop or console Ctrl+C, or at once when the stop flag is already set. Not
+/// tokio's `ctrl_c`, which a blocked fs call stalls. The handlers set the flag before they notify,
+/// so the flag is checked on every poll.
 pub async fn shutdown_signal() {
-    shutdown_notify().notified().await;
+    let mut notified = std::pin::pin!(shutdown_notify().notified());
+    std::future::poll_fn(|cx| {
+        if crate::stop::stop_requested_flag() {
+            return Poll::Ready(());
+        }
+        notified.as_mut().poll(cx)
+    })
+    .await;
     log::info!("received stop request");
 }
 

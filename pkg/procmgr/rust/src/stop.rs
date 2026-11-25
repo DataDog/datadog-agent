@@ -11,8 +11,9 @@
 //!
 //! Limits: a caller waits up to [`CALL_DEADLINE`] per distinct stalled path, on a runtime worker
 //! (with the process table locked in the start pass). On Unix, `Command::spawn` waits on the exec
-//! pipe, so a `command` or `working_dir` on a hung mount can still block a spawn. Refusals are
-//! keyed by the literal path, so a symlink to the same file is a different path.
+//! pipe, and on Windows `CreateProcess*` can wait on the image, so a `command` or `working_dir`
+//! on a hung mount can still block a spawn. Refusals are keyed by the literal path, so a symlink
+//! to the same file is a different path.
 
 use std::io;
 use std::path::{Path, PathBuf};
@@ -82,10 +83,11 @@ pub(crate) fn request_stop(signal: i32) {
     STOP.store(true, Ordering::SeqCst);
 }
 
-/// Records a stop request. Only an atomic store, so it is safe inside a console control handler.
+/// Records a stop request and returns whether this call was the first. Only an atomic swap, so
+/// it is safe inside a console control handler.
 #[cfg(not(unix))]
-pub(crate) fn request_stop() {
-    STOP.store(true, Ordering::SeqCst);
+pub(crate) fn request_stop() -> bool {
+    !STOP.swap(true, Ordering::SeqCst)
 }
 
 /// Name of the recorded stop signal. Call it after `stop_requested_flag` returns true.
