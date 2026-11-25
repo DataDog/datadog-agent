@@ -286,7 +286,7 @@ build do
 
 # Secret Generic Connector
   if !heroku_target?
-    command "dda inv -- -e secret-generic-connector.build #{fips_args}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e secret-generic-connector.build #{fips_args} --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     if windows_target?
       copy 'bin/secret-generic-connector/secret-generic-connector.exe', "#{install_dir}/bin/agent"
     else
