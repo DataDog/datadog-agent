@@ -465,3 +465,7 @@ func (s *configDiscoverySuite) verifyHaproxyConfigDiscoverySuppressedByHostLevel
 	assert.Len(c, krakendInstances, 1,
 		"krakend discovery should be unaffected by the host-level static openmetrics config claiming an unrelated namespace; found: %+v", krakendInstances)
 }
+
+func isIntegrationScheduled(configCheckOutput string, integrationName string) bool {
+	return strings.Contains(configCheckOutput, "=== "+integrationName+" check ===")
+}

@@ -421,7 +421,6 @@
   ],
   "new-e2e-discovery": [
     "TestConfigDiscoverySuite",
-    "TestConfigFilesDiscoveryDockerSuite",
     "TestDockerTestSuite",
     "TestK8sTestSuite",
     "TestLinuxTestSuite",

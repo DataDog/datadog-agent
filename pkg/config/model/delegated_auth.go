@@ -32,7 +32,6 @@ const (
 var DelaEventPlatformEndpointsPrefixes = []string{
 	"container_image.",
 	"container_lifecycle.",
-	"config_files_discovery.forwarder.",
 	"data_observability.forwarder.",
 	"data_streams.forwarder.",
 	"database_monitoring.activity.",

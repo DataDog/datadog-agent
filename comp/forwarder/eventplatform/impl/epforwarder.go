@@ -79,7 +79,6 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 		getDataStreamsPipelines,
 		getDataObservabilityPipelines,
 		getSoftwareInventoryPipelines,
-		getAgentDiscoveryPipelines,
 		getDataSecurityPipelines,
 	}
 	var descs []passthroughPipelineDesc
@@ -120,9 +119,6 @@ func Diagnose() []diagnose.Diagnosis {
 	cfg := pkgconfigsetup.Datadog()
 
 	for _, desc := range getPassthroughPipelines() {
-		if desc.eventType == eventplatform.EventTypeAgentDiscovery && !cfg.GetBool("config_files_discovery.enabled") {
-			continue
-		}
 		// TODO(dsec-182): could we diagnose the SDS result pipeline?
 		if desc.eventType == eventplatform.EventTypeSDSResult && !cfg.GetBool("data_security.enabled") {
 			continue
