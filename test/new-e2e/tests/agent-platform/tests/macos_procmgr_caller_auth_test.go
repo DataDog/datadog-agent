@@ -283,8 +283,8 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 				}
 			}
 		}()
-		assertMacosProcmgrAnswers(t, client, 1)
-		restarted = restartErr == nil
+		verified := assertMacosProcmgrAnswers(t, client, 1)
+		restarted = restartErr == nil && verified
 	})
 	macosLogDiagnosticsOnFailure(t, client)
 
