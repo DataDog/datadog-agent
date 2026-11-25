@@ -504,6 +504,9 @@ func TestCrossCgroupCacheHit(t *testing.T) {
 	hashes1 := resolver.ComputeHashesFromEvent(newEvent("cgroup-1"), file1, 0)
 	require.Equal(t, model.Done, file1.HashState)
 	require.Len(t, hashes1, 2)
+	require.Equal(t, 1, resolver.cache.Len())
+
+	hitsBefore := hashResolverTelemetry.hashCacheHit.WithValues(model.ExecEventType.String()).Get()
 
 	file2 := &model.FileEvent{
 		FileFields:            model.FileFields{PathKey: model.PathKey{Inode: 4242, PathID: 2}},
@@ -513,6 +516,8 @@ func TestCrossCgroupCacheHit(t *testing.T) {
 	hashes2 := resolver.ComputeHashesFromEvent(newEvent("cgroup-2"), file2, 0)
 	require.Equal(t, model.Done, file2.HashState)
 	assert.Equal(t, hashes1, hashes2)
+	assert.Equal(t, 1, resolver.cache.Len())
+	assert.Equal(t, hitsBefore+1, hashResolverTelemetry.hashCacheHit.WithValues(model.ExecEventType.String()).Get(), "second call across cgroups should hit the primary cache")
 }
 
 func TestSSDeepSkipsSmallFile(t *testing.T) {

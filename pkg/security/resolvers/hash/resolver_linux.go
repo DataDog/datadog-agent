@@ -88,15 +88,17 @@ type ResolverOpts struct {
 // LRUCacheKey is the structure used to access cached hashes
 type LRUCacheKey struct {
 	path  string
+	dev   uint64
 	inode uint64
 }
 
 // LRUCacheEntry is the structure used to cache hashes
-// It includes file metadata (inode, mtime, size) to detect if the file has changed
+// It includes file metadata (dev, inode, mtime, size) to detect if the file has changed
 type LRUCacheEntry struct {
 	state  model.HashState
 	hashes []string
 	// File metadata to detect changes
+	dev   uint64 // device ID
 	inode uint64 // file inode
 	mtime uint64 // modification time in nanoseconds
 	size  int64  // file size in bytes
@@ -342,7 +344,6 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, cgroupID cont
 		size        int64
 		mtime       uint64
 		fkey        fileUniqKey
-		entryInode  uint64
 		fileKey     LRUCacheKey
 		failedCache = make(map[fileUniqKey]struct{})
 	)
@@ -358,32 +359,16 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, cgroupID cont
 			break
 		}
 
-		if size > maxFileSize {
-			rateReservation.Cancel()
-			hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.FileTooBig.String())
-			file.HashState = model.FileTooBig
-			return
-		}
-
-		if size == 0 {
-			rateReservation.Cancel()
-			hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.FileEmpty.String())
-			file.HashState = model.FileEmpty
-			return
-		}
-
-		entryInode = file.Inode
-		if entryInode == 0 {
-			entryInode = fkey.inode
-		}
 		fileKey = LRUCacheKey{
 			path:  file.PathnameStr,
-			inode: entryInode,
+			dev:   fkey.dev,
+			inode: fkey.inode,
 		}
 
-		if resolver.cache != nil {
+		if size > 0 && size <= maxFileSize && resolver.cache != nil {
 			if cacheEntry, ok := resolver.cache.Get(fileKey); ok {
-				if cacheEntry.inode == entryInode &&
+				if cacheEntry.dev == fkey.dev &&
+					cacheEntry.inode == fkey.inode &&
 					cacheEntry.mtime == mtime &&
 					cacheEntry.size == size {
 					file.HashState = cacheEntry.state
@@ -433,6 +418,20 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, cgroupID cont
 		return
 	}
 	defer f.Close()
+
+	if size > maxFileSize {
+		rateReservation.Cancel()
+		hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.FileTooBig.String())
+		file.HashState = model.FileTooBig
+		return
+	}
+
+	if size == 0 {
+		rateReservation.Cancel()
+		hashResolverTelemetry.hashMiss.Inc(eventType.String(), model.FileEmpty.String())
+		file.HashState = model.FileEmpty
+		return
+	}
 
 	fileReader := struct{ io.Reader }{f}
 
@@ -583,7 +582,8 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, cgroupID cont
 		cacheEntry := &LRUCacheEntry{
 			state:  model.Done,
 			hashes: make([]string, len(file.Hashes)),
-			inode:  entryInode,
+			dev:    fkey.dev,
+			inode:  fkey.inode,
 			mtime:  mtime,
 			size:   size,
 		}
