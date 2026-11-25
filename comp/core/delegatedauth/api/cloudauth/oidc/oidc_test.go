@@ -16,7 +16,6 @@ import (
 	"testing"
 	"time"
 
-	oidcauth "github.com/DataDog/datadog-api-client-go/v2/auth/oidc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -100,37 +99,91 @@ func TestGenerateAuthProofRereadsRotatedFile(t *testing.T) {
 	assert.Equal(t, "oidc-"+second, proof)
 }
 
-func TestGenerateAuthProofRefusesUnscopedTokens(t *testing.T) {
-	tests := []struct {
-		name   string
-		mutate func(map[string]any)
-	}{
-		{"wrong org audience", func(c map[string]any) { c["aud"] = "datadog/00000000-0000-0000-0000-000000000000" }},
-		{"multiple audiences", func(c map[string]any) { c["aud"] = []string{"datadog/" + testOrgUUID, "https://other.example"} }},
-		{"non-Datadog audience with dd_org_uuid", func(c map[string]any) {
-			c["aud"] = "https://other.example"
-			c["dd_org_uuid"] = testOrgUUID
-		}},
-		{"mismatched dd_org_uuid", func(c map[string]any) { c["dd_org_uuid"] = "00000000-0000-0000-0000-000000000000" }},
-		{"missing audience", func(c map[string]any) { delete(c, "aud") }},
-		{"missing exp", func(c map[string]any) { delete(c, "exp") }},
-		{"expired", func(c map[string]any) { c["exp"] = time.Now().Add(-time.Minute).Unix() }},
+// Every reason is pinned so a change to the ported check shows up here.
+func TestProofRefusals(t *testing.T) {
+	now := time.Unix(1_800_000_000, 0)
+	encode := func(v any) string {
+		b, err := json.Marshal(v)
+		require.NoError(t, err)
+		return base64.RawURLEncoding.EncodeToString(b)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			claims := scopedClaims()
-			tt.mutate(claims)
-			token := makeJWT(t, claims)
-			auth, _ := newTestAuth(t, token)
+	jwt := func(payload string) string {
+		return encode(map[string]string{"alg": "RS256"}) + "." + payload + ".c2lnbmF0dXJl"
+	}
+	claims := func(mutate func(map[string]any)) string {
+		c := map[string]any{"aud": "datadog/" + testOrgUUID, "exp": now.Add(time.Hour).Unix()}
+		if mutate != nil {
+			mutate(c)
+		}
+		return jwt(encode(c))
+	}
+	scope := func(reason string) string { return "workload token is not scoped to Datadog: " + reason }
+	valid := claims(nil)
 
-			proof, err := auth.GenerateAuthProof(context.Background(), nil, &common.AuthConfig{OrgUUID: testOrgUUID})
-			require.Error(t, err)
-			assert.Empty(t, proof)
+	tests := map[string]struct {
+		content string
+		wantErr string // empty means the proof is "oidc-" + the trimmed content
+	}{
+		"scoped":                                {valid, ""},
+		"scoped with newline":                   {valid + "\n", ""},
+		"matching dd_org_uuid":                  {claims(func(c map[string]any) { c["dd_org_uuid"] = testOrgUUID }), ""},
+		"audience list of one":                  {claims(func(c map[string]any) { c["aud"] = []string{"datadog/" + testOrgUUID} }), ""},
+		"wrong org audience":                    {claims(func(c map[string]any) { c["aud"] = "datadog/00000000-0000-0000-0000-000000000000" }), scope("aud is a datadog/ audience that does not match the configured org UUID")},
+		"non-Datadog audience":                  {claims(func(c map[string]any) { c["aud"] = "https://other.example" }), scope("aud is not a Datadog audience")},
+		"non-Datadog audience with dd_org_uuid": {claims(func(c map[string]any) { c["aud"], c["dd_org_uuid"] = "https://other.example", testOrgUUID }), scope("aud is not a Datadog audience")},
+		"multiple audiences":                    {claims(func(c map[string]any) { c["aud"] = []string{"datadog/" + testOrgUUID, "https://other.example"} }), scope("aud has 2 values; only a single Datadog audience for the configured org is accepted")},
+		"non-string audience":                   {claims(func(c map[string]any) { c["aud"] = 42 }), scope("aud is neither a string nor a list of strings")},
+		"missing audience":                      {claims(func(c map[string]any) { delete(c, "aud") }), scope("no aud claim")},
+		"uppercase AUD only":                    {jwt(encode(map[string]any{"AUD": "datadog/" + testOrgUUID, "exp": now.Add(time.Hour).Unix()})), scope("no aud claim")},
+		"mismatched dd_org_uuid":                {claims(func(c map[string]any) { c["dd_org_uuid"] = "00000000-0000-0000-0000-000000000000" }), scope("dd_org_uuid does not match the configured org UUID")},
+		"non-string dd_org_uuid":                {claims(func(c map[string]any) { c["dd_org_uuid"] = 1 }), scope("dd_org_uuid is not a string")},
+		"missing exp":                           {claims(func(c map[string]any) { delete(c, "exp") }), scope("no exp claim")},
+		"non-numeric exp":                       {claims(func(c map[string]any) { c["exp"] = "soon" }), scope("exp is not a number")},
+		"expired":                               {claims(func(c map[string]any) { c["exp"] = now.Add(-time.Minute).Unix() }), scope("token expired at 2027-01-15T07:59:00Z")},
+		"expires now":                           {claims(func(c map[string]any) { c["exp"] = now.Unix() }), scope("token expired at 2027-01-15T08:00:00Z")},
+		"two segments":                          {"eyJhbGciOiJSUzI1NiJ9.eyJhdWQiOiJ4In0", scope("not a JWT")},
+		"payload not base64url":                 {jwt("not*base64"), scope("JWT payload is not base64url")},
+		"payload not a JSON object":             {jwt(encode([]string{"a"})), scope("JWT payload is not a JSON object")},
+		"inner whitespace":                      {valid[:10] + " " + valid[10:], "workload token contains whitespace or non-printable characters"},
+		"non-printable":                         {"abc\x01def", "workload token contains whitespace or non-printable characters"},
+		"empty":                                 {"", "workload token is empty"},
+		"whitespace only":                       {" \n\t", "workload token is empty"},
+		"oversized":                             {strings.Repeat("a", maxTokenSize+1), "workload token exceeds 65536 bytes"},
+	}
+	dir := t.TempDir()
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(dir, strings.ReplaceAll(name, " ", "_"))
+			require.NoError(t, os.WriteFile(path, []byte(tt.content), 0o600))
+
+			got, err := proof(path, testOrgUUID, now)
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				assert.Equal(t, "oidc-"+strings.TrimSpace(tt.content), got)
+				return
+			}
+			assert.Empty(t, got)
+			assert.EqualError(t, err, tt.wantErr)
 			var scopeErr *TokenScopeError
-			assert.ErrorAs(t, err, &scopeErr)
-			assert.NotContains(t, err.Error(), token)
+			assert.Equal(t, strings.HasPrefix(tt.wantErr, scope("")), errors.As(err, &scopeErr))
+			if token := strings.TrimSpace(tt.content); token != "" {
+				assert.NotContains(t, err.Error(), token)
+			}
 		})
 	}
+
+	t.Run("missing file", func(t *testing.T) {
+		_, err := proof(filepath.Join(dir, "absent"), testOrgUUID, now)
+		assert.ErrorContains(t, err, "opening workload token file: ")
+	})
+	t.Run("directory", func(t *testing.T) {
+		_, err := proof(dir, testOrgUUID, now)
+		assert.EqualError(t, err, "workload token file is not a regular file")
+	})
+	t.Run("missing org UUID", func(t *testing.T) {
+		_, err := proof(filepath.Join(dir, "scoped"), "", now)
+		assert.EqualError(t, err, "missing org UUID in delegated token configuration")
+	})
 }
 
 func TestGenerateAuthProofMissingFile(t *testing.T) {
@@ -148,96 +201,4 @@ func TestGenerateAuthProofHonorsCanceledContext(t *testing.T) {
 
 	_, err := auth.GenerateAuthProof(ctx, nil, &common.AuthConfig{OrgUUID: testOrgUUID})
 	assert.ErrorIs(t, err, context.Canceled)
-}
-
-// The port must keep refusing exactly what the client library refuses, with the same reasons.
-func TestMatchesClientLibrary(t *testing.T) {
-	encode := func(v any) string {
-		b, err := json.Marshal(v)
-		require.NoError(t, err)
-		return base64.RawURLEncoding.EncodeToString(b)
-	}
-	jwt := func(payload string) string {
-		return encode(map[string]string{"alg": "RS256"}) + "." + payload + ".c2lnbmF0dXJl"
-	}
-	withClaims := func(mutate func(map[string]any)) string {
-		claims := scopedClaims()
-		mutate(claims)
-		return jwt(encode(claims))
-	}
-	contents := map[string]string{
-		"scoped":                    withClaims(func(map[string]any) {}),
-		"scoped with newline":       withClaims(func(map[string]any) {}) + "\n",
-		"matching dd_org_uuid":      withClaims(func(c map[string]any) { c["dd_org_uuid"] = testOrgUUID }),
-		"wrong org audience":        withClaims(func(c map[string]any) { c["aud"] = "datadog/00000000-0000-0000-0000-000000000000" }),
-		"non-Datadog audience":      withClaims(func(c map[string]any) { c["aud"] = "https://other.example" }),
-		"audience list of one":      withClaims(func(c map[string]any) { c["aud"] = []string{"datadog/" + testOrgUUID} }),
-		"multiple audiences":        withClaims(func(c map[string]any) { c["aud"] = []string{"datadog/" + testOrgUUID, "x"} }),
-		"non-string audience":       withClaims(func(c map[string]any) { c["aud"] = 42 }),
-		"missing audience":          withClaims(func(c map[string]any) { delete(c, "aud") }),
-		"mismatched dd_org_uuid":    withClaims(func(c map[string]any) { c["dd_org_uuid"] = "other" }),
-		"non-string dd_org_uuid":    withClaims(func(c map[string]any) { c["dd_org_uuid"] = 1 }),
-		"missing exp":               withClaims(func(c map[string]any) { delete(c, "exp") }),
-		"non-numeric exp":           withClaims(func(c map[string]any) { c["exp"] = "soon" }),
-		"expired":                   withClaims(func(c map[string]any) { c["exp"] = time.Now().Add(-time.Minute).Unix() }),
-		"uppercase AUD only":        jwt(encode(map[string]any{"AUD": "datadog/" + testOrgUUID, "exp": time.Now().Add(time.Hour).Unix()})),
-		"payload not base64url":     jwt("not*base64"),
-		"payload not a JSON object": jwt(encode([]string{"a"})),
-		"two segments":              "eyJhbGciOiJSUzI1NiJ9.eyJhdWQiOiJ4In0",
-		"inner whitespace":          withClaims(func(map[string]any) {})[:10] + " " + withClaims(func(map[string]any) {})[10:],
-		"empty":                     "",
-		"whitespace only":           " \n\t",
-		"oversized":                 strings.Repeat("a", 64*1024+1),
-		"non-printable":             "abc\x01def",
-	}
-	dir := t.TempDir()
-	for name, content := range contents {
-		t.Run(name, func(t *testing.T) {
-			path := filepath.Join(dir, strings.ReplaceAll(name, " ", "_"))
-			require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
-			library, err := oidcauth.New(oidcauth.WithTokenFile(path))
-			require.NoError(t, err)
-
-			wantProof, wantErr := library.Proof(testOrgUUID)
-			gotProof, gotErr := proof(path, testOrgUUID, time.Now())
-
-			assert.Equal(t, wantProof, gotProof)
-			if wantErr == nil {
-				assert.NoError(t, gotErr)
-				return
-			}
-			require.Error(t, gotErr)
-			assert.Equal(t, wantErr.Error(), gotErr.Error())
-			var libraryScopeErr *oidcauth.TokenScopeError
-			var scopeErr *TokenScopeError
-			assert.Equal(t, errors.As(wantErr, &libraryScopeErr), errors.As(gotErr, &scopeErr), "refusals must be scope errors exactly when the library's are")
-		})
-	}
-
-	t.Run("missing file", func(t *testing.T) {
-		path := filepath.Join(dir, "absent")
-		library, err := oidcauth.New(oidcauth.WithTokenFile(path))
-		require.NoError(t, err)
-		_, wantErr := library.Proof(testOrgUUID)
-		_, gotErr := proof(path, testOrgUUID, time.Now())
-		require.Error(t, wantErr)
-		assert.Equal(t, wantErr.Error(), gotErr.Error())
-	})
-	t.Run("directory", func(t *testing.T) {
-		library, err := oidcauth.New(oidcauth.WithTokenFile(dir))
-		require.NoError(t, err)
-		_, wantErr := library.Proof(testOrgUUID)
-		_, gotErr := proof(dir, testOrgUUID, time.Now())
-		require.Error(t, wantErr)
-		assert.Equal(t, wantErr.Error(), gotErr.Error())
-	})
-	t.Run("missing org UUID", func(t *testing.T) {
-		path := filepath.Join(dir, "scoped")
-		library, err := oidcauth.New(oidcauth.WithTokenFile(path))
-		require.NoError(t, err)
-		_, wantErr := library.Proof("")
-		_, gotErr := proof(path, "", time.Now())
-		require.Error(t, wantErr)
-		assert.Equal(t, wantErr.Error(), gotErr.Error())
-	})
 }

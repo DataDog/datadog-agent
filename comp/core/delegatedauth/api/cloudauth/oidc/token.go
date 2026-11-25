@@ -5,7 +5,7 @@
 
 package oidc
 
-// Ported from datadog-api-client-go auth/oidc so binaries don't link its HTTP client; TestMatchesClientLibrary guards drift.
+// Port of datadog-api-client-go auth/oidc at b22cc4f8, so binaries don't link its HTTP client; replace once its scope check is a stdlib-only package.
 
 import (
 	"encoding/base64"
