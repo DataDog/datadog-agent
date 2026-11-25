@@ -58,7 +58,7 @@ const probeTimeout = 5 * time.Minute
 // data_plane.preflight_mode_duration. The default is 90s (minPreflightModeDuration in
 // comp/dataplane/preflightmode/impl/preflightmode.go).
 //
-// It is raised so that TestOutcomeInAgentTelemetry is deterministic. The run's outcome counters
+// It is raised so that the agent telemetry tests are deterministic. The run's outcome counters
 // are delta-converted by agent telemetry, and both the scheduled flush and every
 // `show-metadata agent-telemetry` call consume the delta, so the outcome is visible to exactly
 // one of them. The data-plane-preflight-mode profile first flushes 120s after the Agent starts
@@ -225,8 +225,20 @@ func (s *preflightModeSuite) TestProbeMetricReachesIntake() {
 	}
 }
 
-// TestOutcomeInAgentTelemetry asserts that the outcome of a clean pre-flight run reaches the
-// agent telemetry payload with the tags the data-plane-preflight-mode profile preserves.
+// acceptableHealthyResults are the results TestOutcomeInAgentTelemetry accepts from a run on an
+// unmodified host. It is an allowlist so that any other result, including one added later, fails
+// the test.
+//
+// TODO: require only "clean" once datadog-agent#61179 (the ADP 1.8.1 standalone-mode warning
+// target in expectedWarnings) has merged and the bundled ADP includes saluki#3391
+// (dogstatsd_metrics_stats_enable treated as fully supported, 1.8.x) or later. Until then, ADP
+// 1.8.1 logs two warnings on every pre-flight run that the pre-flight does not yet recognize as
+// its own, so a healthy run reports warnings_in_log.
+var acceptableHealthyResults = []string{"clean", "warnings_in_log"}
+
+// TestOutcomeInAgentTelemetry asserts that the outcome of a pre-flight run on an unmodified host
+// reaches the agent telemetry payload with the tags the data-plane-preflight-mode profile
+// preserves, and that the run did not fail.
 //
 // The reporter's unit tests use mock telemetry and the profile's unit test only checks the
 // allowlist. This instead reads the payload the running Agent builds, through
@@ -234,8 +246,8 @@ func (s *preflightModeSuite) TestProbeMetricReachesIntake() {
 // serialization on a real host. That command builds the payload on demand for every profile,
 // regardless of the profile's schedule.
 //
-// A clean run emits no finding series at all, so the finding metric's tag set is covered by
-// TestFindingTagsInAgentTelemetry instead.
+// A healthy run is not guaranteed to emit any finding series, so the finding metric's tag set is
+// covered by TestFindingTagsInAgentTelemetry instead.
 func (s *preflightModeSuite) TestOutcomeInAgentTelemetry() {
 	metrics, ok := s.restartAndAwaitOutcome()
 	if !ok {
@@ -243,22 +255,34 @@ func (s *preflightModeSuite) TestOutcomeInAgentTelemetry() {
 	}
 
 	findings := metrics[preflightModeFindingMetric]
-	assert.Equal(s.T(), "clean", metrics[preflightModeResultMetric][0].Tags["result"],
-		"the pre-flight did not run cleanly; findings: %v", findings)
-	assert.Empty(s.T(), findings, "a clean run should report no findings")
+	result := metrics[preflightModeResultMetric][0].Tags["result"]
+	assert.Containsf(s.T(), acceptableHealthyResults, result,
+		"the pre-flight failed on an unmodified host; findings: %v", findings)
+
+	switch result {
+	case "clean":
+		assert.Empty(s.T(), findings, "a clean run should report no findings")
+	case "warnings_in_log":
+		// Show which warnings fired, so a run can tell the known false positives from a new one.
+		for _, f := range findings {
+			s.T().Logf("%s finding from %s:%s", f.Tags["finding"], f.Tags["source_file"], f.Tags["source_line"])
+		}
+	}
 }
 
-// TestFindingTagsInAgentTelemetry provokes a deterministic finding and asserts that it reaches the
-// agent telemetry payload with every label the profile preserves, including those that are empty
-// for that finding.
+// TestFindingTagsInAgentTelemetry provokes a warnings_in_log finding and asserts that findings
+// reach the agent telemetry payload with every label the profile preserves, including those that
+// are empty for that finding.
 //
 // min_tls_version is a partially supported key in ADP's schema overlay, so ADP's configuration
 // compatibility check logs a warning for it when it is set. tlsv1.0 is not the default, so it
-// warns even in ADP versions that skip keys set to their default value. That warning is not one
-// preflight mode provokes by construction (expectedWarnings in
-// comp/dataplane/preflightmode/impl/capture.go), so it is reported as warnings_in_log, with the
-// log site it came from. The Core Agent itself only lowers its TLS floor, which does not affect
-// its connection to the intake.
+// warns even in ADP versions that skip keys set to their default value, and the pre-flight does
+// not expect it (expectedWarnings in comp/dataplane/preflightmode/impl/capture.go). This
+// guarantees at least one warnings_in_log finding even once the pre-flight's own false positives
+// are fixed. With the bundled ADP 1.8.1, healthy runs already report such findings (see
+// acceptableHealthyResults), so this test checks the finding tag set end to end, not that this
+// particular warning arrived. The Core Agent itself only lowers its TLS floor, which does not
+// affect its connection to the intake.
 func (s *preflightModeSuite) TestFindingTagsInAgentTelemetry() {
 	host := s.Env().RemoteHost
 
@@ -278,9 +302,10 @@ func (s *preflightModeSuite) TestFindingTagsInAgentTelemetry() {
 	assert.Equal(s.T(), "warnings_in_log", metrics[preflightModeResultMetric][0].Tags["result"],
 		"unexpected pre-flight result")
 
-	// The run may have logged other warnings, each its own series, so look at every
-	// warnings_in_log series rather than requiring exactly one. Its location is ADP's file!() and
-	// line!(), which move between ADP versions, so only check that they are present.
+	// The run logs other warnings too (with ADP 1.8.1, the pre-flight's known false positives),
+	// each its own series, so check every warnings_in_log series rather than requiring exactly one.
+	// Their locations are ADP's file!() and line!(), which move between ADP versions, so only check
+	// that they are present.
 	var warnings []atelMetric
 	for _, f := range metrics[preflightModeFindingMetric] {
 		if f.Tags["finding"] == "warnings_in_log" {
