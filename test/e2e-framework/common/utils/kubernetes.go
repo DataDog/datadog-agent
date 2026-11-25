@@ -39,28 +39,66 @@ func KubeConfigYAMLToJSON(kubeConfig pulumi.StringOutput) pulumi.StringInput {
 	}).(pulumi.StringInput)
 }
 
+// ImagePullCredential is the credential of one registry of the imagePull parameters.
+type ImagePullCredential struct {
+	Registry string
+	Username string
+	Password string
+}
+
+// ParseImagePullCredentials parses the comma-separated lists of registries, usernames and
+// passwords (as provided by the imagePullRegistry, imagePullUsername and imagePullPassword
+// parameters). Passwords prefixed with "b64=" are base64-decoded. It fails when the lists do not
+// have the same length, so every consumer of these parameters applies the same validation.
+func ParseImagePullCredentials(registry, username, password string) ([]ImagePullCredential, error) {
+	registries := strings.Split(registry, ",")
+	usernames := strings.Split(username, ",")
+	passwords := strings.Split(password, ",")
+	if len(registries) != len(usernames) || len(registries) != len(passwords) {
+		return nil, fmt.Errorf("the number of registries, usernames, and passwords must be the same")
+	}
+
+	credentials := make([]ImagePullCredential, len(registries))
+	for i := range registries {
+		pwd, err := decodeImagePullPassword(passwords[i])
+		if err != nil {
+			return nil, fmt.Errorf("registry %s: %w", registries[i], err)
+		}
+		credentials[i] = ImagePullCredential{Registry: registries[i], Username: usernames[i], Password: pwd}
+	}
+	return credentials, nil
+}
+
+// decodeImagePullPassword returns the image pull password, base64-decoding it when it is
+// prefixed with "b64=".
+func decodeImagePullPassword(password string) (string, error) {
+	encoded, ok := strings.CutPrefix(password, "b64=")
+	if !ok {
+		return password, nil
+	}
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return "", fmt.Errorf("failed to base64 decode the image pull password: %w", err)
+	}
+	return string(decoded), nil
+}
+
 // DockerConfigJSON builds the content of a kubernetes.io/dockerconfigjson secret from
 // comma-separated lists of registries, usernames and passwords (as provided by the
 // imagePullRegistry, imagePullUsername and imagePullPassword parameters).
 // Passwords prefixed with "b64=" are base64-decoded.
 func DockerConfigJSON(registry, username, password string) (string, error) {
-	registries := strings.Split(registry, ",")
-	usernames := strings.Split(username, ",")
-	passwords := strings.Split(password, ",")
-	if len(registries) != len(usernames) || len(registries) != len(passwords) {
-		return "", fmt.Errorf("the number of registries, usernames, and passwords must be the same")
+	credentials, err := ParseImagePullCredentials(registry, username, password)
+	if err != nil {
+		return "", err
 	}
 
 	authMap := make(map[string]map[string]string)
-	for i := range registries {
-		pwd, err := decodeImagePullPassword(passwords[i])
-		if err != nil {
-			return "", fmt.Errorf("registry %s: %w", registries[i], err)
-		}
-		authMap[registries[i]] = map[string]string{
-			"username": usernames[i],
-			"password": pwd,
-			"auth":     base64.StdEncoding.EncodeToString([]byte(usernames[i] + ":" + pwd)),
+	for _, credential := range credentials {
+		authMap[credential.Registry] = map[string]string{
+			"username": credential.Username,
+			"password": credential.Password,
+			"auth":     base64.StdEncoding.EncodeToString([]byte(credential.Username + ":" + credential.Password)),
 		}
 	}
 	dockerConfigJSON, err := json.Marshal(map[string]map[string]map[string]string{

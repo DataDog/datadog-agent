@@ -148,12 +148,12 @@ Gotchas:
   created after it runs: the Agent must be deployed after Mokka (`kindvm.WithMokka` handles it).
 - The Mokka and device plugin images come from `ghcr.io` and `nvcr.io`, so the suite uses
   `kindvm.WithInternetAccess()`. The GPU test pods have no imagePullSecrets and use the plain
-  `busybox` image (`busyboxImage`): the kind nodes pull docker.io through mirror.gcr.io. Never reference the
+  `busybox` image: the kind nodes pull docker.io through mirror.gcr.io. Never reference the
   private ECR pull-through cache from them, containerd cannot authenticate to it.
-- The Mokka chart is pulled by Pulumi on the CI runner, through the egress gateway. `ghcr.io` is
-  allowed; `registry.k8s.io` (Kueue chart) needs ddoghq/dd-source#197311. Until the suites have been
-  validated in CI they run in the manual `new-e2e-gpu-mokka` job instead of `new-e2e-gpu`. Locally they
-  work as long as your machine can reach `ghcr.io`.
+- The Mokka, KAI Scheduler and Kueue charts are pulled by Pulumi on the machine that runs the test
+  (the CI runner in CI), not by the VM, so the hosts they come from (`ghcr.io`, and `registry.k8s.io`
+  for Kueue) must be reachable from it: in CI that means the egress ACL of the datadog-agent GitLab
+  project. Locally the suites work as long as your machine can reach them.
 - Set `E2E_GPU_CHART_MIRROR` to a registry that mirrors `ghcr.io` and `registry.k8s.io` under the
   `ghcr` and `k8s` prefixes (for example an internal ECR with pull-through caches) to pull the charts through it.
   If the registry is one of the `imagePullRegistry` ones, the charts are pulled with their credentials.

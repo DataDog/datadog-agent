@@ -33,32 +33,33 @@ func TestOCIChartRegistryIndex(t *testing.T) {
 }
 
 func TestImagePullCredential(t *testing.T) {
-	const registries = "us-docker.pkg.dev,ecr.example.com"
 	tests := []struct {
-		name      string
-		index     int
-		usernames string
-		passwords string
-		wantUser  string
-		wantPwd   string
-		wantErr   string
+		name       string
+		index      int
+		registries string
+		usernames  string
+		passwords  string
+		wantUser   string
+		wantPwd    string
+		wantErr    string
 	}{
-		{name: "second registry", index: 1, usernames: "u0,u1", passwords: "p0,p1", wantUser: "u1", wantPwd: "p1"},
-		{name: "base64 password", index: 0, usernames: "AWS", passwords: "b64=c2VjcmV0", wantUser: "AWS", wantPwd: "secret"},
-		{name: "invalid base64", index: 0, usernames: "AWS", passwords: "b64=%%%", wantErr: "base64"},
-		{name: "missing username", index: 1, usernames: "u0", passwords: "p0,p1", wantErr: "no image pull username"},
-		{name: "missing password", index: 1, usernames: "u0,u1", passwords: "p0", wantErr: "no image pull password"},
+		{name: "second registry", index: 1, registries: "us-docker.pkg.dev,ecr.example.com", usernames: "u0,u1", passwords: "p0,p1", wantUser: "u1", wantPwd: "p1"},
+		{name: "base64 password", index: 0, registries: "ecr.example.com", usernames: "AWS", passwords: "b64=c2VjcmV0", wantUser: "AWS", wantPwd: "secret"},
+		{name: "invalid base64", index: 0, registries: "ecr.example.com", usernames: "AWS", passwords: "b64=%%%", wantErr: "base64"},
+		{name: "missing username", index: 1, registries: "us-docker.pkg.dev,ecr.example.com", usernames: "u0", passwords: "p0,p1", wantErr: "must be the same"},
+		{name: "missing password", index: 1, registries: "us-docker.pkg.dev,ecr.example.com", usernames: "u0,u1", passwords: "p0", wantErr: "must be the same"},
+		{name: "index out of range", index: 2, registries: "us-docker.pkg.dev,ecr.example.com", usernames: "u0,u1", passwords: "p0,p1", wantErr: "no image pull credential"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			user, pwd, err := imagePullCredential(tt.index, registries, tt.usernames, tt.passwords)
+			credential, err := imagePullCredential(tt.index, tt.registries, tt.usernames, tt.passwords)
 			if tt.wantErr != "" {
 				assert.ErrorContains(t, err, tt.wantErr)
 				return
 			}
 			assert.NoError(t, err)
-			assert.Equal(t, tt.wantUser, user)
-			assert.Equal(t, tt.wantPwd, pwd)
+			assert.Equal(t, tt.wantUser, credential.Username)
+			assert.Equal(t, tt.wantPwd, credential.Password)
 		})
 	}
 }

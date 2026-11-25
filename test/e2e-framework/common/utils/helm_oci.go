@@ -6,7 +6,6 @@
 package utils
 
 import (
-	"encoding/base64"
 	"fmt"
 	"strings"
 
@@ -30,12 +29,12 @@ func HelmOCIRepositoryOpts(e config.Env, chartRef string) helm.RepositoryOptsPtr
 	// "unauthorized": fail with the cause instead.
 	usernames := e.ImagePullUsername()
 	credential := e.ImagePullPassword().ApplyT(func(passwords string) (string, error) {
-		_, pwd, err := imagePullCredential(index, registries, usernames, passwords)
-		return pwd, err
+		c, err := imagePullCredential(index, registries, usernames, passwords)
+		return c.Password, err
 	}).(pulumi.StringOutput)
 	username := e.ImagePullPassword().ApplyT(func(passwords string) (string, error) {
-		user, _, err := imagePullCredential(index, registries, usernames, passwords)
-		return user, err
+		c, err := imagePullCredential(index, registries, usernames, passwords)
+		return c.Username, err
 	}).(pulumi.StringOutput)
 
 	return &helm.RepositoryOptsArgs{
@@ -44,36 +43,17 @@ func HelmOCIRepositoryOpts(e config.Env, chartRef string) helm.RepositoryOptsPtr
 	}
 }
 
-// imagePullCredential returns the username and decoded password of the registry at position index
-// in the comma-separated lists of the imagePull parameters. It fails when a list is too short.
-func imagePullCredential(index int, registries, usernames, passwords string) (string, string, error) {
-	userList := strings.Split(usernames, ",")
-	if index >= len(userList) {
-		return "", "", fmt.Errorf("no image pull username for registry %d of %q", index, registries)
-	}
-	passwordList := strings.Split(passwords, ",")
-	if index >= len(passwordList) {
-		return "", "", fmt.Errorf("no image pull password for registry %d of %q", index, registries)
-	}
-	password, err := decodeImagePullPassword(passwordList[index])
+// imagePullCredential returns the credential of the registry at position index in the
+// comma-separated lists of the imagePull parameters, with the same validation as DockerConfigJSON.
+func imagePullCredential(index int, registries, usernames, passwords string) (ImagePullCredential, error) {
+	credentials, err := ParseImagePullCredentials(registries, usernames, passwords)
 	if err != nil {
-		return "", "", err
+		return ImagePullCredential{}, err
 	}
-	return userList[index], password, nil
-}
-
-// decodeImagePullPassword returns the image pull password, base64-decoding it when it is
-// prefixed with "b64=".
-func decodeImagePullPassword(password string) (string, error) {
-	encoded, ok := strings.CutPrefix(password, "b64=")
-	if !ok {
-		return password, nil
+	if index < 0 || index >= len(credentials) {
+		return ImagePullCredential{}, fmt.Errorf("no image pull credential for registry %d of %q", index, registries)
 	}
-	decoded, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil {
-		return "", fmt.Errorf("failed to base64 decode the image pull password: %w", err)
-	}
-	return string(decoded), nil
+	return credentials[index], nil
 }
 
 // ociChartRegistryIndex returns the position of the registry of chartRef (oci://<host>/...) in the
