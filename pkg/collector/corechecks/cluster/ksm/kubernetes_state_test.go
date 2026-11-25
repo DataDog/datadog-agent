@@ -1480,6 +1480,7 @@ func TestKSMCheck_hostnameAndTagsArgoRollout(t *testing.T) {
 		ownerKind        string
 		ownerName        string
 		argoRolloutLabel string
+		labelsAsTags     map[string]map[string]string
 		expectedTags     []string
 	}{
 		{
@@ -1493,6 +1494,36 @@ func TestKSMCheck_hostnameAndTagsArgoRollout(t *testing.T) {
 				"kube_replica_set:my-rollout-7f59c78c9b",
 				"kube_deployment:my-rollout",
 				"kube_argo_rollout:my-rollout",
+			},
+		},
+		{
+			name:             "Argo Rollout pod with rollouts-pod-template-hash in labels as tags",
+			ownerKind:        kubernetes.ReplicaSetKind,
+			ownerName:        "my-rollout-7f59c78c9b",
+			argoRolloutLabel: "7f59c78c9b",
+			labelsAsTags:     map[string]map[string]string{"pod": {"rollouts-pod-template-hash": "rollouts-pod-template-hash"}},
+			expectedTags: []string{
+				"kube_namespace:default",
+				"pod_name:my-rollout-7f59c78c9b-abcde",
+				"kube_replica_set:my-rollout-7f59c78c9b",
+				"kube_deployment:my-rollout",
+				"kube_argo_rollout:my-rollout",
+				"rollouts-pod-template-hash:7f59c78c9b",
+			},
+		},
+		{
+			name:             "Argo Rollout pod with renamed rollouts-pod-template-hash tag",
+			ownerKind:        kubernetes.ReplicaSetKind,
+			ownerName:        "my-rollout-7f59c78c9b",
+			argoRolloutLabel: "7f59c78c9b",
+			labelsAsTags:     map[string]map[string]string{"pod": {"rollouts-pod-template-hash": "rollout_hash"}},
+			expectedTags: []string{
+				"kube_namespace:default",
+				"pod_name:my-rollout-7f59c78c9b-abcde",
+				"kube_replica_set:my-rollout-7f59c78c9b",
+				"kube_deployment:my-rollout",
+				"kube_argo_rollout:my-rollout",
+				"rollout_hash:7f59c78c9b",
 			},
 		},
 		{
@@ -1529,10 +1560,12 @@ func TestKSMCheck_hostnameAndTagsArgoRollout(t *testing.T) {
 			config := &KSMConfig{
 				LabelsMapper: defaultLabelsMapper(),
 				LabelJoins:   defaultLabelJoins(),
+				LabelsAsTags: tt.labelsAsTags,
 			}
 			fakeTagger := taggerfxmock.SetupFakeTagger(t)
 			check := newKSMCheck(core.NewCheckBase(CheckName), config, fakeTagger, nil)
 			check.processLabelJoins()
+			check.processLabelsAsTags()
 
 			labelJoiner := newLabelJoiner(config.labelJoins)
 			labelJoiner.insertFamily(ksmstore.DDMetricsFam{

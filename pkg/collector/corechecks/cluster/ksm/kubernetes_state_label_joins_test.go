@@ -469,6 +469,90 @@ func Test_labelJoiner(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Renamed Argo Rollout label is also kept under its KSM name",
+			config: map[string]*joinsConfig{
+				"kube_pod_labels": {
+					labelsToMatch: []string{"pod"},
+					labelsToGet: map[string]string{
+						argoRolloutLabelName: "rollouts-pod-template-hash",
+						"label_app":          "app",
+					},
+				},
+				"kube_replicaset_labels": {
+					labelsToMatch: []string{"replicaset"},
+					labelsToGet:   map[string]string{argoRolloutLabelName: argoRolloutLabelName},
+				},
+			},
+			families: map[string][]ksmstore.DDMetricsFam{
+				"uuid1": {
+					{
+						Name: "kube_pod_labels",
+						ListMetrics: []ksmstore.DDMetric{
+							{Labels: map[string]string{"pod": "my-pod", argoRolloutLabelName: "7f59c78c9b", "label_app": "foo"}},
+						},
+					},
+					{
+						Name: "kube_replicaset_labels",
+						ListMetrics: []ksmstore.DDMetric{
+							{Labels: map[string]string{"replicaset": "my-rs", argoRolloutLabelName: "7f59c78c9b"}},
+						},
+					},
+				},
+			},
+			expected: []struct {
+				inputLabels map[string]string
+				labelsToAdd []label
+			}{
+				{
+					inputLabels: map[string]string{"pod": "my-pod"},
+					labelsToAdd: []label{
+						{key: "rollouts-pod-template-hash", value: "7f59c78c9b"},
+						{key: argoRolloutLabelName, value: "7f59c78c9b"},
+						{key: "app", value: "foo"},
+					},
+				},
+				{
+					inputLabels: map[string]string{"replicaset": "my-rs"},
+					labelsToAdd: []label{
+						{key: argoRolloutLabelName, value: "7f59c78c9b"},
+					},
+				},
+			},
+		},
+		{
+			name: "Argo Rollout label renamed by a wildcard template is also kept under its KSM name",
+			config: map[string]*joinsConfig{
+				"kube_pod_labels": {
+					labelsToMatch:    []string{"pod"},
+					labelsToGet:      map[string]string{},
+					getAllLabels:     true,
+					wildcardTemplate: "%%label%%",
+				},
+			},
+			families: map[string][]ksmstore.DDMetricsFam{
+				"uuid1": {
+					{
+						Name: "kube_pod_labels",
+						ListMetrics: []ksmstore.DDMetric{
+							{Labels: map[string]string{"pod": "my-pod", argoRolloutLabelName: "7f59c78c9b"}},
+						},
+					},
+				},
+			},
+			expected: []struct {
+				inputLabels map[string]string
+				labelsToAdd []label
+			}{
+				{
+					inputLabels: map[string]string{"pod": "my-pod"},
+					labelsToAdd: []label{
+						{key: "rollouts_pod_template_hash", value: "7f59c78c9b"},
+						{key: argoRolloutLabelName, value: "7f59c78c9b"},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    The ``kubernetes_state_core`` check no longer drops the ``kube_argo_rollout``
+    tag from ``kubernetes_state.pod.*`` and ``kubernetes_state.container.*``
+    metrics when the ``rollouts-pod-template-hash`` label is mapped in
+    labels-as-tags (for example ``DD_KUBERNETES_RESOURCES_LABELS_AS_TAGS``).
+    Both the ``kube_argo_rollout`` tag and the mapped label tag are now reported.

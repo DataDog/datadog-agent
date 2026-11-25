@@ -147,6 +147,16 @@ func resolveTag(labelName string, config *joinsConfig) string {
 	)
 }
 
+// appendLabel appends the joined label. A renamed Argo Rollout label is also
+// kept under its KSM name, which hostnameAndTags uses to detect Argo Rollouts.
+func appendLabel(labels []label, ksmLabel, tagKey, value string) []label {
+	labels = append(labels, label{tagKey, value})
+	if ksmLabel == argoRolloutLabelName && tagKey != argoRolloutLabelName {
+		labels = append(labels, label{argoRolloutLabelName, value})
+	}
+	return labels
+}
+
 func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *joinsConfig, tree *node) {
 	current := tree
 
@@ -183,10 +193,9 @@ func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *joinsConfi
 			isALabelToMatch := slices.Contains(config.labelsToMatch, labelName)
 			if !isALabelToMatch {
 				if ddTagKey, found := config.labelsToGet[labelName]; found {
-					current.labelsToAdd = append(current.labelsToAdd, label{ddTagKey, labelValue})
+					current.labelsToAdd = appendLabel(current.labelsToAdd, labelName, ddTagKey, labelValue)
 				} else if config.wildcardTemplate != "" {
-					resolvedTagKey := resolveTag(labelName, config)
-					current.labelsToAdd = append(current.labelsToAdd, label{resolvedTagKey, labelValue})
+					current.labelsToAdd = appendLabel(current.labelsToAdd, labelName, resolveTag(labelName, config), labelValue)
 				} else {
 					current.labelsToAdd = append(current.labelsToAdd, label{labelName, labelValue})
 				}
@@ -200,7 +209,7 @@ func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *joinsConfi
 		for labelToGet, ddTagKey := range config.labelsToGet {
 			labelValue, found := metric.Labels[labelToGet]
 			if found && labelValue != "" {
-				current.labelsToAdd = append(current.labelsToAdd, label{ddTagKey, labelValue})
+				current.labelsToAdd = appendLabel(current.labelsToAdd, labelToGet, ddTagKey, labelValue)
 			}
 		}
 	}
