@@ -10,6 +10,7 @@ package irgen
 import (
 	"debug/dwarf"
 	"encoding/hex"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -135,12 +136,50 @@ func TestFollowLineJump(t *testing.T) {
 }
 
 func TestPickLineInjectionPC(t *testing.T) {
+	mainFile := &dwarf.LineFile{Name: "example.com/app/main.go"}
+	otherFile := &dwarf.LineFile{Name: "example.com/app/other/main.go"}
 	for _, tc := range []struct {
-		name   string
-		lines  []line
-		ranges []ir.PCRange
-		want   uint64
+		name       string
+		sourceFile string
+		lines      []line
+		ranges     []ir.PCRange
+		want       uint64
+		message    string
 	}{
+		{
+			name:    "row in another file",
+			lines:   []line{{pc: 20, line: 9, isStatement: true, file: otherFile}},
+			message: `no code for line 9 of source file "app/main.go" in the method`,
+		},
+		{
+			name: "superseded row in file and row in another file",
+			lines: []line{
+				{pc: 10, line: 9},
+				{pc: 15, line: 8},
+				{pc: 22, line: 9, isStatement: true, file: otherFile},
+			},
+			message: "no suitable injection point found for line: 9",
+		},
+		{
+			name:       "non-canonical source file",
+			sourceFile: "app/main.go/x/..",
+			lines:      []line{{pc: 20, line: 9, isStatement: true}},
+			message:    `invalid source file: "app/main.go/x/.."`,
+		},
+		{
+			name:       "windows separators",
+			sourceFile: `app\main.go`,
+			lines:      []line{{pc: 20, line: 9, isStatement: true}},
+			want:       20,
+		},
+		{
+			name: "skip row in another file",
+			lines: []line{
+				{pc: 20, line: 9, isStatement: true, file: otherFile},
+				{pc: 25, line: 9, isStatement: true},
+			},
+			want: 25,
+		},
 		{
 			name: "inherited matching row",
 			lines: []line{
@@ -251,17 +290,69 @@ func TestPickLineInjectionPC(t *testing.T) {
 			if ranges == nil {
 				ranges = []ir.PCRange{{20, 30}}
 			}
+			lines := slices.Clone(tc.lines)
+			for i := range lines {
+				if lines[i].file == nil {
+					lines[i].file = mainFile
+				}
+			}
+			sourceFile := tc.sourceFile
+			if sourceFile == "" {
+				sourceFile = "app/main.go"
+			}
 			root := ir.PCRange{10, 60}
-			pc, issue, err := pickLineInjectionPC(9, ranges, []ir.PCRange{root}, map[ir.PCRange]lineData{
-				root: {lines: tc.lines},
+			pc, issue, err := pickLineInjectionPC(9, sourceFile, ranges, []ir.PCRange{root}, map[ir.PCRange]lineData{
+				root: {lines: lines},
 			})
 			require.NoError(t, err)
 			if tc.want == 0 {
 				require.Equal(t, ir.IssueKindInvalidProbeDefinition, issue.Kind)
+				if tc.message != "" {
+					require.Equal(t, tc.message, issue.Message)
+				}
 			} else {
 				require.True(t, issue.IsNone(), "%v", issue)
 			}
 			require.Equal(t, tc.want, pc)
 		})
 	}
+}
+
+func TestLineFileMatches(t *testing.T) {
+	const name = "github.com/DataDog/app/pkg/server/main.go"
+	for _, tc := range []struct {
+		sourceFile string
+		want       bool
+	}{
+		{"main.go", true},
+		{"server/main.go", true},
+		{"pkg/server/main.go", true},
+		{"./pkg/server/main.go", true},
+		{"pkg//server/main.go", true},
+		{"//pkg/server/main.go", true},
+		{name, true},
+		{"/home/ci/go/src/" + name, true},
+		{"ain.go", false},
+		{"handler.go", false},
+		{"client/main.go", false},
+		{"/main.go", true},
+		{`pkg\server\main.go`, true},
+		{"../server/main.go", true},
+		{"../../client/main.go", false},
+		{"..", false},
+		{"main.go/", true},
+		{"pkg/./server/main.go", true},
+		{"pkg/../server/main.go", false},
+		{"pkg/server/main.go/../handler.go", false},
+		{"pkg/server/main.go/handler.go/..", false},
+		{"", false},
+		{"/", false},
+		{".", false},
+	} {
+		t.Run(tc.sourceFile, func(t *testing.T) {
+			file := &dwarf.LineFile{Name: name}
+			require.Equal(t, tc.want, lineFileMatches(file, probeSourcePath(tc.sourceFile)))
+		})
+	}
+	require.False(t, lineFileMatches(nil, "main.go"))
 }

@@ -33,6 +33,7 @@ import (
 	"iter"
 	"maps"
 	"math"
+	"path"
 	"reflect"
 	"regexp"
 	"runtime/debug"
@@ -8512,7 +8513,7 @@ func pickInjectionPoint(
 			}
 		}
 	case ir.LineWhere:
-		_, _, lineStr := where.Line()
+		_, sourceFile, lineStr := where.Line()
 		line, err := strconv.Atoi(lineStr)
 		if err != nil {
 			return buf, nil, ir.Issue{
@@ -8520,7 +8521,7 @@ func pickInjectionPoint(
 				Message: fmt.Sprintf("invalid line number: %v", lineStr),
 			}, nil
 		}
-		injectionPC, issue, err := pickLineInjectionPC(line, ranges, rootRanges, lineData)
+		injectionPC, issue, err := pickLineInjectionPC(line, sourceFile, ranges, rootRanges, lineData)
 		if !issue.IsNone() || err != nil {
 			return buf, nil, issue, err
 		}
@@ -8551,9 +8552,17 @@ func pickInjectionPoint(
 }
 
 func pickLineInjectionPC(
-	line int, ranges []ir.PCRange, rootRanges []ir.PCRange, lineData map[ir.PCRange]lineData,
+	line int, sourceFile string, ranges []ir.PCRange, rootRanges []ir.PCRange, lineData map[ir.PCRange]lineData,
 ) (uint64, ir.Issue, error) {
+	wantFile := probeSourcePath(sourceFile)
+	if wantFile == "" {
+		return 0, ir.Issue{
+			Kind:    ir.IssueKindInvalidProbeDefinition,
+			Message: fmt.Sprintf("invalid source file: %q", sourceFile),
+		}, nil
+	}
 	nonStmtPc := uint64(0)
+	lineInFile, lineInOtherFile := false, false
 	rootIdx := 0
 	for _, r := range ranges {
 		for rootIdx < len(rootRanges) && rootRanges[rootIdx][1] < r[1] {
@@ -8575,6 +8584,12 @@ func pickLineInjectionPC(
 			if l.endSequence || l.line != uint32(line) {
 				continue
 			}
+			// Skip inlined rows from other files: snapshots report sourceFile.
+			if !lineFileMatches(l.file, wantFile) {
+				lineInOtherFile = true
+				continue
+			}
+			lineInFile = true
 			pc := l.pc
 			if pc < r[0] {
 				// A row's line state lasts until the next row, which may be
@@ -8594,6 +8609,14 @@ func pickLineInjectionPC(
 			}
 		}
 	}
+	if nonStmtPc == 0 && lineInOtherFile && !lineInFile {
+		return 0, ir.Issue{
+			Kind: ir.IssueKindInvalidProbeDefinition,
+			Message: fmt.Sprintf(
+				"no code for line %v of source file %q in the method", line, sourceFile,
+			),
+		}, nil
+	}
 	if nonStmtPc == 0 {
 		return 0, ir.Issue{
 			Kind:    ir.IssueKindInvalidProbeDefinition,
@@ -8601,6 +8624,42 @@ func pickLineInjectionPC(
 		}, nil
 	}
 	return nonStmtPc, ir.Issue{}, nil
+}
+
+// probeSourcePath rejects ".." after a named component, since snapshots report sourceFile verbatim.
+func probeSourcePath(sourceFile string) string {
+	p := strings.ReplaceAll(sourceFile, `\`, "/")
+	named := false
+	for _, c := range strings.Split(p, "/") {
+		switch c {
+		case "", ".":
+		case "..":
+			if named {
+				return ""
+			}
+		default:
+			named = true
+		}
+	}
+	if !named {
+		return ""
+	}
+	p = strings.TrimLeft(path.Clean(p), "/")
+	for strings.HasPrefix(p, "../") {
+		p = p[len("../"):]
+	}
+	return p
+}
+
+// lineFileMatches accepts either path as a component suffix of the other, so base names and full paths match.
+func lineFileMatches(file *dwarf.LineFile, want string) bool {
+	if file == nil || want == "" {
+		return false
+	}
+	got := strings.TrimPrefix(path.Clean(file.Name), "/")
+	return got == want ||
+		strings.HasSuffix(got, "/"+want) ||
+		strings.HasSuffix(want, "/"+got)
 }
 
 // followLineJump moves a line probe from branch-local setup to shared code on

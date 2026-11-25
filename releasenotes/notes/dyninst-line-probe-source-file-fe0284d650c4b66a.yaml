@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Dynamic Instrumentation line probes in Go programs now install only at a
+    line in the probe's ``sourceFile``. Previously the line was matched by
+    number anywhere in the method, including code inlined from other files,
+    and a probe whose ``sourceFile`` named a different file was installed and
+    reported that file in its snapshots. Such probes are now reported as
+    invalid. ``sourceFile`` matches when it or the file path recorded in the
+    binary ends with all path components of the other, so a base name such
+    as ``main.go`` still matches. A ``sourceFile`` with a ``..`` component
+    after a named component is reported as invalid.
