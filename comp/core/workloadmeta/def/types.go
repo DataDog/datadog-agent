@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/sbom/usage"
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
@@ -2059,6 +2060,10 @@ type SBOM struct {
 	Status             SBOMStatus
 	Error              string // needs to be stored as a string otherwise the merge() will favor the nil value
 	OSFallback         bool   // the SBOM lists the OS packages alone because its scan with application analyzers ran out of time, until a retry replaces it
+
+	// UsageIndex maps the files of CycloneDXBOM to its components, for the
+	// runtime usage enrichment of the core agent. It is immutable.
+	UsageIndex *usage.Index `json:"-"`
 }
 
 // CompressedSBOM represents a compressed version of the Software Bill Of Materials (SBOM) of a container
@@ -2070,6 +2075,10 @@ type CompressedSBOM struct {
 	Status             SBOMStatus
 	Error              string
 	OSFallback         bool `proto:"ignore"` // read in the core Agent alone
+
+	// UsageIndex maps the files of the BOM to its components, for the
+	// runtime usage enrichment of the core agent. It is immutable.
+	UsageIndex *usage.Index `proto:"ignore" json:"-"`
 }
 
 // GetID implements Entity#GetID.

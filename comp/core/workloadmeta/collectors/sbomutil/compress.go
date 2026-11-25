@@ -43,6 +43,7 @@ func CompressSBOM(sbom *workloadmeta.SBOM) (*workloadmeta.CompressedSBOM, error)
 		Status:             sbom.Status,
 		Error:              sbom.Error,
 		OSFallback:         sbom.OSFallback,
+		UsageIndex:         sbom.UsageIndex,
 	}, nil
 }
 
@@ -79,5 +80,6 @@ func UncompressSBOM(csbom *workloadmeta.CompressedSBOM) (*workloadmeta.SBOM, err
 		Status:             csbom.Status,
 		Error:              csbom.Error,
 		OSFallback:         csbom.OSFallback,
+		UsageIndex:         csbom.UsageIndex,
 	}, nil
 }

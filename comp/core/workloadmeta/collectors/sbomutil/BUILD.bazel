@@ -34,6 +34,7 @@ dd_agent_go_test(
     gotags_sets = [["trivy"]],
     deps = [
         "//comp/core/workloadmeta/def",
+        "//pkg/sbom/usage",
         "//pkg/util/pointer",
         "@com_github_aquasecurity_trivy//pkg/sbom/core",
         "@com_github_aquasecurity_trivy//pkg/sbom/cyclonedx",

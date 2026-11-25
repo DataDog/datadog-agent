@@ -67,6 +67,17 @@ var (
 		commonOpts,
 	)
 
+	// SBOMUsageIndexSize is the size in bytes of the usage index of each SBOM,
+	// which runtime usage enrichment builds with its scan.
+	SBOMUsageIndexSize = telemetryimpl.GetCompatComponent().NewHistogramWithOpts(
+		Subsystem,
+		"usage_index_size",
+		[]string{},
+		"Size in bytes of the usage index of an SBOM",
+		[]float64{10_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 2_500_000, 5_000_000, 10_000_000},
+		commonOpts,
+	)
+
 	// SBOMEntitiesSent tracks the SBOM entities handed over to the event
 	// platform forwarder. It counts what the agent emits, not what the intake
 	// acknowledges: entities dropped further down the logs pipeline are still

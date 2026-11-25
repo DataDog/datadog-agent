@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/sbom/usage"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	trivycore "github.com/aquasecurity/trivy/pkg/sbom/core"
 	trivydx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
@@ -35,6 +36,7 @@ func TestCompressUncompressSBOM(t *testing.T) {
 		Status:             workloadmeta.Success,
 		Error:              "",
 		OSFallback:         true,
+		UsageIndex:         new(usage.Builder).Build("urn:uuid:1", time.Time{}, time.Time{}),
 	}
 
 	csbom, err := CompressSBOM(sbom)
@@ -49,4 +51,6 @@ func TestCompressUncompressSBOM(t *testing.T) {
 
 	// use EqualExportedValues to compare protobuf values (internal state may be different)
 	assert.EqualExportedValues(t, sbom, usbom, "Uncompressed SBOM does not match original")
+	assert.Same(t, sbom.UsageIndex, csbom.UsageIndex, "compressed SBOM with another usage index")
+	assert.Same(t, sbom.UsageIndex, usbom.UsageIndex, "uncompressed SBOM with another usage index")
 }

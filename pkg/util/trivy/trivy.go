@@ -46,6 +46,7 @@ const (
 type collectorConfig struct {
 	computeDependencies bool
 	simplifyBomRefs     bool
+	usageIndex          bool // build the usage index of each SBOM
 }
 
 // Collector uses trivy to generate a SBOM
@@ -137,6 +138,7 @@ func NewCollector(cfg config.Component) (*Collector, error) {
 		config: collectorConfig{
 			computeDependencies: cfg.GetBool("sbom.compute_dependencies"),
 			simplifyBomRefs:     cfg.GetBool("sbom.simplify_bom_refs"),
+			usageIndex:          sbom.UsageEnrichmentEnabled(cfg),
 		},
 		marshaler: cyclonedx.NewMarshaler(""),
 
@@ -158,6 +160,12 @@ func NewCollectorForCLI() *Collector {
 		langScanner: langpkg.NewScanner(),
 		vulnClient:  vulnerability.NewClient(db.Config{}),
 	}
+}
+
+// EnableUsageIndex makes c build the usage index of each SBOM, which runtime
+// usage enrichment joins to the files that run.
+func (c *Collector) EnableUsageIndex() {
+	c.config.usageIndex = true
 }
 
 // GetGlobalCollector gets the global collector
@@ -194,6 +202,7 @@ func (c *Collector) scanFSTrivyReport(ctx context.Context, path string, scanOpti
 
 // ScanFilesystem scans the specified directory and logs detailed scan steps.
 func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool) (*Report, error) {
+	start := time.Now()
 	trivyReport, osFallback, err := c.scanFSTrivyReport(ctx, path, scanOptions, removeLayers)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
@@ -203,7 +212,7 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 	if err != nil {
 		return nil, err
 	}
-	return c.buildReport(trivyReport, hash, osFallback)
+	return c.buildReport(trivyReport, hash, osFallback, start)
 }
 
 // reportHash returns the ID of a filesystem report listing results. The sbom
@@ -239,10 +248,10 @@ func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applie
 	return &trivyReport, nil
 }
 
-// buildReport turns trivyReport into a Report with id. osFallback marks a
-// report that lists the OS packages alone because the application scan ran out
-// of time.
-func (c *Collector) buildReport(trivyReport *types.Report, id string, osFallback bool) (*Report, error) {
+// buildReport turns trivyReport into a Report with id, from a scan that
+// started at scanStart. osFallback marks a report that lists the OS packages
+// alone because the application scan ran out of time.
+func (c *Collector) buildReport(trivyReport *types.Report, id string, osFallback bool, scanStart time.Time) (*Report, error) {
 	log.Debugf("Found OS: %+v", trivyReport.Metadata.OS)
 	pkgCount := 0
 	for _, results := range trivyReport.Results {
@@ -254,5 +263,7 @@ func (c *Collector) buildReport(trivyReport *types.Report, id string, osFallback
 		dependencies:    c.config.computeDependencies,
 		simplifyBomRefs: c.config.simplifyBomRefs,
 		osFallback:      osFallback,
+		usageIndex:      c.config.usageIndex,
+		scanStart:       scanStart,
 	})
 }

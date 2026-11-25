@@ -23,12 +23,33 @@ import (
 
 // ConvertBOM converts a CycloneDX BOM to a CycloneDX v1.4 BOM.
 func ConvertBOM(in *cyclonedx.BOM, simplifyBomRefs bool) *cyclonedx_v1_4.Bom {
+	bom, _ := ConvertBOMWithRefs(in, simplifyBomRefs)
+	return bom
+}
+
+// ConvertBOMWithRefs converts a CycloneDX BOM to a CycloneDX v1.4 BOM, as
+// ConvertBOM does, and returns as well the function that gives the bom-ref of
+// the converted BOM for a bom-ref of in. With simplifyBomRefs, that function
+// returns "" for a bom-ref that the converted BOM leaves out.
+func ConvertBOMWithRefs(in *cyclonedx.BOM, simplifyBomRefs bool) (*cyclonedx_v1_4.Bom, func(string) string) {
 	if in == nil {
-		return nil
+		return nil, func(string) string { return "" }
 	}
 
 	b := newBomConvertor(simplifyBomRefs)
+	bom := b.convertBOM(in)
+	return bom, b.convertedRef
+}
 
+// convertedRef returns the bom-ref the converted BOM gives ref.
+func (b *bomConvertor) convertedRef(ref string) string {
+	if !b.simplifyMapping {
+		return ref
+	}
+	return b.bomRefMapper[ref]
+}
+
+func (b *bomConvertor) convertBOM(in *cyclonedx.BOM) *cyclonedx_v1_4.Bom {
 	return &cyclonedx_v1_4.Bom{
 		SpecVersion:        cyclonedx.SpecVersion1_4.String(),
 		Version:            pointer.Ptr(int32(in.Version)),

@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
@@ -21,8 +22,18 @@ import (
 	containerd "github.com/containerd/containerd/v2/client"
 )
 
-func runScanFS(path string, analyzers []string, fast bool) error {
+// newCollector returns the collector of the scans, which builds the usage index
+// of each SBOM with usageIndex.
+func newCollector(usageIndex bool) *trivy.Collector {
 	collector := trivy.NewCollectorForCLI()
+	if usageIndex {
+		collector.EnableUsageIndex()
+	}
+	return collector
+}
+
+func runScanFS(path string, analyzers []string, fast bool, usageIndex bool) error {
+	collector := newCollector(usageIndex)
 
 	ctx := context.Background()
 	report, err := collector.ScanFilesystem(ctx, path, sbom.ScanOptions{
@@ -36,8 +47,8 @@ func runScanFS(path string, analyzers []string, fast bool) error {
 	return outputReport(report)
 }
 
-func runScanDocker(imageMeta *workloadmeta.ContainerImageMetadata, analyzers []string, fast bool) error {
-	collector := trivy.NewCollectorForCLI()
+func runScanDocker(imageMeta *workloadmeta.ContainerImageMetadata, analyzers []string, fast bool, usageIndex bool) error {
+	collector := newCollector(usageIndex)
 
 	cl, err := docker.GetDockerUtil()
 	if err != nil {
@@ -62,8 +73,8 @@ func runScanDocker(imageMeta *workloadmeta.ContainerImageMetadata, analyzers []s
 	return outputReport(report)
 }
 
-func runScanContainerd(imageMeta *workloadmeta.ContainerImageMetadata, analyzers []string, fast bool, strategy string) error {
-	collector := trivy.NewCollectorForCLI()
+func runScanContainerd(imageMeta *workloadmeta.ContainerImageMetadata, analyzers []string, fast bool, strategy string, usageIndex bool) error {
+	collector := newCollector(usageIndex)
 
 	containerdClient, err := containerdutil.NewContainerdUtil()
 	if err != nil {
@@ -98,8 +109,8 @@ func runScanContainerd(imageMeta *workloadmeta.ContainerImageMetadata, analyzers
 	return outputReport(report)
 }
 
-func runScanCrio(imageMeta *workloadmeta.ContainerImageMetadata, analyzers []string, fast bool) error {
-	collector := trivy.NewCollectorForCLI()
+func runScanCrio(imageMeta *workloadmeta.ContainerImageMetadata, analyzers []string, fast bool, usageIndex bool) error {
+	collector := newCollector(usageIndex)
 
 	crioClient, err := crio.NewCRIOClient()
 	if err != nil {
@@ -131,5 +142,8 @@ func outputReport(report sbom.Report) error {
 	}
 
 	fmt.Printf("sbom: %+v\n", string(bomJSON))
+	if index := sbom.UsageIndexOf(report); index != nil {
+		fmt.Fprintf(os.Stderr, "usage index: %d components, %d anchors, %d bytes\n", index.Len(), index.Anchors(), index.Size())
+	}
 	return nil
 }

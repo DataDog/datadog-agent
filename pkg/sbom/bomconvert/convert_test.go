@@ -31,3 +31,19 @@ func FuzzConvertBOM(f *testing.F) {
 		assert.Equal(t, pb.SpecVersion, cyclonedx.SpecVersion1_4.String())
 	})
 }
+
+func TestConvertBOMWithRefs(t *testing.T) {
+	components := []cyclonedx.Component{{BOMRef: "pkg:deb/debian/bash@5.2.15-2", Name: "bash"}, {BOMRef: "pkg:npm/express@4.18.2", Name: "express"}}
+	for _, simplify := range []bool{false, true} {
+		bom, ref := ConvertBOMWithRefs(&cyclonedx.BOM{SpecVersion: cyclonedx.SpecVersion1_6, Components: &components}, simplify)
+		for i, c := range bom.GetComponents() {
+			assert.Equal(t, c.GetBomRef(), ref(components[i].BOMRef), "simplified %v", simplify)
+		}
+		if simplify {
+			assert.Equal(t, "", ref("pkg:npm/left-out@1.0.0"))
+		}
+	}
+	bom, ref := ConvertBOMWithRefs(nil, true)
+	assert.Nil(t, bom)
+	assert.Equal(t, "", ref("x"))
+}
