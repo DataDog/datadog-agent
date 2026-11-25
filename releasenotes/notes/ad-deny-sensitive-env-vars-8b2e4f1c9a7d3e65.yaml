@@ -1,0 +1,25 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+security:
+  - |
+    Autodiscovery no longer resolves ``%%env_*%%`` template variables that
+    reference environment variables bound to Agent settings holding
+    credentials, such as ``DD_API_KEY`` or ``DD_CLUSTER_AGENT_AUTH_TOKEN``.
+    This prevents configs from less trusted sources, like pod annotations,
+    from reading the Agent's credentials.
+upgrade:
+  - |
+    Autodiscovery check and logs configs that use ``%%env_*%%`` to reference an
+    environment variable bound to an Agent setting holding credentials, such as
+    ``%%env_DD_API_KEY%%``, are now rejected. Other environment variables,
+    including ones bound to non-sensitive Agent settings like
+    ``DD_KUBERNETES_KUBELET_HOST``, resolve as before. To keep resolving a
+    sensitive one, list it in ``ad_allowed_env_vars`` along with every other
+    environment variable your configs use, since that list then becomes the
+    only one allowed.
