@@ -406,51 +406,40 @@ fn test_cli_daemon_startup_stop_keeps_critical_spawn_failure_exit_code() {
     );
 }
 
-/// A SIGTERM while the catalog loads starts nothing. A FIFO catalog entry blocks the loader until
-/// the test releases it after the signal.
+/// A FIFO catalog entry is invalid and never opened, so the valid entries start and a SIGTERM
+/// still ends the daemon. A stalled regular file is covered by the config loader unit tests.
 #[cfg(unix)]
 #[test]
-fn test_cli_daemon_shutdown_during_catalog_load_starts_nothing() {
+fn test_cli_daemon_fifo_catalog_entry_is_invalid_and_blocks_nothing() {
     use nix::sys::signal::Signal;
     use std::os::unix::process::ExitStatusExt;
 
     let env = TestEnv::new();
     let blocked = env.config_dir().join("blocked.yaml");
     make_fifo(&blocked);
-    // The writer keeps the FIFO open until released, so the daemon is still in ProcessManager::new
-    // when SIGTERM lands.
-    let (opened_tx, opened_rx) = std::sync::mpsc::channel::<()>();
-    let mut catalog_writer = FifoWriter::spawn(blocked.clone(), opened_tx, |mut writer| {
-        let config = format!(
-            "command: {}\nauto_start: true\n",
-            test_helpers::true_cmd().0
-        );
-        let _ = std::io::Write::write_all(&mut writer, config.as_bytes());
-    });
+    let env = env.with_config("sleeper", test_helpers::sleep_config_yaml());
 
     let socket = env.env_root().join("daemon.sock");
     let mut daemon = DaemonHandle::start(env.config_dir(), &socket);
-    opened_rx
-        .recv_timeout(Duration::from_secs(10))
-        .unwrap_or_else(|e| {
-            panic!(
-                "daemon never opened the catalog fifo ({e})\n{}",
-                daemon.captured_logs().join("\n")
-            )
-        });
+    assert!(
+        daemon.wait_for_log("[sleeper] spawned", Duration::from_secs(10)),
+        "the valid entry did not start behind a FIFO entry"
+    );
+    assert_eq!(
+        daemon.count_log_matches("[blocked] skipping config"),
+        1,
+        "the FIFO entry should be reported as invalid"
+    );
+    assert_eq!(
+        daemon.count_log_matches("[blocked] spawned"),
+        0,
+        "a FIFO entry must not start"
+    );
 
     daemon.send_signal(Signal::SIGTERM);
-    // Let the catalog read finish once the watcher logs the signal. The loaded
-    // process must not start.
-    assert!(
-        daemon.wait_for_log("received SIGTERM", Duration::from_secs(10)),
-        "daemon did not record the stop request\n{}",
-        daemon.captured_logs().join("\n")
-    );
-    catalog_writer.finish();
     let status = daemon
         .wait_for_exit(Duration::from_secs(10))
-        .expect("daemon did not exit after SIGTERM during catalog load");
+        .expect("daemon did not exit after SIGTERM");
     assert_eq!(
         status.code(),
         Some(0),
@@ -462,22 +451,6 @@ fn test_cli_daemon_shutdown_during_catalog_load_starts_nothing() {
         daemon.wait_for_log("dd-procmgrd stopped (exit code 0)", Duration::from_secs(10)),
         "daemon did not log its final stop line\n{}",
         daemon.captured_logs().join("\n")
-    );
-    assert_eq!(
-        daemon.count_log_matches("received SIGTERM"),
-        1,
-        "stop signal should be logged once\n{}",
-        daemon.captured_logs().join("\n")
-    );
-    assert_eq!(
-        daemon.count_log_matches("[blocked] spawned"),
-        0,
-        "a process started after a stop during catalog load"
-    );
-    assert_eq!(
-        daemon.count_log_matches("stop requested before startup"),
-        1,
-        "the pending stop should skip the start pass"
     );
 }
 

@@ -174,12 +174,23 @@ impl ConfigLoader for YamlConfigLoader {
     }
 
     fn load(&self) -> LoadedCatalog {
-        if !self.dir.is_dir() {
-            info!(
-                "config directory {} does not exist, no processes to manage",
-                self.dir.display()
-            );
-            return LoadedCatalog::default();
+        let owned = self.dir.clone();
+        match crate::stop::bounded(&self.dir, move || owned.is_dir()) {
+            Ok(true) => {}
+            Ok(false) => {
+                info!(
+                    "config directory {} does not exist, no processes to manage",
+                    self.dir.display()
+                );
+                return LoadedCatalog::default();
+            }
+            Err(err) => {
+                warn!(
+                    "cannot check config directory {}: {err}",
+                    self.dir.display()
+                );
+                return LoadedCatalog::default();
+            }
         }
 
         let catalog = match load_configs(&self.dir) {
@@ -359,22 +370,37 @@ pub fn config_dir() -> PathBuf {
 /// The process name is derived from the filename (without extension).
 /// Files that fail to parse are logged and returned as invalid catalog entries.
 pub fn load_configs(dir: &Path) -> Result<LoadedCatalog> {
-    let entries = std::fs::read_dir(dir)
-        .with_context(|| format!("failed to read config directory: {}", dir.display()))?;
-
-    let mut yaml_files: Vec<_> = entries
-        .filter_map(|e| match e {
-            Ok(entry) => Some(entry),
-            Err(e) => {
-                warn!("skipping unreadable entry in {}: {e}", dir.display());
-                None
-            }
+    // Entries are listed and stat-ed on the helper thread, since iterating a ReadDir blocks on a
+    // stalled mount. A FIFO, socket or device would block a read for good, so it is an invalid
+    // entry in both modes. A failed stat leaves the entry to the read to report.
+    let owned = dir.to_path_buf();
+    let entries = crate::stop::bounded(dir, move || {
+        std::fs::read_dir(owned).map(|rd| {
+            rd.map(|entry| {
+                entry.map(|entry| {
+                    let regular = is_yaml_name(&entry.path())
+                        .then(|| std::fs::metadata(entry.path()).map(|m| m.is_file()).ok())
+                        .flatten();
+                    (entry, regular)
+                })
+            })
+            .collect::<Vec<_>>()
         })
-        .filter(|e| {
-            let is_yaml = e
-                .path()
-                .extension()
-                .is_some_and(|ext| ext == "yaml" || ext == "yml");
+    })
+    .and_then(|result| result)
+    .with_context(|| format!("failed to read config directory: {}", dir.display()))?;
+
+    let mut listed = Vec::new();
+    for entry in entries {
+        match entry {
+            Ok(entry) => listed.push(entry),
+            Err(e) => warn!("skipping unreadable entry in {}: {e}", dir.display()),
+        }
+    }
+    let mut yaml_files: Vec<_> = listed
+        .into_iter()
+        .filter(|(e, _)| {
+            let is_yaml = is_yaml_name(&e.path());
             if !is_yaml {
                 debug!("skipping non-YAML file: {}", e.path().display());
             }
@@ -382,11 +408,14 @@ pub fn load_configs(dir: &Path) -> Result<LoadedCatalog> {
         })
         .collect();
 
-    yaml_files.sort_by_key(|e| e.file_name());
+    yaml_files.sort_by_key(|(e, _)| e.file_name());
 
     let mut processes = Vec::new();
     let mut invalid = Vec::new();
-    for entry in yaml_files {
+    for (entry, regular) in yaml_files {
+        if crate::stop::stop_requested_flag() {
+            break;
+        }
         let path = entry.path();
         let name = path
             .file_stem()
@@ -394,7 +423,12 @@ pub fn load_configs(dir: &Path) -> Result<LoadedCatalog> {
             .unwrap_or("unknown")
             .to_string();
 
-        match parse_config(&path) {
+        let parsed = if regular == Some(false) {
+            Err(anyhow::anyhow!("{} is not a regular file", path.display()))
+        } else {
+            parse_config(&path)
+        };
+        match parsed {
             Ok(config) => processes.push(ProcessDefinition { name, config }),
             Err(e) => {
                 let error = truncate_config_error(&format!("{e:#}"), STORED_CONFIG_ERROR_MAX_CHARS);
@@ -424,9 +458,20 @@ pub fn load_configs(dir: &Path) -> Result<LoadedCatalog> {
     Ok(LoadedCatalog { processes, invalid })
 }
 
+fn is_yaml_name(path: &Path) -> bool {
+    path.extension()
+        .is_some_and(|ext| ext == "yaml" || ext == "yml")
+}
+
 fn parse_config(path: &Path) -> Result<ProcessConfig> {
-    let contents =
-        std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
+    let owned = path.to_path_buf();
+    let contents = crate::stop::bounded(path, move || {
+        #[cfg(test)]
+        crate::stop::testing::park_if_stalled(&owned);
+        std::fs::read_to_string(owned)
+    })
+    .and_then(|result| result)
+    .with_context(|| format!("reading {}", path.display()))?;
     let config: ProcessConfig =
         serde_yaml::from_str(&contents).with_context(|| format!("parsing {}", path.display()))?;
     validate_identity(&config.identity, HostOs::CURRENT)
@@ -444,6 +489,71 @@ fn validate_identity(identity: &RequestedIdentity, os: HostOs) -> Result<()> {
 mod tests {
     use super::*;
     use std::fs;
+
+    #[cfg(unix)]
+    fn mkfifo(path: &Path) {
+        let c = std::ffi::CString::new(path.to_str().unwrap()).unwrap();
+        assert_eq!(unsafe { nix::libc::mkfifo(c.as_ptr(), 0o600) }, 0, "mkfifo");
+    }
+
+    /// A regular config file whose read blocks, stalled through the `stop` test seam.
+    fn stalled_config(dir: &Path, name: &str) {
+        let path = dir.join(name);
+        fs::write(&path, "command: /usr/bin/true\n").unwrap();
+        crate::stop::testing::stall(&path);
+    }
+
+    /// A FIFO entry is invalid without being opened.
+    #[cfg(unix)]
+    #[test]
+    fn a_fifo_entry_is_invalid_without_being_opened() {
+        let dir = tempfile::tempdir().unwrap();
+        let fifo = dir.path().join("blocked.yaml");
+        mkfifo(&fifo);
+        std::os::unix::fs::symlink(&fifo, dir.path().join("linked.yaml")).unwrap();
+        fs::write(dir.path().join("good.yaml"), "command: /usr/bin/true\n").unwrap();
+        let loader = YamlConfigLoader {
+            dir: dir.path().to_path_buf(),
+        };
+
+        let started = std::time::Instant::now();
+        let catalog = loader.load();
+        assert!(
+            started.elapsed() < crate::stop::CALL_DEADLINE,
+            "a FIFO entry was opened"
+        );
+        assert_eq!(catalog.processes.len(), 1, "the valid config must load");
+        let mut names: Vec<_> = catalog.invalid.iter().map(|e| e.name.as_str()).collect();
+        names.sort();
+        assert_eq!(names, ["blocked", "linked"]);
+        assert!(
+            catalog
+                .invalid
+                .iter()
+                .all(|e| e.error.contains("not a regular file")),
+            "{:?}",
+            catalog.invalid.iter().map(|e| &e.error).collect::<Vec<_>>()
+        );
+    }
+
+    /// A stalled config file is invalid and the rest of the catalog still loads.
+    #[test]
+    fn a_stalled_config_file_is_invalid_at_startup() {
+        let dir = tempfile::tempdir().unwrap();
+        stalled_config(dir.path(), "blocked.yaml");
+        fs::write(dir.path().join("good.yaml"), "command: /usr/bin/true\n").unwrap();
+
+        let catalog = YamlConfigLoader {
+            dir: dir.path().to_path_buf(),
+        }
+        .load();
+        assert_eq!(
+            catalog.processes.len(),
+            1,
+            "the valid config must still load"
+        );
+        assert_eq!(catalog.invalid.len(), 1);
+    }
 
     #[test]
     fn test_parse_full_config() {

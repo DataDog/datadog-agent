@@ -901,7 +901,11 @@ impl ProcessManager {
                 return None;
             }
             if holds.is_empty() {
-                if let Err(e) = self.spawn_process(proc, exit_tx) {
+                if !interruptible && crate::stop::stop_requested_flag() {
+                    // Create and reload do not end on a stop, so skip a child that the shutdown
+                    // would only tear down.
+                    debug!("[{}] stop requested, not spawning", proc.name());
+                } else if let Err(e) = self.spawn_process(proc, exit_tx) {
                     warn!("{e:#}");
                 }
                 // A spawn can block on a stdio or env file, so check once more.

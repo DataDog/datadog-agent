@@ -22,7 +22,9 @@ impl ManagedProcess {
         info!("[{process_name}] spawn profile: {}", self.profile());
         // Unix does not switch users, so the child runs as dd-procmgrd.
         let request = SpawnRequest::from_config(process_name, self.config(), true)?;
-        let mut cmd = request.to_command(stdout_inheritable(), stderr_inheritable());
+        let mut cmd = request
+            .to_command(stdout_inheritable(), stderr_inheritable())
+            .with_context(|| format!("[{process_name}] failed to open a stdio file"))?;
         setup_process_group(&mut cmd);
         let child = spawn_registered(|| cmd.spawn()).with_context(|| {
             format!(
@@ -35,7 +37,11 @@ impl ManagedProcess {
 }
 
 impl SpawnRequest {
-    pub(crate) fn to_command(&self, stdout_inheritable: bool, stderr_inheritable: bool) -> Command {
+    pub(crate) fn to_command(
+        &self,
+        stdout_inheritable: bool,
+        stderr_inheritable: bool,
+    ) -> std::io::Result<Command> {
         let mut cmd = Command::new(self.command());
         cmd.args(self.args());
         cmd.env_clear();
@@ -45,8 +51,8 @@ impl SpawnRequest {
         if let Some(dir) = self.working_dir() {
             cmd.current_dir(dir);
         }
-        cmd.stdout(to_command_stdio(self.stdout_setting(), stdout_inheritable));
-        cmd.stderr(to_command_stdio(self.stderr_setting(), stderr_inheritable));
-        cmd
+        cmd.stdout(to_command_stdio(self.stdout_setting(), stdout_inheritable)?);
+        cmd.stderr(to_command_stdio(self.stderr_setting(), stderr_inheritable)?);
+        Ok(cmd)
     }
 }

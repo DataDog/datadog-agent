@@ -90,7 +90,7 @@ pub(crate) fn resolve_ipc_cert_file_path(
         return Ok(path);
     }
 
-    let root = match std::fs::read_to_string(config_path) {
+    let root = match crate::stop::read_config_to_string(config_path) {
         Ok(contents) => agent_yaml::load(&contents)
             .with_context(|| format!("parsing {}", config_path.display()))?,
         Err(e) if e.kind() == ErrorKind::NotFound => serde_yaml::Value::Null,
@@ -190,7 +190,7 @@ pub(crate) fn try_expand_vars_with(
 }
 
 pub fn parse_environment_file(path: &str) -> Result<Vec<(String, String)>> {
-    let contents = std::fs::read_to_string(path)
+    let contents = crate::stop::read_config_to_string(Path::new(path))
         .with_context(|| format!("reading environment file: {path}"))?;
     let mut vars = Vec::new();
     for line in contents.lines() {

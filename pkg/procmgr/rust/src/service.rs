@@ -124,6 +124,8 @@ unsafe extern "system" fn ctrl_handler(
                 0,
                 SCM_STOP_WAIT_HINT.as_millis() as u32,
             );
+            // Lets a config read that is blocked on a stalled file give up and the daemon stop.
+            crate::stop::request_stop();
             platform::shutdown_notify().notify_one();
             NO_ERROR
         }
