@@ -66,6 +66,12 @@ fixes:
     archive, for example when the disk is full, instead of saying that the
     archive was created. It also removes its temporary directory when the
     archive can't be created, and once the upload removed the archive.
+  - |
+    ``otel-agent flare`` now bounds what it reads into memory. It keeps the end
+    of each log file of the collector, at most 10 MiB per file and 50 MiB for all
+    of them, newest first, and a log file that was cut starts with a line that
+    says so. It keeps at most 32 MiB of each debug response and 128 MiB for all
+    of them, and records an error entry instead of a response that is larger.
 issues:
   - |
     ``otel-agent flare`` has these known limitations:

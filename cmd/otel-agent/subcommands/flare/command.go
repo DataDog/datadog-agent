@@ -339,6 +339,7 @@ func requestRunningCollector(cfg pkgconfigmodel.Reader, client ipc.HTTPClient, e
 // core Agent flare does for the embedded collector.
 func collectDebugSources(sources map[string]extensiontypes.OTelFlareSource) []flareFile {
 	client := &http.Client{Timeout: debugSourceTimeout}
+	remaining := maxDebugSourcesTotalBytes
 	var files []flareFile
 	for _, name := range slices.Sorted(maps.Keys(sources)) {
 		for i, sourceURL := range sources[name].URLs {
@@ -352,31 +353,47 @@ func collectDebugSources(sources map[string]extensiontypes.OTelFlareSource) []fl
 			}
 			fileName := "otel-flare/" + name + strings.ReplaceAll(u.Path, "/", "_")
 			fmt.Fprintf(color.Output, "Collecting %s...\n", sourceURL)
-			content, scrub, err := fetchDebugSource(client, sourceURL)
+			limit := min(maxDebugSourceBytes, remaining)
+			content, scrub, err := fetchDebugSource(client, sourceURL, limit)
+			if errors.Is(err, errDebugSourceTooLarge) {
+				if limit < maxDebugSourceBytes {
+					err = fmt.Errorf("%s: the response is larger than what is left of the size budget of the debug sources, %d bytes", sourceURL, limit)
+				} else {
+					err = fmt.Errorf("%s: the response is larger than the limit of %d bytes", sourceURL, limit)
+				}
+			}
 			if err != nil {
 				files = append(files, flareFile{name: fileName + ".err", content: []byte(err.Error()), scrub: true})
 				continue
 			}
+			remaining -= int64(len(content))
 			files = append(files, flareFile{name: fileName + ".dat", content: content, scrub: scrub})
 		}
 	}
 	return files
 }
 
-// fetchDebugSource returns the content of a debug endpoint and whether it should be scrubbed:
-// binary content (pprof profiles) is kept as is.
-func fetchDebugSource(client *http.Client, sourceURL string) ([]byte, bool, error) {
+// errDebugSourceTooLarge is the error of a response that is larger than the limit given to fetchDebugSource
+var errDebugSourceTooLarge = errors.New("the response is too large")
+
+// fetchDebugSource returns the content of a debug endpoint, which is at most limit bytes, and whether it should be
+// scrubbed: binary content (pprof profiles) is kept as is.
+func fetchDebugSource(client *http.Client, sourceURL string, limit int64) ([]byte, bool, error) {
 	resp, err := client.Get(sourceURL)
 	if err != nil {
 		return nil, false, err
 	}
 	defer resp.Body.Close()
-	content, err := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, false, fmt.Errorf("%s returned %s", sourceURL, resp.Status)
+	}
+	// One byte more than the limit tells that the response is larger, without reading the rest of it
+	content, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
 	if err != nil {
 		return nil, false, err
 	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, false, fmt.Errorf("%s returned %s", sourceURL, resp.Status)
+	if int64(len(content)) > limit {
+		return nil, false, errDebugSourceTooLarge
 	}
 	return content, resp.Header.Get("Content-Type") != "application/octet-stream", nil
 }
@@ -625,6 +642,13 @@ func discoverDebugSources(ctx context.Context, uris []string) map[string]extensi
 
 	return sources
 }
+
+// The size that the flare keeps of the response of one debug endpoint of the collector, and of all of them, so that
+// a collector that answers with a lot of data can't exhaust the memory of the flare. Variables for the tests.
+var (
+	maxDebugSourceBytes       int64 = 32 << 20
+	maxDebugSourcesTotalBytes int64 = 128 << 20
+)
 
 // extractExtensionType extracts the extension type from a full extension name
 // e.g., "pprof/dd-autoconfigured" -> "pprof"

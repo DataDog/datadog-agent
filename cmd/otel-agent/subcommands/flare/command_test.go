@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/fatih/color"
@@ -843,6 +844,89 @@ func TestDiscoverDebugSources(t *testing.T) {
 		assert.Contains(t, zpages.URLs[3], "http://localhost:55679/debug/featurez")
 		assert.Contains(t, zpages.URLs[4], "http://localhost:55679/debug/tracez")
 	}
+}
+
+// TestCollectDebugSourcesBoundsTheSize checks that a response larger than the limit is not kept and not read to the
+// end, and that the sources stop being kept once the size budget of all of them is used.
+func TestCollectDebugSourcesBoundsTheSize(t *testing.T) {
+	previousOne, previousTotal := maxDebugSourceBytes, maxDebugSourcesTotalBytes
+	maxDebugSourceBytes, maxDebugSourcesTotalBytes = 4<<10, 6<<10
+	t.Cleanup(func() { maxDebugSourceBytes, maxDebugSourcesTotalBytes = previousOne, previousTotal })
+
+	const large = 64 << 20
+	var sentOfTheLarge atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/a":
+			_, _ = w.Write(bytes.Repeat([]byte("a"), 2<<10))
+		case "/b":
+			_, _ = w.Write(bytes.Repeat([]byte("b"), 3<<10))
+		case "/c":
+			_, _ = w.Write(bytes.Repeat([]byte("c"), 2<<10))
+		case "/large":
+			chunk := bytes.Repeat([]byte("x"), 64<<10)
+			for sentOfTheLarge.Load() < large {
+				n, err := w.Write(chunk)
+				sentOfTheLarge.Add(int64(n))
+				if err != nil {
+					return
+				}
+			}
+		}
+	}))
+	defer server.Close()
+	captureColorOutput(t)
+
+	files := collectDebugSources(map[string]extensiontypes.OTelFlareSource{
+		"s": {URLs: []string{server.URL + "/a", server.URL + "/large", server.URL + "/b", server.URL + "/c"}},
+	})
+	content := map[string]string{}
+	for _, f := range files {
+		content[f.name] = string(f.content)
+	}
+
+	assert.Equal(t, strings.Repeat("a", 2<<10), content["otel-flare/s_a.dat"])
+	assert.Contains(t, content["otel-flare/s_large.err"], "larger than", "a response over the limit is an error entry")
+	assert.NotContains(t, content, "otel-flare/s_large.dat")
+	assert.Equal(t, strings.Repeat("b", 3<<10), content["otel-flare/s_b.dat"], "4 KiB of the budget are left, 3 KiB fit")
+	assert.Contains(t, content["otel-flare/s_c.err"], "budget", "1 KiB of the budget is left, 2 KiB don't fit")
+	assert.Less(t, sentOfTheLarge.Load(), int64(large), "the response is read to the end")
+}
+
+// TestCollectLogFilesKeepsABoundedTail checks that only the end of each log file is kept, from the start of a line,
+// that the newest files come first, and that the files that don't fit in the total size are left out.
+func TestCollectLogFilesKeepsABoundedTail(t *testing.T) {
+	previousFile, previousTotal := maxLogFileBytes, maxLogTotalBytes
+	maxLogFileBytes, maxLogTotalBytes = 1<<10, 2<<10
+	t.Cleanup(func() { maxLogFileBytes, maxLogTotalBytes = previousFile, previousTotal })
+
+	dir := t.TempDir()
+	for _, name := range []string{"otel-agent.log", "otel-agent.log.1", "otel-agent.log.2", "otel-agent.log.10"} {
+		var content strings.Builder
+		for i := 1; i <= 100; i++ {
+			fmt.Fprintf(&content, "%s line %03d\n", name, i)
+		}
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(content.String()), 0644))
+	}
+	cfg := configmock.New(t)
+	cfg.SetInTest("log_file", filepath.Join(dir, "otel-agent.log"))
+	output := captureColorOutput(t)
+
+	files := collectLogFiles(cfg)
+
+	var names []string
+	for _, f := range files {
+		names = append(names, f.name)
+	}
+	assert.Equal(t, []string{"logs/otel-agent.log", "logs/otel-agent.log.1"}, names, "the newest files, in the order of their rotation")
+	for _, f := range files {
+		lines := strings.Split(strings.TrimSuffix(string(f.content), "\n"), "\n")
+		assert.Contains(t, lines[0], "the last", "the first line says that the beginning is left out")
+		assert.True(t, strings.HasPrefix(lines[1], strings.TrimPrefix(f.name, "logs/")+" line "), "the tail starts at the start of a line: %q", lines[1])
+		assert.Equal(t, strings.TrimPrefix(f.name, "logs/")+" line 100", lines[len(lines)-1], "the tail is the end of the file")
+		assert.LessOrEqual(t, int64(len(f.content)), maxLogFileBytes+200, f.name)
+	}
+	assert.Contains(t, output.String(), "otel-agent.log.2", "the warning says where the files are left out")
 }
 
 // failingWriter fails every write, like a disk that is full
