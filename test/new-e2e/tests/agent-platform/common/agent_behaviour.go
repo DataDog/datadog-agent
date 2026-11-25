@@ -31,7 +31,7 @@ func SanitizeStatusOutputForKnownNoise(statusOutput string) string {
 	statusOutput = strings.ReplaceAll(statusOutput, "[ERROR] API Key is invalid", "API Key is invalid")
 
 	// Ignore errors specifically due to NTP flakiness.
-	if strings.Contains(statusOutput, "Error: failed to get clock offset from any ntp host") {
+	if strings.Contains(strings.ToLower(statusOutput), "error: failed to get clock offset from any ntp host") {
 		// The triggering error will look something like this:
 		// Instance ID: ntp:4c427a42a70bbf8 [ERROR]
 		re := regexp.MustCompile(`Instance\sID[:]\sntp[:][a-z0-9]+\s\[ERROR\]`)

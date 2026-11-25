@@ -13,6 +13,7 @@ go_library(
         "scheduler.go",
         "status.go",
         "sweep.go",
+        "trigger_endpoint.go",
     ],
     embedsrcs = [
         "status_templates/ndmdiscovery.tmpl",
@@ -21,6 +22,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/ndmdiscovery/impl",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/api/api/def",
         "//comp/core/autodiscovery/providers/ndm/credentials",
         "//comp/core/config",
         "//comp/core/log/def",
@@ -34,7 +36,9 @@ go_library(
         "//pkg/networkdevice/probe",
         "//pkg/networkdevice/probe/pingprobe",
         "//pkg/networkdevice/probe/snmpprobe",
+        "//pkg/networkdevices/discovery",
         "//pkg/persistentcache",
+        "//pkg/util/http",
         "@com_github_google_uuid//:uuid",
         "@org_golang_x_sync//semaphore",
     ],
@@ -52,6 +56,7 @@ dd_agent_go_test(
         "scheduler_test.go",
         "status_test.go",
         "sweep_test.go",
+        "trigger_test.go",
     ],
     embed = [":impl"],
     deps = [
@@ -68,6 +73,7 @@ dd_agent_go_test(
         "//pkg/networkdevice/probe",
         "//pkg/networkdevice/probe/pingprobe",
         "//pkg/networkdevice/probe/snmpprobe",
+        "//pkg/networkdevices/discovery",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_golang_x_sync//semaphore",

@@ -14,7 +14,16 @@ type KubernetesAutoscaling struct {
 func NewKubernetesAutoscaling() *KubernetesAutoscaling {
 	return &KubernetesAutoscaling{
 		actions: map[string]types.Action{
+			// Manual actions
 			"updateAutoscalerLimits": NewUpdateAutoscalerLimitsHandler(),
+			// Auto-generated actions
+			"createHorizontalPodAutoscaler":          NewCreateHorizontalPodAutoscalerHandler(),
+			"updateHorizontalPodAutoscaler":          NewUpdateHorizontalPodAutoscalerHandler(),
+			"deleteHorizontalPodAutoscaler":          NewDeleteHorizontalPodAutoscalerHandler(),
+			"deleteMultipleHorizontalPodAutoscalers": NewDeleteMultipleHorizontalPodAutoscalersHandler(),
+			"getHorizontalPodAutoscaler":             NewGetHorizontalPodAutoscalerHandler(),
+			"listHorizontalPodAutoscaler":            NewListHorizontalPodAutoscalerHandler(),
+			"patchHorizontalPodAutoscaler":           NewPatchHorizontalPodAutoscalerHandler(),
 		},
 	}
 }
