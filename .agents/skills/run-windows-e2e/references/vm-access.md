@@ -8,14 +8,14 @@ test, so you can RDP or SSH in to investigate.
 Two ways:
 
 - From test output: look for `Creating workspace for stack: user-e2e-<suitename>-<hash>`
-- From the CLI: `pulumi stack ls --all` — find the entry matching the suite name
+- From the CLI: `bazel run @pulumi -- stack ls --all` — find the entry matching the suite name
 
 Format: `user-e2e-<suitename-lowercase>-<hash>`.
 
 ## Get connection details
 
 ```bash
-pulumi stack --stack organization/e2elocal/<stack-name> output --json --show-secrets
+bazel run @pulumi -- stack --stack organization/e2elocal/<stack-name> output --json --show-secrets
 ```
 
 The output includes `address` (private IP), `username` (`Administrator`),

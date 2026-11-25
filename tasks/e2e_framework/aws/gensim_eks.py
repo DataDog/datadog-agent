@@ -416,13 +416,12 @@ def submit_gensim_eks(
         extra_flags=extra_flags,
         pulumi_extra_args="--refresh --non-interactive",
         pulumi_env={
-            "PULUMI_SKIP_UPDATE_CHECK": "1",
             "PULUMI_K8S_DELETE_UNREACHABLE": "true",
         },
     )
 
     # ── 9. Show connection message ────────────────────────────────────────
-    _show_connection_message(ctx, full_stack_name, config_path)
+    _show_connection_message(full_stack_name, config_path)
 
     # ── 10-11. Print monitoring instructions ──────────────────────────────
     kube = f"KUBECONFIG={full_stack_name}-kubeconfig.yaml {aws_wrapper}"
@@ -793,7 +792,7 @@ def destroy_gensim_eks(
         inv aws.eks.gensim.destroy
         inv aws.eks.gensim.destroy --stack-name=my-gensim
     """
-    destroy(ctx, scenario_name=scenario_name, stack=stack_name, config_path=config_path)
+    destroy(scenario_name=scenario_name, stack=stack_name, config_path=config_path)
 
 
 # -- Helpers -------------------------------------------------------------------
@@ -876,13 +875,13 @@ def _get_ecr_registry(ctx: Context, aws_wrapper: str) -> tuple[str, str]:
     return f"{account_id}.dkr.ecr.{region}.amazonaws.com", region
 
 
-def _show_connection_message(ctx: Context, full_stack_name: str, config_path: str | None) -> None:
+def _show_connection_message(full_stack_name: str, config_path: str | None) -> None:
     """Write a local kubeconfig file and print kubectl + destroy commands."""
     from pydantic import ValidationError
 
     from tasks.e2e_framework import config
 
-    outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
+    outputs = tool.get_stack_json_outputs(full_stack_name)
 
     kubeconfig_data = json.loads(outputs["dd-Cluster-gensim"]["kubeConfig"])
     kubeconfig_content = yaml.dump(kubeconfig_data)

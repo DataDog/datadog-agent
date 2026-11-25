@@ -6,10 +6,10 @@ from typing import TYPE_CHECKING
 
 from invoke.context import Context
 
-from tasks.e2e_framework.tool import pulumi_command
 from tasks.kernel_matrix_testing.platforms import get_platforms
 from tasks.kernel_matrix_testing.tool import error, get_binary_target_arch, info, warn
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
+from tasks.libs.build.bazel import bazel
 from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, Arch
 from tasks.system_probe import get_ebpf_build_dir
 
@@ -21,8 +21,7 @@ if TYPE_CHECKING:
 
 def selftest_pulumi(ctx: Context, _: bool) -> SelftestResult:
     """Tests that pulumi is installed and can be run."""
-    res = ctx.run(f"{pulumi_command()} --non-interactive plugin ls", hide=True, warn=True)
-    if res is None or not res.ok:
+    if bazel("run", "@pulumi", "--", "--non-interactive", "plugin", "ls", ignore_errors=True).returncode != 0:
         return False, "Cannot run pulumi, check installation"
     return True, "pulumi is installed"
 
