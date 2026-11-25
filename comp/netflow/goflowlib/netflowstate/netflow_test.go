@@ -124,7 +124,7 @@ func TestMapFieldsConfig(t *testing.T) {
 }
 
 func TestNetflowState_TemplateEvictionAndResend(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	driver := memory.New(1)
 
 	state := NewStateNetFlow(nil, false, "", nil)
