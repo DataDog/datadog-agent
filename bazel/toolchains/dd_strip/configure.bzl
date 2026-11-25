@@ -90,7 +90,7 @@ find "$STRIPPED_OUT" -mindepth 1 -exec chmod u+w {{}} +
 # Walk every file; split the ELFs like the single-file driver does and
 # copy nothing else (non-ELFs have no debug counterpart). Every ELF gets
 # a .dbg twin.
-while IFS= read -r -d '' f; do
+find "$STRIPPED_OUT" -type f -print0 | while IFS= read -r -d '' f; do
     # Use raw ELF magic bytes (\\x7fELF) to identify ELF files as targets for stripping.
     if [ "$(od -An -N4 -tx1 "$f" | tr -d ' \\n')" = "7f454c46" ]; then
         rel="${{f#$STRIPPED_OUT/}}"
@@ -112,7 +112,7 @@ while IFS= read -r -d '' f; do
         "$OBJCOPY" --remove-section=.gnu_debuglink "$f"
         "$OBJCOPY" --add-gnu-debuglink="$dbg" "$f"
     fi
-done < <(find "$STRIPPED_OUT" -type f -print0)
+done
 """.format(
             objcopy = cc_toolchain.objcopy_executable,
         ),

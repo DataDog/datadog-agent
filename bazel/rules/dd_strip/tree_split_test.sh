@@ -44,11 +44,13 @@ else
 fi
 
 # The debug tree contains only .dbg files.
+list="$TEST_TMPDIR/debug_tree_files"
+find -L "$DEBUG" -type f -print0 > "$list"
 while IFS= read -r -d '' f; do
     case "$f" in
         *.dbg) ;;
         *) bad "unexpected non-.dbg file in debug tree: $f" ;;
     esac
-done < <(find -L "$DEBUG" -type f -print0)
+done < "$list"
 
 exit "$failed"
