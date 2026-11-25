@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -19,17 +20,32 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	awsquery "github.com/DataDog/datadog-agent/pkg/util/aws/query"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	pkgec2 "github.com/DataDog/datadog-agent/pkg/util/ec2"
 	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const (
+	ec2ServiceName = "ec2"
+	ec2SDKID       = "EC2"
+	ec2APIVersion  = "2016-11-15"
+)
+
+type describeTagsResponse struct {
+	Tags      []ec2Tag `xml:"tagSet>item"`
+	NextToken string   `xml:"nextToken"`
+}
+
+type ec2Tag struct {
+	Key   string `xml:"key"`
+	Value string `xml:"value"`
+}
 
 // declare these as vars not const to ease testing
 var (
@@ -165,7 +181,7 @@ func fetchEc2TagsFromIMDS(ctx context.Context) ([]string, error) {
 	return tags, nil
 }
 
-func createEC2Client(ctx context.Context, region string, creds aws.CredentialsProvider) (*ec2.Client, error) {
+func createEC2Client(ctx context.Context, region string, creds aws.CredentialsProvider) (*awsquery.Client, error) {
 	opts := []func(*config.LoadOptions) error{config.WithRegion(region)}
 	if creds != nil {
 		opts = append(opts, config.WithCredentialsProvider(creds))
@@ -175,7 +191,7 @@ func createEC2Client(ctx context.Context, region string, creds aws.CredentialsPr
 	if err != nil {
 		return nil, fmt.Errorf("unable to load AWS SDK config: %w", err)
 	}
-	return ec2.NewFromConfig(cfg), nil
+	return awsquery.NewClient(cfg, ec2ServiceName, ec2SDKID, ec2APIVersion)
 }
 
 func fetchEc2TagsFromAPI(ctx context.Context) ([]string, error) {
@@ -207,31 +223,37 @@ func fetchEc2TagsFromAPI(ctx context.Context) ([]string, error) {
 	return getTagsWithClientFunc(ctx, ec2Client, instanceIdentity)
 }
 
-func getTagsWithClient(ctx context.Context, client *ec2.Client, instanceIdentity *ec2internal.EC2Identity) ([]string, error) {
+func getTagsWithClient(ctx context.Context, client *awsquery.Client, instanceIdentity *ec2internal.EC2Identity) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, pkgconfigsetup.Datadog().GetDuration("ec2_metadata_timeout")*time.Millisecond)
 	defer cancel()
 
-	describeTagsOutput, err := client.DescribeTags(ctx,
-		&ec2.DescribeTagsInput{
-			Filters: []types.Filter{{
-				Name: aws.String("resource-id"),
-				Values: []string{
-					instanceIdentity.InstanceID,
-				},
-			}},
-		},
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
 	tags := []string{}
-	for _, tag := range describeTagsOutput.Tags {
-		if isTagExcluded(*tag.Key) {
-			continue
+	var nextToken string
+	for {
+		params := url.Values{
+			"Filter.1.Name":    {"resource-id"},
+			"Filter.1.Value.1": {instanceIdentity.InstanceID},
 		}
-		tags = append(tags, fmt.Sprintf("%s:%s", *tag.Key, *tag.Value))
+		if nextToken != "" {
+			params.Set("NextToken", nextToken)
+		}
+
+		var describeTagsOutput describeTagsResponse
+		if err := client.Do(ctx, "DescribeTags", params, &describeTagsOutput); err != nil {
+			return nil, err
+		}
+
+		for _, tag := range describeTagsOutput.Tags {
+			if isTagExcluded(tag.Key) {
+				continue
+			}
+			tags = append(tags, fmt.Sprintf("%s:%s", tag.Key, tag.Value))
+		}
+
+		if describeTagsOutput.NextToken == "" || describeTagsOutput.NextToken == nextToken {
+			break
+		}
+		nextToken = describeTagsOutput.NextToken
 	}
 	return tags, nil
 }

@@ -9,8 +9,6 @@ package aws
 
 import (
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/rds"
-	"github.com/aws/aws-sdk-go-v2/service/rds/types"
 )
 
 type mockrdsServiceConfigurer func(k *MockrdsService)
@@ -18,9 +16,9 @@ type mockrdsServiceConfigurer func(k *MockrdsService)
 const defaultDbmTag = "datadoghq.com/dbm:true"
 const defaultGlobalViewDbTag = "datadoghq.com/global_view_db"
 
-func createDescribeDBInstancesRequest(clusterIDs []string) *rds.DescribeDBInstancesInput {
-	return &rds.DescribeDBInstancesInput{
-		Filters: []types.Filter{
+func createDescribeDBInstancesRequest(clusterIDs []string) *DescribeDBInstancesInput {
+	return &DescribeDBInstancesInput{
+		Filters: []Filter{
 			{
 				Name:   aws.String("db-cluster-id"),
 				Values: clusterIDs,

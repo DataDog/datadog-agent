@@ -10,8 +10,6 @@ package aws
 
 import (
 	"fmt"
-
-	"github.com/aws/aws-sdk-go-v2/service/rds/types"
 )
 
 // Instance represents an Aurora or RDS instance
@@ -43,7 +41,7 @@ func dbNameFromEngine(engine string) (string, error) {
 	}
 }
 
-func makeInstance(db types.DBInstance, cluster *types.DBCluster, config Config) (*Instance, error) {
+func makeInstance(db DBInstance, cluster *DBCluster, config Config) (*Instance, error) {
 	if db.Endpoint == nil || db.Endpoint.Address == nil {
 		return nil, fmt.Errorf("DBInstance %v missing endpoint", db)
 	}

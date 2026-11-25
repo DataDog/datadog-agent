@@ -17,6 +17,7 @@ go_library(
         "//pkg/config/env",
         "//pkg/config/setup",
         "//pkg/config/utils",
+        "//pkg/util/aws/query",
         "//pkg/util/cache",
         "//pkg/util/ec2",
         "//pkg/util/ec2/internal",
@@ -25,8 +26,6 @@ go_library(
         "@com_github_aws_aws_sdk_go_v2//aws",
         "@com_github_aws_aws_sdk_go_v2_config//:config",
         "@com_github_aws_aws_sdk_go_v2_credentials//:credentials",
-        "@com_github_aws_aws_sdk_go_v2_service_ec2//:ec2",
-        "@com_github_aws_aws_sdk_go_v2_service_ec2//types",
     ],
 )
 
@@ -42,11 +41,11 @@ dd_agent_go_test(
     deps = [
         "//pkg/config/env",
         "//pkg/config/mock",
+        "//pkg/util/aws/query",
         "//pkg/util/cache",
         "//pkg/util/ec2/internal",
         "@com_github_aws_aws_sdk_go_v2//aws",
         "@com_github_aws_aws_sdk_go_v2_credentials//:credentials",
-        "@com_github_aws_aws_sdk_go_v2_service_ec2//:ec2",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
