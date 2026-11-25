@@ -6,7 +6,9 @@
 package log
 
 import (
+	"path"
 	"runtime"
+	"strconv"
 	"strings"
 )
 
@@ -34,23 +36,59 @@ func isKlogFrame(fn string) bool {
 		strings.HasPrefix(fn, "github.com/go-logr/logr.")
 }
 
-func stackDepthFromFunctionNames(fns []string, fallback int) int {
+// parseKlogHeaderCaller extracts file basename and line from a klog header:
+// "Lmmdd hh:mm:ss.uuuuuu threadid file:line"
+func parseKlogHeaderCaller(header string) (string, int, bool) {
+	lastSpace := strings.LastIndexByte(header, ' ')
+	if lastSpace < 0 {
+		return "", 0, false
+	}
+	fileLine := header[lastSpace+1:]
+	colon := strings.LastIndexByte(fileLine, ':')
+	if colon <= 0 || colon == len(fileLine)-1 {
+		return "", 0, false
+	}
+	line, err := strconv.Atoi(fileLine[colon+1:])
+	if err != nil || line <= 0 {
+		return "", 0, false
+	}
+	return fileLine[:colon], line, true
+}
+
+func resolveKlogFrameDepth(next func() (runtime.Frame, bool), headerFile string, headerLine int, hasHeaderCaller bool, fallback int) int {
 	seenKlog := false
-	for depth, fn := range fns {
-		if depth == 0 {
-			continue
+	firstNonKlogDepth := -1
+	depth := 0
+	for {
+		frame, more := next()
+		if depth > 0 {
+			if isKlogFrame(frame.Function) {
+				seenKlog = true
+			} else if seenKlog {
+				if firstNonKlogDepth < 0 {
+					// depth 0 is Write (stackDepth 1); frame at index depth needs depth + 1.
+					firstNonKlogDepth = depth + 1
+					if !hasHeaderCaller {
+						return firstNonKlogDepth
+					}
+				}
+				if path.Base(frame.File) == headerFile && frame.Line == headerLine {
+					return depth + 1
+				}
+			}
 		}
-		if isKlogFrame(fn) {
-			seenKlog = true
-		} else if seenKlog {
-			// depth 0 is Write (stackDepth 1); frame at index depth needs depth + 1.
-			return depth + 1
+		if !more {
+			break
 		}
+		depth++
+	}
+	if firstNonKlogDepth > 0 {
+		return firstNonKlogDepth
 	}
 	return fallback
 }
 
-func (l KlogRedirectLogger) resolveStackDepth() int {
+func (l KlogRedirectLogger) resolveStackDepth(headerFile string, headerLine int, hasHeaderCaller bool) int {
 	const maxFrames = 32
 	var pcs [maxFrames]uintptr
 	n := runtime.Callers(2, pcs[:])
@@ -58,15 +96,7 @@ func (l KlogRedirectLogger) resolveStackDepth() int {
 		return l.stackDepth
 	}
 	frames := runtime.CallersFrames(pcs[:n])
-	fns := make([]string, 0, n)
-	for {
-		frame, more := frames.Next()
-		fns = append(fns, frame.Function)
-		if !more {
-			break
-		}
-	}
-	return stackDepthFromFunctionNames(fns, l.stackDepth)
+	return resolveKlogFrameDepth(frames.Next, headerFile, headerLine, hasHeaderCaller, l.stackDepth)
 }
 
 func (l KlogRedirectLogger) Write(b []byte) (int, error) {
@@ -76,25 +106,43 @@ func (l KlogRedirectLogger) Write(b []byte) (int, error) {
 	// the ']' character, to ignore anything up to that point, as we don't
 	// care about the header outside of the log level.
 
+	var level LogLevel
+	switch b[0] {
+	case 'W':
+		level = WarnLvl
+	case 'E':
+		level = ErrorLvl
+	case 'F':
+		level = CriticalLvl
+	default:
+		level = InfoLvl
+	}
+
+	if !ShouldLog(level) {
+		return 0, nil
+	}
+
 	msg := string(b)
+	var headerFile string
+	var headerLine int
+	var hasHeaderCaller bool
 
 	i := strings.IndexByte(msg, ']')
 	if i >= 0 {
+		headerFile, headerLine, hasHeaderCaller = parseKlogHeaderCaller(msg[:i])
 		// if we find a ']', we ignore anything 2 positions from it
 		// (itself, plus a blank space)
 		msg = msg[i+2:]
 	}
 
-	depth := l.resolveStackDepth()
+	depth := l.resolveStackDepth(headerFile, headerLine, hasHeaderCaller)
 
-	switch b[0] {
-	case 'I':
-		InfoStackDepth(depth, msg)
-	case 'W':
+	switch level {
+	case WarnLvl:
 		_ = WarnStackDepth(depth, msg)
-	case 'E':
+	case ErrorLvl:
 		_ = ErrorStackDepth(depth, msg)
-	case 'F':
+	case CriticalLvl:
 		_ = CriticalStackDepth(depth, msg)
 	default:
 		InfoStackDepth(depth, msg)
