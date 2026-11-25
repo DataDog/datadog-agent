@@ -29,8 +29,7 @@ const (
 	BlindReasonCiliumTCFilter BlindReason = "cilium_tc_filter"
 	// BlindReasonUnknownTCX is a foreign TCX program, which may let the hook go on to the next program
 	BlindReasonUnknownTCX BlindReason = "unknown_tcx"
-	// BlindReasonUnknownTCFilter is a foreign direct-action filter with a lower priority value, which may
-	// let the tc chain go on
+	// BlindReasonUnknownTCFilter is a foreign filter with a lower priority value, which may let the tc chain go on
 	BlindReasonUnknownTCFilter BlindReason = "unknown_tc_filter"
 )
 
@@ -51,11 +50,10 @@ type TCXProgram struct {
 
 // Filter is a bpf filter of a clsact qdisc
 type Filter struct {
-	Name         string
-	ProgramID    uint32
-	Priority     uint16
-	Chain        uint32
-	DirectAction bool
+	Name      string
+	ProgramID uint32
+	Priority  uint16
+	Chain     uint32
 }
 
 // HookPrograms holds the programs attached to a hook
@@ -92,8 +90,8 @@ func FindProgramAhead(mode AttachMode, hook HookPrograms, filterPriority uint16,
 			return cmp.Compare(a.Priority, b.Priority)
 		})
 		for _, filter := range filters {
-			// filters of other chains only run when a filter of chain 0 jumps to them
-			if filter.DirectAction && filter.Chain == 0 && filter.Priority < filterPriority && !isOwn(filter.ProgramID) {
+			// other chains only run when a chain 0 filter jumps to them; a matching classic filter also ends the chain
+			if filter.Chain == 0 && filter.Priority < filterPriority && !isOwn(filter.ProgramID) {
 				ahead = append(ahead, newProgramAhead(filter.Name, BlindReasonCiliumTCFilter, BlindReasonUnknownTCFilter))
 			}
 		}

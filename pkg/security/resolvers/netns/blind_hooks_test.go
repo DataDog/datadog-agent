@@ -98,7 +98,7 @@ func TestBPFFilters(t *testing.T) {
 	}
 
 	assert.Equal(t, []tc.Filter{
-		{Name: "cil_from_netdev-eth0", ProgramID: 7, Priority: 1, DirectAction: true},
+		{Name: "cil_from_netdev-eth0", ProgramID: 7, Priority: 1},
 		{Name: "other", ProgramID: 8, Priority: 2, Chain: 3},
 	}, bpfFilters(filters))
 }

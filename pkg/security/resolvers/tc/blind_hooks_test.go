@@ -19,7 +19,7 @@ func TestFindProgramAhead(t *testing.T) {
 	isOwn := func(programID uint32) bool {
 		return programID == ownProgramID
 	}
-	ownFilter := Filter{Name: "classifier_ingress_security", ProgramID: ownProgramID, Priority: filterPriority, DirectAction: true}
+	ownFilter := Filter{Name: "classifier_ingress_security", ProgramID: ownProgramID, Priority: filterPriority}
 
 	for _, test := range []struct {
 		name     string
@@ -61,41 +61,37 @@ func TestFindProgramAhead(t *testing.T) {
 		},
 		{
 			name:     "cilium filter with a lower priority value",
-			hook:     HookPrograms{Filters: []Filter{ownFilter, {Name: "cil_from_netdev-eth0", ProgramID: 7, Priority: 1, DirectAction: true}}},
+			hook:     HookPrograms{Filters: []Filter{ownFilter, {Name: "cil_from_netdev-eth0", ProgramID: 7, Priority: 1}}},
 			expected: ProgramAhead{Name: "cil_from_netdev-eth0", Reason: BlindReasonCiliumTCFilter},
 			found:    true,
 		},
 		{
 			name:     "unknown filter with a lower priority value",
-			hook:     HookPrograms{Filters: []Filter{ownFilter, {Name: "foreign_filter", ProgramID: 7, Priority: 1, DirectAction: true}}},
+			hook:     HookPrograms{Filters: []Filter{ownFilter, {Name: "foreign_filter", ProgramID: 7, Priority: 1}}},
 			expected: ProgramAhead{Name: "foreign_filter", Reason: BlindReasonUnknownTCFilter},
 			found:    true,
 		},
 		{
 			name: "cilium filter with a higher priority value",
-			hook: HookPrograms{Filters: []Filter{ownFilter, {Name: "cil_from_netdev-eth0", ProgramID: 7, Priority: 20, DirectAction: true}}},
+			hook: HookPrograms{Filters: []Filter{ownFilter, {Name: "cil_from_netdev-eth0", ProgramID: 7, Priority: 20}}},
 		},
 		{
 			name: "cilium filter with the same priority value",
-			hook: HookPrograms{Filters: []Filter{{Name: "cil_from_netdev-eth0", ProgramID: 7, Priority: filterPriority, DirectAction: true}, ownFilter}},
-		},
-		{
-			name: "filter without direct action",
-			hook: HookPrograms{Filters: []Filter{ownFilter, {Name: "cil_from_netdev-eth0", ProgramID: 7, Priority: 1}}},
+			hook: HookPrograms{Filters: []Filter{{Name: "cil_from_netdev-eth0", ProgramID: 7, Priority: filterPriority}, ownFilter}},
 		},
 		{
 			name: "filter of another chain",
-			hook: HookPrograms{Filters: []Filter{ownFilter, {Name: "cil_from_netdev-eth0", ProgramID: 7, Priority: 1, Chain: 3, DirectAction: true}}},
+			hook: HookPrograms{Filters: []Filter{ownFilter, {Name: "cil_from_netdev-eth0", ProgramID: 7, Priority: 1, Chain: 3}}},
 		},
 		{
 			name: "own filter with a lower priority value",
-			hook: HookPrograms{Filters: []Filter{{Name: "classifier_ingress_security", ProgramID: ownProgramID, Priority: 1, DirectAction: true}}},
+			hook: HookPrograms{Filters: []Filter{{Name: "classifier_ingress_security", ProgramID: ownProgramID, Priority: 1}}},
 		},
 		{
 			name: "cilium filter behind an unknown tcx program",
 			hook: HookPrograms{
 				TCX:     []TCXProgram{{ID: 8, Name: "foreign_prog"}},
-				Filters: []Filter{ownFilter, {Name: "cil_from_netdev-eth0", ProgramID: 7, Priority: 1, DirectAction: true}},
+				Filters: []Filter{ownFilter, {Name: "cil_from_netdev-eth0", ProgramID: 7, Priority: 1}},
 			},
 			expected: ProgramAhead{Name: "cil_from_netdev-eth0", Reason: BlindReasonCiliumTCFilter},
 			found:    true,
@@ -104,7 +100,7 @@ func TestFindProgramAhead(t *testing.T) {
 			name: "cilium tcx program ahead of a cilium filter",
 			hook: HookPrograms{
 				TCX:     []TCXProgram{{ID: 8, Name: "cil_from_netdev"}},
-				Filters: []Filter{ownFilter, {Name: "cil_from_netdev-eth0", ProgramID: 7, Priority: 1, DirectAction: true}},
+				Filters: []Filter{ownFilter, {Name: "cil_from_netdev-eth0", ProgramID: 7, Priority: 1}},
 			},
 			expected: ProgramAhead{Name: "cil_from_netdev", Reason: BlindReasonCiliumTCX},
 			found:    true,
@@ -113,7 +109,7 @@ func TestFindProgramAhead(t *testing.T) {
 			name: "unknown tcx program ahead of an unknown filter",
 			hook: HookPrograms{
 				TCX:     []TCXProgram{{ID: 8, Name: "foreign_prog"}},
-				Filters: []Filter{ownFilter, {Name: "foreign_filter", ProgramID: 7, Priority: 1, DirectAction: true}},
+				Filters: []Filter{ownFilter, {Name: "foreign_filter", ProgramID: 7, Priority: 1}},
 			},
 			expected: ProgramAhead{Name: "foreign_prog", Reason: BlindReasonUnknownTCX},
 			found:    true,
@@ -122,8 +118,8 @@ func TestFindProgramAhead(t *testing.T) {
 			name: "filters run by priority, not in dump order",
 			hook: HookPrograms{Filters: []Filter{
 				ownFilter,
-				{Name: "foreign_filter_5", ProgramID: 8, Priority: 5, DirectAction: true},
-				{Name: "foreign_filter_2", ProgramID: 7, Priority: 2, DirectAction: true},
+				{Name: "foreign_filter_5", ProgramID: 8, Priority: 5},
+				{Name: "foreign_filter_2", ProgramID: 7, Priority: 2},
 			}},
 			expected: ProgramAhead{Name: "foreign_filter_2", Reason: BlindReasonUnknownTCFilter},
 			found:    true,

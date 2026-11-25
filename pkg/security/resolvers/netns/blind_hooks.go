@@ -95,11 +95,10 @@ func bpfFilters(filters []netlink.Filter) []tc.Filter {
 		}
 
 		out = append(out, tc.Filter{
-			Name:         bpfFilter.Name,
-			ProgramID:    uint32(bpfFilter.Id),
-			Priority:     bpfFilter.Priority,
-			Chain:        chain,
-			DirectAction: bpfFilter.DirectAction,
+			Name:      bpfFilter.Name,
+			ProgramID: uint32(bpfFilter.Id),
+			Priority:  bpfFilter.Priority,
+			Chain:     chain,
 		})
 	}
 	return out
