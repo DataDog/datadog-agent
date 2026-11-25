@@ -3,7 +3,9 @@
 // handlers call *_btf helpers, with BTF pointers (arguments, return values, or pointers loaded directly from them, like
 // skb->sk). The kprobe and raw tracepoint programs in this file keep the probe-read helpers.
 // Never pass a *_btf helper a pointer that came from a map, a probe read or PT_REGS: the direct loads in its body
-// are only valid on BTF-typed pointers, and the verifier rejects them otherwise, so the whole tracer fails to load.
+// are only valid on BTF-typed pointers, and the verifier rejects them otherwise, so the fentry tracer fails to load.
+// With network_config.allow_kprobe_fallback (on by default), system-probe then loads the kprobe tracer instead, so
+// the mistake shows up only as lost performance; with it off, the network tracer fails to start.
 #define SOCK_PTR_IS_BTF
 #include "ktypes.h"
 #include "bpf_telemetry.h"

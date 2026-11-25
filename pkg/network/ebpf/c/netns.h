@@ -58,8 +58,9 @@ static __always_inline __u32 get_netns_from_sock(struct sock* sk) {
 }
 
 // get_netns_from_sock for a BTF-typed sock pointer (a fentry/fexit/tp_btf argument, or a pointer loaded
-// directly from one): the verifier turns the loads into BPF_PROBE_MEM loads. The kernels that can run those
-// programs all have possible_net_t; any other layout takes the probe-read version above.
+// directly from one): the verifier turns the loads into BPF_PROBE_MEM loads. possible_net_t only has its .net
+// member when CONFIG_NET_NS=y, so on a CONFIG_NET_NS=n kernel the field check below fails and fentry programs
+// take the probe-read version above. That fallback is reachable on fentry kernels; don't remove it.
 static __maybe_unused __always_inline __u32 get_netns_from_sock_btf(struct sock* sk) {
     if (bpf_core_field_exists(sk->sk_net.net)) {
         struct net *ns = sk->sk_net.net;
