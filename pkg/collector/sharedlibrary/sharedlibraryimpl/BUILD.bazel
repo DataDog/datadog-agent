@@ -25,12 +25,14 @@ go_library(
         "//pkg/collector/check/id",
         "//pkg/collector/check/stats",
         "//pkg/collector/loaders",
-        "//pkg/collector/sharedlibrary/ffi",
         "//pkg/config/setup",
         "//pkg/util/log",
         "//pkg/util/option",
         "@in_yaml_go_yaml_v3//:yaml",
-    ],
+    ] + select({
+        "//packages/agent:iot_flavor": [],
+        "//conditions:default": ["//pkg/collector/sharedlibrary/ffi"],
+    }),  # keep
 )
 
 dd_agent_go_test(
