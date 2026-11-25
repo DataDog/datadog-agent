@@ -55,6 +55,11 @@ func (s *installScriptDatabricksGPUSuite) TestDatabricksGPUDriverInstallScript()
 	state.AssertDirExists(cTracerStable, 0755, "root", "root")
 
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
+	state.AssertFileExists("/etc/datadog-agent/application_monitoring.yaml", 0644, "dd-agent", "dd-agent")
+	appMonitoring, err := s.host.ReadFile("/etc/datadog-agent/application_monitoring.yaml")
+	s.Require().NoError(err)
+	s.Contains(string(appMonitoring), "DD_INJECT_NATIVE: always")
+	s.Contains(string(appMonitoring), "DD_GPU_ENABLED: true")
 
 	// GPU Monitoring only: no Data Jobs Monitoring setup
 	state.AssertPathDoesNotExist("/opt/datadog-packages/datadog-apm-library-java")

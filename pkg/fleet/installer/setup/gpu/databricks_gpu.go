@@ -9,6 +9,7 @@ package gpu
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -32,6 +33,10 @@ const (
 
 	gpuRestartDelay   = 60 * time.Second
 	gpuRestartLogFile = "/var/log/datadog-gpu-restart"
+
+	sparkEnvPath       = "/databricks/spark/conf/spark-env.sh"
+	sparkEnvBlockStart = "# BEGIN Datadog GPU Monitoring"
+	sparkEnvBlockEnd   = "# END Datadog GPU Monitoring"
 )
 
 // fullVersionWithoutRevision matches versions like 0.40.0, which are
@@ -67,7 +72,90 @@ func SetupDatabricksGPU(s *common.Setup) error {
 
 	setupDatabricksHostTags(s)
 	setupGPUCheck(s)
+	setupTracerConfig(s)
+	if err := setupTracerEnv(s, sparkEnvPath); err != nil {
+		return fmt.Errorf("failed to set up the C tracer environment: %w", err)
+	}
 	return nil
+}
+
+// setupTracerConfig writes the tracer settings to application_monitoring.yaml,
+// like the Data Jobs Monitoring script. The injector and the C tracer don't
+// read it yet, so setupTracerEnv also exports them in spark-env.sh.
+func setupTracerConfig(s *common.Setup) {
+	cfg := config.APMConfigurationDefault{}
+	for _, kv := range tracerEnv() {
+		switch kv[0] {
+		case "DD_INJECT_NATIVE":
+			cfg.InjectNative = kv[1]
+		case "DD_GPU_ENABLED":
+			cfg.GPUEnabled = config.BoolToPtr(kv[1] == "true")
+		case "DD_SERVICE":
+			cfg.Service = kv[1]
+		case "DD_ENV":
+			cfg.Env = kv[1]
+		}
+	}
+	s.Config.ApplicationMonitoringYAML = &config.ApplicationMonitoringConfig{Default: cfg}
+}
+
+// setupTracerEnv exports the injector and C tracer settings in spark-env.sh,
+// which Spark sources before starting the driver and executors. The injector
+// and the C tracer only read their settings from the process environment.
+func setupTracerEnv(s *common.Setup, path string) error {
+	if _, err := os.Stat(filepath.Dir(path)); err != nil {
+		s.Out.WriteString(fmt.Sprintf("Skipping the C tracer environment: %s not found\n", filepath.Dir(path)))
+		return nil
+	}
+	content, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	block := []string{sparkEnvBlockStart}
+	for _, kv := range tracerEnv() {
+		block = append(block, fmt.Sprintf("export %s=%s", kv[0], shellQuote(kv[1])))
+	}
+	block = append(block, sparkEnvBlockEnd)
+	updated := removeSparkEnvBlock(string(content))
+	if updated != "" && !strings.HasSuffix(updated, "\n") {
+		updated += "\n"
+	}
+	updated += strings.Join(block, "\n") + "\n"
+	return os.WriteFile(path, []byte(updated), 0644)
+}
+
+// tracerEnv returns the environment of traced processes: the injector loads
+// the C tracer (native plugins are off by default) and the C tracer enables
+// GPU monitoring (off by default). DD_SERVICE and DD_ENV are passed through
+// when set; otherwise the C tracer names the service after the process.
+func tracerEnv() [][2]string {
+	vars := [][2]string{
+		{"DD_INJECT_NATIVE", "always"},
+		{"DD_GPU_ENABLED", "true"},
+	}
+	for _, key := range []string{"DD_SERVICE", "DD_ENV"} {
+		if value := os.Getenv(key); value != "" {
+			vars = append(vars, [2]string{key, value})
+		}
+	}
+	return vars
+}
+
+// removeSparkEnvBlock removes the block written by a previous run.
+func removeSparkEnvBlock(content string) string {
+	start := strings.Index(content, sparkEnvBlockStart)
+	if start < 0 {
+		return content
+	}
+	end := strings.Index(content[start:], sparkEnvBlockEnd)
+	if end < 0 {
+		return content[:start]
+	}
+	return content[:start] + strings.TrimPrefix(content[start+end+len(sparkEnvBlockEnd):], "\n")
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
 }
 
 // setupGPUCheck enables the GPU check and schedules an Agent restart, since
