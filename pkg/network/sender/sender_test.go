@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"slices"
 	"strconv"
 	"sync/atomic"
@@ -36,6 +37,7 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	connectionsforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/mock"
 	npcollectorimpl "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl"
+	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -774,4 +776,59 @@ func TestResolveDestinationContainerIDsReattributedTunnelLegs(t *testing.T) {
 	assert.Equal(t, "pod-b", conns[0].ContainerID.Dest.Get().(string))
 	require.NotNil(t, conns[1].ContainerID.Dest)
 	assert.Equal(t, "pod-a", conns[1].ContainerID.Dest.Get().(string))
+}
+
+// keyPerDestCollector keys every connection by its own destination, so a decoded
+// connection carrying another destination's key is a pairing bug.
+type keyPerDestCollector struct{}
+
+func (keyPerDestCollector) ScheduleNetflowPathTests(iter.Seq[npmodel.NetworkPathConnection]) {}
+
+func (keyPerDestCollector) ScheduleNetworkPathTests(_ string, conns iter.Seq[npmodel.NetworkPathConnection]) []model.NetworkPath {
+	var out []model.NetworkPath
+	for conn := range conns {
+		out = append(out, model.NetworkPath{TestEligible: true, CorrelationKey: "key-" + conn.Dest.Addr().String()})
+	}
+	return out
+}
+
+func TestNetworkPathMetadataSurvivesChunking(t *testing.T) {
+	const count = 5
+
+	d := mockDirectSender(t, nil)
+	d.maxConnsPerMessage = 2
+	d.npCollector = keyPerDestCollector{}
+
+	conns := &network.Connections{BufferedData: network.BufferedData{Conns: makeConnections(count)}}
+
+	seen := 0
+	for _, payload := range slices.Collect(d.batches(conns, 1)) {
+		m, err := model.DecodeMessage(payload)
+		require.NoError(t, err)
+		c, ok := m.Body.(*model.CollectorConnections)
+		require.True(t, ok)
+		for _, conn := range c.Connections {
+			require.NotNilf(t, conn.NetworkPath, "connection to %s lost its metadata", conn.Raddr.Ip)
+			assert.Equalf(t, "key-"+conn.Raddr.Ip, conn.NetworkPath.CorrelationKey,
+				"connection to %s carries another flow's key", conn.Raddr.Ip)
+			seen++
+		}
+	}
+	assert.Equal(t, count, seen)
+}
+
+func TestNetworkPathAbsentWhenNotScheduled(t *testing.T) {
+	d := mockDirectSender(t, nil)
+	d.maxConnsPerMessage = 10
+	conns := &network.Connections{BufferedData: network.BufferedData{Conns: makeConnections(2)}}
+
+	for _, payload := range slices.Collect(d.batches(conns, 1)) {
+		m, err := model.DecodeMessage(payload)
+		require.NoError(t, err)
+		c, ok := m.Body.(*model.CollectorConnections)
+		require.True(t, ok)
+		for _, conn := range c.Connections {
+			assert.Nil(t, conn.NetworkPath)
+		}
+	}
 }

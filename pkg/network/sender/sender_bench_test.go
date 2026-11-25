@@ -24,6 +24,7 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	npcollectorimpl "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
@@ -52,6 +53,7 @@ func newFixtureSender(tb testing.TB, maxConns int, tg tagger.Component) *directS
 		agentCfg:           &model.AgentConfiguration{NpmEnabled: true},
 		resolver:           newContainerResolver(nil, time.Hour),
 		tagger:             tg,
+		npCollector:        npcollectorimpl.NewMock().Comp,
 		log:                logmock.New(tb),
 		hostname:           "fixture-host",
 		networkID:          "fixture-net",
