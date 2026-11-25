@@ -34,7 +34,7 @@ func TestGetInstanceID(t *testing.T) {
 	metadataURL = ts.URL
 
 	val, err := GetInstanceID(ctx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/meta-data/instance-id")
 }
@@ -55,7 +55,7 @@ func TestGetHostAliases(t *testing.T) {
 	metadataURL = ts.URL
 
 	aliases, err := GetHostAliases(ctx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	require.Len(t, aliases, 1)
 	assert.Equal(t, expected, aliases[0])
 	assert.Equal(t, lastRequest.URL.Path, "/meta-data/instance-id")
