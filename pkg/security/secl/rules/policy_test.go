@@ -3290,15 +3290,20 @@ func TestActionSetVariableValidation(t *testing.T) {
 }
 
 // A variable read from a dictionary, the environment variables of a process,
-// is private: it isn't serialized with the events.
-func TestActionSetVariableFromDictionaryIsPrivate(t *testing.T) {
+// records the keys it reads, for the serializer to check them against
+// envs_with_value, or that one of them is evaluated per event.
+func TestActionSetVariableEnvKeys(t *testing.T) {
 	testPolicy := &PolicyDef{Rules: []*RuleDefinition{{
 		ID:         "test_rule",
 		Expression: `open.file.path == "/tmp/test"`,
 		Actions: []*ActionDefinition{
+			{Set: &SetDefinition{Name: "key", Value: "PATH"}},
 			{Set: &SetDefinition{Name: "from_field", Field: `process.env["TOKEN"]`}},
 			{Set: &SetDefinition{Name: "from_expression", Expression: `process.env["TOKEN"]`, DefaultValue: ""}},
 			{Set: &SetDefinition{Name: "from_scope", Field: `process.env["TOKEN"]`, Scope: "process"}},
+			{Set: &SetDefinition{Name: "from_evaluated_key", Field: `process.env[${key}]`}},
+			{Set: &SetDefinition{Name: "from_nested_key", Field: `process.env[process.env["PATH"]]`}},
+			{Set: &SetDefinition{Name: "from_key_test", Expression: `"TOKEN" in process.env`, DefaultValue: false}},
 			{Set: &SetDefinition{Name: "from_path", Field: `open.file.path`}},
 		},
 	}}}
@@ -3316,18 +3321,28 @@ func TestActionSetVariableFromDictionaryIsPrivate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for name, private := range map[string]bool{
-		"from_field":         true,
-		"from_expression":    true,
-		"process.from_scope": true,
-		"from_path":          false,
+	for name, expected := range map[string]struct {
+		keys      []string
+		evaluated bool
+	}{
+		"from_field":         {[]string{"TOKEN"}, false},
+		"from_expression":    {[]string{"TOKEN"}, false},
+		"process.from_scope": {[]string{"TOKEN"}, false},
+		"from_evaluated_key": {nil, true},
+		"from_nested_key":    {[]string{"PATH"}, true},
+		"from_key_test":      {nil, false},
+		"from_path":          {nil, false},
 	} {
 		variable := rs.evalOpts.VariableStore.Get(name)
 		if variable == nil {
 			t.Fatalf("variable %s not found", name)
 		}
-		if variable.GetVariableOpts().Private != private {
-			t.Errorf("expected variable %s to be private: %v", name, private)
+		opts := variable.GetVariableOpts()
+		if !slices.Equal(opts.EnvKeys, expected.keys) || opts.EnvKeyEvaluated != expected.evaluated {
+			t.Errorf("variable %s: expected env keys %v and evaluated %v, got %v and %v", name, expected.keys, expected.evaluated, opts.EnvKeys, opts.EnvKeyEvaluated)
+		}
+		if opts.Private {
+			t.Errorf("variable %s: expected not to be private", name)
 		}
 	}
 }

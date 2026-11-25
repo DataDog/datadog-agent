@@ -800,9 +800,10 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 				}
 
 				// a variable read from a dictionary, the environment variables of a
-				// process, isn't serialized with the events
-				if rs.readsDictionary(tree) {
-					rs.makeVariablePrivate(action.Def.Set)
+				// process, is serialized only for the keys of envs_with_value, as the
+				// serialized environment: the serializer checks the keys it records
+				if keys, evaluated := rs.envKeys(tree); len(keys) > 0 || evaluated {
+					rs.recordEnvKeys(action.Def.Set, keys, evaluated)
 				}
 
 				if exprEventType != "" && exprEventType != ruleEventType {
@@ -866,28 +867,43 @@ func (rs *RuleSet) compileActionValue(expr string) (eval.Evaluator, ast.Node, ev
 	return evaluator.(eval.Evaluator), tree, eventType, err
 }
 
-// readsDictionary returns whether a compiled tree reads a dictionary field
-func (rs *RuleSet) readsDictionary(tree ast.Node) bool {
-	return ast.Any(tree, func(n ast.Node) bool {
-		ref, ok := n.(*ast.FieldRef)
+// envKeys returns the keys a compiled tree reads dictionary fields at, the
+// environment variables of a process, and whether one of them is evaluated per
+// event. Testing a key, `"PATH" in process.env`, reads no value.
+func (rs *RuleSet) envKeys(tree ast.Node) (keys []string, evaluated bool) {
+	ast.Any(tree, func(n ast.Node) bool {
+		index, ok := n.(*ast.Index)
 		if !ok {
 			return false
 		}
-		_, kind, _, _, err := rs.eventCtor().GetFieldMetadata(ref.Name)
-		return err == nil && kind == reflect.Map
+		ref, ok := index.Base.(*ast.FieldRef)
+		if !ok {
+			return false
+		}
+		if _, kind, _, _, err := rs.eventCtor().GetFieldMetadata(ref.Name); err != nil || kind != reflect.Map {
+			return false
+		}
+		if key, ok := index.Subscript.(*ast.Literal); ok && key.Value.Kind() == ast.String {
+			keys = append(keys, ast.StringVal(key.Value))
+		} else {
+			evaluated = true
+		}
+		return false
 	})
+	return keys, evaluated
 }
 
-// makeVariablePrivate makes the variable of a set action private: it isn't
-// serialized with the events
-func (rs *RuleSet) makeVariablePrivate(set *SetDefinition) {
+// recordEnvKeys records in the options of the variable of a set action the
+// environment variables its value is read from
+func (rs *RuleSet) recordEnvKeys(set *SetDefinition, keys []string, evaluated bool) {
 	name := set.Name
 	if set.Scope != "" {
 		name = string(set.Scope) + "." + name
 	}
 	if variable := rs.evalOpts.VariableStore.Get(name); variable != nil {
 		opts := variable.GetVariableOpts()
-		opts.Private = true
+		opts.EnvKeys = append(opts.EnvKeys, keys...)
+		opts.EnvKeyEvaluated = opts.EnvKeyEvaluated || evaluated
 		variable.SetVariableOpts(opts)
 	}
 }

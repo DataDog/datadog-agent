@@ -58,3 +58,30 @@ func TestRuleContextDictionaryValues(t *testing.T) {
 		})
 	}
 }
+
+// The variables read from environment variables are serialized only when they
+// are all listed in `envs_with_value`, and none is evaluated per event.
+func TestVariablesEnvValues(t *testing.T) {
+	scrubber, err := utils.NewScrubber(nil, nil)
+	require.NoError(t, err)
+	scrubber.WithEnvsWithValue([]string{"PATH"})
+
+	store := &eval.VariableStore{}
+	for name, opts := range map[string]eval.VariableOpts{
+		"plain":     {},
+		"listed":    {EnvKeys: []string{"PATH"}},
+		"unlisted":  {EnvKeys: []string{"TOKEN"}},
+		"mixed":     {EnvKeys: []string{"PATH", "TOKEN"}},
+		"evaluated": {EnvKeyEvaluated: true},
+	} {
+		store.Add(name, eval.NewStringVariable("value", opts))
+	}
+	rule := &rules.Rule{Rule: &eval.Rule{Opts: &eval.Opts{VariableStore: store}}}
+
+	variables := newVariablesContext(model.NewFakeEvent(), rule, "", scrubber)
+	assert.Equal(t, Variables{"plain": "value", "listed": "value"}, variables)
+
+	// without the list, none of them is serialized
+	variables = newVariablesContext(model.NewFakeEvent(), rule, "", nil)
+	assert.Equal(t, Variables{"plain": "value"}, variables)
+}

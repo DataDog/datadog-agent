@@ -501,11 +501,11 @@ func NewBaseEventSerializer(event *model.Event, rule *rules.Rule, scrubber *util
 	s := &BaseEventSerializer{
 		EventContextSerializer: EventContextSerializer{
 			Name:        eventType.String(),
-			Variables:   newVariablesContext(event, rule, ""),
+			Variables:   newVariablesContext(event, rule, "", scrubber),
 			RuleContext: newRuleContext(event, rule, scrubber),
 			Source:      event.Source,
 		},
-		ProcessContextSerializer: newProcessContextSerializer(pc, event, rule),
+		ProcessContextSerializer: newProcessContextSerializer(pc, event, rule, scrubber),
 		Date:                     utils.NewEasyjsonTime(event.ResolveEventTime()),
 	}
 
@@ -606,7 +606,17 @@ func maskDictionaryValue(expr string, pos eval.MatchingValuePos, scrubber *utils
 // maskedValue replaces a value that isn't serialized
 const maskedValue = "********"
 
-func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (variables Variables) {
+// isEnvValueHidden returns whether the value of a variable read from the
+// environment variables of a process isn't serialized: one of them is evaluated
+// per event, or isn't listed in envs_with_value
+func isEnvValueHidden(opts eval.VariableOpts, scrubber *utils.Scrubber) bool {
+	if opts.EnvKeyEvaluated {
+		return true
+	}
+	return slices.ContainsFunc(opts.EnvKeys, func(key string) bool { return !scrubber.IsEnvWithValue(key) })
+}
+
+func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string, secScrubber *utils.Scrubber) (variables Variables) {
 	if rule != nil && rule.Opts != nil && rule.Opts.VariableStore != nil {
 		store := rule.Opts.VariableStore
 		for name, variable := range store.Variables {
@@ -624,8 +634,9 @@ func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (varia
 				continue
 			}
 
-			// Skip private variables
-			if variable.GetVariableOpts().Private {
+			// Skip private variables, and the ones read from environment
+			// variables whose values aren't serialized
+			if opts := variable.GetVariableOpts(); opts.Private || isEnvValueHidden(opts, secScrubber) {
 				continue
 			}
 
