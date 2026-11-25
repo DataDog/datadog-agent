@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
@@ -407,6 +408,26 @@ func TestRepairDirectoryDifferentCasing(t *testing.T) {
 	assert.NoError(t, err)
 
 	verifyDirectoryContent(t, targetDir, sourceFiles)
+}
+
+func TestRepairDirectoryDifferentCasingDifferentContent(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("repairDirectory only runs on Windows, which has a case insensitive file system")
+	}
+	sourceFiles := map[string]string{
+		"file1.txt": "content1",
+	}
+	targetFiles := map[string]string{
+		"FILE1.txt": "other content",
+	}
+
+	sourceDir := createTestDirectory(t, sourceFiles)
+	targetDir := createTestDirectory(t, targetFiles)
+
+	err := repairDirectory(sourceDir, targetDir)
+	assert.Error(t, err)
+
+	verifyDirectoryContent(t, targetDir, targetFiles)
 }
 
 // This test is used to verify that the repository can handle external packages that are symlinked.

@@ -584,9 +584,9 @@ func buildFileMap(rootPath string) (map[string]struct{}, error) {
 // repairDirectory compares files between source and target directories,
 // copying any missing files from source to target. Extra files in target are left in place.
 // It preserves the directory structure and file permissions.
-// For simplicity, on Windows it is case sensitive although the file system is
-// case insensitive but it's not an issue since the filesystem preserves casing
-// and the OCI casing will not change.
+// Extra files are detected case sensitively, so on Windows a file whose name
+// differs only by case is reported as extra, but it is still compared with the
+// source file and never overwritten.
 func repairDirectory(sourcePath, targetPath string) error {
 	// Build maps of source and target files
 	sourceFiles, err := buildFileMap(sourcePath)
@@ -632,11 +632,14 @@ func repairDirectory(sourcePath, targetPath string) error {
 			return os.MkdirAll(targetFilePath, info.Mode())
 		}
 
-		// Check if file exists in target
-		_, exists := targetFiles[relPath]
-		if !exists {
+		// Check if file exists in target, with the file system case semantics
+		_, err = os.Lstat(targetFilePath)
+		if errors.Is(err, fs.ErrNotExist) {
 			// File doesn't exist in target, copy it
 			return copyFile(path, targetFilePath)
+		}
+		if err != nil {
+			return fmt.Errorf("failed to stat target file: %w", err)
 		}
 
 		// File exists, compare content
