@@ -89,8 +89,9 @@ impl ProcessManager {
         self.start_until(exit_tx, &mut never).await;
     }
 
-    /// Starts the auto-start processes. Returns true if `shutdown` resolved first. The pass then
-    /// stops, and processes it did not reach stay `Created`.
+    /// Starts the auto-start processes. Returns true if `shutdown` resolved first or the
+    /// process-wide stop flag is set. The pass then stops, and processes it did not reach stay
+    /// `Created`.
     async fn start_until<F: Future<Output = ()>>(
         &self,
         exit_tx: &mpsc::Sender<ExitEvent>,
@@ -116,9 +117,7 @@ impl ProcessManager {
         match proc.spawn(exit_tx.clone()) {
             Ok(()) => Ok(()),
             Err(e) => {
-                // A spawn cut short by a stop is not a critical failure. The daemon is stopping
-                // and must still exit 0.
-                if proc.config().exit_with_supervisor && !crate::stop::stop_requested_flag() {
+                if proc.config().exit_with_supervisor {
                     warn!("[{}] critical process failed to start", proc.name());
                     self.request_supervisor_exit(proc.name(), SPAWN_FAILURE_EXIT_CODE);
                 }
@@ -158,7 +157,12 @@ impl ProcessManager {
     }
 
     /// Runs until `shutdown` resolves. Create `shutdown` before [`ProcessManager::new`] to keep
-    /// a stop request that arrives while the catalog loads.
+    /// a stop request that arrives while the catalog loads. That holds on Unix only. On Windows,
+    /// `shutdown_signal` registers Ctrl+C only when it is first polled, so a Ctrl+C before that is
+    /// not caught. A service stop is kept. The stop flag is process-wide and never cleared, so a
+    /// stop recorded by an earlier run also ends this one.
+    /// The flag is checked only during startup. After startup, only `shutdown` ends the run, so a
+    /// caller that passes its own future must watch for signals itself.
     pub async fn run_with_shutdown(&self, shutdown: impl Future<Output = ()>) -> Result<i32> {
         tokio::pin!(shutdown);
 
@@ -177,19 +181,18 @@ impl ProcessManager {
 
         let (exit_tx, mut exit_rx) = mpsc::channel::<ExitEvent>(256);
         let (restart_tx, mut restart_rx) = mpsc::channel::<String>(256);
-        let mut external_shutdown = self.start_until(&exit_tx, &mut shutdown).await;
+        let external_shutdown = self.start_until(&exit_tx, &mut shutdown).await;
         if external_shutdown {
             self.shutting_down.store(true, Ordering::SeqCst);
             info!("stop requested during startup, not starting the remaining processes");
         }
-        while !external_shutdown {
-            if self.supervisor_exit_code().is_some() {
+        loop {
+            if external_shutdown || self.supervisor_exit_code().is_some() {
                 break;
             }
             tokio::select! {
                 biased;
                 _ = &mut shutdown => {
-                    external_shutdown = true;
                     self.shutting_down.store(true, Ordering::SeqCst);
                     break;
                 }
@@ -218,9 +221,7 @@ impl ProcessManager {
             }
         }
 
-        if !external_shutdown {
-            self.shutting_down.store(true, Ordering::SeqCst);
-        }
+        self.shutting_down.store(true, Ordering::SeqCst);
         info!("dd-procmgrd shutting down");
 
         // Unblock mutating RPCs awaiting oneshot replies before graceful gRPC stop.
@@ -240,11 +241,8 @@ impl ProcessManager {
         };
 
         self.shutdown().await;
-        let code = if external_shutdown {
-            0
-        } else {
-            self.supervisor_exit_code().unwrap_or(0)
-        };
+        // A stop during startup must keep a critical spawn failure recorded before it.
+        let code = self.supervisor_exit_code().unwrap_or(0);
         finish_run(socket_cleanup, code).await
     }
 
@@ -881,8 +879,9 @@ impl ProcessManager {
     }
 
     /// Evaluates each selected process's start gate and spawns it unless a hold applies. Returns
-    /// `None` if `shutdown` resolves first. It is polled before each process and again after the
-    /// gate read, because a FIFO gate can block that read until a writer releases it.
+    /// `None` if `shutdown` resolves first or the process-wide stop flag is set. It is polled
+    /// before each process and again after the gate read, and after each spawn. A FIFO gate can
+    /// block the read until a writer releases it.
     async fn run_start_pass<F: Future<Output = ()>>(
         &self,
         procs: &mut [ManagedProcess],
@@ -922,8 +921,9 @@ impl ProcessManager {
         Some(decided)
     }
 
-    /// Start pass for create and reload. A stop request does not end the pass, but its
-    /// filesystem calls still return early on a stop.
+    /// Start pass for create and reload. It does not watch for a stop, so a stop request
+    /// that arrives during it does not end the pass. Its gate reads and spawns are blocking
+    /// calls and run to completion.
     async fn run_start_pass_uninterrupted(
         &self,
         procs: &mut [ManagedProcess],
@@ -940,14 +940,16 @@ impl ProcessManager {
 
 /// Polls `shutdown` once without waiting. Returns true if it has resolved.
 ///
-/// With `honor_flag`, the stop flag counts too. It covers a signal that arrived while a filesystem
-/// call blocked the runtime, before tokio's driver readied the shutdown future. Create and reload
-/// pass `false`, since a stop does not interrupt them.
+/// With `honor_flag`, the stop flag counts too. It covers a signal recorded before the watcher
+/// task signalled the shutdown future, and a stop recorded before the handlers were registered.
+/// Create and reload pass `false`, since a stop does not interrupt them.
 async fn stop_requested<F: Future<Output = ()>>(
     shutdown: &mut Pin<&mut F>,
     honor_flag: bool,
 ) -> bool {
     if honor_flag && crate::stop::stop_requested_flag() {
+        // The main thread may see the flag before the watcher logs it, so log it here too.
+        crate::stop::log_received(crate::stop::stop_signal_name());
         return true;
     }
     tokio::select! {
@@ -1308,6 +1310,43 @@ mod tests {
 
         stopping.abort();
         test_helpers::cleanup_process(pid);
+        Ok(())
+    }
+
+    /// A shutdown future that resolves on its `n`th poll. `stop_requested` polls it once per
+    /// stop check, so this stops a start pass at a chosen check.
+    fn resolves_on_poll(n: usize) -> impl Future<Output = ()> {
+        let mut polls = 0;
+        std::future::poll_fn(move |_cx| {
+            polls += 1;
+            if polls >= n {
+                std::task::Poll::Ready(())
+            } else {
+                std::task::Poll::Pending
+            }
+        })
+    }
+
+    #[tokio::test]
+    async fn test_start_until_checks_stop_before_gate_and_after_spawn() -> anyhow::Result<()> {
+        // One auto-start process has three checks: before it, after its gate read, and after
+        // its spawn. Stopping at check 1 or 2 spawns nothing. Stopping at check 3 spawns it.
+        for (poll, spawned) in [(1, false), (2, false), (3, true)] {
+            let mgr = ProcessManager::new(loader(vec![sleep_def("svc")]), uuid_gen());
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+            let mut shutdown = std::pin::pin!(resolves_on_poll(poll));
+
+            assert!(
+                mgr.start_until(&exit_tx, &mut shutdown).await,
+                "poll {poll}: start_until should report the stop"
+            );
+            let procs = mgr.processes().await;
+            let running = procs[0].is_running();
+            if let Some(pid) = procs[0].pid() {
+                test_helpers::cleanup_process(pid);
+            }
+            assert_eq!(running, spawned, "poll {poll}: wrong spawn state");
+        }
         Ok(())
     }
 

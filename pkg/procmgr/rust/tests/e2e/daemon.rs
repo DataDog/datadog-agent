@@ -74,8 +74,139 @@ fn test_cli_daemon_shutdown_stops_children() {
     );
 }
 
+/// Creates a named pipe at `path`, reporting the OS error on failure.
+#[cfg(unix)]
+fn make_fifo(path: &std::path::Path) {
+    use std::os::unix::ffi::OsStrExt;
+    let c = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path has no NUL");
+    // SAFETY: `c` is a NUL-terminated path that outlives the call, and mkfifo does not keep the
+    // pointer.
+    let rc = unsafe { libc::mkfifo(c.as_ptr(), 0o600) };
+    assert_eq!(
+        rc,
+        0,
+        "mkfifo {}: {}",
+        path.display(),
+        std::io::Error::last_os_error()
+    );
+}
+
+/// Owns the thread that opens a FIFO for writing. Dropping the guard releases the writer and
+/// waits for it, so a panic in the test does not leave the thread blocked in open(2).
+#[cfg(unix)]
+struct FifoWriter {
+    path: std::path::PathBuf,
+    release: Option<std::sync::mpsc::Sender<()>>,
+    handle: Option<std::thread::JoinHandle<()>>,
+}
+
+#[cfg(unix)]
+impl FifoWriter {
+    /// Spawns a thread that opens `path` for writing, reports on `opened`, waits for `finish`,
+    /// then runs `body` with the open file.
+    fn spawn(
+        path: std::path::PathBuf,
+        opened: std::sync::mpsc::Sender<()>,
+        body: impl FnOnce(std::fs::File) + Send + 'static,
+    ) -> Self {
+        let (release, release_rx) = std::sync::mpsc::channel::<()>();
+        let open_path = path.clone();
+        let handle = std::thread::spawn(move || {
+            let file = std::fs::OpenOptions::new()
+                .write(true)
+                .open(&open_path)
+                .expect("open FIFO for writing");
+            let _ = opened.send(());
+            // A dropped sender makes recv fail, so the writer returns without writing.
+            if release_rx.recv().is_ok() {
+                body(file);
+            }
+        });
+        Self {
+            path,
+            release: Some(release),
+            handle: Some(handle),
+        }
+    }
+
+    /// Releases the writer and waits for it. Use on the normal path.
+    fn finish(&mut self) {
+        if let Some(release) = self.release.take() {
+            let _ = release.send(());
+        }
+        if let Some(handle) = self.handle.take() {
+            handle.join().expect("writer thread panicked");
+        }
+    }
+}
+
+#[cfg(unix)]
+impl Drop for FifoWriter {
+    fn drop(&mut self) {
+        use std::os::unix::fs::OpenOptionsExt;
+        // Dropping the sender releases the writer without writing.
+        drop(self.release.take());
+        // After finish() there is nothing left to unblock or join.
+        let Some(handle) = self.handle.take() else {
+            return;
+        };
+        // Keep the read end open until the writer is joined, so a writer still in open(2)
+        // completes.
+        let _reader = std::fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NONBLOCK)
+            .open(&self.path);
+        let _ = handle.join();
+    }
+}
+
+/// Kills a child's process group when dropped, unless disarmed. The child leads its own group.
+#[cfg(unix)]
+struct KillGroupOnDrop(Option<u32>);
+
+#[cfg(unix)]
+impl KillGroupOnDrop {
+    /// Stops the guard from killing the group. Call it once the child has exited, since the PID
+    /// may be reused after that.
+    fn disarm(&mut self) {
+        self.0 = None;
+    }
+}
+
+#[cfg(unix)]
+impl Drop for KillGroupOnDrop {
+    fn drop(&mut self) {
+        if let Some(pid) = self.0 {
+            // A pid of 0 or 1 would name this test's own group or every process we can signal.
+            if pid > 1 {
+                // SAFETY: a negative PID targets only the process group led by the child.
+                unsafe { libc::kill(-(pid as libc::pid_t), libc::SIGKILL) };
+            }
+        }
+    }
+}
+
+/// PID of a spawned process, read from its `[name] spawned (pid=N, ...)` log line.
+#[cfg(unix)]
+fn spawned_pid(daemon: &DaemonHandle, name: &str) -> u32 {
+    let prefix = format!("[{name}] spawned (pid=");
+    let line = daemon
+        .captured_logs()
+        .into_iter()
+        .find(|l| l.contains(&prefix))
+        .unwrap_or_else(|| panic!("no spawn line for {name}"));
+    let rest = &line[line.find(&prefix).expect("prefix") + prefix.len()..];
+    rest.split(|c: char| !c.is_ascii_digit())
+        .next()
+        .expect("pid digits")
+        .parse()
+        .expect("pid is a number")
+}
+
 /// A SIGTERM during startup must end the daemon cleanly and start nothing after the gate. The FIFO
-/// gate holds startup open until the test releases it after the signal.
+/// gate holds startup open until the test releases it after the signal. A process started before
+/// the gate must be stopped during teardown. This covers the signal-during-startup path only. The
+/// window before the runtime exists (the early handler) needs a PID 1 or exec-based test.
 #[cfg(unix)]
 #[test]
 fn test_cli_daemon_shutdown_during_startup_exits_cleanly() {
@@ -84,17 +215,13 @@ fn test_cli_daemon_shutdown_during_startup_exits_cleanly() {
 
     let env = TestEnv::new();
     let gate = env.env_root().join("gate.fifo");
-    let gate_c = std::ffi::CString::new(gate.to_str().expect("utf-8 path")).expect("no NUL");
-    assert_eq!(
-        unsafe { libc::mkfifo(gate_c.as_ptr(), 0o600) },
-        0,
-        "mkfifo failed"
-    );
+    make_fifo(&gate);
     let env = env
+        .with_config("earlier", &format!("{}auto_start: true\n", test_helpers::sleep_config_yaml()))
         .with_config(
             "gated",
             &format!(
-                "command: {}\nauto_start: true\ncondition_config_any:\n  - path: {}\n    keys:\n      - apm_config.enabled\n",
+                "command: {}\nauto_start: true\nafter:\n  - earlier\ncondition_config_any:\n  - path: {}\n    keys:\n      - apm_config.enabled\n",
                 test_helpers::true_cmd().0,
                 gate.display()
             ),
@@ -110,38 +237,60 @@ fn test_cli_daemon_shutdown_during_startup_exits_cleanly() {
     // A helper thread opens the FIFO for writing. The blocking open returns once the daemon
     // opens it for reading, and the daemon's gate read then waits until the thread drops the
     // writer. Dropping it early would leave a daemon that has not opened yet blocked forever.
-    let (release_tx, release_rx) = std::sync::mpsc::channel::<()>();
     let (opened_tx, opened_rx) = std::sync::mpsc::channel::<()>();
-    let writer_path = gate.clone();
-    let writer = std::thread::spawn(move || {
-        let mut writer = std::fs::OpenOptions::new()
-            .write(true)
-            .open(&writer_path)
-            .expect("open gate fifo for writing");
-        let _ = opened_tx.send(());
-        let _ = release_rx.recv();
+    let mut gate_writer = FifoWriter::spawn(gate.clone(), opened_tx, |mut writer| {
         // Open the gate, so "gated" would start if the daemon did not check for the stop. The
         // daemon may have exited already, so a closed reader is not an error here.
         let _ = std::io::Write::write_all(&mut writer, b"apm_config:\n  enabled: true\n");
-        drop(writer);
     });
+    // Declared before the daemon, so on a panic the daemon is stopped before the child.
+    let mut kill_earlier = KillGroupOnDrop(None);
     let socket = env.env_root().join("daemon.sock");
     let mut daemon = DaemonHandle::start(env.config_dir(), &socket);
     // The open returns once the daemon reads the gate, which stays blocked while the writer
     // is open.
     opened_rx
         .recv_timeout(Duration::from_secs(10))
-        .expect("daemon never opened the gate fifo");
+        .unwrap_or_else(|e| {
+            panic!(
+                "daemon never opened the gate fifo ({e})\n{}",
+                daemon.captured_logs().join("\n")
+            )
+        });
+    // "earlier" is ordered before the gate, so it has spawned. Its log line reaches the capture
+    // on a reader thread, so wait for it before reading the PID.
+    assert!(
+        daemon.wait_for_log("[earlier] spawned", Duration::from_secs(10)),
+        "earlier never spawned\n{}",
+        daemon.captured_logs().join("\n")
+    );
+    let earlier_pid = spawned_pid(&daemon, "earlier");
+    // The daemon handle only kills the daemon, so kill the child's process group if a later
+    // assertion panics. The guard is disarmed once the child is confirmed gone.
+    kill_earlier.0 = Some(earlier_pid);
+    assert!(
+        pid_is_alive(earlier_pid),
+        "earlier PID {earlier_pid} should be alive"
+    );
 
     daemon.send_signal(Signal::SIGTERM);
-    // Give the handler time to record the stop, then let the gate read finish with the gate
-    // open. The start pass must still see the stop before it spawns anything.
-    std::thread::sleep(Duration::from_millis(300));
-    let _ = release_tx.send(());
-    writer.join().expect("writer thread panicked");
+    // Wait until the watcher logs the signal, then let the gate read finish with the gate open.
+    // The start pass must still see the stop before it spawns anything.
+    assert!(
+        daemon.wait_for_log("received SIGTERM", Duration::from_secs(10)),
+        "daemon did not record the stop request\n{}",
+        daemon.captured_logs().join("\n")
+    );
+    gate_writer.finish();
     let status = daemon
         .wait_for_exit(Duration::from_secs(10))
         .expect("daemon did not exit after SIGTERM during the start pass");
+    // Disarm the group guard only once the child is confirmed gone, so a failed assertion below
+    // cannot signal a group whose PID may have been reused.
+    let earlier_gone = wait_for_pid_gone(earlier_pid, Duration::from_secs(5));
+    if earlier_gone {
+        kill_earlier.disarm();
+    }
     assert_eq!(
         status.code(),
         Some(0),
@@ -150,7 +299,8 @@ fn test_cli_daemon_shutdown_during_startup_exits_cleanly() {
     assert_eq!(status.signal(), None, "daemon was killed by a signal");
     assert!(
         daemon.wait_for_log("dd-procmgrd stopped (exit code 0)", Duration::from_secs(10)),
-        "daemon did not log its final stop line"
+        "daemon did not log its final stop line\n{}",
+        daemon.captured_logs().join("\n")
     );
     // The gate opened, so "gated" would have started without the check after the gate read.
     assert_eq!(
@@ -162,6 +312,89 @@ fn test_cli_daemon_shutdown_during_startup_exits_cleanly() {
         daemon.count_log_matches("[later] spawned"),
         0,
         "a process after the gate started after a stop during the start pass"
+    );
+    assert_eq!(
+        daemon.count_log_matches("stop requested during startup"),
+        1,
+        "the pending stop should end the start pass"
+    );
+    assert!(
+        earlier_gone,
+        "earlier PID {earlier_pid} should be stopped by teardown after a stop during startup"
+    );
+}
+
+/// A critical process that fails to spawn before a startup stop keeps its failure exit code. The
+/// gated process after it holds the start pass open until the test sends SIGTERM.
+#[cfg(unix)]
+#[test]
+fn test_cli_daemon_startup_stop_keeps_critical_spawn_failure_exit_code() {
+    use nix::sys::signal::Signal;
+    use std::os::unix::process::ExitStatusExt;
+
+    let env = TestEnv::new();
+    let gate = env.env_root().join("gate.fifo");
+    make_fifo(&gate);
+    let env = env
+        .with_config(
+            "critical",
+            "command: /nonexistent/dd-procmgr-missing-binary\nauto_start: true\nexit_with_supervisor: true\n",
+        )
+        .with_config(
+            "gated",
+            &format!(
+                "command: {}\nauto_start: true\nafter:\n  - critical\ncondition_config_any:\n  - path: {}\n    keys:\n      - apm_config.enabled\n",
+                test_helpers::true_cmd().0,
+                gate.display()
+            ),
+        );
+    let (opened_tx, opened_rx) = std::sync::mpsc::channel::<()>();
+    let mut gate_writer = FifoWriter::spawn(gate.clone(), opened_tx, |mut writer| {
+        let _ = std::io::Write::write_all(&mut writer, b"apm_config:\n  enabled: true\n");
+    });
+    let socket = env.env_root().join("daemon.sock");
+    let mut daemon = DaemonHandle::start(env.config_dir(), &socket);
+    opened_rx
+        .recv_timeout(Duration::from_secs(10))
+        .unwrap_or_else(|e| {
+            panic!(
+                "daemon never opened the gate fifo ({e})\n{}",
+                daemon.captured_logs().join("\n")
+            )
+        });
+    assert!(
+        daemon.wait_for_log("critical process failed to start", Duration::from_secs(10)),
+        "critical spawn failure was not logged\n{}",
+        daemon.captured_logs().join("\n")
+    );
+
+    daemon.send_signal(Signal::SIGTERM);
+    assert!(
+        daemon.wait_for_log("received SIGTERM", Duration::from_secs(10)),
+        "daemon did not record the stop request\n{}",
+        daemon.captured_logs().join("\n")
+    );
+    gate_writer.finish();
+    let status = daemon
+        .wait_for_exit(Duration::from_secs(10))
+        .expect("daemon did not exit after SIGTERM");
+    // 1 is the critical spawn failure exit code. A stop must not replace it with 0.
+    assert_eq!(
+        status.code(),
+        Some(1),
+        "daemon should keep the critical spawn failure exit code, got {status:?}"
+    );
+    assert_eq!(status.signal(), None, "daemon was killed by a signal");
+    // The reader threads may still hold the last lines after the exit, so wait for the final one.
+    assert!(
+        daemon.wait_for_log("dd-procmgrd stopped (exit code 1)", Duration::from_secs(10)),
+        "daemon did not log its final stop line\n{}",
+        daemon.captured_logs().join("\n")
+    );
+    assert_eq!(
+        daemon.count_log_matches("[gated] spawned"),
+        0,
+        "gated process started after a stop during the start pass"
     );
     assert_eq!(
         daemon.count_log_matches("stop requested during startup"),
@@ -180,25 +413,11 @@ fn test_cli_daemon_shutdown_during_catalog_load_starts_nothing() {
 
     let env = TestEnv::new();
     let blocked = env.config_dir().join("blocked.yaml");
-    let blocked_c = std::ffi::CString::new(blocked.to_str().expect("utf-8 path")).expect("no NUL");
-    assert_eq!(
-        unsafe { libc::mkfifo(blocked_c.as_ptr(), 0o600) },
-        0,
-        "mkfifo failed"
-    );
-
+    make_fifo(&blocked);
     // The writer opens the FIFO, which returns once the loader opens it for reading. It then
     // waits for the release, so the daemon is still inside ProcessManager::new when SIGTERM lands.
     let (opened_tx, opened_rx) = std::sync::mpsc::channel::<()>();
-    let (release_tx, release_rx) = std::sync::mpsc::channel::<()>();
-    let writer_path = blocked.clone();
-    let writer = std::thread::spawn(move || {
-        let mut writer = std::fs::OpenOptions::new()
-            .write(true)
-            .open(&writer_path)
-            .expect("open catalog fifo for writing");
-        let _ = opened_tx.send(());
-        let _ = release_rx.recv();
+    let mut catalog_writer = FifoWriter::spawn(blocked.clone(), opened_tx, |mut writer| {
         let config = format!(
             "command: {}\nauto_start: true\n",
             test_helpers::true_cmd().0
@@ -210,14 +429,22 @@ fn test_cli_daemon_shutdown_during_catalog_load_starts_nothing() {
     let mut daemon = DaemonHandle::start(env.config_dir(), &socket);
     opened_rx
         .recv_timeout(Duration::from_secs(10))
-        .expect("daemon never opened the catalog fifo");
+        .unwrap_or_else(|e| {
+            panic!(
+                "daemon never opened the catalog fifo ({e})\n{}",
+                daemon.captured_logs().join("\n")
+            )
+        });
 
     daemon.send_signal(Signal::SIGTERM);
-    // Give the handler time to record the stop, then let the catalog read finish. The loaded
+    // Wait until the watcher logs the signal, then let the catalog read finish. The loaded
     // process must still not start.
-    std::thread::sleep(Duration::from_millis(300));
-    let _ = release_tx.send(());
-    writer.join().expect("writer thread panicked");
+    assert!(
+        daemon.wait_for_log("received SIGTERM", Duration::from_secs(10)),
+        "daemon did not record the stop request\n{}",
+        daemon.captured_logs().join("\n")
+    );
+    catalog_writer.finish();
     let status = daemon
         .wait_for_exit(Duration::from_secs(10))
         .expect("daemon did not exit after SIGTERM during catalog load");
@@ -230,7 +457,8 @@ fn test_cli_daemon_shutdown_during_catalog_load_starts_nothing() {
     // The reader threads may still hold the last lines after the exit, so wait for the final one.
     assert!(
         daemon.wait_for_log("dd-procmgrd stopped (exit code 0)", Duration::from_secs(10)),
-        "daemon did not log its final stop line"
+        "daemon did not log its final stop line\n{}",
+        daemon.captured_logs().join("\n")
     );
     assert_eq!(
         daemon.count_log_matches("[blocked] spawned"),

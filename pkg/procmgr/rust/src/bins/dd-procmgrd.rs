@@ -51,7 +51,8 @@ fn run() -> anyhow::Result<i32> {
 
     let runtime = tokio::runtime::Runtime::new()?;
     runtime.block_on(async {
-        // Installed before the catalog loads, so a stop sent during that load is kept.
+        // Installed before the catalog loads. The watcher then logs a stop sent during that load,
+        // even while the load blocks the main thread.
         let shutdown = platform::shutdown_signal();
         let loader = Arc::new(YamlConfigLoader::from_env());
         let mgr = ProcessManager::new(loader, Arc::new(V4UuidGenerator));
