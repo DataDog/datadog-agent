@@ -76,8 +76,14 @@ func TestFindProgramAhead(t *testing.T) {
 			hook: HookPrograms{Filters: []Filter{ownFilter, {Name: "cil_from_netdev-eth0", ProgramID: 7, Priority: 20}}},
 		},
 		{
-			name: "cilium filter with the same priority value",
-			hook: HookPrograms{Filters: []Filter{{Name: "cil_from_netdev-eth0", ProgramID: 7, Priority: filterPriority}, ownFilter}},
+			name:     "cilium filter with the same priority value that runs first",
+			hook:     HookPrograms{Filters: []Filter{{Name: "cil_from_netdev-eth0", ProgramID: 7, Priority: filterPriority}, ownFilter}},
+			expected: ProgramAhead{Name: "cil_from_netdev-eth0", Reason: BlindReasonCiliumTCFilter},
+			found:    true,
+		},
+		{
+			name: "cilium filter with the same priority value that runs last",
+			hook: HookPrograms{Filters: []Filter{ownFilter, {Name: "cil_from_netdev-eth0", ProgramID: 7, Priority: filterPriority}}},
 		},
 		{
 			name: "filter of another chain",

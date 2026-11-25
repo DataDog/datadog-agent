@@ -89,9 +89,13 @@ func FindProgramAhead(mode AttachMode, hook HookPrograms, filterPriority uint16,
 		slices.SortStableFunc(filters, func(a, b Filter) int {
 			return cmp.Compare(a.Priority, b.Priority)
 		})
-		for _, filter := range filters {
+		// filters of the same priority run in dump order, so the ones dumped before an own filter run first
+		own := slices.IndexFunc(filters, func(filter Filter) bool {
+			return filter.Priority == filterPriority && isOwn(filter.ProgramID)
+		})
+		for i, filter := range filters {
 			// other chains only run when a chain 0 filter jumps to them; a matching classic filter also ends the chain
-			if filter.Chain == 0 && filter.Priority < filterPriority && !isOwn(filter.ProgramID) {
+			if filter.Chain == 0 && (filter.Priority < filterPriority || i < own) && !isOwn(filter.ProgramID) {
 				ahead = append(ahead, newProgramAhead(filter.Name, BlindReasonCiliumTCFilter, BlindReasonUnknownTCFilter))
 			}
 		}
