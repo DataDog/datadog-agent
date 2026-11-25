@@ -34,6 +34,9 @@ cnm-perf-lab:
     # release: A = latest 7.x GA, B = the anchor release, C = main's nightly, each pinned to a digest at the start.
     # lab: the lab's own variant builds. CNM_PERF_LAB_REF_A, _B or _C (an image ref) overrides a release slot.
     CNM_PERF_LAB_VARIANTS: release
+    # Keep time for after_script within the job timeout: Runner skips it when the script uses the whole budget
+    RUNNER_SCRIPT_TIMEOUT: 6h20m
+    RUNNER_AFTER_SCRIPT_TIMEOUT: 5m
   before_script:
     - dda self dep sync -f legacy-tasks
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY

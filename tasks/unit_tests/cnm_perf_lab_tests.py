@@ -282,6 +282,40 @@ class TestRun(_InTempDir):
         self.assertEqual(len(series), 1)  # the NaN mean is dropped
         self.assertIn("variant_digest:" + "a" * 12, series[0]["tags"])
 
+    def test_stale_results_from_an_earlier_run_dont_pass_for_this_one(self):
+        # An earlier run left a success marker and metrics behind; this run uploaded neither
+        stale = Path("cnm-perf-lab-results")
+        stale.mkdir()
+        (stale / "EXIT_CODE").write_text("0\n")
+        (stale / "agg.json").write_text(json.dumps({"kprobe": {"variants": {"A": {"sp_cores": {"mean": 1.0}}}}}))
+        aws = _FakeAws()
+        self._expect_start(aws)
+        invocation = {"CommandId": COMMAND, "InstanceId": INSTANCE}
+        ssm, s3 = aws.stub("ssm"), aws.stub("s3")
+        ssm.add_response("get_command_invocation", {"Status": "Success"}, invocation)
+        log_key = {"Bucket": lab.BUCKET, "Key": f"runs/{self.RUN_ID}/driver.log"}
+        s3.add_response("get_object", {"Body": _body("a\n")}, log_key)
+        s3.add_response("get_object", {"Body": _body("a\n")}, log_key)
+        self._expect_results(aws, f"runs/{self.RUN_ID}/", {"driver.log": "a\n"})
+        ssm.add_response("get_command_invocation", {"Status": "Success"}, invocation)
+        self._expect_results(aws, f"ssm/{self.RUN_ID}/", {})
+        with patch("tasks.libs.common.datadog_api.send_metrics") as send, self.assertRaises(Exit):
+            self._run(aws)
+        aws.assert_done()
+        send.assert_not_called()
+        self.assertFalse((stale / "agg.json").exists())
+
+    def test_download_refuses_keys_outside_the_results_dir(self):
+        aws = _FakeAws()
+        aws.stub("s3").add_response(
+            "list_objects_v2",
+            {"Contents": [{"Key": "runs/r/../../escaped"}]},
+            {"Bucket": lab.BUCKET, "Prefix": "runs/r/"},
+        )
+        with self.assertRaises(Exit):
+            lab._download_prefix(aws, "runs/r/", Path("out"))
+        self.assertFalse(Path("escaped").exists())
+
     def test_timed_out_run_stops_the_driver(self):
         aws = _FakeAws()
         self._expect_start(aws)
@@ -374,6 +408,21 @@ class TestCancel(_InTempDir):
                 "Comment": "cnm-perf-lab cancel",
                 "Parameters": {"commands": ANY},
             },
+        )
+        self._cancel(aws)
+        aws.assert_done()
+
+    def test_retries_an_invocation_ssm_hasnt_registered_yet(self):
+        lab.MARKER.write_text(f"{INSTANCE} {COMMAND}\n")
+        aws = _FakeAws()
+        ssm = aws.stub("ssm")
+        invocation = {"CommandId": COMMAND, "InstanceId": INSTANCE}
+        ssm.add_client_error("get_command_invocation", "InvocationDoesNotExist", expected_params=invocation)
+        ssm.add_response("get_command_invocation", {"Status": "InProgress"}, invocation)
+        ssm.add_response(
+            "send_command",
+            {"Command": {"CommandId": _cid("f")}},
+            {"InstanceIds": [INSTANCE], "DocumentName": "AWS-RunShellScript", "Comment": ANY, "Parameters": ANY},
         )
         self._cancel(aws)
         aws.assert_done()

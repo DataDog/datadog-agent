@@ -14,6 +14,7 @@ import json
 import math
 import os
 import shlex
+import shutil
 import time
 from pathlib import Path
 
@@ -236,11 +237,23 @@ def _print_driver_log_tail(aws: _Aws, run_id: str, seen: int) -> int:
 
 def _download_prefix(aws: _Aws, prefix: str, dest: Path) -> None:
     s3 = aws.client("s3")
+    root = dest.resolve()
     for page in s3.get_paginator("list_objects_v2").paginate(Bucket=BUCKET, Prefix=prefix):
         for obj in page.get("Contents", []):
-            target = dest / obj["Key"][len(prefix) :]
+            target = (dest / obj["Key"][len(prefix) :]).resolve()
+            if not target.is_relative_to(root) or target == root:
+                raise Exit(f"refusing to download {obj['Key']} outside {dest}", code=1)
             target.parent.mkdir(parents=True, exist_ok=True)
             s3.download_file(BUCKET, obj["Key"], str(target))
+
+
+def _fresh_dir(path: Path) -> None:
+    """Empty a results directory, so files from an earlier run can't pass for this one's."""
+    resolved = path.resolve()
+    if resolved == Path.cwd().resolve() or resolved in Path.cwd().resolve().parents:
+        raise Exit(f"results_dir {path} would empty the working directory", code=2)
+    shutil.rmtree(resolved, ignore_errors=True)
+    resolved.mkdir(parents=True)
 
 
 def _print_ssm_output(aws: _Aws, command_id: str, instance_id: str) -> None:
@@ -382,6 +395,7 @@ def _run_on_driver(aws, instance_id, run_id, mode, refs_key, check_ndq, results_
     print(f"run {run_id}: SSM command finished with status {status}")
 
     dest = Path(results_dir)
+    _fresh_dir(dest)
     _download_prefix(aws, f"runs/{run_id}/", dest)
     exit_code = (dest / "EXIT_CODE").read_text().strip() if (dest / "EXIT_CODE").exists() else "unknown"
     if status == "TimedOut":
@@ -417,8 +431,12 @@ def cancel(ctx: Context):
         return
     command_id = rest[0]
     # The run clears the cancel flag when it starts, so wait until it has started before setting it
+    status = "Pending"
     for _ in range(12):
-        status = aws.client("ssm").get_command_invocation(CommandId=command_id, InstanceId=instance_id)["Status"]
+        try:
+            status = aws.client("ssm").get_command_invocation(CommandId=command_id, InstanceId=instance_id)["Status"]
+        except aws.client("ssm").exceptions.InvocationDoesNotExist:
+            status = "Pending"  # SSM accepted the command but hasn't registered the invocation yet
         if status not in ("Pending", "Delayed"):
             break
         time.sleep(10)
