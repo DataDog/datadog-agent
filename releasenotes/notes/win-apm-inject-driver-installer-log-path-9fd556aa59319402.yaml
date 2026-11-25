@@ -1,0 +1,6 @@
+fixes:
+  - |
+    On Windows, the APM inject driver installer now writes its log to the
+    Datadog Installer temporary directory. Installing the
+    ``datadog-apm-inject`` package no longer fails when the ``TEMP``
+    directory of the calling process does not exist.
