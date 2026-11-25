@@ -24,8 +24,6 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
-
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/listener"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -135,15 +133,6 @@ func NewUnimplementedRemoteAgentServer(ipcComp ipc.Component, log log.Component,
 		return handler(ctx, req)
 	}
 
-	chainedInterceptor := func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		// first apply auth interceptor
-		authHandler := grpc_auth.UnaryServerInterceptor(grpcutil.StaticAuthInterceptor(remoteAgentServer.ipcComp.GetAuthToken()))
-		return authHandler(ctx, req, info, func(ctx context.Context, req any) (any, error) {
-			// then apply session ID interceptor
-			return sessionIDInterceptor(ctx, req, info, handler)
-		})
-	}
-
 	streamSessionIDInterceptor := func(srv any, stream grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		remoteAgentServer.sessionIDMutex.RLock()
 		sessionID := remoteAgentServer.sessionID
@@ -157,17 +146,17 @@ func NewUnimplementedRemoteAgentServer(ipcComp ipc.Component, log log.Component,
 		return handler(srv, stream)
 	}
 
-	chainedStreamInterceptor := func(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		authHandler := grpc_auth.StreamServerInterceptor(grpcutil.StaticAuthInterceptor(remoteAgentServer.ipcComp.GetAuthToken()))
-		return authHandler(srv, stream, info, func(srv any, stream grpc.ServerStream) error {
-			return streamSessionIDInterceptor(srv, stream, info, handler)
-		})
-	}
+	// Require mTLS: only connections presenting a certificate signed by the IPC CA
+	// complete the TLS handshake. The Core Agent dials with the IPC certificate,
+	// so it is admitted by construction, and the per-request bearer-token check
+	// becomes redundant.
+	serverTLSConfig := remoteAgentServer.ipcComp.GetTLSServerConfig()
+	serverTLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
 	serverOpts := []grpc.ServerOption{
-		grpc.Creds(credentials.NewTLS(remoteAgentServer.ipcComp.GetTLSServerConfig())),
-		grpc.UnaryInterceptor(chainedInterceptor),
-		grpc.StreamInterceptor(chainedStreamInterceptor),
+		grpc.Creds(credentials.NewTLS(serverTLSConfig)),
+		grpc.UnaryInterceptor(sessionIDInterceptor),
+		grpc.StreamInterceptor(streamSessionIDInterceptor),
 	}
 
 	remoteAgentServer.grpcServer = grpc.NewServer(serverOpts...)
