@@ -15,6 +15,7 @@ def _dd_strip_toolchain_impl(ctx):
     return [
         platform_common.ToolchainInfo(
             driver = ctx.attr.driver[DefaultInfo].files_to_run,
+            tree_driver = ctx.attr.tree_driver[DefaultInfo].files_to_run if ctx.attr.tree_driver else None,
             debug_is_directory = ctx.attr.debug_is_directory,
         ),
     ]
@@ -35,6 +36,14 @@ dd_strip_toolchain = rule(
             executable = True,
             allow_files = True,
             mandatory = True,
+        ),
+        "tree_driver": attr.label(
+            doc = """An executable accepting <input-tree> <stripped-out> <debug-out>
+            arguments that works at the tree (TreeArtifact) level.""",
+            cfg = "exec",
+            executable = True,
+            allow_files = True,
+            mandatory = False,
         ),
         "debug_is_directory": attr.bool(
             doc = "Whether the driver's debug-out argument is a directory (macOS .dSYM) rather than a file.",

@@ -13,6 +13,7 @@ DdStripInfo = provider(
         "debug_file": """File or Directory. The extracted debug information.
             A regular File on Linux (objcopy --only-keep-debug output) and
             Windows (the unstripped original), a Directory for macOS .dSYM
-            bundles.""",
+            bundles and for tree inputs, where one .dbg file per ELF in the
+            tree mirrors the tree layout (relpath + .dbg).""",
     },
 )
