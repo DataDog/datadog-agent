@@ -57,7 +57,7 @@ func (a *APMInjectExec) WithSilent(silent bool) *APMInjectExec {
 	return a
 }
 
-// WithLogPath sets the log file path.
+// WithLogPath sets the directory where the driver installer writes its log file.
 func (a *APMInjectExec) WithLogPath(logPath string) *APMInjectExec {
 	a.logPath = logPath
 	return a
