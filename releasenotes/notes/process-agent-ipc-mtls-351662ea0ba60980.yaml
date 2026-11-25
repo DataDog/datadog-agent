@@ -1,0 +1,8 @@
+---
+security:
+  - |
+    The process-agent, security-agent, OTel Agent and host-profiler IPC API
+    servers now require mutual TLS: clients must present the IPC certificate,
+    on top of the auth token. The insecure
+    ``insecure_temporarily_disable_sub_agent_ipc_mtls`` setting reverts them
+    to token-only authentication.

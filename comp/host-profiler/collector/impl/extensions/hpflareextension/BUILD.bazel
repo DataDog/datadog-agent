@@ -33,6 +33,7 @@ dd_agent_go_test(
     ],
     embed = [":hpflareextension"],
     deps = [
+        "//comp/core/config",
         "//comp/core/ipc/def",
         "//comp/core/ipc/mock",
         "@com_github_stretchr_testify//assert",

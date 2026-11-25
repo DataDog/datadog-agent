@@ -55,10 +55,16 @@ func NewServer(statusComponent status.Component, settings settings.Component, wm
 		telemetryMiddleware = observability.NewTelemetryMiddlewareFactory(telemetryComp, authTagGetter).Middleware("security_api")
 	}
 
+	// mTLS: clients must present the IPC certificate
+	tlsConfig := ipc.GetTLSServerConfig()
+	if !pkgconfigsetup.Datadog().GetBool("insecure_temporarily_disable_sub_agent_ipc_mtls") {
+		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	}
+
 	return &Server{
 		listener:            listener,
 		agent:               agent.NewAgent(statusComponent, settings, wmeta, secrets, ipc),
-		tlsConfig:           ipc.GetTLSServerConfig(),
+		tlsConfig:           tlsConfig,
 		authMiddleware:      ipc.HTTPMiddleware,
 		telemetryMiddleware: telemetryMiddleware,
 	}, nil

@@ -63,13 +63,13 @@ func (ext *DDExtension) NotifyConfigSnapshot(_ context.Context, configSnapshot e
 }
 
 // NewExtension creates a new instance of the extension.
-func NewExtension(cfg *Config, ipcComp ipc.Component, telemetry component.TelemetrySettings) (*DDExtension, error) {
+func NewExtension(cfg *Config, ipcComp ipc.Component, agentConfig agentConfigReader, telemetry component.TelemetrySettings) (*DDExtension, error) {
 	var err error
 	ext := &DDExtension{
 		cfg:       cfg,
 		telemetry: telemetry,
 	}
-	ext.server, err = newServer(cfg.HTTPConfig.NetAddr.Endpoint, ext, ipcComp)
+	ext.server, err = newServer(cfg.HTTPConfig.NetAddr.Endpoint, ext, agentConfig, ipcComp)
 	if err != nil {
 		return nil, err
 	}

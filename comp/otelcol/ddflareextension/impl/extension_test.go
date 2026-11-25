@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	config "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	ddflareextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
@@ -67,7 +68,7 @@ func getTestExtension(t *testing.T, optIpc option.Option[ipc.Component]) (ddflar
 	info := component.NewDefaultBuildInfo()
 	cfg := getExtensionTestConfig(t)
 
-	ext, err := NewComponent(t.Context(), cfg, telemetry, info, optIpc, true, false)
+	ext, err := NewComponent(t.Context(), cfg, telemetry, info, config.NewMock(t), optIpc, true, false)
 	if err == nil {
 		t.Cleanup(func() {
 			require.NoError(t, ext.Shutdown(t.Context()))

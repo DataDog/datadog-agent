@@ -16,6 +16,7 @@ import (
 
 	"go.opentelemetry.io/collector/component/componenttest"
 
+	config "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 
@@ -52,13 +53,13 @@ const tracesToTracesStability = component.StabilityLevel(component.StabilityLeve
 const tracesToMetricsStability = component.StabilityLevel(component.StabilityLevelDevelopment)
 
 // this is only used for config unmarshalling.
-func addFactories(factories otelcol.Factories) {
+func addFactories(t *testing.T, factories otelcol.Factories) {
 	factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(nil, nil, nil, nil, nil, otel.NewDisabledGatewayUsage(), serializerexporter.TelemetryStore{}, nil)
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(nil, func(context.Context) (string, error) {
 		return "hostname", nil
 	})
 	factories.Connectors[datadogConnectorType] = datadogconnector.NewConnectorFactory(datadogConnectorType, tracesToTracesStability, tracesToMetricsStability, nil, nil, nil)
-	factories.Extensions[Type] = NewFactoryForAgent(nil, otelcol.ConfigProviderSettings{}, option.None[ipc.Component](), false)
+	factories.Extensions[Type] = NewFactoryForAgent(nil, otelcol.ConfigProviderSettings{}, config.NewMock(t), option.None[ipc.Component](), false)
 	factories.Telemetry = otelconftelemetry.NewFactory()
 }
 
@@ -66,10 +67,10 @@ func TestGetConfDump(t *testing.T) {
 	// get factories
 	factories, err := components()
 	assert.NoError(t, err)
-	addFactories(factories)
+	addFactories(t, factories)
 
 	// extension config
-	config := Config{
+	extConfig := Config{
 		HTTPConfig: &confighttp.ServerConfig{
 			NetAddr: confignet.AddrConfig{
 				Endpoint:  "localhost:0",
@@ -79,7 +80,7 @@ func TestGetConfDump(t *testing.T) {
 		factories:              &factories,
 		configProviderSettings: newConfigProviderSettings(uriFromFile("simple-dd/config.yaml"), false),
 	}
-	extension, err := NewComponent(t.Context(), &config, componenttest.NewNopTelemetrySettings(), component.BuildInfo{}, option.New[ipc.Component](ipcmock.New(t)), true, false)
+	extension, err := NewComponent(t.Context(), &extConfig, componenttest.NewNopTelemetrySettings(), component.BuildInfo{}, config.NewMock(t), option.New[ipc.Component](ipcmock.New(t)), true, false)
 	assert.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, extension.Shutdown(t.Context()))

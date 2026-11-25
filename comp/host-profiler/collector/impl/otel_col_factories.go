@@ -118,7 +118,7 @@ func (e extraFactoriesWithAgentCore) GetAgentConfig() config.Component {
 func (e extraFactoriesWithAgentCore) GetExtensions() []extension.Factory {
 	return []extension.Factory{
 		ddprofilingextensionimpl.NewFactoryForAgent(e.traceAgent, e.log),
-		hpflareextension.NewFactoryForAgent(e.ipcComp),
+		hpflareextension.NewFactoryForAgent(e.ipcComp, e.config),
 	}
 }
 

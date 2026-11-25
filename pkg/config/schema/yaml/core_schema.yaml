@@ -8830,6 +8830,19 @@ properties:
     default: true
     tags:
     - full-agent-only:true
+  insecure_temporarily_disable_sub_agent_ipc_mtls:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: |-
+      [INSECURE] Disables the client certificate requirement (mTLS) on the
+      process-agent, security-agent, OTel Agent and host-profiler IPC API
+      servers, which then accept requests authenticated with the auth token
+      only. Temporary rollback lever, to be removed; do not enable unless
+      instructed by Datadog support.
+    comment: temporary rollback lever for the mTLS rollout; remove once mTLS is
+      enforced on all sub-agent IPC APIs and the auth token is retired
   inventories_collect_cloud_provider_account_id:
     node_type: setting
     type: boolean
