@@ -66,7 +66,7 @@ symbols() {
 		}' | sort
 }
 symbols "$export" >"$work/out.syms"
-symbols "$input" | awk 'NR == FNR { kept[$1] = 1; next } kept[$1] || $1 == ".symtab"' "$work/out.syms" - >"$work/in.syms"
+symbols "$input" | awk 'FILENAME == ARGV[1] { kept[$1] = 1; next } kept[$1] || $1 == ".symtab"' "$work/out.syms" - >"$work/in.syms"
 cmp -s "$work/in.syms" "$work/out.syms" || fail "symbols differ" "$work/in.syms" "$work/out.syms"
 
 # 3. Same build IDs and other notes.
@@ -98,8 +98,8 @@ section_layout() {
 	readelf_of "$1" -S | awk 'sub(/^ *\[ *[0-9]+\] */, "") && $3 ~ /^[0-9a-f]+$/ && $3 !~ /^0+$/ { print $1, $3, $5 }' | sort -u
 }
 section_layout "$export" >"$work/out.layout"
-section_layout "$input" | awk 'NR == FNR { kept[$1] = 1; next } kept[$1]' "$work/out.layout" - >"$work/in.layout"
-awk 'NR == FNR { want[$1] = 1; next } want[$1]' "$work/in.layout" "$work/out.layout" >"$work/out.kept"
+section_layout "$input" | awk 'FILENAME == ARGV[1] { kept[$1] = 1; next } kept[$1]' "$work/out.layout" - >"$work/in.layout"
+awk 'FILENAME == ARGV[1] { want[$1] = 1; next } want[$1]' "$work/in.layout" "$work/out.layout" >"$work/out.kept"
 cmp -s "$work/in.layout" "$work/out.kept" || fail "section addresses differ" "$work/in.layout" "$work/out.kept"
 
 # 6. For Go binaries, 1,000 addresses spread over .text resolve the same with
@@ -108,7 +108,7 @@ cmp -s "$work/in.layout" "$work/out.kept" || fail "section addresses differ" "$w
 # binaries; the export adds the right one, so the input is no reference then.
 read -r text_addr text_size < <(awk '{ sub(/^ *\[ *[0-9]+\] */, "") } $1 == ".text" { print $3, $5 }' <<<"$sections") || true
 if [ -n "${text_addr:-}" ] && grep -qE ' \.(data\.rel\.ro\.)?gopclntab ' <<<"$sections" && command -v go >/dev/null &&
-	readelf_of "$input" -s | grep -q ' runtime\.text$'; then
+	readelf_of "$input" -s | awk '$8 == "runtime.text" { found = 1 } END { exit !found }'; then
 	awk -v start=$((16#$text_addr)) -v size=$((16#$text_size)) \
 		'BEGIN { for (i = 0; i < 1000; i++) printf "0x%x\n", start + int(size * i / 1000) }' >"$work/addrs"
 	go tool addr2line "$input" <"$work/addrs" >"$work/in.go" 2>/dev/null
