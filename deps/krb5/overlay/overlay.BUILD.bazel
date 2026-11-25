@@ -1,7 +1,8 @@
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
-load("@@//deps/krb5:krb5_codegen.bzl", "krb5_concat")
+load("//:krb5_codegen.bzl", "krb5_concat")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@krb5_constants//:constants.bzl", "URL", "VERSION")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
@@ -9,13 +10,8 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "strip_prefix
 
 package(
     default_package_metadata = [":package_metadata"],
-    default_visibility = [
-        "//:__subpackages__",
-        "@@//deps/krb5:__pkg__",
-    ],
+    default_visibility = ["//:__subpackages__"],
 )
-
-VERSION = "1.22.2"
 
 package_metadata(
     name = "package_metadata",
@@ -23,7 +19,7 @@ package_metadata(
         ":license",
     ],
     purl = purl_for_generic(
-        download_url = "https://kerberos.org/dist/krb5/1.22/krb5-{version}.tar.gz",
+        download_url = URL,
         package = "krb5",
         version = VERSION,
     ),

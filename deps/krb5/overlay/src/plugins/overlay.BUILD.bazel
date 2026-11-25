@@ -1,14 +1,11 @@
-load("@@//deps/krb5:krb5_defs.bzl", "KRB5_COPTS", "KRB5_LOCAL_DEFINES")
-load("@@//deps/krb5:krb5_library.bzl", "krb5_shared_library")
+load("//:krb5_defs.bzl", "KRB5_COPTS", "KRB5_LOCAL_DEFINES")
+load("//:krb5_library.bzl", "krb5_shared_library")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 
 package(
     default_package_metadata = ["//:package_metadata"],
-    default_visibility = [
-        "//:__subpackages__",
-        "@@//deps/krb5:__pkg__",
-    ],
+    default_visibility = ["//:__subpackages__"],
 )
 
 # tls/k5tls.so: TLS for HTTPS KDC proxy (MS-KKDCP) connections.
