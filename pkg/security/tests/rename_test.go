@@ -666,4 +666,3 @@ func TestRenameFolderFailed(t *testing.T) {
 		assertFieldEqual(t, event, "open.file.path", srcDir)
 	}, "test_rule_open_src_dir")
 }
-

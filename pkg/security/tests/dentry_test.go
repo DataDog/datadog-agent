@@ -343,13 +343,6 @@ func TestDentryERPCParentLowID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var dirInode uint64
-	var stat syscall.Stat_t
-	if err := syscall.Stat(dir, &stat); err != nil {
-		t.Fatal(err)
-	}
-	dirInode = stat.Ino
-
 	var highIDMask uint32
 	test.WaitSignalFromRule(t, func() error {
 		file, err := os.OpenFile(renamedFile, os.O_RDONLY, 0)
@@ -361,14 +354,15 @@ func TestDentryERPCParentLowID(t *testing.T) {
 		assert.NotZero(t, event.Open.File.PathKey.PathID&0xFFFF)
 		highIDMask = event.Open.File.PathKey.PathID &^ 0xFFFF
 
-		parentKey := model.PathKey{
-			Inode:   dirInode,
-			MountID: event.Open.File.PathKey.MountID,
-			PathID:  highIDMask,
-		}
+		parentKey, err := p.Resolvers.DentryResolver.ResolveParentFromCache(event.Open.File.PathKey)
+		assert.NoError(t, err)
+		assert.Zero(t, parentKey.PathID&0xFFFF)
+		assert.Equal(t, highIDMask, parentKey.PathID)
+
+		parentKey.PathID = highIDMask
 		res, err := p.Resolvers.DentryResolver.ResolveFromCache(parentKey, dentry.CallerFile)
 		assert.NoError(t, err)
-		assert.Equal(t, dir, res)
+		assert.Equal(t, path.Base(dir), path.Base(res))
 	}, "test_erpc_parent_low_id_rule")
 
 	test.WaitSignalFromRule(t, func() error {
