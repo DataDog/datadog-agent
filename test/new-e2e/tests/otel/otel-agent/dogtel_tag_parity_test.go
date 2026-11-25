@@ -57,11 +57,12 @@ const (
 //
 // It deploys two standalone otel-agents on the same node, each with only the
 // RBAC its workloadmeta collector documents. The calendar app sends to the one
-// running the default kubelet collector, which both tags and exports the
-// telemetry and forwards it, as received, to the one opted in to nodefilter,
-// which tags and exports it too. Both export to the same fakeintake, each marking
-// its payloads with tagParityCollectorAttr, so that the tests can pair up the
-// two copies of each span, log and metric and compare their tags.
+// opted in to the kubelet collector, which both tags and exports the
+// telemetry and forwards it, as received, to the one running the default
+// nodefilter collector, which tags and exports it too. Both export to the same
+// fakeintake, each marking its payloads with tagParityCollectorAttr, so that
+// the tests can pair up the two copies of each span, log and metric and
+// compare their tags.
 //
 // The forwarded payloads lack the container.id resource attribute, which the
 // calendar app may set: the nodefilter otel-agent has to resolve the container
