@@ -6,10 +6,13 @@
 package kubernetes
 
 import (
-	"regexp"
-	"strings"
+	"fmt"
+	"net"
+	"net/url"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
@@ -21,11 +24,22 @@ import (
 
 const crcVersion = "2.58.0"
 
-// OpenShiftKubeconfigForVM rewrites the kubeconfig CRC writes on a VM so that it can be used from
-// outside the VM, through the forwarding of the API server on the IP of the VM.
-func OpenShiftKubeconfigForVM(kubeconfig, vmIP string) string {
-	allowInsecure := regexp.MustCompile("certificate-authority-data:.+").ReplaceAllString(kubeconfig, "insecure-skip-tls-verify: true")
-	return strings.ReplaceAll(allowInsecure, "api.crc.testing:6443", vmIP+":8443")
+// OpenShiftKubeconfigForVM patches the kubeconfig CRC writes on a VM so that it can be used from
+// outside the VM: its API servers become the forwarding of the API server on the IP of the VM, and
+// their certificates are not verified.
+func OpenShiftKubeconfigForVM(kubeconfig *clientcmdapi.Config, vmIP string) error {
+	for name, cluster := range kubeconfig.Clusters {
+		serverURL, err := url.Parse(cluster.Server)
+		if err != nil {
+			return fmt.Errorf("failed to parse the API server URL of cluster %s: %w", name, err)
+		}
+		serverURL.Host = net.JoinHostPort(vmIP, "8443")
+		cluster.Server = serverURL.String()
+		cluster.CertificateAuthority = ""
+		cluster.CertificateAuthorityData = nil
+		cluster.InsecureSkipTLSVerify = true
+	}
+	return nil
 }
 
 // OpenShiftClusterArgs holds the configuration parameters for a CRC-based OpenShift cluster.
@@ -222,9 +236,17 @@ exit 0
 			return err
 		}
 
-		clusterComp.KubeConfig = pulumi.All(kubeConfig.StdoutOutput(), vm.Address, waitControlPlane.StdoutOutput()).ApplyT(func(args []interface{}) string {
+		clusterComp.KubeConfig = pulumi.All(kubeConfig.StdoutOutput(), vm.Address, waitControlPlane.StdoutOutput()).ApplyT(func(args []interface{}) (string, error) {
 			// args[2] is the output from waitControlPlane, ensuring it completes first
-			return OpenShiftKubeconfigForVM(args[0].(string), args[1].(string))
+			kubeconfig, err := clientcmd.Load([]byte(args[0].(string)))
+			if err != nil {
+				return "", fmt.Errorf("failed to load the kubeconfig of CRC: %w", err)
+			}
+			if err := OpenShiftKubeconfigForVM(kubeconfig, args[1].(string)); err != nil {
+				return "", err
+			}
+			patched, err := clientcmd.Write(*kubeconfig)
+			return string(patched), err
 		}).(pulumi.StringOutput)
 		clusterComp.ClusterName = openShiftClusterName.ToStringOutput()
 		return nil

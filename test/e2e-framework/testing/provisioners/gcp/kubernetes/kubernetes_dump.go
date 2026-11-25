@@ -98,9 +98,13 @@ func DumpOpenshiftClusterState(ctx context.Context, name string) (ret string, er
 		return
 	}
 
-	kubeConfig, err := clientcmd.Load([]byte(kubecomp.OpenShiftKubeconfigForVM(string(sshOutput), vmIP)))
+	kubeConfig, err := clientcmd.Load(sshOutput)
 	if err != nil {
 		err = fmt.Errorf("failed to load kubeconfig: %w", err)
+		err = errors.Join(append(errs, err)...)
+		return
+	}
+	if err = kubecomp.OpenShiftKubeconfigForVM(kubeConfig, vmIP); err != nil {
 		err = errors.Join(append(errs, err)...)
 		return
 	}
