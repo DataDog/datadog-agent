@@ -20,8 +20,10 @@ import (
 const (
 	// defaultAgentVersion is a major version tag, so every install run pulls
 	// the latest 7.x Agent. Customers can pin it with DD_AGENT_MINOR_VERSION.
-	defaultAgentVersion       = "7"
-	databricksInjectorVersion = "0.71.2-1"
+	defaultAgentVersion = "7"
+	// databricksInjectorVersion must be 0.73.0 or later: older injectors look
+	// for the C tracer in apm-library-c instead of datadog-apm-library-c.
+	databricksInjectorVersion = "0.74.1-1"
 	// defaultCTracerVersion is a major version tag, so every install run pulls
 	// the latest 0.x release of dd-trace-c.
 	defaultCTracerVersion = "0"
