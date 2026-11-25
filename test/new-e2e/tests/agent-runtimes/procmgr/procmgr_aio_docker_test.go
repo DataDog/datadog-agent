@@ -13,12 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
-	scendocker "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/docker"
@@ -26,7 +23,8 @@ import (
 
 const (
 	aioAgentContainer = "datadog-agent"
-	// docker exec does not see the entrypoint's socket export, so the CLI gets it explicitly.
+	// The all-in-one socket. The CLI falls back to it, but docker exec does not see the
+	// entrypoint's socket export, so most tests pass it explicitly.
 	aioSocket = "/opt/datadog-agent/run/dd-procmgrd.sock"
 	// Above the 90s default stop_timeout, so a SIGKILL means a hung shutdown.
 	aioStopTimeoutSec = "120"
@@ -96,18 +94,12 @@ type procmgrAIODockerSuite struct {
 	e2e.BaseSuite[environments.DockerHost]
 }
 
-// TestProcmgrAIODockerSuite runs the image with ENTRYPOINT=procmgr-all-in-one, so dd-procmgrd
-// supervises the Agent instead of s6.
+// TestProcmgrAIODockerSuite runs the image without ENTRYPOINT, so _default starts dd-procmgrd.
 func TestProcmgrAIODockerSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &procmgrAIODockerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner(
-		awsdocker.WithRunOptions(scendocker.WithAgentOptions(
-			dockeragentparams.WithAgentServiceEnvVariable("ENTRYPOINT", pulumi.String("procmgr-all-in-one")),
-		)),
-	)))
+	e2e.Run(t, &procmgrAIODockerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner()))
 }
 
-// BeforeTest starts the opt-in container again when an earlier test stopped it.
 func (s *procmgrAIODockerSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
 	if s.containerStatus(s.T()) == "running" {
@@ -149,13 +141,11 @@ func (s *procmgrAIODockerSuite) TestDockerStopShutsDownGracefully() {
 	s.Contains(logs, "dd-procmgrd stopped (exit code 0)")
 }
 
-// exit_with_supervisor: dd-procmgrd stops the other children before exiting 137,
-// so the container can outlive the signal.
+// exit_with_supervisor: dd-procmgrd stops the other children, then exits 137.
 func (s *procmgrAIODockerSuite) TestCoreAgentDeathEndsTheContainer() {
 	s.waitForAgentRunning(s.T(), 3*time.Minute)
 	agentPID := fieldValue(s.describeProcess(s.T(), "datadog-agent"), "PID")
 	requireHostPID(s.T(), agentPID)
-	// The graceful stop of a running sibling is what proves the supervisor shut it down.
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		assertField(c, s.describeProcess(c, "datadog-agent-trace"), "State", "Running")
 	}, time.Minute, 2*time.Second)
@@ -219,7 +209,7 @@ func (s *procmgrAIODockerSuite) TestDisabledAuxStaysSkipped() {
 
 	otel := s.describeProcess(s.T(), "datadog-agent-otel")
 	assertField(s.T(), otel, "State", "Skipped")
-	assertField(s.T(), otel, "Skip Reasons", "path_missing, config_gate")
+	assertField(s.T(), otel, "Skip Reasons", "path_missing")
 
 	s.Equal("running", s.containerStatus(s.T()))
 	assertField(s.T(), s.describeProcess(s.T(), "datadog-agent"), "State", "Running")
@@ -238,8 +228,7 @@ func (s *procmgrAIODockerSuite) TestHealthcheckReportsHealthy() {
 	}, 2*time.Minute, 5*time.Second)
 }
 
-// The entrypoint exports DD_PM_CONFIG_DIR and children must not inherit it.
-// DD_PM_SOCKET_PATH is kept.
+// The entrypoint exports DD_PM_CONFIG_DIR, which children must not inherit.
 func (s *procmgrAIODockerSuite) TestCoreAgentInheritsDDEnv() {
 	s.waitForAgentRunning(s.T(), 3*time.Minute)
 	pid := fieldValue(s.describeProcess(s.T(), "datadog-agent"), "PID")
@@ -267,7 +256,7 @@ func (s *procmgrAIODockerSuite) TestCustomContInitRunsNonShAndSymlink() {
 	})
 
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
-		"docker create --name %s -e ENTRYPOINT=procmgr-all-in-one -e DD_API_KEY=%s -v %s:/etc/cont-init.d/90-custom.sh:ro -v %s:/etc/cont-init.d/91-custom:ro -v %s:/mnt/ro/92-target:ro %s",
+		"docker create --name %s -e DD_API_KEY=%s -v %s:/etc/cont-init.d/90-custom.sh:ro -v %s:/etc/cont-init.d/91-custom:ro -v %s:/mnt/ro/92-target:ro %s",
 		shSingleQuote(name),
 		shSingleQuote(aioThrowawayAPIKey),
 		shSingleQuote(dir+"/90-custom.sh"),
@@ -326,7 +315,7 @@ EOS
 	})
 	s.removeContainerNowAndOnCleanup(t, name)
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
-		"docker run -d --name %s -e ENTRYPOINT=procmgr-all-in-one -e DD_API_KEY=%s -e DD_HOSTNAME=%s -e S6_KEEP_ENV=0 -e AIO_CONTENV_VALUE=from-container -v %s:/etc/cont-init.d/90-with-contenv:ro -v %s:/fork-marker %s",
+		"docker run -d --name %s -e DD_API_KEY=%s -e DD_HOSTNAME=%s -e S6_KEEP_ENV=0 -e AIO_CONTENV_VALUE=from-container -v %s:/etc/cont-init.d/90-with-contenv:ro -v %s:/fork-marker %s",
 		shSingleQuote(name),
 		shSingleQuote(aioThrowawayAPIKey),
 		shSingleQuote(aioBareHostname),
@@ -360,7 +349,7 @@ func (s *procmgrAIODockerSuite) TestCustomServiceStarts() {
 
 	s.removeContainerNowAndOnCleanup(t, name)
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
-		"docker run -d --name %s -e ENTRYPOINT=procmgr-all-in-one -e DD_API_KEY=%s -e DD_HOSTNAME=%s -v %s:/etc/services.d/%s:ro %s",
+		"docker run -d --name %s -e DD_API_KEY=%s -e DD_HOSTNAME=%s -v %s:/etc/services.d/%s:ro %s",
 		shSingleQuote(name),
 		shSingleQuote(aioThrowawayAPIKey),
 		shSingleQuote(aioBareHostname),
@@ -423,7 +412,7 @@ EOS
 
 	s.removeContainerNowAndOnCleanup(t, name)
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
-		"docker run -d --name %s -e ENTRYPOINT=procmgr-all-in-one -e DD_API_KEY=%s -e DD_HOSTNAME=%s -e S6_KEEP_ENV=0 -e AIO_CONTENV_VALUE=from-container -v %s:/etc/services.d/%s:ro -v %s:/marker %s",
+		"docker run -d --name %s -e DD_API_KEY=%s -e DD_HOSTNAME=%s -e S6_KEEP_ENV=0 -e AIO_CONTENV_VALUE=from-container -v %s:/etc/services.d/%s:ro -v %s:/marker %s",
 		shSingleQuote(name),
 		shSingleQuote(aioThrowawayAPIKey),
 		shSingleQuote(aioBareHostname),
@@ -489,7 +478,7 @@ EOS
 	})
 	s.removeContainerNowAndOnCleanup(t, name)
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
-		"docker run -d --name %s -e ENTRYPOINT=procmgr-all-in-one -e DD_API_KEY=%s -e DD_HOSTNAME=%s -v %s:/etc/services.d/trace:ro %s",
+		"docker run -d --name %s -e DD_API_KEY=%s -e DD_HOSTNAME=%s -v %s:/etc/services.d/trace:ro %s",
 		shSingleQuote(name),
 		shSingleQuote(aioThrowawayAPIKey),
 		shSingleQuote(aioBareHostname),
@@ -538,7 +527,7 @@ func (s *procmgrAIODockerSuite) TestNonRootUserRunsProcmgr() {
 	t := s.T()
 	s.removeContainerNowAndOnCleanup(t, name)
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
-		"docker run -d --name %s --user 100:0 -e ENTRYPOINT=procmgr-all-in-one -e DD_API_KEY=%s -e DD_HOSTNAME=%s %s",
+		"docker run -d --name %s --user 100:0 -e DD_API_KEY=%s -e DD_HOSTNAME=%s %s",
 		shSingleQuote(name),
 		shSingleQuote(aioThrowawayAPIKey),
 		shSingleQuote(aioBareHostname),
@@ -550,7 +539,7 @@ func (s *procmgrAIODockerSuite) TestNonRootUserRunsProcmgr() {
 			"docker inspect -f '{{.State.Pid}}' "+shSingleQuote(name)))
 		requireHostPID(c, pid)
 		comm := strings.TrimSpace(s.Env().RemoteHost.MustExecuteOn(c, "cat /proc/"+pid+"/comm"))
-		assert.Equal(c, "dd-procmgrd", comm, "a non-root container should run dd-procmgrd")
+		assert.Equal(c, "dd-procmgrd", comm, "a non-root container should run dd-procmgrd, not fall back to s6")
 		stdout, stderr, err := s.Env().Docker.Client.ExecuteCommandStdoutStdErr(
 			name,
 			"env", "DD_PM_SOCKET_PATH="+aioSocket, linuxCLIBin, "describe", "datadog-agent",
@@ -585,7 +574,7 @@ EOS
 	})
 	s.removeContainerNowAndOnCleanup(t, name)
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
-		"docker run -d --name %s -e ENTRYPOINT=procmgr-all-in-one -e DD_API_KEY=%s -e DD_HOSTNAME=%s -v %s:/etc/cont-init.d/90-block:ro -v %s:/fork-marker %s",
+		"docker run -d --name %s -e DD_API_KEY=%s -e DD_HOSTNAME=%s -v %s:/etc/cont-init.d/90-block:ro -v %s:/fork-marker %s",
 		shSingleQuote(name),
 		shSingleQuote(aioThrowawayAPIKey),
 		shSingleQuote(aioBareHostname),
@@ -633,7 +622,7 @@ EOS
 	})
 	s.removeContainerNowAndOnCleanup(t, name)
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
-		"docker run -d --name %s -e ENTRYPOINT=procmgr-all-in-one -e DD_API_KEY=%s -e DD_HOSTNAME=%s -v %s:/etc/cont-init.d/90-block:ro -v %s:/fork-marker %s",
+		"docker run -d --name %s -e DD_API_KEY=%s -e DD_HOSTNAME=%s -v %s:/etc/cont-init.d/90-block:ro -v %s:/fork-marker %s",
 		shSingleQuote(name),
 		shSingleQuote(aioThrowawayAPIKey),
 		shSingleQuote(aioBareHostname),
@@ -683,7 +672,7 @@ EOS
 	})
 	s.removeContainerNowAndOnCleanup(t, name)
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
-		"docker run -d --name %s -e ENTRYPOINT=procmgr-all-in-one -e DD_API_KEY=%s -e DD_HOSTNAME=%s -v %s:/etc/cont-init.d/90-block:ro -v %s:/fork-marker %s",
+		"docker run -d --name %s -e DD_API_KEY=%s -e DD_HOSTNAME=%s -v %s:/etc/cont-init.d/90-block:ro -v %s:/fork-marker %s",
 		shSingleQuote(name),
 		shSingleQuote(aioThrowawayAPIKey),
 		shSingleQuote(aioBareHostname),
@@ -713,21 +702,46 @@ EOS
 func (s *procmgrAIODockerSuite) TestContInitFailsFastWithoutAPIKey() {
 	image := s.agentImage(s.T())
 	_, err := s.Env().RemoteHost.Execute(
-		"timeout 30 docker run --rm -e ENTRYPOINT=procmgr-all-in-one " + shSingleQuote(image))
+		"timeout 30 docker run --rm " + shSingleQuote(image))
 	s.Require().Error(err)
 	s.NotContains(err.Error(), "status 124", "timeout means the entrypoint did not abort")
 	s.Contains(err.Error(), "You must set either a DD_API_KEY or DD_DELEGATED_AUTH_ORG_UUID environment")
 	s.NotContains(err.Error(), "===== STARTING dd-procmgrd =====")
 }
 
+func (s *procmgrAIODockerSuite) TestOptInEntrypointRunsProcmgrd() {
+	image := s.agentImage(s.T())
+	name := "aio-opt-in-entrypoint"
+
+	t := s.T()
+	s.removeContainerNowAndOnCleanup(t, name)
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+		"docker run -d --name %s -e ENTRYPOINT=procmgr-all-in-one -e DD_API_KEY=%s -e DD_HOSTNAME=%s %s",
+		shSingleQuote(name),
+		shSingleQuote(aioThrowawayAPIKey),
+		shSingleQuote(aioBareHostname),
+		shSingleQuote(image),
+	))
+
+	// The main process is bash until cont-init finishes and the entrypoint execs dd-procmgrd.
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		pid := strings.TrimSpace(s.Env().RemoteHost.MustExecuteOn(c,
+			"docker inspect -f '{{.State.Pid}}' "+shSingleQuote(name)))
+		requireHostPID(c, pid)
+		comm := strings.TrimSpace(s.Env().RemoteHost.MustExecuteOn(c, "cat /proc/"+pid+"/comm"))
+		assert.Equal(c, "dd-procmgrd", comm, "ENTRYPOINT=procmgr-all-in-one should exec dd-procmgrd")
+	}, 2*time.Minute, 2*time.Second)
+}
+
 func (s *procmgrAIODockerSuite) waitForAgentRunning(t require.TestingT, timeout time.Duration) {
 	if h, ok := t.(interface{ Helper() }); ok {
 		h.Helper()
 	}
+	// No DD_PM_SOCKET_PATH: the CLI falls back to the all-in-one socket path.
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		stdout, stderr, err := s.Env().Docker.Client.ExecuteCommandStdoutStdErr(
 			aioAgentContainer,
-			"env", "DD_PM_SOCKET_PATH="+aioSocket, linuxCLIBin, "describe", "datadog-agent",
+			linuxCLIBin, "describe", "datadog-agent",
 		)
 		require.NoError(c, err, stderr)
 		assertField(c, stdout, "State", "Running")

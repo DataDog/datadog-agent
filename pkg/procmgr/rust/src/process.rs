@@ -1907,6 +1907,24 @@ pub mod tests {
         );
     }
 
+    #[test]
+    fn test_zero_start_limit_interval_never_limits() {
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.restart = RestartPolicy::Always;
+        cfg.start_limit_burst = Some(1);
+        cfg.start_limit_interval_sec = Some(0);
+        let mut proc = ManagedProcess::new_config("zero".into(), test_helpers::test_uuid(), cfg);
+        let burst = proc.config.burst_limit();
+        let interval = proc.config.burst_interval();
+
+        for _ in 0..10 {
+            proc.restarts
+                .record(proc.config.restart_delay(), proc.config.runtime_success());
+            assert!(!proc.restarts.is_burst_limited(burst, interval));
+        }
+    }
+
     /// An `Instant` is measured from boot, so an interval longer than the host's uptime has
     /// no representable cutoff. Subtracting it used to panic, which on Windows hit every
     /// host booted less than `start_limit_interval_sec` ago.

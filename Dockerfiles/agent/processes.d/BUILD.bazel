@@ -11,6 +11,7 @@ exports_files(
         "aio/datadog-agent-sysprobe.yaml",
         "aio/datadog-agent-trace.yaml",
         "aio/datadog-agent.yaml",
+        "aio/.procmgr-default",
     ],
     visibility = ["//pkg/procmgr/rust:__pkg__"],
 )
