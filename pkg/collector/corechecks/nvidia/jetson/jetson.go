@@ -150,7 +150,7 @@ func (c *JetsonCheck) processTegraStatsOutput(tegraStatsOuptut string) error {
 	return nil
 }
 
-func newSudoTegraStatsCommand(ctx context.Context, sudoPath, binary string, args []string) *exec.Cmd {
+func sudoTegraStatsCommand(ctx context.Context, sudoPath, binary string, args []string) *exec.Cmd {
 	// Do not prompt for a password. Run sudo directly, without a shell.
 	cmd := exec.CommandContext(ctx, sudoPath, append([]string{"-n", binary}, args...)...)
 	// Older sudo versions can suppress signals from sudo's original process group.
@@ -166,7 +166,7 @@ func newSudoTegraStatsCommand(ctx context.Context, sudoPath, binary string, args
 // runCommand executes the tegrastats command, optionally with sudo.
 func runCommand(ctx context.Context, binary string, args []string, useSudo bool) ([]byte, error) {
 	if useSudo {
-		return newSudoTegraStatsCommand(ctx, "sudo", binary, args).Output()
+		return sudoTegraStatsCommand(ctx, "sudo", binary, args).Output()
 	}
 	return exec.CommandContext(ctx, binary, args...).Output()
 }

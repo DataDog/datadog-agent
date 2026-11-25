@@ -117,8 +117,8 @@ func fakeTegraStats() int {
 	}
 }
 
-func TestNewSudoTegraStatsCommand(t *testing.T) {
-	cmd := newSudoTegraStatsCommand(context.Background(), "sudo", defaultTegraStatsPath, []string{"--interval", "500"})
+func TestSudoTegraStatsCommand(t *testing.T) {
+	cmd := sudoTegraStatsCommand(context.Background(), "sudo", defaultTegraStatsPath, []string{"--interval", "500"})
 	assert.Equal(t, []string{"sudo", "-n", defaultTegraStatsPath, "--interval", "500"}, cmd.Args)
 	require.NotNil(t, cmd.SysProcAttr)
 	assert.True(t, cmd.SysProcAttr.Setpgid, "older sudo versions won't forward signals from their own process group")
@@ -147,7 +147,7 @@ func TestSudoTegraStatsCancellation(t *testing.T) {
 
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
-			cmd := newSudoTegraStatsCommand(ctx, exe, exe, []string{"--interval", "500"})
+			cmd := sudoTegraStatsCommand(ctx, exe, exe, []string{"--interval", "500"})
 			cmd.Env = append(os.Environ(), tegrastatsHelperRole+"="+tc.role)
 			cmd.ExtraFiles = []*os.File{readyWriter, stopReader}
 			var stdout, stderr bytes.Buffer
