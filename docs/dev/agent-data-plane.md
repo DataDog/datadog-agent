@@ -187,7 +187,7 @@ profile:
 | Metric | Meaning |
 |---|---|
 | `data_plane.preflight_mode_result{result}` | One value per run: `clean`, or the first finding. |
-| `data_plane.preflight_mode_finding{finding,source_file,source_line}` | One increment per distinct finding, and for the two findings that come from ADP's log, one per distinct log site it was reported from. |
+| `data_plane.preflight_mode_finding{finding,source_file,source_line,config_key,worker_name}` | One increment per distinct finding, and for the two findings that come from ADP's log, one per distinct log site and config key or worker name it was reported from. |
 | `data_plane.preflight_mode_duration_seconds` | Wall-clock length of the run. |
 
 The profile's schedule is **recurring**, not one-shot, so that changing the run window cannot
@@ -208,9 +208,26 @@ on: a Windows build logs `bin\agent-data-plane\src\main.rs`, and without the fol
 second log site rather than the one a Linux build reports. The folded value is then validated
 against a path-shaped character set, and a value that fails validation (or a record that has
 none, such as a panic that bypassed the logger) reports `<unknown>`. Every other finding carries
-both tags empty, since a finding the pre-flight observed about the *process* has no source
-location. A finding logged from more than `maxReportedLocations` distinct sites reports the
-surplus under `<other>`, which bounds the cardinality one run can contribute.
+every location tag empty, since a finding the pre-flight observed about the *process* has no
+source location.
+
+A few log sites report many different failures, so the log site alone cannot tell them apart.
+For those, the finding also carries what the record names. `config_key` comes only from ADP's
+configuration compatibility check (target `agent_data_plane_config_system::compatibility`, or
+`agent_data_plane::cli::run` before ADP 1.7), which logs the key of each setting it warns about
+or rejects. `worker_name` comes only from `saluki_core::runtime::supervisor`, which logs the
+name of a child that fails to initialize or restarts. Both tags are empty for every other
+record, so a new log site cannot add values without a change to `subjectTargets` in
+`comp/dataplane/preflightmode/impl/capture.go`. The values stay bounded: config keys match ADP's
+generated classifier table, worker names are string constants in ADP's source, and no
+configuration value is ever shipped. A value that fails the character-set or length check
+reports `<unknown>`.
+
+A finding logged from more than `maxReportedLocations` distinct locations reports the surplus
+under `<other>`, which bounds the cardinality one run can contribute. The cap keeps distinct log
+sites first: each site keeps its first location, and only the budget left after that goes to
+additional config keys or workers at those sites. One check that rejects many keys therefore
+cannot push a different log site out of the report.
 
 **A source location is only meaningful alongside an ADP version, because ADP's line numbers move
 between releases**: the standalone-mode warning is `env/mod.rs:59` in 1.4.0 and `env/mod.rs:63` in
@@ -223,12 +240,13 @@ already available without paying for another label on every timeseries. A monito
 `expectedWarnings` deliberately matches on target plus a message substring rather than a location,
 so that this churn cannot silently un-suppress it.
 
-Note that this makes the finding counter count *log sites*, not runs: a run that logged errors
-from three places ships three points. The count of runs that hit a finding at all comes from
-`preflight_mode_result`, or from grouping the finding metric by location.
+Note that this makes the finding counter count *locations*, not runs: a run that logged errors
+from three places, or about three config keys from one place, ships three points. The count of
+runs that hit a finding at all comes from `preflight_mode_result`, or from grouping the finding
+metric by location.
 
-Apart from the log site, only the bounded enums above are shipped. ADP's actual error text is
-**not** yet sent anywhere — see the `TODO` on `report` in
+Apart from the log site, config key, and worker name, only the bounded enums above are shipped.
+ADP's actual error text is **not** yet sent anywhere — see the `TODO` on `report` in
 `comp/dataplane/preflightmode/impl/report.go`. The agent telemetry error-tracking pipeline
 deliberately ships PC-only telemetry with no message field, so shipping log text needs a new
 event type plus a backend schema, agreed with the team that owns that pipeline.
