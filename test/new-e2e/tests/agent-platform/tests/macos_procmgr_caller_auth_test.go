@@ -250,18 +250,14 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 		if err != nil || strings.TrimSpace(left) != "" {
 			left, err = killMacosSleep(t, client, sleepArg)
 		}
-		childGone := false
 		if err != nil {
 			t.Errorf("cleanup: failed to check for /bin/sleep %s: %v", sleepArg, err)
 		} else if strings.TrimSpace(left) != "" {
 			t.Errorf("cleanup: /bin/sleep %s still running:\n%s", sleepArg, left)
-		} else {
-			childGone = true
-			if survivedStop {
-				t.Errorf("cleanup: /bin/sleep %s was still running after stop and had to be killed", sleepArg)
-			} else if !bodyFailed && initialErr != nil {
-				t.Errorf("cleanup: failed to check for /bin/sleep %s before killing it: %v", sleepArg, initialErr)
-			}
+		} else if survivedStop {
+			t.Errorf("cleanup: /bin/sleep %s was still running after stop and had to be killed", sleepArg)
+		} else if !bodyFailed && initialErr != nil {
+			t.Errorf("cleanup: failed to check for /bin/sleep %s before killing it: %v", sleepArg, initialErr)
 		}
 		// Before the restart, which loads processes.d.
 		if _, err := client.Execute("sudo rm -f " + macosProcessesDir + "/" + macosCallerAuthReloadEntry + ".yaml"); err != nil {
@@ -275,9 +271,6 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 		// assertMacosProcmgrAnswers aborts, and the marker goes only once the restart is verified.
 		restarted := false
 		defer func() {
-			if !childGone {
-				return
-			}
 			left, err := waitMacosSleepGone(client, sleepArg, 0)
 			if err != nil || strings.TrimSpace(left) != "" {
 				left, err = killMacosSleep(t, client, sleepArg)
