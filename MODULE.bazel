@@ -150,6 +150,8 @@ single_version_override(
         "//bazel/patches:rules_go-windows-symlink-workaround.patch",
         # https://github.com/bazel-contrib/rules_go/pull/4727
         "//bazel/patches:rules_go-link-resource-set.patch",
+        # https://github.com/bazel-contrib/rules_go/pull/4795
+        "//bazel/patches:rules_go-test2json-output.patch",
         # Local only: loads //bazel/go_tags:transition.bzl from the main repository.
         "//bazel/patches:rules_go-project-library-tags.patch",
     ],
@@ -304,9 +306,12 @@ llvm_bpf_ext.configure(
         "llvm-strip.arm64": "8a0497a6a951f0d049f80ff318ffd09039b24075f3f5562c078b269ef9c0fc32",
     },
 )
-use_repo(llvm_bpf_ext, "llvm_bpf", "llvm_bpf_amd64", "llvm_bpf_arm64")
+use_repo(llvm_bpf_ext, "llvm_bpf_amd64", "llvm_bpf_arm64")
 
-register_toolchains("@llvm_bpf//:llvm_bpf_toolchain")
+register_toolchains(
+    "@llvm_bpf_amd64//:toolchain",
+    "@llvm_bpf_arm64//:toolchain",
+)
 
 ## Linux kernel headers for eBPF prebuilt compilation
 ## Registers three repos: host auto-detect + explicit x86_64 + explicit aarch64
