@@ -63,7 +63,7 @@ new-e2e-fleet-upgrade-history:
   extends: .new_e2e_fleet_template
   rules:
     - !reference [.except_disable_e2e_tests]
-    - !reference [.on_deploy_nightly_repo_branch]
+    - !reference [.on_deploy]
     # Keep main pushes manual before evaluating the path-based rules.
     - !reference [.on_main_manual]
     - !reference [.on_installer_or_e2e_changes]
