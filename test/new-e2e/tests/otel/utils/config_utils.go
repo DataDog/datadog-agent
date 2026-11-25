@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -363,10 +364,7 @@ func testOTelFlareCmd(s OTelTestSuite, pod corev1.Pod, podType string, collector
 
 	// Extract flare file path from output
 	flarePath := extractFlarePathFromOutput(stdout)
-	if flarePath == "" {
-		s.T().Log("Could not extract flare path from output, skipping content validation")
-		return
-	}
+	require.NotEmpty(s.T(), flarePath, "Could not extract the flare path from the output: %s", stdout)
 
 	s.T().Logf("Flare file created at: %s", flarePath)
 
@@ -390,27 +388,14 @@ func validateOTelFlareOutput(t *testing.T, output string) {
 	require.True(t, anyValidMessage, "Expected to find flare collection messages in output")
 }
 
+// flarePathRegexp matches the path of the flare archive, wherever the temporary directory of the pod is
+var flarePathRegexp = regexp.MustCompile(`/\S*otel-agent-flare_[^\s/]*\.zip`)
+
 // extractFlarePathFromOutput extracts the flare file path from the command output
 func extractFlarePathFromOutput(output string) string {
-	// Look for lines like "Flare archive created: /tmp/otel-agent-flare_2025-12-22_15-04-05.zip"
-	// or "/tmp/otel-agent-flare_2025-12-22_15-04-05.zip is going to be uploaded to Datadog"
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
-		if strings.Contains(line, "otel-agent-flare_") && strings.Contains(line, ".zip") {
-			// Extract the path
-			start := strings.Index(line, "/tmp/")
-			if start == -1 {
-				start = strings.Index(line, "/var/")
-			}
-			if start != -1 {
-				end := strings.Index(line[start:], ".zip")
-				if end != -1 {
-					return line[start : start+end+4] // +4 for ".zip"
-				}
-			}
-		}
-	}
-	return ""
+	// Look for lines like "Flare archive created: /tmp/123/otel-agent-flare_2025-12-22_15-04-05.zip"
+	// or "/tmp/123/otel-agent-flare_2025-12-22_15-04-05.zip is going to be uploaded to Datadog"
+	return flarePathRegexp.FindString(output)
 }
 
 // readFlareArchive returns the content of every file of a flare archive
@@ -502,14 +487,17 @@ func validateOTelFlareContents(s OTelTestSuite, pod corev1.Pod, flarePath string
 
 	// Only the environment variables that are safe to share are kept, never the API key
 	assert.NotEmpty(s.T(), resp.Environment, "Environment should not be empty")
-	assert.NotContains(s.T(), resp.Environment, "DD_API_KEY")
+	// Not assert.NotContains: when it fails it prints the whole environment, API key included, in the log of the CI
+	_, hasAPIKey := resp.Environment["DD_API_KEY"]
+	assert.False(s.T(), hasAPIKey, "DD_API_KEY is in the environment of the flare")
 
 	// The API key of the collector must not be in any file of the flare
 	apiKey, _, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Name, "otel-agent", []string{"sh", "-c", `printf %s "$DD_API_KEY"`})
 	require.NoError(s.T(), err, "Failed to read the API key of the collector")
 	if apiKey != "" {
 		for name, content := range files {
-			assert.NotContains(s.T(), string(content), apiKey, "API key found in %s", name)
+			// Not assert.NotContains: when it fails it prints the API key and the whole file in the log of the CI
+			assert.False(s.T(), bytes.Contains(content, []byte(apiKey)), "API key found in %s", name)
 		}
 	}
 
