@@ -72,12 +72,16 @@ var tracerTelemetry = struct {
 	closedConns          *telemetryComponent.StatCounterWrapper
 	connStatsMapSize     telemetryComponent.Gauge
 	payloadSizePerClient telemetryComponent.Gauge
+	natDeletes           telemetryComponent.Counter
+	natDeleteSkips       telemetryComponent.Counter
 }{
 	telemetryimpl.GetCompatComponent().NewCounter(tracerModuleName, "skipped_conns", []string{"ip_proto"}, "Counter measuring skipped connections"),
 	telemetryimpl.GetCompatComponent().NewCounter(tracerModuleName, "expired_tcp_conns", []string{}, "Counter measuring expired TCP connections"),
 	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), tracerModuleName, "closed_conns", []string{"ip_proto"}, "Counter measuring closed TCP connections"),
 	telemetryimpl.GetCompatComponent().NewGauge(tracerModuleName, "conn_stats_map_size", []string{}, "Gauge measuring the size of the active connections map"),
 	telemetryimpl.GetCompatComponent().NewGauge(tracerModuleName, "payload_conn_count", []string{"client_id", "ip_proto"}, "Gauge measuring the number of connections in the system-probe payload"),
+	telemetryimpl.GetCompatComponent().NewCounter(tracerModuleName, "closed_nat_translation_deletes", []string{"when"}, "Counter measuring closed NAT'd connections' conntrack deletes, at close or deferred"),
+	telemetryimpl.GetCompatComponent().NewCounter(tracerModuleName, "closed_nat_translation_delete_skips", []string{}, "Counter measuring deferred conntrack deletes skipped because an active connection reuses the tuple"),
 }
 
 // Tracer implements the functionality of the network tracer
@@ -405,8 +409,13 @@ func (t *Tracer) storeClosedConnection(cs *network.ConnectionStats) {
 
 	cs.IPTranslation = t.conntracker.GetTranslationForConn(&cs.ConnectionTuple)
 	t.connVia(cs)
-	if cs.IPTranslation != nil && !t.closedNATTranslations.add(cs.ConnectionTuple) {
-		t.conntracker.DeleteTranslation(&cs.ConnectionTuple)
+	if cs.IPTranslation != nil {
+		// Only the other end of a same-host NAT'd pair still needs the entry, and only while it's open. Only tcp_close
+		// marks that, so UDP translations are deleted at close, as before the conntracker map was shared.
+		if !cs.LocalNATPeerOpen || !t.closedNATTranslations.add(cs.ConnectionTuple) {
+			tracerTelemetry.natDeletes.Inc("immediate")
+			t.conntracker.DeleteTranslation(&cs.ConnectionTuple)
+		}
 	}
 
 	t.addProcessInfo(cs)
@@ -767,15 +776,19 @@ func (t *Tracer) deleteClosedNATTranslations(active []network.ConnectionStats) {
 		}
 	}
 	for i := range ready {
-		if !reused[newTranslationKey(&ready[i])] {
-			t.conntracker.DeleteTranslation(&ready[i])
+		if reused[newTranslationKey(&ready[i])] {
+			tracerTelemetry.natDeleteSkips.Inc()
+			continue
 		}
+		tracerTelemetry.natDeletes.Inc("deferred")
+		t.conntracker.DeleteTranslation(&ready[i])
 	}
 }
 
 // deferredTranslationDeletes holds closed NAT'd connections whose conntrack entries are deleted one getConnections
 // later. The peer of a NAT'd connection with both ends on this host looks the entry up when it closes, which is often
-// after userspace sees the first end's close. A nil deferredTranslationDeletes defers nothing.
+// after userspace sees the first end's close, so only connections marked as having an open local peer are queued.
+// max bounds pending and ready together. A nil deferredTranslationDeletes defers nothing.
 type deferredTranslationDeletes struct {
 	mu      sync.Mutex
 	max     int
@@ -794,7 +807,7 @@ func (d *deferredTranslationDeletes) add(t network.ConnectionTuple) bool {
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if len(d.pending) >= d.max {
+	if len(d.pending)+len(d.ready) >= d.max {
 		return false
 	}
 	d.pending = append(d.pending, t)

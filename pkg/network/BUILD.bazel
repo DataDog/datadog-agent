@@ -167,6 +167,7 @@ dd_agent_go_test(
         "dns_test.go",
         "driver_interface_fail_test.go",
         "driver_interface_test.go",
+        "event_common_linux_test.go",
         "event_common_tag_test.go",
         "event_linux_test.go",
         "event_test.go",
@@ -204,6 +205,7 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:android": [
             "//pkg/config/setup",
+            "//pkg/network/ebpf",
             "//pkg/network/netlink/testutil",
             "//pkg/network/protocols",
             "//pkg/network/protocols/http",
@@ -236,6 +238,7 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/config/setup",
+            "//pkg/network/ebpf",
             "//pkg/network/netlink/testutil",
             "//pkg/network/protocols",
             "//pkg/network/protocols/http",

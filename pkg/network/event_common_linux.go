@@ -129,6 +129,7 @@ func (c *ConnectionStats) FromTupleAndStats(t *netebpf.ConnTuple, s *netebpf.Con
 		c.Duration = time.Duration(s.Duration) * time.Nanosecond
 	}
 
+	c.LocalNATPeerOpen = s.Protocol_stack.Flags&netebpf.FlagLocalNATPeerOpen != 0
 	c.ProtocolStack = protocols.Stack{
 		API:         protocols.API(s.Protocol_stack.Api),
 		Application: protocols.Application(s.Protocol_stack.Application),

@@ -60,6 +60,8 @@ const (
 	Assured ConnFlags = C.CONN_ASSURED
 )
 
+const FlagLocalNATPeerOpen = C.FLAG_LOCAL_NAT_PEER_OPEN
+
 const SizeofConn = C.sizeof_conn_t
 
 type ClassificationProgram = uint32

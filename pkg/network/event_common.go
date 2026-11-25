@@ -326,6 +326,8 @@ type ConnectionStats struct {
 	IntraHost        bool
 	IsAssured        bool
 	IsClosed         bool
+	// LocalNATPeerOpen is set on a closed NAT'd connection whose other end, on this host, was still open
+	LocalNATPeerOpen bool
 	TCPECNNegotiated bool // true if ECN was negotiated on this connection (CO-RE/runtime only; false on prebuilt)
 }
 

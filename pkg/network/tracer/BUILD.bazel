@@ -216,6 +216,7 @@ dd_agent_go_test(
         "interface_tags_tracer_darwin_test.go",
         "interfaceclassifier_windows_test.go",
         "mock_gateway_lookup_test.go",
+        "nat_deferral_test.go",
         "netns_containers_test.go",
         "nstat_qualification_darwin_test.go",
         "offsetguess_test.go",

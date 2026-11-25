@@ -4024,6 +4024,21 @@ func testSNATOneSidedClassification(t *testing.T, tr *Tracer) {
 					assert.True(collect, server.ProtocolStack.Contains(protocols.HTTP), "server not classified: %v", server)
 				}
 			}, 5*time.Second, 100*time.Millisecond)
+
+			if tr.closedNATTranslations == nil {
+				return // the conntracker's map isn't shared, so closes aren't deferred
+			}
+			// Both ends marked the classification entry with real traffic, and the server's end stays open, so the
+			// client's close must be marked as having an open local peer.
+			require.NoError(t, c.Close())
+			require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				conns, cleanup := getConnections(collect, tr)
+				defer cleanup()
+				conn, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+				if assert.NotNil(collect, conn, "client connection not found") && assert.True(collect, conn.IsClosed, "client close not seen yet") {
+					assert.True(collect, conn.LocalNATPeerOpen, "closed client not marked as having an open local peer: %v", conn)
+				}
+			}, 5*time.Second, 100*time.Millisecond)
 		})
 	}
 }
@@ -4071,7 +4086,8 @@ func (s *TracerSuite) TestNATClassificationCleanup() {
 	tlsMap, err := tr.GetMap(probes.EnhancedTLSTagsMap)
 	require.NoError(t, err)
 
-	// waitClosed waits for userspace to store c's close, which is when it deletes the conntrack entry
+	// waitClosed waits for userspace to store c's close, which is when it deletes the conntrack entry. Both ends are
+	// on this host and the other is still open, so the first end to close must be marked as having an open peer.
 	waitClosed := func(t *testing.T, c net.Conn) {
 		require.EventuallyWithT(t, func(collect *assert.CollectT) {
 			conns, cleanup := getConnections(collect, tr)
@@ -4079,6 +4095,7 @@ func (s *TracerSuite) TestNATClassificationCleanup() {
 			conn, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
 			if assert.NotNil(collect, conn, "closed connection not found") {
 				assert.True(collect, conn.IsClosed)
+				assert.True(collect, conn.LocalNATPeerOpen, "closed connection not marked as having an open local peer")
 			}
 		}, 5*time.Second, 100*time.Millisecond)
 	}
@@ -4175,9 +4192,143 @@ func (s *TracerSuite) TestNATClassificationCleanup() {
 	}
 }
 
+// TestNATUnmarkedCloseDeletedAtClose checks that a closed NAT'd connection without an open local peer, here one with
+// no classification entry, isn't marked and has its conntrack entry deleted as soon as userspace stores the close.
+func (s *TracerSuite) TestNATUnmarkedCloseDeletedAtClose() {
+	t := s.T()
+	if !kprobe.ClassificationSupported(testConfig()) {
+		t.Skip("protocol classification not supported")
+	}
+	cfg := testConfig()
+	cfg.EnableEbpfConntracker = true
+	tr := setupTracer(t, cfg)
+	if tr.ebpfTracer.Type() == connection.TracerTypeSK {
+		t.Skip("the sk tracer doesn't classify with the conntrack map")
+	}
+	requireConntrackNATMapShared(t, cfg, tr)
+	netlinktestutil.SetupSNAT(t)
+
+	ln, err := net.Listen("tcp4", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ln.Close() })
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		c, err := ln.Accept()
+		if err == nil {
+			accepted <- c
+		}
+		close(accepted)
+	}()
+	d := net.Dialer{LocalAddr: &net.TCPAddr{IP: net.ParseIP("6.6.6.6")}, Timeout: 5 * time.Second}
+	client, err := d.Dial("tcp", ln.Addr().String())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+	server := <-accepted
+	require.NotNil(t, server)
+	t.Cleanup(func() { _ = server.Close() })
+	require.Equal(t, "7.7.7.7", server.RemoteAddr().(*net.TCPAddr).IP.String(), "connection wasn't SNAT'd")
+
+	require.NoError(t, client.Close())
+	var closed *network.ConnectionStats
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		conns, cleanup := getConnections(collect, tr)
+		defer cleanup()
+		if conn, _ := findConnection(client.LocalAddr(), client.RemoteAddr(), conns); conn != nil && conn.IsClosed {
+			cp := *conn
+			closed = &cp
+		}
+		assert.NotNil(collect, closed, "closed connection not found")
+	}, 5*time.Second, 100*time.Millisecond)
+	assert.NotNil(t, closed.IPTranslation, "closed connection reported without NAT translation")
+	assert.False(t, closed.LocalNATPeerOpen, "connection without a classification entry marked as having an open local peer")
+	assert.Nil(t, tr.conntracker.GetTranslationForConn(&closed.ConnectionTuple), "conntrack entry not deleted at close")
+}
+
+// TestNATSecondCloseNotMarkedWithUSM checks that with USM and NPM both enabled, only the first end of a same-host NAT'd
+// pair to close is marked. Their side flags then outlive the first close until the socket filter sees the FIN, which
+// never happens here, so the second close must still tell it isn't the first.
+func (s *TracerSuite) TestNATSecondCloseNotMarkedWithUSM() {
+	t := s.T()
+	if !kprobe.ClassificationSupported(testConfig()) {
+		t.Skip("protocol classification not supported")
+	}
+	cfg := testConfig()
+	cfg.EnableEbpfConntracker = true
+	tr := setupTracer(t, cfg)
+	if tr.ebpfTracer.Type() == connection.TracerTypeSK {
+		t.Skip("the sk tracer doesn't classify with the conntrack map")
+	}
+	requireConntrackNATMapShared(t, cfg, tr)
+	netlinktestutil.SetupSNAT(t)
+
+	protoMap, err := tr.GetMap(probes.ConnectionProtocolMap)
+	require.NoError(t, err)
+
+	ln, err := net.Listen("tcp4", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ln.Close() })
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		c, err := ln.Accept()
+		if err == nil {
+			accepted <- c
+		}
+		close(accepted)
+	}()
+	d := net.Dialer{LocalAddr: &net.TCPAddr{IP: net.ParseIP("6.6.6.6")}, Timeout: 5 * time.Second}
+	client, err := d.Dial("tcp", ln.Addr().String())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+	server := <-accepted
+	require.NotNil(t, server)
+	t.Cleanup(func() { _ = server.Close() })
+	require.Equal(t, "7.7.7.7", server.RemoteAddr().(*net.TCPAddr).IP.String(), "connection wasn't SNAT'd")
+
+	now, err := ddebpf.NowNanoseconds()
+	require.NoError(t, err)
+	stack := netebpf.ProtocolStackWrapper{Updated: uint64(now), Stack: netebpf.ProtocolStack{Flags: flagUSMEnabled | flagNPMEnabled | flagServerSide | flagClientSide}}
+	keys := map[string]netebpf.ConnTuple{
+		"client's tuple": normalizedClassificationKey(client.LocalAddr(), client.RemoteAddr()),
+		"server's tuple": normalizedClassificationKey(server.LocalAddr(), server.RemoteAddr()),
+	}
+	for _, k := range keys {
+		require.NoError(t, protoMap.Put(unsafe.Pointer(&k), unsafe.Pointer(&stack)))
+	}
+
+	waitClosed := func(c net.Conn) *network.ConnectionStats {
+		var closed *network.ConnectionStats
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			conns, cleanup := getConnections(collect, tr)
+			defer cleanup()
+			if conn, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), conns); conn != nil && conn.IsClosed {
+				cp := *conn
+				closed = &cp
+			}
+			assert.NotNil(collect, closed, "closed connection not found")
+		}, 5*time.Second, 100*time.Millisecond)
+		return closed
+	}
+
+	require.NoError(t, client.Close())
+	assert.True(t, waitClosed(client).LocalNATPeerOpen, "first close not marked as having an open local peer")
+	require.NoError(t, server.Close())
+	assert.False(t, waitClosed(server).LocalNATPeerOpen, "second close marked although the first already closed")
+
+	// both entries wait for the socket filter, and neither still defers to a peer
+	for name, k := range keys {
+		var got netebpf.ProtocolStackWrapper
+		require.NoError(t, protoMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&got)), "connection_protocol under the %s", name)
+		assert.NotZero(t, got.Stack.Flags&flagTCPCloseDeletion, "tcp_close cleanup didn't run for the %s", name)
+		assert.Zero(t, got.Stack.Flags&(flagServerSide|flagClientSide), "the %s still defers to a peer", name)
+	}
+}
+
 const (
-	flagServerSide = 1 << 5
-	flagClientSide = 1 << 6
+	flagUSMEnabled       = 1 << 1
+	flagNPMEnabled       = 1 << 2
+	flagTCPCloseDeletion = 1 << 3
+	flagServerSide       = 1 << 5
+	flagClientSide       = 1 << 6
 )
 
 // normalizedClassificationKey returns the classification maps' key for an IPv4 TCP connection, normalized the way
