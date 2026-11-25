@@ -2154,7 +2154,8 @@ func TestAuidDiscarder(t *testing.T) {
 		t.Fatal("Failed to get the first open event for auid discarder")
 	}
 
-	// 2. Re-open testFile : event should be discarded now
+	// 2. Re-open testFile : event should be discarded now. The sampler of the workload profiles may still let it
+	// reach user space, but then it is flagged as saved by the profiles, so that the rules don't evaluate it.
 	err = test.GetProbeEvent(func() error {
 		fd, err := openTestFile(test, testFile, syscall.O_RDONLY)
 		if err != nil {
@@ -2165,8 +2166,167 @@ func TestAuidDiscarder(t *testing.T) {
 		if event.GetEventType() != model.FileOpenEventType {
 			return false
 		}
+		if event.IsSavedByActivityDumps() {
+			return false
+		}
 		v, _ := event.GetFieldValue("open.file.path")
 		return v == testFile
 	}, 3*time.Second, model.FileOpenEventType)
 	assert.Error(t, err, "Event should have been discarded by auid discarder")
+}
+
+var _ = declareInlineConfig(TestAuidDiscarderWorkloadProfile)
+
+// TestAuidDiscarderWorkloadProfile reproduces the interaction between process.auid discarders and workload profiles.
+//
+// A process.auid discarder is checked at the very beginning of the syscall hooks (see is_auid_discarder in
+// pkg/security/ebpf/c/include/hooks/open.h). The event must not be dropped there: it is flagged
+// (RESOLVER_FLAG_WORKLOAD_PROFILE_ONLY) and submitted to the sampler of the workload profiles, which decides if it
+// reaches user space. A sampled event is flagged as saved by the profiles, so that the rules don't evaluate it.
+//
+// The test expects the workload profile to learn the open whatever the discarders.
+func TestAuidDiscarderWorkloadProfile(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
+	const (
+		discardedAUID = "1005" // the auid for which a discarder is pushed
+		controlAUID   = "2000" // an auid never discarded, to check that the workload profile works
+	)
+
+	// The rule can only match with auid 424242: any other auid is a discarder candidate. The path is an approver, so
+	// that the open pushing the discarder reaches user space.
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule_auid_discarder_profile",
+		Expression: `open.file.path == "{{.Root}}/auid_discarder_push" && process.auid == 424242`,
+	}
+
+	tagger := NewFakeManualTagger()
+	opts := workloadProfileTestOpts(t.TempDir(), tagger)
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(opts))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	p, ok := test.probe.PlatformProbe.(*probe.EBPFProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
+
+	dockerInstance, selector := startWorkloadProfileContainer(t, test, tagger, syscallTester, newWorkloadProfileImage(), "v1")
+
+	loginUIDOpenArgs := func(auid, path string) []string {
+		return []string{
+			"-login-uid-test",
+			"-login-uid-event-type", "open",
+			"-login-uid-path", path,
+			"-login-uid-value", auid,
+		}
+	}
+
+	// openInContainer opens path from a process of the container whose login uid is auid
+	openInContainer := func(auid, path string) error {
+		out, err := dockerInstance.Command(goSyscallTester, loginUIDOpenArgs(auid, path), []string{}).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("open of %s with auid %s failed: %w (%s)", path, auid, err, string(out))
+		}
+		return nil
+	}
+
+	// learnOpen opens path from the container until the workload profile contains it
+	learnOpen := func(auid, path string) error {
+		return retry(t, func() error {
+			if err := openInContainer(auid, path); err != nil {
+				return backoff.Permanent(err)
+			}
+			snapshot := getWorkloadProfile(t, test, selector)
+			if snapshot == nil || !profileHasFile(snapshot, filepath.Base(path)) {
+				return fmt.Errorf("the open of %s with auid %s isn't in the workload profile", path, auid)
+			}
+			return nil
+		}, backoff.WithBackOff(backoff.NewConstantBackOff(time.Second)), backoff.WithMaxTries(15))
+	}
+
+	// 1. push a process.auid discarder for discardedAUID: a process running outside of any workload profile opens the
+	// file approved by the rule with this auid, which doesn't match the rule.
+	pushPath := filepath.Join(test.Root(), "auid_discarder_push")
+	if err := test.GetEventDiscarder(t, func() error {
+		out, err := exec.Command(goSyscallTester, loginUIDOpenArgs(discardedAUID, pushPath)...).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("couldn't open %s with auid %s: %w (%s)", pushPath, discardedAUID, err, string(out))
+		}
+		return nil
+	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+		if eventType != "open" || field != "process.auid" {
+			return false
+		}
+		v, _ := event.(*model.Event).GetFieldValue("open.file.path")
+		return v == pushPath
+	}); err != nil {
+		t.Fatalf("expected a process.auid discarder to be pushed for auid %s: %v", discardedAUID, err)
+	}
+
+	// 2. control: an open of the container with an auid that is not discarded is learned by the workload profile,
+	// which proves that the workload profile is up and running
+	if err := learnOpen(controlAUID, "/tmp/auid-wp-control"); err != nil {
+		t.Fatalf("the workload profile should learn the open of the control auid: %v", err)
+	}
+
+	// 3. the same open from the container, with the discarded auid. Once the sentinel is received, the events of the
+	// action have all been processed by user space and by the workload profile.
+	discardedPath := "/tmp/auid-wp-discarded"
+	var reachedUserSpace, withoutProfileOnlyFlag atomic.Int32
+	runUntilSentinel(t, test, dockerInstance, func() error {
+		return openInContainer(discardedAUID, discardedPath)
+	}, func(event *model.Event) {
+		if event.GetEventType() != model.FileOpenEventType {
+			return
+		}
+		if v, _ := event.GetFieldValue("open.file.path"); v == discardedPath {
+			reachedUserSpace.Add(1)
+			if !event.IsSavedByActivityDumps() {
+				withoutProfileOnlyFlag.Add(1)
+			}
+		}
+	})
+
+	snapshot := getWorkloadProfile(t, test, selector)
+	learned := snapshot != nil && profileHasFile(snapshot, filepath.Base(discardedPath))
+	t.Logf("open events of the discarded auid %s that reached user space: %d, learned by the workload profile: %v",
+		discardedAUID, reachedUserSpace.Load(), learned)
+
+	assert.True(t, learned, "the open of the discarded auid %s should be learned by the workload profile: "+
+		"the auid discarder drops it in kernel space before it can reach the workload profile", discardedAUID)
+	// the event only reaches user space for the workload profiles: it must be flagged so that the rules don't evaluate it
+	assert.Zero(t, withoutProfileOnlyFlag.Load(), "the open events of the discarded auid %s that reach user space must be flagged as saved by the profiles", discardedAUID)
+
+	// 4. causality: once the discarders are flushed, the very same open is learned, so the auid discarder is the only
+	// reason why the workload profile missed it
+	if err := p.FlushDiscarders(); err != nil {
+		t.Fatal(err)
+	}
+	if err := learnOpen(discardedAUID, "/tmp/auid-wp-after-flush"); err != nil {
+		t.Fatalf("the workload profile should learn the open of auid %s once the discarders are flushed: %v", discardedAUID, err)
+	}
 }

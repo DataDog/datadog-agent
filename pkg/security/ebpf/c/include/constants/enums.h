@@ -116,6 +116,7 @@ enum
     RESOLVER_FLAG_APPLY_DISCARDERS = 1 << 2, // defines whether to apply the discarders or not
     SAMPLE_REFRESH_NEEDED = 1 << 3, // a sample refresh event should be emitted for this dedup cookie
     RESOLVER_FLAG_SAMPLED = 1 << 4, // defines that the event was sampled, so it bypasses the discarders
+    RESOLVER_FLAG_WORKLOAD_PROFILE_ONLY = 1 << 5, // defines that the event was discarded (auid discarder) and only reaches user space for the workload profiles, if the sampler picks it
 };
 
 enum policy_mode

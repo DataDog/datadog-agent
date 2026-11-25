@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Workload Protection security profile v2 no longer misses the file opens of
+    processes whose login UID matches an auid discarder. Such opens are now
+    sampled for the profiles instead of being dropped in kernel space, and
+    they are not evaluated against the rules.

@@ -7,7 +7,7 @@
 #include "helpers/syscalls.h"
 
 // set by approve_syscall, kept when the resolver flags are rebuilt
-#define RESOLVER_CARRY_OVER_FLAGS (RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP | SAMPLE_REFRESH_NEEDED | RESOLVER_FLAG_SAMPLED)
+#define RESOLVER_CARRY_OVER_FLAGS (RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP | SAMPLE_REFRESH_NEEDED | RESOLVER_FLAG_SAMPLED | RESOLVER_FLAG_WORKLOAD_PROFILE_ONLY)
 
 // INTERNAL events are forwarded unconditionally (e.g. cgroup tracking) and ACCEPTED events are already approved,
 // so neither should be filtered by discarders.
