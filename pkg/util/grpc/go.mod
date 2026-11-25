@@ -9,8 +9,8 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/proto v0.53.2-rc.19.0.20261112165249-a030ddec33b0
-	github.com/DataDog/datadog-agent/pkg/util/log v0.53.2-rc.19.0.20261112165249-a030ddec33b0
+	github.com/DataDog/datadog-agent/pkg/proto v0.53.2-rc.19.0.20261119205455-8495c620983f
+	github.com/DataDog/datadog-agent/pkg/util/log v0.53.2-rc.19.0.20261119205455-8495c620983f
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.0
 	github.com/stretchr/testify v1.10.0
@@ -19,7 +19,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.2-rc.19.0.20261112165249-a030ddec33b0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.2-rc.19.0.20261119205455-8495c620983f // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect

@@ -4,7 +4,7 @@ go 1.25.8
 
 require (
 	dario.cat/mergo v1.0.2
-	github.com/DataDog/datadog-agent/pkg/util/option v0.53.2-rc.19.0.20261112165249-a030ddec33b0
+	github.com/DataDog/datadog-agent/pkg/util/option v0.53.2-rc.19.0.20261119205455-8495c620983f
 	github.com/Masterminds/semver v1.5.0
 	github.com/alessio/shellescape v1.4.2
 	github.com/aws/aws-sdk-go-v2 v1.39.6
