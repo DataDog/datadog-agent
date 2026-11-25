@@ -32,6 +32,17 @@ OCB_VERSION = "0.165.0"
 # The version the core collector and collector-contrib may or may not match
 OTEL_CONTRIB_VERSION = "0.165.1"
 
+# Module path prefixes whose releases are cut in lockstep with the collector (and
+# therefore with OCB). Custom components outside of these repositories follow their own
+# versioning scheme, so pinning them to OCB_VERSION would mean requiring a version
+# they never published. OCB's own strict versioning check still verifies that the
+# version in the manifest matches the one resolved in the generated go.mod.
+LOCKSTEP_MODULE_PREFIXES = (
+    "go.opentelemetry.io/collector/",
+    "github.com/open-telemetry/opentelemetry-collector-contrib/",
+    "go.opentelemetry.io/collector-contrib/",  # future home of contrib modules
+)
+
 MANDATORY_COMPONENTS = {
     "extensions": [
         "zpagesextension",
@@ -147,12 +158,15 @@ def validate_manifest(manifest) -> list:
         if components:
             for component in components:
                 for module in component.values():
-                    module_info = module.split(" ")
+                    module_info = module.split()
                     if len(module_info) == 2:
-                        _, module_version = module_info
+                        module_path, module_version = module_info
                         # Stable (v1+) components (e.g. k8sattributesprocessor) are versioned
                         # independently of the collector release, so they cannot match OCB_VERSION.
                         if is_stable_version(module_version):
+                            continue
+                        # Custom components outside lockstep repos follow their own versioning scheme.
+                        if not module_path.startswith(LOCKSTEP_MODULE_PREFIXES):
                             continue
                         if not versions_equal(module_version, OCB_VERSION, True):
                             raise YAMLValidationError(

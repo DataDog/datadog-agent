@@ -28,6 +28,10 @@ var _ = eval.NewContext
 {{continue}}
 {{end}}
 
+{{if $Field.IsDict}}
+{{continue}}
+{{end}}
+
 {{if $Field.Ref}}
 {{$Ref := index $.Fields $Field.Ref}}
     {{if $Ref}}

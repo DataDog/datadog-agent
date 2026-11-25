@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    GPU Monitoring: fix ``gpu.memory.limit`` and ``gpu.core.limit`` for NVIDIA MIG.
+    For GPUs in MIG mode, they now report the largest memory and the largest core count
+    that any GPU instance profile provides, instead of the capacity of the smallest profile
+    times its instance count, so no MIG device reports more than its GPU. The GPU inventory
+    reports the same capacity. ``gpu.core.limit`` is now also reported for MIG devices and
+    GPUs in MIG mode.
