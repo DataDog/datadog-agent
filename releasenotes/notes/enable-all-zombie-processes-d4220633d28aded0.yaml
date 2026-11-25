@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Add the ``process_config.enable_all_zombie_processes`` option, disabled by default.
+    When enabled, zombie processes that are not using a GPU are again submitted individually in standard and realtime process payloads, so existing monitors that rely on them keep working.
+    Use it for backward compatibility only, and only enable it when needed.
+    Setting ``process_config.ignore_zombie_processes`` to ``true`` takes precedence and excludes every zombie process.
