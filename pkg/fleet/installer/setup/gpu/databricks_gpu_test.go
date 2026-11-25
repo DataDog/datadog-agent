@@ -229,3 +229,34 @@ func TestSetupTracerConfig(t *testing.T) {
 		assert.Equal(t, "prod", s.Config.ApplicationMonitoringYAML.Default.Env)
 	})
 }
+
+func TestSetupDatabricksEnv(t *testing.T) {
+	tests := []struct {
+		name       string
+		workspace  string
+		ddEnv      string
+		currentEnv string
+		expected   string
+	}{
+		{name: "defaults to the normalized workspace", workspace: "My Workspace", expected: "my_workspace"},
+		{name: "DD_ENV wins", workspace: "My Workspace", ddEnv: "prod", expected: ""},
+		{name: "keeps the env of a previous install", workspace: "My Workspace", currentEnv: "staging", expected: ""},
+		{name: "no workspace", expected: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("DATABRICKS_WORKSPACE", tt.workspace)
+			t.Setenv("DD_ENV", tt.ddEnv)
+			dir := t.TempDir()
+			if tt.currentEnv != "" {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "datadog.yaml"), []byte("env: "+tt.currentEnv+"\n"), 0640))
+			}
+			span, _ := telemetry.StartSpanFromContext(context.Background(), "test")
+			s := &common.Setup{Span: span, Out: &common.Output{}}
+
+			setupDatabricksEnv(s, dir)
+
+			assert.Equal(t, tt.expected, s.Config.DatadogYAML.Env)
+		})
+	}
+}

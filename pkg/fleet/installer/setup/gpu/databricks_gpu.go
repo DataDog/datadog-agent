@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 )
@@ -71,6 +72,7 @@ func SetupDatabricksGPU(s *common.Setup) error {
 	s.Config.DatadogYAML.ProcessConfig.ExpvarPort = 6063 // avoid port conflict on 6062
 
 	setupDatabricksHostTags(s)
+	setupDatabricksEnv(s, paths.DatadogDataDir)
 	setupGPUCheck(s)
 	setupTracerConfig(s)
 	if err := setupTracerEnv(s, sparkEnvPath); err != nil {
@@ -191,6 +193,17 @@ func setupDatabricksHostTags(s *common.Setup) {
 	isSeparator := func(r rune) bool { return r == ',' || r == ' ' }
 	s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, strings.FieldsFunc(os.Getenv("DD_TAGS"), isSeparator)...)
 	s.Config.DatadogYAML.ExtraTags = append(s.Config.DatadogYAML.ExtraTags, strings.FieldsFunc(os.Getenv("DD_EXTRA_TAGS"), isSeparator)...)
+}
+
+// setupDatabricksEnv defaults the Agent env to the normalized workspace name,
+// like the Data Jobs Monitoring script, unless DD_ENV is set or a previous
+// install already configured an env.
+func setupDatabricksEnv(s *common.Setup, configDir string) {
+	workspace := common.NormalizeWorkspaceName(os.Getenv("DATABRICKS_WORKSPACE"))
+	if workspace == "" || os.Getenv("DD_ENV") != "" || config.ReadCurrentEnv(configDir) != "" {
+		return
+	}
+	s.Config.DatadogYAML.Env = workspace
 }
 
 func addTagFromEnv(s *common.Setup, envKey, tagKey string, normalize func(string) string) {

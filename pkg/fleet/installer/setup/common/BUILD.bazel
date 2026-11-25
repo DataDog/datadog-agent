@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "apm_inject_reinstall_linux.go",
         "apm_inject_reinstall_other.go",
+        "databricks.go",
         "output.go",
         "packages.go",
         "services_nix.go",
@@ -128,7 +129,10 @@ go_library(
 
 dd_agent_go_test(
     name = "common_test",
-    srcs = ["setup_test.go"],
+    srcs = [
+        "databricks_test.go",
+        "setup_test.go",
+    ],
     embed = [":common"],
     deps = [
         "//pkg/fleet/installer",

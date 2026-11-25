@@ -13,7 +13,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
@@ -30,11 +29,9 @@ const (
 )
 
 var (
-	jobNameRegex       = regexp.MustCompile(`[,\']+`)
-	clusterNameRegex   = regexp.MustCompile(`[^a-zA-Z0-9_:.-]+`)
-	workspaceNameRegex = regexp.MustCompile(`[^\p{L}\p{N}_:./-]+`)
-	dedupeUnderscores  = regexp.MustCompile(`_+`)
-	driverLogs         = []config.IntegrationConfigLogs{
+	jobNameRegex     = regexp.MustCompile(`[,\']+`)
+	clusterNameRegex = regexp.MustCompile(`[^a-zA-Z0-9_:.-]+`)
+	driverLogs       = []config.IntegrationConfigLogs{
 		{
 			Type:                   "file",
 			Path:                   "/databricks/driver/logs/*.log",
@@ -185,36 +182,6 @@ func SetupDatabricks(s *common.Setup) error {
 	return nil
 }
 
-// normalizeWorkspaceName normalizes a workspace name to match Python's normalize_tags behavior:
-// 1. Convert to all lowercase unicode string
-// 2. Trim leading/trailing quotes
-// 3. Convert bad characters to underscores
-// 4. Dedupe contiguous underscores
-// 5. Remove initial underscores/digits such that the string starts with an alpha char
-// 6. Truncate to 200 characters
-// 7. Strip trailing underscores
-func normalizeWorkspaceName(value string) string {
-	if value == "" {
-		return ""
-	}
-	normalized := strings.ToLower(value)
-	normalized = strings.Trim(normalized, "\"'")
-	normalized = workspaceNameRegex.ReplaceAllString(normalized, "_")
-	normalized = dedupeUnderscores.ReplaceAllString(normalized, "_")
-
-	if len(normalized) > 0 && (normalized[0] == '_' || normalized[0] == ':') {
-		normalized = strings.TrimLeft(normalized, "_")
-		if len(normalized) > 0 && unicode.IsDigit([]rune(normalized)[0]) {
-			normalized = strings.TrimLeft(normalized, "_:0123456789")
-		}
-	}
-
-	if len(normalized) > 200 {
-		normalized = normalized[:200]
-	}
-	return strings.TrimRight(normalized, "_")
-}
-
 func prefixWithWorkspace(normalizedWorkspace, value string) string {
 	if normalizedWorkspace != "" {
 		return normalizedWorkspace + "-" + value
@@ -244,7 +211,7 @@ func setupCommonHostTags(s *common.Setup) {
 	setIfExists(s, "DATABRICKS_WORKSPACE", "databricks_workspace", nil)
 	var normalizedWorkspace string
 	if workspace, ok := os.LookupEnv("DATABRICKS_WORKSPACE"); ok {
-		normalizedWorkspace = normalizeWorkspaceName(workspace)
+		normalizedWorkspace = common.NormalizeWorkspaceName(workspace)
 		setClearHostTag(s, "workspace", normalizedWorkspace)
 
 		// default DD_ENV to the normalized workspace name so spans emitted from this host
