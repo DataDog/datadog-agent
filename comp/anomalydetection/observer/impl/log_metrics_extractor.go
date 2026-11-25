@@ -136,6 +136,9 @@ func logMetricsGroup(log observer.LogView) logsignature.Group {
 	if group.Host == "" {
 		group.Host = log.GetHostname()
 	}
+	if group.Service == "" {
+		group.Service = log.GetService()
+	}
 	return group
 }
 
@@ -143,6 +146,7 @@ func (a *LogMetricsExtractor) Name() string { return LogMetricsExtractorName }
 
 func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) observer.LogMetricsExtractorOutput {
 	content := log.GetContent()
+	service := log.GetService()
 	tags := tagset.CompositeTagsFromSlice(log.Tags())
 
 	pattern, evicted := a.patterns.Match(logMetricsGroup(log), content, log.GetTimestampUnixMilli()/1000)
@@ -163,12 +167,13 @@ func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) observer.LogMetri
 			Pattern: pattern.Signature,
 			Example: content,
 			Source:  "log_metrics_extractor",
+			Service: service,
 		},
 	}}
 
 	// For JSON logs, also extract numeric field metrics
 	if isJSONObject(content) {
-		metrics = append(metrics, a.extractJSONFieldMetrics(content, tags)...)
+		metrics = append(metrics, a.extractJSONFieldMetrics(content, tags, service)...)
 	}
 
 	return observer.LogMetricsExtractorOutput{Metrics: metrics, EvictedMetricNames: evicted}
@@ -180,7 +185,7 @@ func isJSONObject(s string) bool {
 }
 
 // extractJSONFieldMetrics extracts numeric field metrics from JSON content.
-func (a *LogMetricsExtractor) extractJSONFieldMetrics(content string, tags tagset.CompositeTags) []observer.MetricOutput {
+func (a *LogMetricsExtractor) extractJSONFieldMetrics(content string, tags tagset.CompositeTags, service string) []observer.MetricOutput {
 	dec := json.NewDecoder(strings.NewReader(content))
 	dec.UseNumber()
 
@@ -218,6 +223,7 @@ func (a *LogMetricsExtractor) extractJSONFieldMetrics(content string, tags tagse
 				Pattern: k,
 				Example: example,
 				Source:  "log_metrics_extractor",
+				Service: service,
 			},
 		})
 	}

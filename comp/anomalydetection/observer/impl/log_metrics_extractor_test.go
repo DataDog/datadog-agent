@@ -173,3 +173,26 @@ func TestLogMetricsExtractor_MaxEvalBytesCapsSignature(t *testing.T) {
 	d := uncapped.ProcessLog(&mockLogView{content: prefix + " xyz"})
 	assert.NotEqual(t, c.Metrics[0].Name, d.Metrics[0].Name)
 }
+
+func TestLogMetricsExtractor_PropagatesServiceWithoutTagMutation(t *testing.T) {
+	extractor := NewLogMetricsExtractor(LogMetricsExtractorConfig{})
+
+	jsonRes := extractor.ProcessLog(&mockLogView{
+		service: "checkout",
+		content: `{"latency_ms":42}`,
+	})
+	require.Len(t, jsonRes.Metrics, 2)
+	for _, metric := range jsonRes.Metrics {
+		require.True(t, metric.HasContext)
+		assert.Equal(t, "checkout", metric.Context.Service)
+		assert.Empty(t, metric.Tags.Len())
+	}
+
+	otherRes := extractor.ProcessLog(&mockLogView{
+		service: "payments",
+		content: `{"latency_ms":42}`,
+	})
+	require.Len(t, otherRes.Metrics, 2)
+	assert.Equal(t, "payments", otherRes.Metrics[0].Context.Service)
+	assert.NotEqual(t, jsonRes.Metrics[0].Name, otherRes.Metrics[0].Name)
+}

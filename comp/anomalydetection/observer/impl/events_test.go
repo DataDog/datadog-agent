@@ -999,3 +999,65 @@ func TestEngineDetectorRegistrationFilters(t *testing.T) {
 	require.Len(t, first.filters, 1)
 	require.Equal(t, []observerdef.DetectionFilter{secondFilter, secondFilter}, second.filters)
 }
+
+type firstSeriesAnomalyDetector struct {
+	emitted bool
+}
+
+func (*firstSeriesAnomalyDetector) Name() string { return "first_series_anomaly" }
+func (*firstSeriesAnomalyDetector) Ready() bool  { return true }
+func (d *firstSeriesAnomalyDetector) Detect(storage observerdef.StorageReader, dataTime int64, _ observerdef.DetectionFilter) observerdef.DetectionResult {
+	if d.emitted {
+		return observerdef.DetectionResult{}
+	}
+	seriesList := storage.ListSeries(observerdef.WorkloadSeriesFilter())
+	if len(seriesList) == 0 {
+		return observerdef.DetectionResult{}
+	}
+	d.emitted = true
+	meta := seriesList[0]
+	return observerdef.DetectionResult{
+		Anomalies: []observerdef.Anomaly{{
+			Source: observerdef.SeriesDescriptor{
+				Namespace: meta.Namespace,
+				Name:      meta.Name,
+				Host:      meta.Host,
+				Tags:      meta.Tags,
+				Aggregate: observerdef.AggregateAverage,
+			},
+			SourceRef:    &observerdef.QueryHandle{Ref: meta.Ref, Aggregate: observerdef.AggregateAverage},
+			DetectorName: d.Name(),
+			Timestamp:    dataTime,
+		}},
+	}
+}
+
+func TestIngestLogPreservesServiceOnEmittedAnomalyContext(t *testing.T) {
+	for _, useBuckets := range []bool{false, true} {
+		name := "direct_storage"
+		bucketCfg := LogCountBucketConfig{}
+		if useBuckets {
+			name = "log_count_bucketizer"
+			bucketCfg = LogCountBucketConfig{Enabled: true, BucketSeconds: 5, IdleTTLSeconds: 60}
+		}
+		t.Run(name, func(t *testing.T) {
+			e := mustNewEngine(engineConfig{
+				storage:         newTimeSeriesStorage(),
+				extractors:      []observerdef.LogMetricsExtractor{NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig())},
+				detectors:       []detectorRegistration{{detector: &firstSeriesAnomalyDetector{}}},
+				logCountBuckets: bucketCfg,
+			})
+
+			e.IngestLog("logs", &logObs{
+				source:      "containerd",
+				service:     "checkout",
+				content:     "request failed with 500",
+				timestampMs: 1_000,
+			})
+			result := e.Advance(5)
+			require.Len(t, result.anomalies, 1)
+			require.NotNil(t, result.anomalies[0].Context)
+			assert.Equal(t, "checkout", result.anomalies[0].Context.Service)
+		})
+	}
+}
