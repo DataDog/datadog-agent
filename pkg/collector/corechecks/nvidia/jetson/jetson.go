@@ -9,12 +9,14 @@ package nvidia
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"go.yaml.in/yaml/v3"
@@ -35,6 +37,8 @@ const (
 
 	// The interval to run tegrastats at, in seconds
 	tegraStatsInterval = 500 * time.Millisecond
+	// The grace period for sudo to clean up after the sampling deadline.
+	tegraStatsWaitDelay = time.Second
 
 	kb = 1024
 	mb = kb * 1024
@@ -146,36 +150,56 @@ func (c *JetsonCheck) processTegraStatsOutput(tegraStatsOuptut string) error {
 	return nil
 }
 
+func newSudoTegraStatsCommand(ctx context.Context, sudoPath, binary string, args []string) *exec.Cmd {
+	// Do not prompt for a password. Run sudo directly, without a shell.
+	cmd := exec.CommandContext(ctx, sudoPath, append([]string{"-n", binary}, args...)...)
+	// Older sudo versions can suppress signals from sudo's original process group.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	// Killing sudo outright can leave tegrastats running with the output pipe open.
+	// Let sudo forward SIGTERM to the privileged command instead.
+	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
+	// Bound the wait on inherited output pipes if sudo exits or can be killed.
+	cmd.WaitDelay = tegraStatsWaitDelay
+	return cmd
+}
+
 // runCommand executes the tegrastats command, optionally with sudo.
 func runCommand(ctx context.Context, binary string, args []string, useSudo bool) ([]byte, error) {
-	var cmd *exec.Cmd
 	if useSudo {
-		// -n, non-interactive mode, no prompts are used
-		cmd = exec.CommandContext(ctx, "sudo", append([]string{binary}, args...)...)
-	} else {
-		cmd = exec.CommandContext(ctx, binary, args...)
+		return newSudoTegraStatsCommand(ctx, "sudo", binary, args).Output()
 	}
-	return cmd.Output()
+	return exec.CommandContext(ctx, binary, args...).Output()
+}
+
+// checkTegraStatsResult accepts partial output from expected sampling termination.
+func checkTegraStatsResult(output []byte, err error) error {
+	if err == nil {
+		return nil
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		if len(output) == 0 {
+			return fmt.Errorf("tegrastats did not produce any output: %w. Stderr: %s", err, exitErr.Stderr)
+		}
+		return nil
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, exec.ErrWaitDelay) {
+		if len(output) == 0 {
+			return fmt.Errorf("tegrastats did not produce any output: %w", err)
+		}
+		return nil
+	}
+	return err
 }
 
 // Run executes the check
 func (c *JetsonCheck) Run() error {
-	// Kill tegrastats if it runs for twice as long as the interval we specified, to avoid blocking
-	// the check forever
+	// Allow two tegrastats intervals to collect a sample before requesting termination.
 	ctx, cancel := context.WithTimeout(context.Background(), 2*tegraStatsInterval)
 	defer cancel()
 	tegrastatsOutput, err := runCommand(ctx, c.tegraStatsPath, c.commandOpts, c.useSudo)
-	if err != nil {
-		switch err := err.(type) {
-		case *exec.ExitError:
-			if len(tegrastatsOutput) <= 0 {
-				return fmt.Errorf("tegrastats did not produce any output: %s. Stderr: %s", err, string(err.Stderr))
-			}
-			// We kill the process, so ExitError is expected - as long as
-			// we got our output.
-		default:
-			return err
-		}
+	if err := checkTegraStatsResult(tegrastatsOutput, err); err != nil {
+		return err
 	}
 	log.Debugf("tegrastats output = %s\n", tegrastatsOutput)
 	if err := c.processTegraStatsOutput(string(tegrastatsOutput)); err != nil {
