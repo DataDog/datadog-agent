@@ -252,6 +252,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "agent_version": "1.0.42",
     "namespace": "my-ns1",
     "test_config_id": "",
+    "correlation_key": "16fdd46ce50a41c9f7b78f7ee58235f3",
     "test_result_id": "",
     "test_run_id": "",
     "origin": "network_traffic",
@@ -334,6 +335,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "agent_version": "1.0.42",
     "namespace": "my-ns1",
     "test_config_id": "",
+    "correlation_key": "ce280750ab14d3a7dbde627a7bda7a28",
     "test_result_id": "",
     "test_run_id": "",
     "origin": "network_traffic",
@@ -436,7 +438,13 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 			Type:              model.ConnectionType_udp,
 		},
 	}
-	npCollector.ScheduleNetworkPathTests("", slices.Values(conns))
+	paths := npCollector.ScheduleNetworkPathTests("test-host", slices.Values(conns))
+
+	require.Len(t, paths, 2)
+	for _, path := range paths {
+		assert.True(t, path.TestEligible)
+		assert.Len(t, path.CorrelationKey, 32)
+	}
 
 	waitForProcessedPathtests(npCollector, 5*time.Second, 2)
 
@@ -1811,7 +1819,7 @@ func Benchmark_npCollectorImpl_ScheduleNetworkPathTests(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// add line to avoid linter error
 		_ = i
-		npCollector.ScheduleNetworkPathTests("", slices.Values(connections))
+		npCollector.ScheduleNetworkPathTests("test-host", slices.Values(connections))
 
 		waitForProcessedPathtests(npCollector, 60*time.Second, 50)
 	}

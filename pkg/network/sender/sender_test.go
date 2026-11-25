@@ -800,6 +800,7 @@ func TestNetworkPathMetadataSurvivesChunking(t *testing.T) {
 	d.npCollector = keyPerDestCollector{}
 
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: makeConnections(count)}}
+	slices.Reverse(conns.Conns)
 
 	seen := 0
 	for _, payload := range slices.Collect(d.batches(conns, 1)) {
@@ -815,6 +816,53 @@ func TestNetworkPathMetadataSurvivesChunking(t *testing.T) {
 		}
 	}
 	assert.Equal(t, count, seen)
+}
+
+// decliningCollector marks only connections to an even third octet as eligible, so
+// the payload has to keep the two states apart.
+type decliningCollector struct{}
+
+func (decliningCollector) ScheduleNetflowPathTests(iter.Seq[npmodel.NetworkPathConnection]) {}
+
+func (decliningCollector) ScheduleNetworkPathTests(_ string, conns iter.Seq[npmodel.NetworkPathConnection]) []model.NetworkPath {
+	var out []model.NetworkPath
+	for conn := range conns {
+		if conn.Dest.Addr().As4()[2]%2 != 0 {
+			out = append(out, model.NetworkPath{})
+			continue
+		}
+		out = append(out, model.NetworkPath{TestEligible: true, CorrelationKey: "key-" + conn.Dest.Addr().String()})
+	}
+	return out
+}
+
+func TestNetworkPathDeclinedConnectionsAreMarkedIneligible(t *testing.T) {
+	d := mockDirectSender(t, nil)
+	d.maxConnsPerMessage = 2
+	d.npCollector = decliningCollector{}
+
+	conns := &network.Connections{BufferedData: network.BufferedData{Conns: makeConnections(5)}}
+	slices.Reverse(conns.Conns)
+
+	eligible, declined := 0, 0
+	for _, payload := range slices.Collect(d.batches(conns, 1)) {
+		m, err := model.DecodeMessage(payload)
+		require.NoError(t, err)
+		c, ok := m.Body.(*model.CollectorConnections)
+		require.True(t, ok)
+		for _, conn := range c.Connections {
+			require.NotNilf(t, conn.NetworkPath, "connection to %s lost its metadata", conn.Raddr.Ip)
+			if conn.NetworkPath.TestEligible {
+				assert.Equal(t, "key-"+conn.Raddr.Ip, conn.NetworkPath.CorrelationKey)
+				eligible++
+				continue
+			}
+			assert.Emptyf(t, conn.NetworkPath.CorrelationKey, "declined connection to %s carries a key", conn.Raddr.Ip)
+			declined++
+		}
+	}
+	assert.Equal(t, 2, eligible)
+	assert.Equal(t, 3, declined)
 }
 
 func TestNetworkPathAbsentWhenNotScheduled(t *testing.T) {
