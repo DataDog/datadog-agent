@@ -32,8 +32,9 @@ GPU e2e tests are located in `test/new-e2e/tests/gpu/` and verify GPU monitoring
 5. **TestNvmlMetricsPresent**: Verifies NVML metrics are collected
 6. **TestWorkloadmetaHasGPUs**: Checks workloadmeta contains GPU entities
 7. **TestCOATMetricsReported**: Checks the COAT `gpu` profile selects the GPU check telemetry, using `diagnose show-metadata agent-telemetry` (core agent only)
-8. **TestZZAgentDidNotRestart**: Ensures agent didn't restart during tests
-9. **TestMockGPUAllocationTags** (Mokka suite only): A pod requesting one GPU gets its tags on the metrics of exactly one GPU
+8. **TestGPUResourcesPublished**: Checks that each physical GPU from the host’s nvidia-smi inventory produces a gpu_device event in fakeintake with the expected source, Agent hostname, TTL, model, driver, and PCI bus ID.
+9. **TestZZAgentDidNotRestart**: Ensures agent didn't restart during tests
+10. **TestMockGPUAllocationTags** (Mokka suite only): A pod requesting one GPU gets its tags on the metrics of exactly one GPU
 
 ## Provisioning
 

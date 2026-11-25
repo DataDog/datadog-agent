@@ -73,7 +73,10 @@ type Config struct {
 	// Defaults to 30 seconds. It is used to fix race conditions between systemd and the system-probe permission patching.
 	CgroupReapplyInterval time.Duration
 	// CgroupReapplyInfinitely controls whether the cgroup device configuration should be reapplied infinitely (true) or only once (false).
-	// Defaults to false. When true, the configuration will be reapplied every CgroupReapplyInterval interval.
+	// Defaults to true: the container runtime or systemd can reset the device permissions at any time (agent
+	// container restart, systemctl daemon-reload). When true, the configuration will be reapplied every
+	// CgroupReapplyInterval interval; when false, once more after CgroupReapplyInterval. Only used when
+	// ConfigureCgroupPerms is set.
 	CgroupReapplyInfinitely bool
 	// JobsConfig provides the ability for the user to define run/group identifiers to be attached to traces and metrics.
 	JobsConfig JobsConfig

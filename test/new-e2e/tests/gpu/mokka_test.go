@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 )
@@ -40,7 +41,7 @@ var mokkaT4System = systemData{
 // are simulated by Mokka (NVIDIA nvml-mock). It inherits every gpuBaseSuite test, plus the
 // Mokka-specific ones below.
 type gpuMokkaK8sSuite struct {
-	gpuK8sSuite
+	gpuBaseSuite[environments.Kubernetes]
 }
 
 // TestGPUMokkaK8sSuite runs the GPU Kubernetes tests against two simulated NVIDIA T4 GPUs.
@@ -54,11 +55,9 @@ func TestGPUMokkaK8sSuite(t *testing.T) {
 	}
 
 	suite := &gpuMokkaK8sSuite{
-		gpuK8sSuite: gpuK8sSuite{
-			gpuBaseSuite: gpuBaseSuite[environments.Kubernetes]{
-				provisioner: provisioner,
-				systemData:  mokkaT4System,
-			},
+		gpuBaseSuite: gpuBaseSuite[environments.Kubernetes]{
+			provisioner: provisioner,
+			systemData:  mokkaT4System,
 		},
 	}
 
@@ -68,11 +67,39 @@ func TestGPUMokkaK8sSuite(t *testing.T) {
 func (s *gpuMokkaK8sSuite) SetupSuite() {
 	// The base suite needs the capabilities struct, so set it before calling the base SetupSuite.
 	// Kind nodes have no NVIDIA RuntimeClass: Mokka injects the GPUs through its NRI plugin.
-	s.caps = &kubernetesCapabilities{
+	s.caps = &kubernetesCapabilities[environments.Kubernetes]{
 		suite:          &s.BaseSuite,
+		kube:           func(env *environments.Kubernetes) *environments.Kubernetes { return env },
 		containerToJob: make(map[string]string),
 	}
 	s.gpuBaseSuite.SetupSuite()
+}
+
+func (s *gpuMokkaK8sSuite) AfterTest(suiteName, testName string) {
+	s.BaseSuite.AfterTest(suiteName, testName)
+
+	if !s.T().Failed() {
+		return
+	}
+
+	k8sPulumiProvisioner, ok := s.provisioner.(*provisioners.PulumiProvisioner[environments.Kubernetes])
+	if !ok {
+		return
+	}
+
+	diagnose, err := k8sPulumiProvisioner.Diagnose(context.Background(), s.Env().KubernetesCluster.ClusterName)
+	if err != nil {
+		s.T().Logf("failed to diagnose provisioner: %v", err)
+	}
+
+	s.T().Logf("Diagnose result:\n\n%s", diagnose)
+}
+
+// TestGPUResourcesPublished is skipped: it compares the published GPU resources with the
+// nvidia-smi inventory of the host, and the VM has no NVIDIA driver: Mokka only mocks NVML for the
+// containers it injects into.
+func (s *gpuMokkaK8sSuite) TestGPUResourcesPublished() {
+	s.T().Skip("the host has no nvidia-smi: the GPUs are simulated by Mokka inside the containers")
 }
 
 // TestMockGPUAllocationTags checks that the pod's tags are on the metrics of exactly the GPU the

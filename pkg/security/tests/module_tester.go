@@ -792,6 +792,15 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		runtimeSecurityEnabled = false
 	}
 
+	workloadProfileStorageDir := opts.workloadProfileStorageDir
+	if workloadProfileStorageDir == "" {
+		var err error
+		workloadProfileStorageDir, err = os.MkdirTemp(cfgDir, "profiles-*")
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
 		"TestPoliciesDir":                         cfgDir,
@@ -803,7 +812,7 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		"SecurityProfileSampleRefreshPeriod":      opts.securityProfileSampleRefreshPeriod,
 		"SecurityProfileMaxImageTags":             opts.securityProfileMaxImageTags,
 		"EnableAnomalyDetection":                  opts.enableAnomalyDetection,
-		"WorkloadProfileStorageDir":               opts.workloadProfileStorageDir,
+		"WorkloadProfileStorageDir":               workloadProfileStorageDir,
 		"WorkloadProfilePersistencePeriod":        opts.workloadProfilePersistencePeriod,
 		"WorkloadProfileEventTypes":               opts.workloadProfileEventTypes,
 		"WorkloadProfileDifferentiateArgs":        opts.workloadProfileDifferentiateArgs,
@@ -822,6 +831,7 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		"FIMEnabled":                              opts.enableFIM, // should only be enabled/disabled on windows
 		"NetworkIngressEnabled":                   opts.networkIngressEnabled,
 		"NetworkRawPacketEnabled":                 opts.networkRawPacketEnabled,
+		"NetworkTCXEnabled":                       opts.networkTCXEnabled,
 		"OnDemandRateLimiterEnabled":              !opts.disableOnDemandRateLimiter,
 		"EnforcementExcludeBinary":                opts.enforcementExcludeBinary,
 		"EnforcementDisarmerContainerEnabled":     opts.enforcementDisarmerContainerEnabled,

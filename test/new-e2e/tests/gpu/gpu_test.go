@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
@@ -175,7 +176,7 @@ func (s *gpuHostSuite) SetupSuite() {
 }
 
 type gpuK8sSuite struct {
-	gpuBaseSuite[environments.Kubernetes]
+	gpuBaseSuite[gpuK8sEnvironment]
 }
 
 // TestGPUK8sSuiteUbuntu2204 runs tests for the VM interface to ensure its implementation is correct.
@@ -208,7 +209,7 @@ func runGpuK8sSuite(t *testing.T, gpuSystem systemName) {
 	}
 
 	suite := &gpuK8sSuite{
-		gpuBaseSuite: gpuBaseSuite[environments.Kubernetes]{
+		gpuBaseSuite: gpuBaseSuite[gpuK8sEnvironment]{
 			provisioner: provisioner,
 			systemData:  systemData,
 		},
@@ -219,8 +220,10 @@ func runGpuK8sSuite(t *testing.T, gpuSystem systemName) {
 
 func (s *gpuK8sSuite) SetupSuite() {
 	// The base suite needs the capabilities struct, so set it before calling the base SetupSuite
-	s.caps = &kubernetesCapabilities{
+	s.caps = &kubernetesCapabilities[gpuK8sEnvironment]{
 		suite:            &s.BaseSuite,
+		kube:             func(env *gpuK8sEnvironment) *environments.Kubernetes { return &env.Kubernetes },
+		gpuHost:          func(env *gpuK8sEnvironment) *components.RemoteHost { return env.RemoteHost },
 		containerToJob:   make(map[string]string),
 		runtimeClassName: nvidiaRuntimeClassName,
 	}
@@ -262,7 +265,7 @@ func (s *gpuK8sSuite) AfterTest(suiteName, testName string) {
 		return
 	}
 
-	k8sPulumiProvisioner, ok := s.provisioner.(*provisioners.PulumiProvisioner[environments.Kubernetes])
+	k8sPulumiProvisioner, ok := s.provisioner.(*provisioners.PulumiProvisioner[gpuK8sEnvironment])
 	if !ok {
 		return
 	}
@@ -478,6 +481,87 @@ func (v *gpuBaseSuite[Env]) TestNvmlMetricsPresent() {
 			}
 		}
 	}, 5*time.Minute, 10*time.Second)
+}
+
+// TestGPUResourcesPublished verifies the generic resource sent for each physical GPU.
+func (v *gpuBaseSuite[Env]) TestGPUResourcesPublished() {
+	if !v.systemData.hasAllNVMLCriticalAPIs {
+		v.T().Skip("skipping test as system does not have all the critical NVML APIs")
+	}
+	const ttl = 15 * time.Minute // Default gpu.resources.ttl.
+	host := v.caps.GPUHost()
+	list, err := host.Execute("nvidia-smi -L")
+	v.Require().NoError(err)
+	gpuLine := regexp.MustCompile(`(?m)^GPU [0-9]+: .* \(UUID: (GPU-[^)]+)\)\r?$`)
+	devices := gpuLine.FindAllStringSubmatch(list, -1)
+	v.Require().NotEmpty(devices, "no physical GPUs in nvidia-smi output: %s", list)
+	var uuids []string
+	for _, device := range devices {
+		uuids = append(uuids, strings.ToLower(device[1]))
+	}
+
+	inventory, err := host.Execute("nvidia-smi --query-gpu=uuid,name,driver_version,pci.bus_id --format=csv,noheader")
+	v.Require().NoError(err)
+	type gpuFields struct {
+		UUID          string `json:"gpu_uuid"`
+		Hostname      string `json:"hostname"`
+		Model         string `json:"gpu_device"`
+		DriverVersion string `json:"gpu_driver_version"`
+		PCIBusID      string `json:"gpu_pci_bus_id"`
+	}
+	hostname := strings.TrimSpace(v.caps.Agent().Hostname())
+	v.Require().NotEmpty(hostname)
+	expected := make(map[string]gpuFields, len(uuids))
+	for _, line := range strings.Split(strings.TrimSpace(inventory), "\n") {
+		columns := strings.Split(line, ",")
+		v.Require().Len(columns, 4, "unexpected nvidia-smi inventory row: %q", line)
+		busID := strings.ToLower(strings.TrimSpace(columns[3]))
+		// nvidia-smi may print an eight-digit, zero-padded PCI domain.
+		domain, address, ok := strings.Cut(busID, ":")
+		v.Require().True(ok, "invalid PCI bus ID: %q", busID)
+		if len(domain) == 8 && strings.HasPrefix(domain, "0000") {
+			domain = domain[4:]
+		}
+		uuid := strings.ToLower(strings.TrimSpace(columns[0]))
+		expected[uuid] = gpuFields{
+			UUID:          uuid,
+			Hostname:      hostname,
+			Model:         strings.ToLower(strings.ReplaceAll(strings.TrimSpace(columns[1]), " ", "_")),
+			DriverVersion: strings.TrimSpace(columns[2]),
+			PCIBusID:      domain + ":" + address,
+		}
+	}
+	v.Require().Len(expected, len(uuids))
+	for _, uuid := range uuids {
+		v.Require().Contains(expected, uuid)
+	}
+
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		events, err := v.caps.FakeIntake().Client().FilterGenResources("gpu_device")
+		require.NoError(c, err)
+		// HTTP retries can deliver an event more than once. Validate every
+		// delivery and compare GPU UUIDs by membership.
+		seenByGPU := make(map[string]struct{}, len(uuids))
+		for _, event := range events {
+			resource := event.GetResource()
+			uuid := resource.GetKey()
+			assert.Equal(c, "integrations-core", event.GetSource(), "GPU %s", uuid)
+			require.NoError(c, resource.GetSeenAt().CheckValid(), "GPU %s seen_at", uuid)
+			require.NoError(c, resource.GetExpireAt().CheckValid(), "GPU %s expire_at", uuid)
+			seenAt := resource.GetSeenAt().AsTime()
+			assert.Equal(c, ttl, resource.GetExpireAt().AsTime().Sub(seenAt), "GPU %s", uuid)
+			seenByGPU[uuid] = struct{}{}
+
+			var fields gpuFields
+			require.NoError(c, json.Unmarshal(resource.GetFieldsJson(), &fields), "GPU %s", uuid)
+			assert.Equal(c, expected[uuid], fields, "GPU %s", uuid)
+		}
+		publishedUUIDs := make([]string, 0, len(seenByGPU))
+		for uuid := range seenByGPU {
+			publishedUUIDs = append(publishedUUIDs, uuid)
+		}
+		assert.ElementsMatch(c, uuids, publishedUUIDs)
+	}, 2*time.Minute, 5*time.Second)
 }
 
 func (v *gpuBaseSuite[Env]) TestWorkloadmetaHasGPUs() {

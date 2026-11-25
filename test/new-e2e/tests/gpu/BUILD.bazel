@@ -68,6 +68,7 @@ dd_agent_go_test(
     deps = [
         "//pkg/util/testutil/flake",
         "//test/e2e-framework/components/os",
+        "//test/e2e-framework/testing/components",
         "//test/e2e-framework/testing/e2e",
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/provisioners",

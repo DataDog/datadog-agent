@@ -311,6 +311,18 @@ properties:
         node_type: setting
         type: boolean
         default: false
+      events:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            description: |-
+              Emit KAI PodGroup events from the job_scheduler_events check of the Cluster Agent leader.
+              Requires cluster_agent.kai_scheduler.enabled. Turn off the PodGroup events of the
+              kai_scheduler integration check when enabling it, or each event is sent twice.
   kueue:
     node_type: section
     type: object
@@ -319,6 +331,18 @@ properties:
         node_type: setting
         type: boolean
         default: false
+      events:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            description: |-
+              Emit Kueue Workload events from the job_scheduler_events check of the Cluster Agent leader.
+              Requires cluster_agent.kueue.enabled. Turn off the Workload events of the kueue integration
+              check when enabling it, or each event is sent twice.
       pod_template_tags:
         node_type: setting
         type: boolean

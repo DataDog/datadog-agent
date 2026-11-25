@@ -29,4 +29,8 @@ type Component interface {
 	Schedule(ranges []Range) map[string]error
 	// RangeCount is the number of ranges currently swept.
 	RangeCount() int
+	// Trigger sweeps one scheduled range now under a new run, discarding whatever
+	// a previous cycle left behind. It returns once the sweep is queued, not once
+	// it finishes, and refuses a range that is already sweeping.
+	Trigger(autodiscoveryID string) error
 }

@@ -101,12 +101,21 @@ const (
 	metricSourceCount
 )
 
-// insertionErrorKey identifies an unexpected activity-tree insertion failure by
-// event type and a bounded error-type label.
+// insertionErrorKey identifies an event error or an unexpected activity-tree insertion failure by
+// event type, a bounded error-type label and the outcome of the event.
 type insertionErrorKey struct {
 	eventType model.EventType
 	errorType string
+	outcome   string
 }
+
+// Outcomes of an event counted as an insertion error
+const (
+	insertionErrorKept    = "kept"
+	insertionErrorDropped = "dropped"
+)
+
+var insertionErrorOutcomes = []string{insertionErrorKept, insertionErrorDropped}
 
 // perEventTypeMetrics holds the precomputed statsd tags and the counters for a
 // (source, event_type) pair.
@@ -163,6 +172,7 @@ type ManagerV2 struct {
 	localStorage              *storage.Directory
 	remoteStorage             *storage.ActivityDumpRemoteStorageForwarder
 	configuredStorageRequests map[config.StorageFormat][]config.StorageRequest
+	persistLock               sync.Mutex
 
 	profilePendingEvents     map[containerutils.CGroupID]*pendingProfile
 	profilePendingEventsLock sync.Mutex
@@ -315,7 +325,9 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpfM
 func (m *ManagerV2) initMetricsMap() {
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
 		for _, errorType := range activity_tree.InsertionErrorTypes {
-			m.insertionErrors[insertionErrorKey{eventType: i, errorType: errorType}] = atomic.NewUint64(0)
+			for _, outcome := range insertionErrorOutcomes {
+				m.insertionErrors[insertionErrorKey{eventType: i, errorType: errorType, outcome: outcome}] = atomic.NewUint64(0)
+			}
 		}
 		for _, state := range model.AllEventFilteringProfileState {
 			for _, result := range allEventFilteringResults {
@@ -432,6 +444,9 @@ func (m *ManagerV2) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			if m.config.RuntimeSecurity.SecurityProfileV2Enabled {
+				m.persistAllProfilesLocal()
+			}
 			return
 		case <-sendTickerChan:
 			m.persistAllProfiles()
@@ -519,10 +534,24 @@ func (m *ManagerV2) onCGroupDeleted(cgce *cgroupModel.CacheEntry) {
 	delete(m.resolvedCgroups, cgroupID)
 	m.resolvedCgroupsLock.Unlock()
 
+	var replacement *cgroupModel.CacheEntry
+	if !cgce.IsContainerContextNull() && m.resolvers != nil && m.resolvers.CGroupResolver != nil {
+		if entry := m.resolvers.CGroupResolver.GetCacheEntryContainerID(cgce.GetContainerID()); entry != nil && entry != cgce && !entry.IsDeleted() {
+			replacement = entry
+		}
+	}
+
 	// Find and unlink this workload from its profile
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 	for selector, prof := range m.profiles {
+		if replacement != nil {
+			if m.replaceContainerWorkloadCGroup(prof, cgce, replacement) {
+				prof.RemoveBaseMountNamespace(cgce.GetCGroupInode())
+				break
+			}
+			continue
+		}
 		if removed, remainingInstances := m.unlinkWorkloadFromProfile(prof, cgce); removed {
 			prof.RemoveBaseMountNamespace(cgce.GetCGroupInode())
 			if remainingInstances == 0 {
@@ -587,18 +616,46 @@ func (m *ManagerV2) profileHasActiveInstances(prof *profile.Profile) bool {
 	return len(prof.Instances) > 0
 }
 
-// persistAllProfiles encodes and persists all profiles to configured storage backends
-func (m *ManagerV2) persistAllProfiles() {
+func (m *ManagerV2) snapshotProfiles() []*profile.Profile {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 
+	profiles := make([]*profile.Profile, 0, len(m.profiles))
 	for _, p := range m.profiles {
-		m.persistProfile(p)
+		profiles = append(profiles, p)
+	}
+	return profiles
+}
+
+// persistAllProfiles encodes and persists all profiles to configured storage backends
+func (m *ManagerV2) persistAllProfiles() {
+	profiles := m.snapshotProfiles()
+
+	m.persistLock.Lock()
+	defer m.persistLock.Unlock()
+
+	for _, p := range profiles {
+		_ = m.persistProfile(p)
+	}
+}
+
+func (m *ManagerV2) persistAllProfilesLocal() {
+	profiles := m.snapshotProfiles()
+
+	m.persistLock.Lock()
+	defer m.persistLock.Unlock()
+
+	for _, p := range profiles {
+		_ = m.persistProfileWithOptions(p, true, false)
 	}
 }
 
 // persistProfile encodes and persists a single profile to all configured storage backends
-func (m *ManagerV2) persistProfile(p *profile.Profile) {
+func (m *ManagerV2) persistProfile(p *profile.Profile) error {
+	return m.persistProfileWithOptions(p, false, true)
+}
+
+func (m *ManagerV2) persistProfileWithOptions(p *profile.Profile, localOnly bool, markSent bool) error {
 	enabled := p.IsEnabled()
 
 	// Group sibling files into patterns before encoding, even in
@@ -610,9 +667,14 @@ func (m *ManagerV2) persistProfile(p *profile.Profile) {
 	}
 	p.Unlock()
 
+	var errs error
+	persistedAny := false
 	encoded := make(map[config.StorageFormat]*bytes.Buffer)
 	for format, requests := range m.configuredStorageRequests {
 		for _, request := range requests {
+			if localOnly && request.Type != config.LocalStorage {
+				continue
+			}
 			// Avoid sending a disabled profile to the backend
 			if !enabled && request.Type != config.LocalStorage {
 				continue
@@ -624,23 +686,29 @@ func (m *ManagerV2) persistProfile(p *profile.Profile) {
 				data, err = p.Encode(format)
 				if err != nil {
 					seclog.Errorf("couldn't encode profile [%s] to %s format: %v", p.GetSelectorStr(), format, err)
+					errs = errors.Join(errs, err)
 					break
 				}
 				encoded[format] = data
 			}
 
-			m.persistProfileToStorage(p, request, data)
+			if err := m.persistProfileToStorage(p, request, data); err != nil {
+				errs = errors.Join(errs, err)
+			} else {
+				persistedAny = true
+			}
 		}
 	}
 
-	if enabled {
+	if markSent && enabled && persistedAny {
 		p.SetHasAlreadyBeenSent()
 	}
+	return errs
 }
 
 // persistProfileToStorage persists profile data to a specific storage backend
 // should we send profiles that have not changed ? Just setting a proper time interval should be enough ?
-func (m *ManagerV2) persistProfileToStorage(p *profile.Profile, request config.StorageRequest, data *bytes.Buffer) {
+func (m *ManagerV2) persistProfileToStorage(p *profile.Profile, request config.StorageRequest, data *bytes.Buffer) error {
 	var storageBackend storage.ActivityDumpStorage
 	switch request.Type {
 	case config.LocalStorage:
@@ -648,16 +716,18 @@ func (m *ManagerV2) persistProfileToStorage(p *profile.Profile, request config.S
 	case config.RemoteStorage:
 		storageBackend = m.remoteStorage
 	default:
-		seclog.Errorf("couldn't persist [%s]: unknown storage type: %s", p.GetSelectorStr(), request.Type)
-		return
+		err := fmt.Errorf("couldn't persist [%s]: unknown storage type: %s", p.GetSelectorStr(), request.Type)
+		seclog.Errorf("%v", err)
+		return err
 	}
 
 	if err := storageBackend.Persist(request, p, data); err != nil {
 		seclog.Errorf("couldn't persist [%s] to %s storage: %v", p.GetSelectorStr(), request.Type, err)
-		return
+		return err
 	}
 
 	m.sendPersistenceMetrics(request, data.Len())
+	return nil
 }
 
 // sendPersistenceMetrics accumulates persistence metrics after successful profile persistence.
@@ -692,7 +762,7 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 	// Filter out systemd cgroups for now, we will add support for them later
 	if event.ProcessContext.Process.ContainerContext.IsNull() {
 		// A host/systemd cgroup that slipped a syscall sample through before being excluded: exclude it now.
-		if m.excludedCgroupsMap != nil && event.GetEventType() == model.SyscallsEventType && m.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
+		if event.Error == nil && m.excludedCgroupsMap != nil && event.GetEventType() == model.SyscallsEventType && m.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
 			if inode := event.ProcessContext.Process.CGroup.CGroupPathKey.Inode; inode != 0 {
 				if err := m.excludedCgroupsMap.Put(inode, uint8(1)); err != nil {
 					seclog.Debugf("couldn't exclude cgroup inode %d from sampling: %v", inode, err)
@@ -707,12 +777,18 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 	}
 
 	// Filter out events that are not in the configured V2 event types
-	if !slices.Contains(m.config.RuntimeSecurity.SecurityProfileV2EventTypes, model.EventType(event.Type)) {
+	eventType := profileEventType(event)
+	if !slices.Contains(m.config.RuntimeSecurity.SecurityProfileV2EventTypes, eventType) {
 		return
 	}
 
 	workloadID := getWorkloadIDFromEvent(event)
 	if workloadID == nil {
+		return
+	}
+
+	if event.Error != nil && !activity_tree.IsInsertableEventError(event.Error) {
+		m.incrementInsertionError(eventType, event.Error, insertionErrorDropped)
 		return
 	}
 
@@ -1131,10 +1207,10 @@ func (m *ManagerV2) SendStats() error {
 		}
 	}
 
-	// Activity-tree insertion errors (unexpected failures only)
+	// Event errors and unexpected activity-tree insertion failures
 	for key, count := range m.insertionErrors {
 		if value := count.Swap(0); value > 0 {
-			tags := []string{"event_type:" + key.eventType.String(), "error_type:" + key.errorType}
+			tags := []string{"event_type:" + key.eventType.String(), "error_type:" + key.errorType, "outcome:" + key.outcome}
 			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2InsertionErrors, int64(value), tags, 1.0); err != nil {
 				return err
 			}
@@ -1267,11 +1343,17 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	}
 	secprof.Unlock()
 	if err != nil {
-		if !activity_tree.IsExpectedFilterError(err) {
-			m.incrementInsertionError(event.GetEventType(), err)
+		switch {
+		case !activity_tree.IsExpectedFilterError(err):
+			m.incrementInsertionError(event.GetEventType(), err, insertionErrorDropped)
 			seclog.Debugf("couldn't insert event into profile: %v", err)
+		case event.Error != nil:
+			m.incrementInsertionError(profileEventType(event), event.Error, insertionErrorDropped)
 		}
 		return nil, false
+	}
+	if event.Error != nil {
+		m.incrementInsertionError(event.GetEventType(), event.Error, insertionErrorKept)
 	}
 
 	return secprof, inserted
@@ -1308,6 +1390,15 @@ func (m *ManagerV2) buildWorkloadSelector(event *model.Event) (cgroupModel.Workl
 	return cgroupModel.NewWorkloadSelector(imageName, "*")
 }
 
+// profileEventType returns the type of the event in profiles: a full DNS response is only remapped to a DNS event once
+// decoded, so one that failed decoding is still a DNS event of the profile
+func profileEventType(event *model.Event) model.EventType {
+	if event.GetEventType() == model.FullDNSResponseEventType && errors.Is(event.Error, model.ErrFailedDNSPacketDecoding) {
+		return model.DNSEventType
+	}
+	return event.GetEventType()
+}
+
 // getWorkloadIDFromEvent extracts the workload ID from an event, preferring container ID over cgroup ID
 func getWorkloadIDFromEvent(event *model.Event) containerutils.WorkloadID {
 	if !event.ProcessContext.Process.ContainerContext.IsNull() {
@@ -1322,7 +1413,15 @@ func getWorkloadIDFromEvent(event *model.Event) containerutils.WorkloadID {
 // getOrCreateWorkload creates a workload object from an event for tracking in profile Instances
 func (m *ManagerV2) getOrCreateWorkload(event *model.Event, selector cgroupModel.WorkloadSelector, workloadID containerutils.WorkloadID) *tags.Workload {
 	cacheEntry := m.getCacheEntryForWorkload(workloadID)
-	if cacheEntry == nil {
+	if cacheEntry == nil && m.resolvers != nil && m.resolvers.CGroupResolver != nil {
+		if inode := event.ProcessContext.Process.CGroup.CGroupPathKey.Inode; inode != 0 {
+			if candidate := m.resolvers.CGroupResolver.GetCacheEntryByInode(inode); cacheEntryMatchesWorkloadID(candidate, workloadID) {
+				cacheEntry = candidate
+			}
+		}
+	}
+
+	if !cacheEntryMatchesWorkloadID(cacheEntry, workloadID) {
 		return nil
 	}
 
@@ -1352,6 +1451,20 @@ func (m *ManagerV2) getCacheEntryForWorkload(workloadID containerutils.WorkloadI
 	return cacheEntry
 }
 
+func cacheEntryMatchesWorkloadID(cacheEntry *cgroupModel.CacheEntry, workloadID containerutils.WorkloadID) bool {
+	if cacheEntry == nil || cacheEntry.IsDeleted() {
+		return false
+	}
+	switch id := workloadID.(type) {
+	case containerutils.ContainerID:
+		return id != "" && cacheEntry.GetContainerID() == id
+	case containerutils.CGroupID:
+		return id != "" && cacheEntry.GetCGroupID() == id
+	default:
+		return false
+	}
+}
+
 func (m *ManagerV2) isWorkloadActive(workloadID containerutils.WorkloadID) bool {
 	return m.getCacheEntryForWorkload(workloadID) != nil
 }
@@ -1361,6 +1474,8 @@ func (m *ManagerV2) addWorkloadInstance(prof *profile.Profile, workload *tags.Wo
 		return false
 	}
 
+	prof.Lock()
+	defer prof.Unlock()
 	prof.InstancesLock.Lock()
 	defer prof.InstancesLock.Unlock()
 
@@ -1370,8 +1485,9 @@ func (m *ManagerV2) addWorkloadInstance(prof *profile.Profile, workload *tags.Wo
 			return false
 		}
 	}
-
 	prof.Instances = append(prof.Instances, workload)
+	prof.Metadata.ContainerID = workload.GCroupCacheEntry.GetContainerID()
+	prof.Metadata.CGroupContext = workload.GCroupCacheEntry.GetCGroupContext()
 	return true
 }
 
@@ -1483,28 +1599,61 @@ func (m *ManagerV2) seedMountNamespace(secprof *profile.Profile, cgroupInode uin
 	return seeded
 }
 
-// unlinkWorkloadFromProfile removes a workload from a profile's Instances
-// Returns (removed, remainingInstances) - whether the workload was found and removed, and the remaining instance count
-func (m *ManagerV2) unlinkWorkloadFromProfile(prof *profile.Profile, cgce *cgroupModel.CacheEntry) (bool, int) {
+func (m *ManagerV2) replaceContainerWorkloadCGroup(prof *profile.Profile, deleted, replacement *cgroupModel.CacheEntry) bool {
 	prof.InstancesLock.Lock()
 	defer prof.InstancesLock.Unlock()
 
+	containerID := deleted.GetContainerID()
+	if containerID == "" {
+		return false
+	}
+
+	for _, w := range prof.Instances {
+		if w.GetWorkloadID() == containerID {
+			if w.GCroupCacheEntry == deleted {
+				w.GCroupCacheEntry = replacement
+			}
+			return true
+		}
+	}
+	return false
+}
+
+// unlinkWorkloadFromProfile removes a workload from a profile's Instances
+// Returns (removed, remainingInstances) - whether the workload was found and removed, and the remaining instance count
+func (m *ManagerV2) unlinkWorkloadFromProfile(prof *profile.Profile, cgce *cgroupModel.CacheEntry) (bool, int) {
 	var workloadID containerutils.WorkloadID
 	if !cgce.IsContainerContextNull() {
 		workloadID = cgce.GetContainerID()
 	} else if cgce.IsCGroupContextResolved() {
 		workloadID = cgce.GetCGroupID()
 	} else {
-		return false, len(prof.Instances)
+		prof.InstancesLock.Lock()
+		remaining := len(prof.Instances)
+		prof.InstancesLock.Unlock()
+		return false, remaining
 	}
 
+	prof.Lock()
+	prof.InstancesLock.Lock()
+	removed := false
 	for i, w := range prof.Instances {
 		if w.GetWorkloadID() == workloadID {
 			prof.Instances = slices.Delete(prof.Instances, i, i+1)
-			return true, len(prof.Instances)
+			removed = true
+			if n := len(prof.Instances); n > 0 {
+				activeEntry := prof.Instances[n-1].GCroupCacheEntry
+				prof.Metadata.ContainerID = activeEntry.GetContainerID()
+				prof.Metadata.CGroupContext = activeEntry.GetCGroupContext()
+			}
+			break
 		}
 	}
-	return false, len(prof.Instances)
+	remaining := len(prof.Instances)
+	prof.InstancesLock.Unlock()
+	prof.Unlock()
+
+	return removed, remaining
 }
 
 // getOrCreateProfile retrieves an existing profile or creates a new one for the given selector.
@@ -1748,10 +1897,10 @@ func (m *ManagerV2) incrementEventFilteringStat(eventType model.EventType, state
 	}
 }
 
-// incrementInsertionError records an unexpected activity-tree insertion failure for the given
-// event type, categorizing err into a bounded error-type label.
-func (m *ManagerV2) incrementInsertionError(eventType model.EventType, err error) {
-	key := insertionErrorKey{eventType: eventType, errorType: activity_tree.InsertionErrorType(err)}
+// incrementInsertionError records an event error or an unexpected activity-tree insertion failure
+// for the given event type and outcome, categorizing err into a bounded error-type label.
+func (m *ManagerV2) incrementInsertionError(eventType model.EventType, err error, outcome string) {
+	key := insertionErrorKey{eventType: eventType, errorType: activity_tree.InsertionErrorType(err), outcome: outcome}
 	if entry, ok := m.insertionErrors[key]; ok {
 		entry.Inc()
 	}
@@ -1820,13 +1969,12 @@ func (m *ManagerV2) getNodesForSingleWorkload(workloadID containerutils.Workload
 	pr := m.resolvers.ProcessResolver
 	tagsResolver := m.resolvers.TagsResolver
 
-	var cacheEntry *cgroupModel.CacheEntry
+	var pids []uint32
 	var imageName, imageTag string
 
 	switch id := workloadID.(type) {
 	case containerutils.ContainerID:
-		cacheEntry = cgr.GetCacheEntryContainerID(id)
-		if cacheEntry == nil {
+		if cgr.GetCacheEntryContainerID(id) == nil {
 			return result
 		}
 		tags, err := tagsResolver.ResolveWithErr(id)
@@ -1835,13 +1983,14 @@ func (m *ManagerV2) getNodesForSingleWorkload(workloadID containerutils.Workload
 		}
 		imageName = utils.GetTagValue("image_name", tags)
 		imageTag = utils.GetTagValue("image_tag", tags)
+		pids = cgr.GetContainerPIDs(id)
 
 	case containerutils.CGroupID:
 		// Skip systemd cgroups if containersOnly is true
 		if containersOnly {
 			return result
 		}
-		cacheEntry = cgr.GetCacheEntryByCgroupID(id)
+		cacheEntry := cgr.GetCacheEntryByCgroupID(id)
 		if cacheEntry == nil {
 			return result
 		}
@@ -1851,6 +2000,7 @@ func (m *ManagerV2) getNodesForSingleWorkload(workloadID containerutils.Workload
 		}
 		imageName = utils.GetTagValue("service", tags)
 		imageTag = utils.GetTagValue("version", tags)
+		pids = cacheEntry.GetPIDs()
 
 	default:
 		return result
@@ -1860,8 +2010,7 @@ func (m *ManagerV2) getNodesForSingleWorkload(workloadID containerutils.Workload
 		imageTag = "latest"
 	}
 
-	// Get PIDs and resolve filepaths
-	pids := cacheEntry.GetPIDs()
+	// Resolve filepaths for PIDs
 	key := activity_tree.ImageProcessKey{
 		ImageName: imageName,
 		ImageTag:  imageTag,
@@ -1956,17 +2105,6 @@ func (m *ManagerV2) getNodesForAllWorkloads(containersOnly bool) map[activity_tr
 
 	return result
 }
-
-// ============================================================================
-// NO-OP METHODS - ProfileManager Interface Compatibility
-// ============================================================================
-//
-// The following methods are no-ops in ManagerV2. They exist solely to satisfy
-// the ProfileManager interface, allowing V1 and V2 managers to be used
-// interchangeably through the same interface.
-//
-// These methods will be removed once V2 is fully validated and V1 is deprecated.
-// ============================================================================
 
 // HandleSampleRefresh handles a sample refresh event from the kernel.
 // It updates the LastSeen timestamp of the process node associated with the given cookie.
@@ -2070,6 +2208,117 @@ func (m *ManagerV2) purgeOrphanedCookies() int {
 	return removed
 }
 
+// ListActivityDumps returns the in-memory profiles formatted as activity dump messages.
+func (m *ManagerV2) ListActivityDumps(_ *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
+		return &api.ActivityDumpListMessage{
+			Error: ErrSecurityProfileManagerDisabled.Error(),
+		}, ErrSecurityProfileManagerDisabled
+	}
+
+	m.profilesLock.Lock()
+	defer m.profilesLock.Unlock()
+
+	timeout := m.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout
+	var dumps []*api.ActivityDumpMessage
+	for _, p := range m.profiles {
+		dumps = append(dumps, p.ToSecurityActivityDumpMessage(timeout, m.configuredStorageRequests))
+	}
+	return &api.ActivityDumpListMessage{
+		Dumps: dumps,
+	}, nil
+}
+
+func profileMatchesStopParams(p *profile.Profile, params *api.ActivityDumpStopParams) bool {
+	p.Lock()
+	defer p.Unlock()
+
+	if name := params.GetName(); name != "" && p.Metadata.Name == name {
+		return true
+	}
+
+	p.InstancesLock.Lock()
+	defer p.InstancesLock.Unlock()
+
+	hasActiveInstances := len(p.Instances) > 0
+	if cid := containerutils.ContainerID(params.GetContainerID()); cid != "" {
+		for _, inst := range p.Instances {
+			if inst.GCroupCacheEntry.GetContainerID() == cid {
+				return true
+			}
+		}
+		if !hasActiveInstances && p.Metadata.ContainerID == cid {
+			return true
+		}
+	}
+	if cgid := containerutils.CGroupID(params.GetCGroupID()); cgid != "" {
+		for _, inst := range p.Instances {
+			if inst.GCroupCacheEntry.GetCGroupID() == cgid {
+				return true
+			}
+		}
+		if !hasActiveInstances && p.Metadata.CGroupContext.CGroupID == cgid {
+			return true
+		}
+	}
+	return false
+}
+
+// StopActivityDump flushes the matching profile to configured storage backends on demand without ending the profile's learning window.
+func (m *ManagerV2) StopActivityDump(params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
+		return &api.ActivityDumpStopMessage{
+			Error: ErrSecurityProfileManagerDisabled.Error(),
+		}, ErrSecurityProfileManagerDisabled
+	}
+
+	if params.GetName() == "" && params.GetContainerID() == "" && params.GetCGroupID() == "" {
+		err := errors.New("you must specify one selector between name, containerID and cgroupID")
+		return &api.ActivityDumpStopMessage{Error: err.Error()}, err
+	}
+
+	m.profilesLock.Lock()
+	var matched *profile.Profile
+	for _, p := range m.profiles {
+		if profileMatchesStopParams(p, params) {
+			matched = p
+			break
+		}
+	}
+	m.profilesLock.Unlock()
+
+	if matched != nil {
+		m.persistLock.Lock()
+		err := m.persistProfileWithOptions(matched, false, false)
+		m.persistLock.Unlock()
+		if err != nil {
+			return &api.ActivityDumpStopMessage{Error: err.Error()}, err
+		}
+		return &api.ActivityDumpStopMessage{}, nil
+	}
+
+	var err error
+	if params.GetName() != "" {
+		err = fmt.Errorf("the activity dump manager does not contain any ActivityDump with the following name: %s", params.GetName())
+	} else if params.GetContainerID() != "" {
+		err = fmt.Errorf("the activity dump manager does not contain any ActivityDump with the following containerID: %s", params.GetContainerID())
+	} else {
+		err = fmt.Errorf("the activity dump manager does not contain any ActivityDump with the following cgroup ID: %s", params.GetCGroupID())
+	}
+	return &api.ActivityDumpStopMessage{Error: err.Error()}, err
+}
+
+// ============================================================================
+// NO-OP METHODS - ProfileManager Interface Compatibility
+// ============================================================================
+//
+// The following methods are no-ops in ManagerV2. They exist solely to satisfy
+// the ProfileManager interface, allowing V1 and V2 managers to be used
+// interchangeably through the same interface.
+//
+// These methods will be removed once V2 is fully validated and V1 is deprecated.
+// ============================================================================
+
 // LookupEventInProfiles lookups event in profiles.
 // NO-OP in V2: Event filtering is handled differently through ProcessEvent which builds
 // profiles from activity dump samples. The profile lookup/filtering logic from V1 is not
@@ -2089,18 +2338,6 @@ func (m *ManagerV2) HandleCGroupTracingEvent(_ *model.CgroupTracingEvent) {}
 // SyncTracedCgroups recovers lost CGroup tracing events by going through the kernel space map of cgroups.
 // NO-OP in V2: V2 doesn't manage kernel-space traced cgroups maps.
 func (m *ManagerV2) SyncTracedCgroups() {}
-
-// ListActivityDumps lists the activity dumps.
-// NO-OP in V2: V2 doesn't expose individual activity dumps through this API.
-func (m *ManagerV2) ListActivityDumps(_ *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
-	return nil, nil
-}
-
-// StopActivityDump stops an active activity dump.
-// NO-OP in V2: V2 doesn't manage activity dumps the traditional way.
-func (m *ManagerV2) StopActivityDump(_ *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
-	return nil, nil
-}
 
 // DumpActivity dumps the activity.
 // NO-OP in V2: V2 doesn't support on-demand activity dumping through this API.

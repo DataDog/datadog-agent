@@ -257,7 +257,7 @@ func TestScoreOutputFileHighSeverityPhaseContract(t *testing.T) {
 		periods = append(periods, ObserverCorrelation{Pattern: pattern, PeriodStart: 2400})
 	}
 	path, dir := writeScoringFixture(t, periods, "1970-01-01T00:33:20Z", "1970-01-01T00:43:20Z")
-	r, err := ScoreOutputFile(path, nil, dir, 30)
+	r, err := ScoreOutputFile(path, nil, dir, 30, timeModeHistorical)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -283,7 +283,7 @@ func TestScoreOutputFileValidatesRecoveryMetadata(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			path, dir := writeScoringFixture(t, nil, tc.start, tc.end)
 			// Explicit onset must not silently bypass malformed recovery metadata.
-			_, err := ScoreOutputFile(path, []int64{1000}, dir, 30)
+			_, err := ScoreOutputFile(path, []int64{1000}, dir, 30, timeModeHistorical)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("wanted %q, got %v", tc.want, err)
 			}
@@ -293,7 +293,7 @@ func TestScoreOutputFileValidatesRecoveryMetadata(t *testing.T) {
 
 func TestScoreOutputFileTimestampOnly(t *testing.T) {
 	path, _ := writeScoringFixture(t, []ObserverCorrelation{{Pattern: "anomaly_scorer_high:1000", PeriodStart: 1000}}, "", "")
-	r, err := ScoreOutputFile(path, []int64{1000}, "", 30)
+	r, err := ScoreOutputFile(path, []int64{1000}, "", 30, timeModeHistorical)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -301,9 +301,38 @@ func TestScoreOutputFileTimestampOnly(t *testing.T) {
 		t.Fatalf("unexpected timestamp-only result: %+v", r)
 	}
 	for _, sigma := range []float64{0, -1, math.NaN(), math.Inf(1)} {
-		if _, err := ScoreOutputFile(path, []int64{1000}, "", sigma); err == nil {
+		if _, err := ScoreOutputFile(path, []int64{1000}, "", sigma, timeModeHistorical); err == nil {
 			t.Errorf("accepted invalid sigma %v", sigma)
 		}
+	}
+}
+
+func TestScoreOutputFileTimeMode(t *testing.T) {
+	periods := []ObserverCorrelation{{
+		Pattern:             "anomaly_scorer_high:1090",
+		PeriodStart:         1090,
+		TriggerTimestamp:    1090,
+		HistoricalTimestamp: 1000,
+	}}
+	path, _ := writeScoringFixture(t, periods, "", "")
+	for _, tc := range []struct {
+		mode   string
+		goodF1 bool
+	}{
+		{timeModeHistorical, true},
+		{timeModeTrigger, false},
+	} {
+		r, err := ScoreOutputFile(path, []int64{1000}, "", 30, tc.mode)
+		if err != nil {
+			t.Fatal(err)
+		}
+		good := r.TimeMode == tc.mode && (tc.goodF1 == (math.Abs(r.F1-1) <= 0.001))
+		if !good {
+			t.Fatalf("%s mode: got %+v", tc.mode, r)
+		}
+	}
+	if _, err := ScoreOutputFile(path, []int64{1000}, "", 30, "late"); err == nil {
+		t.Fatal("accepted unknown time mode")
 	}
 }
 
