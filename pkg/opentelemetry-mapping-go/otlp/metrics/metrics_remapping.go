@@ -250,3 +250,11 @@ func renameAgentInternalOTelMetric(m pmetric.Metric) {
 		m.SetName("otelcol_" + m.Name())
 	}
 }
+
+// Kong AI Gateway emits gen_ai.client.token.usage as a Sum under the kong-internal scope,
+// colliding with the OTel Histogram (distribution) metric of the same name.
+func renameKongGenAIMetrics(m pmetric.Metric, scopeName string) {
+	if scopeName == "kong-internal" && m.Name() == "gen_ai.client.token.usage" && m.Type() == pmetric.MetricTypeSum {
+		m.SetName("kong.gen_ai.client.token.usage")
+	}
+}
