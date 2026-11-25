@@ -3,6 +3,13 @@
 # Owned by: injection-platform, agent-devx
 
 .on_ssi_or_e2e_changes:
+  - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
+  - changes:
+      paths:
+        - test/new-e2e/tests/ssi/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -15,7 +22,6 @@
         - comp/core/workloadmeta/collectors/internal/kubeapiserver/**/*
         - comp/languagedetection/**/*
         - pkg/ssi/**/*
-        - test/new-e2e/tests/ssi/**/*
       compare_to: $COMPARE_TO_BRANCH
 
 .new-e2e_ssi:
@@ -38,11 +44,14 @@
     - go_e2e_deps
     - !reference [.needs_fakeintake_publish]
   rules:
-    - !reference [.on_e2e_main_release_or_rc]
+    - !reference [.on_e2e_guard]
+    - !reference [.on_e2e_fakeintake_changes]
     - changes:
         paths:
           - test/new-e2e/tests/ssi/**/*
         compare_to: $COMPARE_TO_BRANCH
+      when: on_success
+    - !reference [.on_e2e_main_release_or_rc]
     - !reference [.manual]
   variables:
     TARGETS: ./tests/ssi
@@ -57,11 +66,14 @@
 .new-e2e_ssi_extra_distribution:
   extends: .new-e2e_ssi
   rules:
-    - !reference [.on_e2e_main_release_or_rc]
+    - !reference [.on_e2e_guard]
+    - !reference [.on_e2e_fakeintake_changes]
     - changes:
         paths:
           - test/new-e2e/tests/ssi/**/*
         compare_to: $COMPARE_TO_BRANCH
+      when: on_success
+    - !reference [.on_e2e_main_release_or_rc]
     - !reference [.manual]
 
 new-e2e-ssi-kind:

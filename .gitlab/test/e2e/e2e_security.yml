@@ -3,6 +3,13 @@
 # Owned by: csm-threats-agent, agent-cspm, agent-devx
 
 .on_sbom_or_e2e_changes:
+  - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
+  - changes:
+      paths:
+        - test/new-e2e/tests/sbom/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -19,17 +26,22 @@
         - pkg/security/resolvers/resolvers_ebpf.go
         - pkg/security/resolvers/sbom/**/*
         - pkg/security/rules/bundled/**/*
-        - test/new-e2e/tests/sbom/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
 .on_cspm_or_e2e_changes:
+  - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
+  - changes:
+      paths:
+        - test/new-e2e/tests/cspm/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         - pkg/security/**/*
         - pkg/compliance/**/*
-        - test/new-e2e/tests/cspm/**/*
         # The host-benchmark suite validates the bundled benchmark content, whose
         # version is pinned by SECURITY_AGENT_POLICIES_VERSION in release.json, so a
         # policy bump must run the suite before it can break the main pipeline.

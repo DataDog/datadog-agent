@@ -3,21 +3,33 @@
 # Owned by: network-device-monitoring-core, agent-devx
 
 .on_ndm_netflow_or_e2e_changes:
+  - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
+  - changes:
+      paths:
+        - test/new-e2e/tests/ndm/netflow/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         - comp/netflow/**/*
-        - test/new-e2e/tests/ndm/netflow/**/*
         - test/new-e2e/go.mod
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
 .on_ndm_snmp_or_e2e_changes:
+  - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
+  - changes:
+      paths:
+        - test/new-e2e/tests/ndm/snmp/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         - pkg/collector/corechecks/snmp/**/*
-        - test/new-e2e/tests/ndm/snmp/**/*
         - test/new-e2e/go.mod
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
@@ -25,12 +37,18 @@
     allow_failure: true
 
 .on_ha_agent_or_e2e_changes:
+  - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
+  - changes:
+      paths:
+        - test/new-e2e/tests/ha-agent/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         - comp/haagent/**/*
         - pkg/aggregator/**/*
-        - test/new-e2e/tests/ha-agent/**/*
         - test/new-e2e/go.mod
       compare_to: $COMPARE_TO_BRANCH
     when: on_success

@@ -15,6 +15,13 @@ new-e2e-agent-configuration-windows:
 new-e2e-agent-runtimes-windows:
   extends: .new_e2e_template_needs_windows_x64
   rules:
+    - !reference [.on_e2e_guard]
+    - !reference [.on_e2e_fakeintake_changes]
+    - changes:
+        paths:
+          - test/new-e2e/tests/agent-runtimes/**/*
+        compare_to: $COMPARE_TO_BRANCH
+      when: on_success
     - !reference [.on_e2e_main_release_or_rc]
     - changes:
         paths:
@@ -23,7 +30,6 @@ new-e2e-agent-runtimes-windows:
           - pkg/fleet/installer/packages/processmanager/*_windows.go
           - pkg/fleet/installer/packages/datadog_agent_windows.go
           - cmd/agent/subcommands/run/dependent_services_windows.go
-          - test/new-e2e/tests/agent-runtimes/**/*
         compare_to: $COMPARE_TO_BRANCH
     # TestProcmgrSmokeWindowsSuite starts ADP; the ADP 1.5.0 bump regressed it (#54505).
     - !reference [.on_adp_version_bump]
@@ -37,6 +43,13 @@ new-e2e-agent-runtimes-windows:
 new-e2e-agent-subcommands-windows:
   extends: .new_e2e_template_needs_windows_x64
   rules:
+    - !reference [.on_e2e_guard]
+    - !reference [.on_e2e_fakeintake_changes]
+    - changes:
+        paths:
+          - test/new-e2e/tests/agent-subcommands/**/*
+        compare_to: $COMPARE_TO_BRANCH
+      when: on_success
     - !reference [.on_e2e_main_release_or_rc]
     - changes:
         paths:
@@ -44,7 +57,6 @@ new-e2e-agent-subcommands-windows:
           - pkg/flare/**/*
           - comp/procmgr/**/*
           - pkg/procmgr/**/*
-          - test/new-e2e/tests/agent-subcommands/**/*
         compare_to: $COMPARE_TO_BRANCH
     - !reference [.manual]
   variables:

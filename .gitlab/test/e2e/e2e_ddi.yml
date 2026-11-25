@@ -3,6 +3,13 @@
 # Owned by: container-platform, agent-devx
 
 .on_ddi_or_e2e_changes:
+  - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
+  - changes:
+      paths:
+        - test/new-e2e/tests/ddi/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -13,7 +20,6 @@
         - pkg/config/autodiscovery/**/*
         - pkg/util/kubernetes/apiserver/controllers/instrumentation_controller.go
         - test/e2e-framework/components/datadog/apps/nginx/**/*
-        - test/new-e2e/tests/ddi/**/*
         - test/new-e2e/go.mod
       compare_to: $COMPARE_TO_BRANCH
     when: on_success

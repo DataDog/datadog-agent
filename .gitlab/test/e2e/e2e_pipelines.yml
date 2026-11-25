@@ -3,10 +3,16 @@
 # Owned by: agent-metric-pipelines, agent-log-pipelines, agent-data-plane, q-branch, agent-devx
 
 .on_amp_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
   - changes:
       paths:
         - test/new-e2e/tests/agent-metric-pipelines/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
         - cmd/agent/subcommands/dogstatsd*/*
         - cmd/dogstatsd/**/*
         - comp/agent/jmxlogger/**/*
@@ -27,11 +33,17 @@
       compare_to: $COMPARE_TO_BRANCH
 
 .on_adp_preflight_mode_or_e2e_changes:
+  - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
+  - changes:
+      paths:
+        - test/new-e2e/tests/agent-data-plane/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         - comp/dataplane/preflightmode/**/*
-        - test/new-e2e/tests/agent-data-plane/**/*
         # Preflight mode's eligibility gate lives in the config layer, not in the component:
         # sanitizeDataPlaneConfig decides whether data_plane.enabled stays at its default
         # source, which is what makes the pre-flight run at all.
@@ -125,11 +137,17 @@ new-e2e-alp:
   retry: !reference [.retry_only_infra_failure, retry]
 
 .on_anomalydetection_or_e2e_changes:
+  - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
+  - changes:
+      paths:
+        - test/new-e2e/tests/anomalydetection/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         - comp/anomalydetection/**/*
-        - test/new-e2e/tests/anomalydetection/**/*
         - test/new-e2e/go.mod
       compare_to: $COMPARE_TO_BRANCH
     when: on_success

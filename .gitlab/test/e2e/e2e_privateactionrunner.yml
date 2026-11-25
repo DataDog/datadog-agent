@@ -3,6 +3,13 @@
 # Owned by: action-platform, agent-devx
 
 .on_privateactionrunner_or_e2e_changes:
+  - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
+  - changes:
+      paths:
+        - test/new-e2e/tests/privateactionrunner/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -47,7 +54,6 @@
         - packages/agent/product/BUILD.bazel
         - pkg/proto/datadog/privateactionrunner/**/*
         - pkg/proto/pbgo/privateactionrunner/**/*
-        - test/new-e2e/tests/privateactionrunner/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 

@@ -3,6 +3,13 @@
 # Owned by: sensitive-data-scanner
 
 .on_data_security_or_e2e_changes:
+  - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
+  - changes:
+      paths:
+        - test/new-e2e/tests/data-security/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -18,7 +25,6 @@
         - pkg/proto/datadog/sds/**/*
         - pkg/proto/pbgo/sds/**/*
         # E2E suite
-        - test/new-e2e/tests/data-security/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 

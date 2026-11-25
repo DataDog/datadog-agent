@@ -3,10 +3,16 @@
 # Owned by: container-experiences, agent-devx
 
 .on_language-detection_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
   - changes:
       paths:
         - test/new-e2e/tests/language-detection/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
         - cmd/process-agent/**/*
         - comp/process/**/*
         - pkg/process/**/*
