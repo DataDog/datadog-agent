@@ -204,7 +204,7 @@ type remoteAPIRequest struct {
 }
 
 type expectedState struct {
-	InstallerVersion string `json:"installer_version"`
+	InstallerVersion string `json:"installer_version"` // Logged only; it must not decide whether the state checks apply.
 	Stable           string `json:"stable"`
 	Experiment       string `json:"experiment"`
 	StableConfig     string `json:"stable_config"`
