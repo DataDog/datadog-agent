@@ -889,6 +889,13 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 
 		cachedEntity, ok := entitiesOfKind[entityID.ID]
 
+		// Keep the old merged claim until the update is applied, including
+		// partial source unsets. The index always follows the merged store.
+		var previousKueueWorkload *wmdef.KubernetesKueueWorkload
+		if ok && entityID.Kind == wmdef.KindKubernetesKueueWorkload {
+			previousKueueWorkload = cachedEntity.cached.(*wmdef.KubernetesKueueWorkload)
+		}
+
 		switch ev.Type {
 		case wmdef.EventTypeSet:
 			if !ok {
@@ -959,6 +966,14 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 			}
 		default:
 			w.log.Errorf("cannot handle event of type %d. event dump: %+v", ev.Type, ev)
+		}
+
+		if entityID.Kind == wmdef.KindKubernetesKueueWorkload {
+			var current *wmdef.KubernetesKueueWorkload
+			if stored := entitiesOfKind[entityID.ID]; stored != nil {
+				current = stored.cached.(*wmdef.KubernetesKueueWorkload)
+			}
+			w.updateKueueWorkloadIndex(previousKueueWorkload, current)
 		}
 
 		for _, sub := range w.subscribers {
