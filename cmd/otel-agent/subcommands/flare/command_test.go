@@ -32,6 +32,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	extensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -1350,4 +1351,69 @@ func TestFlareCommandIgnoresBrokenCoreConfig(t *testing.T) {
 	require.NoError(t, os.WriteFile(broken, []byte("api_key: [unterminated\n  foo: : :\n"), 0o600))
 
 	assert.NotPanics(t, func() { flareConfig(t, &subcommands.GlobalParams{CoreConfPath: broken}) })
+}
+
+// newCollectorConfig writes a collector configuration with a Datadog exporter, which has the given extra settings (a
+// YAML fragment under datadog:), or with the debug exporter only, and returns the --config URI of it
+func newCollectorConfig(t *testing.T, withDatadogExporter bool, datadogSettings string) string {
+	exporters, exporterName := "  debug: {}\n", "debug"
+	if withDatadogExporter {
+		exporters = "  datadog:\n    api:\n      key: " + testAPIKey + "\n      site: datadoghq.eu\n" + datadogSettings
+		exporterName = "datadog"
+	}
+	path := filepath.Join(t.TempDir(), "otel-config.yaml")
+	content := "receivers:\n  otlp:\n    protocols:\n      grpc:\n        endpoint: 127.0.0.1:14317\n" +
+		"exporters:\n" + exporters +
+		"service:\n  pipelines:\n    metrics:\n      receivers: [otlp]\n      exporters: [" + exporterName + "]\n"
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+	return "file:" + path
+}
+
+// flareUploadURL returns the address that the flare of the command is uploaded to
+func flareUploadURL(t *testing.T, params *subcommands.GlobalParams) string {
+	return helpers.GetFlareEndpoint(flareConfig(t, params))
+}
+
+// TestFlareUploadAddress checks where the flare is uploaded to: the address comes from the site of the Datadog
+// exporter, like for the core Agent flare, and not from the metrics endpoint of the exporter, which is where the
+// metrics go, for example a relay of the customer. Only the settings of the Agent (DD_DD_URL, the dd_url of
+// the Datadog configuration file) can move it.
+func TestFlareUploadAddress(t *testing.T) {
+	// the flare address of the site of the exporter, whatever the version and the dot at the end of the host
+	const siteFlare = `-flare\.agent\.datadoghq\.eu\.?/support/flare$`
+
+	t.Run("exporter with a custom metrics endpoint", func(t *testing.T) {
+		config := newCollectorConfig(t, true, "    metrics:\n      endpoint: https://relay.example.com\n")
+
+		uploadURL := flareUploadURL(t, &subcommands.GlobalParams{ConfPaths: []string{config}, ConfigName: "datadog-otel"})
+
+		assert.Regexp(t, siteFlare, uploadURL)
+		assert.NotContains(t, uploadURL, "relay.example.com", "the archive and the API key go to the relay of the metrics")
+	})
+
+	t.Run("exporter with the default endpoint", func(t *testing.T) {
+		config := newCollectorConfig(t, true, "")
+
+		assert.Regexp(t, siteFlare, flareUploadURL(t, &subcommands.GlobalParams{ConfPaths: []string{config}, ConfigName: "datadog-otel"}))
+	})
+
+	t.Run("DD_DD_URL of the Agent", func(t *testing.T) {
+		t.Setenv("DD_DD_URL", "https://agent-relay.example.com")
+		config := newCollectorConfig(t, true, "    metrics:\n      endpoint: https://relay.example.com\n")
+
+		uploadURL := flareUploadURL(t, &subcommands.GlobalParams{ConfPaths: []string{config}, ConfigName: "datadog-otel"})
+
+		assert.Contains(t, uploadURL, "agent-relay.example.com", "the setting of the Agent is kept")
+		assert.NotContains(t, uploadURL, "//relay.example.com")
+	})
+
+	t.Run("no Datadog exporter", func(t *testing.T) {
+		coreConfig := filepath.Join(t.TempDir(), "datadog.yaml")
+		require.NoError(t, os.WriteFile(coreConfig, []byte("api_key: "+testAPIKey+"\ndd_url: https://core-relay.example.com\n"), 0o600))
+		config := newCollectorConfig(t, false, "")
+
+		uploadURL := flareUploadURL(t, &subcommands.GlobalParams{ConfPaths: []string{config}, CoreConfPath: coreConfig})
+
+		assert.Contains(t, uploadURL, "core-relay.example.com", "nothing replaced the dd_url of the Datadog configuration file")
+	})
 }

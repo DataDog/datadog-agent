@@ -147,6 +147,12 @@ func flareConfigModule(params *subcommands.GlobalParams) fx.Option {
 	if len(params.ConfPaths) > 0 {
 		acfg, err := agentConfig.NewConfigComponent(context.Background(), params.CoreConfPath, params.ConfPaths)
 		if err == nil || errors.Is(err, agentConfig.ErrNoDDExporter) {
+			if err == nil {
+				// The settings of the exporter are for the data: dd_url is its metrics endpoint, for example a relay, and the
+				// flare would go there with the API key. Like the core Agent flare, it goes to the site, unless the Agent is
+				// told otherwise by DD_DD_URL, which is above the file level.
+				acfg.UnsetForSource("dd_url", pkgconfigmodel.SourceFile)
+			}
 			return fx.Provide(func() config.Component { return acfg })
 		}
 		warnf("could not build the configuration from the collector configuration: %v", err)

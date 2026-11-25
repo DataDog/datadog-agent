@@ -58,6 +58,7 @@ dd_agent_go_test(
     deps = [
         "//cmd/otel-agent/subcommands",
         "//comp/core/config",
+        "//comp/core/flare/helpers",
         "//comp/core/ipc/mock",
         "//comp/otelcol/ddflareextension/types",
         "//pkg/config/mock",

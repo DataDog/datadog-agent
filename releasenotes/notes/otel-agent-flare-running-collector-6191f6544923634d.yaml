@@ -79,6 +79,11 @@ fixes:
     the warnings of the run, which were only printed on the console before. The
     files of the archive also have the time they were written at, instead of a
     date in 1980.
+  - |
+    ``otel-agent flare`` no longer uploads the flare to the metrics endpoint of
+    the Datadog exporter, which can be a relay, with the API key. Like the core
+    Agent flare, it uploads to the flare endpoint of the site, unless
+    ``DD_DD_URL`` says otherwise.
 issues:
   - |
     ``otel-agent flare`` has these known limitations:
@@ -88,3 +93,6 @@ issues:
       running collector. It falls back to the configuration files, and without
       ``--config`` it has no configuration and no ``pprof``, ``zpages``, or
       ``health_check`` data. It still has the collector log and the environment.
+    - When ``--config`` has a Datadog exporter, the ``dd_url`` of the Datadog
+      configuration file doesn't decide where the flare is uploaded to. Use
+      ``DD_DD_URL``.
