@@ -6,7 +6,7 @@
 // Package networkconfigmanagement provides the component for retrieving network device configurations.
 package networkconfigmanagement
 
-// team: ndm-integrations
+// team: network-device-monitoring-integrations
 
 import (
 	"context"

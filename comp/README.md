@@ -585,7 +585,7 @@ Package forwarder exposes the event platform forwarder for netflow.
 
 ## [comp/netflow](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/netflow) (Component Bundle)
 
-*Datadog Team*: ndm-integrations
+*Datadog Team*: network-device-monitoring-integrations
 
 Package netflow implements the "netflow" bundle, which listens for netflow
 packets, processes them, and forwards relevant data to the backend.
@@ -980,7 +980,7 @@ devices it finds to Network Device Monitoring. It never schedules a check.
 
 ### [comp/networkconfigmanagement](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkconfigmanagement)
 
-*Datadog Team*: ndm-integrations
+*Datadog Team*: network-device-monitoring-integrations
 
 Package networkconfigmanagement provides the component for retrieving network device configurations.
 
@@ -1024,7 +1024,7 @@ Package publishermetadatacache provides a cache for Windows Event Log publisher 
 
 ### [comp/rdnsquerier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/rdnsquerier)
 
-*Datadog Team*: ndm-integrations network-path
+*Datadog Team*: network-device-monitoring-integrations network-path
 
 Package rdnsquerier provides the reverse DNS querier component.
 

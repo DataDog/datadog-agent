@@ -9,7 +9,7 @@
 // It does not expose any public methods.
 package server
 
-// team: ndm-integrations
+// team: network-device-monitoring-integrations
 
 // Component is the component type. It has no exposed methods.
 type Component interface{}

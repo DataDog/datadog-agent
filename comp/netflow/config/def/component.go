@@ -6,7 +6,7 @@
 // Package config exposes the netflow configuration as a component.
 package config
 
-// team: ndm-integrations
+// team: network-device-monitoring-integrations
 
 // Component is the component type.
 type Component interface {

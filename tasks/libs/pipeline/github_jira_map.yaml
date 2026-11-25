@@ -13,7 +13,7 @@
 '@datadog/agent-security': CWS
 '@datadog/agent-apm': APMSP
 '@datadog/network-device-monitoring-core': NDMC
-'@datadog/ndm-integrations': NDINT
+'@datadog/network-device-monitoring-integrations': NDINT
 '@datadog/container-experiences': CXP
 '@datadog/ecs-experiences': EXP
 '@datadog/agent-metrics-logs': AMLII

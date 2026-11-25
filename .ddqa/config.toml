@@ -104,8 +104,8 @@ github_labels = ["team/network-device-monitoring-core"]
 jira_project = "NDINT"
 jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "ndm-integrations"
-github_labels = ["team/ndm-integrations"]
+github_team = "network-device-monitoring-integrations"
+github_labels = ["team/network-device-monitoring-integrations"]
 exclude_members = ["leeavital", "heyronhay"]
 
 [teams."Network Path"]

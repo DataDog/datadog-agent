@@ -20,7 +20,7 @@
 /.claude/rules/allium.md                        @DataDog/single-machine-performance
 /.claude/rules/bazel.md                         @DataDog/agent-build
 /.claude/rules/msi.md                           @DataDog/windows-products
-/.claude/rules/ndm-testing.md                   @DataDog/network-device-monitoring-core @DataDog/ndm-integrations
+/.claude/rules/ndm-testing.md                   @DataDog/network-device-monitoring-core @DataDog/network-device-monitoring-integrations
 /.claude/rules/systemd.md                       @DataDog/agent-runtimes
 /.claude/rules/system-probe-testing.md          @DataDog/ebpf-platform @DataDog/cloud-network-monitoring
 /.cursor/rules/bazel-buildifier.mdc             @DataDog/agent-build
@@ -298,7 +298,7 @@
 /cmd/agent/dist/conf.d/agentprofiling.d/               @DataDog/agent-runtimes
 /cmd/agent/dist/conf.d/apm.yaml.default               @DataDog/agent-apm
 /cmd/agent/dist/conf.d/battery.d/                      @DataDog/windows-products
-/cmd/agent/dist/conf.d/cisco_sdwan.d/                  @DataDog/ndm-integrations
+/cmd/agent/dist/conf.d/cisco_sdwan.d/                  @DataDog/network-device-monitoring-integrations
 /cmd/agent/dist/conf.d/cloud_hostinfo.d/               @DataDog/agent-runtimes @DataDog/container-autoscaling
 /cmd/agent/dist/conf.d/container.d/                    @DataDog/container-integrations
 /cmd/agent/dist/conf.d/containerd.d/                   @DataDog/container-integrations
@@ -325,7 +325,7 @@
 /cmd/agent/dist/conf.d/tpu.d/                          @DataDog/accelerator-telemetry
 /cmd/agent/dist/conf.d/nccl.d/                         @DataDog/accelerator-telemetry
 /cmd/agent/dist/conf.d/network.d/                      @DataDog/agent-runtimes
-/cmd/agent/dist/conf.d/network_config_management.d/    @DataDog/ndm-integrations
+/cmd/agent/dist/conf.d/network_config_management.d/    @DataDog/network-device-monitoring-integrations
 /cmd/agent/dist/conf.d/network_path.d/                 @DataDog/network-path
 /cmd/agent/dist/conf.d/noisy_neighbor.d/               @DataDog/container-experiences
 /cmd/agent/dist/conf.d/ntp.d/                          @DataDog/agent-runtimes
@@ -347,7 +347,7 @@
 /cmd/agent/dist/conf.d/thermal.d/                      @DataDog/windows-products
 /cmd/agent/dist/conf.d/uptime.d/                       @DataDog/agent-runtimes
 /cmd/agent/dist/conf.d/vdi.d/                          @DataDog/windows-products
-/cmd/agent/dist/conf.d/versa.d/                        @DataDog/ndm-integrations
+/cmd/agent/dist/conf.d/versa.d/                        @DataDog/network-device-monitoring-integrations
 /cmd/agent/dist/conf.d/win32_event_log.d/              @DataDog/windows-products
 /cmd/agent/dist/conf.d/wincrashdetect.d/               @DataDog/windows-products
 /cmd/agent/dist/conf.d/windows_certificate.d/          @DataDog/windows-products
@@ -505,7 +505,7 @@
 /comp/logs-library @DataDog/agent-log-pipelines
 /comp/metadata @DataDog/fleet-automation
 /comp/ndmtmp @DataDog/network-device-monitoring-core
-/comp/netflow @DataDog/ndm-integrations
+/comp/netflow @DataDog/network-device-monitoring-integrations
 /comp/networkpath @DataDog/network-path
 /comp/otelcol @DataDog/opentelemetry-agent
 /comp/process @DataDog/container-experiences
@@ -574,14 +574,14 @@
 /comp/metriclookback @DataDog/q-branch
 /comp/ndmconnectivitycheck @DataDog/network-device-monitoring-core
 /comp/ndmdiscovery @DataDog/network-device-monitoring-core
-/comp/networkconfigmanagement @DataDog/ndm-integrations
+/comp/networkconfigmanagement @DataDog/network-device-monitoring-integrations
 /comp/networkpcap/uploader @DataDog/cloud-network-monitoring
 /comp/notableevents @DataDog/windows-products
 /comp/offlinereporter @DataDog/agent-metric-pipelines
 /comp/privateactionrunner @DataDog/action-platform
 /comp/privateactionrunner/phonehome @DataDog/action-platform
 /comp/publishermetadatacache @DataDog/windows-products
-/comp/rdnsquerier @DataDog/ndm-integrations @DataDog/network-path
+/comp/rdnsquerier @DataDog/network-device-monitoring-integrations @DataDog/network-path
 /comp/serializer/logscompression @DataDog/agent-log-pipelines
 /comp/serializer/metricscompression @DataDog/agent-metric-pipelines
 /comp/snmpscan @DataDog/network-device-monitoring-core
@@ -599,7 +599,7 @@
 /comp/forwarder/eventplatform/impl/pipelines_agentdiscovery.go    @DataDog/agent-discovery
 /comp/forwarder/eventplatform/impl/pipelines_dbm.go               @DataDog/database-monitoring
 /comp/forwarder/eventplatform/impl/pipelines_ndm_core.go          @DataDog/network-device-monitoring-core
-/comp/forwarder/eventplatform/impl/pipelines_ndm_integrations.go  @DataDog/ndm-integrations
+/comp/forwarder/eventplatform/impl/pipelines_ndm_integrations.go  @DataDog/network-device-monitoring-integrations
 /comp/forwarder/eventplatform/impl/pipelines_networkpath.go       @DataDog/network-path
 /comp/forwarder/eventplatform/impl/pipelines_container.go         @DataDog/container-integrations
 /comp/forwarder/eventplatform/impl/pipelines_sbom.go              @DataDog/agent-security
@@ -763,8 +763,8 @@
 /pkg/collector/corechecks/embed/apm/                                  @DataDog/agent-apm
 /pkg/collector/corechecks/embed/process/                              @DataDog/container-experiences
 /pkg/collector/corechecks/gpu/                                        @DataDog/accelerator-telemetry
-/pkg/collector/corechecks/networkconfigmanagement/                    @DataDog/ndm-integrations
-/pkg/collector/corechecks/network-devices/                            @DataDog/ndm-integrations
+/pkg/collector/corechecks/networkconfigmanagement/                    @DataDog/network-device-monitoring-integrations
+/pkg/collector/corechecks/network-devices/                            @DataDog/network-device-monitoring-integrations
 /pkg/collector/corechecks/orchestrator/                               @DataDog/kubernetes-experiences
 /pkg/collector/corechecks/orchestrator/ecs/                           @DataDog/ecs-experiences
 /pkg/collector/corechecks/net/                                        @DataDog/agent-runtimes
@@ -854,7 +854,7 @@
 /pkg/rshell/                                                         @DataDog/dd-agent-mcp @DataDog/fleet-remediation
 /.github/workflows/rshell-analysis.yml                               @DataDog/dd-agent-mcp @DataDog/fleet-remediation
 /.gitlab/test/rshell.yml                                             @DataDog/fleet-remediation
-/pkg/privateactionrunner/bundles/remoteaction/networkconfigmanagement @DataDog/action-platform @DataDog/ndm-integrations
+/pkg/privateactionrunner/bundles/remoteaction/networkconfigmanagement @DataDog/action-platform @DataDog/network-device-monitoring-integrations
 /pkg/privateactionrunner/bundles/remoteaction/networkdevices          @DataDog/action-platform @DataDog/network-device-monitoring-core
 /pkg/privateactionrunner/bundles/remoteaction/networks                @DataDog/action-platform @Datadog/network-path
 /pkg/privateactionrunner/bundles/remoteaction/pcap                    @DataDog/action-platform @DataDog/cloud-network-monitoring
@@ -990,7 +990,7 @@
 /pkg/network/tracer/*_windows*.go                                     @DataDog/windows-products
 /pkg/network/usm/                                                     @DataDog/ebpf-platform
 /pkg/network/usm/tests/*_windows*.go                                  @DataDog/windows-products @DataDog/ebpf-platform
-/pkg/networkconfigmanagement/                                         @DataDog/ndm-integrations
+/pkg/networkconfigmanagement/                                         @DataDog/network-device-monitoring-integrations
 /pkg/ebpf/                                                            @DataDog/ebpf-platform
 /pkg/ebpf/map_cleaner*.go                                             @DataDog/ebpf-platform
 /pkg/compliance/                                                      @DataDog/agent-cspm @DataDog/agent-security
@@ -1163,8 +1163,8 @@
 /test/fakeintake/version/VERSION                                # do not notify anyone
 /test/fakeintake/aggregator/ndmAggregator.go                    @DataDog/network-device-monitoring-core
 /test/fakeintake/aggregator/ndmAggregator_test.go               @DataDog/network-device-monitoring-core
-/test/fakeintake/aggregator/ndmflowAggregator.go                @DataDog/ndm-integrations
-/test/fakeintake/aggregator/ndmflowAggregator_test.go           @DataDog/ndm-integrations
+/test/fakeintake/aggregator/ndmflowAggregator.go                @DataDog/network-device-monitoring-integrations
+/test/fakeintake/aggregator/ndmflowAggregator_test.go           @DataDog/network-device-monitoring-integrations
 /test/fakeintake/aggregator/agenthealthAggregator.go            @DataDog/fleet-remediation
 /test/fakeintake/aggregator/agenthealthAggregator_test.go       @DataDog/fleet-remediation
 /test/fakeintake/client/fixtures/api_v2_agenthealth_response    @DataDog/fleet-remediation
@@ -1205,7 +1205,7 @@
 /test/new-e2e/tests/ha-agent                                    @DataDog/network-device-monitoring-core
 /test/new-e2e/tests/language-detection                          @DataDog/container-experiences
 /test/new-e2e/tests/ndm                                         @DataDog/network-device-monitoring-core
-/test/new-e2e/tests/ndm/netflow                                 @DataDog/ndm-integrations
+/test/new-e2e/tests/ndm/netflow                                 @DataDog/network-device-monitoring-integrations
 /test/new-e2e/tests/netpath                                     @DataDog/network-path @DataDog/windows-products
 /test/new-e2e/tests/npm                                         @DataDog/cloud-network-monitoring
 /test/new-e2e/tests/npm/ec2_1host_wkit_test.go                  @DataDog/cloud-network-monitoring @DataDog/windows-products
