@@ -1034,6 +1034,26 @@ func TestActivityTree_UnattributedActivity(t *testing.T) {
 		assert.Nil(t, tree.UnattributedActivity)
 	})
 
+	t.Run("network flows age out while recent activity keeps the bucket", func(t *testing.T) {
+		tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "test")
+		tree.KeepUnattributedActivity = true
+		flowEvent := newEvent(model.NetworkFlowMonitorEventType, time.Now().Add(-time.Hour))
+		flowEvent.NetworkFlowMonitor.Flows = []model.Flow{{L4Protocol: 6}}
+		_, _, _, err := tree.Insert(flowEvent, true, "v1", Runtime, nil)
+		require.NoError(t, err)
+		_, _, _, err = tree.Insert(newEvent(model.SyscallsEventType, time.Now()), true, "v1", Runtime, nil)
+		require.NoError(t, err)
+		require.NotNil(t, tree.UnattributedActivity)
+		require.Len(t, tree.UnattributedActivity.NetworkDevices, 1)
+		sizeBefore := tree.Stats.SizeBytes
+
+		tree.EvictUnusedNodes(time.Now().Add(-time.Minute), nil, "")
+
+		require.NotNil(t, tree.UnattributedActivity)
+		assert.Empty(t, tree.UnattributedActivity.NetworkDevices)
+		assert.Less(t, tree.Stats.SizeBytes, sizeBefore)
+	})
+
 	newFailedBind := func() *model.Event {
 		evt := newEvent(model.BindEventType, time.Now())
 		evt.Bind.AddrFamily = unix.AF_INET

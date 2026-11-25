@@ -913,7 +913,15 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 		}
 	}
 
-	// Note: NetworkDeviceNode doesn't embed NodeBase so we skip eviction for network devices
+	// Evict unused network flows: a device is removed once it holds no flows
+	for key, device := range pn.NetworkDevices {
+		deviceEmpty, deviceRemoved := device.evictBeforeTimestamp(before)
+		removedBytes += deviceRemoved
+		if deviceEmpty {
+			removedBytes += device.size()
+			delete(pn.NetworkDevices, key)
+		}
+	}
 
 	// Evict unused socket nodes: children age out by their own timestamps, and a socket is
 	// removed only once it holds no children (see SocketNode.evictBeforeTimestamp).
