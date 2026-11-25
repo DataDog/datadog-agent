@@ -7,6 +7,8 @@
 
 package config
 
+// Windows uses these too: config.go, which every platform builds, names them in its file specs,
+// even though config_windows.go does not apply an owner or a group.
 const (
 	// AgentUser is the Agent's account, which owns the configuration files the Agent reads.
 	AgentUser = "dd-agent"
