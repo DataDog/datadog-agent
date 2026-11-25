@@ -54,6 +54,7 @@ config_setting(
 config_setting(
     name = "target_arch_x86_64",
     flag_values = {":target_arch": "x86_64"},
+    visibility = ["//pkg/ebpf:__pkg__"],
 )
 
 cgo_godefs_test_suite(name = "cgo_godefs_tests")

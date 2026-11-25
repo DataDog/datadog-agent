@@ -5,6 +5,7 @@ load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
 load("@bazel_lib//lib:expand_template.bzl", "expand_template")
 load("@bazel_skylib//lib:selects.bzl", "selects")
+load("@linux_headers//:defs.bzl", "KERNEL_ARCH")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
@@ -159,15 +160,64 @@ filegroup(
     name = "co_re_relocations",
     srcs = [":co_re_objects"],
     output_group = "core_relocations",
+    tags = ["manual"],
 )
 
 filegroup(
     name = "co_re_btf_objects",
     srcs = [":co_re_objects"],
     output_group = "btf_objects",
+    tags = ["manual"],
 )
 
-# The stub is exact for any kernel, so x86_64 kernels also check arm64 objects.
+# Kernels of the target arch: candidate pruning depends on the kernel BTF, and
+# types that only exist on one arch never match kernels of the other.
+_BTF_TEST_KERNELS = {
+    "aarch64": [
+        # Kernels with many duplicate types, where candidate pruning matters.
+        "centos/4.18.0-80.7.1.el8_0.aarch64.btf",
+        "ol/4.14.35-2051.el7uek.aarch64.btf",
+        "ol/4.18.0-147.8.1.el8_1.aarch64.btf",
+        "rhel/4.18.0-80.11.1.el8_0.aarch64.btf",
+        "amzn/4.14.165-131.185.amzn2.aarch64.btf",
+        "debian/4.19.0-1-arm64.btf",
+        "debian/5.10.0-0.deb10.22-cloud-arm64.btf",
+        "fedora/5.3.11-100.fc29.aarch64.btf",
+        "ol/5.4.17-2051.el7uek.aarch64.btf",
+        "opensuse-leap/5.3.18-59.34-default.btf",
+        "sles/5.3.18-24.15-default.btf",
+        "ubuntu/18.04/4.15.0-188-generic.btf",
+        "ubuntu/20.04/5.4.0-52-generic.btf",
+    ],
+    "x86_64": [
+        # Kernels with many duplicate types, where candidate pruning matters.
+        "centos/3.10.0-1160.25.1.el7.x86_64.btf",
+        "ol/3.10.0-1160.102.1.0.1.el7.x86_64.btf",
+        "ol/4.1.12-124.14.1.el7uek.x86_64.btf",
+        "rhel/3.10.0-1062.1.1.el7.x86_64.btf",
+        "amzn/4.14.101-75.76.amzn1.x86_64.btf",
+        "amzn/4.14.101-91.76.amzn2.x86_64.btf",
+        "centos/4.18.0-147.0.3.el8_1.x86_64.btf",
+        "debian/4.19.0-24-amd64.btf",
+        "fedora/4.11.12-100.fc24.x86_64.btf",
+        "opensuse-leap/4.12.14-lp150.11-default.btf",
+        "sles/5.3.18-24.37-default.btf",
+        "ubuntu/20.04/5.4.0-26-generic.btf",
+    ],
+}
+
+_BTF_TEST_MANIFESTS = {
+    "aarch64": "@btfhub_archive//:arm64",
+    "x86_64": "@btfhub_archive//:x86_64",
+}
+
+# Resolves the target arch like ebpf_minimized_btfs.
+_BTF_TEST_ARCH = {
+    "//bazel/rules/ebpf:target_arch_aarch64": "aarch64",
+    "//bazel/rules/ebpf:target_arch_x86_64": "x86_64",
+    "//conditions:default": "aarch64" if KERNEL_ARCH == "arm64" else "x86_64",
+}
+
 sh_test(
     name = "minimized_btfs_test",
     srcs = ["//bazel/rules/ebpf:minimized_btfs_test.sh"],
@@ -175,23 +225,14 @@ sh_test(
         "$(rootpath //bazel/rules/ebpf:minimize_btfs.sh)",
         "$(rootpath //deps/btfhub:bpftool)",
         "$(rootpath @btfhub_archive//:remote.txt)",
-        ",".join([
-            # Kernels with many duplicate types, where candidate pruning matters.
-            "centos/3.10.0-1160.25.1.el7.x86_64.btf",
-            "ol/3.10.0-1160.102.1.0.1.el7.x86_64.btf",
-            "ol/4.1.12-124.14.1.el7uek.x86_64.btf",
-            "rhel/3.10.0-1062.1.1.el7.x86_64.btf",
-            "amzn/4.14.101-75.76.amzn1.x86_64.btf",
-            "amzn/4.14.101-91.76.amzn2.x86_64.btf",
-            "centos/4.18.0-147.0.3.el8_1.x86_64.btf",
-            "debian/4.19.0-24-amd64.btf",
-            "fedora/4.11.12-100.fc24.x86_64.btf",
-            "opensuse-leap/4.12.14-lp150.11-default.btf",
-            "sles/5.3.18-24.37-default.btf",
-            "ubuntu/20.04/5.4.0-26-generic.btf",
-        ]),
-        "$(rootpath :co_re_relocations)",
-        "$(rootpaths @btfhub_archive//:x86_64)",
+    ] + select({
+        setting: [
+            ",".join(_BTF_TEST_KERNELS[arch]),
+            "$(rootpath :co_re_relocations)",
+            "$(rootpaths {})".format(_BTF_TEST_MANIFESTS[arch]),
+        ]
+        for setting, arch in _BTF_TEST_ARCH.items()
+    }) + [
         "--",
         "$(rootpaths :co_re_btf_objects)",
     ],
@@ -201,8 +242,10 @@ sh_test(
         "//bazel/rules/ebpf:minimize_btfs.sh",
         "//deps/btfhub:bpftool",
         "@btfhub_archive//:remote.txt",
-        "@btfhub_archive//:x86_64",
-    ],
+    ] + select({
+        setting: [_BTF_TEST_MANIFESTS[arch]]
+        for setting, arch in _BTF_TEST_ARCH.items()
+    }),
     # Fetches the BTFHub tree and kernel blobs from GitHub.
     tags = [
         "manual",
