@@ -8,10 +8,12 @@
 package clusterchecks
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -211,4 +213,58 @@ func TestCheckCLCRunnersHealth_NilHealthPlatformIsNoop(t *testing.T) {
 		d.checkCLCRunnersHealth()
 		d.resolveMissingCLCRunnersIssue()
 	})
+}
+
+// newHealthTestHandler wraps a health-wired dispatcher in a Handler with a
+// mocked autoconfig, so runDispatch's leadership-loss / shutdown teardown can
+// be exercised directly.
+func newHealthTestHandler(t *testing.T) (*Handler, *healthplatformmock.Mock) {
+	d, hp := newHealthTestDispatcher(t)
+	ac := &mockedPluggableAutoConfig{}
+	ac.Test(t)
+	ac.On("AddScheduler", mock.Anything, mock.Anything, mock.Anything).Return()
+	ac.On("RemoveScheduler", mock.Anything).Return()
+	return &Handler{autoconfig: ac, dispatcher: d}, hp
+}
+
+// TestRunDispatch_ResolvesIssueOnLeadershipLoss verifies that when a leader loses
+// leadership with the missing-CLC-runners issue still active, it stops asserting it
+// (egress is not leader-gated, so it would otherwise re-send the issue forever). The
+// new leader re-reports if the condition persists.
+func TestRunDispatch_ResolvesIssueOnLeadershipLoss(t *testing.T) {
+	h, hp := newHealthTestHandler(t)
+	h.dispatcher.reportMissingCLCRunnersIssue(1)
+	require.NotNil(t, hp.GetIssue(missingclcrunners.IssueID))
+
+	// Leadership loss: the dispatch context is cancelled but the handler's
+	// lifetime context is still alive.
+	parentCtx := context.Background()
+	dispatchCtx, dispatchCancel := context.WithCancel(parentCtx)
+	dispatchCancel()
+	h.runDispatch(parentCtx, dispatchCtx)
+
+	assert.Nil(t, hp.GetIssue(missingclcrunners.IssueID),
+		"former leader must resolve the issue on leadership loss")
+	assert.Equal(t, []string{missingclcrunners.IssueID}, hp.ResolvedIDs())
+}
+
+// TestRunDispatch_KeepsIssueOnAgentShutdown is the other half of the fix: on agent
+// shutdown (the handler's lifetime context is cancelled too) the dispatcher must
+// NOT resolve, since emitting a resolution would be a false "recovered" signal for
+// an outage that may still be ongoing.
+func TestRunDispatch_KeepsIssueOnAgentShutdown(t *testing.T) {
+	h, hp := newHealthTestHandler(t)
+	h.dispatcher.reportMissingCLCRunnersIssue(1)
+	require.NotNil(t, hp.GetIssue(missingclcrunners.IssueID))
+
+	// Shutdown: cancelling the parent cancels the dispatch context too.
+	parentCtx, parentCancel := context.WithCancel(context.Background())
+	dispatchCtx, dispatchCancel := context.WithCancel(parentCtx)
+	parentCancel()
+	dispatchCancel()
+	h.runDispatch(parentCtx, dispatchCtx)
+
+	assert.NotNil(t, hp.GetIssue(missingclcrunners.IssueID),
+		"agent shutdown must not emit a spurious resolution")
+	assert.Empty(t, hp.ResolvedIDs())
 }

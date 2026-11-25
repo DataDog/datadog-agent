@@ -151,7 +151,7 @@ func (h *Handler) Run(ctx context.Context) {
 		log.Infof("Warmup finished, advanced dispatching mode: %v", h.dispatcher.advancedDispatching.Load())
 
 		dispatchCtx, dispatchCancel := context.WithCancel(ctx)
-		go h.runDispatch(dispatchCtx)
+		go h.runDispatch(ctx, dispatchCtx)
 
 		// Wait until we lose leadership or exit
 		for {
@@ -178,8 +178,11 @@ func (h *Handler) Run(ctx context.Context) {
 	}
 }
 
-// runDispatch hooks in the Autodiscovery and runs the dispatch's run method
-func (h *Handler) runDispatch(ctx context.Context) {
+// runDispatch hooks in the Autodiscovery and runs the dispatch's run method.
+// parentCtx is the handler's lifetime context (cancelled only on agent
+// shutdown); ctx is the per-leadership-term context (also cancelled on
+// leadership loss).
+func (h *Handler) runDispatch(parentCtx, ctx context.Context) {
 	// Register our scheduler and ask for a config replay
 	h.autoconfig.AddScheduler(schedulerName, h.dispatcher, true)
 
@@ -191,6 +194,17 @@ func (h *Handler) runDispatch(ctx context.Context) {
 	// new calls, the tracker gets repopulated. On the next leadership cycle, prepareShardSchedule
 	// sees the config as already tracked and the check is silently dropped.
 	h.autoconfig.RemoveScheduler(schedulerName)
+
+	// On leadership loss (ctx cancelled but the handler is still alive), stop
+	// asserting the leader-gated missing-CLC-runners issue: egress is not
+	// leader-gated, so otherwise this former leader would keep re-sending the
+	// issue forever. The new leader re-reports it after warmup if the condition
+	// persists. Skip this on agent shutdown (parentCtx also cancelled), where
+	// emitting a resolution would be a false "recovered" signal. run() has
+	// already returned here, so no health tick can re-report after we resolve.
+	if parentCtx.Err() == nil {
+		h.dispatcher.resolveMissingCLCRunnersIssue()
+	}
 
 	// Reset the dispatcher
 	h.dispatcher.reset()
