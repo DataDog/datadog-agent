@@ -2695,6 +2695,12 @@ func TestDictErrors(t *testing.T) {
 		Expr  string
 		Error string
 	}{
+		{Expr: `process.env == "/root"`, Error: `dictionary field 'process.env' is read at a key: process.env["KEY"]: 1:1`},
+		{Expr: `process.name == "ls" && process.env =~ "/root*"`, Error: `dictionary field 'process.env' is read at a key: process.env["KEY"]: 1:25`},
+		{Expr: `process.array.env == "/root"`, Error: `dictionary field 'process.array.env' is read at a key`},
+		{Expr: `process.env in ["PATH"]`, Error: `dictionary field 'process.env' is read at a key: process.env["KEY"]: 1:1`},
+		{Expr: `process.array.env not in ["PATH"]`, Error: `dictionary field 'process.array.env' is read at a key`},
+		{Expr: `%{process.env} == "/root"`, Error: `dictionary field 'process.env' is read at a key`},
 		{Expr: `"/root" == process.env`, Error: `string expected`},
 		{Expr: `"/root" == %{process.env}`, Error: `string expected`},
 		{Expr: `process.name["HOME"] == "/root"`, Error: `field 'process.name' is not a dictionary`},
