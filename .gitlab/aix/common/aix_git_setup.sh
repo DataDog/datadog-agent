@@ -17,6 +17,7 @@ echo "=== AIX: cloning agent source at $CI_COMMIT_SHA ==="
 aix_run_cmd <<EOF
 set -eu
 export PATH=/opt/freeware/bin:/usr/bin:\$PATH
+mkdir -p "$(dirname "$AIX_AGENT_SRC")"
 if [ ! -d "$AIX_AGENT_SRC/.git" ]; then
     git clone --progress "$AIX_GIT_REMOTE" "$AIX_AGENT_SRC"
 fi

@@ -142,3 +142,35 @@ copy_file_from_aix() {
 copy_file_to_aix() {
     _aix_transfer "$1" "$AIX_SSH_DEST:$2"
 }
+
+# Reboot the AIX host and wait until it is reachable again (up to 25 min).
+# Succeeds only once the host's boot time has actually changed: until then
+# the shutdown hasn't taken effect, and returning early would hand a
+# rebooting host to the next aix_ci_host job.
+aix_reboot_and_wait() {
+    local boot_before boot_now deadline
+    boot_before=$(aix_run_cmd 'who -b' | tr -d '\r' | tr -s ' ')
+    # Run the shutdown directly as the remote command: backgrounding it through
+    # aix_run_cmd can get it killed when the SSH session closes, leaving the
+    # host up. The connection dropping here is expected — the host is going
+    # down — so ignore the SSH error.
+    # shellcheck disable=SC2086  # AIX_SSH_COMMON_OPTS intentionally word-splits into multiple ssh options
+    ssh $AIX_SSH_COMMON_OPTS $AIX_SSH_DEST '/usr/sbin/shutdown -Fr' || true
+    deadline=$(( $(date +%s) + 1500 ))
+    while [ "$(date +%s)" -lt "$deadline" ]; do
+        sleep 30
+        # Raw ssh + ConnectTimeout so probes fail fast while the host is down.
+        # shellcheck disable=SC2086  # AIX_SSH_COMMON_OPTS intentionally word-splits into multiple ssh options
+        if boot_now=$(ssh $AIX_SSH_COMMON_OPTS -o ConnectTimeout=10 $AIX_SSH_DEST 'who -b' 2>/dev/null | tr -d '\r' | tr -s ' '); then
+            if [ -n "$boot_now" ] && [ "$boot_now" != "$boot_before" ]; then
+                echo "Host back up, new boot time: $boot_now"
+                return 0
+            fi
+            echo "Host still up — waiting for the reboot to take effect ($(( deadline - $(date +%s) ))s left)"
+        else
+            echo "Host unreachable ($(( deadline - $(date +%s) ))s left)"
+        fi
+    done
+    echo "ERROR: host did not reboot within 25 minutes (boot time still: $boot_before)" >&2
+    return 1
+}
