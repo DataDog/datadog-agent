@@ -770,7 +770,7 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 
 		case action.Def.Set != nil:
 			if scopeField := action.Def.Set.ScopeField; scopeField != "" {
-				evaluator, _, err := rs.compileActionValue(scopeField)
+				evaluator, _, _, err := rs.compileActionValue(scopeField)
 				if err != nil {
 					return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: &ErrScopeField{Expression: scopeField, Err: err}}
 				}
@@ -794,9 +794,15 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 					return model.UnknownCategory, actionErr(fmt.Errorf("failed to compile action expression: %w", err))
 				}
 
-				evaluator, exprEventType, err := rs.compileActionValue(source)
+				evaluator, tree, exprEventType, err := rs.compileActionValue(source)
 				if err != nil {
 					return model.UnknownCategory, actionErr(fmt.Errorf("failed to compile action expression: %w", err))
+				}
+
+				// a variable read from a dictionary, the environment variables of a
+				// process, isn't serialized with the events
+				if rs.readsDictionary(tree) {
+					rs.makeVariablePrivate(action.Def.Set)
 				}
 
 				if exprEventType != "" && exprEventType != ruleEventType {
@@ -836,15 +842,15 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 
 // compileActionValue compiles the field or the expression an action reads a
 // value from, and returns the event type of its fields.
-func (rs *RuleSet) compileActionValue(expr string) (eval.Evaluator, eval.EventType, error) {
+func (rs *RuleSet) compileActionValue(expr string) (eval.Evaluator, ast.Node, eval.EventType, error) {
 	node, err := rs.parsingContext.BuildExpression(expr)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
 	state := eval.NewState(rs.model)
 	evaluator, tree, _, err := eval.Compile(node, rs.evalOpts, state)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
 
 	// an action isn't evaluated over the elements of an iterator, an iterator
@@ -854,10 +860,36 @@ func (rs *RuleSet) compileActionValue(expr string) (eval.Evaluator, eval.EventTy
 		ref, ok := n.(*ast.FieldRef)
 		return ok && ref.Iter != nil
 	}) {
-		return nil, "", errors.New("iterator variables aren't supported in an action")
+		return nil, nil, "", errors.New("iterator variables aren't supported in an action")
 	}
 	eventType, err := eval.EventTypeFromState(rs.model, state)
-	return evaluator.(eval.Evaluator), eventType, err
+	return evaluator.(eval.Evaluator), tree, eventType, err
+}
+
+// readsDictionary returns whether a compiled tree reads a dictionary field
+func (rs *RuleSet) readsDictionary(tree ast.Node) bool {
+	return ast.Any(tree, func(n ast.Node) bool {
+		ref, ok := n.(*ast.FieldRef)
+		if !ok {
+			return false
+		}
+		_, kind, _, _, err := rs.eventCtor().GetFieldMetadata(ref.Name)
+		return err == nil && kind == reflect.Map
+	})
+}
+
+// makeVariablePrivate makes the variable of a set action private: it isn't
+// serialized with the events
+func (rs *RuleSet) makeVariablePrivate(set *SetDefinition) {
+	name := set.Name
+	if set.Scope != "" {
+		name = string(set.Scope) + "." + name
+	}
+	if variable := rs.evalOpts.VariableStore.Get(name); variable != nil {
+		opts := variable.GetVariableOpts()
+		opts.Private = true
+		variable.SetVariableOpts(opts)
+	}
 }
 
 // checkTypeCompatibility validates that the evaluator's return type is compatible with the default value type.

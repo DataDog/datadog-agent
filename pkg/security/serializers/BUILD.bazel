@@ -65,6 +65,7 @@ dd_agent_go_test(
     name = "serializers_test",
     srcs = [
         "file_capabilities_linux_test.go",
+        "rule_context_linux_test.go",
         "serializers_linux_test.go",
     ],
     embed = [":serializers"],
@@ -74,6 +75,7 @@ dd_agent_go_test(
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
             "//pkg/security/secl/model/utils",
+            "//pkg/security/secl/rules",
             "//pkg/security/secl/schemas",
             "//pkg/security/utils",
             "@com_github_stretchr_testify//assert",
@@ -85,6 +87,7 @@ dd_agent_go_test(
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
             "//pkg/security/secl/model/utils",
+            "//pkg/security/secl/rules",
             "//pkg/security/secl/schemas",
             "//pkg/security/utils",
             "@com_github_stretchr_testify//assert",

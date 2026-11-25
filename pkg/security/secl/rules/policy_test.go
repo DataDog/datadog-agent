@@ -3289,6 +3289,49 @@ func TestActionSetVariableValidation(t *testing.T) {
 	}
 }
 
+// A variable read from a dictionary, the environment variables of a process,
+// is private: it isn't serialized with the events.
+func TestActionSetVariableFromDictionaryIsPrivate(t *testing.T) {
+	testPolicy := &PolicyDef{Rules: []*RuleDefinition{{
+		ID:         "test_rule",
+		Expression: `open.file.path == "/tmp/test"`,
+		Actions: []*ActionDefinition{
+			{Set: &SetDefinition{Name: "from_field", Field: `process.env["TOKEN"]`}},
+			{Set: &SetDefinition{Name: "from_expression", Expression: `process.env["TOKEN"]`, DefaultValue: ""}},
+			{Set: &SetDefinition{Name: "from_scope", Field: `process.env["TOKEN"]`, Scope: "process"}},
+			{Set: &SetDefinition{Name: "from_path", Field: `open.file.path`}},
+		},
+	}}}
+
+	tmpDir := t.TempDir()
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rs := newRuleSet()
+	if _, err := rs.LoadPolicies(NewPolicyLoader(provider), PolicyLoaderOpts{}); err != nil {
+		t.Fatal(err)
+	}
+
+	for name, private := range map[string]bool{
+		"from_field":         true,
+		"from_expression":    true,
+		"process.from_scope": true,
+		"from_path":          false,
+	} {
+		variable := rs.evalOpts.VariableStore.Get(name)
+		if variable == nil {
+			t.Fatalf("variable %s not found", name)
+		}
+		if variable.GetVariableOpts().Private != private {
+			t.Errorf("expected variable %s to be private: %v", name, private)
+		}
+	}
+}
+
 // The subscript of a set field can read a variable declared by a rule loaded
 // after it: the variables are declared before any field is compiled.
 func TestActionSetVariableSubscriptVariable(t *testing.T) {
