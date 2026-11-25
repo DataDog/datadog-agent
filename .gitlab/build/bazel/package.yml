@@ -40,7 +40,6 @@
     expire_in: 2 weeks
     paths:
       - $BAZEL_PACKAGE_DIR/
-  allow_failure: true
 
 bazel:package:linux-amd64:
   extends: [.bazel:runner:linux-amd64, .bazel:package]
@@ -61,14 +60,17 @@ bazel:package:iot:linux-amd64:
 
 bazel:package:iot:linux-arm64:
   extends: [.bazel:runner:linux-arm64, .bazel:package:iot]
+  allow_failure: true
 
 bazel:package:iot:linux-armhf:
   extends: [.bazel:runner:linux-arm64, .bazel:package:iot]
+  allow_failure: true
   variables:
     BAZEL_PACKAGE_FLAGS: "--//packages/agent:flavor=iot --platforms=//bazel/platforms:linux_armv7"
 
 bazel:package:iot:suse-amd64:
   extends: [.bazel:runner:linux-amd64, .bazel:package:iot]
+  allow_failure: true
   variables:
     BAZEL_PACKAGE_DIR: bazel-packages/suse
     BAZEL_PACKAGE_FLAGS: "--//packages/agent:flavor=iot --//packages/agent:host_distribution=suse"
