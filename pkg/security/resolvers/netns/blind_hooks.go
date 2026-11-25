@@ -185,12 +185,13 @@ func (nr *Resolver) listHostHooks() ([]hostHook, map[uint32]struct{}, error) {
 
 		for _, direction := range directions {
 			filters, err := ntl.Sock.FilterList(device, clsactParent(direction))
-			if err != nil {
-				if !errors.Is(err, unix.ENODEV) {
-					nr.countError(errorClassFilterList)
-					seclog.Debugf("couldn't list the tc filters of %s %s: %v", attrs.Name, direction, err)
-				}
+			if errors.Is(err, unix.ENODEV) {
 				continue
+			}
+			// TCX programs don't depend on the legacy filters, so the hook is still queried for them
+			if err != nil {
+				nr.countError(errorClassFilterList)
+				seclog.Debugf("couldn't list the tc filters of %s %s: %v", attrs.Name, direction, err)
 			}
 
 			hooks = append(hooks, hostHook{
