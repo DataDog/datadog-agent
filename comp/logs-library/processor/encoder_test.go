@@ -22,6 +22,53 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
+func TestJSONEncoderMatchesStdlibMarshal(t *testing.T) {
+	source := sources.NewLogSource("", &config.LogsConfig{
+		Service:        "my-service",
+		Source:         "nginx",
+		SourceCategory: "http_web_access",
+		Tags:           []string{"env:prod", "region:us-east-1", "team:core"},
+	})
+	ingested := time.Date(2026, 11, 25, 10, 0, 0, 123000000, time.UTC)
+
+	cases := []struct {
+		name     string
+		content  []byte
+		status   string
+		hostname string
+		tags     []string
+	}{
+		{"plain_ascii", []byte("2026-11-25 INFO request completed in 12ms status=200"), message.StatusInfo, "host-1", []string{"pod:web-1", "kube_namespace:default"}},
+		{"json_with_quotes_and_html", []byte(`{"msg":"hello \"world\" <script>&</script>\n\t\\path","ok":true}`), message.StatusError, `host<"1">`, []string{"a:b\"c", "d:<e>&f"}},
+		{"control_chars", []byte("a\x00b\x01c\x1fd\be\ff\rg\nh\ti"), message.StatusWarning, "h", nil},
+		{"unicode_and_separators", []byte("Hello 世界   line   para 🚀"), message.StatusInfo, "host-世界", []string{"k:v "}},
+		{"invalid_utf8", []byte("bad\xfe\xff\xc0\xaf\xed\xa0\x80end"), message.StatusError, "h\xfe", []string{"t:1\xff"}},
+		{"empty", []byte(""), "", "", nil},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			msg := message.NewMessageWithSource(tc.content, tc.status, source, ingested.UnixNano())
+			msg.State = message.StateRendered
+			msg.Origin.SetTags(tc.tags)
+
+			expected, err := json.Marshal(jsonPayload{
+				Message:   ValidUtf8Bytes(msg.GetContent()),
+				Status:    msg.GetStatus(),
+				Timestamp: msg.LogTimestamp(false).UnixNano() / nanoToMillis,
+				Hostname:  tc.hostname,
+				Service:   msg.Origin.Service(),
+				Source:    msg.Origin.Source(),
+				Tags:      strings.Join(msg.Origin.TransportTags(), ","),
+			})
+			assert.NoError(t, err)
+
+			assert.NoError(t, JSONEncoder.Encode(msg, tc.hostname))
+			assert.Equal(t, string(expected), string(msg.GetContent()))
+		})
+	}
+}
+
 func TestRawEncoder(t *testing.T) {
 
 	logsConfig := &config.LogsConfig{
