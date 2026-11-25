@@ -28,6 +28,7 @@ const (
 	// inside sudo so it reaches dd-procmgr itself, and a failed exec exits with an error.
 	macosBoundedPerl        = "perl -e 'alarm shift; exec @ARGV or die \"exec: $!\\n\"' "
 	macosProcmgrRPCTimeout  = "30"
+	macosProcmgrHealTimeout = "15"
 	macosProcmgrStopTimeout = "120"
 	// _dd-agent is in group daemon, so it can reach the socket, but it is not root.
 	macosCallerAuthAgentCLI = "sudo -u _dd-agent " + macosBoundedPerl + macosProcmgrRPCTimeout + " " + macosProcmgrCLI
@@ -158,7 +159,7 @@ func healMacosCallerAuthLeftovers(t *testing.T, client *common.MacOSTestClient) 
 	// A daemon that is still starting must not skip the healing below. Bound each attempt because a daemon
 	// that accepts the connection and never answers would otherwise hang the loop.
 	for deadline := time.Now().Add(time.Minute); ; time.Sleep(time.Second) {
-		out, err = client.Execute(macosBoundedProcmgrCommand("15", "list --json"))
+		out, err = client.Execute(macosBoundedProcmgrCommand(macosProcmgrHealTimeout, "list --json"))
 		if err == nil || time.Now().After(deadline) {
 			break
 		}
