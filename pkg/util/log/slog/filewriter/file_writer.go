@@ -184,7 +184,12 @@ func (rw *rollingFileWriter) createFileAndFolderIfNeeded() error {
 
 	// This will either open the existing file (without truncating it) or
 	// create if necessary. Append mode avoids any race conditions.
-	rw.currentFile, err = os.OpenFile(filePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, perm)
+	direct := false
+	if inLogDir {
+		rw.currentFile, direct, err = openLogDirFile(filePath, perm)
+	} else {
+		rw.currentFile, err = os.OpenFile(filePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, perm)
+	}
 	if err != nil {
 		return err
 	}
@@ -196,7 +201,7 @@ func (rw *rollingFileWriter) createFileAndFolderIfNeeded() error {
 		return err
 	}
 
-	if inLogDir {
+	if direct {
 		setAccess(rw.currentFile, stat)
 	}
 
@@ -206,10 +211,11 @@ func (rw *rollingFileWriter) createFileAndFolderIfNeeded() error {
 
 // setAccess takes away the permissions of the log file f, described by fi,
 // beyond logDirFilePermissions and, when the writer runs as root, gives f
-// to the group of agentUser. It leaves alone a device such as /dev/null,
-// which a log file can link to.
+// to the group of agentUser. It changes a regular file of the writer's user
+// with a single name alone, so a device or a file that another user links
+// into logDir keeps its access.
 func setAccess(f *os.File, fi os.FileInfo) {
-	if !isRegular(fi.Mode()) {
+	if !isRegular(fi.Mode()) || !ownFile(fi) {
 		return
 	}
 

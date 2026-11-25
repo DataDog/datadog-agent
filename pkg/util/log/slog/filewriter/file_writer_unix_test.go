@@ -127,3 +127,90 @@ func TestRollingFileWriterAgentGroup(t *testing.T) {
 		assert.Equal(t, tt.gid, strconv.Itoa(int(info.Sys().(*syscall.Stat_t).Gid)), tt.path)
 	}
 }
+
+// setAgentUser makes nobody, which most systems have, stand in for
+// dd-agent, so that a writer that runs as root would change the group of a
+// file it handles.
+func setAgentUser(t *testing.T) {
+	u, err := user.Lookup("nobody")
+	if err != nil {
+		return
+	}
+	old := agentUser
+	agentUser = u.Username
+	t.Cleanup(func() { agentUser = old })
+}
+
+// statMode returns the permissions, group and link count of path.
+func statMode(t *testing.T, path string) (os.FileMode, uint32, uint64) {
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	st := info.Sys().(*syscall.Stat_t)
+	return info.Mode().Perm(), st.Gid, uint64(st.Nlink)
+}
+
+func TestRollingFileWriterSymlinkKeepsTarget(t *testing.T) {
+	setUmask(t)
+	setAgentUser(t)
+	tempDir := t.TempDir()
+	setLogDir(t, tempDir)
+	target := filepath.Join(t.TempDir(), "target")
+	require.NoError(t, os.WriteFile(target, []byte("old\n"), 0644))
+	mode, gid, _ := statMode(t, target)
+	logPath := filepath.Join(tempDir, "test.log")
+	require.NoError(t, os.Symlink(target, logPath))
+
+	writer, err := NewRollingFileWriterSize(logPath, 1024, 5, RollingNameModePostfix)
+	require.NoError(t, err)
+	_, err = writer.Write([]byte("test\n"))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	afterMode, afterGid, _ := statMode(t, target)
+	assert.Equal(t, mode, afterMode)
+	assert.Equal(t, gid, afterGid)
+	data, err := os.ReadFile(target)
+	require.NoError(t, err)
+	assert.Equal(t, "old\ntest\n", string(data))
+}
+
+func TestRollingFileWriterDanglingSymlink(t *testing.T) {
+	setUmask(t)
+	tempDir := t.TempDir()
+	setLogDir(t, tempDir)
+	target := filepath.Join(t.TempDir(), "target")
+	logPath := filepath.Join(tempDir, "test.log")
+	require.NoError(t, os.Symlink(target, logPath))
+
+	writer, err := NewRollingFileWriterSize(logPath, 1024, 5, RollingNameModePostfix)
+	require.NoError(t, err)
+	_, err = writer.Write([]byte("test\n"))
+	assert.Error(t, err)
+	require.NoError(t, writer.Close())
+
+	_, err = os.Lstat(target)
+	assert.True(t, os.IsNotExist(err), "the writer created %s", target)
+}
+
+func TestRollingFileWriterHardlinkKeepsMode(t *testing.T) {
+	setUmask(t)
+	setAgentUser(t)
+	tempDir := t.TempDir()
+	setLogDir(t, tempDir)
+	target := filepath.Join(tempDir, "target")
+	require.NoError(t, os.WriteFile(target, []byte("old\n"), 0644))
+	logPath := filepath.Join(tempDir, "test.log")
+	require.NoError(t, os.Link(target, logPath))
+	mode, gid, nlink := statMode(t, target)
+	require.Equal(t, uint64(2), nlink)
+
+	writer, err := NewRollingFileWriterSize(logPath, 1024, 5, RollingNameModePostfix)
+	require.NoError(t, err)
+	_, err = writer.Write([]byte("test\n"))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	afterMode, afterGid, _ := statMode(t, target)
+	assert.Equal(t, mode, afterMode)
+	assert.Equal(t, gid, afterGid)
+}

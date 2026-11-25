@@ -3,7 +3,11 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "filewriter",
-    srcs = ["file_writer.go"],
+    srcs = [
+        "file_writer.go",
+        "file_writer_unix.go",
+        "file_writer_windows.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/log/slog/filewriter",
     visibility = ["//visibility:public"],
 )

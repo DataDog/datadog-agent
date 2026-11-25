@@ -5,7 +5,10 @@ security:
     instead of 0644, and takes the read permission of other users away from
     a log file there that an earlier version created. The CIS Benchmarks
     require mode 0640 or stricter for the files under /var/log. The log files
-    at other paths keep the mode of earlier versions.
+    at other paths keep the mode of earlier versions. The Agent changes the
+    mode and group of a regular file of its own there alone: a log file there
+    that is a symlink or has another name keeps the access of its target, and
+    the Agent writes through a symlink there only to a file that exists.
 upgrade:
   - |
     Reading the Agent log files under /var/log/datadog now takes root, their
