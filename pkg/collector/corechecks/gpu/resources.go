@@ -41,7 +41,7 @@ func (c *Check) configureResources() error {
 	var err error
 	c.resourcePublisher, err = gpuresources.NewPublisher(options)
 	if err != nil {
-		return err
+		return fmt.Errorf("create GPU resource publisher: %w", err)
 	}
 	// Peering is static: rescan it once per resource refresh, so a refreshed resource carries a
 	// fresh scan without running O(GPUs²) NVML calls on every collection.
