@@ -675,7 +675,15 @@ func scrubResponse(data *extensiontypes.Response) (*extensiontypes.Response, err
 	}
 
 	if len(data.Environment) > 0 {
-		envJSON, err := json.Marshal(data.Environment)
+		environment := make(map[string]string, len(data.Environment))
+		for name, value := range data.Environment {
+			scrubbedValue, err := scrubJSONValue(value)
+			if err != nil {
+				return nil, err
+			}
+			environment[name] = scrubbedValue
+		}
+		envJSON, err := json.Marshal(environment)
 		if err != nil {
 			return nil, err
 		}
@@ -688,6 +696,28 @@ func scrubResponse(data *extensiontypes.Response) (*extensiontypes.Response, err
 		}
 	}
 	return &scrubbed, nil
+}
+
+// scrubJSONValue scrubs the value of an environment variable that is a JSON object or array, like the
+// configuration of the secret backend, as JSON: the scrubber finds the keys of a JSON text only when each
+// is on a line of its own. Any other value is returned as it is.
+func scrubJSONValue(value string) (string, error) {
+	trimmed := strings.TrimSpace(value)
+	if !strings.HasPrefix(trimmed, "{") && !strings.HasPrefix(trimmed, "[") {
+		return value, nil
+	}
+	if !json.Valid([]byte(trimmed)) {
+		return value, nil
+	}
+	scrubbed, err := scrubber.ScrubJSON([]byte(trimmed))
+	if err != nil {
+		return "", err
+	}
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, scrubbed); err != nil {
+		return "", err
+	}
+	return compact.String(), nil
 }
 
 // responseFiles returns the flare files built from the flare data

@@ -413,6 +413,14 @@ func TestFilterEnvironment(t *testing.T) {
 		"HTTPS_PROXY": "http://proxy:3128",
 		"https_proxy": "http://proxy:3128",
 		"GOMEMLIMIT":  "400MiB",
+		// Kept by name: the proxy, the path of the auth token, which the _AUTH_TOKEN rule would drop, and the pod
+		"DD_PROXY_HTTP":           "http://proxy:3128",
+		"DD_PROXY_HTTPS":          "http://proxy:3128",
+		"DD_PROXY_NO_PROXY":       "localhost",
+		"DD_AUTH_TOKEN_FILE_PATH": "/etc/datadog-agent/auth_token",
+		"HOSTNAME":                "my-pod",
+		// Only those names: a longer one with _AUTH_TOKEN is dropped
+		"MY_AUTH_TOKEN_FILE_PATH": "/etc/token",
 		// Bound to a sensitive setting of the schema, without _KEY nor _AUTH_TOKEN in the name
 		"DD_APM_ADDITIONAL_ENDPOINTS": `{"https://example.com": ["` + testAPIKey + `"]}`,
 		// Credentials by their name
@@ -425,12 +433,55 @@ func TestFilterEnvironment(t *testing.T) {
 	}
 
 	assert.Equal(t, map[string]string{
-		"DD_SITE":     "datadoghq.eu",
-		"DD_HOSTNAME": "my-host",
-		"HTTPS_PROXY": "http://proxy:3128",
-		"https_proxy": "http://proxy:3128",
-		"GOMEMLIMIT":  "400MiB",
+		"DD_SITE":                 "datadoghq.eu",
+		"DD_HOSTNAME":             "my-host",
+		"HTTPS_PROXY":             "http://proxy:3128",
+		"https_proxy":             "http://proxy:3128",
+		"GOMEMLIMIT":              "400MiB",
+		"DD_PROXY_HTTP":           "http://proxy:3128",
+		"DD_PROXY_HTTPS":          "http://proxy:3128",
+		"DD_PROXY_NO_PROXY":       "localhost",
+		"DD_AUTH_TOKEN_FILE_PATH": "/etc/datadog-agent/auth_token",
+		"HOSTNAME":                "my-pod",
 	}, filterEnvironment(env, cfg))
+}
+
+// TestCreateOTelFlareEnvironmentProxy checks that the proxy of the environment is in the flare, without the
+// password of its URL.
+func TestCreateOTelFlareEnvironmentProxy(t *testing.T) {
+	const password = "hunter2-proxy-password"
+	t.Setenv("DD_PROXY_HTTPS", "http://user:"+password+"@proxy.example.com:3128")
+	globalParams := newGlobalParamsTest(t)
+	cfg, ipcComp := newUnreachableCollector(t)
+
+	flarePath, err := createOTelFlare(globalParams, cfg, ipcComp.GetClient())
+	require.NoError(t, err)
+	defer os.RemoveAll(filepath.Dir(flarePath))
+	files := readZip(t, flarePath)
+
+	for name, content := range files {
+		assert.NotContains(t, string(content), password, "the password of the proxy in %s", name)
+	}
+	var environment map[string]string
+	require.NoError(t, json.Unmarshal(files["environment.json"], &environment))
+	assert.Contains(t, environment["DD_PROXY_HTTPS"], "proxy.example.com:3128")
+}
+
+// TestCreateOTelFlareJSONEnvironmentValue checks the credentials in a variable whose value is JSON, like the
+// configuration of the secret backend.
+func TestCreateOTelFlareJSONEnvironmentValue(t *testing.T) {
+	const secret = "sid-0123456789"
+	t.Setenv("DD_SECRET_BACKEND_CONFIG", `{"vault_session":{"vault_address":"https://vault.example.com","vault_secret_id":"`+secret+`"}}`)
+	globalParams := newGlobalParamsTest(t)
+	cfg, ipcComp := newUnreachableCollector(t)
+
+	flarePath, err := createOTelFlare(globalParams, cfg, ipcComp.GetClient())
+	require.NoError(t, err)
+	defer os.RemoveAll(filepath.Dir(flarePath))
+
+	for name, content := range readZip(t, flarePath) {
+		assert.NotContains(t, string(content), secret, "the secret of the backend in %s", name)
+	}
 }
 
 // TestScrubResponseStructuredSecrets checks secrets that the text scrubber alone misses once
@@ -460,6 +511,27 @@ func TestScrubResponseStructuredSecrets(t *testing.T) {
 
 	// the input is not modified
 	assert.Equal(t, "supersecret", data.Environment["AWS_SECRET_ACCESS_KEY"])
+}
+
+// TestScrubResponseJSONEnvironmentValue checks that the value of a variable that is JSON is scrubbed as JSON, and that
+// the rest of it is kept.
+func TestScrubResponseJSONEnvironmentValue(t *testing.T) {
+	data := &extensiontypes.Response{
+		Environment: map[string]string{
+			"JSON_OBJECT": `{"vault_address":"https://vault.example.com","vault_secret_id":"sid-0123456789","retries":3}`,
+			"JSON_ARRAY":  ` [{"name":"a","password":"hunter2"}]`,
+			"PLAIN":       "/usr/bin",
+		},
+	}
+
+	scrubbed, err := scrubResponse(data)
+	require.NoError(t, err)
+
+	assert.JSONEq(t, `{"vault_address":"https://vault.example.com","vault_secret_id":"********","retries":3}`, scrubbed.Environment["JSON_OBJECT"])
+	assert.JSONEq(t, `[{"name":"a","password":"********"}]`, scrubbed.Environment["JSON_ARRAY"])
+	assert.Equal(t, "/usr/bin", scrubbed.Environment["PLAIN"])
+	// the input is not modified
+	assert.Contains(t, data.Environment["JSON_OBJECT"], "sid-0123456789")
 }
 
 func TestFlareConfigUsesExporterAPIKey(t *testing.T) {

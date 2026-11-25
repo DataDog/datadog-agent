@@ -49,6 +49,13 @@ fixes:
     ``otel-response.json`` stays valid and keeps the whole configuration when
     the configuration has a key that the scrubber hides, like ``password``,
     instead of being cut at that key.
+  - |
+    ``otel-agent flare`` now keeps ``DD_PROXY_HTTP``, ``DD_PROXY_HTTPS``,
+    ``DD_PROXY_NO_PROXY``, ``DD_AUTH_TOKEN_FILE_PATH``, and ``HOSTNAME`` in the
+    environment of the flare, like the core Agent flare does for the proxy, with
+    the password of a proxy URL masked. It also scrubs the credentials in the
+    value of an environment variable that is JSON, like
+    ``DD_SECRET_BACKEND_CONFIG``.
 issues:
   - |
     ``otel-agent flare`` has these known limitations:
