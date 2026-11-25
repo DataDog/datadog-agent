@@ -67,6 +67,11 @@ func (s *ELFStream) retainSymbolStrings(selected []bool) error {
 		if linkIndex == 0 || linkIndex >= uint32(len(s.sections)) || s.sections[linkIndex].typ() != elf.SHT_STRTAB {
 			return fmt.Errorf("invalid symbol table %q", sec.name)
 		}
+		// Section names are appended to the name table during layout, which
+		// cannot also hold symbol names.
+		if linkIndex == uint32(s.elfHeader.Shstrndx) {
+			return unsupported("symbols share the section name table")
+		}
 		selected[linkIndex] = true
 	}
 	return nil

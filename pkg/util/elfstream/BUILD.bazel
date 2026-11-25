@@ -8,6 +8,7 @@ go_library(
         "layout.go",
         "read.go",
         "sections.go",
+        "symbols.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/elfstream",
     visibility = ["//visibility:public"],
@@ -15,7 +16,10 @@ go_library(
 
 dd_agent_go_test(
     name = "elfstream_test",
-    srcs = ["elfstream_test.go"],
+    srcs = [
+        "elfstream_test.go",
+        "symbols_test.go",
+    ],
     embed = [":elfstream"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = select({

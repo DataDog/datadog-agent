@@ -321,6 +321,9 @@ func TestELFStreamRejectsMalformedAndUnsupportedInput(t *testing.T) {
 		"huge_alignment": {func(p []byte) {
 			changeSection(t, p, 3, func(s *elf.Section64) { s.Addralign = 1 << 40 })
 		}, true},
+		"shared_name_table": {func(p []byte) {
+			changeSection(t, p, 9, func(s *elf.Section64) { s.Link = 10 })
+		}, true},
 		"truncated_compression_header": {func(p []byte) {
 			changeSection(t, p, 8, func(s *elf.Section64) { s.Flags = uint64(elf.SHF_COMPRESSED) })
 		}, false},
