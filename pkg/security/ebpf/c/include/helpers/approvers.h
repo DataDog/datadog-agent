@@ -525,7 +525,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_open_by_flags(s
 }
 
 // event_sampling_open_enabled covers v2 profiles and runtime package usage.
-static __always_inline u64 is_open_sampling_enabled() {
+static u64 __attribute__((always_inline)) is_open_sampling_enabled() {
     u64 event_sampling_open_enabled = 0;
     LOAD_CONSTANT("event_sampling_open_enabled", event_sampling_open_enabled);
     return event_sampling_open_enabled;
@@ -644,7 +644,7 @@ static enum SYSCALL_STATE __attribute__((always_inline)) open_approvers(struct s
 // (RESOLVER_FLAG_WORKLOAD_PROFILE_ONLY). The rules can't match it, so the approvers aren't
 // consulted: only the sampler of the workload profiles can let it reach user space. A sampled
 // event is flagged as saved by the profiles, which keeps user space from evaluating it against the rules.
-static __always_inline enum SYSCALL_STATE approve_open_profile_only(struct syscall_cache_t *syscall) {
+static enum SYSCALL_STATE __attribute__((always_inline)) approve_open_profile_only(struct syscall_cache_t *syscall) {
     if (approve_open_sample(syscall->open.dentry, &syscall->open.file, syscall) == SAMPLED) {
         syscall->resolver.flags |= RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP;
         return syscall->state = ACCEPTED;
