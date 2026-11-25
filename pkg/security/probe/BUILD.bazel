@@ -422,6 +422,7 @@ dd_agent_go_test(
         "coredump_test.go",
         "discarders_test.go",
         "dns_response_correlation_test.go",
+        "field_handlers_env_test.go",
         "field_handlers_test.go",
         "fuzz_test.go",
         "model_test.go",

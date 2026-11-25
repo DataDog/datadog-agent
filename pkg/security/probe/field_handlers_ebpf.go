@@ -296,7 +296,7 @@ func (fh *EBPFFieldHandlers) ResolveProcessEnvp(_ *model.Event, process *model.P
 // ResolveProcessEnv resolves the environment variables of the process, by name
 func (fh *EBPFFieldHandlers) ResolveProcessEnv(_ *model.Event, process *model.Process) map[string]string {
 	if process.EnvsEntry == nil {
-		return nil
+		return process.Env
 	}
 	return process.EnvsEntry.KeyValues()
 }
