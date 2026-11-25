@@ -184,60 +184,68 @@ func TestListNamespaceValidation(t *testing.T) {
 }
 
 func TestRunRejectsUnconfiguredGeneratedBundles(t *testing.T) {
-	root := t.TempDir()
-	source := filepath.Join(root, "source")
-	filename := filepath.Join(source, "newbundle", "get_resource.gen.go")
-	writeFixture(t, filename, "existing generated file")
-	for _, check := range []bool{false, true} {
-		err := run(root, "", source, source, check)
-		require.ErrorContains(t, err, `unconfigured generated bundle "newbundle"`)
-		contents, err := os.ReadFile(filename)
-		require.NoError(t, err)
-		require.Equal(t, "existing generated file", string(contents))
+	for _, checkout := range []string{"source", "agent[dev]", "agent["} {
+		t.Run(checkout, func(t *testing.T) {
+			root := t.TempDir()
+			source := filepath.Join(root, checkout)
+			filename := filepath.Join(source, "newbundle", "get_resource.gen.go")
+			writeFixture(t, filename, "existing generated file")
+			for _, check := range []bool{false, true} {
+				err := run(root, "", source, source, check)
+				require.ErrorContains(t, err, `unconfigured generated bundle "newbundle"`)
+				contents, err := os.ReadFile(filename)
+				require.NoError(t, err)
+				require.Equal(t, "existing generated file", string(contents))
+			}
+		})
 	}
 }
 
 func TestRunCheckAndCleanup(t *testing.T) {
-	root := t.TempDir()
-	source := filepath.Join(root, "source")
-	out := filepath.Join(root, "out")
-	writeFixture(t, filepath.Join(source, "discovery/helper.go"), "package discovery\n")
-	writeFixture(t, filepath.Join(root, "k8s.io/api/discovery/v1/types.go"), `package v1
+	for _, checkout := range []string{"source", "agent[dev]", "agent["} {
+		t.Run(checkout, func(t *testing.T) {
+			root := filepath.Join(t.TempDir(), checkout)
+			source := filepath.Join(root, "source")
+			out := filepath.Join(root, "out")
+			writeFixture(t, filepath.Join(source, "discovery/helper.go"), "package discovery\n")
+			writeFixture(t, filepath.Join(root, "k8s.io/api/discovery/v1/types.go"), `package v1
 type EndpointSlice struct { AddressType string }
 `)
-	writeFixture(t, filepath.Join(root, "k8s.io/client-go/kubernetes/typed/discovery/v1/slice.go"), `package v1
+			writeFixture(t, filepath.Join(root, "k8s.io/client-go/kubernetes/typed/discovery/v1/slice.go"), `package v1
 type EndpointSlicesGetter interface { EndpointSlices(namespace string) EndpointSliceInterface }
 type EndpointSliceInterface interface { Get() }
 `)
-	require.ErrorContains(t, run(root, "discovery", source, out, true), "stale generated files")
-	require.NoDirExists(t, out, "check must not create output directory")
-	require.NoError(t, run(root, "discovery", source, out, false))
-	require.NoError(t, run(root, "discovery", source, out, true))
-	filename := filepath.Join(out, "discovery/get_endpoint_slice.gen.go")
-	before, err := os.ReadFile(filename)
-	require.NoError(t, err)
-	writeFixture(t, filename, "stale content")
-	obsolete := filepath.Join(out, "discovery/obsolete.gen.go")
-	writeFixture(t, obsolete, "old action")
-	handwritten := filepath.Join(out, "discovery/manual.go")
-	writeFixture(t, handwritten, "handwritten")
-	unselected := filepath.Join(out, "core/keep.gen.go")
-	writeFixture(t, unselected, "unselected bundle")
+			require.ErrorContains(t, run(root, "discovery", source, out, true), "stale generated files")
+			require.NoDirExists(t, out, "check must not create output directory")
+			require.NoError(t, run(root, "discovery", source, out, false))
+			require.NoError(t, run(root, "discovery", source, out, true))
+			filename := filepath.Join(out, "discovery/get_endpoint_slice.gen.go")
+			before, err := os.ReadFile(filename)
+			require.NoError(t, err)
+			writeFixture(t, filename, "stale content")
+			obsolete := filepath.Join(out, "discovery/obsolete.gen.go")
+			writeFixture(t, obsolete, "old action")
+			handwritten := filepath.Join(out, "discovery/manual.go")
+			writeFixture(t, handwritten, "handwritten")
+			unselected := filepath.Join(out, "core/keep.gen.go")
+			writeFixture(t, unselected, "unselected bundle")
 
-	err = run(root, "discovery", source, out, true)
-	require.ErrorContains(t, err, "obsolete.gen.go")
-	require.ErrorContains(t, err, "get_endpoint_slice.gen.go")
-	got, err := os.ReadFile(filename)
-	require.NoError(t, err)
-	require.Equal(t, "stale content", string(got), "check must not modify files")
-	require.FileExists(t, obsolete, "check must not remove files")
+			err = run(root, "discovery", source, out, true)
+			require.ErrorContains(t, err, "obsolete.gen.go")
+			require.ErrorContains(t, err, "get_endpoint_slice.gen.go")
+			got, err := os.ReadFile(filename)
+			require.NoError(t, err)
+			require.Equal(t, "stale content", string(got), "check must not modify files")
+			require.FileExists(t, obsolete, "check must not remove files")
 
-	require.NoError(t, run(root, "discovery", source, out, false))
-	got, err = os.ReadFile(filename)
-	require.NoError(t, err)
-	require.Equal(t, before, got, "regeneration must restore deterministic output")
-	require.NoFileExists(t, obsolete)
-	require.FileExists(t, handwritten)
-	require.FileExists(t, unselected)
-	require.ErrorContains(t, run(root, "unknown", source, out, false), "unknown bundle")
+			require.NoError(t, run(root, "discovery", source, out, false))
+			got, err = os.ReadFile(filename)
+			require.NoError(t, err)
+			require.Equal(t, before, got, "regeneration must restore deterministic output")
+			require.NoFileExists(t, obsolete)
+			require.FileExists(t, handwritten)
+			require.FileExists(t, unselected)
+			require.ErrorContains(t, run(root, "unknown", source, out, false), "unknown bundle")
+		})
+	}
 }

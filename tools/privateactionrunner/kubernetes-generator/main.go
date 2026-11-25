@@ -113,7 +113,7 @@ func run(sdkRoot, bundle, source, out string, check bool) error {
 			if _, ok := targets[entry.Name()]; ok {
 				continue
 			}
-			generated, err := filepath.Glob(filepath.Join(source, entry.Name(), "*.gen.go"))
+			generated, err := generatedFiles(filepath.Join(source, entry.Name()))
 			if err != nil {
 				return err
 			}
@@ -140,7 +140,10 @@ func run(sdkRoot, bundle, source, out string, check bool) error {
 	}
 	var stale []string
 	for _, name := range names {
-		old, err := filepath.Glob(filepath.Join(out, name, "*.gen.go"))
+		old, err := generatedFiles(filepath.Join(out, name))
+		if os.IsNotExist(err) {
+			continue
+		}
 		if err != nil {
 			return err
 		}
@@ -180,6 +183,20 @@ func run(sdkRoot, bundle, source, out string, check bool) error {
 		return fmt.Errorf("stale generated files:\n%s", strings.Join(stale, "\n"))
 	}
 	return nil
+}
+
+func generatedFiles(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".gen.go") {
+			files = append(files, filepath.Join(dir, entry.Name()))
+		}
+	}
+	return files, nil
 }
 
 func render(name string, data any) ([]byte, error) {
