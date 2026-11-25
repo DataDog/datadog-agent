@@ -158,11 +158,14 @@ new-e2e-ssi-aks:
 new-e2e-ssi-gradual-rollout:
   extends: .new_e2e_template
   rules:
-    - !reference [.on_ssi_or_e2e_changes]
+    - !reference [.on_e2e_guard]
+    - !reference [.on_e2e_fakeintake_changes]
     - changes:
         paths:
           - test/new-e2e/tests/ssi-gradual-rollout/**/*
         compare_to: $COMPARE_TO_BRANCH
+      when: on_success
+    - !reference [.on_ssi_or_e2e_changes]
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]

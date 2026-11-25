@@ -22,6 +22,7 @@ new-e2e-base:
     - agent_deb-x64-a7
   rules:
     - !reference [.except_light_pipeline]
+    - !reference [.except_disable_e2e_tests]
     - !reference [.except_coverage_pipeline]
     # Fakeintake and test-definition changes always run it; otherwise it is manual on PRs when
     # DISABLE_PRE_MERGE_TESTS_AGENT is "true".

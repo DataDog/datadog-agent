@@ -95,6 +95,7 @@ new-e2e-amp-adp:
     - job: qa_dca
       optional: true
   rules:
+    - !reference [.except_disable_e2e_tests]
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-metric-pipelines
