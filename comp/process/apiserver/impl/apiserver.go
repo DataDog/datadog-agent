@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -24,6 +25,7 @@ import (
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	apiserver "github.com/DataDog/datadog-agent/comp/process/apiserver/def"
@@ -48,6 +50,7 @@ type dependencies struct {
 	Settings     settings.Component
 	Tagger       tagger.Component
 	Secrets      secrets.Component
+	Telemetry    telemetry.Component
 }
 
 // NewComponent creates a new apiserver component.
@@ -70,9 +73,16 @@ func NewComponent(deps dependencies) (apiserver.Component, error) {
 	deps.Log.Infof("API server listening on %s", addr)
 	timeout := time.Duration(deps.Config.GetInt("server_timeout")) * time.Second
 
+	// Instrument the API server with the same request telemetry as the core agent,
+	// tagging requests with the authentication mode (mTLS vs token) used by clients.
+	handler := deps.IPC.HTTPMiddleware(r)
+	if tmf := newTelemetryMiddlewareFactory(deps); tmf != nil {
+		handler = tmf.Middleware("process_api")(handler)
+	}
+
 	s := &apiserverImpl{
 		server: &http.Server{
-			Handler:      deps.IPC.HTTPMiddleware(r),
+			Handler:      handler,
 			Addr:         addr,
 			ReadTimeout:  timeout,
 			WriteTimeout: timeout,
@@ -110,6 +120,18 @@ func NewComponent(deps dependencies) (apiserver.Component, error) {
 }
 
 const defaultProcessCmdPort = 6162
+
+// newTelemetryMiddlewareFactory builds the observability telemetry middleware for the
+// process agent API server. It returns nil (and keeps the server uninstrumented) if the
+// IPC certificate cannot be loaded, as telemetry must never prevent the API from serving.
+func newTelemetryMiddlewareFactory(deps dependencies) observability.TelemetryMiddlewareFactory {
+	authTagGetter, err := observability.AuthTagGetter(deps.IPC.GetTLSServerConfig())
+	if err != nil {
+		deps.Log.Warnf("Unable to build the API telemetry auth tag getter: %v", err)
+		return nil
+	}
+	return observability.NewTelemetryMiddlewareFactory(deps.Telemetry, authTagGetter)
+}
 
 // getProcessAPIAddressPort returns the API address:port for the process agent.
 func getProcessAPIAddressPort(cfg config.Component, log logComp.Component) (string, error) {

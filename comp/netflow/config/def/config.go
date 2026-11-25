@@ -26,6 +26,7 @@ type NetflowConfig struct {
 	AggregatorPortRollupThreshold int              `mapstructure:"aggregator_port_rollup_threshold"`
 	AggregatorPortRollupDisabled  bool             `mapstructure:"aggregator_port_rollup_disabled"`
 	AggregatorMaxFlowsPerPeriod   int              `mapstructure:"aggregator_max_flows_per_flush_interval"`
+	TemplateCacheMaxSize          int              `mapstructure:"template_cache_max_size"`
 
 	// AggregatorRollupTrackerRefreshInterval is useful to speed up testing to avoid wait for 1h default
 	AggregatorRollupTrackerRefreshInterval uint `mapstructure:"aggregator_rollup_tracker_refresh_interval"`
@@ -45,6 +46,7 @@ type ListenerConfig struct {
 	Namespace           string          `mapstructure:"namespace"`
 	Mapping             []Mapping       `mapstructure:"mapping"`
 	EnableBiflowParsing bool            `mapstructure:"enable_biflow_parsing"`
+	EnableDPI           bool            `mapstructure:"enable_dpi"`
 }
 
 // Mapping contains configuration for a Netflow/IPFIX field mapping
@@ -114,6 +116,9 @@ func (mainConfig *NetflowConfig) SetDefaults(namespace string, logger log.Compon
 
 	if mainConfig.StopTimeout == 0 {
 		mainConfig.StopTimeout = common.DefaultStopTimeout
+	}
+	if mainConfig.TemplateCacheMaxSize <= 0 {
+		mainConfig.TemplateCacheMaxSize = common.DefaultTemplateCacheMaxSize
 	}
 	if mainConfig.AggregatorFlushInterval == 0 {
 		mainConfig.AggregatorFlushInterval = common.DefaultAggregatorFlushInterval

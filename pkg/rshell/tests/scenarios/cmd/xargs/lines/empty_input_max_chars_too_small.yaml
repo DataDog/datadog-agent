@@ -1,0 +1,8 @@
+description: xargs -s too small to fit even the command name aborts before invoking, even with empty input (matches GNU; -s applies to the resolved command line including cmdName).
+input:
+  script: |+
+    printf '' | xargs -s 1 echo
+expect:
+  stdout: |+
+  stderr_contains: ["xargs:"]
+  exit_code: 1

@@ -73,6 +73,15 @@ func (m *MockKubeStore) Resync() error {
 	return nil
 }
 
+func (m *MockKubeStore) Bookmark(_ string) {
+	// Unused in this test
+}
+
+func (m *MockKubeStore) LastStoreSyncResourceVersion() string {
+	// Unused in this test
+	return ""
+}
+
 func TestProcessEventBundle_SetEvent(t *testing.T) {
 	tests := []struct {
 		name                string

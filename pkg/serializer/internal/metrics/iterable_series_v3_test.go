@@ -269,6 +269,63 @@ func BenchmarkPayloadsBuilderV3(b *testing.B) {
 	}
 }
 
+func BenchmarkPayloadsBuilderV3SortedTags(b *testing.B) {
+	const ts = 1756737057.1
+	for _, n := range []int{5, 15, 30} {
+		tags := make([]string, n)
+		for i := range n {
+			tags[i] = fmt.Sprintf("tag_key_%02d:tag_value_%02d", i, i)
+		}
+		b.Run(fmt.Sprintf("sorted_%d_tags", n), func(b *testing.B) {
+			serie := &metrics.Serie{
+				Name:   "system.cpu.user",
+				Tags:   tagset.NewCompositeTags(tags[:n/2], tags[n/2:]),
+				Points: []metrics.Point{{Ts: ts, Value: 3.14}},
+			}
+			pipelineConfig := PipelineConfig{Filter: AllowAllFilter{}, V3: true}
+			pipelineContext := &PipelineContext{}
+			pb, err := newPayloadsBuilderV3(500_000, 2_000_000, 10_000, noopimpl.New(), pipelineConfig, pipelineContext)
+			if err != nil {
+				b.Fatalf("new: %v", err)
+			}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for range b.N {
+				if err := pb.writeSerie(serie); err != nil {
+					b.Fatalf("writeSerie: %v", err)
+				}
+				pipelineContext.payloads = pipelineContext.payloads[:0]
+			}
+		})
+	}
+
+	unsorted := make([]string, 15)
+	for i := range 15 {
+		unsorted[i] = fmt.Sprintf("tag_key_%02d:tag_value_%02d", 14-i, 14-i)
+	}
+	b.Run("unsorted_15_tags", func(b *testing.B) {
+		serie := &metrics.Serie{
+			Name:   "system.cpu.user",
+			Tags:   tagset.NewCompositeTags(unsorted[:7], unsorted[7:]),
+			Points: []metrics.Point{{Ts: ts, Value: 3.14}},
+		}
+		pipelineConfig := PipelineConfig{Filter: AllowAllFilter{}, V3: true}
+		pipelineContext := &PipelineContext{}
+		pb, err := newPayloadsBuilderV3(500_000, 2_000_000, 10_000, noopimpl.New(), pipelineConfig, pipelineContext)
+		if err != nil {
+			b.Fatalf("new: %v", err)
+		}
+		b.ReportAllocs()
+		b.ResetTimer()
+		for range b.N {
+			if err := pb.writeSerie(serie); err != nil {
+				b.Fatalf("writeSerie: %v", err)
+			}
+			pipelineContext.payloads = pipelineContext.payloads[:0]
+		}
+	})
+}
+
 func TestPayloadBuildersV3_Split(t *testing.T) {
 	r := assert.New(t)
 	const ts = 1756737057.1
@@ -307,7 +364,7 @@ func TestPayloadBuildersV3_Split(t *testing.T) {
 		V3:     true,
 	}
 	pipelineContext := &PipelineContext{}
-	pb, err := newPayloadsBuilderV3(188, 10000, 1000_0000, noopimpl.New(), pipelineConfig, pipelineContext)
+	pb, err := newPayloadsBuilderV3(208, 10000, 1000_0000, noopimpl.New(), pipelineConfig, pipelineContext)
 	require.NoError(t, err)
 
 	r.NoError(pb.writeSerie(series[0]))
@@ -319,7 +376,7 @@ func TestPayloadBuildersV3_Split(t *testing.T) {
 	r.Len(payloads, 3)
 
 	r.Equal(2, payloads[0].GetPointCount())
-	r.Less(len(payloads[1].GetContent()), 188)
+	r.Less(len(payloads[1].GetContent()), 208)
 	r.Equal(1, payloads[1].GetPointCount())
 	r.Equal(1, payloads[2].GetPointCount())
 	r.NotContains("foo", payloads[1].GetContent())
@@ -351,7 +408,7 @@ func TestPayloadsBuilderV3_SplitTooBig(t *testing.T) {
 		V3:     true,
 	}
 	pipelineContext := &PipelineContext{}
-	pb, err := newPayloadsBuilderV3(180, 10000, 1000_0000, noopimpl.New(), pipelineConfig, pipelineContext)
+	pb, err := newPayloadsBuilderV3(200, 10000, 1000_0000, noopimpl.New(), pipelineConfig, pipelineContext)
 	require.NoError(t, err)
 
 	r.NoError(pb.writeSerie(series[0]))

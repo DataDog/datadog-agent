@@ -1292,3 +1292,44 @@ func BenchmarkUpdateFromPodAutoscaler(b *testing.B) {
 		pai.UpdateFromPodAutoscaler(dpa)
 	}
 }
+
+func TestParseForceResourcesAnnotation(t *testing.T) {
+	forced := parseForceResourcesAnnotation(`[{"name": "app", "requests": {"cpu": "2", "memory": "200Mi"}, "limits": {"cpu": "4"}}, {"name": "sidecar", "limits": {"memory": "1Gi"}}]`)
+	require.Len(t, forced, 2)
+	app, sidecar := forced[0], forced[1]
+	assert.Equal(t, "app", app.Name, "the annotation order is kept")
+	assert.Equal(t, "sidecar", sidecar.Name)
+	assert.True(t, app.Requests[corev1.ResourceCPU].Equal(resource.MustParse("2")))
+	assert.True(t, app.Limits[corev1.ResourceCPU].Equal(resource.MustParse("4")))
+	assert.True(t, app.Requests[corev1.ResourceMemory].Equal(resource.MustParse("200Mi")))
+	assert.NotContains(t, app.Limits, corev1.ResourceMemory, "a limit that is not set is not forced")
+	assert.NotContains(t, sidecar.Requests, corev1.ResourceMemory)
+
+	// The values are checked when merged on the recommendation; only a value that is not a list of
+	// container resources is ignored here.
+	for name, value := range map[string]string{
+		"absent":           ``,
+		"empty list":       `[]`,
+		"bad JSON":         `[{"name": `,
+		"object, not list": `{"app": {"cpu": {"request": "1"}}}`,
+		"invalid quantity": `[{"name": "app", "requests": {"memory": "200Mb"}}]`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Nil(t, parseForceResourcesAnnotation(value))
+		})
+	}
+}
+
+// TestUpdateFromOpsAnnotationsForcedResources checks that an invalid force-resources annotation is
+// ignored, as if it were absent.
+func TestUpdateFromOpsAnnotationsForcedResources(t *testing.T) {
+	pai := PodAutoscalerInternal{}
+	pai.UpdateFromOpsAnnotations(map[string]string{ForceResourcesAnnotationKey: `[{"name": "app", "requests": {"cpu": "2"}}]`})
+	require.Len(t, pai.ForcedResources(), 1)
+
+	pai.UpdateFromOpsAnnotations(map[string]string{ForceResourcesAnnotationKey: `[{"name": "app", "requests": {"memory": "200Mb"}}]`})
+	assert.Nil(t, pai.ForcedResources())
+
+	pai.UpdateFromOpsAnnotations(nil)
+	assert.Nil(t, pai.ForcedResources())
+}

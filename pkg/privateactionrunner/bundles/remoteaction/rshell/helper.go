@@ -12,7 +12,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 )
 
 const (
@@ -150,7 +150,7 @@ func narrowerPathWithSameAccess(a, b string) (pathToKeep string, ok bool) {
 
 func isUnsuffixedRootPath(pathSpec string) bool {
 	pathPart, accessSuffix := splitPathAccessSuffix(pathSpec)
-	return pathPart == setup.RShellPathAllowAll && accessSuffix == ""
+	return pathPart == par.RShellPathAllowAll && accessSuffix == ""
 }
 
 func isAbsolutePathSpecPath(pathPart string) bool {

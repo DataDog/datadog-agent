@@ -41,6 +41,10 @@ type MetricsStore struct {
 	MetricsType     string
 	enableCallbacks bool          // flag to enable event callback functionality
 	eventNotifier   EventNotifier // callback notifier (builder reference)
+
+	// lastResourceVersion is the last resource version seen by the store,
+	// protected by mutex.
+	lastResourceVersion string
 }
 
 // DDMetric represents the data we care about for a context.
@@ -116,6 +120,7 @@ func (s *MetricsStore) Add(obj interface{}) error {
 	// We need to keep the store with UID as a key to handle the lifecycle of the objects and the metrics attached.
 	s.mutex.Lock()
 	s.metrics[o.GetUID()] = convertedMetricsForUID
+	s.lastResourceVersion = o.GetResourceVersion()
 	s.mutex.Unlock()
 
 	return nil
@@ -159,6 +164,7 @@ func (s *MetricsStore) Delete(obj interface{}) error {
 	defer s.mutex.Unlock()
 
 	delete(s.metrics, o.GetUID())
+	s.lastResourceVersion = o.GetResourceVersion()
 
 	return nil
 }
@@ -184,8 +190,8 @@ func (s *MetricsStore) GetByKey(_ string) (item interface{}, exists bool, err er
 }
 
 // Replace will delete the contents of the store, using instead the
-// given list.
-func (s *MetricsStore) Replace(list []interface{}, _ string) error {
+// given list, and records the given resource version as the last one seen.
+func (s *MetricsStore) Replace(list []interface{}, resourceVersion string) error {
 	s.mutex.Lock()
 	s.metrics = map[types.UID][]DDMetricsFam{}
 	s.mutex.Unlock()
@@ -197,12 +203,31 @@ func (s *MetricsStore) Replace(list []interface{}, _ string) error {
 		}
 	}
 
+	s.Bookmark(resourceVersion)
+
 	return nil
 }
 
 // Resync implements the Resync method of the store interface.
 func (s *MetricsStore) Resync() error {
 	return nil
+}
+
+// Bookmark implements the Bookmark method of the store interface.
+func (s *MetricsStore) Bookmark(resourceVersion string) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	s.lastResourceVersion = resourceVersion
+}
+
+// LastStoreSyncResourceVersion implements the LastStoreSyncResourceVersion
+// method of the store interface.
+func (s *MetricsStore) LastStoreSyncResourceVersion() string {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	return s.lastResourceVersion
 }
 
 // FamilyAllow is a metric-family-based filtering function provided by the store clients
@@ -225,10 +250,23 @@ func (s *MetricsStore) Push(familyFilter FamilyAllow, metricFilter MetricAllow) 
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	mRes := make(map[string][]DDMetricsFam)
+	// The first pass is to presize the result map and the per-name slices.
+	familyCounts := make(map[string]int)
+	for _, metricFamList := range s.metrics {
+		for _, metricFam := range metricFamList {
+			if !familyFilter(metricFam) {
+				continue
+			}
+			if len(metricFam.ListMetrics) == 0 {
+				continue
+			}
+			familyCounts[metricFam.Name]++
+		}
+	}
+
+	mRes := make(map[string][]DDMetricsFam, len(familyCounts))
 
 	// Iterate through all metrics with filters
-	// Preallocate metric slices to avoid growth reallocations
 	for _, metricFamList := range s.metrics {
 		for _, metricFam := range metricFamList {
 			if !familyFilter(metricFam) {
@@ -250,13 +288,20 @@ func (s *MetricsStore) Push(familyFilter FamilyAllow, metricFilter MetricAllow) 
 				resMetric = append(resMetric, metric)
 			}
 
-			if len(resMetric) > 0 {
-				mRes[metricFam.Name] = append(mRes[metricFam.Name], DDMetricsFam{
-					ListMetrics: resMetric,
-					Type:        metricFam.Type,
-					Name:        metricFam.Name,
-				})
+			// Skip families where all metrics were filtered out
+			if len(resMetric) == 0 {
+				continue
 			}
+
+			fams, found := mRes[metricFam.Name]
+			if !found {
+				fams = make([]DDMetricsFam, 0, familyCounts[metricFam.Name])
+			}
+			mRes[metricFam.Name] = append(fams, DDMetricsFam{
+				ListMetrics: resMetric,
+				Type:        metricFam.Type,
+				Name:        metricFam.Name,
+			})
 		}
 	}
 

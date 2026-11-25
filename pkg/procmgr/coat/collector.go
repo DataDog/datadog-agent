@@ -82,6 +82,14 @@ func (c *Collector) Collect(ctx context.Context) Snapshot {
 		}
 	}
 
+	// The OS unit/SCM state does not go through dd-procmgrd, so it is collected whether or not the
+	// calls above succeeded: a unit that is stopped or failed is what COAT needs to see, and that is
+	// when the daemon cannot answer. It runs ahead of the service sweep, on a bounded slice of what
+	// the daemon phase left, so neither it nor the sweep hands the other an expired context.
+	serviceStateCtx, cancelServiceState := daemonServiceStateContext(ctx)
+	snapshot.Daemon.ServiceState = detectDaemonServiceState(serviceStateCtx)
+	cancelServiceState()
+
 	for _, service := range migratableServices {
 		snapshot.Services = append(snapshot.Services, c.collectService(ctx, service, processes))
 	}
@@ -141,13 +149,15 @@ func (c *Collector) collectService(ctx context.Context, service MigratableServic
 	}
 
 	if process, ok := processes[service.ProcmgrProcessName]; ok {
-		// Install marker may be missing for layouts the marker paths don't cover
-		// (e.g. Windows DDOT installed outside the checked roots); procmgr
-		// supervision is as strong an install signal as systemd/SCM below.
-		status.Installed = true
 		status.ProcmgrState = process.State
-		status.ManagementMode = ManagementModeProcmgr
-		return status
+		if process.State != ProcessStateInvalidConfig {
+			// Install marker may be missing for layouts the marker paths don't cover
+			// (e.g. Windows DDOT installed outside the checked roots); procmgr
+			// supervision is as strong an install signal as systemd/SCM below.
+			status.Installed = true
+			status.ManagementMode = ManagementModeProcmgr
+			return status
+		}
 	}
 
 	if legacyMode := detectLegacySupervisor(ctx, service); legacyMode != ManagementModeNone {

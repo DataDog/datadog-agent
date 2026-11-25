@@ -1,0 +1,86 @@
+# Kubelet side of TestDogtelTagParity: tags the calendar app's telemetry from
+# the pods the kubelet workloadmeta collector, opted in to, finds, and forwards
+# it as received, minus container.id, to the nodefilter side
+# (dogtel-tag-parity-nodefilter.yml), so that both otel-agents tag the same
+# payloads.
+extensions:
+  dogtel:
+    use_kubelet_collector: true
+  pprof:
+  health_check:
+  zpages:
+    endpoint: "localhost:55679"
+  ddflare:
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  infraattributes:
+    cardinality: 2
+  # Marks the payloads this otel-agent exports. The key must match the
+  # tagParityCollectorAttr constant in dogtel_tag_parity_test.go.
+  resource/collector:
+    attributes:
+      - key: e2e.workloadmeta.collector
+        value: kubelet
+        action: upsert
+  # Drops the container ID the calendar app may set (resource.WithContainer)
+  # from the payloads forwarded to the nodefilter side, so that it has to
+  # resolve it from k8s.pod.uid and k8s.container.name, from the pods it
+  # watches through the API server.
+  resource/drop-container-id:
+    attributes:
+      - key: container.id
+        action: delete
+
+exporters:
+  datadog:
+    metrics:
+      resource_attributes_as_tags: true
+    api:
+      key: ${env:DD_API_KEY}
+    sending_queue:
+      batch:
+  # Forwards to the nodefilter otel-agent's Service. The name and namespace
+  # must match the tagParityNodefilterName and tagParityNodefilterNamespace
+  # constants in dogtel_tag_parity_test.go.
+  otlp/nodefilter:
+    endpoint: "nodefilter-otel-agent.datadog-nodefilter.svc.cluster.local:4317"
+    tls:
+      insecure: true
+
+service:
+  extensions: [dogtel, pprof, health_check, zpages, ddflare]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [infraattributes, resource/collector]
+      exporters: [datadog]
+    metrics:
+      receivers: [otlp]
+      processors: [infraattributes, resource/collector]
+      exporters: [datadog]
+    logs:
+      receivers: [otlp]
+      processors: [infraattributes, resource/collector]
+      exporters: [datadog]
+    # These pipelines forward the payloads as received, minus container.id:
+    # each pipeline works on its own copy, as their processors mutate data.
+    traces/forward:
+      receivers: [otlp]
+      processors: [resource/drop-container-id]
+      exporters: [otlp/nodefilter]
+    metrics/forward:
+      receivers: [otlp]
+      processors: [resource/drop-container-id]
+      exporters: [otlp/nodefilter]
+    logs/forward:
+      receivers: [otlp]
+      processors: [resource/drop-container-id]
+      exporters: [otlp/nodefilter]

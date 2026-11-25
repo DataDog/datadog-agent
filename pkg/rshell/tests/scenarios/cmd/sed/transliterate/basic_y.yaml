@@ -1,0 +1,8 @@
+description: sed y command transliterates characters.
+input:
+  script: |+
+    echo "hello" | sed 'y/helo/HELO/'
+expect:
+  stdout: "HELLO\n"
+  stderr: ""
+  exit_code: 0

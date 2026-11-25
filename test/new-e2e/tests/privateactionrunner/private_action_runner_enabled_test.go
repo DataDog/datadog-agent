@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/rshell/privilegedhelper"
+	"github.com/DataDog/datadog-agent/pkg/rshell/privilegedhelper"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -84,7 +84,7 @@ func TestLinuxPrivateActionRunnerEnabledSuite(t *testing.T) {
 	e2e.Run(t, suite, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithRunOptions(
-				scenec2.WithEC2InstanceOptions(scenec2.WithOS(e2eos.Ubuntu2404E2E)),
+				scenec2.WithEC2InstanceOptions(scenec2.WithOS(e2eos.Ubuntu2404)),
 				scenec2.WithPreAgentInstallHook(stagePrivateActionRunnerConfig(config)),
 				scenec2.WithAgentOptions(
 					agentparams.WithAgentConfig(config),

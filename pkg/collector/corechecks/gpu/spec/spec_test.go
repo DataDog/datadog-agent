@@ -37,7 +37,7 @@ func TestLoadSpecNotEmpty(t *testing.T) {
 	}
 	for metricName, metricSpec := range specs.Metrics.Metrics {
 		for deviceMode := range metricSpec.Support.DeviceModes {
-			require.Containsf(t, []string{"physical", "mig", "vgpu"}, string(deviceMode), "metric %s has invalid device mode key %q", metricName, deviceMode)
+			require.Containsf(t, []string{"physical", "mig", "mig_parent", "vgpu"}, string(deviceMode), "metric %s has invalid device mode key %q", metricName, deviceMode)
 		}
 	}
 
@@ -229,6 +229,89 @@ func TestMetricValidatorUnmarshalRejectsNonFiniteValues(t *testing.T) {
 	require.ErrorContains(t, err, "metric validator values must be finite")
 }
 
+func TestGPUConfigCanRunWorkloads(t *testing.T) {
+	for _, mode := range AllDeviceModes {
+		config := GPUConfig{DeviceMode: mode}
+		require.Equalf(t, mode != DeviceModeMIGParent, config.CanRunWorkloads(), "mode %s", mode)
+	}
+}
+
+// TestLoadedArchitecturesDoNotConfigureUnsupportedModes checks that the architectures spec has no support entry
+// for a device mode that the architecture does not support, since nothing reads such an entry.
+func TestLoadedArchitecturesDoNotConfigureUnsupportedModes(t *testing.T) {
+	archSpecs, err := LoadArchitecturesSpec()
+	require.NoError(t, err)
+
+	for name, archSpec := range archSpecs.Architectures {
+		for _, support := range archSpec.Support {
+			for _, mode := range support.DeviceModes {
+				require.Truef(t, IsModeSupportedByArchitecture(archSpec, mode), "architecture %s has a support entry for the unsupported device mode %s", name, mode)
+			}
+		}
+	}
+}
+
+func TestArchitecturesSpecValidate(t *testing.T) {
+	supportEntry := func(modes ...DeviceMode) ArchitectureSupportSpec {
+		return ArchitectureSupportSpec{DeviceModes: modes}
+	}
+
+	tests := []struct {
+		name          string
+		archs         map[string]ArchitectureSpec
+		expectedError []string
+	}{
+		{
+			name: "support entries only for supported modes",
+			archs: map[string]ArchitectureSpec{
+				"pascal": {
+					Support:                []ArchitectureSupportSpec{supportEntry(DeviceModePhysical), supportEntry(DeviceModeVGPU)},
+					UnsupportedDeviceModes: []DeviceMode{DeviceModeMIG, DeviceModeMIGParent},
+				},
+				"ampere": {Support: []ArchitectureSupportSpec{supportEntry(DeviceModeMIG, DeviceModeMIGParent, DeviceModeVGPU)}},
+			},
+		},
+		{
+			name: "support entry for an unsupported mode",
+			archs: map[string]ArchitectureSpec{
+				"pascal": {
+					Support:                []ArchitectureSupportSpec{supportEntry(DeviceModeMIG, DeviceModeVGPU)},
+					UnsupportedDeviceModes: []DeviceMode{DeviceModeMIG},
+				},
+			},
+			expectedError: []string{`architecture pascal: device mode "mig"`},
+		},
+		{
+			name: "every inconsistency is reported",
+			archs: map[string]ArchitectureSpec{
+				"pascal": {
+					Support:                []ArchitectureSupportSpec{supportEntry(DeviceModeMIG, DeviceModeMIGParent)},
+					UnsupportedDeviceModes: []DeviceMode{DeviceModeMIG, DeviceModeMIGParent},
+				},
+				"ada": {
+					Support:                []ArchitectureSupportSpec{supportEntry(DeviceModeMIGParent)},
+					UnsupportedDeviceModes: []DeviceMode{DeviceModeMIGParent},
+				},
+			},
+			expectedError: []string{`architecture ada: device mode "mig_parent"`, `architecture pascal: device mode "mig"`, `architecture pascal: device mode "mig_parent"`},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := (&ArchitecturesSpec{Architectures: tt.archs}).validate()
+			if len(tt.expectedError) == 0 {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			for _, expected := range tt.expectedError {
+				require.ErrorContains(t, err, expected)
+			}
+		})
+	}
+}
+
 func TestMetricMetadataSpecUnmarshalYAML(t *testing.T) {
 	var spec MetricSpec
 
@@ -321,6 +404,25 @@ func TestUnsupportedFieldsForModeIncludesHigherNVLinkGenerations(t *testing.T) {
 	assert.Contains(t, unsupported, "FI_DEV_C2C_LINK_ERROR_INTR")
 }
 
+func TestSupportsCapabilitiesNVLinkRange(t *testing.T) {
+	metricSpec := MetricSpec{Support: MetricSupportSpec{CapabilitiesRequired: MetricCapabilitiesRequired{
+		NVLink:    ptrTo(1),
+		MaxNVLink: ptrTo(6),
+	}}}
+
+	assert.False(t, metricSpec.SupportsCapabilities(ArchitectureCapabilities{NVLink: 0}))
+	assert.True(t, metricSpec.SupportsCapabilities(ArchitectureCapabilities{NVLink: 1}))
+	assert.True(t, metricSpec.SupportsCapabilities(ArchitectureCapabilities{NVLink: 6}))
+	assert.False(t, metricSpec.SupportsCapabilities(ArchitectureCapabilities{NVLink: 7}))
+}
+
+func TestValidateCapabilitiesRequired(t *testing.T) {
+	require.NoError(t, validateCapabilitiesRequired("m", MetricCapabilitiesRequired{}))
+	require.NoError(t, validateCapabilitiesRequired("m", MetricCapabilitiesRequired{NVLink: ptrTo(1), MaxNVLink: ptrTo(1)}))
+	require.ErrorContains(t, validateCapabilitiesRequired("m", MetricCapabilitiesRequired{MaxNVLink: ptrTo(6)}), "without capabilities_required.nvlink")
+	require.ErrorContains(t, validateCapabilitiesRequired("m", MetricCapabilitiesRequired{NVLink: ptrTo(7), MaxNVLink: ptrTo(6)}), "lower than")
+}
+
 // TestMockCapabilitiesMatchArchitectureSpec ensures that for each architecture and supported device mode,
 // the NVML mock configured from architectures.yaml returns API behavior that matches the capability flags
 // (gpm, unsupported_fields_by_device_mode). This validates that the mock actually applies the spec.
@@ -402,7 +504,7 @@ func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
 }
 
 func TestBuildMockOptionsCreatesCorrectDevices(t *testing.T) {
-	modes := []DeviceMode{DeviceModePhysical, DeviceModeMIG, DeviceModeVGPU}
+	modes := []DeviceMode{DeviceModePhysical, DeviceModeMIG, DeviceModeMIGParent, DeviceModeVGPU}
 	archSpec, err := LoadArchitecturesSpec()
 	require.NoError(t, err)
 	archName := "blackwell"
@@ -439,7 +541,7 @@ func TestBuildMockOptionsCreatesCorrectDevices(t *testing.T) {
 				migEnabled, _, err := dev.GetMigMode()
 				require.NoError(t, err, "should be able to get MIG mode")
 
-				if mode != DeviceModeMIG {
+				if mode != DeviceModeMIG && mode != DeviceModeMIGParent {
 					assert.False(t, isMig, "device %d should not be a MIG device", i)
 					if mode == DeviceModeVGPU {
 						assert.Equal(t, nvml.GPU_VIRTUALIZATION_MODE_VGPU, virtMode, "virtualization mode should be vGPU for vgpu mode")

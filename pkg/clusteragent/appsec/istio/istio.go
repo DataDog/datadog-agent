@@ -34,6 +34,9 @@ const (
 	gatewayGatewayNetworkingIstioIOCRD = "gateways.networking.istio.io"
 
 	istioGatewayControllerName = "istio.io/gateway-controller"
+
+	// optOutLabelSelector excludes resources opted out of appsec injection, like the injector informer.
+	optOutLabelSelector = "appsec.datadoghq.com/enabled!=false"
 )
 
 var (
@@ -150,18 +153,9 @@ func (i *istioInjectionPattern) Deleted(ctx context.Context, obj *unstructured.U
 		return nil // Not an Istio gateway class, skip
 	}
 
-	// Distinguish watch-event mode (GatewayClass was actually deleted) from cleanup mode
-	// (cleanupPattern iterates live resources and calls Deleted without removing them).
-	// The cross-pattern coordination check only applies to watch events: in cleanup mode
+	// The coordination checks only apply to watch events: in cleanup mode (cleanupPattern)
 	// we always proceed to delete the EnvoyFilter so it is not left behind.
-	_, errGet := i.client.Resource(gatewayClassGVR).Get(ctx, obj.GetName(), metav1.GetOptions{})
-	if errGet != nil && !k8serrors.IsNotFound(errGet) {
-		// On a transient API error we cannot determine the calling context. Return the error
-		// so the work item is requeued; this prevents accidentally entering cleanup mode and
-		// prematurely deleting the shared EnvoyFilter during watch-event processing.
-		return fmt.Errorf("could not determine calling context for GatewayClass %s: %w", obj.GetName(), errGet)
-	}
-	isWatchEvent := k8serrors.IsNotFound(errGet)
+	isWatchEvent := !appsecconfig.IsCleanup(ctx)
 
 	if isWatchEvent {
 		// Cross-pattern coordination: check if native Istio Gateways still exist
@@ -174,12 +168,21 @@ func (i *istioInjectionPattern) Deleted(ctx context.Context, obj *unstructured.U
 			i.logger.Debug("Skipping EnvoyFilter deletion: Istio native gateways still exist")
 			return nil
 		}
+
+		gatewayClassesExist, err := anyIstioGatewayClassExists(ctx, i.client, obj.GetName())
+		if err != nil {
+			return fmt.Errorf("could not check for remaining Istio gateway classes: %w", err)
+		}
+		if gatewayClassesExist {
+			i.logger.Debug("Skipping EnvoyFilter deletion: other Istio GatewayClasses still exist")
+			return nil
+		}
 	}
 
 	namespace := i.config.IstioNamespace
 	name := obj.GetName()
 	i.logger.Debugf("Processing deleted gatewayclass for istio: %s", name)
-	_, err = i.client.Resource(filterGVR).Namespace(namespace).Get(ctx, envoyFilterName, metav1.GetOptions{})
+	filter, err := i.client.Resource(filterGVR).Namespace(namespace).Get(ctx, envoyFilterName, metav1.GetOptions{})
 	if k8serrors.IsNotFound(err) {
 		i.logger.Debug("Envoy Filter already deleted")
 		return nil
@@ -187,6 +190,11 @@ func (i *istioInjectionPattern) Deleted(ctx context.Context, obj *unstructured.U
 
 	if err != nil {
 		return fmt.Errorf("could not check if Envoy Filter was already deleted: %w", err)
+	}
+
+	if !appsecconfig.IsManagedByDatadog(filter.GetLabels()) {
+		i.logger.Warnf("Not deleting EnvoyFilter %s/%s: it was not created by the Datadog Cluster Agent", namespace, envoyFilterName)
+		return nil
 	}
 
 	err = i.client.Resource(filterGVR).
@@ -209,7 +217,7 @@ func (i *istioInjectionPattern) Deleted(ctx context.Context, obj *unstructured.U
 
 // anyIstioNativeGatewayExists checks if any networking.istio.io/v1 Gateway exists across all namespaces
 func anyIstioNativeGatewayExists(ctx context.Context, client dynamic.Interface) (bool, error) {
-	list, err := client.Resource(istioGatewayGVR).Namespace(v1.NamespaceAll).List(ctx, metav1.ListOptions{Limit: 1})
+	list, err := client.Resource(istioGatewayGVR).Namespace(v1.NamespaceAll).List(ctx, metav1.ListOptions{Limit: 1, LabelSelector: optOutLabelSelector})
 	if k8serrors.IsNotFound(err) {
 		return false, nil
 	}
@@ -222,7 +230,7 @@ func anyIstioNativeGatewayExists(ctx context.Context, client dynamic.Interface) 
 // anyIstioGatewayClassExists checks if any K8s GatewayClass with the istio controller exists,
 // optionally excluding one by name (used when a GatewayClass is being deleted).
 func anyIstioGatewayClassExists(ctx context.Context, client dynamic.Interface, excludeName string) (bool, error) {
-	list, err := client.Resource(gatewayClassGVR).List(ctx, metav1.ListOptions{})
+	list, err := client.Resource(gatewayClassGVR).List(ctx, metav1.ListOptions{LabelSelector: optOutLabelSelector})
 	if k8serrors.IsNotFound(err) {
 		return false, nil
 	}
@@ -236,6 +244,17 @@ func anyIstioGatewayClassExists(ctx context.Context, client dynamic.Interface, e
 		if ok, err := isGatewayClassFromIstio(&item); ok && err == nil {
 			return true, nil
 		}
+	}
+	return false, nil
+}
+
+// FilterNeeded reports whether resources watched by proxy type typ still need the shared EnvoyFilter.
+func FilterNeeded(ctx context.Context, client dynamic.Interface, typ appsecconfig.ProxyType) (bool, error) {
+	switch typ {
+	case appsecconfig.ProxyTypeIstio:
+		return anyIstioGatewayClassExists(ctx, client, "")
+	case appsecconfig.ProxyTypeIstioGateway:
+		return anyIstioNativeGatewayExists(ctx, client)
 	}
 	return false, nil
 }

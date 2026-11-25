@@ -129,9 +129,9 @@ pkg_files(
 
 dd_cc_packaged(
     name = "xslt_pkg",
+    data = [":xslt_headers"],
     dest_dir = "embedded/lib",
     input = ":xslt",
-    installed_files = [":xslt_headers"],
     version = XSLT_VERSION,
     visibility = ["//visibility:public"],
 )
@@ -205,9 +205,9 @@ pkg_files(
 
 dd_cc_packaged(
     name = "exslt_pkg",
+    data = [":exslt_headers"],
     dest_dir = "embedded/lib",
     input = ":exslt",
-    installed_files = [":exslt_headers"],
     version = "0.8.25",
     visibility = ["//visibility:public"],
 )

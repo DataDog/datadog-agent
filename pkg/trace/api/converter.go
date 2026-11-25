@@ -157,13 +157,15 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 			if spanGitCommitSha := semantics.LookupString(reg, metaAccessor, semantics.ConceptDDGitCommitSHA); spanGitCommitSha != "" && spanConvertedFields.GitCommitShaRef == 0 {
 				spanConvertedFields.GitCommitShaRef = stringTable.Add(spanGitCommitSha)
 			}
+			// The first non-zero decision maker of the chunk wins. Mechanism 0 ("-0") is the tracer's
+			// startup fallback and is indistinguishable from unset, so a later real decision replaces it.
 			if spanDecisionMaker := semantics.LookupString(reg, metaAccessor, semantics.ConceptDDDecisionMaker); spanDecisionMaker != "" && spanConvertedFields.SamplingMechanism == 0 {
 				spanDecisionMaker, _ = strings.CutPrefix(spanDecisionMaker, "-")
-				samplingMechanism, err := strconv.ParseUint(spanDecisionMaker, 10, 32)
-				if err != nil {
+				if samplingMechanism, err := strconv.ParseUint(spanDecisionMaker, 10, 32); err != nil {
 					log.Debugf("Found invalid sampling mechanism %s: %v, Decision maker will be ignored", spanDecisionMaker, err)
+				} else {
+					spanConvertedFields.SamplingMechanism = uint32(samplingMechanism)
 				}
-				spanConvertedFields.SamplingMechanism = uint32(samplingMechanism)
 			}
 			if spanAPMMode := semantics.LookupString(reg, metaAccessor, semantics.ConceptDDAPMMode); spanAPMMode != "" && spanConvertedFields.APMModeRef == 0 {
 				spanConvertedFields.APMModeRef = stringTable.Add(spanAPMMode)
@@ -224,13 +226,13 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 			// If the chunk has a priority set and none on any internal span then use the chunk's priority
 			idxChunk.Priority = chunk.Priority
 		}
-		if chunkDm, ok := idxChunk.GetAttributeAsString("_dd.p.dm"); ok && idxChunk.SamplingMechanism() == 0 {
+		if chunkDm, ok := idxChunk.GetAttributeAsString(string(semantics.ConceptDDDecisionMaker)); ok && idxChunk.SamplingMechanism() == 0 {
 			chunkDm, _ = strings.CutPrefix(chunkDm, "-")
-			samplingMechanism, err := strconv.ParseUint(chunkDm, 10, 32)
-			if err != nil {
+			if samplingMechanism, err := strconv.ParseUint(chunkDm, 10, 32); err != nil {
 				log.Debugf("Found invalid sampling mechanism %s: %v, Decision maker will be ignored", chunkDm, err)
+			} else {
+				idxChunk.SetSamplingMechanism(uint32(samplingMechanism))
 			}
-			idxChunk.SetSamplingMechanism(uint32(samplingMechanism))
 		}
 		idxChunks = append(idxChunks, idxChunk)
 	}

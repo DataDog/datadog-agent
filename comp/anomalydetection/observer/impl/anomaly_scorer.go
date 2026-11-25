@@ -90,12 +90,10 @@ func anomalySeverityLabel(level int) string {
 	return anomalySeverityLabels[level]
 }
 
-// anomalyLevel assigns a 0–4 level to an anomaly.
-// If the detector has an entry in cfg.DetectorThresholds, the numeric Score is
-// compared against its four boundaries. Detectors without an entry (including
-// unscored detectors such as bocpd) default to Medium (level 2).
-func anomalyLevel(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) int {
-	if thresholds, ok := cfg.DetectorThresholds[a.DetectorName]; ok {
+// detectorConfidenceLevel assigns a 0–4 confidence level from the detector
+// score. Detectors without calibrated thresholds default to Medium.
+func detectorConfidenceLevel(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) int {
+	if thresholds, ok := cfg.DetectorThresholds[a.DetectorAlgorithm()]; ok {
 		if a.Score == nil {
 			return 0 // treat nil score from a scored detector as VeryLow
 		}
@@ -110,11 +108,65 @@ func anomalyLevel(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) in
 	return 2 // detectors without explicit thresholds default to Medium
 }
 
+// relativeChangeLevel assigns a 0–4 severity level from the gate-relative
+// magnitude between the before and after medians. Bounds are inclusive.
+func relativeChangeLevel(change float64) int {
+	switch {
+	case change <= 0.06:
+		return 0
+	case change <= 0.10:
+		return 1
+	case change <= 0.20:
+		return 2
+	case change <= 0.50:
+		return 3
+	default:
+		return 4
+	}
+}
+
+// relativeChangeMagnitude measures the gate-relative difference between two
+// finite levels. It saturates at MaxFloat64 when the ratio overflows.
+func relativeChangeMagnitude(before, after float64) float64 {
+	if before == 0 {
+		return math.MaxFloat64
+	}
+	change := math.Abs(after - before)
+	if math.IsInf(change, 0) {
+		return math.MaxFloat64
+	}
+	change /= math.Abs(before)
+	if math.IsInf(change, 0) {
+		return math.MaxFloat64
+	}
+	return change
+}
+
+// anomalyLevel assigns a 0–4 level to an anomaly. Stable gate evidence uses
+// relative change for the base level, with one level of confidence bonus.
+func anomalyLevel(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) int {
+	if a.LevelChange == nil {
+		return detectorConfidenceLevel(a, cfg)
+	}
+	level := relativeChangeLevel(relativeChangeMagnitude(
+		a.LevelChange.BeforeMedian,
+		a.LevelChange.AfterMedian,
+	))
+	if detectorConfidenceLevel(a, cfg) >= 3 {
+		level++
+	}
+	return min(level, len(levelWeights)-1)
+}
+
 // contributorWeight interpolates an anomaly score between the adjacent
 // calibrated levelWeights. It is used only to rank retained top anomalies; the
 // scorer's EWMA continues to use the calibrated discrete levelWeights.
 func contributorWeight(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) float64 {
-	thresholds, ok := cfg.DetectorThresholds[a.DetectorName]
+	if a.LevelChange != nil {
+		return levelWeights[anomalyLevel(a, cfg)]
+	}
+
+	thresholds, ok := cfg.DetectorThresholds[a.DetectorAlgorithm()]
 	if !ok {
 		return levelWeights[2] // uncalibrated detectors retain Medium's weight
 	}
@@ -162,6 +214,13 @@ func seriesID(a observerdef.Anomaly) string {
 // stale peak forward.
 type windowEntry [5]int64
 
+// scoringState carries the score and severity before subscriber cooldown.
+type scoringState struct {
+	ewma        float64
+	level       severityeventsdef.SeverityLevel
+	initialized bool
+}
+
 const (
 	topAnomalyWindowSecs        = int64(5 * 60)
 	contributorBufferMultiplier = 10
@@ -199,15 +258,19 @@ func newTopAnomalyBuffer(displayCount int) *topAnomalyBuffer {
 func (b *topAnomalyBuffer) update(sec int64, anomalies []observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) {
 	b.expire(sec)
 	for _, anomaly := range anomalies {
-		if anomaly.SourceRef == nil {
-			continue
-		}
-		b.insert(topAnomaly{
-			handle:    *anomaly.SourceRef,
-			timestamp: sec,
-			weight:    contributorWeight(anomaly, cfg),
-		})
+		b.consider(sec, anomaly, cfg)
 	}
+}
+
+func (b *topAnomalyBuffer) consider(sec int64, anomaly observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) {
+	if anomaly.SourceRef == nil {
+		return
+	}
+	b.insert(topAnomaly{
+		handle:    *anomaly.SourceRef,
+		timestamp: sec,
+		weight:    contributorWeight(anomaly, cfg),
+	})
 }
 
 func (b *topAnomalyBuffer) expire(sec int64) {
@@ -326,9 +389,34 @@ func (b *topAnomalyBuffer) contributors(maxItems int) []observerdef.ScorerContri
 
 // secState is the per-second scorer state emitted after each Advance step.
 type secState struct {
-	sec   int64
-	ewma  float64
-	level severityeventsdef.SeverityLevel
+	sec        int64
+	ewma       float64
+	level      severityeventsdef.SeverityLevel
+	discovery  severityDiscovery
+	replayOnly bool
+}
+
+// severityDiscovery marks the start of a distinct raw Medium or High period.
+type severityDiscovery struct {
+	level    severityeventsdef.SeverityLevel
+	crossing int64
+}
+
+func (d severityDiscovery) present() bool {
+	return d.level != severityeventsdef.SeverityLow
+}
+
+func strongerDiscovery(left, right severityDiscovery) severityDiscovery {
+	if left.level > right.level {
+		return left
+	}
+	if right.level > left.level {
+		return right
+	}
+	if left.crossing != 0 && (right.crossing == 0 || left.crossing < right.crossing) {
+		return left
+	}
+	return right
 }
 
 // ---------------------------------------------------------------------------
@@ -367,12 +455,13 @@ func DefaultAnomalyScorerConfig() AnomalyScorerConfig {
 	const window = 15
 	return AnomalyScorerConfig{
 		AnomalyScorerConfig: observerdef.AnomalyScorerConfig{
-			Alpha:         0.014,
-			SaturationK:   5.0,
-			WindowSecs:    window,
-			LowThreshold:  0.15,
-			HighThreshold: 0.40,
-			MarginPct:     0.20,
+			Alpha:               0.014,
+			SaturationK:         5.0,
+			WindowSecs:          window,
+			LateAnomalyBehavior: lateAnomalyClamp,
+			LowThreshold:        0.15,
+			HighThreshold:       0.40,
+			MarginPct:           0.20,
 			// MaxBuckets intentionally left at zero: the trim logic defaults to WindowSecs.
 			DetectorThresholds: map[string][4]float64{
 				// tukey_biweight scores cap hard at ~50 across all scenarios.
@@ -425,6 +514,22 @@ func readAnomalyScorerConfig(r ConfigReader, prefix string) AnomalyScorerConfig 
 		d = time.Duration(defaults.WindowSecs) * time.Second
 	}
 	ewma.WindowSecs = int64(d.Seconds())
+
+	key = prefix + "anomaly_reordering_window"
+	d = r.GetDuration(key)
+	if seconds := int64(d / time.Second); d%time.Second != 0 || !validReorderingWindow(seconds) {
+		logging.Warnf("anomaly scorer: %s must be a whole number of seconds from 0s to 1h, got %s; using %s",
+			key, d, time.Duration(defaults.ReorderingWindowSecs)*time.Second)
+	} else {
+		ewma.ReorderingWindowSecs = seconds
+	}
+
+	key = prefix + "late_anomaly_behavior"
+	if behavior := r.GetString(key); validLateAnomalyBehavior(behavior) {
+		ewma.LateAnomalyBehavior = behavior
+	} else if behavior != "" {
+		logging.Warnf("anomaly scorer: %s must be ignore or clamp, got %q; using %q", key, behavior, defaults.LateAnomalyBehavior)
+	}
 
 	ewma.LowThreshold = r.GetFloat64(prefix + "low_threshold")
 	ewma.HighThreshold = r.GetFloat64(prefix + "high_threshold")
@@ -518,13 +623,14 @@ type anomalyScorer struct {
 
 	config AnomalyScorerConfig
 
+	// history is populated only for interactive replay introspection.
+	history *scorerHistory
+
 	// pending holds anomalies received since the last Advance, grouped by second.
-	// Past-timestamped anomalies are clamped to lastAdvancedSec+1 in ProcessAnomaly,
-	// so the past side is always drained on the next Advance. Future-timestamped
-	// anomalies (sec > upcoming dataTime) accumulate until Advance reaches that
-	// second; no current detector produces future timestamps, but there is no hard
-	// cap if one ever does.
+	// Future-timestamped anomalies accumulate until Advance reaches their second.
 	pending map[int64][]observerdef.Anomaly
+	// late holds arrivals for already-scored seconds until the next forward Advance.
+	late []observerdef.Anomaly
 
 	// windowMap tracks the highest anomaly level seen per series within the
 	// active window [lastAdvancedSec-WindowSecs+1, lastAdvancedSec].
@@ -534,8 +640,9 @@ type anomalyScorer struct {
 	// correlation events are enabled.
 	topAnomalies *topAnomalyBuffer
 
-	// EWMA state
-	ewma float64
+	score scoringState
+
+	replay *scorerReplayHistory
 
 	lastAdvancedSec int64
 
@@ -544,19 +651,15 @@ type anomalyScorer struct {
 	// unbounded growth in long-running agents; older entries are discarded.
 	buckets []observerdef.AnomalyScoreBucket
 
-	// rawSeverityLevel is the scorer's uncooldowned per-second severity state,
-	// derived directly from the EWMA stream.
-	rawLevel            severityeventsdef.SeverityLevel
-	rawLevelInitialized bool
-
 	// dispatchers fan the raw severity stream out to push-based subscribers and
 	// helper adapters like SeverityReader. Each dispatcher owns its own
 	// filter/cooldown state machine.
 	dispatchers []*severityeventsimpl.Dispatcher
 
 	// Internal watcher fields (gauges may be nil when replay only needs episodes).
-	ewmaGauge     telemetry.Gauge // may be nil; set on every Advance tick
-	severityGauge telemetry.Gauge // may be nil; set to the current severity on every Advance tick
+	ewmaGauge          telemetry.Gauge // may be nil; set on every Advance tick
+	ewmaFinalizedGauge telemetry.Gauge // may be nil; set on every Advance tick after warm-up
+	severityGauge      telemetry.Gauge // may be nil; set to the current severity on every Advance tick
 
 	// Episode tracking (guarded by mu; only active when correlationEvents is true).
 	// openEpisode is the currently open configured-threshold severity period.
@@ -567,6 +670,14 @@ type anomalyScorer struct {
 	// pendingEvents holds lifecycle events (EpisodeStarted/EpisodeEnded) produced
 	// during the last Advance cycle. Drained once by the engine via PendingEvents().
 	pendingEvents []observerdef.CorrelatorEvent
+}
+
+type scorerHistory struct {
+	arrivals []observerdef.Anomaly
+	inputs   []ScorerHistoryInput
+	advances []ScorerHistoryAdvance
+	events   []severityeventsdef.SeverityEvent
+	reports  []ScorerHistoryReport
 }
 
 // StandaloneAnomalyScorer is the public interface for a scorer that is used
@@ -588,6 +699,12 @@ func newAnomalyScorerBase(cfg AnomalyScorerConfig) *anomalyScorer {
 	defaults := DefaultAnomalyScorerConfig()
 	if cfg.WindowSecs < 1 {
 		cfg.WindowSecs = defaults.WindowSecs
+	}
+	if !validReorderingWindow(cfg.ReorderingWindowSecs) {
+		cfg.ReorderingWindowSecs = defaults.ReorderingWindowSecs
+	}
+	if !validLateAnomalyBehavior(cfg.LateAnomalyBehavior) {
+		cfg.LateAnomalyBehavior = defaults.LateAnomalyBehavior
 	}
 	if cfg.Alpha <= 0 || cfg.Alpha >= 1 {
 		cfg.Alpha = defaults.Alpha
@@ -623,31 +740,19 @@ func newAnomalyScorerBase(cfg AnomalyScorerConfig) *anomalyScorer {
 // Invalid EWMA parameter values are clamped to safe defaults.
 func NewAnomalyScorer(cfg AnomalyScorerConfig) StandaloneAnomalyScorer {
 	if cfg.CorrelationEvents {
-		return newAnomalyScorerWithTelemetry(cfg, nil, nil)
+		return newAnomalyScorerWithTelemetry(cfg, nil, nil, nil)
 	}
 	return newAnomalyScorerBase(cfg)
-}
-
-// advanceRawLevel updates the scorer's uncooldowned severity state from one
-// EWMA tick and returns the resulting level. Must be called with mu held.
-func (s *anomalyScorer) advanceRawLevel(ewma float64) severityeventsdef.SeverityLevel {
-	if !s.rawLevelInitialized {
-		s.rawLevel = rawSeverityLevel(ewma, s.config.LowThreshold, s.config.HighThreshold)
-		s.rawLevelInitialized = true
-		return s.rawLevel
-	}
-	margin := s.config.HighThreshold * s.config.MarginPct
-	s.rawLevel = nextSeverityLevel(ewma, s.rawLevel, s.config.LowThreshold, s.config.HighThreshold, margin)
-	return s.rawLevel
 }
 
 // newAnomalyScorerWithTelemetry creates a scorer with the watcher enabled.
 // Non-nil severityGauge and ewmaGauge values are written with the current
 // severity and EWMA on every advance tick. The watcher self-subscribes using
 // cfg.CooldownSecs.
-func newAnomalyScorerWithTelemetry(cfg AnomalyScorerConfig, severityGauge, ewmaGauge telemetry.Gauge) *anomalyScorer {
+func newAnomalyScorerWithTelemetry(cfg AnomalyScorerConfig, severityGauge, ewmaGauge, ewmaFinalizedGauge telemetry.Gauge) *anomalyScorer {
 	s := newAnomalyScorerBase(cfg)
 	s.ewmaGauge = ewmaGauge
+	s.ewmaFinalizedGauge = ewmaFinalizedGauge
 	s.severityGauge = severityGauge
 
 	// Self-subscribe as the internal watcher.
@@ -658,6 +763,43 @@ func newAnomalyScorerWithTelemetry(cfg AnomalyScorerConfig, severityGauge, ewmaG
 	}
 
 	return s
+}
+
+func (s *anomalyScorer) enableHistory() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.history == nil {
+		s.history = &scorerHistory{}
+	}
+}
+
+func (s *anomalyScorer) historyState() ScorerHistory {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.history == nil {
+		return ScorerHistory{}
+	}
+
+	history := ScorerHistory{
+		Available:    true,
+		Buckets:      append([]observerdef.AnomalyScoreBucket(nil), s.buckets...),
+		Events:       append([]severityeventsdef.SeverityEvent(nil), s.history.events...),
+		Inputs:       append([]ScorerHistoryInput(nil), s.history.inputs...),
+		Arrivals:     append([]observerdef.Anomaly(nil), s.history.arrivals...),
+		Advances:     append([]ScorerHistoryAdvance(nil), s.history.advances...),
+		Config:       s.config.AnomalyScorerConfig,
+		CooldownSecs: s.config.CooldownSecs,
+	}
+	// Replay owns retention; keep MaxInt64 out of browser round trips.
+	history.Config.MaxBuckets = 0
+	history.Reports = make([]ScorerHistoryReport, len(s.history.reports))
+	for i, report := range s.history.reports {
+		history.Reports[i] = ScorerHistoryReport{
+			Timestamp:    report.Timestamp,
+			Contributors: append([]observerdef.ScorerContributor(nil), report.Contributors...),
+		}
+	}
+	return history
 }
 
 // ---------------------------------------------------------------------------
@@ -683,28 +825,44 @@ func (s *anomalyScorer) OnSeverityTransition(evt severityeventsdef.SeverityEvent
 		)
 	}
 
-	if s.config.CorrelationEvents {
+	if s.config.CorrelationEvents || s.history != nil {
 		s.mu.Lock()
+		if s.history != nil {
+			s.history.events = append(s.history.events, evt)
+		}
+		if !s.config.CorrelationEvents {
+			s.mu.Unlock()
+			return
+		}
 		threshold := correlationEventSeverity(s.config.CorrelationEventThreshold)
 		if evt.FromLevel < threshold && evt.ToLevel >= threshold {
 			thresholdName := s.config.CorrelationEventThreshold
 			s.openEpisode = &observerdef.ActiveCorrelation{
-				Pattern:     fmt.Sprintf("anomaly_scorer_%s:%d", thresholdName, evt.Timestamp),
-				Title:       fmt.Sprintf("Anomaly scorer: %s-or-higher severity period", thresholdName),
-				FirstSeen:   evt.Timestamp,
-				LastUpdated: evt.Timestamp,
+				Pattern:             fmt.Sprintf("anomaly_scorer_%s:%d", thresholdName, evt.Timestamp),
+				Title:               fmt.Sprintf("Anomaly scorer: %s-or-higher severity period", thresholdName),
+				FirstSeen:           evt.Timestamp,
+				LastUpdated:         evt.Timestamp,
+				HistoricalFirstSeen: evt.HistoricalTimestamp,
 			}
+			contributors := s.topAnomalies.contributors(s.config.MaxReportedItems)
 			s.pendingEvents = append(s.pendingEvents, observerdef.CorrelatorEvent{
-				Kind:           observerdef.CorrelatorEventEpisodeStarted,
-				CorrelatorName: s.Name(),
-				Timestamp:      evt.Timestamp,
-				Correlation:    *s.openEpisode,
-				FromLevel:      evt.FromLevel,
-				ToLevel:        evt.ToLevel,
+				Kind:                observerdef.CorrelatorEventEpisodeStarted,
+				CorrelatorName:      s.Name(),
+				Timestamp:           evt.Timestamp,
+				HistoricalTimestamp: evt.HistoricalTimestamp,
+				Correlation:         *s.openEpisode,
+				FromLevel:           evt.FromLevel,
+				ToLevel:             evt.ToLevel,
 				// Live scheduling advances one data second at a time, so this
 				// snapshot represents the same second as the severity transition.
-				Contributors: s.topAnomalies.contributors(s.config.MaxReportedItems),
+				Contributors: contributors,
 			})
+			if s.history != nil {
+				s.history.reports = append(s.history.reports, ScorerHistoryReport{
+					Timestamp:    evt.Timestamp,
+					Contributors: contributors,
+				})
+			}
 		} else if evt.FromLevel >= threshold && evt.ToLevel < threshold && s.openEpisode != nil {
 			ep := *s.openEpisode
 			ep.LastUpdated = evt.Timestamp
@@ -728,18 +886,40 @@ func (s *anomalyScorer) OnSeverityTransition(evt severityeventsdef.SeverityEvent
 
 func (s *anomalyScorer) Name() string { return "anomaly_scorer" }
 
-// ProcessAnomaly buffers the anomaly into the pending map keyed by its second.
-// If the anomaly's timestamp is in the past (already advanced past), it is
-// clamped to lastAdvancedSec+1 so it participates in the next Advance call.
-// Also appends to the open scorer episode if one is active.
+// ProcessAnomaly buffers evidence at its original or clamped scoring second.
 func (s *anomalyScorer) ProcessAnomaly(a observerdef.Anomaly) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.history != nil {
+		// Record before clamp/ignore so replays can use other settings.
+		s.history.arrivals = append(s.history.arrivals, a)
+	}
 	sec := a.Timestamp
-	if s.lastAdvancedSec > 0 && sec <= s.lastAdvancedSec {
+	if s.score.initialized && sec <= s.lastAdvancedSec {
+		if s.replay != nil {
+			if sec > 0 && (s.config.LateAnomalyBehavior == lateAnomalyClamp ||
+				sec > s.lastAdvancedSec-s.replay.windowSecs()) {
+				s.late = append(s.late, a)
+			}
+			return
+		}
+		if s.config.LateAnomalyBehavior == lateAnomalyIgnore {
+			return
+		}
 		sec = s.lastAdvancedSec + 1
 	}
 	s.pending[sec] = append(s.pending[sec], a)
+	s.recordAnomaly(a, sec)
+}
+
+// recordAnomaly tracks accepted evidence for history and an open episode.
+func (s *anomalyScorer) recordAnomaly(a observerdef.Anomaly, scoringSecond int64) {
+	if s.history != nil {
+		s.history.inputs = append(s.history.inputs, ScorerHistoryInput{
+			ScoringSecond: scoringSecond,
+			Anomaly:       a,
+		})
+	}
 
 	if s.openEpisode != nil {
 		if s.config.MaxEpisodeAnomalies <= 0 || len(s.openEpisode.Anomalies) < s.config.MaxEpisodeAnomalies {
@@ -756,9 +936,13 @@ func (s *anomalyScorer) ProcessAnomaly(a observerdef.Anomaly) {
 // the dispatcher, which may call listeners on resulting transitions.
 func (s *anomalyScorer) Advance(dataTime int64) {
 	s.mu.Lock()
+	if s.score.initialized && dataTime <= s.lastAdvancedSec {
+		s.mu.Unlock()
+		return
+	}
 
 	start := s.lastAdvancedSec + 1
-	if s.lastAdvancedSec == 0 {
+	if !s.score.initialized {
 		// First Advance: start from the earliest pending anomaly (or dataTime if
 		// no anomalies), to avoid emitting empty buckets for all seconds since epoch.
 		start = dataTime
@@ -769,22 +953,40 @@ func (s *anomalyScorer) Advance(dataTime int64) {
 		}
 	}
 
-	// Collect per-second EWMA values and derived raw severity levels to feed
-	// the dispatcher after releasing the scorer lock.
+	if s.history != nil {
+		s.history.advances = append(s.history.advances, ScorerHistoryAdvance{
+			DataTime:   dataTime,
+			ArrivalEnd: len(s.history.arrivals),
+		})
+	}
+
+	late, replayStart := s.takeLateInputs(dataTime)
+
+	// Score forward without the late batch to identify ordinary crossings.
+	// From replayStart on, these provisional states must not mark coverage.
 	states := make([]secState, 0, int(dataTime-start+1))
 	for sec := start; sec <= dataTime; sec++ {
-		ewma := s.advanceSecond(sec)
-		level := s.advanceRawLevel(ewma)
-		states = append(states, secState{sec: sec, ewma: ewma, level: level})
+		states = append(states, s.advanceSecond(sec, replayStart == 0 || sec < replayStart))
 	}
 	s.lastAdvancedSec = dataTime
-
+	var missedDiscovery severityDiscovery
+	if len(late) > 0 {
+		missedDiscovery = s.replayLateInputs(dataTime, replayStart, late, states)
+	}
 	s.mu.Unlock()
 
 	// Push EWMA gauge for the last second of this advance tick.
 	if s.ewmaGauge != nil && len(states) > 0 {
 		last := states[len(states)-1]
 		s.ewmaGauge.Set(last.ewma, s.Name())
+	}
+	if s.ewmaFinalizedGauge != nil && s.config.ReorderingWindowSecs > 0 && s.replay != nil && len(states) > 0 {
+		last := states[len(states)-1]
+		finalizedSec := last.sec - s.config.ReorderingWindowSecs
+		checkpoint := s.replay.checkpoints[replaySlot(finalizedSec, len(s.replay.checkpoints))]
+		if checkpoint.present && checkpoint.second == finalizedSec && checkpoint.state.initialized {
+			s.ewmaFinalizedGauge.Set(checkpoint.state.ewma, s.Name())
+		}
 	}
 	if s.severityGauge != nil && len(states) > 0 {
 		last := states[len(states)-1]
@@ -798,7 +1000,18 @@ func (s *anomalyScorer) Advance(dataTime int64) {
 	s.dispatchersMu.RUnlock()
 	for _, st := range states {
 		for _, dispatcher := range dispatchers {
-			dispatcher.Advance(st.sec, st.level)
+			if st.replayOnly && st.sec != dataTime {
+				continue
+			}
+			discovery := st.discovery
+			if st.sec == dataTime {
+				discovery = strongerDiscovery(discovery, missedDiscovery)
+			}
+			if st.level == severityeventsdef.SeverityHigh && !discovery.present() {
+				// A continuous High cannot open or renew a hold.
+				continue
+			}
+			dispatcher.AdvanceWithDiscovery(st.sec, st.level, discovery.level, discovery.crossing)
 		}
 	}
 }
@@ -844,17 +1057,23 @@ func (s *anomalyScorer) ActiveCorrelations() []observerdef.ActiveCorrelation {
 func (s *anomalyScorer) Reset() {
 	s.mu.Lock()
 	s.pending = make(map[int64][]observerdef.Anomaly)
+	s.late = nil
 	s.windowMap = make(map[string]windowEntry)
 	if s.topAnomalies != nil {
 		s.topAnomalies.reset()
 	}
-	s.ewma = 0
+	s.score = scoringState{}
+	s.replay = nil
 	s.lastAdvancedSec = 0
 	s.buckets = nil
-	s.rawLevel = severityeventsdef.SeverityLow
-	s.rawLevelInitialized = false
 	s.openEpisode = nil
 	s.pendingEvents = nil
+	if s.history != nil {
+		s.history = &scorerHistory{}
+	}
+	if s.ewmaFinalizedGauge != nil && s.config.ReorderingWindowSecs > 0 {
+		s.ewmaFinalizedGauge.Delete(s.Name())
+	}
 	s.mu.Unlock()
 
 	s.dispatchersMu.RLock()
@@ -880,13 +1099,12 @@ func (s *anomalyScorer) SubscribeSeverityEvents(cfg severityeventsdef.SeverityEv
 	dispatcher := severityeventsimpl.NewDispatcher(cfg, listener)
 
 	s.mu.Lock()
-	knownLevel := s.rawLevelInitialized
+	score := s.score
 	lastSec := s.lastAdvancedSec
-	level := s.rawLevel
 	s.mu.Unlock()
 
-	if knownLevel {
-		dispatcher.DeliverInitial(lastSec, level)
+	if score.initialized {
+		dispatcher.DeliverInitial(lastSec, score.level)
 	}
 
 	s.dispatchersMu.Lock()
@@ -919,7 +1137,7 @@ func (s *anomalyScorer) SubscribeSeverityEventsReader(cfg severityeventsdef.Seve
 func (s *anomalyScorer) LastScore() float64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.ewma
+	return s.score.ewma
 }
 
 // ScoreState returns a snapshot of accumulated telemetry. Thread-safe.
@@ -936,19 +1154,9 @@ func (s *anomalyScorer) ScoreState() observerdef.AnomalyScoreState {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// advanceSecond — EWMA core (called with mu held)
-// ---------------------------------------------------------------------------
-
-// advanceSecond processes a single second, updating all state. Must be called
-// with mu held. Returns the resulting EWMA value for the second.
-//
-// Steps:
-//  1. Merge: record the latest second per level for each series in windowMap.
-//  2. Evict: remove per-level timestamps that have fallen outside the window.
-//  3. Bucket: count unique live series by their highest active level.
-//  4. Saturate + EWMA: compute the smoothed score from the window count.
-func (s *anomalyScorer) advanceSecond(sec int64) float64 {
+// advanceSecond consumes pending anomalies and records attribution and debug buckets.
+// Must be called with mu held.
+func (s *anomalyScorer) advanceSecond(sec int64, recognize bool) secState {
 	anomalies := s.pending[sec]
 	delete(s.pending, sec)
 
@@ -956,21 +1164,66 @@ func (s *anomalyScorer) advanceSecond(sec int64) float64 {
 		s.topAnomalies.update(sec, anomalies, s.config.AnomalyScorerConfig)
 	}
 
-	// Step 1: merge new anomalies into the window.
-	for _, a := range anomalies {
-		sid := seriesID(a)
-		level := anomalyLevel(a, s.config.AnomalyScorerConfig)
-		entry := s.windowMap[sid]
-		if sec > entry[level] {
-			entry[level] = sec
+	cfg := s.config.AnomalyScorerConfig
+	var inputs []scoringInput
+	if len(anomalies) > 0 {
+		inputs = make([]scoringInput, len(anomalies))
+		for i, a := range anomalies {
+			inputs[i] = scoringEvidence(a, cfg)
 		}
-		s.windowMap[sid] = entry
+	}
+	if cfg.ReorderingWindowSecs > 0 && s.replay == nil {
+		s.replay = newScorerReplayHistory(cfg.ReorderingWindowSecs, cfg.WindowSecs)
+		s.replay.firstSecond = sec
+		s.replay.saveCheckpoint(sec-1, s.score, true)
+	}
+	bucket, next := scoreSecond(sec, inputs, cfg, s.windowMap, s.score)
+	var discovery severityDiscovery
+	if next.level > s.score.level {
+		discovery = severityDiscovery{level: next.level, crossing: sec}
+	}
+	if s.replay != nil {
+		s.replay.recordSecond(sec, inputs, next, recognize)
+	}
+	s.score = next
+	s.buckets = append(s.buckets, bucket)
+
+	// Default cap is WindowSecs; MaxBuckets overrides this when set to a positive value.
+	bucketCap := s.bucketCap()
+	if int64(len(s.buckets)) > bucketCap {
+		trimmed := make([]observerdef.AnomalyScoreBucket, bucketCap)
+		copy(trimmed, s.buckets[int64(len(s.buckets))-bucketCap:])
+		s.buckets = trimmed
 	}
 
-	// Step 2: evict per-level timestamps that have fallen out of the window,
-	// and remove the series entirely when no level remains active.
-	windowStart := sec - s.config.WindowSecs + 1
-	for sid, entry := range s.windowMap {
+	return secState{sec: sec, ewma: next.ewma, level: next.level, discovery: discovery}
+}
+
+func (s *anomalyScorer) bucketCap() int64 {
+	if s.config.MaxBuckets > 0 {
+		return s.config.MaxBuckets
+	}
+	return s.config.WindowSecs
+}
+
+func mergeScoringInputs(sec int64, inputs []scoringInput, window map[string]windowEntry) {
+	for _, input := range inputs {
+		entry := window[input.series]
+		if sec > entry[input.level] {
+			entry[input.level] = sec
+		}
+		window[input.series] = entry
+	}
+}
+
+// scoreSecond updates the evidence window in place and computes the next score
+// and raw severity from the previous second.
+func scoreSecond(sec int64, inputs []scoringInput, cfg observerdef.AnomalyScorerConfig, window map[string]windowEntry, previous scoringState) (observerdef.AnomalyScoreBucket, scoringState) {
+	mergeScoringInputs(sec, inputs, window)
+
+	// A newer, weaker anomaly must not extend the lifetime of an older peak.
+	windowStart := sec - cfg.WindowSecs + 1
+	for sid, entry := range window {
 		alive := false
 		for level := 0; level < 5; level++ {
 			if entry[level] > 0 && entry[level] < windowStart {
@@ -981,18 +1234,17 @@ func (s *anomalyScorer) advanceSecond(sec int64) float64 {
 			}
 		}
 		if !alive {
-			delete(s.windowMap, sid)
+			delete(window, sid)
 			continue
 		}
-		s.windowMap[sid] = entry
+		window[sid] = entry
 	}
 
-	// Step 3: bucket from the live window.
 	// Each series contributes at the highest level that still has an active timestamp.
 	var bins [5]int
 	var count int
 	var weightSum float64
-	for _, entry := range s.windowMap {
+	for _, entry := range window {
 		for level := 4; level >= 0; level-- {
 			if entry[level] == 0 {
 				continue
@@ -1004,32 +1256,294 @@ func (s *anomalyScorer) advanceSecond(sec int64) float64 {
 		}
 	}
 
-	// Step 4: saturated input → EWMA.
 	var input float64
 	if count > 0 {
 		meanWeight := weightSum / float64(count)
-		input = meanWeight * (1 - math.Exp(-float64(count)/s.config.SaturationK))
+		input = meanWeight * (1 - math.Exp(-float64(count)/cfg.SaturationK))
 	}
 
-	s.ewma = s.config.Alpha*input + (1-s.config.Alpha)*s.ewma
+	ewma := cfg.Alpha*input + (1-cfg.Alpha)*previous.ewma
+	var level severityeventsdef.SeverityLevel
+	if previous.initialized {
+		margin := cfg.HighThreshold * cfg.MarginPct
+		level = nextSeverityLevel(ewma, previous.level, cfg.LowThreshold, cfg.HighThreshold, margin)
+	} else {
+		level = rawSeverityLevel(ewma, cfg.LowThreshold, cfg.HighThreshold)
+	}
 
-	s.buckets = append(s.buckets, observerdef.AnomalyScoreBucket{
+	return observerdef.AnomalyScoreBucket{
 		Second:    sec,
 		Bins:      bins,
 		Count:     count,
 		WeightSum: weightSum,
-		Ewma:      s.ewma,
-	})
-	// Default cap is WindowSecs; MaxBuckets overrides this when set to a positive value.
-	bucketCap := s.config.MaxBuckets
-	if bucketCap <= 0 {
-		bucketCap = s.config.WindowSecs
+		Ewma:      ewma,
+	}, scoringState{ewma: ewma, level: level, initialized: true}
+}
+
+const (
+	maxAnomalyReorderingWindowSecs = 60 * 60
+	lateAnomalyIgnore              = "ignore"
+	lateAnomalyClamp               = "clamp"
+)
+
+func validLateAnomalyBehavior(behavior string) bool {
+	return behavior == lateAnomalyIgnore || behavior == lateAnomalyClamp
+}
+
+func validReorderingWindow(seconds int64) bool {
+	return seconds >= 0 && seconds <= maxAnomalyReorderingWindowSecs
+}
+
+// scoringInput is the evidence needed to score an anomaly. It retains no payload or attribution.
+type scoringInput struct {
+	series string
+	level  int
+}
+
+func scoringEvidence(a observerdef.Anomaly, cfg observerdef.AnomalyScorerConfig) scoringInput {
+	return scoringInput{series: seriesID(a), level: anomalyLevel(a, cfg)}
+}
+
+type scoringCheckpoint struct {
+	second  int64
+	state   scoringState
+	present bool
+	// Keep the strongest recognized coverage even if a later replay lowers the
+	// raw level.
+	recognized severityeventsdef.SeverityLevel
+}
+
+// scorerReplayHistory retains scoring state independently of debug buckets.
+// At T, the oldest replayable second is T-window+1. Its seed is the
+// checkpoint at T-window, and it needs evidence back to T-window-evidence+2.
+type scorerReplayHistory struct {
+	checkpoints    []scoringCheckpoint
+	journal        map[int64][]scoringInput
+	evidenceWindow int64
+	firstSecond    int64
+}
+
+func newScorerReplayHistory(window, evidence int64) *scorerReplayHistory {
+	return &scorerReplayHistory{
+		checkpoints:    make([]scoringCheckpoint, window+1),
+		evidenceWindow: evidence,
 	}
-	if int64(len(s.buckets)) > bucketCap {
-		trimmed := make([]observerdef.AnomalyScoreBucket, bucketCap)
-		copy(trimmed, s.buckets[int64(len(s.buckets))-bucketCap:])
-		s.buckets = trimmed
+}
+
+func replaySlot(second int64, size int) int {
+	slot := int(second % int64(size))
+	if slot < 0 {
+		slot += size
+	}
+	return slot
+}
+
+func (h *scorerReplayHistory) saveCheckpoint(
+	second int64,
+	state scoringState,
+	recognize bool,
+) {
+	slot := &h.checkpoints[replaySlot(second, len(h.checkpoints))]
+	if !slot.present || slot.second != second {
+		*slot = scoringCheckpoint{second: second, present: true}
+	}
+	slot.state = state
+	if recognize && state.level > severityeventsdef.SeverityLow {
+		if state.level > slot.recognized {
+			slot.recognized = state.level
+		}
+	}
+}
+
+func (h *scorerReplayHistory) recognizedAt(
+	second int64,
+	level severityeventsdef.SeverityLevel,
+) bool {
+	slot := h.checkpoints[replaySlot(second, len(h.checkpoints))]
+	return slot.present && slot.second == second && slot.recognized >= level
+}
+
+func (h *scorerReplayHistory) windowSecs() int64 {
+	return int64(len(h.checkpoints) - 1)
+}
+
+func (h *scorerReplayHistory) ensureJournal() {
+	if h.journal == nil {
+		h.journal = make(map[int64][]scoringInput)
+	}
+}
+
+func (h *scorerReplayHistory) recordSecond(
+	second int64,
+	inputs []scoringInput,
+	state scoringState,
+	recognize bool,
+) {
+	h.saveCheckpoint(second, state, recognize)
+	if second <= 0 {
+		return // Nonpositive timestamps cannot enter the evidence window.
+	}
+	if len(inputs) > 0 {
+		h.ensureJournal()
+		h.journal[second] = inputs
 	}
 
-	return s.ewma
+	// Forward scoring visits every second, including across catch-up advances.
+	cutoff := second - h.windowSecs()
+	if cutoff >= h.evidenceWindow {
+		delete(h.journal, cutoff-h.evidenceWindow+1)
+	}
+}
+
+// takeLateInputs drains the arrivals and finds the first second they can change.
+func (s *anomalyScorer) takeLateInputs(dataTime int64) ([]observerdef.Anomaly, int64) {
+	if len(s.late) == 0 {
+		return nil, 0
+	}
+	h := s.replay
+	oldest := dataTime - h.windowSecs() + 1
+	var start int64
+	accepted := s.late[:0]
+	for _, a := range s.late {
+		if a.Timestamp < oldest && s.config.LateAnomalyBehavior != lateAnomalyClamp {
+			continue
+		}
+		if sec := max(a.Timestamp, oldest); start == 0 || sec < start {
+			start = sec
+		}
+		accepted = append(accepted, a)
+	}
+	s.late = nil
+	return accepted, start
+}
+
+func (s *anomalyScorer) replayLateInputs(
+	dataTime int64,
+	start int64,
+	late []observerdef.Anomaly,
+	forward []secState,
+) severityDiscovery {
+	h := s.replay
+	oldest := dataTime - h.windowSecs() + 1
+	cfg := s.config.AnomalyScorerConfig
+	h.ensureJournal()
+	for _, a := range late {
+		sec := max(a.Timestamp, oldest)
+		h.journal[sec] = append(h.journal[sec], scoringEvidence(a, cfg))
+		s.recordAnomaly(a, sec)
+		// Forward scoring already expired the contributor buffer through dataTime.
+		if s.topAnomalies != nil && sec > dataTime-topAnomalyWindowSecs {
+			s.topAnomalies.consider(sec, a, cfg)
+		}
+	}
+	return s.replayScoredSeconds(start, forward)
+}
+
+// replayScoredSeconds restores the scoring state without replaying side effects.
+// A Medium or High period without recognized coverage is discovered now.
+func (s *anomalyScorer) replayScoredSeconds(start int64, forward []secState) severityDiscovery {
+	h := s.replay
+	cfg := s.config.AnomalyScorerConfig
+	var previous scoringState
+	if start <= h.firstSecond {
+		// A late input can precede the first advance. There is no earlier score.
+		h.firstSecond = start
+		h.saveCheckpoint(start-1, previous, true)
+	} else {
+		// Admission guarantees that start-1 is still in the checkpoint ring.
+		previous = h.checkpoints[replaySlot(start-1, len(h.checkpoints))].state
+	}
+	clear(s.windowMap)
+	for sec := max(h.firstSecond, start-cfg.WindowSecs+1); sec < start; sec++ {
+		mergeScoringInputs(sec, h.journal[sec], s.windowMap)
+	}
+
+	debugStart := s.buckets[0].Second
+	if from := max(start, s.lastAdvancedSec-s.bucketCap()+1); from < debugStart {
+		// Startup backfill can add seconds before the first stored bucket.
+		s.buckets = append(make([]observerdef.AnomalyScoreBucket, debugStart-from), s.buckets...)
+		debugStart = from
+	}
+	type replayPeriod struct {
+		start int64
+		known bool
+	}
+	periods := [severityeventsdef.NumSeverityLevels]replayPeriod{}
+	for level := severityeventsdef.SeverityMedium; level <= severityeventsdef.SeverityHigh; level++ {
+		periods[level].known = previous.level == level
+	}
+	var missed severityDiscovery
+	sawHighDiscovery := false
+	forwardStart := forward[0].sec
+	for sec := start; sec <= s.lastAdvancedSec; sec++ {
+		bucket, next := scoreSecond(sec, h.journal[sec], cfg, s.windowMap, previous)
+		var ordinary severityDiscovery
+		if sec >= forwardStart {
+			st := &forward[sec-forwardStart]
+			ordinary = st.discovery
+			*st = secState{sec: sec, level: next.level, ewma: next.ewma}
+		}
+
+		for level := severityeventsdef.SeverityMedium; level <= severityeventsdef.SeverityHigh; level++ {
+			period := &periods[level]
+			if next.level == level {
+				if period.start == 0 && previous.level < level {
+					period.start = sec
+					period.known = false
+				} else if previous.level > level {
+					// A downward entry is an ordinary transition, not a new
+					// discovery period.
+					period.known = true
+				}
+				period.known = period.known || h.recognizedAt(sec, level)
+
+				// Preserve an ordinary forward entry only if it still falls
+				// inside a corrected period of the same severity that began in
+				// the forward part of this advance.
+				if sec >= forwardStart && !period.known &&
+					period.start >= forwardStart && ordinary.level == level {
+					forward[sec-forwardStart].discovery = severityDiscovery{
+						level:    level,
+						crossing: period.start,
+					}
+					if level == severityeventsdef.SeverityHigh {
+						sawHighDiscovery = true
+					}
+					period.known = true
+				} else if sec >= forwardStart && !period.known &&
+					period.start < forwardStart && next.level == level {
+					forward[sec-forwardStart].replayOnly = true
+				}
+			} else if period.start != 0 {
+				if !period.known {
+					missed = strongerDiscovery(missed, severityDiscovery{
+						level:    level,
+						crossing: period.start,
+					})
+				}
+				period.start = 0
+				period.known = false
+			}
+		}
+		h.saveCheckpoint(sec, next, true)
+		if sec >= debugStart {
+			s.buckets[sec-debugStart] = bucket
+		}
+		previous = next
+	}
+	s.score = previous
+	for level := severityeventsdef.SeverityMedium; level <= severityeventsdef.SeverityHigh; level++ {
+		period := periods[level]
+		if period.start != 0 && !period.known {
+			missed = strongerDiscovery(missed, severityDiscovery{
+				level:    level,
+				crossing: period.start,
+			})
+		}
+	}
+	if missed.level == severityeventsdef.SeverityMedium && sawHighDiscovery {
+		// High already took priority during this advance.
+		return severityDiscovery{}
+	}
+	return missed
 }

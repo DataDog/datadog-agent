@@ -1,0 +1,10 @@
+description: Line address 0 as standalone address is rejected.
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true
+input:
+  script: |+
+    echo 'hello' | sed -n '0p'
+expect:
+  stdout: ""
+  stderr_contains: ["invalid usage of line address 0"]
+  exit_code: 1

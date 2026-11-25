@@ -83,6 +83,22 @@ func TestTagsFromAzureAppServiceAttributes(t *testing.T) {
 		}, TagsFromAttributes(attrs))
 	})
 
+	t.Run("identity from cloud resource ID", func(t *testing.T) {
+		attrs := pcommon.NewMap()
+		require.NoError(t, attrs.FromRaw(map[string]any{
+			string(semconv127.CloudPlatformKey):   cloudPlatformAzureAppService,
+			string(semconv127.ServiceNameKey):     testAzureAppServiceName,
+			string(semconv127.CloudResourceIDKey): "/subscriptions/example-subscription/resourceGroups/example-resource-group/providers/Microsoft.Web/sites/different-app",
+		}))
+
+		assert.ElementsMatch(t, []string{
+			"service:" + testAzureAppServiceName,
+			"name:" + testAzureAppServiceName,
+			"subscription_id:" + testAzureSubscriptionID,
+			"resource_group:" + testAzureResourceGroup,
+		}, TagsFromAttributes(attrs))
+	})
+
 	t.Run("service instance is not the billing instance", func(t *testing.T) {
 		attrs := pcommon.NewMap()
 		require.NoError(t, attrs.FromRaw(map[string]any{
@@ -151,6 +167,7 @@ func TestContainerTagFromResourceAttributes(t *testing.T) {
 			string(semconv127.AWSECSTaskFamilyKey):      "sample_task_family",
 			string(semconv127.AWSECSClusterARNKey):      "sample_ecs_cluster_name",
 			string(semconv127.AWSECSContainerARNKey):    "sample_ecs_container_name",
+			string(semconv127.AWSEKSClusterARNKey):      "sample_eks_cluster_arn",
 			"datadog.container.tag.custom.team":         "otel",
 		})
 		assert.NoError(t, err)
@@ -168,6 +185,7 @@ func TestContainerTagFromResourceAttributes(t *testing.T) {
 			"task_family":         "sample_task_family",
 			"ecs_cluster_name":    "sample_ecs_cluster_name",
 			"ecs_container_name":  "sample_ecs_container_name",
+			"eks_cluster_arn":     "sample_eks_cluster_arn",
 			"custom.team":         "otel",
 		}, ContainerTagsFromResourceAttributes(attributes))
 		fmt.Println(ContainerTagsFromResourceAttributes(attributes))
@@ -308,6 +326,7 @@ func TestContainerTagFromAttributes(t *testing.T) {
 		string(semconv127.AWSECSTaskFamilyKey):      "sample_task_family",
 		string(semconv127.AWSECSClusterARNKey):      "sample_ecs_cluster_name",
 		string(semconv127.AWSECSContainerARNKey):    "sample_ecs_container_name",
+		string(semconv127.AWSEKSClusterARNKey):      "sample_eks_cluster_arn",
 		"custom_tag":                                "example_custom_tag",
 		"":                                          "empty_string_key",
 		"empty_string_val":                          "",
@@ -327,6 +346,7 @@ func TestContainerTagFromAttributes(t *testing.T) {
 		"task_family":         "sample_task_family",
 		"ecs_cluster_name":    "sample_ecs_cluster_name",
 		"ecs_container_name":  "sample_ecs_container_name",
+		"eks_cluster_arn":     "sample_eks_cluster_arn",
 	}, ContainerTagFromAttributes(attributeMap))
 }
 
@@ -938,9 +958,22 @@ func TestParseAzureResourceID(t *testing.T) {
 			name:       "valid Azure Container Apps resource ID",
 			resourceID: "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.App/containerApps/my-app",
 			expected: azureResourceID{
-				SubscriptionID: "sub-123",
-				ResourceGroup:  "my-rg",
-				ResourceName:   "my-app",
+				SubscriptionID:    "sub-123",
+				ResourceGroup:     "my-rg",
+				ProviderNamespace: "Microsoft.App",
+				ResourceType:      "containerApps",
+				ResourceName:      "my-app",
+			},
+		},
+		{
+			name:       "valid markers are case-insensitive",
+			resourceID: "/SUBSCRIPTIONS/sub-123/resourcegroups/my-rg/PROVIDERS/microsoft.web/SITES/my-app",
+			expected: azureResourceID{
+				SubscriptionID:    "sub-123",
+				ResourceGroup:     "my-rg",
+				ProviderNamespace: "microsoft.web",
+				ResourceType:      "SITES",
+				ResourceName:      "my-app",
 			},
 		},
 		{
@@ -955,6 +988,46 @@ func TestParseAzureResourceID(t *testing.T) {
 		{
 			name:       "not an Azure resource ID",
 			resourceID: "arn:aws:ecs:us-east-1:123456789012:task/my-task",
+			expectErr:  true,
+		},
+		{
+			name:       "invalid subscriptions marker",
+			resourceID: "/projects/sub-123/resourceGroups/my-rg/providers/Microsoft.Web/sites/my-app",
+			expectErr:  true,
+		},
+		{
+			name:       "invalid resource groups marker",
+			resourceID: "/subscriptions/sub-123/groups/my-rg/providers/Microsoft.Web/sites/my-app",
+			expectErr:  true,
+		},
+		{
+			name:       "invalid providers marker",
+			resourceID: "/subscriptions/sub-123/resourceGroups/my-rg/resources/Microsoft.Web/sites/my-app",
+			expectErr:  true,
+		},
+		{
+			name:       "empty subscription",
+			resourceID: "/subscriptions//resourceGroups/my-rg/providers/Microsoft.Web/sites/my-app",
+			expectErr:  true,
+		},
+		{
+			name:       "empty resource group",
+			resourceID: "/subscriptions/sub-123/resourceGroups//providers/Microsoft.Web/sites/my-app",
+			expectErr:  true,
+		},
+		{
+			name:       "empty provider namespace",
+			resourceID: "/subscriptions/sub-123/resourceGroups/my-rg/providers//sites/my-app",
+			expectErr:  true,
+		},
+		{
+			name:       "empty resource type",
+			resourceID: "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.Web//my-app",
+			expectErr:  true,
+		},
+		{
+			name:       "empty resource name",
+			resourceID: "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.Web/sites/",
 			expectErr:  true,
 		},
 	} {

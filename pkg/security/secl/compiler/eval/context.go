@@ -52,6 +52,8 @@ type Context struct {
 	IPNetCache  map[Field][]net.IPNet
 	IntCache    map[Field][]int
 	BoolCache   map[Field][]bool
+	// StringMapCache holds the dictionaries of the iterated fields: one per element
+	StringMapCache map[Field][]map[string]string
 
 	// iterator register cache. used to cache entry within a single rule evaluation
 	RegisterCache map[RegisterID]*RegisterCacheEntry
@@ -92,6 +94,7 @@ func (c *Context) Reset() {
 	clear(c.IPNetCache)
 	clear(c.IntCache)
 	clear(c.BoolCache)
+	clear(c.StringMapCache)
 	clear(c.Registers)
 	clear(c.RegisterCache)
 	clear(c.IteratorCountCache)
@@ -273,6 +276,7 @@ func NewContext(evt Event) *Context {
 		IPNetCache:         make(map[Field][]net.IPNet),
 		IntCache:           make(map[Field][]int),
 		BoolCache:          make(map[Field][]bool),
+		StringMapCache:     make(map[Field][]map[string]string),
 		Registers:          make(map[RegisterID]int),
 		RegisterCache:      make(map[RegisterID]*RegisterCacheEntry),
 		IteratorCountCache: make(map[string]int),

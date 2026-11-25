@@ -1,0 +1,10 @@
+description: Printf interprets \U for emoji Unicode code points.
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true  # bash outputs literal \U in POSIX locale; rshell always emits UTF-8
+input:
+  script: |+
+    printf "\U0001F600\n"
+expect:
+  stdout: "😀\n"
+  stderr: ""
+  exit_code: 0

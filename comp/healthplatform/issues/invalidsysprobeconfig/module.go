@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	schema "github.com/DataDog/datadog-agent/comp/core/schema/def"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
@@ -34,6 +35,7 @@ type Requires struct {
 	compdef.In
 	Config         config.Component
 	SysProbeConfig sysprobeconfig.Component `optional:"true"`
+	Schema         schema.Component
 	Hostname       hostnameinterface.Component
 	SelfIdent      *selfident.SelfIdent
 }
@@ -55,7 +57,7 @@ type invalidSysprobeConfigModule struct {
 }
 
 func newModule(reqs Requires) Provides {
-	return Provides{Module: &invalidSysprobeConfigModule{datadog: reqs.Config, checker: newChecker(reqs.SysProbeConfig, reqs.Hostname, reqs.SelfIdent)}}
+	return Provides{Module: &invalidSysprobeConfigModule{datadog: reqs.Config, checker: newChecker(reqs.SysProbeConfig, reqs.Schema, reqs.Hostname, reqs.SelfIdent)}}
 }
 
 func (m *invalidSysprobeConfigModule) IssueName() string {
@@ -70,12 +72,13 @@ func (m *invalidSysprobeConfigModule) BuildIssue(context map[string]string) (*he
 	return InvalidSysprobeConfigIssue{}.BuildIssue(context)
 }
 
-// BuiltInPeriodicHealthCheck returns nil as schema validation runs only at startup
+// BuiltInPeriodicHealthCheck returns nil as the configuration is only validated when loaded
 func (m *invalidSysprobeConfigModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
 	return nil
 }
 
-// BuiltInStartupHealthCheck runs system-probe schema validation once at agent startup.
+// BuiltInStartupHealthCheck reports the system-probe schema violations found when the configuration was loaded, once
+// at agent startup.
 // It returns nil when system-probe config isn't bundled (e.g. commands that don't load it),
 // so the bundle doesn't resolve a real persisted issue without ever validating.
 func (m *invalidSysprobeConfigModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {

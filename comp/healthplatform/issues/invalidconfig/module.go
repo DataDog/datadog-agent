@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	schema "github.com/DataDog/datadog-agent/comp/core/schema/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
@@ -31,6 +32,7 @@ const (
 type Requires struct {
 	compdef.In
 	Config    config.Component
+	Schema    schema.Component
 	Hostname  hostnameinterface.Component
 	SelfIdent *selfident.SelfIdent
 }
@@ -52,7 +54,7 @@ type invalidConfigModule struct {
 }
 
 func newModule(reqs Requires) Provides {
-	return Provides{Module: &invalidConfigModule{cfg: reqs.Config, checker: newChecker(reqs.Config, reqs.Hostname, reqs.SelfIdent)}}
+	return Provides{Module: &invalidConfigModule{cfg: reqs.Config, checker: newChecker(reqs.Config, reqs.Schema, reqs.Hostname, reqs.SelfIdent)}}
 }
 
 func (m *invalidConfigModule) IssueName() string {
@@ -67,21 +69,20 @@ func (m *invalidConfigModule) BuildIssue(context map[string]string) (*healthplat
 	return InvalidConfigIssue{}.BuildIssue(context)
 }
 
-// BuiltInPeriodicHealthCheck returns nil as schema validation runs only at startup
+// BuiltInPeriodicHealthCheck returns nil as the configuration is only validated when loaded
 func (m *invalidConfigModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
 	return nil
 }
 
-// BuiltInStartupHealthCheck runs schema validation once at agent startup.
+// BuiltInStartupHealthCheck reports the schema violations found when the
+// configuration was loaded, once at agent startup.
 // The check is gated inside Fn rather than at registration time so that
 // IssueNames-based stale-issue resolution still fires on restart even when
 // the flag is disabled — returning nil/empty resolves any previously-stored
 // issues rather than leaving them orphaned.
 //
-// The gate exists because schema.ValidateCoreConfig decompresses, parses, and
-// compiles the full core_schema.yaml (~8000 lines) into a *jsonschema.Schema
-// stored in a process-lifetime global — adding ~8 MiB of permanent heap even
-// when the agent config is valid.
+// The gate only controls the reporting: the configuration is validated when
+// it's loaded whether or not the check is enabled.
 func (m *invalidConfigModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
 	return &runnerdef.BuiltInHealthCheck{
 		Source: "agent",

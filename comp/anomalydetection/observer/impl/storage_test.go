@@ -14,6 +14,7 @@ import (
 	"unsafe"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -63,6 +64,41 @@ func TestTimeSeriesStorage_Add(t *testing.T) {
 	require.Len(t, series.Points, 1)
 	assert.Equal(t, int64(1000), series.Points[0].Timestamp)
 	assert.Equal(t, 10.0, series.Points[0].Value)
+}
+
+func TestTimeSeriesStorage_FreshSeriesCount(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	updated := s.Add("check", "updated", 1, 10, nil).Ref
+	unchanged := s.Add("check", "unchanged", 1, 10, nil).Ref
+	s.Add(observer.TelemetryNamespace, "internal", 1, 11, nil)
+
+	// Both series are visible at cutoff 10 and newer than the previous cutoff 9.
+	assert.Equal(t, 2, s.FreshSeriesCount(observer.TelemetryNamespace, 10, 9))
+	// Visible, but not newer than the previous cutoff.
+	assert.Equal(t, 0, s.FreshSeriesCount(observer.TelemetryNamespace, 10, 10))
+	// Cutoff below the only visible bucket excludes both.
+	assert.Equal(t, 0, s.FreshSeriesCount(observer.TelemetryNamespace, 9, 8))
+
+	// A same-second merge is not a new visible bucket.
+	s.Add("check", "updated", 2, 10, nil)
+	assert.Equal(t, 0, s.FreshSeriesCount(observer.TelemetryNamespace, 10, 10))
+
+	// A late historical write does not make the series fresh again.
+	s.Add("check", "updated", 3, 9, nil)
+	assert.Equal(t, 0, s.FreshSeriesCount(observer.TelemetryNamespace, 10, 10))
+
+	// A bucket beyond the cutoff is not visible yet and must not count.
+	s.Add("check", "future", 1, 100, nil)
+	assert.Equal(t, 0, s.FreshSeriesCount(observer.TelemetryNamespace, 50, 49))
+	// It counts once, on the advance that makes it visible.
+	assert.Equal(t, 1, s.FreshSeriesCount(observer.TelemetryNamespace, 100, 99))
+	assert.Equal(t, 0, s.FreshSeriesCount(observer.TelemetryNamespace, 101, 100))
+
+	// Re-admission after eviction participates in the next sample.
+	s.RemoveSeriesByRefs([]observer.SeriesRef{updated, unchanged})
+	s.Add("check", "updated", 4, 11, nil)
+	assert.Equal(t, 1, s.FreshSeriesCount(observer.TelemetryNamespace, 11, 10))
 }
 
 func TestTimeSeriesStorage_ContextSnapshots(t *testing.T) {
@@ -131,7 +167,7 @@ func TestSeriesKeyHashIncludesNamespace(t *testing.T) {
 
 func TestEngineIngestMetricUsesProvidedStorageKey(t *testing.T) {
 	storage := newTimeSeriesStorage()
-	engine := newEngine(engineConfig{storage: storage})
+	engine := mustNewEngine(engineConfig{storage: storage})
 	metric := &metricObs{
 		name:      "metric.a",
 		host:      "host-a",
@@ -216,6 +252,85 @@ func TestTimeSeriesStorage_ForEachLastPoints_Boundaries(t *testing.T) {
 		got = append(got, p.Timestamp)
 	}))
 	assert.Equal(t, []int64{10, 20}, got)
+}
+
+func TestTimeSeriesStorage_SnapshotFirstPointsFrom(t *testing.T) {
+	s := newTimeSeriesStorage()
+	var ref observer.SeriesRef
+	for _, timestamp := range []int64{10, 20, 40, 70, 90} {
+		ref = s.Add("test", "metric", float64(timestamp), timestamp, nil).Ref
+	}
+	s.Add("test", "metric", 60, 20, nil)
+
+	for _, tc := range []struct {
+		name string
+		end  int64
+		n    int
+		agg  Aggregate
+		want []observer.Point
+	}{
+		{name: "before boundary", end: 10, n: 2},
+		{name: "future points excluded", end: 39, n: 2},
+		{name: "inclusive bounds", end: 40, n: 2, want: []observer.Point{{Timestamp: 20, Value: 40}, {Timestamp: 40, Value: 40}}},
+		{name: "first not latest", end: 90, n: 2, want: []observer.Point{{Timestamp: 20, Value: 40}, {Timestamp: 40, Value: 40}}},
+		{name: "sparse points", end: 70, n: 3, want: []observer.Point{{Timestamp: 20, Value: 40}, {Timestamp: 40, Value: 40}, {Timestamp: 70, Value: 70}}},
+		{name: "sum", end: 90, n: 2, agg: AggregateSum, want: []observer.Point{{Timestamp: 20, Value: 80}, {Timestamp: 40, Value: 40}}},
+		{name: "count", end: 90, n: 2, agg: AggregateCount, want: []observer.Point{{Timestamp: 20, Value: 2}, {Timestamp: 40, Value: 1}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			buf := make([]observer.Point, 3)
+			buf[0] = observer.Point{Timestamp: -1, Value: -1}
+			if tc.agg == observer.AggregateNone {
+				tc.agg = AggregateAverage
+			}
+			points, expired := s.snapshotFirstPointsFrom(ref, 20, tc.end, tc.n, tc.agg, buf)
+			require.False(t, expired)
+			if tc.want == nil {
+				require.Empty(t, points)
+				require.Equal(t, observer.Point{Timestamp: -1, Value: -1}, buf[0], "waiting must not copy points")
+				return
+			}
+			require.Equal(t, tc.want, points)
+			require.Same(t, &buf[0], &points[0], "reuse caller scratch")
+			points[0].Value = -1
+			require.Equal(t, float64(40), s.GetSeries("test", "metric", nil, AggregateAverage).Points[1].Value,
+				"the snapshot must not alias storage")
+		})
+	}
+}
+
+func TestTimeSeriesStorage_SnapshotFirstPointsFromExpired(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		cfg  StorageConfig
+	}{
+		{name: "point retention", cfg: StorageConfig{MaxPointsPerSeries: 3}},
+		{name: "duration retention", cfg: StorageConfig{PointRetentionSecs: 25}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newTimeSeriesStorageWith(tc.cfg)
+			var ref observer.SeriesRef
+			for timestamp := int64(10); timestamp <= 30; timestamp += 10 {
+				ref = s.Add("test", "metric", float64(timestamp), timestamp, nil).Ref
+			}
+			points, expired := s.snapshotFirstPointsFrom(ref, 10, 30, 3, AggregateAverage, nil)
+			require.False(t, expired)
+			require.Len(t, points, 3)
+			for timestamp := int64(40); timestamp <= 60; timestamp += 10 {
+				s.Add("test", "metric", float64(timestamp), timestamp, nil)
+			}
+			points, expired = s.snapshotFirstPointsFrom(ref, 10, 60, 3, AggregateAverage, points)
+			require.True(t, expired)
+			require.Empty(t, points, "must not substitute a later window")
+		})
+	}
+
+	s := newTimeSeriesStorage()
+	ref := s.Add("test", "metric", 10, 10, nil).Ref
+	s.RemoveSeriesByRefs([]observer.SeriesRef{ref})
+	points, expired := s.snapshotFirstPointsFrom(ref, 10, 60, 3, AggregateAverage, nil)
+	require.True(t, expired)
+	require.Empty(t, points)
 }
 
 func TestDefaultStorageConfigIncludesInactiveSeriesEviction(t *testing.T) {
@@ -872,6 +987,54 @@ func TestTimeSeriesStorage_TotalSeriesCountTracksCapacityEviction(t *testing.T) 
 	require.Equal(t, 1, s.TotalSeriesCount())
 }
 
+func TestTimeSeriesStorage_AddEvictsBeforeAdmissionAtCapacity(t *testing.T) {
+	s := newTimeSeriesStorageWith(StorageConfig{
+		MaxSeries:          4,
+		EvictionFloorRatio: 0.5,
+	})
+	first := s.Add("workload", "first", 1, 1, nil).Ref
+	second := s.Add("workload", "second", 1, 2, nil).Ref
+	third := s.Add("workload", "third", 1, 3, nil).Ref
+	fourth := s.Add("workload", "fourth", 1, 4, nil).Ref
+	require.Equal(t, 4, s.TotalSeriesCount())
+
+	admitted := s.Add("workload", "new", 1, 5, nil)
+
+	require.True(t, admitted.IsNew)
+	require.GreaterOrEqual(t, admitted.Ref, observer.SeriesRef(0))
+	require.Equal(t, []observer.SeriesRef{first, second, third}, admitted.CapacityEvictedRefs)
+	require.Equal(t, 2, s.TotalSeriesCount(), "admission must land on the configured eviction target")
+	assert.Nil(t, s.GetSeriesMeta(first))
+	assert.Nil(t, s.GetSeriesMeta(second))
+	assert.Nil(t, s.GetSeriesMeta(third))
+	assert.NotNil(t, s.GetSeriesMeta(fourth))
+	assert.NotNil(t, s.GetSeriesMeta(admitted.Ref))
+
+	updated := s.Add("workload", "new", 2, 6, nil)
+	assert.False(t, updated.IsNew)
+	assert.Empty(t, updated.CapacityEvictedRefs, "updating an admitted series must not trigger eviction")
+	assert.Equal(t, 2, s.TotalSeriesCount())
+}
+
+func TestTimeSeriesStorage_AdmissionCapacityExcludesTelemetrySeries(t *testing.T) {
+	s := newTimeSeriesStorageWith(StorageConfig{
+		MaxSeries:          1,
+		EvictionFloorRatio: 0.5,
+	})
+	workload := s.Add("workload", "first", 1, 1, nil).Ref
+	telemetry := s.Add(observer.TelemetryNamespace, "internal", 1, 2, nil)
+	require.Empty(t, telemetry.CapacityEvictedRefs)
+	require.Equal(t, 1, s.TotalSeriesCount())
+
+	admitted := s.Add("workload", "second", 1, 3, nil)
+
+	require.Equal(t, []observer.SeriesRef{workload}, admitted.CapacityEvictedRefs)
+	require.Equal(t, 1, s.TotalSeriesCount())
+	assert.Nil(t, s.GetSeriesMeta(workload))
+	assert.NotNil(t, s.GetSeriesMeta(telemetry.Ref), "capacity admission must not evict telemetry series")
+	assert.NotNil(t, s.GetSeriesMeta(admitted.Ref))
+}
+
 func TestTimeSeriesStorage_EvictInactiveBefore(t *testing.T) {
 	s := newTimeSeriesStorage()
 	old := s.Add("workload", "old", 1, 100, []string{"env:test"}).Ref
@@ -1110,8 +1273,8 @@ func TestTimeSeriesStorage_TagIntern_IgnoresDuplicateCompositeTags(t *testing.T)
 	firstTags := tagset.NewCompositeTags([]string{"service:api", "env:prod"}, nil)
 	secondTags := tagset.NewCompositeTags([]string{"env:prod"}, []string{"service:api", "service:api"})
 
-	first := s.AddWithKeyAndHostComposite("ns", "m1", "", 1, 1000, firstTags, storageKeyForCompositeIdentity("ns", "m1", "", firstTags))
-	second := s.AddWithKeyAndHostComposite("ns", "m2", "", 1, 1000, secondTags, storageKeyForCompositeIdentity("ns", "m2", "", secondTags))
+	first := s.AddWithKeyAndHostComposite("ns", "m1", "", 1, 1000, firstTags, storageKeyForCompositeIdentity("ns", "m1", "", firstTags), observer.UnknownType)
+	second := s.AddWithKeyAndHostComposite("ns", "m2", "", 1, 1000, secondTags, storageKeyForCompositeIdentity("ns", "m2", "", secondTags), observer.UnknownType)
 
 	assert.Equal(t, 1, s.TagInternedCount())
 	s.mu.RLock()
@@ -1168,4 +1331,223 @@ func TestSeriesKeyHashIsUnordered(t *testing.T) {
 
 	assert.NotZero(t, sorted)
 	assert.Equal(t, sorted, unsorted)
+}
+
+func TestStorageMetricTypeIsSeriesMetadata(t *testing.T) {
+	s := newTimeSeriesStorageWith(StorageConfig{})
+	tags := tagset.CompositeTags{}
+	key := storageKeyForCompositeIdentity("check", "requests", "", tags)
+	add := func(typ metrics.MetricType, ts int64) AddResult {
+		return s.AddWithKeyAndHostComposite("check", "requests", "", 1, ts, tags, key, typ)
+	}
+	first := add(observer.UnknownType, 100)
+	require.Equal(t, observer.UnknownType, s.GetSeriesMeta(first.Ref).MetricType)
+	generation := s.SeriesGeneration()
+	known := add(metrics.CountType, 101)
+	require.Equal(t, first.Ref, known.Ref)
+	require.Equal(t, generation+1, s.SeriesGeneration())
+	generation = s.SeriesGeneration()
+	// A conflicting type or a late sample with no type cannot change the series type.
+	add(metrics.GaugeType, 102)
+	add(observer.UnknownType, 99)
+	require.Equal(t, generation, s.SeriesGeneration())
+	require.Equal(t, metrics.CountType, s.GetSeriesMeta(first.Ref).MetricType)
+	metas := s.ListSeries(observer.SeriesFilter{})
+	require.Len(t, metas, 1)
+	require.Equal(t, metrics.CountType, metas[0].MetricType)
+	require.Equal(t, metrics.CountType, s.ListSeriesMetadata("check")[0].MetricType)
+	require.Len(t, s.GetSeriesRange(first.Ref, 0, 102, observer.AggregateSum).Points, 4)
+	s.RemoveSeriesByRefs([]observer.SeriesRef{first.Ref})
+	require.Nil(t, s.GetSeriesMeta(first.Ref))
+	recreated := add(metrics.GaugeType, 103)
+	require.NotEqual(t, first.Ref, recreated.Ref)
+	require.Equal(t, metrics.GaugeType, s.GetSeriesMeta(recreated.Ref).MetricType)
+}
+
+func TestStorageMetricKinds(t *testing.T) {
+	s := newTimeSeriesStorage()
+	s.ResetSeriesKinds()
+	require.Zero(t, s.SeriesGeneration(), "empty reset must not invalidate")
+	// Use distinct explicit keys: the storage API expects a resolved identity.
+	ref := s.AddWithKeyAndHostComposite("check", "gauge", "", 10, 1, tagset.CompositeTags{}, 1, observer.UnknownType).Ref
+	require.Equal(t, uint64(1), s.SeriesGeneration())
+	generation := s.SeriesGeneration()
+	require.Equal(t, observer.UNSET, s.GetSeriesMeta(ref).MetricKind)
+	kind, ok := s.SeriesKind(ref)
+	require.True(t, ok)
+	require.Equal(t, observer.UNSET, kind)
+	s.AddWithKeyAndHostComposite("check", "gauge", "", 11, 2, tagset.CompositeTags{}, 1, metrics.GaugeType)
+	require.Equal(t, generation+1, s.SeriesGeneration())
+	generation = s.SeriesGeneration()
+	s.AddWithKeyAndHostComposite("check", "gauge", "", 12, 3, tagset.CompositeTags{}, 1, metrics.GaugeType)
+	require.Equal(t, generation, s.SeriesGeneration())
+
+	stable, gauge := observer.STABLE, metrics.GaugeType
+	filter := observer.WorkloadSeriesFilter()
+	filter.MetricType, filter.MetricKind = &gauge, &stable
+	require.Empty(t, s.ListSeriesRefsInto(filter, nil))
+	history := s.GetSeriesRange(ref, 0, 3, observer.AggregateAverage)
+	writes := s.WriteGeneration(ref)
+	s.SetSeriesKind(ref, stable)
+	require.Equal(t, writes, s.WriteGeneration(ref))
+	require.Equal(t, history, s.GetSeriesRange(ref, 0, 3, observer.AggregateAverage))
+	require.Equal(t, stable, s.GetSeriesMeta(ref).MetricKind)
+	require.Equal(t, generation+1, s.SeriesGeneration())
+	require.Equal(t, []observer.SeriesRef{ref}, s.ListSeriesRefsInto(filter, nil))
+	require.Equal(t, stable, s.ListSeries(filter)[0].MetricKind)
+	require.Equal(t, stable, s.ListSeriesMetadata("check")[0].MetricKind)
+	generation = s.SeriesGeneration()
+	s.SetSeriesKind(ref, stable)
+	s.SetSeriesKind(999, stable)
+	require.Equal(t, generation, s.SeriesGeneration())
+
+	second := s.AddWithKeyAndHostComposite("check", "count", "", 1, 1, tagset.CompositeTags{}, 2, metrics.CountType).Ref
+	s.SetSeriesKind(second, stable)
+	generation = s.SeriesGeneration()
+	writes = s.WriteGeneration(ref)
+	s.ResetSeriesKinds()
+	require.Equal(t, generation+1, s.SeriesGeneration(), "reset invalidates once, not per changed kind")
+	require.Equal(t, writes, s.WriteGeneration(ref), "kind reset must not count as a point write")
+	require.Equal(t, history, s.GetSeriesRange(ref, 0, 3, observer.AggregateAverage))
+	generation = s.SeriesGeneration()
+	s.ResetSeriesKinds()
+	require.Equal(t, generation, s.SeriesGeneration(), "no-op reset must not invalidate")
+	require.Empty(t, s.ListSeriesRefsInto(filter, nil))
+	require.Equal(t, 3, s.PointCountUpTo(ref, 3))
+	unset := observer.UNSET
+	filter.MetricKind = &unset
+	require.Len(t, s.ListSeries(filter), 1)
+	generation = s.SeriesGeneration()
+	s.RemoveSeriesByRefs([]observer.SeriesRef{ref})
+	require.Equal(t, generation+1, s.SeriesGeneration())
+	generation = s.SeriesGeneration()
+	s.RemoveSeriesByRefs([]observer.SeriesRef{ref, 999})
+	require.Equal(t, generation, s.SeriesGeneration())
+	_, ok = s.SeriesKind(ref)
+	require.False(t, ok)
+	require.Empty(t, s.ListSeries(filter))
+}
+
+func TestStorageMetricKindFilters(t *testing.T) {
+	s := newTimeSeriesStorage()
+	add := func(key uint64, namespace, name, host string, mt metrics.MetricType, kind observer.MetricKind) observer.SeriesRef {
+		ref := s.AddWithKeyAndHostComposite(namespace, name, host, 10, 1,
+			tagset.NewCompositeTags([]string{"env:test"}, nil), key, mt).Ref
+		s.SetSeriesKind(ref, kind)
+		return ref
+	}
+	stableGauge := add(1, "check", "cpu.user", "host-a", metrics.GaugeType, observer.STABLE)
+	linearGauge := add(2, "check", "cpu.system", "host-b", metrics.GaugeType, observer.LINEAR)
+	stableCount := add(3, "check", "requests", "host-a", metrics.CountType, observer.STABLE)
+	unknown := add(4, "check", "untyped", "host-a", observer.UnknownType, observer.UNSET)
+	telemetry := add(5, observer.TelemetryNamespace, "internal", "host-a", metrics.GaugeType, observer.STABLE)
+	stable, gauge := observer.STABLE, metrics.GaugeType
+	unset, unknownType := observer.UNSET, observer.UnknownType
+
+	for _, tc := range []struct {
+		name   string
+		filter observer.SeriesFilter
+		want   []observer.SeriesRef
+	}{
+		{"unrestricted", observer.SeriesFilter{}, []observer.SeriesRef{stableGauge, linearGauge, stableCount, unknown, telemetry}},
+		{"kind only", observer.SeriesFilter{MetricKind: &stable}, []observer.SeriesRef{stableGauge, stableCount, telemetry}},
+		{"type only", observer.SeriesFilter{MetricType: &gauge}, []observer.SeriesRef{stableGauge, linearGauge, telemetry}},
+		{"unset", observer.SeriesFilter{MetricKind: &unset}, []observer.SeriesRef{unknown}},
+		{"unknown input type", observer.SeriesFilter{MetricType: &unknownType}, []observer.SeriesRef{unknown}},
+		{"workload intersection", observer.SeriesFilter{
+			MetricKind: &stable, MetricType: &gauge, ExcludeNamespaces: []string{observer.TelemetryNamespace},
+		}, []observer.SeriesRef{stableGauge}},
+		{"namespace overrides exclusion", observer.SeriesFilter{
+			MetricKind: &stable, Namespace: observer.TelemetryNamespace, ExcludeNamespaces: []string{observer.TelemetryNamespace},
+		}, []observer.SeriesRef{telemetry}},
+		{"existing criteria", observer.SeriesFilter{
+			MetricType: &gauge, Namespace: "check", NamePattern: "cpu.", Host: "host-b", TagMatchers: map[string]string{"env": "test"},
+		}, []observer.SeriesRef{linearGauge}},
+		{"tag mismatch", observer.SeriesFilter{
+			MetricKind: &stable, TagMatchers: map[string]string{"env": "prod"},
+		}, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var refs []observer.SeriesRef
+			for _, meta := range s.ListSeries(tc.filter) {
+				refs = append(refs, meta.Ref)
+			}
+			require.ElementsMatch(t, tc.want, refs)
+			require.ElementsMatch(t, tc.want, s.ListSeriesRefsInto(tc.filter, nil))
+		})
+	}
+
+	// Promotion changes eligibility without admitting another series or changing its kind.
+	generation := s.SeriesGeneration()
+	result := s.AddWithKeyAndHostComposite("check", "untyped", "host-a", 11, 2, tagset.CompositeTags{}, 4, metrics.GaugeType)
+	require.Equal(t, unknown, result.Ref)
+	require.False(t, result.IsNew)
+	require.Equal(t, generation+1, s.SeriesGeneration())
+	require.ElementsMatch(t, []observer.SeriesRef{stableGauge, linearGauge, unknown, telemetry},
+		s.ListSeriesRefsInto(observer.SeriesFilter{MetricType: &gauge}, nil))
+	kind, ok := s.SeriesKind(unknown)
+	require.True(t, ok)
+	require.Equal(t, observer.UNSET, kind)
+}
+
+func TestInstrumentedStorageSelectionFilters(t *testing.T) {
+	build := func(order []int) *timeSeriesStorage {
+		s := newTimeSeriesStorage()
+		for _, key := range order {
+			ref := s.AddWithKeyAndHostComposite("work", fmt.Sprintf("metric_%d", key), "", 100, 1,
+				tagset.CompositeTags{}, uint64(key), metrics.GaugeType).Ref
+			s.SetSeriesKind(ref, observer.STABLE)
+		}
+		return s
+	}
+	for _, method := range []string{"ListSeries", "ListSeriesRefsInto"} {
+		t.Run(method, func(t *testing.T) {
+			hash := func(s *timeSeriesStorage, filter observer.SeriesFilter) uint64 {
+				instrumented := newInstrumentedStorage(s)
+				if method == "ListSeries" {
+					instrumented.ListSeries(filter)
+				} else {
+					instrumented.ListSeriesRefsInto(filter, nil)
+				}
+				return instrumented.digest("test", 1).Hash
+			}
+			s, reverse := build([]int{1, 2}), build([]int{2, 1})
+			kind, mt := observer.STABLE, metrics.GaugeType
+			filter := observer.SeriesFilter{MetricKind: &kind, MetricType: &mt}
+			want := hash(s, filter)
+			require.Equal(t, want, hash(reverse, filter), "refs and iteration order must not affect digests")
+			otherKind, otherType := kind, mt
+			require.Equal(t, want, hash(s, observer.SeriesFilter{MetricKind: &otherKind, MetricType: &otherType}))
+			require.NotEqual(t, want, hash(s, observer.SeriesFilter{}), "different restrictions can select the same series")
+			kind = observer.LINEAR
+			require.NotEqual(t, want, hash(s, filter), "digest must reflect the current pointer value")
+
+			empty := newTimeSeriesStorage()
+			unrestricted := hash(empty, observer.SeriesFilter{})
+			kind, mt = observer.UNSET, observer.UnknownType
+			require.NotEqual(t, unrestricted, hash(empty, observer.SeriesFilter{MetricKind: &kind}))
+			require.NotEqual(t, unrestricted, hash(empty, observer.SeriesFilter{MetricType: &mt}))
+			unsetHash, unknownHash := hash(empty, observer.SeriesFilter{MetricKind: &kind}), hash(empty, observer.SeriesFilter{MetricType: &mt})
+			kind, mt = observer.STABLE, metrics.CountType
+			require.NotEqual(t, unsetHash, hash(empty, observer.SeriesFilter{MetricKind: &kind}))
+			require.NotEqual(t, unknownHash, hash(empty, observer.SeriesFilter{MetricType: &mt}))
+		})
+	}
+}
+
+func TestStorageSeriesCountByKind(t *testing.T) {
+	s := newDetectorTestStorage()
+	stable := addPipelinePoints(s, 1, 1, 3, metrics.GaugeType)
+	linear := addPipelinePoints(s, 2, 1, 3, metrics.GaugeType)
+	addPipelinePoints(s, 3, 1, 3, metrics.CountType)
+	s.AddWithKeyAndHostComposite(observer.TelemetryNamespace, "internal", "", 1, 1, tagset.CompositeTags{}, 4, metrics.GaugeType)
+	s.SetSeriesKind(stable, observer.STABLE)
+	s.SetSeriesKind(linear, observer.LINEAR)
+	require.Equal(t, [metricKindCount]uint64{0, 0, 1, 1}, s.SeriesCountByKind())
+	s.SetSeriesKind(stable, observer.UNKNOWN)
+	require.Equal(t, [metricKindCount]uint64{0, 1, 0, 1}, s.SeriesCountByKind())
+	s.ResetSeriesKinds()
+	require.Equal(t, [metricKindCount]uint64{2, 0, 0, 0}, s.SeriesCountByKind())
+	s.RemoveSeriesByRefs([]observer.SeriesRef{linear})
+	require.Equal(t, [metricKindCount]uint64{1, 0, 0, 0}, s.SeriesCountByKind())
 }

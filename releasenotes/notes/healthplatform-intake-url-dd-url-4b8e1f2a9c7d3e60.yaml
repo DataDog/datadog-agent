@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Health Platform: health reports are no longer sent to ``dd_url``, which
+    only overrides the metrics intake and rejected them with a 404, logging a
+    ``Health platform egress: failed to send`` warning on every report. They
+    now go to the health platform intake of the configured ``site``, and can
+    be redirected with the new ``health_platform.forwarder.dd_url`` setting,
+    like the other dedicated intakes (``apm_config.apm_dd_url``,
+    ``logs_config.logs_dd_url``).

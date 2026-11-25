@@ -1,10 +1,22 @@
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
 load("@rules_go//go:def.bzl", "go_library")
-load("//bazel/rules:windows_resources.bzl", "win_resource")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
+load("//bazel/rules/windows:resources.bzl", "win_resource")
 
 package(default_package_metadata = ["//:package_metadata"])
 
 # gazelle:exclude version.h
+
+bool_flag(
+    name = "console",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "console_subsystem",
+    flag_values = {":console": "true"},
+    visibility = ["//cmd/systray:__subpackages__"],
+)
 
 win_resource(
     name = "rsrc",
@@ -37,10 +49,6 @@ go_library(
     }),
 )
 
-# It is possible to build this for SUBSYSTEM=console, but it is not done in CI.
-# We can add it if we need it.
-SUBSYSTEM = "windows"
-
 dd_agent_go_binary(
     name = "systray",
     out = "ddtray.exe",
@@ -50,13 +58,10 @@ dd_agent_go_binary(
     # Subtle: This should be passed to the C linker, so the -Wl is redundant,
     # but it is handled by the mingw driver instead of ld, so we still need
     # -Wl to pass it on a second layer deep.
-    gc_linkopts = [
-        "-linkmode=external",
-        "-extldflags=-Wl,--subsystem,%s" % SUBSYSTEM,
-    ],
+    gc_linkopts = ["-linkmode=external"] + select({
+        ":console_subsystem": ["-extldflags=-Wl,--subsystem,console"],
+        "//conditions:default": ["-extldflags=-Wl,--subsystem,windows"],
+    }),
     target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
-    x_defs = {
-        "github.com/DataDog/datadog-agent/cmd/systray/command/command.subsystem": SUBSYSTEM,
-    },
 )

@@ -1,0 +1,26 @@
+description: Cat concatenates files in the order specified, preserving content order.
+setup:
+  files:
+    - path: first.txt
+      content: |+
+        AAA
+      chmod: 0644
+    - path: second.txt
+      content: |+
+        BBB
+      chmod: 0644
+    - path: third.txt
+      content: |+
+        CCC
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat third.txt first.txt second.txt
+expect:
+  stdout: |+
+    CCC
+    AAA
+    BBB
+  stderr: ""
+  exit_code: 0

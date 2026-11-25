@@ -1,0 +1,17 @@
+description: -name '?' matches a single multibyte UTF-8 character.
+skip_assert_against_bash: true # filesystem encoding may differ
+setup:
+  files:
+    - path: dir/é
+      content: "accent"
+    - path: dir/ab
+      content: "two chars"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -name '?' -type f
+expect:
+  stdout: |+
+    dir/é
+  stderr: ""
+  exit_code: 0

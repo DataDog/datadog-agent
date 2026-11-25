@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 //go:generate $GOPATH/bin/include_headers pkg/network/ebpf/c/runtime/offsetguess-test.c pkg/ebpf/bytecode/build/runtime/offsetguess-test.c pkg/ebpf/c pkg/ebpf/c/protocols pkg/network/ebpf/c/runtime pkg/network/ebpf/c
@@ -192,7 +191,7 @@ func testOffsetGuess(t *testing.T) {
 	// but doesn't anymore
 	cfg.ProtocolClassificationEnabled = false
 
-	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
+	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir)
 	require.NoError(t, err, "could not read offset bpf module")
 	t.Cleanup(func() { offsetBuf.Close() })
 
@@ -311,7 +310,6 @@ func testOffsetGuess(t *testing.T) {
 	})
 
 	t.Run("only RTT offsets", func(t *testing.T) {
-		flake.Mark(t)
 		testOffsets(t, []offsetT{offsetRtt, offsetRttVar}, nil)
 	})
 

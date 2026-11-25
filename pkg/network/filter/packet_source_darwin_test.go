@@ -10,10 +10,15 @@ package filter
 import (
 	"net"
 	"net/netip"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+	"github.com/google/gopacket/pcap"
+	"github.com/google/gopacket/pcapgo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -33,6 +38,26 @@ func newTestInterfaceHandle(ifaceName string, linkType layers.LinkType, localAdd
 		goPacketLayerType: linkTypeToLayerType(linkType),
 		dirDecoder:        newDirectionDecoder(),
 		localAddrs:        localAddrs,
+	}
+}
+
+func TestDarwinPacketSourceInterfaceMatrix(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		flags    net.Flags
+		eligible bool
+	}{
+		{name: "lo0", flags: net.FlagLoopback, eligible: false},
+		{name: "en0", eligible: true},
+		{name: "en7", eligible: true},
+		{name: "utun0", eligible: true},
+		{name: "bridge0", eligible: false},
+		{name: "vlan0", eligible: false},
+		{name: "vmenet0", eligible: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.eligible, isEligibleInterface(net.Interface{Name: tc.name, Flags: tc.flags}))
+		})
 	}
 }
 
@@ -336,4 +361,122 @@ func TestLibpcapSource_BufferPool_DefaultSnapLen(t *testing.T) {
 	buf2 := ps.getBuffer()
 	assert.Equal(t, defaultSnapLen, cap(buf2))
 	ps.putBuffer(buf2)
+}
+
+func TestLibpcapSourceCapturesInterfaceIndex(t *testing.T) {
+	ps := &LibpcapSource{
+		interfaces: map[string]*interfaceHandle{"en0": {ifaceName: "en0", ifaceIndex: 14}},
+		exit:       make(chan struct{}),
+	}
+
+	assert.True(t, ps.CapturesInterfaceIndex(14))
+	assert.False(t, ps.CapturesInterfaceIndex(1), "an interface without a capture handle is not covered")
+	assert.False(t, ps.CapturesInterfaceIndex(0), "an unknown interface index is not covered")
+
+	close(ps.exit)
+	assert.False(t, ps.CapturesInterfaceIndex(14), "a closed source covers nothing")
+}
+
+// buildUDPPacket constructs an Ethernet + IPv4 + UDP packet to dstPort.
+func buildUDPPacket(dstPort uint16) []byte {
+	buf := gopacket.NewSerializeBuffer()
+	err := gopacket.SerializeLayers(buf, serializeOpts,
+		&layers.Ethernet{SrcMAC: zeroMAC, DstMAC: zeroMAC, EthernetType: layers.EthernetTypeIPv4},
+		&layers.IPv4{Version: 4, TTL: 64, Protocol: layers.IPProtocolUDP, SrcIP: net.IP{192, 0, 2, 1}, DstIP: net.IP{198, 51, 100, 1}},
+		&layers.UDP{SrcPort: 51000, DstPort: layers.UDPPort(dstPort)},
+		gopacket.Payload("dns"),
+	)
+	if err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
+}
+
+// openUDPCapture returns a handle reading a capture of UDP packets to ports.
+// A capture file stands in for an interface, since opening one needs root.
+func openUDPCapture(t *testing.T, ports ...uint16) *pcap.Handle {
+	path := filepath.Join(t.TempDir(), "udp.pcap")
+	f, err := os.Create(path)
+	require.NoError(t, err)
+	w := pcapgo.NewWriter(f)
+	require.NoError(t, w.WriteFileHeader(defaultSnapLen, layers.LinkTypeEthernet))
+	for _, port := range ports {
+		data := buildUDPPacket(port)
+		require.NoError(t, w.WritePacket(gopacket.CaptureInfo{CaptureLength: len(data), Length: len(data)}, data))
+	}
+	require.NoError(t, f.Close())
+	handle, err := pcap.OpenOffline(path)
+	require.NoError(t, err)
+	t.Cleanup(handle.Close)
+	return handle
+}
+
+func TestLibpcapSourceUpdatesBPFFilter(t *testing.T) {
+	handle := openUDPCapture(t, 443, 5300)
+	ps := &LibpcapSource{}
+	ih := &interfaceHandle{handle: handle, ifaceName: "test"}
+	for _, expr := range []string{"udp port 443", "udp port 5300", "not a filter"} {
+		ps.SetBPFFilter(expr)
+		ps.updateBPFFilter(ih)
+	}
+
+	// The last filter does not compile, so the one before it stays.
+	var ports []uint16
+	for {
+		data, _, err := handle.ZeroCopyReadPacketData()
+		if err != nil {
+			break
+		}
+		udp := gopacket.NewPacket(data, layers.LayerTypeEthernet, gopacket.NoCopy).Layer(layers.LayerTypeUDP).(*layers.UDP)
+		ports = append(ports, uint16(udp.DstPort))
+	}
+	assert.Equal(t, []uint16{5300}, ports)
+}
+
+func TestLibpcapSourceRetriesFailedBPFFilter(t *testing.T) {
+	ps := &LibpcapSource{}
+	ih := &interfaceHandle{handle: openUDPCapture(t), ifaceName: "test"}
+	ps.SetBPFFilter("udp port 443")
+	ps.updateBPFFilter(ih)
+	installed := ih.bpfFilter
+
+	ps.SetBPFFilter("not a filter")
+	ps.updateBPFFilter(ih)
+	assert.Same(t, installed, ih.bpfFilter, "a filter that fails to install is not taken as installed")
+	assert.Equal(t, bpfFilterRetryMin, ih.bpfFilterRetryDelay)
+	retry := ih.bpfFilterRetry
+	ps.updateBPFFilter(ih)
+	assert.Equal(t, retry, ih.bpfFilterRetry, "the filter is not retried before its backoff ends")
+
+	ih.bpfFilterRetry = time.Time{}
+	ps.updateBPFFilter(ih)
+	assert.Same(t, installed, ih.bpfFilter)
+	assert.Equal(t, 2*bpfFilterRetryMin, ih.bpfFilterRetryDelay, "a failed retry doubles the backoff")
+
+	ps.SetBPFFilter("udp port 5300")
+	ps.updateBPFFilter(ih)
+	assert.Equal(t, "udp port 5300", *ih.bpfFilter, "a new filter is installed without waiting out the backoff")
+	assert.Nil(t, ih.failedBPFFilter)
+}
+
+func TestLibpcapSourceIgnoresUnchangedBPFFilter(t *testing.T) {
+	ps := &LibpcapSource{}
+	ps.SetBPFFilter("port 53")
+	installed := ps.bpfFilter.Load()
+
+	ps.SetBPFFilter("port 53")
+	assert.Same(t, installed, ps.bpfFilter.Load())
+
+	ps.SetBPFFilter("port 53 or port 5353")
+	assert.Equal(t, "port 53 or port 5353", *ps.bpfFilter.Load())
+}
+
+func TestDarwinPacketInfoLengths(t *testing.T) {
+	info := &DarwinPacketInfo{
+		originalLen: 1500,
+		capturedLen: 256,
+	}
+
+	assert.Equal(t, 1500, info.OriginalLength())
+	assert.Equal(t, 256, info.CapturedLength())
 }

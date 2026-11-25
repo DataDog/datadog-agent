@@ -2,7 +2,7 @@
 .linux_tests:
   stage: source_test
   extends: .unit_test_base
-  needs: ["go_deps", "go_tools_deps"]
+  needs: ["setup_agent_version", "go_deps", "go_tools_deps"]
   rules:
     - !reference [.except_disable_unit_tests]
     - !reference [.fast_on_dev_branch_only]
@@ -36,8 +36,24 @@
       annotations:
         - $EXTERNAL_LINKS_PATH
 
+# `build:` so after_script's `bazel info` does not open BES.
+# A failed start must not fail coverage, and must not leave a BES backend with nothing listening.
+.conduit_on_coverage:
+  before_script:
+    - |
+      if $CI_PROJECT_DIR/tools/ci/conduit.sh start; then
+        echo 'build --bes_backend=grpc://127.0.0.1:8080' >> user.bazelrc
+        echo 'build --build_event_publish_all_actions' >> user.bazelrc
+        $CI_PROJECT_DIR/tools/ci/conduit.sh metadata >> user.bazelrc
+      else
+        echo "conduit failed to start; coverage will run without traces"
+      fi
+  after_script:
+    - $CI_PROJECT_DIR/tools/ci/conduit.sh stop || true
+    - !reference [.bazel:coverage:linux, after_script]
+
 tests_linux-x64-py3:
-  extends: [.bazel:runner:linux-amd64, .bazel:coverage:linux]
+  extends: [.bazel:runner:linux-amd64, .bazel:coverage:linux, .conduit_on_coverage]
 
 tests_linux-arm64-py3:
   extends: [.bazel:runner:linux-arm64, .bazel:coverage:linux]
@@ -106,13 +122,13 @@ new-e2e-unit-tests:
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
   script:
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
-    - dda inv -- -e new-e2e-tests.run --module-name test/e2e-framework --targets ./testing/utils --tags "e2eunit" --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS}
-    - dda inv -- -e new-e2e-tests.run --module-name test/e2e-framework --targets ./testing/e2e --tags "e2eunit" --junit-tar junit-${CI_JOB_ID}-suite.tgz ${EXTRA_PARAMS}
-    - dda inv -- -e new-e2e-tests.run --module-name test/new-e2e --targets ./tests/installer/windows --tags "e2eunit" --no-recursive --junit-tar junit-${CI_JOB_ID}-win-installer.tgz ${EXTRA_PARAMS}
+    - dda inv -- -e new-e2e-tests.run --module-name test/e2e-framework --targets ./testing/utils/infra --tags "e2eunit" --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS}
   after_script:
     - !reference [.upload_junit_source]
   variables:
     KUBERNETES_CPU_REQUEST: 6
+    # Fixed resources: GOMEMLIMIT is derived from the memory limit
+    DD_DISABLE_VPA: true
     GOMEMLIMIT: "${KUBERNETES_MEMORY_LIMIT}B"
     GOMAXPROCS: $KUBERNETES_CPU_REQUEST
     GIT_DEPTH: 1  # Overrides .linux_tests: this job does not use --only-impacted-packages or coverage cache
@@ -124,8 +140,8 @@ tests_gpu:
   extends: .linux_tests
   tags: ["gpu:a10-amd64"]
   rules:
-    - !reference [.on_gpu_integration_tests]
     - !reference [.except_disable_unit_tests]
+    - !reference [.on_gpu_integration_tests]
   allow_failure: true
   before_script:
     - !reference [.retrieve_linux_go_deps]

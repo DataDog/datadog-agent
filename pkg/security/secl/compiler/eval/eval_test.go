@@ -23,9 +23,10 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/parser"
 )
 
-func newOptsWithParams(constants map[string]interface{}, legacyFields map[Field]Field) *Opts {
+func newOptsWithParams(constants map[string]ast.Node, legacyFields map[Field]Field) *Opts {
 	opts := &Opts{
 		Constants:    constants,
 		LegacyFields: legacyFields,
@@ -44,7 +45,7 @@ func newOptsWithParams(constants map[string]interface{}, legacyFields map[Field]
 }
 
 func parseRule(expr string, model Model, opts *Opts) (*Rule, error) {
-	pc := ast.NewParsingContext(false)
+	pc := parser.NewParsingContext(false)
 	rule, err := NewRule("id1", expr, pc, opts)
 	if err != nil {
 		return nil, fmt.Errorf("parsing error: %v", err)
@@ -113,6 +114,57 @@ func TestBoolError(t *testing.T) {
 	_, err = NewRuleEvaluator(rule.GetAst(), model, opts)
 	if err == nil || err.(*ErrAstToEval).Pos.Column != 38 {
 		t.Fatal("should report a bool type error")
+	}
+}
+
+func TestCIDRArrayScalarComparisonError(t *testing.T) {
+	model := &testModel{}
+
+	opts := newOptsWithParams(nil, nil)
+	rule, err := parseRule(`network.cidrs < 10.0.0.0/8`, model, opts)
+	if rule == nil {
+		t.Fatal(err)
+	}
+
+	// an ordering operator on an array of CIDRs is not supported, it used to panic
+	if _, err = NewRuleEvaluator(rule.GetAst(), model, opts); err == nil {
+		t.Fatal("should report an unknown operator error")
+	}
+}
+
+func TestIdentArrayError(t *testing.T) {
+	for expr, expected := range map[string]string{
+		`process.uid in [process.gid]`: "`process.gid` is not a constant",
+		// the family of an array is the one of its first member
+		`open.flags in [O_CREAT, true]`: "array of int expected",
+		`open.flags in [true, O_CREAT]`: "array of bool expected",
+	} {
+		_, err := parseRule(expr, &testModel{}, newOptsWithParams(testConstants, nil))
+		if err == nil || !strings.Contains(err.Error(), expected) {
+			t.Fatalf("%s: should report `%s`, got `%v`", expr, expected, err)
+		}
+	}
+}
+
+func TestCompareLeftOperandError(t *testing.T) {
+	for expr, expected := range map[string]string{
+		`["a", "b"] == "a"`:                        "string expected: 1:1",
+		`process.uid == 0 && ["a"] =~ "a*"`:        "string expected: 1:21",
+		`[1.1.1.1, 10.0.0.0/8] != 1.1.1.1`:         "struct expected: 1:1",
+		`process.array.flag in [true]`:             "bool expected: 1:1",
+		`process.uid == 0 && [true] not in [true]`: "bool expected: 1:21",
+	} {
+		model := &testModel{}
+		opts := newOptsWithParams(testConstants, nil)
+		rule, err := parseRule(expr, model, opts)
+		if rule == nil {
+			t.Fatal(err)
+		}
+
+		_, err = NewRuleEvaluator(rule.GetAst(), model, opts)
+		if err == nil || err.Error() != expected {
+			t.Errorf("%s: should report `%s`, got `%v`", expr, expected, err)
+		}
 	}
 }
 
@@ -385,9 +437,16 @@ func TestVariables(t *testing.T) {
 	}{
 		{Expr: `process.name == "/proc/${pid}/maps/${str}"`, Expected: true},
 		{Expr: `process.name == "/proc/${pid}/maps/${str}3"`, Expected: false},
-		{Expr: `process.name == "/proc/${pid}/maps/${str"`, Expected: false},
-		{Expr: `process.name == "/proc/${pid/maps/${str"`, Expected: false},
 		{Expr: `process.pid == ${pid}`, Expected: true},
+	}
+
+	// a `${` left open in a string is a syntax error
+	for _, expr := range []string{
+		`process.name == "/proc/${pid}/maps/${str"`,
+		`process.name == "/proc/${pid/maps/${str"`,
+	} {
+		_, _, err := eval(NewContext(event), expr)
+		assert.ErrorContains(t, err, "invalid variable", expr)
 	}
 
 	for _, test := range tests {
@@ -567,6 +626,11 @@ func TestPartial(t *testing.T) {
 		{Expr: `process.name == "abc" || ^process.uid == 0`, Field: "process.uid", IsDiscarder: false},
 		{Expr: `process.name == "abc" || ^process.uid != 0`, Field: "process.uid", IsDiscarder: false},
 		{Expr: `process.name =~ "/usr/sbin/*" && process.uid == 0 && process.is_root`, Field: "process.uid", IsDiscarder: true},
+
+		// an event with the same field value and another uid matches
+		{Expr: `!(open.filename == "xyz" && process.uid == 456)`, Field: "open.filename", IsDiscarder: false},
+		// an event with the same field value and another uid matches
+		{Expr: `process.uid + 1 - 1 == process.gid`, Field: "process.gid", IsDiscarder: false},
 	}
 
 	for _, test := range tests {
@@ -630,8 +694,8 @@ func TestConstants(t *testing.T) {
 
 func TestMacroList(t *testing.T) {
 	model := &testModel{}
-	pc := ast.NewParsingContext(false)
-	opts := newOptsWithParams(make(map[string]interface{}), nil)
+	pc := parser.NewParsingContext(false)
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
 
 	macro, err := NewMacro(
 		"list",
@@ -657,10 +721,32 @@ func TestMacroList(t *testing.T) {
 	}
 }
 
+func TestMacroEmptyValues(t *testing.T) {
+	model := &testModel{}
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
+
+	macro, err := NewStringValuesMacro("list", nil, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts.MacroStore.Add(macro)
+
+	expr := `open.filename in list`
+	rule, err := parseRule(expr, model, opts)
+	if err != nil {
+		t.Fatalf("error while evaluating `%s`: %s", expr, err)
+	}
+
+	ctx := NewContext(&testEvent{open: testOpen{filename: "/etc/shadow"}})
+	if rule.Eval(ctx) {
+		t.Fatalf("should return false")
+	}
+}
+
 func TestMacroExpression(t *testing.T) {
 	model := &testModel{}
-	pc := ast.NewParsingContext(false)
-	opts := newOptsWithParams(make(map[string]interface{}), nil)
+	pc := parser.NewParsingContext(false)
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
 
 	macro, err := NewMacro(
 		"is_passwd",
@@ -698,8 +784,8 @@ func TestMacroExpression(t *testing.T) {
 
 func TestMacroPartial(t *testing.T) {
 	model := &testModel{}
-	pc := ast.NewParsingContext(false)
-	opts := newOptsWithParams(make(map[string]interface{}), nil)
+	pc := parser.NewParsingContext(false)
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
 
 	macro, err := NewMacro(
 		"is_passwd",
@@ -759,8 +845,8 @@ func TestNestedMacros(t *testing.T) {
 	}
 
 	model := &testModel{}
-	pc := ast.NewParsingContext(false)
-	opts := newOptsWithParams(make(map[string]interface{}), nil)
+	pc := parser.NewParsingContext(false)
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
 
 	macro1, err := NewMacro(
 		"sensitive_files",
@@ -795,6 +881,43 @@ func TestNestedMacros(t *testing.T) {
 	if !rule.Eval(ctx) {
 		t.Fatalf("should return true")
 	}
+}
+
+func TestNestedMacrosPartial(t *testing.T) {
+	model := &testModel{}
+	pc := parser.NewParsingContext(false)
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
+
+	for _, def := range []struct{ id, expr string }{
+		{"is_passwd", `open.filename == "/etc/passwd" || open.filename == "/etc/shadow"`},
+		{"httpd_passwd", `is_passwd && process.name == "httpd"`},
+	} {
+		macro, err := NewMacro(def.id, def.expr, model, pc, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		opts.MacroStore.Add(macro)
+	}
+
+	rule, err := parseRule(`httpd_passwd`, model, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	event := &testEvent{
+		process: testProcess{name: "nginx"},
+		open:    testOpen{filename: "/etc/passwd"},
+	}
+	ctx := NewContext(event)
+
+	result, err := rule.PartialEval(ctx, "open.filename")
+	assert.NoError(t, err)
+	assert.True(t, result, "open.filename shouldn't be a discarder")
+
+	event.open.filename = "/etc/group"
+	result, err = rule.PartialEval(ctx, "open.filename")
+	assert.NoError(t, err)
+	assert.False(t, result, "open.filename should be a discarder")
 }
 
 func TestFieldValidator(t *testing.T) {
@@ -1464,7 +1587,7 @@ func TestFieldValues(t *testing.T) {
 		{Expr: `process.name == "/proc/1/maps"`, Field: "process.name", Expected: FieldValue{Value: "/proc/1/maps", Type: ScalarValueType}},
 		{Expr: `process.name =~ "/proc/1/*"`, Field: "process.name", Expected: FieldValue{Value: "/proc/1/*", Type: GlobValueType}},
 		{Expr: `process.name =~ r"/proc/1/.*"`, Field: "process.name", Expected: FieldValue{Value: "/proc/1/.*", Type: RegexpValueType}},
-		{Expr: `process.name == "/proc/${pid}/maps"`, Field: "process.name", Expected: FieldValue{Value: "/proc/${pid}/maps", Type: VariableValueType}},
+		{Expr: `process.name == "/proc/${pid}/maps"`, Field: "process.name", Expected: FieldValue{Value: "", Type: VariableValueType}},
 		{Expr: `open.filename =~ "/proc/1/*"`, Field: "open.filename", Expected: FieldValue{Value: "/proc/1/*", Type: PatternValueType}},
 	}
 
@@ -1487,6 +1610,22 @@ func TestFieldValues(t *testing.T) {
 	}
 }
 
+// A field written `%{process.name}` is the same field as written bare.
+func TestFieldReferenceFields(t *testing.T) {
+	rule, err := parseRule(`%{process.name} == "test" && process.uid == 1000`, &testModel{}, newOptsWithParams(testConstants, nil))
+	if !assert.NoError(t, err) {
+		return
+	}
+	assert.ElementsMatch(t, []Field{"process.name", "process.uid"}, rule.GetFields())
+
+	// so is a field interpolated in a string
+	rule, err = parseRule(`"pid:%{process.pid}" != "" && process.uid == 1000`, &testModel{}, newOptsWithParams(testConstants, nil))
+	if !assert.NoError(t, err) {
+		return
+	}
+	assert.ElementsMatch(t, []Field{"process.pid", "process.uid"}, rule.GetFields())
+}
+
 func TestFieldReferenceSyntax(t *testing.T) {
 	// Test the new %{field} syntax for explicit field references
 	event := &testEvent{
@@ -1501,10 +1640,11 @@ func TestFieldReferenceSyntax(t *testing.T) {
 	}
 
 	tests := []struct {
-		Expr        string
-		Expected    bool
-		ShouldError bool
-		Desc        string
+		Expr          string
+		Expected      bool
+		ShouldError   bool
+		ErrorContains string
+		Desc          string
 	}{
 		{
 			Expr:     `%{process.name} == "test"`,
@@ -1527,9 +1667,16 @@ func TestFieldReferenceSyntax(t *testing.T) {
 			Desc:     "multiple field references in string",
 		},
 		{
-			Expr:        `${process.pid} > 0`,
-			ShouldError: true,
-			Desc:        "variable syntax without variable should fail (no fallback)",
+			Expr:          `${process.pid} > 0`,
+			ShouldError:   true,
+			ErrorContains: "use %{process.pid} to reference the field",
+			Desc:          "variable syntax without variable should fail (no fallback)",
+		},
+		{
+			Expr:          `"${process.name}" == "test"`,
+			ShouldError:   true,
+			ErrorContains: "use %{process.name} to reference the field",
+			Desc:          "variable syntax in string interpolation hints at the field",
 		},
 		{
 			Expr:        `${nonexistent.variable} == "test"`,
@@ -1551,6 +1698,12 @@ func TestFieldReferenceSyntax(t *testing.T) {
 			if test.ShouldError {
 				if err == nil {
 					t.Fatalf("expected error for `%s` but got none", test.Expr)
+				}
+				if test.ErrorContains != "" && !strings.Contains(err.Error(), test.ErrorContains) {
+					t.Fatalf("expected error for `%s` to contain `%s`, got `%s`", test.Expr, test.ErrorContains, err)
+				}
+				if test.ErrorContains == "" && strings.Contains(err.Error(), "to reference the field") {
+					t.Fatalf("unexpected field hint for `%s`: `%s`", test.Expr, err)
 				}
 				return
 			}
@@ -1719,6 +1872,7 @@ func TestMatchingSubExprs(t *testing.T) {
 		{Expr: `network.ips allin [192.168.0.0/16, 192.168.0.0/24]`, Expected: `<b>network.ips</b> allin [<b>192.168.0.0/16, 192.168.0.0/24</b>]`},
 		{Expr: `process.name in [~"aaals*", ~"ls*"]`, Expected: `<b>process.name</b> in [~"aaals*", ~<b>"ls*"</b>]`},
 		{Expr: `process.name in [~"aaals*", ~"ls*"]`, Expected: `<b>process.name</b> in [~"aaals*", ~<b>"ls*"</b>]`},
+		{Expr: `process.is_root || process.list.key == 10 || process.uid == 22`, Expected: `<b>process.is_root</b> || process.list.key == 10 || process.uid == 22`},
 
 		// need to add varname in the evaluators
 		//{Expr: `true && process.pid == ${pid}`, Expected: `true && <b>process.pid</b> == ${pid}`},
@@ -1896,7 +2050,7 @@ func TestMatchingSubExprOperandSwap(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			evaluator, err := Or(test.A, test.B, NewState(&testModel{}, "", nil))
+			evaluator, err := Or(test.A, test.B, NewState(&testModel{}))
 			if err != nil {
 				t.Fatalf("failed to build the `Or` evaluator: %s", err)
 			}
@@ -2305,5 +2459,231 @@ func BenchmarkPool(b *testing.B) {
 			b.Fatal("unexpected result")
 		}
 		pool.pool.Put(ctx)
+	}
+}
+
+func TestDict(t *testing.T) {
+	event := &testEvent{
+		process: testProcess{
+			name: "ls",
+			env:  map[string]string{"PATH": "/usr/bin:/bin", "HOME": "/root", "EMPTY": ""},
+			array: []*testItem{
+				{key: 1000, env: map[string]string{"PATH": "/usr/bin", "LANG": "C"}},
+				{key: 1002, env: map[string]string{"PATH": "/opt/bin"}},
+			},
+		},
+	}
+
+	tests := []struct {
+		Expr     string
+		Expected bool
+	}{
+		{Expr: `process.env["PATH"] == "/usr/bin:/bin"`, Expected: true},
+		{Expr: `process.env["PATH"] == "/root"`, Expected: false},
+		{Expr: `process.env["PATH"] != "/root"`, Expected: true},
+		{Expr: `"/root" == process.env["HOME"]`, Expected: true},
+		{Expr: `process.env["PATH"] == process.env["HOME"]`, Expected: false},
+		{Expr: `process.env["EMPTY"] == ""`, Expected: true},
+		{Expr: `process.env["MISSING"] == ""`, Expected: true},
+		{Expr: `process.env["path"] == "/usr/bin:/bin"`, Expected: false},
+		{Expr: `process.env["PATH"] =~ "/usr/*"`, Expected: true},
+		{Expr: `process.env["PATH"] =~ r"^/usr/bin:"`, Expected: true},
+		{Expr: `process.env["HOME"] in ["/root", "/home/*"]`, Expected: true},
+		{Expr: `process.env["HOME"] not in [~"/home/*"]`, Expected: true},
+		{Expr: `process.env["HOME"] == "/root" && process.name == "ls"`, Expected: true},
+		{Expr: `%{process.env["HOME"]} == "/root"`, Expected: true},
+		{Expr: `process.name == %{process.env["HOME"]}`, Expected: false},
+		{Expr: `process . env [ "HOME" ] == "/root"`, Expected: true},
+
+		{Expr: `process.array.env["PATH"] == "/opt/bin"`, Expected: true},
+		{Expr: `process.array.env["LANG"] == "C"`, Expected: true},
+		{Expr: `process.array.env["PATH"] == "/root"`, Expected: false},
+		{Expr: `"/usr/bin" in process.array.env["PATH"]`, Expected: true},
+		{Expr: `process.array[A].env["PATH"] == "/opt/bin" && process.array[A].key == 1002`, Expected: true},
+		{Expr: `process.array[A].env["PATH"] == "/opt/bin" && process.array[A].key == 1000`, Expected: false},
+		{Expr: `process.array[A].env["LANG"] == "C" && process.array[A].env["PATH"] == "/usr/bin"`, Expected: true},
+		{Expr: `process.array[A].env["LANG"] == "C" && process.array[A].env["PATH"] == "/opt/bin"`, Expected: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Expr, func(t *testing.T) {
+			ctx := NewContext(event)
+
+			result, _, err := eval(ctx, test.Expr)
+			if err != nil {
+				t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+			}
+
+			if result != test.Expected {
+				t.Errorf("expected result `%t` not found, got `%t`\n%s", test.Expected, result, test.Expr)
+			}
+		})
+	}
+}
+
+// A subscript can be any integer or string, evaluated with the field it
+// subscripts.
+func TestSubscript(t *testing.T) {
+	event := &testEvent{
+		process: testProcess{
+			name: "ls",
+			uid:  1,
+			env:  map[string]string{"ls": "list", "1": "one", "ls_1": "both"},
+			array: []*testItem{
+				{key: 1000, value: "ls", env: map[string]string{"ls": "first"}},
+				{key: 1002, value: "PATH", env: map[string]string{"ls": "second"}},
+			},
+		},
+	}
+
+	tests := []struct {
+		Expr     string
+		Expected bool
+	}{
+		{Expr: `process.env[process.name] == "list"`, Expected: true},
+		{Expr: `process.env[%{process.name}] == "list"`, Expected: true},
+		{Expr: `process.env["%{process.name}_%{process.uid}"] == "both"`, Expected: true},
+		{Expr: `process.env["%{process.uid}"] == "one"`, Expected: true},
+		{Expr: `process.env[process.name] == process.env["ls"]`, Expected: true},
+		{Expr: `process.array.env[process.name] == "second"`, Expected: true},
+		{Expr: `process.array[A].env[process.name] == "first" && process.array[A].key == 1000`, Expected: true},
+		{Expr: `process.array[A].env[process.name] == "first" && process.array[A].key == 1002`, Expected: false},
+		{Expr: `process.array.key[process.uid] == 1002`, Expected: true},
+		{Expr: `process.array.key[process.uid - 1] == 1000`, Expected: true},
+		{Expr: `process.array.key[process.uid + 1] == 0`, Expected: true},
+		{Expr: `process.array.value[1 - process.uid] == "ls"`, Expected: true},
+		{Expr: `process.array.key[1 & 3] == 1002`, Expected: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Expr, func(t *testing.T) {
+			ctx := NewContext(event)
+
+			result, _, err := eval(ctx, test.Expr)
+			if !assert.NoError(t, err) {
+				return
+			}
+			assert.Equal(t, test.Expected, result)
+		})
+	}
+
+	// the fields of a subscript are fields of the rule
+	rule, err := parseRule(`process.env[process.name] == "list"`, &testModel{}, newOptsWithParams(testConstants, nil))
+	if assert.NoError(t, err) {
+		assert.ElementsMatch(t, []Field{"process.env", "process.name"}, rule.GetFields())
+	}
+}
+
+func TestSubscriptErrors(t *testing.T) {
+	tests := []struct {
+		Expr  string
+		Error string
+	}{
+		{Expr: `process.env[process.array.value] == "a"`, Error: "a subscript is an integer or a string"},
+		{Expr: `process.env[~"PA*"] == "a"`, Error: "a subscript is an integer or a string"},
+		{Expr: `process.env[r"PA.*"] == "a"`, Error: "a subscript is an integer or a string"},
+		{Expr: `process.array.key[1s] == 1`, Error: "a subscript is an integer or a string"},
+		{Expr: `process.env[process.uid == 1] == "a"`, Error: "expected `]`"},
+		{Expr: `process.env[process.uid] == "a"`, Error: "field 'process.env' is not an array"},
+		{Expr: `process.array.key[process.name] == 1`, Error: "field 'process.array.key' is not a dictionary"},
+		{Expr: `process.env[process.unknown] == "a"`, Error: "field `process.unknown` not found"},
+		{Expr: `process.env[process.env] == "a"`, Error: "a subscript is an integer or a string"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Expr, func(t *testing.T) {
+			_, err := parseRule(test.Expr, &testModel{}, newOptsWithParams(testConstants, nil))
+			assert.ErrorContains(t, err, test.Error)
+		})
+	}
+}
+
+func TestDictIn(t *testing.T) {
+	event := &testEvent{
+		process: testProcess{
+			name: "ls",
+			env:  map[string]string{"PATH": "/bin", "EMPTY": "", "LD_PRELOAD": "x.so", "ls": "list"},
+			array: []*testItem{
+				{key: 1000, value: "MISSING", env: map[string]string{"LANG": "C"}},
+				{key: 1002, value: "PATH", env: map[string]string{"TERM": "xterm"}},
+			},
+		},
+	}
+
+	tests := []struct {
+		Expr     string
+		Expected bool
+	}{
+		{Expr: `"PATH" in process.env`, Expected: true},
+		{Expr: `"EMPTY" in process.env`, Expected: true},
+		{Expr: `"MISSING" in process.env`, Expected: false},
+		{Expr: `"path" in process.env`, Expected: false},
+		{Expr: `"MISSING" not in process.env`, Expected: true},
+		{Expr: `"PATH" not in process.env`, Expected: false},
+		{Expr: `~"LD_*" in process.env`, Expected: true},
+		{Expr: `~"XX_*" in process.env`, Expected: false},
+		{Expr: `r"^LD_P" in process.env`, Expected: true},
+		{Expr: `["MISSING", "PATH"] in process.env`, Expected: true},
+		{Expr: `["MISSING", "OTHER"] in process.env`, Expected: false},
+		{Expr: `["MISSING", ~"LD_*"] in process.env`, Expected: true},
+		{Expr: `[r"^XX", "MISSING"] not in process.env`, Expected: true},
+		{Expr: `process.name in process.env`, Expected: true},
+		{Expr: `"%{process.name}" in process.env`, Expected: true},
+		{Expr: `process.array.value in process.env`, Expected: true},
+		{Expr: `"LANG" in process.array.env`, Expected: true},
+		{Expr: `"HOME" in process.array.env`, Expected: false},
+		{Expr: `"TERM" in process.array[A].env && process.array[A].key == 1002`, Expected: true},
+		{Expr: `"TERM" in process.array[A].env && process.array[A].key == 1000`, Expected: false},
+		{Expr: `["PATH", "EMPTY"] allin process.env`, Expected: true},
+		{Expr: `["PATH", "MISSING"] allin process.env`, Expected: false},
+		{Expr: `"PATH" allin process.env`, Expected: true},
+		{Expr: `["PATH", ~"LD_*"] allin process.env`, Expected: true},
+		{Expr: `["PATH", ~"XX_*"] allin process.env`, Expected: false},
+		{Expr: `process.array.value allin process.env`, Expected: false},
+		{Expr: `["LANG"] allin process.array.env`, Expected: true},
+		{Expr: `["LANG", "TERM"] allin process.array.env`, Expected: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Expr, func(t *testing.T) {
+			result, _, err := eval(NewContext(event), test.Expr)
+			if !assert.NoError(t, err) {
+				return
+			}
+			assert.Equal(t, test.Expected, result)
+		})
+	}
+
+	_, err := parseRule(`process.name == "ls" && 1 in process.env`, &testModel{}, newOptsWithParams(testConstants, nil))
+	assert.ErrorContains(t, err, "string expected: 1:25")
+}
+
+func TestDictFields(t *testing.T) {
+	rule, err := parseRule(`process.env["HOME"] == "/root" && process.array[A].env["PATH"] == "/usr/bin"`, &testModel{}, newOptsWithParams(testConstants, nil))
+	if !assert.NoError(t, err) {
+		return
+	}
+	assert.ElementsMatch(t, []Field{"process.env", "process.array.env"}, rule.GetFields())
+}
+
+func TestDictErrors(t *testing.T) {
+	tests := []struct {
+		Expr  string
+		Error string
+	}{
+		{Expr: `"/root" == process.env`, Error: `string expected`},
+		{Expr: `"/root" == %{process.env}`, Error: `string expected`},
+		{Expr: `process.name["HOME"] == "/root"`, Error: `field 'process.name' is not a dictionary`},
+		{Expr: `%{process.name["HOME"]} == "/root"`, Error: `field 'process.name' is not a dictionary`},
+		{Expr: `"home:%{process.env}" == "home:/root"`, Error: `field type not supported 'process.env'`},
+		{Expr: `process.env[1] == "/root"`, Error: `field 'process.env' is not an array`},
+		{Expr: `process.unknown["HOME"] == "/root"`, Error: "field `process.unknown` not found"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Expr, func(t *testing.T) {
+			_, err := parseRule(test.Expr, &testModel{}, newOptsWithParams(testConstants, nil))
+			assert.ErrorContains(t, err, test.Error)
+		})
 	}
 }

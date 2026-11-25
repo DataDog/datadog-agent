@@ -10,6 +10,7 @@ go_library(
         "//pkg/obfuscate",
         "//pkg/proto/pbgo/trace",
         "//pkg/trace/config",
+        "//pkg/trace/filters",
         "//pkg/trace/log",
         "//pkg/trace/stats",
         "//pkg/trace/traceutil",
@@ -23,6 +24,7 @@ dd_agent_go_test(
     name = "stats_test",
     srcs = [
         "otel_benchmark_test.go",
+        "otel_tag_lookup_benchmark_test.go",
         "otel_util_test.go",
     ],
     embed = [":stats"],

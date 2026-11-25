@@ -624,15 +624,6 @@ func TestNormalizeTrace(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestIsValidStatusCode(t *testing.T) {
-	assert := assert.New(t)
-	assert.True(isValidStatusCode("100"))
-	assert.True(isValidStatusCode("599"))
-	assert.False(isValidStatusCode("99"))
-	assert.False(isValidStatusCode("600"))
-	assert.False(isValidStatusCode("Invalid status code"))
-}
-
 func TestNormalizeChunkPopulatingOrigin(t *testing.T) {
 	assert := assert.New(t)
 	root := newTestSpan()
@@ -694,11 +685,86 @@ func TestTagDecisionMaker(t *testing.T) {
 	chunk.Spans = []*pb.Span{newTestSpan(), newTestSpan(), newTestSpan()}
 	chunk.Spans[0].Metrics = nil
 	chunk.Spans[2].Metrics = nil
-	traceutil.SetMeta(chunk.Spans[1], tagDecisionMaker, "right")
-	traceutil.SetMeta(chunk.Spans[2], tagDecisionMaker, "wrong")
+	traceutil.SetMeta(chunk.Spans[1], tagDecisionMaker, "-3")
+	traceutil.SetMeta(chunk.Spans[2], tagDecisionMaker, "-8")
 	setChunkAttributes(chunk, root)
-	assert.Equal("right", chunk.Tags[tagDecisionMaker])
-	assert.Equal("right", chunk.Spans[1].Meta[tagDecisionMaker])
+	assert.Equal("-3", chunk.Tags[tagDecisionMaker])
+	assert.Equal("-3", chunk.Spans[1].Meta[tagDecisionMaker])
+}
+
+// TestTagDecisionMakerPrefersRealDecision checks that "-0", the tracer's startup fallback, is promoted
+// only when no other decision maker is present on the chunk, regardless of span order.
+func TestTagDecisionMakerPrefersRealDecision(t *testing.T) {
+	tests := []struct {
+		name     string
+		dms      []string
+		expected string
+	}{
+		{"default then rule", []string{"-0", "-3"}, "-3"},
+		{"rule then default", []string{"-3", "-0"}, "-3"},
+		{"first real decision wins", []string{"-0", "-3", "-8"}, "-3"},
+		{"only default", []string{"", "-0", "-0"}, "-0"},
+		{"zero-valued default", []string{"-00", "-3"}, "-3"},
+		{"invalid skipped", []string{"-0", "invalid", "-3"}, "-3"},
+		{"only invalid", []string{"invalid", "-"}, ""},
+		{"no decision maker", []string{"", ""}, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := newTestSpan()
+			chunk := testutil.TraceChunkWithSpan(root)
+			chunk.Spans = nil
+			for _, dm := range tt.dms {
+				s := newTestSpan()
+				if dm != "" {
+					traceutil.SetMeta(s, tagDecisionMaker, dm)
+				}
+				chunk.Spans = append(chunk.Spans, s)
+			}
+			setChunkAttributes(chunk, root)
+			dm, ok := chunk.Tags[tagDecisionMaker]
+			assert.Equal(t, tt.expected != "", ok)
+			assert.Equal(t, tt.expected, dm)
+		})
+	}
+}
+
+// TestTagDecisionMakerChunkDefault checks that a chunk-level decision maker of mechanism 0 ("-0" or
+// "0") is treated as missing, so that a real decision on the spans replaces it, while any other
+// chunk-level value is kept.
+func TestTagDecisionMakerChunkDefault(t *testing.T) {
+	tests := []struct {
+		name     string
+		chunkDM  string
+		spanDMs  []string
+		expected string
+	}{
+		{"default replaced by span decision", "-0", []string{"-0", "-3"}, "-3"},
+		{"bare zero replaced by span decision", "0", []string{"-3"}, "-3"},
+		{"zero-valued default replaced", "-00", []string{"-8"}, "-8"},
+		{"default kept without span decision", "-0", []string{""}, "-0"},
+		{"default kept when spans only have invalid", "-0", []string{"invalid"}, "-0"},
+		{"default kept when spans only have default", "-0", []string{"-0"}, "-0"},
+		{"real chunk decision kept", "-3", []string{"-8"}, "-3"},
+		{"real chunk decision kept over span default", "-3", []string{"-0"}, "-3"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := newTestSpan()
+			chunk := testutil.TraceChunkWithSpan(root)
+			chunk.Tags = map[string]string{tagDecisionMaker: tt.chunkDM}
+			chunk.Spans = nil
+			for _, dm := range tt.spanDMs {
+				s := newTestSpan()
+				if dm != "" {
+					traceutil.SetMeta(s, tagDecisionMaker, dm)
+				}
+				chunk.Spans = append(chunk.Spans, s)
+			}
+			setChunkAttributes(chunk, root)
+			assert.Equal(t, tt.expected, chunk.Tags[tagDecisionMaker])
+		})
+	}
 }
 
 // TestTagDecisionMakerNilChunkTags covers a v0.7 payload that omits the chunk
@@ -1037,21 +1103,28 @@ func TestNormalizeSpanLinkNameV1(t *testing.T) {
 	assert.Equal(t, linkName, "valid_name")
 }
 
-// TestNormalizeTraceChunkV1TraceIDLength verifies that normalizeTraceChunkV1
-// coerces a chunk TraceID to exactly 16 bytes, so downstream fixed-offset slices
-// (LegacyTraceID's TraceID[8:], the probabilistic sampler's TraceID[:8]) cannot
-// panic on a malformed/truncated v1.0 payload. A short ID is right-aligned
-// (big-endian zero-pad), an over-long ID keeps its low-order 16 bytes.
-func TestNormalizeTraceChunkV1TraceIDLength(t *testing.T) {
+// TestNormalizeTraceChunkV1TraceID verifies that normalizeTraceChunkV1 coerces a chunk TraceID
+// to exactly 16 bytes, so downstream fixed-offset slices (LegacyTraceID's TraceID[8:], the
+// probabilistic sampler's TraceID[:8]) cannot panic on a malformed/truncated v1.0 payload. A short
+// ID is right-aligned (big-endian zero-pad), an over-long ID keeps its low-order 16 bytes.
+// Like the legacy normalize, a zero trace ID drops the chunk as TraceIDZero; all 128 bits are
+// checked, so an ID whose low-order 64 bits are zero is a valid W3C/OTel trace ID and is kept.
+func TestNormalizeTraceChunkV1TraceID(t *testing.T) {
 	cases := []struct {
-		name string
-		tid  []byte
-		want []byte
+		name     string
+		tid      []byte
+		want     []byte
+		wantDrop bool
 	}{
-		{"empty", []byte{}, make([]byte, 16)},
-		{"short", []byte{1, 2, 3, 4}, []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4}},
-		{"exact", []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}},
-		{"overlong", []byte{99, 99, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}},
+		{"short", []byte{1, 2, 3, 4}, []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4}, false},
+		{"exact", []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, false},
+		{"overlong", []byte{99, 99, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, false},
+		{"low-64-bits-zero", []byte{1, 2, 3, 4, 5, 6, 7, 8, 0, 0, 0, 0, 0, 0, 0, 0}, []byte{1, 2, 3, 4, 5, 6, 7, 8, 0, 0, 0, 0, 0, 0, 0, 0}, false},
+		{"high-64-bits-zero", []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}, []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}, false},
+		{"all-zero", make([]byte, 16), nil, true},
+		{"empty", []byte{}, nil, true},
+		{"nil", nil, nil, true},
+		{"short-zero", []byte{0, 0, 0, 0}, nil, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1063,8 +1136,14 @@ func TestNormalizeTraceChunkV1TraceIDLength(t *testing.T) {
 				TraceID: tc.tid,
 				Spans:   []*idx.InternalSpan{newTestSpanV1(st)},
 			}
-			require.NoError(t, a.normalizeTraceChunkV1(ts, chunk))
-			assert.Len(t, chunk.TraceID, 16)
+			err := a.normalizeTraceChunkV1(ts, chunk)
+			if tc.wantDrop {
+				require.ErrorContains(t, err, "reason:trace_id_zero")
+				assert.Equal(t, tsDropped(&info.TracesDropped{TraceIDZero: *atomic.NewInt64(1)}), ts)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, newTagStats(), ts)
 			assert.Equal(t, tc.want, chunk.TraceID)
 			// Downstream fixed-offset slices must not panic after normalization.
 			assert.NotPanics(t, func() {

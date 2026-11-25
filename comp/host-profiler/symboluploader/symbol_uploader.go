@@ -28,17 +28,17 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/zstd"
 	lru "github.com/elastic/go-freelru"
 	"go.opentelemetry.io/ebpf-profiler/libpf"
 	"go.opentelemetry.io/ebpf-profiler/reporter"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/cgroup"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/cgroup"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/pclntab"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/pipeline"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbol"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbolcopier"
+	"github.com/DataDog/datadog-agent/pkg/zstd"
 )
 
 const (
@@ -69,14 +69,13 @@ const (
 )
 
 type DatadogSymbolUploader struct {
-	symbolEndpoints       []SymbolEndpoint
-	intakeURLs            []string
-	version               string
-	name                  string
-	dryRun                bool
-	uploadDynamicSymbols  bool
-	uploadGoPCLnTab       bool
-	compressDebugSections bool
+	symbolEndpoints      []SymbolEndpoint
+	intakeURLs           []string
+	version              string
+	name                 string
+	dryRun               bool
+	uploadDynamicSymbols bool
+	uploadGoPCLnTab      bool
 
 	uploadCache         *lru.SyncedLRU[libpf.FileID, struct{}]
 	client              *http.Client
@@ -84,6 +83,7 @@ type DatadogSymbolUploader struct {
 	symbolQueryInterval time.Duration
 	retrievalQueue      chan *reporter.ExecutableMetadata
 	pipeline            pipeline.Pipeline[*reporter.ExecutableMetadata]
+	reporter            *uploadReporter
 	mut                 sync.Mutex
 	biggestBinarySize   int64
 }
@@ -115,8 +115,6 @@ func NewDatadogSymbolUploader(ctx context.Context, cfg *SymbolUploaderConfig) (*
 		return nil, fmt.Errorf("failed to create cache: %w", err)
 	}
 
-	compressDebugSections := !cfg.DisableDebugSectionCompression && CheckObjcopyZstdSupport(ctx)
-
 	httpClient := &http.Client{Timeout: uploadTimeout}
 	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
 	if ok && !cfg.UseHTTP2 {
@@ -137,23 +135,19 @@ func NewDatadogSymbolUploader(ctx context.Context, cfg *SymbolUploaderConfig) (*
 	}
 
 	return &DatadogSymbolUploader{
-		symbolEndpoints:       cfg.SymbolEndpoints,
-		intakeURLs:            intakeURLs,
-		version:               cfg.Version,
-		name:                  cfg.Name,
-		dryRun:                cfg.DryRun,
-		uploadDynamicSymbols:  cfg.UploadDynamicSymbols,
-		uploadGoPCLnTab:       cfg.UploadGoPCLnTab,
-		client:                httpClient,
-		uploadCache:           uploadCache,
-		symbolQueriers:        symbolQueriers,
-		symbolQueryInterval:   cfg.SymbolQueryInterval,
-		compressDebugSections: compressDebugSections,
+		symbolEndpoints:      cfg.SymbolEndpoints,
+		intakeURLs:           intakeURLs,
+		version:              cfg.Version,
+		name:                 cfg.Name,
+		dryRun:               cfg.DryRun,
+		uploadDynamicSymbols: cfg.UploadDynamicSymbols,
+		uploadGoPCLnTab:      cfg.UploadGoPCLnTab,
+		client:               httpClient,
+		uploadCache:          uploadCache,
+		symbolQueriers:       symbolQueriers,
+		symbolQueryInterval:  cfg.SymbolQueryInterval,
+		reporter:             newUploadReporter(cfg.Report),
 	}, nil
-}
-
-func CheckObjcopyZstdSupport(ctx context.Context) bool {
-	return exec.CommandContext(ctx, "objcopy", "--compress-debug-sections=zstd", "--version").Run() == nil
 }
 
 func buildSourcemapIntakeURL(site string) string {
@@ -161,6 +155,7 @@ func buildSourcemapIntakeURL(site string) string {
 }
 
 func (d *DatadogSymbolUploader) Start(ctx context.Context) {
+	d.reporter.StartFlushTicker()
 	symbolRetrievalQueue := make(chan *reporter.ExecutableMetadata, defaultSymbolRetrievalQueueSize)
 
 	queryWorkerCount := defaultQueryWorkerCount
@@ -227,23 +222,21 @@ func (d *DatadogSymbolUploader) Stop() {
 	d.mut.Unlock()
 
 	d.pipeline.Stop()
+	d.reporter.Stop()
 }
 
 func (d *DatadogSymbolUploader) UploadSymbols(execMeta *reporter.ExecutableMetadata) {
 	mf := execMeta.MappingFile.Value()
 	_, ok := d.uploadCache.Get(mf.FileID)
 	if ok {
-		slog.Debug("Skipping symbol upload",
-			slog.String("reason", "already_uploaded"),
-			slog.String("path", execMeta.Mapping.Path))
+		d.reporter.Info(reasonAlreadyUploaded, 1)
 		return
 	}
 
 	d.mut.Lock()
-	defer d.mut.Unlock()
-
 	// if pipeline is not started, we can't upload symbols
 	if d.retrievalQueue == nil {
+		d.mut.Unlock()
 		return
 	}
 
@@ -254,13 +247,16 @@ func (d *DatadogSymbolUploader) UploadSymbols(execMeta *reporter.ExecutableMetad
 	// objcopy on that temporary file. The downside would be more disk I/O and more disk space used, and
 	// do not seem to be worth it.
 	// We can revisit this choice later if we switch to a different symbol extraction method.
+	queued := true
 	select {
 	case d.retrievalQueue <- execMeta:
 	default:
-		slog.Warn("Skipping symbol upload",
-			slog.String("reason", "upload_queue_full"),
-			slog.String("file", execMeta.Mapping.Path),
-			slog.String("file_id", mf.FileID.StringNoQuotes()))
+		queued = false
+	}
+	d.mut.Unlock()
+
+	if !queued {
+		d.reporter.Error(reasonQueueFull, 1, execMeta.Mapping.Path)
 	}
 }
 
@@ -278,7 +274,7 @@ func (d *DatadogSymbolUploader) symbolRetrievalWorker(_ context.Context, execMet
 }
 
 func (d *DatadogSymbolUploader) queryWorker(ctx context.Context, batch []*symbol.Elf, outputChan chan<- ElfWithBackendSources) {
-	for _, e := range ExecuteSymbolQueryBatch(ctx, batch, d.symbolQueriers) {
+	for _, e := range ExecuteSymbolQueryBatch(ctx, batch, d.symbolQueriers, d.reporter) {
 		outputChan <- e
 	}
 }
@@ -293,24 +289,28 @@ func (d *DatadogSymbolUploader) uploadWorker(ctx context.Context, elfSymbols Elf
 		elfSymbols.Close()
 	}()
 
+	skippedByError := false
+	hasExistingSymbols := false
+	var pclntabErr error
 	for i, backendSymbolSource := range elfSymbols.BackendSymbolSources {
 		if backendSymbolSource.Err != nil {
-			slog.Warn("Failed to query symbols for executable",
+			slog.Debug("Symbol query failed for executable",
 				slog.String("executable", elfSymbols.String()),
 				slog.Int("endpoint", i),
 				slog.String("error", backendSymbolSource.Err.Error()))
+			skippedByError = true
 			removeFromCache = true
 			continue
 		}
 
 		if backendSymbolSource.SymbolSource != symbol.SourceNone {
-			slog.Debug("Existing symbols for executable",
-				slog.String("executable", elfSymbols.String()),
-				slog.Int("endpoint", i),
-				slog.String("source", backendSymbolSource.SymbolSource.String()))
+			hasExistingSymbols = true
 		}
 
-		upload, symbolSource := d.shouldUpload(elfSymbols.Elf, backendSymbolSource.SymbolSource, i)
+		upload, symbolSource, err := d.shouldUpload(elfSymbols.Elf, backendSymbolSource.SymbolSource)
+		if err != nil {
+			pclntabErr = err
+		}
 
 		if upload {
 			endpointIndices = append(endpointIndices, i)
@@ -322,6 +322,16 @@ func (d *DatadogSymbolUploader) uploadWorker(ctx context.Context, elfSymbols Elf
 	}
 
 	if len(endpointIndices) == 0 {
+		switch {
+		case pclntabErr != nil:
+			d.reporter.Error(reasonGoPCLnTabError, 1, elfSymbols.Path())
+		case skippedByError:
+			// Query failures are already counted by invokeQuerier.
+		case hasExistingSymbols:
+			d.reporter.Info(reasonExistingSymbols, 1, elfSymbols.Path())
+		default:
+			d.reporter.Info(reasonNoDebugSymbols, 1, elfSymbols.Path())
+		}
 		return
 	}
 
@@ -349,25 +359,26 @@ func (d *DatadogSymbolUploader) getSymbolSourceIfGoPCLnTab(e *symbol.Elf) symbol
 	return max(symbolSource, symbol.SourceGoPCLnTab)
 }
 
-func (d *DatadogSymbolUploader) getSymbolSourceWithGoPCLnTab(e *symbol.Elf) (symbol.Source, *pclntab.GoPCLnTabInfo) {
+func (d *DatadogSymbolUploader) getSymbolSourceWithGoPCLnTab(e *symbol.Elf) (symbol.Source, *pclntab.GoPCLnTabInfo, error) {
 	symbolSource := d.getSymbolSource(e)
 	if !e.IsGolang() || !d.uploadGoPCLnTab {
-		return symbolSource, nil
+		return symbolSource, nil, nil
 	}
 	goPCLnTabInfo, err := e.GoPCLnTab()
 	if err != nil {
-		slog.Info("Failed to extract GoPCLnTab for executable",
+		slog.Debug("Failed to extract GoPCLnTab for executable",
 			slog.String("executable", e.String()),
 			slog.String("error", err.Error()))
-		return symbolSource, nil
+		return symbolSource, nil, err
 	}
-	return max(symbolSource, symbol.SourceGoPCLnTab), goPCLnTabInfo
+	return max(symbolSource, symbol.SourceGoPCLnTab), goPCLnTabInfo, nil
 }
 
 func (d *DatadogSymbolUploader) getSymbolsFromDisk(execMeta *reporter.ExecutableMetadata) *symbol.Elf {
 	mf := execMeta.MappingFile.Value()
 	elfSymbols, err := symbol.NewElfFromMapping(execMeta.Mapping, mf.GnuBuildID, mf.GoBuildID, mf.FileID, execMeta.Process)
 	if err != nil {
+		d.reporter.Error(reasonElfReadError, 1, execMeta.Mapping.Path)
 		slog.Debug("Skipping symbol upload for executable",
 			slog.String("path", execMeta.Mapping.Path),
 			slog.String("error", err.Error()))
@@ -376,9 +387,7 @@ func (d *DatadogSymbolUploader) getSymbolsFromDisk(execMeta *reporter.Executable
 
 	symbolSource := d.getSymbolSourceIfGoPCLnTab(elfSymbols)
 	if symbolSource == symbol.SourceNone {
-		slog.Debug("Skipping symbol upload",
-			slog.String("reason", "no_debug_symbols"),
-			slog.String("path", elfSymbols.Path()))
+		d.reporter.Info(reasonNoDebugSymbols, 1, elfSymbols.Path())
 		elfSymbols.Close()
 		return nil
 	}
@@ -386,48 +395,27 @@ func (d *DatadogSymbolUploader) getSymbolsFromDisk(execMeta *reporter.Executable
 	return elfSymbols
 }
 
-func (d *DatadogSymbolUploader) shouldUpload(e *symbol.Elf, existingSymbolSource symbol.Source, ind int) (bool, symbol.Source) {
-	symbolSource := d.getSymbolSourceIfGoPCLnTab(e)
+func (d *DatadogSymbolUploader) shouldUpload(e *symbol.Elf, existingSymbolSource symbol.Source) (upload bool, symbolSource symbol.Source, pclntabErr error) {
+	symbolSource = d.getSymbolSourceIfGoPCLnTab(e)
 	if existingSymbolSource >= symbolSource {
-		slog.Debug("Skipping symbol upload",
-			slog.String("reason", "existing_symbols"),
-			slog.String("path", e.Path()),
-			slog.Int("endpoint", ind),
-			slog.String("existing_source", existingSymbolSource.String()))
-		return false, symbolSource
+		return false, symbolSource, nil
 	}
-
-	symbolSource, _ = d.getSymbolSourceWithGoPCLnTab(e)
-	// Recheck symbol source after GoPCLnTab extraction
-	if symbolSource == symbol.SourceNone {
-		slog.Debug("Skipping symbol upload",
-			slog.String("reason", "no_debug_symbols"),
-			slog.String("path", e.Path()),
-			slog.Int("endpoint", ind))
-		return false, symbolSource
-	}
-	if existingSymbolSource >= symbolSource {
-		slog.Debug("Skipping symbol upload",
-			slog.String("reason", "existing_symbols"),
-			slog.String("path", e.Path()),
-			slog.Int("endpoint", ind),
-			slog.String("existing_source", existingSymbolSource.String()))
-		return false, symbolSource
-	}
-
-	return true, symbolSource
+	symbolSource, _, pclntabErr = d.getSymbolSourceWithGoPCLnTab(e)
+	return symbolSource != symbol.SourceNone && existingSymbolSource < symbolSource, symbolSource, pclntabErr
 }
 
 // Returns true if the upload was successful, false otherwise
 func (d *DatadogSymbolUploader) upload(ctx context.Context, e *symbol.Elf, endpointIndices []int) bool {
-	symbolFile, err := d.createSymbolFile(ctx, e)
+	symbolFilePath, err := d.createSymbolFile(ctx, e)
 	if err != nil {
-		slog.Error("failed to create symbol file", slog.String("error", err.Error()))
+		d.reporter.Error(reasonExtractError, 1, e.Path())
+		slog.Error("Failed to create symbol file",
+			slog.String("executable", e.String()),
+			slog.String("error", err.Error()))
 		return false
 	}
-	defer os.Remove(symbolFile.Name())
-	defer symbolFile.Close()
-	symbolSource, _ := d.getSymbolSourceWithGoPCLnTab(e)
+	defer os.Remove(symbolFilePath)
+	symbolSource, _, _ := d.getSymbolSourceWithGoPCLnTab(e)
 	metadata := newSymbolUploadRequestMetadata(e, symbolSource, d.name, d.version)
 
 	if d.dryRun {
@@ -438,19 +426,20 @@ func (d *DatadogSymbolUploader) upload(ctx context.Context, e *symbol.Elf, endpo
 	var g errgroup.Group
 	for _, ind := range endpointIndices {
 		g.Go(func() error {
-			return d.uploadSymbols(ctx, symbolFile.Name(), metadata, ind)
+			return d.uploadSymbols(ctx, symbolFilePath, metadata, ind)
 		})
 	}
 
 	err = g.Wait()
 	if err != nil {
+		d.reporter.Error(reasonIntakeError, 1, e.Path())
 		slog.Error("Failed to upload symbols",
 			slog.String("error", err.Error()),
 			slog.String("executable", e.String()))
 		return false
 	}
 
-	slog.Info("Symbols uploaded successfully for executable", slog.String("executable", e.String()))
+	d.reporter.Info(reasonUploaded, 1, e.Path())
 	return true
 }
 
@@ -492,29 +481,27 @@ func (d *DatadogSymbolUploader) updateBiggestBinarySize(size int64) {
 	}
 }
 
-func (d *DatadogSymbolUploader) createSymbolFile(ctx context.Context, e *symbol.Elf) (*os.File, error) {
+func (d *DatadogSymbolUploader) createSymbolFile(ctx context.Context, e *symbol.Elf) (string, error) {
 	symbolFile, err := os.CreateTemp("", "objcopy-debug")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create temp file to extract symbols: %w", err)
+		return "", fmt.Errorf("failed to create temp file to extract symbols: %w", err)
 	}
 	defer func() {
-		if err != nil {
-			symbolFile.Close()
-			os.Remove(symbolFile.Name())
-		}
+		symbolFile.Close()
+		os.Remove(symbolFile.Name())
 	}()
 
 	ctx, cancel := context.WithTimeout(ctx, symbolCopyTimeout)
 	defer cancel()
 
-	symbolSource, goPCLnTabInfo := d.getSymbolSourceWithGoPCLnTab(e)
+	symbolSource, goPCLnTabInfo, _ := d.getSymbolSourceWithGoPCLnTab(e)
 
 	elfPath := e.SymbolPathOnDisk()
 	if elfPath == "" {
 		// No associated file -> probably vdso, dump the ELF data to a file
 		elfPath, err = e.DumpElfData()
 		if err != nil {
-			return nil, fmt.Errorf("failed to dump ELF data: %w", err)
+			return "", fmt.Errorf("failed to dump ELF data: %w", err)
 		}
 		// Temporary file will be cleaned by the symbol.Elf.Close()
 	}
@@ -526,18 +513,54 @@ func (d *DatadogSymbolUploader) createSymbolFile(ctx context.Context, e *symbol.
 
 	// keep track of the biggest binary size we try to upload for logging purposes
 	d.updateBiggestBinarySize(e.GetSize())
-	err = symbolcopier.CopySymbols(ctx, elfPath, symbolFile.Name(), goPCLnTabInfo, sectionsToKeep, d.compressDebugSections)
+	err = symbolcopier.CopySymbols(ctx, elfPath, symbolFile.Name(), goPCLnTabInfo, sectionsToKeep)
 
 	if err != nil {
 		var ExitError *exec.ExitError
 		if errors.As(err, &ExitError) && ExitError.ExitCode() == -1 { // killed by signal
-			return nil, fmt.Errorf("failed to copy symbols: got killed. Consider increasing memory limits to at least %v (biggest uncompressed elf file size found)", atomic.LoadInt64(&d.biggestBinarySize))
+			return "", fmt.Errorf("failed to copy symbols: got killed. Consider increasing memory limits to at least %v (biggest uncompressed elf file size found)", atomic.LoadInt64(&d.biggestBinarySize))
 		}
 
-		return nil, fmt.Errorf("failed to copy symbols: failed to extract debug symbols: %w", cleanCmdError(err))
+		return "", fmt.Errorf("failed to copy symbols: failed to extract debug symbols: %w", cleanCmdError(err))
 	}
 
-	return symbolFile, nil
+	extractedFile, err := os.Open(symbolFile.Name())
+	if err != nil {
+		return "", fmt.Errorf("failed to open extracted symbol file: %w", err)
+	}
+	defer extractedFile.Close()
+
+	stat, err := extractedFile.Stat()
+	if err != nil {
+		return "", fmt.Errorf("failed to stat extracted symbol file: %w", err)
+	}
+
+	// Compress once before uploading the same file to all endpoints.
+	compressedFile, err := os.CreateTemp("", "symbol-zstd")
+	if err != nil {
+		return "", fmt.Errorf("failed to create compressed symbol file: %w", err)
+	}
+	defer func() {
+		compressedFile.Close()
+		if err != nil {
+			os.Remove(compressedFile.Name())
+		}
+	}()
+
+	compressed, err := zstd.NewWriterLevelWithOptions(compressedFile, zstd.BestSpeed,
+		zstd.WithWindowLogSize(symbolCompressionWindowLog(stat.Size())),
+		zstd.WithDisableLowerEncoderMem(),
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to create symbol encoder: %w", err)
+	}
+	_, err = io.Copy(compressed, extractedFile)
+	err = errors.Join(err, compressed.Close())
+	if err != nil {
+		return "", fmt.Errorf("failed to compress symbol file: %w", err)
+	}
+
+	return compressedFile.Name(), nil
 }
 
 func (d *DatadogSymbolUploader) uploadSymbols(ctx context.Context, symbolFilePath string, e *symbolUploadRequestMetadata, endpointIdx int) error {
@@ -548,23 +571,11 @@ func (d *DatadogSymbolUploader) uploadSymbols(ctx context.Context, symbolFilePat
 	defer symbolFile.Close()
 
 	pipeR, pipeW := io.Pipe()
+	mw := multipart.NewWriter(pipeW)
 
-	var compressed io.WriteCloser
-	var mw *multipart.Writer
-	var contentEncoding string
-	if !d.compressDebugSections {
-		compressed, err = zstd.NewWriter(pipeW)
-		if err != nil {
-			return fmt.Errorf("failed to create zstd writer: %w", err)
-		}
-		mw = multipart.NewWriter(compressed)
-		contentEncoding = "zstd"
-	} else {
-		mw = multipart.NewWriter(pipeW)
-	}
-
-	req, err := d.buildSymbolUploadRequest(ctx, pipeR, mw.FormDataContentType(), contentEncoding, endpointIdx)
+	req, err := d.buildSymbolUploadRequest(ctx, pipeR, mw.FormDataContentType(), endpointIdx)
 	if err != nil {
+		pipeR.Close()
 		return fmt.Errorf("failed to build symbol upload request: %w", err)
 	}
 
@@ -576,22 +587,16 @@ func (d *DatadogSymbolUploader) uploadSymbols(ctx context.Context, symbolFilePat
 			pipeW.CloseWithError(fmt.Errorf("failed to stream request body: %w", innerErr))
 			return
 		}
-		// Close the multipart writer then the zstd writer
 		innerErr = mw.Close()
 		if innerErr != nil {
 			pipeW.CloseWithError(fmt.Errorf("failed to close multipart writer: %w", innerErr))
 			return
 		}
-		if compressed != nil {
-			innerErr = compressed.Close()
-			if innerErr != nil {
-				pipeW.CloseWithError(fmt.Errorf("failed to close zstd writer: %w", innerErr))
-				return
-			}
-		}
 	})
 
 	resp, err := d.client.Do(req)
+	// Unblock the writer if the server or transport stopped reading early.
+	pipeR.Close()
 	wg.Wait()
 
 	if err != nil {
@@ -608,15 +613,30 @@ func (d *DatadogSymbolUploader) uploadSymbols(ctx context.Context, symbolFilePat
 	return nil
 }
 
-func streamRequestBody(symbolFile *os.File, e *symbolUploadRequestMetadata, mw *multipart.Writer) error {
-	// Copy the symbol file into the multipart writer
+// symbolCompressionWindowLog rounds up to cover the ELF, keeping at least
+// SpeedFastest's 64 KiB block size and capping at its default 4 MiB window.
+func symbolCompressionWindowLog(size int64) int {
+	const (
+		minWindowLog = 16 // 64 KiB
+		maxWindowLog = 22 // 4 MiB
+	)
+	windowLog := minWindowLog
+	for windowLog < maxWindowLog && int64(1)<<windowLog < size {
+		windowLog++
+	}
+	return windowLog
+}
+
+// streamRequestBody copies the already-compressed ELF part, then writes the JSON event part.
+// The caller closes mw to write the final multipart boundary.
+func streamRequestBody(symbolFile io.Reader, e *symbolUploadRequestMetadata, mw *multipart.Writer) error {
 	filePart, err := mw.CreateFormFile("elf_symbol_file", "elf_symbol_file")
 	if err != nil {
 		return fmt.Errorf("failed to create form file: %w", err)
 	}
-
-	_, err = io.Copy(filePart, symbolFile)
-	if err != nil {
+	// Symbol Platform detects the zstd frame magic in the stored ELF blob.
+	// Multipart framing and JSON stay unencoded.
+	if _, err := io.Copy(filePart, symbolFile); err != nil {
 		return fmt.Errorf("failed to copy symbol file: %w", err)
 	}
 
@@ -637,7 +657,7 @@ func streamRequestBody(symbolFile *os.File, e *symbolUploadRequestMetadata, mw *
 	return nil
 }
 
-func (d *DatadogSymbolUploader) buildSymbolUploadRequest(ctx context.Context, body io.Reader, contentType, contentEncoding string, ind int) (*http.Request, error) {
+func (d *DatadogSymbolUploader) buildSymbolUploadRequest(ctx context.Context, body io.Reader, contentType string, ind int) (*http.Request, error) {
 	r, err := http.NewRequestWithContext(ctx, http.MethodPost, d.intakeURLs[ind], body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -647,9 +667,6 @@ func (d *DatadogSymbolUploader) buildSymbolUploadRequest(ctx context.Context, bo
 	r.Header.Set("Dd-Evp-Origin", d.name)
 	r.Header.Set("Dd-Evp-Origin-Version", d.version)
 	r.Header.Set("Content-Type", contentType)
-	if contentEncoding != "" {
-		r.Header.Set("Content-Encoding", contentEncoding)
-	}
 	return r, nil
 }
 

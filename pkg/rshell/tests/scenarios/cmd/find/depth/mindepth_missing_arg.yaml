@@ -1,0 +1,14 @@
+description: find -mindepth with no value produces error.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dummy.txt
+      content: "x"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find . -mindepth
+expect:
+  stderr_contains: ["missing argument to '-mindepth'"]
+  exit_code: 1

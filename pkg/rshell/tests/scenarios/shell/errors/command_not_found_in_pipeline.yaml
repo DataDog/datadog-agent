@@ -1,0 +1,12 @@
+# skip: error message format differs from bash
+skip_assert_against_bash: true
+description: Unknown command in a pipeline produces error but pipeline continues.
+input:
+  script: |+
+    echo hello | unknown_filter_cmd
+expect:
+  stdout: ""
+  stderr_contains:
+    - "unknown_filter_cmd"
+    - "unknown command"
+  exit_code: 127

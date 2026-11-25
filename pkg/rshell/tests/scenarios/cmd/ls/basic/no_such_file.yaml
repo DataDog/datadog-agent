@@ -1,0 +1,13 @@
+description: ls on a nonexistent file shows error and exits 1.
+# skip: error message format differs from bash (no script:line prefix)
+skip_assert_against_bash: true
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls no_such_file_here
+expect:
+  stdout: ""
+  stderr_contains:
+    - "ls: cannot access 'no_such_file_here':"
+    - "no such file or directory"
+  exit_code: 1

@@ -44,7 +44,7 @@ func (r scanRequest) Collector() string {
 }
 
 // Type returns the scan request type
-func (r scanRequest) Type(sbom.ScanOptions) string {
+func (r scanRequest) Type() string {
 	return sbom.ScanDaemonType
 }
 
@@ -64,14 +64,9 @@ type Collector struct {
 	closed bool
 }
 
-// CleanCache cleans the cache
-func (c *Collector) CleanCache() error {
-	return c.trivyCollector.CleanCache()
-}
-
 // Init initializes the collector
 func (c *Collector) Init(cfg config.Component, wmeta option.Option[workloadmeta.Component]) error {
-	trivyCollector, err := trivy.GetGlobalCollector(cfg, wmeta)
+	trivyCollector, err := trivy.GetGlobalCollector(cfg)
 	if err != nil {
 		return err
 	}

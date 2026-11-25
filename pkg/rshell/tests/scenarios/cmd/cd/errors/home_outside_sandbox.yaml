@@ -1,0 +1,23 @@
+description: cd with no operand uses $HOME; an out-of-sandbox HOME is rejected with a non-zero exit.
+# bash has no sandbox so it does not match this rejection; the test
+# exercises the path where resolveOperand succeeds (HOME is set +
+# non-empty) but changeDir refuses because the target lies outside
+# AllowedPaths — distinct from the unset-HOME path
+# (errors/home_unset.yaml) and the empty-HOME no-op path
+# (basic/home_empty_is_noop.yaml).
+#
+# The exact stderr message is platform-dependent: on Unix the sandbox
+# resolves /etc and rejects with "permission denied"; on Windows /etc
+# does not exist so the sandbox returns "no such file or directory"
+# first. Both are valid rejections of an out-of-sandbox target; we
+# only assert the operational contract (exit 1, "cd:" + operand in
+# stderr).
+skip_assert_against_bash: true
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    HOME=/etc cd
+expect:
+  stdout: ""
+  stderr_contains: ["cd:", "/etc"]
+  exit_code: 1

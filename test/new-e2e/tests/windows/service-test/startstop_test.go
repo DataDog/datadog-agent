@@ -207,12 +207,10 @@ func (s *powerShellServiceCommandSuite) TestStopTimeout() {
 
 	services := []string{
 		// stop dependent services first since stopping them won't affect other services
-		"datadog-trace-agent",
-		// dd-procmgr supervises process-agent and system-probe, so both legacy services are
-		// already Stopped. Stopping dd-procmgr-service is what stops those two workloads,
-		// including the system-probe shutdown that unloads the kernel drivers.
+		// dd-procmgr supervises process-agent, system-probe, trace-agent, and security-agent,
+		// so those legacy services are already Stopped. Stopping dd-procmgr-service is what
+		// stops those workloads, including the system-probe shutdown that unloads the drivers.
 		"dd-procmgr-service",
-		"datadog-security-agent",
 		// stop core agent last since it will trigger stop of other services
 		"datadogagent",
 	}
@@ -386,7 +384,7 @@ func (s *agentServiceDisabledProcessAgentSuite) TestProcessAgentNotRunningUnderP
 
 	out, err := host.Execute(fmt.Sprintf(`& "%s" describe %s`, procmgrCLI, "datadog-agent-process"))
 	s.Require().NoError(err)
-	s.Require().Equal("Created", procmgrDescribeField(out, "State"),
+	s.Require().Equal("Skipped", procmgrDescribeField(out, "State"),
 		"dd-procmgr should leave a disabled process-agent unspawned: %s", out)
 
 	out, err = host.Execute(
@@ -417,6 +415,45 @@ func TestServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
 
 type agentServiceDisabledTraceAgentSuite struct {
 	agentServiceDisabledSuite
+}
+
+// Legacy SCM Stopped is expected under procmgr; assert the config gate also leaves trace-agent unspawned.
+func (s *agentServiceDisabledTraceAgentSuite) TestTraceAgentNotRunningUnderProcmgrWhenDisabled() {
+	host := s.Env().RemoteHost
+	installPath, err := windowsAgent.GetInstallPathFromRegistry(host)
+	s.Require().NoError(err)
+	procmgrCLI := filepath.Join(installPath, "bin", "agent", "dd-procmgr.exe")
+
+	logsFolder, err := host.GetLogsFolder()
+	s.Require().NoError(err)
+	waitForLogLine := func(logFile, line, msg string) {
+		s.Require().EventuallyWithT(func(ct *assert.CollectT) {
+			content, err := host.ReadFile(filepath.Join(logsFolder, logFile))
+			if !assert.NoError(ct, err) {
+				return
+			}
+			assert.Contains(ct, string(content), line, msg)
+		}, time.Duration(2*s.timeoutScale)*time.Minute, 3*time.Second)
+	}
+
+	s.startAgent()
+	s.assertServiceState("Running", "dd-procmgr-service", nil)
+
+	waitForLogLine("dd-procmgr.log", "[datadog-agent-trace] condition_config_any not met",
+		"dd-procmgr should evaluate the trace-agent config gate and find it closed")
+	waitForLogLine("agent.log", "Service apm is disabled, not starting",
+		"the core Agent should decide not to start the legacy trace-agent service")
+
+	out, err := host.Execute(fmt.Sprintf(`& "%s" describe %s`, procmgrCLI, "datadog-agent-trace"))
+	s.Require().NoError(err)
+	s.Require().Equal("Skipped", procmgrDescribeField(out, "State"),
+		"dd-procmgr should leave a disabled trace-agent unspawned: %s", out)
+
+	out, err = host.Execute(
+		`$p = Get-Process -Name 'trace-agent' -ErrorAction SilentlyContinue; if ($null -eq $p) { 'Absent' } else { 'Present' }`)
+	s.Require().NoError(err)
+	s.Require().Equal("Absent", strings.TrimSpace(out),
+		"trace-agent must not run when APM and Error Tracking standalone are off")
 }
 
 func TestServiceBehaviorWhenDisabledInstaller(t *testing.T) {
@@ -486,16 +523,10 @@ func (s *agentServiceDisabledSuite) TestStartingDisabledService() {
 
 		// verify that we only try user services
 		if !slices.Contains(kernel, service) {
-			// In FIPS builds the installer does not start correctly
-			// when remote configuration is disabled and Start-Service fails.
-			// TODO: remove this when installer runs fully in FIPS mode.
-			if s.Env().Agent.FIPSEnabled && service == "Datadog Installer" {
-				err := windowsCommon.StartService(s.Env().RemoteHost, service)
-				s.Require().Error(err, "should fail to start "+service+" in FIPS mode")
-				continue
-			}
-
-			// try and start it and verify that it does correctly outputs to event log
+			// try and start it and verify that it does correctly outputs to event log.
+			// This includes the Datadog Installer in FIPS builds: when remote
+			// configuration or remote updates are disabled, it reports a successful
+			// start and then exits cleanly (see cmd/installer/subcommands/daemon/run_windows.go).
 			err := windowsCommon.StartService(s.Env().RemoteHost, service)
 			s.Require().NoError(err, "should start "+service)
 
@@ -745,10 +776,10 @@ func (s *baseStartStopSuite) BeforeTest(suiteName, testName string) {
 	s.Require().NoError(err, "should clean dump folder")
 
 	// Start xperf tracing to capture service start/stop timing under Driver Verifier.
-	// Two ETW sessions run concurrently (circular buffers, merged on stop):
+	// Two ETW sessions run concurrently (circular buffers, merged on failure):
 	//   - NT Kernel Logger: scheduler, loader, CPU profile, context switch with stacks
 	//   - scm-trace: Microsoft-Windows-Services SCM events (SetServiceStatus transitions)
-	// The merged .etl is only downloaded on test failure. See AfterTest -> collectXperf.
+	// Traces are only merged and downloaded on test failure. See AfterTest -> collectXperf.
 	s.startXperf(host)
 }
 
@@ -790,11 +821,19 @@ func (s *baseStartStopSuite) startXperf(host *components.RemoteHost) {
 	s.Assert().NoError(err, "should start xperf tracing (kernel + scm-trace)")
 }
 
-// collectXperf stops both xperf sessions, merges them, and downloads the resulting
-// .etl to the session output dir if the test failed.
+// collectXperf stops both xperf sessions. Only failed tests merge and download the
+// resulting .etl to the session output dir.
 func (s *baseStartStopSuite) collectXperf(host *components.RemoteHost) {
 	xperfPath := "C:/xperf/xperf.exe"
 	outputPath := "C:/full_host_profiles.etl"
+
+	if !s.T().Failed() {
+		// Always stop both sessions so the next test can start fresh, but avoid
+		// the expensive trace merge (-d) when its output would be discarded.
+		_, err := host.Execute(fmt.Sprintf(`& "%s" -stop -stop %s`, xperfPath, xperfSCMSessionName))
+		s.Assert().NoError(err, "should stop xperf tracing")
+		return
+	}
 
 	// Stop kernel logger (-stop) and the named SCM user session (-stop scm-trace), then -d
 	// merges both into outputPath. Matches the MS TSS recipe.
@@ -820,9 +859,9 @@ func (s *baseStartStopSuite) collectXperf(host *components.RemoteHost) {
 }
 
 func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
-	// Stop xperf and merge to .etl as early as possible after the test body, so the
-	// circular trace is preserved before any subsequent diagnostic collection further
-	// perturbs system state. .etl is only downloaded if the test failed.
+	// Stop xperf as early as possible after the test body, so the circular trace
+	// is preserved before subsequent diagnostic collection perturbs system state.
+	// Only merge and download the .etl if the test has already failed.
 	s.collectXperf(s.Env().RemoteHost)
 
 	// look for and download crashdumps. Dumps from processes in
@@ -1028,6 +1067,8 @@ func (s *baseStartStopSuite) legacySCMServices() []string {
 	return []string{
 		"datadog-process-agent",
 		"datadog-system-probe",
+		"datadog-trace-agent",
+		"datadog-security-agent",
 	}
 }
 

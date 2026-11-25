@@ -34,11 +34,11 @@ type SERVER_INFO_101 struct {
 }
 
 var (
-	modNetapi32          = windows.NewLazyDLL("Netapi32.dll")
+	modNetapi32          = windows.NewLazySystemDLL("Netapi32.dll")
 	procNetServerGetInfo = modNetapi32.NewProc("NetServerGetInfo")
 	procNetAPIBufferFree = modNetapi32.NewProc("NetApiBufferFree")
-	winbrand             = windows.NewLazyDLL("winbrand.dll")
-	kernel32             = windows.NewLazyDLL("kernel32.dll")
+	winbrand             = windows.NewLazySystemDLL("winbrand.dll")
+	kernel32             = windows.NewLazySystemDLL("kernel32.dll")
 	procIsWow64Process2  = kernel32.NewProc("IsWow64Process2")
 )
 

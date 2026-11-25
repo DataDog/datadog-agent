@@ -1,0 +1,10 @@
+description: sha256sum rejects GNU options outside the supported subset.
+skip_assert_against_bash: true
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sha256sum --binary
+expect:
+  stdout: |+
+  stderr_contains: ["unrecognized option"]
+  exit_code: 1

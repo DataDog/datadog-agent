@@ -63,7 +63,7 @@ When a test targets a pipeline they come from `agent-qa`; otherwise they come fr
 | Cloud | Resolves to | Leaves the account? |
 |---|---|---|
 | AWS | `669783387624.dkr.ecr.us-east-1.amazonaws.com/ecr-public/datadog/…` | no, it is the pull-through cache |
-| GCP, Azure, local | `gcr.io/datadoghq/…` | yes — no cache exists there |
+| GCP, Azure, local | `registry.datadoghq.com/…` | yes — no cache exists there |
 
 Use that accessor rather than naming a registry, the same way you would use
 `InternalDockerhubMirror()` for a third-party image. Two exceptions are deliberate and
@@ -109,16 +109,11 @@ If your test doesn't opt in, its workload images still leave the VPC through `mi
     type: tip
     open: False
 
-Kubernetes workloads need credentials for the cache, which are not set by default:
+Kubernetes workloads need credentials for the cache. Run locally, `dda inv new-e2e-tests.run` mints them for you from the `sso-agent-qa-agent-dev` profile that `dda inv e2e.setup` writes, and passes them to the cluster as an image pull secret. If it can't, it prints a warning and the pods end in `ImagePullBackOff`.
 
-```bash
-dda inv new-e2e-tests.run --targets ./tests/gpu \
-  -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com \
-  -c ddagent:imagePullUsername=AWS \
-  -c ddagent:imagePullPassword=$(aws-vault exec sso-agent-qa-read-only -- aws ecr get-login-password)
-```
+That profile needs the `agent-dev` permission set on the `agent-qa` account. A `403 ForbiddenException: No access` from aws-vault means you don't have it yet; ask #agent-devx-help.
 
-If you see `User: arn:aws:sts::… is not authorized to perform: ecr:BatchGetImage`, you are authenticated against the wrong account — re-run `aws-vault login sso-agent-sandbox-account-admin-8h`. Note that those `ddagent:imagePull*` flags are for the in-cluster Agent; an EC2 host pulls with its own instance profile.
+If you see `User: arn:aws:sts::… is not authorized to perform: ecr:BatchGetImage`, you are authenticated against the wrong account — re-run `aws-vault login sso-agent-sandbox-account-admin-8h`. Note that these credentials are for in-cluster pods; an EC2 host pulls with its own instance profile.
 ///
 
 ## Prebake into the machine image
@@ -129,8 +124,7 @@ The better alternative is to:
 - Use a Docker image containing that tool that you can then pull the [ECR pull-through cache](#ecr-pull-through-cache).
 - "Bake" the dependency into the VM machine image (AMI).
 
-We already provide `-e2e` AMI variants for most OSes for this purpose, that contain some common dependencies: docker itself, `jq`, `python3` etc.
-These `-e2e` variants are already the default for tests running on AWS.
+Every AMI pinned in `platforms.json` is already prebaked for this purpose (built from ami-builder's `-e2e` entries) and contains some common dependencies: docker itself, `jq`, `python3` etc.
 
 See [Custom AMIs](custom-amis.md) for more details on how to do this.
 
@@ -163,5 +157,5 @@ Uploading is **not self-service**: write access is held by `agent-qa` admins, be
 None of the three mechanisms above exist on Azure or GCP:
 
 - **Container images**: no pull-through cache (`InternalDockerhubMirror()` falls back to plain `registry-1.docker.io`). Use the most reliable mirror available instead — `mirror.gcr.io` on GCP; Azure has no blessed equivalent, ask #agent-devx-help.
-- **Prebaked images**: no `-e2e` AMI equivalent. `docker.InstallDocker` / `docker.InstallCompose` (`test/e2e-framework/components/docker/install.go`) install Docker at provision time as the accepted exception for these clouds.
+- **Prebaked images**: no `-e2e` AMI equivalent. `PackageManager.RuntimeInstallDocker` (`test/e2e-framework/components/os/`) installs Docker and a pinned docker-compose at provision time as the accepted exception for these clouds. It fails on AWS.
 - **S3 artifact bucket**: `HostArtifactClient` returns `not implemented` (see above), with no fallback.

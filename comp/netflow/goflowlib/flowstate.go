@@ -6,17 +6,15 @@
 package goflowlib
 
 import (
-	"context"
 	"fmt"
 
 	config "github.com/DataDog/datadog-agent/comp/netflow/config/def"
+	"github.com/DataDog/datadog-agent/comp/netflow/dpi"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/netflowstate"
+	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/templates/memory"
 
-	"github.com/netsampler/goflow2/decoders/netflow/templates"
 	"go.uber.org/atomic"
 
-	// install the in-memory template manager
-	_ "github.com/netsampler/goflow2/decoders/netflow/templates/memory"
 	"github.com/netsampler/goflow2/utils"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -52,28 +50,23 @@ func StartFlowRoutine(
 	namespace string,
 	fieldMappings []config.Mapping,
 	enableBiflowParsing bool,
+	templateCacheMaxSize int,
+	appCache dpi.Cache,
 	flowInChan chan *common.Flow,
 	logger log.Component,
 	atomicErr *atomic.String,
 	listenerFlowCount *atomic.Int64) (*FlowStateWrapper, error) {
 	var flowState FlowRunnableState
 
-	formatDriver := NewAggregatorFormatDriver(flowInChan, namespace, listenerFlowCount, enableBiflowParsing)
+	formatDriver := NewAggregatorFormatDriver(flowInChan, namespace, listenerFlowCount, enableBiflowParsing, appCache != nil)
 	goflowLogger := &GoflowLoggerAdapter{logger}
-	ctx := context.Background()
 
 	switch flowType {
 	case common.TypeNetFlow9, common.TypeIPFIX:
-		templateSystem, err := templates.FindTemplateSystem(ctx, "memory")
-		if err != nil {
-			return nil, fmt.Errorf("goflow template system error flow type: %w", err)
-		}
-		defer templateSystem.Close(ctx)
-
-		state := netflowstate.NewStateNetFlow(fieldMappings, enableBiflowParsing)
+		state := netflowstate.NewStateNetFlow(fieldMappings, enableBiflowParsing, namespace, appCache)
 		state.Format = formatDriver
 		state.Logger = goflowLogger
-		state.TemplateSystem = templateSystem
+		state.TemplateSystem = memory.New(templateCacheMaxSize)
 		flowState = state
 	case common.TypeSFlow5:
 		state := utils.NewStateSFlow()

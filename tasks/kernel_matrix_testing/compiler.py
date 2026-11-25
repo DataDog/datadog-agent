@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
+import shlex
+import shutil
 import sys
 import tempfile
+from contextlib import chdir
 from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
@@ -13,8 +17,9 @@ from invoke.exceptions import CommandTimedOut
 from invoke.runners import Result
 
 from tasks.kernel_matrix_testing.tool import Exit, info, warn
+from tasks.libs.build.bazel import bazel
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag
-from tasks.libs.common.utils import get_repo_root
+from tasks.libs.common.utils import get_repo_root, join_command
 from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, Arch
 
 if TYPE_CHECKING:
@@ -25,6 +30,62 @@ CONTAINER_AGENT_PATH = "/tmp/datadog-agent"
 MARKER_IMAGE_PREPARED = "/tmp/kmt-image-prepared"
 
 APT_URIS = {"amd64": "http://archive.ubuntu.com/ubuntu/", "arm64": "http://ports.ubuntu.com/ubuntu-ports/"}
+
+
+def _host_wants_remote_cache(ctx: Context) -> bool:
+    """True when tools/bazel on the host would enable the remote cache (token availability aside).
+
+    Reuses bazel/tools/remote-cache-select.sh so KMT honors the same rc opt-out and reachability
+    checks, and does not open a browser Vault login when the cache would not be used.
+    """
+    select_sh = get_repo_root() / "bazel" / "tools" / "remote-cache-select.sh"
+    # Dummy token so the selector skips its token/vault check and only applies opt-outs and reachability.
+    res = cast(
+        'Result',
+        ctx.run(
+            f"{join_command(['.', str(select_sh)])}; _remote_cache_config",
+            hide=True,
+            warn=True,
+            env={"BUILDBARN_ID_TOKEN": "probe"},
+        ),
+    )
+    return res is not None and "--config=cache" in res.stdout
+
+
+def get_buildbarn_token(ctx: Context) -> str | None:
+    """Mint a Buildbarn OIDC token on the host, or return None when unavailable.
+
+    The compiler container cannot complete the browser-based Vault login, so the token is minted
+    here right before each build: it expires after about an hour, and Bazel caches it for 55m.
+    """
+    if os.environ.get("DD_BAZEL_REMOTE_CACHE") == "off":
+        return None
+    # Match tools/bazel on the host: the container does not see the host ~/.bazelrc opt-out.
+    if not _host_wants_remote_cache(ctx):
+        return None
+    if token := os.environ.get("BUILDBARN_ID_TOKEN"):
+        return token
+    if not shutil.which("vault"):
+        warn("[!] vault CLI not found, the compiler container will build without the Bazel remote cache")
+        return None
+
+    addr = os.environ.get("VAULT_ADDR", "https://vault.us1.ddbuild.io")
+    read_cmd = join_command(["vault", "read", f"-address={addr}", "-field=token", "identity/oidc/token/buildbarn"])
+    res = cast('Result', ctx.run(read_cmd, hide=True, warn=True))
+    if not res.ok and sys.stdin.isatty():
+        info("[*] Logging in to Vault to enable the Bazel remote cache in the compiler container")
+        ctx.run(join_command(["vault", "login", f"-address={addr}", "-method=oidc", "-no-print"]), warn=True)
+        res = cast('Result', ctx.run(read_cmd, hide=True, warn=True))
+    if res.ok and (token := res.stdout.strip()):
+        return token
+
+    errors = res.stderr.strip().splitlines()
+    reason = errors[-1].strip() if errors else "empty token"
+    warn(
+        f"[!] Could not mint a Buildbarn token ({reason}), the compiler container will build without the "
+        f"Bazel remote cache. Run `vault login -address={addr} -method=oidc` on the host to enable it."
+    )
+    return None
 
 
 def get_build_image_suffix_and_version() -> tuple[str, str]:
@@ -85,42 +146,63 @@ class CompilerImage:
         return self._check_container_exists(allow_stopped=True)
 
     @cached_property
-    def compiler_user(self):
-        # Get the user name from the uid in the container
-        result = self.exec(f"getent passwd {self.host_uid}", user="root")
-        if result is not None and result.ok:
-            return result.stdout.rstrip().split(":")[0]
-
-        raise ValueError(f"Failed to get compiler user for uid {self.host_uid}")
+    def is_rootless(self) -> bool:
+        res = self.ctx.run("docker info --format '{{json .SecurityOptions}}'", hide=True, warn=True)
+        return res is not None and res.ok and "name=rootless" in res.stdout
 
     @cached_property
-    def host_uid(self):
+    def _compiler_passwd(self) -> list[str]:
+        # Get the user entry from the uid in the container, the user might be named differently
+        result = self.exec(f"getent passwd {self.compiler_uid}", user="root")
+        if result is not None and result.ok:
+            return result.stdout.rstrip().split(":")
+
+        raise ValueError(f"Failed to get compiler user for uid {self.compiler_uid}")
+
+    @property
+    def compiler_user(self) -> str:
+        return self._compiler_passwd[0]
+
+    @property
+    def compiler_home(self) -> str:
+        return self._compiler_passwd[5]
+
+    # Rootless engines map container root to the host user and the host uid to an unprivileged
+    # subordinate one, so only root can write to the bind mounts there.
+    @cached_property
+    def compiler_uid(self) -> str:
+        if self.is_rootless:
+            return "0"
         return cast('Result', self.ctx.run("id -u")).stdout.rstrip()
 
     @cached_property
-    def host_gid(self):
+    def compiler_gid(self) -> str:
+        if self.is_rootless:
+            return "0"
         return cast('Result', self.ctx.run("id -g")).stdout.rstrip()
 
     def ensure_compiler_user_created(self):
         # If the compiler user already exists, we don't need to do anything. Note that this might
         # happen even if we have just booted the container, if the UID of the host user is
         # the same as the UID for an already existing user in the container
-        uid_exists = self.exec(f"getent passwd {self.host_uid}", user="root", allow_fail=True)
+        uid_exists = self.exec(f"getent passwd {self.compiler_uid}", user="root", allow_fail=True)
         if uid_exists is not None and uid_exists.ok:
             info(f"[*] Compiler user {self.compiler_user} already created")
             return
 
         compiler_username = "compiler"
 
-        if self.host_uid == "0":
+        if self.compiler_uid == "0":
             # If we're starting the compiler as root, we won't be able to create the compiler user
             # and we will get weird failures later on, as the user 'compiler' won't exist in the container
             raise ValueError("Cannot start compiler as root, we need to run as a non-root user")
 
         # Now create the compiler user with same UID and GID as the current user
-        self.exec(f"getent group {self.host_gid} || groupadd -f -g {self.host_gid} {compiler_username}", user="root")
         self.exec(
-            f"getent passwd {self.host_uid} || useradd -m -u {self.host_uid} -g {self.host_gid} {compiler_username}",
+            f"getent group {self.compiler_gid} || groupadd -f -g {self.compiler_gid} {compiler_username}", user="root"
+        )
+        self.exec(
+            f"getent passwd {self.compiler_uid} || useradd -m -u {self.compiler_uid} -g {self.compiler_gid} {compiler_username}",
             user="root",
         )
 
@@ -144,16 +226,122 @@ class CompilerImage:
             self.start()
 
     def ensure_in_git_repo(self):
-        # The compiler requires a .git directory to be present and valid, so if we're running in a git worktree
-        # we'll get failures as it cannot find the root .git directory.
+        self.host_git_mounts()
+
+    def host_git_mounts(self) -> list[Path]:
+        """Return the host git directories outside the repo root that git in the container needs.
+
+        They are mounted at the same absolute path: a worktree's .git file and an alternates file
+        point to them by absolute path. Raises Exit for layouts that cannot be resolved this way.
+        """
         repo_root = get_repo_root()
-        git_dir = repo_root / ".git"
-        if not git_dir.exists():
+        dotgit = repo_root / ".git"
+        mounts: list[Path] = []
+        if dotgit.is_dir():
+            common_dir = dotgit
+        elif dotgit.is_file():
+            content = dotgit.read_text().strip()
+            if not content.startswith("gitdir:"):
+                raise Exit(f"[-] {dotgit} is not a valid git worktree file")
+            git_dir = Path(content.removeprefix("gitdir:").strip())
+            if not git_dir.is_absolute():
+                raise Exit(
+                    f"[-] {dotgit} uses a relative gitdir, which cannot resolve inside the compiler container. "
+                    "Run `git worktree repair --no-relative-paths` to make it absolute"
+                )
+            commondir_file = git_dir / "commondir"
+            common_dir = git_dir
+            if commondir_file.is_file():
+                common_dir = Path(os.path.normpath(git_dir / commondir_file.read_text().strip()))
+            mounts.append(common_dir)
+            if not git_dir.is_relative_to(common_dir):
+                mounts.append(git_dir)
+        else:
             raise Exit(
                 f"[-] .git directory not found in {repo_root}, this command needs to be run from a git repository"
             )
-        elif not git_dir.is_dir():
-            raise Exit(f"[-] .git directory is not a directory in {repo_root}, git worktrees are not supported")
+
+        # Git follows alternates recursively, so walk the chain; `seen` guards against cycles.
+        pending = [common_dir / "objects"]
+        seen = {os.path.realpath(pending[0])}
+        while pending:
+            alternates = pending.pop(0) / "info" / "alternates"
+            if not alternates.is_file():
+                continue
+            for line in alternates.read_text().splitlines():
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                alternate = Path(line)
+                if not alternate.is_absolute():
+                    raise Exit(f"[-] {alternates} lists a relative path ({line}), which is not supported")
+                if os.path.realpath(alternate) in seen:
+                    continue
+                seen.add(os.path.realpath(alternate))
+                mounts.append(alternate)
+                pending.append(alternate)
+        return mounts
+
+    def ensure_mounts_current_repo(self):
+        """Fail when the existing container was started from a different checkout."""
+        if self.ctx.config.run["dry"] or not self.is_loaded:
+            return
+        res = self.ctx.run(f"docker inspect --format '{{{{json .Mounts}}}}' {self.name}", hide=True, warn=True)
+        if res is None or not res.ok:
+            return
+        mounted = {m["Destination"]: os.path.realpath(m["Source"]) for m in json.loads(res.stdout)}
+        repo_root = get_repo_root()
+        expected = {CONTAINER_AGENT_PATH: repo_root, **{str(p): p for p in self.host_git_mounts()}}
+        for target, source in expected.items():
+            if mounted.get(target) != os.path.realpath(source):
+                raise Exit(
+                    f"[-] Compiler container {self.name} does not mount {source} at {target}: it was started from "
+                    f"another checkout ({mounted.get(CONTAINER_AGENT_PATH)}) or git layout. "
+                    "Run `dda inv kmt.start-compiler` from this checkout to replace it"
+                )
+
+    def host_repository_cache(self) -> Path | None:
+        """Return the host Bazel repository_cache path when it exists, else None.
+
+        Resolved via `bazel info` so all rc layers (workspace, user, home) apply.
+        """
+        with chdir(get_repo_root()):
+            res = bazel("info", "repository_cache", capture_output=True, ignore_errors=True)
+        if isinstance(res, str) or res.returncode != 0:
+            warn("[!] Could not resolve Bazel repository_cache; container will not share the host cache")
+            return None
+
+        raw = res.stdout.strip()
+        # --repository_cache= yields empty stdout; Path('') is '.' and is_dir() is true.
+        if not raw:
+            warn("[!] Bazel repository_cache is empty (caching disabled); skipping mount")
+            return None
+
+        cache = Path(raw)
+        if not cache.is_absolute() or not cache.is_dir():
+            warn(f"[!] Bazel repository_cache {cache} does not exist; skipping mount")
+            return None
+        return cache
+
+    def host_go_caches(self) -> dict[str, Path]:
+        """Return the host GOMODCACHE/GOCACHE paths that exist, keyed by env var name."""
+        res = self.ctx.run("go env GOMODCACHE GOCACHE", hide=True, warn=True)
+        if res is None or not res.ok:
+            warn("[!] Could not resolve Go caches; container will not share the host caches")
+            return {}
+
+        caches: dict[str, Path] = {}
+        for var, raw in zip(("GOMODCACHE", "GOCACHE"), res.stdout.splitlines(), strict=False):
+            raw = raw.strip()
+            # GOCACHE=off (or an empty value) disables the cache; nothing to share.
+            if not raw or raw == "off":
+                continue
+            cache = Path(raw)
+            if not cache.is_absolute() or not cache.is_dir():
+                warn(f"[!] Go {var} {cache} does not exist; skipping mount")
+                continue
+            caches[var] = cache
+        return caches
 
     def exec(
         self,
@@ -162,6 +350,7 @@ class CompilerImage:
         run_dir: PathOrStr | None = None,
         allow_fail=False,
         force_color=True,
+        buildbarn_token=False,
     ) -> Result:
         if run_dir:
             cmd = f"cd {run_dir} && {cmd}"
@@ -177,13 +366,20 @@ class CompilerImage:
         if not force_color:
             color_env = ""
 
+        # Only the variable names go on the command line, the values come from the docker CLI env.
+        token = get_buildbarn_token(self.ctx) if buildbarn_token else None
+        bazel_env = "-e BUILDBARN_ID_TOKEN" if token else ""
+        if buildbarn_token and "DD_BAZEL_REMOTE_CACHE" in os.environ:
+            bazel_env += " -e DD_BAZEL_REMOTE_CACHE"
+
         # Set FORCE_COLOR=1 so that termcolor works in the container
         return cast(
             Result,
             self.ctx.run(
-                f"docker exec -u {user} -i {color_env} {self.name} bash -l -c \"{cmd}\"",
+                f"docker exec -u {user} -i {color_env} {bazel_env} {self.name} bash -l -c \"{cmd}\"",
                 hide=not self.ctx.config.run["echo"],
                 warn=allow_fail,
+                env={"BUILDBARN_ID_TOKEN": token} if token else {},
             ),
         )
 
@@ -195,7 +391,7 @@ class CompilerImage:
         if self.is_loaded:
             self.stop()
 
-        self.ensure_in_git_repo()
+        git_mounts = self.host_git_mounts()
 
         # Check if the image exists
         res = self.ctx.run(f"docker image inspect {self.expected_image_name}", hide=True, warn=True)
@@ -216,9 +412,25 @@ class CompilerImage:
         platform = ""
         if self.arch != Arch.local():
             platform = f"--platform linux/{self.arch.go_arch}"
+
+        mounts = [f"--mount type=bind,source={get_repo_root()},target={CONTAINER_AGENT_PATH}"]
+        for git_mount in git_mounts:
+            mounts.append(f"--mount {shlex.quote(f'type=bind,source={git_mount},target={git_mount}')}")
+            info(f"[*] Mounting host git directory {git_mount}")
+        repo_cache = self.host_repository_cache()
+        if repo_cache is not None:
+            # Same absolute path so an explicit workspace/user.bazelrc --repository_cache= still matches.
+            mounts.append(f"--mount {shlex.quote(f'type=bind,source={repo_cache},target={repo_cache}')}")
+            info(f"[*] Mounting host Bazel repository_cache at {repo_cache}")
+        go_caches = self.host_go_caches()
+        for var, cache in go_caches.items():
+            mounts.append(f"--mount {shlex.quote(f'type=bind,source={cache},target={cache}')}")
+            info(f"[*] Mounting host Go {var} at {cache}")
+
+        # --init reaps orphans such as crashed Bazel servers; a zombie one blocks every later bazel client.
         res = self.ctx.run(
-            f"docker run {platform} -d --restart always --name {self.name} "
-            f"--mount type=bind,source={get_repo_root()},target={CONTAINER_AGENT_PATH} "
+            f"docker run {platform} -d --init --restart always --name {self.name} "
+            f"{' '.join(mounts)} "
             f"{self.expected_image_name} sleep \"infinity\"",
             warn=True,
         )
@@ -229,9 +441,18 @@ class CompilerImage:
         # inside there with the same UID and GID as the current user
         self.ensure_compiler_user_created()
 
+        if repo_cache is not None:
+            # Host default/home-rc cache paths differ from the container user's; force the mounted path.
+            bazelrc = f"{self.compiler_home}/.bazelrc"
+            with tempfile.NamedTemporaryFile(mode='w') as rc:
+                rc.write(f"common --repository_cache={shlex.quote(str(repo_cache))}\n")
+                rc.flush()
+                self.ctx.run(f"docker cp {rc.name} {self.name}:{bazelrc}")
+            self.exec(f"chown {self.compiler_uid}:{self.compiler_gid} {bazelrc}", user="root")
+
         if sys.platform != "darwin":  # No need to change permissions in MacOS
             self.exec(
-                f"chown {self.host_uid}:{self.host_gid} {CONTAINER_AGENT_PATH} && chown -R {self.host_uid}:{self.host_gid} {CONTAINER_AGENT_PATH}",
+                f"chown {self.compiler_uid}:{self.compiler_gid} {CONTAINER_AGENT_PATH} && chown -R {self.compiler_uid}:{self.compiler_gid} {CONTAINER_AGENT_PATH}",
                 user="root",
             )
 
@@ -265,9 +486,11 @@ class CompilerImage:
         # Uncompress the package in the root directory, so that we have access to the headers
         # We cannot install because the architecture will not match
         # Extract into a .tar file and then use tar to extract the contents to avoid issues
-        # with dpkg-deb not respecting symlinks.
+        # with dpkg-deb not respecting symlinks. -P is needed because the headers are extracted through
+        # symlinks pointing outside their parent (arch/x86 -> ../../linux-headers-<ver>/arch/x86),
+        # which tar refuses to follow by default.
         self.exec(f"dpkg-deb --fsys-tarfile {headers_package_filename} > {headers_package_filename}.tar", user="root")
-        self.exec(f"tar --skip-old-files -xf {headers_package_filename}.tar -C /", user="root")
+        self.exec(f"tar -P --skip-old-files -xf {headers_package_filename}.tar -C /", user="root")
         self.exec(
             f"mv /usr/src/{headers_package}/include/generated/*.h /usr/src/{headers_package}/arch/{cross_arch.kernel_arch}/include/generated/",
             user="root",
@@ -278,28 +501,38 @@ class CompilerImage:
             f"usermod -aG sudo {self.compiler_user} && echo '{self.compiler_user} ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers",
             user="root",
         )
-        self.exec(
-            f"cp /root/.bashrc /home/{self.compiler_user}/.bashrc && chown {self.host_uid}:{self.host_gid} /home/{self.compiler_user}/.bashrc",
-            user="root",
-        )
+        if self.compiler_home != "/root":
+            self.exec(
+                f"cp /root/.bashrc {self.compiler_home}/.bashrc && chown {self.compiler_uid}:{self.compiler_gid} {self.compiler_home}/.bashrc",
+                user="root",
+            )
         self.exec("mkdir ~/.cargo && touch ~/.cargo/env", user=self.compiler_user)
-        self.exec(f"install -d -m 0777 -o {self.host_uid} -g {self.host_gid} /go", user="root")
+        self.exec(f"install -d -m 0777 -o {self.compiler_uid} -g {self.compiler_gid} /go", user="root")
         self.exec(
-            f"echo export DD_CC=/opt/toolchains/{self.arch.gcc_arch}/bin/{self.arch.gcc_arch}-linux-gnu-gcc >> /home/{self.compiler_user}/.bashrc",
+            f"echo export DD_CC=/opt/toolchains/{self.arch.gcc_arch}/bin/{self.arch.gcc_arch}-linux-gnu-gcc >> {self.compiler_home}/.bashrc",
             user=self.compiler_user,
         )
         self.exec(
-            f"echo export DD_CXX=/opt/toolchains/{self.arch.gcc_arch}/bin/{self.arch.gcc_arch}-linux-gnu-g++ >> /home/{self.compiler_user}/.bashrc",
+            f"echo export DD_CXX=/opt/toolchains/{self.arch.gcc_arch}/bin/{self.arch.gcc_arch}-linux-gnu-g++ >> {self.compiler_home}/.bashrc",
             user=self.compiler_user,
         )
         self.exec(
-            f"echo export DD_CC_CROSS=/opt/toolchains/{cross_arch.gcc_arch}/bin/{cross_arch.gcc_arch}-linux-gnu-gcc >> /home/{self.compiler_user}/.bashrc",
+            f"echo export DD_CC_CROSS=/opt/toolchains/{cross_arch.gcc_arch}/bin/{cross_arch.gcc_arch}-linux-gnu-gcc >> {self.compiler_home}/.bashrc",
             user=self.compiler_user,
         )
         self.exec(
-            f"echo export DD_CXX_CROSS=/opt/toolchains/{cross_arch.gcc_arch}/bin/{cross_arch.gcc_arch}-linux-gnu-g++ >> /home/{self.compiler_user}/.bashrc",
+            f"echo export DD_CXX_CROSS=/opt/toolchains/{cross_arch.gcc_arch}/bin/{cross_arch.gcc_arch}-linux-gnu-g++ >> {self.compiler_home}/.bashrc",
             user=self.compiler_user,
         )
+        if go_caches:
+            # Point the container's Go toolchain at the mounted host caches; login shells source profile.d.
+            go_profile = "/etc/profile.d/go-cache.sh"
+            with tempfile.NamedTemporaryFile(mode='w') as profile:
+                for var, cache in go_caches.items():
+                    profile.write(f"export {var}={shlex.quote(str(cache))}\n")
+                profile.flush()
+                self.ctx.run(f"docker cp {profile.name} {self.name}:{go_profile}")
+            self.exec(f"chmod 0644 {go_profile}", user="root")
 
         self.exec(f"touch {MARKER_IMAGE_PREPARED}", user=self.compiler_user)
 
@@ -337,6 +570,8 @@ Architectures: {arch.go_arch}
 
 def get_compiler(ctx: Context):
     cc = CompilerImage(ctx, Arch.local())
+    # Check the mounts first: refreshing the image replaces the container, which could be another checkout's.
+    cc.ensure_mounts_current_repo()
     cc.ensure_version()
     cc.ensure_running()
 

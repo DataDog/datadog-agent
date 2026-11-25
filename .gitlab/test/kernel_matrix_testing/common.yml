@@ -121,11 +121,6 @@
 .tag_kmt_ci_job:
   - dda inv -- -e kmt.tag-ci-job
 
-.kmt_setup_needs:
-  - go_deps
-  - go_tools_deps
-  - go_e2e_deps
-
 # -- Test dependencies
 
 .package_dependencies:
@@ -155,9 +150,10 @@
 .kmt_setup_env:
   extends:
     - .kmt_ec2_location_us_east_1
+    - .bazel:defs:cache:progressive
   stage: kernel_matrix_testing_prepare
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  needs: !reference [.kmt_setup_needs]
+  needs: []
   tags: ["arch:amd64", "specific:true"]
   retry: !reference [.retry_only_infra_failure, retry]
   variables:
@@ -178,10 +174,7 @@
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
   before_script:
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
-    - !reference [.retrieve_linux_go_deps]
-    - !reference [.retrieve_linux_go_tools_deps]
-    - !reference [.retrieve_linux_go_e2e_deps]
-    - !reference [.retrieve_linux_pulumi_plugins]
+    - bazel run @pulumi_plugins//:install -- --destdir=$HOME/.pulumi/plugins
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH || true
@@ -208,12 +201,7 @@
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/qemu-ddvm-*.log" $CI_PROJECT_DIR/libvirt/qemu
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/dnsmasq/*" $CI_PROJECT_DIR/libvirt/dnsmasq
     # build vm-metrics collector
-    - |
-      GO_ARCH=$ARCH
-      if [ "${ARCH}" == "x86_64" ]; then
-        GO_ARCH=amd64
-      fi
-    - cd test/new-e2e && GOOS=linux GOARCH="${GO_ARCH}" go build system-probe/vm-metrics/vm-metrics.go
+    - bazel run //test/new-e2e/system-probe/vm-metrics:install_vm-metrics_linux_$ARCH -- --destdir=$CI_PROJECT_DIR/test/new-e2e
     # The vm-metrics collector is uploaded and executed in the same job because we need to execute it after the datadog-agent
     # is launched in the metal instance, and before the tests are executed. This place naturally satisfies these constraints.
     # upload vm-metrics collector to metal instance
@@ -305,7 +293,7 @@
     # ssh into each micro-vm and run initialization script. This script will also run the tests.
     - ${CI_PROJECT_DIR}/tools/ci/retry.sh scp "$DD_AGENT_TESTING_DIR/job_env.txt" "metal_instance:/home/ubuntu/job_env-${ARCH}-${TAG}-${TEST_SET}.txt"
     - ${CI_PROJECT_DIR}/tools/ci/retry.sh ssh metal_instance "scp /home/ubuntu/job_env-${ARCH}-${TAG}-${TEST_SET}.txt ${MICRO_VM_IP}:/job_env.txt"
-    - NESTED_VM_CMD="/home/ubuntu/connector -host ${MICRO_VM_IP} -user root -ssh-file /home/kernel-version-testing/ddvm_rsa -vm-cmd 'mount -o remount,size=6G /opt/kmt-ramfs && CI=true /root/fetch_dependencies.sh ${ARCH} && COLLECT_COMPLEXITY=${COLLECT_COMPLEXITY} /opt/micro-vm-init.sh -test-tools /opt/testing-tools -retry ${RETRY} -test-root /opt/${TEST_COMPONENT}-tests -packages-run-config /opt/${TEST_SET}.json'"
+    - NESTED_VM_CMD="/home/ubuntu/connector -host ${MICRO_VM_IP} -user root -ssh-file /home/kernel-version-testing/ddvm_rsa -vm-cmd 'mount -o remount,size=7G /opt/kmt-ramfs && CI=true /root/fetch_dependencies.sh ${ARCH} && COLLECT_COMPLEXITY=${COLLECT_COMPLEXITY} /opt/micro-vm-init.sh -test-tools /opt/testing-tools -retry ${RETRY} -test-root /opt/${TEST_COMPONENT}-tests -packages-run-config /opt/${TEST_SET}.json'"
     - $CI_PROJECT_DIR/connector-$ARCH -host $INSTANCE_IP -user ubuntu -ssh-file $AWS_EC2_SSH_KEY_FILE -vm-cmd "${NESTED_VM_CMD}" -send-env-vars CI_COMMIT_SHA,DD_API_KEY # Allow DD_API_KEY to be passed to the metal instance, so we can use it to send metrics from the connector.
     - NO_RETRY_EXIT_CODE=42 ${CI_PROJECT_DIR}/tools/ci/retry.sh ssh metal_instance "ssh ${MICRO_VM_IP} '/opt/testing-tools/test-json-review -flakes /opt/testing-tools/flakes.yaml -codeowners /opt/testing-tools/CODEOWNERS -test-root /opt/${TEST_COMPONENT}-tests'"
     - "[ ! -f $CI_PROJECT_DIR/daemon-${ARCH}.log ] && ${CI_PROJECT_DIR}/tools/ci/retry.sh scp metal_instance:/home/ubuntu/daemon.log $CI_PROJECT_DIR/vm-metrics-daemon-${ARCH}.log"

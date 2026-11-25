@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/api/loader"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
@@ -231,6 +232,73 @@ func TestServerShutdown(t *testing.T) {
 	receiver.Stop()
 
 	wg.Wait()
+}
+
+// TestStopWithBlockedHandler reproduces a shutdown where a handler is still
+// blocked handing its payload to the out channel when the graceful shutdown
+// times out. Stop must not return until that handler has exited, so that the
+// caller can close the out channels without a "send on closed channel" panic.
+func TestStopWithBlockedHandler(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		features string
+	}{
+		{name: "v1"},
+		{name: "v0", features: "disable-convert-traces"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			conf := newTestReceiverConfigNoPort()
+			if tc.features != "" {
+				conf.Features[tc.features] = struct{}{}
+			}
+			ln := testutil.TCPListener(t)
+			tcpAddr := ln.Addr().(*net.TCPAddr)
+			conf.ReceiverHost = tcpAddr.IP.String()
+			conf.ReceiverPort = tcpAddr.Port
+			// With the default of a single connection slot, Accept would block
+			// on the slot held by the request below and stall server.Shutdown.
+			conf.MaxConnections = 10
+
+			// Unbuffered and never read, so the handler blocks on its send.
+			out := make(chan *Payload)
+			outV1 := make(chan *PayloadV1)
+			r := NewHTTPReceiver(conf, sampler.NewDynamicConfig(), out, outV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+			r.shutdownTimeout = 100 * time.Millisecond
+			r.SetTCPListener(ln)
+			r.Start()
+
+			bts, err := testutil.GetTestTraces(1, 1, true).MarshalMsg(nil)
+			require.NoError(t, err)
+			req, err := http.NewRequest("POST", fmt.Sprintf("http://%s/v0.4/traces", r.Addr()), bytes.NewReader(bts))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/msgpack")
+			// The response is only flushed once the handler returns, so send
+			// in the background.
+			go func() {
+				if resp, err := http.DefaultClient.Do(req); err == nil {
+					resp.Body.Close()
+				}
+			}()
+			// The handler creates its tag stats right after decoding the
+			// payload. From there it does no more network reads before
+			// blocking on the out channel, which nothing reads, so closing
+			// the connection in Stop can no longer make it fail early.
+			require.Eventually(t, func() bool {
+				r.Stats.RLock()
+				defer r.Stats.RUnlock()
+				return len(r.Stats.Stats) > 0
+			}, 5*time.Second, 10*time.Millisecond)
+
+			err = r.Stop()
+			assert.ErrorIs(t, err, context.DeadlineExceeded)
+			assert.EqualValues(t, 1, r.droppedOnShutdown.Load())
+
+			// What the agent does after Stop returns; this used to race with
+			// the blocked handler and panic.
+			close(out)
+			close(outV1)
+		})
+	}
 }
 
 func TestReceiverRequestBodyLength(t *testing.T) {
@@ -2241,6 +2309,46 @@ func TestWithoutIPCCert(t *testing.T) {
 	}
 }
 
+func TestDebugServerListensOnConfiguredHost(t *testing.T) {
+	for _, host := range []string{"127.0.0.1", "::1"} {
+		t.Run(host, func(t *testing.T) {
+			ln, err := net.Listen("tcp", net.JoinHostPort(host, "0"))
+			if err != nil {
+				t.Skipf("cannot listen on %s: %s", host, err)
+			}
+			port := ln.Addr().(*net.TCPAddr).Port
+			require.NoError(t, ln.Close())
+
+			c := newTestReceiverConfig()
+			c.DebugServerHost = host
+			c.DebugServerPort = port
+
+			ts := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+			tlsConfig := ts.TLS.Clone()
+			ts.Close()
+
+			s := NewDebugServer(c)
+			s.SetTLSConfig(tlsConfig)
+			s.Start()
+			t.Cleanup(s.Stop)
+
+			conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, strconv.Itoa(port)), time.Second)
+			require.NoError(t, err)
+			conn.Close()
+
+			other := "::1"
+			if host == "::1" {
+				other = "127.0.0.1"
+			}
+			conn, err = net.DialTimeout("tcp", net.JoinHostPort(other, strconv.Itoa(port)), time.Second)
+			if conn != nil {
+				conn.Close()
+			}
+			require.Error(t, err)
+		})
+	}
+}
+
 func TestNormalizeHTTPHeader(t *testing.T) {
 	tests := []struct {
 		input    string
@@ -2660,4 +2768,80 @@ func msgpTraces(t *testing.T, traces pb.Traces) []byte {
 		t.Fatal(err)
 	}
 	return bts
+}
+
+// headerContainerIDProvider returns the container ID that the request header
+// gives, like the real provider does for tracers that send it.
+type headerContainerIDProvider struct{}
+
+func (headerContainerIDProvider) GetContainerID(_ context.Context, h http.Header) string {
+	return h.Get(header.ContainerID)
+}
+
+func TestDecodeErrorLogNamesClient(t *testing.T) {
+	var output bytes.Buffer
+	oldLogger := log.SetLogger(log.NewBufferLogger(&output))
+	t.Cleanup(func() { log.SetLogger(oldLogger) })
+
+	// The request sets the lang and tracer version headers, and the container
+	// has more tags. The log line has neither: the lang and tracer version are
+	// already tags on the receiver metrics, and the other tags do not name the app.
+	for name, features := range map[string][]string{
+		"v1":     nil,
+		"legacy": {"disable-convert-traces"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			output.Reset()
+			conf := newTestReceiverConfigWithFeatures(features...)
+			conf.MaxRequestBytes = 2
+			conf.ContainerTags = func(cid string) ([]string, error) {
+				require.Equal(t, "abc123", cid)
+				return []string{"service:checkout", "kube_namespace:shop", "kube_deployment:checkout", "pod_name:checkout-7d9f-x2", "container_name:app", "short_image:checkout", "image_id:sha256:deadbeef", "kube_ownerref_kind:replicaset"}, nil
+			}
+			r := newTestReceiverFromConfig(conf)
+			r.containerIDProvider = headerContainerIDProvider{}
+
+			req := httptest.NewRequest(http.MethodPost, "/v0.4/traces", strings.NewReader(" []"))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set(header.ContainerID, "abc123")
+			req.Header.Set(header.Lang, "go")
+			req.Header.Set(header.TracerVersion, "v1.2.3")
+			req.RemoteAddr = "10.1.2.3:41234"
+			rec := httptest.NewRecorder()
+			r.handleWithVersion(v04, r.handleTraces).ServeHTTP(rec, req)
+			require.Equal(t, http.StatusRequestEntityTooLarge, rec.Code)
+
+			_, line, found := strings.Cut(output.String(), "[ERROR] ")
+			require.True(t, found, "no error logged: %s", output.String())
+			assert.Equal(t, `Cannot decode v0.4 traces payload (content_length:3, remote_addr:"10.1.2.3:41234", container_id:"abc123", service:"checkout", kube_namespace:"shop", kube_deployment:"checkout", pod_name:"checkout-7d9f-x2", container_name:"app", short_image:"checkout"): read limit reached`, line)
+		})
+	}
+}
+
+func TestDecodeErrorClientQuotesTagValues(t *testing.T) {
+	conf := newTestReceiverConfig()
+	conf.ContainerTags = func(string) ([]string, error) {
+		return []string{"service:fake\n2026-01-01 00:00:00 UTC | TRACE | ERROR | forged line"}, nil
+	}
+	r := newTestReceiverFromConfig(conf)
+	r.containerIDProvider = headerContainerIDProvider{}
+	req := httptest.NewRequest(http.MethodPost, "/v0.4/traces", nil)
+	req.Header.Set(header.ContainerID, "abc123")
+	got := r.decodeErrorClient(req)
+	assert.NotContains(t, got, "\n")
+	assert.Contains(t, got, `service:"fake\n2026-01-01 00:00:00 UTC | TRACE | ERROR | forged line"`)
+}
+
+func TestDecodeErrorLogWithoutContainer(t *testing.T) {
+	conf := newTestReceiverConfig()
+	conf.ContainerTags = func(string) ([]string, error) {
+		t.Fatal("container tags must not be looked up without a container ID")
+		return nil, nil
+	}
+	r := newTestReceiverFromConfig(conf)
+	r.containerIDProvider = headerContainerIDProvider{}
+	req := httptest.NewRequest(http.MethodPost, "/v0.4/traces", nil)
+	req.ContentLength = 42
+	req.RemoteAddr = "@"
+	assert.Equal(t, `content_length:42, remote_addr:"@", container_id:""`, r.decodeErrorClient(req))
 }

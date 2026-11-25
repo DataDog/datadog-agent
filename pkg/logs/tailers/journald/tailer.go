@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"sync"
 	"time"
 
 	"github.com/coreos/go-systemd/v22/sdjournal"
@@ -27,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var journaldMatchRe = regexp.MustCompile("^([^=]+)=(.+)$")
 
 // defaultWaitDuration represents the delay before which we try to collect a new log from the journal
 const (
@@ -65,12 +68,16 @@ type Tailer struct {
 	defaultApplicationName *string
 }
 
+var rawMessageWarningOnce sync.Once
+
 // NewTailer returns a new tailer.
 func NewTailer(source *sources.LogSource, outputChan chan *message.Message, journal Journal, processRawMessage bool, tagger tagger.Component, registry auditor.Registry) *Tailer {
 	if len(source.Config.ProcessingRules) > 0 && processRawMessage {
-		log.Warn("The logs processing rules currently apply to the raw journald JSON-structured log. These rules can now be applied to the message content only, and we plan to make this the default behavior in the future.")
-		log.Warn("In order to immediately switch to this new behavior, set 'process_raw_message' to 'false' in your logs integration config and adapt your processing rules accordingly.")
-		log.Warn("Please contact Datadog support for more information.")
+		rawMessageWarningOnce.Do(func() {
+			log.Warn("The logs processing rules currently apply to the raw journald JSON-structured log. These rules can now be applied to the message content only, and we plan to make this the default behavior in the future.")
+			log.Warn("In order to immediately switch to this new behavior, set 'process_raw_message' to 'false' in your logs integration config and adapt your processing rules accordingly.")
+			log.Warn("Please contact Datadog support for more information.")
+		})
 		telemetry.GetStatsTelemetryProvider().Gauge(processor.UnstructuredProcessingMetricName, 1, []string{"tailer:journald"})
 	}
 
@@ -129,8 +136,6 @@ func (t *Tailer) Stop() {
 func (t *Tailer) setup() error {
 	config := t.source.Config
 
-	matchRe := regexp.MustCompile("^([^=]+)=(.+)$")
-
 	// add filters to collect only the logs of the units defined in the configuration,
 	// if no units for both System and User, and no matches are defined,
 	// collect all the logs of the journal by default.
@@ -162,7 +167,7 @@ func (t *Tailer) setup() error {
 
 	for _, match := range config.IncludeMatches {
 		// add filters to collect only the logs of the matches defined in the configuration.
-		submatches := matchRe.FindStringSubmatch(match)
+		submatches := journaldMatchRe.FindStringSubmatch(match)
 		if len(submatches) < 1 {
 			return fmt.Errorf("incorrectly formatted IncludeMatch (must be `[field]=[value]`: %s", match)
 		}
@@ -187,7 +192,7 @@ func (t *Tailer) setup() error {
 	t.exclude.matches = make(map[string]map[string]bool)
 	for _, match := range config.ExcludeMatches {
 		// add filters to drop all the logs related to the matches to exclude.
-		submatches := matchRe.FindStringSubmatch(match)
+		submatches := journaldMatchRe.FindStringSubmatch(match)
 		if len(submatches) < 1 {
 			return fmt.Errorf("incorrectly formatted ExcludeMatch (must be `[field]=[value]`: %s", match)
 		}

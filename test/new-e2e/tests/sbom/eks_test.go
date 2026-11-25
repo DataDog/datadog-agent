@@ -25,6 +25,8 @@ func TestSBOMEKSSuite(t *testing.T) {
 		return proveks.Provisioner(
 			proveks.WithRunOptions(
 				sceneks.WithEKSOptions(
+					// TODO: Route the Argo Rollouts chart's images through the internal registry.
+					sceneks.WithInternetAccess(),
 					sceneks.WithLinuxNodeGroup(),
 					sceneks.WithBottlerocketNodeGroup(),
 					sceneks.WithLinuxARMNodeGroup(),

@@ -1,0 +1,14 @@
+description: until loop with continue iterates until its condition becomes true.
+input:
+  script: |+
+    i=
+    until [ "$i" = aaa ]; do
+      i="${i}a"
+      continue
+    done
+    echo "i=$i"
+expect:
+  stdout: |+
+    i=aaa
+  stderr: |+
+  exit_code: 0

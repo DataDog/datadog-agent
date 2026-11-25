@@ -3,7 +3,7 @@
 This directory contains the GPU corecheck specification files:
 
 - `gpu_metrics.yaml`: metric catalog (metric names, required tagsets/custom tags, and support matrix by architecture/device mode/capability).
-- `architectures.yaml`: architecture capabilities (GPM, NVLink version from NVML `GetNvLinkVersion`, C2C support, unsupported NVML fields by mode, and unsupported device modes such as `mig`/`vgpu`).
+- `architectures.yaml`: architecture capabilities (GPM, NVLink version from NVML `GetNvLinkVersion`, C2C support, unsupported NVML fields by mode, and unsupported device modes such as `mig`/`mig_parent`/`vgpu`).
 - `tags.yaml`: reusable tag definitions (`tags`) and reusable tag groups (`tagsets`), including workload-only tagsets and regex validation for tag values.
 
 Each YAML file has headers describing the schema.
@@ -31,8 +31,10 @@ device mode, and hardware capabilities:
   `system_probe_prm` represent their respective system-probe GPU monitoring
   features.
 - `optional: true` means an otherwise supported metric may be absent on an
-  individual device, such as a fanless GPU. If emitted, optional metrics still
-  undergo normal support, tag, type, and value validation.
+  individual device, such as a fanless GPU, or for some workloads, such as
+  `device.sharing_fraction` for containers without an assigned fraction. If
+  emitted, optional metrics still undergo normal support, tag, type, and value
+  validation.
 
 Workload-only tagsets are selected separately through
 `ValidationOptions.WorkloadTagsets`. This allows a bare process workload to
@@ -61,11 +63,11 @@ Run one or more of these three validation levels:
 
 1. **Mocked NVML against spec** (`TestMetricsFollowSpec`):
 
-   `dda inv test --targets=./pkg/collector/corechecks/gpu -- -tags "test,nvml" -run TestMetricsFollowSpec`
+   `dda inv test --targets=./pkg/collector/corechecks/gpu --test-args=-test.run=TestMetricsFollowSpec`
 
 2. **Real NVML APIs against spec** (`integrationtests`, requires real GPU + NVML):
 
-   `dda inv test --targets=./pkg/collector/corechecks/gpu/integrationtests -- -tags "nvml"`
+   `dda inv test --targets=./pkg/collector/corechecks/gpu/integrationtests`
 
 3. **Live Datadog data against spec** (`spec/metrics-validator` through invoke task):
 

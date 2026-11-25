@@ -1,0 +1,9 @@
+description: wc exits 1 and prints error for nonexistent file.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc bogusfile
+expect:
+  stdout: ""
+  stderr_contains: ["wc: bogusfile:"]
+  exit_code: 1

@@ -17,6 +17,33 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
+func TestLocalProviderStripsInfraModeTag(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockClock := clock.NewMock()
+
+	oldStartTime := pkgconfigsetup.StartTime
+	pkgconfigsetup.StartTime = mockClock.Now()
+	defer func() {
+		pkgconfigsetup.StartTime = oldStartTime
+	}()
+
+	mockConfig.SetInTest("tags", []string{"tag1:value1"})
+	mockConfig.SetInTest("infrastructure_mode", "basic")
+	mockConfig.SetInTest("logs_config.expected_tags_duration", "5s")
+	defer mockConfig.SetInTest("logs_config.expected_tags_duration", "0")
+	defer mockConfig.SetInTest("tags", nil)
+	defer mockConfig.SetInTest("infrastructure_mode", "")
+
+	p := newLocalProviderWithClock([]string{"source_tag:value"}, mockClock)
+
+	tagList := p.GetTags()
+	for _, tag := range tagList {
+		assert.NotContains(t, tag, "infra_mode:")
+	}
+	assert.Contains(t, tagList, "source_tag:value")
+	assert.Contains(t, tagList, "tag1:value1")
+}
+
 func TestLocalProviderShouldReturnEmptyList(t *testing.T) {
 
 	mockConfig := configmock.New(t)

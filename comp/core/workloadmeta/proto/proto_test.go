@@ -819,6 +819,69 @@ func TestConvertWorkloadEventToProtoWithUnpopulatedFields(t *testing.T) {
 	assert.Equal(t, expectedProtoEvent, actualProtoEvent)
 }
 
+func TestProtobufEventFromWorkloadmetaEventProcessInvalidUTF8(t *testing.T) {
+	cmdline := []string{"isql", "-S\xff\xfeserver", "-U", "user"}
+
+	wlmEvent := workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.Process{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindProcess,
+				ID:   "1234",
+			},
+			Pid:     1234,
+			Name:    "isql\xff",
+			Cwd:     "/home/\xc3\x28",
+			Exe:     "/usr/bin/isql\xff",
+			Comm:    "isql\xff",
+			Cmdline: cmdline,
+		},
+	}
+
+	protoEvent, err := ProtobufEventFromWorkloadmetaEvent(wlmEvent)
+	require.NoError(t, err)
+
+	_, err = proto.Marshal(protoEvent)
+	require.NoError(t, err)
+
+	assert.Equal(t, "isql\uFFFD", protoEvent.Process.Name)
+	assert.Equal(t, "/home/\uFFFD(", protoEvent.Process.Cwd)
+	assert.Equal(t, "/usr/bin/isql\uFFFD", protoEvent.Process.Exe)
+	assert.Equal(t, "isql\uFFFD", protoEvent.Process.Comm)
+	assert.Equal(t, []string{"isql", "-S\uFFFDserver", "-U", "user"}, protoEvent.Process.Cmdline)
+	assert.Equal(t, []string{"isql", "-S\xff\xfeserver", "-U", "user"}, cmdline)
+}
+
+func TestContainerImageMetadataCreatedRoundTrip(t *testing.T) {
+	tests := []struct {
+		name    string
+		created time.Time
+	}{
+		{"unknown", time.Time{}},
+		{"nanoseconds", time.Date(2026, time.May, 20, 20, 12, 16, 38472911, time.UTC)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p, err := ProtobufEventFromWorkloadmetaEvent(workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.ContainerImageMetadata{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindContainerImageMetadata,
+						ID:   "sha256:56122bfdab2ec6ccdfb5353a47d6a5ea08018cac6eb44e6a7cec699bdc038f2f",
+					},
+					Created: tt.created,
+				},
+			})
+			require.NoError(t, err)
+
+			event, err := WorkloadmetaEventFromProtoEvent(p)
+			require.NoError(t, err)
+			got := event.Entity.(*workloadmeta.ContainerImageMetadata).Created
+			assert.Truef(t, got.Equal(tt.created), "Created = %v, want %v", got, tt.created)
+		})
+	}
+}
+
 func TestProtobufFilterFromWorkloadmetaFilter(t *testing.T) {
 	filter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceRuntime).

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixed OTLP histograms producing distributions with a minimum greater than
+    their maximum.

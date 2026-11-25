@@ -46,13 +46,13 @@ int hook_override_creds(ctx_t *ctx) {
     u64 tgid_tid = bpf_get_current_pid_tgid();
     u32 tid = (u32)tgid_tid;
 
-    struct capabilities_context_t *cap_context = bpf_map_lookup_elem(&capabilities_contexts, &tid);
+    struct capabilities_context_t *cap_context = get_capabilities_context(tid);
     if (!cap_context) {
         struct capabilities_context_t new_context = {
             .cap_as_mask = 0, // No capabilities checked yet
             .override_creds_depth = 1, // We are entering an override_creds context
         };
-        bpf_map_update_elem(&capabilities_contexts, &tid, &new_context, BPF_ANY);
+        new_capabilities_context(tid, &new_context);
     } else {
         cap_context->override_creds_depth++;
     }
@@ -65,7 +65,7 @@ int hook_revert_creds(ctx_t *ctx) {
     u64 tgid_tid = bpf_get_current_pid_tgid();
     u32 tid = (u32)tgid_tid;
 
-    struct capabilities_context_t *cap_context = bpf_map_lookup_elem(&capabilities_contexts, &tid);
+    struct capabilities_context_t *cap_context = get_capabilities_context(tid);
     if (!cap_context) {
         // unexpected but we handle it gracefully
         return 0;
@@ -75,7 +75,7 @@ int hook_revert_creds(ctx_t *ctx) {
         cap_context->override_creds_depth--;
         if (cap_context->override_creds_depth == 0) {
             // If we reached zero, we can remove the context
-            bpf_map_delete_elem(&capabilities_contexts, &tid);
+            delete_capabilities_context(tid);
         }
     }
 
@@ -94,14 +94,14 @@ static __attribute__((always_inline)) int collect_host_userns_cap(u64 cap) {
     u64 tgid_tid = bpf_get_current_pid_tgid();
     u32 tid = (u32)tgid_tid;
 
-    struct capabilities_context_t *cap_context = bpf_map_lookup_elem(&capabilities_contexts, &tid);
+    struct capabilities_context_t *cap_context = get_capabilities_context(tid);
     if (cap_context) {
         cap_context->host_userns_cap_as_mask = 1ULL << cap;
     } else {
         struct capabilities_context_t new_context = {
             .host_userns_cap_as_mask = 1ULL << cap,
         };
-        bpf_map_update_elem(&capabilities_contexts, &tid, &new_context, BPF_ANY);
+        new_capabilities_context(tid, &new_context);
     }
 
     return 0;
@@ -121,7 +121,7 @@ HOOK_ENTRY("security_capable")
 int hook_security_capable(ctx_t *ctx) {
     u64 tgid_tid = bpf_get_current_pid_tgid();
     u32 tid = (u32)tgid_tid;
-    struct capabilities_context_t *cap_context = bpf_map_lookup_elem(&capabilities_contexts, &tid);
+    struct capabilities_context_t *cap_context = get_capabilities_context(tid);
 
     // clear before any early return: this program can be skipped while the return still runs, and a
     // collected capability left behind would be attributed to the next check of that capability
@@ -207,7 +207,7 @@ int hook_security_capable(ctx_t *ctx) {
             .cap_as_mask = cap_as_mask,
             .host_userns_check = host_userns_cap_as_mask,
         };
-        bpf_map_update_elem(&capabilities_contexts, &tid, &new_context, BPF_ANY);
+        new_capabilities_context(tid, &new_context);
     }
 
     return 0;
@@ -217,7 +217,7 @@ HOOK_EXIT("security_capable")
 int rethook_security_capable(ctx_t *ctx) {
     u64 tgid_tid = bpf_get_current_pid_tgid();
     u32 tid = (u32)tgid_tid;
-    struct capabilities_context_t *cap_context = bpf_map_lookup_elem(&capabilities_contexts, &tid);
+    struct capabilities_context_t *cap_context = get_capabilities_context(tid);
     if (!cap_context) {
         // unexpected, we should have a context at this point since we created one in hook_security_capable
         return 0;
@@ -238,7 +238,7 @@ int rethook_security_capable(ctx_t *ctx) {
     // a pending capability has to outlive this call, for the check against the current task's credentials
     if (override_creds_depth == 0 && cap_context->host_userns_cap_as_mask == 0) {
         // delete the context now to prevent a previous cap from being picked up by an another call to security_capable
-        bpf_map_delete_elem(&capabilities_contexts, &tid);
+        delete_capabilities_context(tid);
     } else {
         // reset the caps in case of override_creds or a pending host_userns cap
         cap_context->cap_as_mask = 0;

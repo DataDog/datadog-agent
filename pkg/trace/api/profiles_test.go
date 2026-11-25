@@ -7,6 +7,8 @@ package api
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,10 +16,12 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -467,4 +471,94 @@ func TestProfileProxyHandler(t *testing.T) {
 			t.Fatal("request not proxied")
 		}
 	})
+}
+
+func TestProfileProxyMultipleEndpointsEmptyBody(t *testing.T) {
+	assertEmptyBodyFansOut(t, func(urls []*url.URL, keys []string) http.Handler {
+		c := &config.AgentConfig{ContainerIDFromOriginInfo: config.NoopContainerIDFromOriginInfoFunc}
+		c.ProfilingProxy.MaxRequestBytes = 1024
+		return newProfileProxy(c, urls, keys, "key:val", &statsd.NoOpClient{})
+	})
+}
+
+func TestHandleProxyErrorLogging(t *testing.T) {
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	expiredCtx, cancelExpired := context.WithTimeout(context.Background(), -time.Second)
+	defer cancelExpired()
+
+	for _, tt := range []struct {
+		name       string
+		ctx        context.Context
+		body       string
+		chunked    bool
+		err        error
+		wantStatus int
+		wantLog    string
+		noWarn     bool
+	}{
+		{
+			name:       "client closed connection",
+			ctx:        canceledCtx,
+			body:       "body",
+			err:        context.Canceled,
+			wantStatus: http.StatusServiceUnavailable,
+			wantLog:    "[DEBUG] profiling proxy: client disconnected before the proxy received an intake response for POST /profiling/v1/input - payload_size=4 ",
+			noWarn:     true,
+		},
+		{
+			name:       "client closed connection chunked",
+			ctx:        canceledCtx,
+			body:       "body",
+			chunked:    true,
+			err:        context.Canceled,
+			wantStatus: http.StatusServiceUnavailable,
+			wantLog:    "[DEBUG] profiling proxy: client disconnected before the proxy received an intake response for POST /profiling/v1/input - payload_size=chunked ",
+			noWarn:     true,
+		},
+		{
+			name:       "request timeout",
+			ctx:        expiredCtx,
+			body:       "body",
+			err:        context.DeadlineExceeded,
+			wantStatus: http.StatusRequestTimeout,
+			wantLog:    "[WARN] profiling proxy error: request timeout (408) for POST /profiling/v1/input - payload_size=4 ",
+		},
+		{
+			name:       "canceled error with live request",
+			ctx:        context.Background(),
+			body:       "body",
+			err:        context.Canceled,
+			wantStatus: http.StatusServiceUnavailable,
+			wantLog:    "[WARN] profiling proxy error: retryable body read error (503) for POST /profiling/v1/input - payload_size=4 ",
+		},
+		{
+			name:       "transport error",
+			ctx:        context.Background(),
+			body:       "body",
+			chunked:    true,
+			err:        errors.New("boom"),
+			wantStatus: http.StatusBadGateway,
+			wantLog:    "[WARN] profiling proxy error: transport error (502) for POST /profiling/v1/input - payload_size=chunked ",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var logs bytes.Buffer
+			old := log.SetLogger(log.NewBufferLogger(&logs))
+			defer log.SetLogger(old)
+
+			req := httptest.NewRequest(http.MethodPost, "/profiling/v1/input", strings.NewReader(tt.body)).WithContext(tt.ctx)
+			if tt.chunked {
+				req.ContentLength = 0
+			}
+			rec := httptest.NewRecorder()
+			handleProxyError(rec, req, tt.err)
+
+			assert.Equal(t, tt.wantStatus, rec.Code)
+			assert.Contains(t, logs.String(), tt.wantLog)
+			if tt.noWarn {
+				assert.NotContains(t, logs.String(), "[WARN]")
+			}
+		})
+	}
 }

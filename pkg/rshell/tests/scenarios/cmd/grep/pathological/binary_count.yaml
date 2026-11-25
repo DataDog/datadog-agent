@@ -1,0 +1,14 @@
+description: grep -c on a binary file (containing NUL bytes) still prints the match count to stdout without emitting the "binary file matches" message to stderr.
+setup:
+  files:
+    - path: file.txt
+      content: "found\x00here\nfound\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -c found file.txt
+expect:
+  stdout: "2\n"
+  stderr: ""
+  exit_code: 0

@@ -51,7 +51,20 @@ func TestPathValidation(t *testing.T) {
 		},
 		{
 			val:        "/etc/apache/./httpd.conf",
-			errMessage: ErrPathMustBeAbsolute,
+			errMessage: "use `/etc/apache/httpd.conf` instead",
+		},
+		{
+			val:        "/etc//apache/httpd.conf",
+			errMessage: "use `/etc/apache/httpd.conf` instead",
+		},
+		{
+			val:        "/mnt/",
+			errMessage: "trailing slashes are not allowed: use `/mnt` to match the directory itself or `/mnt/*` to match its content",
+		},
+		{
+			val:            "/mnt/*/",
+			fieldValueType: eval.PatternValueType,
+			errMessage:     "trailing slashes are not allowed",
 		},
 		{
 			val:        "*/",
@@ -112,6 +125,9 @@ func TestPathValidation(t *testing.T) {
 		err := mod.ValidateField("open.file.path", eval.FieldValue{Value: test.val})
 		if err != nil && test.errMessage == "" {
 			t.Errorf("shouldn't return an error: %s", err)
+		}
+		if err == nil && test.errMessage != "" {
+			t.Errorf("`%s` should return an error containing `%s`", test.val, test.errMessage)
 		}
 		if err != nil && !strings.Contains(err.Error(), test.errMessage) {
 			t.Errorf("Error message is `%s`, wanted it to contain `%s`", err.Error(), test.errMessage)
@@ -236,6 +252,30 @@ func TestSetFieldValue(t *testing.T) {
 				if value, err := event.GetFieldValue(field); err != nil || value.(net.IPNet).IP.Equal(ip) {
 					t.Errorf("unable to get the expected value: %v", err)
 				}
+			}
+		case reflect.Map:
+			err = event.SetFieldValue(field, map[string]string{"KEY": "aaa"})
+			if err != nil {
+				if errors.As(err, &readOnlyError) {
+					continue
+				}
+				t.Error(err)
+			}
+			dict, err := event.GetFieldValue(field)
+			if err != nil {
+				t.Errorf("unable to get the expected `%s` value: %v", field, err)
+			}
+			switch v := dict.(type) {
+			case map[string]string:
+				if v["KEY"] != "aaa" {
+					t.Errorf("unable to get the expected `%s` value: %v", field, v)
+				}
+			case []map[string]string:
+				if len(v) == 0 || v[0]["KEY"] != "aaa" {
+					t.Errorf("unable to get the expected `%s` value: %v", field, v)
+				}
+			default:
+				t.Errorf("unable to get the expected `%s` value: %v", field, v)
 			}
 		default:
 			t.Errorf("type of field %s unknown: %v", field, kind)

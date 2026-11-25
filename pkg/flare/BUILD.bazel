@@ -59,11 +59,11 @@ go_library(
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
     ] + select({
         "@rules_go//go/platform:android": [
-            "//pkg/system-probe/config",
+            "//pkg/system-probe/config/types",
             "//pkg/util/defaultpaths",
         ],
         "@rules_go//go/platform:linux": [
-            "//pkg/system-probe/config",
+            "//pkg/system-probe/config/types",
             "//pkg/util/defaultpaths",
         ],
         "@rules_go//go/platform:windows": [
@@ -79,8 +79,10 @@ go_library(
 dd_agent_go_test(
     name = "flare_test",
     srcs = [
+        "archive_aix_test.go",
         "archive_docker_test.go",
         "archive_test.go",
+        "archive_win_test.go",
         "certificates_test.go",
         "config_check_test.go",
         "runtime_debug_test.go",
@@ -93,7 +95,6 @@ dd_agent_go_test(
             "clusterchecks",
             "kubeapiserver",
             "kubelet",
-            "orchestrator",
         ],
         [
             "cel",

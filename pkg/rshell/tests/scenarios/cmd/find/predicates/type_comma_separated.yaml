@@ -1,0 +1,18 @@
+description: find -type f,d matches both files and directories.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dir/sub/file.txt
+      content: "data"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -type f,d
+expect:
+  stdout_unordered: |+
+    dir
+    dir/sub
+    dir/sub/file.txt
+  stderr: ""
+  exit_code: 0

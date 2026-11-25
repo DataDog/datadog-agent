@@ -206,11 +206,6 @@ This will print:
   CA: 13:51:10: CleanupFiles. Deleting directory "C:\Program Files\Datadog\Datadog Agent\embedded3"
   CA: 13:51:12: CleanupFiles. Deleting file "C:\ProgramData\Datadog\install_info"
   CA: 13:51:12: CleanupFiles. Deleting file "C:\ProgramData\Datadog\auth_token"
-  SFXCA: Extracting custom action to temporary directory: C:\Windows\Installer\MSI7B69.tmp-\
-  SFXCA: Binding to CLR version v4.0.30319
-> Calling custom action CustomActions!Datadog.CustomActions.Telemetry.ReportFailure
-  CA: 13:51:13: Report. Sending installation telemetry
-  CA: 13:51:13: ReportTelemetry. API key empty, not reporting telemetry
   CA: DoRollback:  Initialized.
 [09/28/23 13:52:21] ❌ Expected installation to succeed, but it failed with code 1603
     + CategoryInfo          : NotSpecified: (:) [Write-Error], WriteErrorException

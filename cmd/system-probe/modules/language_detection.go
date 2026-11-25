@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	languageDetectionProto "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -27,7 +26,7 @@ func init() { registerModule(LanguageDetectionModule) }
 
 // LanguageDetectionModule is the language detection module factory
 var LanguageDetectionModule = &module.Factory{
-	Name: config.LanguageDetectionModule,
+	Name: sysconfigtypes.LanguageDetectionModule,
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		return &languageDetectionModule{
 			languageDetector: privileged.NewLanguageDetector(),

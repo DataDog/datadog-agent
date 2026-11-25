@@ -75,8 +75,7 @@ type ProcessInfo struct {
 // node. The cache entries are deep-copied onto the local copy first: pc := *p is only a
 // shallow copy, so pc.ArgsEntry/EnvsEntry alias the live event's entries, and scrubbing
 // (which rewrites ArgsEntry.Values in place) would otherwise redact the arguments still
-// referenced by the event — e.g. a rule evaluating raw process.args after the V2 profile
-// insert (which happens before rule evaluation) would see the scrubbed values.
+// referenced by the event.
 func newProcessInfo(p *model.Process, resolver *sprocess.EBPFResolver) ProcessInfo {
 	pc := *p
 	if pc.ArgsEntry != nil {
@@ -99,6 +98,19 @@ func newProcessInfo(p *model.Process, resolver *sprocess.EBPFResolver) ProcessIn
 		sprocess.GetProcessArgv(&pc)
 	}
 	sprocess.GetProcessArgv0(&pc)
+
+	pc.FileEvent.Filesystem = stringInterner.Deduplicate(pc.FileEvent.Filesystem)
+	pc.FileEvent.PkgName = stringInterner.Deduplicate(pc.FileEvent.PkgName)
+	pc.FileEvent.PkgVersion = stringInterner.Deduplicate(pc.FileEvent.PkgVersion)
+	pc.Comm = stringInterner.Deduplicate(pc.Comm)
+	pc.TTYName = stringInterner.Deduplicate(pc.TTYName)
+	pc.Argv0 = stringInterner.Deduplicate(pc.Argv0)
+	pc.Credentials.User = stringInterner.Deduplicate(pc.Credentials.User)
+	pc.Credentials.Group = stringInterner.Deduplicate(pc.Credentials.Group)
+	pc.Credentials.EUser = stringInterner.Deduplicate(pc.Credentials.EUser)
+	pc.Credentials.EGroup = stringInterner.Deduplicate(pc.Credentials.EGroup)
+	pc.Credentials.FSUser = stringInterner.Deduplicate(pc.Credentials.FSUser)
+	pc.Credentials.FSGroup = stringInterner.Deduplicate(pc.Credentials.FSGroup)
 
 	return ProcessInfo{
 		Pid:           pc.Pid,
@@ -164,6 +176,8 @@ type ProcessNode struct {
 	Syscalls     map[int]*SyscallNode
 	Capabilities []*CapabilityNode
 	Children     []*ProcessNode
+
+	filesIndex *childIndex
 }
 
 // size approximates the in-memory heap footprint of this process node, excluding the
@@ -355,32 +369,6 @@ func (pi *ProcessInfo) matches(pathnameStr, argv0 string, argv []string, matchAr
 	return true
 }
 
-// InsertSyscallSample inserts a syscall sample first-hit and returns whether a
-// new SyscallNode was created and its NodeBase (for cookie mapping).
-func (pn *ProcessNode) InsertSyscallSample(e *model.Event, imageTagID uint64, syscallMask map[int]int, stats *Stats, dryRun bool) (bool, *NodeBase) {
-	syscallID := int(e.Syscalls.SyscallID)
-	at := e.ResolveEventTime()
-
-	if existing, ok := pn.Syscalls[syscallID]; ok {
-		existing.AppendImageTagID(imageTagID, at)
-		return false, &existing.NodeBase
-	}
-
-	if dryRun {
-		return true, nil
-	}
-
-	sn := NewSyscallNode(syscallID, at, imageTagID, Runtime)
-	if pn.Syscalls == nil {
-		pn.Syscalls = make(map[int]*SyscallNode)
-	}
-	pn.Syscalls[syscallID] = sn
-	syscallMask[syscallID] = syscallID
-	stats.SyscallNodes++
-	stats.SizeBytes += sn.size()
-	return true, &sn.NodeBase
-}
-
 // InsertSyscalls inserts the syscall of the process in the dump
 func (pn *ProcessNode) InsertSyscalls(e *model.Event, imageTagID uint64, syscallMask map[int]int, stats *Stats, dryRun bool) bool {
 	var hasNewSyscalls bool
@@ -419,6 +407,7 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 		filePath = fileEvent.PathnameStr
 	}
 
+	rawFilePath := filePath
 	if reducer != nil {
 		filePath = reducer.ReducePath(filePath, fileEvent, pn)
 	}
@@ -427,30 +416,38 @@ func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.
 	if nextParentIndex == 0 {
 		return false, nil
 	}
+	rawParent, nextRawParentIndex := ExtractFirstParent(rawFilePath)
+	rawRest := rawFilePath[nextRawParentIndex:]
 
-	child, ok := pn.Files[parent]
+	child, ok := findChildWithPatternFallback(pn.Files, &pn.filesIndex, parent, len(filePath) <= nextParentIndex+1 && !fileEvent.IsDir(), stats)
 	if ok {
-		return child.InsertFileEvent(fileEvent, event, filePath[nextParentIndex:], imageTagID, generationType, stats, dryRun, filePath, resolvers)
+		if child.IsPattern && child.Name != parent && stats != nil {
+			stats.FilePatternLookupHits++
+		}
+		rest := filePath[nextParentIndex:]
+		filePath = withPatternComponent(filePath, filePath, parent, child.Name)
+		return child.InsertFileEvent(fileEvent, event, rest, rawRest, imageTagID, generationType, stats, dryRun, filePath, resolvers)
 	}
 
 	if !dryRun {
 		if pn.Files == nil {
 			pn.Files = make(map[string]*FileNode)
 		}
+		isPattern := reducedComponentIsPattern(parent, rawParent)
 		if len(filePath) <= nextParentIndex+1 {
 			// this is the last child, add the fileEvent context at the leaf of the files tree.
-			node := NewFileNode(fileEvent, event, parent, imageTagID, generationType, filePath, resolvers)
+			node := NewFileNode(fileEvent, event, parent, isPattern, imageTagID, generationType, filePath, resolvers)
 			node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
 			stats.FileNodes++
-			stats.SizeBytes += node.size()
-			pn.Files[parent] = node
-			return true, &node.NodeBase
+			owner := insertChildAndMerge(pn.Files, &pn.filesIndex, parent, node, stats)
+			return true, &owner.NodeBase
 		}
-		newChild := NewFileNode(nil, nil, parent, imageTagID, generationType, filePath, resolvers)
-		_, leafNodeBase := newChild.InsertFileEvent(fileEvent, event, filePath[nextParentIndex:], imageTagID, generationType, stats, dryRun, filePath, resolvers)
+		newChild := NewFileNode(nil, nil, parent, isPattern, imageTagID, generationType, filePath, resolvers)
 		stats.FileNodes++
-		stats.SizeBytes += newChild.size()
-		pn.Files[parent] = newChild
+		owner := insertChildAndMerge(pn.Files, &pn.filesIndex, parent, newChild, stats)
+		rest := filePath[nextParentIndex:]
+		filePath = withPatternComponent(filePath, filePath, parent, owner.Name)
+		_, leafNodeBase := owner.InsertFileEvent(fileEvent, event, rest, rawRest, imageTagID, generationType, stats, dryRun, filePath, resolvers)
 		return true, leafNodeBase
 	}
 	return true, nil
@@ -466,7 +463,7 @@ func (pn *ProcessNode) findDNSNode(DNSName string, DNSMatchMaxDepth int, DNSType
 	for name, dnsNode := range pn.DNSNames {
 		if dnsFilterSubdomains(name, DNSMatchMaxDepth) == toSearch {
 			for _, req := range dnsNode.Requests {
-				if req.Type == DNSType {
+				if req.Question.Type == DNSType {
 					return true
 				}
 			}
@@ -491,14 +488,21 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTagID uint64, gener
 		dnsNode.AppendImageTagID(imageTagID, evt.ResolveEventTime())
 
 		// look for the DNS request type
-		for _, req := range dnsNode.Requests {
-			if req.Type == evt.DNS.Question.Type {
+		for i := range dnsNode.Requests {
+			if dnsNode.Requests[i].Question.Type == evt.DNS.Question.Type {
+				// enrich the known question with the answers of this response, if any. This
+				// deliberately still reports "nothing new": see DNSNode.mergeDNSResponse.
+				if evt.DNS.Response != nil {
+					sizeBefore := dnsNode.size()
+					dnsNode.mergeDNSResponse(i, evt.DNS.Response)
+					stats.SizeBytes += dnsNode.size() - sizeBefore
+				}
 				return false
 			}
 		}
 
 		sizeBefore := dnsNode.size()
-		dnsNode.Requests = append(dnsNode.Requests, evt.DNS.Question)
+		dnsNode.Requests = append(dnsNode.Requests, newDNSRequestEntry(&evt.DNS))
 		stats.SizeBytes += dnsNode.size() - sizeBefore
 		return true
 	}
@@ -730,7 +734,9 @@ func (pn *ProcessNode) EvictImageTag(imageTagID uint64, DNSNames *utils.StringKe
 	for filename, file := range pn.Files {
 		shouldRemove, fileRemoved := file.evictImageTag(imageTagID)
 		if shouldRemove {
+			removed += stringMapEntryBytes(pn.Files, filename)
 			delete(pn.Files, filename)
+			pn.filesIndex.reset()
 		}
 		removed += fileRemoved
 	}
@@ -807,20 +813,19 @@ func (pn *ProcessNode) EvictImageTag(imageTagID uint64, DNSNames *utils.StringKe
 // EvictUnusedNodes evicts all child nodes that haven't been touched since the given timestamp
 // and returns the total number of process nodes evicted and the total bytes freed.
 // A node is only evicted if all its children are evictable.
-// profileImageTagID is the pre-resolved internal ID for the profile's image tag (0 means unknown/no tag).
-func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[ImageProcessKey]bool, profileImageName string, profileImageTag string, profileImageTagID uint64) (int, int64) {
+// imageTags maps the internal image tag IDs of the tree to their image tags.
+func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[ImageProcessKey]bool, profileImageName string, imageTags map[uint64]string) (int, int64) {
 	totalEvicted := 0
 	var removedBytes int64
 
 	key := ImageProcessKey{
 		ImageName: profileImageName,
-		ImageTag:  profileImageTag,
 	}
 
 	// First, recursively evict unused nodes from children
 	for i := len(pn.Children) - 1; i >= 0; i-- {
 		child := pn.Children[i]
-		evicted, childRemoved := child.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, profileImageTag, profileImageTagID)
+		evicted, childRemoved := child.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, imageTags)
 		totalEvicted += evicted
 		removedBytes += childRemoved
 
@@ -833,16 +838,24 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	}
 
 	// Try a fallback if the node is in the process cache
-	// Check if this specific image/tag/filepath combination exists in the cache
+	// For each image tag the node was seen with, check if this specific image/tag/filepath combination exists in the cache
 	// The filepath might not be sufficient to uniquely identify the node, but it's a good enough approximation for now
 	// Edge case: foo->bar->foo, if the second foo is no longer in the process cache, it will still be refreshed because of the first foo
 	key.Filepath = pn.Process.FileEvent.PathnameStr
 
-	if filepathsInProcessCache[key] && profileImageTagID != 0 {
-		// check if the node was supposed to be removed, then update the last seen to now
-		if elem, ok := pn.GetSeenTimes(profileImageTagID); ok && elem.LastSeen.Before(before) {
-			pn.NodeBase.AppendImageTagID(profileImageTagID, time.Now())
+	var refreshed []uint64
+	pn.EachSeen(func(imageTagID uint64, _, lastSeen int64) {
+		// check if the entry was supposed to be removed
+		if lastSeen >= timeToNanos(before) {
+			return
 		}
+		key.ImageTag = imageTags[imageTagID]
+		if key.ImageTag != "" && filepathsInProcessCache[key] {
+			refreshed = append(refreshed, imageTagID)
+		}
+	})
+	for _, imageTagID := range refreshed {
+		pn.NodeBase.AppendImageTagID(imageTagID, time.Now())
 	}
 
 	_ = pn.NodeBase.EvictBeforeTimestamp(before)
@@ -867,8 +880,9 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 	for path, fileNode := range pn.Files {
 		if fileNode.NodeBase.EvictBeforeTimestamp(before) > 0 {
 			if fileNode.SeenIsEmpty() {
-				removedBytes += fileSubtreeSizeBytes(fileNode)
+				removedBytes += fileSubtreeSizeBytes(fileNode) + stringMapEntryBytes(pn.Files, path)
 				delete(pn.Files, path)
+				pn.filesIndex.reset()
 			}
 		}
 	}

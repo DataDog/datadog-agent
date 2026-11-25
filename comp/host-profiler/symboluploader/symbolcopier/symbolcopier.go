@@ -11,7 +11,6 @@ package symbolcopier
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/exec"
 	"strings"
@@ -20,7 +19,6 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/comp/host-profiler/oom"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/pclntab"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbol"
 	elf "github.com/DataDog/datadog-agent/pkg/util/safeelf"
@@ -81,7 +79,7 @@ func dumpGoPCLnTabData(goPCLnTabInfo *pclntab.GoPCLnTabInfo) (goPCLnTabDump, err
 }
 
 func CopySymbols(ctx context.Context, inputPath, outputPath string, goPCLnTabInfo *pclntab.GoPCLnTabInfo,
-	sectionsToKeep []symbol.SectionInfo, compressDebugSections bool) error {
+	sectionsToKeep []symbol.SectionInfo) error {
 	args := []string{
 		"--only-keep-debug",
 		"--remove-section=.gdb_index",
@@ -131,10 +129,6 @@ func CopySymbols(ctx context.Context, inputPath, outputPath string, goPCLnTabInf
 		args = append(args, "--set-section-flags", fmt.Sprintf("%s=%s", section.Name, getStringFlags(section.Flags)))
 	}
 
-	if compressDebugSections {
-		args = append(args, "--compress-debug-sections=zstd")
-	}
-
 	args = append(args, inputPath, outputPath)
 
 	cmd := exec.CommandContext(ctx, "objcopy", args...)
@@ -148,11 +142,6 @@ func CopySymbols(ctx context.Context, inputPath, outputPath string, goPCLnTabInf
 
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start copying symbols: %w", err)
-	}
-
-	// Increase probability that objcopy gets killed in case the cgroup is OOM
-	if err := oom.SetOOMScoreAdj(cmd.Process.Pid, 1000); err != nil {
-		slog.Warn("Could not adjust OOM score", slog.String("error", err.Error()))
 	}
 
 	return cmd.Wait()

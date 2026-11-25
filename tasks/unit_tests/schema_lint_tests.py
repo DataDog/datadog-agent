@@ -314,6 +314,28 @@ class TestCheckRelativeDefaults(unittest.TestCase):
         self.assertFalse(any("valid_conf_path" in e for e in errors))
 
 
+class TestCheckSensitive(unittest.TestCase):
+    def test_valid_schema_produces_no_errors(self):
+        errors = errors_for(lint.check_sensitive, "valid.yaml")
+        self.assertEqual(errors, [])
+
+    def test_non_boolean_is_error(self):
+        errors = errors_for(lint.check_sensitive, "bad_sensitive.yaml")
+        self.assertTrue(any("not_bool" in e for e in errors), f"Expected error for not_bool, got: {errors}")
+
+    def test_sensitive_on_section_is_error(self):
+        errors = errors_for(lint.check_sensitive, "bad_sensitive.yaml")
+        self.assertTrue(
+            any("sensitive_on_section" in e for e in errors),
+            f"Expected error for sensitive_on_section, got: {errors}",
+        )
+
+    def test_valid_values_pass(self):
+        errors = errors_for(lint.check_sensitive, "bad_sensitive.yaml")
+        for key in ("valid_sensitive", "valid_not_sensitive", "sensitive_on_section.child"):
+            self.assertFalse(any(key in e for e in errors), f"'{key}' should not produce an error, got: {errors}")
+
+
 class TestCheckEnvParser(unittest.TestCase):
     def test_valid_schema_produces_no_errors(self):
         errors = errors_for(lint.check_env_parser, "valid.yaml")
@@ -422,6 +444,164 @@ class TestCheckRenamedFrom(unittest.TestCase):
                 any(key in e for e in errors),
                 f"Valid node '{key}' should not produce an error, got: {errors}",
             )
+
+
+class TestCheckSnakeCaseNames(unittest.TestCase):
+    def test_valid_schema_produces_no_errors(self):
+        errors = errors_for(lint.check_snake_case_names, "valid.yaml")
+        self.assertEqual(errors, [])
+
+    def test_non_snake_case_names_are_errors(self):
+        errors = errors_for(lint.check_snake_case_names, "bad_snake_case.yaml")
+        for path in (
+            "camelCase",
+            "UPPER_prefix",
+            "double__underscore",
+            "_leading_underscore",
+            "trailing_underscore_",
+            "kebab-case",
+            "BadSection",
+            "valid_section.nestedBad",
+        ):
+            self.assertTrue(
+                any(f"[{path}]" in e and "is not snake_case" in e for e in errors),
+                f"Expected error for {path}, got: {errors}",
+            )
+
+    def test_only_offending_name_is_reported(self):
+        # A non snake_case section does not make its snake_case children fail.
+        errors = errors_for(lint.check_snake_case_names, "bad_snake_case.yaml")
+        self.assertFalse(any("good_child" in e for e in errors), f"Unexpected error for good_child, got: {errors}")
+
+    def test_valid_names_pass(self):
+        errors = errors_for(lint.check_snake_case_names, "bad_snake_case.yaml")
+        for path in ("[valid_section]", "valid_v2_setting", "[valid_setting]"):
+            self.assertFalse(any(path in e for e in errors), f"Unexpected error for {path}, got: {errors}")
+
+    def test_excepted_names_pass(self):
+        errors = errors_for(
+            lint.check_snake_case_names, "bad_snake_case.yaml", {"camelCase", "valid_section.nestedBad"}
+        )
+        self.assertFalse(any("camelCase" in e or "nestedBad" in e for e in errors), f"Got: {errors}")
+        self.assertTrue(any("UPPER_prefix" in e for e in errors))
+
+
+class TestCheckTemplateSectionOnPublic(unittest.TestCase):
+    def test_valid_schema_produces_no_errors(self):
+        errors = errors_for(lint.check_template_section_on_public, "valid.yaml")
+        self.assertEqual(errors, [])
+
+    def test_private_setting_with_template_section_is_error(self):
+        errors = errors_for(lint.check_template_section_on_public, "bad_template_section.yaml")
+        self.assertTrue(
+            any("private_setting" in e and "only valid on public nodes" in e for e in errors),
+            f"Expected error for private_setting, got: {errors}",
+        )
+
+    def test_private_section_with_template_section_is_error(self):
+        errors = errors_for(lint.check_template_section_on_public, "bad_template_section.yaml")
+        self.assertTrue(
+            any("[private_section]" in e for e in errors),
+            f"Expected error for private_section, got: {errors}",
+        )
+
+    def test_public_setting_with_template_section_passes(self):
+        errors = errors_for(lint.check_template_section_on_public, "bad_template_section.yaml")
+        self.assertFalse(
+            any("public_setting" in e for e in errors),
+            f"public_setting should not produce an error, got: {errors}",
+        )
+
+
+class TestCheckNoNullValues(unittest.TestCase):
+    def test_valid_schema_produces_no_errors(self):
+        errors = errors_for(lint.check_no_null_values, "valid.yaml")
+        self.assertEqual(errors, [])
+
+    def test_every_way_of_accepting_null_is_an_error(self):
+        errors = errors_for(lint.check_no_null_values, "bad_null_value.yaml")
+        for location, reason in (
+            ("[enum_with_null]", "'enum' lists null"),
+            ("[const_null]", "'const' is null"),
+            ("[nullable_type]", "'type' accepts null"),
+            ("[nested_items_null.items.properties.mode]", "'enum' lists null"),
+            ("[any_of_null.anyOf[1]]", "'type' accepts null"),
+            ("[section.nested_enum_with_null]", "'enum' lists null"),
+        ):
+            self.assertTrue(
+                any(location in e and reason in e for e in errors),
+                f"Expected {reason!r} for {location}, got: {errors}",
+            )
+        self.assertEqual(len(errors), 6, errors)
+
+    def test_null_in_instance_data_is_not_reported(self):
+        errors = errors_for(lint.check_no_null_values, "bad_null_value.yaml")
+        self.assertFalse(any("null_in_default_object" in e or "valid_enum" in e for e in errors), f"Got: {errors}")
+
+    def test_excepted_settings_pass(self):
+        errors = errors_for(
+            lint.check_no_null_values, "bad_null_value.yaml", {"enum_with_null", "section.nested_enum_with_null"}
+        )
+        self.assertFalse(any("[enum_with_null]" in e or "nested_enum_with_null" in e for e in errors), f"Got: {errors}")
+        self.assertTrue(any("[const_null]" in e for e in errors))
+
+    def test_no_new_null_exception(self):
+        """No setting may be added to the null_value exceptions, see check_no_null_values in lint.py.
+
+        Only removing entries is allowed: when an exception is fixed, remove it from both
+        lint_exceptions.yaml and this list.
+        """
+        allowed = {"infrastructure_mode", "logs_config.file_wildcard_selection_mode"}
+        exceptions = lint.load_exceptions()["null_value"]
+        self.assertLessEqual(
+            exceptions,
+            allowed,
+            f"New null_value exception(s) {sorted(exceptions - allowed)}: remove null from the setting instead.",
+        )
+
+
+class TestCheckNoTitleOnSettings(unittest.TestCase):
+    def test_valid_schema_produces_no_errors(self):
+        errors = errors_for(lint.check_no_title_on_settings, "valid.yaml")
+        self.assertEqual(errors, [])
+
+    def test_settings_with_title_are_errors_pointing_to_banner(self):
+        errors = errors_for(lint.check_no_title_on_settings, "bad_title_on_setting.yaml")
+        self.assertEqual(len(errors), 2, errors)
+        for path in ("[setting_with_title]", "[section_with_title.nested_setting_with_title]"):
+            self.assertTrue(
+                any(path in e and "rename 'title' to 'banner'" in e for e in errors),
+                f"Expected error for {path}, got: {errors}",
+            )
+
+    def test_banner_on_setting_and_title_on_section_pass(self):
+        errors = errors_for(lint.check_no_title_on_settings, "bad_title_on_setting.yaml")
+        self.assertFalse(
+            any("[setting_with_banner]" in e or "[section_with_title]" in e for e in errors), f"Got: {errors}"
+        )
+
+
+class TestCheckFormats(unittest.TestCase):
+    def test_valid_schema_produces_no_errors(self):
+        errors = errors_for(lint.check_formats, "valid.yaml")
+        self.assertEqual(errors, [])
+
+    def test_invalid_formats_are_errors(self):
+        errors = errors_for(lint.check_formats, "bad_format.yaml")
+        for location, message in (
+            ("[unknown_format]", "Unknown format 'uri'"),
+            ("[format_on_integer]", "only applies to strings"),
+            ("[nested_unknown_format.items]", "Unknown format 'hostname'"),
+        ):
+            self.assertTrue(
+                any(location in e and message in e for e in errors), f"Expected {message!r} for {location}: {errors}"
+            )
+        self.assertEqual(len(errors), 3, errors)
+
+    def test_agent_formats_and_instance_data_pass(self):
+        errors = errors_for(lint.check_formats, "bad_format.yaml")
+        for name in ("valid_url", "valid_duration", "format_in_default"):
+            self.assertFalse(any(f"[{name}]" in e for e in errors), f"Unexpected error for {name}: {errors}")
 
 
 if __name__ == "__main__":

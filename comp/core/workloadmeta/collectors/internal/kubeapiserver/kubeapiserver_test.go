@@ -211,6 +211,44 @@ func TestPodsRequiredAtStartup(t *testing.T) {
 			expected: true,
 		},
 		{
+			name: "Kueue alone",
+			cfg: map[string]interface{}{
+				"cluster_agent.kueue.enabled": true,
+			},
+			expected: false,
+		},
+		{
+			name: "Kueue with cluster checks",
+			cfg: map[string]interface{}{
+				"cluster_agent.kueue.enabled": true,
+				"cluster_checks.enabled":      true,
+			},
+			expected: true,
+		},
+		{
+			name: "Kueue with cluster checks and Workloads per node disabled",
+			cfg: map[string]interface{}{
+				"cluster_agent.kueue.enabled":            true,
+				"cluster_agent.kueue.workloads_per_node": false,
+				"cluster_checks.enabled":                 true,
+			},
+			expected: false,
+		},
+		{
+			name: "KAI Scheduler",
+			cfg: map[string]interface{}{
+				"cluster_agent.kai_scheduler.enabled": true,
+			},
+			expected: true,
+		},
+		{
+			name: "autoscaler tags",
+			cfg: map[string]interface{}{
+				"cluster_agent.autoscaler_tags.enabled": true,
+			},
+			expected: true,
+		},
+		{
 			name: "workload autoscaling alone is not a startup-time requirement",
 			cfg: map[string]interface{}{
 				"autoscaling.workload.enabled": true,
@@ -764,6 +802,22 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"apm_config.instrumentation.enabled": true,
 			},
 			expectedResources: []string{"//namespaces"},
+		},
+		{
+			name: "auto instrumentation enables csidrivers collection",
+			cfg: map[string]interface{}{
+				"admission_controller.enabled":                      true,
+				"admission_controller.auto_instrumentation.enabled": true,
+			},
+			expectedResources: []string{"storage.k8s.io//csidrivers"},
+		},
+		{
+			name: "auto instrumentation disabled disables csidrivers collection",
+			cfg: map[string]interface{}{
+				"admission_controller.enabled":                      true,
+				"admission_controller.auto_instrumentation.enabled": false,
+			},
+			expectedResources: nil,
 		},
 		{
 			name: "apm on demand enables namespace collection",

@@ -42,7 +42,7 @@ docker_image_build_otel:
     BUILD_ARG: |
       --build-arg AGENT_VERSION=$CI_COMMIT_REF_NAME
       --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME
-      --build-arg AGENT_DOCKER_REPO=datadog/agent-dev
+      --build-arg AGENT_DOCKER_REPO=registry.datadoghq.com/agent-dev
       --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx
       --build-arg BASE_IMAGE_REGISTRY=registry.ddbuild.io/images/mirror
       --build-arg CI
@@ -133,7 +133,7 @@ docker_image_build_otel:
 .ddot_byoc_oci_build_test:
   stage: integration_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
-  needs: ["integration_tests_otel"]
+  needs: ["setup_agent_version", "integration_tests_otel"]
   # TODO: Switch to standard `amd64` runners - see comment above in docker_image_build_otel
   tags: ["docker-in-docker:amd64"]
   variables:
@@ -151,7 +151,7 @@ docker_image_build_otel:
         --build-arg AGENT_VERSION=$AGENT_VERSION \
         --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
         --build-arg DD_GIT_COMMIT_SHA=$CI_COMMIT_SHA \
-        --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
+        --build-arg AGENT_DOCKER_REPO=registry.datadoghq.com/agent-dev \
         --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
         --build-arg PACKAGE_TYPE=$DDOT_BYOC_PACKAGE_TYPE \
         --build-arg AGENT_OCI=registry.ddbuild.io/ci/remote-updates/datadog-agent:7.78.0-beta-byoc-integration-test-1 \
@@ -210,7 +210,7 @@ ddot_byoc_package_build_test_windows_oci:
 ddot_byoc_binary_build_test_ubuntu2004:
   stage: integration_test
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
-  needs: ["integration_tests_otel"]
+  needs: ["setup_agent_version", "integration_tests_otel"]
   tags: ["docker-in-docker:amd64"]
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/ddot-byoc-ubuntu2004-builder
@@ -223,7 +223,7 @@ ddot_byoc_binary_build_test_ubuntu2004:
         --build-arg AGENT_VERSION=$AGENT_VERSION \
         --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
         --build-arg DD_GIT_COMMIT_SHA=$CI_COMMIT_SHA \
-        --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
+        --build-arg AGENT_DOCKER_REPO=registry.datadoghq.com/agent-dev \
         --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
         --build-arg UBUNTU_VERSION=20.04 \
         --build-arg CI \

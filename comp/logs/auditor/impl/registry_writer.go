@@ -13,14 +13,17 @@ import (
 )
 
 // atomicRegistryWriter implements atomic registry writing using a temporary file and rename
-type atomicRegistryWriter struct{}
+type atomicRegistryWriter struct {
+	// removeFile is os.Remove; tests replace it to observe temporary file cleanup.
+	removeFile func(name string) error
+}
 
 // NewAtomicRegistryWriter returns a new atomic registry writer
 func NewAtomicRegistryWriter() auditor.RegistryWriter {
-	return &atomicRegistryWriter{}
+	return &atomicRegistryWriter{removeFile: os.Remove}
 }
 
-func (w *atomicRegistryWriter) WriteRegistry(registryPath string, registryDirPath string, registryTmpFile string, data []byte) error {
+func (w *atomicRegistryWriter) WriteRegistry(registryPath string, registryDirPath string, registryTmpFile string, data []byte) (err error) {
 	f, err := os.CreateTemp(registryDirPath, registryTmpFile)
 	if err != nil {
 		return err
@@ -29,7 +32,7 @@ func (w *atomicRegistryWriter) WriteRegistry(registryPath string, registryDirPat
 	defer func() {
 		if err != nil {
 			_ = f.Close()
-			_ = os.Remove(tmpName)
+			_ = w.removeFile(tmpName)
 		}
 	}()
 
@@ -39,10 +42,16 @@ func (w *atomicRegistryWriter) WriteRegistry(registryPath string, registryDirPat
 	if err = f.Chmod(0644); err != nil {
 		return err
 	}
+	// Persist the complete file before making it visible at the registry path.
+	// Atomic replacement alone does not guarantee that buffered file contents
+	// survive an abrupt shutdown.
+	if err = f.Sync(); err != nil {
+		return err
+	}
 	if err = f.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmpName, registryPath)
+	return replaceRegistryFile(tmpName, registryPath)
 }
 
 // nonAtomicRegistryWriter implements direct registry writing without atomic operations

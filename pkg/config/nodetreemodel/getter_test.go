@@ -12,10 +12,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGet(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("")
 	cfg.SetDefault("a", 1234)
 	cfg.BuildSchema()
 
@@ -32,7 +34,8 @@ func TestGet(t *testing.T) {
 }
 
 func TestGetDefaultType(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("")
 	cfg.BindEnvAndSetDefault("a", map[string]interface{}{})
 	cfg.BindEnvAndSetDefault("b", map[string]interface{}{})
 	cfg.BuildSchema()
@@ -66,7 +69,8 @@ b:
 }
 
 func TestGetInnerNode(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("")
 	cfg.SetDefault("a.b.c", 1234)
 	cfg.SetDefault("a.e", 1234)
 	cfg.BuildSchema()
@@ -84,7 +88,8 @@ func TestGetInnerNode(t *testing.T) {
 }
 
 func TestGetCastToDefault(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("")
 	cfg.SetDefault("a", []string{})
 	cfg.BuildSchema()
 
@@ -99,7 +104,8 @@ func TestGetCastToDefault(t *testing.T) {
 }
 
 func TestGetString(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("")
 	cfg.SetDefault("a", 1234)
 	cfg.SetDefault("b", "test")
 	cfg.BuildSchema()
@@ -110,7 +116,8 @@ func TestGetString(t *testing.T) {
 }
 
 func TestGetBool(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("")
 	cfg.SetDefault("a", false)
 	cfg.SetDefault("b", "true")
 	cfg.SetDefault("c", 1)
@@ -125,7 +132,8 @@ func TestGetBool(t *testing.T) {
 }
 
 func TestGetInt(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("")
 	cfg.SetDefault("a", 1234)
 	cfg.SetDefault("b", "987")
 	cfg.BuildSchema()
@@ -136,7 +144,8 @@ func TestGetInt(t *testing.T) {
 }
 
 func TestGetInt32(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("")
 	cfg.SetDefault("a", 1234)
 	cfg.SetDefault("b", "987")
 	cfg.BuildSchema()
@@ -147,7 +156,8 @@ func TestGetInt32(t *testing.T) {
 }
 
 func TestGetInt64(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("")
 	cfg.SetDefault("a", 1234)
 	cfg.SetDefault("b", "987")
 	cfg.BuildSchema()
@@ -158,7 +168,8 @@ func TestGetInt64(t *testing.T) {
 }
 
 func TestGetFloat64(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("")
 	cfg.SetDefault("a", 1234.25)
 	cfg.SetDefault("b", "987.25")
 	cfg.BuildSchema()
@@ -169,7 +180,8 @@ func TestGetFloat64(t *testing.T) {
 }
 
 func TestGetDuration(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("")
 	cfg.SetDefault("a", 1234)
 	cfg.SetDefault("b", "987")
 	cfg.BuildSchema()
@@ -180,7 +192,8 @@ func TestGetDuration(t *testing.T) {
 }
 
 func TestGetStringSlice(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("")
 	cfg.SetDefault("a", []string{"a", "b", "c"})
 	cfg.SetDefault("b", "a b c")
 	cfg.BuildSchema()
@@ -191,7 +204,8 @@ func TestGetStringSlice(t *testing.T) {
 }
 
 func TestGetStringMap(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("")
 	cfg.SetDefault("a", map[string]interface{}{"a": 1, "b": "b", "c": nil})
 	cfg.SetDefault("b", "{\"a\": 1234}") // viper handles JSON string implicitly so we have to reproduce this behavior
 	cfg.BuildSchema()
@@ -202,7 +216,8 @@ func TestGetStringMap(t *testing.T) {
 }
 
 func TestGetStringMapString(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("")
 	cfg.SetDefault("a", map[string]interface{}{"a": 123, "b": "b", "c": ""})
 	cfg.SetDefault("b", "{\"a\": \"test\"}") // viper handles JSON string implicitly so we have to reproduce this behavior
 	cfg.BuildSchema()
@@ -213,7 +228,8 @@ func TestGetStringMapString(t *testing.T) {
 }
 
 func TestGetStringMapStringSlice(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("")
 	cfg.SetDefault("a", map[string][]interface{}{"a": {1, 2}, "b": {"b", "bb"}, "c": nil})
 	cfg.SetDefault("b", "{\"a\": [\"test\", \"test2\"]}") // viper handles JSON string implicitly so we have to reproduce this behavior
 	cfg.BuildSchema()
@@ -224,7 +240,8 @@ func TestGetStringMapStringSlice(t *testing.T) {
 }
 
 func TestGetSizeInBytes(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("")
 	cfg.SetDefault("a", "123")
 	cfg.SetDefault("b", "1kb")
 	cfg.SetDefault("c", "1Mb")
@@ -242,7 +259,8 @@ func TestGetSizeInBytes(t *testing.T) {
 }
 
 func TestGetFloat64Slice(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("")
 	cfg.SetDefault("float_list", []float64{})
 	cfg.SetDefault("string_list", []string{})
 	cfg.BuildSchema()
@@ -262,7 +280,8 @@ string_list:
 }
 
 func TestGetFloat64SliceError(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("")
 	cfg.SetDefault("float_list", []float64{})
 	cfg.BuildSchema()
 	cfg.ReadConfig(strings.NewReader(`---
@@ -276,7 +295,8 @@ float_list:
 }
 
 func TestGetFloat64SliceStringFromEnv(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.BindEnvAndSetDefault("float_list", []string{})
 	t.Setenv("TEST_FLOAT_LIST", "1.1 2.2 3.3")
 	cfg.BuildSchema()
@@ -287,7 +307,8 @@ func TestGetFloat64SliceStringFromEnv(t *testing.T) {
 func TestGetAllSources(t *testing.T) {
 	t.Setenv("TEST_A", "4")
 
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.BindEnvAndSetDefault("a", 0)
 	cfg.BuildSchema()
 
@@ -323,7 +344,8 @@ func TestGetAllSources(t *testing.T) {
 }
 
 func TestGetEnvVars(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 
 	cfg.BindEnvAndSetDefault("d", 0, "D")
 	cfg.BindEnvAndSetDefault("a", 0, "ABC")
@@ -333,4 +355,29 @@ func TestGetEnvVars(t *testing.T) {
 
 	// testing that duplicate are removed and result is sorted
 	assert.Equal(t, []string{"ABC", "D", "DEF", "TEST_X"}, cfg.GetEnvVars())
+}
+
+func TestSensitive(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
+
+	cfg.BindEnvAndSetDefault("api_key", "", "TEST_API_KEY", "TEST_OTHER_API_KEY")
+	cfg.BindEnvAndSetDefault("logs.api_key", "")
+	cfg.BindEnvAndSetDefault("site", "")
+	cfg.SetSensitive("api_key")
+	cfg.SetSensitive("Logs.API_Key")
+	cfg.BuildSchema()
+
+	require.True(t, cfg.IsSensitive("api_key"))
+	require.True(t, cfg.IsSensitive("LOGS.api_key"))
+	require.False(t, cfg.IsSensitive("site"))
+	require.False(t, cfg.IsSensitive("unknown"))
+	require.Equal(t,
+		[]string{"TEST_SITE", "UNKNOWN"},
+		cfg.FilterSensitiveEnvVars([]string{"TEST_SITE", "TEST_OTHER_API_KEY", "test_logs_api_key", "UNKNOWN", "TEST_API_KEY"}),
+	)
+	require.Empty(t, cfg.FilterSensitiveEnvVars([]string{"TEST_API_KEY", "test_logs_api_key"}))
+
+	assert.Panics(t, func() { cfg.SetSensitive("site") })
+	assert.False(t, cfg.IsSensitive("site"))
 }

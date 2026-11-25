@@ -140,6 +140,7 @@ func (m *mutatorCore) buildLibraryInjectionConfig(pod *corev1.Pod, config extrac
 		ContainerFilter:             m.config.containerFilter,
 		Wmeta:                       m.wmeta,
 		KubeServerVersion:           m.config.kubeServerVersion,
+		IsOpenShift:                 m.config.isOpenShift,
 		Debug:                       m.isDebugEnabled(pod),
 		AutoDetected:                autoDetected,
 		InjectionType:               injectionType,

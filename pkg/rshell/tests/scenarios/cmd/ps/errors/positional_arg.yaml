@@ -1,0 +1,9 @@
+description: ps with a non-numeric positional argument exits with code 1.
+skip_assert_against_bash: true
+input:
+  script: |+
+    ps foo
+expect:
+  stderr_contains:
+    - "ps:"
+  exit_code: 1

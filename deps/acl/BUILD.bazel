@@ -1,13 +1,13 @@
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
 load("//bazel/tools:generate_module_bazel.bzl", "generate_module_bazel")
 
-VERSION = "2.3.1"
+VERSION = "2.4.0"
 
 generate_module_bazel(
     name = "module_bazel",
     out = "acl.MODULE.bazel.new",
     module = "acl",
-    sha256 = "c0234042e17f11306c23c038b08e5e070edb7be44bef6697fb8734dcff1c66b1",
+    sha256 = "e661131456d2708a01c614a0f400e11d7d1bfaeb6f3e74b75bb980b72f0161a3",
     strip_prefix = "acl-%s" % VERSION,
     tags = ["manual"],
     urls = [

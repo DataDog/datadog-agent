@@ -1272,13 +1272,13 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 				err = msgp.WrapError(err, "Meta")
 				return
 			}
-			if s.span.Attributes == nil && numMetaFields > 0 {
-				s.span.Attributes = make(map[uint32]*AnyValue, numMetaFields)
-			}
 			if numMetaFields > 0 {
 				if err = checkSlabCount(numMetaFields, bts); err != nil {
 					err = msgp.WrapError(err, "Meta")
 					return
+				}
+				if s.span.Attributes == nil {
+					s.span.Attributes = make(map[uint32]*AnyValue, numMetaFields)
 				}
 				// Slab-allocate the AnyValue containers and their string-ref oneof
 				// wrappers for every meta entry in two allocations, rather than two per
@@ -1314,13 +1314,13 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 				err = msgp.WrapError(err, "Metrics")
 				return
 			}
-			if s.span.Attributes == nil && numMetricsFields > 0 {
-				s.span.Attributes = make(map[uint32]*AnyValue, numMetricsFields)
-			}
 			if numMetricsFields > 0 {
 				if err = checkSlabCount(numMetricsFields, bts); err != nil {
 					err = msgp.WrapError(err, "Metrics")
 					return
+				}
+				if s.span.Attributes == nil {
+					s.span.Attributes = make(map[uint32]*AnyValue, numMetricsFields)
 				}
 				// Slab-allocate the AnyValue containers and their double oneof wrappers
 				// for every metric in two allocations, rather than two per metric.
@@ -1363,13 +1363,13 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 				err = msgp.WrapError(err, "MetaStruct")
 				return
 			}
-			if s.span.Attributes == nil && numMetaStructFields > 0 {
-				s.span.Attributes = make(map[uint32]*AnyValue, numMetaStructFields)
-			}
 			if numMetaStructFields > 0 {
 				if err = checkSlabCount(numMetaStructFields, bts); err != nil {
 					err = msgp.WrapError(err, "MetaStruct")
 					return
+				}
+				if s.span.Attributes == nil {
+					s.span.Attributes = make(map[uint32]*AnyValue, numMetaStructFields)
 				}
 				// Slab-allocate the AnyValue containers and their bytes oneof wrappers
 				// for every meta_struct entry in two allocations, rather than two per
@@ -1509,6 +1509,10 @@ func (spanEvent *SpanEvent) UnmarshalMsgConverted(strings *StringTable, bts []by
 			var numAttributes uint32
 			numAttributes, bts, err = safeReadHeaderBytes(bts, msgp.ReadMapHeaderBytes)
 			if err != nil {
+				err = msgp.WrapError(err, "Attributes")
+				return
+			}
+			if err = checkSlabCount(numAttributes, bts); err != nil {
 				err = msgp.WrapError(err, "Attributes")
 				return
 			}
@@ -1774,6 +1778,10 @@ func (sl *SpanLink) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o [
 				err = msgp.WrapError(err, "Attributes")
 				return
 			}
+			if err = checkSlabCount(numAttributes, bts); err != nil {
+				err = msgp.WrapError(err, "Attributes")
+				return
+			}
 			if sl.Attributes == nil {
 				sl.Attributes = make(map[uint32]*AnyValue, numAttributes)
 			}
@@ -1870,6 +1878,11 @@ func (s *InternalSpan) handlePromotedMetaFields(metaKey, metaVal uint32, convert
 	case "_dd.git.commit.sha":
 		convertedFields.GitCommitShaRef = metaVal
 	case "_dd.p.dm":
+		// The first non-zero decision maker of the chunk wins. Mechanism 0 ("-0") is the tracer's
+		// startup fallback and is indistinguishable from unset, so a later real decision replaces it.
+		if convertedFields.SamplingMechanism != 0 {
+			return
+		}
 		payloadDecisionMaker := s.Strings.Get(metaVal)
 		payloadDecisionMaker, _ = strings.CutPrefix(payloadDecisionMaker, "-")
 		var err error

@@ -28,14 +28,15 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 
 	storage := newTimeSeriesStorage()
 	extractor := NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig())
-	eng := newEngine(engineConfig{
+	eng := mustNewEngine(engineConfig{
 		storage:    storage,
 		extractors: []observerdef.LogMetricsExtractor{extractor},
 	})
 
 	obs := &observerImpl{
 		engine:               eng,
-		obsCh:                make(chan observation, 16),
+		metricsCh:            make(chan observation, 16),
+		logsCh:               make(chan observation, 16),
 		telemetry:            newObserverTelemetry(telComp),
 		ingestMetricsEnabled: false,
 		metricFilter:         defaultFilter,
@@ -48,7 +49,7 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 	)
 	stopFn := func() {
 		// close is idempotent via Once; wg.Wait() is safe to call multiple times.
-		closeOnce.Do(func() { close(obs.obsCh) })
+		closeOnce.Do(func() { close(obs.metricsCh); close(obs.logsCh) })
 		wg.Wait()
 	}
 	wg.Add(1)
@@ -64,7 +65,7 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 	drop, ok := h.(*metricDropHandle)
 	require.Truef(t, ok, `GetHandle("dogstatsd") returned %T, want *metricDropHandle`, h)
 
-	assert.True(t, drop.ObserveMetricAndReportDrop(&metricObs{
+	assert.True(t, testObserveMetricAndReportDrop(drop, &metricObs{
 		name:      "system.cpu.user",
 		value:     50,
 		timestamp: 1000,
@@ -103,11 +104,12 @@ func TestInternalAgentMetricsAreIngestedAndObserverTelemetryIsDropped(t *testing
 	require.NoError(t, err)
 
 	storage := newTimeSeriesStorage()
-	eng := newEngine(engineConfig{storage: storage})
+	eng := mustNewEngine(engineConfig{storage: storage})
 
 	obs := &observerImpl{
 		engine:               eng,
-		obsCh:                make(chan observation, 16),
+		metricsCh:            make(chan observation, 16),
+		logsCh:               make(chan observation, 16),
 		ingestMetricsEnabled: true,
 		metricFilter:         defaultFilter,
 	}
@@ -118,7 +120,7 @@ func TestInternalAgentMetricsAreIngestedAndObserverTelemetryIsDropped(t *testing
 		closeOnce sync.Once
 	)
 	stopFn := func() {
-		closeOnce.Do(func() { close(obs.obsCh) })
+		closeOnce.Do(func() { close(obs.metricsCh); close(obs.logsCh) })
 		wg.Wait()
 	}
 	wg.Add(1)
@@ -165,7 +167,7 @@ func TestIngestMetricSyncAllowsInternalAgentMetricsAndDropsObserverTelemetry(t *
 
 	storage := newTimeSeriesStorage()
 	obs := &observerImpl{
-		engine:       newEngine(engineConfig{storage: storage}),
+		engine:       mustNewEngine(engineConfig{storage: storage}),
 		metricFilter: defaultFilter,
 	}
 
@@ -202,7 +204,7 @@ func TestMetricDropHandle(t *testing.T) {
 	testObserveMetric(wrap, &sampleNoSource{name: "any.metric"})
 	assert.Equal(t, 0, inner.received,
 		"metricDropHandle: inner.received = %d, want 0 (ObserveMetric/Trace/TraceStats must be dropped)", inner.received)
-	assert.True(t, wrap.ObserveMetricAndReportDrop(&sampleNoSource{name: "any.metric"}),
+	assert.True(t, testObserveMetricAndReportDrop(wrap, &sampleNoSource{name: "any.metric"}),
 		"ObserveMetricAndReportDrop reports true (config drop) so recordingHandle writes Dropped=true")
 
 	wrap.ObserveLog(&logObs{content: "hi", timestampMs: 1})

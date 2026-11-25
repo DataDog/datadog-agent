@@ -70,7 +70,7 @@ If you use `sudo` to run `dlv attach`, `$HOME` will be set to `/root`. You may w
 ## gdb
 
 GDB can in some rare cases be useful to troubleshoot the embedded python interpreter.
-See https://wiki.python.org/moin/DebuggingWithGdb
+See https://docs.python.org/3/howto/gdb_helpers.html
 
 Example usage (using the legacy `pystack` macro):
 ```sh
@@ -80,7 +80,7 @@ thread <number> # switch to thread
 pystack # python stacktrace of current thread
 ```
 
-To debug a core dump generated with the `c_core_dump` Agent option, refer to the <<<repo("tools/gdb", "GDB docker image that includes the Agent symbols")>>>.
+To debug a core dump generated with the `go_core_dump` Agent option, refer to the <<<repo("tools/gdb", "GDB docker image that includes the Agent symbols")>>>.
 
 For simple debugging cases, you can simply use the python-provided `pdb` to jump into
 a debugging shell by adding to the python code that's run:

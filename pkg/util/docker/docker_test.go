@@ -25,7 +25,6 @@ func TestResolveImageName(t *testing.T) {
 
 	assert := assert.New(t)
 	globalDockerUtil = &DockerUtil{
-		cfg:            &Config{CollectNetwork: false},
 		cli:            nil,
 		imageNameBySha: make(map[string]string),
 	}
@@ -65,7 +64,6 @@ func TestResolveImageNameFromContainer(t *testing.T) {
 
 	assert := assert.New(t)
 	globalDockerUtil = &DockerUtil{
-		cfg:            &Config{CollectNetwork: false},
 		cli:            nil,
 		imageNameBySha: make(map[string]string),
 	}
@@ -127,7 +125,6 @@ func TestResolveImageNameFromContainerError(t *testing.T) {
 	cli, _ := client.New(client.FromEnv)
 
 	globalDockerUtil = &DockerUtil{
-		cfg:            &Config{CollectNetwork: false},
 		cli:            cli,
 		imageNameBySha: make(map[string]string),
 	}

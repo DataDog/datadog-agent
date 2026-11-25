@@ -7,6 +7,7 @@ package datadogclientimpl
 
 import (
 	"errors"
+	"net/http"
 	"os"
 	"time"
 
@@ -49,11 +50,24 @@ func newDatadogSingleClient(cfg configComponent.Component, logger logComp.Compon
 
 	logger.Infof("Initialized the Datadog Client for HPA with endpoint %q", ddEndpoint)
 
+	return newDatadogAPIClient(cfg, apiKey, appKey, ddEndpoint), nil
+}
+
+// newDatadogAPIClient creates a go-datadog-api client for the given endpoint.
+func newDatadogAPIClient(cfg configComponent.Component, apiKey, appKey, endpoint string) *datadog.Client {
 	client := datadog.NewClient(apiKey, appKey)
-	client.HttpClient.Transport = httputils.CreateHTTPTransport(cfg)
+	// datadog.NewClient defaults to the process-wide http.DefaultClient, use a dedicated one so that
+	// the transport and the timeout are not applied to every other user of http.DefaultClient.
+	client.HttpClient = &http.Client{
+		Transport: httputils.CreateHTTPTransport(cfg),
+		// go-datadog-api uses no timeout by default, so a request that never completes would
+		// otherwise only be bounded by the OS (minutes). The timeout covers the whole exchange,
+		// including reading the response. A value <= 0 disables it.
+		Timeout: time.Duration(cfg.GetInt(metricsEndpointTimeoutConfig)) * time.Second,
+	}
 	client.RetryTimeout = 3 * time.Second
 	client.ExtraHeader["User-Agent"] = "Datadog-Cluster-Agent"
-	client.SetBaseUrl(ddEndpoint)
+	client.SetBaseUrl(endpoint)
 
-	return client, nil
+	return client
 }

@@ -124,8 +124,8 @@ func WithVMOptions(opts ...ec2.VMOption) RunOption {
 
 // WithoutInternetAccess opts the Kind VM out of internet access: the account's default
 // security groups are replaced with the ones configured to block internet access (see
-// ec2.WithoutInternetAccess). This is opt-in: internet access remains the default, and
-// a suite only uses this once its bootstrap and image pulls work without internet.
+// ec2.WithoutInternetAccess). The Kubernetes test provisioner applies this by default;
+// direct scenario callers must opt in.
 func WithoutInternetAccess() RunOption {
 	return WithVMOptions(ec2.WithoutInternetAccess())
 }
@@ -231,7 +231,7 @@ func WithStandaloneOTelAgent(fn StandaloneDdotDeployFunc) RunOption {
 	return func(p *RunParams) error { p.standaloneDdotFunc = fn; return nil }
 }
 
-// WithKindWorkerNodes configures the kind cluster worker nodes with custom labels and taints.
+// WithKindWorkerNodes configures the kind cluster worker nodes: their labels, taints, kubelet flags and mounts.
 // Use this to test workloads that depend on node topology (e.g. spot vs on-demand capacity types).
 func WithKindWorkerNodes(nodes ...kubecomp.KindWorkerNode) RunOption {
 	return func(p *RunParams) error {

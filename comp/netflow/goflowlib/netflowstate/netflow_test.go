@@ -12,6 +12,10 @@ import (
 	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
+	config "github.com/DataDog/datadog-agent/comp/netflow/config/def"
+	"github.com/DataDog/datadog-agent/comp/netflow/dpi"
+	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/templates/memory"
 	"github.com/DataDog/datadog-agent/comp/netflow/testutil"
 
 	// install the in-memory template manager
@@ -19,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/netsampler/goflow2/decoders/netflow"
 	_ "github.com/netsampler/goflow2/decoders/netflow/templates/memory"
 	"github.com/netsampler/goflow2/utils"
 	"github.com/sirupsen/logrus"
@@ -39,7 +44,7 @@ func TestNetflowState_TelemetryMetrics(t *testing.T) {
 	require.NoError(t, err, "error with template")
 	defer templateSystem.Close(ctx)
 
-	state := NewStateNetFlow(nil, false)
+	state := NewStateNetFlow(nil, false, "", nil)
 	state.Format = &mockedFormatDriver{}
 	state.Logger = logrusLogger
 	state.TemplateSystem = templateSystem
@@ -70,4 +75,94 @@ func TestNetflowState_TelemetryMetrics(t *testing.T) {
 	assert.Equal(t, float64(1), promtestutil.ToFloat64(utils.NetFlowSetRecordsStatsSum.WithLabelValues("127.0.0.1", "9", "TemplateFlowSet")))
 	assert.Equal(t, float64(29), promtestutil.ToFloat64(utils.NetFlowSetRecordsStatsSum.WithLabelValues("127.0.0.1", "9", "DataFlowSet")))
 	assert.Equal(t, float64(29), promtestutil.ToFloat64(utils.NetFlowSetRecordsStatsSum.WithLabelValues("127.0.0.1", "9", "DataFlowSet")))
+}
+
+func applicationOptionsRecord(id byte, name string) netflow.OptionsDataRecord {
+	return netflow.OptionsDataRecord{
+		ScopesValues:  []netflow.DataField{{Type: 95, Value: []byte{0, 0, 0, id}}},
+		OptionsValues: []netflow.DataField{{Type: 96, Value: []byte(name)}},
+	}
+}
+
+func TestNetflowState_submitApplications(t *testing.T) {
+	cache := dpi.NewApplicationCache()
+
+	state := NewStateNetFlow(nil, false, "my-ns", cache)
+	assert.Contains(t, state.mappedFieldsConfig, uint16(95), "the application id of flows is mapped when DPI is enabled")
+
+	exporter := []byte{10, 0, 0, 1}
+	state.submitApplications(netflow.IPFIXPacket{
+		Version: 10,
+		FlowSets: []interface{}{
+			netflow.OptionsDataFlowSet{Records: []netflow.OptionsDataRecord{
+				applicationOptionsRecord(1, "HTTP"),
+				applicationOptionsRecord(2, "DNS"),
+			}},
+		},
+	}, exporter)
+
+	app, ok := cache.Lookup("my-ns", exporter, 1)
+	assert.True(t, ok, "every decoded application is sent to the cache")
+	assert.Equal(t, "HTTP", app.Name)
+	app, ok = cache.Lookup("my-ns", exporter, 2)
+	assert.True(t, ok, "every decoded application is sent to the cache")
+	assert.Equal(t, "DNS", app.Name)
+}
+
+func TestNetflowState_DPIDisabled(t *testing.T) {
+	state := NewStateNetFlow(nil, false, "my-ns", nil)
+	assert.NotContains(t, state.mappedFieldsConfig, uint16(95))
+	assert.NotContains(t, state.mappedFieldsConfig, uint16(56701))
+	state.submitApplications(netflow.IPFIXPacket{}, []byte{10, 0, 0, 1}) // must not panic
+}
+
+func TestMapFieldsConfig(t *testing.T) {
+	userMapping := config.Mapping{Field: 95, Destination: "my_app_id", Type: common.Integer}
+	mapped := mapFieldsConfig([]config.Mapping{userMapping}, true, true)
+
+	assert.Equal(t, userMapping, mapped[95], "user mappings override built-in mappings")
+	assert.Contains(t, mapped, uint16(231))
+	assert.Equal(t, config.Mapping{Field: 56701, Type: common.String, Destination: "datadog.application_name"}, mapped[56701], "Palo Alto App-ID is mapped to the application name")
+}
+
+func TestNetflowState_TemplateEvictionAndResend(t *testing.T) {
+	ctx := context.Background()
+	driver := memory.New(1)
+
+	state := NewStateNetFlow(nil, false, "", nil)
+	state.Format = &mockedFormatDriver{}
+	state.Logger = logrus.StandardLogger()
+	state.TemplateSystem = driver
+
+	flowData, err := testutil.GetNetFlow9Packet()
+	require.NoError(t, err, "error getting netflow9 packet data")
+	packet := utils.BaseMessage{
+		Src:      net.ParseIP("127.0.0.2"),
+		Port:     3000,
+		Payload:  flowData,
+		RecvTime: time.Now(),
+	}
+	records := func() float64 {
+		return promtestutil.ToFloat64(utils.NetFlowSetRecordsStatsSum.WithLabelValues("127.0.0.2", "9", "DataFlowSet"))
+	}
+
+	require.NoError(t, state.DecodeFlow(packet))
+	assert.Equal(t, float64(29), records(), "flows using a retained template are decoded")
+
+	ch := make(chan *templates.TemplateKey, 10)
+	require.NoError(t, driver.ListTemplates(ctx, ch))
+	key := <-ch
+	require.NotNil(t, key, "the template from the packet is stored")
+
+	// Another exporter's template pushes the first one out of a cache of size 1.
+	other := templates.NewTemplateKey("other-exporter", 9, 1, 256)
+	require.NoError(t, driver.AddTemplate(ctx, other, "other"))
+	evicted, err := driver.GetTemplate(ctx, key)
+	require.NoError(t, err)
+	assert.Nil(t, evicted, "the template was evicted")
+	assert.Equal(t, 1, driver.Len())
+
+	// The exporter resends its template with its next packet and decoding resumes.
+	require.NoError(t, state.DecodeFlow(packet))
+	assert.Equal(t, float64(58), records(), "flows are decoded again once the template is resent")
 }

@@ -157,16 +157,32 @@ func TestNewDeviceUUIDFailure(t *testing.T) {
 	require.Equal(t, nvml.ERROR_INVALID_ARGUMENT, nvmlErr.NvmlErrorCode)
 }
 
+func TestNewDeviceMemoryInfoFailureLeavesMemoryUnset(t *testing.T) {
+	mockNvml := testutil.NewMockNVML(
+		testutil.WithSymbolsMock(allSymbols),
+		testutil.WithDeviceOptions(0, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+			device.GetMemoryInfoFunc = func() (nvml.Memory, nvml.Return) {
+				return nvml.Memory{}, nvml.ERROR_UNKNOWN
+			}
+		})),
+	)
+	WithMockNVML(t, mockNvml)
+
+	device, err := NewPhysicalDevice(mockNvml.Device(0))
+
+	require.NoError(t, err)
+	require.Zero(t, device.Memory)
+}
+
 func TestDeviceWithMissingSymbol(t *testing.T) {
 	// Create mock with MaxClockInfo symbol missing, not critical, should succeed
-	symbols := maps.Clone(allSymbols)
+	symbols := defaultMockCapabilities()
 	delete(symbols, toNativeName("GetMaxClockInfo"))
 
 	mockNvml := testutil.NewMockNVML(
 		testutil.WithSymbolsMock(symbols),
 	)
 
-	// Use WithMockNVML to set the mock
 	WithPartialMockNVML(t, mockNvml, symbols)
 
 	// Create device
@@ -186,6 +202,69 @@ func TestDeviceWithMissingSymbol(t *testing.T) {
 	var nvmlErr *NvmlAPIError
 	require.True(t, errors.As(err, &nvmlErr), "Expected error to be of type *NvmlAPIError")
 	require.Equal(t, toNativeName("GetMaxClockInfo"), nvmlErr.APIName)
+	require.Equal(t, nvml.ERROR_FUNCTION_NOT_FOUND, nvmlErr.NvmlErrorCode)
+}
+
+func TestGetRetiredPagesCountRequiresVersionedAPISymbol(t *testing.T) {
+	// Simulate an NVML library that does not contain nvmlDeviceGetRetiredPages_v2.
+	// The wrapper must return a function-not-found error without invoking the
+	// underlying NVIDIA API.
+	symbols := defaultMockCapabilities()
+	delete(symbols, toNativeName("GetRetiredPages_v2"))
+
+	mockNvml := testutil.NewMockNVML(
+		testutil.WithSymbolsMock(symbols),
+		testutil.WithDeviceOptions(0, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+			device.GetRetiredPages_v2Func = func(_ nvml.PageRetirementCause) ([]uint64, []uint64, nvml.Return) {
+				t.Error("GetRetiredPages_v2 must not be called when the symbol is missing from the library")
+				return nil, nil, nvml.ERROR_FUNCTION_NOT_FOUND
+			}
+		})),
+	)
+
+	WithPartialMockNVML(t, mockNvml, symbols)
+
+	device, err := NewPhysicalDevice(mockNvml.Device(0))
+	require.NoError(t, err)
+
+	count, err := device.GetRetiredPagesCount(nvml.PAGE_RETIREMENT_CAUSE_DOUBLE_BIT_ECC_ERROR)
+	require.Error(t, err)
+	require.Equal(t, uint64(0), count)
+
+	var nvmlErr *NvmlAPIError
+	require.True(t, errors.As(err, &nvmlErr), "Expected error to be of type *NvmlAPIError")
+	require.Equal(t, toNativeName("GetRetiredPages_v2"), nvmlErr.APIName)
+	require.Equal(t, nvml.ERROR_FUNCTION_NOT_FOUND, nvmlErr.NvmlErrorCode)
+}
+
+func TestGetGridLicensableFeaturesRequiresVersionedAPISymbol(t *testing.T) {
+	// Simulate an NVML library that does not contain nvmlDeviceGetGridLicensableFeatures_v4.
+	// The wrapper must return a function-not-found error without invoking the
+	// underlying NVIDIA API.
+	symbols := defaultMockCapabilities()
+	delete(symbols, toNativeName("GetGridLicensableFeatures_v4"))
+
+	mockNvml := testutil.NewMockNVML(
+		testutil.WithSymbolsMock(symbols),
+		testutil.WithDeviceOptions(0, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+			device.GetGridLicensableFeaturesFunc = func() (nvml.GridLicensableFeatures, nvml.Return) {
+				t.Error("GetGridLicensableFeatures must not be called when the symbol is missing from the library")
+				return nvml.GridLicensableFeatures{}, nvml.ERROR_FUNCTION_NOT_FOUND
+			}
+		})),
+	)
+
+	WithPartialMockNVML(t, mockNvml, symbols)
+
+	device, err := NewPhysicalDevice(mockNvml.Device(0))
+	require.NoError(t, err)
+
+	_, err = device.GetGridLicensableFeatures()
+	require.Error(t, err)
+
+	var nvmlErr *NvmlAPIError
+	require.True(t, errors.As(err, &nvmlErr), "Expected error to be of type *NvmlAPIError")
+	require.Equal(t, toNativeName("GetGridLicensableFeatures_v4"), nvmlErr.APIName)
 	require.Equal(t, nvml.ERROR_FUNCTION_NOT_FOUND, nvmlErr.NvmlErrorCode)
 }
 
@@ -347,6 +426,49 @@ func TestGetMIGInstanceProfileName(t *testing.T) {
 	}
 }
 
+func TestGetGpuFabricInfoV3(t *testing.T) {
+	clusterUUID := [16]uint8{0x33, 0x34, 0xf8}
+	v3 := nvml.GpuFabricInfo_v3{ClusterUuid: clusterUUID, Status: uint32(nvml.SUCCESS), CliqueId: 7, State: nvml.GPU_FABRIC_STATE_COMPLETED, HealthMask: 0xaa, HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_HEALTHY}
+	v2 := nvml.GpuFabricInfo_v2{ClusterUuid: clusterUUID, Status: uint32(nvml.SUCCESS), CliqueId: 7, State: nvml.GPU_FABRIC_STATE_COMPLETED, HealthMask: 0xaa}
+
+	for _, tt := range []struct {
+		name       string
+		v3Ret      nvml.Return
+		v2Ret      nvml.Return
+		want       nvml.GpuFabricInfo_v3
+		wantErr    nvml.Return
+		wantV2Call bool
+	}{
+		{name: "v3 supported", v3Ret: nvml.SUCCESS, want: v3},
+		{
+			name:  "older driver falls back to v2",
+			v3Ret: nvml.ERROR_ARGUMENT_VERSION_MISMATCH, v2Ret: nvml.SUCCESS, wantV2Call: true,
+			// V2 fields are kept and the health summary stays unsupported.
+			want: nvml.GpuFabricInfo_v3{ClusterUuid: clusterUUID, Status: uint32(nvml.SUCCESS), CliqueId: 7, State: nvml.GPU_FABRIC_STATE_COMPLETED, HealthMask: 0xaa, HealthSummary: nvml.GPU_FABRIC_HEALTH_SUMMARY_NOT_SUPPORTED},
+		},
+		{name: "v2 error is returned", v3Ret: nvml.ERROR_ARGUMENT_VERSION_MISMATCH, v2Ret: nvml.ERROR_NOT_SUPPORTED, wantErr: nvml.ERROR_NOT_SUPPORTED, wantV2Call: true},
+		{name: "v3 error is returned without fallback", v3Ret: nvml.ERROR_UNKNOWN, wantErr: nvml.ERROR_UNKNOWN},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			v2Called := false
+			info, err := getGpuFabricInfoV3(
+				func() (nvml.GpuFabricInfo_v3, nvml.Return) { return v3, tt.v3Ret },
+				func() (nvml.GpuFabricInfo_v2, nvml.Return) { v2Called = true; return v2, tt.v2Ret },
+			)
+			require.Equal(t, tt.wantV2Call, v2Called)
+			if tt.wantErr != nvml.SUCCESS {
+				var nvmlErr *NvmlAPIError
+				require.ErrorAs(t, err, &nvmlErr)
+				require.Equal(t, tt.wantErr, nvmlErr.NvmlErrorCode)
+				require.Equal(t, nvml.GpuFabricInfo_v3{}, info)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, info)
+		})
+	}
+}
+
 func TestFixedSizeString(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -460,4 +582,125 @@ func int8s(s string) []int8 {
 		out[i] = int8(c)
 	}
 	return out
+}
+
+func TestDeviceCachesStaticAttributes(t *testing.T) {
+	mockNvml := testutil.NewMockNVML(testutil.WithDeviceOptions(0, testutil.WithCustomHook(func(d *testutil.MockDevice) {
+		d.GetMemoryBusWidthFunc = func() (uint32, nvml.Return) { return 512, nvml.SUCCESS }
+		d.GetSerialFunc = func() (string, nvml.Return) { return " BOARD ", nvml.SUCCESS }
+		d.GetPlatformInfoFunc = func() (nvml.PlatformInfo, nvml.Return) {
+			info := nvml.PlatformInfo{SlotNumber: 2, TrayIndex: 3, ModuleId: 4}
+			copy(info.ChassisSerialNumber[:], "CHASSIS")
+			info.IbGuid[0] = 0xab
+			return info, nvml.SUCCESS
+		}
+	})))
+	WithMockNVML(t, mockNvml)
+	device, err := NewPhysicalDevice(mockNvml.Device(0))
+	require.NoError(t, err)
+	require.Equal(t, uint32(512), device.MemoryBusWidth)
+	require.Equal(t, "BOARD", device.BoardSerial)
+	require.Equal(t, "CHASSIS", device.ChassisSerial)
+	require.Equal(t, "0x00000000000000ab", device.FabricGUID)
+	require.Equal(t, uint8(2), device.SlotNumber)
+	require.Equal(t, "none", device.VirtualizationModeName)
+	require.Equal(t, testutil.DefaultNvidiaDriverVersion, device.DriverVersion)
+}
+
+func TestDeviceFailedVirtualizationQueryStaysUnknown(t *testing.T) {
+	mockNvml := testutil.NewMockNVML(testutil.WithDeviceOptions(0, testutil.WithCustomHook(func(d *testutil.MockDevice) {
+		d.GetVirtualizationModeFunc = func() (nvml.GpuVirtualizationMode, nvml.Return) { return 0, nvml.ERROR_UNKNOWN }
+	})))
+	WithMockNVML(t, mockNvml)
+	device, err := NewPhysicalDevice(mockNvml.Device(0))
+	require.NoError(t, err)
+	require.Empty(t, device.VirtualizationModeName)
+}
+
+func TestMIGParentCapacityUsesTheLargestProfile(t *testing.T) {
+	// H200 GPU instance profiles (nvidia-smi mig -lgip): ID -> SMs, memory, instances
+	h200Profiles := map[int]nvml.GpuInstanceProfileInfo{
+		nvml.GPU_INSTANCE_PROFILE_1_SLICE:      {MultiprocessorCount: 16, MemorySizeMB: 16384, InstanceCount: 7},   // 1g.18gb
+		nvml.GPU_INSTANCE_PROFILE_2_SLICE:      {MultiprocessorCount: 32, MemorySizeMB: 33280, InstanceCount: 3},   // 2g.35gb
+		nvml.GPU_INSTANCE_PROFILE_3_SLICE:      {MultiprocessorCount: 60, MemorySizeMB: 71424, InstanceCount: 2},   // 3g.71gb
+		nvml.GPU_INSTANCE_PROFILE_4_SLICE:      {MultiprocessorCount: 64, MemorySizeMB: 71424, InstanceCount: 1},   // 4g.71gb
+		nvml.GPU_INSTANCE_PROFILE_7_SLICE:      {MultiprocessorCount: 132, MemorySizeMB: 143360, InstanceCount: 1}, // 7g.141gb
+		nvml.GPU_INSTANCE_PROFILE_1_SLICE_REV2: {MultiprocessorCount: 26, MemorySizeMB: 33280, InstanceCount: 4},   // 1g.35gb
+	}
+	mockNvml := testutil.NewMockNVML(
+		testutil.WithDefaultMIGDevices(),
+		testutil.WithDeviceOptions(testutil.DefaultMIGParentDeviceIdx,
+			testutil.WithArchitecture("hopper"),
+			testutil.WithCustomHook(func(d *testutil.MockDevice) {
+				d.GetGpuInstanceProfileInfoFunc = func(profile int) (nvml.GpuInstanceProfileInfo, nvml.Return) {
+					info, ok := h200Profiles[profile]
+					if !ok {
+						return nvml.GpuInstanceProfileInfo{}, nvml.ERROR_NOT_SUPPORTED
+					}
+					return info, nvml.SUCCESS
+				}
+			}),
+		),
+	)
+	WithMockNVML(t, mockNvml)
+
+	device, err := NewPhysicalDevice(mockNvml.Device(testutil.DefaultMIGParentDeviceIdx))
+	require.NoError(t, err)
+	require.True(t, device.HasMIGFeatureEnabled)
+	// 7g.141gb: more than 7 x 1g.18gb (112 SMs, 112 GiB)
+	require.Equal(t, 132*128, device.CoreCount)
+	require.Equal(t, uint64(143360)*1024*1024, device.Memory)
+}
+
+func TestMIGProfileCapacityTakesIndependentMaxima(t *testing.T) {
+	// The profile with the most SMs is not the one with the most memory
+	profiles := map[int]nvml.GpuInstanceProfileInfo{
+		nvml.GPU_INSTANCE_PROFILE_1_SLICE: {MultiprocessorCount: 14, MemorySizeMB: 10240, InstanceCount: 4}, // 56 SMs, 40 GiB
+		nvml.GPU_INSTANCE_PROFILE_4_SLICE: {MultiprocessorCount: 60, MemorySizeMB: 30720, InstanceCount: 1}, // 60 SMs, 30 GiB
+	}
+	var multiprocessors, memoryMB uint64
+	for _, info := range profiles {
+		m, mem := migProfileCapacity(info)
+		multiprocessors, memoryMB = max(multiprocessors, m), max(memoryMB, mem)
+	}
+	require.Equal(t, uint64(60), multiprocessors)
+	require.Equal(t, uint64(40960), memoryMB)
+}
+
+func TestMIGInstanceProfilesOnOptionalProfileError(t *testing.T) {
+	failing := false
+	mockDevice := &nvmlmock.Device{
+		GetGpuInstanceProfileInfoFunc: func(profile int) (nvml.GpuInstanceProfileInfo, nvml.Return) {
+			switch {
+			case profile == nvml.GPU_INSTANCE_PROFILE_1_SLICE:
+				return nvml.GpuInstanceProfileInfo{MultiprocessorCount: 16, InstanceCount: 7}, nvml.SUCCESS
+			case profile == nvml.GPU_INSTANCE_PROFILE_7_SLICE && failing:
+				return nvml.GpuInstanceProfileInfo{}, nvml.ERROR_UNKNOWN
+			case profile == nvml.GPU_INSTANCE_PROFILE_7_SLICE:
+				return nvml.GpuInstanceProfileInfo{MultiprocessorCount: 132, InstanceCount: 1}, nvml.SUCCESS
+			}
+			return nvml.GpuInstanceProfileInfo{}, nvml.ERROR_NOT_SUPPORTED
+		},
+	}
+	device := &PhysicalDevice{
+		SafeDevice: &safeDeviceImpl{nvmlDevice: mockDevice, lib: &safeNvml{capabilities: maps.Clone(allSymbols)}},
+		DeviceInfo: DeviceInfo{UUID: "GPU-profile-error"},
+	}
+	t.Cleanup(func() { lastMIGInstanceProfiles.Delete(device.UUID) })
+
+	// No previous list: the failing profile is skipped, the GPU is still listed
+	failing = true
+	profiles, err := device.migInstanceProfiles()
+	require.NoError(t, err)
+	require.Len(t, profiles, 1)
+
+	// Once a complete list is known, it is used on errors
+	failing = false
+	profiles, err = device.migInstanceProfiles()
+	require.NoError(t, err)
+	require.Len(t, profiles, 2)
+	failing = true
+	profiles, err = device.migInstanceProfiles()
+	require.NoError(t, err)
+	require.Len(t, profiles, 2)
 }

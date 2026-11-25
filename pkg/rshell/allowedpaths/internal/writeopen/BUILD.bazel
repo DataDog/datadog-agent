@@ -1,0 +1,63 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "writeopen",
+    srcs = [
+        "dirsyntax.go",
+        "errors.go",
+        "writeopen_unix.go",
+        "writeopen_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/allowedpaths/internal/writeopen",
+    visibility = ["//pkg/rshell/allowedpaths:__subpackages__"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "writeopen_test",
+    srcs = [
+        "dirsyntax_test.go",
+        "writeopen_unix_test.go",
+        "writeopen_windows_test.go",
+    ],
+    embed = [":writeopen"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

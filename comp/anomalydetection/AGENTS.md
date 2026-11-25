@@ -23,6 +23,7 @@ comp/anomalydetection/
     fx/                  ← production Fx wiring (python build tag)
     fx/fx_noop.go        ← IoT / !python stub
     impl/                ← engine, detectors, correlators, extractors
+      logsignature/      ← bounded shared-tokenizer cache for the log metrics extractor
       patterns/          ← log tokenizer/clusterer subpackage
     scenarios/           ← replay scenario directories (testbench)
   logssource/
@@ -39,9 +40,12 @@ comp/anomalydetection/
     mock/
     reporter.allium      ← behavioral spec for reporter payloads
   recorder/
-    def/
-    fx-noop/             ← noop wired in production agent
-    impl-noop/           ← noop implementation (full parquet impl planned)
+    def/                 ← component, data, and writer contracts
+    fx/                  ← tagged Agent wiring with Parquet writer provider
+    fx-noop/             ← explicit testbench no-op module
+    impl/                ← requires anomalydetection_recorder: middleware, configuration, lifecycle
+    impl-noop/           ← explicit testbench no-op component
+    impl/parquet/        ← requires anomalydetection_recorder: Parquet v1 metric and log writers
 ```
 
 ## Agent Wiring
@@ -53,14 +57,19 @@ Wired in `cmd/agent/subcommands/run/command.go`:
 | Observer | `observer/fx` | Analysis pipeline (`python` build tag) |
 | Log source | `logssource/fx` | Container + kubelet logs (`python` tag) |
 | Reporter | `reporter/fx` | Stdout reporter + optional event reporter |
-| Recorder | `recorder/fx-noop` | No-op (parquet middleware not shipped yet) |
+| Recorder | `recorder/fx` | Tagged middleware and Parquet writer provider, active when recording is enabled |
 
 **IoT / `!python` builds** use no-op `observer/fx` and `logssource/fx` modules.
+The Agent's `recorder/fx` module is also no-op without both `python` and
+`anomalydetection_recorder`. With both tags it provides Parquet writers, but
+creates them only when `anomaly_detection.recording.enabled` is true.
+The writers buffer observations until each flush and hold their locks during
+disk writes. Periodic flush errors are logged; failed batches are not retried.
 
-**Testbench** (`internal/qbranch/anomalydetection-testbench/`) wires
+**Testbench** (`internal/anomalydetection/testbench/`) wires
 `observer/fx`, `recorder/fx-noop`, and `reporter/fx-testbench`. It replays
 scenarios from `observer/scenarios/` and has its own parquet tooling under
-`internal/qbranch/anomalydetection-testbench/bench/`.
+`internal/anomalydetection/testbench/bench/`.
 
 ```bash
 # Build the testbench binary
@@ -70,8 +79,13 @@ dda inv anomalydetection.build-testbench
 dda inv anomalydetection.launch-testbench
 ```
 
-See `internal/qbranch/anomalydetection-testbench/README.md` for flags and
+See `internal/anomalydetection/testbench/README.md` for flags and
 headless/eval workflows.
+
+Local evaluation and testbench replay accept LLMObs recording datasets through
+`--dataset NAME_OR_UUID`, using the latest version. Dataset rows provide scenario
+names and recording ZIP references. `--local` replays existing files without
+LLMObs. See the testbench README for commands and the default dataset.
 
 ## Production Safety and Review Invariants
 
@@ -79,7 +93,7 @@ The live Agent is the primary constraint; testbench convenience must not affect
 its behavior or cost.
 
 - Keep replay/UI code and heavyweight dependencies in the testbench module.
-  Live packages must not import `internal/qbranch/anomalydetection-testbench`,
+  Live packages must not import `internal/anomalydetection/testbench`,
   `reporter/impl-testbench`, or `reporter/fx-testbench`.
 - Shared code must use bounded production defaults. Unbounded history or
   retention is allowed only through explicit testbench configuration such as
@@ -118,11 +132,16 @@ Production callers of `observer.GetHandle()` use statically-defined source names
 - **Container + kubelet logs** → `logssource` component
 - **Agent internal logs** → `observer` taps `pkg/util/log` directly via `agent_logs`
 
-Both paths share filtering primitives from `internal/logsfilter/`.
-The agent-internal logger callback performs only self/severity gates and a
-bounded non-blocking enqueue. Processing rules, rate limiting, tag construction,
-and Observer ingestion run on the `agent_logs` worker; never add that work back
-under `pkg/util/log`'s global logger lock.
+Both paths use shared filtering primitives from `internal/logsfilter/` inside
+the observer. Producer handles perform only cheap `MayAllowSource` and
+`min_severity` gates before snapshotting scalar log fields, retaining immutable
+tags, and enqueueing to the observer channel; full `processing_rules`
+evaluation, priority rate limiting, and optional Parquet log recording happen
+asynchronously on the observer dispatch goroutine. The agent-internal logger
+callback performs only
+self/severity gates and a bounded non-blocking enqueue; tag construction and
+JSON formatting run on the `agent_logs` worker outside `pkg/util/log`'s global
+logger lock.
 
 ### Logging convention
 
@@ -153,6 +172,12 @@ level`, while `Low` emits no initial event. Before the scorer knows its
 current level, new dispatchers also start at `Low`, so the first observed
 `Medium`/`High` level emits a real escalation instead of being treated as a
 pure seed.
+
+For a Medium or High escalation, `Timestamp` is when the hold starts and
+`HistoricalTimestamp` is the score's crossing when known. If replay discovers
+a distinct historical period, it acts at the current advance. Each dispatcher
+uses its own cooldown and renews the hold for a matching discovery without
+notifying its listener again. High takes priority over Medium.
 
 `observer.Component.SubscribeSeverityEvents` structurally satisfies
 `severityevents/def`'s `Subscriber` interface (same method signature), so any
@@ -204,22 +229,28 @@ See `reporter/reporter.allium` for the payload contract.
   When migrating legacy switches, define compatibility and precedence, then test
   no consumer, each consumer alone, multiple consumers, and explicit overrides.
 
-Keys are declared in the config schema (`pkg/config/schema/yaml/`).
+Keys below are declared in the main config schema (`pkg/config/schema/yaml/`).
 
 | Key | Default | Purpose |
 |-----|---------|---------|
 | `anomaly_detection.reporting.events.enabled` | `false` | Active gate for Datadog event reporting |
+| `anomaly_detection.anomaly_scorer.anomaly_reordering_window` | `0s` | How far late evidence can revise the scorer's history; zero disables replay |
+| `anomaly_detection.anomaly_scorer.late_anomaly_behavior` | `clamp` | Score older late evidence at the oldest replayable second (the next unscored second if replay is disabled), or drop it with `ignore` |
 | `anomaly_detection.anomaly_scorer.dry_run.enabled` | `false` | Active gate for scorer telemetry without scorer outputs |
 | `anomaly_detection.anomaly_scorer.output.correlation_event_threshold` | `high` | Lowest scorer severity that opens a correlation episode (`medium` or `high`) |
 | `anomaly_detection.metrics.enabled` | `true` | External metric ingestion at handles |
+| `anomaly_detection.metrics.allowed_types` | `[]` | Allowed metric types for external and log-derived metrics (`[]` = all) |
 | `anomaly_detection.metrics.processing_rules` | `[]` | Ordered metric filter rules (source/name/tags) |
-| `anomaly_detection.recording.enabled` | `false` | Reserved for Parquet recording; production currently wires a no-op recorder |
+| `anomaly_detection.recording.enabled` | `false` | Enables Parquet recording in tagged Agent builds |
+| `anomaly_detection.recording.only` | `true` | With an active recorder, record metrics and logs without analysis |
+| `anomaly_detection.recording.flush_interval` | `60s` | Duration passed to the writer backend; `0s` uses `60s` |
+| `anomaly_detection.recording.retention` | `24h` | Duration passed to the writer backend |
 | `anomaly_detection.logs.enabled` | `true` | Parent gate for all log sources |
 | `anomaly_detection.logs.processing_rules` | `[]` | Ordered log filter rules evaluated per message for all log sources (container, kubelet, agent-internal) |
-| `anomaly_detection.logs.time_buckets.enabled` | `false` | Materialize fixed-width count buckets for log-derived `.count` series |
-| `anomaly_detection.logs.time_buckets.bucket_width` | `5s` | Width of each materialized log-count bucket |
+| `anomaly_detection.logs.time_buckets.enabled` | `false` | Expose fixed-width log-count buckets with implicit empty intervals |
+| `anomaly_detection.logs.time_buckets.bucket_width` | `5s` | Width of each logical log-count bucket |
 | `anomaly_detection.logs.time_buckets.idle_ttl` | `5m` | Continue emitting empty buckets after the last matching log |
-| `anomaly_detection.logs.time_buckets.retention` | `10m` | Per-series retention for materialized log-count buckets; native metric retention is unchanged |
+| `anomaly_detection.logs.time_buckets.retention` | `10m` | Per-series retention for logical log-count buckets; native metric retention is unchanged |
 | `anomaly_detection.logs.containers.enabled` | `true` | Workloadmeta container logs |
 | `anomaly_detection.logs.kubelet.enabled` | `true` | Kubelet journald source |
 | `anomaly_detection.logs.internal.enabled` | `true` | Agent-internal log tap |
@@ -253,7 +284,7 @@ dda inv test --targets=./comp/anomalydetection/reporter/impl/
 dda inv test --targets=./comp/anomalydetection/logssource/impl/
 ```
 
-Benchmarks: `dda inv test --targets=./comp/anomalydetection/observer/impl/ -- -bench=.`
+Benchmarks: `dda inv test --targets=./comp/anomalydetection/observer/impl/ --test-args=-test.bench=.`
 
 ## Sub-Guides
 

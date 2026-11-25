@@ -7,7 +7,6 @@ CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
 Makefile
-constants.h
 datadog-agent-rtloader.pc
 install_manifest.txt
 

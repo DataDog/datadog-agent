@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    The remote SBOM collector of the core agent merges the first runtime usage
+    report system-probe sends after a reconnect into the image SBOM. It
+    dropped that report.

@@ -122,10 +122,10 @@ build_iteration 1
 description 'Datadog Monitoring Agent
  The Datadog Monitoring Agent is a lightweight process that monitors system
  processes and services, and sends information back to your Datadog account.
- .
+
  This package installs and runs the advanced Agent daemon, which queues and
  forwards metrics from your applications as well as system services.
- .
+
  See http://www.datadoghq.com/ for more information
 '
 
@@ -298,6 +298,7 @@ if windows_target?
     "#{install_dir}\\bin\\agent\\process-agent.exe",
     "#{install_dir}\\bin\\agent\\system-probe.exe",
     "#{install_dir}\\bin\\agent\\secret-generic-connector.exe",
+    "#{install_dir}\\bin\\agent\\ddtray.exe",
     "#{install_dir}\\datadog-installer.exe"
   ]
 
@@ -344,6 +345,11 @@ if windows_target?
     windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\par-control.exe"
   end
 
+  # Strip openssl binaries
+  windows_symbol_stripping_file "#{install_dir}\\embedded3\\DLLs\\libcrypto-3-x64.dll"
+  windows_symbol_stripping_file "#{install_dir}\\embedded3\\DLLs\\libssl-3-x64.dll"
+  windows_symbol_stripping_file "#{install_dir}\\embedded3\\bin\\openssl.exe"
+
   if windows_signing_enabled?
     # Sign additional binaries from here.
     # We can't request signing from the respective components/software definitions
@@ -364,7 +370,6 @@ if windows_target?
     ].compact
 
     BINARIES_TO_SIGN = GO_BINARIES + PYTHON_BINARIES + OPENSSL_BINARIES + [
-      "#{install_dir}\\bin\\agent\\ddtray.exe",
       "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll",
       "#{install_dir}\\bin\\agent\\dd-compile-policy.exe",
       "#{install_dir}\\bin\\agent\\dd-procmgrd.exe",

@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "metricname",
+    srcs = [
+        "matcher.go",
+        "normalize.go",
+        "tagmatcher.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/metrics/metricname",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/metrics/tagname",
+        "@com_github_twmb_murmur3//:murmur3",
+    ],
+)
+
+dd_agent_go_test(
+    name = "metricname_test",
+    srcs = [
+        "matcher_test.go",
+        "normalize_test.go",
+        "tagmatcher_test.go",
+    ],
+    embed = [":metricname"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

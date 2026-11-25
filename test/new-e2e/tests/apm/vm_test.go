@@ -366,6 +366,29 @@ func (s *VMFakeintakeSuite) TestProcessTagsTrace() {
 	}, 3*time.Minute, 10*time.Second, "Failed to find traces with process tags")
 }
 
+// TestSQLDBStatement checks that the trace-agent obfuscates SQL query tags
+// without adding sql.query, and that the db.statement the intake derives from
+// the spans is still the obfuscated query.
+func (s *VMFakeintakeSuite) TestSQLDBStatement() {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	service := fmt.Sprintf("sql-db-statement-%s", s.transport)
+
+	// Wait for agent to be live
+	s.T().Log("Waiting for Trace Agent to be live.")
+	s.Require().NoError(waitRemotePort(s, 8126))
+
+	sendSQLTraces(s.T(), s.Env().RemoteHost, service)
+
+	s.T().Log("Waiting for traces.")
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
+		testSQLDBStatement(c, s.Env().FakeIntake, service)
+		s.logJournal(false)
+	}, 2*time.Minute, 10*time.Second, "Failed to find obfuscated SQL spans")
+}
+
 func (s *VMFakeintakeSuite) TestProbabilitySampler() {
 	cfg := `apm_config.probabilistic_sampler.enabled: true
 apm_config.probabilistic_sampler.sampling_percentage: 50

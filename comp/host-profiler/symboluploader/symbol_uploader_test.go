@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"mime"
 	"mime/multipart"
@@ -24,10 +25,12 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strings"
 	"testing"
+	"testing/fstest"
+	"time"
 
 	"github.com/DataDog/jsonapi"
-	"github.com/DataDog/zstd"
 	"github.com/bazelbuild/rules_go/go/runfiles"
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
@@ -40,14 +43,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbol"
 	elf "github.com/DataDog/datadog-agent/pkg/util/safeelf"
+	"github.com/DataDog/datadog-agent/pkg/zstd"
 )
 
 const (
 	envBazelGoBinary = "GO_BINARY_RLOCATION"
 	envBazelGoRoot   = "GO_ROOT_RLOCATION"
 )
-
-var objcopyZstdSupport = CheckObjcopyZstdSupport(context.Background())
 
 // dummyProcess implements pfelf.Process for testing purposes
 type dummyProcess struct {
@@ -82,12 +84,12 @@ func (d *dummyProcess) CalculateMappingFileID(m *process.RawMapping) (libpf.File
 	return libpf.FileIDFromExecutableFile(m.Path)
 }
 
-func (d *dummyProcess) OpenMappingFile(m *process.RawMapping) (process.ReadAtCloser, error) {
+func (d *dummyProcess) OpenMappingFile(m *process.RawMapping) (fs.File, error) {
 	return os.Open(m.Path)
 }
 
-func (d *dummyProcess) OpenELF(name string) (*pfelf.File, error) {
-	return pfelf.Open(name)
+func (d *dummyProcess) Open(name string) (fs.File, error) {
+	return os.Open(name)
 }
 
 func (d *dummyProcess) Close() error {
@@ -102,8 +104,8 @@ func (d *dummyProcess) GetExe() (libpf.String, error) {
 	return libpf.Intern(str), nil
 }
 
-func (d *dummyProcess) GetProcessMeta(_ process.MetaConfig) process.ProcessMeta {
-	return process.ProcessMeta{}
+func (d *dummyProcess) GetProcessMeta(_ []process.MetaEnricher) process.Meta {
+	return process.Meta{}
 }
 
 func newExecutableMetadata(t *testing.T, filePath string) *reporter.ExecutableMetadata {
@@ -183,28 +185,16 @@ func checkGoPCLnTab(t *testing.T, f *elf.File, checkGoFunc bool) {
 	}
 }
 
-func checkRequest(t *testing.T, req *http.Request, expectedSymbolSource symbol.Source, expectedGoPCLnTab bool, expectedContentEncoding string) {
+func checkRequest(t *testing.T, req *http.Request, expectedSymbolSource symbol.Source, expectedGoPCLnTab bool) {
 	require.Equal(t, "POST", req.Method)
-	if expectedContentEncoding != "" {
-		require.Equal(t, expectedContentEncoding, req.Header.Get("Content-Encoding"))
-	} else {
-		require.NotContains(t, req.Header, "Content-Encoding")
-	}
+	require.NotContains(t, req.Header, "Content-Encoding")
 
 	_, params, err := mime.ParseMediaType(req.Header.Get("Content-Type"))
 	require.NoError(t, err)
 	boundary, ok := params["boundary"]
 	require.True(t, ok)
 
-	var reader io.ReadCloser
-	if req.Header.Get("Content-Encoding") == "zstd" {
-		reader = zstd.NewReader(req.Body)
-		defer reader.Close()
-	} else {
-		reader = req.Body
-	}
-
-	mr := multipart.NewReader(reader, boundary)
+	mr := multipart.NewReader(req.Body, boundary)
 	form, err := mr.ReadForm(1 << 20) // 1 MiB
 	require.NoError(t, err)
 	fhs, ok := form.File["elf_symbol_file"]
@@ -226,7 +216,14 @@ func checkRequest(t *testing.T, req *http.Request, expectedSymbolSource symbol.S
 	require.NoError(t, err)
 	require.Equal(t, expectedSymbolSource.String(), result["symbol_source"])
 
-	elfFile, err := elf.NewFile(f)
+	// Only the ELF part is a zstd frame; multipart framing and JSON stay plain.
+	compressed, err := io.ReadAll(f)
+	require.NoError(t, err)
+	require.True(t, bytes.HasPrefix(compressed, []byte{0x28, 0xb5, 0x2f, 0xfd}))
+	require.Empty(t, fhs[0].Header.Get("Content-Encoding"))
+	decoded, err := zstd.Decompress(nil, compressed)
+	require.NoError(t, err)
+	elfFile, err := elf.NewFile(bytes.NewReader(decoded))
 	require.NoError(t, err)
 	defer elfFile.Close()
 
@@ -283,12 +280,32 @@ func hasDWARFData(elfFile *elf.File) bool {
 	return len(elfFile.Progs) == 0 && hasBuildID && hasDebugStr
 }
 
+func TestSymbolCompressionWindowLog(t *testing.T) {
+	for _, tc := range []struct {
+		size int64
+		want int
+	}{
+		{0, 16},
+		{1, 16},
+		{(64 << 10) - 1, 16},
+		{64 << 10, 16},
+		{(64 << 10) + 1, 17},
+		{1 << 20, 20},
+		{(1 << 20) + 1, 21},
+		{(4 << 20) - 1, 22},
+		{4 << 20, 22},
+		{(4 << 20) + 1, 22},
+		{1 << 62, 22},
+	} {
+		assert.Equal(t, tc.want, symbolCompressionWindowLog(tc.size), "size=%d", tc.size)
+	}
+}
+
 var testEndpoints = []string{"a.com", "b.com", "c.com", "d.com", "e.com"}
 
 type uploaderOpts struct {
-	uploadDynamicSymbols           bool
-	uploadGoPCLnTab                bool
-	disableDebugSectionCompression bool
+	uploadDynamicSymbols bool
+	uploadGoPCLnTab      bool
 }
 
 func newTestUploader(ctx context.Context, opts uploaderOpts) (*DatadogSymbolUploader, error) {
@@ -308,7 +325,6 @@ func newTestUploader(ctx context.Context, opts uploaderOpts) (*DatadogSymbolUplo
 			SymbolQueryInterval:  0,
 			SymbolEndpoints:      endpoints,
 		},
-		DisableDebugSectionCompression: opts.disableDebugSectionCompression,
 	}
 	return NewDatadogSymbolUploader(ctx, cfg)
 }
@@ -434,6 +450,44 @@ func registerResponders(t *testing.T, buildID string) []chan *http.Request {
 	return channels
 }
 
+// captureUploadReports routes slog.Default to a JSON buffer, so tests can
+// assert on symbol upload reports.
+func captureUploadReports(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	buf := &bytes.Buffer{}
+	slog.SetDefault(slog.New(slog.NewJSONHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Logf("logs:\n%s", buf.String())
+		}
+	})
+	return buf
+}
+
+func uploadReportCounts(t *testing.T, buf *bytes.Buffer) map[string]int {
+	t.Helper()
+	counts := make(map[string]int)
+	for line := range bytes.Lines(buf.Bytes()) {
+		var record map[string]any
+		require.NoError(t, json.Unmarshal(line, &record))
+		if record["msg"] != "Symbol Upload Report" {
+			continue
+		}
+		for key, value := range record {
+			reason, ok := strings.CutPrefix(key, "status_by_reason.")
+			if !ok {
+				continue
+			}
+			if reason, ok = strings.CutSuffix(reason, ".count"); ok {
+				count, isNumber := value.(float64)
+				require.True(t, isNumber, "non-numeric count for %s", key)
+				counts[reason] += int(count)
+			}
+		}
+	}
+	return counts
+}
+
 //nolint:tparallel
 func TestSymbolUpload(t *testing.T) {
 	t.Parallel()
@@ -444,26 +498,18 @@ func TestSymbolUpload(t *testing.T) {
 	buildID := "some_go_build_id"
 	channels := registerResponders(t, buildID)
 
-	checkUploadsWithEncoding := func(t *testing.T, expectedSymbolSource symbol.Source, expectedGoPCLnTab bool, expectedUploads []bool, expectedEncoding string) {
+	checkUploads := func(t *testing.T, expectedSymbolSource symbol.Source, expectedGoPCLnTab bool, expectedUploads []bool) {
 		callCountInfo := httpmock.GetCallCountInfo()
 		for i, e := range testEndpoints {
 			assert.Equal(t, 1, callCountInfo["POST "+buildSymbolQueryURL(e)])
 			if expectedUploads[i] {
 				assert.Equal(t, 1, callCountInfo["POST "+buildSourcemapIntakeURL(e)])
 				req := <-channels[i]
-				checkRequest(t, req, expectedSymbolSource, expectedGoPCLnTab, expectedEncoding)
+				checkRequest(t, req, expectedSymbolSource, expectedGoPCLnTab)
 			} else {
 				assert.Equal(t, 0, callCountInfo["POST "+buildSourcemapIntakeURL(e)])
 			}
 		}
-	}
-
-	checkUploads := func(t *testing.T, expectedSymbolSource symbol.Source, expectedGoPCLnTab bool, expectedUploads []bool) {
-		expectedEncoding := ""
-		if !objcopyZstdSupport {
-			expectedEncoding = "zstd"
-		}
-		checkUploadsWithEncoding(t, expectedSymbolSource, expectedGoPCLnTab, expectedUploads, expectedEncoding)
 	}
 
 	goExeNoSymbols := buildGo(t, t.TempDir(), buildID, buildOptions{dynsym: false, symtab: false, debugInfos: false})
@@ -474,6 +520,7 @@ func TestSymbolUpload(t *testing.T) {
 	goExeDebugInfosCorruptGoPCLnTab := buildGo(t, t.TempDir(), buildID, buildOptions{dynsym: true, symtab: true, debugInfos: true, corruptGoPCLnTab: true})
 
 	t.Run("No symbol upload if no symbols", func(t *testing.T) {
+		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
 		uploader, err := newTestUploader(t.Context(), uploaderOpts{})
 		require.NoError(t, err)
@@ -483,21 +530,31 @@ func TestSymbolUpload(t *testing.T) {
 		uploader.Stop()
 
 		assert.Equal(t, 0, httpmock.GetTotalCallCount())
+		require.Equal(t, map[string]int{reasonNoDebugSymbols: 1}, uploadReportCounts(t, reports))
 	})
 
 	t.Run("Upload if symtab", func(t *testing.T) {
+		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
 		uploader, err := newTestUploader(t.Context(), uploaderOpts{})
 		require.NoError(t, err)
 		uploader.Start(t.Context())
 
-		uploader.UploadSymbols(newExecutableMetadata(t, goExeSymtab))
+		execMeta := newExecutableMetadata(t, goExeSymtab)
+		uploader.UploadSymbols(execMeta)
 		uploader.Stop()
 
 		checkUploads(t, symbol.SourceSymbolTable, false, []bool{true, true, false, false, false})
+		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
+
+		uploader.UploadSymbols(execMeta)
+		uploader.reporter.flush()
+		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1, reasonAlreadyUploaded: 1},
+			uploadReportCounts(t, reports))
 	})
 
 	t.Run("Upload if debug info", func(t *testing.T) {
+		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
 		uploader, err := newTestUploader(t.Context(), uploaderOpts{})
 		require.NoError(t, err)
@@ -507,9 +564,11 @@ func TestSymbolUpload(t *testing.T) {
 		uploader.Stop()
 
 		checkUploads(t, symbol.SourceDebugInfo, false, []bool{true, true, true, true, false})
+		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
 	})
 
 	t.Run("No upload if dynamic symbols", func(t *testing.T) {
+		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
 		uploader, err := newTestUploader(t.Context(), uploaderOpts{})
 		require.NoError(t, err)
@@ -519,9 +578,11 @@ func TestSymbolUpload(t *testing.T) {
 		uploader.Stop()
 
 		assert.Equal(t, 0, httpmock.GetTotalCallCount())
+		require.Equal(t, map[string]int{reasonNoDebugSymbols: 1}, uploadReportCounts(t, reports))
 	})
 
 	t.Run("Upload if dynamic symbols when enabled", func(t *testing.T) {
+		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
 		uploader, err := newTestUploader(t.Context(), uploaderOpts{uploadDynamicSymbols: true})
 		require.NoError(t, err)
@@ -531,9 +592,11 @@ func TestSymbolUpload(t *testing.T) {
 		uploader.Stop()
 
 		checkUploads(t, symbol.SourceDynamicSymbolTable, false, []bool{true, false, false, false, false})
+		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
 	})
 
 	t.Run("Upload pclntab when enabled", func(t *testing.T) {
+		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
 		uploader, err := newTestUploader(t.Context(), uploaderOpts{uploadGoPCLnTab: true})
 		require.NoError(t, err)
@@ -543,9 +606,11 @@ func TestSymbolUpload(t *testing.T) {
 		uploader.Stop()
 
 		checkUploads(t, symbol.SourceGoPCLnTab, true, []bool{true, true, true, false, false})
+		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
 	})
 
 	t.Run("Upload debug infos if pclntab is corrupted", func(t *testing.T) {
+		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
 		uploader, err := newTestUploader(t.Context(), uploaderOpts{uploadGoPCLnTab: true})
 		require.NoError(t, err)
@@ -555,9 +620,11 @@ func TestSymbolUpload(t *testing.T) {
 		uploader.Stop()
 
 		checkUploads(t, symbol.SourceDebugInfo, false, []bool{true, true, true, true, false})
+		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
 	})
 
 	t.Run("Upload dynamic symbols if pclntab is corrupted and only dyn sym when enabled", func(t *testing.T) {
+		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
 		uploader, err := newTestUploader(t.Context(), uploaderOpts{uploadDynamicSymbols: true, uploadGoPCLnTab: true})
 		require.NoError(t, err)
@@ -567,9 +634,11 @@ func TestSymbolUpload(t *testing.T) {
 		uploader.Stop()
 
 		checkUploads(t, symbol.SourceDynamicSymbolTable, false, []bool{true, false, false, false, false})
+		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonUploaded: 1}, uploadReportCounts(t, reports))
 	})
 
 	t.Run("No symbol upload if pclntab is corrupted and only dynsym", func(t *testing.T) {
+		reports := captureUploadReports(t)
 		httpmock.ZeroCallCounters()
 		uploader, err := newTestUploader(t.Context(), uploaderOpts{uploadGoPCLnTab: true})
 		require.NoError(t, err)
@@ -579,18 +648,75 @@ func TestSymbolUpload(t *testing.T) {
 		uploader.Stop()
 
 		checkUploads(t, symbol.SourceNone, false, []bool{false, false, false, false, false})
+		require.Equal(t, map[string]int{reasonQueried: len(testEndpoints), reasonGoPCLnTabError: 1}, uploadReportCounts(t, reports))
 	})
 
-	t.Run("Upload compressed request when debug section compression is disabled", func(t *testing.T) {
-		httpmock.ZeroCallCounters()
-		uploader, err := newTestUploader(t.Context(), uploaderOpts{disableDebugSectionCompression: true})
+	t.Run("Report skipped upload when no endpoint needs symbols", func(t *testing.T) {
+		tests := []struct {
+			name       string
+			backend    SymbolQueryResult
+			wantCounts map[string]int
+		}{
+			{"existing symbols", SymbolQueryResult{SymbolSource: symbol.SourceDebugInfo}, map[string]int{reasonExistingSymbols: 1}},
+			{"query error", SymbolQueryResult{Err: errors.New("query failed")}, map[string]int{}},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				reports := captureUploadReports(t)
+				uploader, err := newTestUploader(t.Context(), uploaderOpts{})
+				require.NoError(t, err)
+				e, err := symbol.NewElfFromDisk(goExeSymtab)
+				require.NoError(t, err)
+
+				uploader.uploadWorker(t.Context(), ElfWithBackendSources{Elf: e, BackendSymbolSources: []SymbolQueryResult{tt.backend}})
+				uploader.reporter.flush()
+
+				require.Equal(t, tt.wantCounts, uploadReportCounts(t, reports))
+			})
+		}
+	})
+}
+
+// memProcess serves its mappings from memory rather than from files, as
+// systemProcess does for the vdso.
+type memProcess struct {
+	dummyProcess
+	mappings fstest.MapFS
+}
+
+func (p *memProcess) OpenMappingFile(m *process.RawMapping) (fs.File, error) {
+	return p.mappings.Open(m.Path)
+}
+
+func TestElfFromMemoryMapping(t *testing.T) {
+	data, err := os.ReadFile(buildGo(t, t.TempDir(), "test", buildOptions{}))
+	require.NoError(t, err)
+
+	t.Run("vdso", func(t *testing.T) {
+		pr := &memProcess{mappings: fstest.MapFS{process.VdsoPathName: {Data: data}}}
+		m := &process.RawMapping{Path: process.VdsoPathName}
+		e, err := symbol.NewElfFromMapping(m, "", "", libpf.FileID{}, pr)
 		require.NoError(t, err)
-		uploader.Start(t.Context())
 
-		uploader.UploadSymbols(newExecutableMetadata(t, goExeDebugInfos))
-		uploader.Stop()
+		// The vdso has no backing file, so its content is dumped to a temporary file.
+		assert.Empty(t, e.SymbolPathOnDisk())
+		assert.Equal(t, int64(len(data)), e.GetSize())
+		dump, err := e.DumpElfData()
+		require.NoError(t, err)
+		got, err := os.ReadFile(dump)
+		require.NoError(t, err)
+		assert.Equal(t, data, got)
 
-		checkUploadsWithEncoding(t, symbol.SourceDebugInfo, false, []bool{true, true, true, true, false}, "zstd")
+		e.Close()
+		_, err = os.Stat(dump)
+		assert.ErrorIs(t, err, fs.ErrNotExist)
+	})
+
+	t.Run("other mappings need a backing file", func(t *testing.T) {
+		pr := &memProcess{mappings: fstest.MapFS{"helloworld": {Data: data}}}
+		m := &process.RawMapping{Path: "helloworld"}
+		_, err := symbol.NewElfFromMapping(m, "", "", libpf.FileID{}, pr)
+		require.Error(t, err)
 	})
 }
 
@@ -655,5 +781,37 @@ func TestTransport(t *testing.T) {
 			assert.Equal(t, defaultFieldValue.Interface(), customFieldValue.Interface(),
 				"Field %s should match default transport", field.Name)
 		}
+	}
+}
+
+func TestNewDatadogSymbolUploaderPropagatesReportConfig(t *testing.T) {
+	tests := []struct {
+		name         string
+		report       ReportConfig
+		wantInterval time.Duration
+		wantMax      int
+	}{
+		{"explicit positive", ReportConfig{Interval: 30, MaxPathsPerReport: 7}, 30 * time.Second, 7},
+		{"zero value", ReportConfig{}, DefaultReportInterval, DefaultReportMaxPathsPerReport},
+		{"negative", ReportConfig{Interval: -1, MaxPathsPerReport: -1}, DefaultReportInterval, DefaultReportMaxPathsPerReport},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &SymbolUploaderConfig{
+				SymbolUploaderOptions: SymbolUploaderOptions{
+					Enabled:         true,
+					SymbolEndpoints: []SymbolEndpoint{{Site: "test.com", APIKey: "key"}},
+					Report:          tt.report,
+				},
+				Version: "test",
+			}
+
+			uploader, err := NewDatadogSymbolUploader(t.Context(), cfg)
+			require.NoError(t, err)
+
+			require.Equal(t, tt.wantInterval, uploader.reporter.interval)
+			require.Equal(t, tt.wantMax, uploader.reporter.infoRep.maxPaths)
+			require.Equal(t, tt.wantMax, uploader.reporter.errRep.maxPaths)
+		})
 	}
 }

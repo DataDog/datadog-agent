@@ -31,6 +31,7 @@ import (
 	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	noopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
+	remotedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/remote/def"
 	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -38,11 +39,12 @@ import (
 
 // Requires defines the dependencies for the health-platform component
 type Requires struct {
-	Lifecycle compdef.Lifecycle
-	Config    config.Component
-	Log       log.Component
-	Telemetry telemetry.Component
-	Hostname  hostnameinterface.Component
+	Lifecycle    compdef.Lifecycle
+	Config       config.Component
+	Log          log.Component
+	Telemetry    telemetry.Component
+	Hostname     hostnameinterface.Component
+	RemoteIssues remotedef.Component
 	// SelfIdent resolves this agent's own DaemonSet/cluster identity. It is the
 	// single shared resolver provided by the bundle (see selfident), so the
 	// store and the issue registry share one instance per process.
@@ -96,7 +98,9 @@ type healthPlatformImpl struct {
 }
 
 type telemetryMetrics struct {
-	issuesCounter telemetry.Counter
+	issuesCounter  telemetry.Counter
+	activeIssues   telemetry.Gauge
+	issuesResolved telemetry.Counter
 }
 
 // IssueState is a type alias for the proto enum healthplatform.IssueState.
@@ -110,7 +114,7 @@ const (
 	resolvedIssueTTL = 24 * time.Hour
 
 	// persistedStateVersion is the on-disk schema version written by this binary.
-	// loadFromDisk refuses to load files with a different version (no migration).
+	// restorePersistedState refuses to load files with a different version (no migration).
 	persistedStateVersion = 2
 )
 
@@ -127,7 +131,7 @@ func issueStateFromString(s string) IssueState {
 }
 
 // PersistedIssue tracks the lifecycle state of an issue.
-// It is both the in-memory and on-disk representation; proto payload fields are
+// It is both the in-memory and persisted representation; detailed proto payload fields are
 // intentionally omitted because IssueIDs are deterministic — when the agent
 // restarts, health checks re-run and call ReportIssue with the same ID, at which
 // point storeIssue picks up the existing firstSeen/state from this struct.
@@ -135,11 +139,12 @@ func issueStateFromString(s string) IssueState {
 // IssueType (this struct) is a legacy name for the issue's IssueName, kept as-is
 // for on-disk compatibility — it is not the proto Issue.IssueType field. ProtoIssueType
 // carries that proto field so resolved tombstones (ResolveIssue, ResolveAllIssues,
-// loadFromDisk) can forward it same as they already do for IssueName.
+// restorePersistedState) can forward it same as they already do for IssueName.
 type PersistedIssue struct {
 	IssueID        string     `json:"issue_id"`
 	IssueType      string     `json:"issue_type"`
 	ProtoIssueType string     `json:"proto_issue_type,omitempty"`
+	Category       string     `json:"category,omitempty"`
 	State          IssueState `json:"state"`
 	FirstSeen      string     `json:"first_seen"`
 	LastSeen       string     `json:"last_seen"`
@@ -188,8 +193,8 @@ func persistedIssueToProto(p *PersistedIssue) *healthplatform.PersistedIssue {
 	return pi
 }
 
-// PersistedState is the full state written to disk.
-// Version must equal persistedStateVersion; files with a different version are ignored on load.
+// PersistedState is the full lifecycle state stored by a persistence implementation.
+// Version must equal persistedStateVersion; state with a different version is ignored on load.
 type PersistedState struct {
 	Version   int                        `json:"version"`
 	UpdatedAt string                     `json:"updated_at"`
@@ -257,19 +262,24 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	reqs.Log.Info("Creating health platform component")
 
-	// Select persistence strategy: noop on Kubernetes (emptyDir makes disk persistence meaningless),
-	// disk-based elsewhere so issues survive agent restarts.
-	// Operators who mount run_path as a durable volume (hostPath, PVC) can opt in to disk
-	// persistence on Kubernetes by setting health_platform.persist_on_kubernetes: true.
-	var persistence issuesPersistence
+	agentFlavor := flavor.GetFlavor()
+	isKubernetes := configenv.IsKubernetes()
 	persistOnKubernetes := reqs.Config.GetBool("health_platform.persist_on_kubernetes")
-	if configenv.IsKubernetes() && !persistOnKubernetes {
-		reqs.Log.Info("Running on Kubernetes: health platform persistence disabled (set health_platform.persist_on_kubernetes: true to enable)")
-		persistence = &noopPersistence{}
-	} else {
+	persistRemotelyOnKubernetes := reqs.Config.GetBool("health_platform.persist_remotely_on_kubernetes")
+	var persistence issuesPersistence = &noopPersistence{}
+	switch {
+	case isKubernetes && persistRemotelyOnKubernetes:
+		if persistOnKubernetes {
+			reqs.Log.Warn("Both health_platform.persist_on_kubernetes and health_platform.persist_remotely_on_kubernetes are enabled; remote persistence takes precedence")
+		}
+		reqs.Log.Info("Running on Kubernetes: remote health platform persistence enabled")
+		persistence = newRemotePersistence(reqs.RemoteIssues)
+	case !isKubernetes || persistOnKubernetes:
 		runPath := reqs.Config.GetString("run_path")
 		persistencePath := filepath.Join(runPath, "health-platform", "issues.json")
 		persistence = newDiskPersistence(persistencePath, reqs.Log)
+	default:
+		reqs.Log.Info("Running on Kubernetes: health platform persistence disabled")
 	}
 
 	// Initialize the health platform implementation
@@ -278,7 +288,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		log:              reqs.Log,
 		telemetry:        reqs.Telemetry,
 		hostnameProvider: reqs.Hostname,
-		agentFlavor:      flavor.GetFlavor(),
+		agentFlavor:      agentFlavor,
 		selfIdent:        reqs.SelfIdent,
 
 		issues:       make(map[string]*storedIssue),
@@ -303,6 +313,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 			[]string{"issue_type", "severity"},
 			"Number of health issues detected",
 		),
+		activeIssues: reqs.Telemetry.NewGauge(
+			"health_platform", "active_issues", []string{"issue_type"}, "Number of active health issue instances"),
+		issuesResolved: reqs.Telemetry.NewCounter(
+			"health_platform", "issues_resolved", []string{"issue_type"}, "Number of health issue instances resolved"),
 	}
 
 	// Return the component wrapped in Provides with API endpoints.
@@ -322,10 +336,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 // ============================================================================
 
 // start starts the health platform component
-func (h *healthPlatformImpl) start(_ context.Context) error {
+func (h *healthPlatformImpl) start(ctx context.Context) error {
 	h.log.Info("Starting health platform component")
-	if err := h.loadFromDisk(); err != nil {
-		h.log.Warn("Failed to load persisted issues: " + err.Error())
+	if err := h.loadPersistedState(ctx); err != nil {
+		h.log.Warn("Failed to restore persisted issues: " + err.Error())
 	}
 	return nil
 }
@@ -471,13 +485,16 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 		if persisted.State != IssueStateResolved {
 			persisted.State = IssueStateResolved
 			persisted.ResolvedAt = time.Now().Format(time.RFC3339)
+			h.recordResolution(persisted)
 			stateChanged = true
 		}
+		h.setActiveGauge(persisted.ProtoIssueType)
 
 		resolved = &healthplatform.Issue{
 			Id:             issueID,
 			IssueName:      persisted.IssueType,
 			IssueType:      persisted.ProtoIssueType,
+			Category:       persisted.Category,
 			PersistedIssue: persistedIssueToProto(persisted),
 		}
 	}
@@ -495,21 +512,49 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 	}
 }
 
+// setActiveGauge counts persisted active instances by proto type while issuesMux is held.
+func (h *healthPlatformImpl) setActiveGauge(issueType string) {
+	count := 0
+	for _, persisted := range h.persistedIssues {
+		if persisted != nil && persisted.IssueType != "" && persisted.State != IssueStateResolved && persisted.ProtoIssueType == issueType {
+			count++
+		}
+	}
+	h.metrics.activeIssues.Set(float64(count), metricIssueType(issueType))
+}
+
+// metricIssueType keeps telemetry tags non-empty for issues reported without a proto IssueType.
+func metricIssueType(issueType string) string {
+	if issueType == "" {
+		return "unknown"
+	}
+	return issueType
+}
+
+func (h *healthPlatformImpl) recordResolution(persisted *PersistedIssue) {
+	h.metrics.issuesResolved.Inc(metricIssueType(persisted.ProtoIssueType))
+}
+
 // ResolveAllIssues marks every active issue as resolved.
+// It counts as a resolution in telemetry, so do not call it on Agent shutdown.
 func (h *healthPlatformImpl) ResolveAllIssues() {
 	h.issuesMux.Lock()
 
 	now := time.Now().Format(time.RFC3339)
 	var resolved []*healthplatform.Issue
+	activeTypes := make(map[string]struct{})
 
 	for _, persisted := range h.persistedIssues {
 		if persisted != nil && persisted.State != IssueStateResolved {
 			persisted.State = IssueStateResolved
 			persisted.ResolvedAt = now
+			h.recordResolution(persisted)
+			activeTypes[persisted.ProtoIssueType] = struct{}{}
 			resolved = append(resolved, &healthplatform.Issue{
 				Id:             persisted.IssueID,
 				IssueName:      persisted.IssueType,
 				IssueType:      persisted.ProtoIssueType,
+				Category:       persisted.Category,
 				PersistedIssue: persistedIssueToProto(persisted),
 			})
 		}
@@ -517,6 +562,9 @@ func (h *healthPlatformImpl) ResolveAllIssues() {
 
 	h.issues = make(map[string]*storedIssue)
 	h.issuesByName = make(map[string][]string)
+	for issueType := range activeTypes {
+		h.setActiveGauge(issueType)
+	}
 	h.log.Info("Cleared all issues")
 
 	h.issuesMux.Unlock()
@@ -554,16 +602,18 @@ func (h *healthPlatformImpl) IssueDiscriminator(hostID string) string {
 // ResourceIdentity returns the resource_type/resource_id describing the
 // entity this agent process represents; see the Component interface doc.
 func (h *healthPlatformImpl) ResourceIdentity(hostname string) (string, string) {
-	if h.agentFlavor == flavor.ClusterAgent {
-		if clusterID := h.selfIdent.ClusterID(); clusterID != "" {
-			return "cluster", clusterID
-		}
-		return "host", hostname
+	return issuesmod.ResourceIdentity(h.agentFlavor, h.selfIdent, hostname)
+}
+
+// ResourceID returns the resource_id outbound reports carry for this agent;
+// see the Component interface doc.
+func (h *healthPlatformImpl) ResourceID() string {
+	hostname, err := h.hostnameProvider.Get(context.Background())
+	if err != nil {
+		hostname = ""
 	}
-	if deploymentID := h.selfIdent.DeploymentID(); deploymentID != "" {
-		return "deployment", deploymentID
-	}
-	return "host", hostname
+	_, resourceID := h.ResourceIdentity(hostname)
+	return resourceID
 }
 
 // ============================================================================
@@ -597,8 +647,8 @@ func (h *healthPlatformImpl) handleIssueStateChange(source string, oldIssue, new
 // DaemonSet/cluster the collapsed issue came from. No-op on non-Kubernetes
 // agents, where both resolve to empty.
 func (h *healthPlatformImpl) enrichWithClusterIdentity(issue *healthplatform.Issue) {
-	deploymentID := h.selfIdent.DeploymentID()
-	clusterID := h.selfIdent.ClusterID()
+	deploymentID := h.selfIdent.DeploymentIDNonBlocking()
+	clusterID := h.selfIdent.ClusterIDNonBlocking()
 	if deploymentID == "" && clusterID == "" {
 		return
 	}
@@ -632,6 +682,10 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 	h.issuesByName[issueType] = appendUnique(h.issuesByName[issueType], issueID)
 
 	existing := h.persistedIssues[issueID]
+	previousIssueType := issue.IssueType
+	if existing != nil {
+		previousIssueType = existing.ProtoIssueType
+	}
 	if existing == nil {
 		h.persistedIssues[issueID] = &PersistedIssue{
 			IssueID:   issueID,
@@ -659,6 +713,11 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 		existing.LastSeen = now
 	}
 	h.persistedIssues[issueID].ProtoIssueType = issue.IssueType
+	h.persistedIssues[issueID].Category = issue.Category
+	h.setActiveGauge(issue.IssueType)
+	if previousIssueType != issue.IssueType {
+		h.setActiveGauge(previousIssueType)
+	}
 
 	// Clone before storing to avoid external mutations (reporters may reuse the same *Issue).
 	// Serialize Extra/Remediation to raw JSON and strip from the lean clone so that
@@ -696,21 +755,27 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 // Persistence Methods
 // ============================================================================
 
-// loadFromDisk restores lifecycle state from the persistence layer.
-// Proto payload (issue title, description, etc.) is not stored on disk — IssueIDs are
-// deterministic, so health checks re-running after restart will call ReportIssue with the
-// same ID and storeIssue will pick up firstSeen/state from the restored PersistedIssue.
-func (h *healthPlatformImpl) loadFromDisk() error {
-	state, err := h.persistence.load()
+// loadPersistedState restores lifecycle state from the persistence layer.
+func (h *healthPlatformImpl) loadPersistedState(ctx context.Context) error {
+	state, err := h.persistence.load(ctx)
 	if err != nil {
 		return err
 	}
+	return h.restorePersistedState(state)
+}
+
+// restorePersistedState restores lifecycle state into the in-memory store.
+// Proto payload (issue title, description, etc.) is not stored in lifecycle state —
+// IssueIDs are deterministic, so health checks re-running after restart will call
+// ReportIssue with the same ID and storeIssue will pick up firstSeen/state from the
+// restored PersistedIssue.
+func (h *healthPlatformImpl) restorePersistedState(state *PersistedState) error {
 	if state == nil {
 		return nil
 	}
 
 	if state.Version != persistedStateVersion {
-		h.log.Warnf("Incompatible health-platform persistence file (version %d, expected %d); ignoring and starting fresh",
+		h.log.Warnf("Incompatible health-platform persistence state (version %d, expected %d); ignoring and starting fresh",
 			state.Version, persistedStateVersion)
 		return nil
 	}
@@ -721,6 +786,7 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 
 	activeCount := 0
 	var resolvedIssues []*healthplatform.Issue
+	activeTypes := make(map[string]struct{})
 
 	for issueID, persisted := range state.Issues {
 		if persisted == nil {
@@ -738,13 +804,18 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 				Id:             issueID,
 				IssueName:      persisted.IssueType,
 				IssueType:      persisted.ProtoIssueType,
+				Category:       persisted.Category,
 				PersistedIssue: persistedIssueToProto(persisted),
 			})
 			continue
 		}
 
 		h.issuesByName[persisted.IssueType] = append(h.issuesByName[persisted.IssueType], issueID)
+		activeTypes[persisted.ProtoIssueType] = struct{}{}
 		activeCount++
+	}
+	for issueType := range activeTypes {
+		h.setActiveGauge(issueType)
 	}
 
 	h.issuesMux.Unlock()

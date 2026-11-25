@@ -78,18 +78,7 @@ func (h *ScaleDeploymentVerticallyHandler) Run(
 		return nil, fmt.Errorf("failed to get deployment: %w", err)
 	}
 
-	// Create patch object
-	patch := map[string]interface{}{
-		"spec": map[string]interface{}{
-			"template": map[string]interface{}{
-				"spec": map[string]interface{}{
-					"containers": []interface{}{},
-				},
-			},
-		},
-	}
-
-	containers := []interface{}{}
+	podSpecPatch := map[string][]interface{}{}
 
 	// Process each container update
 	for _, containerUpdate := range inputs.ContainerUpdates {
@@ -97,16 +86,24 @@ func (h *ScaleDeploymentVerticallyHandler) Run(
 			return nil, errors.New("containerName cannot be empty")
 		}
 
-		// Validate that the container exists in the deployment
-		containerFound := false
+		// Container names are unique across regular and init containers in a pod.
+		containerField := ""
 		for _, container := range deployment.Spec.Template.Spec.Containers {
 			if container.Name == containerUpdate.ContainerName {
-				containerFound = true
+				containerField = "containers"
 				break
 			}
 		}
+		if containerField == "" {
+			for _, container := range deployment.Spec.Template.Spec.InitContainers {
+				if container.Name == containerUpdate.ContainerName {
+					containerField = "initContainers"
+					break
+				}
+			}
+		}
 
-		if !containerFound {
+		if containerField == "" {
 			return nil, fmt.Errorf("container %s not found in deployment %s", containerUpdate.ContainerName, inputs.Name)
 		}
 
@@ -159,10 +156,16 @@ func (h *ScaleDeploymentVerticallyHandler) Run(
 			containerPatch["resources"] = resources
 		}
 
-		containers = append(containers, containerPatch)
+		podSpecPatch[containerField] = append(podSpecPatch[containerField], containerPatch)
 	}
 
-	patch["spec"].(map[string]interface{})["template"].(map[string]interface{})["spec"].(map[string]interface{})["containers"] = containers
+	patch := map[string]interface{}{
+		"spec": map[string]interface{}{
+			"template": map[string]interface{}{
+				"spec": podSpecPatch,
+			},
+		},
+	}
 
 	body, err := json.Marshal(patch)
 	if err != nil {

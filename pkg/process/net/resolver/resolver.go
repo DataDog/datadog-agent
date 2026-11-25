@@ -169,7 +169,11 @@ containersLoop:
 //
 // If lookup by table fails above, we fall back to using
 // the l.addrToCtrID map
-func (l *LocalResolver) Resolve(c *model.Connections) {
+//
+// It returns the connections system-probe marked as reattributed to the
+// container owning the socket's network namespace, mapped to the owning
+// process's own container.
+func (l *LocalResolver) Resolve(c *model.Connections) map[*model.Connection]string {
 	l.mux.Lock()
 	defer l.mux.Unlock()
 
@@ -196,6 +200,7 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 		netns        uint32
 	}
 
+	var reattributed map[*model.Connection]string
 	ctrsByConn := make(map[connKey]string, len(c.Conns))
 	for _, conn := range c.Conns {
 		if conn.Laddr == nil {
@@ -212,6 +217,11 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 			if v, ok := l.ctrForPid[int(conn.Pid)]; ok {
 				cid, _ = v.cid.Get().(string)
 			}
+		} else if original := conn.NetnsOriginalContainerId; original != "" {
+			if reattributed == nil {
+				reattributed = make(map[*model.Connection]string)
+			}
+			reattributed[conn] = original
 		}
 
 		if cid == "" {
@@ -297,6 +307,8 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 			log.Tracef("could not resolve raddr %v", conn.Raddr)
 		}
 	}
+
+	return reattributed
 }
 
 func parseAddrPort(ip string, port uint16) (netip.AddrPort, error) {

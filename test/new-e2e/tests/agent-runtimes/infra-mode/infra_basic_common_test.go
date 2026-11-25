@@ -122,7 +122,7 @@ instances:
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithRunOptions(
-				ec2.WithEC2InstanceOptions(ec2.WithOS(s.descriptor), ec2.WithInstanceType("t3.micro"), ec2.WithInternetAccess()),
+				ec2.WithEC2InstanceOptions(ec2.WithOS(s.descriptor), ec2.WithInternetAccess()),
 				ec2.WithAgentOptions(agentOptions...),
 			),
 		),
@@ -184,31 +184,22 @@ func (s *basicSuite) TestCheckSchedulingBehavior() {
 // the agent's host-tags payload when running in basic infrastructure mode.
 func (s *basicSuite) TestHostTags() {
 	fakeintake := s.Env().FakeIntake.Client()
+	hostname := s.Env().Agent.Client.Hostname()
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		hosts, err := fakeintake.GetHosts()
-		if !assert.NoError(c, err, "failed to fetch hosts from fakeintake") {
+		payloads, err := fakeintake.GetHostTags(hostname)
+		if !assert.NoError(c, err, "failed to fetch host-tags for %s", hostname) {
 			return
 		}
-		if !assert.NotEmpty(c, hosts, "no hosts have sent host-tags payloads yet") {
+		if !assert.NotEmpty(c, payloads, "no host-tags payloads for %s yet", hostname) {
 			return
 		}
 
-		for _, host := range hosts {
-			payloads, err := fakeintake.GetHostTags(host)
-			if !assert.NoError(c, err, "failed to fetch host-tags for host %s", host) {
-				continue
-			}
-			if !assert.NotEmpty(c, payloads, "no host-tags payloads for host %s", host) {
-				continue
-			}
+		// Latest payload — host_tags are eventually consistent.
+		tags := payloads[len(payloads)-1].HostTags
 
-			// Latest payload — host_tags are eventually consistent.
-			tags := payloads[len(payloads)-1].HostTags
-
-			assert.Contains(c, tags, "infra_mode:basic",
-				"expected infra_mode marker on host %s; got %v", host, tags)
-		}
+		assert.Contains(c, tags, "infra_mode:basic",
+			"expected infra_mode marker on host %s; got %v", hostname, tags)
 	}, 5*time.Minute, 15*time.Second, "basic mode host tags did not appear in fakeintake host-tags payload")
 }
 
@@ -220,8 +211,8 @@ func (s *basicSuite) TestAdditionalCheckWorks() {
 init_config:
 
 instances:
-  - name: Example website
-    url: http://example.com
+  - name: Agent expvar endpoint
+    url: http://127.0.0.1:5000/debug/vars
     timeout: 1
 `
 
@@ -257,7 +248,7 @@ allowed_additional_checks:
 	// Update the environment with the new agent config and check integrations
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithRunOptions(
-			ec2.WithEC2InstanceOptions(ec2.WithOS(s.descriptor), ec2.WithInstanceType("t3.micro"), ec2.WithInternetAccess()),
+			ec2.WithEC2InstanceOptions(ec2.WithOS(s.descriptor), ec2.WithInternetAccess()),
 			ec2.WithAgentOptions(
 				agentparams.WithAgentConfig(agentConfigWithAdditionalCheck),
 				agentparams.WithIntegration("http_check.d", httpCheckConfig),

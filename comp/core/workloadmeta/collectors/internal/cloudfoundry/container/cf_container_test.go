@@ -7,7 +7,6 @@ package container
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,11 +47,7 @@ func TestPull(t *testing.T) {
 	err := c.Pull(context.TODO())
 	require.NoError(t, err)
 
-	assert.Eventually(t, func() bool {
-		container, err := workloadmetaStore.GetContainer(fakeNodeName)
-		if err != nil {
-			return false
-		}
-		return container.Runtime == workloadmeta.ContainerRuntimeGarden
-	}, 10*time.Second, 50*time.Millisecond)
+	container, err := workloadmetaStore.GetContainer(fakeNodeName)
+	require.NoError(t, err)
+	assert.Equal(t, workloadmeta.ContainerRuntimeGarden, container.Runtime)
 }

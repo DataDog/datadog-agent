@@ -1,0 +1,19 @@
+description: find -size with byte suffix matches file size.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dir/small.txt
+      content: "hi"
+      chmod: 0644
+    - path: dir/big.txt
+      content: "hello world, this is a larger file with more content in it"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -type f -size +10c
+expect:
+  stdout: |+
+    dir/big.txt
+  stderr: ""
+  exit_code: 0

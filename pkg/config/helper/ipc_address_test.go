@@ -6,7 +6,6 @@
 package helper
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -70,8 +69,32 @@ func TestGetIPCAddress(t *testing.T) {
 	})
 }
 
+func TestAPMDebugHost(t *testing.T) {
+	t.Run("localhost", func(t *testing.T) {
+		require.Equal(t, localhostV4, APMDebugHost(getConfig(t)))
+	})
+
+	t.Run("ipv6", func(t *testing.T) {
+		cfg := getConfig(t)
+		cfg.Set("cmd_host", localhostV6, model.SourceFile)
+		require.Equal(t, localhostV6, APMDebugHost(cfg))
+	})
+
+	t.Run("other ipv4 loopback falls back", func(t *testing.T) {
+		cfg := getConfig(t)
+		cfg.Set("cmd_host", "127.0.0.2", model.SourceFile)
+		require.Equal(t, localhostV4, APMDebugHost(cfg))
+	})
+
+	t.Run("not local falls back", func(t *testing.T) {
+		cfg := getConfig(t)
+		cfg.Set("cmd_host", "111.111.111.111", model.SourceFile)
+		require.Equal(t, localhostV4, APMDebugHost(cfg))
+	})
+}
+
 func getConfig(_ *testing.T) model.Config {
-	cfg := nodetreemodel.NewNodeTreeConfig("datadog", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	cfg := nodetreemodel.NewNodeTreeConfig("datadog", model.CoreSchema) // nolint: forbidigo // legit use case
 	cfg.SetTestOnlyDynamicSchema(true)
 	cfg.BindEnvAndSetDefault("ipc_address", "localhost")
 	cfg.BindEnvAndSetDefault("cmd_host", localhostStr)

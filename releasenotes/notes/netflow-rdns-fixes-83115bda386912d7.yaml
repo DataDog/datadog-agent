@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixes an issue where rDNS info on NetFlow records was not being populated correctly. 
+    The bug would have rDNS info attached on the first flow record, but for long 
+    conversations, the rDNS info would not be attached to subsequent flow records.

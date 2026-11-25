@@ -56,6 +56,13 @@ The state machine in the store (`store/impl/store.go`):
 
 On-disk state uses human-readable strings (`"active"`, `"resolved"`). The store accepts `"new"` and `"ongoing"` as legacy aliases for `"active"` when reading persistence files written by older agent versions (schema v2).
 
+Persistence depends on the process and environment:
+
+- Non-Kubernetes Agents use the local `issues.json` file. Kubernetes Agents can opt in with `health_platform.persist_on_kubernetes: true` and a durable `run_path` volume.
+- With `health_platform.persist_remotely_on_kubernetes: true`, Kubernetes node Agents and Cluster Agents restore active issues from `https://api.<site>` using `api_key`. Requests use the DaemonSet UID (`agent_type=node`) or cluster UUID (`agent_type=cluster`); returned issue IDs match Agent issue IDs directly. Standard proxy settings apply; `dd_url` does not. Existing Health Platform egress continues to send updates.
+- Remote restoration takes precedence over local persistence. It is disabled for Cluster Check Runners, one-shot commands, missing API keys, the local FIPS proxy, and disabled TLS certificate verification.
+- Kubernetes persistence is disabled by default.
+
 ## Cluster-wide issue collapse (`deployment_id`)
 
 The backend dedups issues by `id` alone, ignoring hostname. By default this means every issue module
@@ -110,6 +117,24 @@ calls `ResolveIssue` with that same `id` and clears the issue for every other no
 correct when the fix is genuinely shared, but it can flap if only some agents recover. Per-agent
 affected-count is a backend follow-up, not handled by the agent today. Document this caveat at every
 `ResolveIssue` call site for a collapsed issue.
+
+## Telemetry
+
+The `checks` COAT profile sends these `health_platform` metrics every 900 seconds:
+
+| Metric | Tags | Meaning |
+|---|---|---|
+| `active_issues` | `issue_type` | Gauge of active issue instances, including restored issues |
+| `reports_sent` | `status`, `error_type` | Counter of send attempts; skipped ticks are excluded |
+| `issues_resolved` | `issue_type` | Counter of transitions to resolved |
+
+These metrics use the caller-defined proto `IssueType` identifier, not the legacy display-name key in `issuesByName` / `PersistedIssue.IssueType`. Issues reported without an `IssueType` are tagged `issue_type:unknown`. Because `issues_detected` keeps the legacy key, its `issue_type` values do not match these metrics; do not join them on that tag. `reports_sent` uses `status:success,error_type:none` or `status:error` with `error_type:timeout|http_4xx|http_5xx|other`.
+
+The gauge counts active persisted instances by proto type, including an empty type for older restored records or unregistered issues. Re-reporting a restored instance with its proto type populated moves its count to that label.
+
+Resolve metrics count each issue instance once per transition, including `ResolveAllIssues`; shutdown does not resolve issues. Shared cluster issue IDs can undercount per-Agent recoveries when the first recovering Agent resolves the shared issue.
+
+COAT excludes zero-valued metrics, so resolved types with an active count of zero are omitted. The existing `issues_detected{issue_type,severity}` counter continues counting every report with its existing tags. The remote COAT profiles list needs the same entries when it becomes the source of truth.
 
 ## Current issues
 

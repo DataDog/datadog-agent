@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/payload"
 	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
@@ -63,7 +64,7 @@ const (
 	probabilitySamplingV1 = 9
 
 	// tagDecisionMaker specifies the sampling decision maker
-	tagDecisionMaker = "_dd.p.dm"
+	tagDecisionMaker = string(semantics.ConceptDDDecisionMaker)
 
 	// tagAPMMode specifies whether running APM in "edge" mode (may support other modes in the future)
 	tagAPMMode = "_dd.apm_mode"
@@ -324,6 +325,19 @@ func (a *Agent) FlushSync() {
 	}
 }
 
+// ForceFlushSync is FlushSync, but it first writes the open buckets of the
+// concentrator and the ClientStatsAggregator, which FlushSync leaves in memory,
+// to the stats writer. The agent keeps running.
+func (a *Agent) ForceFlushSync() {
+	if c, ok := a.Concentrator.(*stats.Concentrator); ok {
+		c.Writer.Write(c.Flush(true))
+	}
+	if a.ClientStatsAggregator != nil {
+		a.ClientStatsAggregator.ForceFlush()
+	}
+	a.FlushSync()
+}
+
 // WaitForStopped blocks until the agent's Run() method has fully returned,
 // meaning all components have been stopped and the shutdown sequence is complete.
 // It returns nil on clean shutdown, or the context's error if ctx is done first.
@@ -552,7 +566,7 @@ func (a *Agent) Process(p *api.Payload) {
 			continue
 		}
 
-		if filteredByTags(root, a.conf.RequireTags, a.conf.RejectTags, a.conf.RequireTagsRegex, a.conf.RejectTagsRegex) {
+		if filters.FilteredByTags(root, a.conf.RequireTags, a.conf.RejectTags, a.conf.RequireTagsRegex, a.conf.RejectTagsRegex) {
 			log.Debugf("Trace rejected as it fails to meet tag requirements. root: %v", root)
 			ts.TracesFiltered.Inc()
 			ts.SpansFiltered.Add(tracen)
@@ -719,6 +733,11 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 
 		tracen := int64(len(chunk.Spans))
 		ts.SpansReceived.Add(tracen)
+		if p.TracerPayload.ChunkEnvVersionOverridesEnabled() {
+			// Keep a single, normalized "env"/"version" attribute per chunk so the forwarded
+			// chunk carries exactly the values used for sampling and stats.
+			chunk.CanonicalizeEnvVersion(normalize.NormalizeTagValue)
+		}
 		err := a.normalizeTraceChunkV1(ts, chunk)
 		if err != nil {
 			log.Debugf("Dropping invalid trace: %s", err)
@@ -918,6 +937,16 @@ func processedTraceV1(p *api.PayloadV1, chunk *idx.InternalTraceChunk, root *idx
 		Lang:                   p.TracerPayload.LanguageName(),
 		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.TracerPayload.Chunks)),
 		GitCommitSha:           gitCommitSha,
+	}
+	// A chunk-level env/app version overrides the payload-level value for this chunk only.
+	// Only native v1 payloads opt in; converted legacy payloads keep their chunk tags as plain attributes.
+	if p.TracerPayload.ChunkEnvVersionOverridesEnabled() {
+		if env := chunk.Env(); env != "" {
+			pt.TracerEnv = env
+		}
+		if version := chunk.AppVersion(); version != "" {
+			pt.AppVersion = version
+		}
 	}
 	pt.ImageTag = imageTag
 	if payloadGitCommitSha, ok := p.TracerPayload.GetAttributeAsString("_dd.git.commit.sha"); ok {
@@ -1278,12 +1307,13 @@ func (a *Agent) runSamplers(now time.Time, ts *info.TagStats, pt traceutil.Proce
 	return false, true
 }
 
-// runSamplers runs the agent's configured samplers on pt and returns the sampling decision along
-// with the sampling rate.
+// runSamplersV1 runs the agent's configured samplers on pt and returns the sampling decision along
+// with the sampling rate. It is the V1 counterpart of runSamplers and must make the same decisions.
 //
 // If the agent is set as Error Tracking Standalone, only the ErrorSampler is run (other samplers are bypassed).
 // Otherwise, the rare sampler is run first, catching all rare traces early. If the probabilistic sampler is
-// enabled, it is run on the trace, followed by the error sampler. Otherwise, If the trace has a
+// enabled, the trace is kept if the rare sampler kept it, else if the probabilistic sampler keeps it; only
+// an errored trace neither of them kept goes to the error sampler. Otherwise, If the trace has a
 // priority set, the sampling priority is used with the Priority Sampler. When there is no priority
 // set, the NoPrioritySampler is run. Finally, if the trace has not been sampled by the other
 // samplers, the error sampler is run.
@@ -1309,15 +1339,14 @@ func (a *Agent) runSamplersV1(now time.Time, ts *info.TagStats, pt traceutil.Pro
 	if a.conf.ProbabilisticSamplerEnabled {
 		samplerName = sampler.NameProbabilistic
 		probKeep := false
+
 		if rare {
 			samplerName = sampler.NameRare
 			probKeep = true
-		}
-		if a.ProbabilisticSampler.SampleV1(pt.TraceChunk.TraceID, pt.Root) {
+		} else if a.ProbabilisticSampler.SampleV1(pt.TraceChunk.TraceID, pt.Root) {
 			pt.TraceChunk.SetSamplingMechanism(probabilitySamplingV1)
 			probKeep = true
-		}
-		if traceContainsErrorV1(pt.TraceChunk.Spans, false) {
+		} else if traceContainsErrorV1(pt.TraceChunk.Spans, false) {
 			samplerName = sampler.NameError
 			probKeep = a.ErrorsSampler.SampleV1(now, pt.TraceChunk, pt.Root, pt.TracerEnv)
 		}
@@ -1404,32 +1433,6 @@ func spanContainsExceptionSpanEventV1(span *idx.InternalSpan) bool {
 func spanContainsExceptionSpanEvent(span *pb.Span) bool {
 	if hasExceptionSpanEvents, ok := span.Meta["_dd.span_events.has_exception"]; ok && hasExceptionSpanEvents == "true" {
 		return true
-	}
-	return false
-}
-
-func filteredByTags(root *pb.Span, require, reject []*config.Tag, requireRegex, rejectRegex []*config.TagRegex) bool {
-	for _, tag := range reject {
-		if v, ok := root.Meta[tag.K]; ok && (tag.V == "" || v == tag.V) {
-			return true
-		}
-	}
-	for _, tag := range rejectRegex {
-		if v, ok := root.Meta[tag.K]; ok && (tag.V == nil || tag.V.MatchString(v)) {
-			return true
-		}
-	}
-	for _, tag := range require {
-		v, ok := root.Meta[tag.K]
-		if !ok || (tag.V != "" && v != tag.V) {
-			return true
-		}
-	}
-	for _, tag := range requireRegex {
-		v, ok := root.Meta[tag.K]
-		if !ok || (tag.V != nil && !tag.V.MatchString(v)) {
-			return true
-		}
 	}
 	return false
 }

@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 )
 
+var kubeletVersionRe = regexp.MustCompile("(?:gitVersion|git_version)=\"(.*?)\"")
+
 // GetMetadata returns metadata about the kubelet runtime such as the kubelet_version.
 func GetMetadata() (map[string]string, error) {
 	if !env.IsFeaturePresent(env.Kubernetes) {
@@ -36,8 +38,7 @@ func GetMetadata() (map[string]string, error) {
 		return nil, err
 	}
 
-	re := regexp.MustCompile("(?:gitVersion|git_version)=\"(.*?)\"")
-	matches := re.FindStringSubmatch(metric)
+	matches := kubeletVersionRe.FindStringSubmatch(metric)
 	if len(matches) < 1 {
 		return nil, errors.New("couldn't find kubelet git version")
 	}

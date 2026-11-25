@@ -9,9 +9,9 @@ import (
 )
 
 func TestCgoAlignment_StructStatsKey(t *testing.T) {
-	ebpftest.TestCgoAlignment[StructStatsKey](t)
+	ebpftest.AssertCgoAlignment[StructStatsKey](t)
 }
 
 func TestCgoAlignment_StructStatsValue(t *testing.T) {
-	ebpftest.TestCgoAlignment[StructStatsValue](t)
+	ebpftest.AssertCgoAlignment[StructStatsValue](t)
 }

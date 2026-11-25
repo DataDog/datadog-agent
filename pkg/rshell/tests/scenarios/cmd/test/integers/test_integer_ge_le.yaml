@@ -1,0 +1,25 @@
+description: "test -ge and -le with boundary values"
+input:
+  script: |+
+    test 5 -ge 4
+    echo "ge-gt: $?"
+    test 5 -ge 5
+    echo "ge-eq: $?"
+    test 4 -ge 5
+    echo "ge-lt: $?"
+    test 4 -le 5
+    echo "le-lt: $?"
+    test 5 -le 5
+    echo "le-eq: $?"
+    test 5 -le 4
+    echo "le-gt: $?"
+expect:
+  stdout: |
+    ge-gt: 0
+    ge-eq: 0
+    ge-lt: 1
+    le-lt: 0
+    le-eq: 0
+    le-gt: 1
+  stderr: ""
+  exit_code: 0

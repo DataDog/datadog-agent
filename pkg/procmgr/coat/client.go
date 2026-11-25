@@ -69,6 +69,23 @@ func daemonPhaseContext(collection context.Context) (context.Context, context.Ca
 	return context.WithDeadline(collection, deadline.Add(-serviceSweepReserve))
 }
 
+// daemonServiceStateBudget is the part of serviceSweepReserve given to the dd-procmgrd unit or
+// service query, which runs before the per-service sweep.
+//
+// Order alone is not enough: the query goes first because a stopped or failed unit is what it exists
+// to report, and running it last let a slow daemon phase and a slow sweep hand it an already expired
+// context, so it would answer "unknown" in exactly the case the gauge was added for. Bounding it
+// keeps that ordering from simply moving the starvation onto the sweep, so it has to stay below the
+// reserve the sweep runs on.
+const daemonServiceStateBudget = time.Second
+
+// daemonServiceStateContext bounds the dd-procmgrd unit or service query to daemonServiceStateBudget.
+// A child context cannot outlive its parent, so a collection context with less than that left still
+// binds and the budget never extends it.
+func daemonServiceStateContext(collection context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(collection, daemonServiceStateBudget)
+}
+
 func newDefaultClient() Client {
 	return newGRPCClient(procmgrSocketPath())
 }

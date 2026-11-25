@@ -18,14 +18,27 @@ import (
 
 // Config holds the configuration for the GPU monitoring probe.
 type Config struct {
+	Resources ResourcesConfig
 	// DisabledCollectors lists Agent GPU collectors that should not be created.
 	DisabledCollectors []string
 	// NVLinkFECLightErrorThreshold is the maximum corrected-error count classified as light.
 	NVLinkFECLightErrorThreshold int
 	// LegacySMActive indicates whether the legacy sm_active metric should be emitted.
 	LegacySMActive bool
+	// PreferGrEngineSMActive indicates whether the sm_active metric reported from the GPM GR engine activity should
+	// have priority over the other sm_active sources.
+	PreferGrEngineSMActive bool
 	// StaticMetricsReportingInterval is the reporting interval for static GPU metrics.
 	StaticMetricsReportingInterval time.Duration
+	// GPUMonitoringEnabled indicates whether GPU monitoring is enabled in the core Agent. Not to be
+	// confused with Enabled, which is the system-probe setting.
+	GPUMonitoringEnabled bool
+	// IntegrateWithWorkloadmetaProcesses indicates whether the NVML workloadmeta collector should link
+	// GPUs to the processes reported by workloadmeta.
+	IntegrateWithWorkloadmetaProcesses bool
+	// KAISchedulerEnabled indicates whether the NVML workloadmeta collector should map KAI Scheduler
+	// fractional GPU workloads to their device.
+	KAISchedulerEnabled bool
 	// Enabled indicates whether the GPU monitoring probe is enabled.
 	Enabled bool
 	// EnableEBPFProbes indicates whether the GPU monitoring eBPF probes should be loaded.
@@ -60,12 +73,21 @@ type Config struct {
 	// Defaults to 30 seconds. It is used to fix race conditions between systemd and the system-probe permission patching.
 	CgroupReapplyInterval time.Duration
 	// CgroupReapplyInfinitely controls whether the cgroup device configuration should be reapplied infinitely (true) or only once (false).
-	// Defaults to false. When true, the configuration will be reapplied every CgroupReapplyInterval interval.
+	// Defaults to true: the container runtime or systemd can reset the device permissions at any time (agent
+	// container restart, systemctl daemon-reload). When true, the configuration will be reapplied every
+	// CgroupReapplyInterval interval; when false, once more after CgroupReapplyInterval. Only used when
+	// ConfigureCgroupPerms is set.
 	CgroupReapplyInfinitely bool
 	// JobsConfig provides the ability for the user to define run/group identifiers to be attached to traces and metrics.
 	JobsConfig JobsConfig
 	// TracingConfig configures the tracers injected into GPU workloads.
 	TracingConfig TracingConfig
+}
+
+// ResourcesConfig controls GPU inventory publication.
+type ResourcesConfig struct {
+	Enabled bool
+	TTL     time.Duration
 }
 
 // StreamConfig is the configuration for the streams.
@@ -153,7 +175,7 @@ type TracingConfig struct {
 func NewTracingConfig(cfg model.Reader) TracingConfig {
 	return TracingConfig{
 		Enabled:        cfg.GetBool("gpu.tracing.enabled"),
-		TracerVersions: cfg.GetStringMapString("gpu.tracing.ddTraceVersions"),
+		TracerVersions: cfg.GetStringMapString("gpu.tracing.tracer_versions"),
 	}
 }
 
@@ -162,9 +184,14 @@ func New() *Config {
 	spCfg := pkgconfigsetup.SystemProbe()
 	agentCfg := pkgconfigsetup.Datadog()
 	return &Config{
+		Resources: ResourcesConfig{
+			Enabled: agentCfg.GetBool("gpu.resources.enabled"),
+			TTL:     agentCfg.GetDuration("gpu.resources.ttl"),
+		},
 		DisabledCollectors:             agentCfg.GetStringSlice("gpu.disabled_collectors"),
 		NVLinkFECLightErrorThreshold:   agentCfg.GetInt("gpu.nvlink.fec_light_error_threshold"),
 		LegacySMActive:                 agentCfg.GetBool("gpu.legacy_sm_active"),
+		PreferGrEngineSMActive:         agentCfg.GetBool("gpu.prefer_gr_engine_sm_active"),
 		StaticMetricsReportingInterval: agentCfg.GetDuration("gpu.static_metrics_reporting_interval"),
 		ScanProcessesInterval:          time.Duration(spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "process_scan_interval_seconds"))) * time.Second,
 		InitialProcessSync:             spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "initial_process_sync")),
@@ -192,5 +219,9 @@ func New() *Config {
 		CgroupReapplyInfinitely:    spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "cgroup_reapply_infinitely")),
 		JobsConfig:                 NewJobsConfig(agentCfg),
 		TracingConfig:              NewTracingConfig(agentCfg),
+
+		GPUMonitoringEnabled:               agentCfg.GetBool("gpu.enabled"),
+		IntegrateWithWorkloadmetaProcesses: agentCfg.GetBool("gpu.integrate_with_workloadmeta_processes"),
+		KAISchedulerEnabled:                agentCfg.GetBool("gpu.kai_scheduler.enabled"),
 	}
 }

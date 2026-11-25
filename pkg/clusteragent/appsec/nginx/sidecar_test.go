@@ -782,3 +782,24 @@ func TestBuildInitContainerRunAsConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestMutatePod_ForeignDDConfigMapSkipped(t *testing.T) {
+	pattern, client := newTestNginxSidecarPattern(t)
+	foreign := &unstructured.Unstructured{}
+	foreign.SetAPIVersion("v1")
+	foreign.SetKind("ConfigMap")
+	foreign.SetNamespace("ingress-nginx")
+	foreign.SetName(ddConfigMapName("ingress-nginx-controller"))
+	foreign.SetLabels(map[string]string{"app": "someone-else"})
+	require.NoError(t, client.Tracker().Add(foreign))
+
+	pod := newControllerPod("controller", "ingress-nginx", "registry.k8s.io/ingress-nginx/controller:v1.15.1")
+	outcome, err := pattern.MutatePod(pod, "ingress-nginx", client)
+
+	assert.Equal(t, appsecconfig.MutationSkipped, outcome)
+	var skip *appsecconfig.MutationSkippedReason
+	require.ErrorAs(t, err, &skip)
+	assert.Equal(t, appsecconfig.SkipReasonForeignConfigMap, skip.Reason)
+	assert.Empty(t, pod.Spec.InitContainers, "no init container must be injected")
+	assert.Empty(t, pod.Spec.Volumes, "no volume must be added")
+}

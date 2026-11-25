@@ -42,7 +42,7 @@ func BenchmarkLazyAnomalyText(b *testing.B) {
 				points[i] = observer.Point{Timestamp: int64(i + 1), Value: value}
 			}
 			series := observer.Series{Namespace: "ns", Name: "metric", Points: points}
-			detector := NewScanMWDetector()
+			detector := NewScanMWDetector(DefaultScanMWConfig())
 			_, _, found := detector.scanMW(points, &series, observer.AggregateAverage)
 			if found != tc.step {
 				b.Fatalf("fixture emitted=%v, want %v", found, tc.step)

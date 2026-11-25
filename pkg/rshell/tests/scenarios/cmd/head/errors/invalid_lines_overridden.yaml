@@ -1,0 +1,10 @@
+description: '`head -n nope -n 1` reports the FIRST invalid value, matching GNU''s left-to-right semantics. modeFlag.Set in builtins/head/head.go captures the first rejected input rather than just the last value, so subsequent valid arguments do not mask the earlier failure.'
+input:
+  script: |+
+    printf 'a\nb\n' | head -n nope -n 1; echo "code:$?"
+expect:
+  stdout: |+
+    code:1
+  stderr: |+
+    head: invalid number of lines: 'nope'
+  exit_code: 0

@@ -124,13 +124,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
 					return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
 				}),
-				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, compression logscompression.Component, hostname hostnameinterface.Component, secretsComp secrets.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
+				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, compression logscompression.Component, hostname hostnameinterface.Component, secretsComp secrets.Component, ipc ipc.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
 					hostnameDetected, err := hostname.Get(context.TODO())
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
 					}
 
-					runtimeAgent, err := agent.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, compression, secretsComp)
+					runtimeAgent, err := agent.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, compression, secretsComp, ipc)
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
 					}
@@ -326,7 +326,7 @@ func RunAgent(log log.Component, config config.Component, secrets secrets.Compon
 		}
 	}()
 
-	srv, err = api.NewServer(statusComponent, settings, wmeta, ipc, secrets)
+	srv, err = api.NewServer(statusComponent, settings, wmeta, ipc, secrets, telemetry)
 	if err != nil {
 		return log.Errorf("Error while creating api server, exiting: %v", err)
 	}

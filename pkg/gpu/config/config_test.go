@@ -47,6 +47,22 @@ func TestNewJobsConfig(t *testing.T) {
 	assert.Equal(t, IdentifierConfig{Key: "example/job-group-annotation", Type: IdentifierTypeAnnotation}, got.JobsConfig.Group)
 }
 
+func TestNewNVMLCollectorSettings(t *testing.T) {
+	cfg := configmock.New(t)
+	got := New()
+	assert.False(t, got.GPUMonitoringEnabled)
+	assert.True(t, got.IntegrateWithWorkloadmetaProcesses)
+	assert.False(t, got.KAISchedulerEnabled)
+
+	cfg.SetInTest("gpu.enabled", true)
+	cfg.SetInTest("gpu.integrate_with_workloadmeta_processes", false)
+	cfg.SetInTest("gpu.kai_scheduler.enabled", true)
+	got = New()
+	assert.True(t, got.GPUMonitoringEnabled)
+	assert.False(t, got.IntegrateWithWorkloadmetaProcesses)
+	assert.True(t, got.KAISchedulerEnabled)
+}
+
 func TestNewJobsConfigDefaults(t *testing.T) {
 	configmock.New(t)
 
@@ -63,7 +79,7 @@ func TestNewTracingConfig(t *testing.T) {
 gpu:
   tracing:
     enabled: true
-    ddTraceVersions:
+    tracer_versions:
       c: "0.24.0"
 `)
 
@@ -78,7 +94,7 @@ gpu:
 
 func TestNewTracingConfigFromEnv(t *testing.T) {
 	t.Setenv("DD_GPU_TRACING_ENABLED", "true")
-	t.Setenv("DD_GPU_TRACING_DDTRACEVERSIONS", `{"c":"0.24.0"}`)
+	t.Setenv("DD_GPU_TRACING_TRACER_VERSIONS", `{"c":"0.24.0"}`)
 	cfg := configmock.New(t)
 
 	got := NewTracingConfig(cfg)
@@ -100,7 +116,7 @@ func TestNewTracingConfigTracerVersionsReplaceDefault(t *testing.T) {
 	cfg := configmock.NewFromYAML(t, `
 gpu:
   tracing:
-    ddTraceVersions:
+    tracer_versions:
       python: "3"
 `)
 

@@ -1,0 +1,13 @@
+description: strings -n 0 is invalid and prints an error message, exits 1.
+setup:
+  files:
+    - path: data.bin
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    strings -n 0 data.bin
+expect:
+  stdout: ""
+  stderr: "strings: invalid minimum string length 0\n"
+  exit_code: 1

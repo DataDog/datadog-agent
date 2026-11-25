@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build !windows
-
 package authoredscripts
 
 import (
@@ -59,6 +57,8 @@ type EnvironmentVariable struct {
 type Dependency struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
+	// BinDir is relative to this dependency's extracted root. Empty means the root itself.
+	BinDir string `json:"binDir"`
 }
 
 // loadManifest reads and validates the metadata.json manifest for an authored-script

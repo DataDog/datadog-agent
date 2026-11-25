@@ -11,6 +11,9 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/flare/types",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
+        "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/util/log",
         "@in_yaml_go_yaml_v3//:yaml",
@@ -26,7 +29,9 @@ dd_agent_go_test(
     data = glob(["testdata/**"]),
     embed = [":common"],
     deps = [
+        "//comp/core/config",
         "//comp/core/flare/helpers",
+        "//comp/core/ipc/mock",
         "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

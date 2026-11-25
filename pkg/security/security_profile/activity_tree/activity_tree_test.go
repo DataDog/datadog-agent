@@ -9,6 +9,8 @@
 package activitytree
 
 import (
+	"errors"
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -17,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -72,6 +75,49 @@ func TestInsertFileEvent(t *testing.T) {
 	debugOutput := strings.TrimSpace(builder.String())
 
 	assert.Equal(t, expectedDebugOuput, debugOutput)
+}
+
+func TestFileNodeEvictImageTag(t *testing.T) {
+	newNode := func(ids ...uint64) *FileNode {
+		node := &FileNode{NodeBase: NewNodeBase()}
+		for _, id := range ids {
+			node.AppendImageTagID(id, time.Now())
+		}
+		return node
+	}
+
+	for _, tc := range []struct {
+		name      string
+		parentIDs []uint64
+	}{
+		{name: "untagged directory placeholder"},
+		{name: "parent only seen by the evicted version", parentIDs: []uint64{2}},
+		{name: "shared parent", parentIDs: []uint64{1, 2}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			parent := newNode(tc.parentIDs...)
+			parent.Children = map[string]*FileNode{
+				"retained": newNode(1),
+				"evicted":  newNode(2),
+				"shared":   newNode(1, 2),
+			}
+
+			removed, freed := parent.evictImageTag(2)
+			require.False(t, removed, "a parent must be retained while it has children from another version")
+			assert.Positive(t, freed)
+			assert.NotContains(t, parent.Children, "evicted")
+			for _, name := range []string{"retained", "shared"} {
+				child := parent.Children[name]
+				require.NotNil(t, child)
+				assert.True(t, child.HasImageTag(1))
+				assert.False(t, child.HasImageTag(2))
+			}
+
+			removed, freed = parent.evictImageTag(1)
+			assert.True(t, removed, "an empty directory placeholder must be pruned too")
+			assert.Positive(t, freed)
+		})
+	}
 }
 
 func setParentRelationship(parent ProcessNodeParent, node *ProcessNode) {
@@ -358,7 +404,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		filepathsInProcessCache := map[ImageProcessKey]bool{}
 
 		// Perform eviction
-		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image", "test-tag")
+		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image")
 
 		// The node should be evicted since it's not in the process cache
 		assert.Equal(t, 1, evicted, "Expected 1 node to be evicted")
@@ -397,16 +443,16 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		}
 
 		// Perform eviction
-		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image", "test-tag")
+		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image")
 
 		// The node should NOT be evicted since it's in the process cache
 		assert.Equal(t, 0, evicted, "Expected 0 nodes to be evicted")
 		assert.Len(t, tree.ProcessNodes, 1, "Expected process node to remain in tree")
 
 		// Verify that the LastSeen timestamp was updated to protect the node
-		imageTagTimes, exists := processNode.GetSeenTimes(testTagID)
+		_, lastSeen, exists := processNode.GetSeenTimes(testTagID)
 		assert.True(t, exists, "Expected image tag to still exist")
-		assert.True(t, imageTagTimes.LastSeen.After(evictionTime), "Expected LastSeen to be updated to current time")
+		assert.Greater(t, lastSeen, evictionTime.UnixNano(), "Expected LastSeen to be updated to current time")
 	})
 
 	t.Run("mixed_scenario_some_protected_some_evicted", func(t *testing.T) {
@@ -454,7 +500,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		}
 
 		// Perform eviction
-		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image", "test-tag")
+		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image")
 
 		// Only the expired node should be evicted
 		assert.Equal(t, 1, evicted, "Expected 1 node to be evicted")
@@ -462,9 +508,9 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		assert.Equal(t, "/usr/bin/protected", tree.ProcessNodes[0].Process.FileEvent.PathnameStr, "Expected protected node to remain")
 
 		// Verify that the protected node's timestamp was updated
-		imageTagTimes, exists := tree.ProcessNodes[0].GetSeenTimes(testTagID)
+		_, lastSeen, exists := tree.ProcessNodes[0].GetSeenTimes(testTagID)
 		assert.True(t, exists, "Expected image tag to still exist")
-		assert.True(t, imageTagTimes.LastSeen.After(evictionTime), "Expected LastSeen to be updated to current time")
+		assert.Greater(t, lastSeen, evictionTime.UnixNano(), "Expected LastSeen to be updated to current time")
 	})
 
 	t.Run("node_with_multiple_image_tags_partial_protection", func(t *testing.T) {
@@ -496,7 +542,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		processNode.AppendImageTagID(veryOldTagID, veryOldTime)
 		processNode.AppendImageTagID(oldTagID, oldTime)
 		processNode.AppendImageTagID(recentTagID, recentTime)
-		processNode.AppendImageTagID(testTagID, oldTime) // Add the profile tag that can be refreshed
+		processNode.AppendImageTagID(testTagID, oldTime) // Add the tag of the running process that can be refreshed
 		tree.ProcessNodes = []*ProcessNode{processNode}
 
 		// Set eviction time to 1 hour ago (very-old-tag and old-tag should be evicted)
@@ -508,29 +554,70 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		}
 
 		// Perform eviction
-		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image", "test-tag")
+		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image")
 
 		// The node should NOT be evicted, but expired tags should be refreshed
 		assert.Equal(t, 0, evicted, "Expected 0 nodes to be evicted")
 		assert.Len(t, tree.ProcessNodes, 1, "Expected process node to remain in tree")
 
-		// Verify that only the profile's image tag was refreshed
+		// Verify that only the image tag of the running process was refreshed
 		node := tree.ProcessNodes[0]
-		veryOldTagTimes, _ := node.GetSeenTimes(veryOldTagID)
-		oldTagTimes, _ := node.GetSeenTimes(oldTagID)
-		recentTagTimes, _ := node.GetSeenTimes(recentTagID)
-		testTagTimes, _ := node.GetSeenTimes(testTagID)
+		_, _, veryOldExists := node.GetSeenTimes(veryOldTagID)
+		_, _, oldExists := node.GetSeenTimes(oldTagID)
+		_, recentLastSeen, recentExists := node.GetSeenTimes(recentTagID)
+		_, testLastSeen, testExists := node.GetSeenTimes(testTagID)
 
 		// The very-old-tag and old-tag should have been evicted since they weren't refreshed
-		assert.Zero(t, veryOldTagTimes, "Expected very-old-tag to be evicted")
-		assert.Zero(t, oldTagTimes, "Expected old-tag to be evicted")
-		assert.NotZero(t, recentTagTimes, "Expected recent-tag to still exist")
-		assert.NotZero(t, testTagTimes, "Expected test-tag to still exist")
+		assert.False(t, veryOldExists, "Expected very-old-tag to be evicted")
+		assert.False(t, oldExists, "Expected old-tag to be evicted")
+		assert.True(t, recentExists, "Expected recent-tag to still exist")
+		assert.True(t, testExists, "Expected test-tag to still exist")
 
-		// The test-tag should have been refreshed to current time (it's the profile tag)
-		assert.True(t, testTagTimes.LastSeen.After(evictionTime), "Expected test-tag LastSeen to be updated")
+		// The test-tag should have been refreshed to current time (it's the tag of the running process)
+		assert.Greater(t, testLastSeen, evictionTime.UnixNano(), "Expected test-tag LastSeen to be updated")
 		// Recent tag should remain unchanged since it wasn't expired
-		assert.True(t, recentTagTimes.LastSeen.Equal(recentTime), "Expected recent-tag LastSeen to remain unchanged")
+		assert.Equal(t, recentTime.UnixNano(), recentLastSeen, "Expected recent-tag LastSeen to remain unchanged")
+	})
+
+	t.Run("each_image_tag_is_protected_by_its_own_running_processes", func(t *testing.T) {
+		tree := &ActivityTree{
+			validator: activityTreeInsertTestValidator{},
+			Stats:     NewActivityTreeNodeStats(),
+		}
+
+		oldTime := time.Now().Add(-2 * time.Hour)
+		stoppedTagID := tree.GetOrInsertImageTag("15.4")
+		runningTagID := tree.GetOrInsertImageTag("16.1")
+
+		processNode := &ProcessNode{
+			NodeBase: NewNodeBase(),
+			Process: ProcessInfo{
+				FileEvent: model.FileEvent{
+					PathnameStr: "/usr/lib/postgresql/bin/postgres",
+				},
+			},
+		}
+		processNode.AppendImageTagID(stoppedTagID, oldTime)
+		processNode.AppendImageTagID(runningTagID, oldTime)
+		tree.ProcessNodes = []*ProcessNode{processNode}
+
+		evictionTime := time.Now().Add(-1 * time.Hour)
+
+		// Only a 16.1 container is running postgres
+		filepathsInProcessCache := map[ImageProcessKey]bool{
+			{ImageName: "postgres", ImageTag: "16.1", Filepath: "/usr/lib/postgresql/bin/postgres"}: true,
+		}
+
+		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "postgres")
+
+		assert.Equal(t, 0, evicted, "Expected the node of a running process to be kept")
+		assert.Len(t, tree.ProcessNodes, 1, "Expected process node to remain in tree")
+
+		_, _, stoppedExists := processNode.GetSeenTimes(stoppedTagID)
+		_, runningLastSeen, runningExists := processNode.GetSeenTimes(runningTagID)
+		assert.False(t, stoppedExists, "Expected the tag without running process to be evicted")
+		assert.True(t, runningExists, "Expected the tag of the running process to still exist")
+		assert.Greater(t, runningLastSeen, evictionTime.UnixNano(), "Expected the tag of the running process to be refreshed")
 	})
 
 	t.Run("empty_process_cache_allows_normal_eviction", func(t *testing.T) {
@@ -573,7 +660,7 @@ func TestEvictUnusedNodes_ProcessCacheProtection(t *testing.T) {
 		filepathsInProcessCache := map[ImageProcessKey]bool{}
 
 		// Perform eviction
-		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image", "test-tag")
+		evicted := tree.EvictUnusedNodes(evictionTime, filepathsInProcessCache, "test-image")
 
 		// Both nodes should be evicted
 		assert.Equal(t, 2, evicted, "Expected 2 nodes to be evicted")
@@ -708,4 +795,205 @@ func TestProcessInfoMatches(t *testing.T) {
 		Argv:      []string{"-s", "https://example.com"},
 	}
 	assert.True(t, node.Matches(entry, true, false))
+}
+
+func TestInsertionErrorType(t *testing.T) {
+	cause := errors.New("cause")
+	tests := []struct {
+		name       string
+		err        error
+		want       string
+		insertable bool
+	}{
+		{"broken lineage", &model.ErrProcessBrokenLineage{Err: cause}, InsertionErrorBrokenLineage, true},
+		{"broken lineage in the tree", ErrBrokenLineage, InsertionErrorBrokenLineage, false},
+		{"no process context", model.ErrNoProcessContext, InsertionErrorNoProcessContext, false},
+		{"path resolution", &path.ErrPathResolution{Err: cause}, InsertionErrorPathResolution, false},
+		{"wrapped path resolution", fmt.Errorf("wrapped: %w", &path.ErrPathResolution{Err: cause}), InsertionErrorPathResolution, false},
+		{"path resolution not critical", &path.ErrPathResolutionNotCritical{Err: cause}, InsertionErrorPathResolutionNotCritical, false},
+		{"path resolution wrapping a non critical one", &path.ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path: %w", &path.ErrPathResolutionNotCritical{Err: cause})}, InsertionErrorPathResolution, false},
+		{"dns decoding", model.ErrFailedDNSPacketDecoding, InsertionErrorDNSDecoding, false},
+		{"invalid generation type", fmt.Errorf("%w: %v", ErrInvalidGenerationType, 42), InsertionErrorInvalidGenerationType, false},
+		{"process node not created", ErrProcessNodeNotCreated, InsertionErrorProcessNodeNotCreated, false},
+		{"other", cause, InsertionErrorOther, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := InsertionErrorType(tt.err)
+			assert.Equal(t, tt.want, got)
+			assert.Contains(t, InsertionErrorTypes, got)
+			assert.Equal(t, tt.insertable, IsInsertableEventError(tt.err))
+		})
+	}
+}
+
+// newCookieTestShim returns the container shim, outside of the container, that starts the lineage of the test entries
+func newCookieTestShim() *model.ProcessCacheEntry {
+	shim := model.NewPlaceholderProcessCacheEntry(1, 1, false)
+	shim.FileEvent.PathnameStr = "/usr/bin/containerd-shim-runc-v2"
+	shim.FileEvent.Inode = 1
+	return shim
+}
+
+// newCookieTestEntry returns a process of the container, whose cookie and exec time derive from its pid
+func newCookieTestEntry(pid uint32, pathname string, ancestor *model.ProcessCacheEntry) *model.ProcessCacheEntry {
+	entry := model.NewPlaceholderProcessCacheEntry(pid, pid, false)
+	entry.ContainerContext.ContainerID = "123"
+	entry.FileEvent.PathnameStr = pathname
+	entry.FileEvent.Inode = uint64(pid)
+	entry.FileEvent.MountID = 1
+	entry.Cookie = uint64(pid)
+	entry.ExecTime = time.Unix(int64(pid), 0)
+	if ancestor != nil {
+		entry.Ancestor = ancestor
+		entry.Parent = &ancestor.Process
+	}
+	return entry
+}
+
+func TestActivityTree_BrokenLineageCookies(t *testing.T) {
+	tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "test")
+
+	// the lineage of these entries breaks at /bin/foo, inside of the container
+	brokenParent := newCookieTestEntry(10, "/bin/foo", nil)
+	brokenChild := newCookieTestEntry(11, "/bin/bar", brokenParent)
+	brokenSibling := newCookieTestEntry(12, "/bin/baz", brokenParent)
+
+	_, _, err := tree.CreateProcessNode(brokenChild, "tag", Runtime, false, nil)
+	require.ErrorIs(t, err, ErrBrokenLineage)
+
+	node, newNode, err := tree.CreateProcessNode(newCookieTestEntry(11, "/bin/bar", newCookieTestEntry(10, "/bin/foo", newCookieTestShim())), "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	require.True(t, newNode)
+
+	found, newNode, err := tree.CreateProcessNode(brokenChild, "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	assert.False(t, newNode)
+	assert.Same(t, node, found)
+
+	otherTagID := tree.GetOrInsertImageTag("other")
+	found, _, err = tree.CreateProcessNode(brokenChild, "other", Runtime, true, nil)
+	require.NoError(t, err)
+	assert.Same(t, node, found)
+	assert.False(t, node.HasImageTag(otherTagID))
+
+	sibling, newNode, err := tree.CreateProcessNode(brokenSibling, "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	assert.True(t, newNode)
+	require.Len(t, tree.ProcessNodes, 1)
+	assert.Same(t, tree.ProcessNodes[0], sibling.Parent)
+
+	require.Positive(t, tree.EvictUnusedNodes(time.Now(), nil, ""))
+	_, _, err = tree.CreateProcessNode(brokenChild, "tag", Runtime, false, nil)
+	assert.ErrorIs(t, err, ErrBrokenLineage)
+}
+
+func TestActivityTree_BrokenLineageCookiesAfterRebase(t *testing.T) {
+	tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "test")
+	parent := newCookieTestEntry(10, "/bin/foo", newCookieTestShim())
+
+	_, _, err := tree.CreateProcessNode(newCookieTestEntry(12, "/bin/baz", parent), "tag", Runtime, false, nil)
+	require.NoError(t, err)
+
+	// /bin/baz turns out to be executed by /bin/bar, which is inserted above it
+	execed := newCookieTestEntry(13, "/bin/baz", newCookieTestEntry(11, "/bin/bar", parent))
+	execed.IsExecExec = true
+	_, _, err = tree.CreateProcessNode(execed, "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	require.Len(t, tree.ProcessNodes, 1)
+	require.Len(t, tree.ProcessNodes[0].Children, 1)
+	rebased := tree.ProcessNodes[0].Children[0]
+	require.Equal(t, "/bin/bar", rebased.Process.FileEvent.PathnameStr)
+
+	// the lineage of this entry breaks at /bin/bar, inside of the container
+	node, newNode, err := tree.CreateProcessNode(newCookieTestEntry(14, "/bin/qux", newCookieTestEntry(11, "/bin/bar", nil)), "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	assert.True(t, newNode)
+	assert.Same(t, rebased, node.Parent)
+}
+
+func TestActivityTree_BrokenLineageCookiesAfterRebaseMerge(t *testing.T) {
+	tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "test")
+	parent := newCookieTestEntry(10, "/bin/foo", newCookieTestShim())
+	bar := newCookieTestEntry(11, "/bin/bar", parent)
+
+	_, _, err := tree.CreateProcessNode(bar, "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	execed := newCookieTestEntry(12, "/bin/qux", newCookieTestEntry(12, "/bin/baz", parent))
+	execed.IsExecExec = true
+	_, _, err = tree.CreateProcessNode(execed, "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	require.Len(t, tree.ProcessNodes[0].Children, 2)
+	merged := tree.ProcessNodes[0].Children[1]
+	require.Equal(t, "/bin/baz", merged.Process.FileEvent.PathnameStr)
+
+	// /bin/baz turns out to be a child of /bin/bar: the existing /bin/baz node is moved below it
+	execed = newCookieTestEntry(14, "/bin/qux", newCookieTestEntry(13, "/bin/baz", bar))
+	execed.IsExecExec = true
+	_, _, err = tree.CreateProcessNode(execed, "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	require.Len(t, tree.ProcessNodes[0].Children, 1)
+	require.Len(t, tree.ProcessNodes[0].Children[0].Children, 1)
+	require.Same(t, merged, tree.ProcessNodes[0].Children[0].Children[0])
+
+	// the lineage of this entry breaks at /bin/baz, inside of the container
+	node, newNode, err := tree.CreateProcessNode(newCookieTestEntry(15, "/bin/quux", newCookieTestEntry(13, "/bin/baz", nil)), "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	assert.True(t, newNode)
+	assert.Same(t, merged, node.Parent)
+}
+
+func TestActivityTree_BrokenLineageCookiesSameBinary(t *testing.T) {
+	tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "test")
+	node, _, err := tree.CreateProcessNode(newCookieTestEntry(10, "/bin/foo", newCookieTestShim()), "tag", Runtime, false, nil)
+	require.NoError(t, err)
+
+	// /bin/foo executes itself again, and the lineage breaks at its previous execution
+	reexec := newCookieTestEntry(10, "/bin/foo", newCookieTestEntry(10, "/bin/foo", nil))
+	reexec.Cookie = 100
+	reexec.ExecTime = time.Unix(100, 0)
+
+	found, newNode, err := tree.CreateProcessNode(reexec, "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	assert.False(t, newNode)
+	assert.Same(t, node, found)
+
+	child, newNode, err := tree.CreateProcessNode(newCookieTestEntry(11, "/bin/bar", reexec), "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	assert.True(t, newNode)
+	assert.Same(t, node, child.Parent)
+}
+
+func TestActivityTree_BrokenLineageCookiesAfterEviction(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		evict func(t *testing.T, tree *ActivityTree)
+	}{
+		{"unused nodes", func(t *testing.T, tree *ActivityTree) {
+			inProcessCache := map[ImageProcessKey]bool{{ImageTag: "v1", Filepath: "/bin/foo"}: true}
+			require.Positive(t, tree.EvictUnusedNodes(time.Now(), inProcessCache, ""))
+		}},
+		{"image tag", func(_ *testing.T, tree *ActivityTree) {
+			tree.EvictImageTag("v2")
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "test")
+			kept, _, err := tree.CreateProcessNode(newCookieTestEntry(10, "/bin/foo", newCookieTestShim()), "v1", Runtime, false, nil)
+			require.NoError(t, err)
+			_, _, err = tree.CreateProcessNode(newCookieTestEntry(20, "/bin/baz", newCookieTestShim()), "v2", Runtime, false, nil)
+			require.NoError(t, err)
+
+			tt.evict(t, tree)
+			require.Len(t, tree.ProcessNodes, 1)
+			require.Same(t, kept, tree.ProcessNodes[0])
+
+			// the lineage of these entries breaks at their parent, inside of the container
+			child, _, err := tree.CreateProcessNode(newCookieTestEntry(11, "/bin/bar", newCookieTestEntry(10, "/bin/foo", nil)), "v1", Runtime, false, nil)
+			require.NoError(t, err)
+			assert.Same(t, kept, child.Parent)
+			_, _, err = tree.CreateProcessNode(newCookieTestEntry(21, "/bin/qux", newCookieTestEntry(20, "/bin/baz", nil)), "v2", Runtime, false, nil)
+			assert.ErrorIs(t, err, ErrBrokenLineage)
+		})
+	}
 }

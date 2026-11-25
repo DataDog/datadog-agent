@@ -11,9 +11,9 @@ from tasks.libs.pipeline.data import get_failed_jobs
 from tasks.libs.types.types import FailedJobType
 
 
-def compute_failed_jobs_series(project_name: str):
+def compute_failed_jobs_series(project_name: str, pipeline_id: str):
     try:
-        global_failure_reason, job_failure_stats = get_failed_jobs_stats(project_name, os.getenv("CI_PIPELINE_ID"))
+        global_failure_reason, job_failure_stats = get_failed_jobs_stats(project_name, pipeline_id)
     except Exception as e:
         print("Found exception when generating statistics:")
         print(e)

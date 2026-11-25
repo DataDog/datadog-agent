@@ -1,0 +1,20 @@
+# Each section from every release note are combined when the
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The ``datadog-cluster-agent status`` output has a new "Kubernetes Information"
+    section with the cluster name, cluster ID, distribution, and Kubernetes server
+    version.
+deprecations:
+  - |
+    Starting with Datadog Cluster Agent 7.86.0, Kubernetes versions older than v1.23
+    are no longer officially supported. The Cluster Agent keeps running on these
+    versions, but its features are supported on a best-effort basis and might not
+    work as expected. When the Cluster Agent detects such a version at startup, it
+    logs a warning and shows it in the ``datadog-cluster-agent status`` output.

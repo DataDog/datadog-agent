@@ -104,43 +104,15 @@ type holtSeriesState struct {
 	lastSeenTimestamp int64
 }
 
-// HoltResidualDetector fires when a Holt forecast residual exceeds a robust
-// MAD-scaled threshold, with consecutive-confirmation and effect-size gates.
-//
-// Implements observer.Detector and observer.SeriesRemover. Tunable fields
-// are exported so callers (testbench, tests) may override defaults after
-// construction; NewHoltResidualDetector populates them.
+// HoltResidualDetector detects confirmed, MAD-scaled forecast residuals.
 type HoltResidualDetector struct {
-	ready bool
-	// Alpha is the level smoothing factor (0..1). Higher = more reactive.
-	Alpha float64
-	// Beta is the trend smoothing factor (0..1). Lower = more stable.
-	Beta float64
-	// WarmupPoints is the number of points collected before smoothing
-	// begins. Must be >= 2 (split into halves to seed level + trend).
-	WarmupPoints int
-	// ResidualWindow is the rolling FIFO size for residual MAD and value MAD.
-	ResidualWindow int
-	// ZThreshold is the standardised-residual gate.
-	ZThreshold float64
-	// ConfirmM is the minimum number of consecutive same-sign |z|≥threshold
-	// observations required to fire.
-	ConfirmM int
-	// MinDeviationMAD is the minimum |x_t - L_{t-1}| / MAD(values) for the
-	// effect-size gate to pass.
-	MinDeviationMAD float64
-	// Refractory is the number of ingested points to suppress fires for
-	// after firing, while the smoother adapts.
-	Refractory int
-
-	// Aggregations to run detection on. Default: [Average, Count].
-	Aggregations []observer.Aggregate
+	ready  bool
+	config HoltResidualConfig
 
 	// per-series state keyed by ref+agg
 	series map[holtStateKey]*holtSeriesState
 
-	// Cache compact refs across Detect calls. Keeping only refs avoids retaining
-	// every series' metadata and tag slice for Holt's lifetime.
+	// Cache refs without retaining series metadata.
 	cachedRefs []observer.SeriesRef
 	cachedGen  uint64
 
@@ -149,17 +121,24 @@ type HoltResidualDetector struct {
 	scratch []float64
 }
 
-// HoltResidualConfig holds catalog/testbench tunables for HoltResidualDetector.
+// HoltResidualConfig contains construction-time statistical parameters.
 type HoltResidualConfig struct {
-	Alpha           float64  `json:"alpha"`
-	Beta            float64  `json:"beta"`
-	WarmupPoints    int      `json:"warmup_points"`
-	ResidualWindow  int      `json:"residual_window"`
-	ZThreshold      float64  `json:"z_threshold"`
-	ConfirmM        int      `json:"confirm_m"`
-	MinDeviationMAD float64  `json:"min_deviation_mad"`
-	Refractory      int      `json:"refractory"`
-	Aggregations    []string `json:"aggregations,omitempty"`
+	// Alpha is the level smoothing factor (0..1). Higher = more reactive.
+	Alpha float64 `json:"alpha"`
+	// Beta is the trend smoothing factor (0..1). Lower = more stable.
+	Beta float64 `json:"beta"`
+	// WarmupPoints seeds level and trend from two half-window means.
+	WarmupPoints int `json:"warmup_points"`
+	// ResidualWindow is the rolling FIFO size for residual MAD and value MAD.
+	ResidualWindow int `json:"residual_window"`
+	// ZThreshold is the standardised-residual gate.
+	ZThreshold float64 `json:"z_threshold"`
+	// ConfirmM is the required consecutive same-sign threshold breaches.
+	ConfirmM int `json:"confirm_m"`
+	// MinDeviationMAD is the minimum |x_t - L_{t-1}| / MAD(values).
+	MinDeviationMAD float64 `json:"min_deviation_mad"`
+	// Refractory suppresses this many points after a fire.
+	Refractory int `json:"refractory"`
 }
 
 // DefaultHoltResidualConfig returns the production/testbench defaults.
@@ -173,33 +152,39 @@ func DefaultHoltResidualConfig() HoltResidualConfig {
 		ConfirmM:        holtConfirmM,
 		MinDeviationMAD: holtMinDeviationMAD,
 		Refractory:      holtRefractory,
-		Aggregations: []string{
-			observer.AggregateString(observer.AggregateAverage),
-			observer.AggregateString(observer.AggregateCount),
-		},
 	}
 }
 
-// NewHoltResidualDetector creates a HoltResidual detector with default
-// settings. The catalog factory calls this with no arguments; tunables can
-// be overridden post-construction.
-func NewHoltResidualDetector() *HoltResidualDetector {
-	return NewHoltResidualDetectorWithConfig(DefaultHoltResidualConfig())
-}
-
-// NewHoltResidualDetectorWithConfig creates a detector configured from cfg.
-func NewHoltResidualDetectorWithConfig(cfg HoltResidualConfig) *HoltResidualDetector {
+// NewHoltResidualDetector normalizes and copies configuration once at construction.
+func NewHoltResidualDetector(cfg HoltResidualConfig) *HoltResidualDetector {
+	defaults := DefaultHoltResidualConfig()
+	if cfg.Alpha <= 0 {
+		cfg.Alpha = defaults.Alpha
+	}
+	if cfg.Beta <= 0 {
+		cfg.Beta = defaults.Beta
+	}
+	if cfg.WarmupPoints <= 0 {
+		cfg.WarmupPoints = defaults.WarmupPoints
+	}
+	if cfg.ResidualWindow <= 0 {
+		cfg.ResidualWindow = defaults.ResidualWindow
+	}
+	if cfg.ZThreshold <= 0 {
+		cfg.ZThreshold = defaults.ZThreshold
+	}
+	if cfg.ConfirmM <= 0 {
+		cfg.ConfirmM = defaults.ConfirmM
+	}
+	if cfg.MinDeviationMAD <= 0 {
+		cfg.MinDeviationMAD = defaults.MinDeviationMAD
+	}
+	if cfg.Refractory <= 0 {
+		cfg.Refractory = defaults.Refractory
+	}
 	return &HoltResidualDetector{
-		Alpha:           cfg.Alpha,
-		Beta:            cfg.Beta,
-		WarmupPoints:    cfg.WarmupPoints,
-		ResidualWindow:  cfg.ResidualWindow,
-		ZThreshold:      cfg.ZThreshold,
-		ConfirmM:        cfg.ConfirmM,
-		MinDeviationMAD: cfg.MinDeviationMAD,
-		Refractory:      cfg.Refractory,
-		Aggregations:    parseAggregateConfig(cfg.Aggregations),
-		series:          make(map[holtStateKey]*holtSeriesState),
+		config: cfg,
+		series: make(map[holtStateKey]*holtSeriesState),
 	}
 }
 
@@ -210,10 +195,9 @@ func (d *HoltResidualDetector) Ready() bool { return d.ready }
 
 // DetectorPointWindow implements observer.DetectorPointWindowRequirement.
 func (d *HoltResidualDetector) DetectorPointWindow() observer.DetectorPointWindow {
-	d.ensureDefaults()
 	return observer.DetectorPointWindow{
-		MinPoints: d.WarmupPoints,
-		MaxPoints: max(d.WarmupPoints, d.ResidualWindow),
+		MinPoints: d.config.WarmupPoints,
+		MaxPoints: max(d.config.WarmupPoints, d.config.ResidualWindow),
 	}
 }
 
@@ -230,12 +214,11 @@ func (d *HoltResidualDetector) Reset() {
 // entry holds rolling buffers, so without teardown the map grows unbounded with
 // the cumulative series count even after storage shrinks.
 func (d *HoltResidualDetector) RemoveSeries(refs []observer.SeriesRef) {
-	d.ensureDefaults()
 	if len(refs) == 0 || len(d.series) == 0 {
 		return
 	}
 	for _, ref := range refs {
-		for _, agg := range d.Aggregations {
+		for _, agg := range [...]observer.Aggregate{observer.AggregateAverage, observer.AggregateSum, observer.AggregateCount} {
 			delete(d.series, holtStateKey{ref: ref, agg: agg})
 		}
 	}
@@ -245,12 +228,11 @@ func (d *HoltResidualDetector) RemoveSeries(refs []observer.SeriesRef) {
 
 // Detect implements observer.Detector. Streams new points into per-series
 // Holt state and emits anomalies when all three gates pass.
-func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
-	d.ensureDefaults()
-
+func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime int64, filter observer.DetectionFilter) observer.DetectionResult {
+	aggregations, numAggregations := detectorAggregations(filter.Aggregations)
 	gen := storage.SeriesGeneration()
 	if d.cachedRefs == nil || gen != d.cachedGen {
-		d.cachedRefs = workloadSeriesRefs(storage, d.cachedRefs)
+		d.cachedRefs = listSeriesRefs(storage, detectorSeriesFilter(filter), d.cachedRefs)
 		d.cachedGen = gen
 	}
 
@@ -261,13 +243,13 @@ func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime i
 	for i, ref := range d.cachedRefs {
 		status := bulkStatus[i]
 
-		for _, agg := range d.Aggregations {
+		for _, agg := range aggregations[:numAggregations] {
 			if !supportsSeriesAggregate(storage, ref, agg) {
 				continue
 			}
 			sk := holtStateKey{ref: ref, agg: agg}
 			state, exists := d.series[sk]
-			if !exists && status.pointCount < d.WarmupPoints {
+			if !exists && status.pointCount < d.config.WarmupPoints {
 				continue
 			}
 			if !exists {
@@ -295,7 +277,7 @@ func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime i
 				startTime = 0
 			}
 
-			anomalies, pointsSeen := d.ingestNewPoints(storage, ref, agg, state, startTime, dataTime, status.pointCount >= d.WarmupPoints)
+			anomalies, pointsSeen := d.ingestNewPoints(storage, ref, agg, state, startTime, dataTime, status.pointCount >= d.config.WarmupPoints)
 			for j := range anomalies {
 				anomalies[j].SourceRef = &observer.QueryHandle{Ref: ref, Aggregate: agg}
 			}
@@ -320,8 +302,8 @@ func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime i
 // buffers. Splitting allocation here keeps Detect's hot path branch-free.
 func (d *HoltResidualDetector) newState() *holtSeriesState {
 	return &holtSeriesState{
-		resWin:           make([]float64, 0, d.ResidualWindow),
-		valWin:           make([]float64, 0, d.ResidualWindow),
+		resWin:           make([]float64, 0, d.config.ResidualWindow),
+		valWin:           make([]float64, 0, d.config.ResidualWindow),
 		recentTimestamps: make([]int64, 0, holtTimestampRing),
 	}
 }
@@ -365,22 +347,22 @@ func (d *HoltResidualDetector) ingestNewPoints(
 			if state.warmupCount == 1 {
 				state.warmupFirstValue = p.Value
 			}
-			half := d.WarmupPoints / 2
+			half := d.config.WarmupPoints / 2
 			if state.warmupCount <= half {
 				state.warmupFirstSum += p.Value
 			}
-			if state.warmupCount > d.WarmupPoints-half {
+			if state.warmupCount > d.config.WarmupPoints-half {
 				state.warmupLastSum += p.Value
 			}
-			if state.warmupCount >= d.WarmupPoints {
-				seedLevelTrend(state, d.WarmupPoints)
+			if state.warmupCount >= d.config.WarmupPoints {
+				seedLevelTrend(state, d.config.WarmupPoints)
 				state.warmedUp = true
 			}
 			return
 		}
 
 		anomaly, hasFire := d.processPoint(state, s, p, agg, allowFire)
-		if len(state.resWin) >= d.ResidualWindow && len(state.valWin) >= d.ResidualWindow {
+		if len(state.resWin) >= d.config.ResidualWindow && len(state.valWin) >= d.config.ResidualWindow {
 			d.ready = true
 		}
 
@@ -451,8 +433,8 @@ func (d *HoltResidualDetector) processPoint(
 	// 3. Update consecutive counters only after both baseline windows are
 	// representative. Under-filled windows collapse sigma to the floor and can
 	// otherwise pre-arm confirmation before the gate is meaningful.
-	windowsReady := len(state.resWin) >= d.ResidualWindow && len(state.valWin) >= d.ResidualWindow
-	zMagPasses := windowsReady && math.Abs(z) >= d.ZThreshold
+	windowsReady := len(state.resWin) >= d.config.ResidualWindow && len(state.valWin) >= d.config.ResidualWindow
+	zMagPasses := windowsReady && math.Abs(z) >= d.config.ZThreshold
 	if zMagPasses {
 		if z > 0 {
 			state.consecutivePos++
@@ -466,15 +448,15 @@ func (d *HoltResidualDetector) processPoint(
 		state.consecutiveNeg = 0
 	}
 
-	confirmed := state.consecutivePos >= d.ConfirmM || state.consecutiveNeg >= d.ConfirmM
-	gateOK := windowsReady && zMagPasses && confirmed && devMAD >= d.MinDeviationMAD
+	confirmed := state.consecutivePos >= d.config.ConfirmM || state.consecutiveNeg >= d.config.ConfirmM
+	gateOK := windowsReady && zMagPasses && confirmed && devMAD >= d.config.MinDeviationMAD
 
 	// 4. Smoother update — runs on every post-warmup ingest, regardless of
 	// fire / refractory. This is what lets the model adapt through and
 	// after a regime shift; the gate decides what to emit, never what to
 	// learn.
-	newLevel := d.Alpha*p.Value + (1-d.Alpha)*(state.level+state.trend)
-	state.trend = d.Beta*(newLevel-state.level) + (1-d.Beta)*state.trend
+	newLevel := d.config.Alpha*p.Value + (1-d.config.Alpha)*(state.level+state.trend)
+	state.trend = d.config.Beta*(newLevel-state.level) + (1-d.config.Beta)*state.trend
 	state.level = newLevel
 
 	// 5. Decide whether to actually emit a fire.
@@ -489,8 +471,8 @@ func (d *HoltResidualDetector) processPoint(
 	if fire {
 		residualForWindow = d.medianOfTail(state.resWin, holtPostFireSampleN)
 	}
-	pushFIFO(&state.resWin, d.ResidualWindow, residualForWindow)
-	pushFIFO(&state.valWin, d.ResidualWindow, p.Value)
+	pushFIFO(&state.resWin, d.config.ResidualWindow, residualForWindow)
+	pushFIFO(&state.valWin, d.config.ResidualWindow, p.Value)
 
 	if !fire {
 		return observer.Anomaly{}, false
@@ -516,7 +498,7 @@ func (d *HoltResidualDetector) processPoint(
 			BaselineMAD:    sigmaResidual,
 			CurrentValue:   p.Value,
 			DeviationSigma: math.Abs(z),
-			Threshold:      d.ZThreshold,
+			Threshold:      d.config.ZThreshold,
 			Forecast:       forecast,
 			Residual:       residual,
 			HoltLevel:      state.level,
@@ -528,7 +510,7 @@ func (d *HoltResidualDetector) processPoint(
 	// 8. Reset confirmation counters and arm refractory.
 	state.consecutivePos = 0
 	state.consecutiveNeg = 0
-	state.refractoryRemaining = d.Refractory
+	state.refractoryRemaining = d.config.Refractory
 
 	return anomaly, true
 }
@@ -675,43 +657,4 @@ func pushTimestamp(state *holtSeriesState, ts int64) {
 	}
 	copy(state.recentTimestamps, state.recentTimestamps[1:])
 	state.recentTimestamps[len(state.recentTimestamps)-1] = ts
-}
-
-// ensureDefaults fills zero-valued config fields with sensible defaults so the
-// detector behaves sanely when constructed via reflective paths that bypass
-// NewHoltResidualDetector.
-func (d *HoltResidualDetector) ensureDefaults() {
-	if d.Alpha <= 0 {
-		d.Alpha = holtAlpha
-	}
-	if d.Beta <= 0 {
-		d.Beta = holtBeta
-	}
-	if d.WarmupPoints <= 0 {
-		d.WarmupPoints = holtWarmupPoints
-	}
-	if d.ResidualWindow <= 0 {
-		d.ResidualWindow = holtResidualWindow
-	}
-	if d.ZThreshold <= 0 {
-		d.ZThreshold = holtZThreshold
-	}
-	if d.ConfirmM <= 0 {
-		d.ConfirmM = holtConfirmM
-	}
-	if d.MinDeviationMAD <= 0 {
-		d.MinDeviationMAD = holtMinDeviationMAD
-	}
-	if d.Refractory <= 0 {
-		d.Refractory = holtRefractory
-	}
-	if d.series == nil {
-		d.series = make(map[holtStateKey]*holtSeriesState)
-	}
-	if len(d.Aggregations) == 0 {
-		d.Aggregations = []observer.Aggregate{
-			observer.AggregateAverage,
-			observer.AggregateCount,
-		}
-	}
 }

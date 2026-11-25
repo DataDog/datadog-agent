@@ -38,7 +38,6 @@ dd_agent_go_test(
         "clusterchecks",
         "kubeapiserver",
         "kubelet",
-        "orchestrator",
     ]],
     deps = [
         "@com_github_datadog_dd_trace_go_v2//ddtrace/mocktracer",

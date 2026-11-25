@@ -1,0 +1,21 @@
+# s6-overlay - process supervisor of the Linux Agent image
+
+http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
+
+VERSION = "2.2.0.3"
+
+http_file(
+    name = "s6_overlay_aarch64",
+    sha256 = "84f585a100b610124bb80e441ef2dc2d68ac2c345fd393d75a6293e0951ccfc5",
+    urls = [
+        "https://github.com/just-containers/s6-overlay/releases/download/v{version}/s6-overlay-aarch64.tar.gz".format(version = VERSION),
+    ],
+)
+
+http_file(
+    name = "s6_overlay_amd64",
+    sha256 = "a7076cf205b331e9f8479bbb09d9df77dbb5cd8f7d12e9b74920902e0c16dd98",
+    urls = [
+        "https://github.com/just-containers/s6-overlay/releases/download/v{version}/s6-overlay-amd64.tar.gz".format(version = VERSION),
+    ],
+)

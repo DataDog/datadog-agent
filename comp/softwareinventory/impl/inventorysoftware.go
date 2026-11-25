@@ -21,7 +21,6 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	softwareinventory "github.com/DataDog/datadog-agent/comp/softwareinventory/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -197,7 +196,7 @@ func newWithClient(reqs Requires, client sysProbeClient, sleepFunc func(time.Dur
 func (is *softwareInventory) startSoftwareInventoryCollection(ctx context.Context) {
 	// Wait for System Probe to be ready with simple retry loop
 	for {
-		initialInventory, err := is.sysProbeClient.GetCheck(sysconfig.SoftwareInventoryModule)
+		initialInventory, err := is.sysProbeClient.GetCheck(types.SoftwareInventoryModule)
 		if err == nil {
 			is.log.Debug("Initial software inventory collection completed")
 			is.cachedInventoryMu.Lock()
@@ -243,7 +242,7 @@ func (is *softwareInventory) startSoftwareInventoryCollection(ctx context.Contex
 	for {
 		select {
 		case <-ticker.C:
-			newInventory, err := is.sysProbeClient.GetCheck(sysconfig.SoftwareInventoryModule)
+			newInventory, err := is.sysProbeClient.GetCheck(types.SoftwareInventoryModule)
 			if err != nil {
 				_ = is.log.Warnf("Failed to get software inventory: %v", err)
 				continue

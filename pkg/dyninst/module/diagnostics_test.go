@@ -145,7 +145,7 @@ func TestDiagnosticTracker_Retain(t *testing.T) {
 		tr.mark("rid2", "p4", 1)
 
 		// Retain only p1 and p3 for rid1.
-		probes := []ir.ProbeDefinition{
+		probes := []ir.ProbeIDer{
 			testProbeDefinition{testProbe{id: "p1", v: 1}},
 			testProbeDefinition{testProbe{id: "p3", v: 2}},
 		}
@@ -187,7 +187,7 @@ func TestDiagnosticTracker_Retain(t *testing.T) {
 		tr.mark("rid1", "p3", 1)
 
 		// Retain with empty probe list should remove all probes for rid1.
-		tr.retain("rid1", []ir.ProbeDefinition{})
+		tr.retain("rid1", []ir.ProbeIDer{})
 
 		// All probes should have been removed.
 		require.True(
@@ -213,7 +213,7 @@ func TestDiagnosticTracker_Retain(t *testing.T) {
 		tr.mark("rid1", "p2", 1)
 
 		// Retain p1 with version 2 (higher version).
-		probes := []ir.ProbeDefinition{
+		probes := []ir.ProbeIDer{
 			testProbeDefinition{testProbe{id: "p1", v: 2}},
 		}
 		tr.retain("rid1", probes)
@@ -239,7 +239,7 @@ func TestDiagnosticTracker_Retain(t *testing.T) {
 		tr.mark("rid1", "p2", 1)
 
 		// Retain on a different runtime ID should not affect rid1.
-		probes := []ir.ProbeDefinition{
+		probes := []ir.ProbeIDer{
 			testProbeDefinition{testProbe{id: "p1", v: 1}},
 		}
 		tr.retain("rid2", probes)

@@ -9,6 +9,7 @@ package usm
 
 import (
 	"maps"
+	"runtime"
 	"slices"
 	"testing"
 
@@ -26,6 +27,7 @@ import (
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func newMap(name string) *manager.Map { return &manager.Map{Name: name} }
@@ -282,6 +284,9 @@ func newFallbackTestProgram(t *testing.T) *ebpfProgram {
 // TestRuntimeFallbackWorks fails the CO-RE load and requires Init to fall back
 // to runtime compilation and succeed.
 func TestRuntimeFallbackWorks(t *testing.T) {
+	if runtime.GOARCH == "arm64" {
+		flake.MarkOnJobName(t, "ubuntu_26.04")
+	}
 	e := newFallbackTestProgram(t)
 	failBuildModes(e, buildmode.CORE)
 

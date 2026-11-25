@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 import yaml
 from gitlab import GitlabError
 from gitlab.exceptions import GitlabGetError
-from gitlab.v4.objects import Project
 from invoke import task
 from invoke.exceptions import Exit
 
@@ -102,12 +101,15 @@ def auto_cancel_previous_pipelines(ctx):
         raise Exit("CI_COMMIT_REF_NAME is empty, skipping pipeline cancellation", 0)
 
     current_pipeline_id = int(os.environ["CI_PIPELINE_ID"])
+    current_sha = os.environ["CI_COMMIT_SHA"]
 
     repo = get_gitlab_repo()
     pipelines = get_running_pipelines_on_same_ref(repo, git_ref)
-    # A pipeline with a lower id than the current one was necessarily created earlier, so it is
-    # superseded by the current pipeline and can be cancelled, regardless of commit ancestry.
-    older_pipelines = [p for p in pipelines if p.id < current_pipeline_id]
+    # A pipeline of another commit with a lower id than the current one was necessarily created
+    # earlier, so it is superseded by the current pipeline and can be cancelled, whatever the
+    # ancestry of its commit. A pipeline of the current commit tests the same code and runs to
+    # completion: the dd-gitlab/default-pipeline check on GitHub can follow it.
+    older_pipelines = [p for p in pipelines if p.id < current_pipeline_id and p.sha != current_sha]
     force_cancel_stages = [
         "package_build",
         # We want to cancel all KMT jobs to ensure proper cleanup of the KMT EC2 instances.
@@ -147,15 +149,11 @@ def run(
     Use --deploy-installer to make this pipeline a deploy pipeline for the installer, which will upload artifacts to the staging repositories.
     Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on pipelines on the default branch).
     Use --no-kmt-tests to not run all Kernel Matrix Tests on the pipeline.
-    Use --e2e-tests to run all e2e tests on the pipeline.
+    Use --no-e2e-tests to not run e2e tests on the pipeline (they run by default).
     Use --run-flaky-tests to run tests that are marked as flaky (by default, known flaky tests are skipped).
 
     Release Candidate related flags:
     Use --rc-build to mark the build as Release Candidate. Staging k8s deployment PR will be created during the build pipeline.
-
-    By default, the pipeline builds both Agent 6 and Agent 7.
-    Use the --major-versions option to specify a comma-separated string of the major Agent versions to build
-    (eg. '6' to build Agent 6 only, '6,7' to build both Agent 6 and Agent 7).
 
     The --repo-branch option indicates which branch of the staging repository the packages will be deployed to (useful only on deploy pipelines).
 
@@ -172,14 +170,14 @@ def run(
     Run a pipeline without Kernel Matrix Tests on the current branch:
       dda inv pipeline.run --here --no-kmt-tests
 
-    Run a pipeline with e2e tets on the current branch:
-      dda inv pipeline.run --here --e2e-tests
+    Run a pipeline without e2e tests on the current branch:
+      dda inv pipeline.run --here --no-e2e-tests
 
     Run a pipeline that includes flaky tests on the current branch:
       dda inv pipeline.run --here --run-flaky-tests
 
     Run a deploy pipeline on the 7.32.0 tag, uploading the artifacts to the stable branch of the staging repositories:
-      dda inv pipeline.run --deploy --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
+      dda inv pipeline.run --deploy --git-ref "7.32.0" --repo-branch "stable"
     """
 
     repo = get_gitlab_repo()
@@ -240,81 +238,6 @@ def run(
         print(color_message(f"ERROR: pipeline does not match any workflow rule. Rules:\n{workflow_rules()}", "red"))
         return
 
-    wait_for_pipeline(repo, pipeline)
-
-
-@task
-def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog-agent", force: bool = False):
-    """
-    Follow a pipeline's progress in the CLI.
-    Use --here to follow the latest pipeline on your current branch.
-    Use --git-ref to follow the latest pipeline on a given tag or branch.
-    Use --id to follow a specific pipeline.
-    Use --project-name to specify a repo other than DataDog/datadog-agent (default)
-
-    Examples:
-    dda inv pipeline.follow --git-ref my-branch
-    dda inv pipeline.follow --here
-    dda inv pipeline.follow --id 1234567
-    """
-    if not force:
-        different_repo = '' if project_name == 'DataDog/datadog-agent' else f"cd {project_name.split('/')[-1]} && "
-        if id is not None:
-            # `--follow` rebinds to newer pipelines on a ref, which contradicts pinning one by ID.
-            selector = f" --pipeline {id}"
-            follow_hint = ""
-        else:
-            # `ddgl attach` resolves the current branch on its own, which is what --here did.
-            selector = f" --ref {git_ref}" if git_ref is not None else ""
-            selector = f" --follow{selector}"
-            follow_hint = (
-                "`--follow` rebinds to a newer pipeline if one appears for the ref, which this task cannot do.\n"
-            )
-        text = (
-            "WARNING: This task has been deprecated, and will be removed on Oct 05 2026.\n"
-            + "Please use `ddgl` (https://github.com/DataDog/ddgl-cli) instead:\n"
-            + f"     {different_repo}ddgl attach{selector}     \n"
-            + follow_hint
-            + "If `ddgl` is not available, either install it manually or run it in a dev env\n"
-            + "by prefixing with `dda env dev run --`.\n"
-            + "Re-run with `--force` to force execution of this task."
-        )
-        print(color_message(text, Color.ORANGE))
-        return
-
-    repo = get_gitlab_repo(project_name)
-
-    args_given = 0
-    if id is not None:
-        args_given += 1
-    if git_ref is not None:
-        args_given += 1
-    if here:
-        args_given += 1
-    if args_given != 1:
-        raise Exit(
-            "ERROR: Exactly one of --here, --git-ref or --id must be given.\nSee --help for an explanation of each.",
-            code=1,
-        )
-
-    if id is not None:
-        pipeline = repo.pipelines.get(id)
-        wait_for_pipeline(repo, pipeline)
-    elif git_ref is not None:
-        wait_for_pipeline_from_ref(repo, git_ref)
-    elif here:
-        git_ref = get_current_branch(ctx)
-        wait_for_pipeline_from_ref(repo, git_ref)
-
-
-def wait_for_pipeline_from_ref(repo: Project, ref):
-    # Get last updated pipeline
-    pipelines = repo.pipelines.list(ref=ref, per_page=1, order_by='updated_at')
-    if len(pipelines) == 0:
-        print(f"No pipelines found for {ref}")
-        raise Exit(code=1)
-
-    pipeline = pipelines[0]
     wait_for_pipeline(repo, pipeline)
 
 
@@ -552,7 +475,7 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     Trigger a pipeline from an external owner.
     """
 
-    branch_re = re.compile(r'^(?P<owner>[a-zA-Z0-9_-]+):(?P<branch_name>[a-zA-Z0-9#_/-]+)$')
+    branch_re = re.compile(r'^(?P<owner>[a-zA-Z0-9_-]+):(?P<branch_name>[a-zA-Z0-9.#_/-]+)$')
     match = branch_re.match(owner_branch_name)
 
     assert (

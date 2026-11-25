@@ -1,0 +1,24 @@
+<div class="stat">
+  <span class="stat_title">Configuration</span>
+  <span class="stat_data">
+    {{- if .configFile }}
+      Configuration file: {{ .configFile }}<br>
+    {{- else }}
+      No configuration file used<br>
+    {{- end }}
+    {{- if .extraConfigFiles }}
+      Extra configuration files:<br>
+      {{- range .extraConfigFiles }}
+        &nbsp;&nbsp;- {{ . }}<br>
+      {{- end }}
+    {{- end }}
+    {{- if .configWarnings }}
+      Configuration warnings:<br>
+      {{- range .configWarnings }}
+        <span class="warning">{{ . }}</span><br>
+      {{- end }}
+    {{- else }}
+      No configuration warnings<br>
+    {{- end }}
+  </span>
+</div>

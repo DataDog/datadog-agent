@@ -194,11 +194,12 @@ def workflow_run_args(
     config_path: str,
     jobs: int,
     max_attempts: int,
-    data_env: str,
     limit: int = 0,
     where_in: str = "",
+    env: str = "ddbuild",
+    workflow_test_drive: str = "",
 ) -> list[str]:
-    """Build the DDEval CLI arguments for the production DDBuild worker."""
+    """Build the DDEval CLI arguments for the selected remote worker."""
     args = [
         *command_prefix,
         "workflow",
@@ -210,9 +211,7 @@ def workflow_run_args(
         "-d",
         dataset,
         "--env",
-        "ddbuild",
-        "--data-env",
-        data_env,
+        env,
         "-f",
         config_path,
         "-j",
@@ -220,6 +219,8 @@ def workflow_run_args(
         "--max-attempts",
         str(max_attempts),
     ]
+    if workflow_test_drive:
+        args.extend(["--workflow-test-drive", workflow_test_drive])
     if dataset_version:
         args.extend(["--dataset-version", str(dataset_version)])
     if limit:

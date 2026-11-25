@@ -1,6 +1,13 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+# Parsed by //pkg/trace/testutil/dupcheck to check that its corpus covers every
+# span type obfuscateSpanInternal branches on.
+exports_files(
+    ["obfuscate.go"],
+    visibility = ["//pkg/trace/testutil/dupcheck:__pkg__"],
+)
+
 go_library(
     name = "agent",
     srcs = [
@@ -53,6 +60,7 @@ dd_agent_go_test(
     deps = [
         "//comp/trace/compression/impl-gzip",
         "//pkg/obfuscate",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes",
         "//pkg/proto/pbgo/trace",
         "//pkg/proto/pbgo/trace/idx",
         "//pkg/trace/api",
@@ -79,6 +87,7 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@com_github_tinylib_msgp//msgp",
+        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
         "@org_golang_google_protobuf//proto",
         "@org_uber_go_atomic//:atomic",
     ] + select({

@@ -28,7 +28,7 @@ import (
 // NewReplicaSetRolloutFactory returns a new ReplicaSet rollout factory that tracks ReplicaSet events for deployment rollouts
 func NewReplicaSetRolloutFactory(client *apiserver.APIClient, rolloutTracker RolloutOperations) customresource.RegistryFactory {
 	return &replicaSetRolloutFactory{
-		client:         client.Cl,
+		client:         client.InformerCl,
 		rolloutTracker: rolloutTracker,
 	}
 }
@@ -46,10 +46,14 @@ func (f *replicaSetRolloutFactory) CreateClient(_ *rest.Config) (interface{}, er
 	return f.client, nil
 }
 
+// ReplicaSetRolloutTrackerFamily emits no metrics: its generator only
+// feeds the rollout tracker with Deployment-owned ReplicaSets.
+const ReplicaSetRolloutTrackerFamily = "kube_replicaset_rollout_tracker"
+
 func (f *replicaSetRolloutFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
 		*generator.NewFamilyGeneratorWithStability(
-			"kube_replicaset_rollout_tracker",
+			ReplicaSetRolloutTrackerFamily,
 			"Tracks ReplicaSets for deployment rollout duration calculation",
 			metric.Gauge,
 			basemetrics.ALPHA,

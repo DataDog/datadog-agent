@@ -1,0 +1,13 @@
+description: "sort -k with -b on end position only does not affect start position blank-skipping."
+setup:
+  files:
+    - path: data.txt
+      content: ":3\na-+\t\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -u -k 2,2b data.txt
+expect:
+  stdout: ":3\na-+\t\n"
+  stderr: ""
+  exit_code: 0

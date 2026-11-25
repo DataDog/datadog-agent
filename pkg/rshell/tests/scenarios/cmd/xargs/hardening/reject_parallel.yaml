@@ -1,0 +1,11 @@
+# Intentional sandbox divergence: GNU xargs supports -P for parallelism;
+# the rshell sandbox rejects it as unsafe in this restricted environment.
+skip_assert_against_bash: true
+description: xargs rejects -P (parallel processes) with exit 1 — not implemented in the sandbox.
+input:
+  script: |+
+    echo a | xargs -P 4 echo
+expect:
+  stdout: |+
+  stderr_contains: ["xargs:"]
+  exit_code: 1

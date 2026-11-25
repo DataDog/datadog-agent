@@ -17,6 +17,8 @@ import (
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
 
 var legacyFields = map[Field]Field{
@@ -27,11 +29,13 @@ type testItem struct {
 	key   int
 	value string
 	flag  bool
+	env   map[string]string
 }
 
 type testProcess struct {
 	name      string
 	argv0     string
+	env       map[string]string
 	uid       int
 	gid       int
 	pid       int
@@ -194,6 +198,14 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID, offset int) (Eva
 
 		return &StringEvaluator{
 			EvalFnc: func(ctx *Context) string { return ctx.Event.(*testEvent).process.argv0 },
+			Field:   field,
+			Offset:  offset,
+		}, nil
+
+	case "process.env":
+
+		return &StringMapEvaluator{
+			EvalFnc: func(ctx *Context) map[string]string { return ctx.Event.(*testEvent).process.env },
 			Field:   field,
 			Offset:  offset,
 		}, nil
@@ -430,6 +442,36 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID, offset int) (Eva
 				}
 
 				return result
+			},
+			Field:  field,
+			Weight: IteratorWeight,
+			Offset: offset,
+		}, nil
+
+	case "process.array.env":
+
+		if regID != "" {
+			return &StringMapArrayEvaluator{
+				EvalFnc: func(ctx *Context) []map[string]string {
+					idx := ctx.Registers[regID]
+
+					return []map[string]string{ctx.Event.(*testEvent).process.array[idx].env}
+				},
+				Field:  field,
+				Weight: IteratorWeight,
+				Offset: offset,
+			}, nil
+		}
+
+		return &StringMapArrayEvaluator{
+			EvalFnc: func(ctx *Context) []map[string]string {
+				var values []map[string]string
+
+				for _, el := range ctx.Event.(*testEvent).process.array {
+					values = append(values, el.env)
+				}
+
+				return values
 			},
 			Field:  field,
 			Weight: IteratorWeight,
@@ -708,6 +750,10 @@ func (e *testEvent) GetFieldValue(field Field) (interface{}, error) {
 
 		return e.process.argv0, nil
 
+	case "process.env":
+
+		return e.process.env, nil
+
 	case "process.uid":
 
 		return e.process.uid, nil
@@ -827,6 +873,14 @@ func (e *testEvent) GetFieldMetadata(field Field) (string, reflect.Kind, string,
 
 		return "", reflect.String, "string", false, nil
 
+	case "process.env":
+
+		return "", reflect.Map, "map[string]string", false, nil
+
+	case "process.array.env":
+
+		return "", reflect.Map, "map[string]string", false, nil
+
 	case "process.array.flag":
 
 		return "", reflect.Bool, "bool", false, nil
@@ -911,6 +965,11 @@ func (e *testEvent) SetFieldValue(field Field, value interface{}) error {
 		e.process.argv0 = value.(string)
 		return nil
 
+	case "process.env":
+
+		e.process.env = value.(map[string]string)
+		return nil
+
 	case "process.uid":
 
 		e.process.uid = value.(int)
@@ -980,28 +1039,28 @@ func (e *testEvent) SetFieldValue(field Field, value interface{}) error {
 	return &ErrFieldNotFound{Field: field}
 }
 
-var testConstants = map[string]interface{}{
+var testConstants = map[string]ast.Node{
 	// boolean
-	"true":  &BoolEvaluator{Value: true},
-	"false": &BoolEvaluator{Value: false},
+	"true":  &ast.Literal{Value: ast.MakeBool(true)},
+	"false": &ast.Literal{Value: ast.MakeBool(false)},
 
 	// open flags
-	"O_RDONLY": &IntEvaluator{Value: syscall.O_RDONLY},
-	"O_WRONLY": &IntEvaluator{Value: syscall.O_WRONLY},
-	"O_RDWR":   &IntEvaluator{Value: syscall.O_RDWR},
-	"O_APPEND": &IntEvaluator{Value: syscall.O_APPEND},
-	"O_CREAT":  &IntEvaluator{Value: syscall.O_CREAT},
-	"O_EXCL":   &IntEvaluator{Value: syscall.O_EXCL},
-	"O_SYNC":   &IntEvaluator{Value: syscall.O_SYNC},
-	"O_TRUNC":  &IntEvaluator{Value: syscall.O_TRUNC},
+	"O_RDONLY": &ast.Literal{Value: ast.MakeInt(syscall.O_RDONLY)},
+	"O_WRONLY": &ast.Literal{Value: ast.MakeInt(syscall.O_WRONLY)},
+	"O_RDWR":   &ast.Literal{Value: ast.MakeInt(syscall.O_RDWR)},
+	"O_APPEND": &ast.Literal{Value: ast.MakeInt(syscall.O_APPEND)},
+	"O_CREAT":  &ast.Literal{Value: ast.MakeInt(syscall.O_CREAT)},
+	"O_EXCL":   &ast.Literal{Value: ast.MakeInt(syscall.O_EXCL)},
+	"O_SYNC":   &ast.Literal{Value: ast.MakeInt(syscall.O_SYNC)},
+	"O_TRUNC":  &ast.Literal{Value: ast.MakeInt(syscall.O_TRUNC)},
 
 	// retval
-	"EPERM":        &IntEvaluator{Value: int(syscall.EPERM)},
-	"EACCES":       &IntEvaluator{Value: int(syscall.EACCES)},
-	"EPFNOSUPPORT": &IntEvaluator{Value: int(syscall.EPFNOSUPPORT)},
-	"EPIPE":        &IntEvaluator{Value: int(syscall.EPIPE)},
+	"EPERM":        &ast.Literal{Value: ast.MakeInt(int(syscall.EPERM))},
+	"EACCES":       &ast.Literal{Value: ast.MakeInt(int(syscall.EACCES))},
+	"EPFNOSUPPORT": &ast.Literal{Value: ast.MakeInt(int(syscall.EPFNOSUPPORT))},
+	"EPIPE":        &ast.Literal{Value: ast.MakeInt(int(syscall.EPIPE))},
 
 	// string constants
-	"my_constant_1": &StringEvaluator{Value: "my_constant_1"},
-	"my_constant_2": &StringEvaluator{Value: "my_constant_2"},
+	"my_constant_1": &ast.Literal{Value: ast.MakeString("my_constant_1")},
+	"my_constant_2": &ast.Literal{Value: ast.MakeString("my_constant_2")},
 }

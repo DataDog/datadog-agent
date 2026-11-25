@@ -6,7 +6,6 @@
 package api
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -17,11 +16,11 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -240,13 +239,18 @@ func handleProxyError(w http.ResponseWriter, r *http.Request, err error) {
 		errorType = "transport error"
 	}
 
+	payloadSizeStr := "chunked"
+	if payloadSize != -1 {
+		payloadSizeStr = strconv.FormatInt(payloadSize, 10)
+	}
+
 	// Single comprehensive log with all context
-	if payloadSize == -1 {
-		log.Warnf("profiling proxy error: %s (%d) for %s %s - payload_size=chunked timeout_remaining=%v error=%v",
-			errorType, statusCode, r.Method, r.URL.Path, timeoutSetting, err)
+	if errors.Is(err, context.Canceled) && errors.Is(r.Context().Err(), context.Canceled) {
+		log.Debugf("profiling proxy: client disconnected before the proxy received an intake response for %s %s - payload_size=%s timeout_remaining=%v error=%v",
+			r.Method, r.URL.Path, payloadSizeStr, timeoutSetting, err)
 	} else {
-		log.Warnf("profiling proxy error: %s (%d) for %s %s - payload_size=%d timeout_remaining=%v error=%v",
-			errorType, statusCode, r.Method, r.URL.Path, payloadSize, timeoutSetting, err)
+		log.Warnf("profiling proxy error: %s (%d) for %s %s - payload_size=%s timeout_remaining=%v error=%v",
+			errorType, statusCode, r.Method, r.URL.Path, payloadSizeStr, timeoutSetting, err)
 	}
 
 	w.WriteHeader(statusCode)
@@ -293,14 +297,13 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 		}
 		return rresp, rerr
 	}
-	req.Body = apiutil.NewLimitedReader(req.Body, m.maxRequestBytes)
-	slurp, err := io.ReadAll(req.Body)
+	body, err := replayableBody(req, m.maxRequestBytes)
 	if err != nil {
 		return nil, err
 	}
 	for i, u := range m.targets {
 		newreq := req.Clone(req.Context())
-		newreq.Body = io.NopCloser(bytes.NewReader(slurp))
+		newreq.Body = body()
 		setTarget(newreq, u, m.keys[i])
 		if i == 0 {
 			// given the way we construct the list of targets the main endpoint

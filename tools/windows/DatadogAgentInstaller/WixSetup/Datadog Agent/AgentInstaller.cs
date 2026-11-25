@@ -108,6 +108,14 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                new Property("DD_ENV")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
+                new Property("DD_SYSTEM_PROBE_NETWORK_ENABLED")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 // Custom WindowsBuild property since MSI caps theirs at 9600
                 new Property("DDAGENT_WINDOWSBUILD")
                 {
@@ -118,6 +126,10 @@ namespace WixSetup.Datadog_Agent
                     AttributesDefinition = "Secure=yes"
                 },
                 new Property("FLEET_INSTALL", "0")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
+                new Property("FLEET_PURGE", "0")
                 {
                     AttributesDefinition = "Secure=yes"
                 },
@@ -161,6 +173,10 @@ namespace WixSetup.Datadog_Agent
                     AttributesDefinition = "Secure=yes"
                 },
                 new Property("DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
+                new Property("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED")
                 {
                     AttributesDefinition = "Secure=yes"
                 },
@@ -424,7 +440,7 @@ namespace WixSetup.Datadog_Agent
                 document
                     .Select("Wix/Package/InstallExecuteSequence")
                     .AddElement("DeleteServices",
-                        "Condition=(Installed AND (REMOVE=\"ALL\") AND NOT (WIX_UPGRADE_DETECTED OR UPGRADINGPRODUCTCODE))");
+                        "Condition=(Installed AND (REMOVE=\"ALL\") AND NOT (WIX_UPGRADE_DETECTED OR UPGRADINGPRODUCTCODE) AND (FLEET_INSTALL<>\"1\" OR FLEET_PURGE=\"1\"))");
 
                 // We don't use the Wix "Merge" MSM feature because it seems to be a no-op...
                 document
@@ -534,8 +550,8 @@ namespace WixSetup.Datadog_Agent
                 StartOn = null,
                 // Tell MSI not to stop the services. We handle service stop manually in StopDDServices custom action.
                 StopOn = null,
-                Start = SvcStartType.auto,
-                DelayedAutoStart = true,
+                // StartDDServices sets automatic delayed start after configuration is safe.
+                Start = SvcStartType.disabled,
                 RemoveOn = SvcEvent.Uninstall_Wait,
                 ServiceSid = ServiceSid.none,
                 FirstFailureActionType = FailureActionType.restart,
@@ -569,7 +585,8 @@ namespace WixSetup.Datadog_Agent
                 StartOn = null,
                 // Tell MSI not to stop the services. We handle service stop manually in StopDDServices custom action.
                 StopOn = null,
-                Start = SvcStartType.demand,
+                // Enable only after configuration, like the core Agent service.
+                Start = SvcStartType.disabled,
                 RemoveOn = SvcEvent.Uninstall_Wait,
                 ServiceSid = ServiceSid.none,
                 FirstFailureActionType = FailureActionType.restart,
@@ -734,7 +751,7 @@ namespace WixSetup.Datadog_Agent
                         // Tell MSI not to stop the services. We handle service stop manually in StopDDServices custom action.
                         StopOn = null,
                         RemoveOn = SvcEvent.Uninstall_Wait,
-                        Start = SvcStartType.demand,
+                        Start = SvcStartType.disabled,
                         ServiceSid = ServiceSid.none,
                         FirstFailureActionType = FailureActionType.restart,
                         SecondFailureActionType = FailureActionType.restart,

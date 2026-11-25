@@ -11,6 +11,8 @@ extensions:
     kubelet_tls_verify: false
     kubernetes_http_kubelet_port: 10255
     kubernetes_https_kubelet_port: 10250
+    use_kubelet_collector: true
+    node_from_env_var: "MY_NODE_NAME"
 receivers:
   otlp:
     protocols:

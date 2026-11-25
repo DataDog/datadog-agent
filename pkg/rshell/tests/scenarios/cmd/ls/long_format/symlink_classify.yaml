@@ -1,0 +1,22 @@
+description: ls -lF shows classification indicators on symlink targets
+setup:
+  files:
+    - path: dir/file.txt
+      content: "hello"
+      chmod: 0644
+    - path: dir/subdir/.keep
+      content: ""
+    - path: dir/dirlink
+      symlink: subdir
+    - path: dir/filelink
+      symlink: file.txt
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -lF dir/
+expect:
+  stdout_contains:
+    - "dirlink -> subdir/"
+    - "filelink -> file.txt"
+  stderr: ""
+  exit_code: 0

@@ -3,11 +3,12 @@ crate.from_cargo(
     name = "crates",
     cargo_lock = "//:Cargo.lock",
     cargo_toml = "//:Cargo.toml",
+    # Keep in sync with rust/deny.toml's [graph] targets, minus powerpc64-ibm-aix.
     platform_triples = [
         "aarch64-apple-darwin",
         "aarch64-unknown-linux-gnu",
         "x86_64-apple-darwin",
-        "x86_64-pc-windows-msvc",
+        "x86_64-pc-windows-gnu",
         "x86_64-unknown-linux-gnu",
     ],
     validate_lockfile = True,
@@ -26,6 +27,10 @@ crate.annotation(
     crate = "winapi",
 )
 crate.annotation(
+    crate = "aws-lc-sys",
+    gen_build_script = "on",  # silence rules_rs' well-known annotation warning
+)
+crate.annotation(
     crate = "protoc-gen-prost",
     gen_binaries = ["protoc-gen-prost"],
 )
@@ -41,4 +46,12 @@ crate.annotation(
     crate = "tokio",
     rustc_flags = ["--cfg=tokio_unstable"],
 )
+crate.annotation(
+    crate = "zstd-sys",
+    gen_build_script = "off",  # do not compile the vendored copy
+    link_deps = ["@zstd//:libzstd"],  # and use the shared one instead
+)
+
+inject_repo(crate, "zstd")
+
 use_repo(crate, "crates")

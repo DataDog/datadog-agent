@@ -7,6 +7,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -125,12 +126,18 @@ func (m *forwardingTransport) RoundTrip(req *http.Request) (*http.Response, erro
 			resp.Body.Close()
 		}
 	}
+	additionalCtx := context.WithoutCancel(req.Context())
+	if deadline, ok := req.Context().Deadline(); ok {
+		var cancel context.CancelFunc
+		additionalCtx, cancel = context.WithDeadline(additionalCtx, deadline)
+		defer cancel()
+	}
 	var wg sync.WaitGroup
 	for i, u := range m.targets {
 		if i == 0 {
 			continue
 		}
-		newreq := req.Clone(req.Context())
+		newreq := req.Clone(additionalCtx)
 		if body != nil {
 			newreq.Body = io.NopCloser(bytes.NewReader(body))
 		}
@@ -163,4 +170,18 @@ func newMeasuringForwardingTransport(
 ) http.RoundTripper {
 	forwardingTransport := newForwardingTransport(rt, mainEndpoint, mainEndpointKey, additionalEndpoints, maxRequestBytes)
 	return newMeasuringTransport(forwardingTransport, metricPrefix, metricTags, statsd)
+}
+
+// replayableBody buffers req.Body so it can be sent to several endpoints. When
+// req.Body is nil the returned func yields an untyped nil, since a non-nil empty
+// body would be sent chunked.
+func replayableBody(req *http.Request, maxBytes int64) (func() io.ReadCloser, error) {
+	if req.Body == nil {
+		return func() io.ReadCloser { return nil }, nil
+	}
+	slurp, err := io.ReadAll(apiutil.NewLimitedReader(req.Body, maxBytes))
+	if err != nil {
+		return nil, err
+	}
+	return func() io.ReadCloser { return io.NopCloser(bytes.NewReader(slurp)) }, nil
 }

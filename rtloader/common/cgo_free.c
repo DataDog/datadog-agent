@@ -7,7 +7,8 @@
 // these must be set by the Agent
 static cb_cgo_free_t cb_cgo_free = NULL;
 
-void _set_cgo_free_cb(cb_cgo_free_t cb) {
+void _set_cgo_free_cb(cb_cgo_free_t cb)
+{
     cb_cgo_free = cb;
 }
 
@@ -15,7 +16,8 @@ void _set_cgo_free_cb(cb_cgo_free_t cb) {
 // will return memory block to free, this is why we need a pointer to a CGO
 // free method to release memory allocated in the agent once we're done with
 // them.
-void cgo_free(void *ptr) {
+void cgo_free(void *ptr)
+{
     // Technically this is not thread-safe as `cb_cgo_free` assignment
     // is not atomic. Since the setter is called very early on and is
     // a one-time operation we can live with it. Should that change
