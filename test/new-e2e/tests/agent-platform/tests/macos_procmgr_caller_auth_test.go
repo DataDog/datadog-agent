@@ -249,22 +249,31 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 		if _, err := client.Execute("sudo rm -f " + macosProcessesDir + "/" + macosCallerAuthReloadEntry + ".yaml"); err != nil {
 			t.Logf("cleanup: failed to remove %s: %v", macosCallerAuthReloadEntry, err)
 		}
-		if _, err := client.Execute("sudo launchctl kickstart -k system/com.datadoghq.procmgr"); err != nil {
-			t.Logf("cleanup: failed to restart dd-procmgrd: %v", err)
+		_, restartErr := client.Execute("sudo launchctl kickstart -k system/com.datadoghq.procmgr")
+		if restartErr != nil {
+			t.Logf("cleanup: failed to restart dd-procmgrd: %v", restartErr)
 		}
-		assertMacosProcmgrAnswers(t, client, 1)
-		// A start queued in a stalled daemon can launch after the first probe, so keep the marker until now.
-		if childGone {
-			left, err = waitMacosSleepGone(client, sleepArg, 0)
+		// A start queued in a stalled daemon can launch after the first probe. This deferred check runs even if
+		// assertMacosProcmgrAnswers aborts, and the marker goes only once the restart is verified.
+		restarted := false
+		defer func() {
+			if !childGone {
+				return
+			}
+			left, err := waitMacosSleepGone(client, sleepArg, 0)
 			if err != nil || strings.TrimSpace(left) != "" {
 				left, err = killMacosSleep(t, client, sleepArg)
 			}
 			if err != nil || strings.TrimSpace(left) != "" {
 				t.Errorf("cleanup: /bin/sleep %s remained after the restart: %v\n%s", sleepArg, err, left)
-			} else if _, rmErr := client.Execute("sudo rm -f " + macosCallerAuthSleepMarker); rmErr != nil {
-				t.Logf("cleanup: failed to remove %s: %v", macosCallerAuthSleepMarker, rmErr)
+			} else if restarted {
+				if _, rmErr := client.Execute("sudo rm -f " + macosCallerAuthSleepMarker); rmErr != nil {
+					t.Logf("cleanup: failed to remove %s: %v", macosCallerAuthSleepMarker, rmErr)
+				}
 			}
-		}
+		}()
+		assertMacosProcmgrAnswers(t, client, 1)
+		restarted = restartErr == nil
 	})
 	macosLogDiagnosticsOnFailure(t, client)
 
