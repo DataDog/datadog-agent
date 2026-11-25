@@ -49,12 +49,17 @@
 //!
 //! Platform differences are carried in [`HostOs`] rather than `cfg`, so every
 //! platform's rules can be tested on one runner.
+//!
+//! # A file that does not answer
+//!
+//! Each file is read under `stop::bounded`. A file that stalls, is refused, or is cut short by a
+//! stop holds the gate: an any-of is unmet and a none-of vetoes, instead of reading the file as
+//! absent. Only files the evaluation consults count, fleet policy files included.
 
 mod env_bindings;
 mod system_probe;
 
-use std::collections::HashMap;
-use std::collections::hash_map::Entry;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
@@ -315,7 +320,7 @@ fn evaluate(conditions: &[ConditionConfigFile], os: HostOs) -> bool {
     }
 
     let mut yaml = YamlCache::default();
-    conditions.iter().any(|file| {
+    let met = conditions.iter().any(|file| {
         let path = expand_env_vars(&file.path);
         if file.keys.is_empty() {
             log::warn!("condition_config_any: {path} lists no keys, so it can never be satisfied");
@@ -323,7 +328,8 @@ fn evaluate(conditions: &[ConditionConfigFile], os: HostOs) -> bool {
         file.keys
             .iter()
             .any(|key| gated_key_enabled(ANY_LABEL, &path, key, &mut yaml, os))
-    })
+    });
+    met && !yaml.any_stalled()
 }
 
 fn evaluate_none(conditions: &[ConditionConfigFile], os: HostOs) -> bool {
@@ -332,7 +338,7 @@ fn evaluate_none(conditions: &[ConditionConfigFile], os: HostOs) -> bool {
     }
 
     let mut yaml = YamlCache::default();
-    !conditions.iter().any(|file| {
+    let vetoed = conditions.iter().any(|file| {
         let path = expand_env_vars(&file.path);
         if file.keys.is_empty() {
             log::warn!("condition_config_none: {path} lists no keys, so it vetoes nothing");
@@ -340,7 +346,8 @@ fn evaluate_none(conditions: &[ConditionConfigFile], os: HostOs) -> bool {
         file.keys
             .iter()
             .any(|key| gated_key_enabled(NONE_LABEL, &path, key, &mut yaml, os))
-    })
+    });
+    !vetoed && !yaml.any_stalled()
 }
 
 const ANY_LABEL: &str = "condition_config_any";
@@ -500,15 +507,29 @@ fn transform_time_bool(yaml: &mut YamlCache, base_path: &str, key: &str) -> Opti
 /// nothing, matching the Agent, which still initializes its config from env vars and
 /// schema defaults when `ReadInConfig` fails
 /// (`pkg/config/nodetreemodel/read_config_file.go`).
+///
+/// A stalled file is recorded in `stalled`, and the gate holds (see [`YamlCache::any_stalled`]).
 #[derive(Default)]
-pub(super) struct YamlCache(HashMap<String, Value>);
+pub(super) struct YamlCache {
+    files: HashMap<String, Value>,
+    stalled: HashSet<String>,
+}
 
 impl YamlCache {
     fn root(&mut self, path: &str) -> &Value {
-        match self.0.entry(path.to_owned()) {
-            Entry::Occupied(entry) => entry.into_mut(),
-            Entry::Vacant(entry) => entry.insert(read_config_file(path)),
+        if !self.files.contains_key(path) {
+            let (value, stalled) = read_config_file(path);
+            if stalled {
+                self.stalled.insert(path.to_owned());
+            }
+            self.files.insert(path.to_owned(), value);
         }
+        &self.files[path]
+    }
+
+    /// Whether any file read so far stalled. Only files the evaluation consulted count.
+    fn any_stalled(&self) -> bool {
+        !self.stalled.is_empty()
     }
 
     /// The raw node for `key`, or `None` when the file or key is absent.
@@ -649,7 +670,7 @@ impl YamlCache {
 
     #[cfg(test)]
     fn loaded_file_count(&self) -> usize {
-        self.0.len()
+        self.files.len()
     }
 }
 
@@ -661,19 +682,42 @@ fn path_to_string(path: PathBuf) -> String {
     path.to_string_lossy().into_owned()
 }
 
-fn read_config_file(path: &str) -> Value {
-    match std::fs::read_to_string(path) {
-        Ok(contents) => agent_yaml::load(&contents).unwrap_or_else(|err| {
-            log::warn!("condition_config_any: parse {path}: {err:#}; using env and defaults");
-            Value::Null
-        }),
+/// Reads a gated file. The flag is true when the read stalled, which holds the gate.
+fn read_config_file(path: &str) -> (Value, bool) {
+    // An error from the bounded call itself holds the process. Only a read error is a file the
+    // gate can fall back from. `stop::bounded` logs the give-up, so this is only debug.
+    let owned = PathBuf::from(path);
+    let read = match crate::stop::bounded(Path::new(path), move || std::fs::read_to_string(owned)) {
+        Ok(read) => read,
+        Err(err) => {
+            log::debug!("config_gate: read {path} did not finish ({err}); holding the process");
+            return (Value::Null, true);
+        }
+    };
+    match read {
+        Ok(contents) => {
+            let value = agent_yaml::load(&contents).unwrap_or_else(|err| {
+                log::warn!("config_gate: parse {path}: {err:#}; using env and defaults");
+                Value::Null
+            });
+            (value, false)
+        }
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-            log::debug!("condition_config_any: {path} not found; using env and defaults");
-            Value::Null
+            log::debug!("config_gate: {path} not found; using env and defaults");
+            (Value::Null, false)
+        }
+        Err(err)
+            if matches!(
+                err.kind(),
+                std::io::ErrorKind::TimedOut | std::io::ErrorKind::Interrupted
+            ) =>
+        {
+            log::warn!("config_gate: read {path} timed out ({err}); holding the process");
+            (Value::Null, true)
         }
         Err(err) => {
-            log::warn!("condition_config_any: read {path}: {err:#}; using env and defaults");
-            Value::Null
+            log::warn!("config_gate: read {path}: {err:#}; using env and defaults");
+            (Value::Null, false)
         }
     }
 }
@@ -725,6 +769,108 @@ fn reset_test_env() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A stalled fleet policy file holds the gate even when the base file would decide it.
+    #[cfg(unix)]
+    #[test]
+    fn a_stalled_fleet_policy_holds_even_when_the_base_file_decides() {
+        let _env = test_env_guard();
+        let dir = tempfile::tempdir().unwrap();
+        let fleet = dir.path().join("fleet");
+        std::fs::create_dir_all(&fleet).unwrap();
+        let fifo = fleet.join("datadog.yaml");
+        let c = std::ffi::CString::new(fifo.to_str().unwrap()).unwrap();
+        assert_eq!(unsafe { nix::libc::mkfifo(c.as_ptr(), 0o600) }, 0, "mkfifo");
+        let enabled = dir.path().join("enabled.yaml");
+        std::fs::write(&enabled, "apm_config:\n  enabled: true\n").unwrap();
+        let disabled = dir.path().join("disabled.yaml");
+        std::fs::write(&disabled, "apm_config:\n  enabled: false\n").unwrap();
+        // SAFETY: the test holds the env guard for its lifetime.
+        unsafe { std::env::set_var("DD_FLEET_POLICIES_DIR", &fleet) };
+
+        let on = vec![ConditionConfigFile {
+            path: enabled.to_str().unwrap().to_string(),
+            keys: vec!["apm_config.enabled".to_string()],
+        }];
+        let off = vec![ConditionConfigFile {
+            path: disabled.to_str().unwrap().to_string(),
+            keys: vec!["apm_config.enabled".to_string()],
+        }];
+        assert!(
+            !condition_config_any_met(&on),
+            "a stalled policy must hold an any-of"
+        );
+        assert!(
+            !condition_config_none_met(&off),
+            "a stalled policy must veto a none-of"
+        );
+    }
+
+    /// A stalled gate file holds both kinds of gate, and a readable one does not.
+    #[cfg(unix)]
+    #[test]
+    fn a_stalled_gate_file_holds_both_kinds_of_gate() {
+        let _env = test_env_guard();
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().to_path_buf();
+        let fifo = dir.join("gate.yaml");
+        let c = std::ffi::CString::new(fifo.to_str().unwrap()).unwrap();
+        assert_eq!(unsafe { nix::libc::mkfifo(c.as_ptr(), 0o600) }, 0, "mkfifo");
+        let stalled = vec![ConditionConfigFile {
+            path: fifo.to_str().unwrap().to_string(),
+            keys: vec!["apm_config.enabled".to_string()],
+        }];
+        assert!(!condition_config_any_met(&stalled), "any-of must hold");
+        assert!(!condition_config_none_met(&stalled), "none-of must veto");
+
+        let readable = dir.join("readable.yaml");
+        std::fs::write(&readable, "apm_config:\n  enabled: true\n").unwrap();
+        let open = vec![ConditionConfigFile {
+            path: readable.to_str().unwrap().to_string(),
+            keys: vec!["apm_config.enabled".to_string()],
+        }];
+        assert!(
+            condition_config_any_met(&open),
+            "a readable enabled key must pass"
+        );
+    }
+
+    /// A term that decides the gate before a stalled file is reached never reads it.
+    #[cfg(unix)]
+    #[test]
+    fn a_term_that_decides_the_gate_does_not_read_a_later_stalled_file() {
+        let _env = test_env_guard();
+        let dir = tempfile::tempdir().unwrap();
+        let fifo = dir.path().join("stalled.yaml");
+        let c = std::ffi::CString::new(fifo.to_str().unwrap()).unwrap();
+        assert_eq!(unsafe { nix::libc::mkfifo(c.as_ptr(), 0o600) }, 0, "mkfifo");
+        let enabled = dir.path().join("enabled.yaml");
+        std::fs::write(&enabled, "apm_config:\n  enabled: true\n").unwrap();
+        let disabled = dir.path().join("disabled.yaml");
+        std::fs::write(&disabled, "apm_config:\n  enabled: false\n").unwrap();
+        let term = |path: &std::path::Path| ConditionConfigFile {
+            path: path.to_str().unwrap().to_string(),
+            keys: vec!["apm_config.enabled".to_string()],
+        };
+
+        let started = std::time::Instant::now();
+        assert!(
+            condition_config_any_met(&[term(&enabled), term(&fifo)]),
+            "an enabled first term decides an any-of"
+        );
+        assert!(
+            !condition_config_none_met(&[term(&enabled), term(&fifo)]),
+            "an enabled first term vetoes a none-of"
+        );
+        assert!(
+            started.elapsed() < crate::stop::CALL_DEADLINE,
+            "the stalled file was read"
+        );
+        assert!(
+            !condition_config_any_met(&[term(&disabled), term(&fifo)]),
+            "a term that does not decide reaches the stalled file, which holds the gate"
+        );
+    }
 
     /// Agent YAML with every process-agent gate key off, including the two that default on.
     const ALL_PROCESS_GATES_OFF: &str = "\

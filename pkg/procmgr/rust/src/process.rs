@@ -10,7 +10,7 @@ use crate::platform;
 use crate::spawn::SpawnProfile;
 use crate::state::ProcessState;
 use anyhow::{Result, bail};
-use log::{info, warn};
+use log::{debug, info, warn};
 use std::collections::VecDeque;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -530,7 +530,17 @@ impl ManagedProcess {
         let mut reasons = Vec::new();
         if let Some(raw) = &self.config.condition_path_exists {
             let path = expand_env_vars(raw);
-            if !std::path::Path::new(&path).exists() {
+            // A check that did not finish holds the process, like a missing path.
+            let owned = std::path::PathBuf::from(&path);
+            let exists = crate::stop::bounded(std::path::Path::new(&path), move || owned.exists())
+                .unwrap_or_else(|err| {
+                    debug!(
+                        "[{}] condition_path_exists {path} did not finish ({err}); holding",
+                        self.name
+                    );
+                    false
+                });
+            if !exists {
                 if log == HoldLog::Emit {
                     info!("[{}] condition_path_exists not met: {path}", self.name);
                 }

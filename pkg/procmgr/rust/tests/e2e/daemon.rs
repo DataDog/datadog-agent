@@ -202,10 +202,11 @@ fn spawned_pid(daemon: &DaemonHandle, name: &str) -> u32 {
         .expect("pid is a number")
 }
 
-/// A SIGTERM during startup ends the daemon cleanly and starts nothing after the gate. The FIFO
-/// gate holds startup open until the test releases it after the signal. A process started before
-/// the gate is stopped during teardown. The library path for a stop before the runtime exists is
-/// covered by `tests/early_stop.rs`.
+/// A SIGTERM during startup must end the daemon cleanly and start nothing after the gate. The FIFO
+/// gate holds startup open, and the stop must interrupt the blocked gate read, so the test
+/// releases it only after the daemon has exited. A process started before the gate must be
+/// stopped during teardown. This covers the signal-during-startup path only. The window before
+/// the runtime exists (the early handler) needs a PID 1 or exec-based test.
 #[cfg(unix)]
 #[test]
 fn test_cli_daemon_shutdown_during_startup_exits_cleanly() {
@@ -244,6 +245,7 @@ fn test_cli_daemon_shutdown_during_startup_exits_cleanly() {
     let mut kill_earlier = KillGroupOnDrop(None);
     let socket = env.env_root().join("daemon.sock");
     let mut daemon = DaemonHandle::start(env.config_dir(), &socket);
+    // The writer stays open, so the gate read stays blocked until the stop interrupts it.
     opened_rx
         .recv_timeout(Duration::from_secs(10))
         .unwrap_or_else(|e| {
@@ -267,17 +269,20 @@ fn test_cli_daemon_shutdown_during_startup_exits_cleanly() {
     );
 
     daemon.send_signal(Signal::SIGTERM);
-    // Open the gate only after the watcher logs the signal, so the start pass sees the stop first.
+    // Wait until the watcher logs the signal. The gate read stays blocked, so the stop itself
+    // must end it.
     assert!(
         daemon.wait_for_log("received SIGTERM", Duration::from_secs(10)),
         "daemon did not record the stop request\n{}",
         daemon.captured_logs().join("\n")
     );
-    gate_writer.finish();
     let status = daemon
         .wait_for_exit(Duration::from_secs(10))
-        .expect("daemon did not exit after SIGTERM during the start pass");
-    // Disarm once the child is gone, so a failed assertion cannot signal a reused PID.
+        .expect("daemon did not exit after SIGTERM while the gate read was blocked");
+    // Release the writer only now, so it cannot open the gate for the blocked read.
+    gate_writer.finish();
+    // Disarm the group guard only once the child is confirmed gone, so a failed assertion below
+    // cannot signal a group whose PID may have been reused.
     let earlier_gone = wait_for_pid_gone(earlier_pid, Duration::from_secs(5));
     if earlier_gone {
         kill_earlier.disarm();
