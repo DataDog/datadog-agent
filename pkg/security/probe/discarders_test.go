@@ -254,8 +254,8 @@ func TestIsParentDiscarder(t *testing.T) {
 	rs = rules.NewRuleSet(&model.Model{}, newFakeEvent, &opts, &evalOpts)
 	rules.AddTestRuleExpr(t, rs, `unlink.file.path =~ "/var/log/*"`, `unlink.file.path == process.file.path`)
 
-	if is, _ := id.isParentPathDiscarder(rs, model.FileUnlinkEventType, "unlink.file.path", "/var/lib/datadog/system-probe.sock", 1); !is {
-		t.Error("field-to-field comparison should not break parent path discarder")
+	if is, _ := id.isParentPathDiscarder(rs, model.FileUnlinkEventType, "unlink.file.path", "/var/lib/datadog/system-probe.sock", 1); is {
+		t.Error("field-to-field comparison on path should prevent parent path discarder")
 	}
 }
 

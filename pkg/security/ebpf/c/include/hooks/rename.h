@@ -159,11 +159,6 @@ static __always_inline int sys_rename_ret(void *ctx, int retval, enum TAIL_CALL_
 
     apply_dentry_resolution_outcome(syscall, EVENT_RENAME);
 
-    if (syscall->state != DISCARDED && is_auid_discarder(EVENT_RENAME)) {
-        syscall->state = DISCARDED;
-        monitor_discarded(EVENT_RENAME);
-    }
-
     if (is_event_enabled(EVENT_RENAME)) {
         syscall->retval = retval;
 
@@ -233,6 +228,10 @@ static __always_inline int dr_rename_callback(void *ctx, enum TAIL_CALL_PROG_TYP
     }
 
     apply_dentry_resolution_outcome(syscall, EVENT_RENAME);
+    if (syscall->state != DISCARDED && is_auid_discarder(EVENT_RENAME)) {
+        syscall->state = DISCARDED;
+        monitor_discarded(EVENT_RENAME);
+    }
     if (syscall->state == DISCARDED) {
         goto pop_and_exit;
     }
