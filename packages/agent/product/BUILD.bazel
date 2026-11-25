@@ -336,16 +336,22 @@ pkg_files(
     prefix = "embedded/share/system-probe/ebpf/runtime",
 )
 
-# clang-bpf only. llvm-strip stays a toolchain file.
-pkg_files(
-    name = "system_probe_llvm_bpf",
-    srcs = select({
-        "//:linux_x86_64": ["@llvm_bpf_amd64//:clang-bpf"],
-        "//:linux_arm64": ["@llvm_bpf_arm64//:clang-bpf"],
-        "//conditions:default": [],
+alias(
+    name = "clang_bpf",
+    actual = select({
+        "//:linux_x86_64": "@llvm_bpf_amd64//:clang-bpf",
+        "//:linux_arm64": "@llvm_bpf_arm64//:clang-bpf",
     }),
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+# clang-bpf only. llvm-strip stays a toolchain file.
+agent_binary_for_package(
+    name = "system_probe_llvm_bpf",
     attributes = pkg_attributes(mode = "744"),
     prefix = "embedded/bin",
+    target = ":clang_bpf",
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 # Temporary during omnibus migration.
