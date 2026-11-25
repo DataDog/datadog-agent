@@ -474,11 +474,13 @@ impl ProcessManager {
         &self,
         exit_tx: &mpsc::Sender<ExitEvent>,
     ) -> Result<ReloadResult, Status> {
-        // A failed or stalled read keeps the current processes, not an empty catalog.
+        // A catalog that could not be read keeps the current processes, not an empty catalog: the
+        // config path is not a directory or is a dangling link, the directory could not be
+        // checked or listed, or a read did not finish or failed in a way that clears on its own.
         let catalog = self.config_loader.try_load().map_err(|err| {
-            Status::unavailable(format!(
-                "config reload refused, keeping the current processes: {err:#}"
-            ))
+            let message = format!("config reload refused, keeping the current processes: {err:#}");
+            warn!("{message}");
+            Status::unavailable(message)
         })?;
         let valid_order: Vec<String> = catalog.processes.iter().map(|pd| pd.name.clone()).collect();
         let invalid_order: Vec<String> = catalog.invalid.iter().map(|e| e.name.clone()).collect();
@@ -1581,8 +1583,18 @@ mod tests {
             procs[0].is_running(),
             "the kept process must still be running"
         );
-        // Shutdown takes the write lock.
+        // The reload and shutdown below take the write lock.
         drop(procs);
+
+        // Once the catalog reads again, the reload applies it.
+        loader
+            .fail
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+        let result = match mgr.handle_reload_config(&exit_tx).await {
+            Ok(result) => result,
+            Err(err) => panic!("the reload must apply once the read recovers: {err}"),
+        };
+        assert!(result.removed.contains(&"keep".to_string()));
 
         mgr.shutdown().await;
         Ok(())
