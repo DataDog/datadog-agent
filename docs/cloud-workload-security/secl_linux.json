@@ -189,7 +189,7 @@
         },
         {
           "name": "process.ancestors.env",
-          "definition": "Environment variables of the process, read by name",
+          "definition": "Environment variables of the process, read by name: the first value of a variable set more than once, as getenv",
           "property_doc_link": "common-process-env-doc"
         },
         {
@@ -814,7 +814,7 @@
         },
         {
           "name": "process.env",
-          "definition": "Environment variables of the process, read by name",
+          "definition": "Environment variables of the process, read by name: the first value of a variable set more than once, as getenv",
           "property_doc_link": "common-process-env-doc"
         },
         {
@@ -1324,7 +1324,7 @@
         },
         {
           "name": "process.parent.env",
-          "definition": "Environment variables of the process, read by name",
+          "definition": "Environment variables of the process, read by name: the first value of a variable set more than once, as getenv",
           "property_doc_link": "common-process-env-doc"
         },
         {
@@ -3077,7 +3077,7 @@
         },
         {
           "name": "exec.env",
-          "definition": "Environment variables of the process, read by name",
+          "definition": "Environment variables of the process, read by name: the first value of a variable set more than once, as getenv",
           "property_doc_link": "common-process-env-doc"
         },
         {
@@ -3761,7 +3761,7 @@
         },
         {
           "name": "exit.env",
-          "definition": "Environment variables of the process, read by name",
+          "definition": "Environment variables of the process, read by name: the first value of a variable set more than once, as getenv",
           "property_doc_link": "common-process-env-doc"
         },
         {
@@ -5829,7 +5829,7 @@
         },
         {
           "name": "ptrace.tracee.ancestors.env",
-          "definition": "Environment variables of the process, read by name",
+          "definition": "Environment variables of the process, read by name: the first value of a variable set more than once, as getenv",
           "property_doc_link": "common-process-env-doc"
         },
         {
@@ -6454,7 +6454,7 @@
         },
         {
           "name": "ptrace.tracee.env",
-          "definition": "Environment variables of the process, read by name",
+          "definition": "Environment variables of the process, read by name: the first value of a variable set more than once, as getenv",
           "property_doc_link": "common-process-env-doc"
         },
         {
@@ -6964,7 +6964,7 @@
         },
         {
           "name": "ptrace.tracee.parent.env",
-          "definition": "Environment variables of the process, read by name",
+          "definition": "Environment variables of the process, read by name: the first value of a variable set more than once, as getenv",
           "property_doc_link": "common-process-env-doc"
         },
         {
@@ -8477,7 +8477,7 @@
         },
         {
           "name": "setrlimit.target.ancestors.env",
-          "definition": "Environment variables of the process, read by name",
+          "definition": "Environment variables of the process, read by name: the first value of a variable set more than once, as getenv",
           "property_doc_link": "common-process-env-doc"
         },
         {
@@ -9102,7 +9102,7 @@
         },
         {
           "name": "setrlimit.target.env",
-          "definition": "Environment variables of the process, read by name",
+          "definition": "Environment variables of the process, read by name: the first value of a variable set more than once, as getenv",
           "property_doc_link": "common-process-env-doc"
         },
         {
@@ -9612,7 +9612,7 @@
         },
         {
           "name": "setrlimit.target.parent.env",
-          "definition": "Environment variables of the process, read by name",
+          "definition": "Environment variables of the process, read by name: the first value of a variable set more than once, as getenv",
           "property_doc_link": "common-process-env-doc"
         },
         {
@@ -10593,7 +10593,7 @@
         },
         {
           "name": "signal.target.ancestors.env",
-          "definition": "Environment variables of the process, read by name",
+          "definition": "Environment variables of the process, read by name: the first value of a variable set more than once, as getenv",
           "property_doc_link": "common-process-env-doc"
         },
         {
@@ -11218,7 +11218,7 @@
         },
         {
           "name": "signal.target.env",
-          "definition": "Environment variables of the process, read by name",
+          "definition": "Environment variables of the process, read by name: the first value of a variable set more than once, as getenv",
           "property_doc_link": "common-process-env-doc"
         },
         {
@@ -11728,7 +11728,7 @@
         },
         {
           "name": "signal.target.parent.env",
-          "definition": "Environment variables of the process, read by name",
+          "definition": "Environment variables of the process, read by name: the first value of a variable set more than once, as getenv",
           "property_doc_link": "common-process-env-doc"
         },
         {
@@ -13577,7 +13577,7 @@
       "name": "*.env",
       "link": "common-process-env-doc",
       "type": "string",
-      "definition": "Environment variables of the process, read by name",
+      "definition": "Environment variables of the process, read by name: the first value of a variable set more than once, as getenv",
       "prefixes": [
         "exec",
         "exit",
