@@ -6,6 +6,8 @@
 test --test_tag_filters=-tagset_bpf,-tagset_bpf_nvml,-tagset_bpf_functionaltests,-tagset_functionaltests,-tagset_npm
 # To produce verbose test.xml files
 common --test_env=GO_TEST_WRAP_TESTV=1
+# To write the test2json output to test.outputs/test2json.json
+common --test_env=GO_TEST_WRAP_JSON=1
 
 # Go race detector for test invocations. Usage: bazel test --config=gorace //...
 common:gorace --@rules_go//go/config:race # to use same analysis cache across test & run commands
