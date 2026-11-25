@@ -7,7 +7,6 @@ package remotequeries
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"strconv"
@@ -22,16 +21,6 @@ const (
 	tunnelResolveTimeout = 20 * time.Second
 	// tunnelMaxInFlight bounds the runs a tunnel can have executing at once.
 	tunnelMaxInFlight = 4
-	// tunnelMaxRetained bounds the admission records kept for duplicate detection.
-	tunnelMaxRetained = 1024
-	// tunnelRetention is how long an admission is remembered after its run has
-	// ended. A run that is still active is never forgotten. The record lives in
-	// memory only: nothing here survives an Agent restart.
-	tunnelRetention = 24 * time.Hour
-	// tunnelDuplicateWait bounds how long an identical request waits for the
-	// first request's admission to settle. It stays inside the RC transport's
-	// 30s handler deadline.
-	tunnelDuplicateWait = 25 * time.Second
 )
 
 // TunnelStatus is the transport-neutral outcome of one tunnel Execute request.
@@ -43,14 +32,8 @@ const (
 	TunnelRejected TunnelStatus = iota
 	// TunnelAccepted means the run was admitted and handed to the integration.
 	TunnelAccepted
-	// TunnelAlreadyAccepted means an identical run was admitted before.
-	TunnelAlreadyAccepted
 	// TunnelMatched means a resolve-only request found exactly one check.
 	TunnelMatched
-	// TunnelUnconfirmed means an identical request is still being admitted, or
-	// ended without a confirmed handoff. It is neither an acceptance nor a
-	// refusal of the run, and no query was started for this request.
-	TunnelUnconfirmed
 )
 
 // TunnelOutcome is the sanitized result of a tunnel Execute request.
@@ -99,35 +82,16 @@ type TunnelRequest struct {
 	Limits *TunnelLimits
 }
 
-// tunnelAdmission is the record of one run ID. Every field except digest and
-// settled is guarded by Tunnel.mu.
-type tunnelAdmission struct {
-	digest [sha256.Size]byte
-	// settled is closed once the first request's admission is decided: either
-	// the handoff happened (admitted) or the record was dropped.
-	settled chan struct{}
-	// admitted is set when the run was handed to the integration.
-	admitted bool
-	// finished is set when the detached run ended. It can happen before
-	// admitted, if the run ends before start returns.
-	finished bool
-	// expires is when a finished, admitted record may be forgotten.
-	expires time.Time
-}
-
 // Tunnel admits Remote Queries started over the RC tunnel. It reuses the
 // Service's target resolution, upload destination and detached hand-off, and
-// adds only the tunnel's identity, authorization and duplicate rules.
+// adds only the tunnel's identity, authorization and in-flight bound. It keeps
+// no per-run record, so it does not detect duplicate run IDs.
 type Tunnel struct {
-	service       *Service
-	authority     TunnelAuthority
-	now           func() time.Time
-	duplicateWait time.Duration
+	service   *Service
+	authority TunnelAuthority
 
 	mu       sync.Mutex
 	inFlight int
-	// admissions is keyed by upload ID, which identifies the run.
-	admissions map[string]*tunnelAdmission
 }
 
 // NewTunnel returns a tunnel adapter. It fails closed when there is no
@@ -139,7 +103,7 @@ func NewTunnel(service *Service, authority TunnelAuthority) (*Tunnel, error) {
 	if authority == nil {
 		return nil, errors.New("remote query tunnel requires a trusted authority")
 	}
-	return &Tunnel{service: service, authority: authority, now: time.Now, duplicateWait: tunnelDuplicateWait, admissions: make(map[string]*tunnelAdmission)}, nil
+	return &Tunnel{service: service, authority: authority}, nil
 }
 
 func reject(code, message string) TunnelOutcome {
@@ -150,9 +114,7 @@ var tunnelMessages = map[string]string{
 	"invalid_request":         "request is invalid",
 	"unauthorized":            "request is not authorized",
 	"disabled":                "remote queries are disabled",
-	"conflict":                "run was already admitted with different parameters",
 	"busy":                    "too many runs in progress",
-	"capacity":                "too many admitted runs to track",
 	"target_not_found":        "no loaded check matches the target",
 	"ambiguous_target":        "more than one loaded check matches the target",
 	"resolution_error":        "target resolution failed",
@@ -188,7 +150,7 @@ func (t *Tunnel) Execute(ctx context.Context, correlationID uint64, tr TunnelReq
 	if tr.ResolveOnly {
 		return t.resolve(ctx, req)
 	}
-	return t.execute(ctx, tr, req)
+	return t.execute(ctx, req)
 }
 
 func (t *Tunnel) resolve(ctx context.Context, req Request) TunnelOutcome {
@@ -208,109 +170,32 @@ func (t *Tunnel) rejection(answer Answer) TunnelOutcome {
 	return rejectCode(answer.Error.Code)
 }
 
-func (t *Tunnel) execute(ctx context.Context, tr TunnelRequest, req Request) TunnelOutcome {
-	digest := tunnelDigest(tr)
+func (t *Tunnel) execute(ctx context.Context, req Request) TunnelOutcome {
 	t.mu.Lock()
-	t.pruneLocked(t.now())
-	if prior, exists := t.admissions[tr.RunID]; exists {
-		// Everything read from prior happens under the lock.
-		conflict := prior.digest != digest
-		admitted := prior.admitted
-		t.mu.Unlock()
-		switch {
-		case conflict:
-			return rejectCode("conflict")
-		case admitted:
-			return TunnelOutcome{Status: TunnelAlreadyAccepted}
-		}
-		return t.awaitFirst(ctx, prior)
-	}
 	if t.inFlight >= tunnelMaxInFlight {
 		t.mu.Unlock()
 		return rejectCode("busy")
 	}
-	if len(t.admissions) >= tunnelMaxRetained {
-		t.mu.Unlock()
-		return rejectCode("capacity")
-	}
-	record := &tunnelAdmission{digest: digest, settled: make(chan struct{})}
-	t.admissions[tr.RunID] = record
 	t.inFlight++
 	t.mu.Unlock()
 
-	// The run ends the record's activity, possibly before start returns.
+	// The detached run releases its slot when it ends, possibly before start returns.
 	finish := func() {
 		t.mu.Lock()
 		defer t.mu.Unlock()
 		t.inFlight--
-		record.finished = true
-		record.expires = t.now().Add(tunnelRetention)
 	}
 	ctx, cancel := context.WithTimeout(ctx, tunnelResolveTimeout)
 	defer cancel()
 	answer := t.service.start(ctx, req, &summary{}, finish)
-	t.mu.Lock()
 	if answer.Status != "SUCCEEDED" {
-		// Not handed off: forget it so the same run can be admitted later.
 		// start spawns the detached goroutine only on success, so release the slot here.
-		delete(t.admissions, tr.RunID)
+		t.mu.Lock()
 		t.inFlight--
-		close(record.settled)
 		t.mu.Unlock()
 		return t.rejection(answer)
 	}
-	record.admitted = true
-	close(record.settled)
-	t.mu.Unlock()
 	return TunnelOutcome{Status: TunnelAccepted}
-}
-
-// awaitFirst answers an identical request that arrived while the first one was
-// still being admitted. It confirms only a completed handoff. The first request
-// may yet be accepted, so a refusal here could make the worker abort a session
-// that is about to run: anything unsettled is reported as unconfirmed instead.
-// It never starts a query.
-func (t *Tunnel) awaitFirst(ctx context.Context, prior *tunnelAdmission) TunnelOutcome {
-	timer := time.NewTimer(t.duplicateWait)
-	defer timer.Stop()
-	select {
-	case <-prior.settled:
-	case <-timer.C:
-		return TunnelOutcome{Status: TunnelUnconfirmed}
-	case <-ctx.Done():
-		return TunnelOutcome{Status: TunnelUnconfirmed}
-	}
-	t.mu.Lock()
-	admitted := prior.admitted
-	t.mu.Unlock()
-	if admitted {
-		return TunnelOutcome{Status: TunnelAlreadyAccepted}
-	}
-	return TunnelOutcome{Status: TunnelUnconfirmed}
-}
-
-// pruneLocked forgets records whose run has ended and whose retention is over.
-// Active records stay, so a running query is never re-admitted.
-func (t *Tunnel) pruneLocked(now time.Time) {
-	for id, a := range t.admissions {
-		if a.admitted && a.finished && now.After(a.expires) {
-			delete(t.admissions, id)
-		}
-	}
-}
-
-// tunnelDigest binds an admission to the org, task, upload and normalized command.
-func tunnelDigest(tr TunnelRequest) [sha256.Size]byte {
-	// Marshaling plain strings and numbers cannot fail.
-	command, _ := json.Marshal(struct {
-		Org                    int64
-		Task, Run, Integration string
-		Target                 Target
-		Query                  string
-		IncludeSchema          bool
-		Limits                 TunnelLimits
-	}{tr.OrgID, tr.TaskID, tr.RunID, strings.ToLower(strings.TrimSpace(tr.Integration)), tr.Target, tr.Query, tr.IncludeSchema, *tr.Limits})
-	return sha256.Sum256(command)
 }
 
 // tunnelRequest validates a tunnel request with the same rules as the action

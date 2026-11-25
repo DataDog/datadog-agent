@@ -38,8 +38,6 @@ type fakeQueryCheck struct {
 	stub.StubCheck
 	resolves, executes atomic.Int32
 	executed           chan string
-	// resolveGate, if set, holds each resolve until it is closed.
-	resolveGate chan struct{}
 }
 
 func (c *fakeQueryCheck) String() string              { return "postgres" }
@@ -54,9 +52,6 @@ func (c *fakeQueryCheck) RemoteQuery(_ context.Context, input string) (string, e
 	}
 	if request.Operation == "resolve" {
 		c.resolves.Add(1)
-		if c.resolveGate != nil {
-			<-c.resolveGate
-		}
 		return `{"status":"MATCHED"}`, nil
 	}
 	c.executes.Add(1)
@@ -149,75 +144,6 @@ func TestExecuteHandlerBridgeShape(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("execute did not start")
 	}
-
-	// A duplicate is acknowledged, a conflicting reuse of the run ID is rejected, neither executes again.
-	response = call(t, handler, executeRequest())
-	require.Equal(t, remotequeriesv1alpha1.ExecuteStatus_EXECUTE_STATUS_ALREADY_ACCEPTED, response.Status)
-	conflicting := executeRequest()
-	conflicting.Query = "select 2"
-	response = call(t, handler, conflicting)
-	require.Equal(t, remotequeriesv1alpha1.ExecuteStatus_EXECUTE_STATUS_REJECTED, response.Status)
-	require.Equal(t, "conflict", response.ErrorCode)
-	require.EqualValues(t, 1, c.executes.Load())
-}
-
-// An identical request overlapping the first is confirmed after the handoff or,
-// if that is not settled, left unconfirmed: never a definite refusal, since the
-// worker would abort the session the first request may be starting.
-func TestExecuteHandlerOverlappingDuplicate(t *testing.T) {
-	handler, c := newExecuteHandler(t, trustedAuthority(), true)
-	c.resolveGate = make(chan struct{})
-	payload, err := proto.Marshal(executeRequest())
-	require.NoError(t, err)
-	type result struct {
-		raw []byte
-		err error
-	}
-	first := make(chan result, 1)
-	go func() {
-		raw, err := handler(context.Background(), 1, payload)
-		first <- result{raw, err}
-	}()
-	require.Eventually(t, func() bool { return c.resolves.Load() == 1 }, 3*time.Second, time.Millisecond)
-
-	// The duplicate's own deadline passes while the first is unsettled.
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
-	defer cancel()
-	raw, err := handler(ctx, 2, payload)
-	require.NoError(t, err)
-	var response remotequeriesv1alpha1.ExecuteResponse
-	require.NoError(t, proto.Unmarshal(raw, &response))
-	require.Equal(t, remotequeriesv1alpha1.ExecuteStatus_EXECUTE_STATUS_UNSPECIFIED, response.Status)
-	require.NotEqual(t, remotequeriesv1alpha1.ExecuteStatus_EXECUTE_STATUS_REJECTED, response.Status)
-	require.Empty(t, response.ErrorCode)
-	require.Zero(t, c.executes.Load())
-
-	// A duplicate that waits is confirmed once the first handoff has happened.
-	second := make(chan result, 1)
-	go func() {
-		raw, err := handler(context.Background(), 3, payload)
-		second <- result{raw, err}
-	}()
-	time.Sleep(20 * time.Millisecond)
-	close(c.resolveGate)
-	for name, ch := range map[string]chan result{"first": first, "second": second} {
-		got := <-ch
-		require.NoError(t, got.err, name)
-		var response remotequeriesv1alpha1.ExecuteResponse
-		require.NoError(t, proto.Unmarshal(got.raw, &response), name)
-		if name == "first" {
-			require.Equal(t, remotequeriesv1alpha1.ExecuteStatus_EXECUTE_STATUS_ACCEPTED, response.Status)
-		} else {
-			require.Equal(t, remotequeriesv1alpha1.ExecuteStatus_EXECUTE_STATUS_ALREADY_ACCEPTED, response.Status)
-		}
-	}
-	select {
-	case <-c.executed:
-	case <-time.After(3 * time.Second):
-		t.Fatal("execute did not start")
-	}
-	require.EqualValues(t, 1, c.executes.Load())
-	require.EqualValues(t, 1, c.resolves.Load())
 }
 
 func TestExecuteHandlerNegatives(t *testing.T) {

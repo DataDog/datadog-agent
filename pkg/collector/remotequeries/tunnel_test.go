@@ -245,35 +245,8 @@ func TestTunnelExecuteFailsClosedForUnknownSite(t *testing.T) {
 	require.Zero(t, c.executes.Load())
 }
 
-func TestTunnelDuplicateAndConflict(t *testing.T) {
-	c := newQueryCheck("candidate")
-	f := newTunnelFixture(t, c)
-	require.Equal(t, TunnelAccepted, f.tunnel.Execute(context.Background(), 1, tunnelExecuteRequest()).Status)
-	f.logs.waitRunLog(t)
-	// An identical retry is acknowledged without a second execution.
-	require.Equal(t, TunnelAlreadyAccepted, f.tunnel.Execute(context.Background(), 2, tunnelExecuteRequest()).Status)
-	require.EqualValues(t, 1, c.executes.Load())
-
-	for name, change := range map[string]func(*TunnelRequest){
-		"query":       func(r *TunnelRequest) { r.Query = "select 2" },
-		"schema":      func(r *TunnelRequest) { r.IncludeSchema = true },
-		"target":      func(r *TunnelRequest) { r.Target = Target{DatabaseInstance: "other"} },
-		"limits":      func(r *TunnelRequest) { r.Limits.MaxPages++ },
-		"task":        func(r *TunnelRequest) { r.TaskID = "7c4e2b1a-9f3d-4c8e-b6a5-1d2f3e4a5b6c" },
-		"integration": func(r *TunnelRequest) { r.Integration = "mysql" },
-	} {
-		request := tunnelExecuteRequest()
-		limits := *request.Limits
-		request.Limits = &limits
-		change(&request)
-		outcome := f.tunnel.Execute(context.Background(), 3, request)
-		require.Equal(t, TunnelRejected, outcome.Status, name)
-		require.Equal(t, "conflict", outcome.Code, name)
-	}
-	require.EqualValues(t, 1, c.executes.Load())
-}
-
-func TestTunnelFailedAdmissionCanBeRetried(t *testing.T) {
+// A failed handoff releases its in-flight slot.
+func TestTunnelFailedHandoffReleasesSlot(t *testing.T) {
 	var mu sync.Mutex
 	var checks []check.Check
 	f := newTunnelFixture(t)
@@ -284,6 +257,7 @@ func TestTunnelFailedAdmissionCanBeRetried(t *testing.T) {
 	}
 	outcome := f.tunnel.Execute(context.Background(), 1, tunnelExecuteRequest())
 	require.Equal(t, "target_not_found", outcome.Code)
+	require.Equal(t, 0, inFlight(f.tunnel))
 
 	c := newQueryCheck("candidate")
 	mu.Lock()
@@ -294,136 +268,9 @@ func TestTunnelFailedAdmissionCanBeRetried(t *testing.T) {
 	require.EqualValues(t, 1, c.executes.Load())
 }
 
-// An identical request that overlaps the first one is confirmed only after the
-// handoff, and never starts another query.
-func TestTunnelOverlappingDuplicateWaitsForHandoff(t *testing.T) {
-	c := newQueryCheck("candidate")
-	release := make(chan struct{})
-	c.resolve = func(context.Context, string) (string, error) {
-		<-release
-		return `{"status":"MATCHED"}`, nil
-	}
-	f := newTunnelFixture(t, c)
-	first := make(chan TunnelOutcome, 1)
-	go func() { first <- f.tunnel.Execute(context.Background(), 1, tunnelExecuteRequest()) }()
-	require.Eventually(t, func() bool { return c.resolves.Load() == 1 }, 3*time.Second, time.Millisecond)
-	second := make(chan TunnelOutcome, 1)
-	go func() { second <- f.tunnel.Execute(context.Background(), 2, tunnelExecuteRequest()) }()
-	select {
-	case outcome := <-second:
-		t.Fatalf("duplicate answered before the first was admitted: %+v", outcome)
-	case <-time.After(50 * time.Millisecond):
-	}
-	close(release)
-	require.Equal(t, TunnelAccepted, (<-first).Status)
-	require.Equal(t, TunnelAlreadyAccepted, (<-second).Status)
-	f.logs.waitRunLog(t)
-	require.EqualValues(t, 1, c.executes.Load())
-	require.EqualValues(t, 1, c.resolves.Load())
-}
-
-// While the first request is unsettled, an identical one is unconfirmed rather
-// than refused: the first may still be accepted.
-func TestTunnelOverlappingDuplicateIsUnconfirmedNotRefused(t *testing.T) {
-	c := newQueryCheck("candidate")
-	release := make(chan struct{})
-	c.resolve = func(context.Context, string) (string, error) {
-		<-release
-		return `{"status":"MATCHED"}`, nil
-	}
-	f := newTunnelFixture(t, c)
-	first := make(chan TunnelOutcome, 1)
-	go func() { first <- f.tunnel.Execute(context.Background(), 1, tunnelExecuteRequest()) }()
-	require.Eventually(t, func() bool { return c.resolves.Load() == 1 }, 3*time.Second, time.Millisecond)
-
-	// Bounded by the caller's context.
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
-	defer cancel()
-	outcome := f.tunnel.Execute(ctx, 2, tunnelExecuteRequest())
-	require.Equal(t, TunnelUnconfirmed, outcome.Status)
-	require.Empty(t, outcome.Code)
-	// Bounded by the tunnel's own wait.
-	f.tunnel.duplicateWait = 20 * time.Millisecond
-	require.Equal(t, TunnelUnconfirmed, f.tunnel.Execute(context.Background(), 3, tunnelExecuteRequest()).Status)
-	require.Zero(t, c.executes.Load())
-
-	// A conflicting reuse is still a definite refusal.
-	conflicting := tunnelExecuteRequest()
-	conflicting.Query = "select 2"
-	require.Equal(t, "conflict", f.tunnel.Execute(context.Background(), 4, conflicting).Code)
-
-	close(release)
-	require.Equal(t, TunnelAccepted, (<-first).Status)
-	f.logs.waitRunLog(t)
-	require.EqualValues(t, 1, c.executes.Load())
-}
-
-// If the first request ends without a handoff, a waiting duplicate is
-// unconfirmed, starts nothing, and the run can still be admitted afterwards.
-func TestTunnelOverlappingDuplicateWhenFirstFails(t *testing.T) {
-	c := newQueryCheck("candidate")
-	release := make(chan struct{})
-	var fail atomic.Bool
-	fail.Store(true)
-	c.resolve = func(context.Context, string) (string, error) {
-		<-release
-		if fail.Load() {
-			return `{"status":"FAILED","error":{"code":"target_not_found","message":"no"}}`, nil
-		}
-		return `{"status":"MATCHED"}`, nil
-	}
-	f := newTunnelFixture(t, c)
-	first := make(chan TunnelOutcome, 1)
-	go func() { first <- f.tunnel.Execute(context.Background(), 1, tunnelExecuteRequest()) }()
-	require.Eventually(t, func() bool { return c.resolves.Load() == 1 }, 3*time.Second, time.Millisecond)
-	second := make(chan TunnelOutcome, 1)
-	go func() { second <- f.tunnel.Execute(context.Background(), 2, tunnelExecuteRequest()) }()
-	time.Sleep(20 * time.Millisecond)
-	close(release)
-	require.Equal(t, "target_not_found", (<-first).Code)
-	require.Equal(t, TunnelUnconfirmed, (<-second).Status)
-	require.Zero(t, c.executes.Load())
-
-	fail.Store(false)
-	require.Equal(t, TunnelAccepted, f.tunnel.Execute(context.Background(), 3, tunnelExecuteRequest()).Status)
-	f.logs.waitRunLog(t)
-	require.EqualValues(t, 1, c.executes.Load())
-}
-
-// Many identical requests racing for one run ID start exactly one query.
-// Run with -race: the duplicate path reads state the first request writes.
-func TestTunnelRacingIdenticalRequestsStartOneQuery(t *testing.T) {
-	for i := 0; i < 20; i++ {
-		c := newQueryCheck("candidate")
-		f := newTunnelFixture(t, c)
-		var wg sync.WaitGroup
-		var accepted, already, unconfirmed atomic.Int32
-		for n := 0; n < 8; n++ {
-			wg.Add(1)
-			go func(n int) {
-				defer wg.Done()
-				switch f.tunnel.Execute(context.Background(), uint64(n), tunnelExecuteRequest()).Status {
-				case TunnelAccepted:
-					accepted.Add(1)
-				case TunnelAlreadyAccepted:
-					already.Add(1)
-				case TunnelUnconfirmed:
-					unconfirmed.Add(1)
-				}
-			}(n)
-		}
-		wg.Wait()
-		require.EqualValues(t, 1, accepted.Load())
-		require.EqualValues(t, 7, already.Load())
-		require.Zero(t, unconfirmed.Load())
-		f.logs.waitRunLog(t)
-		require.EqualValues(t, 1, c.executes.Load())
-	}
-}
-
-// A run can end before start returns to the admission code. The slot is
-// released once and the record still ends up admitted, finished and retained.
-func TestTunnelRunEndingBeforeAdmissionReturns(t *testing.T) {
+// A run can end before start returns to the caller. The slot is released
+// exactly once, however the two orderings fall.
+func TestTunnelRunEndingBeforeStartReturns(t *testing.T) {
 	c := newQueryCheck("candidate")
 	f := newTunnelFixture(t, c)
 	for i := 0; i < 50; i++ {
@@ -434,79 +281,29 @@ func TestTunnelRunEndingBeforeAdmissionReturns(t *testing.T) {
 			return f.tunnel.Execute(context.Background(), uint64(i), request).Status == TunnelAccepted
 		}, 3*time.Second, time.Millisecond)
 	}
-	require.Eventually(t, func() bool {
-		f.tunnel.mu.Lock()
-		defer f.tunnel.mu.Unlock()
-		return f.tunnel.inFlight == 0
-	}, 3*time.Second, time.Millisecond)
-	f.tunnel.mu.Lock()
-	defer f.tunnel.mu.Unlock()
-	require.Len(t, f.tunnel.admissions, 50)
-	for _, a := range f.tunnel.admissions {
-		require.True(t, a.admitted)
-		require.True(t, a.finished)
-	}
+	require.Eventually(t, func() bool { return inFlight(f.tunnel) == 0 }, 3*time.Second, time.Millisecond)
 }
 
-// A running query is never forgotten, however long it runs. Retention starts
-// when the run ends.
-func TestTunnelRetentionStartsWhenRunEnds(t *testing.T) {
+// The tunnel keeps no per-run record, so the number of runs it has served does
+// not limit the runs it accepts: every one of them is admitted once its
+// predecessor has ended.
+func TestTunnelAcceptsUnboundedSequentialRuns(t *testing.T) {
 	c := newQueryCheck("candidate")
-	release := make(chan struct{})
-	c.execute = func(context.Context, string) (string, error) {
-		<-release
-		return `{"status":"SUCCEEDED"}`, nil
-	}
 	f := newTunnelFixture(t, c)
-	now := time.Now()
-	var mu sync.Mutex
-	f.tunnel.now = func() time.Time {
-		mu.Lock()
-		defer mu.Unlock()
-		return now
+	for i := 0; i < 1100; i++ {
+		request := tunnelExecuteRequest()
+		request.RunID = fmt.Sprintf("00000000-0000-4000-8000-%012d", i)
+		outcome := f.tunnel.Execute(context.Background(), uint64(i), request)
+		require.Equal(t, TunnelAccepted, outcome.Status, "run %d: %+v", i, outcome)
+		require.Eventually(t, func() bool { return inFlight(f.tunnel) == 0 }, 3*time.Second, 100*time.Microsecond)
 	}
-	advance := func(d time.Duration) {
-		mu.Lock()
-		defer mu.Unlock()
-		now = now.Add(d)
-	}
-	require.Equal(t, TunnelAccepted, f.tunnel.Execute(context.Background(), 1, tunnelExecuteRequest()).Status)
-
-	// Far past the retention period, the run is still active and still known.
-	advance(3 * tunnelRetention)
-	require.Equal(t, TunnelAlreadyAccepted, f.tunnel.Execute(context.Background(), 2, tunnelExecuteRequest()).Status)
-	require.Eventually(t, func() bool { return c.executes.Load() == 1 }, 3*time.Second, time.Millisecond)
-
-	close(release)
-	f.logs.waitRunLog(t)
-	require.Eventually(t, func() bool {
-		f.tunnel.mu.Lock()
-		defer f.tunnel.mu.Unlock()
-		return f.tunnel.inFlight == 0
-	}, 3*time.Second, time.Millisecond)
-
-	// Retention counts from the end of the run.
-	advance(tunnelRetention - time.Minute)
-	require.Equal(t, TunnelAlreadyAccepted, f.tunnel.Execute(context.Background(), 3, tunnelExecuteRequest()).Status)
-	require.EqualValues(t, 1, c.executes.Load())
-	advance(2 * time.Minute)
-	require.Equal(t, TunnelAccepted, f.tunnel.Execute(context.Background(), 4, tunnelExecuteRequest()).Status)
-	f.logs.waitRunLog(t)
+	require.EqualValues(t, 1100, c.executes.Load())
 }
 
-// Active records do not count against pruning and stay bounded by the run limit.
-func TestTunnelActiveRecordsAreNeverPruned(t *testing.T) {
-	c := newQueryCheck("candidate")
-	f := newTunnelFixture(t, c)
-	now := time.Now()
-	f.tunnel.now = func() time.Time { return now.Add(10 * tunnelRetention) }
-	f.tunnel.admissions["active"] = &tunnelAdmission{admitted: true, expires: now}
-	f.tunnel.admissions["ended"] = &tunnelAdmission{admitted: true, finished: true, expires: now}
-	f.tunnel.mu.Lock()
-	f.tunnel.pruneLocked(f.tunnel.now())
-	f.tunnel.mu.Unlock()
-	require.Contains(t, f.tunnel.admissions, "active")
-	require.NotContains(t, f.tunnel.admissions, "ended")
+func inFlight(t *Tunnel) int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.inFlight
 }
 
 func TestTunnelBoundsConcurrentRuns(t *testing.T) {
@@ -528,33 +325,14 @@ func TestTunnelBoundsConcurrentRuns(t *testing.T) {
 	request.RunID = uploads[tunnelMaxInFlight]
 	outcome := f.tunnel.Execute(context.Background(), 9, request)
 	require.Equal(t, "busy", outcome.Code)
-	// A rejected run is not remembered, and a duplicate of an admitted one is still acknowledged.
-	first := tunnelExecuteRequest()
-	first.RunID = uploads[0]
-	require.Equal(t, TunnelAlreadyAccepted, f.tunnel.Execute(context.Background(), 10, first).Status)
+	// The refusal did not take a slot: once the runs end, the same request is admitted.
+	require.Equal(t, tunnelMaxInFlight, inFlight(f.tunnel))
 
 	close(release)
 	require.Eventually(t, func() bool {
 		return f.tunnel.Execute(context.Background(), 11, request).Status == TunnelAccepted
 	}, 3*time.Second, 5*time.Millisecond)
-}
-
-func TestTunnelRetainedStateIsBounded(t *testing.T) {
-	c := newQueryCheck("candidate")
-	f := newTunnelFixture(t, c)
-	now := time.Now()
-	f.tunnel.now = func() time.Time { return now }
-	for i := 0; i < tunnelMaxRetained; i++ {
-		f.tunnel.admissions[fmt.Sprintf("run-%d", i)] = &tunnelAdmission{admitted: true, finished: true, expires: now.Add(time.Hour)}
-	}
-	outcome := f.tunnel.Execute(context.Background(), 1, tunnelExecuteRequest())
-	require.Equal(t, "capacity", outcome.Code)
-	require.Zero(t, c.executes.Load())
-
-	// Expired records are pruned, which makes room again.
-	f.tunnel.now = func() time.Time { return now.Add(2 * time.Hour) }
-	require.Equal(t, TunnelAccepted, f.tunnel.Execute(context.Background(), 2, tunnelExecuteRequest()).Status)
-	f.logs.waitRunLog(t)
+	require.Eventually(t, func() bool { return inFlight(f.tunnel) == 0 }, 3*time.Second, time.Millisecond)
 }
 
 func TestTunnelExecuteFailureIsDetachedAndDoesNotLeak(t *testing.T) {
@@ -567,9 +345,7 @@ func TestTunnelExecuteFailureIsDetachedAndDoesNotLeak(t *testing.T) {
 	require.Equal(t, TunnelAccepted, outcome.Status)
 	line := f.logs.waitRunLog(t)
 	require.Contains(t, line, "outcome=FAILED")
-	// The failed run stays admitted; a duplicate is not re-executed.
-	require.Equal(t, TunnelAlreadyAccepted, f.tunnel.Execute(context.Background(), 2, tunnelExecuteRequest()).Status)
-	require.EqualValues(t, 1, c.executes.Load())
+	require.Eventually(t, func() bool { return inFlight(f.tunnel) == 0 }, 3*time.Second, time.Millisecond)
 }
 
 func TestTunnelRejectionsCarryFixedMessages(t *testing.T) {
