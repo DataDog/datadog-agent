@@ -701,6 +701,13 @@ func (s *upgradeScenarioSuite) runInstallScriptAsRootWithOptOut() {
 	if s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version {
 		s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reexec")
 	}
+	// The install script writes this file unprivileged on apt hosts and never removes it.
+	// fs.protected_regular then stops any other user, root included, from reopening it in /tmp.
+	// Remove it before the root run, and again afterwards so the root-owned copy (and the
+	// root-owned install log in the test user's home) do not break later non-root runs.
+	const installScriptLeftovers = `sudo rm -f /tmp/policy-do-not-start-service-rc.d "$HOME/ddagent-install.log"`
+	s.Env().RemoteHost.MustExecute(installScriptLeftovers)
+	defer func() { _, _ = s.Env().RemoteHost.Execute(installScriptLeftovers) }()
 	_, err := s.Env().RemoteHost.Execute(
 		`sudo -E env DD_REMOTE_UPDATES=true DD_PROCESS_MANAGER_ENABLED=false bash -c "$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh)"`,
 		client.WithEnvVariables(InstallScriptEnv(s.arch)),
