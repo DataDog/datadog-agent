@@ -297,7 +297,8 @@ func TestLaunchdInstallerJob(t *testing.T) {
 
 // TestLaunchdUnitSupervisorJob pins the configuration experiment's unit supervisor job: it runs the
 // installer's superviseUnits package command as root, never starts at load, is relaunched by launchd
-// only after a crash, and is not one of the jobs the Agent package installs.
+// only after a crash, aborts on a Go fatal error so launchd sees one, and is not one of the jobs the
+// Agent package installs.
 func TestLaunchdUnitSupervisorJob(t *testing.T) {
 	content := GetLaunchdUnitSupervisorJob()
 	assertPropertyList(t, content)
@@ -308,6 +309,9 @@ func TestLaunchdUnitSupervisorJob(t *testing.T) {
 	// SuccessfulExit would imply RunAtLoad, and start the supervisor at boot.
 	assert.Regexp(t, `<key>KeepAlive</key>\s*<dict>\s*<key>Crashed</key>\s*<true/>\s*</dict>`, definition)
 	assert.NotContains(t, definition, "SuccessfulExit")
+	// A Go fatal error exits with status 2, which KeepAlive Crashed does not relaunch: GOTRACEBACK=crash
+	// makes it abort with SIGABRT instead.
+	assert.Regexp(t, `<key>GOTRACEBACK</key>\s*<string>crash</string>`, definition)
 	assert.Regexp(t, `<key>UserName</key>\s*<string>root</string>`, definition)
 	assert.Regexp(t, `<key>StandardOutPath</key>\s*<string>/opt/datadog-agent/logs/launchd_unit-supervisor.log</string>`, definition)
 

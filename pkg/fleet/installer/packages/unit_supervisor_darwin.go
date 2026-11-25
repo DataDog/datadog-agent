@@ -261,6 +261,10 @@ var errTargetChanged = errors.New("the target changed")
 //
 // It never returns an error, and recovers a panic in a step: launchd relaunches the supervisor only
 // after a crash signal (KeepAlive Crashed), so an error exit would leave the experiment unsupervised.
+// A Go fatal error, or a panic in another goroutine, would exit with status 2 the same way: the job
+// sets GOTRACEBACK=crash so the runtime aborts with SIGABRT instead, which launchd relaunches. A
+// SIGKILL is still not relaunched; the next hook that asks for the supervisor, or a reboot, recovers
+// from it.
 func superviseUnits(ctx context.Context) error {
 	for {
 		if ctx.Err() != nil {
