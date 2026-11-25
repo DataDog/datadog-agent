@@ -430,8 +430,9 @@ func isError(r logRecord) bool {
 }
 
 // isUnexpectedWarning reports whether the record is a warning preflight mode did not provoke.
+// An advisory is not one: it is reported as findingConfigAdvisory instead.
 func isUnexpectedWarning(r logRecord) bool {
-	return r.Level == levelWarn && !isExpectedWarning(r)
+	return r.Level == levelWarn && !isExpectedWarning(r) && !isAdvisory(r)
 }
 
 // hasErrors reports whether any record was an error.
@@ -454,6 +455,42 @@ func isExpectedWarning(r logRecord) bool {
 		}
 	}
 	return false
+}
+
+// expectedAdvisories are warnings that report an operator configuration problem which the Core
+// Agent has too, so they say nothing about whether ADP can replace it. They are matched on target
+// plus a message substring, like expectedWarnings, because the line numbers move between ADP
+// releases. A match is reported as findingConfigAdvisory instead of findingWarningsInLog.
+var expectedAdvisories = []struct{ target, contains string }{
+	// Multi-Region Failover is enabled, but the failover API key or site is missing. The Core
+	// Agent does not start without a failover site or dd_url, so on a running Agent this means an
+	// empty multi_region_failover.api_key. The Core Agent then sends failover traffic with an
+	// empty key, so failover does not work there either. ADP 1.6.4 and later log this at startup,
+	// with the same text. The fragment names the missing settings, so that a different MRF
+	// warning from the same target still counts toward warnings_in_log.
+	{
+		target: "agent_data_plane::cli::run",
+		contains: "Multi-Region Failover is enabled, but multi_region_failover.api_key and one of " +
+			"multi_region_failover.dd_url or multi_region_failover.site are required",
+	},
+}
+
+// isAdvisory reports whether the record is a warning listed in expectedAdvisories.
+func isAdvisory(r logRecord) bool {
+	if r.Level != levelWarn {
+		return false
+	}
+	for _, e := range expectedAdvisories {
+		if r.Target == e.target && strings.Contains(r.Signature, e.contains) {
+			return true
+		}
+	}
+	return false
+}
+
+// hasAdvisories reports whether any record was an advisory.
+func hasAdvisories(records []logRecord) bool {
+	return slices.ContainsFunc(records, isAdvisory)
 }
 
 // locationsOf returns the distinct log sites of the records matching keep, in first-seen order.

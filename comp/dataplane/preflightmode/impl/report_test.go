@@ -36,6 +36,7 @@ func TestFindingsAreAllowlisted(t *testing.T) {
 		"warnings_in_log",
 		"output_dropped",
 		"interrupted",
+		"config_advisory",
 	}
 	assert.ElementsMatch(t, expected, allFindings)
 }
@@ -50,6 +51,14 @@ func TestOutcomeResult(t *testing.T) {
 		o.add(findingProbeFailed)
 		o.add(findingErrorsInLog)
 		assert.Equal(t, string(findingProbeFailed), o.result())
+	})
+
+	t.Run("an advisory does not become the result", func(t *testing.T) {
+		o := &outcome{}
+		o.add(findingConfigAdvisory)
+		assert.Equal(t, resultClean, o.result(), "a run with only an advisory is clean")
+		o.add(findingWarningsInLog)
+		assert.Equal(t, string(findingWarningsInLog), o.result(), "a later real finding still wins")
 	})
 
 	t.Run("findings are deduplicated", func(t *testing.T) {

@@ -45,6 +45,11 @@ const (
 
 	// A bad API key. ADP reports this at WARN, not ERROR, which is why warnings need a
 	// finding of their own — this is a hard blocker, not noise.
+	// Multi-Region Failover enabled with a failover site but no failover API key. Captured from
+	// agent-data-plane 1.8.1, not 1.4.0. ADP 1.6.4 and later log this from the same target with
+	// the same message, at a line number that changes between releases.
+	realWarnMRFMissingAPIKey = `{"timestamp":"2026-11-23T21:51:44.393658Z","level":"WARN","message":"Multi-Region Failover is enabled, but multi_region_failover.api_key and one of multi_region_failover.dd_url or multi_region_failover.site are required for metrics forwarding. The MRF metrics branch will not be wired, and primary forwarding will continue. Restart ADP after configuring the static MRF endpoint settings.","target":"agent_data_plane::cli::run","filename":"bin/agent-data-plane/src/cli/run.rs","line_number":341}`
+
 	realWarnInvalidAPIKey = `{"timestamp":"2026-07-27T19:31:11.910356Z","level":"WARN","message":"Datadog API key is invalid.","endpoint":"https://1-4-0-adp.agent.datadoghq.com/","validation_endpoint":"https://api.datadoghq.com/","target":"saluki_components::common::datadog::validation","filename":"lib/saluki-components/src/common/datadog/validation.rs","line_number":286,"span":{"id":"dd_out","type":"forwarder","name":"component"}}`
 )
 
@@ -803,5 +808,53 @@ func TestIsExpectedWarning(t *testing.T) {
 		rec, ok := parseRecord(`{"level":"WARN","message":"Running in standalone mode.","target":"saluki_core::topology"}`)
 		require.True(t, ok)
 		assert.False(t, isExpectedWarning(rec))
+	})
+}
+
+// TestCaptureMRFAdvisory covers Multi-Region Failover enabled without a failover API key. The
+// Core Agent has the same problem, so the warning is an advisory and not a warning finding.
+func TestCaptureMRFAdvisory(t *testing.T) {
+	records, _ := captureOf(t, realInfoStartup, realWarnStandalone, realWarnMRFMissingAPIKey, realInfoListener)
+
+	assert.False(t, hasErrors(records))
+	assert.False(t, hasUnexpectedWarnings(records), "an advisory must not count toward warnings_in_log")
+	assert.True(t, hasAdvisories(records), "the MRF warning must stay visible as an advisory")
+}
+
+func TestIsAdvisory(t *testing.T) {
+	t.Run("the MRF warning is an advisory", func(t *testing.T) {
+		rec, ok := parseRecord(realWarnMRFMissingAPIKey)
+		require.True(t, ok)
+		assert.True(t, isAdvisory(rec))
+		assert.False(t, isUnexpectedWarning(rec))
+	})
+
+	t.Run("an invalid API key is not an advisory", func(t *testing.T) {
+		rec, ok := parseRecord(realWarnInvalidAPIKey)
+		require.True(t, ok)
+		assert.False(t, isAdvisory(rec))
+	})
+
+	t.Run("the same message from a different target is not an advisory", func(t *testing.T) {
+		rec, ok := parseRecord(`{"level":"WARN","message":"Multi-Region Failover is enabled, but something else.","target":"saluki_core::topology"}`)
+		require.True(t, ok)
+		assert.False(t, isAdvisory(rec))
+		assert.True(t, isUnexpectedWarning(rec))
+	})
+
+	t.Run("a different MRF warning from the same target is not an advisory", func(t *testing.T) {
+		// Guards against the fragment matching only the shared prefix, which would hide an
+		// MRF problem that is specific to ADP.
+		rec, ok := parseRecord(`{"level":"WARN","message":"Multi-Region Failover is enabled, but the MRF forwarder failed to start.","target":"agent_data_plane::cli::run"}`)
+		require.True(t, ok)
+		assert.False(t, isAdvisory(rec))
+		assert.True(t, isUnexpectedWarning(rec))
+	})
+
+	t.Run("an error with the same message is not an advisory", func(t *testing.T) {
+		rec, ok := parseRecord(`{"level":"ERROR","message":"Multi-Region Failover is enabled, but multi_region_failover.api_key and one of multi_region_failover.dd_url or multi_region_failover.site are required for metrics forwarding.","target":"agent_data_plane::cli::run"}`)
+		require.True(t, ok)
+		assert.False(t, isAdvisory(rec))
+		assert.True(t, isError(rec))
 	})
 }

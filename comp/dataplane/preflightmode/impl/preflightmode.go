@@ -426,6 +426,9 @@ func (d *preflightModeComponent) run(ctx context.Context) {
 	if hasUnexpectedWarnings(records) {
 		o.add(findingWarningsInLog)
 	}
+	if hasAdvisories(records) {
+		o.add(findingConfigAdvisory)
+	}
 }
 
 // terminate stops ADP, escalating to a kill if it does not exit within the configured stop
