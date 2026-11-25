@@ -77,3 +77,21 @@ custom_queries:
 		})
 	}
 }
+
+// CONFIG-01
+func TestCONFIG01_RemoteQueryTimeout(t *testing.T) {
+	base := "username: u\nserver: db.example.com\nservice_name: S\n"
+	cfg, err := NewCheckConfig([]byte(base), []byte(""))
+	require.NoError(t, err)
+	assert.Nil(t, cfg.RemoteQueries.TimeoutMs, "unset by default")
+
+	cfg, err = NewCheckConfig([]byte(base+"remote_queries:\n  timeout_ms: 5000\n"), []byte(""))
+	require.NoError(t, err)
+	require.NotNil(t, cfg.RemoteQueries.TimeoutMs)
+	assert.Equal(t, 5000, *cfg.RemoteQueries.TimeoutMs)
+
+	for _, bad := range []string{"0", "-1"} {
+		_, err = NewCheckConfig([]byte(base+"remote_queries:\n  timeout_ms: "+bad+"\n"), []byte(""))
+		require.ErrorContains(t, err, "remote_queries.timeout_ms", bad)
+	}
+}
