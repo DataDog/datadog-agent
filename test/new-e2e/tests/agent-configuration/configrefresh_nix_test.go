@@ -29,7 +29,7 @@ type configRefreshLinuxSuite struct {
 
 func TestConfigRefreshLinuxSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &configRefreshLinuxSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess())))))
+	e2e.Run(t, &configRefreshLinuxSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess())))))
 }
 
 func (v *configRefreshLinuxSuite) TestConfigRefresh() {
@@ -60,7 +60,7 @@ func (v *configRefreshLinuxSuite) TestConfigRefresh() {
 	coreconfig := fillTmplConfig(v.T(), coreConfigTmpl, templateVars)
 
 	// start the agent with that configuration
-	v.UpdateEnv(awshost.Provisioner(
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(
 		awshost.WithRunOptions(scenec2.WithAgentOptions(
 			secretsutils.WithUnixSetupScript(secretResolverPath, true),
 			agentparams.WithAgentConfig(coreconfig),
@@ -128,7 +128,7 @@ func (v *configRefreshLinuxSuite) TestConfigRefreshOverSocket() {
 	coreconfig := fillTmplConfig(v.T(), coreConfigTmpl, templateVars)
 
 	// start the agent with that configuration
-	v.UpdateEnv(awshost.Provisioner(
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(
 		awshost.WithRunOptions(scenec2.WithAgentOptions(
 			secretsutils.WithUnixSetupScript(secretResolverPath, true),
 			agentparams.WithAgentConfig(coreconfig),
