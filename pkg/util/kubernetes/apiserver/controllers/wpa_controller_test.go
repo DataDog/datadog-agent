@@ -14,6 +14,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
@@ -45,7 +46,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 var scheme = kscheme.Scheme
@@ -172,6 +172,7 @@ func TestUpdateWPA(t *testing.T) {
 func newFakeWPAController(t *testing.T, kubeClient kubernetes.Interface, client dynamic.Interface, isLeaderFunc func() bool, dcl datadogclientmock.Component) (*autoscalersController, wpa_informers.DynamicSharedInformerFactory) {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(t.Logf)
+	t.Cleanup(eventBroadcaster.Shutdown)
 
 	// need to fake wpa_client.
 	inf := wpa_informers.NewDynamicSharedInformerFactory(client, 0)
@@ -223,203 +224,215 @@ func newFakeWatermarkPodAutoscaler(name, ns string, uid types.UID, metricName st
 
 // TestWPAController is an integration test of the AutoscalerController
 func TestWPAController(t *testing.T) {
+	// The global logger outlives the test: it must write to the outer t, as a
+	// bubble's t can't be logged to once the bubble is over.
 	logFlush := configureLoggerForTest(t)
 	defer logFlush()
-	metricName := "foo"
-	namespace := "nsfoo"
-	wpaName := "wpa_1"
+	synctest.Test(t, func(t *testing.T) {
+		metricName := "foo"
+		namespace := "nsfoo"
+		wpaName := "wpa_1"
 
-	mockConfig := configmock.New(t)
-	mockConfig.SetInTest("kube_resources_namespace", "nsfoo")
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest("kube_resources_namespace", "nsfoo")
 
-	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
-	name := custommetrics.GetConfigmapName()
-	store, client := newFakeConfigMapStore(t, namespace, name, nil)
-	ddSeries := []datadog.Series{
-		{
-			Metric: &metricName,
-			Points: []datadog.DataPoint{
-				makePoints(1531492452000, 12.01),
-				makePoints(penTime, 14.123),
-				makePoints(0, 25.12),
+		penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
+		name := custommetrics.GetConfigmapName()
+		store, client := newFakeConfigMapStore(t, namespace, name, nil)
+		ddSeries := []datadog.Series{
+			{
+				Metric: &metricName,
+				Points: []datadog.DataPoint{
+					makePoints(1531492452000, 12.01),
+					makePoints(penTime, 14.123),
+					makePoints(0, 25.12),
+				},
+				Scope: pointer.Ptr("foo:bar"),
 			},
-			Scope: pointer.Ptr("foo:bar"),
-		},
-	}
+		}
 
-	datadogClientComp := datadogclientmock.New(t).Comp
-	datadogClientComp.SetQueryMetricsFunc(func(int64, int64, string) ([]datadog.Series, error) {
-		return ddSeries, nil
-	})
+		datadogClientComp := datadogclientmock.New(t).Comp
+		datadogClientComp.SetQueryMetricsFunc(func(int64, int64, string) ([]datadog.Series, error) {
+			return ddSeries, nil
+		})
 
-	_, mockedWPA := newFakeWatermarkPodAutoscaler(
-		wpaName,
-		namespace,
-		"1",
-		metricName,
-		map[string]string{"foo": "bar"},
-	)
+		_, mockedWPA := newFakeWatermarkPodAutoscaler(
+			wpaName,
+			namespace,
+			"1",
+			metricName,
+			map[string]string{"foo": "bar"},
+		)
 
-	wpaClient := fake.NewSimpleDynamicClient(scheme, mockedWPA)
+		wpaClient := fake.NewSimpleDynamicClient(scheme, mockedWPA)
 
-	hctrl, inf := newFakeWPAController(t, client, wpaClient, alwaysLeader, datadogClientComp)
-	hctrl.poller.refreshPeriod = 600
-	hctrl.poller.gcPeriodSeconds = 600
-	hctrl.autoscalers = make(chan interface{}, 1)
+		hctrl, inf := newFakeWPAController(t, client, wpaClient, alwaysLeader, datadogClientComp)
+		hctrl.poller.refreshPeriod = 600
+		hctrl.poller.gcPeriodSeconds = 600
+		hctrl.autoscalers = make(chan interface{}, 1)
 
-	stop := make(chan struct{})
-	defer close(stop)
-	inf.WaitForCacheSync(stop)
-	inf.Start(stop)
+		stop := make(chan struct{})
+		defer close(stop)
+		inf.WaitForCacheSync(stop)
+		inf.Start(stop)
 
-	go hctrl.runWPA(stop, wpaClient, inf)
+		// The worker only returns once the queue is shut down, which runWPA does after it returns.
+		// The queue is created by runWPA.
+		defer func() {
+			synctest.Wait()
+			hctrl.wpaQueue.ShutDown()
+		}()
+		defer hctrl.hpaQueue.ShutDown()
+		go hctrl.runWPA(stop, wpaClient, inf)
 
-	hctrl.runControllerLoop(stop)
+		hctrl.runControllerLoop(stop)
 
-	res, err := wpaClient.Resource(gvrWPA).Namespace(namespace).Get(context.TODO(), wpaName, metav1.GetOptions{})
-	require.NoError(t, err)
-
-	wpaDecoded := &v1alpha1.WatermarkPodAutoscaler{}
-	err = UnstructuredIntoWPA(res, wpaDecoded)
-	require.NoError(t, err)
-	require.Equal(t, wpaName, wpaDecoded.Name)
-
-	timeout := 5 * time.Second
-	frequency := 500 * time.Millisecond
-
-	testutil.RequireTrueBeforeTimeout(t, frequency, timeout, func() bool {
-		key := <-hctrl.autoscalers
-		t.Logf("hctrl process key:%s", key)
-		return true
-	})
-	// Check local cache store is 1:1 with expectations
-	storedWPAObject, err := hctrl.wpaLister.ByNamespace(namespace).Get(wpaName)
-	require.NoError(t, err)
-
-	storedWPA := &v1alpha1.WatermarkPodAutoscaler{}
-	err = UnstructuredIntoWPA(storedWPAObject, storedWPA)
-	require.NoError(t, err)
-
-	require.Equal(t, storedWPA, wpaDecoded)
-	testutil.RequireTrueBeforeTimeout(t, frequency, timeout, func() bool {
-		hctrl.toStore.m.Lock()
-		st := hctrl.toStore.data
-		hctrl.toStore.m.Unlock()
-		return len(st) == 1
-	})
-
-	hctrl.updateExternalMetrics()
-
-	// Test that the Global store contains the correct data
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		storedExternal, err := store.ListAllExternalMetricValues()
-		require.NoError(t, err)
-		require.NotEmpty(t, storedExternal.External)
-		require.Equal(t, storedExternal.External[0].Value, float64(14.123))
-		require.Equal(t, storedExternal.External[0].Labels, map[string]string{"foo": "bar"})
-	}, timeout, frequency)
-
-	retrier := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		resWPA, errWPA := wpaClient.Resource(gvrWPA).Namespace(namespace).Get(context.TODO(), wpaName, metav1.GetOptions{})
-		require.NoError(t, errWPA)
-
-		metrics, found, err := unstructured.NestedSlice(resWPA.Object, "spec", "metrics")
-		require.Equal(t, found, true)
+		res, err := wpaClient.Resource(gvrWPA).Namespace(namespace).Get(context.TODO(), wpaName, metav1.GetOptions{})
 		require.NoError(t, err)
 
-		ext, found, err := unstructured.NestedMap(metrics[0].(map[string]interface{}), "external")
-		require.Equal(t, found, true)
-		require.NoError(t, err)
-		matchLabels, found, err := unstructured.NestedMap(ext, "metricSelector")
-		require.Equal(t, found, true)
-		require.NoError(t, err)
-
-		err = unstructured.SetNestedField(matchLabels, map[string]interface{}{"dcos_version": "2.1.9"}, "matchLabels")
-		require.NoError(t, err)
-
-		err = unstructured.SetNestedField(ext, matchLabels, "metricSelector")
-		require.NoError(t, err)
-
-		err = unstructured.SetNestedField(metrics[0].(map[string]interface{}), ext, "external")
-		require.NoError(t, err)
-
-		err = unstructured.SetNestedField(resWPA.Object, metrics, "spec", "metrics")
-		require.NoError(t, err)
-
-		annotations := makeAnnotations("nginx.net.request_per_s", map[string]string{"dcos_version": "2.1.9"})
-		err = unstructured.SetNestedField(resWPA.Object, annotations["kubectl.kubernetes.io/last-applied-configuration"], "metadata", "annotations", "kubectl.kubernetes.io/last-applied-configuration")
-		require.NoError(t, err)
-
-		res, updateErr := wpaClient.Resource(gvrWPA).Namespace(namespace).Update(context.TODO(), resWPA, metav1.UpdateOptions{})
+		wpaDecoded := &v1alpha1.WatermarkPodAutoscaler{}
 		err = UnstructuredIntoWPA(res, wpaDecoded)
 		require.NoError(t, err)
+		require.Equal(t, wpaName, wpaDecoded.Name)
 
-		return updateErr
-	})
-	require.NoError(t, retrier)
+		waitForSync := func() {
+			select {
+			case key := <-hctrl.autoscalers:
+				t.Logf("hctrl process key:%s", key)
+			case <-time.After(5 * time.Second):
+				require.FailNow(t, "Timeout waiting for WPAs to update")
+			}
+		}
 
-	// Update the Metrics
-	ddSeries = []datadog.Series{
-		{
-			Metric: &metricName,
-			Points: []datadog.DataPoint{
-				makePoints(1531492452000, 12.34),
-				makePoints(penTime, 1.01),
-				makePoints(0, 0.902),
+		waitForSync()
+		// Check local cache store is 1:1 with expectations
+		storedWPAObject, err := hctrl.wpaLister.ByNamespace(namespace).Get(wpaName)
+		require.NoError(t, err)
+
+		storedWPA := &v1alpha1.WatermarkPodAutoscaler{}
+		err = UnstructuredIntoWPA(storedWPAObject, storedWPA)
+		require.NoError(t, err)
+
+		require.Equal(t, storedWPA, wpaDecoded)
+		synctest.Wait()
+		hctrl.toStore.m.Lock()
+		storeLen := len(hctrl.toStore.data)
+		hctrl.toStore.m.Unlock()
+		require.Equal(t, 1, storeLen)
+
+		hctrl.updateExternalMetrics()
+
+		// Test that the Global store contains the correct data
+		synctest.Wait()
+		func() {
+			storedExternal, err := store.ListAllExternalMetricValues()
+			require.NoError(t, err)
+			require.NotEmpty(t, storedExternal.External)
+			require.Equal(t, storedExternal.External[0].Value, float64(14.123))
+			require.Equal(t, storedExternal.External[0].Labels, map[string]string{"foo": "bar"})
+		}()
+
+		retrier := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			resWPA, errWPA := wpaClient.Resource(gvrWPA).Namespace(namespace).Get(context.TODO(), wpaName, metav1.GetOptions{})
+			require.NoError(t, errWPA)
+
+			metrics, found, err := unstructured.NestedSlice(resWPA.Object, "spec", "metrics")
+			require.Equal(t, found, true)
+			require.NoError(t, err)
+
+			ext, found, err := unstructured.NestedMap(metrics[0].(map[string]interface{}), "external")
+			require.Equal(t, found, true)
+			require.NoError(t, err)
+			matchLabels, found, err := unstructured.NestedMap(ext, "metricSelector")
+			require.Equal(t, found, true)
+			require.NoError(t, err)
+
+			err = unstructured.SetNestedField(matchLabels, map[string]interface{}{"dcos_version": "2.1.9"}, "matchLabels")
+			require.NoError(t, err)
+
+			err = unstructured.SetNestedField(ext, matchLabels, "metricSelector")
+			require.NoError(t, err)
+
+			err = unstructured.SetNestedField(metrics[0].(map[string]interface{}), ext, "external")
+			require.NoError(t, err)
+
+			err = unstructured.SetNestedField(resWPA.Object, metrics, "spec", "metrics")
+			require.NoError(t, err)
+
+			annotations := makeAnnotations("nginx.net.request_per_s", map[string]string{"dcos_version": "2.1.9"})
+			err = unstructured.SetNestedField(resWPA.Object, annotations["kubectl.kubernetes.io/last-applied-configuration"], "metadata", "annotations", "kubectl.kubernetes.io/last-applied-configuration")
+			require.NoError(t, err)
+
+			res, updateErr := wpaClient.Resource(gvrWPA).Namespace(namespace).Update(context.TODO(), resWPA, metav1.UpdateOptions{})
+			err = UnstructuredIntoWPA(res, wpaDecoded)
+			require.NoError(t, err)
+
+			return updateErr
+		})
+		require.NoError(t, retrier)
+
+		// Update the Metrics
+		ddSeries = []datadog.Series{
+			{
+				Metric: &metricName,
+				Points: []datadog.DataPoint{
+					makePoints(1531492452000, 12.34),
+					makePoints(penTime, 1.01),
+					makePoints(0, 0.902),
+				},
+				Scope: pointer.Ptr("dcos_version:2.1.9"),
 			},
-			Scope: pointer.Ptr("dcos_version:2.1.9"),
-		},
-	}
+		}
 
-	testutil.RequireTrueBeforeTimeout(t, frequency, timeout, func() bool {
-		key := <-hctrl.autoscalers
-		t.Logf("hctrl process key:%s", key)
-		return true
+		waitForSync()
+
+		storedWPAObject, err = hctrl.wpaLister.ByNamespace(namespace).Get(wpaName)
+		require.NoError(t, err)
+		err = UnstructuredIntoWPA(storedWPAObject, storedWPA)
+		require.NoError(t, err)
+		require.Equal(t, storedWPA, wpaDecoded)
+		// Checking the local cache holds the correct Data.
+		ExtVal := autoscalers.InspectWPA(storedWPA)
+		key := custommetrics.ExternalMetricValueKeyFunc(ExtVal[0])
+
+		// Process and submit to the Global Store
+		synctest.Wait()
+		func() {
+			hctrl.toStore.m.Lock()
+			defer hctrl.toStore.m.Unlock()
+			st := hctrl.toStore.data
+			require.NotEmpty(t, st)
+			require.Len(t, st, 1)
+			// Not comparing timestamps to avoid flakyness.
+			require.Equal(t, ExtVal[0].Ref, st[key].Ref)
+			require.Equal(t, ExtVal[0].MetricName, st[key].MetricName)
+			require.Equal(t, ExtVal[0].Labels, st[key].Labels)
+		}()
+
+		hctrl.updateExternalMetrics()
+
+		synctest.Wait()
+		func() {
+			storedExternal, err := store.ListAllExternalMetricValues()
+			require.NoError(t, err)
+			require.NotEmpty(t, storedExternal.External)
+			require.Equal(t, float64(1.01), storedExternal.External[0].Value)
+			require.Equal(t, map[string]string{"dcos_version": "2.1.9"}, storedExternal.External[0].Labels)
+		}()
+
+		// Verify that a Delete removes the Data from the Global Store
+		err = wpaClient.Resource(gvrWPA).Namespace(namespace).Delete(context.TODO(), wpaName, metav1.DeleteOptions{})
+		require.NoError(t, err)
+		synctest.Wait()
+		func() {
+			storedExternal, err := store.ListAllExternalMetricValues()
+			require.NoError(t, err)
+			require.Empty(t, storedExternal.External)
+			hctrl.toStore.m.Lock()
+			defer hctrl.toStore.m.Unlock()
+			require.Len(t, hctrl.toStore.data, 0)
+		}()
 	})
-
-	storedWPAObject, err = hctrl.wpaLister.ByNamespace(namespace).Get(wpaName)
-	require.NoError(t, err)
-	err = UnstructuredIntoWPA(storedWPAObject, storedWPA)
-	require.NoError(t, err)
-	require.Equal(t, storedWPA, wpaDecoded)
-	// Checking the local cache holds the correct Data.
-	ExtVal := autoscalers.InspectWPA(storedWPA)
-	key := custommetrics.ExternalMetricValueKeyFunc(ExtVal[0])
-
-	// Process and submit to the Global Store
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		hctrl.toStore.m.Lock()
-		defer hctrl.toStore.m.Unlock()
-		st := hctrl.toStore.data
-		require.NotEmpty(t, st)
-		require.Len(t, st, 1)
-		// Not comparing timestamps to avoid flakyness.
-		require.Equal(t, ExtVal[0].Ref, st[key].Ref)
-		require.Equal(t, ExtVal[0].MetricName, st[key].MetricName)
-		require.Equal(t, ExtVal[0].Labels, st[key].Labels)
-	}, timeout, frequency)
-
-	hctrl.updateExternalMetrics()
-
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		storedExternal, err := store.ListAllExternalMetricValues()
-		require.NoError(t, err)
-		require.NotEmpty(t, storedExternal.External)
-		require.Equal(t, float64(1.01), storedExternal.External[0].Value)
-		require.Equal(t, map[string]string{"dcos_version": "2.1.9"}, storedExternal.External[0].Labels)
-	}, timeout, frequency)
-
-	// Verify that a Delete removes the Data from the Global Store
-	err = wpaClient.Resource(gvrWPA).Namespace(namespace).Delete(context.TODO(), wpaName, metav1.DeleteOptions{})
-	require.NoError(t, err)
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		storedExternal, err := store.ListAllExternalMetricValues()
-		require.NoError(t, err)
-		require.Empty(t, storedExternal.External)
-		hctrl.toStore.m.Lock()
-		defer hctrl.toStore.m.Unlock()
-		require.Len(t, hctrl.toStore.data, 0)
-	}, timeout, frequency)
 }
 
 // TestWPASync tests the sync loop of the informer cache and the processing of the object

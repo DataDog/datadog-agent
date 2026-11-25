@@ -115,11 +115,13 @@ func newTestStore() *MetaBundleStore {
 	}
 }
 
+// assertNotified and assertNotNotified don't wait: the store notifies its
+// subscribers synchronously from set and delete.
 func assertNotified(t *testing.T, name string, ch <-chan struct{}) {
 	t.Helper()
 	select {
 	case <-ch:
-	case <-time.After(1 * time.Second):
+	default:
 		t.Fatalf("%s subscriber was not notified", name)
 	}
 }
@@ -129,6 +131,6 @@ func assertNotNotified(t *testing.T, name string, ch <-chan struct{}) {
 	select {
 	case <-ch:
 		t.Fatalf("%s subscriber was notified but should not have been", name)
-	case <-time.After(50 * time.Millisecond):
+	default:
 	}
 }
