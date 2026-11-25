@@ -19,6 +19,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"time"
@@ -148,7 +149,7 @@ func flareConfigModule(params *subcommands.GlobalParams) fx.Option {
 		if err == nil || errors.Is(err, agentConfig.ErrNoDDExporter) {
 			return fx.Provide(func() config.Component { return acfg })
 		}
-		fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Warning: could not build the configuration from the collector configuration: %v", err)))
+		warnf("could not build the configuration from the collector configuration: %v", err)
 	}
 	return fx.Options(
 		// Like the core Agent flare, go on when the configuration file can't be loaded
@@ -182,7 +183,7 @@ func resolveSecrets(cfg config.Component) {
 	}
 	resolver := secretsimpl.NewEnabledResolver(noopsimpl.GetCompatComponent())
 	if err := pkgconfigsetup.ResolveSecrets(c, resolver, "datadog.yaml"); err != nil {
-		fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Warning: could not resolve the secrets of the configuration: %v", err)))
+		warnf("could not resolve the secrets of the configuration: %v", err)
 	}
 }
 
@@ -267,6 +268,8 @@ func createOTelFlare(params *subcommands.GlobalParams, cfg pkgconfigmodel.Reader
 	if fallbackReason != "" {
 		files = append(files, flareFile{name: "otel-agent.log", content: []byte(fallbackReason), scrub: true})
 	}
+	// Last, to have the warnings of the whole collection
+	files = append(files, infoFile(cfg, fallbackReason))
 
 	filePath, err := createArchiveInTempDir(files, createFlareArchive)
 	if err != nil {
@@ -275,6 +278,33 @@ func createOTelFlare(params *subcommands.GlobalParams, cfg pkgconfigmodel.Reader
 
 	fmt.Fprintln(color.Output, color.GreenString("Flare archive created: "+filePath))
 	return filePath, nil
+}
+
+// infoFile describes how the flare was collected, for whoever reads the archive without the console of the run:
+// when, where and by which version it was made, where its data came from, and the warnings of the run.
+func infoFile(cfg pkgconfigmodel.Reader, fallbackReason string) flareFile {
+	hostname := cfg.GetString("hostname")
+	if hostname == "" {
+		hostname, _ = os.Hostname()
+	}
+	source := "the running collector, through its ddflare extension at " + cfg.GetString("otelcollector.extension_url")
+	if fallbackReason != "" {
+		source = "the configuration files only, the running collector could not be reached (see otel-agent.log).\n" +
+			"  config/runtime-config.yaml and config/env-config.yaml are built from the files, not the effective configuration of the running collector"
+	}
+
+	var info strings.Builder
+	fmt.Fprintf(&info, "Created: %s\nHostname: %s\nOS/Arch: %s/%s\nVersion: %s\nData source: %s\n",
+		time.Now().UTC().Format(time.RFC3339), hostname, runtime.GOOS, runtime.GOARCH, version.AgentVersion, source)
+	if len(warnings) == 0 {
+		info.WriteString("Warnings: none\n")
+	} else {
+		info.WriteString("Warnings:\n")
+		for _, warning := range warnings {
+			fmt.Fprintf(&info, "- %s\n", warning)
+		}
+	}
+	return flareFile{name: "flare-info.txt", content: []byte(info.String()), scrub: true}
 }
 
 // createArchiveInTempDir creates the flare archive of the given files with create, in a new temporary directory,
@@ -309,7 +339,7 @@ func collectOTelData(params *subcommands.GlobalParams, cfg pkgconfigmodel.Reader
 	if err == nil {
 		return resp, "", nil
 	}
-	fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Warning: could not get the flare data of the running OTel Agent: %v", err)))
+	warnf("could not get the flare data of the running OTel Agent: %v", err)
 	fmt.Fprintln(color.Output, color.YellowString(fallbackNote))
 	fmt.Fprintln(color.Output, color.YellowString(authTokenHint))
 	// Like the core Agent flare, which writes it to otel/otel-agent.log
@@ -416,13 +446,13 @@ func collectConfigData(params *subcommands.GlobalParams) (*extensiontypes.Respon
 		// Load customer-provided configuration
 		customerConfig, err = loadCustomerConfig(ctx, uris)
 		if err != nil {
-			fmt.Fprintf(color.Output, "%s", color.YellowString(fmt.Sprintf("Warning: Could not load customer config: %v\n", err)))
+			warnf("Could not load customer config: %v", err)
 		}
 
 		// Load runtime configuration with all providers
 		runtimeConfig, envConfig, err = loadRuntimeConfig(ctx, uris)
 		if err != nil {
-			fmt.Fprintf(color.Output, "%s", color.YellowString(fmt.Sprintf("Warning: Could not load runtime config: %v\n", err)))
+			warnf("Could not load runtime config: %v", err)
 		}
 	} else {
 		customerConfig = noConfigProvided
@@ -610,7 +640,7 @@ func discoverDebugSources(ctx context.Context, uris []string) map[string]extensi
 		// Extract the endpoint URL
 		uri, err := extractor(exconf)
 		if err != nil {
-			fmt.Fprintf(color.Output, "%s", color.YellowString(fmt.Sprintf("Warning: ignoring the debug extension %q: %v\n", extensionName, err)))
+			warnf("ignoring the debug extension %q: %v", extensionName, err)
 			continue
 		}
 
@@ -860,7 +890,8 @@ func scrubFileContent(name string, content []byte) ([]byte, error) {
 
 // addFileToZip adds a file to the zip archive
 func addFileToZip(zipWriter *zip.Writer, filename string, content []byte) error {
-	writer, err := zipWriter.Create(filename)
+	// Without a time, a zip file gets a date that tools show as the year 1980
+	writer, err := zipWriter.CreateHeader(&zip.FileHeader{Name: filename, Method: zip.Deflate, Modified: time.Now()})
 	if err != nil {
 		return fmt.Errorf("failed to create file in zip: %w", err)
 	}

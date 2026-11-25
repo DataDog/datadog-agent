@@ -72,6 +72,13 @@ fixes:
     of them, newest first, and a log file that was cut starts with a line that
     says so. It keeps at most 32 MiB of each debug response and 128 MiB for all
     of them, and records an error entry instead of a response that is larger.
+  - |
+    ``otel-agent flare`` now adds ``flare-info.txt`` to the archive. It says when
+    and on which host the flare was made, by which version, whether its data
+    came from the running collector or from the configuration files, and lists
+    the warnings of the run, which were only printed on the console before. The
+    files of the archive also have the time they were written at, instead of a
+    date in 1980.
 issues:
   - |
     ``otel-agent flare`` has these known limitations:

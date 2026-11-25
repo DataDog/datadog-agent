@@ -145,7 +145,12 @@ func isLogFileOrRoll(fileName, logFileName string) bool {
 	return ok && roll != "" && strings.Trim(roll, "0123456789") == ""
 }
 
-// warnf prints a warning on the console
+// warnings are the warnings of this run, which the flare prints as they happen and keeps in flare-info.txt
+var warnings []string
+
+// warnf prints a warning on the console, and keeps it for the archive
 func warnf(format string, args ...any) {
-	fmt.Fprintln(color.Output, color.YellowString("Warning: "+format, args...))
+	warning := fmt.Sprintf(format, args...)
+	warnings = append(warnings, warning)
+	fmt.Fprintln(color.Output, color.YellowString("Warning: %s", warning))
 }

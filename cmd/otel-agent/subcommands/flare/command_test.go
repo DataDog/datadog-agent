@@ -22,6 +22,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -121,6 +122,46 @@ func readZip(t *testing.T, zipPath string) map[string][]byte {
 	return files
 }
 
+// resetWarnings forgets the warnings of the previous runs, which the flare keeps in the process
+func resetWarnings(t *testing.T) {
+	t.Helper()
+	warnings = nil
+	t.Cleanup(func() { warnings = nil })
+}
+
+// TestCreateOTelFlareDescribesItself checks that the archive says how it was collected, for whoever reads it
+// without the console of the run: when, where, by which version, where the data came from, and the warnings of
+// the run, including the ones from before the collection.
+func TestCreateOTelFlareDescribesItself(t *testing.T) {
+	resetWarnings(t)
+	captureColorOutput(t)
+	configPath := filepath.Join(t.TempDir(), "otel-config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte("extensions:\n  pprof:\n    endpoint: 5\n"), 0o644))
+	globalParams := &subcommands.GlobalParams{ConfPaths: []string{"file:" + configPath}}
+	cfg, ipcComp := newUnreachableCollector(t)
+	cfg.SetInTest("hostname", "flare-test-host")
+	// like a secret backend that failed while the settings were loaded, before the collection
+	warnf("the settings were loaded with a problem")
+
+	flarePath, err := createOTelFlare(globalParams, cfg, ipcComp.GetClient())
+	require.NoError(t, err)
+	defer os.RemoveAll(filepath.Dir(flarePath))
+	info := string(readZip(t, flarePath)["flare-info.txt"])
+
+	require.NotEmpty(t, info, "the archive has no flare-info.txt")
+	assert.Regexp(t, `(?m)^Created: \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$`, info)
+	assert.Contains(t, info, "Hostname: flare-test-host")
+	assert.Contains(t, info, "OS/Arch: "+runtime.GOOS+"/"+runtime.GOARCH)
+	assert.Regexp(t, `(?m)^Version: \S+$`, info)
+	assert.Contains(t, info, "Data source: the configuration files only")
+	assert.Contains(t, info, "not the effective configuration")
+	assert.Contains(t, info, "- the settings were loaded with a problem")
+	assert.Contains(t, info, `- ignoring the debug extension "pprof"`)
+	assert.Contains(t, info, "- could not get the flare data of the running OTel Agent")
+	// the warnings of the last step of the collection, the logs, are there too
+	assert.Contains(t, info, "- no log file of the collector found at")
+}
+
 func TestCreateOTelFlare(t *testing.T) {
 	globalParams := newGlobalParamsTest(t)
 	t.Setenv("DD_HOSTNAME", "flare-test-host")
@@ -200,6 +241,7 @@ func TestCollectOTelDataFallbackHint(t *testing.T) {
 }
 
 func TestCreateOTelFlareFromRunningCollector(t *testing.T) {
+	resetWarnings(t)
 	globalParams := newGlobalParamsTest(t)
 
 	profile := []byte("\x00\x01binary pprof " + testAPIKey)
@@ -254,6 +296,12 @@ func TestCreateOTelFlareFromRunningCollector(t *testing.T) {
 
 	// There is nothing to explain when the collector answered
 	assert.NotContains(t, files, "otel-agent.log")
+
+	// The archive says where its data came from, and that nothing went wrong
+	info := string(files["flare-info.txt"])
+	assert.Contains(t, info, "Data source: the running collector, through its ddflare extension at "+extensionServer.URL)
+	assert.Contains(t, info, "Warnings: none")
+	assert.NotContains(t, info, "not the effective configuration")
 
 	// The log of the collector is collected whether or not it answered
 	assert.Equal(t, "log of the running collector", string(files["logs/otel-agent.log"]))
@@ -946,6 +994,45 @@ func TestWriteFlareArchiveReportsWriteErrors(t *testing.T) {
 	assert.Contains(t, err.Error(), "no space left on device")
 }
 
+// TestWriteFlareArchiveSetsTheTime checks that the files of the archive have the time they were written at,
+// and not the date that a zip file gets without one, which tools show as the year 1980.
+func TestWriteFlareArchiveSetsTheTime(t *testing.T) {
+	var archive bytes.Buffer
+	require.NoError(t, writeFlareArchive(&archive, []flareFile{{name: "a.txt", content: []byte("a")}}))
+
+	reader, err := zip.NewReader(bytes.NewReader(archive.Bytes()), int64(archive.Len()))
+	require.NoError(t, err)
+	require.Len(t, reader.File, 1)
+	assert.WithinDuration(t, time.Now(), reader.File[0].Modified, time.Minute)
+}
+
+// TestWarnfPrintsAndKeepsTheWarning checks that a warning is printed on the console and kept for the archive,
+// as it is, even when it has a % in it.
+func TestWarnfPrintsAndKeepsTheWarning(t *testing.T) {
+	resetWarnings(t)
+	output := captureColorOutput(t)
+
+	warnf("the value %q is 100%% wrong: %v", "x", errors.New("bad %s"))
+
+	assert.Contains(t, output.String(), `Warning: the value "x" is 100% wrong: bad %s`)
+	assert.Equal(t, []string{`the value "x" is 100% wrong: bad %s`}, warnings)
+}
+
+// TestCollectConfigDataKeepsTheWarnings checks that the warnings about the configuration files that can't be
+// loaded are kept for the archive too.
+func TestCollectConfigDataKeepsTheWarnings(t *testing.T) {
+	resetWarnings(t)
+	captureColorOutput(t)
+	missing := "file:" + filepath.Join(t.TempDir(), "missing.yaml")
+
+	_, err := collectConfigData(&subcommands.GlobalParams{ConfPaths: []string{missing}})
+	require.NoError(t, err)
+
+	kept := strings.Join(warnings, "\n")
+	assert.Contains(t, kept, "Could not load customer config")
+	assert.Contains(t, kept, "Could not load runtime config")
+}
+
 // TestCreateArchiveInTempDirRemovesTheDirOnFailure checks that the temporary directory of a flare whose archive
 // can't be created is not left behind.
 func TestCreateArchiveInTempDirRemovesTheDirOnFailure(t *testing.T) {
@@ -1142,12 +1229,27 @@ func TestFlareCommandResolvesSecrets(t *testing.T) {
 // TestFlareCommandSecretBackendFailure checks that a failing secret backend doesn't prevent the
 // flare, which is run to diagnose such problems, and that the flare tells it.
 func TestFlareCommandSecretBackendFailure(t *testing.T) {
+	resetWarnings(t)
 	t.Setenv("DD_API_KEY", "ENC[flare_api_key]")
 	t.Setenv("DD_SECRET_BACKEND_COMMAND", newSecretBackend(t, "#!/bin/sh\nexit 1\n"))
 	output := captureColorOutput(t)
 
 	assert.Equal(t, "ENC[flare_api_key]", flareAPIKey(t, &subcommands.GlobalParams{ConfigName: "datadog-otel"}))
 	assert.Contains(t, output.String(), "could not resolve the secrets")
+	// The archive, which is made later, says it too
+	assert.Contains(t, strings.Join(warnings, "\n"), "could not resolve the secrets")
+}
+
+// TestFlareCommandKeepsTheWarningOfAConfigThatFailsToBuild checks that the warning about a collector
+// configuration that the flare can't build its settings from is kept for the archive.
+func TestFlareCommandKeepsTheWarningOfAConfigThatFailsToBuild(t *testing.T) {
+	resetWarnings(t)
+	captureColorOutput(t)
+	missing := "file:" + filepath.Join(t.TempDir(), "missing.yaml")
+
+	flareConfig(t, &subcommands.GlobalParams{ConfPaths: []string{missing}, ConfigName: "datadog-otel"})
+
+	assert.Contains(t, strings.Join(warnings, "\n"), "could not build the configuration from the collector configuration")
 }
 
 // TestMain keeps the tests off the configuration file of an Agent installed on the machine
