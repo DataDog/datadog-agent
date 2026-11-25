@@ -57,6 +57,17 @@ static __always_inline __u32 get_netns_from_sock(struct sock* sk) {
     return net_ns_inum;
 }
 
+// get_netns_from_sock for a BTF-typed sock pointer (a fentry/fexit/tp_btf argument, or a pointer loaded
+// directly from one): the verifier turns the loads into BPF_PROBE_MEM loads. The kernels that can run those
+// programs all have possible_net_t; any other layout takes the probe-read version above.
+static __maybe_unused __always_inline __u32 get_netns_from_sock_btf(struct sock* sk) {
+    if (bpf_core_field_exists(sk->sk_net.net)) {
+        struct net *ns = sk->sk_net.net;
+        return ns->ns.inum;
+    }
+    return get_netns_from_sock(sk);
+}
+
 #endif // COMPILE_CORE
 
 #ifdef COMPILE_RUNTIME
