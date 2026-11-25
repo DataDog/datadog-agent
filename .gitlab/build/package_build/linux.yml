@@ -32,7 +32,7 @@
 .agent_build_x86:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
-  needs: ["setup_agent_version", "build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
+  needs: ["setup_agent_version", "build_system-probe-x64", "go_deps"]
   variables:
     PACKAGE_ARCH: amd64
     DD_CC: "x86_64-linux-gnu-gcc"
@@ -42,7 +42,7 @@
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64", "specific:true"]
   needs:
-    ["setup_agent_version", "build_system-probe-arm64", "go_deps", "generate_minimized_btfs_arm64"]
+    ["setup_agent_version", "build_system-probe-arm64", "go_deps"]
   variables:
     PACKAGE_ARCH: arm64
     DD_CC: "aarch64-linux-gnu-gcc"

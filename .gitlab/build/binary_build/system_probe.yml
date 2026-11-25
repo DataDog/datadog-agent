@@ -1,7 +1,8 @@
 ---
 .system-probe_build_common:
   extends: .bazel:defs:cache:progressive
-  timeout: 40m
+  # minimizing every kernel BTF without remote cache hits takes ~25m on its own
+  timeout: 1h
   rules:
     - when: on_success
   before_script:
@@ -10,15 +11,25 @@
     - dda inv -- check-go-version
     - dda inv -- -e system-probe.build-object-files
     - dda inv -- -e system-probe.save-build-outputs $CI_PROJECT_DIR/sysprobe-build-outputs.tar.xz
+    - |
+      # RUN_ALL_BUILDS and release branches minimize every kernel again instead of reusing remote cache results
+      if [[ "$RUN_ALL_BUILDS" == "true" || "$CI_COMMIT_BRANCH" =~ ^[0-9]+\.[0-9]+\.x$ ]]; then
+        export BAZEL_BTF_FLAGS=--noremote_accept_cached
+      fi
+    - bazel test --test_output=errors ${BAZEL_BTF_FLAGS:-} //pkg/ebpf:minimized_btfs //pkg/ebpf:minimized_btfs_test
+    - install -m 0644 "$(bazel info bazel-bin)/pkg/ebpf/minimized_btfs.tar.xz" $CI_PROJECT_DIR/minimized-btfs.tar.xz
   variables:
-    KUBERNETES_MEMORY_REQUEST: "6Gi"
-    KUBERNETES_MEMORY_LIMIT: "12Gi"
-    KUBERNETES_CPU_REQUEST: 6
+    DD_DISABLE_VPA: true
+    KUBERNETES_MEMORY_REQUEST: "64Gi"
+    KUBERNETES_MEMORY_LIMIT: "64Gi"
+    KUBERNETES_CPU_REQUEST: 24
+    KUBERNETES_CPU_LIMIT: 24
   artifacts:
     expire_in: 2 weeks
     paths:
       - $CI_PROJECT_DIR/sysprobe-build-outputs.tar.xz
       - $CI_PROJECT_DIR/sysprobe-build-outputs.tar.xz.sum
+      - $CI_PROJECT_DIR/minimized-btfs.tar.xz
 
 build_system-probe-x64:
   stage: binary_build
