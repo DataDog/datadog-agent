@@ -4,7 +4,6 @@ load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
     default_package_metadata = [":package_metadata"],
@@ -42,21 +41,6 @@ COMMON_INCLUDES = [
 # For some reason version of .so in the final package is 2.0.0, not 2.3.x.
 # To ensure the same behavior as the autotools build, we use 2.0.0 here.
 SOVERSION = "2.0.0"
-
-# Public headers installed by unixODBC
-_UNIXODBC_PUBLIC_HEADERS = [
-    "include/odbcinst.h",
-    "include/odbcinstext.h",
-    "include/sql.h",
-    "include/sqlext.h",
-    "include/sqltypes.h",
-    "include/sqlucode.h",
-    "include/sqlspi.h",
-    "include/autotest.h",
-    "include/uodbc_stats.h",
-    "include/uodbc_extras.h",
-    "unixodbc.h",
-]
 
 _LIBLTDL_PUBLIC_HEADERS = [
     "libltdl/ltdl.h",
@@ -256,27 +240,6 @@ cc_shared_library(
 # Packaging
 # ============================================================================
 
-pkg_files(
-    name = "unixodbc_hdr_files",
-    srcs = _UNIXODBC_PUBLIC_HEADERS,
-    prefix = "embedded/include",
-)
-
-pkg_files(
-    name = "unixodbc_conf_hdr_files",
-    srcs = [":unixodbc_conf_h"],
-    prefix = "embedded/include/unixODBC",
-)
-
-# We do need this "fake" ltdl.h to use dlopen
-# and other kernel functions directly without
-# requiring libltdl.
-pkg_files(
-    name = "libltdl_hdr_files",
-    srcs = _LIBLTDL_PUBLIC_HEADERS,
-    prefix = "embedded/include",
-)
-
 dd_cc_packaged(
     name = "odbcinst_pkg",
     dest_dir = "embedded/lib",
@@ -288,10 +251,7 @@ dd_cc_packaged(
 dd_cc_packaged(
     name = "odbc_pkg",
     data = [
-        ":libltdl_hdr_files",
         ":odbccr_pkg_packaged",
-        ":unixodbc_conf_hdr_files",
-        ":unixodbc_hdr_files",
     ],
     dest_dir = "embedded/lib",
     input = ":odbc",
@@ -305,13 +265,4 @@ dd_cc_packaged(
     input = ":odbccr",
     version = SOVERSION,
     visibility = ["//visibility:public"],
-)
-
-pkg_filegroup(
-    name = "all_files",
-    srcs = [
-        ":libltdl_hdr_files",
-        ":unixodbc_conf_hdr_files",
-        ":unixodbc_hdr_files",
-    ],
 )

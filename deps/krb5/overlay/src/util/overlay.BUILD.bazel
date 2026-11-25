@@ -3,7 +3,6 @@ load("//:krb5_defs.bzl", "KRB5_COPTS", "KRB5_LOCAL_DEFINES")
 load("//:krb5_library.bzl", "krb5_shared_library")
 load("//:krb5_tests.bzl", "krb5_c_tests")
 load("@rules_cc//cc:defs.bzl", "cc_library")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
 package(
     default_package_metadata = ["//:package_metadata"],
@@ -172,21 +171,6 @@ krb5_shared_library(
     version = "0.0",
     exports = "verto/libverto.exports",
     deps = ["//:include"],
-)
-
-pkg_files(
-    name = "com_err_hdr_files",
-    srcs = ["et/com_err.h"],
-    prefix = "embedded/include",
-)
-
-pkg_files(
-    name = "verto_hdr_files",
-    srcs = [
-        "verto/verto.h",
-        "verto/verto-module.h",
-    ],
-    prefix = "embedded/include",
 )
 
 cc_library(

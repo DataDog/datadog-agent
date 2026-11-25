@@ -7,7 +7,7 @@ load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
 load(
     "lib_contents.bzl",
     "HDRS",
@@ -249,15 +249,8 @@ cc_shared_library(
     ],
 )
 
-pkg_files(
-    name = "hdr_files",
-    srcs = PUBLIC_HEADERS,
-    prefix = "embedded/include/curl",
-)
-
 dd_cc_packaged(
     name = "curl_pkg",
-    data = [":hdr_files"],
     dest_dir = "embedded/lib",
     input = ":curl_shared",
     libname = "libcurl",
@@ -271,13 +264,6 @@ dd_cc_packaged(
     mode = "0755",
     input = ":curl",
     visibility = ["//visibility:public"],
-)
-
-pkg_filegroup(
-    name = "all_files",
-    srcs = [
-        ":hdr_files",
-    ],
 )
 
 dd_collect_dependencies(

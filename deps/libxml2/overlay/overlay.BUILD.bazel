@@ -3,7 +3,6 @@ load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 VERSION = "2.15.4"
 
@@ -153,24 +152,10 @@ cc_shared_library(
     deps = [":libxml2"],
 )
 
-pkg_files(
-    name = "headers",
-    srcs = PUBLIC_HEADERS,
-    prefix = "embedded/include/libxml2/libxml",
-)
-
 dd_cc_packaged(
     name = "xml2_pkg",
-    data = [":headers"],
     dest_dir = "embedded/lib",
     input = ":xml2",
     version = "16.1.4",
     visibility = ["//visibility:public"],
-)
-
-pkg_filegroup(
-    name = "all_files",
-    srcs = [
-        ":headers",
-    ],
 )

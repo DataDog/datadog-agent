@@ -3,7 +3,7 @@ load("//:krb5_defs.bzl", "KRB5_COPTS", "KRB5_LOCAL_DEFINES")
 load("//:krb5_library.bzl", "krb5_shared_library")
 load("//:krb5_tests.bzl", "krb5_c_tests")
 load("@rules_cc//cc:defs.bzl", "cc_library")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "pkg_mklink")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_mklink")
 
 package(
     default_package_metadata = ["//:package_metadata"],
@@ -359,16 +359,6 @@ krb5_shared_library(
         "//src/util:krb5support_lib",
         "//src/util:verto_lib",
     ],
-)
-
-pkg_files(
-    name = "kadm5_hdr_files",
-    srcs = [
-        "kadm5/admin.h",
-        "kadm5/chpass_util_strings.h",
-        "kadm5/kadm_err.h",
-    ],
-    prefix = "embedded/include/kadm5",
 )
 
 krb5_c_tests(

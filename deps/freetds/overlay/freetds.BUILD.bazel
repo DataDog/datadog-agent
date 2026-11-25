@@ -8,7 +8,7 @@ load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "pkg_attributes", "pkg_mklink")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_mklink")
 
 package(default_package_metadata = [":package_metadata", ":ship_source_offer"])
 
@@ -205,12 +205,6 @@ cc_shared_library(
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
-)
-
-pkg_files(
-    name = "hdr_files",
-    srcs = _PUBLIC_HEADERS,
-    prefix = "include/tdsodbc/",
 )
 
 # Manually create the symlink, freetds doesn't create the usual set

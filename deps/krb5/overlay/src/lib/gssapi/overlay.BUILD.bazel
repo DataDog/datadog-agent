@@ -3,7 +3,6 @@ load("//:krb5_defs.bzl", "KRB5_COPTS", "KRB5_LOCAL_DEFINES")
 load("//:krb5_library.bzl", "krb5_shared_library")
 load("//:krb5_tests.bzl", "krb5_c_tests")
 load("@rules_cc//cc:defs.bzl", "cc_library")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
 package(
     default_package_metadata = ["//:package_metadata"],
@@ -221,19 +220,6 @@ krb5_shared_library(
         "//src/util:com_err_lib",
         "//src/util:krb5support_lib",
     ],
-)
-
-pkg_files(
-    name = "hdr_files",
-    srcs = [
-        "generic/gssapi_alloc.h",
-        "generic/gssapi_ext.h",
-        "generic/gssapi_generic.h",
-        "krb5/gssapi_krb5.h",
-        "mechglue/mechglue.h",
-        ":gssapi_h",
-    ],
-    prefix = "embedded/include/gssapi",
 )
 
 krb5_c_tests(

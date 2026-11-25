@@ -3,7 +3,6 @@ load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(default_package_metadata = [":package_metadata"])
 
@@ -90,28 +89,10 @@ cc_shared_library(
     ],
 )
 
-pkg_files(
-    name = "hdr_files",
-    srcs = ["src/popt.h"],
-    prefix = "embedded/include",
-)
-
 dd_cc_packaged(
     name = "popt_pkg",
-    data = [":hdr_files"],
     dest_dir = "embedded/lib",
     input = ":popt",
     version = "0.0.2",
     visibility = ["//visibility:public"],
-)
-
-pkg_filegroup(
-    name = "all_files",
-    srcs = [
-        ":hdr_files",
-    ],
-    visibility = [
-        "@@//deps/openscap:__pkg__",
-        "@@//packages:__subpackages__",
-    ],
 )

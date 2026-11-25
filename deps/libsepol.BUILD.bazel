@@ -5,7 +5,6 @@ load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_flex//flex:flex.bzl", "flex")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(default_package_metadata = [
     ":package_metadata",
@@ -87,40 +86,9 @@ cc_shared_library(
     ],
 )
 
-pkg_files(
-    name = "hdr_files",
-    srcs = glob([
-        "include/sepol/*.h",
-        "cil/include/cil/*.h",
-    ]),
-    prefix = "embedded/include/sepol",
-)
-
-pkg_files(
-    name = "policy_hdr_files",
-    srcs = glob(["include/sepol/policydb/*.h"]),
-    prefix = "embedded/include/sepol/policydb",
-)
-
 dd_cc_packaged(
     name = "sepol_pkg",
-    data = [
-        ":hdr_files",
-        ":policy_hdr_files",
-    ],
     dest_dir = "embedded/lib",
     input = ":sepol",
     visibility = ["//visibility:public"],
-)
-
-pkg_filegroup(
-    name = "all_files",
-    srcs = [
-        ":hdr_files",
-        ":policy_hdr_files",
-    ],
-    visibility = [
-        "@@//deps/openscap:__pkg__",
-        "@@//packages:__subpackages__",
-    ],
 )

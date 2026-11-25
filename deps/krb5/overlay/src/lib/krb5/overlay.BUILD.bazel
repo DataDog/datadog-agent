@@ -304,7 +304,6 @@ krb5_shared_library(
         'LOCALEDIR=\\"/nonexistent/krb5/share/locale\\"',
         'SBINDIR=\\"/nonexistent/krb5/sbin\\"',
     ],
-    pkg_data = ["//:hdr_files"],
     static_deps = ["//src/util:profile"],
     version = "3.3",
     exports = "libkrb5.exports",

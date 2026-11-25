@@ -1,7 +1,6 @@
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
     default_applicable_licenses = [":license"],
@@ -17,11 +16,6 @@ license(
 )
 
 SO_VERSION = "14.29.5"
-
-PUBLIC_HEADERS = [
-    "lib/includes/nghttp2/nghttp2ver.h",
-    "lib/includes/nghttp2/nghttp2.h",
-]
 
 # This builds only the nghttp2 C library, not the C++ application code.
 # Following the omnibus build configuration which uses:
@@ -111,28 +105,10 @@ cc_shared_library(
     deps = [":libnghttp2"],
 )
 
-pkg_files(
-    name = "header_files",
-    srcs = PUBLIC_HEADERS,
-    prefix = "embedded/include/nghttp2",
-)
-
 dd_cc_packaged(
     name = "nghttp2_pkg",
-    data = [":header_files"],
     dest_dir = "embedded/lib",
     input = ":nghttp2",
     version = SO_VERSION,
     visibility = ["//visibility:public"],
-)
-
-pkg_filegroup(
-    name = "all_files",
-    srcs = [
-        ":header_files",
-    ],
-    visibility = [
-        "@@//deps/openscap:__pkg__",
-        "@@//packages:__subpackages__",
-    ],
 )

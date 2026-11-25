@@ -56,8 +56,15 @@ build do
 
             # Delete the leftovers of static linking.
             delete "#{install_dir}/embedded/lib/libdbus-1.a"
-            delete "#{install_dir}/embedded/include/dbus-1.0"
             delete "#{install_dir}/embedded/lib/dbus-1.0/include"
+
+            # Remove build-time C headers under embedded/include, keeping only Python headers
+            # (embedded/include/python*) which may be needed by `agent integration install`
+            # when compiling C extensions from source.
+            Dir.glob("#{install_dir}/embedded/include/*").each do |entry|
+                next if File.basename(entry).start_with?("python")
+                delete entry
+            end
         end
 
         # Size cleanups for the Windows embedded Python (embedded3), mirroring
@@ -82,6 +89,10 @@ build do
             delete File.join(emb3, "Lib", "site-packages", "lxml", "includes")
             delete File.join(emb3, "Lib", "site-packages", "win32", "libs")
             delete File.join(emb3, "Lib", "site-packages", "win32com", "libs")
+
+            # OpenSSL headers are only needed at build time (FIPS cryptography source build);
+            # CPython's own headers directly under embedded3/include stay.
+            delete File.join(emb3, "include", "openssl")
         end
 
         # TODO: Rather than move these, let's install them to the right place to start
