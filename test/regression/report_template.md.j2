@@ -233,19 +233,28 @@ Target crashes can be retried up to 8 times. Dead non-profiling replicates preve
 
 **CI policy:** bounds checks on `quality_gate_*` experiments are blocking. Job will fail
 - if a check fails on one or more comparison replicate
-- if blocking analysis failures are detected; they'll be flagged with 💥
+- if blocking analysis failures are detected (flagged with 💥 )
 
-Non-blocking analysis issues are indicated by ⚠️ and still deserve to be investigated.
 Other bounds checks and optimization regressions do not fail CI.
 
 **Optimization goals:** a change is significant when its absolute mean change is at least {{ job.tolerances.effect_size | format_percent }} and its {{ job.tolerances.p_value | pvalue_to_confidence | format_percent }} confidence interval excludes zero.
-Meaning of status icons:
-- 🟢 improvement,
-- 🟠 regression,
-- ➖ no significant change,
-- 🔇 marked `erratic: true` in the experiment config. Such experiments are excluded from regression detection.
 
-Note: The **(erratic)** tag marks high sample dispersion detected at runtime. Those results still count.
+**Symbol legend:**
+- 💥 blocking data error: required analysis is missing
+- ⚠️ non-blocking failure notification, still worth investigating
+
+**Bounds check sections:**
+- ✅ all comparison replicates passed
+- ❌ a `quality_gate_*` check failed (blocking)
+- 🟠 a check outside `quality_gate_*` failed (non-blocking)
+- `info` a quantile measurement
+
+**Optimization goal sections:**
+- 🟢 significant improvement
+- 🟠 significant regression (non-blocking)
+- ➖ no significant change detected
+- 🔇 muted: set `erratic: true` in the config. Such experiments are excluded from regression detection.
+- **(erratic)** runtime tag: high sample dispersion detected while running. Those results still count.
 
 Ping [#single-machine-performance](https://dd.enterprise.slack.com/archives/C03LY8MQ73R) for help interpreting a report.
 
