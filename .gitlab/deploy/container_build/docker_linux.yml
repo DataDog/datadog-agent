@@ -497,6 +497,7 @@ docker_build_ot_agent_standalone_fips_amd64:
     TAG_SUFFIX: -7-fips
     BASE_IMAGE_NAME: agent
     BASE_IMAGE_TAG_SUFFIX: -7-fips
+    BUILD_ARG: --target release-fips
 
 docker_build_ot_agent_standalone_fips_arm64:
   extends:
@@ -508,6 +509,7 @@ docker_build_ot_agent_standalone_fips_arm64:
     TAG_SUFFIX: -7-fips
     BASE_IMAGE_NAME: agent
     BASE_IMAGE_TAG_SUFFIX: -7-fips
+    BUILD_ARG: --target release-fips
 
 docker_build_agent7_full:
   extends: [.docker_build_amd64, .docker_build_agent7]

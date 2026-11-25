@@ -108,7 +108,7 @@ RUN \
 # Inject the otel-agent in the base image
 # ------------------------------
 
-FROM $AGENT_BASE_IMAGE_TAG AS release
+FROM $AGENT_BASE_IMAGE_TAG AS release-common
 
 LABEL org.opencontainers.image.title="Otel Agent"
 # Copy the built OTel agent from the builder stage
@@ -116,10 +116,9 @@ COPY --from=builder /workspace/datadog-agent/bin/otel-agent/otel-agent /opt/data
 COPY --from=builder /workspace/datadog-agent/bin/otel-agent/dist/otel-config.yaml /etc/datadog-agent/otel-config.yaml
 # secret-generic-connector, run to resolve ENC[] handles with secret_backend_type. The
 # secrets component looks for it at this hard-coded path. The source directory is empty
-# when the base image already ships it (FIPS); the check below fails the build if
-# neither provides it.
+# when the base image already ships it (FIPS); the check in each final stage below fails
+# the build if neither provides it, or if it can't start.
 COPY --from=builder /workspace/datadog-agent/bin/secret-generic-connector/ /opt/datadog-agent/embedded/bin/
-RUN /opt/datadog-agent/embedded/bin/secret-generic-connector --version
 # Find all directories and files in /etc with world-writable permissions and remove write permissions for group and others
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 
@@ -131,3 +130,20 @@ ENV DOCKER_DD_AGENT=true
 
 ENTRYPOINT ["otel-agent"]
 CMD ["run", "--config", "file:/etc/datadog-agent/otel-config.yaml"]
+
+# ------------------------------
+# Final images: release-fips, built on the FIPS Agent image, and release (the default)
+# ------------------------------
+
+FROM release-common AS release-fips
+# The FIPS connector loads OpenSSL at runtime and, having no RPATH, gets the system
+# libcrypto, which can't enable FIPS mode on its own: the connector panics on start.
+# Point OpenSSL at the Agent's embedded configuration and FIPS provider, as the core
+# Agent does for itself when it initializes Python (pkg/collector/python/init.go), so
+# that the connector inherits them. otel-agent uses the embedded ones already.
+ENV OPENSSL_CONF=/opt/datadog-agent/embedded/ssl/openssl.cnf \
+    OPENSSL_MODULES=/opt/datadog-agent/embedded/lib/ossl-modules
+RUN /opt/datadog-agent/embedded/bin/secret-generic-connector --version
+
+FROM release-common AS release
+RUN /opt/datadog-agent/embedded/bin/secret-generic-connector --version
