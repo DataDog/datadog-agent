@@ -1017,6 +1017,25 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 		}
 	}
 
+	// The sampling collector reports core.limit with the per-process utilization, which NVML does not support on
+	// MIG devices nor on GPUs in MIG mode, so report their static core count here. With the Low priority, the
+	// eBPF collector's value (with the process tags) still wins when it is enabled.
+	apis = append(apis, apiCallInfo{
+		Name: "mig_core_limit",
+		Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
+			cores := device.GetDeviceInfo().CoreCount
+			if slicingModeTag(device) == "none" || cores <= 0 {
+				return nil, 0, errUnsupportedDevice
+			}
+			return []Sample{&Metric{
+				baseSample: baseSample{priority: Low},
+				Name:       "core.limit",
+				Value:      float64(cores),
+				Type:       metrics.GaugeType,
+			}}, 0, nil
+		},
+	})
+
 	apis = append(apis, apiCallInfo{
 		Name: "device_unavailable",
 		Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
