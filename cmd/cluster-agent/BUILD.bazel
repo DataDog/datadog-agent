@@ -144,6 +144,7 @@ dd_agent_go_test(
         "kubelet",
     ]],
     include_default = False,
+    target_compatible_with = ["@platforms//os:linux"],
     deps = select({
         "@rules_go//go/platform:aix": [
             "//pkg/util/log",

@@ -55,7 +55,12 @@ func parseKlogHeaderCaller(header string) (string, int, bool) {
 	return fileLine[:colon], line, true
 }
 
-func resolveKlogFrameDepth(next func() (runtime.Frame, bool), headerFile string, headerLine int, hasHeaderCaller bool, fallback int) int {
+const (
+	initialKlogCallersSize = 32
+	maxKlogCallersSize     = 256
+)
+
+func resolveKlogFrameDepth(next func() (runtime.Frame, bool), headerFile string, headerLine int, hasHeaderCaller bool, fallback int) (int, bool) {
 	seenKlog := false
 	firstNonKlogDepth := -1
 	depth := 0
@@ -69,11 +74,11 @@ func resolveKlogFrameDepth(next func() (runtime.Frame, bool), headerFile string,
 					// depth 0 is Write (stackDepth 1); frame at index depth needs depth + 1.
 					firstNonKlogDepth = depth + 1
 					if !hasHeaderCaller {
-						return firstNonKlogDepth
+						return firstNonKlogDepth, true
 					}
 				}
 				if path.Base(frame.File) == headerFile && frame.Line == headerLine {
-					return depth + 1
+					return depth + 1, true
 				}
 			}
 		}
@@ -83,20 +88,26 @@ func resolveKlogFrameDepth(next func() (runtime.Frame, bool), headerFile string,
 		depth++
 	}
 	if firstNonKlogDepth > 0 {
-		return firstNonKlogDepth
+		return firstNonKlogDepth, false
 	}
-	return fallback
+	return fallback, false
 }
 
 func (l KlogRedirectLogger) resolveStackDepth(headerFile string, headerLine int, hasHeaderCaller bool) int {
-	const maxFrames = 32
-	var pcs [maxFrames]uintptr
-	n := runtime.Callers(2, pcs[:])
-	if n == 0 {
-		return l.stackDepth
+	var stackBuf [initialKlogCallersSize]uintptr
+	pcs := stackBuf[:]
+	for {
+		n := runtime.Callers(2, pcs)
+		if n == 0 {
+			return l.stackDepth
+		}
+		frames := runtime.CallersFrames(pcs[:n])
+		depth, matched := resolveKlogFrameDepth(frames.Next, headerFile, headerLine, hasHeaderCaller, l.stackDepth)
+		if matched || n < len(pcs) || len(pcs) >= maxKlogCallersSize {
+			return depth
+		}
+		pcs = make([]uintptr, min(len(pcs)*2, maxKlogCallersSize))
 	}
-	frames := runtime.CallersFrames(pcs[:n])
-	return resolveKlogFrameDepth(frames.Next, headerFile, headerLine, hasHeaderCaller, l.stackDepth)
 }
 
 func (l KlogRedirectLogger) Write(b []byte) (int, error) {

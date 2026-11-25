@@ -40,6 +40,18 @@ func emitKlogErrorSDepthWrapped() {
 	klogErrorSDepthWrapper()
 }
 
+func klogDeepWrapper(remaining int) {
+	if remaining > 0 {
+		klogDeepWrapper(remaining - 1)
+		return
+	}
+	klogv2.ErrorSDepth(40, errors.New("boom"), "klog deep errorsdepth test")
+}
+
+func emitKlogErrorSDepthBeyondInitialBuffer() {
+	klogDeepWrapper(39)
+}
+
 func TestKlogRedirectCallerAttribution(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
@@ -52,6 +64,7 @@ func TestKlogRedirectCallerAttribution(t *testing.T) {
 	emitKlogErrorS()
 	emitKlogErrorSDepth()
 	emitKlogErrorSDepthWrapped()
+	emitKlogErrorSDepthBeyondInitialBuffer()
 	klogv2.Flush()
 	require.NoError(t, w.Flush())
 
@@ -60,4 +73,5 @@ func TestKlogRedirectCallerAttribution(t *testing.T) {
 	assert.Contains(t, out, "[ERROR] emitKlogErrorS: \"klog errors test\" err=\"boom\"")
 	assert.Contains(t, out, "[ERROR] emitKlogErrorSDepth: \"klog errorsdepth test\" err=\"boom\"")
 	assert.Contains(t, out, "[ERROR] emitKlogErrorSDepthWrapped: \"klog wrapped errorsdepth test\" err=\"boom\"")
+	assert.Contains(t, out, "[ERROR] emitKlogErrorSDepthBeyondInitialBuffer: \"klog deep errorsdepth test\" err=\"boom\"")
 }

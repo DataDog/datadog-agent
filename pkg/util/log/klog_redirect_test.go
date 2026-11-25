@@ -143,7 +143,7 @@ func TestResolveKlogFrameDepth(t *testing.T) {
 				idx++
 				return f, idx < len(tc.frames)
 			}
-			got := resolveKlogFrameDepth(next, tc.headerFile, tc.headerLine, tc.hasHeaderCaller, tc.fallback)
+			got, _ := resolveKlogFrameDepth(next, tc.headerFile, tc.headerLine, tc.hasHeaderCaller, tc.fallback)
 			assert.Equal(t, tc.want, got)
 			assert.Equal(t, tc.wantReads, idx)
 		})
