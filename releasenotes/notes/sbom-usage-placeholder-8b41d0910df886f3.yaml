@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    With runtime usage enrichment (``sbom.enrichment.usage.enabled``), a
+    package of the host SBOM could read ``RunningAsRoot`` as true after a
+    process the probe could not resolve opened one of its code files: such a
+    process stands as a placeholder with zero credentials. Usage now counts
+    for the processes the probe resolves alone.

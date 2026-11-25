@@ -1449,6 +1449,60 @@ func TestResolveOpenOfContainerFile(t *testing.T) {
 	}
 }
 
+// TestResolveSkipsPlaceholder checks that the run or the open of a package file
+// records usage for a resolved process alone. The placeholder of a process the
+// probe could not resolve carries zero credentials, which read as root.
+func TestResolveSkipsPlaceholder(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		container bool
+		open      bool
+	}{
+		{name: "host run"},
+		{name: "host open", open: true},
+		{name: "container run", container: true},
+		{name: "container open", container: true, open: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, source := range []uint64{model.ProcessCacheEntryFromPlaceholder, model.ProcessCacheEntryFromEvent} {
+				r := newHostSBOMResolver(t)
+				r.hostRoot = t.TempDir()
+				sbom := r.hostSBOM
+				pc, file := hostAccess()
+				pc.Source = source
+				if tc.container {
+					sbom = NewSBOM("container-id", nil, "image:tag")
+					sbom.setReport([]sbomtypes.PackageWithInstalledFiles{{
+						Package:        sbomtypes.Package{Name: "util-linux", Version: "2.40.4"},
+						InstalledFiles: []string{"/usr/bin/su"},
+					}})
+					sbom.state.Store(computedState)
+					t.Cleanup(sbom.stop)
+					sboms, err := simplelru.NewLRU[containerutils.ContainerID, *SBOM](1, nil)
+					if err != nil {
+						t.Fatalf("NewLRU: %v", err)
+					}
+					sboms.Add(sbom.ContainerID, sbom)
+					r.sboms = sboms
+					pc.ContainerContext.ContainerID = sbom.ContainerID
+					file.Inode = 1
+				}
+
+				if tc.open {
+					r.ResolveOpen(pc, file)
+				} else {
+					r.ResolvePackage(pc, file)
+				}
+
+				recorded := !sbom.data.packages[0].LastAccess.IsZero() || len(r.opened) > 0
+				if want := source != model.ProcessCacheEntryFromPlaceholder; recorded != want {
+					t.Errorf("%s from source %s: usage recorded = %v, want %v", tc.name, model.ProcessSourceToString(source), recorded, want)
+				}
+			}
+		})
+	}
+}
+
 // elfHeader starts the executables the tests create.
 const elfHeader = "\x7fELF"
 
