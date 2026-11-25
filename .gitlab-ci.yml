@@ -1067,14 +1067,16 @@ workflow:
 
 # New E2E related rules
 
-# Rules evaluated first by every E2E rule, before the PR skip rule and any per-team rule:
-# - RUN_E2E_TESTS=off and light pipelines never run E2E jobs.
-# - Fakeintake changes always run E2E (even with DISABLE_PRE_MERGE_TESTS_AGENT=true), and a
-#   fakeintake server change also sets E2E_FAKEINTAKE_IMAGE_OVERRIDE for the job.
+# Pre-checks shared by all E2E rules: RUN_E2E_TESTS=off and light pipelines never run E2E jobs.
+# This always comes first, so nothing below it can override it.
 .on_e2e_guard:
   - <<: *if_disable_e2e_tests
     when: never
   - !reference [.except_light_pipeline]
+
+# Fakeintake changes run E2E even with DISABLE_PRE_MERGE_TESTS_AGENT=true. Always reference this
+# right after .on_e2e_guard so that RUN_E2E_TESTS=off and light pipelines still win.
+.on_e2e_fakeintake_changes:
   # Fakeintake server change: run e2e against the built v<sha> override image.
   # Main-targeting pipelines only.
   - if: $COMPARE_TO_BRANCH == "main"
@@ -1093,6 +1095,7 @@ workflow:
 
 .on_e2e_main_release_or_rc: # This rule is used as a base for all new-e2e rules
   - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
   - <<: *if_pre_merge_tests_paths
   - <<: *if_pr_skip_e2e_tests
     when: manual
@@ -1134,6 +1137,7 @@ workflow:
 # fakeintake changes (and the override) are handled by .on_e2e_main_release_or_rc.
 .on_e2e_or_fakeintake_changes_or_manual:
   - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
   - changes:
       paths:
         - test/new-e2e/tests/agent-devx/pre-test/*
@@ -1145,6 +1149,7 @@ workflow:
 
 .on_npm_or_e2e_changes:
   - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
   - changes:
       paths:
         - test/new-e2e/tests/npm/**/*
@@ -1159,6 +1164,7 @@ workflow:
 
 .on_acfg_or_e2e_changes:
   - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
   - changes:
       paths:
         - test/new-e2e/tests/agent-configuration/**/*
@@ -1174,6 +1180,7 @@ workflow:
 
 .on_process_or_e2e_changes:
   - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
   - changes:
       paths:
         - test/new-e2e/tests/process/**/*
@@ -1193,6 +1200,7 @@ workflow:
 
 .on_alp_or_e2e_changes:
   - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
   - changes:
       paths:
         - test/new-e2e/tests/agent-log-pipelines/**/*
@@ -1211,6 +1219,7 @@ workflow:
 
 .on_cws_or_e2e_changes:
   - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
   - changes:
       paths:
         - test/new-e2e/tests/cws/**/*
@@ -1223,6 +1232,7 @@ workflow:
 
 .on_installer_or_e2e_changes:
   - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
   - changes:
       paths:
         - test/new-e2e/tests/fleet/**/*
@@ -1248,6 +1258,7 @@ workflow:
 
 .on_netpath_or_e2e_changes:
   - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
   - changes:
       paths:
         - test/new-e2e/tests/netpath/**/*
@@ -1271,6 +1282,7 @@ workflow:
 
 .on_otel_or_e2e_changes:
   - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
   - changes:
       paths:
         - test/new-e2e/tests/otel/**/*
@@ -1302,6 +1314,7 @@ workflow:
 
 .on_windows_service_or_e2e_changes:
   - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
   - changes:
       paths:
         - test/new-e2e/tests/windows/service-test/**/*
@@ -1325,6 +1338,7 @@ workflow:
 
 .on_windows_powershell_check_or_e2e_changes:
   - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
   - changes:
       paths:
         - test/new-e2e/tests/windows/powershell-check/**/*
@@ -1342,6 +1356,7 @@ workflow:
 
 .on_windows_certificate_or_e2e_changes:
   - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
   - changes:
       paths:
         - test/new-e2e/tests/windows/windows-certificate/**/*
@@ -1356,6 +1371,7 @@ workflow:
 
 .on_windows_fips_compliance_or_e2e_changes:
   - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
   - changes:
       paths:
         - test/new-e2e/tests/fips-compliance/**/*
@@ -1378,6 +1394,7 @@ workflow:
 
 .on_systemprobe_or_e2e_changes:
   - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
   - changes:
       paths:
         - test/new-e2e/tests/sysprobe-functional/**/*
@@ -1397,6 +1414,7 @@ workflow:
 
 .on_windows_security_or_e2e_changes:
   - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
   - changes:
       paths:
         - test/new-e2e/tests/security-agent-functional/**/*
