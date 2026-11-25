@@ -372,6 +372,10 @@ func runExperiment(ctx context.Context, request unitsRequest, status unitsStatus
 	return superviseExperiment(ctx, request)
 }
 
+// childExitHandled is called once the supervisor has handled a child job's exit that did not fail
+// the experiment. Tests replace it to wait on that.
+var childExitHandled = func(childExit) {}
+
 // childExit is the exit of one of the experiment Agent's child jobs.
 type childExit struct {
 	label  string
@@ -451,6 +455,7 @@ func superviseExperiment(ctx context.Context, request unitsRequest) error {
 			if exitFailsExperiment(child.label, exitedCleanly(child.status)) {
 				return failExperiment(ctx, request, fmt.Sprintf("%s exited (status %d)", child.label+string(launchd.Experiment), child.status))
 			}
+			childExitHandled(child)
 		case <-changes:
 		case <-ticker.C:
 		}

@@ -321,10 +321,28 @@ func TestSupervisorLeavesACleanChildExitDown(t *testing.T) {
 				l.pids["system/com.datadoghq.data-plane-exp"] = exitingProcess(t, 0)
 			}
 			l.mu.Unlock()
+			handled := make(chan childExit, 1)
+			if !exitBeforeArming {
+				childExitHandled = func(c childExit) { handled <- c }
+				t.Cleanup(func() { childExitHandled = func(childExit) {} })
+			}
 			runSupervisor(t)
 
 			waitForStatus(t, r, unitsPhaseDone)
-			time.Sleep(500 * time.Millisecond)
+			if exitBeforeArming {
+				// Nothing to wait on: the job was never watched. Nothing may fail it meanwhile.
+				assert.Never(t, func() bool {
+					s, err := readUnitsStatus()
+					return err != nil || s.phase != unitsPhaseDone
+				}, 500*time.Millisecond, 50*time.Millisecond, "a clean child exit must not fail the experiment")
+			} else {
+				select {
+				case c := <-handled:
+					assert.Equal(t, "com.datadoghq.data-plane", c.label)
+				case <-time.After(10 * time.Second):
+					t.Fatal("the supervisor never saw the child exit")
+				}
+			}
 			status, err := readUnitsStatus()
 			require.NoError(t, err)
 			assert.Equal(t, unitsPhaseDone, status.phase, "a clean child exit must not fail the experiment")
