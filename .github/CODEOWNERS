@@ -1292,6 +1292,7 @@
 # This needs to go after all other rules that may include BUILD.bazel files, it otherwise gets overridden
 /**/*.bzl       @DataDog/agent-build
 /tasks/agent_payload_version.bzl # do not notify anyone
+/bazel/go_tags/closure_tags.bzl  # do not notify anyone
 
 # Packaging rules (which files go into which package) for the main agent binary, owned by agent-build.
 # Must stay last for the same reason as the /**/*.bzl rule above.
