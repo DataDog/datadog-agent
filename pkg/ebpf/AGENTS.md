@@ -19,8 +19,9 @@ Run `uname -sm` first. Results only hold for the OS, kernel, and architecture th
    the Go compiles for Linux, nothing more: it doesn't compile the eBPF C code or load anything.
 2. **Develop against local KMT VMs.** KMT launches VMs with the right kernels, and `kmt.test` builds
    the objects and test binaries from your tree and copies them to the VM, so each run tests your
-   current change. Setup, including macOS hosts, is in `tasks/kernel_matrix_testing/README.md`; the
-   minimal loop from it is:
+   current change. It runs the VMs on your machine, so it needs a Linux or macOS workstation; it isn't
+   supported in workspaces, where local VMs are `blocked`. Setup, including macOS hosts, is in
+   `tasks/kernel_matrix_testing/README.md`; the minimal loop from it is:
 
    ```bash
    dda inv -e kmt.init --images=ubuntu_22.04          # once; resets existing KMT state
@@ -50,8 +51,7 @@ Run `uname -sm` first. Results only hold for the OS, kernel, and architecture th
      `error obtaining VCS status`.
    - On macOS, `kmt.init` needs `sudo` (libvirt and virtlogd services, bootpd, NFS, IP forwarding), so
      a person must run it in a terminal first; until then, local VMs are `blocked`. Pass
-     `--skip-ssh-setup` when only local VMs are needed: until DataDog/datadog-agent#60814 merges,
-     `kmt.init`'s SSH key discovery crashes on key names that contain dots. After `kmt.init`, the loop
+     `--skip-ssh-setup` when only local VMs are needed. After `kmt.init`, the loop
      above runs on an Apple Silicon Mac without `sudo`, given the workarounds in
      [`TESTING_GOTCHAS.md`](TESTING_GOTCHAS.md).
    - The compiler image comes from Datadog's internal registry. Outside contributors can use any Linux
