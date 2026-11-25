@@ -72,6 +72,7 @@ dd_agent_go_test(
     srcs = [
         "custom_query_schedule_test.go",
         "remote_query_encode_test.go",
+        "remote_query_live_test.go",
         "remote_query_test.go",
         "testsetup_helpers_test.go",
         "testsetup_test.go",

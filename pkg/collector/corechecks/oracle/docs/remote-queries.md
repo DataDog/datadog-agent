@@ -36,3 +36,13 @@ The core Agent's [remote queries specification](../../../remotequeries/docs/spec
   not proof that Oracle stops the statement.
 - **Logs and errors** never contain SQL, credentials, DSNs, hosts or rows. A database failure
   carries at most its `ORA-nnnnn` code.
+
+## Live smoke test
+
+`remote_query_live_test.go` runs the real `openRemoteOracle`/go-ora path against a real Oracle
+database with a local HTTPS stub intake. It is skipped unless `RQ_ORACLE_LIVE_HOST` is set (see the
+file header for the login variables). It was run against Oracle Free 23.26 (`FREEPDB1`, ARM64) with
+a SELECT-only login that reaches `RQ_ORACLE_PROBE` through a private synonym. It checks exact
+`NUMBER` text beyond 2^53 and with a 37-digit fraction, `VARCHAR2` with Unicode and quoting, NULLs,
+page upload and finalize, an empty result, and that the run's transaction refuses a write
+(`ORA-01456`) for a login that may write. It does not prove backend cancellation.
