@@ -1139,6 +1139,16 @@ workflow:
     when: on_success
 
 .on_e2e_or_windows_installer_changes:
+  - !reference [.on_e2e_guard]
+  - !reference [.on_e2e_fakeintake_changes]
+  # Test definitions (also listed in .if_windows_installer_changes, which is shared with
+  # .except_windows_installer_changes, hence not removed there).
+  - changes:
+      paths:
+        - test/new-e2e/tests/windows/install-test/**/*
+        - test/new-e2e/tests/windows/domain-test/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - <<: *if_windows_installer_changes
     when: on_success
