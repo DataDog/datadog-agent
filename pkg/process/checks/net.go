@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/netip"
+	"slices"
 	"sort"
 	"strconv"
 	"time"
@@ -34,6 +35,7 @@ import (
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	hostinfoutils "github.com/DataDog/datadog-agent/pkg/util/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -87,6 +89,18 @@ type ConnectionsCheck struct {
 	hostTagProvider *hosttags.HostTagProvider
 	tagger          tagger.Component
 	clock           clock.Clock
+}
+
+// hostTags returns the host tags for the payloads of a check run: the expected host tags and, on
+// ECS Fargate, the task's tags. The fargate_task: hostname already identifies the task; the tags
+// are sent so both CNM senders send the same ones. They're sorted and deduplicated, so encoding
+// them for each batch doesn't modify them.
+func (c *ConnectionsCheck) hostTags() []string {
+	hostTags := slices.Clone(c.hostTagProvider.GetHostTags())
+	taskTags, _ := fargate.ECSTaskTags(c.tagger)
+	hostTags = append(hostTags, taskTags...)
+	slices.Sort(hostTags)
+	return slices.Compact(hostTags)
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -209,7 +223,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	}
 
 	groupID := nextGroupID()
-	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor, c.processNameExtractor, conns.ResolvConfs, iisTags, procCacheTags, listeners)
+	messages := batchConnections(c.hostInfo, c.hostTags(), getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor, c.processNameExtractor, conns.ResolvConfs, iisTags, procCacheTags, listeners)
 	return StandardRunResult(messages), nil
 }
 
@@ -457,7 +471,7 @@ func remapDNSStatsByOffset(c *model.Connection, indexToOffset []int32) {
 // Connections are split up into a chunks of a configured size conns per message to limit the message size on intake.
 func batchConnections(
 	hostInfo *HostInfo,
-	hostTagProvider *hosttags.HostTagProvider,
+	hostTags []string,
 	containerTagProvider func(string) ([]string, error),
 	processTagProvider func(int32) ([]string, error),
 	maxConnsPerMessage int,
@@ -652,7 +666,7 @@ func batchConnections(
 
 		hostTagsIndex := -1
 		// Add host tags if needed
-		if hostTags := hostTagProvider.GetHostTags(); len(hostTags) > 0 {
+		if len(hostTags) > 0 {
 			hostTagsIndex = tagsEncoder.Encode(hostTags)
 		}
 
