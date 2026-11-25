@@ -9,6 +9,7 @@ package main
 import (
 	"bytes"
 	"embed"
+	"errors"
 	"flag"
 	"fmt"
 	"go/format"
@@ -26,9 +27,11 @@ import (
 var assets embed.FS
 
 type targetConfig struct {
-	Version       string   `yaml:"version"`
-	CopyrightYear int      `yaml:"copyrightYear"`
-	Resources     []string `yaml:"resources"`
+	APIGroup              string   `yaml:"apiGroup"`
+	Version               string   `yaml:"version"`
+	CopyrightYear         int      `yaml:"copyrightYear"`
+	Resources             []string `yaml:"resources"`
+	ListNamespaceRequired bool     `yaml:"listNamespaceRequired"`
 }
 
 type action struct {
@@ -82,7 +85,7 @@ func main() {
 
 func run(sdkRoot, bundle, source, out string, check bool) error {
 	if sdkRoot == "" {
-		return fmt.Errorf("--sdk-root is required; use bazel run //tools/privateactionrunner/kubernetes-generator")
+		return errors.New("--sdk-root is required; use bazel run //tools/privateactionrunner/kubernetes-generator")
 	}
 	raw, err := assets.ReadFile("config.yaml")
 	if err != nil {
@@ -98,6 +101,26 @@ func run(sdkRoot, bundle, source, out string, check bool) error {
 			return fmt.Errorf("unknown bundle %q", bundle)
 		}
 		targets = map[string]targetConfig{bundle: cfg}
+	} else {
+		entries, err := os.ReadDir(source)
+		if err != nil {
+			return err
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			if _, ok := targets[entry.Name()]; ok {
+				continue
+			}
+			generated, err := filepath.Glob(filepath.Join(source, entry.Name(), "*.gen.go"))
+			if err != nil {
+				return err
+			}
+			if len(generated) > 0 {
+				return fmt.Errorf("unconfigured generated bundle %q: add it to config.yaml", entry.Name())
+			}
+		}
 	}
 	names := make([]string, 0, len(targets))
 	for name := range targets {

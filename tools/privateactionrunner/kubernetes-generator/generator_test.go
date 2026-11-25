@@ -58,6 +58,8 @@ type HorizontalPodAutoscalerInterface interface {
 	HorizontalPodAutoscalerExpansion
 }
 `)
+	writeFixture(t, filepath.Join(root, "k8s.io/client-go/kubernetes/typed/autoscaling/v2/ignored_test.go"), "not Go syntax")
+	writeFixture(t, filepath.Join(root, "k8s.io/client-go/kubernetes/typed/autoscaling/v2/README.md"), "not Go syntax")
 	cfg := targetConfig{Version: "v2", CopyrightYear: 2026, Resources: []string{"HorizontalPodAutoscaler"}}
 	files, err := generateBundle(root, "autoscaling", source, cfg)
 	require.NoError(t, err)
@@ -96,6 +98,12 @@ type HorizontalPodAutoscalerInterface interface {
 	require.Contains(t, entry, `"zulu":  NewZuluHandler()`)
 	require.NotContains(t, entry, "NewHelperHandler")
 	require.NotContains(t, entry, "NewReceiverHandler")
+	// Admission's bundle directory differs from its SDK package and public types.
+	cfg.APIGroup = "autoscaling"
+	aliased, err := generateBundle(root, "different-directory", source, cfg)
+	require.NoError(t, err)
+	require.Equal(t, files, aliased)
+	cfg.APIGroup = ""
 	cfg.Resources = []string{"MissingResource"}
 	_, err = generateBundle(root, "autoscaling", source, cfg)
 	require.ErrorContains(t, err, "no client interface for resource MissingResource")
@@ -125,6 +133,38 @@ func TestMethodContracts(t *testing.T) {
 			require.True(t, ok)
 			require.Equal(t, "get"+tc.name, get.Name)
 		})
+	}
+}
+
+func TestListNamespaceValidation(t *testing.T) {
+	for _, required := range []bool{false, true} {
+		for _, namespaced := range []bool{false, true} {
+			cfg := targetConfig{Version: "v1", ListNamespaceRequired: required}
+			res := resource{Name: "Role", NamePluralized: "Roles", Namespaced: namespaced}
+			a, ok := methodAction("List", "rbac", cfg, res)
+			require.True(t, ok)
+			contents, err := render("actions", a)
+			require.NoError(t, err)
+			if namespaced && required {
+				require.Contains(t, string(contents), `errors.New("namespace is required")`)
+			} else {
+				require.NotContains(t, string(contents), `errors.New("namespace is required")`)
+			}
+		}
+	}
+}
+
+func TestRunRejectsUnconfiguredGeneratedBundles(t *testing.T) {
+	root := t.TempDir()
+	source := filepath.Join(root, "source")
+	filename := filepath.Join(source, "newbundle", "get_resource.gen.go")
+	writeFixture(t, filename, "existing generated file")
+	for _, check := range []bool{false, true} {
+		err := run(root, "", source, source, check)
+		require.ErrorContains(t, err, `unconfigured generated bundle "newbundle"`)
+		contents, err := os.ReadFile(filename)
+		require.NoError(t, err)
+		require.Equal(t, "existing generated file", string(contents))
 	}
 }
 
