@@ -1,0 +1,6 @@
+fixes:
+  - |
+    On Windows, reinstalling a package whose previous version directory
+    could not be fully removed no longer fails on extra files left in that
+    directory. The installer now removes them, and leaves in place those
+    that are still in use.
