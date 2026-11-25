@@ -657,6 +657,12 @@ func TestSyntaxErrors(t *testing.T) {
 				"process.argv[A == \"a\"\n" +
 				"               ^^",
 		},
+		{
+			expr: `[A[&00]`,
+			expected: "1:4: expected operand, found `&`\n" +
+				"[A[&00]\n" +
+				"   ^",
+		},
 	}
 
 	for _, test := range tests {
