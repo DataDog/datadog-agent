@@ -430,6 +430,12 @@ namespace Datadog.CustomActions
 
                 if (string.IsNullOrEmpty(ddAgentUserName))
                 {
+                    if (!string.IsNullOrEmpty(_session.Property(InstallStateCustomActions.StoredAgentUserMismatchPropertyName)))
+                    {
+                        throw new InvalidAgentUserConfigurationException(
+                            $"The account stored in the registry does not match the account the {Constants.AgentServiceName} service runs as. Please specify the Datadog Agent account in the installer dialog or with DDAGENTUSER_NAME.");
+                    }
+
                     if (_isDomainController)
                     {
                         // require user to provide a username on domain controllers so that the customer is explicit

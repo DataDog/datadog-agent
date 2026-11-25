@@ -189,7 +189,7 @@ namespace Datadog.CustomActions
             _nativeMethods.AddPrivilege(_ddAgentUserSID, AccountRightsConstants.SeDenyRemoteInteractiveLogonRight);
         }
 
-        private void ConfigureRegistryPermissions()
+        internal void ConfigureRegistryPermissions()
         {
             // Replace explicit rules on the installation key, including old Agent-account
             // grants (current or previous account), while leaving inheritance enabled.
@@ -200,6 +200,20 @@ namespace Datadog.CustomActions
                 Constants.DatadogAgentRegistryKey);
             if (key != null)
             {
+                // Reset the owner first via a WRITE_OWNER handle: an owner, which earlier versions let the Agent account become, can rewrite the DACL.
+                using (var ownerKey = _registryServices.OpenRegistryKey(Registries.LocalMachine,
+                           Constants.DatadogAgentRegistryKey, RegistryRights.TakeOwnership | RegistryRights.ReadPermissions))
+                {
+                    if (ownerKey == null)
+                    {
+                        throw new Exception("Could not set registry owner.");
+                    }
+
+                    var ownerDescriptor = new RegistrySecurity();
+                    ownerDescriptor.SetOwner(new SecurityIdentifier("SY"));
+                    ownerKey.SetAccessControl(ownerDescriptor);
+                }
+
                 var registrySecurity = new RegistrySecurity();
                 // Allow system and admins to access registry, standard privs
                 registrySecurity.AddAccessRule(new RegistryAccessRule(
@@ -781,8 +795,18 @@ namespace Datadog.CustomActions
 
             if (string.IsNullOrEmpty(ddAgentUserName))
             {
-                // LookupAccountName("") succeeds and resolves to a domain SID (e.g. BUILTIN), not a user.
-                _session.Log("DDAGENTUSER_NAME is not set, skipping per-user file access removal");
+                // Fall back to the stored account ReadInstallState did not use: removing its access is harmless.
+                securityIdentifier = InstallStateCustomActions.GetPreviousAgentUser(_session, _registryServices, _nativeMethods);
+                validUser = securityIdentifier != null;
+                if (validUser)
+                {
+                    ddAgentUserName = securityIdentifier.Value;
+                }
+                else
+                {
+                    // LookupAccountName("") succeeds and resolves to a domain SID (e.g. BUILTIN), not a user.
+                    _session.Log("DDAGENTUSER_NAME is not set, skipping per-user file access removal");
+                }
             }
             else
             {

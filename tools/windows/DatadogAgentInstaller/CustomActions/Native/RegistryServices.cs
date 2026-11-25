@@ -1,5 +1,6 @@
 using Datadog.CustomActions.Interfaces;
 using Microsoft.Win32;
+using System.Security.AccessControl;
 
 namespace Datadog.CustomActions.Native
 {
@@ -40,6 +41,27 @@ namespace Datadog.CustomActions.Native
                 return null;
             }
             key = key.OpenSubKey(path, writable);
+            if (key == null)
+            {
+                return null;
+            }
+
+            return new RegistryKey(key);
+        }
+
+        public IRegistryKey OpenRegistryKey(Registries registry, string path, RegistryRights rights)
+        {
+            var key = registry switch
+            {
+                Registries.LocalMachine => Registry.LocalMachine,
+                _ => null
+            };
+            if (key == null)
+            {
+                return null;
+            }
+
+            key = key.OpenSubKey(path, RegistryKeyPermissionCheck.ReadWriteSubTree, rights);
             if (key == null)
             {
                 return null;

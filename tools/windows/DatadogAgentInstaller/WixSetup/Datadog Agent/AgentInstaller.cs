@@ -82,6 +82,11 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                // Set by ReadInstallState when the stored Agent account does not match the Agent service account
+                new Property("DDAGENTUSER_STORED_MISMATCH")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 // User provided password property
                 new Property("DDAGENTUSER_PASSWORD")
                 {

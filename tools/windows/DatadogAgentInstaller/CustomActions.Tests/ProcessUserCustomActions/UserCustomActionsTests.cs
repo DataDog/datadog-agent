@@ -77,6 +77,22 @@ namespace CustomActions.Tests.ProcessUserCustomActions
                 .BeEmpty();
         }
 
+        [Fact]
+        public void ProcessDdAgentUserCredentials_Fails_Without_Account_When_Stored_Account_Was_Not_Used()
+        {
+            Test.Session
+                .Setup(session => session["DDAGENTUSER_STORED_MISMATCH"]).Returns("true");
+
+            Test.Create()
+                .ProcessDdAgentUserCredentials()
+                .Should()
+                .Be(ActionResult.Failure);
+
+            Test.Properties
+                .Should()
+                .BeEmpty();
+        }
+
         /// <summary>
         /// Test when the user tries to use "LocalSystem"
         /// </summary>

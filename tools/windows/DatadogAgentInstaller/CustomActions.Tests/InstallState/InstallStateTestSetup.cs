@@ -1,9 +1,12 @@
 using AutoFixture;
+using CustomActions.Tests.ProcessUserCustomActions;
 using Datadog.AgentCustomActions;
+using Datadog.CustomActions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Moq;
 using System.Collections.Generic;
+using System.Security.Principal;
 
 namespace CustomActions.Tests.InstallState
 {
@@ -39,6 +42,46 @@ namespace CustomActions.Tests.InstallState
             {
                 mockRegKey.Setup(r => r.GetValue(kvp.Key)).Returns(kvp.Value);
             }
+
+            return this;
+        }
+
+        public InstallStateTestSetup WithAgentServiceAccount(string account)
+        {
+            var serviceKey = new Mock<IRegistryKey>();
+            serviceKey.Setup(r => r.GetValue("ObjectName")).Returns(account);
+            RegistryServices.Setup(r => r.OpenRegistryKey(Registries.LocalMachine,
+                $@"SYSTEM\CurrentControlSet\Services\{Constants.AgentServiceName}")).Returns(serviceKey.Object);
+            return this;
+        }
+
+        /// <summary>
+        /// Resolves <c>accountName</c> to <c>domain\user</c> like LookupAccountName.
+        /// </summary>
+        public InstallStateTestSetup WithAccount(string accountName, string domain, string user,
+            SecurityIdentifier accountSid = null, SID_NAME_USE accountNameUse = SID_NAME_USE.SidTypeUser)
+        {
+            NativeMethods.Setup(n => n.LookupAccountName(
+                    accountName,
+                    out It.Ref<string>.IsAny,
+                    out It.Ref<string>.IsAny,
+                    out It.Ref<SecurityIdentifier>.IsAny,
+                    out It.Ref<SID_NAME_USE>.IsAny))
+                .Callback(new LookupAccountNameDelegate(
+                    (
+                        string _,
+                        out string u,
+                        out string d,
+                        out SecurityIdentifier sid,
+                        out SID_NAME_USE nameUse
+                    ) =>
+                    {
+                        u = user;
+                        d = domain;
+                        sid = accountSid;
+                        nameUse = accountNameUse;
+                    }))
+                .Returns(true);
 
             return this;
         }

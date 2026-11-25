@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    On Windows, when the Agent installer runs without ``DDAGENTUSER_NAME`` and the
+    ``datadogagent`` service is not installed or does not run as the account stored under
+    ``HKLM\SOFTWARE\Datadog\Datadog Agent``, the installer no longer uses the stored account.
+    It uses the default ``ddagentuser`` account if the service runs as it, and otherwise
+    fails with a message asking for the account.
+    The installer also sets the owner of that registry key to ``SYSTEM``.
