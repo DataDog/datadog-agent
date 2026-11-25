@@ -764,17 +764,16 @@ func (d *DeviceInfo) queryHostLink(dev SafeDevice) HostLinkInfo {
 	case !IsUnsupported(err):
 		singleton.logDeviceWarning(d.UUID, "cannot get C2C mode: %v", err)
 	}
-	count := 0
-	if link.C2CEnabled == nil {
-		// Drivers without the C2C mode query still report the link count.
-		if count = d.queryC2CLinkCount(dev); count > 0 {
-			enabled := true
-			link.C2CEnabled = &enabled
-		}
-	} else if *link.C2CEnabled {
-		count = d.queryC2CLinkCount(dev)
+	if link.C2CEnabled != nil && !*link.C2CEnabled {
+		return link
 	}
-	if link.C2CEnabled != nil && *link.C2CEnabled {
+	// C2C is enabled or unknown. Drivers without the mode query still report the link count.
+	count := d.queryC2CLinkCount(dev)
+	if link.C2CEnabled == nil && count > 0 {
+		enabled := true
+		link.C2CEnabled = &enabled
+	}
+	if link.C2CEnabled != nil {
 		link.C2CLinkCount, link.C2CMaxBandwidthMBps = count, d.queryC2CBandwidth(dev, count)
 	}
 	return link
