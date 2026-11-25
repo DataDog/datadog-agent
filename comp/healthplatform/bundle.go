@@ -120,7 +120,11 @@ func bootstrapBuiltInHealthChecks(
 					for _, t := range once.IssueNames {
 						for _, id := range store.GetActiveIssueIDsByIssueName(t) {
 							if _, still := newSet[id]; !still {
-								store.ResolveIssue(id)
+								// A startup-once check has no next run to retry on:
+								// the issue stays active until the next restart.
+								if err := store.ResolveIssue(id); err != nil {
+									logger.Warnf("built-in once-check %q: failed to resolve stale issue %s: %v", once.Source, id, err)
+								}
 							}
 						}
 					}

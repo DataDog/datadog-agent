@@ -276,6 +276,94 @@ func TestComponentReportsAndResolvesUDSDropIssue(t *testing.T) {
 	require.Equal(t, []string{issueID}, healthPlatform.ResolvedIDs())
 }
 
+func TestComponentRetriesDroppedResolution(t *testing.T) {
+	detector, healthPlatform := newTestComponent(t)
+	advance := useTestClock(detector)
+	unhealthy := clientByteStats{sent: 980, dropped: 20}
+	completeWindow(detector, unhealthy)
+	advance(detector.unhealthyConfirmationDuration)
+	completeWindow(detector, unhealthy)
+	issueID := goClientState(detector).issueID
+	require.NotNil(t, healthPlatform.GetIssue(issueID))
+
+	// Recovery is confirmed, but the queue is full when the detector resolves.
+	healthy := clientByteStats{sent: 1000}
+	completeWindow(detector, healthy)
+	advance(detector.recoveryConfirmationDuration)
+	healthPlatform.SetResolveIssueError(healthplatformstore.ErrQueueFull)
+	completeWindow(detector, healthy)
+	require.True(t, goClientState(detector).issueActive, "a dropped resolution must leave the issue active for a retry")
+	require.NotNil(t, healthPlatform.GetIssue(issueID))
+
+	// The next healthy window resolves it right away.
+	healthPlatform.SetResolveIssueError(nil)
+	completeWindow(detector, healthy)
+	require.False(t, goClientState(detector).issueActive)
+	require.Nil(t, healthPlatform.GetIssue(issueID))
+}
+
+func TestComponentRetriesDroppedResolutionWhenClientGoesQuiet(t *testing.T) {
+	detector, healthPlatform := newTestComponent(t)
+	advance := useTestClock(detector)
+	unhealthy := clientByteStats{sent: 980, dropped: 20}
+	completeWindow(detector, unhealthy)
+	advance(detector.unhealthyConfirmationDuration)
+	completeWindow(detector, unhealthy)
+	issueID := goClientState(detector).issueID
+
+	healthy := clientByteStats{sent: 1000}
+	completeWindow(detector, healthy)
+	advance(detector.recoveryConfirmationDuration)
+	healthPlatform.SetResolveIssueError(healthplatformstore.ErrQueueFull)
+	completeWindow(detector, healthy)
+	require.NotNil(t, healthPlatform.GetIssue(issueID))
+
+	// The client goes quiet: a window with no traffic must still retry.
+	healthPlatform.SetResolveIssueError(nil)
+	completeWindow(detector, clientByteStats{})
+	require.False(t, goClientState(detector).issueActive)
+	require.Nil(t, healthPlatform.GetIssue(issueID))
+}
+
+func TestComponentRetriesDroppedStaleResolution(t *testing.T) {
+	detector, healthPlatform := newTestComponent(t)
+	state := goClientState(detector)
+	require.NoError(t, healthPlatform.ReportIssue(&healthplatformpayload.Issue{Id: "stale", IssueName: "t"}))
+	state.staleIssueIDs = []string{"stale"}
+
+	// The current issue is resolved, but the stale ID's resolution is dropped.
+	healthPlatform.SetResolveIssueError(healthplatformstore.ErrQueueFull)
+	detector.resolveStaleIssues(state)
+	require.Equal(t, []string{"stale"}, state.staleIssueIDs)
+
+	// A later window retries it even though no issue is active.
+	healthPlatform.SetResolveIssueError(nil)
+	completeWindow(detector, clientByteStats{sent: 1000})
+	require.Empty(t, state.staleIssueIDs)
+	require.Nil(t, healthPlatform.GetIssue("stale"))
+}
+
+func TestComponentRetriesDroppedStaleResolutionWhileIssueActive(t *testing.T) {
+	detector, healthPlatform := newTestComponent(t)
+	advance := useTestClock(detector)
+	unhealthy := clientByteStats{sent: 980, dropped: 20}
+	completeWindow(detector, unhealthy)
+	advance(detector.unhealthyConfirmationDuration)
+	completeWindow(detector, unhealthy)
+	state := goClientState(detector)
+	require.True(t, state.issueActive)
+
+	// The replacement is reported, but the stale ID's resolution was dropped.
+	require.NoError(t, healthPlatform.ReportIssue(&healthplatformpayload.Issue{Id: "stale", IssueName: "t"}))
+	state.staleIssueIDs = []string{"stale"}
+
+	// The client goes quiet: a window with no traffic must still retry it.
+	completeWindow(detector, clientByteStats{})
+	require.Empty(t, state.staleIssueIDs)
+	require.Nil(t, healthPlatform.GetIssue("stale"))
+	require.True(t, state.issueActive, "the current issue is unaffected")
+}
+
 func TestComponentMaintainsIndependentIssuesPerClientLibrary(t *testing.T) {
 	detector, healthPlatform := newTestComponent(t)
 	advance := useTestClock(detector)

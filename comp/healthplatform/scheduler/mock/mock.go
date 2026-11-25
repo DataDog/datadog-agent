@@ -73,7 +73,7 @@ func (m *Mock) Schedule(source string, fn runnerdef.HealthCheckFunc, _ time.Dura
 	}
 	for _, id := range initialIssueIDs {
 		if _, still := newSet[id]; !still {
-			m.store.ResolveIssue(id)
+			_ = m.store.ResolveIssue(id)
 		}
 	}
 	return nil

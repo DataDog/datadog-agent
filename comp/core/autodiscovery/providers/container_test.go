@@ -67,13 +67,14 @@ func (h *blockingContainerHealth) ReportIssue(issue *healthplatformpayload.Issue
 	return err
 }
 
-func (h *blockingContainerHealth) ResolveIssue(id string) {
+func (h *blockingContainerHealth) ResolveIssue(id string) error {
 	h.resolveStarted <- id
 	if h.resolveRelease != nil {
 		<-h.resolveRelease
 	}
-	h.Mock.ResolveIssue(id)
+	err := h.Mock.ResolveIssue(id)
 	h.completed <- "resolve:" + id
+	return err
 }
 
 func newContainerHealthTestStream(t *testing.T, reportRelease, resolveRelease <-chan struct{}) (*ContainerConfigProvider, *containerHealthTestStore, *blockingContainerHealth, <-chan integration.ConfigChanges) {

@@ -987,7 +987,8 @@ func TestMutationsDropAndCountWhenQueueFull(t *testing.T) {
 		defer close(done)
 		assert.Error(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:overflow", IssueName: "t"}),
 			"a full queue must return an error so callers can retry")
-		h.ResolveIssue("t:0")
+		assert.ErrorIs(t, h.ResolveIssue("t:0"), storedef.ErrQueueFull,
+			"a dropped resolution must return an error so callers can retry")
 		h.ResolveAllIssues()
 	}()
 	select {
@@ -1127,7 +1128,7 @@ func TestMutationsAfterStopAreDroppedAndCounted(t *testing.T) {
 	require.NoError(t, h.stop(context.Background()))
 
 	require.ErrorIs(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:1", IssueName: "t"}), storedef.ErrQueueFull)
-	h.ResolveIssue("t:1")
+	require.ErrorIs(t, h.ResolveIssue("t:1"), storedef.ErrQueueFull)
 	h.ResolveAllIssues()
 
 	dropped := h.metrics.droppedOperations

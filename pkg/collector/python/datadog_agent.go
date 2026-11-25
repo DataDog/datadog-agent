@@ -745,7 +745,9 @@ func ResolveIssue(issueID *C.char, errOut **C.char) {
 	if issueID != nil {
 		id = C.GoString(issueID)
 	}
-	hp.ResolveIssue(id)
+	if err := hp.ResolveIssue(id); err != nil {
+		*errOut = TrackedCString(err.Error())
+	}
 }
 
 // httpHeaders returns a http headers including various basic information (User-Agent, Content-Type...).

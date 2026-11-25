@@ -616,7 +616,11 @@ func (c *Check) resolveNvmlIssues(keep string) {
 	prefix := gpuenvironment.IssueID + ":" + gpuenvironment.ReasonNvmlUnavailable
 	for _, issueID := range c.issueReporter.GetActiveIssueIDsByIssueName(gpuenvironment.IssueName) {
 		if issueID != keep && strings.HasPrefix(issueID, prefix) {
-			c.issueReporter.ResolveIssue(issueID)
+			// A dropped resolution is retried on the next run: the issue is
+			// still active, so this lookup finds it again.
+			if err := c.issueReporter.ResolveIssue(issueID); err != nil {
+				log.Debugf("failed to resolve GPU NVML health issue %s, will retry: %v", issueID, err)
+			}
 		}
 	}
 }
@@ -682,7 +686,11 @@ func (c *Check) agentHostname() string {
 func (c *Check) resolveIssuesByName(issueName, keepID string) {
 	for _, id := range c.issueReporter.GetActiveIssueIDsByIssueName(issueName) {
 		if id != keepID {
-			c.issueReporter.ResolveIssue(id)
+			// A dropped resolution is retried on the next run: the issue is
+			// still active, so this lookup finds it again.
+			if err := c.issueReporter.ResolveIssue(id); err != nil {
+				log.Debugf("failed to resolve GPU health issue %s, will retry: %v", id, err)
+			}
 		}
 	}
 }

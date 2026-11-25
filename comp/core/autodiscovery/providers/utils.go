@@ -143,5 +143,7 @@ func clearConfigurationErrors(hp healthplatformdef.Component, entityName string)
 	if hp == nil {
 		return
 	}
-	hp.ResolveIssue(adAnnotationIssueID(entityName))
+	if err := hp.ResolveIssue(adAnnotationIssueID(entityName)); err != nil {
+		log.Debugf("Failed to clear AD annotation issue for %s: %v", entityName, err)
+	}
 }

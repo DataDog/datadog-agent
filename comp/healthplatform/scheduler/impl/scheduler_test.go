@@ -115,6 +115,37 @@ func TestTickDiffResolveDisappeared(t *testing.T) {
 	assert.Equal(t, []string{"B"}, store.ResolvedIDs())
 }
 
+func TestTickRetriesDroppedResolution(t *testing.T) {
+	store := storemock.New(t)
+	ids := []string{"A", "B"}
+	runner := runnermock.New(t, store, runnermock.WithRunFunc(
+		func(_ string, _ runnerdef.HealthCheckFunc) ([]string, error) { return ids, nil },
+	))
+	s := newTestScheduler(t, runner, store)
+	check := &registeredHealthCheck{
+		source:       "mycomp",
+		fn:           func() ([]runnerdef.IssueReport, error) { return nil, nil },
+		lastIssueIDs: make(map[string]struct{}),
+		stopCh:       make(chan struct{}),
+	}
+	s.checks["mycomp"] = check
+	s.tick(check)
+
+	// B recovers, but the queue is full when the scheduler resolves it.
+	ids = []string{"A"}
+	store.SetResolveIssueError(storedef.ErrQueueFull)
+	s.tick(check)
+	assert.Empty(t, store.ResolvedIDs())
+	s.checkMux.RLock()
+	assert.Contains(t, check.lastIssueIDs, "B", "a dropped resolution must be kept for the next tick")
+	s.checkMux.RUnlock()
+
+	// The queue drained: the next tick resolves B.
+	store.SetResolveIssueError(nil)
+	s.tick(check)
+	assert.Equal(t, []string{"B"}, store.ResolvedIDs())
+}
+
 func TestTickEmptyResultResolvesAll(t *testing.T) {
 	store := storemock.New(t)
 	runner := runnermock.New(t, store, runnermock.WithRunFunc(

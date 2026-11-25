@@ -182,6 +182,13 @@ func (s *scheduler) tick(check *registeredHealthCheck) {
 	check.lastIssueIDs = newSet
 	s.checkMux.Unlock()
 	for _, id := range toResolve {
-		s.store.ResolveIssue(id)
+		if err := s.store.ResolveIssue(id); err != nil {
+			// Dropped on a full queue: keep the ID so the next tick resolves
+			// it again, instead of leaving the issue active.
+			s.log.Debugf("health check %q: could not resolve %s, will retry: %v", check.source, id, err)
+			s.checkMux.Lock()
+			check.lastIssueIDs[id] = struct{}{}
+			s.checkMux.Unlock()
+		}
 	}
 }
