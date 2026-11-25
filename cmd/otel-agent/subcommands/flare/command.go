@@ -576,6 +576,7 @@ func discoverDebugSources(ctx context.Context, uris []string) map[string]extensi
 		// Extract the endpoint URL
 		uri, err := extractor(exconf)
 		if err != nil {
+			fmt.Fprintf(color.Output, "%s", color.YellowString(fmt.Sprintf("Warning: ignoring the debug extension %q: %v\n", extensionName, err)))
 			continue
 		}
 
@@ -626,27 +627,33 @@ var supportedDebugExtensions = map[string]func(*confmap.Conf) (string, error){
 
 // extractHealthCheckEndpoint extracts the endpoint from a health_check extension config
 func extractHealthCheckEndpoint(conf *confmap.Conf) (string, error) {
-	endpoint := "localhost:13133" // default
-	if conf.IsSet("endpoint") {
-		endpoint = conf.Get("endpoint").(string)
-	}
-	return "http://" + endpoint, nil
+	return extractEndpoint(conf, "localhost:13133")
 }
 
 // extractPprofEndpoint extracts the endpoint from a pprof extension config
 func extractPprofEndpoint(conf *confmap.Conf) (string, error) {
-	endpoint := "localhost:1777" // default
-	if conf.IsSet("endpoint") {
-		endpoint = conf.Get("endpoint").(string)
-	}
-	return "http://" + endpoint, nil
+	return extractEndpoint(conf, "localhost:1777")
 }
 
 // extractZpagesEndpoint extracts the endpoint from a zpages extension config
 func extractZpagesEndpoint(conf *confmap.Conf) (string, error) {
-	endpoint := "localhost:55679" // default
-	if conf.IsSet("endpoint") {
-		endpoint = conf.Get("endpoint").(string)
+	return extractEndpoint(conf, "localhost:55679")
+}
+
+// extractEndpoint returns the URL of the endpoint of a debug extension, the default one when the configuration
+// has none. An endpoint that is not a string, or is empty, is an error, like in the ddflare extension, so that
+// the extension is skipped instead of crashing the flare.
+func extractEndpoint(conf *confmap.Conf, defaultEndpoint string) (string, error) {
+	if !conf.IsSet("endpoint") {
+		return "http://" + defaultEndpoint, nil
+	}
+	value := conf.Get("endpoint")
+	endpoint, ok := value.(string)
+	if !ok {
+		return "", fmt.Errorf("the endpoint is %T, not a string", value)
+	}
+	if endpoint == "" {
+		return "", errors.New("the endpoint is empty")
 	}
 	return "http://" + endpoint, nil
 }

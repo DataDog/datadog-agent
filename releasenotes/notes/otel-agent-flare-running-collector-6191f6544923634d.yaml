@@ -56,6 +56,11 @@ fixes:
     the password of a proxy URL masked. It also scrubs the credentials in the
     value of an environment variable that is JSON, like
     ``DD_SECRET_BACKEND_CONFIG``.
+  - |
+    ``otel-agent flare`` no longer stops with a panic when it reads the
+    configuration files and the ``endpoint`` of a ``pprof``, ``zpages``, or
+    ``health_check`` extension is empty or is not a string. It skips that
+    extension, with a warning.
 issues:
   - |
     ``otel-agent flare`` has these known limitations:

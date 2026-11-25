@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -840,6 +841,49 @@ func TestDiscoverDebugSources(t *testing.T) {
 		assert.Contains(t, zpages.URLs[2], "http://localhost:55679/debug/extensionz")
 		assert.Contains(t, zpages.URLs[3], "http://localhost:55679/debug/featurez")
 		assert.Contains(t, zpages.URLs[4], "http://localhost:55679/debug/tracez")
+	}
+}
+
+// TestDiscoverDebugSourcesOddEndpoints checks that a debug extension whose endpoint is not a string, which a
+// collector configuration can hold, is skipped with a warning, and doesn't crash the flare. The extensions that
+// are fine, and the one that has no endpoint and gets the default one, are kept.
+func TestDiscoverDebugSourcesOddEndpoints(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "otel-config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`extensions:
+  pprof:
+    endpoint:
+  zpages:
+    endpoint: 55679
+  health_check:
+    endpoint:
+      host: localhost
+  pprof/list:
+    endpoint: [localhost:1777]
+  zpages/empty:
+    endpoint: ""
+  health_check/ok:
+    endpoint: localhost:13133
+  pprof/default: {}
+`), 0644))
+	output := captureColorOutput(t)
+
+	var sources map[string]extensiontypes.OTelFlareSource
+	require.NotPanics(t, func() {
+		sources = discoverDebugSources(context.TODO(), []string{"file:" + configPath})
+	})
+
+	assert.Len(t, sources, 2)
+	require.Contains(t, sources, "health_check/ok")
+	assert.Equal(t, []string{"http://localhost:13133"}, sources["health_check/ok"].URLs)
+	require.Contains(t, sources, "pprof/default")
+	assert.Equal(t, "http://localhost:1777/debug/pprof/heap", sources["pprof/default"].URLs[0])
+
+	// The extensions that are skipped are named in a warning, the others are not
+	for _, skipped := range []string{"pprof", "zpages", "health_check", "pprof/list", "zpages/empty"} {
+		assert.Contains(t, output.String(), fmt.Sprintf("Warning: ignoring the debug extension %q:", skipped))
+	}
+	for _, kept := range []string{"health_check/ok", "pprof/default"} {
+		assert.NotContains(t, output.String(), fmt.Sprintf("%q", kept))
 	}
 }
 
