@@ -26,6 +26,7 @@ type precheckOnlyLogView struct {
 }
 
 func (l *precheckOnlyLogView) GetSource() string          { return l.source }
+func (*precheckOnlyLogView) GetService() string           { panic("service must not be read") }
 func (l *precheckOnlyLogView) GetStatus() string          { return l.status }
 func (*precheckOnlyLogView) Tags() []string               { panic("tags must not be read") }
 func (*precheckOnlyLogView) GetContent() string           { panic("content must not be read") }
@@ -37,6 +38,7 @@ type sourceOnlyPrecheckLogView struct {
 }
 
 func (l *sourceOnlyPrecheckLogView) GetSource() string          { return l.source }
+func (*sourceOnlyPrecheckLogView) GetService() string           { panic("service must not be read") }
 func (*sourceOnlyPrecheckLogView) GetStatus() string            { panic("status must not be read") }
 func (*sourceOnlyPrecheckLogView) Tags() []string               { panic("tags must not be read") }
 func (*sourceOnlyPrecheckLogView) GetContent() string           { panic("content must not be read") }
@@ -88,6 +90,7 @@ func TestLogHandoffSnapshotsReusableLogFieldsAndRetainsImmutableTags(t *testing.
 	callerTags := []string{"zeta:1", "service:api", "alpha:2", "env:prod"}
 	sample := &logObs{
 		source:      "nginx",
+		service:     "api",
 		content:     "GET /health 200",
 		status:      "info",
 		tags:        callerTags,
@@ -101,6 +104,7 @@ func TestLogHandoffSnapshotsReusableLogFieldsAndRetainsImmutableTags(t *testing.
 
 	// Replace the caller's fields; tags remain shared and immutable.
 	sample.source = "mutated-source"
+	sample.service = "mutated-service"
 	sample.content = "mutated-content"
 	sample.status = "debug"
 	sample.hostname = "host-b"
@@ -109,6 +113,7 @@ func TestLogHandoffSnapshotsReusableLogFieldsAndRetainsImmutableTags(t *testing.
 	queued := <-ch
 	require.NotNil(t, queued.log)
 	assert.Equal(t, "nginx", queued.log.GetSource())
+	assert.Equal(t, "api", queued.log.GetService())
 	assert.Equal(t, "containers", queued.log.logSource)
 	assert.Equal(t, "GET /health 200", queued.log.GetContent())
 	assert.Equal(t, "info", queued.log.GetStatus())

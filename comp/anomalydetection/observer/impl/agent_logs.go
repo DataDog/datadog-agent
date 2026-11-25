@@ -189,6 +189,7 @@ type agentLogView struct {
 }
 
 func (v *agentLogView) GetSource() string            { return agentLogSource }
+func (v *agentLogView) GetService() string           { return "" }
 func (v *agentLogView) GetContent() string           { return v.content }
 func (v *agentLogView) GetStatus() string            { return v.status }
 func (v *agentLogView) Tags() []string               { return v.tags }

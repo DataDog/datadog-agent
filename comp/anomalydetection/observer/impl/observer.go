@@ -140,6 +140,7 @@ func (m *metricObs) GetMetricType() metrics.MetricType { return m.metricType }
 // logObs contains copied log data and implements observerdef.LogView.
 type logObs struct {
 	source        string
+	service       string
 	logSource     string
 	content       string
 	status        string
@@ -154,6 +155,10 @@ var _ observerdef.LogView = (*logObs)(nil)
 
 func (l *logObs) GetSource() string {
 	return l.source
+}
+
+func (l *logObs) GetService() string {
+	return l.service
 }
 
 func (l *logObs) GetContent() string {
@@ -1458,6 +1463,7 @@ func (o *observerImpl) FinishReplayStream() {
 func logObsFromView(msg observerdef.LogView) *logObs {
 	return &logObs{
 		source:      msg.GetSource(),
+		service:     msg.GetService(),
 		content:     msg.GetContent(),
 		status:      msg.GetStatus(),
 		tags:        copyTags(msg.Tags()),
@@ -1759,6 +1765,7 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 		source: h.source,
 		log: &logObs{
 			source:        rawSource,
+			service:       msg.GetService(),
 			logSource:     logSource,
 			content:       content,
 			status:        status,

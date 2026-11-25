@@ -89,12 +89,13 @@ func (m *testMetric) GetSampleRate() float64               { return m.sampleRate
 func (m *testMetric) GetMetricType() pkgmetrics.MetricType { return m.metricType }
 
 type testLog struct {
-	source, content, status, hostname string
-	timestamp                         int64
-	tags                              []string
+	source, service, content, status, hostname string
+	timestamp                                  int64
+	tags                                       []string
 }
 
 func (l *testLog) GetSource() string            { return l.source }
+func (l *testLog) GetService() string           { return l.service }
 func (l *testLog) GetContent() string           { return l.content }
 func (l *testLog) GetStatus() string            { return l.status }
 func (l *testLog) Tags() []string               { return l.tags }

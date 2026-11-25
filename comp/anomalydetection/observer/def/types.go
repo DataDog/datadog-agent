@@ -65,6 +65,8 @@ type LogView interface {
 	// "nginx", "kubelet", or "datadog-agent") used by log processing rules.
 	// This is distinct from the observer handle namespace (such as "logs").
 	GetSource() string
+	// GetService returns the resolved log service name, or empty if unset.
+	GetService() string
 	GetContent() string
 	GetStatus() string
 	// Tags returns tags that remain immutable and valid after ObserveLog returns.
@@ -685,6 +687,8 @@ type MetricContext struct {
 	Example string
 	// Source identifies the originating component or data stream.
 	Source string
+	// Service identifies the originating service when provided by the log source.
+	Service string
 	// SplitTags carries the tag-group key/value pairs (source, service, env, host) that
 	// scoped the sub-clusterer which produced this metric. Nil when no split tags apply.
 	SplitTags map[string]string
