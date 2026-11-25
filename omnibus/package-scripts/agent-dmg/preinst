@@ -93,8 +93,11 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
 
     # The configuration experiment's unit supervisor goes first: it is the one process that starts
     # and stops experiment jobs, and would read the jobs going away as an experiment failure.
-    launchctl bootout system/com.datadoghq.unit-supervisor 2>/dev/null || true
-    rm -f /Library/LaunchDaemons/com.datadoghq.unit-supervisor.plist
+    stop_unit_supervisor() {
+        launchctl bootout system/com.datadoghq.unit-supervisor 2>/dev/null || true
+        rm -f /Library/LaunchDaemons/com.datadoghq.unit-supervisor.plist
+    }
+    stop_unit_supervisor
 
     # The installer daemon goes next and is waited for: while it runs it can start installer
     # commands, and, in builds that ran configuration experiments, the detached processes killed
@@ -124,6 +127,9 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
     if launchctl print system/com.datadoghq.installer >/dev/null 2>&1 || launchctl print system/com.datadoghq.installer-exp >/dev/null 2>&1; then
         echo "WARNING: The installer daemon is still loaded after bootout."
     fi
+    # An installer command the daemons ran until they left may have started the unit supervisor
+    # again; launchd killed those commands with the daemons, so nothing can start it now.
+    stop_unit_supervisor
 
     # Hand the teardown to the installed version, as the rpm preinst does: only it knows the jobs
     # it installed, including any this version no longer does. Its payload is still in place, since

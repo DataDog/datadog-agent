@@ -136,6 +136,38 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         self.assertLess(supervisor, body.find("launchctl bootout system/com.datadoghq.installer-exp"))
         self.assertIn("rm -f /Library/LaunchDaemons/com.datadoghq.unit-supervisor.plist", body)
 
+    def test_uninstall_without_installer_stops_the_unit_supervisor_again_after_the_daemons(self):
+        # An installer command a daemon ran may start the unit supervisor again until the daemons
+        # are gone: the supervisor is stopped once more after waiting for them, before any Agent job.
+        uninstall = (REPO_ROOT / "cmd/agent/macos/uninstall_mac_os.sh").read_text()
+        start = uninstall.find("uninstall_without_installer() {")
+        end = uninstall.find("\n}\n", start)
+        self.assertNotEqual(start, -1)
+        body = uninstall[start:end]
+        calls = [i for i, line in enumerate(body.splitlines()) if line.strip() == "stop_unit_supervisor"]
+        self.assertEqual(len(calls), 2, "the supervisor is stopped before and after the installer daemons")
+        lines = body.splitlines()
+        daemons = next(i for i, line in enumerate(lines) if "launchctl bootout system/com.datadoghq.installer " in line)
+        wait = next(i for i, line in enumerate(lines) if "for label in com.datadoghq.installer-exp com.datadoghq.installer;" in line)
+        first_job = next(i for i, line in enumerate(lines) if "launchctl bootout system/com.datadoghq.agent-exp" in line)
+        self.assertLess(calls[0], daemons)
+        self.assertLess(daemons, wait)
+        self.assertLess(wait, calls[1])
+        self.assertLess(calls[1], first_job)
+        self.assertNotIn("watchConfigExperiment", body)
+
+    def test_preinst_stops_the_unit_supervisor_again_after_the_daemons(self):
+        # As in the uninstall script: the supervisor is stopped once more once the installer daemons
+        # are gone, before the installed version tears down the Agent's jobs.
+        preinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/preinst").read_text()
+        lines = preinst.splitlines()
+        calls = [i for i, line in enumerate(lines) if line.strip() == "stop_unit_supervisor"]
+        daemons = [i for i, line in enumerate(lines) if line.strip() == "stop_installer_daemons"]
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(len(daemons), 2)
+        self.assertLess(calls[0], daemons[0])
+        self.assertLess(daemons[-1], calls[1])
+
     def test_uninstall_without_installer_removes_the_experiment_jobs(self):
         # When the installer can't uninstall, the script still removes a configuration experiment's
         # jobs, before the stable ones, so none is left registered against binaries that are gone.
