@@ -104,10 +104,10 @@ BPF_ARRAY_MAP(telemetry, telemetry_t, 1)
 
 /* Similar to pending_sockets this is used for capturing state between the call and return of the tcp_retransmit_skb() system call.
  *
- * Keys: the PID returned by bpf_get_current_pid_tgid()
+ * Keys: the PID returned by bpf_get_current_pid_tgid() and the CPU, see pending_retransmit_key
  * Values: the args of the tcp_retransmit_skb call being instrumented.
  */
-BPF_HASH_MAP(pending_tcp_retransmit_skb, __u64, tcp_retransmit_skb_args_t, 8192)
+BPF_HASH_MAP(pending_tcp_retransmit_skb, pending_retransmit_key_t, tcp_retransmit_skb_args_t, 8192)
 
 // Used to store ip(6)_make_skb args to be used in the
 // corresponding kretprobes

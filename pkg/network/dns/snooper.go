@@ -64,6 +64,11 @@ type socketFilterSnooper struct {
 	// link-layer type. It is always invoked from the single pollPackets
 	// goroutine, so it may safely access shared state without synchronization.
 	parserFor func(info filter.PacketInfo) *dnsParser
+
+	// keepStats reports whether to keep the DNS stats of packets whose server
+	// uses a port. Nil keeps them all. On darwin, capture also covers DNS
+	// servers on other ports, whose stats no connection would claim.
+	keepStats func(serverPort uint16) bool
 }
 
 func (s *socketFilterSnooper) WaitForDomain(domain string) error {
@@ -175,7 +180,8 @@ func (s *socketFilterSnooper) processPacket(data []byte, info filter.PacketInfo,
 		return nil
 	}
 
-	if s.statKeeper != nil && (s.collectLocalDNS || !pktInfo.key.ServerIP.IsLoopback()) {
+	if s.statKeeper != nil && (s.collectLocalDNS || !pktInfo.key.ServerIP.IsLoopback()) &&
+		(s.keepStats == nil || s.keepStats(pktInfo.serverPort)) {
 		s.statKeeper.ProcessPacketInfo(pktInfo, ts)
 	}
 

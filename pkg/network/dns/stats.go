@@ -48,6 +48,7 @@ var statsTelemetry = struct {
 type dnsPacketInfo struct {
 	transactionID uint16
 	key           Key
+	serverPort    uint16 //nolint:unused // set by the parser and read by the snooper, which windows builds only with the npm tag
 	pktType       packetType
 	rCode         uint8    // responseCode
 	question      Hostname // only relevant for query packets

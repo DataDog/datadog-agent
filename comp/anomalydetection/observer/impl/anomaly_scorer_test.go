@@ -20,15 +20,17 @@ import (
 )
 
 type scorerConfigReader struct {
-	ints map[string]int
+	ints      map[string]int
+	durations map[string]time.Duration
+	strings   map[string]string
 }
 
-func (r scorerConfigReader) GetBool(string) bool              { return false }
-func (r scorerConfigReader) GetInt(key string) int            { return r.ints[key] }
-func (r scorerConfigReader) GetFloat64(string) float64        { return 0 }
-func (r scorerConfigReader) GetString(string) string          { return "" }
-func (r scorerConfigReader) GetDuration(string) time.Duration { return 0 }
-func (r scorerConfigReader) IsConfigured(string) bool         { return false }
+func (r scorerConfigReader) GetBool(string) bool                  { return false }
+func (r scorerConfigReader) GetInt(key string) int                { return r.ints[key] }
+func (r scorerConfigReader) GetFloat64(string) float64            { return 0 }
+func (r scorerConfigReader) GetString(key string) string          { return r.strings[key] }
+func (r scorerConfigReader) GetDuration(key string) time.Duration { return r.durations[key] }
+func (r scorerConfigReader) IsConfigured(string) bool             { return false }
 
 // makeAnomaly is a test helper that creates an anomaly with the given detector,
 // timestamp, and optional score.
@@ -47,6 +49,141 @@ func makeAnomaly(detector string, ts int64, score *float64) observer.Anomaly {
 }
 
 func scorePtr(v float64) *float64 { return &v }
+
+func TestReadAnomalyScorerReorderingWindow(t *testing.T) {
+	const prefix = "anomaly_detection.anomaly_scorer."
+	for _, tc := range []struct {
+		duration time.Duration
+		want     int64
+	}{
+		{0, 0},
+		{-time.Second, 0},
+		{500 * time.Millisecond, 0},
+		{1500 * time.Millisecond, 0},
+		{time.Second, 1},
+		{3 * time.Minute, 180},
+		{time.Hour, 3600},
+		{time.Hour + time.Second, 0},
+	} {
+		t.Run(tc.duration.String(), func(t *testing.T) {
+			cfg := readAnomalyScorerConfig(scorerConfigReader{
+				durations: map[string]time.Duration{prefix + "anomaly_reordering_window": tc.duration},
+			}, prefix)
+			require.Equal(t, tc.want, cfg.ReorderingWindowSecs)
+			require.EqualValues(t, 15, cfg.WindowSecs)
+		})
+	}
+}
+
+func TestScorerUsesConfiguredReorderingWindow(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig()
+	cfg.ReorderingWindowSecs = 3
+	cfg.LateAnomalyBehavior = "ignore"
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	s.Advance(1000)
+	s.Advance(1003)
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1001, nil))
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1002, nil))
+	s.Advance(1004)
+	require.Len(t, s.replay.checkpoints, 4)
+	require.NotContains(t, s.replay.journal, int64(1001))
+	require.Contains(t, s.replay.journal, int64(1002))
+
+	for _, seconds := range []int64{0, -1, 3601} {
+		cfg.ReorderingWindowSecs = seconds
+		s := NewAnomalyScorer(cfg).(*anomalyScorer)
+		require.Zero(t, s.ScoreState().Config.ReorderingWindowSecs)
+	}
+}
+
+func TestScorerLateAnomalyBehaviorConfig(t *testing.T) {
+	const prefix = "anomaly_detection.anomaly_scorer."
+	for _, tc := range []struct{ input, want string }{
+		{"", "clamp"}, {"unknown", "clamp"}, {"ignore", "ignore"}, {"clamp", "clamp"},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			cfg := readAnomalyScorerConfig(scorerConfigReader{
+				strings: map[string]string{prefix + "late_anomaly_behavior": tc.input},
+			}, prefix)
+			require.Equal(t, tc.want, cfg.LateAnomalyBehavior)
+			cfg.LateAnomalyBehavior = tc.input
+			require.Equal(t, tc.want, NewAnomalyScorer(cfg).ScoreState().Config.LateAnomalyBehavior)
+		})
+	}
+}
+
+func TestScorerZeroReorderingWindow(t *testing.T) {
+	for _, behavior := range []string{"clamp", "ignore"} {
+		t.Run(behavior, func(t *testing.T) {
+			cfg := DefaultAnomalyScorerConfig()
+			require.Zero(t, cfg.ReorderingWindowSecs)
+			require.Equal(t, "clamp", cfg.LateAnomalyBehavior)
+			cfg.LateAnomalyBehavior = behavior
+			s := NewAnomalyScorer(cfg).(*anomalyScorer)
+			s.enableHistory()
+			s.Advance(1000)
+			first := s.ScoreState().Buckets[0]
+			s.ProcessAnomaly(makeAnomaly("scanmw", 900, scorePtr(30)))
+			s.Advance(1000)
+			s.Advance(1005)
+
+			buckets := s.ScoreState().Buckets
+			require.Equal(t, first, buckets[0])
+			require.EqualValues(t, 1001, buckets[1].Second)
+			require.Nil(t, s.replay)
+			require.Empty(t, s.pending)
+			history := s.historyState()
+			if behavior == "clamp" {
+				require.Equal(t, 1, buckets[1].Count)
+				require.Len(t, history.Inputs, 1)
+				require.EqualValues(t, 1001, history.Inputs[0].ScoringSecond)
+				require.EqualValues(t, 900, history.Inputs[0].Anomaly.Timestamp)
+				baseline := NewAnomalyScorer(cfg)
+				baseline.Advance(1000)
+				baseline.ProcessAnomaly(makeAnomaly("scanmw", 1001, scorePtr(30)))
+				baseline.Advance(1005)
+				require.Equal(t, baseline.ScoreState().Buckets, buckets)
+			} else {
+				require.Zero(t, buckets[1].Count)
+				require.Empty(t, history.Inputs)
+			}
+		})
+	}
+}
+
+func BenchmarkAnomalyScorerAdvance(b *testing.B) {
+	for _, tc := range []struct {
+		name     string
+		detector string
+		series   int
+		delay    int64
+	}{
+		{name: "BOCPDSteady", detector: "bocpd", series: 4},
+		{name: "ScanMWDenseLate", detector: "scanmw", series: 32, delay: 120},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			scorer := NewAnomalyScorer(DefaultAnomalyScorerConfig())
+			const first = int64(1000)
+			scorer.Advance(first - tc.delay - 1)
+			scorer.Advance(first - 1)
+			inputs := make([]observer.Anomaly, tc.series)
+			for i := range inputs {
+				inputs[i] = makeAnomaly(tc.detector, 0, scorePtr(20))
+				inputs[i].SourceRef = &observer.QueryHandle{Ref: observer.SeriesRef(i + 1)}
+			}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				sec := first + int64(i)
+				for _, input := range inputs {
+					input.Timestamp = sec - tc.delay
+					scorer.ProcessAnomaly(input)
+				}
+				scorer.Advance(sec)
+			}
+		})
+	}
+}
 
 func TestReadAnomalyScorerConfigMaxReportedItems(t *testing.T) {
 	const prefix = "anomaly_detection.anomaly_scorer."
@@ -558,84 +695,428 @@ func TestReset(t *testing.T) {
 	}
 }
 
-// TestLateAnomalyClamp verifies that an anomaly with a historical timestamp
-// (already advanced past) is clamped to lastAdvancedSec so it participates in
-// the next Advance call rather than leaking into a pending bucket that is
-// never processed.
-//
-// This reproduces the scanmw/scanwelch pattern: a scan detector emits a
-// changepoint with a historical timestamp after the scorer has moved forward.
-func TestLateAnomalyClamp(t *testing.T) {
+func TestReplayLateInputsMatchesChronologicalScoring(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig()
-	cfg.WindowSecs = 15
-	s := NewAnomalyScorer(cfg)
+	cfg.ReorderingWindowSecs = 600
+	cfg.WindowSecs = 3
+	cfg.MaxBuckets = 50
+	chronological := NewAnomalyScorer(cfg).(*anomalyScorer)
+	reordered := NewAnomalyScorer(cfg).(*anomalyScorer)
 
-	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: testCompositeTags([]string{"host:h"})}
-
-	// Advance to t=1010 with no anomalies.
-	s.Advance(1010)
-
-	// Now receive a scanmw anomaly with a historical timestamp (t=1000),
-	// which is already behind lastAdvancedSec=1010.
-	s.ProcessAnomaly(observer.Anomaly{
-		DetectorName: "scanmw",
-		Timestamp:    1000,
-		Score:        scorePtr(20),
-		Source:       src,
-	})
-
-	// Advance to t=1011 — the anomaly is clamped to lastAdvancedSec+1=1011
-	// and must appear in that bucket.
-	s.Advance(1011)
-
-	st := s.ScoreState()
-	var b1011 *observer.AnomalyScoreBucket
-	for i := range st.Buckets {
-		if st.Buckets[i].Second == 1011 {
-			b1011 = &st.Buckets[i]
-			break
-		}
+	strong := makeAnomaly("scanmw", 1000, scorePtr(30))
+	weak := makeAnomaly("bocpd", 1002, nil) // Same series, lower level.
+	current := makeAnomaly("bocpd", 1005, nil)
+	current.Source.Name = "current"
+	secondLate := makeAnomaly("scanmw", 1004, scorePtr(20))
+	secondLate.Source.Name = "second late"
+	future := makeAnomaly("bocpd", 1008, nil)
+	for _, a := range []observer.Anomaly{strong, weak, secondLate, current, future} {
+		chronological.ProcessAnomaly(a)
 	}
-	if b1011 == nil {
-		t.Fatal("no bucket for t=1011")
+	chronological.Advance(1010)
+
+	// No earlier score exists when the first batch backfills before startup.
+	reordered.Advance(1003)
+	for _, a := range []observer.Anomaly{weak, future, current, strong} {
+		reordered.ProcessAnomaly(a)
 	}
-	if b1011.Count != 1 {
-		t.Errorf("clamped anomaly not in t=1011 bucket: count=%d, bins=%v", b1011.Count, b1011.Bins)
+	reordered.Advance(1005)
+	require.Empty(t, reordered.late)
+	require.Len(t, reordered.pending, 1)
+	require.Equal(t, []observer.Anomaly{future}, reordered.pending[future.Timestamp])
+
+	// This batch needs the checkpoint corrected by the first replay, plus
+	// evidence from before the new replay start.
+	reordered.ProcessAnomaly(secondLate)
+	reordered.Advance(1010)
+	require.Empty(t, reordered.late)
+	require.Empty(t, reordered.pending)
+	want := chronological.ScoreState().Buckets
+	got := reordered.ScoreState().Buckets
+	require.Len(t, got, len(want))
+	for i, expected := range want {
+		actual := got[i]
+		require.InDelta(t, expected.Ewma, actual.Ewma, 1e-10, "second %d", expected.Second)
+		actual.Ewma = expected.Ewma
+		require.Equal(t, expected, actual)
+		slot := replaySlot(expected.Second, len(reordered.replay.checkpoints))
+		require.Equal(t, chronological.replay.checkpoints[slot].state.level, reordered.replay.checkpoints[slot].state.level)
 	}
 }
 
-// TestLateAnomalyNoLeakInPending verifies that after clamping, the original
-// historical second (t=1000) has no pending entry — i.e. nothing leaks.
-func TestLateAnomalyNoLeakInPending(t *testing.T) {
+func TestReplayLateInputsUsesNextAdvanceCutoff(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig()
-	cfg.WindowSecs = 15
+	const window = 600
+	cfg.ReorderingWindowSecs = window
+	cfg.LateAnomalyBehavior = "ignore"
+	cfg.MaxBuckets = 1000
+	cfg.CorrelationEvents = true
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	s.enableHistory()
+	const latest = int64(1700)
+	const cutoff = latest - window
+	s.Advance(cutoff - 3)
+	s.Advance(latest - 2)
+	s.openEpisode = &observer.ActiveCorrelation{}
+	for _, sec := range []int64{cutoff - 1, cutoff, cutoff + 1} {
+		a := makeAnomaly("bocpd", sec, nil)
+		a.SourceRef = &observer.QueryHandle{Ref: observer.SeriesRef(sec)}
+		s.ProcessAnomaly(a)
+	}
+	require.Len(t, s.late, 3, "all three are in range at intake")
+	s.Advance(latest - 2)
+	s.Advance(latest - 3)
+	require.Len(t, s.late, 3, "non-forward advances leave arrivals pending")
+	require.Equal(t, latest-2, s.lastAdvancedSec)
+	s.Advance(latest)
+
+	require.Empty(t, s.late)
+	require.Empty(t, s.pending)
+	require.NotContains(t, s.replay.journal, cutoff-1)
+	require.NotContains(t, s.replay.journal, cutoff)
+	require.Len(t, s.replay.journal[cutoff+1], 1)
+	history := s.historyState()
+	require.Len(t, history.Inputs, 1)
+	require.Equal(t, int64(cutoff+1), history.Inputs[0].ScoringSecond)
+	require.Len(t, s.openEpisode.Anomalies, 1)
+	require.Empty(t, s.topAnomalies.entries)
+}
+
+func TestReplayContributorExpiresFromScoringSecond(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig()
+	cfg.ReorderingWindowSecs = 600
+	cfg.CorrelationEvents = true
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	const now = int64(1700)
+	const cutoff = now - topAnomalyWindowSecs
+	s.Advance(cutoff - 1)
+	s.Advance(now - 1)
+
+	for _, sec := range []int64{cutoff, cutoff + 1} {
+		a := makeAnomaly("bocpd", sec, nil)
+		a.SourceRef = &observer.QueryHandle{Ref: observer.SeriesRef(sec)}
+		s.ProcessAnomaly(a)
+	}
+	s.Advance(now)
+
+	require.Len(t, s.replay.journal[cutoff], 1, "expired contributors still count in replay")
+	require.Len(t, s.topAnomalies.entries, 1)
+	require.Equal(t, cutoff+1, s.topAnomalies.entries[0].timestamp)
+	s.Advance(now + 1)
+	require.Empty(t, s.topAnomalies.entries)
+}
+
+func TestClampUsesOldestSecondOfNextAdvance(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig()
+	cfg.ReorderingWindowSecs = 4
+	cfg.LateAnomalyBehavior = "clamp"
+	cfg.CorrelationEvents = true
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	s.enableHistory()
+	s.Advance(1002)
+	s.Advance(1007)
+
+	// One arrival is already too old; another ages out before the next advance.
+	for _, sec := range []int64{1000, 1005, 1007} {
+		a := makeAnomaly("bocpd", sec, nil)
+		a.SourceRef = &observer.QueryHandle{Ref: observer.SeriesRef(sec)}
+		s.ProcessAnomaly(a)
+	}
+	s.Advance(1009)
+	require.Len(t, s.replay.journal[1006], 2)
+	require.Len(t, s.replay.journal[1007], 1)
+	require.NotContains(t, s.replay.journal, int64(1000))
+	require.NotContains(t, s.replay.journal, int64(1005))
+	history := s.historyState()
+	require.Len(t, history.Inputs, 3)
+	require.EqualValues(t, 1006, history.Inputs[0].ScoringSecond)
+	require.EqualValues(t, 1000, history.Inputs[0].Anomaly.Timestamp)
+	require.EqualValues(t, 1006, history.Inputs[1].ScoringSecond)
+	require.EqualValues(t, 1007, history.Inputs[2].ScoringSecond)
+	contributorSeconds := make(map[observer.SeriesRef]int64)
+	for _, entry := range s.topAnomalies.entries {
+		contributorSeconds[entry.handle.Ref] = entry.timestamp
+	}
+	require.Equal(t, map[observer.SeriesRef]int64{1000: 1006, 1005: 1006, 1007: 1007}, contributorSeconds)
+}
+
+func TestClampAcrossCatchupTriggersAtDiscovery(t *testing.T) {
+	cfg := highDiscoveryConfig()
+	cfg.ReorderingWindowSecs = 3
+	cfg.LateAnomalyBehavior = "clamp"
 	s := NewAnomalyScorer(cfg)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{}, listener)
+	s.Advance(1000)
+	s.ProcessAnomaly(makeAnomaly("bocpd", 999, nil))
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1005, nil))
+	s.Advance(1020)
+	require.Len(t, listener.events, 3)
+	require.EqualValues(t, 1005, listener.events[0].Timestamp)
+	require.EqualValues(t, 1006, listener.events[1].Timestamp)
+	require.EqualValues(t, 1020, listener.events[2].Timestamp)
+	require.EqualValues(t, 1018, listener.events[2].HistoricalTimestamp)
+}
 
-	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: testCompositeTags([]string{"host:h"})}
+func TestReplayDoesNotRedeliverScoredTransitions(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig()
+	cfg.ReorderingWindowSecs = 600
+	cfg.Alpha = 0.99
+	cfg.SaturationK = 1
+	s := NewAnomalyScorer(cfg)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{}, listener)
+	s.ProcessAnomaly(makeAnomaly("scanmw", 1000, scorePtr(30)))
+	s.Advance(1030)
+	require.Len(t, listener.events, 2)
 
+	// The weaker evidence expires at the same time and changes no transition.
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1000, nil))
+	s.Advance(1031)
+	require.Len(t, listener.events, 2)
+}
+
+func TestReplayDoesNotDropUnscoredCatchupInputs(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig()
+	cfg.ReorderingWindowSecs = 600
+	cfg.MaxBuckets = 1000
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	s.Advance(1000)
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1001, nil))
+	s.Advance(1001 + cfg.ReorderingWindowSecs)
+	buckets := s.ScoreState().Buckets
+	require.Equal(t, int64(1001), buckets[1].Second)
+	require.Equal(t, 1, buckets[1].Count)
+
+	s.ProcessAnomaly(makeAnomaly("bocpd", s.lastAdvancedSec, nil))
+	require.Len(t, s.late, 1)
+	s.Reset()
+	require.Empty(t, s.late)
+}
+
+func highDiscoveryConfig() AnomalyScorerConfig {
+	cfg := DefaultAnomalyScorerConfig()
+	cfg.ReorderingWindowSecs = 600
+	cfg.WindowSecs = 1
+	cfg.Alpha = 0.99
+	cfg.SaturationK = 1
+	return cfg
+}
+
+func TestReplayDiscoversEndedHighAtCurrentTick(t *testing.T) {
+	cfg := highDiscoveryConfig()
+	cfg.CorrelationEvents = true
+	cfg.CooldownSecs = 3
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	fast, slow := &collectingListener{}, &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{}, fast)
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{CooldownSecs: 3}, slow)
+
+	s.Advance(1030)
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1010, nil))
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1000, nil))
+	s.Advance(1031)
+
+	// Both missed periods are already over; one activation uses the earliest crossing.
+	require.Equal(t, severityeventsdef.SeverityLow, s.score.level)
+	require.Len(t, fast.events, 1)
+	require.Equal(t, fast.events, slow.events)
+	require.Equal(t, int64(1031), fast.events[0].Timestamp)
+	require.Equal(t, int64(1000), fast.events[0].HistoricalTimestamp)
+	require.Equal(t, severityeventsdef.SeverityHigh, fast.events[0].ToLevel)
+	episodes := s.PendingEvents()
+	require.Len(t, episodes, 1)
+	require.Equal(t, observer.CorrelatorEventEpisodeStarted, episodes[0].Kind)
+	require.Equal(t, int64(1031), episodes[0].Timestamp)
+	require.Equal(t, int64(1031), episodes[0].Correlation.FirstSeen)
+	require.Equal(t, int64(1000), episodes[0].HistoricalTimestamp)
+
+	s.Advance(1032)
+	require.Len(t, fast.events, 2, "zero cooldown still keeps High for the discovery tick")
+	require.Equal(t, severityeventsdef.SeverityLow, fast.events[1].ToLevel)
+	s.Advance(1033)
+	require.Len(t, slow.events, 1)
+	s.Advance(1034)
+	require.Len(t, slow.events, 2)
+	require.Equal(t, int64(1034), slow.events[1].Timestamp)
+	require.Equal(t, severityeventsdef.SeverityLow, slow.events[1].ToLevel)
+}
+
+func TestDistinctHighRenewsHoldWithoutAnotherTransition(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		discovery int64
+	}{
+		{name: "on time", discovery: 1003},
+		{name: "during replay at cooldown expiry", discovery: 1005},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := NewAnomalyScorer(highDiscoveryConfig())
+			listener := &collectingListener{}
+			mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{CooldownSecs: 5}, listener)
+			s.ProcessAnomaly(makeAnomaly("bocpd", 1000, nil))
+			s.Advance(tc.discovery - 1)
+			require.Len(t, listener.events, 1)
+
+			s.ProcessAnomaly(makeAnomaly("bocpd", 1003, nil))
+			s.Advance(tc.discovery)
+			s.Advance(tc.discovery + 4)
+			require.Len(t, listener.events, 1)
+			s.Advance(tc.discovery + 5)
+			require.Len(t, listener.events, 2)
+			require.Equal(t, tc.discovery+5, listener.events[1].Timestamp)
+			require.Equal(t, severityeventsdef.SeverityLow, listener.events[1].ToLevel)
+		})
+	}
+}
+
+func TestReplayKnownHighMergeDoesNotRenew(t *testing.T) {
+	s := NewAnomalyScorer(highDiscoveryConfig())
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{CooldownSecs: 5}, listener)
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1000, nil))
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1002, nil))
+	s.Advance(1006)
+	require.Len(t, listener.events, 1)
+
+	// Bracket both known periods with new High seconds and bridge the gap.
+	for _, sec := range []int64{999, 1001, 1003} {
+		s.ProcessAnomaly(makeAnomaly("bocpd", sec, nil))
+	}
+	s.Advance(1007)
+	require.Len(t, listener.events, 2)
+	require.Equal(t, int64(1007), listener.events[1].Timestamp)
+	require.Equal(t, severityeventsdef.SeverityLow, listener.events[1].ToLevel)
+}
+
+func TestReplayKnownHighExtensionDoesNotReopen(t *testing.T) {
+	cfg := highDiscoveryConfig()
+	cfg.WindowSecs = 2
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{}, listener)
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1000, nil))
+	s.Advance(1002)
+	require.Len(t, listener.events, 2)
+
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1002, nil))
+	s.Advance(1003)
+	require.Equal(t, severityeventsdef.SeverityHigh, s.score.level)
+	require.Len(t, listener.events, 2)
+}
+
+func TestReplayRemembersPreviouslyRecognizedHigh(t *testing.T) {
+	s := NewAnomalyScorer(highDiscoveryConfig()).(*anomalyScorer)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{}, listener)
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1000, nil))
+	s.Advance(1001)
+	require.Len(t, listener.events, 2)
+
+	// Weaker evidence from other series lowers the mean below the High threshold.
+	for _, series := range []string{"weak1", "weak2", "weak3"} {
+		a := makeAnomaly("scanmw", 1000, nil)
+		a.Source.Name = series
+		s.ProcessAnomaly(a)
+	}
+	s.Advance(1002)
+	slot := replaySlot(1000, len(s.replay.checkpoints))
+	require.Equal(t, severityeventsdef.SeverityMedium, s.replay.checkpoints[slot].state.level)
+
+	strong := makeAnomaly("scanmw", 1000, scorePtr(30))
+	strong.Source.Name = "strong"
+	s.ProcessAnomaly(strong)
+	s.Advance(1003)
+	require.Equal(t, severityeventsdef.SeverityHigh, s.replay.checkpoints[slot].state.level)
+	require.Len(t, listener.events, 2, "restoring the previously recognized period is not a new High")
+}
+
+func TestReplayPreservesForwardCrossingInCatchup(t *testing.T) {
+	cfg := highDiscoveryConfig()
+	cfg.WindowSecs = 3
+	s := NewAnomalyScorer(cfg)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{}, listener)
+	s.Advance(1000)
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1000, nil))
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1005, nil))
 	s.Advance(1010)
+	require.Len(t, listener.events, 3)
+	require.Equal(t, int64(1005), listener.events[0].Timestamp)
+	require.Equal(t, int64(1005), listener.events[0].HistoricalTimestamp)
+	require.Equal(t, int64(1008), listener.events[1].Timestamp)
+	require.Equal(t, int64(1010), listener.events[2].Timestamp)
+	require.Equal(t, int64(1000), listener.events[2].HistoricalTimestamp)
+}
 
-	// Late anomaly with historical timestamp.
-	s.ProcessAnomaly(observer.Anomaly{
-		DetectorName: "scanmw",
-		Timestamp:    1000,
-		Score:        scorePtr(20),
-		Source:       src,
-	})
+func TestReplayDiscoversHighInCatchupAtCurrentTick(t *testing.T) {
+	cfg := highDiscoveryConfig()
+	cfg.WindowSecs = 3
+	cfg.Alpha = 0.5
+	s := NewAnomalyScorer(cfg)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{}, listener)
+	s.Advance(1000)
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1000, nil))
+	s.Advance(1005)
 
-	// Access internal state directly via type assertion to inspect unexported fields.
-	sc := s.(*anomalyScorer)
-	sc.mu.Lock()
-	_, hasOldSec := sc.pending[1000]
-	_, hasNextSec := sc.pending[1011] // clamped to lastAdvancedSec+1
-	sc.mu.Unlock()
-
-	if hasOldSec {
-		t.Error("BUG: pending still has entry for historical second 1000 (memory leak)")
+	var highs []severityeventsdef.SeverityEvent
+	for _, evt := range listener.events {
+		if evt.ToLevel == severityeventsdef.SeverityHigh {
+			highs = append(highs, evt)
+		}
 	}
-	if !hasNextSec {
-		t.Error("clamped anomaly not found in pending[1011]")
+	require.Len(t, highs, 1)
+	require.EqualValues(t, 1001, highs[0].HistoricalTimestamp)
+	require.EqualValues(t, 1005, highs[0].Timestamp)
+	require.Equal(t, highs[0], listener.events[len(listener.events)-1])
+	s.Advance(1006)
+	require.Equal(t, severityeventsdef.SeverityLow, listener.events[len(listener.events)-1].ToLevel)
+}
+
+func TestClampCatchupDoesNotDeliverProvisionalHigh(t *testing.T) {
+	cfg := highDiscoveryConfig()
+	cfg.ReorderingWindowSecs = 3
+	cfg.LateAnomalyBehavior = "clamp"
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{}, listener)
+	s.Advance(1000)
+	for _, name := range []string{"weak1", "weak2", "weak3"} {
+		a := makeAnomaly("scanmw", 999, nil)
+		a.Source.Name = name
+		s.ProcessAnomaly(a)
 	}
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1005, nil))
+	s.Advance(1007)
+
+	// Clamping the weaker inputs to 1005 lowers the score below High.
+	slot := replaySlot(1005, len(s.replay.checkpoints))
+	require.Equal(t, severityeventsdef.SeverityMedium, s.replay.checkpoints[slot].state.level)
+	require.False(t, s.replay.recognizedHighAt(1005))
+	for _, evt := range listener.events {
+		require.NotEqual(t, severityeventsdef.SeverityHigh, evt.ToLevel)
+	}
+}
+
+func TestReplayKeepsForwardHighTriggerWithEarlierCrossing(t *testing.T) {
+	cfg := highDiscoveryConfig()
+	cfg.WindowSecs = 3
+	cfg.Alpha = 0.5
+	s := NewAnomalyScorer(cfg)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{}, listener)
+	s.Advance(1000)
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1000, nil))
+	s.ProcessAnomaly(makeAnomaly("scanmw", 1002, scorePtr(30)))
+	s.Advance(1005)
+
+	// The ordinary crossing at 1002 survives, but replay moves the start of
+	// that same period to 1001.
+	require.Len(t, listener.events, 1)
+	require.Equal(t, severityeventsdef.SeverityHigh, listener.events[0].ToLevel)
+	require.EqualValues(t, 1002, listener.events[0].Timestamp)
+	require.EqualValues(t, 1001, listener.events[0].HistoricalTimestamp)
 }
 
 // TestLateAnomalyBeforeFirstAdvance verifies that anomalies received before
@@ -669,8 +1150,109 @@ func TestLateAnomalyBeforeFirstAdvance(t *testing.T) {
 	}
 }
 
+func TestScorerChronologicalBaseline(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig()
+	cfg.WindowSecs = 2
+	cfg.MaxBuckets = 8
+	cfg.Alpha = 0.5
+	cfg.SaturationK = 1
+	cfg.LowThreshold = 0.24
+	cfg.HighThreshold = 0.9
+	cfg.MarginPct = 0.2
+	scorer := NewAnomalyScorer(cfg)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, scorer, severityeventsdef.SeverityEventsConfiguration{}, listener)
+
+	scorer.Advance(999)
+	strong := makeAnomaly("bocpd", 1000, nil)
+	strong.LevelChange = &observer.LevelChangeEvidence{BeforeMedian: 100, AfterMedian: 200}
+	other := makeAnomaly("bocpd", 1000, nil)
+	other.Source.Name = "other"
+	scorer.ProcessAnomaly(strong)
+	scorer.ProcessAnomaly(other)
+	scorer.Advance(1000)
+
+	weak := makeAnomaly("bocpd", 1001, nil)
+	weak.LevelChange = &observer.LevelChangeEvidence{BeforeMedian: 100, AfterMedian: 108}
+	scorer.ProcessAnomaly(weak)
+	scorer.Advance(1001)
+	scorer.Advance(1006)
+
+	// Pin main's output across the lower-level fallback and the empty-window decay.
+	want := []observer.AnomalyScoreBucket{
+		{Second: 999},
+		{Second: 1000, Bins: [5]int{0, 0, 1, 0, 1}, Count: 2, WeightSum: 4, Ewma: 0.8646647167633873},
+		{Second: 1001, Bins: [5]int{0, 0, 1, 0, 1}, Count: 2, WeightSum: 4, Ewma: 1.296997075145081},
+		{Second: 1002, Bins: [5]int{0, 1}, Count: 1, WeightSum: 0.5, Ewma: 0.8065286772796799},
+		{Second: 1003, Ewma: 0.40326433863983996},
+		{Second: 1004, Ewma: 0.20163216931991998},
+		{Second: 1005, Ewma: 0.10081608465995999},
+		{Second: 1006, Ewma: 0.050408042329979995},
+	}
+	got := scorer.ScoreState().Buckets
+	require.Len(t, got, len(want))
+	for i, expected := range want {
+		actual := got[i]
+		assert.InDelta(t, expected.Ewma, actual.Ewma, 1e-10, "second %d", expected.Second)
+		actual.Ewma = expected.Ewma
+		assert.Equal(t, expected, actual)
+	}
+
+	// Zero cooldown exposes the raw severity transitions, including hysteresis.
+	require.Equal(t, []severityeventsdef.SeverityEvent{
+		{Timestamp: 1000, FromLevel: severityeventsdef.SeverityLow, ToLevel: severityeventsdef.SeverityMedium, Direction: severityeventsdef.SeverityEventEscalation},
+		{Timestamp: 1001, HistoricalTimestamp: 1001, FromLevel: severityeventsdef.SeverityMedium, ToLevel: severityeventsdef.SeverityHigh, Direction: severityeventsdef.SeverityEventEscalation},
+		{Timestamp: 1003, FromLevel: severityeventsdef.SeverityHigh, ToLevel: severityeventsdef.SeverityMedium, Direction: severityeventsdef.SeverityEventDeescalation},
+		{Timestamp: 1006, FromLevel: severityeventsdef.SeverityMedium, ToLevel: severityeventsdef.SeverityLow, Direction: severityeventsdef.SeverityEventDeescalation},
+	}, listener.events)
+}
+
+func TestScorerReplayHistoryRetention(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig()
+	cfg.ReorderingWindowSecs = 5
+	cfg.WindowSecs = 3
+	scorer := NewAnomalyScorer(cfg).(*anomalyScorer)
+	const first = int64(1000)
+
+	a := makeAnomaly("bocpd", first, nil)
+	scorer.ProcessAnomaly(a)
+	scorer.Advance(first)
+	h := scorer.replay
+	require.Len(t, h.checkpoints, int(cfg.ReorderingWindowSecs+1))
+	require.Len(t, h.journal, 1)
+	require.Equal(t, scoringCheckpoint{second: first - 1, present: true},
+		h.checkpoints[replaySlot(first-1, len(h.checkpoints))])
+
+	a.Timestamp++
+	scorer.ProcessAnomaly(a)
+	scorer.Advance(first + 2)
+	boundary := scorer.score
+	require.Positive(t, boundary.ewma)
+
+	// Catch up through a quiet tail, wrapping the ring. The seed predates the
+	// first replayable second, whose evidence still includes the second input.
+	latest := first + 2 + cfg.ReorderingWindowSecs
+	scorer.Advance(latest)
+	require.Equal(t, scoringCheckpoint{second: first + 2, state: boundary, present: true},
+		h.checkpoints[replaySlot(first+2, len(h.checkpoints))])
+	require.Equal(t, scoringCheckpoint{second: latest, state: scorer.score, present: true},
+		h.checkpoints[replaySlot(first+1, len(h.checkpoints))])
+	require.Equal(t, map[int64][]scoringInput{first + 1: {{series: seriesID(a), level: 2}}}, h.journal)
+	require.Len(t, scorer.ScoreState().Buckets, int(cfg.WindowSecs))
+
+	scorer.Advance(latest + 1)
+	require.Empty(t, h.journal)
+
+	scorer.Reset()
+	require.Nil(t, scorer.replay)
+	scorer.Advance(latest + 2)
+	require.Equal(t, scoringCheckpoint{second: latest + 1, present: true},
+		scorer.replay.checkpoints[replaySlot(latest+1, len(scorer.replay.checkpoints))])
+}
+
 func TestScorerHistoryCapturesOriginalRun(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig()
+	cfg.ReorderingWindowSecs = 600
 	cfg.Alpha = 0.99
 	cfg.SaturationK = 1
 	cfg.WindowSecs = 15
@@ -686,7 +1268,7 @@ func TestScorerHistoryCapturesOriginalRun(t *testing.T) {
 	}, listener)
 
 	scorer.Advance(1000)
-	anomaly := makeAnomaly("bocpd", 900, nil)
+	anomaly := makeAnomaly("bocpd", 995, nil)
 	anomaly.SourceRef = &observer.QueryHandle{Ref: 42, Aggregate: observer.AggregateAverage}
 	scorer.ProcessAnomaly(anomaly)
 	scorer.Advance(1030)
@@ -694,8 +1276,8 @@ func TestScorerHistoryCapturesOriginalRun(t *testing.T) {
 	history := scorer.historyState()
 	require.True(t, history.Available)
 	require.Len(t, history.Inputs, 1)
-	require.Equal(t, int64(1001), history.Inputs[0].ScoringSecond)
-	require.Equal(t, int64(900), history.Inputs[0].Anomaly.Timestamp)
+	require.Equal(t, int64(995), history.Inputs[0].ScoringSecond)
+	require.Equal(t, int64(995), history.Inputs[0].Anomaly.Timestamp)
 	require.Greater(t, len(history.Buckets), int(cfg.WindowSecs), "history must retain more than the production bucket window")
 	require.Equal(t, int64(1030), history.Buckets[len(history.Buckets)-1].Second)
 	require.Equal(t, listener.events, history.Events)
