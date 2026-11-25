@@ -16,6 +16,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -37,6 +38,7 @@ type testIteration struct {
 	parentProcessPath     string
 	processPath           string
 	granpaInsideContainer bool
+	granpaCGroupResolved  bool
 	completeLineage       bool
 	differentContainerID  bool
 	fileLessParent        bool
@@ -102,6 +104,7 @@ func craftFakeProcess(containerID string, test *testIteration) *model.ProcessCac
 	process.Args = "foo"
 	if test.setCookie {
 		process.Cookie = 42
+		process.ExecTime = time.Unix(42, 0)
 	}
 
 	// setting process ancestor
@@ -122,6 +125,7 @@ func craftFakeProcess(containerID string, test *testIteration) *model.ProcessCac
 	process.Ancestor.Args = "bar"
 	if test.setCookieParent {
 		process.Ancestor.Cookie = 41
+		process.Ancestor.ExecTime = time.Unix(41, 0)
 	}
 
 	// setting process granpa
@@ -135,6 +139,10 @@ func craftFakeProcess(containerID string, test *testIteration) *model.ProcessCac
 	if test.granpaInsideContainer {
 		process.Ancestor.Ancestor.ContainerContext.ContainerID = containerutils.ContainerID(containerID)
 	}
+	if test.granpaCGroupResolved {
+		process.Ancestor.Ancestor.CGroup.CGroupID = "/system.slice/containerd.service"
+		process.Ancestor.Ancestor.CGroup.CGroupPathKey = model.PathKey{Inode: 40, MountID: 40}
+	}
 	process.Ancestor.Ancestor.FileEvent.Inode = 40
 	process.Ancestor.Ancestor.FileEvent.MountID = 40
 	process.Ancestor.Ancestor.Args = "start"
@@ -147,9 +155,25 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 
 	tests := []testIteration{
 
-		// check process with broken lineage (parent with pid != 1 && containerID != "")
+		// check process with a lineage broken outside of the container (granpa with pid != 1 && containerID == "", on a
+		// host cgroup)
 		{
-			testName:              "broken_lineage",
+			testName:              "broken_lineage_outside_container",
+			resetActivityTree:     true,
+			parentProcessPath:     "/bin/foo",
+			processPath:           "/bin/bar",
+			granpaCGroupResolved:  true,
+			completeLineage:       false,
+			resultNodeShouldBeNil: false,
+			resultNewProcessNode:  true,
+			resultErr:             nil,
+			resultTree:            map[string][]string{"/bin/foo": {"/bin/bar"}},
+		},
+
+		// check process with a lineage broken at a granpa whose workload is unknown (pid != 1 && containerID == "",
+		// cgroup not resolved)
+		{
+			testName:              "broken_lineage_unknown_workload",
 			resetActivityTree:     true,
 			parentProcessPath:     "/bin/foo",
 			processPath:           "/bin/bar",
@@ -158,6 +182,63 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 			resultNewProcessNode:  false,
 			resultErr:             activity_tree.ErrBrokenLineage,
 			resultTree:            map[string][]string{},
+		},
+
+		// check process with a lineage broken inside of the container (granpa with pid != 1 && containerID != "")
+		{
+			testName:              "broken_lineage_inside_container",
+			resetActivityTree:     true,
+			parentProcessPath:     "/bin/foo",
+			processPath:           "/bin/bar",
+			granpaInsideContainer: true,
+			completeLineage:       false,
+			resultNodeShouldBeNil: true,
+			resultNewProcessNode:  false,
+			resultErr:             activity_tree.ErrBrokenLineage,
+			resultTree:            map[string][]string{},
+		},
+
+		// insert a process and its parent with their cookies, the next tests break their lineage inside of the container
+		{
+			testName:              "broken_lineage_inside_container_insert",
+			resetActivityTree:     true,
+			parentProcessPath:     "/bin/foo",
+			processPath:           "/bin/bar",
+			completeLineage:       true,
+			setCookie:             true,
+			setCookieParent:       true,
+			resultNodeShouldBeNil: false,
+			resultNewProcessNode:  true,
+			resultErr:             nil,
+			resultTree:            map[string][]string{"/bin/foo": {"/bin/bar"}},
+		},
+		// the process is found thanks to its cookie
+		{
+			testName:              "broken_lineage_inside_container_known_process",
+			resetActivityTree:     false,
+			parentProcessPath:     "/bin/foo",
+			processPath:           "/bin/bar",
+			granpaInsideContainer: true,
+			completeLineage:       false,
+			setCookie:             true,
+			resultNodeShouldBeNil: false,
+			resultNewProcessNode:  false,
+			resultErr:             nil,
+			resultTree:            map[string][]string{"/bin/foo": {"/bin/bar"}},
+		},
+		// a new child is inserted below its parent, found thanks to its cookie
+		{
+			testName:              "broken_lineage_inside_container_known_parent",
+			resetActivityTree:     false,
+			parentProcessPath:     "/bin/foo",
+			processPath:           "/bin/baz",
+			granpaInsideContainer: true,
+			completeLineage:       false,
+			setCookieParent:       true,
+			resultNodeShouldBeNil: false,
+			resultNewProcessNode:  true,
+			resultErr:             nil,
+			resultTree:            map[string][]string{"/bin/foo": {"/bin/bar", "/bin/baz"}},
 		},
 
 		// check that a process with a different containerID will not be inserted

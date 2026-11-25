@@ -16,7 +16,7 @@ from tasks.libs.common.color import Color, color_message
 
 # Keep in sync with anomalydetection-scorer/score.go. Used to invalidate local
 # Bayesian report reuse when the scoring contract changes.
-F1_SCORING_VERSION = "high-severity-onset-recovery-v2"
+F1_SCORING_VERSION = "high-severity-onset-recovery-v3"
 
 AWS_PROFILE = "sso-agent-sandbox-account-admin-8h"
 
@@ -396,7 +396,15 @@ def _component_base_config(name: str, enabled: bool) -> dict:
     if enabled and name == "anomaly_scorer":
         # F1 measures high-severity episode starts. Keep cooldown at zero so
         # those periods end on actual scorer de-escalation, not a delivery delay.
-        cfg.update({"correlation_events": True, "correlation_event_threshold": "high", "cooldown_secs": 0})
+        cfg.update(
+            {
+                "correlation_events": True,
+                "correlation_event_threshold": "high",
+                "cooldown_secs": 0,
+                "anomaly_reordering_window_secs": 600,
+                "late_anomaly_behavior": "clamp",
+            }
+        )
     return cfg
 
 

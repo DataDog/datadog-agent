@@ -2,6 +2,207 @@
 Release Notes
 =============
 
+.. _Release Notes_7.86.0:
+
+7.86.0
+======
+
+.. _Release Notes_7.86.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-11-23
+Pinned to datadog-agent v7.86.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7860>`_.
+
+
+.. _Release Notes_7.86.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- With the ``auto`` injection mode (the default), APM Single Step
+  Instrumentation now uses the Datadog CSI driver when all of these
+  conditions are met:
+  
+  - The Datadog CSI driver is installed in the cluster with APM support
+    enabled.
+  - The injector and tracer images come from a Datadog public registry.
+  - The cluster is not OpenShift.
+  - The cluster runs Kubernetes 1.20 or later.
+  - The tracer images are compatible with the CSI driver (released in
+    August 2024 or later).
+  
+  Otherwise, it still uses init containers. The
+  ``internal.apm.datadoghq.com/auto-injection-mode-reason`` pod annotation
+  explains the choice. To keep init containers, set
+  ``datadog.apm.instrumentation.injectionMode`` (Helm) or
+  ``features.apm.instrumentation.injectionMode`` (Operator) to
+  ``init_container``.
+
+- The Cluster Agent no longer supports the legacy busyness-based cluster
+  checks rebalancing algorithm. Cluster checks are always rebalanced based on
+  the utilization of the cluster check runners, and the
+  ``cluster_checks.rebalance_with_utilization`` option has been removed.
+
+- The Cluster Agent no longer needs ``list`` or ``watch`` on
+  ``rolebindings`` and ``clusterrolebindings``, or ``list`` on
+  ``serviceaccounts``. Those permissions were added for
+  ``cis-kubernetes-1.5.1-5.1.5``.
+
+- The ``datadog-cluster-agent clusterchecks isolate`` command and its backing
+  ``/api/v1/clusterchecks/isolate/check/{identifier}`` endpoint have been removed.
+
+- The ``orchestrator_explorer.terminated_pods_improved.enabled`` configuration
+  option is removed in favor of ``orchestrator_explorer.terminated_pods.enabled``.
+
+
+.. _Release Notes_7.86.0_New Features:
+
+New Features
+------------
+
+- Add an APM Basic target to Single Step Instrumentation, disabled by default. When
+  ``apm_config.instrumentation.apm_basic.enabled`` is set to ``true``, the admission
+  controller injects the C tracer (dd-trace-c) into pods labeled
+  ``admission.datadoghq.com/apm-basic.enabled: "true"`` so they report RED metrics
+  without sending traces. The tracer version is configured with
+  ``apm_config.instrumentation.apm_basic.tracer_versions``.
+
+- The ``cluster-agent status`` command and flare now include an Autoscaling
+  section reporting the state of workload autoscaling: the number of
+  ``DatadogPodAutoscaler`` objects in the store, whether this replica is the
+  leader, and per Remote Configuration product the version, age and number of
+  configurations in the last update received, a running update count, and how
+  many of those configurations failed to apply along with one of the errors.
+
+- The ``agentprofiling`` check can now run on the Cluster Agent. Add it to
+  the Cluster Agent's ``conf.d`` (for example with the Helm chart's
+  ``clusterAgent.confd``) to automatically generate a flare with profiles when the Cluster
+  Agent's memory or CPU usage exceeds your defined threshold. The check solely runs on
+  the Cluster Agent itself: a configuration with ``cluster_check: true`` is
+  not dispatched to cluster check runners.
+
+- ``DatadogInstrumentation`` checks and logs configurations can now target
+  Argo Workflows ``Workflow`` and ``CronWorkflow`` resources. Pods of a
+  Workflow created by a CronWorkflow are matched by the ``CronWorkflow``
+  target, not by the generated ``Workflow`` name.
+
+
+.. _Release Notes_7.86.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Auto-instrumented pods now expose the configuration source that selected
+  their tracing libraries in ``internal.apm.datadoghq.com/injection-source``.
+  Target, DatadogInstrumentation, and remote policy configuration is recorded
+  in ``internal.apm.datadoghq.com/applied-config``, replacing the
+  ``applied-target`` and ``applied-policy`` annotations.
+
+- APM Single Step Instrumentation through the Datadog CSI driver (the
+  ``csi`` injection mode) is now generally available.
+
+- The Cloud Foundry Cluster Agent no longer uses the deprecated Cloud
+  Foundry API v2. Organization quotas now come from the v3 API, with
+  unlimited memory quotas still reported as ``-1``. Cloud Controller
+  requests now use the ``datadog-cluster-agent`` user agent and time out
+  after 15 minutes.
+
+- Collect Gateway API Inference Extension InferencePool resources
+  (``inference.networking.k8s.io/v1``) by default in Orchestrator Explorer
+  when out-of-the-box custom resource collection is enabled.
+
+- Orchestrator Explorer now collects supported Gateway API, ingress controller,
+  and service mesh custom resources by default when the resources are installed
+  and the Cluster Agent has permission to list and watch them. Set
+  ``orchestrator_explorer.custom_resources.ootb.gateway_api``,
+  ``orchestrator_explorer.custom_resources.ootb.ingress_controllers``, or
+  ``orchestrator_explorer.custom_resources.ootb.service_mesh`` to ``false`` to
+  disable automatic collection for the corresponding family.
+
+- The ``datadog-cluster-agent flare --profile`` command now also collects
+  an execution trace, matching the node Agent's flare.
+
+- DatadogInstrumentation check configurations now support
+  ``ignoreAutodiscoveryTags`` and ``checkTagCardinality``
+  for workload and Service targets, allowing control over automatic tagging
+  and check tag cardinality.
+
+- The orchestrator check now collects custom resources whose CRD is installed
+  after the Cluster Agent started, without requiring a restart.
+
+- Removed the RoleBinding and ClusterRoleBinding reflector caches from the
+  Cluster Agent. They existed only to keep ``cis-kubernetes-1.5.1-5.1.5``
+  from listing every binding in the cluster, and that rule is gone.
+
+
+.. _Release Notes_7.86.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix the AppSec proxy injector in external mode only enabling AppSec for Envoy
+  Gateway ``Gateways`` in the first namespace when ``Gateways`` exist in several
+  namespaces.
+
+- Fix a Cluster Agent crash in the AppSec proxy injector when a watched
+  ``Gateway``, ``GatewayClass`` or ``IngressClass`` was deleted while its watch
+  was being re-established.
+
+- The AppSec proxy injector no longer deletes or overwrites an EnvoyFilter,
+  EnvoyExtensionPolicy, Backend, ReferenceGrant or ingress-nginx ConfigMap that
+  shares its reserved name but was not created by the Datadog Cluster Agent, and no
+  longer injects the Envoy Gateway sidecar into proxy pods whose owning ``Gateway``
+  does not exist.
+
+- Fix the AppSec proxy injector removing the shared Istio EnvoyFilter when a
+  single Istio ``Gateway`` is opted out with the ``appsec.datadoghq.com/enabled: "false"``
+  label, when one of several Istio ``GatewayClasses`` is deleted, or at startup when
+  only one of the ``istio`` and ``istio-gateway`` proxy types is enabled.
+
+- Scrub sensitive values in custom resource fields outside ``spec``, including
+  inline credentials in the top-level ``config`` field of Kong plugins.
+
+- Fix a panic of the CWS instrumentation webhook of the Cluster Agent when an
+  exec request missing its user info or its exec options outlasted the timeout.
+
+- Fix ``datadog-cluster-agent flare --profile`` with ``--profile-mutex`` or
+  ``--profile-blocking``, which failed with a 404 when setting the runtime
+  profiling rates.
+
+- Cluster Agent: Fix the Datadog Pod Autoscaler reporting a successful in-place
+  resize when the kubelet had rejected it (for example ``Infeasible`` for
+  Guaranteed pods on nodes using the static CPU manager policy). The Cluster
+  Agent now sees the ``PodResizePending`` and ``PodResizeInProgress`` pod
+  conditions, so a rejected resize falls back to a rollout.
+
+- Set the Kubernetes kind in collector metadata and manifest payloads for
+  generic resources and discovered custom resources.
+
+- Fix a crash of the Cluster Agent when ``autoscaling.failover.enabled`` is set
+  and it receives a metric with a tag that has no ``:`` separator.
+
+- Fix the Cluster Agent answering 403 to Node Agents reading their node's
+  system info, which kept the ``kube_distribution`` tag from being detected
+  from the kubelet version and logged a ``superfluous response.WriteHeader``
+  warning on every request.
+
+- Fix a bug in the orchestrator check that would lead to not enabling collectors if the Kubernetes API discovery
+  failed.
+
+
+.. _Release Notes_7.86.0_Other Notes:
+
+Other Notes
+-----------
+
+- Upgrade the Kubernetes client libraries to v0.37. The Cluster Agent keeps
+  serving external metrics to the HorizontalPodAutoscalers of Kubernetes
+  clusters that only serve the ``autoscaling/v2beta1`` or
+  ``autoscaling/v2beta2`` API versions (Kubernetes older than 1.23).
+
+
 .. _Release Notes_7.85.2:
 
 7.85.2

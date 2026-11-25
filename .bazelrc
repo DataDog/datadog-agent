@@ -73,6 +73,7 @@ common --run_env=GOTOOLCHAIN=local # Extend https://github.com/bazel-contrib/rul
 common --run_env=RULES_PYTHON_ADDITIONAL_INTERPRETER_ARGS=-I # Prevent user env, path, and site from shadowing runfiles
 common --skip_incompatible_explicit_targets # Let target_compatible_with skip rather than fail
 common:linux --strip=never # TODO: Apply independently of platform
+common:windows --strip=never
 common --test_output=errors # Print test errors to console output instead of only capturing them in buried test.log
 common --verbose_failures
 
