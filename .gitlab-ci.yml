@@ -1131,25 +1131,18 @@ workflow:
 # fakeintake changes (and the override) are handled by .on_e2e_main_release_or_rc.
 .on_e2e_or_fakeintake_changes_or_manual:
   - !reference [.on_e2e_guard]
-  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
-    changes:
-      paths:
-        - test/new-e2e/tests/agent-devx/pre-test/*
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-  - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         - test/new-e2e/tests/agent-devx/pre-test/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
+  - !reference [.on_e2e_main_release_or_rc]
   - when: manual
     allow_failure: true
 
 .on_npm_or_e2e_changes:
   - !reference [.on_e2e_guard]
-  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
-    changes:
+  - changes:
       paths:
         - test/new-e2e/tests/npm/**/*
       compare_to: $COMPARE_TO_BRANCH
@@ -1159,13 +1152,11 @@ workflow:
       paths:
         # TODO: Add paths that should trigger tests for npm
         - pkg/network/**/*
-        - test/new-e2e/tests/npm/**/*
       compare_to: $COMPARE_TO_BRANCH
 
 .on_acfg_or_e2e_changes:
   - !reference [.on_e2e_guard]
-  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
-    changes:
+  - changes:
       paths:
         - test/new-e2e/tests/agent-configuration/**/*
       compare_to: $COMPARE_TO_BRANCH
@@ -1176,13 +1167,11 @@ workflow:
         - cmd/**/*
         - pkg/**/*
         - comp/**/*
-        - test/new-e2e/tests/agent-configuration//**/*
       compare_to: $COMPARE_TO_BRANCH
 
 .on_process_or_e2e_changes:
   - !reference [.on_e2e_guard]
-  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
-    changes:
+  - changes:
       paths:
         - test/new-e2e/tests/process/**/*
       compare_to: $COMPARE_TO_BRANCH
@@ -1190,7 +1179,6 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - test/new-e2e/tests/process/**/*
         - cmd/process-agent/**/*
         - comp/core/tagger/**/*
         - comp/core/workloadmeta/collectors/internal/process/**/*
@@ -1202,8 +1190,7 @@ workflow:
 
 .on_alp_or_e2e_changes:
   - !reference [.on_e2e_guard]
-  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
-    changes:
+  - changes:
       paths:
         - test/new-e2e/tests/agent-log-pipelines/**/*
       compare_to: $COMPARE_TO_BRANCH
@@ -1211,7 +1198,6 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - test/new-e2e/tests/agent-log-pipelines/**/*
         - cmd/agent/subcommands/streamlogs/*
         - comp/core/agenttelemetry/**/*
         - comp/core/autodiscovery/providers/config_reader*.go
@@ -1222,8 +1208,7 @@ workflow:
 
 .on_cws_or_e2e_changes:
   - !reference [.on_e2e_guard]
-  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
-    changes:
+  - changes:
       paths:
         - test/new-e2e/tests/cws/**/*
       compare_to: $COMPARE_TO_BRANCH
@@ -1235,8 +1220,7 @@ workflow:
 
 .on_installer_or_e2e_changes:
   - !reference [.on_e2e_guard]
-  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
-    changes:
+  - changes:
       paths:
         - test/new-e2e/tests/fleet/**/*
         - test/new-e2e/tests/installer/**/*
@@ -1254,8 +1238,6 @@ workflow:
         - omnibus/config/**/*
         - pkg/fleet/**/*
         - cmd/installer/**/*
-        - test/new-e2e/tests/fleet/**/*
-        - test/new-e2e/tests/installer/**/*
         - tasks/installer.py
         - tools/windows/DatadogAgentInstaller/**/*
       compare_to: $COMPARE_TO_BRANCH
@@ -1263,8 +1245,7 @@ workflow:
 
 .on_netpath_or_e2e_changes:
   - !reference [.on_e2e_guard]
-  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
-    changes:
+  - changes:
       paths:
         - test/new-e2e/tests/netpath/**/*
       compare_to: $COMPARE_TO_BRANCH
@@ -1281,15 +1262,13 @@ workflow:
         - pkg/process/checks/net.go
         - comp/rdnsquerier/impl/config.go
         - comp/networkpath/**/*
-        - test/new-e2e/tests/netpath/**/*
         - test/new-e2e/go.mod
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
 .on_otel_or_e2e_changes:
   - !reference [.on_e2e_guard]
-  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
-    changes:
+  - changes:
       paths:
         - test/new-e2e/tests/otel/**/*
       compare_to: $COMPARE_TO_BRANCH
@@ -1305,7 +1284,6 @@ workflow:
         - pkg/trace/otel/stats/otel_util.go
         - pkg/trace/otel/traceutil/otel_util.go
         - pkg/trace/transform/transform.go
-        - test/new-e2e/tests/otel/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -1321,8 +1299,7 @@ workflow:
 
 .on_windows_service_or_e2e_changes:
   - !reference [.on_e2e_guard]
-  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
-    changes:
+  - changes:
       paths:
         - test/new-e2e/tests/windows/service-test/**/*
       compare_to: $COMPARE_TO_BRANCH
@@ -1340,14 +1317,12 @@ workflow:
         - pkg/util/winutil/servicemain/**/*
         - pkg/util/winutil/messagestrings/**/*
         - tasks/windows_resources.py
-        - test/new-e2e/tests/windows/service-test/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
 .on_windows_powershell_check_or_e2e_changes:
   - !reference [.on_e2e_guard]
-  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
-    changes:
+  - changes:
       paths:
         - test/new-e2e/tests/windows/powershell-check/**/*
       compare_to: $COMPARE_TO_BRANCH
@@ -1359,14 +1334,12 @@ workflow:
         - cmd/agent/dist/protected/**/*
         - pkg/collector/corechecks/system/powershell/**/*
         - tools/windows/DatadogAgentInstaller/WixSetup/Datadog Agent/AgentInstaller.cs
-        - test/new-e2e/tests/windows/powershell-check/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
 .on_windows_certificate_or_e2e_changes:
   - !reference [.on_e2e_guard]
-  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
-    changes:
+  - changes:
       paths:
         - test/new-e2e/tests/windows/windows-certificate/**/*
       compare_to: $COMPARE_TO_BRANCH
@@ -1374,26 +1347,19 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - test/new-e2e/tests/windows/windows-certificate/**/*
         - pkg/collector/corechecks/system/windowscertificate/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
 .on_windows_fips_compliance_or_e2e_changes:
   - !reference [.on_e2e_guard]
-  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
-    changes:
+  - changes:
       paths:
         - test/new-e2e/tests/fips-compliance/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - <<: *on_build_changes
-    when: on_success
-  - changes:
-      paths:
-        - test/new-e2e/tests/fips-compliance/**/*
-      compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
 .on_trace_agent_changes_or_manual:
@@ -1409,8 +1375,7 @@ workflow:
 
 .on_systemprobe_or_e2e_changes:
   - !reference [.on_e2e_guard]
-  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
-    changes:
+  - changes:
       paths:
         - test/new-e2e/tests/sysprobe-functional/**/*
         - test/new-e2e/tests/usm/**/*
@@ -1424,15 +1389,12 @@ workflow:
         - pkg/process/checks/**/*
         - pkg/process/monitor/*
         - pkg/util/kernel/**/*
-        - test/new-e2e/tests/sysprobe-functional/**/*
-        - test/new-e2e/tests/usm/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
 .on_windows_security_or_e2e_changes:
   - !reference [.on_e2e_guard]
-  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
-    changes:
+  - changes:
       paths:
         - test/new-e2e/tests/security-agent-functional/**/*
       compare_to: $COMPARE_TO_BRANCH
@@ -1442,7 +1404,6 @@ workflow:
       paths:
         - pkg/security/**/*
         - pkg/eventmonitor/**/*
-        - test/new-e2e/tests/security-agent-functional/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
