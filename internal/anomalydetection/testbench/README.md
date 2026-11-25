@@ -81,7 +81,16 @@ dda inv anomalydetection.eval-ddeval --dataset "my-recordings" --config params.j
 `--dataset` accepts a name or UUID and reads its latest version. If omitted, it
 defaults to `observer-metric-types-2026-10-26`. Both evaluators default to project
 `observer-log-ad` on `datadoghq.com`. Local replay accepts other `--site` values;
-the remote command targets the production DDBuild worker. See [available datasets](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/7384334870/AAD+evaluation+datasets).
+the remote command targets the production DDBuild worker by default. See [available datasets](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/7384334870/AAD+evaluation+datasets).
+
+To evaluate against an existing staging test drive, pass its name and a dataset
+available in staging. The task uploads or reuses the testbench artifact and pins
+its SHA-256 automatically. Staging timeouts fail by default.
+
+```bash
+dda inv anomalydetection.eval-ddeval --env staging --workflow-test-drive my-drive \
+  --dataset observer-metric-types-2026-10-26 --limit 1 --jobs 1
+```
 
 Use local evaluation for detector iteration and visual investigation, and DDEval
 for worker execution and shared experiment results. DDEval also accepts the older
@@ -201,11 +210,21 @@ profile; an enabled-only entry preserves the replay defaults.
 | `time_cluster` | disabled | Groups anomalies that occur close together in time |
 | `passthrough` | disabled | Testbench-only adapter that serializes every raw anomaly as its own evaluation period |
 
-The Scorer tab defaults to **Detection time**, which shows the original replay
-with the scorer's effective input seconds and cooldown-filtered transitions.
-**Change-point time** recomputes the same anomaly set at detector change-point
-timestamps, including scan-detector lookback, so the two views intentionally
-differ when detection is delayed.
+The Scorer tab has three timing views:
+
+- **Reordered** (default): replays the recorded arrival trace with anomaly
+  reordering enabled (10m + clamp by default in the testbench). Notifications
+  appear when evidence becomes available, and the sidebar reports
+  input-arrival and High-crossing delay statistics.
+- **Detection time**: replays in arrival order with reordering disabled
+  (0s + clamp). Late anomalies enter the score at the next unscored second.
+- **Change-point time**: recomputes the same anomaly set at detector
+  change-point timestamps, including scan-detector lookback — the
+  retrospective ideal.
+
+The Reordered view exposes live controls for the reordering window (0s / 5m /
+10m / 30m presets plus a custom value) and the late-anomaly behavior
+(`clamp` / `ignore`).
 
 ### Extractors
 

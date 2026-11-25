@@ -10,6 +10,7 @@ package kubernetesresourceparsers
 import (
 	"fmt"
 	"maps"
+	"time"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
@@ -25,6 +26,7 @@ type kueueResourceFlavorParser struct{}
 
 type kueueWorkloadParser struct {
 	podTemplateTags bool
+	events          bool
 }
 
 // NewKueueQueueParser returns a parser for Kueue queue resources.
@@ -42,9 +44,12 @@ func NewKueueResourceFlavorParser() ObjectParser {
 
 // NewKueueWorkloadParser returns a parser for Kueue Workload resources.
 // podTemplateTags copies labels and annotations shared by every pod set template
-// onto the workload entity.
-func NewKueueWorkloadParser(podTemplateTags bool) ObjectParser {
-	return kueueWorkloadParser{podTemplateTags: podTemplateTags}
+// onto the workload entity. events fills the conditions that the events of the
+// Cluster Agent are built from. They change on every status update, so they are
+// left out when nothing needs them, to keep the store from notifying its
+// subscribers for them.
+func NewKueueWorkloadParser(podTemplateTags, events bool) ObjectParser {
+	return kueueWorkloadParser{podTemplateTags: podTemplateTags, events: events}
 }
 
 func (p kueueQueueParser) Parse(obj interface{}) workloadmeta.Entity {
@@ -114,11 +119,27 @@ func (p kueueWorkloadParser) Parse(obj interface{}) workloadmeta.Entity {
 		UID:         string(u.GetUID()),
 	}
 
-	queueName, _, _ := unstructured.NestedString(u.Object, "spec", "queueName")
+	spec, _ := u.Object["spec"].(map[string]interface{})
+	queueName := stringField(spec, "queueName")
 	clusterQueueName, _, _ := unstructured.NestedString(u.Object, "status", "admission", "clusterQueue")
 	var podTemplateLabels, podTemplateAnnotations map[string]string
 	if p.podTemplateTags {
 		podTemplateLabels, podTemplateAnnotations = kueuePodTemplateMetadata(u)
+	}
+
+	var events any
+	if p.events {
+		var priority *int32
+		if value, found, err := unstructured.NestedInt64(u.Object, "spec", "priority"); found && err == nil {
+			narrowed := int32(value)
+			priority = &narrowed
+		}
+		events = &KueueWorkloadEvents{
+			CreationTimestamp: u.GetCreationTimestamp().UTC(),
+			Priority:          priority,
+			PriorityClassName: priorityClassName(spec),
+			Conditions:        kueueWorkloadConditions(u),
+		}
 	}
 
 	return &workloadmeta.KubernetesKueueWorkload{
@@ -132,7 +153,58 @@ func (p kueueWorkloadParser) Parse(obj interface{}) workloadmeta.Entity {
 		PodSetAssignments:      kueuePodSetAssignments(u),
 		PodTemplateLabels:      podTemplateLabels,
 		PodTemplateAnnotations: podTemplateAnnotations,
+		SchedulerEvents:        events,
 	}
+}
+
+// kueueWorkloadConditions returns the status conditions of a Workload that
+// have a type, in the order Kueue reports them.
+func kueueWorkloadConditions(u *unstructured.Unstructured) []KueueWorkloadCondition {
+	var conditions []KueueWorkloadCondition
+	for _, fields := range typedEntries(u.Object, "status", "conditions") {
+		conditions = append(conditions, KueueWorkloadCondition{
+			Type:               stringField(fields, "type"),
+			Status:             stringField(fields, "status"),
+			Reason:             stringField(fields, "reason"),
+			Message:            stringField(fields, "message"),
+			LastTransitionTime: parseTime(stringField(fields, "lastTransitionTime")),
+		})
+	}
+	return conditions
+}
+
+// stringField returns the string at key, or "" when it is missing or not a string.
+func stringField(fields map[string]interface{}, key string) string {
+	value, _ := fields[key].(string)
+	return value
+}
+
+// parseTime returns the zero time when the value is empty or malformed.
+func parseTime(value string) time.Time {
+	parsed, _ := time.Parse(time.RFC3339, value)
+	return parsed
+}
+
+// priorityClassName reads priorityClassRef.name, the current field, and falls
+// back to priorityClassName, the deprecated one.
+func priorityClassName(spec map[string]interface{}) string {
+	ref, _ := spec["priorityClassRef"].(map[string]interface{})
+	if name := stringField(ref, "name"); name != "" {
+		return name
+	}
+	return stringField(spec, "priorityClassName")
+}
+
+// typedEntries returns the objects of the list at path that have a type.
+func typedEntries(obj map[string]interface{}, path ...string) []map[string]interface{} {
+	items, _, _ := unstructured.NestedSlice(obj, path...)
+	var entries []map[string]interface{}
+	for _, item := range items {
+		if fields, ok := item.(map[string]interface{}); ok && stringField(fields, "type") != "" {
+			entries = append(entries, fields)
+		}
+	}
+	return entries
 }
 
 // kueuePodTemplateMetadata returns labels and annotations that have the same

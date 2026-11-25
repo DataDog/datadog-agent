@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/defaultscript"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/djm"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/gpu"
 )
 
 type flavor struct {
@@ -25,11 +26,12 @@ type flavor struct {
 }
 
 var flavors = map[string]flavor{
-	"default":    {path: "defaultscript/default_script.go", run: defaultscript.SetupDefaultScript},
-	"APM SSI":    {path: "defaultscript/ssi_standalone.go", run: defaultscript.SetupAPMSSIScript},
-	"databricks": {path: "djm/databricks.go", run: djm.SetupDatabricks},
-	"emr":        {path: "djm/emr.go", run: djm.SetupEmr},
-	"dataproc":   {path: "djm/dataproc.go", run: djm.SetupDataproc},
+	"default":        {path: "defaultscript/default_script.go", run: defaultscript.SetupDefaultScript},
+	"APM SSI":        {path: "defaultscript/ssi_standalone.go", run: defaultscript.SetupAPMSSIScript},
+	"databricks":     {path: "djm/databricks.go", run: djm.SetupDatabricks},
+	"databricks-gpu": {path: "gpu/databricks_gpu.go", run: gpu.SetupDatabricksGPU},
+	"emr":            {path: "djm/emr.go", run: djm.SetupEmr},
+	"dataproc":       {path: "djm/dataproc.go", run: djm.SetupDataproc},
 }
 
 // envFromVersionHandoff is the recursion guard: set on a child installer

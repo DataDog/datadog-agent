@@ -6,6 +6,8 @@
 package tokenizer
 
 import (
+	"math"
+	"math/rand/v2"
 	"slices"
 	"strings"
 	"testing"
@@ -1050,4 +1052,84 @@ func FuzzTokenizerSpecialTokenPromotion(f *testing.F) {
 		assert.Equal(t, expected, actual,
 			"tokenize(%q): expected %v, got %v", input, expected, actual)
 	})
+}
+
+func referenceIsMatch(seqA, seqB []Token, thresh float64) bool {
+	count := min(len(seqB), len(seqA))
+	if count == 0 {
+		return len(seqA) == len(seqB)
+	}
+	requiredMatches := int(math.Round(thresh * float64(count)))
+	match := 0
+	for i := 0; i < count; i++ {
+		if seqA[i] == seqB[i] {
+			match++
+		}
+		if match+(count-i-1) < requiredMatches {
+			return false
+		}
+	}
+	return true
+}
+
+func TestIsMatch_EquivalenceWithReference(t *testing.T) {
+	thresholds := []float64{
+		math.Inf(-1), -0.5, 0, 0.01, 0.25, 0.5, 0.55, 0.75, 0.9, 0.99, 1.0, 1.01, 2.0,
+		math.Inf(1), math.NaN(),
+		math.Nextafter(0.5, 0), math.Nextafter(0.5, 1),
+	}
+
+	// Exhaustive boundary lengths covering scalar (<8), single-word (8..15),
+	// two-ended loop (16..31), and multi-iteration windows (32..257).
+	lengths := []int{0, 1, 2, 5, 7, 8, 9, 15, 16, 17, 23, 24, 25, 31, 32, 33, 63, 64, 65, 170, 257}
+	rng := rand.New(rand.NewPCG(42, 99))
+
+	for _, lenA := range lengths {
+		for _, lenB := range []int{lenA, max(0, lenA-3), lenA + 5} {
+			seqA := make([]Token, lenA)
+			seqB := make([]Token, lenB)
+			for i := range seqA {
+				seqA[i] = Token(rng.IntN(256))
+			}
+			// Test exact match, front mismatch, back mismatch, middle mismatch, and random mismatches.
+			for mode := range 5 {
+				copy(seqB, seqA)
+				for i := lenA; i < lenB; i++ {
+					seqB[i] = Token(rng.IntN(256))
+				}
+				c := min(lenA, lenB)
+				switch mode {
+				case 0: // identical prefix
+				case 1: // differ near start
+					for i := 0; i < min(c, max(1, c/8+1)); i++ {
+						seqB[i] ^= 0x01
+					}
+				case 2: // differ near end (including high-bit flips >= 0x80)
+					for i := max(0, c-max(1, c/8+1)); i < c; i++ {
+						seqB[i] ^= 0x80
+					}
+				case 3: // differ in middle (mixed low/high bit flips)
+					start := c / 3
+					end := min(c, start+max(1, c/6+1))
+					for i := start; i < end; i++ {
+						seqB[i] ^= 0x81
+					}
+				case 4: // random ~10% mismatches across all byte values 0x00..0xFF
+					for i := 0; i < c; i++ {
+						if rng.IntN(10) == 0 {
+							seqB[i] = Token(rng.IntN(256))
+						}
+					}
+				}
+				for _, th := range thresholds {
+					got := IsMatch(seqA, seqB, th)
+					want := referenceIsMatch(seqA, seqB, th)
+					if got != want {
+						t.Fatalf("IsMatch mismatch: lenA=%d lenB=%d mode=%d thresh=%v: got %v want %v",
+							lenA, lenB, mode, th, got, want)
+					}
+				}
+			}
+		}
+	}
 }

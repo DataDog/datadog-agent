@@ -6,6 +6,8 @@
 package preprocessor
 
 import (
+	"hash/fnv"
+	"math/rand/v2"
 	"regexp"
 	"strings"
 	"testing"
@@ -1209,4 +1211,121 @@ func TestAdaptiveSampler_ResolveSourceTag(t *testing.T) {
 		require.Nil(t, s.Process(testMsg(), tokens))
 		assert.Equal(t, float64(1), tlmAdaptiveSamplerDropped.WithValues("after", "false").Get()-beforeDropped)
 	})
+}
+
+func TestHashTokens64_MatchesStdlibFNV64a(t *testing.T) {
+	cases := [][]Token{
+		nil,
+		{},
+		{0},
+		{1, 2, 3, 4, 5},
+		tokenize("2024-01-15 10:30:45.123 INFO [service-a] Request processed user_id=12345").Clone(),
+	}
+	allBytes := make([]Token, 256)
+	for i := range allBytes {
+		allBytes[i] = Token(i)
+	}
+	cases = append(cases, allBytes)
+
+	for _, toks := range cases {
+		h := fnv.New64a()
+		var b [1]byte
+		for _, tok := range toks {
+			b[0] = byte(tok)
+			_, _ = h.Write(b[:])
+		}
+		assert.Equal(t, h.Sum64(), hashTokens64(toks))
+	}
+}
+
+func TestAdaptiveSampler_ExactIndexMatchesLinearScan(t *testing.T) {
+	// Differential test comparing the indexed AdaptiveSampler against an unindexed
+	// linear-scan AdaptiveSampler (indexedCount = -1 disables exactIndex) across
+	// bubbling, ties, evictions, fuzzy near-threshold matches, and varying thresholds.
+	for _, tc := range []struct {
+		name        string
+		maxPatterns int
+		thresh      float64
+	}{
+		{"default_0.9_p16", 16, 0.9},
+		{"fuzzy_0.75_p12", 12, 0.75},
+		{"exact_1.0_p8", 8, 1.0},
+		{"small_p4", 4, 0.9},
+		{"indexed_0.9_p48", 48, 0.9},
+		{"indexed_1.0_p40", 40, 1.0},
+		{"indexed_0.75_p64", 64, 0.75},
+		{"degenerate_gt1", 8, 1.1},
+		{"degenerate_zero", 8, 0.0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := AdaptiveSamplerConfig{
+				MaxPatterns:    tc.maxPatterns,
+				RateLimit:      1.0,
+				BurstSize:      2.0,
+				MatchThreshold: tc.thresh,
+				TagPatternHash: true,
+			}
+			t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+			step := 0
+			clock := func() time.Time { return t0.Add(time.Duration(step) * 100 * time.Millisecond) }
+
+			got := NewAdaptiveSampler(cfg, staticSourceTag("diff"), 0)
+			got.now = clock
+			want := NewAdaptiveSampler(cfg, staticSourceTag("diff"), 0)
+			want.now = clock
+			want.indexedCount = -1 // force pure linear scan
+
+			rng := rand.New(rand.NewPCG(12345, 67890))
+			// Build a pool of base patterns (varying lengths including short and multi-word).
+			pool := make([][]Token, 32)
+			for i := range pool {
+				n := 1 + rng.IntN(48)
+				p := make([]Token, n)
+				for j := range p {
+					p[j] = Token(rng.IntN(40))
+				}
+				pool[i] = p
+			}
+
+			for i := range 2000 {
+				step = i
+				base := pool[rng.IntN(len(pool))]
+				toks := make([]Token, len(base))
+				copy(toks, base)
+				// Occasionally mutate 1-3 tokens to exercise fuzzy near-threshold matching.
+				if rng.IntN(3) == 0 && len(toks) > 0 {
+					for range 1 + rng.IntN(3) {
+						toks[rng.IntN(len(toks))] = Token(rng.IntN(40))
+					}
+				}
+
+				mGot := got.Process(testMsg(), newBorrowedTokens(toks, nil))
+				mWant := want.Process(testMsg(), newBorrowedTokens(toks, nil))
+
+				require.Equal(t, mWant == nil, mGot == nil, "step %d: drop mismatch", i)
+				if mWant != nil {
+					require.Equal(t, mWant.ParsingExtra.Tags, mGot.ParsingExtra.Tags, "step %d: tags mismatch", i)
+				}
+				require.Equal(t, len(want.entries), len(got.entries), "step %d: entry count mismatch", i)
+				for j := range want.entries {
+					require.Equal(t, want.entries[j].tokens, got.entries[j].tokens, "step %d entry %d: tokens mismatch", i, j)
+					require.Equal(t, want.entries[j].matchCount, got.entries[j].matchCount, "step %d entry %d: matchCount mismatch", i, j)
+					require.Equal(t, want.entries[j].sampled, got.entries[j].sampled, "step %d entry %d: sampled mismatch", i, j)
+				}
+				// Verify exactIndex consistency whenever active.
+				if got.exactIndex != nil && got.indexedCount == len(got.entries) {
+					require.LessOrEqual(t, len(got.exactIndex), len(got.entries))
+					for h, idx := range got.exactIndex {
+						require.Less(t, idx, len(got.entries))
+						require.Equal(t, h, got.entries[idx].hash)
+					}
+				}
+			}
+			if tc.maxPatterns >= exactIndexMinTableSize && tc.thresh <= 1.0 {
+				require.NotNil(t, got.exactIndex, "index should be built once the table reaches exactIndexMinTableSize")
+			} else {
+				require.Nil(t, got.exactIndex, "small tables should not build the index")
+			}
+		})
+	}
 }

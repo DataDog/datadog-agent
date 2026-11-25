@@ -89,8 +89,10 @@ func standaloneOTelAgentProvisioner(deployFn func(config.Env, *kubernetes.Provid
 // The dogtel-standalone OTel config enables the dogtelextension with a tagger
 // gRPC server on port 15555.
 //
-// The otel-agent collects pods through its default kubelet workloadmeta
-// collector; the fixture's default RBAC grants the kubelet access this needs.
+// The otel-agent opts in to the kubelet workloadmeta collector through the
+// environment, while TestDogtelTagParity covers the equivalent
+// extensions.dogtel.use_kubelet_collector key; the fixture's default RBAC
+// grants the kubelet access this needs.
 //
 // The name is intentionally short (≤20 lowercase chars) to prevent Kubernetes
 // from truncating pod names: deployment name = "calendar-rest-go-" + lowercase(TestName).
@@ -99,7 +101,14 @@ func standaloneOTelAgentProvisioner(deployFn func(config.Env, *kubernetes.Provid
 func TestDogtelStandalone(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &dogtelStandaloneTestSuite{workloadmetaCollector: "kubelet"},
-		e2e.WithProvisioner(dogtelStandaloneProvisioner()),
+		e2e.WithProvisioner(dogtelStandaloneProvisioner(
+			otelstandalone.WithExtraEnvVars(
+				&pulumicorev1.EnvVarArgs{
+					Name:  pulumi.String("DD_OTELCOLLECTOR_STANDALONE_USE_KUBELET_COLLECTOR"),
+					Value: pulumi.String("true"),
+				},
+			),
+		)),
 		e2e.WithCoverageRequired(map[string]bool{
 			"agent":      false,
 			"otel-agent": true,
@@ -108,7 +117,7 @@ func TestDogtelStandalone(t *testing.T) {
 }
 
 // dogtelNodefilterTestSuite runs the dogtelStandaloneTestSuite tests against a
-// standalone otel-agent opted in to the nodefilter workloadmeta collector,
+// standalone otel-agent using its default nodefilter workloadmeta collector,
 // which watches this node's pods through the API server, and whose
 // ClusterRole grants only the pod read access nodefilter documents: no kubelet
 // API access (nodes/proxy) the kubelet collector would need. It is a distinct
@@ -130,9 +139,8 @@ func podReadRule() *rbacv1.PolicyRuleArgs {
 // TestDogtelNodefilter is the entry point for the dogtelNodefilterTestSuite.
 // Its name is exactly 20 characters, the limit TestDogtelStandalone documents.
 //
-// The otel-agent opts in to nodefilter through the environment, while
-// TestDogtelTagParity covers the equivalent
-// extensions.dogtel.use_kubelet_collector key. It gets no DD_HOSTNAME, so that
+// The otel-agent leaves use_kubelet_collector unset, so that this covers the
+// default collector. It gets no DD_HOSTNAME, so that
 // it resolves its hostname as a deployment set up for the upstream collector
 // would have it: from the node name the fixture passes through the downward API
 // and the cluster name in OTEL_RESOURCE_ATTRIBUTES.
@@ -143,10 +151,6 @@ func TestDogtelNodefilter(t *testing.T) {
 			otelstandalone.WithClusterRoleRules(podReadRule()),
 			otelstandalone.WithoutDefaultHostname(),
 			otelstandalone.WithExtraEnvVars(
-				&pulumicorev1.EnvVarArgs{
-					Name:  pulumi.String("DD_OTELCOLLECTOR_STANDALONE_USE_KUBELET_COLLECTOR"),
-					Value: pulumi.String("false"),
-				},
 				&pulumicorev1.EnvVarArgs{
 					Name:  pulumi.String("OTEL_RESOURCE_ATTRIBUTES"),
 					Value: pulumi.String("k8s.cluster.name=" + dogtelNodefilterClusterName),

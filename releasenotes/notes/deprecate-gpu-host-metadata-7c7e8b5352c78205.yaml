@@ -1,0 +1,7 @@
+---
+deprecations:
+  - |
+    The legacy GPU host metadata payload is deprecated and disabled by default.
+    To continue sending it, set ``gpu.legacy_host_metadata`` to ``true``
+    (or set ``DD_GPU_LEGACY_HOST_METADATA=true``). Inventory metadata collection
+    must also be enabled.

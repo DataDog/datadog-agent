@@ -1721,6 +1721,11 @@ type KubernetesKueueWorkload struct {
 	PodSetAssignments      []KueuePodSetAssignment
 	PodTemplateLabels      map[string]string
 	PodTemplateAnnotations map[string]string
+
+	// SchedulerEvents holds what the Cluster Agent needs to emit Workload
+	// events, and is nil for any other consumer. It is an interface so that the
+	// type that carries the data stays out of the Agents that never emit them.
+	SchedulerEvents any
 }
 
 // GetID implements Entity#GetID.
@@ -1772,6 +1777,11 @@ type KubernetesKAIPodGroup struct {
 	EntityID
 	EntityMeta
 	QueueName string
+
+	// SchedulerEvents holds what the Cluster Agent needs to emit PodGroup
+	// events, and is nil for any other consumer. It is an interface so that the
+	// type that carries the data stays out of the Agents that never emit them.
+	SchedulerEvents any
 }
 
 // GetID implements Entity#GetID.
