@@ -539,13 +539,8 @@ func (ia *inventoryagent) refreshMetadata() {
 }
 
 func (ia *inventoryagent) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
-	data, err := ia.GetAsJSON()
-	if err != nil {
-		httputils.SetJSONError(w, err, 500)
-		return
-	}
 	// Scrub by key name, as the flare does, so that sensitive fields such as the secret hashes are not exposed
-	scrubbed, err := scrubber.ScrubJSON(data)
+	scrubbed, err := ia.GetAsScrubbedJSON()
 	if err != nil {
 		httputils.SetJSONError(w, err, 500)
 		return
