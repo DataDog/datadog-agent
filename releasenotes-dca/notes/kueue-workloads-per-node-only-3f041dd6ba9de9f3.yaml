@@ -1,0 +1,12 @@
+---
+upgrade:
+  - |
+    With ``cluster_agent.kueue.enabled``, the Cluster Agent now sends each node
+    Agent only the Kueue Workloads of the pods that run on that node, even if
+    the node Agent runs the ``kueue`` check. Before, nodes that run the check
+    received every Workload. The ``kueue`` check can no longer tag the events of
+    Workloads that have no pod on its node. To keep Workload events tagged, send
+    them from the Cluster Agent with ``cluster_agent.kueue.events.enabled`` and
+    set ``collect_workload_events: false`` on the ``kueue`` check.
+    The ``cluster_agent.kueue.workloads_per_node`` setting is removed: nodes
+    always receive only their own Workloads.
