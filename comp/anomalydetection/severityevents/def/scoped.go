@@ -16,10 +16,15 @@ func ScopeKeyForService(service string) ScopeKey {
 		return 0
 	}
 	const (
-		offset64 = 14695981039346656037
-		prime64  = 1099511628211
+		offset64      = 14695981039346656037
+		prime64       = 1099511628211
+		servicePrefix = "service:"
 	)
 	hash := uint64(offset64)
+	for index := 0; index < len(servicePrefix); index++ {
+		hash ^= uint64(servicePrefix[index])
+		hash *= prime64
+	}
 	for index := 0; index < len(service); index++ {
 		hash ^= uint64(service[index])
 		hash *= prime64
@@ -32,7 +37,7 @@ func ScopeKeyForService(service string) ScopeKey {
 
 // ScopedSeverityEvent pairs a severity state-machine transition with its ScopeKey.
 type ScopedSeverityEvent struct {
-	ScopeKey ScopeKey      `json:"scope_key"`
+	ScopeKey ScopeKey      `json:"scope_key,string"`
 	Event    SeverityEvent `json:"event"`
 }
 
@@ -48,6 +53,7 @@ type ScopedSeverityEventsSubscription struct {
 
 // ScopedSubscriber exposes scoped severity transition subscriptions.
 type ScopedSubscriber interface {
+	// SubscribeScopedSeverityEvents registers listener, bootstrapping active elevated scopes and returning an idempotent Unsubscribe.
 	SubscribeScopedSeverityEvents(
 		cfg SeverityEventsConfiguration,
 		listener ScopedSeverityEventListener,

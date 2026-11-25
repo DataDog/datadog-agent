@@ -194,5 +194,25 @@ func TestLogMetricsExtractor_PropagatesServiceWithoutTagMutation(t *testing.T) {
 	})
 	require.Len(t, otherRes.Metrics, 2)
 	assert.Equal(t, "payments", otherRes.Metrics[0].Context.Service)
+	assert.Equal(t, "payments", otherRes.Metrics[1].Context.Service)
 	assert.NotEqual(t, jsonRes.Metrics[0].Name, otherRes.Metrics[0].Name)
+
+	originWins := extractor.ProcessLog(&mockLogView{
+		service: "origin-svc",
+		tags:    []string{"service:tag-svc"},
+		content: `{"latency_ms":42}`,
+	})
+	require.Len(t, originWins.Metrics, 2)
+	for _, metric := range originWins.Metrics {
+		assert.Equal(t, "origin-svc", metric.Context.Service)
+	}
+
+	tagFallback := extractor.ProcessLog(&mockLogView{
+		tags:    []string{"service:tag-svc"},
+		content: `{"latency_ms":42}`,
+	})
+	require.Len(t, tagFallback.Metrics, 2)
+	for _, metric := range tagFallback.Metrics {
+		assert.Equal(t, "tag-svc", metric.Context.Service)
+	}
 }

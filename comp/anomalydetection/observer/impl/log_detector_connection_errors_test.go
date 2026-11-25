@@ -120,3 +120,29 @@ func TestConnectionErrorExtractor_Process_AllPatterns(t *testing.T) {
 		})
 	}
 }
+
+func TestConnectionErrorExtractor_PropagatesServiceAndPrecedence(t *testing.T) {
+	e := &ConnectionErrorExtractor{}
+
+	fromOrigin := e.ProcessLog(&mockLogView{
+		service: "checkout",
+		content: "connection refused",
+	})
+	assert.Len(t, fromOrigin.Metrics, 1)
+	assert.Equal(t, "checkout", fromOrigin.Metrics[0].Context.Service)
+
+	originWins := e.ProcessLog(&mockLogView{
+		service: "origin-svc",
+		tags:    []string{"service:tag-svc"},
+		content: "connection refused",
+	})
+	assert.Len(t, originWins.Metrics, 1)
+	assert.Equal(t, "origin-svc", originWins.Metrics[0].Context.Service)
+
+	tagFallback := e.ProcessLog(&mockLogView{
+		tags:    []string{"service:tag-svc"},
+		content: "connection refused",
+	})
+	assert.Len(t, tagFallback.Metrics, 1)
+	assert.Equal(t, "tag-svc", tagFallback.Metrics[0].Context.Service)
+}

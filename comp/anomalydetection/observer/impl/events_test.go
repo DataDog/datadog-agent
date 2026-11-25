@@ -1061,3 +1061,97 @@ func TestIngestLogPreservesServiceOnEmittedAnomalyContext(t *testing.T) {
 		})
 	}
 }
+
+func TestIngestLogSeparatesFixedNameMetricsAcrossOriginServices(t *testing.T) {
+	for _, useBuckets := range []bool{false, true} {
+		name := "direct_storage"
+		bucketCfg := LogCountBucketConfig{}
+		if useBuckets {
+			name = "log_count_bucketizer"
+			bucketCfg = LogCountBucketConfig{Enabled: true, BucketSeconds: 5, IdleTTLSeconds: 60}
+		}
+		t.Run(name, func(t *testing.T) {
+			storage := newTimeSeriesStorage()
+			e := mustNewEngine(engineConfig{
+				storage: storage,
+				extractors: []observerdef.LogMetricsExtractor{
+					NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig()),
+					&ConnectionErrorExtractor{},
+				},
+				logCountBuckets: bucketCfg,
+			})
+
+			e.IngestLog("logs", &logObs{
+				source:      "containerd",
+				service:     "checkout",
+				content:     `{"latency_ms":10,"msg":"connection refused"}`,
+				timestampMs: 1_000,
+			})
+			e.IngestLog("logs", &logObs{
+				source:      "containerd",
+				service:     "payments",
+				content:     `{"latency_ms":20,"msg":"connection refused"}`,
+				timestampMs: 2_000,
+			})
+			e.Advance(6)
+
+			jsonFields := storage.ListSeries(observerdef.SeriesFilter{
+				Namespace:   LogMetricsExtractorName,
+				NamePattern: "log.field.latency_ms",
+			})
+			require.Len(t, jsonFields, 2)
+
+			connErrors := storage.ListSeries(observerdef.SeriesFilter{
+				Namespace:   "connection_error_extractor",
+				NamePattern: "connection.errors",
+			})
+			require.Len(t, connErrors, 2)
+
+			for _, group := range [][]observerdef.SeriesMeta{jsonFields, connErrors} {
+				services := make(map[string]bool, 2)
+				for _, meta := range group {
+					ctx, ok := storage.GetContext(meta.Ref)
+					require.True(t, ok)
+					services[ctx.Service] = true
+				}
+				assert.Equal(t, map[string]bool{"checkout": true, "payments": true}, services)
+			}
+		})
+	}
+
+	t.Run("origin_overrides_shared_tag_service_key", func(t *testing.T) {
+		storage := newTimeSeriesStorage()
+		e := mustNewEngine(engineConfig{
+			storage: storage,
+			extractors: []observerdef.LogMetricsExtractor{
+				NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig()),
+				&ConnectionErrorExtractor{},
+			},
+		})
+
+		e.IngestLog("logs", &logObs{
+			source:      "containerd",
+			service:     "checkout",
+			tags:        []string{"service:shared"},
+			content:     `{"latency_ms":10,"msg":"connection refused"}`,
+			timestampMs: 1_000,
+		})
+		e.IngestLog("logs", &logObs{
+			source:      "containerd",
+			service:     "payments",
+			tags:        []string{"service:shared"},
+			content:     `{"latency_ms":20,"msg":"connection refused"}`,
+			timestampMs: 2_000,
+		})
+		e.Advance(3)
+
+		require.Len(t, storage.ListSeries(observerdef.SeriesFilter{
+			Namespace:   LogMetricsExtractorName,
+			NamePattern: "log.field.latency_ms",
+		}), 2)
+		require.Len(t, storage.ListSeries(observerdef.SeriesFilter{
+			Namespace:   "connection_error_extractor",
+			NamePattern: "connection.errors",
+		}), 2)
+	})
+}

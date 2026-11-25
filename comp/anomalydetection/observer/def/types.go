@@ -687,7 +687,7 @@ type MetricContext struct {
 	Example string
 	// Source identifies the originating component or data stream.
 	Source string
-	// Service identifies the originating service when provided by the log source.
+	// Service identifies the resolved service (LogView.GetService takes precedence over service: tag fallback).
 	Service string
 	// SplitTags carries the tag-group key/value pairs (source, service, env, host) that
 	// scoped the sub-clusterer which produced this metric. Nil when no split tags apply.

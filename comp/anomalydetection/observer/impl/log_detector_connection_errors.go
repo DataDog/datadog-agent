@@ -48,6 +48,15 @@ func (c *ConnectionErrorExtractor) ProcessLog(log observer.LogView) observer.Log
 
 	for _, pattern := range connectionErrorPatterns {
 		if strings.Contains(content, pattern) {
+			service := log.GetService()
+			if service == "" {
+				for _, tag := range tags {
+					if value, ok := strings.CutPrefix(tag, "service:"); ok {
+						service = value
+						break
+					}
+				}
+			}
 			return observer.LogMetricsExtractorOutput{
 				Metrics: []observer.MetricOutput{{
 					Name:       "connection.errors",
@@ -59,7 +68,7 @@ func (c *ConnectionErrorExtractor) ProcessLog(log observer.LogView) observer.Log
 						Pattern: pattern,
 						Example: truncate(log.GetContent(), 160),
 						Source:  "connection_error_extractor",
-						Service: log.GetService(),
+						Service: service,
 					},
 				}},
 			}

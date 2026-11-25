@@ -22,7 +22,7 @@ func TestScopeKeyForService_MatchesFNV64aAndDistinct(t *testing.T) {
 
 	for _, service := range services {
 		hasher := fnv.New64a()
-		_, _ = hasher.Write([]byte(service))
+		_, _ = hasher.Write([]byte("service:" + service))
 		want := ScopeKey(hasher.Sum64())
 		if want == 0 {
 			want = 1
@@ -39,9 +39,11 @@ func TestScopeKeyForService_MatchesFNV64aAndDistinct(t *testing.T) {
 	}
 }
 
+var benchmarkServiceName = "checkout-service"
+
 func TestScopeKeyForService_ZeroAllocs(t *testing.T) {
 	allocs := testing.AllocsPerRun(100, func() {
-		if ScopeKeyForService("checkout-service") == 0 {
+		if ScopeKeyForService(benchmarkServiceName) == 0 {
 			t.Fatal("unexpected zero key")
 		}
 	})

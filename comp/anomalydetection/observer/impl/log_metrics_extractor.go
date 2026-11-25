@@ -115,9 +115,9 @@ func (a *LogMetricsExtractor) SetObserverTelemetry(t *observerTelemetry) {
 	}
 }
 
-func logMetricsGroup(log observer.LogView) logsignature.Group {
+func logMetricsGroup(rawTags []string, hostname, originService string) logsignature.Group {
 	var group logsignature.Group
-	for _, tag := range log.Tags() {
+	for _, tag := range rawTags {
 		key, value, ok := strings.Cut(tag, ":")
 		if !ok {
 			continue
@@ -134,10 +134,10 @@ func logMetricsGroup(log observer.LogView) logsignature.Group {
 		}
 	}
 	if group.Host == "" {
-		group.Host = log.GetHostname()
+		group.Host = hostname
 	}
-	if group.Service == "" {
-		group.Service = log.GetService()
+	if originService != "" {
+		group.Service = originService
 	}
 	return group
 }
@@ -146,10 +146,11 @@ func (a *LogMetricsExtractor) Name() string { return LogMetricsExtractorName }
 
 func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) observer.LogMetricsExtractorOutput {
 	content := log.GetContent()
-	service := log.GetService()
-	tags := tagset.CompositeTagsFromSlice(log.Tags())
+	rawTags := log.Tags()
+	group := logMetricsGroup(rawTags, log.GetHostname(), log.GetService())
+	tags := tagset.CompositeTagsFromSlice(rawTags)
 
-	pattern, evicted := a.patterns.Match(logMetricsGroup(log), content, log.GetTimestampUnixMilli()/1000)
+	pattern, evicted := a.patterns.Match(group, content, log.GetTimestampUnixMilli()/1000)
 	if a.telemetry != nil {
 		a.telemetry.setLogMetricsPatternCount(a.patterns.Len())
 	}
@@ -167,13 +168,13 @@ func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) observer.LogMetri
 			Pattern: pattern.Signature,
 			Example: content,
 			Source:  "log_metrics_extractor",
-			Service: service,
+			Service: group.Service,
 		},
 	}}
 
 	// For JSON logs, also extract numeric field metrics
 	if isJSONObject(content) {
-		metrics = append(metrics, a.extractJSONFieldMetrics(content, tags, service)...)
+		metrics = append(metrics, a.extractJSONFieldMetrics(content, tags, group.Service)...)
 	}
 
 	return observer.LogMetricsExtractorOutput{Metrics: metrics, EvictedMetricNames: evicted}
