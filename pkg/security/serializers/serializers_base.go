@@ -10,8 +10,6 @@ package serializers
 import (
 	json "encoding/json"
 	"fmt"
-	"reflect"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -547,8 +545,8 @@ func newRuleContext(e *model.Event, rule *rules.Rule, scrubber *utils.Scrubber) 
 		}
 
 		value := valuePos.Value
-		if isDictionaryField(e, valuePos.Field) {
-			value = maskDictionaryValue(rule.Expression, valuePos, scrubber, value)
+		if strings.HasSuffix(valuePos.Field, ".env") {
+			value = maskEnvValue(value)
 		}
 		switch value := value.(type) {
 		case []string:
@@ -567,30 +565,8 @@ func newRuleContext(e *model.Event, rule *rules.Rule, scrubber *utils.Scrubber) 
 	return ruleContext
 }
 
-// dictionaryKeyRE matches the string key written after a dictionary field: `["PATH"]`
-var dictionaryKeyRE = regexp.MustCompile(`^\s*\[\s*"([^"]*)"\s*\]`)
-
-// isDictionaryField returns whether a field is a dictionary, the environment
-// variables of a process
-func isDictionaryField(e *model.Event, field string) bool {
-	if field == "" {
-		return false
-	}
-	_, kind, _, _, err := e.GetFieldMetadata(field)
-	return err == nil && kind == reflect.Map
-}
-
-// maskDictionaryValue masks the value read from a dictionary unless its key is
-// written in the expression and listed in `envs_with_value`, as the values of
-// the environment variables of a process. A key evaluated per event,
-// `exec.env[process.file.name]`, is unknown here: its value is masked.
-func maskDictionaryValue(expr string, pos eval.MatchingValuePos, scrubber *utils.Scrubber, value interface{}) interface{} {
-	if end := pos.Offset + pos.Length; pos.Length > 0 && end <= len(expr) {
-		if m := dictionaryKeyRE.FindStringSubmatch(expr[end:]); m != nil && scrubber.IsEnvWithValue(m[1]) {
-			return value
-		}
-	}
-
+// maskEnvValue masks the value of an environment variable of a process
+func maskEnvValue(value interface{}) interface{} {
 	switch value := value.(type) {
 	case []string:
 		masked := make([]string, len(value))

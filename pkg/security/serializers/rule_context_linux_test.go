@@ -15,14 +15,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/parser"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
-// The values matched in a dictionary, the environment variables of a process,
-// are serialized only for the keys of `envs_with_value` written in the rule.
-func TestRuleContextDictionaryValues(t *testing.T) {
+// The values matched in the environment variables of a process are never
+// serialized, even for the keys of `envs_with_value`.
+func TestRuleContextEnvValues(t *testing.T) {
 	scrubber, err := utils.NewScrubber(nil, nil)
 	require.NoError(t, err)
 	scrubber.WithEnvsWithValue([]string{"PATH"})
@@ -35,12 +36,12 @@ func TestRuleContextDictionaryValues(t *testing.T) {
 		expected string
 	}{
 		{"key-not-listed", `exec.env["AWS_SECRET_ACCESS_KEY"] =~ r".+"`, "exec.env", "secret", "********"},
-		{"key-listed", `exec.env["PATH"] == "/bin"`, "exec.env", "/bin", "/bin"},
-		{"key-listed-spaced", `exec.env [ "PATH" ] == "/bin"`, "exec.env", "/bin", "/bin"},
+		{"key-listed", `exec.env["PATH"] == "/bin"`, "exec.env", "/bin", "********"},
+		{"key-listed-spaced", `exec.env [ "PATH" ] == "/bin"`, "exec.env", "/bin", "********"},
 		{"key-evaluated", `exec.env[exec.file.name] == "x"`, "exec.env", "secret", "********"},
 		{"iterated", `process.ancestors.env["TOKEN"] =~ "ghp_*"`, "process.ancestors.env", []string{"ghp_a", "ghp_b"}, "[******** ********]"},
-		{"iterated-listed", `process.ancestors.env["PATH"] == "/bin"`, "process.ancestors.env", []string{"/bin", "/usr/bin"}, "[/bin /usr/bin]"},
-		{"not-a-dictionary", `exec.file.name == "ls"`, "exec.file.name", "ls", "ls"},
+		{"iterated-listed", `process.ancestors.env["PATH"] == "/bin"`, "process.ancestors.env", []string{"/bin", "/usr/bin"}, "[******** ********]"},
+		{"not-env", `exec.file.name == "ls"`, "exec.file.name", "ls", "ls"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			event := model.NewFakeEvent()
@@ -55,6 +56,52 @@ func TestRuleContextDictionaryValues(t *testing.T) {
 			require.Len(t, ruleContext.MatchingSubExprs, 1)
 			assert.Equal(t, test.expected, ruleContext.MatchingSubExprs[0].Value)
 			assert.Equal(t, test.field, ruleContext.MatchingSubExprs[0].Field)
+		})
+	}
+}
+
+// A secret matched in an environment variable isn't serialized wherever it is
+// written: in a macro, through an iterator, or after the value it is compared to,
+// next to a key listed in `envs_with_value`.
+func TestRuleContextEnvValuesEvaluated(t *testing.T) {
+	scrubber, err := utils.NewScrubber(nil, nil)
+	require.NoError(t, err)
+	scrubber.WithEnvsWithValue([]string{"PATH"})
+
+	for _, expr := range []string{
+		`process.env["SECRET"] =~ r".+" && process.env["PATH"] == "/bin"`,
+		`secret_macro && process.env["PATH"] == "/bin"`,
+		`process.ancestors.env["SECRET"] =~ r".+" && process.ancestors.env["PATH"] == "/bin"`,
+		`process.ancestors[A].env["SECRET"] =~ r".+" && process.ancestors.env["PATH"] == "/bin"`,
+	} {
+		t.Run(expr, func(t *testing.T) {
+			env := map[string]string{"SECRET": "secret", "PATH": "/bin"}
+			event := model.NewFakeEvent()
+			event.ProcessContext.Process.Env = env
+			ancestor := &model.ProcessCacheEntry{}
+			ancestor.Process.Env = env
+			event.ProcessContext.Ancestor = ancestor
+
+			m := &model.Model{}
+			pc := parser.NewParsingContext(false)
+			opts := (&eval.Opts{}).WithMacroStore(&eval.MacroStore{}).WithVariables(map[string]eval.SECLVariable{})
+			macro, err := eval.NewMacro("secret_macro", `process.env["SECRET"] =~ r".+"`, m, pc, opts)
+			require.NoError(t, err)
+			opts.AddMacro(macro)
+
+			evalRule, err := eval.NewRule("id", expr, pc, opts)
+			require.NoError(t, err)
+			require.NoError(t, evalRule.GenEvaluator(m))
+
+			ctx := eval.NewContext(event)
+			require.True(t, evalRule.Eval(ctx))
+			event.RuleContext.MatchingSubExprs = ctx.GetMatchingSubExprs()
+
+			ruleContext := newRuleContext(event, &rules.Rule{Rule: evalRule}, scrubber)
+			require.NotEmpty(t, ruleContext.MatchingSubExprs)
+			for _, subExpr := range ruleContext.MatchingSubExprs {
+				assert.NotContains(t, subExpr.Value, "secret")
+			}
 		})
 	}
 }
