@@ -1649,7 +1649,7 @@ func TestManagerV2_eventsWithError(t *testing.T) {
 		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
 		breakLineage(event, false)
 
-		p, inserted := m.insertEventIntoProfile(event)
+		p, inserted, _ := m.insertEventIntoProfile(event)
 
 		require.NotNil(t, p)
 		assert.True(t, inserted)
@@ -1663,7 +1663,7 @@ func TestManagerV2_eventsWithError(t *testing.T) {
 		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
 		breakLineage(event, true)
 
-		_, inserted := m.insertEventIntoProfile(event)
+		_, inserted, _ := m.insertEventIntoProfile(event)
 
 		assert.False(t, inserted)
 		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorBrokenLineage, insertionErrorDropped))
@@ -1702,7 +1702,7 @@ func TestManagerV2_eventsWithError(t *testing.T) {
 		known := newTestEventV2(model.FileOpenEventType, "v1", "known")
 		known.ProcessCacheEntry.Cookie = 42
 		known.ProcessCacheEntry.ExecTime = execTime
-		_, inserted := m.insertEventIntoProfile(known)
+		_, inserted, _ := m.insertEventIntoProfile(known)
 		require.True(t, inserted)
 
 		event := newTestEventV2(model.FileOpenEventType, "v1", "new")
@@ -1710,7 +1710,7 @@ func TestManagerV2_eventsWithError(t *testing.T) {
 		event.ProcessCacheEntry.ExecTime = execTime
 		breakLineage(event, true)
 
-		p, inserted := m.insertEventIntoProfile(event)
+		p, inserted, _ := m.insertEventIntoProfile(event)
 
 		require.NotNil(t, p)
 		assert.True(t, inserted)
