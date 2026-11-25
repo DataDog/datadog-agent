@@ -242,17 +242,20 @@ func seccompTypeFromProto(t adprotov1.SeccompProfile_Type) securitycontext.Secco
 }
 
 // profileToSecDumpProto creates a protobuf SecDump object from the given Profile
-func profileToSecDumpProto(p *Profile) *adprotov1.SecDump {
+func profileToSecDumpProto(p *Profile) (*adprotov1.SecDump, error) {
 	if p == nil {
-		return nil
+		return nil, nil
 	}
 	var tree []*adprotov1.ProcessActivityNode
 	var mounts []*adprotov1.MountNode
-	p.ActivityTree.WithMaterializedTree(func() {
+	if err := p.ActivityTree.WithMaterializedTreeErr(func() error {
 		tree = activity_tree.ToProto(p.ActivityTree)
 		mounts = activity_tree.MountsToProto(p.ActivityTree)
-	})
-	return profileToSecDumpProtoWithTree(p, tree, mounts)
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return profileToSecDumpProtoWithTree(p, tree, mounts), nil
 }
 
 func profileToSecDumpProtoWithTree(p *Profile, tree []*adprotov1.ProcessActivityNode, mounts []*adprotov1.MountNode) *adprotov1.SecDump {
@@ -305,8 +308,11 @@ func secDumpProtoToProfile(p *Profile, ad *adprotov1.SecDump) {
 // EncodeSecDumpProtobuf encodes a Profile to its SecDump protobuf binary representation
 func (p *Profile) EncodeSecDumpProtobuf() (*bytes.Buffer, error) {
 	p.Lock()
-	pad := profileToSecDumpProto(p)
+	pad, err := profileToSecDumpProto(p)
 	p.Unlock()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't materialize activity tree: %w", err)
+	}
 	defer pad.ReturnToVTPool()
 
 	raw, err := pad.MarshalVT()
@@ -386,10 +392,13 @@ func profileToSecurityProfileProto(p *Profile) (*adprotov1.SecurityProfile, erro
 	}
 	var tree []*adprotov1.ProcessActivityNode
 	var mounts []*adprotov1.MountNode
-	p.ActivityTree.WithMaterializedTree(func() {
+	if err := p.ActivityTree.WithMaterializedTreeErr(func() error {
 		tree = activity_tree.ToProto(p.ActivityTree)
 		mounts = activity_tree.MountsToProto(p.ActivityTree)
-	})
+		return nil
+	}); err != nil {
+		return nil, err
+	}
 	return profileToSecurityProfileProtoWithTree(p, tree, mounts)
 }
 

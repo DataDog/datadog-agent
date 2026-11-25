@@ -728,3 +728,38 @@ func TestActivityTreeJournal_ProcessLiveFieldPreservationSymmetry(t *testing.T) 
 		assert.Equal(t, []string{"SECRET=1"}, pn.Process.Envs)
 	})
 }
+
+func TestActivityTreeJournal_WithMaterializedTreeErrOnCorruptFrame(t *testing.T) {
+	jTree := NewActivityTree(activityTreeInsertTestValidator{}, NewPathsReducer(), "security_profile")
+	require.NoError(t, jTree.EnableJournal(t.TempDir(), "corrupt-materialize:v1", 0))
+	t.Cleanup(func() { _ = jTree.CloseJournal() })
+
+	shim := newJournalTestProcessEntry(1, "/usr/bin/containerd-shim-runc-v2", "containerd-shim-runc-v2", "containerd-shim-runc-v2", nil, nil, nil)
+	worker := newJournalTestProcessEntry(100, "/usr/bin/app", "app", "app", []string{"app"}, nil, shim)
+	ts := time.Unix(1700000000, 0)
+
+	fEv := newJournalTestFileOpenEvent(worker, "/etc/app.conf", syscall.O_RDONLY, syscall.S_IFREG|0644, ts)
+	_, _, _, err := jTree.Insert(fEv, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	require.NoError(t, jTree.Stats.journal.flushAsync())
+
+	// Corrupt the on-disk frame header length to exceed maxBytes so Materialize returns an error.
+	_, err = jTree.Stats.journal.file.WriteAt([]byte{0xFF, 0xFF, 0xFF, 0x7F}, 13)
+	require.NoError(t, err)
+
+	called := false
+	err = jTree.WithMaterializedTreeErr(func() error {
+		called = true
+		return nil
+	})
+	require.Error(t, err)
+	assert.False(t, called, "fn must not run when Materialize fails")
+
+	// A subsequent WithMaterializedTreeErr call must also return the sticky error rather than encoding the partially hydrated tree.
+	err = jTree.WithMaterializedTreeErr(func() error {
+		called = true
+		return nil
+	})
+	require.Error(t, err)
+	assert.False(t, called)
+}

@@ -20,8 +20,11 @@ import (
 // EncodeJSON encodes an activity dump in the ProtoJSON format
 func (p *Profile) EncodeJSON(indent string) (*bytes.Buffer, error) {
 	p.Lock()
-	pad := profileToSecDumpProto(p)
+	pad, err := profileToSecDumpProto(p)
 	p.Unlock()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't materialize activity tree: %w", err)
+	}
 	defer pad.ReturnToVTPool()
 
 	raw, err := marshalSecDumpJSON(pad, indent)

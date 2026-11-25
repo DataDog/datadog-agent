@@ -75,6 +75,7 @@ type TreeJournal struct {
 	dirty                   bool
 	failed                  bool
 	permanentlyMaterialized bool
+	materializeErr          error
 	materializedDepth       int
 	syncOnly                bool
 
@@ -209,6 +210,15 @@ func (at *ActivityTree) WithMaterializedTree(fn func()) {
 		return
 	}
 	at.Stats.journal.withMaterializedTree(at, fn)
+}
+
+// WithMaterializedTreeErr runs fn while the ActivityTree's journaled fields are hydrated in RAM,
+// returning an error without invoking fn if journal materialization fails.
+func (at *ActivityTree) WithMaterializedTreeErr(fn func() error) error {
+	if at == nil || at.Stats == nil || at.Stats.journal == nil {
+		return fn()
+	}
+	return at.Stats.journal.withMaterializedTreeErr(at, fn)
 }
 
 func (j *TreeJournal) heapSize() int64 {
@@ -1060,25 +1070,43 @@ func (pn *ProcessNode) restoreFromJournalProto(pi *adproto.ProcessInfo) {
 // withMaterializedTree hydrates the stripped fields of at from the on-disk journal, runs fn,
 // compacts the journal if dirty or fragmented, and strips the heavy fields back out of RAM.
 func (j *TreeJournal) withMaterializedTree(at *ActivityTree, fn func()) {
-	if j == nil || at == nil || j.permanentlyMaterialized {
+	_ = j.withMaterializedTreeInternal(at, func() error {
 		fn()
-		return
+		return nil
+	}, true)
+}
+
+func (j *TreeJournal) withMaterializedTreeErr(at *ActivityTree, fn func() error) error {
+	return j.withMaterializedTreeInternal(at, fn, false)
+}
+
+func (j *TreeJournal) withMaterializedTreeInternal(at *ActivityTree, fn func() error, runOnMatErr bool) error {
+	if j == nil || at == nil {
+		return fn()
+	}
+	if j.materializeErr != nil && !runOnMatErr {
+		return j.materializeErr
+	}
+	if j.permanentlyMaterialized {
+		return fn()
 	}
 	if j.materializedDepth > 0 {
 		j.materializedDepth++
 		defer func() {
 			j.materializedDepth--
 		}()
-		fn()
-		return
+		return fn()
 	}
 	if matErr := j.Materialize(at); matErr != nil {
+		j.materializeErr = matErr
 		j.fail(fmt.Sprintf("materialize failed: %v", matErr))
 		j.permanentlyMaterialized = true
 		_ = j.stopAndRemoveFile()
 		at.recomputeSizeBytes()
-		fn()
-		return
+		if !runOnMatErr {
+			return matErr
+		}
+		return fn()
 	}
 	j.materializedDepth = 1
 	defer func() {
@@ -1100,7 +1128,7 @@ func (j *TreeJournal) withMaterializedTree(at *ActivityTree, fn func()) {
 			at.recomputeSizeBytes()
 		}
 	}()
-	fn()
+	return fn()
 }
 
 // Materialize replays the on-disk journal into the live nodes of at.
@@ -1126,18 +1154,23 @@ func (j *TreeJournal) Materialize(at *ActivityTree) error {
 		return nil
 	}
 
+	type liveFileTarget struct {
+		node         *FileNode
+		resolvedPath string
+	}
 	liveProcs := make(map[uint32]*ProcessNode)
-	liveFileSeqs := make(map[uint32]struct{})
-	var collectFiles func(fn *FileNode)
-	collectFiles = func(fn *FileNode) {
+	liveFilesBySeq := make(map[uint32]liveFileTarget)
+	var collectFiles func(fn *FileNode, prefix string)
+	collectFiles = func(fn *FileNode, prefix string) {
 		if fn == nil {
 			return
 		}
+		fullPath := prefix + "/" + fn.Name
 		if fn.minJournalSeq != 0 {
-			liveFileSeqs[fn.minJournalSeq] = struct{}{}
+			liveFilesBySeq[fn.minJournalSeq] = liveFileTarget{node: fn, resolvedPath: fullPath}
 		}
 		for _, child := range fn.Children {
-			collectFiles(child)
+			collectFiles(child, fullPath)
 		}
 	}
 	var collectProcs func(nodes []*ProcessNode)
@@ -1150,7 +1183,7 @@ func (j *TreeJournal) Materialize(at *ActivityTree) error {
 				liveProcs[pn.journalID] = pn
 			}
 			for _, fn := range pn.Files {
-				collectFiles(fn)
+				collectFiles(fn, "")
 			}
 			collectProcs(pn.Children)
 		}
@@ -1159,11 +1192,11 @@ func (j *TreeJournal) Materialize(at *ActivityTree) error {
 	for len(j.mergedFileSeqs) > 0 {
 		added := false
 		for srcSeq, dstSeq := range j.mergedFileSeqs {
-			if _, srcIn := liveFileSeqs[srcSeq]; srcIn {
+			if _, srcIn := liveFilesBySeq[srcSeq]; srcIn {
 				continue
 			}
-			if _, dstIn := liveFileSeqs[dstSeq]; dstIn {
-				liveFileSeqs[srcSeq] = struct{}{}
+			if dstTarget, dstIn := liveFilesBySeq[dstSeq]; dstIn {
+				liveFilesBySeq[srcSeq] = dstTarget
 				added = true
 			}
 		}
@@ -1285,15 +1318,21 @@ func (j *TreeJournal) Materialize(at *ActivityTree) error {
 					continue
 				}
 				birthSeq := subID >> 1
+				var fn *FileNode
+				var resolvedPath string
 				if birthSeq != 0 {
-					if _, alive := liveFileSeqs[birthSeq]; !alive {
+					target, alive := liveFilesBySeq[birthSeq]
+					if !alive {
 						continue
 					}
-				}
-				isDir := (subID&1) == 1 || (fan.File != nil && (fan.File.Mode&0170000) == 0040000)
-				fn, resolvedPath := resolveLiveFileNode(pn.Files, fan.Name, !isDir)
-				if fn == nil || (birthSeq == 0 && fn.minJournalSeq > 0 && seq < fn.minJournalSeq) {
-					continue
+					fn = target.node
+					resolvedPath = target.resolvedPath
+				} else {
+					isDir := (subID&1) == 1 || (fan.File != nil && (fan.File.Mode&0170000) == 0040000)
+					fn, resolvedPath = resolveLiveFileNode(pn.Files, fan.Name, !isDir)
+					if fn == nil || (fn.minJournalSeq > 0 && seq < fn.minJournalSeq) {
+						continue
+					}
 				}
 				if fan.File != nil && fn.hasJournalFile {
 					if fn.File == nil || birthSeq == fn.minJournalSeq {

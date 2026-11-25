@@ -388,15 +388,20 @@ func (p *Profile) EncodeFormats(formats []config.StorageFormat) (map[config.Stor
 
 	if needSecDump || needProfile {
 		p.Lock()
-		p.ActivityTree.WithMaterializedTree(func() {
+		buildErr = p.ActivityTree.WithMaterializedTreeErr(func() error {
 			treeProto = activity_tree.ToProto(p.ActivityTree)
 			mountsProto = activity_tree.MountsToProto(p.ActivityTree)
 			if needSecDump {
 				secDumpProto = profileToSecDumpProtoWithTree(p, treeProto, mountsProto)
 			}
 			if needProfile {
-				profProto, buildErr = profileToSecurityProfileProtoWithTree(p, treeProto, mountsProto)
+				var err error
+				profProto, err = profileToSecurityProfileProtoWithTree(p, treeProto, mountsProto)
+				if err != nil {
+					return err
+				}
 			}
+			return nil
 		})
 		p.Unlock()
 	}
