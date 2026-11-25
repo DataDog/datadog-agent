@@ -25,7 +25,7 @@ DEVCONTAINER_FILE = "devcontainer.json"
 DEVCONTAINER_NAME = "datadog-agent-devcontainer"
 # This is our standard Linux developer environment image, built from the buildimages
 # repo (https://github.com/DataDog/datadog-agent-buildimages/tree/main/dev-envs/linux).
-DEVCONTAINER_IMAGE = "datadog/agent-dev-env-linux"
+DEVCONTAINER_IMAGE = "registry.datadoghq.com/agent-dev-env-linux"
 
 
 class SkaffoldProfile(Enum):

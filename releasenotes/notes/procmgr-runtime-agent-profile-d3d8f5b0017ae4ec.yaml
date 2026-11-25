@@ -1,0 +1,6 @@
+---
+security:
+  - |
+    On Windows, processes created at runtime through the process manager API now use the Agent
+    account, even when their name matches a privileged Agent component. The privileged LocalSystem
+    profile remains limited to matching process definitions loaded from processes.d.

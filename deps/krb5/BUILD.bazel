@@ -1,1 +1,4 @@
 """Package delimiter"""
+
+# TODO: Generate and check krb5.MODULE.bazel with generate_module_bazel, like
+# deps/acl. It does not support patches yet; that will be a follow-up PR.

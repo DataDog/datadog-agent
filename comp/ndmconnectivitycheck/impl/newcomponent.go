@@ -7,13 +7,10 @@
 package ndmconnectivitycheckimpl
 
 import (
-	"sync"
-
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	ndmconnectivitycheck "github.com/DataDog/datadog-agent/comp/ndmconnectivitycheck/def"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/pingprobe"
 )
 
 // Requires defines the dependencies for the ndmconnectivitycheck component.
@@ -33,9 +30,6 @@ type Provides struct {
 
 type connectivityCheck struct {
 	logger log.Component
-
-	pingOnce sync.Once
-	ping     pingprobe.Capability
 }
 
 func newImpl(logger log.Component) *connectivityCheck {

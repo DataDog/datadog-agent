@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/agentdiscovery"
 	"github.com/DataDog/agent-payload/v5/healthplatform"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/genresources"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/sds"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
@@ -988,4 +989,42 @@ func TestClient(t *testing.T) {
 		assert.Empty(t, logs[0].Message)
 	})
 
+}
+
+func TestGenResources(t *testing.T) {
+	var raw []api.Payload
+	for _, resource := range []*genresources.GenericResource{
+		{Type: "gpu_device", Key: "one"},
+		{Type: "gpu_device", Key: "two"},
+		{Type: "other", Key: "one"},
+	} {
+		data, err := proto.Marshal(&genresources.GenericResourceEvent{Resource: resource})
+		require.NoError(t, err)
+		raw = append(raw, api.Payload{Data: data})
+	}
+
+	ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/fakeintake/flushPayloads" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		assert.Equal(t, "/api/v2/genresources", r.URL.Query().Get("endpoint"))
+		assert.NoError(t, json.NewEncoder(w).Encode(api.APIFakeIntakePayloadsRawGETResponse{Payloads: raw}))
+	}))
+	defer ts.Close()
+
+	cl := NewClient(ts.URL)
+	resources, err := cl.GetGenResources()
+	require.NoError(t, err)
+	require.Len(t, resources, 3)
+
+	filtered, err := cl.FilterGenResources("gpu_device", func(payload *aggregator.GenResourcePayload) (bool, error) {
+		return payload.GetResource().GetKey() == "one", nil
+	})
+	require.NoError(t, err)
+	require.Len(t, filtered, 1)
+	assert.Equal(t, "gpu_device", filtered[0].GetResource().GetType())
+	assert.Equal(t, "one", filtered[0].GetResource().GetKey())
+	require.NoError(t, cl.FlushServerAndResetAggregators())
+	assert.Empty(t, cl.genResourcesAggregator.GetNames())
 }

@@ -8,6 +8,7 @@
 package oracle
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
@@ -17,7 +18,10 @@ import (
 )
 
 func buildGoOraURL(c *Check) string {
-	connectionOptions := map[string]string{"TIMEOUT": c.config.QueryTimeoutString()}
+	connectionOptions := map[string]string{"TIMEOUT": c.config.SocketTimeoutString()}
+	if c.config.Schemas.Enabled {
+		connectionOptions["PREFETCH_ROWS"] = "100"
+	}
 	if c.config.Protocol == "TCPS" {
 		connectionOptions["SSL"] = "TRUE"
 		if c.config.Wallet != "" {
@@ -59,12 +63,21 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 
 	log.Infof("%s driver: %s", c.logPrompt, oracleDriver)
 
-	db, err := sqlx.Open(oracleDriver, connStr)
+	var db *sqlx.DB
+	var err error
+	if oracleDriver == common.GoOra {
+		db, err = openGoOraPool(connStr)
+	} else {
+		db, err = sqlx.Open(oracleDriver, connStr)
+	}
 	if err != nil {
 		closeDatabase(c, db)
 		return nil, fmt.Errorf("failed to connect to oracle instance: %w", err)
 	}
-	err = db.Ping()
+	ctx, cancel := context.WithTimeout(context.Background(), c.config.QueryTimeoutDuration())
+	err = db.PingContext(ctx)
+	err = operationError(ctx, err)
+	cancel()
 	if err != nil {
 		closeDatabase(c, db)
 		return nil, fmt.Errorf("failed to ping oracle instance: %w", err)
@@ -74,8 +87,12 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 
 	if c.config.AgentSQLTrace.Enabled {
 		db.SetMaxOpenConns(1)
-		_, err := db.Exec("ALTER SESSION SET tracefile_identifier='DDAGENT'")
+		err := execWithDeadline(c, db, "ALTER SESSION SET tracefile_identifier='DDAGENT'")
 		if err != nil {
+			if shouldReconnect(err) {
+				closeDatabase(c, db)
+				return nil, err
+			}
 			log.Warnf("%s failed to set tracefile_identifier: %v", c.logPrompt, err)
 		}
 
@@ -87,8 +104,12 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 		waits := assertBool(c.config.AgentSQLTrace.Waits)
 		setEventsStatement := fmt.Sprintf("BEGIN dbms_monitor.session_trace_enable (binds => %t, waits => %t); END;", binds, waits)
 		log.Tracef("%s trace statement: %s", c.logPrompt, setEventsStatement)
-		_, err = db.Exec(setEventsStatement)
+		err = execWithDeadline(c, db, setEventsStatement)
 		if err != nil {
+			if shouldReconnect(err) {
+				closeDatabase(c, db)
+				return nil, err
+			}
 			log.Errorf("%s failed to set SQL trace: %v", c.logPrompt, err)
 		}
 		if c.config.AgentSQLTrace.TracedRuns == 0 {
@@ -104,28 +125,5 @@ func closeDatabase(c *Check, db *sqlx.DB) {
 		if err := db.Close(); err != nil {
 			log.Warnf("%s failed to close oracle connection: %s", c.logPrompt, err.Error())
 		}
-	}
-}
-
-// Building a dedicated go-ora connection for dealing with LOBs, see https://github.com/sijms/go-ora/issues/439
-func connectGoOra(c *Check) (*go_ora.Connection, error) {
-	conn, err := go_ora.NewConnection(buildGoOraURL(c), nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect with the oracle driver %w", err)
-	}
-	err = conn.Open()
-	if err != nil {
-		return nil, fmt.Errorf("failed to open connection with the oracle driver %w", err)
-	}
-	return conn, nil
-}
-
-func closeGoOraConnection(c *Check) {
-	if c.connection == nil {
-		return
-	}
-	err := c.connection.Close()
-	if err != nil {
-		log.Warnf("%s failed to close go-ora connection: %s", c.logPrompt, err.Error())
 	}
 }

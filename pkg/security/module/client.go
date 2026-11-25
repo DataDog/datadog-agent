@@ -19,13 +19,14 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	grpcutils "github.com/DataDog/datadog-agent/pkg/security/utils/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 )
 
@@ -137,8 +138,9 @@ func (c *SecurityAgentAPIClient) SendActivityDumps(ctx context.Context, msgs cha
 	}
 }
 
-// NewSecurityAgentAPIClient instantiates a new SecurityAgentAPIClient
-func NewSecurityAgentAPIClient(cfg *config.RuntimeSecurityConfig) (*SecurityAgentAPIClient, error) {
+// NewSecurityAgentAPIClient instantiates a new SecurityAgentAPIClient. ipcComp is required when the
+// security agent socket is a TCP address, to authenticate against the security agent.
+func NewSecurityAgentAPIClient(cfg *config.RuntimeSecurityConfig, ipcComp ipc.Component) (*SecurityAgentAPIClient, error) {
 	if cfg.SocketPath == "" {
 		return nil, errors.New("runtime_security_config.socket must be set, events will not be sent to the security agent")
 	}
@@ -153,8 +155,12 @@ func NewSecurityAgentAPIClient(cfg *config.RuntimeSecurityConfig) (*SecurityAgen
 		socketPath = "unix://" + socketPath
 	}
 
-	opts := []grpc.DialOption{
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	opts, err := grpcutils.ClientOptions(family, ipcComp)
+	if err != nil {
+		return nil, err
+	}
+
+	opts = append(opts,
 		grpc.WithDefaultCallOptions(grpc.CallContentSubtype(api.VTProtoCodecName)),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{
@@ -162,7 +168,7 @@ func NewSecurityAgentAPIClient(cfg *config.RuntimeSecurityConfig) (*SecurityAgen
 				MaxDelay:  time.Second,
 			},
 		}),
-	}
+	)
 
 	seclog.Infof("using socket family '%s' and path '%s' to connect to security agent", family, socketPath)
 	if family == "vsock" {

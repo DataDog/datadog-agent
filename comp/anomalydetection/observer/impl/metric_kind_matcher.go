@@ -165,6 +165,15 @@ func (m *metricKindMatcher) Window() observerdef.DetectorPointWindow {
 	}
 }
 
+// Classify evaluates the supplied window without updating per-series state.
+func (m *metricKindMatcher) Classify(points []observerdef.Point) observerdef.MetricKind {
+	kind := m.classify(points, &m.workspace)
+	if kind == observerdef.UNSET {
+		return observerdef.UNKNOWN
+	}
+	return kind
+}
+
 // Observe counts one confirmation per fresh-data evaluation, not per advance or batch point.
 func (m *metricKindMatcher) Observe(
 	ref observerdef.SeriesRef,
@@ -196,10 +205,7 @@ func (m *metricKindMatcher) Observe(
 	}
 	state.lastEvaluatedTs = lastTs
 
-	predicted := m.classify(visible, &m.workspace)
-	if predicted == observerdef.UNSET {
-		predicted = observerdef.UNKNOWN
-	}
+	predicted := m.Classify(visible)
 
 	// Initial assignment from UNSET does not require transition confirmations.
 	if currentKind == observerdef.UNSET {

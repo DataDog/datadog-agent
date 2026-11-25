@@ -79,6 +79,10 @@ func (c *reverseDNSCache) Add(translation *translation) bool {
 
 	c.mux.Lock()
 	defer c.mux.Unlock()
+	return c.addLocked(translation)
+}
+
+func (c *reverseDNSCache) addLocked(translation *translation) bool {
 	if len(c.data) >= c.size {
 		return false
 	}

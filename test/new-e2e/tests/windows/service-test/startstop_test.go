@@ -523,16 +523,10 @@ func (s *agentServiceDisabledSuite) TestStartingDisabledService() {
 
 		// verify that we only try user services
 		if !slices.Contains(kernel, service) {
-			// In FIPS builds the installer does not start correctly
-			// when remote configuration is disabled and Start-Service fails.
-			// TODO: remove this when installer runs fully in FIPS mode.
-			if s.Env().Agent.FIPSEnabled && service == "Datadog Installer" {
-				err := windowsCommon.StartService(s.Env().RemoteHost, service)
-				s.Require().Error(err, "should fail to start "+service+" in FIPS mode")
-				continue
-			}
-
-			// try and start it and verify that it does correctly outputs to event log
+			// try and start it and verify that it does correctly outputs to event log.
+			// This includes the Datadog Installer in FIPS builds: when remote
+			// configuration or remote updates are disabled, it reports a successful
+			// start and then exits cleanly (see cmd/installer/subcommands/daemon/run_windows.go).
 			err := windowsCommon.StartService(s.Env().RemoteHost, service)
 			s.Require().NoError(err, "should start "+service)
 
@@ -782,10 +776,10 @@ func (s *baseStartStopSuite) BeforeTest(suiteName, testName string) {
 	s.Require().NoError(err, "should clean dump folder")
 
 	// Start xperf tracing to capture service start/stop timing under Driver Verifier.
-	// Two ETW sessions run concurrently (circular buffers, merged on stop):
+	// Two ETW sessions run concurrently (circular buffers, merged on failure):
 	//   - NT Kernel Logger: scheduler, loader, CPU profile, context switch with stacks
 	//   - scm-trace: Microsoft-Windows-Services SCM events (SetServiceStatus transitions)
-	// The merged .etl is only downloaded on test failure. See AfterTest -> collectXperf.
+	// Traces are only merged and downloaded on test failure. See AfterTest -> collectXperf.
 	s.startXperf(host)
 }
 
@@ -827,11 +821,19 @@ func (s *baseStartStopSuite) startXperf(host *components.RemoteHost) {
 	s.Assert().NoError(err, "should start xperf tracing (kernel + scm-trace)")
 }
 
-// collectXperf stops both xperf sessions, merges them, and downloads the resulting
-// .etl to the session output dir if the test failed.
+// collectXperf stops both xperf sessions. Only failed tests merge and download the
+// resulting .etl to the session output dir.
 func (s *baseStartStopSuite) collectXperf(host *components.RemoteHost) {
 	xperfPath := "C:/xperf/xperf.exe"
 	outputPath := "C:/full_host_profiles.etl"
+
+	if !s.T().Failed() {
+		// Always stop both sessions so the next test can start fresh, but avoid
+		// the expensive trace merge (-d) when its output would be discarded.
+		_, err := host.Execute(fmt.Sprintf(`& "%s" -stop -stop %s`, xperfPath, xperfSCMSessionName))
+		s.Assert().NoError(err, "should stop xperf tracing")
+		return
+	}
 
 	// Stop kernel logger (-stop) and the named SCM user session (-stop scm-trace), then -d
 	// merges both into outputPath. Matches the MS TSS recipe.
@@ -857,9 +859,9 @@ func (s *baseStartStopSuite) collectXperf(host *components.RemoteHost) {
 }
 
 func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
-	// Stop xperf and merge to .etl as early as possible after the test body, so the
-	// circular trace is preserved before any subsequent diagnostic collection further
-	// perturbs system state. .etl is only downloaded if the test failed.
+	// Stop xperf as early as possible after the test body, so the circular trace
+	// is preserved before subsequent diagnostic collection perturbs system state.
+	// Only merge and download the .etl if the test has already failed.
 	s.collectXperf(s.Env().RemoteHost)
 
 	// look for and download crashdumps. Dumps from processes in

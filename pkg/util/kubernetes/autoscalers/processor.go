@@ -8,7 +8,6 @@
 package autoscalers
 
 import (
-	"errors"
 	"fmt"
 	"maps"
 	"math"
@@ -61,8 +60,13 @@ func NewProcessor(datadogCl datadogclientcomp.Component) *Processor {
 	}
 	ddRequestsParallelLimit.Set(float64(parallelQueries), le.JoinLeaderValue)
 
+	maxAge := time.Duration(externalMaxAge) * time.Second
+	if endpointTimeout := time.Duration(pkgconfigsetup.Datadog().GetInt("external_metrics_provider.endpoint_timeout")) * time.Second; endpointTimeout > 0 && endpointTimeout >= maxAge {
+		log.Warnf("external_metrics_provider.endpoint_timeout (%s) is not lower than the default maximum age of a metric value (%s, see external_metrics_provider.max_age, a DatadogMetric can set its own): a slow request can leave datapoints stale by the time the refresh completes", endpointTimeout, maxAge)
+	}
+
 	return &Processor{
-		externalMaxAge:  time.Duration(externalMaxAge) * time.Second,
+		externalMaxAge:  maxAge,
 		datadogClient:   datadogCl,
 		parallelQueries: parallelQueries,
 	}
@@ -240,17 +244,11 @@ func (p *Processor) QueryExternalMetric(queries []string, timeWindow time.Durati
 	return responses
 }
 
-func isURLBeyondLimits(uriLength, numBuckets int) (bool, error) {
-	// The metric name can be at maximum 200 characters. Kubernetes limits the labels to 63 characters.
-	// Autoscalers with enough labels to form single a query of more than 7k characters are not supported.
-	lengthOverspill := uriLength >= maxCharactersPerChunk
-	if lengthOverspill && numBuckets == 0 {
-		return true, errors.New("Query is too long, could yield a server side error. Dropping")
-	}
-
+// isURLBeyondLimits reports whether a chunk with numBuckets queries and a cumulative uriLength is full.
+func isURLBeyondLimits(uriLength, numBuckets int) bool {
 	chunkSize := pkgconfigsetup.Datadog().GetInt("external_metrics_provider.chunk_size")
 
-	return uriLength >= maxCharactersPerChunk || numBuckets >= chunkSize, nil
+	return uriLength >= maxCharactersPerChunk || numBuckets >= chunkSize
 }
 
 func makeChunks(batch []string) (chunks [][]string) {
@@ -261,13 +259,15 @@ func makeChunks(batch []string) (chunks [][]string) {
 	for _, val := range batch {
 		// Length of the query plus comma, time and space aggregators that come later on.
 		tempSize := len(url.QueryEscape(val)) + extraQueryCharacters
-		uriLength = uriLength + tempSize
-		beyond, err := isURLBeyondLimits(uriLength, len(tempBucket))
-		if err != nil {
-			log.Errorf("%v: %s", err, val)
+		// The metric name can be at maximum 200 characters. Kubernetes limits the labels to 63 characters.
+		// Autoscalers with enough labels to form single a query of more than 7k characters are not supported.
+		// Only drop this query: uriLength and tempBucket must stay untouched so the next queries are not affected.
+		if tempSize >= maxCharactersPerChunk {
+			log.Errorf("Query is too long, could yield a server side error. Dropping: %s", val)
 			continue
 		}
-		if beyond {
+		uriLength += tempSize
+		if isURLBeyondLimits(uriLength, len(tempBucket)) {
 			chunks = append(chunks, tempBucket)
 			uriLength = tempSize
 			tempBucket = []string{val}
@@ -275,7 +275,10 @@ func makeChunks(batch []string) (chunks [][]string) {
 		}
 		tempBucket = append(tempBucket, val)
 	}
-	chunks = append(chunks, tempBucket)
+	// tempBucket is empty when every query has been dropped
+	if len(tempBucket) > 0 {
+		chunks = append(chunks, tempBucket)
+	}
 	return chunks
 }
 

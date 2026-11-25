@@ -556,6 +556,26 @@ func TestWarnDirectSendDelegatedAuthDirectives(t *testing.T) {
 	}
 }
 
+func TestWarnDirectSendDelegatedAuthDirectivesSkipsUnknownFlags(t *testing.T) {
+	var output bytes.Buffer
+	logger, err := log.LoggerFromWriterWithMinLevelAndMsgFormat(&output, log.WarnLvl)
+	require.NoError(t, err)
+	log.SetupLogger(logger, log.WarnStr)
+	t.Cleanup(func() {
+		log.SetupLogger(log.Default(), log.DebugStr)
+		logger.Close()
+	})
+
+	config := newEmptyMockConf(t)
+	InitSystemProbeConfig(config)
+	config.BuildSchema()
+	config.SetTestOnlyDynamicSchema(false)
+	require.False(t, config.IsKnown("compliance_config.run_in_system_probe"))
+
+	WarnDirectSendDelegatedAuthDirectives(config)
+	assert.Empty(t, output.String())
+}
+
 func TestConfigureDelegatedAuthEndpointsSkipsResolvedEntries(t *testing.T) {
 	rec := newRecordingComponent()
 	config := confFromYAML(t, `
@@ -605,6 +625,23 @@ func TestEventPlatformEndpointsAreWithinScope(t *testing.T) {
 	require.Len(t, rec.recorded, 1)
 	assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
 	assert.Equal(t, "container_image.additional_endpoints", rec.recorded[0].AdditionalEndpointsListConfigKey)
+}
+
+func TestTelemetryAndPcapEndpointsRegisterWithoutLogsHTTP(t *testing.T) {
+	for _, configKey := range []string{"agent_telemetry.additional_endpoints", "network_pcap.forwarder.additional_endpoints"} {
+		t.Run(configKey, func(t *testing.T) {
+			config := confFromYAML(t, "{}")
+			config.SetInTest(configKey, []map[string]any{
+				{"host": "intake.datadoghq.eu", "api_key": "DELA[org-uuid-1, aws]"},
+			})
+			rec := newRecordingComponent()
+			ConfigureDelegatedAuthEndpoints(context.Background(), config, rec)
+			require.Len(t, rec.recorded, 1)
+			assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
+			assert.Equal(t, configKey, rec.recorded[0].AdditionalEndpointsListConfigKey)
+			assert.Equal(t, 0, rec.recorded[0].ListEntryIndex)
+		})
+	}
 }
 
 func TestAPMAdditionalEndpointsAreWithinScope(t *testing.T) {

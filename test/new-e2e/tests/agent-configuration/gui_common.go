@@ -75,18 +75,12 @@ func getGUIClient(t *assert.CollectT, host *components.RemoteHost, authtoken str
 	guiClient := host.NewHTTPClient()
 	guiClient.Jar = jar
 
-	// Make the GET request
+	// Cookie issuance and the redirect to "/" are covered by Test_guiHTTPFlow in
+	// comp/core/gui/impl/gui_test.go; here we only need an authenticated client.
 	resp, err := guiClient.Get(guiURL.String())
 	require.NoErrorf(t, err, "failed to reach GUI at address %s", guiURL.String())
-	require.Equalf(t, http.StatusOK, resp.StatusCode, "unexpected status code for %s", guiURL.String())
 	defer resp.Body.Close()
-
-	cookies := guiClient.Jar.Cookies(&guiURL)
-	assert.NotEmpty(t, cookies)
-	assert.Equal(t, cookies[0].Name, "accessToken", "GUI server didn't the accessToken cookie")
-
-	// Assert redirection to "/"
-	assert.Equal(t, fmt.Sprintf("http://%v", net.JoinHostPort("localhost", strconv.Itoa(guiPort)))+"/", resp.Request.URL.String(), "GUI auth endpoint didn't redirect to root endpoint")
+	require.Equalf(t, http.StatusOK, resp.StatusCode, "unexpected status code for %s", guiURL.String())
 
 	return guiClient
 }
@@ -105,8 +99,8 @@ func checkStaticFiles(t *testing.T, client *http.Client, host *components.Remote
 	// Make the GET request
 	resp, err := client.Get(guiURL.String())
 	require.NoErrorf(t, err, "failed to reach GUI at address %s", guiURL.String())
-	require.Equalf(t, http.StatusOK, resp.StatusCode, "unexpected status code for %s", guiURL.String())
 	defer resp.Body.Close()
+	require.Equalf(t, http.StatusOK, resp.StatusCode, "unexpected status code for %s", guiURL.String())
 
 	doc, err := html.Parse(resp.Body)
 	require.NoErrorf(t, err, "failed to parse HTML response from GUI at address %s", guiURL.String())
@@ -138,8 +132,7 @@ func checkStaticFiles(t *testing.T, client *http.Client, host *components.Remote
 		t.Logf("trying to reach asset %v", link)
 		fullLink := fmt.Sprintf("http://%v/%v", net.JoinHostPort("localhost", strconv.Itoa(guiPort)), link)
 		resp, err := client.Get(fullLink)
-		assert.NoErrorf(t, err, "failed to reach GUI asset at address %s", fullLink)
-		defer resp.Body.Close()
+		require.NoErrorf(t, err, "failed to reach GUI asset at address %s", fullLink)
 		assert.Equalf(t, http.StatusOK, resp.StatusCode, "unexpected status code for %s", fullLink)
 
 		body, err := io.ReadAll(resp.Body)
@@ -148,25 +141,12 @@ func checkStaticFiles(t *testing.T, client *http.Client, host *components.Remote
 		assert.NoErrorf(t, err, "failed to read content of GUI asset at address %s", fullLink)
 
 		// retrieving the served file in the Agent installation directory, removing the "view/" prefix
-		expectedBody, err := host.ReadFile(path.Join(installPath, "bin", "agent", "dist", "views", strings.TrimLeft(link, "view/")))
+		expectedBody, err := host.ReadFile(path.Join(installPath, "bin", "agent", "dist", "views", strings.TrimPrefix(link, "view/")))
 		// We replace windows line break by linux so the tests pass on every OS
 		expectedBodyContent := strings.ReplaceAll(string(expectedBody), "\r\n", "\n")
 		assert.NoErrorf(t, err, "unable to retrieve file %v in the expected served files", link)
 
 		assert.Equalf(t, expectedBodyContent, bodyContent, "content of the file %v is not the same as expected", link)
+		resp.Body.Close()
 	}
-}
-
-func checkPingEndpoint(t *testing.T, client *http.Client) {
-	guiURL := url.URL{
-		Scheme: "http",
-		Host:   net.JoinHostPort("localhost", strconv.Itoa(guiPort)),
-		Path:   "/agent/ping",
-	}
-
-	// Make the GET request
-	resp, err := client.Post(guiURL.String(), "", nil)
-	require.NoErrorf(t, err, "failed to reach GUI at address %s", guiURL.String())
-	require.Equalf(t, http.StatusOK, resp.StatusCode, "unexpected status code for %s", guiURL.String())
-	defer resp.Body.Close()
 }

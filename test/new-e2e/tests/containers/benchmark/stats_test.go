@@ -7,6 +7,7 @@ package benchmark
 
 import (
 	"math"
+	"slices"
 	"testing"
 
 	"github.com/samber/lo"
@@ -32,6 +33,34 @@ func TestStudentTwoSidedPValue(t *testing.T) {
 	for _, tt := range tests {
 		assert.InDeltaf(t, tt.p, studentTwoSidedPValue(tt.t, tt.df), 1e-6, "t=%g df=%g", tt.t, tt.df)
 	}
+}
+
+// welchTTest returns the two-sided p-value of Welch's t-test of the hypothesis that the
+// samples a and b, of at least 2 values each, come from distributions of equal means. It is the
+// test the benchmark computed before it supported more than 2 phases, as welchTTest(-x, y) for
+// the block log ratios x and y of its phases, kept as a reference.
+func welchTTest(a, b []float64) float64 {
+	meanA, meanB := lo.Mean(a), lo.Mean(b)
+	// Squared standard errors of the means
+	seA := sampleVariance(a, meanA) / float64(len(a))
+	seB := sampleVariance(b, meanB) / float64(len(b))
+	se := seA + seB
+	if se == 0 {
+		if meanA == meanB {
+			return 1
+		}
+		return 0
+	}
+
+	t := (meanB - meanA) / math.Sqrt(se)
+	// Welch–Satterthwaite degrees of freedom
+	df := se * se / (seA*seA/float64(len(a)-1) + seB*seB/float64(len(b)-1))
+	return studentTwoSidedPValue(t, df)
+}
+
+// negated returns the opposites of values.
+func negated(values []float64) []float64 {
+	return lo.Map(values, func(v float64, _ int) float64 { return -v })
 }
 
 func TestWelchTTest(t *testing.T) {
@@ -71,9 +100,55 @@ func TestWelchTTest(t *testing.T) {
 			assert.InDelta(t, tt.p, welchTTest(tt.a, tt.b), 1e-6)
 			assert.InDelta(t, tt.p, welchTTest(tt.b, tt.a), 1e-6, "the test must be symmetric")
 
-			// (mean(-a) + mean(b)) / 2 = 0 is the hypothesis of Welch's t-test of a and b.
-			negated := lo.Map(tt.a, func(v float64, _ int) float64 { return -v })
-			assert.InDelta(t, tt.p, meanOfMeansTTest(negated, tt.b), 1e-6)
+			// (mean(-a) + mean(b)) / 2 = 0 is the hypothesis of Welch's t-test of a and b: with 2
+			// samples, the p-value is the same to the bit.
+			assert.Equal(t, welchTTest(tt.a, tt.b), meanOfMeansTTest(negated(tt.a), tt.b))
+			assert.Equal(t, welchTTest(tt.b, tt.a), meanOfMeansTTest(negated(tt.b), tt.a))
+		})
+	}
+}
+
+func TestMeanOfMeansTTest(t *testing.T) {
+	// Reference values: numerical integration of the density of Student's t-distribution.
+	tests := []struct {
+		name    string
+		samples [][]float64
+		p       float64
+	}{
+		{
+			// Means 2, -1, 2 and -1, variances 1, 1, 4 and 4: the squared standard errors of the
+			// means vₖ are 1/3, 1/3, 4/3 and 4/3, so t = 2 / √(10/3) and the Welch–Satterthwaite
+			// degrees of freedom (10/3)² / (2 × (1/3)²/2 + 2 × (4/3)²/2) = 100/17 ≈ 5.88. With
+			// Σ (nₖ - 1) = 8 degrees of freedom instead, the p-value would be 0.305201.
+			name:    "4 samples of unequal variances",
+			samples: [][]float64{{1, 2, 3}, {-2, -1, 0}, {0, 2, 4}, {-3, -1, 1}},
+			p:       0.316133,
+		},
+		{
+			// Equal variances and sizes: t = 2 / √(4/3), and Σ (nₖ - 1) = 8 degrees of freedom.
+			name:    "4 samples of equal variances",
+			samples: [][]float64{{1, 2, 3}, {-2, -1, 0}, {1, 2, 3}, {-2, -1, 0}},
+			p:       0.121503,
+		},
+		{
+			name:    "4 constant samples of means summing to 0",
+			samples: [][]float64{{1, 1, 1}, {-1, -1, -1}, {2, 2, 2}, {-2, -2, -2}},
+			p:       1,
+		},
+		{
+			name:    "4 constant samples of means not summing to 0",
+			samples: [][]float64{{1, 1, 1}, {-1, -1, -1}, {2, 2, 2}, {-1, -1, -1}},
+			p:       0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.InDelta(t, tt.p, meanOfMeansTTest(tt.samples...), 1e-6)
+			// The order of the samples doesn't matter, nor the sign of all the values.
+			reversed := slices.Clone(tt.samples)
+			slices.Reverse(reversed)
+			assert.InDelta(t, tt.p, meanOfMeansTTest(reversed...), 1e-6)
+			assert.InDelta(t, tt.p, meanOfMeansTTest(lo.Map(tt.samples, func(sample []float64, _ int) []float64 { return negated(sample) })...), 1e-6)
 		})
 	}
 }
