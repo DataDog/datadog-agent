@@ -97,7 +97,7 @@ jobs:
           git diff "${MERGE_COMMIT_SHA}^1" "${MERGE_COMMIT_SHA}" > pr.diff
 
       - name: Assess backport need
-        uses: anthropics/claude-code-action@cc98b3ae241b0fcfb6a42a2690751afffecb4452 # v1.0.278
+        uses: anthropics/claude-code-action@e5812cd75691ca7bbfc57c0ecf4441db3a1ab7dd # v1.0.281
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
