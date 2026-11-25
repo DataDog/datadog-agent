@@ -3347,6 +3347,65 @@ func TestActionSetVariableEnvKeys(t *testing.T) {
 	}
 }
 
+// A variable read from another variable gets its env marks, whatever order the
+// rules are loaded in, cycles included. A rule that fails to load doesn't mark
+// the variables it shares with other rules.
+func TestActionSetVariableEnvKeysThroughVariables(t *testing.T) {
+	set := func(id, path string, sets ...*SetDefinition) *RuleDefinition {
+		rule := &RuleDefinition{ID: id, Expression: `open.file.path == "` + path + `"`}
+		for _, set := range sets {
+			rule.Actions = append(rule.Actions, &ActionDefinition{Set: set})
+		}
+		return rule
+	}
+	testPolicy := &PolicyDef{Rules: []*RuleDefinition{
+		set("copies", "/tmp/copies",
+			&SetDefinition{Name: "tok_copy", Expression: `${tok}`, DefaultValue: ""},
+			&SetDefinition{Name: "tok_chain", Expression: `"x_${tok_copy}"`, DefaultValue: ""},
+		),
+		set("source", "/tmp/source", &SetDefinition{Name: "tok", Field: `process.env["AWS_SECRET_ACCESS_KEY"]`}),
+		set("cycle", "/tmp/cycle",
+			&SetDefinition{Name: "cycle_a", Expression: `${cycle_b}`, DefaultValue: ""},
+			&SetDefinition{Name: "cycle_b", Expression: `${cycle_a}`, DefaultValue: ""},
+			&SetDefinition{Name: "cycle_b", Field: `process.env["TOKEN"]`},
+		),
+		// an exec field in an open rule: the rule fails to load
+		set("rejected", "/tmp/rejected", &SetDefinition{Name: "shared", Field: `exec.env["TOKEN"]`}),
+		set("loaded", "/tmp/loaded", &SetDefinition{Name: "shared", Field: `open.file.path`}),
+	}}
+
+	tmpDir := t.TempDir()
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rs := newRuleSet()
+	_, loadErr := rs.LoadPolicies(NewPolicyLoader(provider), PolicyLoaderOpts{})
+	if loadErr.ErrorOrNil() == nil || !strings.Contains(loadErr.Error(), "rejected") || rs.GetRuleByID("loaded") == nil {
+		t.Fatalf("expected only the rejected rule to fail to load, got %v", loadErr)
+	}
+
+	for name, keys := range map[string][]string{
+		"tok":       {"AWS_SECRET_ACCESS_KEY"},
+		"tok_copy":  {"AWS_SECRET_ACCESS_KEY"},
+		"tok_chain": {"AWS_SECRET_ACCESS_KEY"},
+		"cycle_a":   {"TOKEN"},
+		"cycle_b":   {"TOKEN"},
+		"shared":    nil,
+	} {
+		variable := rs.evalOpts.VariableStore.Get(name)
+		if variable == nil {
+			t.Fatalf("variable %s not found", name)
+		}
+		if opts := variable.GetVariableOpts(); !slices.Equal(opts.EnvKeys, keys) {
+			t.Errorf("variable %s: expected env keys %v, got %v", name, keys, opts.EnvKeys)
+		}
+	}
+}
+
 // The subscript of a set field can read a variable declared by a rule loaded
 // after it: the variables are declared before any field is compiled.
 func TestActionSetVariableSubscriptVariable(t *testing.T) {

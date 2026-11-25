@@ -120,6 +120,11 @@ type RuleSet struct {
 
 	// event collector, used for tests
 	eventCollector EventCollector
+
+	// variableReads are the variables the set actions of each variable read
+	// their value from, the env marks of which are merged once all the rules are
+	// added, see propagateEnvKeys
+	variableReads map[string][]string
 }
 
 // ListRuleIDs returns the list of RuleIDs from the ruleset
@@ -714,6 +719,10 @@ func (rs *RuleSet) AddRule(pRule *PolicyRule) (model.EventCategory, error) {
 }
 
 func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, tags []string) (model.EventCategory, error) {
+	// the sources of the set actions, recorded once the rule is added: a rule
+	// that fails to load doesn't mark the variables it shares with other rules
+	var sources []setSource
+
 	evalRule, err := eval.NewRule(exRule.id, exRule.expr, rs.parsingContext, rs.evalOpts, tags...)
 	if err != nil {
 		return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: &ErrRuleSyntax{Err: err}}
@@ -799,13 +808,6 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 					return model.UnknownCategory, actionErr(fmt.Errorf("failed to compile action expression: %w", err))
 				}
 
-				// a variable read from a dictionary, the environment variables of a
-				// process, is serialized only for the keys of envs_with_value, as the
-				// serialized environment: the serializer checks the keys it records
-				if keys, evaluated := rs.envKeys(tree); len(keys) > 0 || evaluated {
-					rs.recordEnvKeys(action.Def.Set, keys, evaluated)
-				}
-
 				if exprEventType != "" && exprEventType != ruleEventType {
 					return model.UnknownCategory, actionErr(fmt.Errorf("expression '%s' with event type `%s` is not compatible with '%s' rules", source, exprEventType, ruleEventType))
 				}
@@ -816,6 +818,7 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 				}
 
 				rs.fieldEvaluators[source] = evaluator
+				sources = append(sources, rs.newSetSource(action.Def.Set, tree))
 			}
 
 		case action.Def.Hash != nil:
@@ -833,6 +836,10 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 
 	if err := bucket.AddRule(rule); err != nil {
 		return model.UnknownCategory, err
+	}
+
+	for _, source := range sources {
+		rs.recordSetSource(source)
 	}
 
 	// Merge the fields of the new rule with the existing list of fields of the ruleset
@@ -893,18 +900,96 @@ func (rs *RuleSet) envKeys(tree ast.Node) (keys []string, evaluated bool) {
 	return keys, evaluated
 }
 
-// recordEnvKeys records in the options of the variable of a set action the
-// environment variables its value is read from
-func (rs *RuleSet) recordEnvKeys(set *SetDefinition, keys []string, evaluated bool) {
-	name := set.Name
+// setSource is what the source of a set action reads: the keys of the
+// environment variables of a process, whether one of them is evaluated per
+// event, and the variables
+type setSource struct {
+	variable  string
+	envKeys   []string
+	evaluated bool
+	variables []string
+}
+
+// newSetSource returns what the compiled source of a set action reads
+func (rs *RuleSet) newSetSource(set *SetDefinition, tree ast.Node) setSource {
+	source := setSource{variable: set.Name}
 	if set.Scope != "" {
-		name = string(set.Scope) + "." + name
+		source.variable = string(set.Scope) + "." + set.Name
 	}
-	if variable := rs.evalOpts.VariableStore.Get(name); variable != nil {
+	source.envKeys, source.evaluated = rs.envKeys(tree)
+	ast.Any(tree, func(n ast.Node) bool {
+		if ref, ok := n.(*ast.VariableRef); ok {
+			source.variables = append(source.variables, rs.variableName(ref.Name))
+		}
+		return false
+	})
+	return source
+}
+
+// variableName returns the name of the variable a reference refers to, its
+// length included: `${tok.length}` refers to `tok`
+func (rs *RuleSet) variableName(ref string) string {
+	if rs.evalOpts.VariableStore.Get(ref) == nil {
+		if name, ok := strings.CutSuffix(ref, ".length"); ok {
+			return name
+		}
+	}
+	return ref
+}
+
+// recordSetSource records what the source of a set action reads: the env
+// marks in the options of its variable, for the serializer to check them
+// against envs_with_value, and the variables it reads, for propagateEnvKeys
+func (rs *RuleSet) recordSetSource(source setSource) {
+	if len(source.variables) > 0 {
+		rs.variableReads[source.variable] = append(rs.variableReads[source.variable], source.variables...)
+	}
+	if variable := rs.evalOpts.VariableStore.Get(source.variable); variable != nil {
 		opts := variable.GetVariableOpts()
-		opts.EnvKeys = append(opts.EnvKeys, keys...)
-		opts.EnvKeyEvaluated = opts.EnvKeyEvaluated || evaluated
-		variable.SetVariableOpts(opts)
+		if mergeEnvMarks(&opts, source.envKeys, source.evaluated) {
+			variable.SetVariableOpts(opts)
+		}
+	}
+}
+
+// mergeEnvMarks merges env marks into the options of a variable, and returns
+// whether they changed
+func mergeEnvMarks(opts *eval.VariableOpts, keys []string, evaluated bool) bool {
+	changed := evaluated && !opts.EnvKeyEvaluated
+	opts.EnvKeyEvaluated = opts.EnvKeyEvaluated || evaluated
+	for _, key := range keys {
+		if !slices.Contains(opts.EnvKeys, key) {
+			opts.EnvKeys = append(opts.EnvKeys, key)
+			changed = true
+		}
+	}
+	return changed
+}
+
+// propagateEnvKeys merges into each variable the env marks of the variables its
+// set actions read, once all the rules are added: a variable read from a hidden
+// one is hidden, whatever order the rules are added in, cycles included
+func (rs *RuleSet) propagateEnvKeys() {
+	for changed := true; changed; {
+		changed = false
+		for name, reads := range rs.variableReads {
+			variable := rs.evalOpts.VariableStore.Get(name)
+			if variable == nil {
+				continue
+			}
+			opts := variable.GetVariableOpts()
+			updated := false
+			for _, read := range reads {
+				if source := rs.evalOpts.VariableStore.Get(read); source != nil {
+					sourceOpts := source.GetVariableOpts()
+					updated = mergeEnvMarks(&opts, sourceOpts.EnvKeys, sourceOpts.EnvKeyEvaluated) || updated
+				}
+			}
+			if updated {
+				variable.SetVariableOpts(opts)
+				changed = true
+			}
+		}
 	}
 }
 
@@ -1448,6 +1533,8 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) ([]
 		errs = multierror.Append(errs, err)
 	}
 
+	rs.propagateEnvKeys()
+
 	return filteredRules, errs
 }
 
@@ -1519,6 +1606,7 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 		logger:           logger,
 		pool:             eval.NewContextPool(),
 		fieldEvaluators:  make(map[string]eval.Evaluator),
+		variableReads:    make(map[string][]string),
 		scopedVariables:  make(map[Scope]VariableProvider),
 		globalVariables:  eval.NewVariables(),
 		parsingContext:   parser.NewParsingContext(opts.RuleCacheEnabled),
