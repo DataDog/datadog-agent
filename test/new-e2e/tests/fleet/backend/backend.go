@@ -25,6 +25,7 @@ import (
 	"github.com/cenkalti/backoff/v7"
 	"github.com/google/go-containerregistry/pkg/crane"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
+	goversion "github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/nacl/box"
 	"golang.org/x/mod/semver"
@@ -167,13 +168,13 @@ func (b *Backend) StartExperiment(pkg string, version string) error {
 		return fmt.Errorf("error setting catalog: %w", err)
 	}
 	var output string
-	// The CI registry mirror intermittently fails under load. A failed download
-	// leaves no experiment behind, and the installer under test may predate its
-	// own network retries, so the whole command is retried.
+	// Download and extraction failures precede experiment state changes.
 	err = b.retry(func() error {
 		var err error
 		output, err = b.runDaemonCommandWithRestart("start-experiment", pkg, version)
-		if err != nil && !isTransientRegistryError(err) {
+		if err != nil && !strings.Contains(err.Error(), "could not download package:") &&
+			!strings.Contains(err.Error(), "could not extract package layer:") &&
+			!strings.Contains(err.Error(), "could not extract package config layer:") {
 			return backoff.Permanent(err)
 		}
 		return err
@@ -194,14 +195,6 @@ func (b *Backend) PromoteExperiment(pkg string) error {
 	}
 	b.t().Logf("Experiment promoted")
 	return nil
-}
-
-func isTransientRegistryError(err error) bool {
-	message := err.Error()
-	// Only a daemon-reported install failure guarantees no experiment was started;
-	// a bare EOF may come from the transport after the daemon restarted.
-	return strings.Contains(message, "could not install experiment") &&
-		(strings.Contains(message, "500 Internal Server Error") || strings.Contains(message, "unexpected EOF"))
 }
 
 // StopExperiment stops an update experiment for the given package.
@@ -295,19 +288,9 @@ func (c *Catalog) LatestMinus(branch Branch, pkg string, minus int) string {
 // 7.86.1-2). RC and development builds must not become upgrade baselines.
 var releasedPackageVersion = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$`)
 
-var fullPackageVersion = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$`)
-
-// Pipeline versions embed the git short SHA in their prerelease, which strict
-// semver rejects when it is all digits with a leading zero (for example
-// 7.87.0-devel.git.1099.0920558.pipeline.155663328-1), so only the core is checked.
-func releaseCore(version string) string {
-	core, _, _ := strings.Cut(strings.TrimPrefix(version, "v"), "-")
-	core, _, _ = strings.Cut(core, "+")
-	return "v" + core
-}
-
 func validPackageVersion(version string) bool {
-	return fullPackageVersion.MatchString(version) && semver.IsValid(releaseCore(version))
+	_, err := goversion.NewVersion(version)
+	return err == nil
 }
 
 // ErrNoReleasedVersions means the requested minor has no stable packages in the
@@ -321,29 +304,26 @@ var ErrNoReleasedVersions = errors.New("no released package versions")
 // preserving their original spelling. A missing minor is an error, not a reason
 // to substitute another release or silently omit upgrade coverage.
 func (c *Catalog) PreviousMinorVersions(branch Branch, pkg, currentVersion string, minus int) ([]string, error) {
-	current := releaseCore(currentVersion)
-	if !validPackageVersion(currentVersion) {
+	current, err := goversion.NewVersion(currentVersion)
+	if err != nil {
 		return nil, fmt.Errorf("invalid current package version %q", currentVersion)
 	}
 	if minus <= 0 {
 		return nil, fmt.Errorf("minor release offset must be positive, got %d", minus)
 	}
-	major := semver.Major(current)
-	minor, err := strconv.Atoi(strings.TrimPrefix(semver.MajorMinor(current), major+"."))
-	if err != nil {
-		return nil, fmt.Errorf("invalid minor in current package version %q: %w", currentVersion, err)
-	}
+	major, minor := current.Segments()[0], current.Segments()[1]
 	if minus > minor {
-		return nil, fmt.Errorf("minor release offset %d precedes major release %s for %s", minus, major, currentVersion)
+		return nil, fmt.Errorf("minor release offset %d precedes major release %d for %s", minus, major, currentVersion)
 	}
-	wantedMinor := fmt.Sprintf("%s.%d", major, minor-minus)
+	wantedMinor := fmt.Sprintf("%d.%d", major, minor-minus)
 	unique := make(map[string]string)
 	hasReleasedVersion := false
 	for _, entry := range c.packages {
 		if entry.Package != pkg || entry.branch != branch {
 			continue
 		}
-		if !validPackageVersion(entry.Version) {
+		packageVersion, err := goversion.NewVersion(entry.Version)
+		if err != nil {
 			return nil, fmt.Errorf("invalid catalog package version %q for package %s on branch %s", entry.Version, pkg, branch)
 		}
 		if !releasedPackageVersion.MatchString(entry.Version) {
@@ -351,7 +331,7 @@ func (c *Catalog) PreviousMinorVersions(branch Branch, pkg, currentVersion strin
 		}
 		hasReleasedVersion = true
 		normalized := "v" + strings.TrimPrefix(entry.Version, "v")
-		if semver.MajorMinor(normalized) != wantedMinor {
+		if packageVersion.Segments()[0] != major || packageVersion.Segments()[1] != minor-minus {
 			continue
 		}
 		// Prefer the unprefixed spelling if aliases expose both forms, so the
@@ -371,7 +351,7 @@ func (c *Catalog) PreviousMinorVersions(branch Branch, pkg, currentVersion strin
 		versions = append(versions, version)
 	}
 	sort.Slice(versions, func(i, j int) bool {
-		return semver.Compare("v"+strings.TrimPrefix(versions[i], "v"), "v"+strings.TrimPrefix(versions[j], "v")) > 0
+		return goversion.Must(goversion.NewVersion(versions[i])).GreaterThan(goversion.Must(goversion.NewVersion(versions[j])))
 	})
 	return versions, nil
 }

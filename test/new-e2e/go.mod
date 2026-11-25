@@ -40,6 +40,7 @@ require (
 	github.com/google/go-containerregistry v0.22.1
 	github.com/google/uuid v1.6.0
 	github.com/hairyhenderson/go-codeowners v0.7.2
+	github.com/hashicorp/go-version v1.9.0
 	github.com/jackc/pgx/v5 v5.13.0
 	github.com/kr/pretty v0.3.1
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.55.0
@@ -228,7 +229,6 @@ require (
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
-	github.com/hashicorp/go-version v1.9.0 // indirect
 	github.com/hashicorp/hcl/v2 v2.24.0 // indirect
 	github.com/huandu/xstrings v1.6.2 // indirect
 	github.com/ianlancetaylor/demangle v0.0.0-20250417193237-f615e6bd150b // indirect
