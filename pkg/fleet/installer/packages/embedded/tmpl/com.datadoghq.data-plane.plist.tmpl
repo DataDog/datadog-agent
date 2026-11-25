@@ -3,14 +3,14 @@
 <plist version="1.0">
     <dict>
         <key>Label</key>
-        <string>com.datadoghq.data-plane{{.LabelSuffix}}</string>
+        <string>com.datadoghq.data-plane{{if not .Stable}}-exp{{end}}</string>
 {{- /* Only the stable set starts at load and is relaunched by launchd: a reboot mid-experiment
        brings back only the stable set. The experiment job is never relaunched: a failed exit of it
        fails the experiment, and the unit supervisor starts the stable set again. A clean exit, as
        when its feature is off, leaves it down. */}}
         <key>RunAtLoad</key>
-        <{{if .Supervised}}true{{else}}false{{end}}/>
-{{- if .Supervised}}
+        <{{if .Stable}}true{{else}}false{{end}}/>
+{{- if .Stable}}
         <key>KeepAlive</key>
         <dict>
             <key>SuccessfulExit</key>
@@ -36,9 +36,9 @@
             <string>{{.RunDir}}/agent-data-plane.pid</string>
         </array>
         <key>StandardOutPath</key>
-        <string>{{.LogDir}}/launchd_data_plane{{.LabelSuffix}}.log</string>
+        <string>{{.LogDir}}/launchd_data_plane{{if not .Stable}}-exp{{end}}.log</string>
         <key>StandardErrorPath</key>
-        <string>{{.LogDir}}/launchd_data_plane{{.LabelSuffix}}.log</string>
+        <string>{{.LogDir}}/launchd_data_plane{{if not .Stable}}-exp{{end}}.log</string>
         <key>ExitTimeOut</key>
         <integer>10</integer>
         <key>UserName</key>

@@ -87,18 +87,12 @@ type templateData struct {
 // launchdTemplateData parameterises a launchd job definition.
 //
 // The stable and the -exp job sets are rendered from the same templates, so a change to a job is
-// one edit and both sets pick it up. They differ only in LabelSuffix, Stable, Supervised and
-// EtcDir.
+// one edit and both sets pick it up. They differ only in Stable and EtcDir.
 type launchdTemplateData struct {
-	// LabelSuffix is appended to the job label and to its log file name: empty for the stable
-	// set, "-exp" for the experiment set.
-	LabelSuffix string
-	// Stable reports whether this is the stable set, for the experiment-only environment.
+	// Stable reports whether this is the stable set. The -exp set adds "-exp" to its job labels and
+	// log file names, and is unsupervised: launchd never starts or relaunches it, the configuration
+	// experiment's unit supervisor does.
 	Stable bool
-	// Supervised reports whether launchd starts the job at load and relaunches it on an
-	// unsuccessful exit. The -exp set is unsupervised: launchd never starts or relaunches it, the
-	// configuration experiment's unit supervisor does.
-	Supervised bool
 	// ProgramDir is the install root the job's program is resolved under. Both sets name the
 	// same root: a configuration experiment does not change which binaries run.
 	ProgramDir string
@@ -348,28 +342,24 @@ var (
 	// etc-exp, run and logs. A configuration experiment changes only which configuration
 	// directory the Agent reads, so both job sets run the same binaries.
 	stableDataLaunchd = launchdTemplateData{
-		LabelSuffix: "",
-		Stable:      true,
-		Supervised:  true,
-		ProgramDir:  "/opt/datadog-agent",
-		EtcDir:      "/opt/datadog-agent/etc",
-		RunDir:      "/opt/datadog-agent/run",
-		StateDir:    "/opt/datadog-packages/run",
-		LogDir:      "/opt/datadog-agent/logs",
-		AgentUser:   "_dd-agent",
-		AgentGroup:  "daemon",
+		Stable:     true,
+		ProgramDir: "/opt/datadog-agent",
+		EtcDir:     "/opt/datadog-agent/etc",
+		RunDir:     "/opt/datadog-agent/run",
+		StateDir:   "/opt/datadog-packages/run",
+		LogDir:     "/opt/datadog-agent/logs",
+		AgentUser:  "_dd-agent",
+		AgentGroup: "daemon",
 	}
 	expDataLaunchd = launchdTemplateData{
-		LabelSuffix: "-exp",
-		Stable:      false,
-		Supervised:  false,
-		ProgramDir:  "/opt/datadog-agent",
-		EtcDir:      "/opt/datadog-agent/etc-exp",
-		RunDir:      "/opt/datadog-agent/run",
-		StateDir:    "/opt/datadog-packages/run",
-		LogDir:      "/opt/datadog-agent/logs",
-		AgentUser:   "_dd-agent",
-		AgentGroup:  "daemon",
+		Stable:     false,
+		ProgramDir: "/opt/datadog-agent",
+		EtcDir:     "/opt/datadog-agent/etc-exp",
+		RunDir:     "/opt/datadog-agent/run",
+		StateDir:   "/opt/datadog-packages/run",
+		LogDir:     "/opt/datadog-agent/logs",
+		AgentUser:  "_dd-agent",
+		AgentGroup: "daemon",
 	}
 
 	windowsEmbeddedLayouts = []embeddedLayout{
