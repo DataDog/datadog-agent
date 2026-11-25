@@ -16,7 +16,47 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
+
+// boolReader is a config that only knows booleans.
+type boolReader struct {
+	model.Reader
+	values map[string]bool
+}
+
+func (b boolReader) GetBool(key string) bool { return b.values[key] }
+
+func TestDetectJobSchedulerEvents(t *testing.T) {
+	tests := []struct {
+		name       string
+		kubernetes bool
+		values     map[string]bool
+		want       bool
+	}{
+		{"all off", true, nil, false},
+		{"kueue events without kueue", true, map[string]bool{"cluster_agent.kueue.events.enabled": true}, false},
+		{"kueue and its events", true, map[string]bool{"cluster_agent.kueue.enabled": true, "cluster_agent.kueue.events.enabled": true}, true},
+		{"kai and its events", true, map[string]bool{"cluster_agent.kai_scheduler.enabled": true, "cluster_agent.kai_scheduler.events.enabled": true}, true},
+		{"kai without its events", true, map[string]bool{"cluster_agent.kai_scheduler.enabled": true}, false},
+		{"not kubernetes", false, map[string]bool{"cluster_agent.kueue.enabled": true, "cluster_agent.kueue.events.enabled": true}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.kubernetes {
+				t.Setenv("KUBERNETES", "yes")
+			} else {
+				t.Setenv("KUBERNETES", "")
+				t.Setenv("KUBERNETES_SERVICE_PORT", "")
+			}
+			features := FeatureMap{}
+			detectKubernetes(features, boolReader{values: tt.values})
+			_, got := features[JobSchedulerEvents]
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
 
 func Test_merge(t *testing.T) {
 	tests := []struct {

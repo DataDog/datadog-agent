@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/internal/anomalydetection/scorer/scoring"
 )
 
-func scoreNoFaults(outputPath, scenariosDir string) (*scoring.NoFaultResult, error) {
+func scoreNoFaults(outputPath, scenariosDir, timeMode string) (*scoring.NoFaultResult, error) {
 	data, err := os.ReadFile(outputPath)
 	if err != nil {
 		return nil, err
@@ -55,7 +55,7 @@ func scoreNoFaults(outputPath, scenariosDir string) (*scoring.NoFaultResult, err
 	}
 	periods := make([]scoring.Period, 0, len(output.AnomalyPeriods))
 	for _, period := range output.AnomalyPeriods {
-		periods = append(periods, scoring.Period{Pattern: period.Pattern, Start: float64(period.PeriodStart), End: float64(period.PeriodEnd)})
+		periods = append(periods, scoring.Period{Pattern: period.Pattern, Start: float64(period.scoreStart(timeMode)), End: float64(period.PeriodEnd)})
 	}
-	return scoring.ScoreNoFaults(periods, episode)
+	return scoring.ScoreNoFaults(periods, episode, timeMode)
 }

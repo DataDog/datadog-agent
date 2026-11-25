@@ -1878,6 +1878,11 @@ func (s *InternalSpan) handlePromotedMetaFields(metaKey, metaVal uint32, convert
 	case "_dd.git.commit.sha":
 		convertedFields.GitCommitShaRef = metaVal
 	case "_dd.p.dm":
+		// The first non-zero decision maker of the chunk wins. Mechanism 0 ("-0") is the tracer's
+		// startup fallback and is indistinguishable from unset, so a later real decision replaces it.
+		if convertedFields.SamplingMechanism != 0 {
+			return
+		}
 		payloadDecisionMaker := s.Strings.Get(metaVal)
 		payloadDecisionMaker, _ = strings.CutPrefix(payloadDecisionMaker, "-")
 		var err error

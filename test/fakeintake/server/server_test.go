@@ -24,7 +24,9 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/genresources"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
@@ -624,6 +626,52 @@ func TestServer(t *testing.T) {
 		t.Logf("Response: %v", res)
 		assert.Equal(t, http.StatusOK, res.StatusCode, "unexpected code")
 
+	})
+	t.Run("should forward generic resources and expose them as JSON even when forwarding fails", func(t *testing.T) {
+		event := &genresources.GenericResourceEvent{
+			Source:   "integrations-core",
+			Resource: &genresources.GenericResource{Type: "gpu_device", Key: "gpu-test"},
+		}
+		payload, err := proto.Marshal(event)
+		require.NoError(t, err)
+
+		forwarded := make(chan []byte, 1)
+		upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/api/v2/genresources", r.URL.Path)
+			assert.Equal(t, "test", r.Header.Get("DD-API-KEY"))
+			body, err := io.ReadAll(r.Body)
+			assert.NoError(t, err)
+			forwarded <- body
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer upstream.Close()
+
+		fi, _ := InitialiseForTests(t, withForwardEndpoint(upstream.URL), withDDDevAPIKey("test"), WithDDDevForward())
+		defer fi.Stop()
+		resp, err := http.Post(fi.URL()+"/api/v2/genresources", "application/x-protobuf", bytes.NewReader(payload))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		select {
+		case body := <-forwarded:
+			assert.Equal(t, payload, body)
+		default:
+			t.Fatal("generic resources were not forwarded")
+		}
+
+		resp, err = http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/api/v2/genresources&format=json")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		var parsed struct {
+			Payloads []struct {
+				Data []*genresources.GenericResourceEvent
+			}
+		}
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&parsed))
+		require.Len(t, parsed.Payloads, 1)
+		require.Len(t, parsed.Payloads[0].Data, 1)
+		assert.True(t, proto.Equal(event, parsed.Payloads[0].Data[0]))
 	})
 	t.Run("should forward logs to dddev using logforwardendpoint", func(t *testing.T) {
 		testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

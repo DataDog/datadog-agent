@@ -9,29 +9,22 @@ from invoke import task
 
 from tasks.flavor import FipsBackend
 from tasks.libs.build.bazel import build_binary_with_bazel
-from tasks.libs.common.go import go_build
-from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
-from tasks.libs.releasing.version import get_version_numeric_only
+from tasks.libs.common.color import color_message
+from tasks.libs.common.utils import bin_name
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
-AGENT_TAG = "datadog/agent:master"
 
 
 @task
 def build(
     ctx,
-    debug=False,
     console=False,
-    rebuild=False,
-    race=False,
-    go_mod="readonly",
     enable_bazel=False,
     fips_backend=FipsBackend.none,
 ):
     """
-    Build the agent. If the bits to include in the build are not specified,
-    the values from `invoke.yaml` will be used.
+    Build the systray binary with Bazel.
 
     Example invokation:
         dda inv systray.build
@@ -42,82 +35,28 @@ def build(
         return
 
     if enable_bazel:
-        if console:
-            raise NotImplementedError(
-                "--enable-bazel does not support --console (the Bazel target hardcodes the windows subsystem)."
-            )
-        if debug:
-            raise NotImplementedError(
-                "--enable-bazel does not support --debug (stripping is tied to Bazel's release mode, not this flag)."
-            )
-        if race:
-            raise NotImplementedError("--enable-bazel does not support --race.")
-        build_binary_with_bazel(
-            "//cmd/systray:systray", bin_path=os.path.join(BIN_PATH, bin_name("ddtray")), fips_backend=fips_backend
-        )
-        return
+        sys.stderr.write(color_message('--enable-bazel is deprecated, Bazel is now always used\n', "orange"))
 
-    # This generates the manifest resource. The manifest resource is necessary for
-    # being able to load the ancient C-runtime that comes along with Python 2.7
-    # command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
-    ver = get_version_numeric_only(ctx)
-    build_maj, build_min, build_patch = ver.split(".")
-    env = {}
-    windres_target = "pe-x86-64"
-
-    command = f"windres -v  --target {windres_target} --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} "
-    command += "-i cmd/systray/systray.rc -O coff -o cmd/systray/rsrc.syso"
-    ctx.run(command)
-    ldflags = get_version_ldflags(ctx)
-    if not debug:
-        ldflags += "-s -w "
-    if console:
-        subsystem = 'console'
-    else:
-        subsystem = 'windows'
-    ldflags += f"-X {REPO_PATH}/cmd/systray/command/command.subsystem={subsystem} "
-    ldflags += f"-linkmode external '-extldflags=-Wl,--subsystem,{subsystem}' "
-    go_build(
-        ctx,
-        f"{REPO_PATH}/cmd/systray",
-        mod=go_mod,
-        race=race,
-        rebuild=rebuild,
+    build_binary_with_bazel(
+        "//cmd/systray:systray",
+        args=[f"--//cmd/systray:console={console}"],
         bin_path=os.path.join(BIN_PATH, bin_name("ddtray")),
-        ldflags=ldflags,
-        env=env,
-        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
-        build_tags=["grpcnotrace"],
         fips_backend=fips_backend,
     )
 
 
 @task
-def run(ctx, rebuild=False, race=False, skip_build=False):
+def run(ctx, console=False):
     """
-    Execute the systray binary.
-
-    By default it builds the agent before executing it, unless --skip-build was
-    passed. It accepts the same set of options as agent.build.
+    Build and execute the systray binary.
     """
-    if not skip_build:
-        build(ctx, rebuild, race)
-
+    build(ctx, console=console)
     ctx.run(os.path.join(BIN_PATH, bin_name("ddtray")))
 
 
 @task
 def clean(ctx):
     """
-    Remove temporary objects and binary artifacts
+    Deprecated, does nothing.
     """
-    # go clean
-    print("Executing go clean")
-    ctx.run("go clean")
-
-    # remove the bin/agent folder
-    print("Remove systray executable")
-    try:
-        os.remove(os.path.join(BIN_PATH, bin_name("ddtray")))
-    except Exception as e:
-        print(e)
+    sys.stderr.write(color_message('systray.clean is deprecated and does nothing\n', "orange"))

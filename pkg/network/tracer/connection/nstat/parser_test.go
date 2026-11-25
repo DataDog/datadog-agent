@@ -11,6 +11,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"net/netip"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -105,6 +106,146 @@ func TestParseTCPUpdate(t *testing.T) {
 			Present: true,
 		},
 	}, event.Flow)
+	require.Empty(t, event.Domain)
+	require.Equal(t, DomainAbsent, event.DomainState)
+}
+
+func TestParseExtendedUpdateDomain(t *testing.T) {
+	for name, tc := range map[string]struct {
+		provider         uint32
+		descriptorLength int
+		connStatus       int
+	}{
+		"tcp macOS 14":               {provider: ProviderTCPKernel, descriptorLength: tcpDescriptorSizeV14, connStatus: tcpConnStatusV14},
+		"tcp macOS 13":               {provider: ProviderTCPUserland, descriptorLength: tcpDescriptorSizeV12, connStatus: tcpConnStatusV12},
+		"tcp appended fields":        {provider: ProviderTCPKernel, descriptorLength: tcpDescriptorSizeV14 + 8, connStatus: tcpConnStatusV14},
+		"udp macOS 14":               {provider: ProviderUDPKernel, descriptorLength: udpDescriptorSizeV14},
+		"udp macOS 13":               {provider: ProviderUDPKernel, descriptorLength: udpDescriptorSizeV12},
+		"udp userland appended data": {provider: ProviderUDPUserland, descriptorLength: udpDescriptorSizeV14 + 16},
+	} {
+		t.Run(name, func(t *testing.T) {
+			update := extendedUpdate(tc.provider, tc.descriptorLength, domainItem("API.Example.com."))
+			putUint64(update, updateCounts+countsRXBytes, 1200)
+			description := update[updateData:]
+			if IsTCPProvider(tc.provider) {
+				putUint32(description, tcpState, 4)
+				putUint32(description, tcpPID, 1234)
+				putIPv4(description, tcpRemote, [4]byte{1, 1, 1, 1}, 443)
+				putUint32(description, tc.connStatus, tcpConnProbeFailed)
+			} else {
+				putUint32(description, udpPID, 1234)
+				putIPv4(description, udpRemote, [4]byte{1, 1, 1, 1}, 443)
+			}
+
+			events, err := ParseDatagram(update)
+
+			require.NoError(t, err)
+			require.Len(t, events, 1)
+			event := events[0]
+			require.Equal(t, EventUpdate, event.Kind)
+			require.Equal(t, uint64(7), event.SourceRef)
+			require.Equal(t, tc.provider, event.Provider)
+			require.Equal(t, "api.example.com", event.Domain)
+			require.Equal(t, DomainFound, event.DomainState)
+			require.Equal(t, uint64(1200), event.Counts.RXBytes)
+			require.Equal(t, uint32(1234), event.Flow.PID)
+			require.Equal(t, netip.MustParseAddr("1.1.1.1"), event.Flow.Remote.Address)
+			if IsTCPProvider(tc.provider) {
+				require.True(t, event.Flow.ConnStatusKnown)
+				require.True(t, event.Flow.ConnProbeFailed, "connstatus must be read within the descriptor, not the extension items")
+			}
+		})
+	}
+}
+
+func TestParseExtendedUpdateSkipsUnknownItems(t *testing.T) {
+	update := extendedUpdate(
+		ProviderTCPKernel,
+		tcpDescriptorSizeV14,
+		extensionItem(2, []byte("unaligned-tlv")),
+		domainItem("example.com"),
+		extensionItem(99, make([]byte, 8)),
+	)
+	putUint32(update[updateData:], tcpState, 4)
+
+	events, err := ParseDatagram(update)
+
+	require.NoError(t, err)
+	require.Len(t, events, 1)
+	require.Equal(t, "example.com", events[0].Domain)
+	require.Equal(t, DomainFound, events[0].DomainState)
+}
+
+func TestParseExtendedUpdateWithoutUsableName(t *testing.T) {
+	unterminated := make([]byte, domainInfoSize)
+	for i := range domainNameLength {
+		unterminated[i] = 'a'
+	}
+	for name, tc := range map[string]struct {
+		item  []byte
+		state DomainState
+	}{
+		"silent source":      {item: domainItem(""), state: DomainEmpty},
+		"lone dot":           {item: domainItem("."), state: DomainEmpty},
+		"invalid character":  {item: domainItem("bad name!"), state: DomainEmpty},
+		"ip literal":         {item: domainItem("192.0.2.1"), state: DomainEmpty},
+		"too long":           {item: domainItem(strings.Repeat("a", maxDomainLength+1)), state: DomainEmpty},
+		"unterminated name":  {item: extensionItem(extensionTypeDomain, unterminated), state: DomainUnparsed},
+		"short domain item":  {item: extensionItem(extensionTypeDomain, []byte("example.com\x00")), state: DomainUnparsed},
+		"kernel copy failed": {item: extensionItem(0, make([]byte, domainInfoSize)), state: DomainAbsent},
+	} {
+		t.Run(name, func(t *testing.T) {
+			update := extendedUpdate(ProviderTCPKernel, tcpDescriptorSizeV14, tc.item)
+			putUint32(update[updateData:], tcpState, 4)
+
+			events, err := ParseDatagram(update)
+
+			require.NoError(t, err)
+			require.Len(t, events, 1)
+			require.Empty(t, events[0].Domain)
+			require.Equal(t, tc.state, events[0].DomainState)
+		})
+	}
+}
+
+func TestParseExtendedUpdateKeepsCountsAndFlowWhenItemsDoNotFit(t *testing.T) {
+	overlong := extensionItem(extensionTypeDomain, make([]byte, domainInfoSize))
+	putUint32(overlong, 4, domainInfoSize+64)
+	zeroLength := extensionItem(extensionTypeDomain, make([]byte, domainInfoSize))
+	putUint32(zeroLength, 4, 0)
+	for name, item := range map[string][]byte{
+		"item overruns message": overlong,
+		"zero-length item":      zeroLength,
+		"truncated header":      {1, 0, 0, 0},
+	} {
+		for layout, descriptorLength := range map[string]int{
+			"macOS 14": tcpDescriptorSizeV14,
+			"macOS 13": tcpDescriptorSizeV12,
+		} {
+			t.Run(name+" "+layout, func(t *testing.T) {
+				update := extendedUpdate(ProviderTCPKernel, descriptorLength, item)
+				putUint64(update, updateCounts+countsTXBytes, 900)
+				description := update[updateData:]
+				putUint32(description, tcpState, 4)
+				putUint32(description, tcpPID, 80)
+				putUint32(description, tcpConnStatusV12, tcpConnProbeFailed)
+				putUint32(description, tcpConnStatusV14, tcpConnProbeFailed)
+
+				events, err := ParseDatagram(update)
+
+				require.NoError(t, err)
+				require.Len(t, events, 1)
+				event := events[0]
+				require.Equal(t, EventUpdate, event.Kind)
+				require.Empty(t, event.Domain)
+				require.Equal(t, DomainUnparsed, event.DomainState)
+				require.Equal(t, uint64(900), event.Counts.TXBytes)
+				require.Equal(t, uint32(80), event.Flow.PID)
+				require.False(t, event.Flow.ConnStatusKnown, "connstatus offset depends on the unknown descriptor length")
+				require.False(t, event.Flow.ConnProbeFailed)
+			})
+		}
+	}
 }
 
 func TestParseTCPConnProbeFailed(t *testing.T) {
@@ -298,6 +439,36 @@ func message(messageType uint32, length int) []byte {
 	putUint32(result, 8, messageType)
 	putUint16(result, 12, uint16(length))
 	return result
+}
+
+func extendedUpdate(provider uint32, descriptorLength int, items ...[]byte) []byte {
+	length := updateData + descriptorLength
+	for _, item := range items {
+		length += len(item)
+	}
+	update := message(messageExtendedUpdate, length)
+	putUint64(update, updateSourceRef, 7)
+	putUint32(update, updateProvider, provider)
+	offset := updateData + descriptorLength
+	for _, item := range items {
+		offset += copy(update[offset:], item)
+	}
+	return update
+}
+
+func extensionItem(itemType uint32, data []byte) []byte {
+	padded := (len(data) + extensionAlignment - 1) &^ (extensionAlignment - 1)
+	item := make([]byte, extensionHeaderSize+padded)
+	putUint32(item, 0, itemType)
+	putUint32(item, 4, uint32(len(data)))
+	copy(item[extensionHeaderSize:], data)
+	return item
+}
+
+func domainItem(name string) []byte {
+	info := make([]byte, domainInfoSize)
+	copy(info, name)
+	return extensionItem(extensionTypeDomain, info)
 }
 
 func putUint16(buffer []byte, offset int, value uint16) {

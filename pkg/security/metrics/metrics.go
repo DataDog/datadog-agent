@@ -604,9 +604,11 @@ var (
 	// Tags: source (runtime, replay or related), event_type
 	MetricSecurityProfileV2EventsImmediate = newRuntimeMetric(".security_profile_v2.events.immediate")
 
-	// MetricSecurityProfileV2InsertionErrors is the name of the metric used to report activity-tree
-	// insertion failures that are not routine filtering rejections (i.e. unexpected errors).
-	// Tags: event_type, error_type
+	// MetricSecurityProfileV2InsertionErrors is the name of the metric used to report events that carry
+	// an error and activity-tree insertion failures that are not routine filtering rejections
+	// (i.e. unexpected errors), whether the profile manager kept the event in a profile or dropped it.
+	// An event whose error doesn't prevent its insertion is only counted once it reaches the activity tree
+	// Tags: event_type, error_type, outcome (kept or dropped)
 	MetricSecurityProfileV2InsertionErrors = newRuntimeMetric(".security_profile_v2.insertion_errors")
 
 	// Tag Resolution metrics

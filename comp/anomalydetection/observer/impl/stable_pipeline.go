@@ -23,14 +23,16 @@ const defaultStableMinRelativeChange = 0.05
 
 // StableScanMWConfig exposes the stable ScanMW tuning surface.
 type StableScanMWConfig struct {
-	MinPoints int `json:"min_points"`
-	MaxPoints int `json:"max_points"`
+	MinPoints  int `json:"min_points"`
+	MaxPoints  int `json:"max_points"`
+	MinSegment int `json:"min_segment"`
 }
 
 // StableScanWelchConfig exposes the stable ScanWelch tuning surface.
 type StableScanWelchConfig struct {
-	MinPoints int `json:"min_points"`
-	MaxPoints int `json:"max_points"`
+	MinPoints  int `json:"min_points"`
+	MaxPoints  int `json:"max_points"`
+	MinSegment int `json:"min_segment"`
 }
 
 // StableBOCPDConfig exposes the stable BOCPD tuning surface.
@@ -98,13 +100,15 @@ func newStableDetector(cfg StablePipelineConfig) (stableDetector, error) {
 	switch {
 	case cfg.ScanMW != nil:
 		return NewScanMWDetector(ScanMWConfig{
-			MinPoints: cfg.ScanMW.MinPoints,
-			MaxPoints: cfg.ScanMW.MaxPoints,
+			MinPoints:  cfg.ScanMW.MinPoints,
+			MaxPoints:  cfg.ScanMW.MaxPoints,
+			MinSegment: cfg.ScanMW.MinSegment,
 		}), nil
 	case cfg.ScanWelch != nil:
 		return NewScanWelchDetector(ScanWelchConfig{
-			MinPoints: cfg.ScanWelch.MinPoints,
-			MaxPoints: cfg.ScanWelch.MaxPoints,
+			MinPoints:  cfg.ScanWelch.MinPoints,
+			MaxPoints:  cfg.ScanWelch.MaxPoints,
+			MinSegment: cfg.ScanWelch.MinSegment,
 		}), nil
 	case cfg.BOCPD != nil:
 		return newBOCPDDetector(BOCPDConfig{

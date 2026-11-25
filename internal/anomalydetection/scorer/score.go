@@ -16,7 +16,39 @@ import (
 	"time"
 )
 
-const scoringVersion = "high-severity-onset-recovery-v2"
+const (
+	scoringVersion = "high-severity-onset-recovery-v3"
+
+	timeModeHistorical = "historical"
+	timeModeTrigger    = "trigger"
+)
+
+func normalizeTimeMode(value string) (string, error) {
+	switch value {
+	case timeModeHistorical, timeModeTrigger:
+		return value, nil
+	case "":
+		return timeModeHistorical, nil
+	default:
+		return "", fmt.Errorf("must be %q or %q, got %q", timeModeHistorical, timeModeTrigger, value)
+	}
+}
+
+// scoreStart selects the episode timestamp for scoring. Legacy payloads only
+// carry period_start, which is the delivered trigger time.
+func (oc *ObserverCorrelation) scoreStart(mode string) int64 {
+	switch mode {
+	case timeModeTrigger:
+		if oc.TriggerTimestamp > 0 {
+			return oc.TriggerTimestamp
+		}
+	case timeModeHistorical:
+		if oc.HistoricalTimestamp > 0 {
+			return oc.HistoricalTimestamp
+		}
+	}
+	return oc.PeriodStart
+}
 
 // RecoveryWindow is the half-open cooldown interval from episode.json.
 type RecoveryWindow struct {
@@ -36,11 +68,13 @@ type ScoreInput struct {
 	GroundTruthTimestamps []int64         // disruption onset timestamp(s)
 	Sigma                 float64         // Gaussian width in seconds
 	Recovery              *RecoveryWindow // nil for explicit timestamp-only scoring
+	TimeMode              string          // historical (default) or trigger
 }
 
 // ScoreResult contains the Gaussian F1 scoring output.
 type ScoreResult struct {
 	ScoringVersion               string  `json:"scoring_version"`
+	TimeMode                     string  `json:"time_mode"`
 	F1                           float64 `json:"f1"`
 	Precision                    float64 `json:"precision"`
 	Recall                       float64 `json:"recall"`
@@ -78,10 +112,14 @@ type ScoreResult struct {
 func ComputeGaussianF1(input ScoreInput) ScoreResult {
 	result := ScoreResult{
 		ScoringVersion:  scoringVersion,
+		TimeMode:        timeModeHistorical,
 		NumPredictions:  len(input.PredictionTimestamps),
 		NumGroundTruths: len(input.GroundTruthTimestamps),
 		Sigma:           input.Sigma,
 		Alpha:           -1, // not computable without baseline duration; set by ScoreOutputFile
+	}
+	if input.TimeMode != "" {
+		result.TimeMode = input.TimeMode
 	}
 	if input.Recovery != nil {
 		result.RecoveryStart = input.Recovery.Start
@@ -324,7 +362,7 @@ func loadScoringMetadata(scenariosDir, scenarioName string) (*scoringMetadata, e
 
 // ScoreOutputFile loads a headless output JSON file, extracts prediction timestamps,
 // and scores them against the given ground truth.
-func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenariosDir string, sigma float64) (*ScoreResult, error) {
+func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenariosDir string, sigma float64, timeMode string) (*ScoreResult, error) {
 	if sigma <= 0 || math.IsNaN(sigma) || math.IsInf(sigma, 0) {
 		return nil, fmt.Errorf("sigma must be positive, got %f", sigma)
 	}
@@ -363,6 +401,11 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 		}
 	}
 
+	mode, err := normalizeTimeMode(timeMode)
+	if err != nil {
+		return nil, err
+	}
+
 	var predictions []int64
 	var numFilteredWarmup int
 	var numFilteredNonHigh int
@@ -378,7 +421,7 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 			numFilteredWarmup++
 			continue
 		}
-		predictions = append(predictions, period.PeriodStart)
+		predictions = append(predictions, period.scoreStart(mode))
 	}
 
 	result := ComputeGaussianF1(ScoreInput{
@@ -386,6 +429,7 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 		GroundTruthTimestamps: groundTruthTimestamps,
 		Sigma:                 sigma,
 		Recovery:              recovery,
+		TimeMode:              mode,
 	})
 	result.NumFilteredWarmup = numFilteredWarmup
 	result.NumFilteredNonHigh = numFilteredNonHigh

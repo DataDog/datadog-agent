@@ -61,6 +61,8 @@ func TestGPUResources(t *testing.T) {
 	env.SetFeatures(t, env.NVML)
 	// Mock the global config first: the first config mock replaces it, which would drop the settings below.
 	configmock.New(t)
+	// CI runners have no usable OS hostname, and publication is skipped without one.
+	setConfigInTest(t, "hostname", "gpu-resources-test-host")
 	setConfigInTest(t, "gpu.resources.enabled", true)
 	setConfigInTest(t, "gpu.resources.ttl", resourcesTestTTL)
 
@@ -108,10 +110,10 @@ func TestGPUResources(t *testing.T) {
 			if info.FabricClusterUUID != "" {
 				require.NotNil(t, device.FabricCliqueID)
 				assert.Equal(t, info.FabricCliqueID, *device.FabricCliqueID)
-				assert.Equal(t, fmt.Sprintf("%s:%d", info.FabricClusterUUID, info.FabricCliqueID), device.NVLinkDomain)
+				assert.Equal(t, fmt.Sprintf("%s:%d", info.FabricClusterUUID, info.FabricCliqueID), device.NVLinkPartition)
 			} else {
 				assert.Nil(t, device.FabricCliqueID)
-				assert.Empty(t, device.NVLinkDomain)
+				assert.Empty(t, device.NVLinkPartition)
 			}
 		})
 	}

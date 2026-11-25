@@ -8,6 +8,7 @@
 package amd
 
 import (
+	"embed"
 	"encoding/binary"
 	"math"
 	"os"
@@ -18,9 +19,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// The fuzzing infrastructure uploads only the compiled test binary, so keep
+// the fuzz seeds in the binary instead of depending on the worker's checkout.
+//
+//go:embed testdata/mi300x_vf/device/gpu_metrics testdata/mi350x_vf/device/gpu_metrics
+var gpuMetricsFuzzFixtures embed.FS
+
 func readGPUMetricsFixture(t testing.TB, dir string) []byte {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join("testdata", dir, "device", "gpu_metrics"))
+	require.NoError(t, err)
+	return data
+}
+
+func readEmbeddedGPUMetricsFixture(t testing.TB, dir string) []byte {
+	t.Helper()
+	data, err := gpuMetricsFuzzFixtures.ReadFile(filepath.Join("testdata", dir, "device", "gpu_metrics"))
 	require.NoError(t, err)
 	return data
 }
@@ -47,7 +61,12 @@ func TestParseGPUMetricsMI300XVF(t *testing.T) {
 		ProchotResidency:       filled(0),
 		PPTResidency:           filled(350407088),
 		SocketThermalResidency: filled(12105768),
+		VRThermalResidency:     filled(0),
+		HBMThermalResidency:    filled(0),
 		PCIeReplayCount:        filled(0),
+		PCIeRecoveryCount:      filled(1),
+		PCIeNAKSentCount:       filled(0),
+		PCIeNAKReceivedCount:   filled(0),
 		GFXActivityAcc:         filled(1336391183), // U32: wrapped, 1 off the mean of GFX_BUSY_ACC mod 2^32
 		MemActivityAcc:         filled(2862819467),
 		XGMIReadKB:             counters(0, 1, 2, 1, 1, 1, 1, 1),
@@ -68,7 +87,12 @@ func TestParseGPUMetricsMI350XVF(t *testing.T) {
 		ProchotResidency:       filled(0),
 		PPTResidency:           filled(23598934),
 		SocketThermalResidency: filled(0),
+		VRThermalResidency:     filled(0),
+		HBMThermalResidency:    filled(0),
 		PCIeReplayCount:        filled(0),
+		PCIeRecoveryCount:      filled(0),
+		PCIeNAKSentCount:       filled(0),
+		PCIeNAKReceivedCount:   filled(0),
 		GFXActivityAcc:         filled(2889439947), // 131 off the mean of GFX_BUSY_ACC
 		MemActivityAcc:         filled(715102902),
 		XGMIReadKB:             counters(0, 53615, 17933, 71768, 0, 0, 35882, 53828),
@@ -90,7 +114,12 @@ func TestParseGPUMetricsSMU1508(t *testing.T) {
 		ProchotResidency:       filled(0),
 		PPTResidency:           filled(5e5),
 		SocketThermalResidency: filled(1000),
+		VRThermalResidency:     filled(0),
+		HBMThermalResidency:    filled(0),
 		PCIeReplayCount:        filled(3),
+		PCIeRecoveryCount:      filled(2),
+		PCIeNAKSentCount:       filled(5),
+		PCIeNAKReceivedCount:   filled(7),
 		GFXActivityAcc:         filled(1e8),
 		MemActivityAcc:         filled(1e7),
 		XGMILinkSpeedGTs:       Counter{Value: math.MaxUint16},
@@ -248,7 +277,7 @@ func TestParseGPUMetricsFieldSignatures(t *testing.T) {
 		testAttr{attrAccumulationCounter, typeU64, unitNone, []uint64{math.MaxUint64}},        // unfilled
 		testAttr{attrSocketThmResidencyAcc, typeU32, unitNone, []uint64{math.MaxUint32}},      // unfilled
 		testAttr{attrProchotResidencyAcc, typeU32, unitNone, []uint64{math.MaxUint32 - 1}},    // filled
-		testAttr{13, typeU16, unitNone, []uint64{1}},                                          // VR_THM_RESIDENCY_ACC: not used
+		testAttr{15, typeU16, unitNone, []uint64{1}},                                          // GFXCLK_LOCK_STATUS: not used
 		testAttr{999, typeS64, 200, []uint64{1, 2}},                                           // unknown attribute
 	))
 	require.NoError(t, err)
@@ -353,18 +382,33 @@ func TestParseGPUMetricsKernelEncodings(t *testing.T) {
 			{attrPPTResidencyAcc, typeU32, unitNone, []uint64{1}},
 			{attrGFXActivityAcc, typeU32, unitPercent, []uint64{2}},
 			{attrMemActivityAcc, typeU32, unitPercent, []uint64{3}},
+			{attrVRThmResidencyAcc, typeU32, unitNone, []uint64{4}},
+			{attrHBMThmResidencyAcc, typeU32, unitNone, []uint64{5}},
+			{attrPCIeL0ToRecovCountAcc, typeU64, unitNone, []uint64{6}},
+			{attrPCIeNAKSentCountAcc, typeU32, unitNone, []uint64{8}},
+			{attrPCIeNAKRcvdCountAcc, typeU32, unitNone, []uint64{9}},
 		},
 		"Linux 7.0": {
 			{attrAccumulationCounter, typeU64, unitNone, []uint64{7}},
 			{attrPPTResidencyAcc, typeU32, unitNone, []uint64{1}},
 			{attrGFXActivityAcc, typeU32, unitPercent, []uint64{2}},
 			{attrMemActivityAcc, typeU32, unitPercent, []uint64{3}},
+			{attrVRThmResidencyAcc, typeU32, unitNone, []uint64{4}},
+			{attrHBMThmResidencyAcc, typeU32, unitNone, []uint64{5}},
+			{attrPCIeL0ToRecovCountAcc, typeU64, unitNone, []uint64{6}},
+			{attrPCIeNAKSentCountAcc, typeU32, unitNone, []uint64{8}},
+			{attrPCIeNAKRcvdCountAcc, typeU32, unitNone, []uint64{9}},
 		},
 		"Linux 7.3": {
 			{attrAccumulationCounter, typeU64, unitNone, []uint64{7}},
 			{attrPPTResidencyAcc, typeU64, unitNone, []uint64{1}},
 			{attrGFXActivityAcc, typeU64, unitNone, []uint64{2}},
 			{attrMemActivityAcc, typeU64, unitNone, []uint64{3}},
+			{attrVRThmResidencyAcc, typeU64, unitNone, []uint64{4}},
+			{attrHBMThmResidencyAcc, typeU64, unitNone, []uint64{5}},
+			{attrPCIeL0ToRecovCountAcc, typeU64, unitNone, []uint64{6}},
+			{attrPCIeNAKSentCountAcc, typeU64, unitNone, []uint64{8}},
+			{attrPCIeNAKRcvdCountAcc, typeU64, unitNone, []uint64{9}},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -374,6 +418,11 @@ func TestParseGPUMetricsKernelEncodings(t *testing.T) {
 			assert.Equal(t, filled(1), gm.PPTResidency)
 			assert.Equal(t, filled(2), gm.GFXActivityAcc)
 			assert.Equal(t, filled(3), gm.MemActivityAcc)
+			assert.Equal(t, filled(4), gm.VRThermalResidency)
+			assert.Equal(t, filled(5), gm.HBMThermalResidency)
+			assert.Equal(t, filled(6), gm.PCIeRecoveryCount)
+			assert.Equal(t, filled(8), gm.PCIeNAKSentCount)
+			assert.Equal(t, filled(9), gm.PCIeNAKReceivedCount)
 		})
 	}
 
@@ -387,6 +436,31 @@ func TestParseGPUMetricsKernelEncodings(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			_, err := ParseGPUMetrics(buildGPUMetrics(1, 9, attr))
 			require.ErrorIs(t, err, ErrGPUMetricsUnexpectedEncoding)
+		})
+	}
+}
+
+// An optional field of unknown type or unit is skipped: the other fields of
+// the table are still used.
+func TestParseGPUMetricsOptionalFieldEncodings(t *testing.T) {
+	for name, tc := range map[string]struct {
+		attr     testAttr
+		encoding string
+	}{
+		"VR residency in percent":   {testAttr{attrVRThmResidencyAcc, typeU64, unitPercent, []uint64{1}}, "U64/PERCENT/x1"},
+		"HBM residency of 16 bits":  {testAttr{attrHBMThmResidencyAcc, typeU16, unitNone, []uint64{1}}, "U16/NONE/x1"},
+		"U32 recovery count":        {testAttr{attrPCIeL0ToRecovCountAcc, typeU32, unitNone, []uint64{1}}, "U32/NONE/x1"},
+		"signed NAK sent count":     {testAttr{attrPCIeNAKSentCountAcc, typeS64, unitNone, []uint64{1}}, "S64/NONE/x1"},
+		"NAK received count in KB":  {testAttr{attrPCIeNAKRcvdCountAcc, typeU32, unitDataKB, []uint64{1}}, "U32/DATA_1/x1"},
+		"two NAK received counters": {testAttr{attrPCIeNAKRcvdCountAcc, typeU32, unitNone, []uint64{1, 2}}, "U32/NONE/x2"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			gm, err := ParseGPUMetrics(buildGPUMetrics(1, 9, pptAttr(42), tc.attr))
+			require.NoError(t, err)
+			assert.Equal(t, filled(42), gm.PPTResidency)
+			assert.Equal(t, []SkippedField{{Name: gpuMetricsSignatures[tc.attr.id].name, Encoding: tc.encoding}}, gm.Skipped)
+			assert.False(t, gm.VRThermalResidency.Valid || gm.HBMThermalResidency.Valid || gm.PCIeRecoveryCount.Valid ||
+				gm.PCIeNAKSentCount.Valid || gm.PCIeNAKReceivedCount.Valid)
 		})
 	}
 }
@@ -490,8 +564,8 @@ func TestXGMIHiveSize(t *testing.T) {
 // FuzzParseGPUMetrics checks that no table makes the decoder panic, and that
 // a table it rejects yields no value.
 func FuzzParseGPUMetrics(f *testing.F) {
-	f.Add(readGPUMetricsFixture(f, "mi300x_vf"))
-	f.Add(readGPUMetricsFixture(f, "mi350x_vf"))
+	f.Add(readEmbeddedGPUMetricsFixture(f, "mi300x_vf"))
+	f.Add(readEmbeddedGPUMetricsFixture(f, "mi350x_vf"))
 	f.Add(buildGPUMetrics(1, 9, pptAttr(1)))
 	f.Add(buildGPUMetrics(1, 8, pptAttr(1)))
 	f.Add([]byte{})

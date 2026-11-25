@@ -886,18 +886,23 @@ func TestNoTagSpecifiedAggregationHistogram(t *testing.T) {
 }
 
 func TestMandatoryEmitterLocalFlavor(t *testing.T) {
+	const clcRunnerYAML = "clc_runner_enabled: true\nconfig_providers:\n  - name: clusterchecks\n"
 	for _, testCase := range []struct {
 		name   string
 		flavor string
+		extra  string
 		want   string
 	}{
 		{name: "normalizes underscores", flavor: "trace_agent", want: "trace-agent"},
 		{name: "falls back for empty flavor", flavor: "", want: "agent"},
+		{name: "cluster check runner", flavor: "agent", extra: clcRunnerYAML, want: "cluster-checks-runner"},
+		{name: "clc_runner_enabled without clusterchecks provider", flavor: "agent", extra: "clc_runner_enabled: true\n", want: "agent"},
+		{name: "clc config ignored for other flavors", flavor: "trace_agent", extra: clcRunnerYAML, want: "trace-agent"},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			flavor.SetTestFlavor(t, testCase.flavor)
 			provides := NewComponent(Requires{
-				Config: configmock.NewFromYAML(t, "agent_telemetry:\n  enabled: false"),
+				Config: configmock.NewFromYAML(t, "agent_telemetry:\n  enabled: false\n"+testCase.extra),
 				Log:    makeLogMock(t),
 			})
 			a := provides.Comp.(*atel)
@@ -3123,6 +3128,30 @@ func TestDefaultProfilesExportHealthPlatformMetrics(t *testing.T) {
 		}
 		assert.Equal(t, labels, metricLabels(metric), payload.name)
 	}
+}
+
+func TestDefaultProfilesExportAppsecInjectorWatchedChangesReasons(t *testing.T) {
+	tel := makeTelMock(t)
+	counter := tel.NewCounter("appsec_injector", "watched_changes", []string{"proxy_type", "operation", "success", "reason"}, "")
+	counter.Inc("envoy-gateway", "added", "false", "Forbidden")
+	counter.Add(2, "envoy-gateway", "added", "false", "Invalid")
+
+	sender := &senderMock{}
+	runner := newRunnerMock()
+	a := getTestAtel(t, tel, getCommonYAMLConfig(true, ""), sender, nil, runner)
+	require.True(t, a.enabled)
+	a.start()
+	runner.(*runnerMock).run()
+
+	require.Len(t, sender.sentMetrics, 1)
+	require.Equal(t, "appsec_injector.watched_changes", sender.sentMetrics[0].name)
+	byReason := map[string]float64{}
+	for _, metric := range sender.sentMetrics[0].metrics {
+		labels := metricLabels(metric)
+		assert.Equal(t, map[string]string{"proxy_type": "envoy-gateway", "operation": "added", "success": "false", "reason": labels["reason"], "emitter": "agent"}, labels)
+		byReason[labels["reason"]] = metric.GetCounter().GetValue()
+	}
+	assert.Equal(t, map[string]float64{"Forbidden": 1, "Invalid": 2}, byReason)
 }
 
 func TestInstrumentationControllerMetricsInClusterAgentProfile(t *testing.T) {

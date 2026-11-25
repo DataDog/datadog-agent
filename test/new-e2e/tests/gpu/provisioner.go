@@ -112,6 +112,8 @@ agents:
       env:
         - name: DD_GPU_ENABLED
           value: "true"
+        - name: DD_GPU_RESOURCES_ENABLED
+          value: "true"
         - name: DD_GPU_USE_SP_PROCESS_METRICS
           value: "true"
 `
@@ -238,7 +240,7 @@ func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
 
 // gpuK8sProvisioner provisions a Kubernetes cluster with GPU support
 func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
-	provisioner := provisioners.NewTypedPulumiProvisioner[environments.Kubernetes]("gpu-k8s", func(ctx *pulumi.Context, env *environments.Kubernetes) error {
+	provisioner := provisioners.NewTypedPulumiProvisioner[gpuK8sEnvironment]("gpu-k8s", func(ctx *pulumi.Context, env *gpuK8sEnvironment) error {
 		name := "kind" // Match the name of the kind cluster in the aws-kind provisioner so that we can reuse the DiagnoseFunc, which assumes the VM name is kind
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
@@ -255,6 +257,10 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 		)
 		if err != nil {
 			return fmt.Errorf("ec2.NewVM: %w", err)
+		}
+
+		if err := host.Export(ctx, &env.RemoteHost.HostOutput); err != nil {
+			return fmt.Errorf("host.Export: %w", err)
 		}
 
 		ecrConfigCmd, err := docker.SetupECRDockerAuth(awsEnv.Namer, host)
