@@ -78,19 +78,124 @@ func TestHasLimitIncrease_Detected(t *testing.T) {
 		},
 	}
 
-	// Higher CPU limit + removed memory limit (no memory in Limits = unlimited)
+	// Higher CPU limit (800m > 500m) with omitted memory limit.
 	recommendation := &model.VerticalScalingValues{
 		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
 			{
 				Name:     "container-1",
 				Limits:   corev1.ResourceList{"cpu": resource.MustParse("800m")},
 				Requests: corev1.ResourceList{"cpu": resource.MustParse("250m"), "memory": resource.MustParse("256Mi")},
-				// No memory in Limits -> pod-1's memory limit is being removed (= increase)
 			},
 		},
 	}
 
 	assert.True(t, hasLimitIncrease(recommendation, pods, "new-rec"))
+}
+
+func TestHasLimitIncrease_OmittedVsRemovedLimits(t *testing.T) {
+	cpuLimit := float64(50) // 500m
+	memLimit := uint64(512 * 1024 * 1024)
+
+	regularPod := &workloadmeta.KubernetesPod{
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "pod-regular", Namespace: "default",
+			Annotations: map[string]string{model.RecommendationIDAnnotation: "old-rec"},
+		},
+		Containers: []workloadmeta.OrchestratorContainer{
+			{Name: "app", Resources: workloadmeta.ContainerResources{CPULimit: &cpuLimit, MemoryLimit: &memLimit}},
+		},
+	}
+	sidecarPod := &workloadmeta.KubernetesPod{
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "pod-sidecar", Namespace: "default",
+			Annotations: map[string]string{model.RecommendationIDAnnotation: "old-rec"},
+		},
+		InitContainers: []workloadmeta.OrchestratorContainer{
+			{
+				Name:          "sidecar",
+				RestartPolicy: string(corev1.ContainerRestartPolicyAlways),
+				Resources:     workloadmeta.ContainerResources{CPULimit: &cpuLimit, MemoryLimit: &memLimit},
+			},
+		},
+	}
+	noLimitPod := &workloadmeta.KubernetesPod{
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "pod-nolimit", Namespace: "default",
+			Annotations: map[string]string{model.RecommendationIDAnnotation: "old-rec"},
+		},
+		Containers: []workloadmeta.OrchestratorContainer{{Name: "app"}},
+	}
+
+	tests := []struct {
+		name string
+		pod  *workloadmeta.KubernetesPod
+		reco datadoghqcommon.DatadogPodAutoscalerContainerResources
+		want bool
+	}{
+		{
+			name: "regular container: requests-only omits limits and is not a limit increase",
+			pod:  regularPod,
+			reco: datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				Name:     "app",
+				Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("250m"), corev1.ResourceMemory: resource.MustParse("256Mi")},
+			},
+			want: false,
+		},
+		{
+			name: "sidecar init container: requests-only omits limits and is not a limit increase",
+			pod:  sidecarPod,
+			reco: datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				Name:     "sidecar",
+				Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("250m")},
+			},
+			want: false,
+		},
+		{
+			name: "regular container: removeLimitSentinel on CPU detects limit removal",
+			pod:  regularPod,
+			reco: datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				Name:   "app",
+				Limits: corev1.ResourceList{corev1.ResourceCPU: removeLimitSentinel},
+			},
+			want: true,
+		},
+		{
+			name: "sidecar init container: removeLimitSentinel on CPU detects limit removal",
+			pod:  sidecarPod,
+			reco: datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				Name:   "sidecar",
+				Limits: corev1.ResourceList{corev1.ResourceCPU: removeLimitSentinel},
+			},
+			want: true,
+		},
+		{
+			name: "regular container: removeLimitSentinel on memory detects limit removal",
+			pod:  regularPod,
+			reco: datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				Name:   "app",
+				Limits: corev1.ResourceList{corev1.ResourceMemory: removeLimitSentinel},
+			},
+			want: true,
+		},
+		{
+			name: "regular container: removeLimitSentinel when pod already has no limit returns false",
+			pod:  noLimitPod,
+			reco: datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				Name:   "app",
+				Limits: corev1.ResourceList{corev1.ResourceCPU: removeLimitSentinel},
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reco := &model.VerticalScalingValues{
+				ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{tt.reco},
+			}
+			assert.Equal(t, tt.want, hasLimitIncrease(reco, []*workloadmeta.KubernetesPod{tt.pod}, "new-rec"))
+		})
+	}
 }
 
 func TestHasLimitIncrease_NotDetected(t *testing.T) {

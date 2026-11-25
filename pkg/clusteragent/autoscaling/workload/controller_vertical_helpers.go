@@ -279,26 +279,34 @@ func hasLimitIncrease(
 
 	// recommendationLimits holds pre-computed limits from a recommendation for efficient comparison
 	type recommendationLimits struct {
-		cpuLimit    float64 // Percentage (100 = 1 core), 0 if not set
-		memoryLimit uint64  // Bytes, 0 if not set
-		hasCPU      bool    // true if recommendation specifies a non-zero CPU limit
-		hasMemory   bool    // true if recommendation specifies a memory limit
+		cpuLimit      float64 // Percentage (100 = 1 core), 0 if not set
+		memoryLimit   uint64  // Bytes, 0 if not set
+		hasCPU        bool    // true if recommendation sets a positive CPU limit
+		removesCPU    bool    // true if recommendation removes the CPU limit via removeLimitSentinel
+		hasMemory     bool    // true if recommendation sets a positive memory limit
+		removesMemory bool    // true if recommendation removes the memory limit via removeLimitSentinel
 	}
 
 	// Pre-compute recommendation limits once.
-	// In burstable mode applyVerticalConstraints sets the CPU limit to removeLimitSentinel (-1),
-	// so cpuLimit.Sign() < 0 and hasCPU stays false.
-	// Case 2 below then detects the transition (pod has CPU limit, reco removes it).
+	// An omitted limit leaves the pod limit unchanged. Only removeLimitSentinel (-1) removes it.
 	recoLimits := make(map[string]recommendationLimits, len(recommendation.ContainerResources))
 	for _, recoContainer := range recommendation.ContainerResources {
 		limits := recommendationLimits{}
-		if cpuLimit := recoContainer.Limits.Cpu(); cpuLimit != nil && cpuLimit.Sign() > 0 {
-			limits.cpuLimit = cpuLimit.AsApproximateFloat64() * 100 // Convert to percentage
-			limits.hasCPU = true
+		if cpuLimit, ok := recoContainer.Limits[corev1.ResourceCPU]; ok {
+			if cpuLimit.Cmp(removeLimitSentinel) == 0 {
+				limits.removesCPU = true
+			} else if cpuLimit.Sign() > 0 {
+				limits.cpuLimit = cpuLimit.AsApproximateFloat64() * 100 // Convert to percentage
+				limits.hasCPU = true
+			}
 		}
-		if memLimit := recoContainer.Limits.Memory(); memLimit != nil && !memLimit.IsZero() {
-			limits.memoryLimit = uint64(memLimit.Value())
-			limits.hasMemory = true
+		if memLimit, ok := recoContainer.Limits[corev1.ResourceMemory]; ok {
+			if memLimit.Cmp(removeLimitSentinel) == 0 {
+				limits.removesMemory = true
+			} else if memLimit.Sign() > 0 {
+				limits.memoryLimit = uint64(memLimit.Value())
+				limits.hasMemory = true
+			}
 		}
 		recoLimits[recoContainer.Name] = limits
 	}
@@ -324,9 +332,9 @@ func hasLimitIncrease(
 				return true
 			}
 
-			// Case 2: Recommendation removes CPU limit (pod has limit, reco doesn't)
+			// Case 2: Recommendation removes CPU limit via removeLimitSentinel
 			// No limit = unlimited, which is greater than any finite limit
-			if !reco.hasCPU && container.Resources.CPULimit != nil {
+			if reco.removesCPU && container.Resources.CPULimit != nil {
 				return true
 			}
 
@@ -335,8 +343,8 @@ func hasLimitIncrease(
 				return true
 			}
 
-			// Case 4: Recommendation removes Memory limit (pod has limit, reco doesn't)
-			if !reco.hasMemory && container.Resources.MemoryLimit != nil {
+			// Case 4: Recommendation removes Memory limit via removeLimitSentinel
+			if reco.removesMemory && container.Resources.MemoryLimit != nil {
 				return true
 			}
 		}
