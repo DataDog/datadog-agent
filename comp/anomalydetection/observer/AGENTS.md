@@ -129,6 +129,11 @@ scores it at that oldest second. With the default `0s`, replay is disabled and
 `clamp` scores late arrivals at the next unscored second. Inputs whose second
 has not been scored yet keep their original scoring time.
 The scorer uses the same per-second calculation for forward scoring and replay.
+When reordering is enabled, the Agent publishes
+`datadog.agent.observer.scorer.ewma_finalized` as `EWMA(T - anomaly_reordering_window)`.
+This value is outside the replayable range, so later evidence cannot revise it; the
+displayed signal is delayed by the reordering window in scorer data time. The metric
+is absent with reordering disabled and during warm-up before that checkpoint exists.
 
 The scorer is also available standalone (without the engine) via `NewAnomalyScorer` in `impl/`.
 Observer replay enables the scorer's internal transition watcher so configured
