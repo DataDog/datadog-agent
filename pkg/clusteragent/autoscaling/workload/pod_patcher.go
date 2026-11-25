@@ -104,9 +104,16 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 		return patched, nil
 	}
 
-	// Use the active scaling values hash (mirrored to the DPA status) so the annotation stays
-	// identical across replicas; not the recomputed constrained hash.
-	effectiveRecommendationID := autoscaler.ScalingValues().Vertical.ResourcesHash
+	// Exclude non-sidecar init containers from the recommendation ID and runtime-rec-id so
+	// running pods do not roll out or resize when only a non-sidecar init container changes.
+	// Start from the active scaling values hash (mirrored to the DPA status), not the recomputed
+	// constrained hash, so the annotation stays identical across replicas.
+	activeRecommendationID := autoscaler.ScalingValues().Vertical.ResourcesHash
+	actionableResources, effectiveRecommendationID, err := actionableRecommendation(constrainedVertical.ContainerResources, activeRecommendationID, nonSidecarInitContainerNames(pod))
+	if err != nil {
+		log.Debugf("Autoscaler %s: %v for POD %s/%s, using the active recommendation ID", autoscaler.ID(), err, pod.Namespace, pod.Name)
+		effectiveRecommendationID = activeRecommendationID
+	}
 	patched = patchAnnotation(pod, model.RecommendationIDAnnotation, effectiveRecommendationID) || patched
 
 	// Even if annotation matches, we still verify the resources are correct, in case the POD was modified.
@@ -114,7 +121,7 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 		patched = patchPod(reco, pod) || patched
 	}
 
-	runtimeRecID, _ := computeRuntimeRecommendationID(constrainedVertical.ContainerResources)
+	runtimeRecID, _ := computeRuntimeRecommendationID(actionableResources)
 	patched = patchAnnotation(pod, model.RuntimeRecommendationIDAnnotation, runtimeRecID) || patched
 
 	return patched, nil
@@ -215,8 +222,25 @@ func (pa podPatcher) observedPodCallback(ctx context.Context, pod *workloadmeta.
 	log.Debugf("Event sent and POD %s/%s patched with event annotation", pod.Namespace, pod.Name)
 }
 
-// K8s guarantees that the name for an init container or normal container are unique among all containers.
-// It means that dispatching recommendations just by container names is sufficient
+// nonSidecarInitContainerNames returns the names of the pod's init containers that run only at
+// startup (no restartPolicy: Always), or nil when there are none.
+func nonSidecarInitContainerNames(pod *corev1.Pod) map[string]struct{} {
+	var names map[string]struct{}
+	for i := range pod.Spec.InitContainers {
+		cont := &pod.Spec.InitContainers[i]
+		if cont.RestartPolicy != nil && *cont.RestartPolicy == corev1.ContainerRestartPolicyAlways {
+			continue
+		}
+		if names == nil {
+			names = make(map[string]struct{})
+		}
+		names[cont.Name] = struct{}{}
+	}
+	return names
+}
+
+// K8s guarantees that container names are unique across regular and init containers.
+// Dispatching recommendations by container name is sufficient.
 func patchPod(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, pod *corev1.Pod) (patched bool) {
 	for i := range pod.Spec.Containers {
 		cont := &pod.Spec.Containers[i]
@@ -225,13 +249,10 @@ func patchPod(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, pod *
 		}
 	}
 
-	// recommendation can be also applied to sidecar containers
-	// kubernetes implements sidecar containers as a special case of init containers (see https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/)
+	// Patch both sidecar and non-sidecar init containers on new pods.
 	for i := range pod.Spec.InitContainers {
 		cont := &pod.Spec.InitContainers[i]
-		// sidecar container by definition is an init container with `restartPolicy: Always`
-		isInitSidecarContainer := cont.RestartPolicy != nil && *cont.RestartPolicy == corev1.ContainerRestartPolicyAlways
-		if cont.Name == reco.Name && isInitSidecarContainer {
+		if cont.Name == reco.Name {
 			return patchContainerResources(reco, cont)
 		}
 	}

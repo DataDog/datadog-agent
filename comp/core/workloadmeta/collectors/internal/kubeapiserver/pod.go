@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"slices"
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
@@ -30,7 +31,6 @@ import (
 	kubernetesresourceparsers "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/gpu"
-	kubeutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -66,6 +66,7 @@ type MinimalPod struct {
 // MinimalPodSpec contains only the pod spec fields we need
 type MinimalPodSpec struct {
 	NodeName          string             `json:"nodeName,omitempty"`
+	InitContainers    []MinimalContainer `json:"initContainers,omitempty"`
 	Containers        []MinimalContainer `json:"containers"`
 	Volumes           []MinimalVolume    `json:"volumes,omitempty"`
 	RuntimeClassName  *string            `json:"runtimeClassName,omitempty"`
@@ -74,10 +75,11 @@ type MinimalPodSpec struct {
 
 // MinimalContainer contains only the container fields we need
 type MinimalContainer struct {
-	Name         string                         `json:"name"`
-	Image        string                         `json:"image,omitempty"`
-	Resources    corev1.ResourceRequirements    `json:"resources,omitempty"`
-	ResizePolicy []corev1.ContainerResizePolicy `json:"resizePolicy,omitempty"`
+	Name          string                         `json:"name"`
+	Image         string                         `json:"image,omitempty"`
+	Resources     corev1.ResourceRequirements    `json:"resources,omitempty"`
+	ResizePolicy  []corev1.ContainerResizePolicy `json:"resizePolicy,omitempty"`
+	RestartPolicy *corev1.ContainerRestartPolicy `json:"restartPolicy,omitempty"`
 }
 
 // MinimalVolume contains only the volume fields we need
@@ -112,42 +114,8 @@ func (p *MinimalPod) DeepCopyObject() runtime.Object {
 	p.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
 
 	// Spec
-	if p.Spec.Containers != nil {
-		out.Spec.Containers = make([]MinimalContainer, len(p.Spec.Containers))
-		for i := range p.Spec.Containers {
-			out.Spec.Containers[i].Name = p.Spec.Containers[i].Name
-			out.Spec.Containers[i].Image = p.Spec.Containers[i].Image
-
-			resIn := &p.Spec.Containers[i].Resources
-			resOut := &out.Spec.Containers[i].Resources
-
-			if resIn.Limits != nil {
-				resOut.Limits = make(corev1.ResourceList, len(resIn.Limits))
-				for k, v := range resIn.Limits {
-					resOut.Limits[k] = v.DeepCopy()
-				}
-			}
-			if resIn.Requests != nil {
-				resOut.Requests = make(corev1.ResourceList, len(resIn.Requests))
-				for k, v := range resIn.Requests {
-					resOut.Requests[k] = v.DeepCopy()
-				}
-			}
-			if resIn.Claims != nil {
-				resOut.Claims = make([]corev1.ResourceClaim, len(resIn.Claims))
-				for j := range resIn.Claims {
-					resIn.Claims[j].DeepCopyInto(&resOut.Claims[j])
-				}
-			}
-
-			if p.Spec.Containers[i].ResizePolicy != nil {
-				out.Spec.Containers[i].ResizePolicy = make([]corev1.ContainerResizePolicy, len(p.Spec.Containers[i].ResizePolicy))
-				for j := range p.Spec.Containers[i].ResizePolicy {
-					p.Spec.Containers[i].ResizePolicy[j].DeepCopyInto(&out.Spec.Containers[i].ResizePolicy[j])
-				}
-			}
-		}
-	}
+	out.Spec.InitContainers = deepCopyMinimalContainers(p.Spec.InitContainers)
+	out.Spec.Containers = deepCopyMinimalContainers(p.Spec.Containers)
 
 	if p.Spec.Volumes != nil {
 		out.Spec.Volumes = make([]MinimalVolume, len(p.Spec.Volumes))
@@ -179,6 +147,24 @@ func (p *MinimalPod) DeepCopyObject() runtime.Object {
 	out.Status.PodIP = p.Status.PodIP
 	out.Status.QOSClass = p.Status.QOSClass
 
+	return out
+}
+
+func deepCopyMinimalContainers(in []MinimalContainer) []MinimalContainer {
+	if in == nil {
+		return nil
+	}
+	out := make([]MinimalContainer, len(in))
+	for i := range in {
+		out[i].Name = in[i].Name
+		out[i].Image = in[i].Image
+		in[i].Resources.DeepCopyInto(&out[i].Resources)
+		out[i].ResizePolicy = slices.Clone(in[i].ResizePolicy)
+		if in[i].RestartPolicy != nil {
+			rp := *in[i].RestartPolicy
+			out[i].RestartPolicy = &rp
+		}
+	}
 	return out
 }
 
@@ -328,27 +314,10 @@ func (p minimalPodParser) Parse(obj interface{}) workloadmeta.Entity {
 		gpuVendorList = append(gpuVendorList, gpuVendor)
 	}
 
-	containersList := make([]workloadmeta.OrchestratorContainer, 0, len(pod.Spec.Containers))
-	for _, container := range pod.Spec.Containers {
-		image, _ := workloadmeta.NewContainerImage("", container.Image)
-		c := workloadmeta.OrchestratorContainer{
-			Name:  container.Name,
-			Image: image,
-		}
-		if cpuReq, found := container.Resources.Requests[corev1.ResourceCPU]; found {
-			c.Resources.CPURequest = kubeutil.FormatCPURequests(cpuReq)
-		}
-		if memoryReq, found := container.Resources.Requests[corev1.ResourceMemory]; found {
-			c.Resources.MemoryRequest = kubeutil.FormatMemoryRequests(memoryReq)
-		}
-		if cpuLimit, found := container.Resources.Limits[corev1.ResourceCPU]; found {
-			c.Resources.CPULimit = kubeutil.FormatCPURequests(cpuLimit)
-		}
-		if memoryLimit, found := container.Resources.Limits[corev1.ResourceMemory]; found {
-			c.Resources.MemoryLimit = kubeutil.FormatMemoryRequests(memoryLimit)
-		}
-		c.ResizePolicy = kubernetesresourceparsers.ResizePolicyFromContainerResizePolicy(container.ResizePolicy)
-		containersList = append(containersList, c)
+	containersList := parseMinimalContainers(pod.Spec.Containers)
+	var initContainersList []workloadmeta.OrchestratorContainer
+	if len(pod.Spec.InitContainers) > 0 {
+		initContainersList = parseMinimalContainers(pod.Spec.InitContainers)
 	}
 
 	conditions := kubernetesresourceparsers.ResizeConditionsFromPodConditions(pod.Status.Conditions)
@@ -373,6 +342,7 @@ func (p minimalPodParser) Parse(obj interface{}) workloadmeta.Entity {
 		QOSClass:                   string(pod.Status.QOSClass),
 		RuntimeClass:               rtcName,
 		GPUVendorList:              gpuVendorList,
+		InitContainers:             initContainersList,
 		Containers:                 containersList,
 		Conditions:                 conditions,
 		CreationTimestamp:          pod.CreationTimestamp.Time,
@@ -380,6 +350,15 @@ func (p minimalPodParser) Parse(obj interface{}) workloadmeta.Entity {
 		DeletionTimestamp:          deletionTimestamp,
 		NodeName:                   pod.Spec.NodeName,
 	}
+}
+
+func parseMinimalContainers(containers []MinimalContainer) []workloadmeta.OrchestratorContainer {
+	list := make([]workloadmeta.OrchestratorContainer, 0, len(containers))
+	for i := range containers {
+		c := &containers[i]
+		list = append(list, kubernetesresourceparsers.OrchestratorContainerFromSpec(c.Name, c.Image, c.Resources, c.ResizePolicy, c.RestartPolicy))
+	}
+	return list
 }
 
 func newPodStore(wlm workloadmeta.Component, config config.Reader, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {

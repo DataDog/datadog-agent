@@ -9,6 +9,7 @@ package workload
 
 import (
 	"fmt"
+	"iter"
 	"slices"
 	"strings"
 	"time"
@@ -311,8 +312,8 @@ func hasLimitIncrease(
 			continue
 		}
 
-		// Check each container in this pod
-		for _, container := range pod.Containers {
+		// Check regular containers and sidecar init containers in this pod.
+		for container := range resizableContainers(pod) {
 			reco, ok := recoLimits[container.Name]
 			if !ok {
 				continue
@@ -704,9 +705,10 @@ func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal, pods []*
 	}
 	// Runtime values are env vars that can only be applied to new pods via the
 	// admission webhook — they cannot be updated on a running container via pods/resize.
-	// Force the rollout path only when the recommended value differs from what is already on the pods.
+	// Exclude non-sidecar init containers because they run only on new pods.
 	if sv := autoscalerInternal.ScalingValues(); sv.Vertical != nil {
-		if hash, hasRuntime := computeRuntimeRecommendationID(sv.Vertical.ContainerResources); hasRuntime {
+		actionable := filterActionableContainerResources(sv.Vertical.ContainerResources, findNonSidecarInitContainers(pods))
+		if hash, hasRuntime := computeRuntimeRecommendationID(actionable); hasRuntime {
 			if !runtimeRecommendationIDApplied(hash, pods) {
 				return true
 			}
@@ -790,7 +792,7 @@ func getPodResizeStatus(pod *workloadmeta.KubernetesPod, recommendationID string
 }
 
 // isDisruptiveResize reports whether the recommendation changes a resource whose RestartContainer
-// policy would restart a container. Other resizes happen in place and are never throttled.
+// policy restarts a regular or sidecar init container. Other resizes happen in place and are not throttled.
 func isDisruptiveResize(pod *workloadmeta.KubernetesPod, recommendation *model.VerticalScalingValues) bool {
 	if recommendation == nil {
 		return false
@@ -799,7 +801,7 @@ func isDisruptiveResize(pod *workloadmeta.KubernetesPod, recommendation *model.V
 	for _, cr := range recommendation.ContainerResources {
 		recoByName[cr.Name] = cr
 	}
-	for _, c := range pod.Containers {
+	for c := range resizableContainers(pod) {
 		cr, ok := recoByName[c.Name]
 		if !ok {
 			continue
@@ -877,7 +879,10 @@ func allowedDisruptions(configured int, alreadyDisrupted int) int {
 	return max(0, tolerance-alreadyDisrupted)
 }
 
-func fromAutoscalerToContainerResourcePatches(autoscalerInternal *model.PodAutoscalerInternal, pod *workloadmeta.KubernetesPod) []workloadpatcher.ContainerResourcePatch {
+func fromAutoscalerToContainerResourcePatches(
+	autoscalerInternal *model.PodAutoscalerInternal,
+	pod *workloadmeta.KubernetesPod,
+) (containers []workloadpatcher.ContainerResourcePatch, initContainers []workloadpatcher.ContainerResourcePatch) {
 	containersResources := autoscalerInternal.ScalingValues().Vertical.ContainerResources
 
 	// Build a map from container name to container resources.
@@ -888,32 +893,50 @@ func fromAutoscalerToContainerResourcePatches(autoscalerInternal *model.PodAutos
 
 	burstable := autoscalerInternal.IsBurstable()
 
-	// Build the list of patches ordered to API server pod container order.
-	patches := make([]workloadpatcher.ContainerResourcePatch, 0, len(containersResources))
+	// Build regular container patches in API server pod container order.
+	containers = make([]workloadpatcher.ContainerResourcePatch, 0, len(pod.Containers))
 	for _, c := range pod.Containers {
 		cr, ok := recoByName[c.Name]
 		if !ok {
 			continue
 		}
-		patch := workloadpatcher.ContainerResourcePatch{
-			Name:     cr.Name,
-			Requests: resourceListToStringMap(cr.Requests),
-			Limits:   resourceListToStringMap(cr.Limits),
-		}
-		// pods/resize rejects removeLimitSentinel (-1), so negative limits are sent as deletions.
-		for name, qty := range cr.Limits {
-			if qty.Sign() < 0 {
-				delete(patch.Limits, string(name))
-				patch.LimitsToDelete = append(patch.LimitsToDelete, string(name))
-			}
-		}
-		if burstable && !slices.Contains(patch.LimitsToDelete, string(corev1.ResourceCPU)) {
-			delete(patch.Limits, string(corev1.ResourceCPU)) // don't re-set CPU limit
-			patch.LimitsToDelete = append(patch.LimitsToDelete, string(corev1.ResourceCPU))
-		}
-		patches = append(patches, patch)
+		containers = append(containers, buildContainerResourcePatch(cr, burstable))
 	}
-	return patches
+
+	// Build sidecar init container patches in API server pod initContainer order.
+	// Skip non-sidecar init containers because they do not run after pod startup.
+	for _, c := range pod.InitContainers {
+		if !isSidecarInitContainer(c) {
+			continue
+		}
+		cr, ok := recoByName[c.Name]
+		if !ok {
+			continue
+		}
+		initContainers = append(initContainers, buildContainerResourcePatch(cr, burstable))
+	}
+
+	return containers, initContainers
+}
+
+func buildContainerResourcePatch(cr datadoghqcommon.DatadogPodAutoscalerContainerResources, burstable bool) workloadpatcher.ContainerResourcePatch {
+	patch := workloadpatcher.ContainerResourcePatch{
+		Name:     cr.Name,
+		Requests: resourceListToStringMap(cr.Requests),
+		Limits:   resourceListToStringMap(cr.Limits),
+	}
+	// pods/resize rejects removeLimitSentinel (-1), so negative limits are sent as deletions.
+	for name, qty := range cr.Limits {
+		if qty.Sign() < 0 {
+			delete(patch.Limits, string(name))
+			patch.LimitsToDelete = append(patch.LimitsToDelete, string(name))
+		}
+	}
+	if burstable && !slices.Contains(patch.LimitsToDelete, string(corev1.ResourceCPU)) {
+		delete(patch.Limits, string(corev1.ResourceCPU)) // don't re-set CPU limit
+		patch.LimitsToDelete = append(patch.LimitsToDelete, string(corev1.ResourceCPU))
+	}
+	return patch
 }
 
 // resourceListToStringMap converts a corev1.ResourceList to the string map expected by
@@ -927,4 +950,93 @@ func resourceListToStringMap(rl corev1.ResourceList) map[string]string {
 		m[string(name)] = qty.String()
 	}
 	return m
+}
+
+func findNonSidecarInitContainers(pods []*workloadmeta.KubernetesPod) map[string]struct{} {
+	var nonSidecarInit map[string]struct{}
+	for _, pod := range pods {
+		if pod.DeletionTimestamp != nil {
+			continue
+		}
+		for _, c := range pod.InitContainers {
+			if isSidecarInitContainer(c) {
+				continue
+			}
+			if nonSidecarInit == nil {
+				nonSidecarInit = make(map[string]struct{})
+			}
+			nonSidecarInit[c.Name] = struct{}{}
+		}
+	}
+	if len(nonSidecarInit) == 0 {
+		return nil
+	}
+	// A name that any live pod runs as a regular or sidecar container is still actionable.
+	for _, pod := range pods {
+		if pod.DeletionTimestamp != nil {
+			continue
+		}
+		for c := range resizableContainers(pod) {
+			delete(nonSidecarInit, c.Name)
+		}
+	}
+	return nonSidecarInit
+}
+
+// filterActionableContainerResources drops the resources of the given non-sidecar init containers.
+// It returns resources unchanged, without copying, when none of them is excluded.
+func filterActionableContainerResources(
+	resources []datadoghqcommon.DatadogPodAutoscalerContainerResources,
+	nonSidecarInit map[string]struct{},
+) []datadoghqcommon.DatadogPodAutoscalerContainerResources {
+	excluded := func(cr datadoghqcommon.DatadogPodAutoscalerContainerResources) bool {
+		_, ok := nonSidecarInit[cr.Name]
+		return ok
+	}
+	if len(nonSidecarInit) == 0 || !slices.ContainsFunc(resources, excluded) {
+		return resources
+	}
+	return slices.DeleteFunc(slices.Clone(resources), excluded)
+}
+
+// actionableRecommendation returns the container resources that apply to running pods (all but
+// the non-sidecar init containers) and the recommendation ID that covers them. The ID is
+// recommendationID unless some, but not all, containers are excluded, in which case it is the
+// hash of the actionable resources. The resources are returned even when hashing fails.
+// The controller and the admission webhook both call it so they stamp the same ID on pods.
+func actionableRecommendation(
+	resources []datadoghqcommon.DatadogPodAutoscalerContainerResources,
+	recommendationID string,
+	nonSidecarInit map[string]struct{},
+) ([]datadoghqcommon.DatadogPodAutoscalerContainerResources, string, error) {
+	actionable := filterActionableContainerResources(resources, nonSidecarInit)
+	if len(actionable) == 0 || len(actionable) == len(resources) {
+		return actionable, recommendationID, nil
+	}
+	hash, err := autoscaling.ObjectHash(actionable)
+	if err != nil {
+		return actionable, "", fmt.Errorf("failed to compute actionable resources hash: %w", err)
+	}
+	return actionable, hash, nil
+}
+
+// resizableContainers yields the pod's regular containers, then its sidecar init containers:
+// the containers that keep running after startup and can be resized in place.
+func resizableContainers(pod *workloadmeta.KubernetesPod) iter.Seq[workloadmeta.OrchestratorContainer] {
+	return func(yield func(workloadmeta.OrchestratorContainer) bool) {
+		for _, c := range pod.Containers {
+			if !yield(c) {
+				return
+			}
+		}
+		for _, c := range pod.InitContainers {
+			if isSidecarInitContainer(c) && !yield(c) {
+				return
+			}
+		}
+	}
+}
+
+func isSidecarInitContainer(c workloadmeta.OrchestratorContainer) bool {
+	return c.RestartPolicy == string(corev1.ContainerRestartPolicyAlways)
 }

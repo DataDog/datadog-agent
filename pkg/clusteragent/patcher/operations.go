@@ -150,8 +150,10 @@ type ContainerResourcePatch struct {
 	LimitsToDelete []string
 }
 
-// setContainerResources sets spec.containers[*].resources for the listed containers
+// setContainerResources sets spec.<field>[*].resources for the listed containers, where field is
+// "containers" or "initContainers".
 type setContainerResources struct {
+	field      string
 	containers []ContainerResourcePatch
 }
 
@@ -163,7 +165,14 @@ type setContainerResources struct {
 // Callers targeting the "pods/resize" resource should use types.StrategicMergePatchType,
 // as using the default types.MergePatchType fails if not all containers are included.
 func SetContainerResources(containers []ContainerResourcePatch) PatchOperation {
-	return &setContainerResources{containers: containers}
+	return &setContainerResources{field: "containers", containers: containers}
+}
+
+// SetInitContainerResources creates an operation that patches spec.initContainers[*].resources
+// for the listed sidecar init containers. Callers must use types.StrategicMergePatchType when
+// targeting the "pods/resize" subresource.
+func SetInitContainerResources(containers []ContainerResourcePatch) PatchOperation {
+	return &setContainerResources{field: "initContainers", containers: containers}
 }
 
 func (o *setContainerResources) build() map[string]interface{} {
@@ -196,7 +205,7 @@ func (o *setContainerResources) build() map[string]interface{} {
 	}
 	return map[string]interface{}{
 		"spec": map[string]interface{}{
-			"containers": containerList,
+			o.field: containerList,
 		},
 	}
 }

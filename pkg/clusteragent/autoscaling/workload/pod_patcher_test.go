@@ -32,6 +32,7 @@ import (
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
@@ -684,7 +685,7 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 			},
 		},
 		{
-			name: "regular init containers ignored",
+			name: "non-sidecar init containers are patched on new pods",
 			pod: corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "ns1",
@@ -731,8 +732,8 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 					InitContainers: []corev1.Container{{
 						Name: "init-sidecar-container",
 						Resources: corev1.ResourceRequirements{
-							Limits:   corev1.ResourceList{"cpu": resource.MustParse("100m")},
-							Requests: corev1.ResourceList{"memory": resource.MustParse("64Mi")},
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("300m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
 						},
 					}},
 					Containers: []corev1.Container{{
@@ -1452,7 +1453,7 @@ func TestPatchPod(t *testing.T) {
 			expectedRequests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
 		},
 		{
-			name: "regular init container is ignored",
+			name: "patch non-sidecar init container",
 			recommendation: datadoghqcommon.DatadogPodAutoscalerContainerResources{
 				Name:     "init-container",
 				Limits:   corev1.ResourceList{"cpu": resource.MustParse("300m")},
@@ -1480,7 +1481,9 @@ func TestPatchPod(t *testing.T) {
 					},
 				},
 			},
-			expectedPatched: false,
+			expectedPatched:  true,
+			expectedLimits:   corev1.ResourceList{"cpu": resource.MustParse("300m")},
+			expectedRequests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
 		},
 		{
 			name: "no matching container name returns false",
@@ -1550,8 +1553,7 @@ func TestPatchPod(t *testing.T) {
 				if foundContainer == nil {
 					for i := range podCopy.Spec.InitContainers {
 						cont := &podCopy.Spec.InitContainers[i]
-						isInitSidecarContainer := cont.RestartPolicy != nil && *cont.RestartPolicy == corev1.ContainerRestartPolicyAlways
-						if cont.Name == tt.recommendation.Name && isInitSidecarContainer {
+						if cont.Name == tt.recommendation.Name {
 							foundContainer = cont
 							break
 						}
@@ -1703,4 +1705,81 @@ func TestPatchContainerResourcesGOMEMLIMIT(t *testing.T) {
 		patched = patchContainerResources(reco("256MiB"), cont)
 		assert.False(t, patched)
 	})
+}
+
+func TestApplyRecommendations_NonSidecarInitContainers(t *testing.T) {
+	appReco := datadoghqcommon.DatadogPodAutoscalerContainerResources{
+		Name:     "app",
+		Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("500m")},
+		Limits:   corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("512Mi")},
+	}
+	initReco := datadoghqcommon.DatadogPodAutoscalerContainerResources{
+		Name:     "setup-init",
+		Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("200m")},
+		Runtime:  &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "128MiB"},
+	}
+
+	allResources := []datadoghqcommon.DatadogPodAutoscalerContainerResources{appReco, initReco}
+	fullHash, err := autoscaling.ObjectHash(allResources)
+	require.NoError(t, err)
+	expectedActionableHash, err := autoscaling.ObjectHash([]datadoghqcommon.DatadogPodAutoscalerContainerResources{appReco})
+	require.NoError(t, err)
+
+	st := autoscalingstore.NewStore[model.PodAutoscalerInternal]()
+	pai := (&model.FakePodAutoscalerInternal{
+		Namespace: "ns1",
+		Name:      "autoscaler-init",
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: autoscalingv2.CrossVersionObjectReference{
+				Name:       "init-deploy",
+				Kind:       "Deployment",
+				APIVersion: "apps/v1",
+			},
+		},
+		ScalingValues: model.ScalingValues{
+			Vertical: &model.VerticalScalingValues{
+				Source:             datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+				ResourcesHash:      fullHash,
+				ContainerResources: allResources,
+			},
+		},
+	}).Build()
+	item, _ := st.Get(pai.ID())
+	item.Upsert(pai, "test")
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "ns1",
+			Name:      "pod1",
+			OwnerReferences: []metav1.OwnerReference{{
+				Kind:       "ReplicaSet",
+				Name:       "init-deploy-968f49d86",
+				APIVersion: "apps/v1",
+			}},
+		},
+		Spec: corev1.PodSpec{
+			InitContainers: []corev1.Container{{
+				Name: "setup-init",
+			}},
+			Containers: []corev1.Container{{
+				Name: "app",
+			}},
+		},
+	}
+
+	patcherAdapter := NewPodPatcher(st, nil, nil)
+	patched, err := patcherAdapter.ApplyRecommendations(pod)
+	require.NoError(t, err)
+	assert.True(t, patched)
+
+	// Both regular and non-sidecar init containers are patched on new pods.
+	assert.Equal(t, resource.MustParse("500m"), pod.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU])
+	assert.Equal(t, resource.MustParse("200m"), pod.Spec.InitContainers[0].Resources.Requests[corev1.ResourceCPU])
+	require.Len(t, pod.Spec.InitContainers[0].Env, 1)
+	assert.Equal(t, "GOMEMLIMIT", pod.Spec.InitContainers[0].Env[0].Name)
+	assert.Equal(t, "128MiB", pod.Spec.InitContainers[0].Env[0].Value)
+
+	// rec-id hashes only actionable containers and runtime-rec-id excludes the non-sidecar init container.
+	assert.Equal(t, expectedActionableHash, pod.Annotations[model.RecommendationIDAnnotation])
+	assert.NotContains(t, pod.Annotations, model.RuntimeRecommendationIDAnnotation)
 }

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	v2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
@@ -1352,4 +1353,258 @@ func TestDeploymentSyncForcedResourcesBypassOngoingRollout(t *testing.T) {
 			newVerticalControllerFixture(t, now).runSync(args)
 		})
 	}
+}
+
+func TestPatchInPlace_InitContainers(t *testing.T) {
+	t.Run("patches regular and sidecar init containers in one resize call and skips non-sidecar init", func(t *testing.T) {
+		f := newVerticalControllerFixture(t, time.Now())
+
+		var resizeBodies []string
+		var metadataPatches int
+		f.dynamicClient.PrependReactor("patch", "pods", func(a k8stesting.Action) (bool, runtime.Object, error) {
+			pa := a.(k8stesting.PatchAction)
+			if pa.GetSubresource() == "resize" {
+				resizeBodies = append(resizeBodies, string(pa.GetPatch()))
+			} else {
+				metadataPatches++
+			}
+			return true, &unstructured.Unstructured{}, nil
+		})
+
+		p := pod("p1", "old", kubernetes.ReplicaSetKind, "rs1")
+		p.Containers = []workloadmeta.OrchestratorContainer{{Name: "app"}}
+		p.InitContainers = []workloadmeta.OrchestratorContainer{
+			{Name: "sidecar", RestartPolicy: string(corev1.ContainerRestartPolicyAlways)},
+			{Name: "setup"},
+		}
+
+		sv := &model.VerticalScalingValues{
+			ResourcesHash: "r1",
+			ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{Name: "app", Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("500m")}},
+				{Name: "sidecar", Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("100m")}},
+				{Name: "setup", Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("200m")}},
+			},
+		}
+		ai := buildInPlacePAI("default", "ai", sv, "")
+
+		err := f.controller.patchInPlace(context.Background(), &ai, p, "r1")
+		require.NoError(t, err)
+		require.Len(t, resizeBodies, 1)
+		assert.Equal(t, 1, metadataPatches)
+		assert.Contains(t, resizeBodies[0], `"containers":[{"name":"app"`)
+		assert.Contains(t, resizeBodies[0], `"initContainers":[{"name":"sidecar"`)
+		assert.NotContains(t, resizeBodies[0], `"setup"`)
+	})
+
+	t.Run("sidecar-only recommendation sends only spec.initContainers", func(t *testing.T) {
+		f := newVerticalControllerFixture(t, time.Now())
+
+		var resizeBodies []string
+		f.dynamicClient.PrependReactor("patch", "pods", func(a k8stesting.Action) (bool, runtime.Object, error) {
+			pa := a.(k8stesting.PatchAction)
+			if pa.GetSubresource() == "resize" {
+				resizeBodies = append(resizeBodies, string(pa.GetPatch()))
+			}
+			return true, &unstructured.Unstructured{}, nil
+		})
+
+		p := pod("p1", "old", kubernetes.ReplicaSetKind, "rs1")
+		p.Containers = []workloadmeta.OrchestratorContainer{{Name: "app"}}
+		p.InitContainers = []workloadmeta.OrchestratorContainer{
+			{Name: "sidecar", RestartPolicy: string(corev1.ContainerRestartPolicyAlways)},
+		}
+
+		sv := &model.VerticalScalingValues{
+			ResourcesHash: "r1",
+			ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{Name: "sidecar", Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("100m")}},
+			},
+		}
+		ai := buildInPlacePAI("default", "ai", sv, "")
+
+		err := f.controller.patchInPlace(context.Background(), &ai, p, "r1")
+		require.NoError(t, err)
+		require.Len(t, resizeBodies, 1)
+		assert.Contains(t, resizeBodies[0], `"initContainers":[{"name":"sidecar"`)
+		assert.NotContains(t, resizeBodies[0], `"containers"`)
+	})
+
+	t.Run("no matching containers skips pods/resize call and updates metadata only", func(t *testing.T) {
+		f := newVerticalControllerFixture(t, time.Now())
+
+		var resizeCalls, metadataCalls int
+		f.dynamicClient.PrependReactor("patch", "pods", func(a k8stesting.Action) (bool, runtime.Object, error) {
+			pa := a.(k8stesting.PatchAction)
+			if pa.GetSubresource() == "resize" {
+				resizeCalls++
+			} else {
+				metadataCalls++
+			}
+			return true, &unstructured.Unstructured{}, nil
+		})
+
+		p := pod("p1", "old", kubernetes.ReplicaSetKind, "rs1")
+		p.Containers = []workloadmeta.OrchestratorContainer{{Name: "other"}}
+		p.InitContainers = []workloadmeta.OrchestratorContainer{{Name: "setup"}}
+
+		sv := &model.VerticalScalingValues{
+			ResourcesHash: "r1",
+			ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{Name: "setup", Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("200m")}},
+			},
+		}
+		ai := buildInPlacePAI("default", "ai", sv, "")
+
+		err := f.controller.patchInPlace(context.Background(), &ai, p, "r1")
+		require.NoError(t, err)
+		assert.Equal(t, 0, resizeCalls)
+		assert.Equal(t, 1, metadataCalls)
+	})
+}
+
+func TestSync_NonSidecarInitContainersTakeNoAction(t *testing.T) {
+	appReco := datadoghqcommon.DatadogPodAutoscalerContainerResources{
+		Name:     "app",
+		Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("500m")},
+	}
+	initRecoV2 := datadoghqcommon.DatadogPodAutoscalerContainerResources{
+		Name:     "setup",
+		Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("400m")},
+	}
+	actionableHash, err := autoscaling.ObjectHash([]datadoghqcommon.DatadogPodAutoscalerContainerResources{appReco})
+	require.NoError(t, err)
+	fullHashV2, err := autoscaling.ObjectHash([]datadoghqcommon.DatadogPodAutoscalerContainerResources{appReco, initRecoV2})
+	require.NoError(t, err)
+
+	initOnlyHash, err := autoscaling.ObjectHash([]datadoghqcommon.DatadogPodAutoscalerContainerResources{initRecoV2})
+	require.NoError(t, err)
+
+	gvk := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: kubernetes.DeploymentKind}
+	target := NamespacedPodOwner{Namespace: "default", Kind: kubernetes.DeploymentKind, Name: "d1"}
+
+	cases := []struct {
+		name         string
+		podRecID     string
+		inputHash    string
+		resources    []datadoghqcommon.DatadogPodAutoscalerContainerResources
+		expectedHash string
+	}{
+		{
+			name:         "changing only non-sidecar init container causes no action",
+			podRecID:     actionableHash,
+			inputHash:    fullHashV2,
+			resources:    []datadoghqcommon.DatadogPodAutoscalerContainerResources{appReco, initRecoV2},
+			expectedHash: actionableHash,
+		},
+		{
+			name:         "non-sidecar init container only causes no action",
+			podRecID:     "",
+			inputHash:    initOnlyHash,
+			resources:    []datadoghqcommon.DatadogPodAutoscalerContainerResources{initRecoV2},
+			expectedHash: initOnlyHash,
+		},
+	}
+
+	for _, inPlace := range []bool{false, true} {
+		mode := "rollout"
+		if inPlace {
+			mode = "in-place"
+		}
+
+		for _, tc := range cases {
+			t.Run(mode+": "+tc.name, func(t *testing.T) {
+				pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", inPlace)
+				t.Cleanup(func() {
+					pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", false)
+				})
+
+				f := newVerticalControllerFixture(t, time.Now())
+				var anyPatch int
+				f.dynamicClient.PrependReactor("patch", "*", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+					anyPatch++
+					return true, &unstructured.Unstructured{}, nil
+				})
+
+				p := pod("p1", tc.podRecID, kubernetes.ReplicaSetKind, "rs1")
+				p.Containers = []workloadmeta.OrchestratorContainer{{Name: "app"}}
+				p.InitContainers = []workloadmeta.OrchestratorContainer{{Name: "setup"}}
+
+				pw := newFakePodWatcher()
+				pw.mockGetPodsForOwner(target, []*workloadmeta.KubernetesPod{p})
+				f.controller.podWatcher = pw
+
+				ai := buildInPlacePAI("default", "ai", &model.VerticalScalingValues{
+					Source:             datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+					ResourcesHash:      tc.inputHash,
+					ContainerResources: tc.resources,
+				}, datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy)
+				ai.Spec().ApplyPolicy.Mode = datadoghq.DatadogPodAutoscalerApplyModeApply
+
+				dpa := &datadoghq.DatadogPodAutoscaler{ObjectMeta: metav1.ObjectMeta{Name: "ai", Namespace: "default"}}
+				res, syncErr := f.controller.sync(context.Background(), dpa, &ai, gvk, target)
+				require.NoError(t, syncErr)
+				assert.False(t, res.Requeue)
+				assert.Nil(t, ai.VerticalLastActionError())
+				assert.Equal(t, 0, anyPatch)
+				assert.Equal(t, tc.expectedHash, ai.ScalingValues().Vertical.ResourcesHash)
+				assert.Len(t, ai.ScalingValues().Vertical.ContainerResources, len(tc.resources))
+				assert.Equal(t, int32(1), *ai.ScaledReplicas())
+			})
+		}
+	}
+}
+
+func TestSync_SidecarInitContainerResizesInPlace(t *testing.T) {
+	pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", true)
+	t.Cleanup(func() {
+		pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", false)
+	})
+
+	f := newVerticalControllerFixture(t, time.Now())
+	var resizeBodies []string
+	f.dynamicClient.PrependReactor("patch", "pods", func(a k8stesting.Action) (bool, runtime.Object, error) {
+		pa := a.(k8stesting.PatchAction)
+		if pa.GetSubresource() == "resize" {
+			resizeBodies = append(resizeBodies, string(pa.GetPatch()))
+		}
+		return true, &unstructured.Unstructured{}, nil
+	})
+
+	p := pod("p1", "old", kubernetes.ReplicaSetKind, "rs1")
+	p.Containers = []workloadmeta.OrchestratorContainer{{Name: "app"}}
+	p.InitContainers = []workloadmeta.OrchestratorContainer{
+		{Name: "sidecar", RestartPolicy: string(corev1.ContainerRestartPolicyAlways)},
+	}
+
+	gvk := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: kubernetes.DeploymentKind}
+	target := NamespacedPodOwner{Namespace: "default", Kind: kubernetes.DeploymentKind, Name: "d1"}
+
+	pw := newFakePodWatcher()
+	pw.mockGetPodsForOwner(target, []*workloadmeta.KubernetesPod{p})
+	f.controller.podWatcher = pw
+
+	sidecarReco := datadoghqcommon.DatadogPodAutoscalerContainerResources{
+		Name:     "sidecar",
+		Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("150m")},
+	}
+	sidecarHash, err := autoscaling.ObjectHash([]datadoghqcommon.DatadogPodAutoscalerContainerResources{sidecarReco})
+	require.NoError(t, err)
+
+	ai := buildInPlacePAI("default", "ai", &model.VerticalScalingValues{
+		Source:             datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+		ResourcesHash:      sidecarHash,
+		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{sidecarReco},
+	}, datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy)
+	ai.Spec().ApplyPolicy.Mode = datadoghq.DatadogPodAutoscalerApplyModeApply
+
+	dpa := &datadoghq.DatadogPodAutoscaler{ObjectMeta: metav1.ObjectMeta{Name: "ai", Namespace: "default"}}
+
+	res, syncErr := f.controller.sync(context.Background(), dpa, &ai, gvk, target)
+	require.NoError(t, syncErr)
+	assert.Nil(t, ai.VerticalLastActionError())
+	assert.True(t, res.Requeue)
+	require.Len(t, resizeBodies, 1)
+	assert.Contains(t, resizeBodies[0], `"initContainers":[{"name":"sidecar"`)
+	assert.NotContains(t, resizeBodies[0], `"containers"`)
 }

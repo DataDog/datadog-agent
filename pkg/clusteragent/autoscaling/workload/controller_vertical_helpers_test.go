@@ -889,12 +889,55 @@ func TestFromAutoscalerToContainerResourcePatches_PreservesPodOrder(t *testing.T
 		},
 	}
 
-	patches := fromAutoscalerToContainerResourcePatches(&ai, pod)
+	containers, initContainers := fromAutoscalerToContainerResourcePatches(&ai, pod)
 
-	require.Len(t, patches, 3)
-	assert.Equal(t, "c1", patches[0].Name, "patch order must follow pod container order")
-	assert.Equal(t, "c2", patches[1].Name)
-	assert.Equal(t, "c3", patches[2].Name)
+	require.Len(t, containers, 3)
+	assert.Empty(t, initContainers)
+	assert.Equal(t, "c1", containers[0].Name, "patch order must follow pod container order")
+	assert.Equal(t, "c2", containers[1].Name)
+	assert.Equal(t, "c3", containers[2].Name)
+}
+
+func TestFromAutoscalerToContainerResourcePatches_InitContainers(t *testing.T) {
+	sv := &model.VerticalScalingValues{
+		ResourcesHash: "r1",
+		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			{Name: "sidecar-2", Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("200m")}},
+			{Name: "setup-init", Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("300m")}},
+			{Name: "sidecar-1", Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("100m")}, Limits: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("200m"), corev1.ResourceMemory: resource.MustParse("256Mi")}},
+			{Name: "app", Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("500m")}},
+		},
+	}
+	pod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{ID: "pod1"},
+		InitContainers: []workloadmeta.OrchestratorContainer{
+			{Name: "sidecar-1", RestartPolicy: string(corev1.ContainerRestartPolicyAlways)},
+			{Name: "setup-init"},
+			{Name: "sidecar-2", RestartPolicy: string(corev1.ContainerRestartPolicyAlways)},
+		},
+		Containers: []workloadmeta.OrchestratorContainer{
+			{Name: "app"},
+		},
+	}
+
+	ai := (&model.FakePodAutoscalerInternal{
+		Namespace:            "default",
+		Name:                 "ai",
+		ScalingValues:        model.ScalingValues{Vertical: sv},
+		PreviewAnnotationKey: `{"burstable":true}`,
+	}).Build()
+
+	containers, initContainers := fromAutoscalerToContainerResourcePatches(&ai, pod)
+
+	require.Len(t, containers, 1)
+	assert.Equal(t, "app", containers[0].Name)
+
+	require.Len(t, initContainers, 2)
+	assert.Equal(t, "sidecar-1", initContainers[0].Name)
+	assert.Equal(t, []string{"cpu"}, initContainers[0].LimitsToDelete)
+	assert.NotContains(t, initContainers[0].Limits, "cpu")
+	assert.Equal(t, "256Mi", initContainers[0].Limits["memory"])
+	assert.Equal(t, "sidecar-2", initContainers[1].Name)
 }
 
 func TestFromAutoscalerToContainerResourcePatches_Burstable(t *testing.T) {
@@ -922,9 +965,10 @@ func TestFromAutoscalerToContainerResourcePatches_Burstable(t *testing.T) {
 			PreviewAnnotationKey: `{"burstable":true}`,
 		}).Build()
 
-		patches := fromAutoscalerToContainerResourcePatches(&ai, pod)
+		patches, initPatches := fromAutoscalerToContainerResourcePatches(&ai, pod)
 
 		require.Len(t, patches, 1)
+		assert.Empty(t, initPatches)
 		p := patches[0]
 		assert.Equal(t, "app", p.Name)
 		assert.NotContains(t, p.Limits, "cpu", "cpu must not be set in limits when burstable")
@@ -939,9 +983,10 @@ func TestFromAutoscalerToContainerResourcePatches_Burstable(t *testing.T) {
 			ScalingValues: model.ScalingValues{Vertical: sv},
 		}).Build()
 
-		patches := fromAutoscalerToContainerResourcePatches(&ai, pod)
+		patches, initPatches := fromAutoscalerToContainerResourcePatches(&ai, pod)
 
 		require.Len(t, patches, 1)
+		assert.Empty(t, initPatches)
 		p := patches[0]
 		assert.Equal(t, "500m", p.Limits["cpu"], "cpu limit must be set when not burstable")
 		assert.Empty(t, p.LimitsToDelete, "LimitsToDelete must be empty when not burstable")
@@ -979,7 +1024,7 @@ func TestFromAutoscalerToContainerResourcePatches_RemoveLimitSentinel(t *testing
 				PreviewAnnotationKey: preview,
 			}).Build()
 
-			patches := fromAutoscalerToContainerResourcePatches(&ai, pod)
+			patches, _ := fromAutoscalerToContainerResourcePatches(&ai, pod)
 
 			require.Len(t, patches, 2)
 			assert.Equal(t, map[string]string{"memory": "512Mi"}, patches[0].Limits, "the sentinel must not be sent as a limit")
@@ -992,7 +1037,7 @@ func TestFromAutoscalerToContainerResourcePatches_RemoveLimitSentinel(t *testing
 		Name:          "ai",
 		ScalingValues: model.ScalingValues{Vertical: sv},
 	}).Build()
-	patches := fromAutoscalerToContainerResourcePatches(&ai, pod)
+	patches, _ := fromAutoscalerToContainerResourcePatches(&ai, pod)
 	assert.Equal(t, "100m", patches[1].Limits["cpu"], "a container without the sentinel keeps its CPU limit")
 	assert.Empty(t, patches[1].LimitsToDelete)
 }
@@ -1075,6 +1120,31 @@ func TestIsDisruptiveResize(t *testing.T) {
 			name: "nil recommendation",
 			pod:  podWith(container(workloadmeta.ContainerResizePolicy{CPURestartPolicy: restartContainer})),
 			reco: nil,
+			want: false,
+		},
+		{
+			name: "sidecar init container RestartContainer + cpu changing",
+			pod: &workloadmeta.KubernetesPod{
+				InitContainers: []workloadmeta.OrchestratorContainer{{
+					Name:          "sidecar",
+					RestartPolicy: string(corev1.ContainerRestartPolicyAlways),
+					Resources:     workloadmeta.ContainerResources{CPURequest: &cpu500m},
+					ResizePolicy:  workloadmeta.ContainerResizePolicy{CPURestartPolicy: restartContainer},
+				}},
+			},
+			reco: disruptionReco("sidecar", "1000m", ""),
+			want: true,
+		},
+		{
+			name: "non-sidecar init container ignored",
+			pod: &workloadmeta.KubernetesPod{
+				InitContainers: []workloadmeta.OrchestratorContainer{{
+					Name:         "setup",
+					Resources:    workloadmeta.ContainerResources{CPURequest: &cpu500m},
+					ResizePolicy: workloadmeta.ContainerResizePolicy{CPURestartPolicy: restartContainer},
+				}},
+			},
+			reco: disruptionReco("setup", "1000m", ""),
 			want: false,
 		},
 	}
@@ -1380,4 +1450,108 @@ func TestShouldTriggerRollout_ForcedResources(t *testing.T) {
 			assert.Equal(t, tt.expected, decision)
 		})
 	}
+}
+
+func TestHasLimitIncrease_InitContainers(t *testing.T) {
+	cpuLimit := 100.0 // 1 core
+	makePod := func(initContainers []workloadmeta.OrchestratorContainer) *workloadmeta.KubernetesPod {
+		return &workloadmeta.KubernetesPod{
+			EntityMeta:     workloadmeta.EntityMeta{Annotations: map[string]string{model.RecommendationIDAnnotation: "old"}},
+			InitContainers: initContainers,
+		}
+	}
+
+	t.Run("sidecar init container limit increase is detected", func(t *testing.T) {
+		p := makePod([]workloadmeta.OrchestratorContainer{{
+			Name:          "sidecar",
+			RestartPolicy: string(corev1.ContainerRestartPolicyAlways),
+			Resources:     workloadmeta.ContainerResources{CPULimit: &cpuLimit},
+		}})
+		reco := &model.VerticalScalingValues{ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			{Name: "sidecar", Limits: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2")}},
+		}}
+		assert.True(t, hasLimitIncrease(reco, []*workloadmeta.KubernetesPod{p}, "new"))
+	})
+
+	t.Run("non-sidecar init container limit increase is ignored", func(t *testing.T) {
+		p := makePod([]workloadmeta.OrchestratorContainer{{
+			Name:      "setup",
+			Resources: workloadmeta.ContainerResources{CPULimit: &cpuLimit},
+		}})
+		reco := &model.VerticalScalingValues{ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			{Name: "setup", Limits: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2")}},
+		}}
+		assert.False(t, hasLimitIncrease(reco, []*workloadmeta.KubernetesPod{p}, "new"))
+	})
+}
+
+func TestIsRolloutRequired_InitContainerRuntime(t *testing.T) {
+	pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", true)
+	t.Cleanup(func() {
+		pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", false)
+	})
+
+	t.Run("GOMEMLIMIT on non-sidecar init container does not force rollout", func(t *testing.T) {
+		ai := (&model.FakePodAutoscalerInternal{
+			Namespace: "default",
+			Name:      "ai",
+			ScalingValues: model.ScalingValues{Vertical: &model.VerticalScalingValues{
+				ResourcesHash: "r1",
+				ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+					{Name: "app", Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("200m")}},
+					{Name: "setup", Runtime: &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "256MiB"}},
+				},
+			}},
+		}).Build()
+		pods := []*workloadmeta.KubernetesPod{{
+			Containers:     []workloadmeta.OrchestratorContainer{{Name: "app"}},
+			InitContainers: []workloadmeta.OrchestratorContainer{{Name: "setup"}},
+		}}
+		assert.False(t, isRolloutRequired(&ai, pods))
+	})
+
+	t.Run("GOMEMLIMIT on sidecar init container forces rollout when not applied", func(t *testing.T) {
+		ai := (&model.FakePodAutoscalerInternal{
+			Namespace: "default",
+			Name:      "ai",
+			ScalingValues: model.ScalingValues{Vertical: &model.VerticalScalingValues{
+				ResourcesHash: "r1",
+				ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+					{Name: "sidecar", Runtime: &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "256MiB"}},
+				},
+			}},
+		}).Build()
+		pods := []*workloadmeta.KubernetesPod{{
+			Containers: []workloadmeta.OrchestratorContainer{{Name: "app"}},
+			InitContainers: []workloadmeta.OrchestratorContainer{{
+				Name:          "sidecar",
+				RestartPolicy: string(corev1.ContainerRestartPolicyAlways),
+			}},
+		}}
+		assert.True(t, isRolloutRequired(&ai, pods))
+	})
+}
+
+func TestFindNonSidecarInitContainers(t *testing.T) {
+	pods := []*workloadmeta.KubernetesPod{
+		{
+			Containers: []workloadmeta.OrchestratorContainer{{Name: "app"}},
+			InitContainers: []workloadmeta.OrchestratorContainer{
+				{Name: "setup"},
+				{Name: "sidecar", RestartPolicy: string(corev1.ContainerRestartPolicyAlways)},
+				{Name: "migrated"},
+			},
+		},
+		{
+			// Newer pod promoted "migrated" to a sidecar init container.
+			Containers: []workloadmeta.OrchestratorContainer{{Name: "app"}},
+			InitContainers: []workloadmeta.OrchestratorContainer{
+				{Name: "setup"},
+				{Name: "migrated", RestartPolicy: string(corev1.ContainerRestartPolicyAlways)},
+			},
+		},
+	}
+
+	got := findNonSidecarInitContainers(pods)
+	assert.Equal(t, map[string]struct{}{"setup": {}}, got)
 }

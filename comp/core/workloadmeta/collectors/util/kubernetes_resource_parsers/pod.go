@@ -132,27 +132,10 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		gpuVendorList = append(gpuVendorList, gpuVendor)
 	}
 
-	containersList := make([]workloadmeta.OrchestratorContainer, 0, len(pod.Spec.Containers))
-	for _, container := range pod.Spec.Containers {
-		image, _ := workloadmeta.NewContainerImage("", container.Image)
-		c := workloadmeta.OrchestratorContainer{
-			Name:  container.Name,
-			Image: image,
-		}
-		if cpuReq, found := container.Resources.Requests[corev1.ResourceCPU]; found {
-			c.Resources.CPURequest = kubernetes.FormatCPURequests(cpuReq)
-		}
-		if memoryReq, found := container.Resources.Requests[corev1.ResourceMemory]; found {
-			c.Resources.MemoryRequest = kubernetes.FormatMemoryRequests(memoryReq)
-		}
-		if cpuLimit, found := container.Resources.Limits[corev1.ResourceCPU]; found {
-			c.Resources.CPULimit = kubernetes.FormatCPURequests(cpuLimit)
-		}
-		if memoryLimit, found := container.Resources.Limits[corev1.ResourceMemory]; found {
-			c.Resources.MemoryLimit = kubernetes.FormatMemoryRequests(memoryLimit)
-		}
-		c.ResizePolicy = ResizePolicyFromContainerResizePolicy(container.ResizePolicy)
-		containersList = append(containersList, c)
+	containersList := parseCoreContainers(pod.Spec.Containers)
+	var initContainersList []workloadmeta.OrchestratorContainer
+	if len(pod.Spec.InitContainers) > 0 {
+		initContainersList = parseCoreContainers(pod.Spec.InitContainers)
 	}
 
 	conditions := ResizeConditionsFromPodConditions(pod.Status.Conditions)
@@ -177,6 +160,7 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		QOSClass:                   string(pod.Status.QOSClass),
 		RuntimeClass:               rtcName,
 		GPUVendorList:              gpuVendorList,
+		InitContainers:             initContainersList,
 		Containers:                 containersList,
 		Conditions:                 conditions,
 		CreationTimestamp:          pod.CreationTimestamp.Time,
@@ -184,4 +168,45 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		DeletionTimestamp:          deletionTimestamp,
 		NodeName:                   pod.Spec.NodeName,
 	}
+}
+
+func parseCoreContainers(containers []corev1.Container) []workloadmeta.OrchestratorContainer {
+	list := make([]workloadmeta.OrchestratorContainer, 0, len(containers))
+	for i := range containers {
+		c := &containers[i]
+		list = append(list, OrchestratorContainerFromSpec(c.Name, c.Image, c.Resources, c.ResizePolicy, c.RestartPolicy))
+	}
+	return list
+}
+
+// OrchestratorContainerFromSpec builds the workloadmeta view of a pod spec container. It takes
+// the fields one by one so that both corev1.Container and lighter container types can use it.
+func OrchestratorContainerFromSpec(
+	name, image string,
+	resources corev1.ResourceRequirements,
+	resizePolicy []corev1.ContainerResizePolicy,
+	restartPolicy *corev1.ContainerRestartPolicy,
+) workloadmeta.OrchestratorContainer {
+	containerImage, _ := workloadmeta.NewContainerImage("", image)
+	c := workloadmeta.OrchestratorContainer{
+		Name:         name,
+		Image:        containerImage,
+		ResizePolicy: ResizePolicyFromContainerResizePolicy(resizePolicy),
+	}
+	if cpuReq, found := resources.Requests[corev1.ResourceCPU]; found {
+		c.Resources.CPURequest = kubernetes.FormatCPURequests(cpuReq)
+	}
+	if memoryReq, found := resources.Requests[corev1.ResourceMemory]; found {
+		c.Resources.MemoryRequest = kubernetes.FormatMemoryRequests(memoryReq)
+	}
+	if cpuLimit, found := resources.Limits[corev1.ResourceCPU]; found {
+		c.Resources.CPULimit = kubernetes.FormatCPURequests(cpuLimit)
+	}
+	if memoryLimit, found := resources.Limits[corev1.ResourceMemory]; found {
+		c.Resources.MemoryLimit = kubernetes.FormatMemoryRequests(memoryLimit)
+	}
+	if restartPolicy != nil {
+		c.RestartPolicy = string(*restartPolicy)
+	}
+	return c
 }
