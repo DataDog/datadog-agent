@@ -746,7 +746,7 @@ func createFlareArchive(filePath string, files []flareFile) error {
 		content := f.content
 		if f.scrub {
 			// Fail closed: never write a file that could not be scrubbed
-			if content, err = scrubber.ScrubBytes(content); err != nil {
+			if content, err = scrubFileContent(f.name, content); err != nil {
 				return fmt.Errorf("failed to scrub %s: %w", f.name, err)
 			}
 		}
@@ -755,6 +755,16 @@ func createFlareArchive(filePath string, files []flareFile) error {
 		}
 	}
 	return nil
+}
+
+// scrubFileContent scrubs the content of a flare file. A JSON file is scrubbed as JSON: the text scrubber works
+// line by line, and a match in a JSON file that holds a configuration as one string cuts the string and breaks
+// the file. Content that is not valid JSON is scrubbed as text.
+func scrubFileContent(name string, content []byte) ([]byte, error) {
+	if strings.HasSuffix(name, ".json") {
+		return scrubber.ScrubJSON(content)
+	}
+	return scrubber.ScrubBytes(content)
 }
 
 // addFileToZip adds a file to the zip archive

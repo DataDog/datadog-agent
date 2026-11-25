@@ -44,6 +44,11 @@ fixes:
     the live flare does, instead of writing the values of the variables, which
     can be secrets that no scrubber recognizes. Its ``env-config.yaml`` only has
     the settings that come from the environment.
+  - |
+    ``otel-agent flare`` now scrubs the JSON files of the archive as JSON, so
+    ``otel-response.json`` stays valid and keeps the whole configuration when
+    the configuration has a key that the scrubber hides, like ``password``,
+    instead of being cut at that key.
 issues:
   - |
     ``otel-agent flare`` has these known limitations:

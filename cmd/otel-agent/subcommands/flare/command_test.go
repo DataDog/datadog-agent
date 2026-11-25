@@ -575,6 +575,88 @@ service:
 	assert.Contains(t, string(files["config/env-config.yaml"]), "x-honeycomb-team: ${env:FLARE_TEST_HEADER}")
 }
 
+// TestCreateOTelFlareKeepsJSONFilesValid checks that the JSON files of the archive stay valid, with the whole
+// configuration, when the configuration has a key that the scrubber hides. The configuration is one line of
+// otel-response.json, and a scrubber that works line by line cuts that line at the key.
+func TestCreateOTelFlareKeepsJSONFilesValid(t *testing.T) {
+	const password = "pw-open-0123456789"
+	configPath := filepath.Join(t.TempDir(), "otel-config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`receivers:
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: scrape
+          basic_auth:
+            username: scrape-user
+            password: `+password+`
+exporters:
+  debug: {}
+service:
+  pipelines:
+    metrics:
+      receivers: [prometheus]
+      exporters: [debug]
+`), 0644))
+	cfg, ipcComp := newUnreachableCollector(t)
+
+	flarePath, err := createOTelFlare(&subcommands.GlobalParams{ConfPaths: []string{"file:" + configPath}}, cfg, ipcComp.GetClient())
+	require.NoError(t, err)
+	defer os.RemoveAll(filepath.Dir(flarePath))
+	files := readZip(t, flarePath)
+
+	for name, content := range files {
+		assert.NotContains(t, string(content), password, "the password in %s", name)
+		if strings.HasSuffix(name, ".json") {
+			assert.True(t, json.Valid(content), "%s is not valid JSON", name)
+		}
+	}
+
+	// The settings that follow the password are not lost
+	var response map[string]any
+	require.NoError(t, json.Unmarshal(files["otel-response.json"], &response))
+	configurations := 0
+	for field, value := range response {
+		text, ok := value.(string)
+		if !ok || !strings.Contains(text, "password:") {
+			continue
+		}
+		configurations++
+		assert.Contains(t, text, "job_name: scrape", "the settings after the password are lost in %s", field)
+		assert.Contains(t, text, "service:", "the end of the configuration is lost in %s", field)
+	}
+	assert.Positive(t, configurations, "no configuration with the password in otel-response.json")
+}
+
+// TestCreateFlareArchiveScrubsJSONAsJSON checks that the JSON files of the archive are scrubbed as JSON, and the
+// other files as text.
+func TestCreateFlareArchiveScrubsJSONAsJSON(t *testing.T) {
+	const secret = "hunter2"
+	tests := []struct {
+		name      string
+		file      string
+		content   string
+		kept      string
+		validJSON bool
+	}{
+		{"key in a string", "response.json", `{"config": "a:\n  password: ` + secret + `\n  b: c\n"}`, "b: c", true},
+		{"key of an object", "environment.json", `{"password": "` + secret + `", "b": "c"}`, `"b": "c"`, true},
+		{"password of a URL", "environment.json", `{"X": "http://user:` + secret + `@host:3128"}`, "host:3128", true},
+		{"JSON that does not parse", "broken.json", `{"a": "password: ` + secret, "", false},
+		{"not JSON", "config.yaml", "password: " + secret + "\nb: c\n", "b: c", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			archive := filepath.Join(t.TempDir(), "flare.zip")
+			require.NoError(t, createFlareArchive(archive, []flareFile{{name: tt.file, content: []byte(tt.content), scrub: true}}))
+			content := readZip(t, archive)[tt.file]
+
+			assert.NotContains(t, string(content), secret)
+			assert.Contains(t, string(content), tt.kept)
+			assert.Equal(t, tt.validJSON, json.Valid(content), string(content))
+		})
+	}
+}
+
 func TestCollectOTelData(t *testing.T) {
 	globalParams := newGlobalParamsTest(t)
 
