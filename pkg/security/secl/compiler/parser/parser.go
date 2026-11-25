@@ -692,7 +692,7 @@ func (p *parser) parseArray() ast.Node {
 			tok := p.tok
 			p.next()
 			name := p.parseName(tok)
-			if name == nil {
+			if name == nil || len(p.errs) > 0 {
 				// already reported
 				p.skipArray()
 				return nil
