@@ -1093,6 +1093,15 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
+# For E2E jobs that normally run on every PR (so they have no path-based rules to build on):
+# stays automatic with DISABLE_PRE_MERGE_TESTS_AGENT unset, becomes manual on PRs when it is "true".
+# Reference it after .on_e2e_fakeintake_changes and the job's own test-definition paths.
+.on_e2e_pr_skip:
+  - <<: *if_pre_merge_tests_paths
+  - <<: *if_pr_skip_e2e_tests
+    when: manual
+    allow_failure: true
+
 .on_e2e_main_release_or_rc: # This rule is used as a base for all new-e2e rules
   - !reference [.on_e2e_guard]
   - !reference [.on_e2e_fakeintake_changes]

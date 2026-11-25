@@ -23,6 +23,15 @@ new-e2e-base:
   rules:
     - !reference [.except_light_pipeline]
     - !reference [.except_coverage_pipeline]
+    # Fakeintake and test-definition changes always run it; otherwise it is manual on PRs when
+    # DISABLE_PRE_MERGE_TESTS_AGENT is "true".
+    - !reference [.on_e2e_fakeintake_changes]
+    - changes:
+        paths:
+          - test/new-e2e/tests/agent-devx/**/*
+        compare_to: $COMPARE_TO_BRANCH
+      when: on_success
+    - !reference [.on_e2e_pr_skip]
     - when: on_success
   variables:
     TARGETS: ./tests/agent-devx
