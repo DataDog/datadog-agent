@@ -1679,6 +1679,7 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/pkg/security/resolvers/envvars": ["bpf", "clusterchecks", "docker", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/pkg/security/resolvers/file": None,
     "github.com/DataDog/datadog-agent/pkg/security/resolvers/hash": None,
+    "github.com/DataDog/datadog-agent/pkg/security/resolvers/inuse": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "pcap", "requirefips", "seclmax", "serverless", "test"],
     "github.com/DataDog/datadog-agent/pkg/security/resolvers/mount": None,
     "github.com/DataDog/datadog-agent/pkg/security/resolvers/netns": ["bpf", "clusterchecks", "docker", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "pcap", "requirefips", "seclmax", "serverless", "test"],
     "github.com/DataDog/datadog-agent/pkg/security/resolvers/path": None,

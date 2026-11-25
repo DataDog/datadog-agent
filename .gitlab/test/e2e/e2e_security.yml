@@ -25,6 +25,7 @@
         - pkg/security/probe/field_handlers_ebpf.go
         - pkg/security/probe/probe_ebpf.go
         - pkg/security/probe/procfs/**/*
+        - pkg/security/resolvers/inuse/**/*
         - pkg/security/resolvers/resolvers_ebpf.go
         - pkg/security/resolvers/sbom/**/*
         - pkg/security/rules/bundled/**/*
