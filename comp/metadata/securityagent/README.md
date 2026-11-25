@@ -6,7 +6,7 @@ This package populates some of the security-agent related fields in the `invento
 This is enabled by default but can be turned off using the `inventories_enabled` or `enable_metadata_collection`
 config.
 
-The payload is sent every 10min (see `inventories_max_interval` in the config).
+The payload is sent at least every 10min (see `inventories_max_interval` in the config).
 
 ## Security-agent Configuration
 
@@ -53,10 +53,10 @@ Here an example of an inventory payload:
 {
     "security_agent_metadata": {
         "agent_version": "7.75.0",
-        "full_configuration": "api_key: '***************************aaaaa'\ncompliance_config:\n  enabled: true\n  host_benchmarks:\n    enabled: true\nlog_level: info\nruntime_security_config:\n  enabled: true\n  socket: /opt/datadog-agent/run/runtime-security.sock\nsite: datadoghq.com\n",
-        "provided_configuration": "compliance_config:\n  enabled: true\nruntime_security_config:\n  enabled: true\n  socket: /opt/datadog-agent/run/runtime-security.sock\n",
-        "file_configuration": "compliance_config:\n  enabled: true\nruntime_security_config:\n  enabled: true\n  socket: /opt/datadog-agent/run/runtime-security.sock\n",
-        "agent_runtime_configuration": "runtime_block_profile_rate: 5000\n",
+        "full_configuration": "api_key: '***************************aaaaa'\ncompliance_config:\n  enabled: true\n  host_benchmarks:\n    enabled: true\nexpvar_port: \"5011\"\nlog_level: info\nruntime_security_config:\n  enabled: true\n  socket: /opt/datadog-agent/run/runtime-security.sock\nsite: datadoghq.com\n",
+        "provided_configuration": "api_key: '***************************aaaaa'\ncompliance_config:\n  enabled: true\nexpvar_port: \"5011\"\nruntime_security_config:\n  enabled: true\n  socket: /opt/datadog-agent/run/runtime-security.sock\n",
+        "file_configuration": "api_key: '***************************aaaaa'\ncompliance_config:\n  enabled: true\nruntime_security_config:\n  enabled: true\n  socket: /opt/datadog-agent/run/runtime-security.sock\n",
+        "agent_runtime_configuration": "expvar_port: \"5011\"\n",
         "environment_variable_configuration": "{}\n",
         "remote_configuration": "{}\n",
         "fleet_policies_configuration": "{}\n",

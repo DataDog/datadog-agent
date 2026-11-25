@@ -6,7 +6,7 @@ This package populates some of the system-probe related fields in the `inventori
 This is enabled by default but can be turned off using the `inventories_enabled` or `enable_metadata_collection`
 config.
 
-The payload is sent every 10min (see `inventories_max_interval` in the config).
+The payload is sent at least every 10min (see `inventories_max_interval` in the config).
 
 ## System-probe Configuration
 
@@ -55,9 +55,9 @@ Here an example of an inventory payload:
     "system_probe_metadata": {
         "agent_version": "7.75.0",
         "full_configuration": "log_level: info\nnetwork_config:\n  enabled: true\nservice_monitoring_config:\n  enabled: false\nsystem_probe_config:\n  enabled: true\n  sysprobe_socket: /opt/datadog-agent/run/sysprobe.sock\n",
-        "provided_configuration": "network_config:\n  enabled: true\nsystem_probe_config:\n  sysprobe_socket: /opt/datadog-agent/run/sysprobe.sock\n",
+        "provided_configuration": "network_config:\n  enabled: true\nsystem_probe_config:\n  enabled: true\n  sysprobe_socket: /opt/datadog-agent/run/sysprobe.sock\n",
         "file_configuration": "network_config:\n  enabled: true\nsystem_probe_config:\n  sysprobe_socket: /opt/datadog-agent/run/sysprobe.sock\n",
-        "agent_runtime_configuration": "runtime_block_profile_rate: 5000\n",
+        "agent_runtime_configuration": "system_probe_config:\n  enabled: true\n",
         "environment_variable_configuration": "{}\n",
         "remote_configuration": "{}\n",
         "fleet_policies_configuration": "{}\n",

@@ -6,7 +6,7 @@ This package populates some of the Agent-related fields in the `inventories` pro
 This is enabled by default but can be turned off using the `inventories_enabled` or `enable_metadata_collection`
 config.
 
-The payload is sent every 10min (see `inventories_max_interval` in the config) or whenever it's updated with at most 1
+The payload is sent at least every 10min (see `inventories_max_interval` in the config) or whenever it's updated with at most 1
 update every minute (see `inventories_min_interval`).
 
 # Content
@@ -31,21 +31,24 @@ The payload is a JSON dict with the following fields
   - `cpu_stepping` - **string**: the CPU stepping.
   - `cpu_frequency` - **number/float**: the CPU frequency.
   - `cpu_cache_size` - **int**: the CPU cache size in bytes (filled on Linux and macOS, 0 on Windows).
-  - `cpu_architecture` - **string**: the hardware name, Linux and macOS only (ex "x86_64", "arm64", "unknown", ...).
-  - `kernel_name` - **string**: the kernel name (ex: "windows", "Linux", ...).
+  - `cpu_architecture` - **string**: the hardware name, Linux and macOS only (ex "x86_64", "arm64", "aarch64", ...).
+  - `kernel_name` - **string**: the kernel name (ex: "Windows", "Linux", ...).
   - `kernel_release` - **string**:  the kernel release (ex: "10.0.20348", "4.15.0-1080-gcp", ...).
   - `kernel_version` - **string**:  the kernel version (Unix only, empty string on Windows).
   - `os` - **string**: the OS name description (ex: "GNU/Linux", "Windows Server 2022 Datacenter", ...).
   - `os_version` - **string**: the OS version (ex: "debian bookworm/sid", ...).
   - `memory_total_kb` - **int**: the total memory size for the host in KiB.
   - `memory_swap_total_kb` - **int**: the `swap` memory size in KiB (Unix only).
-  - `ip_address` - **string**: the IP address for the host. When `metadata_ip_resolution_from_hostname` is true, this is
-    the first IPv4 address the Agent hostname resolves to.
-  - `ipv6_address` - **string**: the IPV6 address for the host. When `metadata_ip_resolution_from_hostname` is true,
-    this is the first IPv6 address the Agent hostname resolves to.
+  - `ip_address` - **string**: the IP address for the host. When `metadata_ip_resolution_from_hostname` is true and the
+    Agent hostname resolves to an IPv4 address, this is the first one.
+  - `ipv6_address` - **string**: the IPV6 address for the host. When `metadata_ip_resolution_from_hostname` is true and
+    the Agent hostname resolves to an IPv6 address, this is the first one.
   - `mac_address` - **string**: the MAC address for the host.
-  - `interfaces` - **string**: a JSON-encoded list of the host network interfaces. Each interface has a `name` and,
-    when available, `ipv4` (list of string), `ipv4-network`, `ipv6` (list of string), `ipv6-network` and `macaddress`.
+  - `interfaces` - **string**: a JSON-encoded list of the host network interfaces. `""` until network information has
+    been collected successfully once (collection fails when no up, non-loopback interface has an IPv4 address, so it
+    always stays `""` on an IPv6-only host). If a later collection fails, the previous `interfaces`, `ip_address`,
+    `ipv6_address` and `mac_address` values are kept. Each interface always has `name`, `ipv4` and `ipv6` (lists of
+    string, `[]` when empty), and `ipv4-network`, `ipv6-network` and `macaddress` when available.
   - `agent_version` - **string**: the version of the Agent that sent this payload.
   - `cloud_provider` - **string**: the name of the cloud provider detected by the Agent.
   - `cloud_provider_source` - **string**: the data source used to know that the Agent is running on `cloud_provider`.
@@ -57,7 +60,8 @@ The payload is a JSON dict with the following fields
     - `UUID`: The hypervisor or product UUID has the EC2 prefix. The Agent knows it's running on EC2 but doesn't know
       which instance (see `hypervisor_guest_uuid` or `dmi_product_uuid`).
   - `cloud_provider_account_id` - **string**: The account/subscription ID from the cloud provider. Only collected when
-    `inventories_collect_cloud_provider_account_id` is true (default).
+    `inventories_collect_cloud_provider_account_id` is true (default). This setting doesn't affect `ccrid`: on AWS, the
+    `ccrid` ARN always contains the account ID.
   - `cloud_provider_host_id` - **string**: the unique ID the cloud provider uses to reference this instance.
     This is different for each cloud provider (for now, ony AWS is supported).
     - On AWS: the instance ID returned by querying the IMDSv2 endpoint. An empty string is returned if we can't reach
@@ -106,7 +110,7 @@ Here an example of an inventory payload:
         "memory_total_kb": 12227556,
         "ip_address": "192.168.1.10",
         "ipv6_address": "fe80::1ff:fe23:4567:890a",
-        "mac_address": "01:23:45:67:89:AB",
+        "mac_address": "01:23:45:67:89:ab",
         "interfaces": "[{\"ipv4\":[\"192.168.1.10\"],\"ipv4-network\":\"192.168.1.0/24\",\"ipv6\":[\"fe80::1ff:fe23:4567:890a\"],\"ipv6-network\":\"fe80::/64\",\"macaddress\":\"01:23:45:67:89:ab\",\"name\":\"eth0\"}]",
         "agent_version": "7.37.0-devel+git.198.68a5b69",
         "cloud_provider": "AWS",

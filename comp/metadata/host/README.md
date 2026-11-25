@@ -23,7 +23,7 @@ metadata_providers:
     early_interval: 300
 ```
 
-The payload contains the API key, so the forwarder never stores it on disk. It cannot be split, so the forwarder drops
+The payload contains the API key, so the forwarder never stores it on disk. It cannot be split, so the serializer drops
 it if it is too large.
 
 # Content
@@ -31,10 +31,10 @@ it if it is too large.
 The payload is built from scratch on every collection. Some values are collected only once and cached (system stats,
 UUID, network ID). The latest payload is also cached for other parts of the Agent, such as the status page.
 
-The `resources` and `gohai` fields depend on gohai. They are only included when the Agent is built for `linux`,
-`windows`, `darwin` or `aix`. A fallback without these fields exists for `freebsd`, `netbsd`, `openbsd`, `solaris` and
-`dragonfly` (`impl/payload_no_gohai.go`), but it currently doesn't compile, so the Agent can't send this payload on
-those platforms.
+The `resources` and `gohai` fields depend on gohai. `gohai` is only included when the Agent is built for `linux`,
+`windows`, `darwin` or `aix`, and `resources` only for `linux` and `darwin`. A fallback without these fields exists
+for `freebsd`, `netbsd`, `openbsd`, `solaris` and `dragonfly` (`impl/payload_no_gohai.go`), but it currently doesn't
+compile, so the Agent can't send this payload on those platforms.
 
 # Format
 
@@ -53,10 +53,14 @@ The payload is a JSON dict with the following fields:
   `"3.13.7 (main, Oct 10 2025, 13:16:08) [GCC 11.4.0]"`). This is `"unused"` while the Python runtime hasn't been
   loaded, and `"n/a"` if the Agent was built without Python support.
 - `systemStats` - **dict**:
-  - `cpuCores` - **int**: the number of CPU cores (gopsutil on Unix, gohai on Windows).
+  - `cpuCores` - **int**: the `Cores` value of the first CPU reported by gopsutil on Unix, or the number of CPU
+    cores from gohai on Windows. On Linux gopsutil reports one entry per logical CPU with `Cores` set to 1, so this
+    is `1` (or `0` if the CPU information can't be read).
   - `machine` - **string**: the architecture, equal to Go's `runtime.GOARCH` (ex: `amd64`, `arm64`).
   - `platform` - **string**: equal to Go's `runtime.GOOS`, so `"windows"` on Windows (unlike the top-level `os`).
   - `pythonV` - **string**: the short Python version (ex: `3.13.7`). Same `"unused"`/`"n/a"` values as `python`.
+    Unlike `python`, the whole `systemStats` dict is computed once and cached for the life of the Agent, so this keeps
+    the value from the first collection.
   - `processor` - **string**: the CPU model (ex: `Intel(R) Core(TM) i7-8750H CPU @ 2.20GHz`).
   - `macV`, `nixV`, `fbsdV`, `winV` - **list**: legacy OS version lists from Agent v5 (see [OS version lists](#os-version-lists)).
 - `meta` - **dict**:
@@ -65,8 +69,8 @@ The payload is a JSON dict with the following fields:
   - `socket-fqdn` - **string**: the FQDN of the host.
   - `ec2-hostname` - **string**: the EC2 hostname, or an empty string when not on EC2.
   - `hostname` - **string**: the Agent hostname, as shown on the status page.
-  - `host_aliases` - **list of string**: the host aliases collected from cloud providers and the configuration
-    (`host_aliases`). Can be `null` when there are none.
+  - `host_aliases` - **list of string**: the host aliases collected from the configuration (`host_aliases`), cloud
+    providers (including Cloud Foundry), the kubelet and Kubernetes. `[]` when there are none.
   - `instance-id` - **string**: the EC2 instance ID, or an empty string when not on EC2.
   - `agent-hostname` - **string** (omitted if empty): set to the configured hostname when
     `hostname_force_config_as_canonical` is `true` and the hostname comes from the `hostname` configuration.
@@ -83,7 +87,7 @@ The payload is a JSON dict with the following fields:
     `extra_tags`, `env`), Kubernetes (cluster name, distribution, node labels and annotations as tags), the Cluster
     Agent, EC2 (`collect_ec2_tags`, `collect_ec2_instance_info`), Docker, and GPUs (`collect_gpu_tags`). The list
     also includes `private_action_runner_enabled:true` when the private action runner is enabled, and `infra_mode:<mode>`
-    when `infrastructure_mode` is not `full` (EUDM mode also adds hardware tags on macOS and Windows). Values are split
+    when `infrastructure_mode` is not `full` (an unknown value is treated as `full`) (EUDM mode also adds hardware tags on macOS and Windows). Values are split
     according to `tag_value_split_separator`.
   - `google cloud platform` - **list of string** (omitted if empty): the GCE host tags (`collect_gce_tags`).
 - `container-meta` - **dict of string to string** (omitted if empty): metadata about the detected container runtimes.
@@ -94,15 +98,17 @@ The payload is a JSON dict with the following fields:
   - `public-ipv4` - **string** (omitted if empty): the public IPv4 of the host on supported cloud providers.
 - `logs` - **dict**:
   - `transport` - **string**: the transport used by the logs Agent: `"HTTP"`, `"TCP"`, or `""` if the logs Agent is
-    disabled.
+    disabled or hasn't started yet (ex: in the first payload sent at startup).
   - `auto_multi_line_detection_enabled` - **boolean**: the value of `logs_config.auto_multi_line_detection`.
-- `install-method` - **dict**: how the Agent was installed, read from the `install_info` file written by the
+- `install-method` - **dict**: how the Agent was installed. The information is set through the Agent API
+  `/agent/install-info` endpoint, or read from the `DD_INSTALL_INFO_TOOL`, `DD_INSTALL_INFO_TOOL_VERSION` and
+  `DD_INSTALL_INFO_INSTALLER_VERSION` environment variables, or else from the `install_info` file written by the
   installation tool.
   - `tool` - **string**: the tool used to install the Agent (ex: `chef`, `ansible`, `install_script`, ...). `null`
-    if `install_info` can't be read.
-  - `tool_version` - **string**: the tool version. `"undefined"` if `install_info` can't be read.
+    if no install information is available.
+  - `tool_version` - **string**: the tool version. `"undefined"` if no install information is available.
   - `installer_version` - **string**: the version of the Datadog installation package (ex: the Chef cookbook or
-    Ansible role). `null` if `install_info` can't be read.
+    Ansible role). `null` if no install information is available.
 - `proxy-info` - **dict**:
   - `no-proxy-nonexact-match` - **boolean**: the value of `no_proxy_nonexact_match`, or `false` if it isn't explicitly
     configured.
@@ -115,18 +121,20 @@ The payload is a JSON dict with the following fields:
 - `fips_mode` - **boolean**: `true` if the Agent runs in FIPS mode (FIPS-compliant build).
 - `fips_proxy_enabled` - **boolean**: `true` if `fips.enabled` is set (FIPS proxy) and the Agent is not running in
   FIPS mode.
-- `resources` - **dict** (omitted if gohai fails to collect process information; not sent on BSD and Solaris):
+- `resources` - **dict** (omitted if gohai fails to collect process information; only sent on Linux and macOS):
   - `processes` - **dict**:
-    - `snaps` - **list**: a single process snapshot captured by gohai: `[<timestamp>, [<process group>, ...]]`, with
-      the 20 process groups (processes grouped by name) using the most RSS. Each process group is
-      `[<users>, <pct cpu>, <pct mem>, <vms>, <rss>, <name>, <process count>]`: `users` is a comma-separated list of
-      usernames, `pct cpu` is an integer, `pct mem` a float, and `vms`/`rss` are in bytes.
+    - `snaps` - **list**: a one-element list holding the process snapshot captured by gohai:
+      `[[<timestamp>, [<process group>, ...]]]`, with the 20 process groups (processes grouped by name) using the most
+      RSS. Each process group is `[<users>, <pct cpu>, <pct mem>, <vms>, <rss>, <name>, <process count>]`: `users` is
+      a comma-separated list of usernames, `pct cpu` is always `0` (computing it needs two samples), `pct mem` is a
+      float, and `vms`/`rss` are in bytes.
   - `meta` - **dict**:
     - `host` - **string**: the Agent hostname.
 - `gohai` - **string** (not sent on BSD and Solaris): a JSON object, serialized as a string, with gohai information.
   The object has the keys `cpu`, `filesystem`, `memory`, `network` and `platform`. `network` is `null` when the Agent is
-  containerized without host networking, unless `kubernetes_kubelet_host` provides a node IP. This field is an empty
-  string when `enable_gohai` is `false`. The standalone gohai payload, including processes, is available at
+  containerized and no `docker0` interface is visible (even with host networking, ex: on containerd or CRI-O nodes),
+  unless `kubernetes_kubelet_host` provides a node IP. This field is an empty
+  string when `enable_gohai` is `false` or when the gohai payload can't be serialized. The standalone gohai payload, including processes, is available at
   `agent diagnose show-metadata gohai`.
 
 ## OS version lists
@@ -161,7 +169,7 @@ is shortened:
     "agent-flavor": "agent",
     "python": "3.13.7 (main, Oct 10 2025, 13:16:08) [GCC 11.4.0]",
     "systemStats": {
-        "cpuCores": 4,
+        "cpuCores": 1,
         "machine": "amd64",
         "platform": "linux",
         "pythonV": "3.13.7",
@@ -179,7 +187,7 @@ is shortened:
         "hostname": "i-0123456789abcdef0",
         "host_aliases": ["my-host-alias"],
         "instance-id": "i-0123456789abcdef0",
-        "agent-hostname": "my-configured-hostname",
+        "agent-hostname": "i-0123456789abcdef0",
         "cluster-name": "prod-cluster",
         "legacy-resolution-hostname": "ip-172-31-10-20",
         "hostname-resolution-version": 1,
@@ -232,7 +240,7 @@ is shortened:
                 [
                     1763650000,
                     [
-                        ["dd-agent", 2, 0.8, 1730998272, 132431872, "agent", 1],
+                        ["dd-agent", 0, 0.8, 1730998272, 132431872, "agent", 1],
                         ["root", 0, 0.04, 10354688, 6422528, "sshd", 3]
                     ]
                 ]
@@ -242,7 +250,7 @@ is shortened:
             "host": "i-0123456789abcdef0"
         }
     },
-    "gohai": "{\"cpu\":{\"cache_size\":\"36608 KB\",\"cpu_cores\":\"2\",\"cpu_logical_processors\":\"4\",\"family\":\"6\",\"mhz\":\"2500.000\",\"model\":\"85\",\"model_name\":\"Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz\",\"stepping\":\"7\",\"vendor_id\":\"GenuineIntel\"},\"filesystem\":[{\"kb_size\":\"7941576\",\"mounted_on\":\"/\",\"name\":\"/dev/root\"}],\"memory\":{\"swap_total\":\"0kB\",\"total\":\"16107032kB\"},\"network\":{\"interfaces\":[{\"name\":\"ens5\",\"ipv4\":[\"172.31.10.20\"],\"ipv4-network\":\"172.31.0.0/20\",\"ipv6\":[\"fe80::1ff:fe23:4567:890a\"],\"ipv6-network\":\"fe80::/64\",\"macaddress\":\"0a:1b:2c:3d:4e:5f\"}],\"ipaddress\":\"172.31.10.20\",\"ipaddressv6\":\"fe80::1ff:fe23:4567:890a\",\"macaddress\":\"0a:1b:2c:3d:4e:5f\"},\"platform\":{\"GOOARCH\":\"amd64\",\"GOOS\":\"linux\",\"goV\":\"1.25.3\",\"hostname\":\"ip-172-31-10-20\",\"kernel_name\":\"Linux\",\"kernel_release\":\"6.8.0-1015-aws\",\"kernel_version\":\"#16-Ubuntu SMP Mon Aug 19 19:38:17 UTC 2024\",\"machine\":\"x86_64\",\"os\":\"GNU/Linux\",\"processor\":\"x86_64\",\"hardware_platform\":\"x86_64\",\"family\":\"\"}}"
+    "gohai": "{\"cpu\":{\"cache_size\":\"36608 KB\",\"cpu_cores\":\"2\",\"cpu_logical_processors\":\"4\",\"family\":\"6\",\"mhz\":\"2500\",\"model\":\"85\",\"model_name\":\"Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz\",\"stepping\":\"7\",\"vendor_id\":\"GenuineIntel\"},\"filesystem\":[{\"kb_size\":\"7941576\",\"mounted_on\":\"/\",\"name\":\"/dev/root\"}],\"memory\":{\"swap_total\":\"0kB\",\"total\":\"16493600768\"},\"network\":{\"interfaces\":[{\"name\":\"ens5\",\"ipv4\":[\"172.31.10.20\"],\"ipv4-network\":\"172.31.0.0/20\",\"ipv6\":[\"fe80::1ff:fe23:4567:890a\"],\"ipv6-network\":\"fe80::/64\",\"macaddress\":\"0a:1b:2c:3d:4e:5f\"}],\"ipaddress\":\"172.31.10.20\",\"ipaddressv6\":\"fe80::1ff:fe23:4567:890a\",\"macaddress\":\"0a:1b:2c:3d:4e:5f\"},\"platform\":{\"GOOARCH\":\"amd64\",\"GOOS\":\"linux\",\"goV\":\"1.25.3\",\"hostname\":\"ip-172-31-10-20\",\"kernel_name\":\"Linux\",\"kernel_release\":\"6.8.0-1015-aws\",\"kernel_version\":\"#16-Ubuntu SMP Mon Aug 19 19:38:17 UTC 2024\",\"machine\":\"x86_64\",\"os\":\"GNU/Linux\",\"processor\":\"x86_64\",\"hardware_platform\":\"x86_64\"}}"
 }
 ```
 

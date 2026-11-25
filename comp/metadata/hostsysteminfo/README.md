@@ -4,8 +4,10 @@ This package populates the host system information fields in the `End User Devic
 
 This is enabled only for the `end_user_device` infrastructure mode, on Windows and macOS.
 
-The payload is sent every 1 hour. This interval is hard-coded: `inventories_max_interval` and `inventories_min_interval`
-have no effect on this payload.
+The first payload is sent about 1 minute after startup (`inventories_first_run_delay`), then every 1 hour. This interval
+is hard-coded: `inventories_max_interval` and `inventories_min_interval` have no effect on this payload. Both the
+minimum and maximum intervals are 1 hour, and the payload is only checked every minimum interval, so the jitter applied
+to the other inventory payloads never makes it come early.
 
 # Content
 
@@ -46,7 +48,8 @@ The payload is a JSON dict with the following fields:
   - `serial_number` - **string**: The serial number assigned from the company and is accessible on the exterior of the device.
   - `model_name` - **string**: The model name of the current device.
   - `chassis_type` - **string**: The chassis type of the current device. One of: "Desktop", "Laptop", "Virtual Machine", or "Other".
-    Empty on Windows if the chassis type can't be read from WMI (`Win32_SystemEnclosure`).
+    Empty on Windows if `Win32_SystemEnclosure` or `Win32_ComputerSystem` can't be read from WMI, or if WMI reports no
+    chassis type.
   - `identifier` - **string**: the system SKU number or other unique identifier.
   - `computer_name` - **string**: the user-assigned device name (macOS only, e.g. from System Settings > Sharing). Empty on other platforms.
 

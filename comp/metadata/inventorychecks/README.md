@@ -5,7 +5,7 @@ This package populates some of the checks-related fields in the `inventories` pr
 This is enabled by default but can be turned off using the `inventories_enabled` or `enable_metadata_collection`
 config.
 
-The payload is sent every 10min (see `inventories_max_interval` in the config) or whenever it's updated with at most 1
+The payload is sent at least every 10min (see `inventories_max_interval` in the config) or whenever it's updated with at most 1
 update every 1 minute (see `inventories_min_interval`).
 
 # Content
@@ -39,7 +39,7 @@ The payload is a JSON dict with the following fields
 - `logs_metadata` - **dict of string to list**: dictionary with the log source names as keys; values are a list of the metadata
   for each instance of that log source. Empty when `inventories_checks_configuration_enabled` is false.
   Each instance is composed of:
-    - `config` - **string**: the canonical JSON of the log source configuration.
+    - `config` - **string**: the JSON of the publicly documented fields of the log source configuration.
     - `state` - **dict of string**: the current state of the log source.
       - `status` - **string**: one of `pending`, `error` or `success`.
       - `error` - **string**: the error description if any.
@@ -53,27 +53,31 @@ The payload is a JSON dict with the following fields
 - `files_metadata` - **dict of string to object**: the list of files path to content of integrations. The key is the full
   path of the file.
   Each object is composed of:
-    - `raw_config` - **string**: the scrubbed configuration file.
+    - `raw_config` - **string**: the scrubbed configuration file, re-encoded by the YAML scrubber: map keys are
+      sorted, and comments and the trailing newline are dropped.
     - `hash` - **string**: sha256 of the scrubbed file.
     - `secrets` - **array of objects**: the secret declarations in the file (see
       [Secret declarations in configuration files](#secret-declarations-in-configuration-files)). Omitted when
-      `metadata_skip_secrets` is true.
+      `metadata_skip_secrets` is true, and `null` when the file can't be scrubbed by the YAML v3 scrubber.
       - `kind` - **string**: `enc` or `raw`.
       - `path` - **string**: the dotted path of the setting, relative to the file.
       - `handle` - **string** (omitted for `raw`): the secret handle used in `ENC[]`.
-- `enc_info` - **object**: the secrets declared across all checks. Omitted when `metadata_skip_secrets` is true.
+- `enc_info` - **object**: the secrets declared across all the configuration files in `files_metadata` (see
+  [Secret declarations in configuration files](#secret-declarations-in-configuration-files)). Omitted when
+  `metadata_skip_secrets` is true.
     - `paths` - **list of string**: the paths of settings that contain secrets using the ENC directive.
     - `handles` - **list of string**: the handles that correspond to these paths.
     - `scrubbed` - **list of string**: the path of each raw credential replaced by the scrubber.
     - `hash_secret_id` - **dict of string to string**: the sha256 of the resolved value of each secret. The hashes are
-      scrubbed from flares and from the `show-metadata` output.
+      scrubbed from flares, but not from the `agent diagnose show-metadata inventory-checks` output.
 
 ### JMX checks
 
 In Agents built with JMX support, JMXFetch check instances are also listed in `check_metadata`, with a different shape:
 
 - `config.hash` is `<check name>-<host>-<port>`, followed by `:<name>` if the instance sets `name`.
-- The instance YAML is under the key `instance` (not `instance_config`).
+- The instance YAML is under the key `instance` (not `instance_config`). Both `init_config` and `instance` go through
+  the YAML scrubber, which drops the trailing newline.
 - `jmxfetch.version` and `java.version` are added when known.
 - `init_config` and `instance` are sent regardless of `inventories_checks_configuration_enabled`.
 
@@ -123,8 +127,8 @@ Here an example of an inventory payload:
                 "config.hash": "tomcat-localhost-9012",
                 "config.provider": "file",
                 "config.source": "/etc/datadog-agent/conf.d/tomcat.d/conf.yaml",
-                "init_config": "is_jmx: true\ncollect_default_metrics: true\n",
-                "instance": "host: localhost\nport: 9012\n",
+                "init_config": "collect_default_metrics: true\nis_jmx: true",
+                "instance": "host: localhost\nport: 9012",
                 "jmxfetch.version": "0.49.6",
                 "java.version": "17.0.12"
             }
@@ -133,7 +137,7 @@ Here an example of an inventory payload:
     "logs_metadata": {
         "redisdb": [
             {
-                "config": "{\"path\":\"/var/log/redis_6379.log\",\"service\":\"awesome_cache\",\"source\":\"redis\",\"type\":\"file\",\"tags\":[\"env:prod\"]}",
+                "config": "{\"type\":\"file\",\"path\":\"/var/log/redis_6379.log\",\"service\":\"awesome_cache\",\"source\":\"redis\",\"tags\":[\"env:prod\"]}",
                 "integration_name": "redisdb",
                 "integration_source": "container:docker://4bc64d2a3e7f9c1b8d0e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c",
                 "integration_source_index": 0,
@@ -148,7 +152,7 @@ Here an example of an inventory payload:
         ],
         "nginx": [
             {
-                "config": "{\"path\":\"/var/log/nginx/access.log\",\"service\":\"nginx\",\"source\":\"nginx\",\"type\":\"file\"}",
+                "config": "{\"type\":\"file\",\"path\":\"/var/log/nginx/access.log\",\"service\":\"nginx\",\"source\":\"nginx\"}",
                 "integration_name": "nginx",
                 "integration_source": "file:/etc/datadog-agent/conf.d/nginx.d/conf.yaml",
                 "integration_source_index": 0,
@@ -165,7 +169,7 @@ Here an example of an inventory payload:
     "files_metadata": {
         "/etc/datadog-agent/conf.d/hello.d/conf.yaml": {
             "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-            "raw_config": "init_config: {}\ninstances:\n- min_collection_interval: 15\n  password: ENC[db_password]\n  headers:\n    Authorization: '********'\n",
+            "raw_config": "init_config: {}\ninstances:\n- headers:\n    Authorization: '********'\n  min_collection_interval: 15\n  password: ENC[db_password]",
             "secrets": [
                 {"path": "instances.0.password", "kind": "enc", "handle": "db_password"},
                 {"path": "instances.0.headers.Authorization", "kind": "raw"}
@@ -210,4 +214,4 @@ prefixed by the filename, so the same path can appear several times.
 
 Secret references are collected independently of the existing integration configuration
 loader and scrubbed file output. If a configuration accepted by the YAML v2 loader
-fails strict YAML validation, its file metadata is still reported without secret references.
+is rejected by the YAML v3 scrubber, its file metadata is still reported without secret references.

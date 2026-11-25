@@ -1,8 +1,11 @@
 # Cluster-agent Metadata Payload
 This package populates some of the cluster-agent related fields in the cluster-agent (DDSQL) table.
 
-This is enabled by default (`enable_cluster_agent_metadata_collection` is `true`): the payload is sent to the backend every 10 minutes (see `inventories_max_interval` in the config).
+This is enabled by default (`enable_cluster_agent_metadata_collection` is `true`): the payload is sent to the backend at least every 10 minutes (see `inventories_max_interval` in the config).
 If `enable_cluster_agent_metadata_collection` is disabled, the payload is not sent to the backend but is still accessible through the flare (`cluster-agent-metadata.json`) and the `/metadata/cluster-agent` endpoint.
+Setting `enable_metadata_collection` or `inventories_enabled` to `false` disables the payload entirely: it is not sent,
+and the `/metadata/cluster-agent` endpoint returns an error instead of the payload, so the flare doesn't contain it
+either.
 
 # Cluster-agent Configuration
 The agent configurations are scrubbed from any sensitive information (same logic as for the flare). The Format section goes into more detail about what configuration is sent.
@@ -56,7 +59,8 @@ The payload is a JSON dictionary with the following fields:
   - `feature_cluster_checks_advanced_dispatching_enabled` - boolean: `cluster_checks.advanced_dispatching_enabled`.
   - `feature_cluster_checks_exclude_checks` - list of string: `cluster_checks.exclude_checks`.
 
-The `*_configuration` and `feature_*` fields are only sent when `inventories_configuration_enabled` is true.
+The `*_configuration` and `feature_*` fields are only sent when `inventories_configuration_enabled` is true. If it is
+turned off at runtime, the last values keep being sent.
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
 
@@ -67,14 +71,14 @@ The `*_configuration` and `feature_*` fields are only sent when `inventories_con
     "cluster_id": "00000000-0000-0000-0000-000000000002",
     "timestamp": 1742810761534538592,
     "datadog_cluster_agent_metadata": {
-        "agent_runtime_configuration": "internal_profiling:\n  enabled: true\n",
+        "agent_runtime_configuration": "internal_profiling:\n  enabled: true",
         "agent_startup_time_ms": 1742809996230,
         "agent_version": "7.65.0-devel+git.651.84a74a5",
-        "cli_configuration": "{}\n",
+        "cli_configuration": "{}",
         "cluster_check_node_agent_count": 3,
         "cluster_check_runner_count": 2,
         "cluster_id_error": "",
-        "environment_variable_configuration": "admission_controller.container_registry: gcr.io/datadoghq\nadmission_controller.enabled: \"true\"\nadmission_controller.failure_policy: Ignore\nadmission_controller.inject_config.local_service_name: datadog-agent-linux\nadmission_controller.inject_config.mode: socket\nadmission_controller.mutate_unlabelled: \"false\"\nadmission_controller.mutation.enabled: \"true\"\nadmission_controller.port: \"8000\"\nadmission_controller.service_name: datadog-agent-linux-cluster-agent-admission-controller\nadmission_controller.validation.enabled: \"true\"\nadmission_controller.webhook_name: datadog-webhook\napi_key: '***************************aaaaa'\napm_config.install_id: 00000000-0000-0000-0000-000000000003\napm_config.install_time: \"1742809959\"\napm_config.install_type: k8s_manual\nautoscaling.failover.enabled: \"true\"\ncluster_agent.auth_token: '********'\ncluster_agent.collect_kubernetes_tags: \"true\"\ncluster_agent.kubernetes_service_name: datadog-agent-linux-cluster-agent\ncluster_agent.language_detection.patcher.enabled: \"false\"\ncluster_agent.service_account_name: datadog-agent-linux-cluster-agent\ncluster_agent.token_name: datadog-agent-linuxtoken\ncluster_checks.enabled: \"true\"\ncluster_name: my-cluster\ncollect_kubernetes_events: \"true\"\nextra_config_providers: kube_endpoints kube_services\nextra_listeners: kube_endpoints kube_services\nhealth_port: \"5556\"\ninternal_profiling.enabled: \"true\"\nkube_resources_namespace: datadog-agent-helm\nkubernetes_events_source_detection.enabled: \"false\"\nkubernetes_namespace_labels_as_tags: '{\"kubernetes.io/metadata.name\":\"name\"}'\nkubernetes_use_endpoint_slices: \"false\"\nlanguage_detection.enabled: \"false\"\nlanguage_detection.reporting.enabled: \"false\"\nleader_election: \"true\"\nleader_election_default_resource: configmap\nleader_lease_duration: \"15\"\nleader_lease_name: datadog-agent-linux-leader-election\nlog_level: INFO\norchestrator_explorer.container_scrubbing.enabled: \"true\"\norchestrator_explorer.enabled: \"true\"\nproxy:\n  http: \"\"\n  https: \"\"\n  no_proxy:\n  - 169.254.169.254\n  - 100.100.100.200\nremote_configuration.enabled: \"false\"\nsecret_backend_command_allow_group_exec_perm: \"true\"\nsecurity_agent.internal_profiling.api_key: '***************************aaaaa'\nsslkeylogfile: /tmp/sslkeylog.txt\n",
+        "environment_variable_configuration": "admission_controller.enabled: \"true\"\nadmission_controller.mutate_unlabelled: \"false\"\nadmission_controller.mutation.enabled: \"true\"\nadmission_controller.validation.enabled: \"true\"\napi_key: '***************************aaaaa'\ncluster_agent.auth_token: '********'\ncluster_checks.enabled: \"true\"\ncluster_name: my-cluster\nleader_election: \"true\"\nlog_level: INFO\nremote_configuration.enabled: \"false\"",
         "feature_admission_controller_auto_instrumentation_enabled": true,
         "feature_admission_controller_cws_instrumentation_enabled": false,
         "feature_admission_controller_enabled": true,
@@ -92,19 +96,19 @@ The `*_configuration` and `feature_*` fields are only sent when `inventories_con
         "feature_external_metrics_provider_enabled": false,
         "feature_external_metrics_provider_use_datadogmetric_crd": false,
         "feature_remote_configuration_enabled": false,
-        "file_configuration": "{}\n",
+        "file_configuration": "cluster_checks:\n  exclude_checks:\n  - disk",
         "flavor": "cluster_agent",
-        "fleet_policies_configuration": "{}\n",
-        "full_configuration": "ac_exclude: []\nac_include: []\nadmission_controller:\n  enabled: true\n  failure_policy: Ignore\n  mutate_unlabelled: false\n  port: 8000\napi_key: '***************************aaaaa'\ncluster_checks:\n  enabled: true\n  exclude_checks:\n  - disk\ncluster_name: my-cluster\nleader_election: true\nlog_level: INFO\n",
+        "fleet_policies_configuration": "{}",
+        "full_configuration": "ac_exclude: []\nac_include: []\nadmission_controller:\n  enabled: true\n  failure_policy: Ignore\n  mutate_unlabelled: false\n  mutation:\n    enabled: true\n  port: 8000\n  validation:\n    enabled: true\napi_key: '***************************aaaaa'\ncluster_agent:\n  auth_token: '********'\ncluster_checks:\n  enabled: true\n  exclude_checks:\n  - disk\ncluster_name: my-cluster\ninternal_profiling:\n  enabled: true\nleader_election: true\nlog_level: INFO\nremote_configuration:\n  enabled: false",
         "install_method_installer_version": "datadog-3.110.2",
         "install_method_tool": "helm",
         "install_method_tool_version": "Helm",
         "is_leader": true,
         "leader_election": true,
         "pod_name": "datadog-agent-linux-cluster-agent-6d8f7b9c5-x2k4p",
-        "provided_configuration": "admission_controller:\n  enabled: true\napi_key: '***************************aaaaa'\ncluster_checks:\n  enabled: true\n  exclude_checks:\n  - disk\ncluster_name: my-cluster\nleader_election: true\n",
-        "remote_configuration": "{}\n",
-        "source_local_configuration": "{}\n"
+        "provided_configuration": "admission_controller:\n  enabled: true\n  mutate_unlabelled: false\n  mutation:\n    enabled: true\n  validation:\n    enabled: true\napi_key: '***************************aaaaa'\ncluster_agent:\n  auth_token: '********'\ncluster_checks:\n  enabled: true\n  exclude_checks:\n  - disk\ncluster_name: my-cluster\ninternal_profiling:\n  enabled: true\nleader_election: true\nlog_level: INFO\nremote_configuration:\n  enabled: false",
+        "remote_configuration": "{}",
+        "source_local_configuration": "{}"
     },
     "uuid": "00000000-0000-0000-0000-000000000001"
 }

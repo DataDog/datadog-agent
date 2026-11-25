@@ -3,9 +3,10 @@
 This package populates some of the agent-related fields in the `inventories` product in DataDog. More specifically the
 `datadog-agent` table.
 
-This is enabled by default but can be turned off using `inventories_enabled` config.
+This is enabled by default but can be turned off using the `inventories_enabled` or `enable_metadata_collection`
+config.
 
-The payload is sent every 10min (see `inventories_max_interval` in the config) or whenever it's updated with at most 1
+The payload is sent at least every 10min (see `inventories_max_interval` in the config) or whenever it's updated with at most 1
 update every minute (see `inventories_min_interval`).
 
 # Content
@@ -15,8 +16,8 @@ The `Set` method from the component allow the rest of the codebase to add any in
 ## Shared payload code
 
 `agentmetadata.NewData` and its `Init` method collect the common fields: versions, startup time, installation
-information, hostname source, and infrastructure mode. `GetPayload` combines those fields with caller-supplied
-metadata and the optional scrubbed configuration. The component calls `Init` only when `inventories_enabled` is true.
+information, hostname source, flavor, and infrastructure mode. `GetPayload` combines those fields with caller-supplied
+metadata and the optional scrubbed configuration. The component calls `Init` only when both `enable_metadata_collection` and `inventories_enabled` are true.
 
 ## Agent Configuration
 
@@ -35,7 +36,7 @@ The payload is a JSON dict with the following fields
 - `files_metadata` - **dict of string to object**: the scrubbed contents of the configuration files, keyed by their
   full file path. Only present when `inventories_configuration_enabled` is true. It contains at most 4 files: the main
   `datadog.yaml`, the `system-probe.yaml` in use, and the `security-agent.yaml` and `application_monitoring.yaml` files
-  next to `datadog.yaml`. Files that can't be read are skipped and the field is omitted when no file is found. YAML
+  next to `datadog.yaml`. Files that can't be read or scrubbed are skipped and the field is omitted when no file is found. YAML
   setting order is preserved, while comments are omitted to avoid possibly outputting secrets. Each object contains:
   - `raw_config` - **string**: the scrubbed configuration file.
   - `hash` - **string**: the SHA-256 hash of `raw_config`.
@@ -46,7 +47,8 @@ The payload is a JSON dict with the following fields
     - `handle` - **string** (omitted for `raw`): the secret handle used in `ENC[]`.
 - `agent_metadata` - **dict of string to JSON type**:
   - `hostname_source` - **string**: the source for the agent hostname (see pkg/util/hostname/providers.go:GetWithProvider).
-    Omitted when the provider is unknown or when the hostname comes from Fargate.
+    Omitted when the provider is unknown, when the hostname comes from Fargate, or when the hostname can't be
+    retrieved.
   - `agent_version` - **string**: the version of the Agent.
   - `package_version` - **string**: the version of the Agent package.
   - `agent_startup_time_ms` - **int**: the Agent startup timestamp (Unix milliseconds timestamp).
@@ -65,7 +67,8 @@ The payload is a JSON dict with the following fields
   - `config_eks_fargate` - **bool**: the configuration value `eks_fargate`
   - `eks_fargate_cluster_name` - **string**: the configuration value `cluster_name`. Only set when `eks_fargate` is true.
   - `diagnostics` - **dict of string to JSON type**: the result of series of connectivity checks performed on the agent.
-    Not sent when `inventories_diagnostics_enabled` is false.
+    Not sent when `inventories_diagnostics_enabled` is false at startup. Turning it on at runtime starts the checks;
+    turning it off at runtime stops them, but the last result keeps being sent.
     - `connectivity` - **array of objects**: one entry per connectivity check:
       - `status` - **string**: `success` or `failure`.
       - `description` - **string**: what was checked.
@@ -73,7 +76,7 @@ The payload is a JSON dict with the following fields
       - `metadata` - **dict of string to string** (omitted if empty): extra information about the check (ex: the
         endpoint).
   - `enc_info` - **dict**: the paths of secret settings, their handles, scrubbed leafs and the hash of the resolved
-    secrets (scrubbed). Omitted when `metadata_skip_secrets` is true.
+    secrets. Omitted when `metadata_skip_secrets` is true.
     - `paths` - **array of strings**: the paths of settings that contain secrets
     - `handles` - **array of strings**: the handles that correspond to these paths
     - `scrubbed` - **array of strings**: the keys of non-default settings whose values were scrubbed, either because the key is known to be sensitive (ex: `snmp_traps.users.0.authKey`) or because the value looks like a credential (ex: a raw API key). Keys already covered by `paths` are omitted
@@ -81,13 +84,13 @@ The payload is a JSON dict with the following fields
       hash of the secret value. The hashes are scrubbed from flares and from the `show-metadata` output.
   - `install_method_tool` - **string**: the name of the tool used to install the agent (ie, Chef, Ansible, ...).
   - `install_method_tool_version` - **string**: the tool version used to install the agent (ie: Chef version, Ansible
-    version, ...). This defaults to `"undefined"` when not installed through a tool (like when installed with apt, source
-    build, ...).
+    version, ...). Empty when no install information is available, in which case `install_method_tool` is
+    `"undefined"`.
   - `install_method_installer_version` - **string**:  The version of Datadog module (ex: the Chef Datadog package, the Datadog Ansible playbook, ...).
   - `logs_transport` - **string**:  The transport used to send logs to Datadog. Value is either `"HTTP"` or `"TCP"` when logs collection is
     enabled, otherwise the field is omitted.
   - `feature_cws_enabled` - **bool**: True if the Cloud Workload Security is enabled (see: `runtime_security_config.enabled`
-    config option).
+    config option in `system-probe.yaml`).
   - `feature_process_enabled` - **bool**: True if the Process Agent has process collection enabled
      (see: `process_config.process_collection.enabled` config option).
   - `feature_process_language_detection_enabled` - **bool**: True if process language detection is enabled
@@ -129,14 +132,14 @@ The payload is a JSON dict with the following fields
   - `feature_usm_postgres_enabled` - **bool**: True if Postgres monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.postgres.enabled` config option in `system-probe.yaml`)
   - `feature_usm_redis_enabled` - **bool**: True if Redis monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.redis.enabled` config option in `system-probe.yaml`)
   - `feature_usm_go_tls_enabled` - **bool**: True if HTTPS monitoring through GoTLS is enabled for Universal Service Monitoring (see: `service_monitoring_config.tls.go.enabled` config option in `system-probe.yaml`).
-  - `feature_discovery_enabled` - **bool**: True if discovery module is enabled (see: `discovery.enabled` config option).
+  - `feature_discovery_enabled` - **bool**: True if discovery module is enabled (see: `discovery.enabled` config option in `system-probe.yaml`).
   - `feature_discovery_service_map_enabled` - **bool**: True if the discovery service map mode is enabled (see:
     `discovery.service_map.enabled` config option in `system-probe.yaml`). When true, `feature_usm_enabled`,
     `feature_networks_http_enabled`, `feature_networks_https_enabled`, `feature_usm_istio_enabled` and
     `feature_usm_go_tls_enabled` are reported as false.
   - `feature_gpu_monitoring_enabled` - **bool**: True if GPU monitoring is enabled (see: `gpu.enabled` config option in
     `datadog.yaml` or `gpu_monitoring.enabled` config option in `system-probe.yaml`).
-  - `feature_dynamic_instrumentation_enabled` - **bool**: True if dynamic instrumentation module is enabled (see: `dynamic_instrumentation.enabled` config option).
+  - `feature_dynamic_instrumentation_enabled` - **bool**: True if dynamic instrumentation module is enabled (see: `dynamic_instrumentation.enabled` config option in `system-probe.yaml`).
   - `feature_logs_enabled` - **bool**: True if the logs collection is enabled (see: `logs_enabled` config option).
   - `feature_private_action_runner_enabled` - **bool**: True if the Private Action Runner is enabled in split deployment mode (see: `private_action_runner.enabled` and `private_action_runner.split_enabled` config options).
   - `feature_cspm_enabled` - **bool**: True if the Cloud Security Posture Management is enabled (see:
@@ -150,11 +153,11 @@ The payload is a JSON dict with the following fields
   - `feature_container_images_enabled` - **bool**: True if Container Images is enabled (see: `container_image.enabled` config option).
   - `feature_csm_vm_containers_enabled` - **bool**: True if VM Containers is enabled for Cloud Security Management (see: `sbom.enabled`, `container_image.enabled` and `sbom.container_image.enabled` config options).
   - `feature_csm_vm_hosts_enabled` - **bool**: True if VM Hosts is enabled for Cloud Security Management (see: `sbom.enabled` and `sbom.host.enabled` config options).
-  - `feature_cws_network_enabled` - **bool**: True if Network Monitoring is enabled for Cloud Workload Security (see: `event_monitoring_config.network.enabled` config option).
-  - `feature_cws_remote_config_enabled` - **bool**: True if Remote Config is enabled for Cloud Workload Security (see: `runtime_security_config.remote_configuration.enabled` config option).
-  - `feature_cws_security_profiles_enabled` - **bool**: True if Security Profiles is enabled for Cloud Workload Security (see: `runtime_security_config.activity_dump.enabled` config option).
-  - `feature_usm_istio_enabled` - **bool**: True if Istio is enabled for Universal Service Monitoring (see: `service_monitoring_config.tls.istio.enabled` config option).
-  - `feature_windows_crash_detection_enabled` - **bool**: True if Windows Crash Detection is enabled (see: `windows_crash_detection.enabled` config option).
+  - `feature_cws_network_enabled` - **bool**: True if Network Monitoring is enabled for Cloud Workload Security (see: `event_monitoring_config.network.enabled` config option in `system-probe.yaml`).
+  - `feature_cws_remote_config_enabled` - **bool**: True if Remote Config is enabled for Cloud Workload Security (see: `runtime_security_config.remote_configuration.enabled` config option in `system-probe.yaml`).
+  - `feature_cws_security_profiles_enabled` - **bool**: True if Security Profiles is enabled for Cloud Workload Security (see: `runtime_security_config.activity_dump.enabled` config option in `system-probe.yaml`).
+  - `feature_usm_istio_enabled` - **bool**: True if Istio is enabled for Universal Service Monitoring (see: `service_monitoring_config.tls.istio.enabled` config option in `system-probe.yaml`).
+  - `feature_windows_crash_detection_enabled` - **bool**: True if Windows Crash Detection is enabled (see: `windows_crash_detection.enabled` config option in `system-probe.yaml`).
   - `feature_auto_instrumentation_enabled` - **bool**: True if APM Auto-Instrumentation is installed and enabled.
   - `full_configuration` - **string**: the current Agent configuration scrubbed, including all the defaults, as a YAML
     string.
@@ -175,8 +178,8 @@ The payload is a JSON dict with the following fields
   - `cli_configuration` - **string**: the Agent configuration specified by the CLI (scrubbed), as a YAML string.
     Only the settings set in the CLI are included, they cannot be overridden by any other sources.
   - `source_local_configuration` - **string**: the Agent configuration synchronized from the local Agent process, as a YAML string.
-  - `ecs_fargate_task_arn` - **string**: if the Agent runs in ECS Fargate, contains the Agent's Task ARN. Else, is empty.
-  - `ecs_fargate_cluster_name` - **string**: if the Agent runs in ECS Fargate, contains the Agent's cluster name. Else, is empty.
+  - `ecs_fargate_task_arn` - **string**: the Agent's Task ARN. Only set when the Agent runs in ECS Fargate.
+  - `ecs_fargate_cluster_name` - **string**: the Agent's cluster name. Only set when the Agent runs in ECS Fargate.
   - `fleet_policies_applied` -- **array of string**: The Fleet Policies that have been applied to the agent, if any. Is empty if no policy is applied.
   - `config_id` -- **string**: the Fleet Config ID, the configuration value `config_id`.
   - `auto_instrumentation_modes` -- **array of string**: The injection types enabled for APM Auto-Instrumentation.
@@ -194,7 +197,7 @@ The payload is a JSON dict with the following fields
 ## Example Payload
 
 Here an example of an inventory payload (`application_monitoring_config` is the base64 encoding of
-`apm_configuration_default:\n  DD_PROFILING_ENABLED: true\n`):
+`apm_configuration_default:\n  DD_PROFILING_ENABLED: true`; the hashes are placeholders):
 
 ```json
 {
@@ -219,23 +222,23 @@ Here an example of an inventory payload (`application_monitoring_config` is the 
         "config_process_dd_url": "",
         "config_proxy_http": "",
         "config_proxy_https": "http://localhost:9999",
-        "config_eks_fargate": true,
-        "eks_fargate_cluster_name": "my-eks-cluster",
+        "config_eks_fargate": false,
         "diagnostics": {
             "connectivity": [
                 {
                     "status": "success",
-                    "description": "Ping to Datadog intake",
+                    "description": "Agent keys",
                     "metadata": {
-                        "endpoint": "https://intake.profile.datadoghq.com/api/v2/profile"
+                        "endpoint": "https://keys.datadoghq.com"
                     }
                 },
                 {
                     "status": "failure",
-                    "description": "Ping to Datadog intake",
-                    "error": "context deadline exceeded",
+                    "description": "APM traces",
+                    "error": "Failed to connect",
                     "metadata": {
-                        "endpoint": "https://process.datadoghq.com/api/v1/collector"
+                        "endpoint": "https://trace.agent.datadoghq.com/_health",
+                        "raw_error": "context deadline exceeded"
                     }
                 }
             ]
@@ -326,8 +329,6 @@ Here an example of an inventory payload (`application_monitoring_config` is the 
         "fleet_policies_configuration": "{}",
         "cli_configuration": "log_level: \"warn\"",
         "source_local_configuration": "{}",
-        "ecs_fargate_task_arn": "",
-        "ecs_fargate_cluster_name": "",
         "fleet_policies_applied": [
             "my-policy"
         ],
@@ -337,7 +338,7 @@ Here an example of an inventory payload (`application_monitoring_config` is the 
             "docker"
         ],
         "infrastructure_mode": "full",
-        "application_monitoring_config": "YXBtX2NvbmZpZ3VyYXRpb25fZGVmYXVsdDoKICBERF9QUk9GSUxJTkdfRU5BQkxFRDogdHJ1ZQo=",
+        "application_monitoring_config": "YXBtX2NvbmZpZ3VyYXRpb25fZGVmYXVsdDoKICBERF9QUk9GSUxJTkdfRU5BQkxFRDogdHJ1ZQ==",
         "application_monitoring_config_fleet": null
     },
     "files_metadata": {
