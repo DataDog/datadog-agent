@@ -342,7 +342,7 @@ func (a *Agent) obfuscateStatsGroup(b *pb.ClientGroupedStats) {
 	case "sql", "cassandra":
 		oq, err := o.ObfuscateSQLStringForDBMS(b.Resource, b.DBType)
 		if err != nil {
-			log.Errorf("Error obfuscating stats group resource %q: %v", b.Resource, err)
+			log.Debugf("Error obfuscating stats group resource: %v", err)
 			b.Resource = textNonParsable
 		} else {
 			b.Resource = oq.Query

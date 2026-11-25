@@ -24,7 +24,7 @@ const (
 
 // SetSourceList sets the source list for a given product name
 func SetSourceList(productName string, sourcePath string, packageName string) error {
-	product, err := FindProductCode(productName)
+	product, err := FindProductCodeFromUninstallRegistry(productName)
 	if err != nil {
 		return err
 	}

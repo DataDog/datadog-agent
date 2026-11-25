@@ -44,13 +44,15 @@ def _cgo_godefs_impl(ctx):
     inc = collect_include_dirs(all_deps)
     headers = collect_headers(all_deps + list(ctx.attr.hdrs))
 
-    # Filter out bazel-out and root dirs; keep only source-tree includes.
-    # CcInfo adds generated output dirs that don't affect correctness but
-    # would pollute the cgo -godefs comment line embedded in the output.
+    # Filter out bazel-out, external and root dirs; keep only source-tree
+    # includes. CcInfo adds generated output dirs and, depending on the target
+    # platform, toolchain runtime repos (e.g. external/llvm+) that don't affect
+    # correctness but would pollute the cgo -godefs comment line embedded in
+    # the output.
     def _filter_and_rel(dirs):
         result = []
         for d in dirs:
-            if d.startswith("bazel-out") or d == ".":
+            if d.startswith("bazel-out") or d.startswith("external/") or d == ".":
                 continue
             r = _relpath(d, src.dirname)
             if r not in result:

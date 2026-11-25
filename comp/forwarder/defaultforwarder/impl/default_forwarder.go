@@ -768,6 +768,11 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, pay
 	results := make(chan defaultforwarderdef.Response, len(transactions))
 	internalResults := make(chan defaultforwarderdef.Response, len(transactions))
 	expectedResponses := len(transactions)
+	if expectedResponses == 0 {
+		// No transaction means no response to wait for.
+		close(results)
+		return results, f.sendHTTPTransactions(transactions)
+	}
 
 	for _, txn := range transactions {
 		txn.Retryable = retryable

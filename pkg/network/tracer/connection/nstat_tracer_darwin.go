@@ -22,6 +22,7 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/google/gopacket/layers"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/mod/semver"
 	"golang.org/x/sys/unix"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -68,6 +69,21 @@ const (
 	// unpublished source silent for this long is described again so the
 	// kernel can answer ENOENT if its removal was lost.
 	nstatSilentSourceProbe = 30 * time.Second
+
+	// A published source's domain is recorded again this often, as the counts
+	// of QueryAll arrive. The DNS monitor caches it for 10 minutes and keeps
+	// it longer only while clients collect connections to the address, which
+	// they don't for an idle connection.
+	nstatDomainRefresh = time.Minute
+
+	// GetConnections waits at most this long for a domain being recorded,
+	// which normally takes microseconds.
+	nstatDomainRecordWait = time.Second
+
+	// Darwin 21.2 is macOS 12.1, the oldest release whose NStat updates carry
+	// the domain extension the tracer requests. macOS 12.0 attached domains
+	// through an earlier, incompatible filter.
+	darwinDomainsKernelRelease = "v21.2"
 
 	tcpStateClosed      = 0
 	tcpStateListen      = 1
@@ -125,6 +141,7 @@ var nstatTracerTelemetry = struct {
 	connStatusUnknown  telemetry.Counter
 	connProbeMissed    telemetry.Counter
 	activeSources      telemetry.Gauge
+	domains            telemetry.Counter
 }{
 	datagrams:          telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "datagrams", nil, "NStat datagrams received"),
 	events:             telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "events", nil, "NStat messages decoded"),
@@ -148,12 +165,14 @@ var nstatTracerTelemetry = struct {
 	connStatusUnknown:  telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "conn_status_unknown", nil, "TCP sources whose descriptor length matches no known connstatus layout"),
 	connProbeMissed:    telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "conn_probe_missed", nil, "TCP connects still in SYN_SENT after the probe window without conn_probe_failed"),
 	activeSources:      telemetryimpl.GetCompatComponent().NewGauge("network_tracer__nstat", "active_sources", nil, "NStat sources currently tracked"),
+	domains:            telemetryimpl.GetCompatComponent().NewCounter("network_tracer__nstat", "domains", []string{"result"}, "NStat updates received while recording connection domains: with a domain, with an empty or unusable domain item, without a domain item (absent), or with undecodable extension items (unparsed)"),
 }
 
 type nstatControl interface {
 	Subscribe(provider uint32) (uint64, error)
 	QueryAll() error
 	RequestDescription(sourceRef uint64) error
+	RequestUpdate(sourceRef uint64) error
 	Poll(timeout time.Duration) (bool, error)
 	Receive(buffer []byte) (int, error)
 	Close() error
@@ -191,6 +210,12 @@ type nstatSource struct {
 	listenerIndexed          bool
 	loopbackFiltered         bool
 	peerlessFiltered         bool
+	domain                   string
+	domainRecorded           time.Time
+	// dnsServer is set once the source is found connected to a DNS server.
+	// Its domain is then a looked-up name until it connects to another peer,
+	// even if the server is no longer listed.
+	dnsServer bool
 }
 
 type nstatTracer struct {
@@ -220,6 +245,22 @@ type nstatTracer struct {
 	// with the given index. It is set before Start and nil when no packet
 	// sidecar runs.
 	packetCoverage func(ifIndex uint32) bool
+
+	// recordDomain receives the domain each published connection was opened
+	// for, again every nstatDomainRefresh, and is called without mu held. It
+	// is set before Start, and sources are described with update requests
+	// while it is set.
+	recordDomain func(addr processutil.Address, port uint16, domain string)
+	// domainRecording is closed once the domain processEvent last recorded
+	// is in. GetConnections waits for it after its snapshot, at most
+	// nstatDomainRecordWait, so a client that collects a connection also
+	// finds its name, and a recorder that blocks or calls back into the
+	// tracer can't hold collections up for good.
+	domainRecording chan struct{}
+	// isDNSServer reports whether a remote address serves plain DNS on a
+	// port, so that connections to it record no domain. It is set along with
+	// recordDomain, and is called with mu held.
+	isDNSServer func(addr processutil.Address, port uint16) bool
 
 	// Sources without any flow description take priority over retries for
 	// partially described sources. Both queues are FIFO so retries cannot
@@ -289,6 +330,56 @@ func newNStatTracerWithControl(cfg *config.Config, control nstatControl) *nstatT
 		now:                  time.Now,
 		exit:                 make(chan struct{}),
 	}
+}
+
+// DarwinDomainRecorder records the domains the NStat backend reports.
+type DarwinDomainRecorder interface {
+	// AddDomain records domain as a name of addr, the destination of a
+	// connection on port. It records nothing if addr serves plain DNS on
+	// port by then, since the tracer's IsDNSServer check can predate a
+	// server being listed.
+	AddDomain(addr processutil.Address, port uint16, domain string)
+	// IsDNSServer reports whether addr serves plain DNS on port. The system
+	// resolver tags each plain DNS query socket with the name it looks up,
+	// which is not a name of the server, so connections to a DNS server
+	// record no domain. It must not block.
+	IsDNSServer(addr processutil.Address, port uint16) bool
+}
+
+// RecordDarwinDomains makes the NStat backend of tracer pass recorder the
+// domain each connection was opened for, on macOS 12.1 and later. It must be
+// called before Start, and does nothing for other backends.
+func RecordDarwinDomains(tracer Tracer, recorder DarwinDomainRecorder) {
+	if fallback, ok := tracer.(*darwinRuntimeFallbackTracer); ok {
+		tracer = fallback.active
+	}
+	composite, ok := tracer.(*darwinCompositeTracer)
+	if !ok || composite.primary == nil || !darwinKernelRecordsDomains(darwinKernelRelease()) {
+		return
+	}
+	composite.primary.recordDomain = recorder.AddDomain
+	composite.primary.isDNSServer = recorder.IsDNSServer
+}
+
+// darwinKernelRelease returns the running Darwin kernel release, such as
+// "21.6.0", or an empty string if it cannot be read.
+func darwinKernelRelease() string {
+	release, err := unix.Sysctl("kern.osrelease")
+	if err != nil {
+		log.Debugf("nstat: unable to read the kernel release: %v", err)
+		return ""
+	}
+	return release
+}
+
+// darwinKernelRecordsDomains reports whether a Darwin kernel release is
+// macOS 12.1 or later, whose NStat updates carry connection domains.
+func darwinKernelRecordsDomains(release string) bool {
+	if !semver.IsValid("v" + release) {
+		log.Debugf("nstat: unable to parse kernel release %q", release)
+		return false
+	}
+	return semver.Compare("v"+release, darwinDomainsKernelRelease) >= 0
 }
 
 func (t *nstatTracer) Start(closeCallback func(*network.ConnectionStats)) error {
@@ -507,6 +598,7 @@ func (t *nstatTracer) isStopping() bool {
 
 func (t *nstatTracer) processEvent(event nstat.Event) {
 	var closed *network.ConnectionStats
+	var domain nstatDomain
 
 	t.mu.Lock()
 	switch event.Kind {
@@ -564,7 +656,21 @@ func (t *nstatTracer) processEvent(event nstat.Event) {
 				}
 				source = t.getSource(event.SourceRef)
 			}
+			var dest processutil.Address
+			var dport uint16
+			if source.conn != nil {
+				dest, dport = source.conn.Dest, source.conn.DPort
+			}
 			t.updateSource(event.SourceRef, source, event)
+			if dport != 0 && source.conn != nil && (source.conn.Dest != dest || source.conn.DPort != dport) {
+				// A UDP socket connected to another peer. Its domain, and
+				// whether it talks to a DNS server, were of the previous one.
+				source.domain, source.domainRecorded, source.dnsServer = "", time.Time{}, false
+			}
+			if event.Kind == nstat.EventUpdate {
+				t.observeDomainLocked(source, event)
+			}
+			domain = t.domainToRecordLocked(source)
 			if source.removed && source.conn != nil {
 				closed = t.closeAndRemoveSource(event.SourceRef, source)
 			} else if source.removed && nstatSourceResolved(source) {
@@ -573,8 +679,9 @@ func (t *nstatTracer) processEvent(event nstat.Event) {
 		}
 	case nstat.EventRemoved:
 		// XNU handles each request inside the send that issued it and queues a
-		// source's final counts and description before its removal, so only
-		// error replies arrive for this source reference after this event.
+		// source's final state before its removal: counts and a description,
+		// or a single update once an update request has been sent. Only error
+		// replies arrive for this source reference after this event.
 		if source := t.sources[event.SourceRef]; source != nil {
 			if source.conn != nil {
 				closed = t.closeAndRemoveSource(event.SourceRef, source)
@@ -592,8 +699,23 @@ func (t *nstatTracer) processEvent(event nstat.Event) {
 		}
 	}
 	callback := t.closeCallback
+	record := t.recordDomain
+	var recorded chan struct{}
+	if domain.name != "" {
+		recorded = make(chan struct{})
+		t.domainRecording = recorded
+	}
 	t.mu.Unlock()
 
+	// The domain is recorded before the closed connection is handed over, so
+	// a client that collects the connection also finds its name.
+	if domain.name != "" {
+		func() {
+			// Deferred, so that a recovered panic can't leave collections waiting.
+			defer close(recorded)
+			record(domain.addr, domain.port, domain.name)
+		}()
+	}
 	if closed != nil && callback != nil {
 		callback(closed)
 	}
@@ -652,10 +774,16 @@ func (t *nstatTracer) pumpDescriptionRequests(now time.Time) {
 		}
 		requests = append(requests, sourceRef)
 	}
+	// An update describes the source as a description does, and also
+	// carries its domain.
+	request := t.control.RequestDescription
+	if t.recordDomain != nil {
+		request = t.control.RequestUpdate
+	}
 	t.mu.Unlock()
 
 	for _, sourceRef := range requests {
-		if err := t.control.RequestDescription(sourceRef); err != nil {
+		if err := request(sourceRef); err != nil {
 			nstatTracerTelemetry.descriptionErrors.Inc()
 			log.Debugf("nstat description request for source %d failed: %v", sourceRef, err)
 			t.mu.Lock()
@@ -797,6 +925,57 @@ func (t *nstatTracer) updateSource(sourceRef uint64, source *nstatSource, event 
 		source.connProbeDeadline = now.Add(nstatConnectProbeWindow)
 	}
 	t.applySource(source)
+}
+
+// observeDomainLocked keeps the first domain an update carries for a source.
+func (t *nstatTracer) observeDomainLocked(source *nstatSource, event nstat.Event) {
+	if t.recordDomain == nil {
+		return
+	}
+	nstatTracerTelemetry.domains.Inc(nstatDomainResult(event.DomainState))
+	if event.DomainState == nstat.DomainFound && source.domain == "" {
+		source.domain = event.Domain
+	}
+}
+
+// nstatDomain is a domain to record for a remote address. The zero value
+// records nothing.
+type nstatDomain struct {
+	addr processutil.Address
+	port uint16
+	name string
+}
+
+// domainToRecordLocked returns the domain to record for a published source:
+// once the source has both a domain and a connection, and again every
+// nstatDomainRefresh.
+func (t *nstatTracer) domainToRecordLocked(source *nstatSource) nstatDomain {
+	if t.recordDomain == nil || source.conn == nil || source.domain == "" {
+		return nstatDomain{}
+	}
+	now := t.now()
+	if now.Sub(source.domainRecorded) < nstatDomainRefresh {
+		return nstatDomain{}
+	}
+	source.domainRecorded = now
+	if source.dnsServer || (t.isDNSServer != nil && t.isDNSServer(source.conn.Dest, source.conn.DPort)) {
+		source.dnsServer = true
+		return nstatDomain{}
+	}
+	return nstatDomain{addr: source.conn.Dest, port: source.conn.DPort, name: source.domain}
+}
+
+func nstatDomainResult(state nstat.DomainState) string {
+	switch state {
+	case nstat.DomainFound:
+		return "domain"
+	case nstat.DomainEmpty:
+		return "empty"
+	case nstat.DomainUnparsed:
+		return "unparsed"
+	default:
+		return "absent"
+	}
 }
 
 func (source *nstatSource) observeTCPState(state uint32) (network.ConnectionDirection, darwinDirectionEvidence) {
@@ -1563,11 +1742,28 @@ func (t *nstatTracer) Stop() {
 }
 
 func (t *nstatTracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error {
+	recording, err := t.getConnections(buffer, filter)
+	if err != nil || recording == nil {
+		return err
+	}
+	// Only the run loop records, one domain at a time, so the domains of the
+	// connections just collected are in once the last one recorded is.
+	select {
+	case <-recording:
+	case <-time.After(nstatDomainRecordWait):
+		log.Debugf("nstat: collected connections before a domain was recorded")
+	}
+	return nil
+}
+
+// getConnections appends the published connections to buffer and returns
+// the channel closed once the domain last recorded is in.
+func (t *nstatTracer) getConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) (chan struct{}, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	if t.runtimeErr != nil {
-		return t.runtimeErr
+		return nil, t.runtimeErr
 	}
 	connections := make([]network.ConnectionStats, 0, len(t.sources))
 	for _, source := range t.sources {
@@ -1588,7 +1784,7 @@ func (t *nstatTracer) GetConnections(buffer *network.ConnectionBuffer, filter fu
 		connections = append(connections, conn)
 	}
 	buffer.Append(connections)
-	return nil
+	return t.domainRecording, nil
 }
 
 func (t *nstatTracer) FlushPending() {}

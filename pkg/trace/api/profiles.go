@@ -16,6 +16,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -238,13 +239,18 @@ func handleProxyError(w http.ResponseWriter, r *http.Request, err error) {
 		errorType = "transport error"
 	}
 
+	payloadSizeStr := "chunked"
+	if payloadSize != -1 {
+		payloadSizeStr = strconv.FormatInt(payloadSize, 10)
+	}
+
 	// Single comprehensive log with all context
-	if payloadSize == -1 {
-		log.Warnf("profiling proxy error: %s (%d) for %s %s - payload_size=chunked timeout_remaining=%v error=%v",
-			errorType, statusCode, r.Method, r.URL.Path, timeoutSetting, err)
+	if errors.Is(err, context.Canceled) && errors.Is(r.Context().Err(), context.Canceled) {
+		log.Debugf("profiling proxy: client disconnected before the proxy received an intake response for %s %s - payload_size=%s timeout_remaining=%v error=%v",
+			r.Method, r.URL.Path, payloadSizeStr, timeoutSetting, err)
 	} else {
-		log.Warnf("profiling proxy error: %s (%d) for %s %s - payload_size=%d timeout_remaining=%v error=%v",
-			errorType, statusCode, r.Method, r.URL.Path, payloadSize, timeoutSetting, err)
+		log.Warnf("profiling proxy error: %s (%d) for %s %s - payload_size=%s timeout_remaining=%v error=%v",
+			errorType, statusCode, r.Method, r.URL.Path, payloadSizeStr, timeoutSetting, err)
 	}
 
 	w.WriteHeader(statusCode)

@@ -27,7 +27,8 @@ type Selector struct {
 	Member string
 }
 
-// Index is a name with a subscript: `process.ancestors[A]`, `process.argv[0]`.
+// Index is a name with a subscript: `process.ancestors[A]`, `process.argv[0]`,
+// `process.env["PATH"]`.
 //
 // Its position is that of the identifier the name starts with.
 type Index struct {
@@ -51,7 +52,8 @@ type VariableRef struct {
 
 // FieldRef is a reference to an event field: `process.file.name`,
 // `process.ancestors[A].file.name`. An index in an array field,
-// `process.argv[0]`, is an Index whose Base is the reference to the array.
+// `process.argv[0]`, or a key in a dictionary field, `process.env["PATH"]`, is
+// an Index whose Base is the reference to the field.
 type FieldRef struct {
 	Meta
 

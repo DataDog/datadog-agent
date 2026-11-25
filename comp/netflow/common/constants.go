@@ -21,6 +21,9 @@ const (
 	// DefaultAggregatorRollupTrackerRefreshInterval is the default aggregator rollup tracker refresh interval
 	DefaultAggregatorRollupTrackerRefreshInterval = 300 // 5min
 
+	// DefaultTemplateCacheMaxSize is the default maximum number of NetFlow v9/IPFIX templates retained per listener
+	DefaultTemplateCacheMaxSize = 10000
+
 	// DefaultBindHost is the default bind host used for flow listeners
 	DefaultBindHost = "0.0.0.0"
 

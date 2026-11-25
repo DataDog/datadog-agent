@@ -79,7 +79,7 @@ func dumpGoPCLnTabData(goPCLnTabInfo *pclntab.GoPCLnTabInfo) (goPCLnTabDump, err
 }
 
 func CopySymbols(ctx context.Context, inputPath, outputPath string, goPCLnTabInfo *pclntab.GoPCLnTabInfo,
-	sectionsToKeep []symbol.SectionInfo, compressDebugSections bool) error {
+	sectionsToKeep []symbol.SectionInfo) error {
 	args := []string{
 		"--only-keep-debug",
 		"--remove-section=.gdb_index",
@@ -127,10 +127,6 @@ func CopySymbols(ctx context.Context, inputPath, outputPath string, goPCLnTabInf
 
 	for _, section := range sectionsToKeep {
 		args = append(args, "--set-section-flags", fmt.Sprintf("%s=%s", section.Name, getStringFlags(section.Flags)))
-	}
-
-	if compressDebugSections {
-		args = append(args, "--compress-debug-sections=zstd")
 	}
 
 	args = append(args, inputPath, outputPath)
