@@ -8,6 +8,7 @@ load(
     "pkg_files",
     "pkg_mkdirs",
 )
+load("//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("//compliance:package_licenses.bzl", "package_licenses")
 load("//packages/rules:agent_path.bzl", "etc_dir")
 load("//packages/rules:dd_pkg_deb.bzl", "dd_pkg_deb")
@@ -37,10 +38,21 @@ pkg_files(
     renames = {"//cmd/iot-agent": "agent"},
 )
 
+dd_collect_dependencies(
+    name = "_collected_libs",
+    srcs = ["//cmd/iot-agent"],
+)
+
+pkg_filegroup(
+    name = "collected_libs",
+    srcs = [":_collected_libs"],
+)
+
 # Everything that lands under /opt/datadog-agent.
 pkg_filegroup(
     name = "all_files",
     srcs = [
+        ":collected_libs",
         ":dirs",
         ":iot_agent_binary",
     ],

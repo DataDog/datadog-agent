@@ -9,6 +9,7 @@ load(
     "PackageFilesInfo",
     "PackageSymlinkInfo",
 )
+load(":agent_path.bzl", "ETC_DIR_SELECTOR")
 
 def _normalize(path):
     return "/" + paths.normalize(path).lstrip("/")
@@ -59,6 +60,10 @@ def owned_parent_dirs(declared, trees, roots):
       along with `trees` themselves, up to and including each root, minus
       the paths in `declared`.
     """
+
+    # Keep only the outermost roots: a walk that stops at an inner root leaves
+    # directories in `owned` that would end an outer root's walk too early.
+    roots = [r for r in roots if not any([r.startswith(o + "/") for o in roots])]
     provided = {d: True for d in declared}
     owned = {}
     for start in [paths.dirname(d) for d in declared] + trees:
@@ -84,7 +89,10 @@ def _dd_pkg_owned_dirs_impl(ctx):
         trees.extend([_normalize(d) for d in src_trees])
 
     # TODO(ABLD-598): use the package's own install prefix, installer and dogstatsd don't install under //:install_dir
-    roots = [_normalize(ctx.attr._install_dir[BuildSettingInfo].value)]
+    roots = [
+        _normalize(ctx.attr._install_dir[BuildSettingInfo].value),
+        ETC_DIR_SELECTOR["@platforms//os:linux"],
+    ]
     return [
         PackageDirsInfo(
             dirs = owned_parent_dirs(declared, trees, roots),
@@ -97,7 +105,7 @@ dd_pkg_owned_dirs = rule(
     implementation = _dd_pkg_owned_dirs_impl,
     doc = """
         Declares every directory between the content of `srcs` and the install
-        directory, so a package manager that only removes directories it owns
+        or config directory, so a package manager that only removes directories it owns
         (rpm) cleans them up on uninstall. Directories already declared by
         `srcs` are skipped.
     """,

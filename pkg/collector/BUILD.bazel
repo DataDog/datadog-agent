@@ -19,7 +19,6 @@ go_library(
         "//comp/core/workloadfilter/def",
         "//comp/logs/integrations/def",
         "//pkg/aggregator/sender",
-        "//pkg/collector/aggregator",
         "//pkg/collector/check",
         "//pkg/collector/check/id",
         "//pkg/collector/corechecks",
@@ -33,7 +32,10 @@ go_library(
         "@in_yaml_go_yaml_v3//:yaml",
         "@org_golang_x_text//cases",
         "@org_golang_x_text//language",
-    ],
+    ] + select({
+        "//packages/agent:iot_flavor": [],
+        "//conditions:default": ["//pkg/collector/aggregator"],
+    }),  # keep
 )
 
 dd_agent_go_test(
