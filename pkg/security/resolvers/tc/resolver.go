@@ -116,7 +116,8 @@ func (tcr *Resolver) ProgramIDs(netns uint32) map[uint32]struct{} {
 
 	ids := make(map[uint32]struct{})
 	for key, entry := range tcr.programs {
-		if key.NetNS == netns {
+		// 0 is an unknown ID, which would also match every filter whose ID the kernel doesn't report
+		if key.NetNS == netns && entry.programID != 0 {
 			ids[entry.programID] = struct{}{}
 		}
 	}
