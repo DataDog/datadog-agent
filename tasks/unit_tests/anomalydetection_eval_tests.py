@@ -247,6 +247,7 @@ class TestLocalF1Pipeline(unittest.TestCase):
                 task.body(Mock(), eval_backend="ddeval")
             remote.assert_called_once()
             self.assertEqual(remote.call_args.kwargs["dataset"], "Golden 25")
+            self.assertEqual(remote.call_args.kwargs["time_mode"], "historical")
         inputs = _bayesian_evaluation_inputs(
             scenarios_dir="/unused",
             sigma=30.0,
@@ -363,6 +364,20 @@ class TestMetricWorkflow(unittest.TestCase):
             with self.subTest(task=task.name), patch("tasks.anomalydetection._remote_ablation") as remote:
                 with self.assertRaisesRegex(Exit, "only for local"):
                     task.body(Mock(), eval_backend="ddeval", use_metric_pipeline=True)
+                remote.assert_not_called()
+
+    def test_ddeval_forwards_trigger_mode_and_rejects_invalid_mode(self):
+        for task in (eval_bayesian, eval_pipeline):
+            with (
+                self.subTest(task=task.name),
+                patch.dict("sys.modules", {"optuna": Mock()}),
+                patch("tasks.anomalydetection._remote_ablation") as remote,
+            ):
+                task.body(Mock(), eval_backend="ddeval", time_mode="trigger")
+                self.assertEqual(remote.call_args.kwargs["time_mode"], "trigger")
+                remote.reset_mock()
+                with self.assertRaisesRegex(Exit, "--time-mode"):
+                    task.body(Mock(), eval_backend="ddeval", time_mode="invalid")
                 remote.assert_not_called()
 
     def test_nested_bayesian_calls_forward_workflow(self):

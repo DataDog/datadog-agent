@@ -31,6 +31,8 @@ func (c *fakeComponent) Schedule(ranges []ndmdiscovery.Range) map[string]error {
 
 func (c *fakeComponent) RangeCount() int { return 0 }
 
+func (c *fakeComponent) Trigger(string) error { return nil }
+
 func newTestHandler(t *testing.T, comp *fakeComponent) *Handler {
 	t.Helper()
 	return NewHandler(comp, logmock.New(t))

@@ -155,16 +155,19 @@ func (p *dnsParser) ParseInto(data []byte, t *translation, pktInfo *dnsPacketInf
 		case layers.LayerTypeUDP:
 			if pktInfo.pktType == query {
 				pktInfo.key.ClientPort = uint16(p.udpPayload.SrcPort)
+				pktInfo.serverPort = uint16(p.udpPayload.DstPort)
 			} else {
 				pktInfo.key.ClientPort = uint16(p.udpPayload.DstPort)
-
+				pktInfo.serverPort = uint16(p.udpPayload.SrcPort)
 			}
 			pktInfo.key.Protocol = syscall.IPPROTO_UDP
 		case layers.LayerTypeTCP:
 			if pktInfo.pktType == query {
 				pktInfo.key.ClientPort = uint16(p.tcpPayload.SrcPort)
+				pktInfo.serverPort = uint16(p.tcpPayload.DstPort)
 			} else {
 				pktInfo.key.ClientPort = uint16(p.tcpPayload.DstPort)
+				pktInfo.serverPort = uint16(p.tcpPayload.SrcPort)
 			}
 			pktInfo.key.Protocol = syscall.IPPROTO_TCP
 		}

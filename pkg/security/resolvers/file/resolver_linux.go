@@ -101,8 +101,8 @@ func (r *Resolver) ResolveFileMetadata(event *model.Event, file *model.FileEvent
 	process := event.ProcessContext.Process
 	rootPIDs := []uint32{process.Pid, 1}
 	if process.ContainerContext.ContainerID != "" && r.cgroupResolver != nil {
-		if cachedEntry := r.cgroupResolver.GetCacheEntryContainerID(process.ContainerContext.ContainerID); cachedEntry != nil {
-			rootPIDs = cachedEntry.GetPIDs()
+		if containerPIDs := r.cgroupResolver.GetContainerPIDs(process.ContainerContext.ContainerID); len(containerPIDs) > 0 {
+			rootPIDs = containerPIDs
 		}
 	} else if event.ProcessCacheEntry != nil {
 		rootPIDs = event.ProcessCacheEntry.GetAncestorsPIDs()

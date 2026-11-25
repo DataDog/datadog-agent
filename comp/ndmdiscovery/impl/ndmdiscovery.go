@@ -9,10 +9,12 @@ package ndmdiscoveryimpl
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 
 	"golang.org/x/sync/semaphore"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/ndm/credentials"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -21,6 +23,7 @@ import (
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	ndmdiscovery "github.com/DataDog/datadog-agent/comp/ndmdiscovery/def"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe"
+	discoverytypes "github.com/DataDog/datadog-agent/pkg/networkdevices/discovery"
 )
 
 // Config keys. network_devices.autodiscovery.* belongs to the legacy snmp_listener.
@@ -51,6 +54,18 @@ type Provides struct {
 
 	Comp           ndmdiscovery.Component
 	StatusProvider status.InformationProvider
+	// TriggerEndpoint is registered even when discovery is disabled, so a
+	// request gets the reason rather than a 404.
+	TriggerEndpoint api.EndpointProvider `group:"agent_endpoint"`
+}
+
+// triggerEndpointProvider builds the endpoint provider for a component.
+func triggerEndpointProvider(comp *ndmDiscovery) api.EndpointProvider {
+	return api.NewAgentEndpointProvider(
+		comp.TriggerDiscoveryEndpointHandler(),
+		"/networkdevices/trigger-discovery",
+		"POST",
+	).Provider
 }
 
 type ndmDiscovery struct {
@@ -78,7 +93,11 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	if !reqs.Config.GetBool(enabledConfigKey) {
 		reqs.Log.Debug("ndmdiscovery: disabled")
-		return Provides{Comp: comp, StatusProvider: status.NewInformationProvider(nil)}, nil
+		return Provides{
+			Comp:            comp,
+			StatusProvider:  status.NewInformationProvider(nil),
+			TriggerEndpoint: triggerEndpointProvider(comp),
+		}, nil
 	}
 
 	forwarder, ok := reqs.EventPlatform.Get()
@@ -118,7 +137,22 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	reqs.Lifecycle.Append(compdef.Hook{OnStart: comp.start, OnStop: comp.stop})
 
-	return Provides{Comp: comp, StatusProvider: status.NewInformationProvider(statusProvider{d: comp})}, nil
+	return Provides{
+		Comp:            comp,
+		StatusProvider:  status.NewInformationProvider(statusProvider{d: comp}),
+		TriggerEndpoint: triggerEndpointProvider(comp),
+	}, nil
+}
+
+// Trigger sweeps one scheduled range now, under a new run.
+func (d *ndmDiscovery) Trigger(autodiscoveryID string) error {
+	if autodiscoveryID == "" {
+		return fmt.Errorf("%w: autodiscovery_id is required", discoverytypes.ErrInvalidRequest)
+	}
+	if !d.enabled {
+		return errDisabled
+	}
+	return d.sched.triggerNow(autodiscoveryID)
 }
 
 func (d *ndmDiscovery) start(_ context.Context) error {

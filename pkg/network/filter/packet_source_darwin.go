@@ -17,6 +17,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/gopacket"
@@ -45,6 +46,11 @@ const (
 
 	// packetChannelSize is the buffer size for the merged packet channel
 	packetChannelSize = 1000
+
+	// A filter an interface failed to install is retried after
+	// bpfFilterRetryMin, doubling up to bpfFilterRetryMax.
+	bpfFilterRetryMin = time.Second
+	bpfFilterRetryMax = time.Minute
 )
 
 // Telemetry
@@ -88,6 +94,14 @@ type interfaceHandle struct {
 	// dirDecoder decodes link-layer frames to extract IPs for direction classification.
 	dirDecoder *directionDecoder
 
+	// bpfFilter is the filter expression last installed on handle.
+	bpfFilter *string
+	// failedBPFFilter is the filter expression handle last failed to
+	// install, tried again at bpfFilterRetry.
+	failedBPFFilter     *string
+	bpfFilterRetry      time.Time
+	bpfFilterRetryDelay time.Duration
+
 	// localAddrs contains the local IP addresses for this interface
 	localAddrs   map[netip.Addr]struct{}
 	localAddrsMu sync.RWMutex
@@ -99,7 +113,9 @@ type LibpcapSource struct {
 	interfaces    map[string]*interfaceHandle // keyed by interface name
 	snapLen       int
 	bpfBufferSize int
-	bpfFilter     string
+	// bpfFilter is the filter expression of every capture. Each reader
+	// installs a new one on its own handle.
+	bpfFilter atomic.Pointer[string]
 
 	exit      chan struct{}
 	closeOnce sync.Once // ensures Close() is safe to call multiple times
@@ -244,10 +260,10 @@ func NewLibpcapSource(opts ...Option) (*LibpcapSource, error) {
 		interfaces:    make(map[string]*interfaceHandle),
 		snapLen:       snapLen,
 		bpfBufferSize: cfg.bpfBufferSize,
-		bpfFilter:     cfg.bpfFilter,
 		exit:          make(chan struct{}),
 		packetChan:    make(chan packetWithInfo, packetChannelSize),
 	}
+	ps.SetBPFFilter(cfg.bpfFilter)
 	ps.bufPool = ddsync.NewSlicePool[byte](snapLen, snapLen)
 
 	ifaces, err := net.Interfaces()
@@ -326,7 +342,8 @@ func (p *LibpcapSource) addInterface(iface net.Interface) error {
 		return fmt.Errorf("error activating pcap handle on %s: %w", ifaceName, err)
 	}
 
-	if err := handle.SetBPFFilter(p.bpfFilter); err != nil {
+	bpfFilter := p.bpfFilter.Load()
+	if err := handle.SetBPFFilter(*bpfFilter); err != nil {
 		handle.Close()
 		p.readerWg.Done()
 		return fmt.Errorf("error setting BPF filter on %s: %w", ifaceName, err)
@@ -340,6 +357,7 @@ func (p *LibpcapSource) addInterface(iface net.Interface) error {
 		linkType:          lt,
 		goPacketLayerType: linkTypeToLayerType(lt),
 		dirDecoder:        newDirectionDecoder(),
+		bpfFilter:         bpfFilter,
 		localAddrs:        make(map[netip.Addr]struct{}),
 	}
 
@@ -456,6 +474,7 @@ func (p *LibpcapSource) readPacketsFromInterface(ih *interfaceHandle) {
 			p.collectStats(ih, &prevStats)
 		default:
 		}
+		p.updateBPFFilter(ih)
 
 		// Zero-copy read — buffer is only valid until next read
 		data, ci, err := ih.handle.ZeroCopyReadPacketData()
@@ -531,6 +550,45 @@ func (p *LibpcapSource) collectStats(ih *interfaceHandle, prev *struct{ captured
 
 	prev.captured = uint64(stats.PacketsReceived)
 	prev.dropped = uint64(stats.PacketsDropped)
+}
+
+// SetBPFFilter replaces the filter expression of every capture, including the
+// captures of interfaces found later. Readers install it within pcapTimeout.
+// Installing a filter discards the packets the kernel buffered for a handle,
+// so an unchanged expression is ignored.
+func (p *LibpcapSource) SetBPFFilter(expr string) {
+	if current := p.bpfFilter.Load(); current != nil && *current == expr {
+		return
+	}
+	p.bpfFilter.Store(&expr)
+}
+
+// updateBPFFilter installs the current filter expression on ih if it changed.
+// A filter that fails to install is retried with backoff. Only the reader
+// goroutine that owns ih calls it, since a pcap handle is not safe for
+// concurrent use.
+func (p *LibpcapSource) updateBPFFilter(ih *interfaceHandle) {
+	bpfFilter := p.bpfFilter.Load()
+	if bpfFilter == ih.bpfFilter {
+		return
+	}
+	now := time.Now()
+	if bpfFilter == ih.failedBPFFilter && now.Before(ih.bpfFilterRetry) {
+		return
+	}
+	if err := ih.handle.SetBPFFilter(*bpfFilter); err != nil {
+		if bpfFilter == ih.failedBPFFilter {
+			ih.bpfFilterRetryDelay = min(2*ih.bpfFilterRetryDelay, bpfFilterRetryMax)
+		} else {
+			log.Warnf("error setting BPF filter on %s, keeping the previous one: %v", ih.ifaceName, err)
+			ih.failedBPFFilter = bpfFilter
+			ih.bpfFilterRetryDelay = bpfFilterRetryMin
+		}
+		ih.bpfFilterRetry = now.Add(ih.bpfFilterRetryDelay)
+		return
+	}
+	ih.bpfFilter = bpfFilter
+	ih.failedBPFFilter = nil
 }
 
 // CapturesInterfaceIndex reports whether packets on the interface with the

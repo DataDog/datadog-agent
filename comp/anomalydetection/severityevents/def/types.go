@@ -46,8 +46,11 @@ const (
 
 // SeverityEvent records a severity state-machine transition.
 type SeverityEvent struct {
-	// Timestamp is the data time (unix seconds) when the transition occurred.
+	// Timestamp is the data time (Unix seconds) when the transition took effect.
 	Timestamp int64 `json:"timestamp"`
+	// HistoricalTimestamp is the raw High crossing, when known. Late evidence
+	// can put it before Timestamp; cooldown always starts at Timestamp.
+	HistoricalTimestamp int64 `json:"historical_timestamp,omitempty"`
 	// FromLevel is the state before the transition.
 	FromLevel SeverityLevel `json:"from_level"`
 	// ToLevel is the state after the transition.
