@@ -7,6 +7,8 @@ package processor
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"slices"
 	"sync"
 
@@ -321,15 +323,20 @@ func (p *Processor) filterMRFMessages(msg *message.Message) {
 	}
 }
 
+// errOTTLUnavailable is returned if an OTTL rule reaches a build without the
+// OTTL runtime. Validation rejects such rules first, so this is a safeguard.
+var errOTTLUnavailable = errors.New("OTTL processing rules are not supported by this Agent build")
+
 // applyRedactingRules returns given a message if we should process it or not,
 // it applies the change directly on the Message content.
 func (p *Processor) applyRedactingRules(msg *message.Message) bool {
-	return applyProcessingRules(msg, p.processingRules)
+	keep, _ := applyProcessingRules(msg, p.processingRules)
+	return keep
 }
 
 // applyProcessingRules applies processingRules and the rules of the message source to msg, in place,
 // and returns false when a rule filters the message out.
-func applyProcessingRules(msg *message.Message, processingRules []*config.ProcessingRule) bool {
+func applyProcessingRules(msg *message.Message, processingRules []*config.ProcessingRule) (bool, error) {
 	var content = msg.GetContent()
 
 	// Use the internal scrubbing implementation of the Agent
@@ -339,47 +346,112 @@ func applyProcessingRules(msg *message.Message, processingRules []*config.Proces
 	if msg.Origin != nil && msg.Origin.LogSource != nil {
 		extraRules = msg.Origin.LogSource.Config.ProcessingRules
 	}
-	rules := append(processingRules, extraRules...)
-	for _, rule := range rules {
-		switch rule.Type {
-		case config.ExcludeAtMatch:
-			// if this message matches, we ignore it
-			if rule.Regex.Match(content) {
-				msg.RecordProcessingRule(rule.Type, rule.Name)
-				return false
-			}
-		case config.IncludeAtMatch:
-			// if this message doesn't match, we ignore it
-			if !rule.Regex.Match(content) {
-				return false
-			}
-			msg.RecordProcessingRule(rule.Type, rule.Name)
-		case config.MaskSequences:
-			var matched bool
-			content, matched = config.ApplyMaskSequence(content, rule)
-			if matched {
-				msg.RecordProcessingRule(rule.Type, rule.Name)
-			}
-		case config.ExcludeTruncated:
-			if msg.IsTruncated {
-				msg.RecordProcessingRule(rule.Type, rule.Name)
-				return false
-			}
-		case config.RemapSource:
-			for _, match := range rule.Matching {
-				if val, ok := msg.GetStructuredAttribute(match.Attribute); ok && val == match.Value {
-					if msg.Origin != nil {
-						msg.Origin.SetMappedSource(match.NewSource)
+	var ottlContext config.OTTLContext
+	// Keep cleanup outside the rule loop so the compiler can keep the defer
+	// on the stack instead of allocating one deferred call for every message.
+	defer func() {
+		if ottlEnabled && ottlContext != nil {
+			ottlContext.Release()
+		}
+	}()
+	for _, rules := range [2][]*config.ProcessingRule{processingRules, extraRules} {
+		for _, rule := range rules {
+			if rule.OTTL != "" {
+				if !ottlEnabled {
+					return false, errOTTLUnavailable
+				}
+				if rule.OTTLProgram == nil {
+					err := fmt.Errorf("OTTL processing rule %q was not compiled during logs setup", rule.Name)
+					if msg.Origin != nil && msg.Origin.LogSource != nil {
+						msg.Origin.LogSource.Status().Error(err)
+					}
+					return false, err
+				}
+				if ottlContext == nil {
+					ottlContext = rule.OTTLProgram.NewContext(content)
+				}
+				result, err := rule.OTTLProgram.Evaluate(ottlContext)
+				switch rule.Type {
+				case config.ExcludeAtMatch:
+					// Keep the message on evaluation errors; subsequent rules still apply.
+					if err == nil && result {
+						msg.RecordProcessingRule(rule.Type, rule.Name)
+						return false, nil
+					}
+				case config.IncludeAtMatch:
+					if err != nil {
+						continue
+					}
+					if !result {
+						return false, nil
 					}
 					msg.RecordProcessingRule(rule.Type, rule.Name)
-					break
+				case config.MaskSequences:
+					if err != nil {
+						// Masking is fail-closed: never forward a message that failed to mask.
+						msg.RecordProcessingRule(rule.Type, rule.Name)
+						return false, nil
+					}
+					if result {
+						msg.RecordProcessingRule(rule.Type, rule.Name)
+					}
+				}
+				continue
+			}
+			switch rule.Type {
+			case config.ExcludeAtMatch:
+				if ottlEnabled && ottlContext != nil {
+					content = ottlContext.Content()
+				}
+				// if this message matches, we ignore it
+				if rule.Regex.Match(content) {
+					msg.RecordProcessingRule(rule.Type, rule.Name)
+					return false, nil
+				}
+			case config.IncludeAtMatch:
+				if ottlEnabled && ottlContext != nil {
+					content = ottlContext.Content()
+				}
+				// if this message doesn't match, we ignore it
+				if !rule.Regex.Match(content) {
+					return false, nil
+				}
+				msg.RecordProcessingRule(rule.Type, rule.Name)
+			case config.MaskSequences:
+				if ottlEnabled && ottlContext != nil {
+					content = ottlContext.Content()
+				}
+				var matched bool
+				content, matched = config.ApplyMaskSequence(content, rule)
+				if matched {
+					if ottlEnabled && ottlContext != nil {
+						ottlContext.Reset(content)
+					}
+					msg.RecordProcessingRule(rule.Type, rule.Name)
+				}
+			case config.ExcludeTruncated:
+				if msg.IsTruncated {
+					msg.RecordProcessingRule(rule.Type, rule.Name)
+					return false, nil
+				}
+			case config.RemapSource:
+				for _, match := range rule.Matching {
+					if val, ok := msg.GetStructuredAttribute(match.Attribute); ok && val == match.Value {
+						if msg.Origin != nil {
+							msg.Origin.SetMappedSource(match.NewSource)
+						}
+						msg.RecordProcessingRule(rule.Type, rule.Name)
+						break
+					}
 				}
 			}
 		}
 	}
-
+	if ottlEnabled && ottlContext != nil {
+		content = ottlContext.Content()
+	}
 	msg.SetContent(content)
-	return true // we want to send this message
+	return true, nil // we want to send this message
 }
 
 // GetHostname returns the hostname to applied the given log message

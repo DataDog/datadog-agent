@@ -20,6 +20,7 @@ go_library(
         "//comp/logs-library/diagnostic",
         "//comp/logs-library/pipeline",
         "//comp/logs-library/processor",
+        "//comp/logs-library/processor/ottl",
         "//comp/logs-library/sender",
         "//comp/logs/agent/config",
         "//comp/otelcol/logsagentpipeline/def",

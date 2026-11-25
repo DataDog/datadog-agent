@@ -1,0 +1,47 @@
+// Copyright The OpenTelemetry Authors
+// SPDX-License-Identifier: Apache-2.0
+
+package ottlfuncs
+
+import (
+	"context"
+	"errors"
+
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
+)
+
+type isDoubleArguments[K any] struct {
+	Target ottl.FloatGetter[K]
+}
+
+// NewIsDoubleFactory returns a factory for the IsDouble OTTL function.
+// See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/ottl/ottlfuncs/README.md#isdouble
+func NewIsDoubleFactory[K any]() ottl.Factory[K] {
+	return ottl.NewFactory("IsDouble", &isDoubleArguments[K]{}, createIsDoubleFunction[K])
+}
+
+func createIsDoubleFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
+	args, ok := oArgs.(*isDoubleArguments[K])
+
+	if !ok {
+		return nil, errors.New("IsDoubleFactory args must be of type *isDoubleArguments[K]")
+	}
+
+	return isDouble(args.Target), nil
+}
+
+//nolint:errorlint
+func isDouble[K any](target ottl.FloatGetter[K]) ottl.ExprFunc[K] {
+	return func(ctx context.Context, tCtx K) (any, error) {
+		_, err := target.Get(ctx, tCtx)
+		// Use type assertion because we don't want to check wrapped errors
+		switch err.(type) {
+		case ottl.TypeError:
+			return false, nil
+		case nil:
+			return true, nil
+		default:
+			return false, err
+		}
+	}
+}

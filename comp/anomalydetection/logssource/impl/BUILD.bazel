@@ -31,6 +31,7 @@ go_library(
         "//comp/logs-library/diagnostic",
         "//comp/logs-library/metrics",
         "//comp/logs-library/processor",
+        "//comp/logs-library/processor/ottl",
         "//comp/logs/agent/config",
         "//comp/logs/agent/flare",
         "//comp/logs/auditor/def",
