@@ -1,4 +1,6 @@
 log_level: DEBUG
 gpu:
   enabled: true
+  resources:
+    enabled: true
   use_sp_process_metrics: true

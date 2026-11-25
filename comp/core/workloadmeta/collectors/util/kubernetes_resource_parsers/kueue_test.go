@@ -9,6 +9,7 @@ package kubernetesresourceparsers
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -129,17 +130,21 @@ func TestKueueResourceFlavorParser(t *testing.T) {
 }
 
 func TestKueueWorkloadParser(t *testing.T) {
+	priority := int32(100)
 	obj := &unstructured.Unstructured{
 		Object: map[string]interface{}{
 			"metadata": map[string]interface{}{
-				"name":        "job-sample-df83f",
-				"namespace":   "team-a",
-				"labels":      map[string]interface{}{"team": "a"},
-				"annotations": map[string]interface{}{"owner": "batch"},
-				"uid":         "uid-workload",
+				"name":              "job-sample-df83f",
+				"namespace":         "team-a",
+				"labels":            map[string]interface{}{"team": "a"},
+				"annotations":       map[string]interface{}{"owner": "batch"},
+				"uid":               "uid-workload",
+				"creationTimestamp": "2026-10-14T14:00:00Z",
 			},
 			"spec": map[string]interface{}{
-				"queueName": "gpu",
+				"queueName":        "gpu",
+				"priority":         int64(100),
+				"priorityClassRef": map[string]interface{}{"name": "high"},
 				"podSets": []interface{}{
 					map[string]interface{}{
 						"name": "driver",
@@ -174,6 +179,16 @@ func TestKueueWorkloadParser(t *testing.T) {
 				},
 			},
 			"status": map[string]interface{}{
+				"conditions": []interface{}{
+					map[string]interface{}{
+						"type":               "QuotaReserved",
+						"status":             "True",
+						"reason":             "QuotaReserved",
+						"message":            "Quota reserved in ClusterQueue team-a-gpu",
+						"lastTransitionTime": "2026-10-14T14:01:00Z",
+					},
+					map[string]interface{}{"status": "True"},
+				},
 				"admission": map[string]interface{}{
 					"clusterQueue": "team-a-gpu",
 					"podSetAssignments": []interface{}{
@@ -204,6 +219,20 @@ func TestKueueWorkloadParser(t *testing.T) {
 		},
 		QueueName:        "gpu",
 		ClusterQueueName: "team-a-gpu",
+		SchedulerEvents: &KueueWorkloadEvents{
+			CreationTimestamp: time.Date(2026, 10, 14, 14, 0, 0, 0, time.UTC),
+			Priority:          &priority,
+			PriorityClassName: "high",
+			Conditions: []KueueWorkloadCondition{
+				{
+					Type:               "QuotaReserved",
+					Status:             "True",
+					Reason:             "QuotaReserved",
+					Message:            "Quota reserved in ClusterQueue team-a-gpu",
+					LastTransitionTime: time.Date(2026, 10, 14, 14, 1, 0, 0, time.UTC),
+				},
+			},
+		},
 		PodTemplateLabels: map[string]string{
 			"team": "ml",
 		},
@@ -221,10 +250,10 @@ func TestKueueWorkloadParser(t *testing.T) {
 		},
 	}
 
-	parser := NewKueueWorkloadParser(true)
+	parser := NewKueueWorkloadParser(true, true)
 	assert.Equal(t, expected, parser.Parse(obj))
 
-	disabled := NewKueueWorkloadParser(false)
+	disabled := NewKueueWorkloadParser(false, true)
 	expected.PodTemplateLabels = nil
 	expected.PodTemplateAnnotations = nil
 	assert.Equal(t, expected, disabled.Parse(obj))
@@ -280,4 +309,44 @@ func TestNewKueueQueueParserUnsupportedQueueType(t *testing.T) {
 	parser, err := NewKueueQueueParser(workloadmeta.KueueQueueType("cohort"))
 	assert.EqualError(t, err, `unsupported Kueue queue type "cohort"`)
 	assert.Nil(t, parser)
+}
+
+func TestKueueWorkloadParserDeprecatedPriorityClassName(t *testing.T) {
+	obj := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"metadata": map[string]interface{}{"name": "wl", "namespace": "ns"},
+			"spec":     map[string]interface{}{"priorityClassName": "legacy"},
+		},
+	}
+
+	workload := NewKueueWorkloadParser(false, true).Parse(obj).(*workloadmeta.KubernetesKueueWorkload)
+
+	events := workload.SchedulerEvents.(*KueueWorkloadEvents)
+	assert.Equal(t, "legacy", events.PriorityClassName)
+	assert.Nil(t, events.Priority)
+	assert.True(t, events.CreationTimestamp.IsZero())
+	assert.Empty(t, events.Conditions)
+}
+
+func TestParseRFC3339(t *testing.T) {
+	assert.True(t, parseTime("").IsZero())
+	assert.True(t, parseTime("yesterday").IsZero(), "a malformed value gives the zero time")
+	assert.Equal(t, time.Date(2026, 11, 19, 10, 0, 0, 0, time.UTC), parseTime("2026-11-19T10:00:00Z"))
+}
+
+func TestKueueWorkloadParserWithoutEventsLeavesOutConditions(t *testing.T) {
+	obj := &unstructured.Unstructured{Object: map[string]interface{}{
+		"metadata": map[string]interface{}{"name": "job-1", "namespace": "team-a", "uid": "uid-1"},
+		"status": map[string]interface{}{
+			"conditions": []interface{}{
+				map[string]interface{}{"type": "Admitted", "status": "True", "lastTransitionTime": "2026-11-19T10:00:00Z"},
+			},
+		},
+	}}
+
+	with := NewKueueWorkloadParser(false, true).Parse(obj).(*workloadmeta.KubernetesKueueWorkload)
+	assert.Len(t, with.SchedulerEvents.(*KueueWorkloadEvents).Conditions, 1)
+
+	without := NewKueueWorkloadParser(false, false).Parse(obj).(*workloadmeta.KubernetesKueueWorkload)
+	assert.Nil(t, without.SchedulerEvents)
 }

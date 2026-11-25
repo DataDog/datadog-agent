@@ -29,6 +29,8 @@ const (
 	KubeOrchestratorExplorer Feature = "kube_orchestratorexplorer"
 	// KubeletConfigOrchestratorCheck can be enabled
 	KubeletConfigOrchestratorCheck = "kubelet_config_orchestrator_check"
+	// JobSchedulerEvents can be enabled: the Kueue or KAI Scheduler events of the Cluster Agent
+	JobSchedulerEvents Feature = "job_scheduler_events"
 	// ECSOrchestratorExplorer can be enabled
 	ECSOrchestratorExplorer Feature = "ecs_orchestratorexplorer"
 	// CloudFoundry socket present

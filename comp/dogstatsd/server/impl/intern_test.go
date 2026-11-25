@@ -34,6 +34,88 @@ func BenchmarkLoadOrStoreReset(b *testing.B) {
 	}
 }
 
+func makeTagBytes(prefix string, n int) [][]byte {
+	tags := make([][]byte, n)
+	for i := range n {
+		tags[i] = fmt.Appendf(nil, "%s%05d", prefix, i)
+	}
+	return tags
+}
+
+func BenchmarkLoadOrStoreSteadyState(b *testing.B) {
+	telemetryComp := fxutil.Test[telemetry.Component](b, mocktelemetry.Module())
+	stringInternerTelemetry := newSiTelemetry(true, telemetryComp)
+	sInterner := newStringInterner(4096, 1, stringInternerTelemetry)
+
+	hot := makeTagBytes("service:my-service-", 2000)
+	for _, tag := range hot {
+		sInterner.LoadOrStore(tag)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := range b.N {
+		sInterner.LoadOrStore(hot[i%len(hot)])
+	}
+}
+
+func BenchmarkLoadOrStoreSteadyStateNearCap(b *testing.B) {
+	telemetryComp := fxutil.Test[telemetry.Component](b, mocktelemetry.Module())
+	stringInternerTelemetry := newSiTelemetry(true, telemetryComp)
+	sInterner := newStringInterner(4096, 1, stringInternerTelemetry)
+
+	hot := makeTagBytes("service:my-service-", 3500)
+	for _, tag := range hot {
+		sInterner.LoadOrStore(tag)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := range b.N {
+		sInterner.LoadOrStore(hot[i%len(hot)])
+	}
+}
+
+func BenchmarkLoadOrStoreWorkingSetPlusChurn(b *testing.B) {
+	telemetryComp := fxutil.Test[telemetry.Component](b, mocktelemetry.Module())
+	stringInternerTelemetry := newSiTelemetry(true, telemetryComp)
+	sInterner := newStringInterner(4096, 1, stringInternerTelemetry)
+
+	// 2000 hot tags (80% of lookups) + 16384 high-cardinality one-off tags (20% of lookups)
+	hot := makeTagBytes("service:my-service-", 2000)
+	cold := makeTagBytes("pod_name:app-deployment-7f8b9c-", 16384)
+	for _, tag := range hot {
+		sInterner.LoadOrStore(tag)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	hotIdx, coldIdx := 0, 0
+	for i := range b.N {
+		if i%5 == 0 {
+			sInterner.LoadOrStore(cold[coldIdx%len(cold)])
+			coldIdx++
+		} else {
+			sInterner.LoadOrStore(hot[hotIdx%len(hot)])
+			hotIdx++
+		}
+	}
+}
+
+func BenchmarkLoadOrStorePureChurn(b *testing.B) {
+	telemetryComp := fxutil.Test[telemetry.Component](b, mocktelemetry.Module())
+	stringInternerTelemetry := newSiTelemetry(true, telemetryComp)
+	sInterner := newStringInterner(4096, 1, stringInternerTelemetry)
+
+	cold := makeTagBytes("pod_name:app-deployment-7f8b9c-", 16384)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := range b.N {
+		sInterner.LoadOrStore(cold[i%len(cold)])
+	}
+}
+
 func TestInternLoadOrStoreValue(t *testing.T) {
 	telemetryComp := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	assert := assert.New(t)

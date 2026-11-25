@@ -1,0 +1,18 @@
+---
+upgrade:
+  - |
+    GPU Monitoring: when ``gpu_monitoring.configure_cgroup_perms`` is enabled, system-probe now
+    re-applies the GPU device permissions of the Agent every ``gpu_monitoring.cgroup_reapply_interval``
+    (30 seconds by default), instead of at startup and once more 30 seconds later, so that the Agent
+    regains access to the GPUs after its container restarts or after a ``systemctl daemon-reload``.
+    ``gpu_monitoring.cgroup_reapply_infinitely`` now defaults to ``true``; set it to ``false`` for the
+    previous behavior. On cgroup v1, only the NVIDIA device major 195 is allowed, as before.
+  - |
+    GPU Monitoring: with ``gpu_monitoring.configure_cgroup_perms``, system-probe now only configures the
+    device permissions of the Agent next to it (for example the Agent container of the same pod), not of
+    every Agent process on the node.
+fixes:
+  - |
+    GPU Monitoring: re-applying the GPU device permissions no longer adds the same ``DeviceAllow`` lines
+    to the systemd configuration of the Agent container every time, and a persistent failure to apply
+    them is logged as a warning once instead of on every attempt.
