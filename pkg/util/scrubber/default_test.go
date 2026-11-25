@@ -711,8 +711,16 @@ func TestOIDCProof(t *testing.T) {
 	unsigned := "eyJhbGciOiJub25lIn0.eyJhdWQiOiJkYXRhZG9nL29yZyJ9."
 	assertClean(t, `proof oidc-`+unsigned, `proof oidc-********`)
 
-	issuer := `issuer https://oidc-provider.example.com/.well-known/openid-configuration`
-	assertClean(t, issuer, issuer)
+	noEyJ := "eyAiYWxnIjoiUlMyNTYifQ.eyJhdWQiOiJkYXRhZG9nL29yZyJ9.c2lnbmF0dXJl"
+	assertClean(t, `proof oidc-`+noEyJ, `proof oidc-********`)
+
+	for _, issuer := range []string{
+		`issuer https://oidc-provider.example.com/.well-known/openid-configuration`,
+		`issuer https://oidc-production-identity.authentication-service.example.com/`,
+		`issuer https://oidc-identityprovider.productioncluster.example/`,
+	} {
+		assertClean(t, issuer, issuer)
+	}
 }
 
 func TestBearerToken(t *testing.T) {
