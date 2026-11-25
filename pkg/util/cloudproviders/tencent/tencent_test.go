@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,7 +19,14 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
+func setTestTimeout(t *testing.T, d time.Duration) {
+	prevTimeout := timeout
+	timeout = d
+	t.Cleanup(func() { timeout = prevTimeout })
+}
+
 func TestGetInstanceID(t *testing.T) {
+	setTestTimeout(t, 5*time.Second)
 	cfg := configmock.New(t)
 	ctx := context.Background()
 	cfg.SetInTest("cloud_provider_metadata", []string{"tencent"})
@@ -40,6 +48,7 @@ func TestGetInstanceID(t *testing.T) {
 }
 
 func TestGetHostAliases(t *testing.T) {
+	setTestTimeout(t, 5*time.Second)
 	cfg := configmock.New(t)
 	ctx := context.Background()
 	cfg.SetInTest("cloud_provider_metadata", []string{"tencent"})
@@ -62,6 +71,7 @@ func TestGetHostAliases(t *testing.T) {
 }
 
 func TestGetNTPHosts(t *testing.T) {
+	setTestTimeout(t, 5*time.Second)
 	cfg := configmock.New(t)
 	cfg.SetInTest("cloud_provider_metadata", []string{"tencent"})
 
