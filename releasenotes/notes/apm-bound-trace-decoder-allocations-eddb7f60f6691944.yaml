@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    APM: The trace-agent's ``/v0.4/traces``, ``/v0.5/traces``, and
+    ``/v1.0/traces`` payload decoders now check that a payload is long enough
+    to contain the elements an array or map header declares before allocating
+    memory for them. Previously, a request of a few bytes could make the
+    trace-agent allocate hundreds of megabytes or more. Array and map headers
+    in these payloads, other than string tables, are now also limited to
+    500,000 elements, matching the limit already applied to the v0.4 msgpack
+    decoder used when trace conversion is disabled.

@@ -198,6 +198,12 @@ agents:
           value: "true"
         - name: DD_RUNTIME_SECURITY_CONFIG_SBOM_ENABLED
           value: "true"
+        # The host usage of the SBOM resolver needs sbom.enabled and sbom.host.enabled
+        # too, which system-probe only gets from the core agent when config streaming is on.
+        - name: DD_SBOM_ENABLED
+          value: "true"
+        - name: DD_SBOM_HOST_ENABLED
+          value: "true"
         - name: DD_RUNTIME_SECURITY_CONFIG_SBOM_ENRICHMENT_INTERVAL
           value: "10s"
         - name: DD_RUNTIME_SECURITY_CONFIG_SBOM_FORWARD_INTERVAL
@@ -220,6 +226,11 @@ agents:
   containers:
     systemProbe:
       env:
+        # As in cwsHelmValues, for the host usage without config streaming.
+        - name: DD_SBOM_ENABLED
+          value: "true"
+        - name: DD_SBOM_HOST_ENABLED
+          value: "true"
         - name: DD_RUNTIME_SECURITY_CONFIG_SBOM_ENRICHMENT_INTERVAL
           value: "10s"
         - name: DD_RUNTIME_SECURITY_CONFIG_SBOM_FORWARD_INTERVAL

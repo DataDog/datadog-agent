@@ -138,7 +138,7 @@ api_key: short-secret
 secret_backend: ENC[leave-me-alone]
 `)
 
-	cleaned, err := ScrubYamlPreserveStructure(input)
+	cleaned, _, err := ScrubYamlPreserveStructure(input)
 	require.NoError(t, err)
 
 	result := string(cleaned)
@@ -168,15 +168,31 @@ func TestScrubYamlPreserveStructureRejectsInvalidYAML(t *testing.T) {
 		"alias":              "value: &value secret\nauth_token: *value\n",
 	} {
 		t.Run(name, func(t *testing.T) {
-			cleaned, err := ScrubYamlPreserveStructure([]byte(input))
+			cleaned, secrets, err := ScrubYamlPreserveStructure([]byte(input))
 			assert.Error(t, err)
 			assert.Nil(t, cleaned)
+			assert.Nil(t, secrets)
+		})
+	}
+}
+
+func TestScrubYamlPreserveStructureRejectsAliasesBeforeDecoding(t *testing.T) {
+	for name, input := range map[string]string{
+		"invalid scalar": "value: !!int invalid\nanchor: &anchor secret\npassword: *anchor\n",
+		"mapping key":    "anchor: &anchor secret\n? *anchor\n: value\n",
+		"recursive":      "password: &password {nested: *password}\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			cleaned, secrets, err := ScrubYamlPreserveStructure([]byte(input))
+			require.EqualError(t, err, "YAML aliases are not supported")
+			assert.Nil(t, cleaned)
+			assert.Nil(t, secrets)
 		})
 	}
 }
 
 func TestScrubYamlPreserveStructureCommentOnly(t *testing.T) {
-	cleaned, err := ScrubYamlPreserveStructure([]byte("# comment\n\n"))
+	cleaned, _, err := ScrubYamlPreserveStructure([]byte("# comment\n\n"))
 	require.NoError(t, err)
 	assert.Empty(t, cleaned)
 }
@@ -1360,7 +1376,7 @@ snmp:
   authKey: my-auth-key
   privKey: my-priv-key
 `,
-			expected: []string{"authKey", "password", "privKey"},
+			expected: []string{"password", "snmp.authKey", "snmp.privKey"},
 		},
 		{
 			name: "raw credentials in values",
@@ -1372,7 +1388,16 @@ headers: Bearer some-token-value
 			expected: []string{"custom_setting", "dd_url", "headers"},
 		},
 		{
-			name: "list elements are reported under their parent key",
+			name: "credentials in map keys are not reported in paths",
+			input: `
+some_setting:
+  "https://alice:url-secret@proxy.example.com":
+    password: hunter2
+`,
+			expected: []string{"some_setting.https://alice:********@proxy.example.com.password"},
+		},
+		{
+			name: "list elements are reported by index",
 			input: `
 forwarder_keys:
   - aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
@@ -1381,7 +1406,7 @@ endpoints:
   - https://example.com
   - https://user:secret@example.com
 `,
-			expected: []string{"endpoints", "forwarder_keys"},
+			expected: []string{"endpoints.1", "forwarder_keys.0"},
 		},
 		{
 			name: "nested keys of structured replacers",
@@ -1391,7 +1416,38 @@ logs_config:
     - api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
       host: example.com
 `,
-			expected: []string{"api_key"},
+			expected: []string{"logs_config.additional_endpoints.0.api_key"},
+		},
+		{
+			name: "nested keys of private_action_runner",
+			input: `
+private_action_runner:
+  credentials:
+    password: my-password
+`,
+			// the replacer's own key is also recorded since it scrubs credentials.values leaves without recording them
+			expected: []string{"private_action_runner", "private_action_runner.credentials.password"},
+		},
+		{
+			name: "keys of maps in a list",
+			input: `
+instances:
+  - ip_address: 192.0.2.10
+    port: 161
+    snmp_version: 2
+    community_string: my-s3cret-community
+  - ip_address: 192.0.2.11
+    authKey: my-auth-key
+`,
+			expected: []string{"instances.0.community_string", "instances.1.authKey"},
+		},
+		{
+			name: "nested lists",
+			input: `
+matrix:
+  - - aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
+`,
+			expected: []string{"matrix.0.0"},
 		},
 		{
 			name: "map of endpoints to API keys",

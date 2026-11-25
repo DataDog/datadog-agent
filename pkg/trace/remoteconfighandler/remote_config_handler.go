@@ -151,7 +151,7 @@ func (h *RemoteConfigHandler) mrfUpdateCallback(updates map[string]state.RawConf
 		}
 	}
 
-	h.agentConfig.MRFFailoverAPMRC = failoverAPM
+	h.agentConfig.SetMRFFailoverAPMRC(failoverAPM)
 	if failoverAPM != nil {
 		pkglog.Infof("Setting `multi_region_failover.failover_apm: %t` through remote config", *failoverAPM)
 		applyStateCallback(failoverAPMCfgPth, state.ApplyStatus{State: state.ApplyStateAcknowledged})

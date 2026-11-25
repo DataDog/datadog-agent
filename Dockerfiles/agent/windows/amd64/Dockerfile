@@ -10,7 +10,6 @@ LABEL org.opencontainers.image.title="Datadog Agent"
 ARG WITH_JMX="false"
 ARG VARIANT="unknown"
 ARG INSTALL_INFO="unknown"
-ARG GENERAL_ARTIFACTS_CACHE_BUCKET_URL
 # Should be empty for non-FIPS builds
 ARG WITH_FIPS
 
@@ -23,7 +22,12 @@ USER ContainerAdministrator
 
 SHELL ["pwsh", "-Command", "$ErrorActionPreference = 'Stop';"]
 
+# Remove base-image tools the Agent does not use (MinGit, curl.exe).
+COPY remove-unused-tools.ps1 ./
+RUN . ./remove-unused-tools.ps1; Remove-Item ./remove-unused-tools.ps1
+
 COPY ["Datadog Agent", "C:/Program Files/Datadog/Datadog Agent"]
+COPY java C:/java
 
 COPY install.ps1 install-utils.ps1 ./
 RUN . ./install.ps1

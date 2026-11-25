@@ -27,6 +27,7 @@ go_library(
 dd_agent_go_test(
     name = "client_test",
     srcs = [
+        "recovery_test.go",
         "shutdown_test.go",
         "tuf_proof_test.go",
     ],
@@ -34,7 +35,13 @@ dd_agent_go_test(
     deps = [
         "//pkg/proto/pbgo/core",
         "//pkg/remoteconfig/state",
+        "@com_github_datadog_go_tuf//data",
+        "@com_github_datadog_go_tuf//pkg/keys",
+        "@com_github_datadog_go_tuf//sign",
+        "@com_github_datadog_go_tuf//util",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
     ],
 )

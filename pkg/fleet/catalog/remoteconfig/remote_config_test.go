@@ -17,7 +17,7 @@ import (
 )
 
 func TestUpdateHandlerAppliesMergedSnapshotAndAcknowledgesUpdates(t *testing.T) {
-	first := catalog.Package{Name: "first", Version: "1.0.0", URL: "https://example.com/first"}
+	first := catalog.Package{Name: "first", Version: "1.0.0", URL: "https://example.com/first", Latest: true}
 	second := catalog.Package{Name: "second", Version: "2.0.0", URL: "https://example.com/second"}
 	updates := map[string]state.RawConfig{
 		"first":  rawCatalog(t, catalog.Catalog{Packages: []catalog.Package{first}}),

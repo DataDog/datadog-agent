@@ -7,6 +7,7 @@ package config
 
 import (
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -96,6 +97,36 @@ func TestMRFFailoverAPM(t *testing.T) {
 		cfg.MRFFailoverAPMRC = nil
 		assert.True(t, cfg.MRFFailoverAPM())
 	})
+}
+
+// TestMRFFailoverAPMConcurrentRemoteConfigUpdates checks that remote config can set
+// and clear the failover override while senders read it (run with -race).
+func TestMRFFailoverAPMConcurrentRemoteConfigUpdates(t *testing.T) {
+	cfg := New()
+	cfg.MRFFailoverAPMDefault = false
+	on := true
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range 1000 {
+				_ = cfg.MRFFailoverAPM()
+			}
+		}()
+	}
+	for i := range 1000 {
+		if i%2 == 0 {
+			cfg.SetMRFFailoverAPMRC(&on)
+		} else {
+			cfg.SetMRFFailoverAPMRC(nil)
+		}
+	}
+	wg.Wait()
+	cfg.SetMRFFailoverAPMRC(nil)
+	assert.False(t, cfg.MRFFailoverAPM())
+	cfg.SetMRFFailoverAPMRC(&on)
+	assert.True(t, cfg.MRFFailoverAPM())
 }
 
 func TestSQLObfuscationMode(t *testing.T) {

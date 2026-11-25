@@ -342,6 +342,9 @@ static __always_inline int handle_ip6_skb(struct sock *sk, size_t size, struct f
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
+        // The failed read may have set CONN_V6 from the socket's family, and
+        // CONN_V4 is 0 so OR-ing it in below can't clear that bit. Reset it.
+        t.metadata = CONN_TYPE_UDP;
 #ifdef COMPILE_PREBUILT
         if (!are_fl6_offsets_known()) {
             log_debug("ERR: src/dst addr not set, fl6 offsets are not known");
@@ -533,6 +536,12 @@ static __always_inline int handle_ip_skb(struct sock *sk, size_t size, struct fl
     u64 pid_tgid = bpf_get_current_pid_tgid();
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
+        // An AF_INET6 socket sending to an IPv4-mapped address goes through
+        // udp_sendmsg, so the failed read may have set CONN_V6 and the high
+        // address bits. The flow is IPv4: reset them.
+        t.metadata = CONN_TYPE_UDP | CONN_V4;
+        t.saddr_h = 0;
+        t.daddr_h = 0;
 #ifdef COMPILE_PREBUILT
         if (!are_fl4_offsets_known()) {
             log_debug("ERR: src/dst addr not set src:%llu,dst:%llu. fl4 offsets are not known", t.saddr_l, t.daddr_l);

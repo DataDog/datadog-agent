@@ -27,6 +27,7 @@ go_library(
         "//comp/core/autodiscovery/impl",
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/providers",
+        "//comp/core/autodiscovery/providers/names",
         "//comp/core/config",
         "//comp/core/hostname/hostnameimpl",
         "//comp/core/ipc/def",

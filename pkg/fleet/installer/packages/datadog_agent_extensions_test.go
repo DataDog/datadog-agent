@@ -7,6 +7,11 @@ package packages
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,25 +25,25 @@ func TestParseRegistryConfigExtensionOverrides(t *testing.T) {
 	configContent := `
 installer:
   registry:
-    url: default.registry.com
+    url: default.registry.invalid
     auth: password
     username: defaultuser
     password: defaultpass
     extensions:
       datadog-agent:
         ddot:
-          url: custom.registry.com
+          url: custom.registry.invalid
           auth: password
           username: customuser
           password: custompass
         other-ext:
-          url: other.registry.com
+          url: other.registry.invalid
 `
 	var config datadogAgentConfig
 	err := yaml.Unmarshal([]byte(configContent), &config)
 	require.NoError(t, err)
 
-	assert.Equal(t, "default.registry.com", config.Installer.Registry.URL)
+	assert.Equal(t, "default.registry.invalid", config.Installer.Registry.URL)
 	assert.Equal(t, "password", config.Installer.Registry.Auth)
 	assert.Equal(t, "defaultuser", config.Installer.Registry.Username)
 	assert.Equal(t, "defaultpass", config.Installer.Registry.Password)
@@ -48,13 +53,13 @@ installer:
 	require.Len(t, agentExts, 2)
 
 	ddot := agentExts["ddot"]
-	assert.Equal(t, "custom.registry.com", ddot.URL)
+	assert.Equal(t, "custom.registry.invalid", ddot.URL)
 	assert.Equal(t, "password", ddot.Auth)
 	assert.Equal(t, "customuser", ddot.Username)
 	assert.Equal(t, "custompass", ddot.Password)
 
 	other := agentExts["other-ext"]
-	assert.Equal(t, "other.registry.com", other.URL)
+	assert.Equal(t, "other.registry.invalid", other.URL)
 	assert.Empty(t, other.Auth)
 
 	// Verify conversion to ExtensionRegistry overrides map
@@ -68,21 +73,21 @@ installer:
 		}
 	}
 	require.Len(t, overrides, 2)
-	assert.Equal(t, "custom.registry.com", overrides["ddot"].URL)
-	assert.Equal(t, "other.registry.com", overrides["other-ext"].URL)
+	assert.Equal(t, "custom.registry.invalid", overrides["ddot"].URL)
+	assert.Equal(t, "other.registry.invalid", overrides["other-ext"].URL)
 }
 
 func TestParseRegistryConfigNoExtensions(t *testing.T) {
 	configContent := `
 installer:
   registry:
-    url: default.registry.com
+    url: default.registry.invalid
 `
 	var config datadogAgentConfig
 	err := yaml.Unmarshal([]byte(configContent), &config)
 	require.NoError(t, err)
 
-	assert.Equal(t, "default.registry.com", config.Installer.Registry.URL)
+	assert.Equal(t, "default.registry.invalid", config.Installer.Registry.URL)
 	assert.Nil(t, config.Installer.Registry.Extensions)
 }
 
@@ -118,7 +123,23 @@ func TestEndUserDeviceModeEnabled(t *testing.T) {
 	}
 }
 
+// isolateAgentConfig keeps the machine's datadog.yaml, EUDM mode and registry env vars out of the test,
+// so only the extensions and registry the test sets up are used.
+func isolateAgentConfig(t *testing.T) {
+	originalPath := agentConfigPath
+	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+	agentConfigPath = func() string { return configPath }
+	t.Cleanup(func() { agentConfigPath = originalPath })
+	t.Setenv("DD_INFRASTRUCTURE_MODE", "full")
+	// Unset rather than empty: an empty per-image override replaces DD_INSTALLER_REGISTRY_URL.
+	for _, key := range []string{"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE", "DD_INSTALLER_MIRROR"} {
+		t.Setenv(key, "")
+		require.NoError(t, os.Unsetenv(key))
+	}
+}
+
 func TestInstallDDOTExtensionIfEnabled_Disabled(t *testing.T) {
+	isolateAgentConfig(t)
 	t.Setenv("DD_OTELCOLLECTOR_ENABLED", "false")
 	ctx := HookContext{Context: context.Background()}
 	err := installAgentExtensions(ctx, "7.50.0-1", false)
@@ -126,7 +147,16 @@ func TestInstallDDOTExtensionIfEnabled_Disabled(t *testing.T) {
 }
 
 func TestInstallDDOTExtensionIfEnabled_Enabled(t *testing.T) {
+	isolateAgentConfig(t)
 	t.Setenv("DD_OTELCOLLECTOR_ENABLED", "true")
+	// Keep the download on a local stub that rejects every request.
+	var registryHits atomic.Int32
+	registry := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		registryHits.Add(1)
+		http.NotFound(w, r)
+	}))
+	defer registry.Close()
+	t.Setenv("DD_INSTALLER_REGISTRY_URL", registry.URL)
 
 	tmpDir := t.TempDir()
 	extensionsPkg.ExtensionsDBDir = tmpDir
@@ -136,7 +166,8 @@ func TestInstallDDOTExtensionIfEnabled_Enabled(t *testing.T) {
 	require.NoError(t, err)
 
 	err = installAgentExtensions(ctx, "7.50.0-1", false)
-	// Expect a download error (no real OCI registry), not an env-guard skip
+	// Expect a download error from the local stub, not an env-guard skip
 	assert.Error(t, err)
 	assert.NotContains(t, err.Error(), "otelcollector")
+	assert.NotZero(t, registryHits.Load(), "registry was not contacted")
 }

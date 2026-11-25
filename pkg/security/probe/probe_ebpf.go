@@ -2337,7 +2337,11 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 			return false
 		}
 
+		pathKey := event.CgroupTracing.CGroupContext.CGroupPathKey
 		event.CgroupTracing.CGroupContext = cacheEntry.GetCGroupContext()
+		if pathKey.Inode != 0 {
+			event.CgroupTracing.CGroupContext.CGroupPathKey = pathKey
+		}
 		event.CgroupTracing.ContainerContext = cacheEntry.GetContainerContext()
 
 		if p.profileManager != nil {
@@ -4312,6 +4316,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDInode, "struct dentry", "d_inode")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDName, "struct dentry", "d_name")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameQstrName, "struct qstr", "name")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameQstrLen, "struct qstr", "len")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDParent, "struct dentry", "d_parent")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePathDentry, "struct path", "dentry")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePathMnt, "struct path", "mnt")

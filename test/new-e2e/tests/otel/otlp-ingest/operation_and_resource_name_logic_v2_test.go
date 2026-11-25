@@ -108,7 +108,12 @@ datadog:
     containerCollectUsingFiles: false
 agents:
   containers:
+    # Set on both: the trace-agent reads its own env unless config streaming is on.
     agent:
+      env:
+        - name: DD_OTLP_CONFIG_TRACES_SPAN_NAME_AS_RESOURCE_NAME
+          value: 'true'
+    traceAgent:
       env:
         - name: DD_OTLP_CONFIG_TRACES_SPAN_NAME_AS_RESOURCE_NAME
           value: 'true'
@@ -150,7 +155,12 @@ datadog:
     containerCollectUsingFiles: false
 agents:
   containers:
+    # Set on both: the trace-agent reads its own env unless config streaming is on.
     agent:
+      env:
+        - name: DD_OTLP_CONFIG_TRACES_SPAN_NAME_REMAPPINGS
+          value: '{"calendar-rest-go.client":"mapping.output","go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.server":"calendar.server"}'
+    traceAgent:
       env:
         - name: DD_OTLP_CONFIG_TRACES_SPAN_NAME_REMAPPINGS
           value: '{"calendar-rest-go.client":"mapping.output","go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.server":"calendar.server"}'
