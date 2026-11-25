@@ -195,6 +195,7 @@ type subscription struct {
 	// Guarded by Client.mu.
 	cancelHealthCheck context.CancelFunc // Cancel ongoing health check if any
 	monitorGen        uint64             // bumped whenever the current monitor is invalidated
+	appliedCfgGen     uint64             // configuration field generation of the applied value; a recover rolls back only if it is still current
 }
 
 // Client is the Remote Flags client that manages flag subscriptions
@@ -502,9 +503,13 @@ func (c *Client) handleEvent(sub *subscription, ev event) {
 	case eventChange:
 		// Dedup before touching the monitor: a skipped change leaves it alone.
 		if last := sub.lastValue.Load(); last != nil && *last == ev.flag.Enabled {
+			// The applied value is unchanged but the field may have been Set again
+			// since: let the active monitor roll back the latest write.
+			c.refreshAppliedCfgGen(sub, ev.cfgGen)
 			return
 		}
 		gen := c.invalidateMonitor(sub)
+		c.refreshAppliedCfgGen(sub, ev.cfgGen)
 		if err := sub.handler.OnChange(ev.flag.Enabled); err != nil {
 			sub.lastValue.Store(nil)
 			applyErr := fmt.Errorf("remote flag %s (enabled=%v): %w", ev.flag.Name, ev.flag.Enabled, err)
@@ -521,6 +526,7 @@ func (c *Client) handleEvent(sub *subscription, ev event) {
 	case eventRecover:
 		c.mu.Lock()
 		stale := sub.monitorGen != ev.gen
+		ev.cfgGen = sub.appliedCfgGen
 		c.mu.Unlock()
 		if stale {
 			return
@@ -529,6 +535,28 @@ func (c *Client) handleEvent(sub *subscription, ev event) {
 		sub.lastValue.Store(nil)
 		c.startRecoveryMonitor(sub, ev, ev.gen)
 	}
+}
+
+// refreshAppliedCfgGen records cfgGen as the configuration field generation the
+// applied value corresponds to. It never moves backwards.
+func (c *Client) refreshAppliedCfgGen(sub *subscription, cfgGen uint64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if cfgGen > sub.appliedCfgGen {
+		sub.appliedCfgGen = cfgGen
+	}
+}
+
+// enqueueRecover queues a recover event raised by the monitor of generation gen.
+// An event from a monitor that has been invalidated since is dropped, so it can
+// never replace the pending recover of a newer monitor.
+func (c *Client) enqueueRecover(sub *subscription, ev event) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if sub.monitorGen != ev.gen {
+		return
+	}
+	c.enqueue(sub, ev)
 }
 
 // invalidateMonitor cancels the current monitor, if any, and returns the new
@@ -615,7 +643,7 @@ func (c *Client) startHealthMonitor(sub *subscription, ev event, gen uint64) {
 						rev.kind = eventRecover
 						rev.gen = gen
 						rev.err = err
-						c.enqueue(sub, rev)
+						c.enqueueRecover(sub, rev)
 						cancel()
 						return
 					}

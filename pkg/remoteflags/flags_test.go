@@ -545,6 +545,7 @@ type recHandler struct {
 	onChange    func(FlagValue) error
 	onNoConfig  func()
 	onRecover   func()
+	isHealthy   func() bool // when set, overrides healthy
 }
 
 func newRecHandler(flag FlagName) *recHandler {
@@ -598,6 +599,9 @@ func (h *recHandler) SafeRecover(_ error, v FlagValue) {
 }
 func (h *recHandler) IsHealthy() bool {
 	h.healthCalls.Add(1)
+	if h.isHealthy != nil {
+		return h.isHealthy()
+	}
 	return h.healthy.Load()
 }
 
@@ -1052,5 +1056,93 @@ func TestHealthMonitor_RecoverUnsetsFieldAfterSameValueVersionBump(t *testing.T)
 		defer setter.mu.Unlock()
 		require.Len(t, setter.unsets, 1, "the rollback of the field must not be lost")
 		assert.Equal(t, "feature.x.enabled", setter.unsets[0].key)
+	})
+}
+
+// Updates false then true arrive while OnChange(true) runs: the final true is
+// deduplicated against the applied value, but the monitor started for the first
+// true must still roll the field back, since the field was Set again meanwhile.
+func TestHealthMonitor_CoalescedBackToAppliedValueKeepsRollback(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := NewClient().WithHealthCheckInterval(100 * time.Millisecond)
+		defer stopAndWait(client)
+		setter := newFakeConfigSetter()
+		client.WithConfigSetter(setter)
+
+		gate := make(chan struct{})
+		h := newRecHandler(testFlag1)
+		h.onChange = func(FlagValue) error { <-gate; return nil }
+		require.NoError(t, client.SubscribeWithHandler(h))
+
+		flag := Flag{Name: string(testFlag1), Enabled: true, ConfigurationField: "feature.x.enabled", HealthCheckDurationSeconds: 10}
+		sendUpdate(client, flag)
+		synctest.Wait() // OnChange(true) is blocked
+		flag.Enabled = false
+		sendUpdate(client, flag)
+		flag.Enabled = true
+		sendUpdate(client, flag)
+		synctest.Wait()
+
+		close(gate)
+		synctest.Wait()
+		require.Equal(t, []string{"change(true)"}, h.snapshot())
+
+		h.healthy.Store(false)
+		time.Sleep(150 * time.Millisecond)
+		synctest.Wait()
+
+		require.Equal(t, 1, h.count("recover(true)"), "events: %v", h.snapshot())
+		setter.mu.Lock()
+		defer setter.mu.Unlock()
+		require.Len(t, setter.unsets, 1, "the rollback of the field must not be lost")
+		assert.Equal(t, "feature.x.enabled", setter.unsets[0].key)
+	})
+}
+
+// A cancelled monitor whose health probe finishes late must not replace the
+// recover event of the current monitor while it is still waiting to be delivered.
+func TestHealthMonitor_StaleMonitorCannotOverwriteCurrentRecovery(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := NewClient().WithHealthCheckInterval(100 * time.Millisecond)
+		defer stopAndWait(client)
+
+		gate := make(chan struct{})
+		var calls atomic.Int32
+		h := newRecHandler(testFlag1)
+		h.isHealthy = func() bool {
+			if calls.Add(1) == 1 {
+				<-gate // the first monitor's probe hangs
+			}
+			return false
+		}
+		require.NoError(t, client.SubscribeWithHandler(h))
+
+		on := Flag{Name: string(testFlag1), Enabled: true, HealthCheckDurationSeconds: 10, HealthCheckFailuresBeforeRecover: 1}
+		sendUpdate(client, on)
+		synctest.Wait()
+		time.Sleep(100 * time.Millisecond)
+		synctest.Wait() // first monitor is blocked inside IsHealthy
+		sendUpdate(client, Flag{Name: string(testFlag1), Enabled: false})
+		synctest.Wait()
+		sendUpdate(client, on)
+		synctest.Wait() // second monitor is installed
+
+		client.mu.Lock()
+		sub := client.subscriptions[testFlag1][0]
+		client.mu.Unlock()
+		// Hold delivery so the recover event waits in its slot.
+		sub.qmu.Lock()
+		sub.running = true
+		sub.qmu.Unlock()
+
+		time.Sleep(100 * time.Millisecond)
+		synctest.Wait() // second monitor queued its recover
+		close(gate)
+		synctest.Wait() // first monitor returns from its probe
+
+		go client.runWorker(sub)
+		synctest.Wait()
+
+		assert.Equal(t, 1, h.count("recover(true)"), "recovery of the current monitor was lost; events: %v", h.snapshot())
 	})
 }
