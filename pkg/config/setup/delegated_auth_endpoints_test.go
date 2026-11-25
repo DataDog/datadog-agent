@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -635,4 +636,58 @@ func TestAPMAdditionalEndpointsAreWithinScope(t *testing.T) {
 	require.Len(t, rec.recorded, 1)
 	assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
 	assert.Equal(t, "apm_config.additional_endpoints", rec.recorded[0].AdditionalEndpointsConfigKey)
+}
+
+func TestDefaultProviderConfigForOIDC(t *testing.T) {
+	config := confFromYAML(t, `
+delegated_auth:
+  provider: oidc
+  oidc:
+    token_file: /var/run/secrets/datadog/token
+`)
+	assert.Equal(t, &cloudauthconfig.OIDCProviderConfig{TokenFile: "/var/run/secrets/datadog/token"}, defaultProviderConfigForConfig(config))
+}
+
+func TestDefaultProviderConfigForOIDCFromEnv(t *testing.T) {
+	t.Setenv("DD_DELEGATED_AUTH_PROVIDER", "oidc")
+	t.Setenv("DD_DELEGATED_AUTH_OIDC_TOKEN_FILE", "/var/run/secrets/datadog/token")
+	config := confFromYAML(t, "")
+	assert.Equal(t, &cloudauthconfig.OIDCProviderConfig{TokenFile: "/var/run/secrets/datadog/token"}, defaultProviderConfigForConfig(config))
+}
+
+func TestOIDCDirectiveRegistersInstanceWithTokenFile(t *testing.T) {
+	config := confFromYAML(t, `
+delegated_auth:
+  provider: oidc
+  oidc:
+    token_file: /var/run/secrets/datadog/token
+additional_endpoints:
+  "https://app.datadoghq.com":
+    - "DELA[org-uuid-1, oidc]"
+`)
+	rec := newRecordingComponent()
+	ConfigureDelegatedAuthEndpoints(context.Background(), config, rec)
+	require.Len(t, rec.recorded, 1)
+	assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
+	assert.Equal(t, &cloudauthconfig.OIDCProviderConfig{TokenFile: "/var/run/secrets/datadog/token"}, rec.recorded[0].ProviderConfig)
+}
+
+func TestOIDCDirectiveRejectsMissingOrMismatchedConfig(t *testing.T) {
+	tests := map[string]struct {
+		directive     string
+		defaultConfig common.ProviderConfig
+	}{
+		"no default provider":  {"DELA[org-uuid-1, oidc]", nil},
+		"aws default provider": {"DELA[org-uuid-1, oidc]", &cloudauthconfig.AWSProviderConfig{Region: "us-east-1"}},
+		"no token file":        {"DELA[org-uuid-1, oidc]", &cloudauthconfig.OIDCProviderConfig{}},
+		"aws region parameter": {"DELA[org-uuid-1, oidc, region=us-east-1]", &cloudauthconfig.OIDCProviderConfig{TokenFile: "/token"}},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			directive, ok := parseDelaDirective(test.directive)
+			require.True(t, ok)
+			_, err := providerConfigForDirective(directive, test.defaultConfig)
+			assert.Error(t, err)
+		})
+	}
 }

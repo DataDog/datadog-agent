@@ -7441,6 +7441,15 @@ properties:
             node_type: setting
             type: string
             default: ''
+      oidc:
+        node_type: section
+        type: object
+        properties:
+          token_file:
+            node_type: setting
+            type: string
+            default: ''
+            comment: Absolute path to a Datadog-scoped workload JWT (audience datadog/<org_uuid>) used when provider is oidc. Re-read on every exchange.
       org_uuid:
         node_type: setting
         type: string
