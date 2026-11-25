@@ -623,6 +623,9 @@ static __always_inline void read_skc_state(struct sock *sk, unsigned char *state
     bpf_probe_read_kernel(state, 1, (unsigned char*) &skc->skc_state);
 }
 
+// These readers are gated by COMPILE_CORE only, not SOCK_PTR_IS_BTF like handle_tcp_failure_btf: BTF_OR_PROBE_READ
+// names fn##_btf in every CO-RE object (including the kprobe CO-RE tracer, which doesn't define SOCK_PTR_IS_BTF), so
+// they must exist there even though only the btf=true path calls them.
 #ifdef COMPILE_CORE
 static __maybe_unused __always_inline void read_sk_err_btf(struct sock *sk, int *err) {
     *err = sk->sk_err;
