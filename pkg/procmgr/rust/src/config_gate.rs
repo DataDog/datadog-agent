@@ -1648,6 +1648,8 @@ process_config:
             "privileged_logs:\n  enabled: true\n",
             "noisy_neighbor:\n  enabled: true\n",
             "windows_crash_detection:\n  enabled: true\n",
+            "packet_capture:\n  enabled: true\n",
+            "oom_kill:\n  enabled: true\n",
             "gpu_monitoring:\n  enabled: true\n",
             "dynamic_instrumentation:\n  enabled: true\n",
             "runtime_security_config:\n  enabled: true\n",
@@ -1662,6 +1664,35 @@ process_config:
                 "expected system-probe gate open for:\n{body}"
             );
         }
+    }
+
+    /// The configured legacy OOM key wins over `oom_kill.enabled`.
+    #[test]
+    fn legacy_oom_kill_key_beats_oom_kill_enabled() {
+        let fx = Gate::new();
+        let agent = fx.agent(ALL_PROCESS_GATES_OFF);
+        let sysprobe = fx.sysprobe(
+            "discovery:\n  enabled: false\noom_kill:\n  enabled: true\nsystem_probe_config:\n  enable_oom_kill: false\n",
+        );
+        assert!(!fx.process_and_sysprobe_gate(&agent, &sysprobe));
+    }
+
+    #[test]
+    fn env_oom_kill_enables_system_probe_gate() {
+        let fx = Gate::new();
+        let agent = fx.agent(ALL_PROCESS_GATES_OFF);
+        let sysprobe = fx.sysprobe("discovery:\n  enabled: false\n");
+        fx.env("DD_OOM_KILL_ENABLED", "true");
+        assert!(fx.process_and_sysprobe_gate(&agent, &sysprobe));
+    }
+
+    #[test]
+    fn env_packet_capture_enables_system_probe_gate() {
+        let fx = Gate::new();
+        let agent = fx.agent(ALL_PROCESS_GATES_OFF);
+        let sysprobe = fx.sysprobe("discovery:\n  enabled: false\n");
+        fx.env("DD_PACKET_CAPTURE_ENABLED", "true");
+        assert!(fx.process_and_sysprobe_gate(&agent, &sysprobe));
     }
 
     /// `adjust.go`: `system_probe_config.enabled: true` with no NPM or USM setting

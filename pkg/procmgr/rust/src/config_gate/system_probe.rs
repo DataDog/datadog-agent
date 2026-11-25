@@ -10,8 +10,8 @@
 //! Mirrors `load()` in `pkg/system-probe/config/config.go`, which sets
 //! `system_probe_config.enabled` to whether any module ended up enabled, plus the
 //! adjustments in `pkg/system-probe/config/adjust.go` (NPM back-compat),
-//! `adjust_npm.go` (the sk tracer clears USM) and `adjust_discovery.go` (discovery
-//! service map conflicts).
+//! `adjust_npm.go` (the sk tracer clears USM), `adjust_discovery.go` (discovery
+//! service map conflicts) and `adjust_oom_kill.go`.
 //!
 //! **When module enablement changes in Go, update [`derived_enabled`].**
 //!
@@ -49,6 +49,7 @@ const SINGLE_KNOB_MODULES: &[&str] = &[
     "privileged_logs.enabled",
     "noisy_neighbor.enabled",
     "windows_crash_detection.enabled",
+    "packet_capture.enabled",
 ];
 
 /// Whether any system-probe module would be enabled at runtime (post-`Adjust`).
@@ -82,10 +83,13 @@ pub(super) fn derived_enabled(sysprobe_path: &str, yaml: &mut YamlCache, os: Hos
         return true;
     }
 
-    // TCPQueueLengthTracerModule, OOMKillProbeModule
-    if cfg.sysprobe_bool("system_probe_config.enable_tcp_queue_length")
-        || cfg.sysprobe_bool("system_probe_config.enable_oom_kill")
-    {
+    // TCPQueueLengthTracerModule, OOMKillProbeModule. The legacy key wins when configured.
+    let oom_kill_enabled = if cfg.sysprobe_is_configured("system_probe_config.enable_oom_kill") {
+        cfg.sysprobe_bool("system_probe_config.enable_oom_kill")
+    } else {
+        cfg.sysprobe_bool("oom_kill.enabled")
+    };
+    if cfg.sysprobe_bool("system_probe_config.enable_tcp_queue_length") || oom_kill_enabled {
         return true;
     }
 

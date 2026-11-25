@@ -172,13 +172,8 @@ fn agent_service_env_var(name: &str) -> Option<String> {
     crate::platform::agent_service_env_var(name)
 }
 
-/// Gate inputs [`ENV_BINDINGS`] does not cover: the generated names for
-/// `discovery.enabled`, `data_plane.enabled`, `compliance_config.enabled`,
-/// `otelcollector.enabled`, `private_action_runner.enabled`,
-/// `private_action_runner.split_enabled`, and `fips.enabled`, the fleet policy
-/// directory, the ECS
-/// Fargate probe behind the `discovery.enabled` platform default, and
-/// `DD_CONF_DIR`, which shipped templates expand inside the gated path itself.
+/// Gate inputs that [`ENV_BINDINGS`] does not cover: the generated names for the gate keys,
+/// the fleet policy directory, the ECS Fargate probe, and `DD_CONF_DIR`.
 #[cfg(any(test, feature = "test-helpers"))]
 const UNBOUND_GATE_ENV_VARS: &[&str] = &[
     "DD_DISCOVERY_ENABLED",
@@ -188,6 +183,8 @@ const UNBOUND_GATE_ENV_VARS: &[&str] = &[
     "DD_PRIVATE_ACTION_RUNNER_ENABLED",
     "DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED",
     "DD_FIPS_ENABLED",
+    "DD_OOM_KILL_ENABLED",
+    "DD_PACKET_CAPTURE_ENABLED",
     "DD_FLEET_POLICIES_DIR",
     "DD_CONF_DIR",
     "ECS_FARGATE",
@@ -201,9 +198,7 @@ const UNBOUND_GATE_ENV_VARS: &[&str] = &[
 /// here too. A harness that misses one gets a gate flipped by the runner's environment,
 /// which surfaces as a test failing on one machine only.
 ///
-/// The system-probe module knobs behind the derived `system_probe_config.enabled` are
-/// not included: they resolve through generated names off a key list that lives in
-/// `super::system_probe`, and only a gate on that one key reaches them.
+/// Unbound system-probe module knobs are omitted, except those `UNBOUND_GATE_ENV_VARS` lists.
 #[cfg(any(test, feature = "test-helpers"))]
 pub fn gate_env_var_names() -> Vec<String> {
     ENV_BINDINGS
@@ -277,6 +272,8 @@ mod tests {
             "DD_PRIVATE_ACTION_RUNNER_ENABLED",
             "DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED",
             "DD_FIPS_ENABLED",
+            "DD_OOM_KILL_ENABLED",
+            "DD_PACKET_CAPTURE_ENABLED",
             "DD_FLEET_POLICIES_DIR",
             "DD_CONF_DIR",
             "ECS_FARGATE",
