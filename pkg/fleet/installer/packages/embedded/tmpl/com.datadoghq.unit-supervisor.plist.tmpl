@@ -25,15 +25,15 @@
         </dict>
         <key>ProgramArguments</key>
         <array>
-            <string>{{.ProgramDir}}/embedded/bin/installer</string>
+            <string>{{.InstallDir}}/embedded/bin/installer</string>
             <string>package-command</string>
             <string>datadog-agent</string>
             <string>superviseUnits</string>
         </array>
         <key>StandardOutPath</key>
-        <string>{{.LogDir}}/launchd_unit-supervisor.log</string>
+        <string>{{.InstallDir}}/logs/launchd_unit-supervisor.log</string>
         <key>StandardErrorPath</key>
-        <string>{{.LogDir}}/launchd_unit-supervisor.log</string>
+        <string>{{.InstallDir}}/logs/launchd_unit-supervisor.log</string>
         <key>ExitTimeOut</key>
         <integer>10</integer>
         <key>UserName</key>

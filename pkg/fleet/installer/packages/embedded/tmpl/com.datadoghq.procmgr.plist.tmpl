@@ -16,22 +16,22 @@
             <key>DD_LOG_TO_CONSOLE</key>
             <string>false</string>
             <key>DD_INSTALL_DIR</key>
-            <string>{{.ProgramDir}}</string>
+            <string>{{.InstallDir}}</string>
             <key>DD_CONF_DIR</key>
             <string>{{.EtcDir}}</string>
             <key>DD_PID_DIR</key>
-            <string>{{.RunDir}}</string>
+            <string>{{.InstallDir}}/run</string>
             <key>DD_PM_CONFIG_DIR</key>
-            <string>{{.ProgramDir}}/processes.d</string>
+            <string>{{.InstallDir}}/processes.d</string>
         </dict>
         <key>ProgramArguments</key>
         <array>
-            <string>{{.ProgramDir}}/embedded/bin/dd-procmgrd</string>
+            <string>{{.InstallDir}}/embedded/bin/dd-procmgrd</string>
         </array>
         <key>StandardOutPath</key>
-        <string>{{.LogDir}}/launchd_procmgr.log</string>
+        <string>{{.InstallDir}}/logs/launchd_procmgr.log</string>
         <key>StandardErrorPath</key>
-        <string>{{.LogDir}}/launchd_procmgr.log</string>
+        <string>{{.InstallDir}}/logs/launchd_procmgr.log</string>
         <key>ExitTimeOut</key>
         <integer>10</integer>
         <key>UserName</key>

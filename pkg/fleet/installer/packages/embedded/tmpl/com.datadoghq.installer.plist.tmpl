@@ -29,17 +29,17 @@
        Agent's run directory, which belongs to the Agent's account. */}}
         <key>ProgramArguments</key>
         <array>
-            <string>{{.ProgramDir}}/embedded/bin/installer</string>
+            <string>{{.InstallDir}}/embedded/bin/installer</string>
             <string>run</string>
             <string>-c</string>
             <string>{{.EtcDir}}</string>
             <string>-p</string>
-            <string>{{.StateDir}}/installer.pid</string>
+            <string>/opt/datadog-packages/run/installer.pid</string>
         </array>
         <key>StandardOutPath</key>
-        <string>{{.LogDir}}/launchd_installer{{if not .Stable}}-exp{{end}}.log</string>
+        <string>{{.InstallDir}}/logs/launchd_installer{{if not .Stable}}-exp{{end}}.log</string>
         <key>StandardErrorPath</key>
-        <string>{{.LogDir}}/launchd_installer{{if not .Stable}}-exp{{end}}.log</string>
+        <string>{{.InstallDir}}/logs/launchd_installer{{if not .Stable}}-exp{{end}}.log</string>
         <key>ExitTimeOut</key>
         <integer>10</integer>
         <key>UserName</key>

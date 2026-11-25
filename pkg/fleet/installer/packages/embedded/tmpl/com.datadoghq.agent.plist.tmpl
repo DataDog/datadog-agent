@@ -30,21 +30,21 @@
         </dict>
         <key>ProgramArguments</key>
         <array>
-            <string>{{.ProgramDir}}/bin/agent/agent</string>
+            <string>{{.InstallDir}}/bin/agent/agent</string>
             <string>run</string>
             <string>-c</string>
             <string>{{.EtcDir}}</string>
             <string>--sysprobecfgpath={{.EtcDir}}/system-probe.yaml</string>
         </array>
         <key>StandardOutPath</key>
-        <string>{{.LogDir}}/launchd{{if not .Stable}}-exp{{end}}.log</string>
+        <string>{{.InstallDir}}/logs/launchd{{if not .Stable}}-exp{{end}}.log</string>
         <key>StandardErrorPath</key>
-        <string>{{.LogDir}}/launchd{{if not .Stable}}-exp{{end}}.log</string>
+        <string>{{.InstallDir}}/logs/launchd{{if not .Stable}}-exp{{end}}.log</string>
         <key>ExitTimeOut</key>
         <integer>10</integer>
         <key>UserName</key>
-        <string>{{.AgentUser}}</string>
+        <string>_dd-agent</string>
         <key>GroupName</key>
-        <string>{{.AgentGroup}}</string>
+        <string>daemon</string>
     </dict>
 </plist>

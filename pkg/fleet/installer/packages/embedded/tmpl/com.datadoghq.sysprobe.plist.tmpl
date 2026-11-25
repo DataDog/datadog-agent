@@ -28,15 +28,15 @@
         </dict>
         <key>ProgramArguments</key>
         <array>
-            <string>{{.ProgramDir}}/embedded/bin/system-probe</string>
+            <string>{{.InstallDir}}/embedded/bin/system-probe</string>
             <string>run</string>
             <string>-c</string>
             <string>{{.EtcDir}}</string>
         </array>
         <key>StandardOutPath</key>
-        <string>{{.LogDir}}/launchd_sysprobe{{if not .Stable}}-exp{{end}}.log</string>
+        <string>{{.InstallDir}}/logs/launchd_sysprobe{{if not .Stable}}-exp{{end}}.log</string>
         <key>StandardErrorPath</key>
-        <string>{{.LogDir}}/launchd_sysprobe{{if not .Stable}}-exp{{end}}.log</string>
+        <string>{{.InstallDir}}/logs/launchd_sysprobe{{if not .Stable}}-exp{{end}}.log</string>
         <key>ExitTimeOut</key>
         <integer>10</integer>
         {{- /* system-probe needs privileges the Agent account does not have. */}}

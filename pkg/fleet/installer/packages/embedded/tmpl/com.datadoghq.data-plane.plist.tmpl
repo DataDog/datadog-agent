@@ -28,22 +28,22 @@
         </dict>
         <key>ProgramArguments</key>
         <array>
-            <string>{{.ProgramDir}}/embedded/bin/agent-data-plane</string>
+            <string>{{.InstallDir}}/embedded/bin/agent-data-plane</string>
             <string>--config</string>
             <string>{{.EtcDir}}/datadog.yaml</string>
             <string>run</string>
             <string>--pidfile</string>
-            <string>{{.RunDir}}/agent-data-plane.pid</string>
+            <string>{{.InstallDir}}/run/agent-data-plane.pid</string>
         </array>
         <key>StandardOutPath</key>
-        <string>{{.LogDir}}/launchd_data_plane{{if not .Stable}}-exp{{end}}.log</string>
+        <string>{{.InstallDir}}/logs/launchd_data_plane{{if not .Stable}}-exp{{end}}.log</string>
         <key>StandardErrorPath</key>
-        <string>{{.LogDir}}/launchd_data_plane{{if not .Stable}}-exp{{end}}.log</string>
+        <string>{{.InstallDir}}/logs/launchd_data_plane{{if not .Stable}}-exp{{end}}.log</string>
         <key>ExitTimeOut</key>
         <integer>10</integer>
         <key>UserName</key>
-        <string>{{.AgentUser}}</string>
+        <string>_dd-agent</string>
         <key>GroupName</key>
-        <string>{{.AgentGroup}}</string>
+        <string>daemon</string>
     </dict>
 </plist>

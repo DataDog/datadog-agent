@@ -84,29 +84,6 @@ type templateData struct {
 	Procmgr                      bool
 }
 
-// launchdTemplateData parameterises a launchd job definition.
-//
-// The stable and the -exp job sets are rendered from the same templates, so a change to a job is
-// one edit and both sets pick it up. They differ only in Stable and EtcDir.
-type launchdTemplateData struct {
-	// Stable reports whether this is the stable set. The -exp set adds "-exp" to its job labels and
-	// log file names, and is unsupervised: launchd never starts or relaunches it, the configuration
-	// experiment's unit supervisor does.
-	Stable bool
-	// ProgramDir is the install root the job's program is resolved under. Both sets name the
-	// same root: a configuration experiment does not change which binaries run.
-	ProgramDir string
-	// EtcDir is the configuration directory the job reads. launchd cannot supply a
-	// configuration path at load time, so the definition names it itself.
-	EtcDir string
-	RunDir string
-	// StateDir is the directory only root may write to, where root jobs keep their own state.
-	StateDir   string
-	LogDir     string
-	AgentUser  string
-	AgentGroup string
-}
-
 type embeddedLayout struct {
 	subdir string
 	units  map[string][]byte
@@ -150,31 +127,19 @@ func mustRenderYAMLConfig(name string, data installerTemplateData) []byte {
 	return mustRenderTemplate(name+".tmpl", data, false, true)
 }
 
-func mustRenderLaunchdJob(name string, data launchdTemplateData) []byte {
-	tmpl, err := template.ParseFS(embedded, name+".tmpl")
-	if err != nil {
-		panic(err)
-	}
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
-		panic(err)
-	}
-	return buf.Bytes()
-}
-
 // jobSetLaunchd renders both launchd job sets. The process manager has no -exp variant: a
 // configuration experiment leaves it on its stable job.
-func jobSetLaunchd(stableData, expData launchdTemplateData) map[string][]byte {
+func jobSetLaunchd(stableData, expData installerTemplateData) map[string][]byte {
 	return map[string][]byte{
-		"com.datadoghq.procmgr.plist":        mustRenderLaunchdJob("com.datadoghq.procmgr.plist", stableData),
-		"com.datadoghq.agent.plist":          mustRenderLaunchdJob("com.datadoghq.agent.plist", stableData),
-		"com.datadoghq.agent-exp.plist":      mustRenderLaunchdJob("com.datadoghq.agent.plist", expData),
-		"com.datadoghq.sysprobe.plist":       mustRenderLaunchdJob("com.datadoghq.sysprobe.plist", stableData),
-		"com.datadoghq.sysprobe-exp.plist":   mustRenderLaunchdJob("com.datadoghq.sysprobe.plist", expData),
-		"com.datadoghq.data-plane.plist":     mustRenderLaunchdJob("com.datadoghq.data-plane.plist", stableData),
-		"com.datadoghq.data-plane-exp.plist": mustRenderLaunchdJob("com.datadoghq.data-plane.plist", expData),
-		"com.datadoghq.installer.plist":      mustRenderLaunchdJob("com.datadoghq.installer.plist", stableData),
-		"com.datadoghq.installer-exp.plist":  mustRenderLaunchdJob("com.datadoghq.installer.plist", expData),
+		"com.datadoghq.procmgr.plist":        mustReadUnit("com.datadoghq.procmgr.plist", stableData, false, false),
+		"com.datadoghq.agent.plist":          mustReadUnit("com.datadoghq.agent.plist", stableData, false, false),
+		"com.datadoghq.agent-exp.plist":      mustReadUnit("com.datadoghq.agent.plist", expData, false, false),
+		"com.datadoghq.sysprobe.plist":       mustReadUnit("com.datadoghq.sysprobe.plist", stableData, false, false),
+		"com.datadoghq.sysprobe-exp.plist":   mustReadUnit("com.datadoghq.sysprobe.plist", expData, false, false),
+		"com.datadoghq.data-plane.plist":     mustReadUnit("com.datadoghq.data-plane.plist", stableData, false, false),
+		"com.datadoghq.data-plane-exp.plist": mustReadUnit("com.datadoghq.data-plane.plist", expData, false, false),
+		"com.datadoghq.installer.plist":      mustReadUnit("com.datadoghq.installer.plist", stableData, false, false),
+		"com.datadoghq.installer-exp.plist":  mustReadUnit("com.datadoghq.installer.plist", expData, false, false),
 	}
 }
 
@@ -341,25 +306,18 @@ var (
 	// macOS has a single install root: /opt/datadog-agent holds the binaries alongside etc,
 	// etc-exp, run and logs. A configuration experiment changes only which configuration
 	// directory the Agent reads, so both job sets run the same binaries.
-	stableDataLaunchd = launchdTemplateData{
-		Stable:     true,
-		ProgramDir: "/opt/datadog-agent",
+	// The launchd jobs share the systemd units' template data: the run and log directories are
+	// under InstallDir, and the root-only state directory and the Agent's account are written in
+	// the job definitions themselves.
+	stableDataLaunchd = installerTemplateData{
+		InstallDir: "/opt/datadog-agent",
 		EtcDir:     "/opt/datadog-agent/etc",
-		RunDir:     "/opt/datadog-agent/run",
-		StateDir:   "/opt/datadog-packages/run",
-		LogDir:     "/opt/datadog-agent/logs",
-		AgentUser:  "_dd-agent",
-		AgentGroup: "daemon",
+		Stable:     true,
 	}
-	expDataLaunchd = launchdTemplateData{
-		Stable:     false,
-		ProgramDir: "/opt/datadog-agent",
+	expDataLaunchd = installerTemplateData{
+		InstallDir: "/opt/datadog-agent",
 		EtcDir:     "/opt/datadog-agent/etc-exp",
-		RunDir:     "/opt/datadog-agent/run",
-		StateDir:   "/opt/datadog-packages/run",
-		LogDir:     "/opt/datadog-agent/logs",
-		AgentUser:  "_dd-agent",
-		AgentGroup: "daemon",
+		Stable:     false,
 	}
 
 	windowsEmbeddedLayouts = []embeddedLayout{
@@ -401,6 +359,6 @@ var darwinProcmgrEmbeddedLayouts = []embeddedLayout{
 // every stable definition in darwin/ is loaded at install.
 var launchdUnitSupervisorEmbeddedLayouts = []embeddedLayout{
 	{subdir: "darwin-supervisor", units: map[string][]byte{
-		"com.datadoghq.unit-supervisor.plist": mustRenderLaunchdJob("com.datadoghq.unit-supervisor.plist", stableDataLaunchd),
+		"com.datadoghq.unit-supervisor.plist": mustReadUnit("com.datadoghq.unit-supervisor.plist", stableDataLaunchd, false, false),
 	}},
 }
