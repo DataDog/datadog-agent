@@ -202,6 +202,10 @@ func (r *coldBasenamePathResolver) ResolveDentryFilePath(_ *model.FileFields) (s
 	return r.dentryPath, r.dentryErr
 }
 
+func (r *coldBasenamePathResolver) ResolveFullFilePath(_ *model.FileFields, _ *model.PIDContext) (string, string, model.MountSource, model.MountOrigin, error) {
+	return r.dentryPath, "", model.MountSourceUnknown, model.MountOriginEvent, r.dentryErr
+}
+
 func marshalLoadModuleEventPayload(ino uint64, mountID uint32, name string, loadedFromMemory bool) []byte {
 	buf := make([]byte, 272)
 	binary.NativeEndian.PutUint64(buf[8:16], ino)
@@ -263,9 +267,12 @@ func TestLoadModuleNameFallbackFromFilename(t *testing.T) {
 		require.True(t, p.handleRegularEvent(ev, 0, uint64(len(payload)), payload))
 		assert.Empty(t, ev.LoadModule.Name)
 		assert.False(t, ev.LoadModule.File.IsBasenameStrResolved)
+		assert.False(t, ev.LoadModule.File.IsPathnameStrResolved)
 
-		ev.LoadModule.File.SetPathnameStr("/tmp/late-resolved-mod.ko")
+		pr.dentryErr = nil
+		pr.dentryPath = "/tmp/late-resolved-mod.ko"
 		assert.Equal(t, "late-resolved-mod.ko", p.fieldHandlers.ResolveFileBasename(ev, &ev.LoadModule.File))
+		assert.Equal(t, "/tmp/late-resolved-mod.ko", p.fieldHandlers.ResolveFilePath(ev, &ev.LoadModule.File))
 	})
 }
 

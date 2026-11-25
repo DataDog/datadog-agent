@@ -416,11 +416,16 @@ func runFinitModuleEarlyExitTest(t *testing.T) {
 	if err := os.WriteFile(enoexecPath, []byte("invalid-module-content"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	enoexecInode := getInode(t, enoexecPath)
 
 	epermPath := filepath.Join(tmpDir, "fake-eperm-mod.ko.zst")
 	if err := os.WriteFile(epermPath, []byte("invalid-module-content"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.Chown(epermPath, 98, 99); err != nil {
+		t.Fatal(err)
+	}
+	epermInode := getInode(t, epermPath)
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -429,7 +434,7 @@ func runFinitModuleEarlyExitTest(t *testing.T) {
 		},
 		{
 			ID:         "test_finit_module_eperm",
-			Expression: fmt.Sprintf(`load_module.name == "fake_eperm_mod" && load_module.file.name == "fake-eperm-mod.ko.zst" && load_module.file.path == "%s" && load_module.loaded_from_memory == false && load_module.retval == -%d`, epermPath, int(unix.EPERM)),
+			Expression: fmt.Sprintf(`load_module.name == "fake_eperm_mod" && load_module.file.name == "fake-eperm-mod.ko.zst" && load_module.file.path == "%s" && load_module.file.uid == 98 && load_module.file.gid == 99 && load_module.loaded_from_memory == false && load_module.retval == -%d`, epermPath, int(unix.EPERM)),
 		},
 	}
 
@@ -457,7 +462,58 @@ func runFinitModuleEarlyExitTest(t *testing.T) {
 			assertFieldEqual(t, event, "load_module.name", "fake_enoexec_mod")
 			assertFieldEqual(t, event, "load_module.file.name", "fake-enoexec-mod.ko")
 			assertFieldEqual(t, event, "load_module.file.path", enoexecPath)
+			assertFieldEqual(t, event, "load_module.file.inode", int(enoexecInode))
 			assertFieldEqual(t, event, "load_module.loaded_from_memory", false)
+		}, "test_finit_module_enoexec")
+	})
+
+	t.Run("finit_module_fd_replacement", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			dirFile, err := os.Open(tmpDir)
+			if err != nil {
+				return err
+			}
+			defer dirFile.Close()
+
+			modFile, err := os.Open(enoexecPath)
+			if err != nil {
+				return err
+			}
+			defer modFile.Close()
+
+			slotFD, err := unix.Dup(int(dirFile.Fd()))
+			if err != nil {
+				return err
+			}
+			defer unix.Close(slotFD)
+
+			done := make(chan struct{})
+			go func() {
+				for {
+					select {
+					case <-done:
+						return
+					default:
+						_ = unix.Dup2(int(dirFile.Fd()), slotFD)
+						_ = unix.Dup2(int(modFile.Fd()), slotFD)
+					}
+				}
+			}()
+			defer close(done)
+
+			for i := 0; i < 64; i++ {
+				_ = unix.Dup2(int(modFile.Fd()), slotFD)
+				if err := unix.FinitModule(slotFD, "", 0); errors.Is(err, unix.ENOEXEC) {
+					return nil
+				}
+			}
+			return fmt.Errorf("expected at least one ENOEXEC finit_module call")
+		}, func(event *model.Event, r *rules.Rule) {
+			assert.Equal(t, "test_finit_module_enoexec", r.ID, "wrong rule triggered")
+			assertFieldEqual(t, event, "load_module.name", "fake_enoexec_mod")
+			assertFieldEqual(t, event, "load_module.file.name", "fake-enoexec-mod.ko")
+			assertFieldEqual(t, event, "load_module.file.path", enoexecPath)
+			assertFieldEqual(t, event, "load_module.file.inode", int(enoexecInode))
 		}, "test_finit_module_enoexec")
 	})
 
@@ -480,6 +536,25 @@ func runFinitModuleEarlyExitTest(t *testing.T) {
 			}
 			defer f.Close()
 
+			slotFD, err := unix.Dup(int(f.Fd()))
+			if err != nil {
+				return err
+			}
+			defer unix.Close(slotFD)
+
+			done := make(chan struct{})
+			go func() {
+				for {
+					select {
+					case <-done:
+						return
+					default:
+						_ = unix.Dup2(int(f.Fd()), slotFD)
+					}
+				}
+			}()
+			defer close(done)
+
 			errCh := make(chan error, 1)
 			go func(fd int) {
 				// Leave the OS thread locked when the goroutine returns so the Go runtime
@@ -496,7 +571,7 @@ func runFinitModuleEarlyExitTest(t *testing.T) {
 					return
 				}
 				errCh <- nil
-			}(int(f.Fd()))
+			}(slotFD)
 
 			return <-errCh
 		}, func(event *model.Event, r *rules.Rule) {
@@ -504,6 +579,9 @@ func runFinitModuleEarlyExitTest(t *testing.T) {
 			assertFieldEqual(t, event, "load_module.name", "fake_eperm_mod")
 			assertFieldEqual(t, event, "load_module.file.name", "fake-eperm-mod.ko.zst")
 			assertFieldEqual(t, event, "load_module.file.path", epermPath)
+			assertFieldEqual(t, event, "load_module.file.inode", int(epermInode))
+			assertFieldEqual(t, event, "load_module.file.uid", 98)
+			assertFieldEqual(t, event, "load_module.file.gid", 99)
 			assertFieldEqual(t, event, "load_module.loaded_from_memory", false)
 		}, "test_finit_module_eperm")
 	})
