@@ -56,7 +56,7 @@ func TestSettings(t *testing.T) {
 		}
 		expected := firstRun(except(env.UIDs(), serviceMesh...))
 
-		suite.AssertObjects(t, expected, env.Pop(t, expected...))
+		env.AssertPop(t, expected...)
 	})
 }
 

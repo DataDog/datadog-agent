@@ -21,14 +21,14 @@ func TestCollectorSelection(t *testing.T) {
 	t.Run("collector_with_its_version", func(t *testing.T) {
 		env := suite.Setup(t, suite.WithOlderVersions(), suite.WithCollectors("batch/v1beta1/cronjobs"))
 
-		suite.AssertObjects(t, []string{"live batch_v1beta1_cronjobs"}, env.Pop(t, "live batch_v1beta1_cronjobs"))
+		env.AssertPop(t, "live batch_v1beta1_cronjobs")
 	})
 
 	// The check ignores an unknown collector and a repeated one, and runs the others.
 	t.Run("unknown_and_repeated_collectors", func(t *testing.T) {
 		env := suite.Setup(t, suite.WithCollectors("deployments", "deployments", "unknowns"))
 
-		suite.AssertObjects(t, []string{"live apps_v1_deployments"}, env.Pop(t, "live apps_v1_deployments"))
+		env.AssertPop(t, "live apps_v1_deployments")
 	})
 
 	// A custom resource that the check does not know is collected with crd_collectors.
@@ -37,14 +37,14 @@ func TestCollectorSelection(t *testing.T) {
 			suite.WithInstance("collectors: []\ncrd_collectors:\n  - stable.example.com/v1/crontabs\n"),
 			suite.WithExtraObjects(suite.CronTab("c")))
 
-		suite.AssertObjects(t, []string{"live c"}, env.Pop(t, "live c"))
+		env.AssertPop(t, "live c")
 	})
 
 	// crd_collectors ignores a built-in resource, which its built-in collector collects, and refuses Secrets.
 	t.Run("built_in_resources_in_crd_collectors", func(t *testing.T) {
 		env := suite.Setup(t, suite.WithInstance("collectors: []\ncrd_collectors:\n  - apps/v1/deployments\n  - v1/secrets\n"))
 
-		suite.AssertObjects(t, nil, env.Pop(t))
+		env.AssertPop(t)
 	})
 
 	// The check only uses the first 100 crd_collectors.
@@ -57,6 +57,6 @@ func TestCollectorSelection(t *testing.T) {
 		instance.WriteString("  - stable.example.com/v1/crontabs\n")
 		env := suite.Setup(t, suite.WithInstance(instance.String()), suite.WithExtraObjects(suite.CronTab("c")))
 
-		suite.AssertObjects(t, nil, env.Pop(t))
+		env.AssertPop(t)
 	})
 }

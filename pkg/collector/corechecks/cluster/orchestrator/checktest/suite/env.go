@@ -8,10 +8,9 @@
 // Package suite runs the real orchestrator check against a fake Kubernetes cluster, for the tests of the checktest
 // package. A test follows one pattern:
 //
-//	env := suite.Setup(t, options...)                      // the cluster and the check
-//	env.Delete(t, object)                                  // act on the cluster or the check
-//	actual := env.Pop(t, "deleted b")                      // run the check, take what it sent
-//	suite.AssertObjects(t, []string{"deleted b"}, actual)  // compare it with what the test expects
+//	env := suite.Setup(t, options...) // the cluster and the check
+//	env.Delete(t, object)             // act on the cluster or the check
+//	env.AssertPop(t, "deleted b")     // run the check, and compare what it sent with what the test expects
 package suite
 
 import (
@@ -233,6 +232,7 @@ func Setup(t *testing.T, opts ...Option) *Env {
 	redact.RestoreSensitiveAnnotationsAndLabelsForTest(t)
 	configenv.SetFeatures(t, configenv.Kubernetes)
 	clustername.ResetClusterName()
+	t.Cleanup(clustername.ResetClusterName)
 	clustername.DisableNodeLabelLookupForTest(t)
 	t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", clusterID)
 	config := mockconfig.New(t)
@@ -300,6 +300,8 @@ func Setup(t *testing.T, opts ...Option) *Env {
 			env.cluster.discover(f.groupVersion, *f.Discovery)
 		}
 	}
+	// The first run waits for the informers to sync, so it sees the objects of the setup.
+	clear(env.cluster.unwaited)
 	env.configure(t, o)
 	t.Cleanup(func() { env.stop(t) })
 	return env
@@ -422,11 +424,13 @@ func (env *Env) Stop(t *testing.T) Output {
 }
 
 // Restart cancels the check and configures a new one in the same process, like the Agent does when it reschedules
-// it. The cache of the resource versions that the check sent is kept, as it is shared by the process.
-func (env *Env) Restart(t *testing.T) {
+// it, and returns what the stopped check sent. The cache of the resource versions that the check sent is kept, as it
+// is shared by the process.
+func (env *Env) Restart(t *testing.T) Output {
 	t.Helper()
-	env.stop(t)
+	out := env.Stop(t)
 	env.configure(t, env.options)
+	return out
 }
 
 // WaitForDeletions waits until the check has handled the deletion of each object, like "deleted <uid>", whether it
@@ -444,6 +448,9 @@ func (env *Env) WaitForDeletions(t *testing.T, objects ...string) {
 	}
 	if !assert.Eventually(t, func() bool { return len(missing()) == 0 }, 10*time.Second, time.Millisecond) {
 		require.FailNow(t, "the check did not handle the deletions", "%v", missing())
+	}
+	for _, object := range objects {
+		delete(env.cluster.unwaited, object)
 	}
 }
 
@@ -494,6 +501,8 @@ func (env *Env) AddCheck(t *testing.T, opts ...Option) *Env {
 	}
 	other.leader.Store(o.mode != ClusterAgentFollower)
 	other.configure(t, o)
+	// Checks with the same ID would share one sender, and the first one would record nothing.
+	require.NotEqual(t, env.Check.ID(), other.Check.ID(), "the checks of an environment need distinct configurations")
 	t.Cleanup(func() { other.stop(t) })
 	return other
 }
@@ -580,20 +589,28 @@ func (env *Env) Add(t *testing.T, object runtime.Object) { env.add(t, fixtureOf(
 func (env *Env) add(t *testing.T, f Fixture) {
 	// The cluster and the test must not share the object.
 	f.Object = f.Object.DeepCopyObject()
+	env.cluster.waitForWatches(t)
 	env.cluster.add(t, f.Object.DeepCopyObject())
 	env.cluster.objects = append(env.cluster.objects, f)
+	env.cluster.unwaited["live "+uidOf(f.Object)] = struct{}{}
 }
 
 // Update replaces an object of the cluster.
 func (env *Env) Update(t *testing.T, object runtime.Object) {
+	env.cluster.waitForWatches(t)
 	env.cluster.update(t, object)
 	env.cluster.objects[env.indexOf(t, object)].Object = object.DeepCopyObject()
+	env.cluster.unwaited["live "+uidOf(object)] = struct{}{}
 }
 
 // Delete deletes an object of the cluster.
 func (env *Env) Delete(t *testing.T, object runtime.Object) {
+	env.cluster.waitForWatches(t)
 	env.cluster.delete(t, object)
 	env.cluster.objects = slices.Delete(env.cluster.objects, env.indexOf(t, object), env.indexOf(t, object)+1)
+	// The deletion supersedes an unwaited addition or update of the object.
+	delete(env.cluster.unwaited, "live "+uidOf(object))
+	env.cluster.unwaited["deleted "+uidOf(object)] = struct{}{}
 }
 
 // UpdateAll adds a label to every object of the cluster, with the next resource version.
@@ -659,6 +676,14 @@ func (env *Env) Pop(t *testing.T, objects ...string) Output {
 	return out
 }
 
+// AssertPop runs the check until it sent the objects, and checks that it sent these objects only, each once.
+func (env *Env) AssertPop(t *testing.T, objects ...string) Output {
+	t.Helper()
+	out := env.Pop(t, objects...)
+	AssertObjects(t, objects, out)
+	return out
+}
+
 // PopWithError is Pop with no object, for a check whose runs fail. It returns the error of the first run.
 func (env *Env) PopWithError(t *testing.T) (Output, error) {
 	t.Helper()
@@ -667,11 +692,30 @@ func (env *Env) PopWithError(t *testing.T) (Output, error) {
 
 func (env *Env) pop(t *testing.T, objects []string) (Output, error) {
 	t.Helper()
-	return env.runUntil(t, func(out Output) bool { return containsAll(out.Objects(), objects) })
+	// A check that does not lead sends nothing, whatever its informers have seen.
+	if unwaited := slices.Sorted(maps.Keys(env.cluster.unwaited)); len(objects) == 0 && len(unwaited) > 0 && env.leads() {
+		require.FailNow(t, "a step that expects nothing follows changes that the check may not have seen yet",
+			"wait for %v with WaitForDeletions or expect their payloads first", unwaited)
+	}
+	out, err := env.runUntil(t, func(out Output) bool { return containsAll(out.Objects(), objects) })
+	for _, object := range out.Objects() {
+		delete(env.cluster.unwaited, object)
+	}
+	return out, err
+}
+
+// leads reports whether the check runs as the leader, which a cluster check runner that skips the election does.
+func (env *Env) leads() bool {
+	if env.options.mode == ClusterCheckRunner && !env.options.noSkipElection {
+		return true
+	}
+	err := env.electionErr.Load()
+	return env.leader.Load() && (err == nil || *err == nil)
 }
 
 // runUntil runs the check until the condition holds on everything sent, or for 10 seconds, as informers report changes
-// asynchronously. It then runs it once more so that late duplicates show up, and returns the first error of the runs.
+// asynchronously. It then runs it once more, so that a payload sent again shows up as a duplicate, and returns the
+// first error of the runs.
 func (env *Env) runUntil(t *testing.T, done func(Output) bool) (Output, error) {
 	t.Helper()
 	var out Output
@@ -687,7 +731,6 @@ func (env *Env) runUntil(t *testing.T, done func(Output) bool) (Output, error) {
 	for {
 		run()
 		if done(out) || time.Now().After(deadline) {
-			time.Sleep(30 * time.Millisecond)
 			run()
 			return out, firstErr
 		}
@@ -700,6 +743,11 @@ func (env *Env) runOnce(t *testing.T) (Output, error) {
 	var errs []error
 	for _, p := range env.pipelines {
 		errs = append(errs, runWithTimeout(t, p.run))
+	}
+	if env.Check.WatchesPodDeletionsForTest() {
+		env.cluster.mu.Lock()
+		env.cluster.deletionWatchers[env.Check] = struct{}{}
+		env.cluster.mu.Unlock()
 	}
 	out := env.recorder.take()
 	env.assertNoSensitiveData(t, out)
@@ -792,7 +840,10 @@ func quietLogs(t *testing.T) {
 	logger, err := pkglog.LoggerFromWriterWithMinLevelAndFullFormat(testLogWriter{t}, pkglog.WarnLvl)
 	require.NoError(t, err)
 	pkglog.SetupLogger(logger, pkglog.WarnStr)
-	t.Cleanup(logger.Close)
+	t.Cleanup(func() {
+		pkglog.SetupLogger(pkglog.Default(), pkglog.DebugStr)
+		logger.Close()
+	})
 }
 
 type testLogWriter struct{ t *testing.T }

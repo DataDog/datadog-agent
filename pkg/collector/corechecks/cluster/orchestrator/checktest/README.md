@@ -47,13 +47,18 @@ func TestLeadership(t *testing.T) {
 		a, b := suite.Deployment("a"), suite.Deployment("b")
 		env := suite.Setup(t, suite.WithCollectors("deployments"), suite.WithObjects(a, b))
 
-		// 2. Act on the cluster or the check.
+		env.AssertPop(t, "live a", "live b")
+
+		// 2. Act on the cluster or the check: a follower drops the deletion of a.
 		env.SetLeader(false)
-		...
+		env.Delete(t, a)
+		env.WaitForDeletions(t, "deleted a")
+		env.AssertPop(t)
+		env.SetLeader(true)
 		env.Delete(t, b)
 
 		// 3. Run the check, take what it sent, and compare it with what the test expects.
-		suite.AssertObjects(t, []string{"deleted b"}, env.Pop(t, "deleted b"))
+		env.AssertPop(t, "deleted b")
 	})
 }
 ```
@@ -97,7 +102,7 @@ Two rules of the check matter here: the cluster collector needs a `kube-system` 
 `env.Add`, `env.Update`, `env.Delete`, `env.DeleteUIDs`, `env.UpdateAll`, `env.DeleteAll` and `env.AddCopies` change the cluster, and `env.Object(t, uid)`, `env.UIDs()` and `env.CustomResourceUIDs()` read it.
 `suite.Updated(t, object)` returns a copy of an object with a new label and the next resource version.
 `env.SetLeader`, `env.FailLeaderElection`, `env.FailDiscovery`, `env.FailGroupVersions`, `env.Discover`, `env.InstallCRDs` and `env.SetInfraTags` change what the check sees; `suite.CRD(t, object, established)` returns the CRD of a custom resource.
-`env.Stop` cancels the check and returns what it flushed, `env.Restart` replaces it with a new check in the same process, and `env.ExpireResourceCache` expires the cache of the resource versions sent, as three minutes do.
+`env.Stop` cancels the check and returns what it flushed, `env.Restart` replaces it with a new check in the same process and returns what the old one flushed, and `env.ExpireResourceCache` expires the cache of the resource versions sent, as three minutes do.
 `env.SetEntityTags(tags...)` makes the tagger report tags for every object, as the processors look them up.
 `env.AddCheck(t, options...)` configures another instance of the check in the same process, against the same cluster, like a cluster check runner with several instances; change the cluster through the first environment.
 `env.Config` and `env.Tagger` give access to the rest, and `env.LeaderElections()` counts the elections.
@@ -109,6 +114,7 @@ The check learns that it lost the leadership when it runs: call `env.Pop` after 
 `env.Pop(t, objects...)` runs the check until it has sent each object, then returns everything that it sent.
 An object is `live <uid>` or `deleted <uid>`, and the cluster is `live cluster`.
 `env.Pop(t)` with no object expects nothing. No test waits for a fixed time: after a change that nothing sent can show, a test waits for a signal first, like `env.WaitForDeletions(t, objects...)`, which the check reports through its `OnDeletion` test dependency, or the update of another object of the same informer, which handles its events in order.
+The suite fails a step that expects nothing when the test changed the cluster since it last waited.
 `env.Pop` fails the test when a run fails; `env.PopWithError(t)` returns the error instead.
 `actual.ManifestContent(t, "live a")` returns the decoded manifest of an object, for a test about a few fields.
 
@@ -116,6 +122,7 @@ Then compare the result:
 
 | Assertion | Checks |
 |---|---|
+| `env.AssertPop(t, expected...)` | runs the check until it sent the objects, then `suite.AssertObjects` on what it sent |
 | `suite.AssertObjects(t, expected, actual)` | which objects were sent, and that no payload was sent twice; `suite.Live(uids...)` and `suite.Deleted(uids...)` build the list |
 | `suite.AssertPayloadFiles(t, actual, "live a")` | the full content of the payloads of the objects, with their test data files |
 | `suite.AssertPayloads(t, expected, actual)` | the full content, with payloads that the test builds: `suite.ReadPayloads(t, objects...)` reads the test data files, `Payloads.WithMessageTags` adds tags, and `Payloads.Walk` changes values, like an environment variable |
@@ -137,10 +144,10 @@ suite.AssertPayloads(t, expected, actual)
 
 ## TestEveryResource
 
-It runs the default environment through three steps (first run, update every object, delete every object), in four configurations: leader, cluster check runner, default collectors and older versions.
+It runs the default environment through three steps (first run, update every object, delete every object), in six configurations: leader, cluster check runner, one resource per message, default collectors, collector discovery disabled and older versions.
 
 - Each step expects every object of the cluster, except the `notCollected` objects of the configuration, each with its reason in a comment, and the cluster when the nodes change. The known defect that the check does not report deleted nodes is stated at the delete step.
-- The leader and the cluster check runner compare the first-run content of every built-in resource, of the cluster, and of two custom resources: the built-in custom resources share their collector and processor, so a resource-specific one and a group-wide one cover them. They also compare the deleted pod, whose status and version change.
+- The leader, the cluster check runner and one resource per message compare the first-run content of every built-in resource, of the cluster, and of two custom resources: the built-in custom resources share their collector and processor, so a resource-specific one and a group-wide one cover them. They also compare the deleted pod, whose status and version change.
 - The update and delete steps check the generic fields of every payload with `AssertUpdated` and `AssertDeleted`.
 
 ## Add a pipeline

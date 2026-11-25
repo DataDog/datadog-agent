@@ -23,12 +23,12 @@ func TestClusterCheckRunners(t *testing.T) {
 		builtinUIDs := except(builtins.UIDs(), append(builtins.CustomResourceUIDs(), "apiextensions.k8s.io_v1_customresourcedefinitions")...)
 		customResourceUIDs := builtins.CustomResourceUIDs()
 
-		suite.AssertObjects(t, firstRun(builtinUIDs), builtins.Pop(t, firstRun(builtinUIDs)...))
-		suite.AssertObjects(t, suite.Live(customResourceUIDs...), customResources.Pop(t, suite.Live(customResourceUIDs...)...))
+		builtins.AssertPop(t, firstRun(builtinUIDs)...)
+		customResources.AssertPop(t, suite.Live(customResourceUIDs...)...)
 		builtins.DeleteAll(t)
 		expected := append(deletion(builtinUIDs), "live cluster")
-		suite.AssertObjects(t, expected, builtins.Pop(t, expected...))
-		suite.AssertObjects(t, deletion(customResourceUIDs), customResources.Pop(t, deletion(customResourceUIDs)...))
+		builtins.AssertPop(t, expected...)
+		customResources.AssertPop(t, deletion(customResourceUIDs)...)
 	})
 
 	// The instances of a process share the cache of the resource versions sent: the instance that runs first sends an
@@ -38,10 +38,10 @@ func TestClusterCheckRunners(t *testing.T) {
 		second := first.AddCheck(t, suite.WithInstanceTags("instance:second"))
 		uids := first.UIDs()
 
-		suite.AssertObjects(t, firstRun(uids), first.Pop(t, firstRun(uids)...))
-		suite.AssertObjects(t, nil, second.Pop(t))
+		first.AssertPop(t, firstRun(uids)...)
+		second.AssertPop(t)
 		first.ExpireResourceCache()
-		suite.AssertObjects(t, firstRun(uids), second.Pop(t, firstRun(uids)...))
-		suite.AssertObjects(t, nil, first.Pop(t))
+		second.AssertPop(t, firstRun(uids)...)
+		first.AssertPop(t)
 	})
 }

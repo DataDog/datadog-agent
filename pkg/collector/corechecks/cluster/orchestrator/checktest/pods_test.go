@@ -23,9 +23,9 @@ func TestPods(t *testing.T) {
 		pod := suite.AssignedPod("assigned")
 		env.Add(t, pod)
 
-		suite.AssertObjects(t, []string{"live v1_pods"}, env.Pop(t, "live v1_pods"))
+		env.AssertPop(t, "live v1_pods")
 		env.Delete(t, pod)
-		suite.AssertObjects(t, []string{"deleted assigned"}, env.Pop(t, "deleted assigned"))
+		env.AssertPop(t, "deleted assigned")
 	})
 
 	// A pending pod is sent until a node runs it: the API server reports a scheduled pod as deleted to the watch of
@@ -34,16 +34,16 @@ func TestPods(t *testing.T) {
 	t.Run("pending_pod_is_scheduled", func(t *testing.T) {
 		env := suite.Setup(t, suite.WithCollectors("pods", "terminated-pods"), suite.WithExtraObjects(suite.PendingPod("other")))
 
-		suite.AssertObjects(t, []string{"live other", "live v1_pods"}, env.Pop(t, "live other", "live v1_pods"))
+		env.AssertPop(t, "live other", "live v1_pods")
 		scheduled := suite.Updated(t, env.Object(t, "v1_pods")).(*corev1.Pod)
 		scheduled.Spec.NodeName = "node"
 		env.Update(t, scheduled)
 		env.Update(t, suite.Updated(t, env.Object(t, "other")))
-		suite.AssertObjects(t, []string{"live other"}, env.Pop(t, "live other"))
+		env.AssertPop(t, "live other")
 		// An informer that still held the scheduled pod would send it again once the cache expires.
 		env.ExpireResourceCache()
-		suite.AssertObjects(t, []string{"live other"}, env.Pop(t, "live other"))
+		env.AssertPop(t, "live other")
 		env.Delete(t, scheduled)
-		suite.AssertObjects(t, []string{"deleted v1_pods"}, env.Pop(t, "deleted v1_pods"))
+		env.AssertPop(t, "deleted v1_pods")
 	})
 }

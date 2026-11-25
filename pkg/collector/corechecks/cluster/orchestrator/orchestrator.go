@@ -110,18 +110,13 @@ type checkDependencies struct {
 	onDeletion func(obj interface{})
 }
 
-// withDefaults returns the dependencies, with the production services for the ones that are not set.
-func (d checkDependencies) withDefaults() checkDependencies {
-	if d.waitForAPIClient == nil {
-		d.waitForAPIClient = apiserver.WaitForAPIClient
+// productionDependencies returns the services that the check uses outside of tests.
+func productionDependencies() checkDependencies {
+	return checkDependencies{
+		waitForAPIClient:         apiserver.WaitForAPIClient,
+		runLeaderElection:        cluster.RunLeaderElection,
+		serverGroupsAndResources: discovery.GetServerGroupsAndResources,
 	}
-	if d.runLeaderElection == nil {
-		d.runLeaderElection = cluster.RunLeaderElection
-	}
-	if d.serverGroupsAndResources == nil {
-		d.serverGroupsAndResources = discovery.GetServerGroupsAndResources
-	}
-	return d
 }
 
 func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance, cfg configcomp.Component, wlmStore workloadmeta.Component, tagger tagger.Component) *OrchestratorCheck {
@@ -139,6 +134,7 @@ func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance, c
 		stopCh:      make(chan struct{}),
 		groupID:     atomic.NewInt32(rand.Int31()),
 		isCLCRunner: helper.IsCLCRunner(pkgconfigsetup.Datadog()),
+		deps:        productionDependencies(),
 		agentVersion: &model.AgentVersion{
 			Major:  agentVersion.Major,
 			Minor:  agentVersion.Minor,
@@ -173,7 +169,6 @@ func (o *OrchestratorCheck) Interval() time.Duration {
 // Configure configures the orchestrator check
 func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string, provider string) error {
 	o.BuildID(integrationConfigDigest, config, initConfig)
-	o.deps = o.deps.withDefaults()
 
 	err := o.CommonConfigure(senderManager, initConfig, config, source, provider)
 	if err != nil {

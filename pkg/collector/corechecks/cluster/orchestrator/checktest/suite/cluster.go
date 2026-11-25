@@ -8,13 +8,16 @@
 package suite
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -36,6 +39,7 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/fake"
 	kscheme "k8s.io/client-go/kubernetes/scheme"
+	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	metafake "k8s.io/client-go/metadata/fake"
 	k8stesting "k8s.io/client-go/testing"
 
@@ -65,6 +69,18 @@ type fakeCluster struct {
 	previous map[string]runtime.Object
 	// objects are the objects of the cluster, in their current state, which every check of a test shares.
 	objects []Fixture
+	// unwaited are the changes that the test made and did not wait for the check to handle, like "live <uid>" or
+	// "deleted <uid>". The payload of the object or WaitForDeletions waits for one. A leader step that expects nothing
+	// must not follow one, as no signal tells when the informers have seen it.
+	unwaited map[string]struct{}
+	// lists and watches count the successful lists and the watches of each informer, by fake client, resource and
+	// selectors. An informer lists, then watches from the listed version, and the fake trackers do not replay what
+	// changed in between: a change is only safe when each informer that listed watches.
+	lists, watches map[string]int
+	// deletionWatcherLists counts the lists of the pod deletion watchers, and deletionWatchers are the checks that
+	// started one. A watcher starts in the background, so it lists after the run that starts it.
+	deletionWatcherLists int
+	deletionWatchers     map[any]struct{}
 }
 
 type discoveredResource struct {
@@ -88,6 +104,11 @@ func newFakeCluster(t testing.TB) *fakeCluster {
 		vpas:     vpafake.NewSimpleClientset(), //nolint:staticcheck // SA1019 NewClientset not yet available in VPA
 		dynamic:  dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), listKinds),
 		previous: map[string]runtime.Object{},
+		unwaited: map[string]struct{}{},
+		lists:    map[string]int{},
+		watches:  map[string]int{},
+
+		deletionWatchers: map[any]struct{}{},
 	}
 	c.client.Discovery().(*fakediscovery.FakeDiscovery).FakedServerVersion = &version.Info{GitVersion: "v1.30.0"}
 	c.serveWatches(&c.client.Fake, c.client.Tracker())
@@ -96,8 +117,16 @@ func newFakeCluster(t testing.TB) *fakeCluster {
 	c.serveWatches(&c.vpas.Fake, c.vpas.Tracker())
 	c.serveWatches(&c.dynamic.Fake, c.dynamic.Tracker())
 	serveFieldSelectors(&c.client.Fake, c.client.Tracker())
+	// Registered last, the list counters run first, after the reactors that make lists fail, which a test adds later.
+	for _, f := range []*k8stesting.Fake{&c.crds.Fake, &c.vpas.Fake, &c.dynamic.Fake} {
+		c.countLists(f, false)
+	}
+	// Every list of the typed client watches next, the one of the pod deletion watcher included. The fake metadata
+	// client drops the list options, and only informers list metadata.
+	c.countLists(&c.client.Fake, true)
+	c.countLists(&c.metadata.Fake, true)
 	c.apiClient = &apiserver.APIClient{
-		Cl:                 c.client,
+		Cl:                 &directClient{Clientset: c.client, cluster: c},
 		InformerCl:         c.client,
 		DynamicCl:          c.dynamic,
 		DynamicInformerCl:  c.dynamic,
@@ -281,10 +310,14 @@ func (c *fakeCluster) serveWatches(f *k8stesting.Fake, tracker k8stesting.Object
 	f.PrependWatchReactor("*", func(action k8stesting.Action) (bool, watch.Interface, error) {
 		restrictions := action.(k8stesting.WatchAction).GetWatchRestrictions()
 		gvr := action.GetResource()
-		w, err := tracker.Watch(gvr, action.GetNamespace())
+		// The list options make the tracker replay the changes made since the List, like the generated fake reactor.
+		w, err := tracker.Watch(gvr, action.GetNamespace(), action.(k8stesting.WatchActionImpl).ListOptions)
 		if err != nil {
 			return true, nil, err
 		}
+		c.mu.Lock()
+		c.watches[informerKey(f, gvr, action.GetNamespace(), restrictions.Labels, restrictions.Fields)]++
+		c.mu.Unlock()
 		return true, watch.Filter(w, func(event watch.Event) (watch.Event, bool) {
 			matchesNow := matches(event.Object, restrictions.Labels, restrictions.Fields)
 			switch event.Type {
@@ -311,6 +344,91 @@ func (c *fakeCluster) serveWatches(f *k8stesting.Fake, tracker k8stesting.Object
 			return event, matchesNow
 		}), nil
 	})
+}
+
+// directClient is the client of the direct API calls of the check, apart from its informers. The pod deletion
+// watcher is the only one to list pods through it, so it counts its lists.
+type directClient struct {
+	*fake.Clientset
+	cluster *fakeCluster
+}
+
+func (d *directClient) CoreV1() corev1client.CoreV1Interface {
+	return directCoreV1{CoreV1Interface: d.Clientset.CoreV1(), cluster: d.cluster}
+}
+
+type directCoreV1 struct {
+	corev1client.CoreV1Interface
+	cluster *fakeCluster
+}
+
+func (d directCoreV1) Pods(namespace string) corev1client.PodInterface {
+	return directPods{PodInterface: d.CoreV1Interface.Pods(namespace), cluster: d.cluster}
+}
+
+type directPods struct {
+	corev1client.PodInterface
+	cluster *fakeCluster
+}
+
+// List counts the successful lists, which the watch of the pod deletion watcher follows.
+func (d directPods) List(ctx context.Context, opts metav1.ListOptions) (*corev1.PodList, error) {
+	list, err := d.PodInterface.List(ctx, opts)
+	if err == nil {
+		d.cluster.mu.Lock()
+		d.cluster.deletionWatcherLists++
+		d.cluster.mu.Unlock()
+	}
+	return list, err
+}
+
+// countLists counts the lists of the fake client that a watch follows. Unless everyList is set, it counts only the
+// lists from a resource version, which informers make, and not the permission checks of the check.
+func (c *fakeCluster) countLists(f *k8stesting.Fake, everyList bool) {
+	f.PrependReactor("list", "*", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		list := action.(k8stesting.ListActionImpl)
+		if !everyList && list.ListOptions.ResourceVersion == "" {
+			return false, nil, nil
+		}
+		restrictions := list.GetListRestrictions()
+		c.mu.Lock()
+		c.lists[informerKey(f, action.GetResource(), action.GetNamespace(), restrictions.Labels, restrictions.Fields)]++
+		c.mu.Unlock()
+		return false, nil, nil
+	})
+}
+
+// waitForWatches waits until each informer that listed watches, and each pod deletion watcher, so that they see the
+// next change.
+func (c *fakeCluster) waitForWatches(t testing.TB) {
+	unwatched := func() []string {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		var keys []string
+		if c.deletionWatcherLists < len(c.deletionWatchers) {
+			keys = append(keys, "pod deletion watcher")
+		}
+		for key, lists := range c.lists {
+			if c.watches[key] < lists {
+				keys = append(keys, key)
+			}
+		}
+		return keys
+	}
+	if !assert.Eventually(t, func() bool { return len(unwatched()) == 0 }, 10*time.Second, time.Millisecond) {
+		require.FailNow(t, "informers listed without watching", "%v", unwatched())
+	}
+}
+
+func informerKey(f *k8stesting.Fake, gvr schema.GroupVersionResource, namespace string, labelSelector labels.Selector, fieldSelector fields.Selector) string {
+	var labelString, fieldString string
+	if labelSelector != nil {
+		labelString = labelSelector.String()
+	}
+	if fieldSelector != nil {
+		fieldString = fieldSelector.String()
+	}
+	return fmt.Sprintf("%p %s %s %q %q", f, gvr, namespace, labelString, fieldString)
 }
 
 // serveFieldSelectors makes the lists of the fake client apply field selectors, as the unassigned pod informer lists

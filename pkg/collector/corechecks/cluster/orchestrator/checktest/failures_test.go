@@ -20,7 +20,7 @@ func TestFailures(t *testing.T) {
 		env := suite.Setup(t, suite.WithForbiddenResources("argoproj.io/v1alpha1/rollouts"))
 		expected := firstRun(except(env.UIDs(), "argoproj.io_v1alpha1_rollouts"))
 
-		suite.AssertObjects(t, expected, env.Pop(t, expected...))
+		env.AssertPop(t, expected...)
 	})
 
 	// The check skips a collector whose informer does not sync within kube_cache_sync_timeout_seconds and
@@ -32,7 +32,7 @@ func TestFailures(t *testing.T) {
 			suite.WithExtraSyncTimeout(1))
 		expected := firstRun(except(env.UIDs(), "apps_v1_deployments"))
 
-		suite.AssertObjects(t, expected, env.Pop(t, expected...))
+		env.AssertPop(t, expected...)
 	})
 
 	// A custom resource collector fails its runs when the resource has more objects than custom_resources.max_count.
@@ -41,7 +41,7 @@ func TestFailures(t *testing.T) {
 		env.Add(t, suite.Named(t, env.Object(t, "argoproj.io_v1alpha1_rollouts"), "second-rollout"))
 		expected := firstRun(except(env.UIDs(), "argoproj.io_v1alpha1_rollouts", "second-rollout"))
 
-		suite.AssertObjects(t, expected, env.Pop(t, expected...))
+		env.AssertPop(t, expected...)
 	})
 
 	// The cluster collector reads the creation time of the kube-system namespace, and fails without it.
@@ -50,6 +50,6 @@ func TestFailures(t *testing.T) {
 		env.DeleteUIDs(t, "v1_namespaces")
 		expected := suite.Live(env.UIDs()...)
 
-		suite.AssertObjects(t, expected, env.Pop(t, expected...))
+		env.AssertPop(t, expected...)
 	})
 }

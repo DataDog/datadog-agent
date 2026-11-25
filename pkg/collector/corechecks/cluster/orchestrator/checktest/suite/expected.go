@@ -9,7 +9,6 @@ package suite
 
 import (
 	"encoding/json"
-	"flag"
 	"maps"
 	"slices"
 	"strings"
@@ -20,10 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// update makes AssertPayloadFiles write the payloads of the test data files with what the check sends, instead of
-// comparing them.
-var update = flag.Bool("update", false, "write the payloads of the test data files with what the check sends")
 
 // Payloads are normalized payloads, by object: "live <uid>" or "deleted <uid>".
 type Payloads map[string][]map[string]any
@@ -70,14 +65,16 @@ func AssertPayloads(t *testing.T, expected Payloads, actual Output) {
 	}
 }
 
-// AssertPayloadFiles compares the payloads that the check sent for the objects with their test data files. With
-// -update, it writes them in the files instead.
+// AssertPayloadFiles compares the payloads that the check sent for the objects with their test data files.
 func AssertPayloadFiles(t *testing.T, actual Output, objects ...string) {
 	t.Helper()
-	if !*update {
-		AssertPayloads(t, ReadPayloads(t, objects...), actual)
-		return
-	}
+	AssertPayloads(t, ReadPayloads(t, objects...), actual)
+}
+
+// WritePayloadFiles writes the payloads that the check sent for the objects in their test data files, which the
+// -update flag of the tests does instead of comparing them.
+func WritePayloadFiles(t *testing.T, actual Output, objects ...string) {
+	t.Helper()
 	got := actual.Payloads(t)
 	for _, object := range objects {
 		if len(got[object]) == 0 {

@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/discovery"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
@@ -31,8 +32,12 @@ type TestDependencies struct {
 	OnDeletion func(obj interface{})
 }
 
-// NewCheckForTest returns an unconfigured check that uses the test dependencies.
+// NewCheckForTest returns an unconfigured check that uses the test dependencies. It panics when a service is missing,
+// so that a test cannot reach the API server of the host kubeconfig.
 func NewCheckForTest(cfg configcomp.Component, store workloadmeta.Component, tagger tagger.Component, deps TestDependencies) *OrchestratorCheck {
+	if deps.WaitForAPIClient == nil || deps.RunLeaderElection == nil || deps.ServerGroupsAndResources == nil {
+		panic("the test dependencies miss WaitForAPIClient, RunLeaderElection or ServerGroupsAndResources")
+	}
 	chk := newOrchestratorCheck(core.NewCheckBase(CheckName), &OrchestratorInstance{}, cfg, store, tagger)
 	chk.isCLCRunner = deps.IsCLCRunner
 	chk.deps = checkDependencies{
@@ -42,6 +47,23 @@ func NewCheckForTest(cfg configcomp.Component, store workloadmeta.Component, tag
 		onDeletion:               deps.OnDeletion,
 	}
 	return chk
+}
+
+// WatchesPodDeletionsForTest reports whether the check initialized the terminated pod collector, whose pod deletion
+// watcher lists and then watches the pods in the background.
+func (o *OrchestratorCheck) WatchesPodDeletionsForTest() bool {
+	if o.collectorBundle == nil {
+		return false
+	}
+	for _, collector := range o.collectorBundle.collectors {
+		if collector.Metadata().Name != utilTypes.TerminatedPodName {
+			continue
+		}
+		if _, found := o.collectorBundle.initializedCollectors[collector.Metadata().FullName()]; found {
+			return true
+		}
+	}
+	return false
 }
 
 // CollectorMetadataForTest returns the metadata of each version of each collector of the inventory.

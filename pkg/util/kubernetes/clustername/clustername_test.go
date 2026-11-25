@@ -230,7 +230,7 @@ func TestGetClusterNameOTelResourceAttributes(t *testing.T) {
 				catalog["dummyProvider"] = func(context.Context) (string, error) { return tt.cloudClusterName, nil }
 			}
 			setProviderCatalog(catalog)
-			stubNodeClusterNameLabel(t, func(_ context.Context, clusterName string) (string, error) {
+			StubNodeClusterNameLabelForTest(t, func(_ context.Context, clusterName string) (string, error) {
 				if clusterName == "" {
 					return tt.nodeLabelClusterName, nil
 				}
@@ -270,7 +270,7 @@ func TestGetClusterNameNodeLabelsWithoutKubelet(t *testing.T) {
 			t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "k8s.cluster.name=laika")
 
 			calledNodeLabels := false
-			stubNodeClusterNameLabel(t, func(context.Context, string) (string, error) {
+			StubNodeClusterNameLabelForTest(t, func(context.Context, string) (string, error) {
 				calledNodeLabels = true
 				return "", errors.New("no kubelet")
 			})
@@ -335,15 +335,6 @@ func TestGetClusterIDClusterAgent(t *testing.T) {
 			assert.Equal(t, tc.id, id)
 		})
 	}
-}
-
-// stubNodeClusterNameLabel replaces the node-label discovery with stub for the
-// duration of the test.
-func stubNodeClusterNameLabel(t *testing.T, stub func(context.Context, string) (string, error)) {
-	t.Helper()
-	previous := nodeClusterNameLabel
-	t.Cleanup(func() { nodeClusterNameLabel = previous })
-	nodeClusterNameLabel = stub
 }
 
 func clearClusterIDCache(t *testing.T) {

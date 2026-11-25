@@ -19,7 +19,7 @@ func TestLifecycle(t *testing.T) {
 		env := suite.Setup(t)
 		uids := env.UIDs()
 
-		suite.AssertObjects(t, firstRun(uids), env.Pop(t, firstRun(uids)...))
+		env.AssertPop(t, firstRun(uids)...)
 		env.DeleteAll(t)
 		env.WaitForDeletions(t, deletion(uids)...)
 		suite.AssertObjects(t, deletion(uids), env.Stop(t))
@@ -31,10 +31,10 @@ func TestLifecycle(t *testing.T) {
 		env := suite.Setup(t)
 		uids := env.UIDs()
 
-		suite.AssertObjects(t, firstRun(uids), env.Pop(t, firstRun(uids)...))
-		env.Restart(t)
-		suite.AssertObjects(t, nil, env.Pop(t))
+		env.AssertPop(t, firstRun(uids)...)
+		suite.AssertObjects(t, nil, env.Restart(t))
+		env.AssertPop(t)
 		env.ExpireResourceCache()
-		suite.AssertObjects(t, firstRun(uids), env.Pop(t, firstRun(uids)...))
+		env.AssertPop(t, firstRun(uids)...)
 	})
 }

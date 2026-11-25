@@ -8,12 +8,27 @@
 package checktest
 
 import (
+	"flag"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/checktest/suite"
 )
+
+// update makes the tests write the payloads of the test data files with what the check sends, instead of comparing
+// them.
+var update = flag.Bool("update", false, "write the payloads of the test data files with what the check sends")
+
+// assertPayloadFiles compares the payloads of the objects with their test data files, or writes them with -update.
+func assertPayloadFiles(t *testing.T, actual suite.Output, objects ...string) {
+	t.Helper()
+	if *update {
+		suite.WritePayloadFiles(t, actual, objects...)
+		return
+	}
+	suite.AssertPayloadFiles(t, actual, objects...)
+}
 
 // contentObjects are the objects whose payload content the tests compare: every built-in resource and the cluster,
 // and two built-in custom resources. The built-in custom resources share their collector and processor, so a

@@ -22,20 +22,20 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-// TestDataDir holds a file for each resource, named after the resource, like deployments.yaml, relative to the package
+// testDataDir holds a file for each resource, named after the resource, like deployments.yaml, relative to the package
 // of the tests. The resource name alone keeps the paths short enough for the Windows build.
 //
 // A file has a section for each object of the resource, by UID, like apps_v1_deployments: its manifest, the object of
 // the default cluster, and its live and deleted payloads, what the check sends for it. A UID is the full name of the
 // collector of the object, with underscores for slashes, so the versions of a resource share its file.
-var TestDataDir = "testdata"
+const testDataDir = "testdata"
 
 // sectionKeys are the keys of the section of an object, in the order of the file.
 var sectionKeys = []string{"manifest", "live", "deleted"}
 
 // testDataPath returns the file of the object with the UID: the last part of the UID is its resource.
 func testDataPath(uid string) string {
-	return filepath.Join(TestDataDir, uid[strings.LastIndex(uid, "_")+1:]+".yaml")
+	return filepath.Join(testDataDir, uid[strings.LastIndex(uid, "_")+1:]+".yaml")
 }
 
 // readSections returns the sections of a test data file, by UID, with the raw JSON of each key. A missing file has no

@@ -35,9 +35,9 @@ func TestCollectorDependencies(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			env := suite.Setup(t, suite.WithCollectors(c.collectors...))
 
-			suite.AssertObjects(t, c.first, env.Pop(t, c.first...))
+			env.AssertPop(t, c.first...)
 			env.DeleteUIDs(t, "v1_nodes")
-			suite.AssertObjects(t, c.deleted, env.Pop(t, c.deleted...))
+			env.AssertPop(t, c.deleted...)
 		})
 	}
 
@@ -45,17 +45,17 @@ func TestCollectorDependencies(t *testing.T) {
 	t.Run("pods_without_terminated_pods", func(t *testing.T) {
 		env := suite.Setup(t, suite.WithCollectors("pods"))
 
-		suite.AssertObjects(t, []string{"live v1_pods"}, env.Pop(t, "live v1_pods"))
+		env.AssertPop(t, "live v1_pods")
 		env.DeleteUIDs(t, "v1_pods")
-		suite.AssertObjects(t, []string{"deleted v1_pods"}, env.Pop(t, "deleted v1_pods"))
+		env.AssertPop(t, "deleted v1_pods")
 	})
 
 	t.Run("terminated_pods_without_pods", func(t *testing.T) {
 		env := suite.Setup(t, suite.WithCollectors("terminated-pods"))
 
-		suite.AssertObjects(t, nil, env.Pop(t))
+		env.AssertPop(t)
 		env.DeleteUIDs(t, "v1_pods")
-		suite.AssertObjects(t, []string{"deleted v1_pods"}, env.Pop(t, "deleted v1_pods"))
+		env.AssertPop(t, "deleted v1_pods")
 	})
 
 	// The check adds the Helm release collector to the ConfigMap collector only, and collects the built-in custom
@@ -63,6 +63,6 @@ func TestCollectorDependencies(t *testing.T) {
 	t.Run("collectors_without_their_dependency", func(t *testing.T) {
 		env := suite.Setup(t, suite.WithCollectors("deployments"))
 
-		suite.AssertObjects(t, []string{"live apps_v1_deployments"}, env.Pop(t, "live apps_v1_deployments"))
+		env.AssertPop(t, "live apps_v1_deployments")
 	})
 }

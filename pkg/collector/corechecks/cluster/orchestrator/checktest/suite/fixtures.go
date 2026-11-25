@@ -66,7 +66,7 @@ func builtinFixtures(t testing.TB) []Fixture {
 // decodedBuiltinFixtures decodes the manifests of the test data files once for the whole test binary. A section with a
 // manifest is the fixture of the collector of its UID.
 var decodedBuiltinFixtures = sync.OnceValues(func() ([]Fixture, error) {
-	paths, err := filepath.Glob(filepath.Join(TestDataDir, "*.yaml"))
+	paths, err := filepath.Glob(filepath.Join(testDataDir, "*.yaml"))
 	if err != nil {
 		return nil, err
 	}

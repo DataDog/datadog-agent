@@ -70,10 +70,10 @@ func TestEveryResource(t *testing.T) {
 			actual := env.Pop(t, expected...)
 			suite.AssertObjects(t, expected, actual)
 			if c.checkContent {
-				suite.AssertPayloadFiles(t, actual, contentObjects(t)...)
+				assertPayloadFiles(t, actual, contentObjects(t)...)
 			}
 
-			suite.AssertObjects(t, nil, env.Pop(t))
+			env.AssertPop(t)
 
 			env.UpdateAll(t)
 			expected = suite.Live(collected...)
@@ -88,7 +88,7 @@ func TestEveryResource(t *testing.T) {
 			suite.AssertDeleted(t, actual)
 			if c.checkContent {
 				// A deleted pod differs from a live one beyond its deletion timestamp: its status and its version.
-				suite.AssertPayloadFiles(t, actual, "deleted v1_pods")
+				assertPayloadFiles(t, actual, "deleted v1_pods")
 			}
 		})
 	}

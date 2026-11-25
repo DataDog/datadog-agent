@@ -20,9 +20,9 @@ func TestDiscovery(t *testing.T) {
 	t.Run("failure_at_start_recovers", func(t *testing.T) {
 		env := suite.Setup(t, suite.WithDiscoveryFailure(errors.New("the API server is unavailable")))
 
-		suite.AssertObjects(t, nil, env.Pop(t))
+		env.AssertPop(t)
 		env.FailDiscovery(nil)
-		suite.AssertObjects(t, firstRun(env.UIDs()), env.Pop(t, firstRun(env.UIDs())...))
+		env.AssertPop(t, firstRun(env.UIDs())...)
 	})
 
 	// Discovery fails for one API group only, like an unavailable aggregated API.
@@ -30,9 +30,9 @@ func TestDiscovery(t *testing.T) {
 		env := suite.Setup(t, suite.WithFailedGroupVersions("argoproj.io/v1alpha1"))
 		argo := withPrefix(env.UIDs(), "argoproj.io_v1alpha1_")
 
-		suite.AssertObjects(t, firstRun(except(env.UIDs(), argo...)), env.Pop(t, firstRun(except(env.UIDs(), argo...))...))
+		env.AssertPop(t, firstRun(except(env.UIDs(), argo...))...)
 		env.FailGroupVersions()
-		suite.AssertObjects(t, suite.Live(argo...), env.Pop(t, suite.Live(argo...)...))
+		env.AssertPop(t, suite.Live(argo...)...)
 	})
 
 	// The check collects the custom resources whose CRDs are installed after it started.
@@ -40,10 +40,10 @@ func TestDiscovery(t *testing.T) {
 		env := suite.Setup(t, suite.WithUndiscoveredCustomResources())
 		customResources := env.CustomResourceUIDs()
 
-		suite.AssertObjects(t, firstRun(except(env.UIDs(), customResources...)), env.Pop(t, firstRun(except(env.UIDs(), customResources...))...))
+		env.AssertPop(t, firstRun(except(env.UIDs(), customResources...))...)
 		env.InstallCRDs(t)
 		expected := append(suite.Live(customResources...), suite.Live(crdUIDs(customResources)...)...)
-		suite.AssertObjects(t, expected, env.Pop(t, expected...))
+		env.AssertPop(t, expected...)
 	})
 
 	// The API server reports a custom resource once its CRD is established, which a CRD update can do after its
@@ -52,23 +52,23 @@ func TestDiscovery(t *testing.T) {
 		env := suite.Setup(t, suite.WithUndiscoveredCustomResources())
 		customResources := env.CustomResourceUIDs()
 
-		suite.AssertObjects(t, firstRun(except(env.UIDs(), customResources...)), env.Pop(t, firstRun(except(env.UIDs(), customResources...))...))
+		env.AssertPop(t, firstRun(except(env.UIDs(), customResources...))...)
 		for _, uid := range customResources {
 			env.Add(t, suite.CRD(t, env.Object(t, uid), false))
 		}
-		suite.AssertObjects(t, suite.Live(crdUIDs(customResources)...), env.Pop(t, suite.Live(crdUIDs(customResources)...)...))
+		env.AssertPop(t, suite.Live(crdUIDs(customResources)...)...)
 		for _, uid := range customResources {
 			env.Discover(t, env.Object(t, uid))
 			env.Update(t, suite.Updated(t, suite.CRD(t, env.Object(t, uid), true)))
 		}
 		expected := append(suite.Live(customResources...), suite.Live(crdUIDs(customResources)...)...)
-		suite.AssertObjects(t, expected, env.Pop(t, expected...))
+		env.AssertPop(t, expected...)
 	})
 
 	t.Run("crd_collectors_only", func(t *testing.T) {
 		env := suite.Setup(t, suite.WithCRDCollectorsOnly())
 
-		suite.AssertObjects(t, suite.Live(env.CustomResourceUIDs()...), env.Pop(t, suite.Live(env.CustomResourceUIDs()...)...))
+		env.AssertPop(t, suite.Live(env.CustomResourceUIDs()...)...)
 	})
 
 	// The check keeps the version of a resource that it selected first, even when its CRD then serves a preferred one.
@@ -78,7 +78,7 @@ func TestDiscovery(t *testing.T) {
 		crd := suite.CRD(t, older, true)
 		env := suite.Setup(t, suite.WithCollectors("customresourcedefinitions"), suite.WithObjects(older, crd))
 		expected := []string{"live gateway.networking.k8s.io_v1beta1_gateways", "live gateway.networking.k8s.io_v1beta1_gateways_crd"}
-		suite.AssertObjects(t, expected, env.Pop(t, expected...))
+		env.AssertPop(t, expected...)
 
 		// The API server serves the same object in each version of its CRD. The new resource version shows a payload
 		// of the new version, which the cache would otherwise skip.
@@ -89,7 +89,7 @@ func TestDiscovery(t *testing.T) {
 		crd.Spec.Versions = append([]apiextensionsv1.CustomResourceDefinitionVersion{{Name: "v1", Served: true, Storage: true}}, crd.Spec.Versions[0])
 		crd.Spec.Versions[1].Storage = false
 		env.Update(t, crd)
-		suite.AssertObjects(t, []string{"live gateway.networking.k8s.io_v1beta1_gateways_crd"}, env.Pop(t, "live gateway.networking.k8s.io_v1beta1_gateways_crd"))
+		env.AssertPop(t, "live gateway.networking.k8s.io_v1beta1_gateways_crd")
 	})
 }
 
