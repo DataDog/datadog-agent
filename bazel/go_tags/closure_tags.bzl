@@ -1330,7 +1330,7 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/pkg/fleet/installer/oci": ["goexperiment.systemcrypto", "requirefips", "test"],
     "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages": ["goexperiment.systemcrypto", "requirefips", "test"],
     "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/apminject": ["goexperiment.systemcrypto", "requirefips", "test"],
-    "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/exec": ["test"],
+    "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/exec": ["goexperiment.systemcrypto", "requirefips", "test"],
     "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions": ["goexperiment.systemcrypto", "requirefips", "test"],
     "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/fapolicyd": ["goexperiment.systemcrypto", "requirefips", "test"],
     "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file": ["test"],
