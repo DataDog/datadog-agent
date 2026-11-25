@@ -40,7 +40,6 @@ type deviceOptions struct {
 	nvlinkStates            []nvml.EnableState
 	nvlinkStateErrors       map[int]nvml.Return
 	nvlinkRemotes           map[int]NVLinkRemote
-	nvlinkCapabilities      map[int]map[nvml.NvLinkCapability]uint32
 	p2pStatuses             map[string]map[nvml.GpuP2PCapsIndex]MockP2PStatus
 	pciInfo                 *nvml.PciInfo
 	migChildUUIDs           map[int]string
@@ -436,13 +435,6 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 				return nvml.PciInfo{}, nvml.ERROR_NOT_SUPPORTED
 			}
 			return remote.PCI, remote.PCIReturn
-		},
-		GetNvLinkCapabilityFunc: func(link int, capability nvml.NvLinkCapability) (uint32, nvml.Return) {
-			value, ok := opts.nvlinkCapabilities[link][capability]
-			if isMIGChildOrVGPUUnsupported || !opts.nvlinkSupported() || !ok {
-				return 0, nvml.ERROR_NOT_SUPPORTED
-			}
-			return value, nvml.SUCCESS
 		},
 		GetP2PStatusFunc: func(peer nvml.Device, index nvml.GpuP2PCapsIndex) (nvml.GpuP2PStatus, nvml.Return) {
 			if isMIGChildOrVGPUUnsupported {

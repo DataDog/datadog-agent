@@ -437,14 +437,6 @@ func (d *safeDeviceImpl) GetNvLinkRemotePciInfo(link int) (nvml.PciInfo, error) 
 	return info, NewNvmlAPIErrorOrNil("GetNvLinkRemotePciInfo", ret)
 }
 
-func (d *safeDeviceImpl) GetNvLinkCapability(link int, capability nvml.NvLinkCapability) (uint32, error) {
-	if err := d.lib.lookup(toNativeName("GetNvLinkCapability")); err != nil {
-		return 0, err
-	}
-	value, ret := d.nvmlDevice.GetNvLinkCapability(link, capability)
-	return value, NewNvmlAPIErrorOrNil("GetNvLinkCapability", ret)
-}
-
 func (d *safeDeviceImpl) GetP2PStatus(peer SafeDevice, capability nvml.GpuP2PCapsIndex) (nvml.GpuP2PStatus, error) {
 	if err := d.lib.lookup(toNativeName("GetP2PStatus")); err != nil {
 		return 0, err

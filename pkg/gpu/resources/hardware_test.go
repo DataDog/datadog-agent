@@ -35,13 +35,12 @@ func TestNVLinkPeersOnRealHardware(t *testing.T) {
 	require.NoError(t, err)
 
 	type rawPort struct {
-		Port         int               `json:"port"`
-		State        string            `json:"state,omitempty"`
-		RemoteType   string            `json:"remote_type,omitempty"`
-		RemoteBDF    string            `json:"remote_bdf,omitempty"`
-		Version      int               `json:"version,omitempty"`
-		Capabilities map[string]uint32 `json:"capabilities,omitempty"`
-		Errors       []string          `json:"errors,omitempty"`
+		Port       int      `json:"port"`
+		State      string   `json:"state,omitempty"`
+		RemoteType string   `json:"remote_type,omitempty"`
+		RemoteBDF  string   `json:"remote_bdf,omitempty"`
+		Version    int      `json:"version,omitempty"`
+		Errors     []string `json:"errors,omitempty"`
 	}
 	type rawGPU struct {
 		Index int                       `json:"index"`
@@ -49,10 +48,6 @@ func TestNVLinkPeersOnRealHardware(t *testing.T) {
 		BDF   string                    `json:"bdf"`
 		Ports []rawPort                 `json:"ports"`
 		P2P   map[string]map[string]int `json:"p2p_raw_status"` // peer index -> r/w/a/n/p -> NVML status
-	}
-	capNames := map[nvml.NvLinkCapability]string{
-		nvml.NVLINK_CAP_P2P_SUPPORTED: "p2p", nvml.NVLINK_CAP_SYSMEM_ACCESS: "sysmem", nvml.NVLINK_CAP_P2P_ATOMICS: "p2p_atomics",
-		nvml.NVLINK_CAP_SYSMEM_ATOMICS: "sysmem_atomics", nvml.NVLINK_CAP_SLI_BRIDGE: "sli", nvml.NVLINK_CAP_VALID: "valid",
 	}
 	p2pNames := map[nvml.GpuP2PCapsIndex]string{
 		nvml.P2P_CAPS_INDEX_READ: "r", nvml.P2P_CAPS_INDEX_WRITE: "w", nvml.P2P_CAPS_INDEX_ATOMICS: "a",
@@ -64,7 +59,7 @@ func TestNVLinkPeersOnRealHardware(t *testing.T) {
 		physical := device.(*safenvml.PhysicalDevice)
 		gpu := rawGPU{Index: physical.Index, UUID: physical.UUID, BDF: physical.PCIBusID, P2P: map[string]map[string]int{}}
 		for link := range physical.NVLinkLinkCount {
-			port := rawPort{Port: link, Capabilities: map[string]uint32{}}
+			port := rawPort{Port: link}
 			if state, err := physical.GetNvLinkState(link); err == nil {
 				port.State = map[nvml.EnableState]string{nvml.FEATURE_ENABLED: "active", nvml.FEATURE_DISABLED: "inactive"}[state]
 			} else {
@@ -84,13 +79,6 @@ func TestNVLinkPeersOnRealHardware(t *testing.T) {
 			}
 			if version, err := physical.GetNvLinkVersion(link); err == nil {
 				port.Version = version
-			}
-			for capability, name := range capNames {
-				if value, err := physical.GetNvLinkCapability(link, capability); err == nil {
-					port.Capabilities[name] = value
-				} else {
-					port.Errors = append(port.Errors, "capability "+name+": "+err.Error())
-				}
 			}
 			gpu.Ports = append(gpu.Ports, port)
 		}

@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Peering is the NVLink and P2P peering of one GPU, in the shape published in gpu_device.
@@ -83,6 +84,7 @@ func (s *PeeringScanner) Scan(now time.Time, devices []safenvml.Device) map[stri
 			scanned[uuid] = scanGPU(device, physical, byBDF, s.scanned[uuid])
 		}
 		s.scanned, s.gpus, s.lastScan = scanned, uuids, now
+		s.logIncomplete()
 	}
 
 	result := make(map[string]Peering, len(s.scanned))
@@ -91,6 +93,23 @@ func (s *PeeringScanner) Scan(now time.Time, devices []safenvml.Device) map[stri
 	}
 	return result
 }
+
+// logIncomplete reports GPUs whose peering could not be fully re-read. Their published peers
+// and links are then the last known values, so an operator needs to know they may be stale.
+func (s *PeeringScanner) logIncomplete() {
+	var incomplete []string
+	for uuid, gpu := range s.scanned {
+		if !gpu.result.Complete {
+			incomplete = append(incomplete, uuid)
+		}
+	}
+	if len(incomplete) > 0 && peeringLogLimit.ShouldLog() {
+		slices.Sort(incomplete)
+		log.Warnf("GPU NVLink/P2P peering scan was incomplete for %v: some NVML queries failed or returned an unknown status; the last known values are published for them", incomplete)
+	}
+}
+
+var peeringLogLimit = log.NewLogLimit(10, 10*time.Minute)
 
 // IncompletePeering returns the sorted UUIDs whose peering is incomplete or missing, for
 // lifecycle handling that must tell absence from unknown.
@@ -122,10 +141,11 @@ type gpuScan struct {
 	complete bool
 }
 
-// unknown records a query that gave no usable answer. A value known from the previous scan is
-// kept, and the scan is incomplete because that value could not be re-confirmed. Without a
-// previous value, an API that is simply not supported is a complete answer; any other failure
-// is not.
+// unknown records a query that gave no usable answer: err is the query error, or nil when the
+// query succeeded but its answer could not be interpreted. A value known from the previous scan
+// is kept, and the scan is incomplete because that value could not be re-confirmed. Without a
+// previous value, an API that is simply not supported is a complete answer; anything else is
+// not.
 func (g *gpuScan) unknown(err error, haveKnown bool) {
 	if haveKnown || !safenvml.IsUnsupported(err) {
 		g.complete = false
@@ -172,7 +192,7 @@ func (g *gpuScan) scanPorts(device *safenvml.PhysicalDevice) map[int]nvlinkPort 
 		if version, err := device.GetNvLinkVersion(link); err == nil {
 			port.version = safenvml.NVLinkVersionString(version)
 		} else {
-			keep := havePrev && prev.version != ""
+			keep := havePrev && prev.version != "" && prev.remoteType == port.remoteType
 			g.unknown(err, keep)
 			if keep {
 				port.version = prev.version
@@ -217,12 +237,10 @@ func (g *gpuScan) scanP2P(device *safenvml.PhysicalDevice, all []*safenvml.Physi
 			known := *query.field(&prev)
 			status, err := device.GetP2PStatus(peer, query.index)
 			value := p2pStatusToBool(status)
-			if err == nil && value == nil {
-				// NVML answered but the status says nothing (unknown or a value newer than
-				// this Agent): not a negative.
-				err = errUninterpretableP2PStatus
-			}
-			if err != nil {
+			if err != nil || value == nil {
+				// A nil error with a nil value means NVML answered but the status says nothing
+				// (unknown, or a value newer than this Agent): not a negative, and not a
+				// complete answer either.
 				g.unknown(err, known != nil)
 				value = known
 			}
@@ -321,8 +339,6 @@ func p2pStatusToBool(status nvml.GpuP2PStatus) *bool {
 	}
 	return &value
 }
-
-var errUninterpretableP2PStatus = safenvml.NewNvmlAPIErrorOrNil("GetP2PStatus", nvml.ERROR_UNKNOWN)
 
 func isZero(c P2PCapabilities) bool {
 	return c.Read == nil && c.Write == nil && c.Atomics == nil && c.NVLink == nil && c.PCI == nil

@@ -92,7 +92,6 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetNvLinkVersion"),
 		toNativeName("GetNvLinkRemoteDeviceType"),
 		toNativeName("GetNvLinkRemotePciInfo"),
-		toNativeName("GetNvLinkCapability"),
 		toNativeName("GetP2PStatus"),
 		toNativeName("GetNvLinkErrorCounter"),
 		toNativeName("GetNumFans"),

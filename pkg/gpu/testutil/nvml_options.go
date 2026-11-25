@@ -314,13 +314,6 @@ func WithNVLinkRemotes(remotes map[int]NVLinkRemote) NvmlDeviceOption {
 	})
 }
 
-// WithNVLinkCapabilities configures the values returned by GetNvLinkCapability, keyed by local port.
-func WithNVLinkCapabilities(capabilities map[int]map[nvml.NvLinkCapability]uint32) NvmlDeviceOption {
-	return deviceOption(func(o *deviceOptions) {
-		o.nvlinkCapabilities = capabilities
-	})
-}
-
 // MockP2PStatus is a mocked GetP2PStatus result. A zero return code means success.
 type MockP2PStatus struct {
 	Status nvml.GpuP2PStatus

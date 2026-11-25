@@ -145,8 +145,6 @@ type SafeDevice interface {
 	GetNvLinkRemoteDeviceType(link int) (nvml.IntNvLinkDeviceType, error)
 	// GetNvLinkRemotePciInfo returns the PCI information of the device at the remote end of a local NVLink port.
 	GetNvLinkRemotePciInfo(link int) (nvml.PciInfo, error)
-	// GetNvLinkCapability returns the value of a capability of a local NVLink port.
-	GetNvLinkCapability(link int, capability nvml.NvLinkCapability) (uint32, error)
 	// GetP2PStatus returns the status of a peer-to-peer capability from this device (as the
 	// source) to the given peer device. The direction of the query is significant.
 	GetP2PStatus(peer SafeDevice, capability nvml.GpuP2PCapsIndex) (nvml.GpuP2PStatus, error)

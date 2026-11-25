@@ -339,6 +339,21 @@ func TestPeeringFailedQueryIsUnknownNotRemoval(t *testing.T) {
 	require.Equal(t, first, third)
 }
 
+// TestPeeringDoesNotCarryOverToADifferentAttachment: when a port now reports a different kind
+// of remote device, its old address and version describe another attachment and are dropped.
+func TestPeeringDoesNotCarryOverToADifferentAttachment(t *testing.T) {
+	scanner := NewPeeringScanner(0)
+	scanner.Scan(time.Unix(0, 0), devices(newFakeGPU(0, 1, &fakeLinkDevice{version: 6, remotes: map[int]fakeRemote{0: switchRemote(0)}})))
+	failing := fakeRemote{
+		deviceType: nvml.NVLINK_DEVICE_TYPE_GPU,
+		pciErr:     safenvml.NewNvmlAPIErrorOrNil("GetNvLinkRemotePciInfo", nvml.ERROR_UNKNOWN),
+		versionErr: safenvml.NewNvmlAPIErrorOrNil("GetNvLinkVersion", nvml.ERROR_UNKNOWN),
+	}
+	second := scanner.Scan(time.Unix(1, 0), devices(newFakeGPU(0, 1, &fakeLinkDevice{version: 6, remotes: map[int]fakeRemote{0: failing}})))[lower(0)]
+	require.False(t, second.Complete)
+	require.Equal(t, []UnresolvedNVLink{{Port: 0, RemoteType: "gpu"}}, second.UnresolvedNVLinks)
+}
+
 func TestPeeringKeepsPortsWhenLinkCountIsLost(t *testing.T) {
 	scanner := NewPeeringScanner(0)
 	first := scanner.Scan(time.Unix(0, 0), devices(newFakeGPU(0, 2, &fakeLinkDevice{remotes: map[int]fakeRemote{0: switchRemote(0), 1: switchRemote(1)}})))[lower(0)]
