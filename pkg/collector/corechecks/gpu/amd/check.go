@@ -283,6 +283,9 @@ func amdDeviceTags(dev *amdgpu.Device) []string {
 		"gpu_nvlink_capable:false",
 		"gpu_parent_uuid:" + strings.ToLower(dev.UUID),
 	}
+	if dev.Index >= 0 {
+		tags = append(tags, "gpu_index:"+strconv.Itoa(dev.Index))
+	}
 	if dev.DriverVersion != "" {
 		tags = append(tags, "gpu_driver_version:"+dev.DriverVersion)
 	}

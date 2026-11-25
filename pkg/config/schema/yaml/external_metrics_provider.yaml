@@ -66,6 +66,13 @@ properties:
     tags:
     - no-env
     comment: List of redundant endpoints to query external metrics from
+  endpoint_timeout:
+    node_type: setting
+    type: integer
+    default: 30
+    comment: value in seconds. Maximum duration of a single request roundtrip from
+      the Cluster Agent to a configured endpoint. A request that exceeds it is reported
+      as failed. 0 or less disables the timeout.
   local_copy_refresh_rate:
     node_type: setting
     type: integer

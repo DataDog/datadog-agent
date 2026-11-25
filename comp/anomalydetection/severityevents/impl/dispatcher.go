@@ -18,7 +18,7 @@ type Dispatcher struct {
 	level   severityeventsdef.SeverityLevel
 	lastSec int64
 
-	lastStateEntryTs int64
+	cooldownStartedAt int64
 }
 
 // NewDispatcher creates a dispatcher delivering to listener, filtered/cooled
@@ -49,7 +49,7 @@ func (d *Dispatcher) DeliverInitial(sec int64, level severityeventsdef.SeverityL
 		Direction: severityeventsdef.SeverityEventEscalation,
 	}
 	if eventFilterMatches(d.filter, evt) {
-		d.lastStateEntryTs = sec
+		d.cooldownStartedAt = sec
 		d.listener.OnSeverityTransition(evt)
 	}
 }
@@ -62,20 +62,35 @@ func (d *Dispatcher) Advance(sec int64, level severityeventsdef.SeverityLevel) {
 		return
 	}
 
-	if next < d.level && d.cooldownSecs > 0 && sec-d.lastStateEntryTs < d.cooldownSecs {
+	if next < d.level && d.cooldownSecs > 0 && sec-d.cooldownStartedAt < d.cooldownSecs {
 		d.lastSec = sec
 		return
 	}
+	d.transition(sec, next, 0)
+}
 
+// DiscoverHigh starts or renews this subscriber's hold for a distinct raw High.
+// crossingSec describes the evidence; only triggerSec affects the cooldown.
+func (d *Dispatcher) DiscoverHigh(triggerSec, crossingSec int64) {
+	if d.level == severityeventsdef.SeverityHigh {
+		d.lastSec = triggerSec
+		d.cooldownStartedAt = triggerSec
+		return
+	}
+	d.transition(triggerSec, severityeventsdef.SeverityHigh, crossingSec)
+}
+
+func (d *Dispatcher) transition(sec int64, next severityeventsdef.SeverityLevel, historicalSec int64) {
 	evt := severityeventsdef.SeverityEvent{
-		Timestamp: sec,
-		FromLevel: d.level,
-		ToLevel:   next,
-		Direction: eventDirection(d.level, next),
+		Timestamp:           sec,
+		HistoricalTimestamp: historicalSec,
+		FromLevel:           d.level,
+		ToLevel:             next,
+		Direction:           eventDirection(d.level, next),
 	}
 	d.level = next
 	d.lastSec = sec
-	d.lastStateEntryTs = sec
+	d.cooldownStartedAt = sec
 
 	if eventFilterMatches(d.filter, evt) {
 		d.listener.OnSeverityTransition(evt)
@@ -86,7 +101,7 @@ func (d *Dispatcher) Advance(sec int64, level severityeventsdef.SeverityLevel) {
 func (d *Dispatcher) Reset() {
 	d.level = severityeventsdef.SeverityLow
 	d.lastSec = 0
-	d.lastStateEntryTs = 0
+	d.cooldownStartedAt = 0
 }
 
 func eventDirection(from, to severityeventsdef.SeverityLevel) severityeventsdef.SeverityEventDirection {

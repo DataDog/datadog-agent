@@ -96,7 +96,7 @@ windows-sys = { version = "0.61", features = [] }
 dircpy = "0.3.19"
 regex = "1"
 memmap2 = "0.9"
-nix = { version = "0.31", features = ["signal"] }
+nix = { version = "0.32", features = ["signal"] }
 scopeguard = "1.2"
 temp-env = "0.3"
 tempfile = "3.0"

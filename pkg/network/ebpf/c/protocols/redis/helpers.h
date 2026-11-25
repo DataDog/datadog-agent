@@ -173,8 +173,9 @@ static __always_inline bool check_resp_field_and_crlf(const char* buf, __u32 buf
 // itself inlined into several programs, including the Go TLS return uprobes.
 // Calling the validator from each switch arm would put four copies in each of
 // those programs and push them past the 4,096-instruction limit on pre-5.2
-// kernels (E2BIG on 4.14-4.19). The debug build (usm-debug.o) is the binding
-// case, with ~180 instructions of headroom. Keep it a single call.
+// kernels (E2BIG on 4.14-4.19). The DEBUG=1 build is the binding case, with
+// ~180 instructions of headroom; only its runtime-compiled form is loaded in
+// tests, not usm-debug.o. Keep it a single call.
 static __always_inline bool is_redis(const char* buf, __u32 buf_size) {
     CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, REDIS_MIN_FRAME_LENGTH);
 

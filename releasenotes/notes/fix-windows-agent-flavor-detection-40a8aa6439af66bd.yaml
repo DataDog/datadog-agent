@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix Windows Agent setup failing when an unrelated installed product has a
+    damaged Windows Installer registration. Setup can still detect and reject
+    attempts to install the standard Agent over a FIPS Agent installation, or
+    vice versa.

@@ -263,9 +263,23 @@ func TestAMDDeviceTagsMatchTagSpec(t *testing.T) {
 	fs.SetDriverVersion("6.14.14")
 	fs.AddCard("card0", fs.AddPCIDevice("0000:c1:00.0", "amdgpu", amdgpu.MI300XAttributes("00c0ffee00c0ffee")))
 	fs.AddCard("card1", fs.AddPCIDevice("0001:0a:00.1", "amdgpu", amdgpu.MI300XAttributes(""))) // UUID from a nonzero PCI function
+	// Two partitions on the first GPU: amd-smi numbers them 0 and 1.
+	fs.AddKFDNode(1, 4101, 0, 0xc100, 90402)
+	fs.AddKFDNode(2, 4102, 0, 0xc101, 90402)
+	fs.AddKFDNode(3, 5100, 1, 0x0a01, 90402)
 	devices, err := amdgpu.Discover(fs.Root)
 	require.NoError(t, err)
 	require.Len(t, devices, 2)
+
+	indexTags := map[string][]string{}
+	for _, dev := range devices {
+		for _, tag := range amdDeviceTags(dev) {
+			if strings.HasPrefix(tag, "gpu_index:") {
+				indexTags[dev.PCIBusID] = append(indexTags[dev.PCIBusID], tag)
+			}
+		}
+	}
+	assert.Equal(t, map[string][]string{"0000:c1:00.0": {"gpu_index:0"}, "0001:0a:00.1": {"gpu_index:2"}}, indexTags)
 
 	for _, dev := range devices {
 		for _, tag := range amdDeviceTags(dev) {

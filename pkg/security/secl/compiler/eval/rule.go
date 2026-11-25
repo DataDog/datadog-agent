@@ -191,6 +191,14 @@ func (r *Rule) GetAst() *ast.Rule {
 	return r.ast
 }
 
+// GetResolvedAst returns the tree of the rule after the compilation passes
+func (r *Rule) GetResolvedAst() *ast.Rule {
+	if r.evaluator == nil {
+		return nil
+	}
+	return r.evaluator.tree
+}
+
 // NewRuleEvaluator returns a new evaluator for a parsed rule: it runs the
 // compilation passes over the tree and compiles the result.
 func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, error) {

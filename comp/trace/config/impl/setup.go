@@ -508,7 +508,6 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	c.WindowsPipeName = core.GetString("apm_config.windows_pipe_name")
 	c.PipeBufferSize = core.GetInt("apm_config.windows_pipe_buffer_size")
 	c.PipeSecurityDescriptor = core.GetString("apm_config.windows_pipe_security_descriptor")
-	c.GUIPort = core.GetString("GUI_port")
 
 	var grpcPort int
 	if datadog := pkgconfigsetup.Datadog(); configcheck.IsEnabled(datadog) {

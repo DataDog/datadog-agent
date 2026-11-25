@@ -4,6 +4,7 @@ dd_agent_go_test(
     name = "script_test",
     srcs = [
         "all_scripts_test.go",
+        "databricks_gpu_test.go",
         "databricks_test.go",
         "default_script_test.go",
         "ssi_script_test.go",

@@ -538,7 +538,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	// watcher with nil gauges when settings are reset below.
 	var scorer *anomalyScorer
 	if rawScorer != nil {
-		scorer = newAnomalyScorerWithTelemetry(rawScorer.config, obsTelemetry.scorerSeverity, obsTelemetry.scorerEwma)
+		scorer = newAnomalyScorerWithTelemetry(rawScorer.config, obsTelemetry.scorerSeverity, obsTelemetry.scorerEwma, obsTelemetry.scorerEwmaFinalized)
 		logging.Infof("anomaly scorer registered (logs=%v, correlation_events=%v, cooldown=%ds)",
 			scorer.config.Logs, scorer.config.CorrelationEvents, scorer.config.CooldownSecs)
 	}
@@ -1256,7 +1256,7 @@ func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfi
 		if storageCfg.TrackScorerHistory {
 			scorerCfg.MaxBuckets = math.MaxInt64
 		}
-		scorer = newAnomalyScorerWithTelemetry(scorerCfg, nil, nil)
+		scorer = newAnomalyScorerWithTelemetry(scorerCfg, nil, nil, nil)
 		if storageCfg.TrackScorerHistory {
 			scorer.enableHistory()
 		}

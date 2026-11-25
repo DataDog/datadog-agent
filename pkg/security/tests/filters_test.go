@@ -354,6 +354,57 @@ func TestFilterOpenParentBasenameApprover(t *testing.T) {
 	}
 }
 
+// TestFilterLinkParentBasename checks that the links into the directory of a link rule are
+// reported, from either side of the link, when its glob has no usable basename.
+func TestFilterLinkParentBasename(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// one rule per test module: a rule without approvers would put the links in accept mode for the others
+	link := func(t *testing.T, expression, source, destination string) {
+		rule := &rules.RuleDefinition{ID: "test_rule", Expression: expression}
+		test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withDynamicOpts(dynamicTestOpts{disableBundledRules: true}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer test.CloseTest()
+
+		sourcePath, _, err := test.Path(source)
+		if err != nil {
+			t.Fatal(err)
+		}
+		destinationPath, _, err := test.Path(destination)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, file := range []string{sourcePath, destinationPath} {
+			if err := os.MkdirAll(filepath.Dir(file), 0777); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		if _, _, err := test.Create(source); err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(sourcePath)
+		defer os.Remove(destinationPath)
+
+		test.WaitSignalFromRule(t, func() error {
+			return os.Link(sourcePath, destinationPath)
+		}, func(event *model.Event, _ *rules.Rule) {
+			assertFieldEqual(t, event, "link.file.path", sourcePath)
+			assertFieldEqual(t, event, "link.file.destination.path", destinationPath)
+		}, "test_rule")
+	}
+
+	t.Run("source", func(t *testing.T) {
+		link(t, `link.file.path =~ "{{.Root}}/link-source/*"`, "link-source/source-file", "destination-file")
+	})
+
+	t.Run("destination", func(t *testing.T) {
+		link(t, `link.file.name == "watched" || link.file.destination.path =~ "{{.Root}}/link-target/*"`, "source-file", "link-target/destination-file")
+	})
+}
+
 func TestFilterOpenLeafDiscarder(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -1172,6 +1223,75 @@ func TestFilterUnlinkAUIDEqualApprover(t *testing.T) {
 	t.Run("equal-fixed-value", func(t *testing.T) {
 		runAUIDTest(t, test, goSyscallTester, model.FileUnlinkEventType, "unlink.file.path", "/tmp/test-auid", "1009", "6000")
 	})
+}
+
+// TestFilterOpenAUIDDiscarderApproverOnly checks that the auid discarders don't drop the events
+// of a rule approved on its auid only.
+func TestFilterOpenAUIDDiscarderApproverOnly(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_auid",
+			Expression: `open.file.path != "/tmp/test-auid-sample" && process.auid == 1009`,
+		},
+		{
+			ID:         "test_rule_sample",
+			Expression: `(open.file.path == "/tmp/test-auid-sample" || open.flags & O_WRONLY > 0) && process.auid != 1009`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, withDynamicOpts(dynamicTestOpts{disableBundledRules: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cmdWrapper, err := test.StartADocker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cmdWrapper.stop()
+
+	open := func(path string) error {
+		args := []string{
+			"-login-uid-test",
+			"-login-uid-event-type", "open",
+			"-login-uid-path", path,
+			"-login-uid-value", "1009",
+		}
+		return cmdWrapper.Command(goSyscallTester, args, []string{}).Run()
+	}
+
+	// an open matching no rule, the auid discarders of its auid being discovered on it
+	if err := waitForOpenProbeEvent(test, func() error {
+		return open("/tmp/test-auid-sample")
+	}, "/tmp/test-auid-sample"); err != nil {
+		t.Fatal(err)
+	}
+
+	test.WaitSignalFromRule(t, func() error {
+		return open("/tmp/test-auid-other")
+	}, func(event *model.Event, _ *rules.Rule) {
+		assertFieldEqual(t, event, "open.file.path", "/tmp/test-auid-other")
+	}, "test_rule_auid")
 }
 
 func TestFilterDiscarderMask(t *testing.T) {

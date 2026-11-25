@@ -28,7 +28,7 @@ from invoke.tasks import task
 from tasks.kernel_matrix_testing import selftest as selftests
 from tasks.kernel_matrix_testing import stacks, vmconfig
 from tasks.kernel_matrix_testing.ci import KMTPipeline, KMTTestRunJob, get_test_results_from_tarfile
-from tasks.kernel_matrix_testing.compiler import CONTAINER_AGENT_PATH, get_compiler
+from tasks.kernel_matrix_testing.compiler import CONTAINER_AGENT_PATH, CompilerImage, get_compiler
 from tasks.kernel_matrix_testing.config import ConfigManager
 from tasks.kernel_matrix_testing.download import update_rootfs
 from tasks.kernel_matrix_testing.gdb import GDBPaths, setup_gdb_debugging
@@ -612,7 +612,8 @@ def update_resources(
 
 @task
 def start_compiler(ctx: Context):
-    cc = get_compiler(ctx)
+    # Not get_compiler: it would start the container only to restart it, and refuses another checkout's container.
+    cc = CompilerImage(ctx, Arch.local())
     info(f"[+] Starting compiler {cc.name}")
     try:
         cc.start()
