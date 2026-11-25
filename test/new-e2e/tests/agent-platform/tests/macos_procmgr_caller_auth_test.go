@@ -232,15 +232,13 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 		if err != nil || strings.TrimSpace(left) != "" {
 			left, err = killMacosSleep(t, client, sleepArg)
 		}
+		childGone := false
 		if err != nil {
 			t.Errorf("cleanup: failed to check for /bin/sleep %s: %v", sleepArg, err)
 		} else if strings.TrimSpace(left) != "" {
 			t.Errorf("cleanup: /bin/sleep %s still running:\n%s", sleepArg, left)
 		} else {
-			// Only reached once the child is confirmed gone.
-			if _, rmErr := client.Execute("sudo rm -f " + macosCallerAuthSleepMarker); rmErr != nil {
-				t.Logf("cleanup: failed to remove %s: %v", macosCallerAuthSleepMarker, rmErr)
-			}
+			childGone = true
 			if survivedStop {
 				t.Errorf("cleanup: /bin/sleep %s was still running after stop and had to be killed", sleepArg)
 			} else if !bodyFailed && initialErr != nil {
@@ -255,6 +253,18 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 			t.Logf("cleanup: failed to restart dd-procmgrd: %v", err)
 		}
 		assertMacosProcmgrAnswers(t, client, 1)
+		// A start queued in a stalled daemon can launch after the first probe, so keep the marker until now.
+		if childGone {
+			left, err = waitMacosSleepGone(client, sleepArg, 0)
+			if err != nil || strings.TrimSpace(left) != "" {
+				left, err = killMacosSleep(t, client, sleepArg)
+			}
+			if err != nil || strings.TrimSpace(left) != "" {
+				t.Errorf("cleanup: /bin/sleep %s remained after the restart: %v\n%s", sleepArg, err, left)
+			} else if _, rmErr := client.Execute("sudo rm -f " + macosCallerAuthSleepMarker); rmErr != nil {
+				t.Logf("cleanup: failed to remove %s: %v", macosCallerAuthSleepMarker, rmErr)
+			}
+		}
 	})
 	macosLogDiagnosticsOnFailure(t, client)
 
