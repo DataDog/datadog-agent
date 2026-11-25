@@ -62,7 +62,10 @@ type SBOMMessage struct {
 	Data  []byte                 `protobuf:"bytes,1,opt,name=Data,proto3" json:"Data,omitempty"`
 	Kind  string                 `protobuf:"bytes,2,opt,name=Kind,proto3" json:"Kind,omitempty"`
 	// ID is the ID for this entity, in a format specific to the entity Kind.
-	ID            string `protobuf:"bytes,3,opt,name=ID,proto3" json:"ID,omitempty"`
+	ID string `protobuf:"bytes,3,opt,name=ID,proto3" json:"ID,omitempty"`
+	// Usage is the runtime usage of the files of the workload, in place of
+	// Data.
+	Usage         *SBOMUsage `protobuf:"bytes,4,opt,name=Usage,proto3" json:"Usage,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -118,16 +121,250 @@ func (x *SBOMMessage) GetID() string {
 	return ""
 }
 
+func (x *SBOMMessage) GetUsage() *SBOMUsage {
+	if x != nil {
+		return x.Usage
+	}
+	return nil
+}
+
+// SBOMUsage is the runtime usage of the files of a workload, as
+// pkg/sbom/usage.Report holds it: the keys of the files that ran, in
+// increasing order, with the last time each ran and its flags.
+type SBOMUsage struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Version is the version of the keys and of the fields, which a receiver
+	// checks before it reads the rest.
+	Version uint32   `protobuf:"varint,1,opt,name=Version,proto3" json:"Version,omitempty"`
+	Keys    []uint64 `protobuf:"fixed64,2,rep,packed,name=Keys,proto3" json:"Keys,omitempty"`
+	// LastSeen holds a time in unix seconds for each key.
+	LastSeen []int64 `protobuf:"varint,3,rep,packed,name=LastSeen,proto3" json:"LastSeen,omitempty"`
+	// Flags holds a byte of flags for each key.
+	Flags []byte `protobuf:"bytes,4,opt,name=Flags,proto3" json:"Flags,omitempty"`
+	// ObservedSince is when the recording of the workload started, in unix
+	// seconds.
+	ObservedSince int64 `protobuf:"varint,5,opt,name=ObservedSince,proto3" json:"ObservedSince,omitempty"`
+	// Truncated reports that the recorder reached its bound of keys.
+	Truncated     bool                 `protobuf:"varint,6,opt,name=Truncated,proto3" json:"Truncated,omitempty"`
+	KeyKind       uint32               `protobuf:"varint,7,opt,name=KeyKind,proto3" json:"KeyKind,omitempty"`
+	ImageID       string               `protobuf:"bytes,8,opt,name=ImageID,proto3" json:"ImageID,omitempty"`
+	ContainerIDs  []string             `protobuf:"bytes,9,rep,name=ContainerIDs,proto3" json:"ContainerIDs,omitempty"`
+	Replaced      []*SBOMReplacedBuild `protobuf:"bytes,10,rep,name=Replaced,proto3" json:"Replaced,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SBOMUsage) Reset() {
+	*x = SBOMUsage{}
+	mi := &file_datadog_sbom_workloadmeta_sbom_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SBOMUsage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SBOMUsage) ProtoMessage() {}
+
+func (x *SBOMUsage) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_sbom_workloadmeta_sbom_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SBOMUsage.ProtoReflect.Descriptor instead.
+func (*SBOMUsage) Descriptor() ([]byte, []int) {
+	return file_datadog_sbom_workloadmeta_sbom_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *SBOMUsage) GetVersion() uint32 {
+	if x != nil {
+		return x.Version
+	}
+	return 0
+}
+
+func (x *SBOMUsage) GetKeys() []uint64 {
+	if x != nil {
+		return x.Keys
+	}
+	return nil
+}
+
+func (x *SBOMUsage) GetLastSeen() []int64 {
+	if x != nil {
+		return x.LastSeen
+	}
+	return nil
+}
+
+func (x *SBOMUsage) GetFlags() []byte {
+	if x != nil {
+		return x.Flags
+	}
+	return nil
+}
+
+func (x *SBOMUsage) GetObservedSince() int64 {
+	if x != nil {
+		return x.ObservedSince
+	}
+	return 0
+}
+
+func (x *SBOMUsage) GetTruncated() bool {
+	if x != nil {
+		return x.Truncated
+	}
+	return false
+}
+
+func (x *SBOMUsage) GetKeyKind() uint32 {
+	if x != nil {
+		return x.KeyKind
+	}
+	return 0
+}
+
+func (x *SBOMUsage) GetImageID() string {
+	if x != nil {
+		return x.ImageID
+	}
+	return ""
+}
+
+func (x *SBOMUsage) GetContainerIDs() []string {
+	if x != nil {
+		return x.ContainerIDs
+	}
+	return nil
+}
+
+func (x *SBOMUsage) GetReplaced() []*SBOMReplacedBuild {
+	if x != nil {
+		return x.Replaced
+	}
+	return nil
+}
+
+// SBOMReplacedBuild is the usage of a build of a host file before a package
+// replaced it.
+type SBOMReplacedBuild struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Key   uint64                 `protobuf:"fixed64,1,opt,name=Key,proto3" json:"Key,omitempty"`
+	// ReplacedAt and LastSeen are in unix seconds.
+	ReplacedAt int64  `protobuf:"varint,2,opt,name=ReplacedAt,proto3" json:"ReplacedAt,omitempty"`
+	LastSeen   int64  `protobuf:"varint,3,opt,name=LastSeen,proto3" json:"LastSeen,omitempty"`
+	Flags      uint32 `protobuf:"varint,4,opt,name=Flags,proto3" json:"Flags,omitempty"`
+	// StillRunning reports that a process still runs the replaced build.
+	StillRunning  bool `protobuf:"varint,5,opt,name=StillRunning,proto3" json:"StillRunning,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SBOMReplacedBuild) Reset() {
+	*x = SBOMReplacedBuild{}
+	mi := &file_datadog_sbom_workloadmeta_sbom_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SBOMReplacedBuild) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SBOMReplacedBuild) ProtoMessage() {}
+
+func (x *SBOMReplacedBuild) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_sbom_workloadmeta_sbom_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SBOMReplacedBuild.ProtoReflect.Descriptor instead.
+func (*SBOMReplacedBuild) Descriptor() ([]byte, []int) {
+	return file_datadog_sbom_workloadmeta_sbom_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *SBOMReplacedBuild) GetKey() uint64 {
+	if x != nil {
+		return x.Key
+	}
+	return 0
+}
+
+func (x *SBOMReplacedBuild) GetReplacedAt() int64 {
+	if x != nil {
+		return x.ReplacedAt
+	}
+	return 0
+}
+
+func (x *SBOMReplacedBuild) GetLastSeen() int64 {
+	if x != nil {
+		return x.LastSeen
+	}
+	return 0
+}
+
+func (x *SBOMReplacedBuild) GetFlags() uint32 {
+	if x != nil {
+		return x.Flags
+	}
+	return 0
+}
+
+func (x *SBOMReplacedBuild) GetStillRunning() bool {
+	if x != nil {
+		return x.StillRunning
+	}
+	return false
+}
+
 var File_datadog_sbom_workloadmeta_sbom_proto protoreflect.FileDescriptor
 
 const file_datadog_sbom_workloadmeta_sbom_proto_rawDesc = "" +
 	"\n" +
 	"$datadog/sbom/workloadmeta_sbom.proto\x12\fdatadog.sbom\"\x12\n" +
-	"\x10SBOMStreamParams\"E\n" +
+	"\x10SBOMStreamParams\"t\n" +
 	"\vSBOMMessage\x12\x12\n" +
 	"\x04Data\x18\x01 \x01(\fR\x04Data\x12\x12\n" +
 	"\x04Kind\x18\x02 \x01(\tR\x04Kind\x12\x0e\n" +
-	"\x02ID\x18\x03 \x01(\tR\x02ID2_\n" +
+	"\x02ID\x18\x03 \x01(\tR\x02ID\x12-\n" +
+	"\x05Usage\x18\x04 \x01(\v2\x17.datadog.sbom.SBOMUsageR\x05Usage\"\xc4\x02\n" +
+	"\tSBOMUsage\x12\x18\n" +
+	"\aVersion\x18\x01 \x01(\rR\aVersion\x12\x12\n" +
+	"\x04Keys\x18\x02 \x03(\x06R\x04Keys\x12\x1a\n" +
+	"\bLastSeen\x18\x03 \x03(\x03R\bLastSeen\x12\x14\n" +
+	"\x05Flags\x18\x04 \x01(\fR\x05Flags\x12$\n" +
+	"\rObservedSince\x18\x05 \x01(\x03R\rObservedSince\x12\x1c\n" +
+	"\tTruncated\x18\x06 \x01(\bR\tTruncated\x12\x18\n" +
+	"\aKeyKind\x18\a \x01(\rR\aKeyKind\x12\x18\n" +
+	"\aImageID\x18\b \x01(\tR\aImageID\x12\"\n" +
+	"\fContainerIDs\x18\t \x03(\tR\fContainerIDs\x12;\n" +
+	"\bReplaced\x18\n" +
+	" \x03(\v2\x1f.datadog.sbom.SBOMReplacedBuildR\bReplaced\"\x9b\x01\n" +
+	"\x11SBOMReplacedBuild\x12\x10\n" +
+	"\x03Key\x18\x01 \x01(\x06R\x03Key\x12\x1e\n" +
+	"\n" +
+	"ReplacedAt\x18\x02 \x01(\x03R\n" +
+	"ReplacedAt\x12\x1a\n" +
+	"\bLastSeen\x18\x03 \x01(\x03R\bLastSeen\x12\x14\n" +
+	"\x05Flags\x18\x04 \x01(\rR\x05Flags\x12\"\n" +
+	"\fStillRunning\x18\x05 \x01(\bR\fStillRunning2_\n" +
 	"\rSBOMCollector\x12N\n" +
 	"\rGetSBOMStream\x12\x1e.datadog.sbom.SBOMStreamParams\x1a\x19.datadog.sbom.SBOMMessage\"\x000\x01B\x15Z\x13pkg/proto/pbgo/sbomb\x06proto3"
 
@@ -143,19 +380,23 @@ func file_datadog_sbom_workloadmeta_sbom_proto_rawDescGZIP() []byte {
 	return file_datadog_sbom_workloadmeta_sbom_proto_rawDescData
 }
 
-var file_datadog_sbom_workloadmeta_sbom_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_datadog_sbom_workloadmeta_sbom_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_datadog_sbom_workloadmeta_sbom_proto_goTypes = []any{
-	(*SBOMStreamParams)(nil), // 0: datadog.sbom.SBOMStreamParams
-	(*SBOMMessage)(nil),      // 1: datadog.sbom.SBOMMessage
+	(*SBOMStreamParams)(nil),  // 0: datadog.sbom.SBOMStreamParams
+	(*SBOMMessage)(nil),       // 1: datadog.sbom.SBOMMessage
+	(*SBOMUsage)(nil),         // 2: datadog.sbom.SBOMUsage
+	(*SBOMReplacedBuild)(nil), // 3: datadog.sbom.SBOMReplacedBuild
 }
 var file_datadog_sbom_workloadmeta_sbom_proto_depIdxs = []int32{
-	0, // 0: datadog.sbom.SBOMCollector.GetSBOMStream:input_type -> datadog.sbom.SBOMStreamParams
-	1, // 1: datadog.sbom.SBOMCollector.GetSBOMStream:output_type -> datadog.sbom.SBOMMessage
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	2, // 0: datadog.sbom.SBOMMessage.Usage:type_name -> datadog.sbom.SBOMUsage
+	3, // 1: datadog.sbom.SBOMUsage.Replaced:type_name -> datadog.sbom.SBOMReplacedBuild
+	0, // 2: datadog.sbom.SBOMCollector.GetSBOMStream:input_type -> datadog.sbom.SBOMStreamParams
+	1, // 3: datadog.sbom.SBOMCollector.GetSBOMStream:output_type -> datadog.sbom.SBOMMessage
+	3, // [3:4] is the sub-list for method output_type
+	2, // [2:3] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_datadog_sbom_workloadmeta_sbom_proto_init() }
@@ -169,7 +410,7 @@ func file_datadog_sbom_workloadmeta_sbom_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_sbom_workloadmeta_sbom_proto_rawDesc), len(file_datadog_sbom_workloadmeta_sbom_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
