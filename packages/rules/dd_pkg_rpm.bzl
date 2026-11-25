@@ -32,7 +32,13 @@ def _rpm_package(name, srcs, defines = None, **kwargs):
             "//:is_release": "w9T8.xzdio",
             "//conditions:default": "w5T8.xzdio",
         }),
-        defines = merged_defines,
+        defines = merged_defines | select({
+            # rpmbuild otherwise uses the host's architecture in the header,
+            # which is wrong when cross-compiling. BuildArch can't be used for
+            # this, as rpmbuild rejects architectures the host can't build.
+            "@platforms//cpu:armv7": {"_target_cpu": "armv7hl"},
+            "//conditions:default": {},
+        }),
         **kwargs
     )
 

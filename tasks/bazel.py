@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
@@ -113,10 +112,13 @@ def bazel_build_with_bindir(subcommand: str, *args: str, fips_backend: FipsBacke
         bep_path.unlink(missing_ok=True)
 
 
+_TEST2JSON_OUTPUT = "test.outputs/test2json.json"
+
+
 class BepTestArtifacts(TypedDict):
     cached: bool
     xml_paths: list[Path]  # noqa: F841 - TypedDict field, not a local variable
-    log_paths: list[Path]  # noqa: F841 - TypedDict field, not a local variable
+    json_paths: list[Path]  # noqa: F841 - TypedDict field, not a local variable
 
 
 def _resolve_test_output_path(
@@ -140,13 +142,14 @@ def _parse_bep(bep_path: Path) -> dict[str, BepTestArtifacts]:
     """Parse a BEP JSON file in one pass.
 
     Returns a mapping keyed by Bazel test label. Each value contains the cache
-    status and the test.xml/test.log files produced by this invocation.
+    status and the test.xml/test2json.json files produced by this invocation.
+    Only Go tests produce a test2json.json file.
 
     The label key preserves distinct dd_agent_go_test variants for the same Go
     package, such as //pkg/foo:foo_test and //pkg/foo:foo_test_containerd.
     """
     ctx = _BepContext()
-    test_actions: list[tuple[str, str, str, str, bool]] = []
+    test_actions: list[tuple[str, str, str, str | None, bool]] = []
 
     with bep_path.open() as f:
         for line in f:
@@ -169,24 +172,26 @@ def _parse_bep(bep_path: Path) -> dict[str, BepTestArtifacts]:
                         for output in tr.get("testActionOutput", [])
                         if output.get("name")
                     }
-                    missing_outputs = [name for name in ("test.xml", "test.log") if name not in output_uris]
-                    if missing_outputs:
+                    if "test.xml" not in output_uris:
                         raise RuntimeError(
-                            f"BEP testResult for {label} did not include {missing_outputs}; "
+                            f"BEP testResult for {label} did not include ['test.xml']; "
                             f"available outputs: {sorted(output_uris)}"
                         )
                     cached = bool(tr.get("cachedLocally") or tr.get("executionInfo", {}).get("cachedRemotely"))
-                    test_actions.append((label, cfg_id, output_uris["test.xml"], output_uris["test.log"], cached))
+                    test_actions.append(
+                        (label, cfg_id, output_uris["test.xml"], output_uris.get(_TEST2JSON_OUTPUT), cached)
+                    )
 
     results: dict[str, BepTestArtifacts] = {}
-    for label, cfg_id, xml_uri, log_uri, cached in test_actions:
+    for label, cfg_id, xml_uri, json_uri, cached in test_actions:
         artifacts = results.setdefault(
             label,
-            {"cached": cached, "xml_paths": [], "log_paths": []},
+            {"cached": cached, "xml_paths": [], "json_paths": []},
         )
         artifacts["cached"] = cached
         artifacts["xml_paths"].append(_resolve_test_output_path(label, xml_uri, cfg_id, ctx, "test.xml"))
-        artifacts["log_paths"].append(_resolve_test_output_path(label, log_uri, cfg_id, ctx, "test.log"))
+        if json_uri is not None:
+            artifacts["json_paths"].append(_resolve_test_output_path(label, json_uri, cfg_id, ctx, _TEST2JSON_OUTPUT))
     return results
 
 
@@ -285,28 +290,22 @@ def _collect_junit(test_artifacts, output_tgz):
     print(f"Packaged {collected} test suites → {output_tgz}")
 
 
-def _collect_test2json(ctx, test_artifacts, output_path):
-    with tempfile.TemporaryDirectory() as tmpdir:
-        manifest_path = os.path.join(tmpdir, "manifest.tsv")
-        with open(manifest_path, "w") as manifest:
-            for label in sorted(test_artifacts.keys()):
-                # Use the Bazel label, not the Go import path, as the test2json package
-                # identity. dd_agent_go_test emits multiple configured go_test targets
-                # for different build-tag sets in the same Go package; collapsing them
-                # to one import path would make UTOF report those distinct runs as
-                # retries.
-                manifest.writelines(f'{label}\t{log_path}\n' for log_path in test_artifacts[label]["log_paths"])
-
-        bazel(
-            "run",
-            "--config=gorace",  # to use same analysis cache across test & run commands
-            "//bazel/tools/testlogs_to_json",
-            "--",
-            "-manifest",
-            manifest_path,
-            "-output",
-            os.path.abspath(output_path),
-        )
+def _collect_test2json(test_artifacts, output_path):
+    with open(output_path, "w", encoding="utf-8") as out:
+        for label in sorted(test_artifacts.keys()):
+            for json_path in test_artifacts[label]["json_paths"]:
+                with json_path.open(encoding="utf-8") as f:
+                    for line in f:
+                        if not line.strip():
+                            continue
+                        event = json.loads(line)
+                        # Use the Bazel label, not the Go import path, as the test2json package
+                        # identity. dd_agent_go_test emits multiple configured go_test targets
+                        # for different build-tag sets in the same Go package; collapsing them
+                        # to one import path would make UTOF report those distinct runs as
+                        # retries.
+                        event["Package"] = label
+                        out.write(json.dumps(event, separators=(",", ":")) + "\n")
 
 
 @task(
@@ -324,13 +323,13 @@ def process_test_results(ctx, bep_file, result_json="test_output.json", junit_ta
     - Produces a test2json file with test results and a UTOF json file created from it.
     - Displays test results in a human-friendly way (based on UTOF).
     """
-    # BEP is the authoritative source: it lists exactly the test.xml and test.log files
+    # BEP is the authoritative source: it lists exactly the test.xml and test2json.json files
     # produced by this invocation, avoiding stale results from previous runs
     # with a different Bazel configuration.
     test_artifacts = _parse_bep(Path(bep_file))
 
     # Produce the test2json result file
-    _collect_test2json(ctx, test_artifacts, result_json)
+    _collect_test2json(test_artifacts, result_json)
 
     # Produce UTOF and associated terminal output
     from tasks.libs.testing.utof.go.generate import generate_unified_output

@@ -3,22 +3,18 @@
 LlvmBpfToolchainInfo = provider(
     doc = "LLVM/Clang toolchain for eBPF compilation.",
     fields = {
-        "clang_bpf": "clang-bpf executable File, or None",
-        "llvm_strip": "llvm-strip executable File, or None",
+        "clang_bpf": "clang-bpf executable File",
+        "llvm_strip": "llvm-strip executable File",
         "version": "LLVM version string",
-        "valid": "Whether the toolchain is usable",
     },
 )
 
 def _llvm_bpf_toolchain_impl(ctx):
-    clang = ctx.executable.clang_bpf if hasattr(ctx.executable, "clang_bpf") else None
-    strip = ctx.executable.llvm_strip if hasattr(ctx.executable, "llvm_strip") else None
     return [platform_common.ToolchainInfo(
         llvm_bpf = LlvmBpfToolchainInfo(
-            clang_bpf = clang,
-            llvm_strip = strip,
+            clang_bpf = ctx.executable.clang_bpf,
+            llvm_strip = ctx.executable.llvm_strip,
             version = ctx.attr.version,
-            valid = clang != None,
         ),
     )]
 
@@ -27,12 +23,14 @@ llvm_bpf_toolchain = rule(
     attrs = {
         "clang_bpf": attr.label(
             doc = "clang-bpf executable",
+            mandatory = True,
             allow_single_file = True,
             executable = True,
             cfg = "exec",
         ),
         "llvm_strip": attr.label(
             doc = "llvm-strip executable",
+            mandatory = True,
             allow_single_file = True,
             executable = True,
             cfg = "exec",

@@ -50,14 +50,20 @@ type DetectorOutputAnomaly struct {
 
 // ObserverCorrelation is one correlation cluster.
 type ObserverCorrelation struct {
-	Pattern      string            `json:"pattern"`
-	PeriodStart  int64             `json:"period_start"`
-	PeriodEnd    int64             `json:"period_end"`
-	Title        string            `json:"title,omitempty"`
-	Message      string            `json:"message,omitempty"`
-	Tags         []string          `json:"tags,omitempty"`
-	MemberSeries []string          `json:"member_series,omitempty"`
-	Anomalies    []ObserverAnomaly `json:"anomalies,omitempty"`
+	Pattern     string `json:"pattern"`
+	PeriodStart int64  `json:"period_start"`
+	PeriodEnd   int64  `json:"period_end"`
+	// TriggerTimestamp is the delivered episode start. It matches period_start;
+	// both are kept for backward compatibility with existing consumers.
+	TriggerTimestamp int64 `json:"trigger_timestamp,omitempty"`
+	// HistoricalTimestamp is the corrected historical High crossing, when the
+	// episode was delivered after the threshold crossing.
+	HistoricalTimestamp int64             `json:"historical_timestamp,omitempty"`
+	Title               string            `json:"title,omitempty"`
+	Message             string            `json:"message,omitempty"`
+	Tags                []string          `json:"tags,omitempty"`
+	MemberSeries        []string          `json:"member_series,omitempty"`
+	Anomalies           []ObserverAnomaly `json:"anomalies,omitempty"`
 }
 
 // ObserverAnomaly is a single anomaly nested inside a correlation (verbose only).
@@ -157,9 +163,11 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 	outCorrelations := make([]ObserverCorrelation, len(correlations))
 	for i, corr := range correlations {
 		oc := ObserverCorrelation{
-			Pattern:     corr.Pattern,
-			PeriodStart: corr.FirstSeen,
-			PeriodEnd:   corr.LastUpdated,
+			Pattern:             corr.Pattern,
+			PeriodStart:         corr.FirstSeen,
+			PeriodEnd:           corr.LastUpdated,
+			TriggerTimestamp:    corr.FirstSeen,
+			HistoricalTimestamp: corr.HistoricalFirstSeen,
 		}
 
 		if verbose {

@@ -120,10 +120,14 @@ This is the **most common failure**. The DD flare extension tests compare OTel r
 Run the test locally to get the actual diff:
 
 ```bash
-dda inv test --targets=./comp/otelcol/ddflareextension/impl/... --build-include=test,otlp -- -run TestGetConfDump
+dda inv test --targets=./comp/otelcol/ddflareextension/impl/... \
+  --test-args=-test.run=TestGetConfDump --bazel-args=--test_output=all
 ```
 
-> **The `test` tag is required.** `--build-include` *replaces* the default build-tag set rather than adding to it. With only `otlp`, the files gated behind `//go:build test` (`configstore_test.go`, `extension_test.go`, `factory_test.go`) never compile, so `-run TestGetConfDump` matches nothing — the run still reports "ALL TESTS PASSED" from the handful of untagged tests. Confirm the test really ran by checking `test_output.json` for `"Test":"TestGetConfDump"`.
+> **Confirm the test really ran.** A `-test.run` selector that matches zero tests still exits 0,
+> so a selector typo looks like success. `--bazel-args=--test_output=all` above makes the test
+> binary's output visible: check for `=== RUN TestGetConfDump` and that the diff comes from the
+> golden-file comparison.
 
 The failure output shows exactly which lines differ. Apply the diffs to the golden files in:
 - `comp/otelcol/ddflareextension/impl/testdata/` (unit test golden files)
@@ -185,7 +189,7 @@ Then run `dda inv tidy` again. Use this only when upgrading the Agent code is no
 
 ```bash
 dda inv linter.go --targets=./comp/otelcol/...                                        # lint the changed OTel components
-dda inv test --targets=./comp/otelcol/ddflareextension/impl/... --build-include=test,otlp  # confirm tests pass
+dda inv test --targets=./comp/otelcol/ddflareextension/impl/...  # confirm tests pass
 ```
 
 > **`--targets=./comp/otelcol/...` only covers the root module.** Several OTel packages are

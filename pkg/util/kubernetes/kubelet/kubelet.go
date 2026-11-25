@@ -48,7 +48,7 @@ var (
 	globalKubeUtil              *KubeUtil
 	globalKubeUtilMutex         sync.Mutex
 	errFailedKubeletClientHTTPS = errors.New("failed to use HTTPS for kubelet client")
-	errKubeletDisabled          = errors.New("kubelet access is disabled: otel-agent in DDOT standalone mode with otelcollector.standalone.use_kubelet_collector set to false")
+	errKubeletDisabled          = errors.New("kubelet access is disabled: otel-agent in DDOT standalone mode with otelcollector.standalone.use_kubelet_collector not set to true")
 
 	// kubeletDisabledRetrier is the retrier GetKubeUtilWithRetrier returns
 	// when ddot.KubeletDisabled: it failed permanently, without contacting the

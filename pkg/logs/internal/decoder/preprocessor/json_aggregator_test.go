@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -410,6 +411,29 @@ func TestJSONAggregator_TopLevelArraySplitNotAggregated(t *testing.T) {
 	for _, p := range parts {
 		assert.Contains(t, joined, p,
 			"every input part must survive somewhere in the emitted output")
+	}
+}
+
+func TestJSONAggregator_TopLevelArrayWithOpenObjectOnFirstLine(t *testing.T) {
+	aggregator := NewJSONAggregator(true, 1000)
+
+	parts := []string{
+		`[{"a":`,
+		`{"b":`,
+		`1}`,
+		`}]`,
+	}
+
+	var emitted []*message.Message
+	for _, p := range parts {
+		emitted = append(emitted, aggregator.Process(newTestMessage(p))...)
+	}
+	emitted = append(emitted, aggregator.Flush()...)
+
+	require.Len(t, emitted, len(parts))
+	for i, p := range parts {
+		assert.Equal(t, p, string(emitted[i].GetContent()))
+		assert.NotContains(t, emitted[i].ParsingExtra.Tags, message.AggregatedJSONTag)
 	}
 }
 

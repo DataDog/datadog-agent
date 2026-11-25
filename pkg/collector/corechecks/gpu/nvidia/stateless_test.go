@@ -1477,3 +1477,38 @@ func TestRecoveryActionTagValue(t *testing.T) {
 		})
 	}
 }
+
+func TestMIGCoreLimit(t *testing.T) {
+	api := findAPICallByName(t, createStatelessAPIs(&CollectorDependencies{}), "mig_core_limit")
+	migParent := &safenvml.PhysicalDevice{DeviceInfo: safenvml.DeviceInfo{CoreCount: 7 * 132}, MIGChildren: []*safenvml.MIGDevice{{}}}
+
+	for _, tc := range []struct {
+		name      string
+		device    safenvml.Device
+		wantCores float64 // 0 when unsupported
+	}{
+		{name: "MIG device", device: &safenvml.MIGDevice{DeviceInfo: safenvml.DeviceInfo{CoreCount: 132}, Parent: migParent}, wantCores: 132},
+		{name: "MIG parent", device: migParent, wantCores: 7 * 132},
+		{name: "MIG mode without MIG devices", device: &safenvml.PhysicalDevice{DeviceInfo: safenvml.DeviceInfo{CoreCount: 924}, HasMIGFeatureEnabled: true}, wantCores: 924},
+		// reported by the sampling collector
+		{name: "regular GPU", device: &safenvml.PhysicalDevice{DeviceInfo: safenvml.DeviceInfo{CoreCount: 16896}}},
+		{name: "unknown core count", device: &safenvml.MIGDevice{Parent: migParent}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			samples, _, err := api.Handler(tc.device, 0)
+			if tc.wantCores == 0 {
+				require.ErrorIs(t, err, errUnsupportedDevice)
+				return
+			}
+			require.NoError(t, err)
+			metrics := requireMetrics(t, samples)
+			require.Len(t, metrics, 1)
+			require.Equal(t, "core.limit", metrics[0].Name)
+			require.Equal(t, tc.wantCores, metrics[0].Value)
+			// below the sampling and eBPF collectors' values
+			require.Equal(t, Low, metrics[0].Priority())
+			require.Empty(t, metrics[0].AssociatedWorkloads())
+			require.False(t, metrics[0].NoWorkloadTags())
+		})
+	}
+}
