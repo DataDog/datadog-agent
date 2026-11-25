@@ -77,3 +77,24 @@ custom_queries:
 		})
 	}
 }
+
+func TestServerEmbedsPortIsDerived(t *testing.T) {
+	for name, tc := range map[string]struct {
+		instance string
+		embeds   bool
+		server   string
+		port     int
+	}{
+		"separate port":    {"username: u\nserver: db.example.com\nport: 1522\nservice_name: S\n", false, "db.example.com", 1522},
+		"default port":     {"username: u\nserver: db.example.com\nservice_name: S\n", false, "db.example.com", 1521},
+		"embedded port":    {"username: u\nserver: db.example.com:1522\nservice_name: S\n", true, "db.example.com", 1522},
+		"both port forms":  {"username: u\nserver: db.example.com:1522\nport: 1523\nservice_name: S\n", true, "db.example.com", 1523},
+		"yaml key ignored": {"username: u\nserver: db.example.com\nserver_embeds_port: true\nservice_name: S\n", false, "db.example.com", 1521},
+	} {
+		cfg, err := NewCheckConfig([]byte(tc.instance), []byte(""))
+		require.NoError(t, err, name)
+		assert.Equal(t, tc.embeds, cfg.ServerEmbedsPort, name)
+		assert.Equal(t, tc.server, cfg.Server, name)
+		assert.Equal(t, tc.port, cfg.Port, name)
+	}
+}

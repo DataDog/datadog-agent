@@ -55,6 +55,8 @@ const (
 
 const serviceCheckName = "oracle.can_query"
 
+var _ check.RemoteQuerier = (*Check)(nil)
+
 type hostingCode string
 
 const (
@@ -118,6 +120,8 @@ type Check struct {
 	clock                                   clock.Clock
 	lastSampleID                            uint64
 	obfuscator                              *obfuscate.Obfuscator
+	remote                                  remoteQueryState
+	remoteTestHooks                         *remoteQueryHooks // tests only; nil in production
 }
 
 type vDatabase struct {

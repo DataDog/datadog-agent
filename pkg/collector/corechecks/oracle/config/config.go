@@ -152,6 +152,9 @@ type ConnectionConfig struct {
 	Wallet       string `yaml:"wallet"`
 	OracleClient bool   `yaml:"oracle_client"`
 	QueryTimeout int    `yaml:"query_timeout"`
+	// ServerEmbedsPort reports that `server` carried a `host:port` shorthand, which
+	// NewCheckConfig split. It is derived, never read from YAML.
+	ServerEmbedsPort bool `yaml:"-"`
 }
 
 func (c ConnectionConfig) QueryTimeoutString() string {
@@ -301,6 +304,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	serverSlice := strings.Split(instance.Server, ":")
 	instance.Server = serverSlice[0]
+	instance.ServerEmbedsPort = len(serverSlice) > 1
 
 	if instance.Port == 0 {
 		if len(serverSlice) > 1 {
