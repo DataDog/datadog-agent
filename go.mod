@@ -284,7 +284,7 @@ require (
 	github.com/go-jose/go-jose/v4 v4.1.9
 	github.com/go-json-experiment/json v1.27.2
 	github.com/go-ole/go-ole v1.3.0
-	github.com/go-sql-driver/mysql v1.10.1
+	github.com/go-sql-driver/mysql v1.10.2
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/go-zookeeper/zk v1.0.4
 	github.com/gobwas/glob v0.2.3

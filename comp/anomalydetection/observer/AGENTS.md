@@ -129,6 +129,11 @@ scores it at that oldest second. With the default `0s`, replay is disabled and
 `clamp` scores late arrivals at the next unscored second. Inputs whose second
 has not been scored yet keep their original scoring time.
 The scorer uses the same per-second calculation for forward scoring and replay.
+When reordering is enabled, the Agent publishes
+`datadog.agent.observer.scorer.ewma_finalized` as `EWMA(T - anomaly_reordering_window)`.
+This value is outside the replayable range, so later evidence cannot revise it; the
+displayed signal is delayed by the reordering window in scorer data time. The metric
+is absent with reordering disabled and during warm-up before that checkpoint exists.
 
 The scorer is also available standalone (without the engine) via `NewAnomalyScorer` in `impl/`.
 Observer replay enables the scorer's internal transition watcher so configured
@@ -144,13 +149,14 @@ The scorer does not own subscription state itself. Each `anomalyScorer` owns a
 plain slice of `severityeventsimpl.Dispatcher` instances (see
 `../AGENTS.md#severity-events-scorer-push-contract` and `../severityevents/`);
 on every `Advance` tick the scorer derives the raw severity level from its
-EWMA and sends the result to each dispatcher. A distinct High discovered
-during replay triggers at the current tick even if it has already ended.
-A catch-up preserves an ordinary forward High entry only if it still belongs
-to a corrected High period that starts during that catch-up.
-A distinct High, whether on time or late, renews an existing High hold
-without producing another transition. Revisions that overlap an already
-recognized High period do not renew the hold.
+EWMA and sends the result to each dispatcher. A distinct Medium or High
+discovered during replay triggers at the current tick even if it has already
+ended. A catch-up preserves an ordinary forward entry only if it still belongs
+to a corrected period of the same severity that starts during that catch-up.
+A distinct period, whether on time or late, renews an existing hold of the
+same severity without producing another transition. Revisions that overlap an
+already recognized period do not renew the hold. High takes priority over
+Medium.
 Each dispatcher binds exactly one listener plus one fixed cooldown/filter state
 machine. `anomalyScorer.SubscribeSeverityEvents` and
 `observerImpl.SubscribeSeverityEvents` are thin wrappers: each call creates one

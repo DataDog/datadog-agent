@@ -173,11 +173,11 @@ current level, new dispatchers also start at `Low`, so the first observed
 `Medium`/`High` level emits a real escalation instead of being treated as a
 pure seed.
 
-For a High escalation, `Timestamp` is when the hold starts and
-`HistoricalTimestamp` is the raw score's crossing when known. If replay
-discovers a distinct historical High, it acts at the current advance. Each
-dispatcher uses its own cooldown and, if already High, renews the hold
-without notifying its listener again.
+For a Medium or High escalation, `Timestamp` is when the hold starts and
+`HistoricalTimestamp` is the score's crossing when known. If replay discovers
+a distinct historical period, it acts at the current advance. Each dispatcher
+uses its own cooldown and renews the hold for a matching discovery without
+notifying its listener again. High takes priority over Medium.
 
 `observer.Component.SubscribeSeverityEvents` structurally satisfies
 `severityevents/def`'s `Subscriber` interface (same method signature), so any

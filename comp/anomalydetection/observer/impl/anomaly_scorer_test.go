@@ -13,6 +13,7 @@ import (
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	"github.com/stretchr/testify/assert"
@@ -1074,6 +1075,147 @@ func TestReplayDiscoversHighInCatchupAtCurrentTick(t *testing.T) {
 	require.Equal(t, severityeventsdef.SeverityLow, listener.events[len(listener.events)-1].ToLevel)
 }
 
+func mediumTestAnomaly(ts int64, name string) observer.Anomaly {
+	anomaly := makeAnomaly("scanmw", ts, scorePtr(9))
+	anomaly.Source.Name = name
+	return anomaly
+}
+
+func TestReplayDiscoversEndedMediumAtCurrentTick(t *testing.T) {
+	cfg := highDiscoveryConfig()
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{}, listener)
+
+	s.Advance(1000)
+	s.ProcessAnomaly(mediumTestAnomaly(1000, "weak"))
+	s.Advance(1010)
+
+	require.Len(t, listener.events, 1)
+	require.Equal(t, severityeventsdef.SeverityMedium, listener.events[0].ToLevel)
+	require.EqualValues(t, 1010, listener.events[0].Timestamp)
+	require.EqualValues(t, 1000, listener.events[0].HistoricalTimestamp)
+
+	s.Advance(1011)
+	require.Len(t, listener.events, 2)
+	require.Equal(t, severityeventsdef.SeverityLow, listener.events[1].ToLevel)
+}
+
+func TestReplayDistinctMediumRenewsHoldWithoutRepeat(t *testing.T) {
+	cfg := highDiscoveryConfig()
+	cfg.CooldownSecs = 5
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{CooldownSecs: 5}, listener)
+
+	s.Advance(999)
+	s.ProcessAnomaly(mediumTestAnomaly(1000, "first"))
+	s.Advance(1000)
+	require.Len(t, listener.events, 1)
+
+	s.Advance(1001)
+	require.Len(t, listener.events, 1, "the first Medium hold must block Low")
+	s.ProcessAnomaly(mediumTestAnomaly(1002, "second"))
+	s.Advance(1002)
+	require.Len(t, listener.events, 1, "a distinct Medium period must renew without a second event")
+
+	s.Advance(1006)
+	require.Len(t, listener.events, 1, "the renewed Medium hold must still block Low")
+	s.Advance(1007)
+	require.Len(t, listener.events, 2)
+	require.Equal(t, severityeventsdef.SeverityLow, listener.events[1].ToLevel)
+}
+
+func TestReplayMediumExtendingIntoCatchupIsNotDuplicated(t *testing.T) {
+	cfg := highDiscoveryConfig()
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{}, listener)
+
+	s.Advance(1000)
+	s.ProcessAnomaly(mediumTestAnomaly(1000, "late"))
+	s.ProcessAnomaly(mediumTestAnomaly(1001, "forward"))
+	s.Advance(1010)
+
+	require.Len(t, listener.events, 1)
+	require.Equal(t, severityeventsdef.SeverityMedium, listener.events[0].ToLevel)
+	require.EqualValues(t, 1010, listener.events[0].Timestamp)
+	require.EqualValues(t, 1000, listener.events[0].HistoricalTimestamp)
+}
+
+func TestReplayMediumExtensionDoesNotRenew(t *testing.T) {
+	cfg := highDiscoveryConfig()
+	cfg.WindowSecs = 3
+	cfg.CooldownSecs = 5
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{CooldownSecs: 5}, listener)
+
+	s.Advance(999)
+	s.ProcessAnomaly(mediumTestAnomaly(1000, "first"))
+	s.Advance(1000)
+	require.Len(t, listener.events, 1)
+
+	s.Advance(1001)
+	s.ProcessAnomaly(mediumTestAnomaly(1002, "first"))
+	s.Advance(1002)
+	require.Len(t, listener.events, 1, "extending the known Medium period must not renew")
+
+	s.Advance(1005)
+	require.Len(t, listener.events, 2, "the original hold expires at its original time")
+	require.Equal(t, severityeventsdef.SeverityLow, listener.events[1].ToLevel)
+}
+
+func TestReplayMediumUpgradeProducesHigh(t *testing.T) {
+	cfg := highDiscoveryConfig()
+	cfg.WindowSecs = 3
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{}, listener)
+
+	s.Advance(999)
+	s.ProcessAnomaly(mediumTestAnomaly(1000, "weak"))
+	s.Advance(1000)
+	require.Len(t, listener.events, 1)
+	require.Equal(t, severityeventsdef.SeverityMedium, listener.events[0].ToLevel)
+
+	strong := makeAnomaly("scanmw", 1000, scorePtr(20))
+	strong.Source.Name = "weak"
+	s.ProcessAnomaly(strong)
+	s.Advance(1001)
+
+	require.Len(t, listener.events, 2)
+	require.Equal(t, severityeventsdef.SeverityHigh, listener.events[1].ToLevel)
+	require.EqualValues(t, 1001, listener.events[1].Timestamp)
+	require.EqualValues(t, 1000, listener.events[1].HistoricalTimestamp)
+}
+
+func TestReplayPrefersHighOverMediumDiscovery(t *testing.T) {
+	cfg := highDiscoveryConfig()
+	cfg.CooldownSecs = 3
+	s := NewAnomalyScorer(cfg).(*anomalyScorer)
+	listener := &collectingListener{}
+	mustSubscribeSeverityEvents(t, s, severityeventsdef.SeverityEventsConfiguration{CooldownSecs: 3}, listener)
+
+	s.Advance(1000)
+	s.ProcessAnomaly(mediumTestAnomaly(998, "medium"))
+	strong := makeAnomaly("bocpd", 1000, nil)
+	strong.Source.Name = "high"
+	s.ProcessAnomaly(strong)
+	s.Advance(1010)
+
+	require.Len(t, listener.events, 1)
+	require.Equal(t, severityeventsdef.SeverityHigh, listener.events[0].ToLevel)
+	require.EqualValues(t, 1010, listener.events[0].Timestamp)
+	require.EqualValues(t, 1000, listener.events[0].HistoricalTimestamp)
+
+	s.Advance(1011)
+	require.Len(t, listener.events, 1, "the High hold must block Low")
+	s.Advance(1013)
+	require.Len(t, listener.events, 2, "the suppressed Medium must not reappear")
+	require.Equal(t, severityeventsdef.SeverityLow, listener.events[1].ToLevel)
+}
+
 func TestClampCatchupDoesNotDeliverProvisionalHigh(t *testing.T) {
 	cfg := highDiscoveryConfig()
 	cfg.ReorderingWindowSecs = 3
@@ -1093,7 +1235,7 @@ func TestClampCatchupDoesNotDeliverProvisionalHigh(t *testing.T) {
 	// Clamping the weaker inputs to 1005 lowers the score below High.
 	slot := replaySlot(1005, len(s.replay.checkpoints))
 	require.Equal(t, severityeventsdef.SeverityMedium, s.replay.checkpoints[slot].state.level)
-	require.False(t, s.replay.recognizedHighAt(1005))
+	require.False(t, s.replay.recognizedAt(1005, severityeventsdef.SeverityHigh))
 	for _, evt := range listener.events {
 		require.NotEqual(t, severityeventsdef.SeverityHigh, evt.ToLevel)
 	}
@@ -1200,7 +1342,7 @@ func TestScorerChronologicalBaseline(t *testing.T) {
 
 	// Zero cooldown exposes the raw severity transitions, including hysteresis.
 	require.Equal(t, []severityeventsdef.SeverityEvent{
-		{Timestamp: 1000, FromLevel: severityeventsdef.SeverityLow, ToLevel: severityeventsdef.SeverityMedium, Direction: severityeventsdef.SeverityEventEscalation},
+		{Timestamp: 1000, HistoricalTimestamp: 1000, FromLevel: severityeventsdef.SeverityLow, ToLevel: severityeventsdef.SeverityMedium, Direction: severityeventsdef.SeverityEventEscalation},
 		{Timestamp: 1001, HistoricalTimestamp: 1001, FromLevel: severityeventsdef.SeverityMedium, ToLevel: severityeventsdef.SeverityHigh, Direction: severityeventsdef.SeverityEventEscalation},
 		{Timestamp: 1003, FromLevel: severityeventsdef.SeverityHigh, ToLevel: severityeventsdef.SeverityMedium, Direction: severityeventsdef.SeverityEventDeescalation},
 		{Timestamp: 1006, FromLevel: severityeventsdef.SeverityMedium, ToLevel: severityeventsdef.SeverityLow, Direction: severityeventsdef.SeverityEventDeescalation},
@@ -1311,6 +1453,56 @@ func TestScorerHistoryCapturesOriginalRun(t *testing.T) {
 func TestScorerHistoryDisabledByDefault(t *testing.T) {
 	scorer := NewAnomalyScorer(DefaultAnomalyScorerConfig()).(*anomalyScorer)
 	require.False(t, scorer.historyState().Available)
+}
+
+func TestScorerHistoryCapturesArrivalsAndAdvances(t *testing.T) {
+	for _, behavior := range []string{"clamp", "ignore"} {
+		t.Run(behavior, func(t *testing.T) {
+			cfg := DefaultAnomalyScorerConfig()
+			cfg.ReorderingWindowSecs = 100
+			cfg.LateAnomalyBehavior = behavior
+			cfg.WindowSecs = 15
+			cfg.MaxBuckets = math.MaxInt64
+			scorer := NewAnomalyScorer(cfg).(*anomalyScorer)
+			scorer.enableHistory()
+
+			scorer.Advance(500)
+			late := makeAnomaly("bocpd", 100, nil)
+			current := makeAnomaly("bocpd", 505, nil)
+			scorer.ProcessAnomaly(late)
+			scorer.ProcessAnomaly(current)
+			scorer.Advance(510)
+			scorer.Advance(520) // empty advance
+
+			history := scorer.historyState()
+			require.True(t, history.Available)
+			require.Len(t, history.Arrivals, 2, "raw arrivals must be captured before filtering")
+			require.Equal(t, int64(100), history.Arrivals[0].Timestamp)
+			require.Equal(t, int64(505), history.Arrivals[1].Timestamp)
+			require.Len(t, history.Advances, 3)
+			require.Equal(t, int64(500), history.Advances[0].DataTime)
+			require.Equal(t, 0, history.Advances[0].ArrivalEnd)
+			require.Equal(t, int64(510), history.Advances[1].DataTime)
+			require.Equal(t, 2, history.Advances[1].ArrivalEnd)
+			require.Equal(t, int64(520), history.Advances[2].DataTime)
+			require.Equal(t, 2, history.Advances[2].ArrivalEnd)
+
+			if behavior == "clamp" {
+				require.Len(t, history.Inputs, 2)
+				require.Equal(t, int64(505), history.Inputs[0].ScoringSecond)
+				require.Equal(t, int64(411), history.Inputs[1].ScoringSecond) // 510 - 100 + 1
+			} else {
+				require.Len(t, history.Inputs, 1)
+				require.Equal(t, int64(505), history.Inputs[0].ScoringSecond)
+			}
+
+			scorer.Reset()
+			history = scorer.historyState()
+			require.Empty(t, history.Arrivals)
+			require.Empty(t, history.Advances)
+			require.Empty(t, history.Inputs)
+		})
+	}
 }
 
 // ---- Severity state machine helpers ----
@@ -1637,7 +1829,27 @@ func newScorerWithTelemetry(cfg AnomalyScorerConfig) *anomalyScorer {
 	tel := noopsimpl.NewComponent()
 	severityGauge := tel.NewGauge("test", "scorer_severity", nil, "")
 	ewmaGauge := tel.NewGauge("test", "scorer_ewma", nil, "")
-	return newAnomalyScorerWithTelemetry(cfg, severityGauge, ewmaGauge)
+	return newAnomalyScorerWithTelemetry(cfg, severityGauge, ewmaGauge, nil)
+}
+
+type finalizedGaugeRecorder struct {
+	telemetry.Gauge
+
+	sets    []float64
+	deleted bool
+}
+
+func newFinalizedGaugeRecorder() *finalizedGaugeRecorder {
+	tel := noopsimpl.NewComponent()
+	return &finalizedGaugeRecorder{Gauge: tel.NewGauge("test", "scorer_ewma_finalized", nil, "")}
+}
+
+func (g *finalizedGaugeRecorder) Set(value float64, _ ...string) {
+	g.sets = append(g.sets, value)
+}
+
+func (g *finalizedGaugeRecorder) Delete(_ ...string) {
+	g.deleted = true
 }
 
 // episodeTestCfg returns a scorer config tuned for fast episode tests:
@@ -1876,7 +2088,7 @@ func TestScorerWithTelemetry_GaugesAndLogs(t *testing.T) {
 	cfg := episodeTestCfg()
 	cfg.Logs = true
 	cfg.CorrelationEvents = false
-	s := newAnomalyScorerWithTelemetry(cfg, tel.scorerSeverity, tel.scorerEwma)
+	s := newAnomalyScorerWithTelemetry(cfg, tel.scorerSeverity, tel.scorerEwma, nil)
 
 	// Drive EWMA past High threshold — must not panic even with Logs=true,
 	// and must expose the current level instead of a transition direction.
@@ -1885,6 +2097,62 @@ func TestScorerWithTelemetry_GaugesAndLogs(t *testing.T) {
 	// De-escalate — must not panic.
 	triggerDeescalation(s, spikeSec)
 	assert.Equal(t, 0.0, observerMetric(t, telComp, telemetryScorerSeverity, map[string]string{"scorer": "anomaly_scorer"}).GetGauge().GetValue())
+}
+
+func TestScorerWithTelemetry_FinalizedEWMA(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.ReorderingWindowSecs = 2
+	gauge := newFinalizedGaugeRecorder()
+	s := newAnomalyScorerWithTelemetry(cfg, nil, nil, gauge)
+
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1000, nil))
+	s.Advance(1000)
+	s.Advance(1001)
+	require.Empty(t, gauge.sets, "startup must not publish an unset or uninitialized checkpoint")
+
+	s.Advance(1002)
+	require.Len(t, gauge.sets, 1)
+	require.InDelta(t, 0.6257993532402721, gauge.sets[0], 1e-12)
+
+	s.Reset()
+	require.True(t, gauge.deleted)
+	s.Advance(1003)
+	require.Len(t, gauge.sets, 1, "warm-up must restart after reset")
+}
+
+func TestScorerWithTelemetry_FinalizedEWMAMatchesChronological(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.ReorderingWindowSecs = 3
+	chronologicalGauge := newFinalizedGaugeRecorder()
+	lateGauge := newFinalizedGaugeRecorder()
+	chronological := newAnomalyScorerWithTelemetry(cfg, nil, nil, chronologicalGauge)
+	late := newAnomalyScorerWithTelemetry(cfg, nil, nil, lateGauge)
+
+	for _, scorer := range []*anomalyScorer{chronological, late} {
+		scorer.ProcessAnomaly(makeAnomaly("bocpd", 1000, nil))
+		scorer.Advance(1000)
+		scorer.Advance(1001)
+	}
+	chronological.ProcessAnomaly(makeAnomaly("bocpd", 1002, nil))
+	late.Advance(1002)
+	late.ProcessAnomaly(makeAnomaly("bocpd", 1002, nil))
+	for second := int64(1002); second <= 1005; second++ {
+		chronological.Advance(second)
+		late.Advance(second)
+	}
+
+	require.Equal(t, chronologicalGauge.sets, lateGauge.sets)
+	require.Len(t, lateGauge.sets, 3, "ring wraparound and catch-up advances must preserve the delay")
+}
+
+func TestScorerWithTelemetry_FinalizedEWMADisabledWithoutReordering(t *testing.T) {
+	cfg := episodeTestCfg()
+	gauge := newFinalizedGaugeRecorder()
+	s := newAnomalyScorerWithTelemetry(cfg, nil, nil, gauge)
+
+	s.ProcessAnomaly(makeAnomaly("bocpd", 1000, nil))
+	s.Advance(1001)
+	require.Empty(t, gauge.sets)
 }
 
 // TestActiveCorrelationsEngineAccumulationOrdering verifies the engine's
@@ -2061,6 +2329,81 @@ func TestPendingEvents_EpisodeStartedIncludesContributors(t *testing.T) {
 	if contributors[0].Handle != handle || contributors[0].Weight != 3 || contributors[0].Share != 1 {
 		t.Errorf("unexpected contributor: %+v", contributors[0])
 	}
+}
+
+func TestPendingEventsHistoricalMediumThreshold(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.CorrelationEvents = true
+	cfg.CorrelationEventThreshold = "medium"
+	cfg.ReorderingWindowSecs = 600
+	s := newScorerWithTelemetry(cfg)
+
+	s.Advance(1000)
+	s.ProcessAnomaly(mediumTestAnomaly(1000, "historical"))
+	s.Advance(1010)
+
+	events := s.PendingEvents()
+	require.Len(t, events, 1)
+	require.Equal(t, observer.CorrelatorEventEpisodeStarted, events[0].Kind)
+	require.Equal(t, severityeventsdef.SeverityMedium, events[0].ToLevel)
+	require.EqualValues(t, 1010, events[0].Timestamp)
+	require.EqualValues(t, 1000, events[0].HistoricalTimestamp)
+	require.Len(t, s.ActiveCorrelations(), 1)
+
+	s.Advance(1011)
+	events = s.PendingEvents()
+	require.Len(t, events, 1)
+	require.Equal(t, observer.CorrelatorEventEpisodeEnded, events[0].Kind)
+	require.Empty(t, s.ActiveCorrelations())
+}
+
+func TestHistoricalMediumUpgradeDoesNotReopenMediumEpisode(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.CorrelationEvents = true
+	cfg.CorrelationEventThreshold = "medium"
+	cfg.ReorderingWindowSecs = 600
+	s := newScorerWithTelemetry(cfg)
+
+	s.Advance(1000)
+	s.ProcessAnomaly(mediumTestAnomaly(1000, "historical"))
+	s.Advance(1010)
+	require.Len(t, s.PendingEvents(), 1)
+	require.Len(t, s.ActiveCorrelations(), 1)
+
+	strong := makeAnomaly("scanmw", 1000, scorePtr(20))
+	strong.Source.Name = "historical"
+	s.ProcessAnomaly(strong)
+	s.Advance(1011)
+	require.Empty(t, s.PendingEvents(), "Medium to High must not open a second episode")
+	require.Len(t, s.ActiveCorrelations(), 1)
+
+	s.Advance(1012)
+	events := s.PendingEvents()
+	require.Len(t, events, 1)
+	require.Equal(t, observer.CorrelatorEventEpisodeEnded, events[0].Kind)
+	require.Equal(t, severityeventsdef.SeverityHigh, events[0].FromLevel)
+}
+
+func TestHistoricalMediumReaderAndRenewal(t *testing.T) {
+	cfg := episodeTestCfg()
+	cfg.ReorderingWindowSecs = 600
+	cfg.CooldownSecs = 5
+	s := newScorerWithTelemetry(cfg)
+	readerSub, err := s.SubscribeSeverityEventsReader(severityeventsdef.SeverityEventsConfiguration{
+		CooldownSecs: cfg.CooldownSecs,
+	})
+	require.NoError(t, err)
+	defer readerSub.Unsubscribe()
+
+	s.Advance(999)
+	s.ProcessAnomaly(mediumTestAnomaly(1000, "first"))
+	s.Advance(1000)
+	require.Equal(t, severityeventsdef.SeverityMedium, readerSub.Reader.GetSeverity())
+
+	s.Advance(1001)
+	s.ProcessAnomaly(mediumTestAnomaly(1002, "second"))
+	s.Advance(1002)
+	require.Equal(t, severityeventsdef.SeverityMedium, readerSub.Reader.GetSeverity())
 }
 
 // TestPendingEvents_EpisodeEnded verifies that PendingEvents returns an EpisodeEnded

@@ -410,8 +410,9 @@ type CorrelatorEvent struct {
 	CorrelatorName string
 	// Timestamp is the data time (unix seconds) when the event occurred.
 	Timestamp int64
-	// HistoricalTimestamp is the raw High crossing for a scorer EpisodeStarted,
-	// when known. Timestamp remains the start of the delivered episode.
+	// HistoricalTimestamp is the Medium or High crossing for a scorer
+	// EpisodeStarted. It equals Timestamp for live events and is earlier for
+	// replayed evidence. Timestamp remains the start of the delivered episode.
 	HistoricalTimestamp int64
 	// Correlation is the pattern associated with this event.
 	// For EpisodeStarted: the newly opened episode (no end time yet).
@@ -525,6 +526,10 @@ type ActiveCorrelation struct {
 	Anomalies   []Anomaly // the actual anomalies that triggered this correlation
 	FirstSeen   int64     // when pattern first matched (unix seconds, from data)
 	LastUpdated int64     // most recent contributing signal (unix seconds, from data)
+	// HistoricalFirstSeen is the corrected historical onset, when the episode
+	// was delivered later than the data time that crossed the threshold. Zero
+	// means the delivered FirstSeen is already historical.
+	HistoricalFirstSeen int64
 }
 
 // RawAnomalyState provides read access to raw anomalies before correlation processing.

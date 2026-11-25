@@ -601,6 +601,9 @@ include("//deps/freetds:freetds.MODULE.bazel")
 include("//deps/gstatus:gstatus.MODULE.bazel")
 
 # buildifier: leave-alone
+include("//deps/krb5:krb5.MODULE.bazel")
+
+# buildifier: leave-alone
 include("//deps/maven:maven.MODULE.bazel")
 
 # buildifier: leave-alone
