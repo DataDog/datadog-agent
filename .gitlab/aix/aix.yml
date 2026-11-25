@@ -154,6 +154,8 @@ cleanup_aix-ppc64:
       sh packaging/aix/setup-host.sh || echo "WARNING: setup-host failed"
       python3.12 -m invoke -e deps || echo "WARNING: invoke deps failed"
       sh packaging/aix/stages/00-checkout.sh || echo "WARNING: 00-checkout failed"
+      # Cold cargo builds OOM-kill at 4 parallel rustc on this host (8GiB RAM)
+      export CARGO_BUILD_JOBS=2
       sh packaging/aix/stages/05-agent-data-plane.sh || echo "WARNING: 05-agent-data-plane failed"
       EOF
 
