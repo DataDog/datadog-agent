@@ -471,7 +471,7 @@ func UnmarshalStreamingString(bts []byte, strings *StringTable) (index uint32, o
 		}
 		if s != "" {
 			// Inline strings define new wire indices, even if repair makes their values equal.
-			index = strings.addUnchecked(s)
+			index = strings.addWire(s)
 		}
 	} else {
 		index, o, err = msgp.ReadUint32Bytes(bts)
@@ -483,6 +483,7 @@ func UnmarshalStreamingString(bts []byte, strings *StringTable) (index uint32, o
 			err = fmt.Errorf("Streaming string referenced an unseen string index %d (string table length: %d)", index, strings.Len())
 			return
 		}
+		index = strings.resolveWire(index)
 	}
 	return
 }
@@ -521,7 +522,7 @@ func harvestUnknownFieldStringsDepth(bts []byte, strings *StringTable, depth int
 			return
 		}
 		if s != "" {
-			strings.addUnchecked(s)
+			strings.addWire(s)
 		}
 	case msgp.ArrayType:
 		var sz uint32

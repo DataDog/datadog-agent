@@ -22,6 +22,10 @@ import (
 type StringTable struct {
 	strings []string
 	lookup  map[string]uint32
+	// aliases maps a wire index whose string was already in the table to the
+	// index of its first occurrence. It is nil unless a decoded payload repeats
+	// a string, which happens when UTF-8 repair makes distinct strings equal.
+	aliases map[uint32]uint32
 }
 
 // NewStringTable creates a new string table, always starts with an empty string at index 0
@@ -74,7 +78,41 @@ func (s *StringTable) Clone() *StringTable {
 		lookup:  make(map[string]uint32, len(s.lookup)),
 	}
 	maps.Copy(clone.lookup, s.lookup)
+	if s.aliases != nil {
+		clone.aliases = maps.Clone(s.aliases)
+	}
 	return clone
+}
+
+// addWire appends a string decoded from the wire and returns the index callers
+// should store for it. Every decoded string takes the next wire index, so later
+// references stay aligned with the producer. If the string is already in the
+// table, the new wire index becomes an alias and the first index is returned,
+// so lookups by value find every use of the string.
+func (s *StringTable) addWire(str string) uint32 {
+	wire := uint32(len(s.strings))
+	s.strings = append(s.strings, str)
+	first, ok := s.lookup[str]
+	if !ok {
+		s.lookup[str] = wire
+		return wire
+	}
+	if s.aliases == nil {
+		s.aliases = make(map[uint32]uint32)
+	}
+	s.aliases[wire] = first
+	return first
+}
+
+// resolveWire maps an index read from the wire to the index used for storage.
+func (s *StringTable) resolveWire(idx uint32) uint32 {
+	if s.aliases == nil {
+		return idx
+	}
+	if first, ok := s.aliases[idx]; ok {
+		return first
+	}
+	return idx
 }
 
 // addUnchecked adds a string to the string table without checking for duplicates

@@ -184,7 +184,8 @@ func unmarshalStringTable(bts []byte, strings *StringTable) (o []byte, err error
 		if str == "" {
 			continue // Skip empty strings, we already have an empty string at index 0
 		}
-		strings.addUnchecked(str) //We don't need to check for duplicates because the string table should arrive with only unique strings
+		// The table arrives de-duplicated, but UTF-8 repair can make two entries equal.
+		strings.addWire(str)
 	}
 	return
 }

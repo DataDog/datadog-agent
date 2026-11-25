@@ -237,6 +237,94 @@ func TestUnmarshalTracerPayloadUTF8(t *testing.T) {
 	}
 }
 
+// Distinct wire strings that repair to the same value must still be one attribute
+// key, so lookups and updates by name reach every span that uses it.
+func TestUnmarshalTracerPayloadUTF8KeyCollision(t *testing.T) {
+	const key = "user�"
+	// appendStreaming writes a string inline, or a uint32 as a string table reference.
+	appendStreaming := func(bts []byte, v any) []byte {
+		if s, ok := v.(string); ok {
+			return msgp.AppendString(bts, s)
+		}
+		return msgp.AppendUint32(bts, v.(uint32))
+	}
+	type attr struct{ key, value any }
+	for _, tc := range []struct {
+		name  string
+		table []string // explicit string table, sent before the chunks when set
+		spans []attr
+		want  []string
+	}{
+		{
+			name: "inline",
+			spans: []attr{
+				{"user\x80", "alice"}, // wire indices 1, 2
+				{"user\x81", "bob"},   // wire indices 3, 4
+				{uint32(3), "carol"},  // reference to the second repaired key
+			},
+			want: []string{"alice", "bob", "carol"},
+		},
+		{
+			name:  "string table",
+			table: []string{"", "user\x80", "user\x81", "alice", "bob"},
+			spans: []attr{
+				{uint32(1), uint32(3)},
+				{uint32(2), uint32(4)},
+			},
+			want: []string{"alice", "bob"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var bts []byte
+			if tc.table != nil {
+				bts = msgp.AppendMapHeader(bts, 2)
+				bts = msgp.AppendUint32(bts, 1) // strings
+				bts = msgp.AppendArrayHeader(bts, uint32(len(tc.table)))
+				for _, s := range tc.table {
+					bts = msgp.AppendString(bts, s)
+				}
+			} else {
+				bts = msgp.AppendMapHeader(bts, 1)
+			}
+			bts = msgp.AppendUint32(bts, 11) // chunks
+			bts = msgp.AppendArrayHeader(bts, 1)
+			bts = msgp.AppendMapHeader(bts, 1)
+			bts = msgp.AppendUint32(bts, 4) // spans
+			bts = msgp.AppendArrayHeader(bts, uint32(len(tc.spans)))
+			for _, a := range tc.spans {
+				bts = msgp.AppendMapHeader(bts, 1)
+				bts = msgp.AppendUint32(bts, 9) // span attributes
+				bts = msgp.AppendArrayHeader(bts, 3)
+				bts = appendStreaming(bts, a.key)
+				bts = msgp.AppendUint32(bts, 1) // string AnyValue
+				bts = appendStreaming(bts, a.value)
+			}
+
+			tp := &InternalTracerPayload{}
+			rest, err := tp.UnmarshalMsg(bts)
+			require.NoError(t, err)
+			require.Empty(t, rest)
+			require.Len(t, tp.Chunks, 1)
+			spans := tp.Chunks[0].Spans
+			require.Len(t, spans, len(tc.want))
+			for i, want := range tc.want {
+				value, ok := spans[i].GetAttributeAsString(key)
+				require.True(t, ok, "span %d", i)
+				assert.Equal(t, want, value, "span %d", i)
+			}
+
+			// Updating by name must overwrite each span's attribute, not add a second one.
+			for i, span := range spans {
+				span.SetStringAttribute(key, "redacted")
+				assert.Len(t, span.span.Attributes, 1, "span %d", i)
+				value, ok := span.GetAttributeAsString(key)
+				require.True(t, ok, "span %d", i)
+				assert.Equal(t, "redacted", value, "span %d", i)
+			}
+		})
+	}
+}
+
 func TestUnmarshalTraceChunk(t *testing.T) {
 	t.Run("trace chunk no spans", func(t *testing.T) {
 		strings := NewStringTable()
