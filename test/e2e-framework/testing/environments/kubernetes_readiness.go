@@ -23,12 +23,6 @@ import (
 // agentNamespace is the namespace of the Agent workloads whose namespace is unknown.
 const agentNamespace = "datadog"
 
-// workloadNamespace returns the namespace an Agent workload was installed in, agentNamespace when
-// unknown.
-func workloadNamespace(workload kubernetes.KubernetesObjRefOutput) string {
-	return cmp.Or(workload.Namespace, agentNamespace)
-}
-
 // readinessCheckTimeout bounds a readiness check, which lists the nodes and the pods of every
 // target, in case the API server hangs.
 const readinessCheckTimeout = time.Minute
@@ -195,7 +189,8 @@ func WaitForKubernetesAgentReady(ctx context.Context, cluster *components.Kubern
 		case "cluster checks runner":
 			workload, target.minimumCount = agent.LinuxClusterChecks, 1
 		}
-		target.namespace = workloadNamespace(workload)
+		// Each workload is looked up in the namespace it was installed in, when known.
+		target.namespace = cmp.Or(workload.Namespace, agentNamespace)
 		target.labelSelector = fields.OneTermEqualSelector("app", workload.LabelSelectors["app"]).String()
 		params.targets = append(params.targets, target)
 	}
@@ -300,7 +295,7 @@ func checkAgentPodsReady(ctx context.Context, cluster *components.KubernetesClus
 					problems = append(problems, fmt.Sprintf("%s: container %s in pod %s is not ready", target.name, status.Name, pod.Name))
 				}
 				if status.RestartCount != 0 && !target.restartsAllowed {
-					problems = append(problems, fmt.Sprintf("%s: container %s in pod %s %s", target.name, status.Name, pod.Name, describeRestart(status)))
+					problems = append(problems, fmt.Sprintf("%s: container %s in pod %s restarted %d time(s)", target.name, status.Name, pod.Name, status.RestartCount))
 				}
 			}
 		}

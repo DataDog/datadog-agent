@@ -14,7 +14,6 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/labels"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -74,9 +73,8 @@ func (e *Kubernetes) DisableAgent() {
 	e.Agent = nil
 }
 
-// Diagnose generates a diagnose for the Kubernetes environment, creating a flare for each agent and cluster-agent pod
-// and saving the logs of the previous instance of the containers that restarted in them and in the cluster checks
-// runner pods.
+// Diagnose generates a diagnose for the Kubernetes environment, creating a flare for each node agent, cluster agent and
+// cluster checks runner pod.
 func (e *Kubernetes) Diagnose(outputDir string) (string, error) {
 	fmt.Println("Kubernetes Diagnose will be written to", outputDir)
 	diagnoseOutput := []string{"==== Kubernetes Diagnose ===="}
@@ -90,20 +88,21 @@ func (e *Kubernetes) Diagnose(outputDir string) (string, error) {
 		return "", errors.New("KubernetesClient component is not initialized")
 	}
 	ctx := context.Background()
-	logsBudget := &previousLogsBudget{remaining: previousLogsTotalTimeout}
 
 	diagnoseOutput = append(diagnoseOutput, "==== Linux pods ====")
-	linuxPods, err := e.listWorkloadPods(ctx, e.Agent.LinuxNodeAgent)
+	linuxPods, err := e.KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", e.Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
+	})
 	if err != nil {
 		diagnoseOutput = append(diagnoseOutput, fmt.Sprintf("Failed to list linux pods: %s\n", err.Error()))
 	} else {
 		if len(linuxPods.Items) == 0 {
 			diagnoseOutput = append(diagnoseOutput, "No linux pods found")
+			return strings.Join(diagnoseOutput, "\n"), nil
 		}
 
 		for _, pod := range linuxPods.Items {
 			diagnoseOutput = append(diagnoseOutput, fmt.Sprintf("Pod %s:\n", pod.Name))
-			diagnoseOutput = append(diagnoseOutput, e.diagnoseRestartedContainers(ctx, logsBudget, pod, outputDir)...)
 			if podRejectsExec(pod) {
 				diagnoseOutput = append(diagnoseOutput, gkeAutopilotNoFlareMessage)
 				continue
@@ -118,7 +117,9 @@ func (e *Kubernetes) Diagnose(outputDir string) (string, error) {
 	}
 
 	diagnoseOutput = append(diagnoseOutput, "==== Windows pods ====")
-	windowsPods, err := e.listWorkloadPods(ctx, e.Agent.WindowsNodeAgent)
+	windowsPods, err := e.KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", e.Agent.WindowsNodeAgent.LabelSelectors["app"]).String(),
+	})
 	if err != nil {
 		diagnoseOutput = append(diagnoseOutput, fmt.Sprintf("Failed to list windows pods: %s\n", err.Error()))
 	} else {
@@ -128,7 +129,6 @@ func (e *Kubernetes) Diagnose(outputDir string) (string, error) {
 
 		for _, pod := range windowsPods.Items {
 			diagnoseOutput = append(diagnoseOutput, fmt.Sprintf("Pod %s:\n", pod.Name))
-			diagnoseOutput = append(diagnoseOutput, e.diagnoseRestartedContainers(ctx, logsBudget, pod, outputDir)...)
 			flarePath, err := e.generateAndDownloadAgentFlare("agent.exe", pod, "agent", outputDir)
 			if err != nil {
 				diagnoseOutput = append(diagnoseOutput, fmt.Sprintf("Failed to generate and download agent flare: %s\n", err.Error()))
@@ -139,7 +139,9 @@ func (e *Kubernetes) Diagnose(outputDir string) (string, error) {
 	}
 
 	diagnoseOutput = append(diagnoseOutput, "==== Cluster Agent pod ====")
-	cluserAgentPods, err := e.listWorkloadPods(ctx, e.Agent.LinuxClusterAgent)
+	cluserAgentPods, err := e.KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", e.Agent.LinuxClusterAgent.LabelSelectors["app"]).String(),
+	})
 	if err != nil {
 		diagnoseOutput = append(diagnoseOutput, fmt.Sprintf("Failed to list cluster agent pods: %s\n", err.Error()))
 	} else {
@@ -149,7 +151,6 @@ func (e *Kubernetes) Diagnose(outputDir string) (string, error) {
 
 		for _, pod := range cluserAgentPods.Items {
 			diagnoseOutput = append(diagnoseOutput, fmt.Sprintf("Pod %s:\n", pod.Name))
-			diagnoseOutput = append(diagnoseOutput, e.diagnoseRestartedContainers(ctx, logsBudget, pod, outputDir)...)
 			if podRejectsExec(pod) {
 				diagnoseOutput = append(diagnoseOutput, gkeAutopilotNoFlareMessage)
 				continue
@@ -164,7 +165,9 @@ func (e *Kubernetes) Diagnose(outputDir string) (string, error) {
 	}
 
 	diagnoseOutput = append(diagnoseOutput, "==== Cluster Checks Runner pods ====")
-	clusterChecksPods, err := e.listWorkloadPods(ctx, e.Agent.LinuxClusterChecks)
+	clusterChecksPods, err := e.KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", e.Agent.LinuxClusterChecks.LabelSelectors["app"]).String(),
+	})
 	if err != nil {
 		diagnoseOutput = append(diagnoseOutput, fmt.Sprintf("Failed to list cluster checks runner pods: %s\n", err.Error()))
 	} else {
@@ -174,22 +177,20 @@ func (e *Kubernetes) Diagnose(outputDir string) (string, error) {
 
 		for _, pod := range clusterChecksPods.Items {
 			diagnoseOutput = append(diagnoseOutput, fmt.Sprintf("Pod %s:\n", pod.Name))
-			diagnoseOutput = append(diagnoseOutput, e.diagnoseRestartedContainers(ctx, logsBudget, pod, outputDir)...)
+			if podRejectsExec(pod) {
+				diagnoseOutput = append(diagnoseOutput, gkeAutopilotNoFlareMessage)
+				continue
+			}
+			flarePath, err := e.generateAndDownloadAgentFlare("agent", pod, "agent", outputDir)
+			if err != nil {
+				diagnoseOutput = append(diagnoseOutput, fmt.Sprintf("Failed to generate and download cluster checks runner flare: %s\n", err.Error()))
+				continue
+			}
+			diagnoseOutput = append(diagnoseOutput, "Downloaded flare: "+flarePath)
 		}
 	}
 
 	return strings.Join(diagnoseOutput, "\n"), nil
-}
-
-// listWorkloadPods lists the pods of an Agent workload, in the namespace it was installed in, with
-// its pod selector. A workload without selector, e.g. one that isn't deployed, has no pods.
-func (e *Kubernetes) listWorkloadPods(ctx context.Context, workload kubernetes.KubernetesObjRefOutput) (*v1.PodList, error) {
-	if len(workload.LabelSelectors) == 0 {
-		return &v1.PodList{}, nil
-	}
-	return e.KubernetesCluster.Client().CoreV1().Pods(workloadNamespace(workload)).List(ctx, metav1.ListOptions{
-		LabelSelector: labels.SelectorFromSet(workload.LabelSelectors).String(),
-	})
 }
 
 // gkeAutopilotNoConnectAnnotation is set by GKE Autopilot on allowlisted Datadog pods. When
