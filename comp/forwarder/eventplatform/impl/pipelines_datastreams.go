@@ -24,7 +24,7 @@ func getDataStreamsPipelines() []passthroughPipelineDesc {
 			defaultBatchMaxConcurrentSend: 10,
 			defaultBatchMaxContentSize:    constants.DefaultBatchMaxContentSize,
 			defaultBatchMaxSize:           constants.DefaultBatchMaxSize,
-			defaultInputChanSize:          constants.DefaultInputChanSize,
+			defaultInputChanSize:          500,
 		},
 	}
 }

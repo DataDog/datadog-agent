@@ -23,17 +23,15 @@ import (
 	"github.com/containerd/cgroups/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ConfigureDeviceCgroups configures the cgroups for a process to allow access to the NVIDIA character devices
-// reapplyInfinitely controls whether the configuration should be reapplied infinitely (true) or only once (false)
-func ConfigureDeviceCgroups(pid uint32, hostRoot string) error {
+// ConfigureCgroupDevices configures a cgroup, as seen from the host (see CgroupPathForProcess), to allow access to
+// the NVIDIA character devices.
+func ConfigureCgroupDevices(cgroupPath string, hostRoot string) error {
 	cgroupMode := cgroups.Mode()
-	cgroupPath, err := getAbsoluteCgroupForProcess("/", hostRoot, uint32(os.Getpid()), pid, cgroupMode)
-	if err != nil {
-		return fmt.Errorf("failed to get cgroup for pid %d: %w", pid, err)
-	}
+	var err error
 
 	// Configure systemd device allow first, so that in case of a reload we get the correct permissions
 	// The containerID for systemd is the last part of the cgroup path
@@ -42,15 +40,15 @@ func ConfigureDeviceCgroups(pid uint32, hostRoot string) error {
 	}
 
 	if cgroupMode == cgroups.Legacy {
-		log.Debugf("Configuring PID %d cgroupv1 device allow, cgroup path %s", pid, cgroupPath)
+		log.Debugf("Configuring cgroupv1 device allow, cgroup path %s", cgroupPath)
 		err = configureCgroupV1DeviceAllow(hostRoot, cgroupPath, nvidiaDeviceMajor)
 	} else {
-		log.Debugf("Configuring PID %d cgroupv2 device programs, cgroup path %s", pid, cgroupPath)
+		log.Debugf("Configuring cgroupv2 device programs, cgroup path %s", cgroupPath)
 		err = detachAllDeviceCgroupPrograms(hostRoot, cgroupPath)
 	}
 
 	if err != nil {
-		return fmt.Errorf("failed to configure cgroup device allow for cgroup path %s of PID %d: %w", cgroupPath, pid, err)
+		return fmt.Errorf("failed to configure cgroup device allow for cgroup path %s: %w", cgroupPath, err)
 	}
 
 	return nil
@@ -205,18 +203,20 @@ func getAbsoluteCgroupForProcess(rootfs, hostRoot string, currentProcessPid, tar
 // SystemD configuration file, in the specified section. It will add it at the end
 // of all other DeviceAllow lines in the section so that it is not overridden.
 func insertDeviceAllowLine(lines []string, sectionHeader, newLine string) ([]string, error) {
+	// Insert after the last DeviceAllow line of the last matching section: systemd reads the sections in
+	// order, so a reset in a later section would cancel lines added to an earlier one.
 	candidateLineIndex := -1
-	foundSectionHeader := false
+	inSection := false
 	for i, line := range lines {
 		line = strings.TrimSpace(line)
-		if line == sectionHeader {
-			foundSectionHeader = true
+		switch {
+		case line == sectionHeader:
+			inSection = true
 			candidateLineIndex = i + 1
-		} else if foundSectionHeader && strings.HasPrefix(line, "DeviceAllow=") {
+		case strings.HasPrefix(line, "["):
+			inSection = false
+		case inSection && strings.HasPrefix(normalizeSystemdAssignment(line), "DeviceAllow="):
 			candidateLineIndex = i + 1
-		} else if foundSectionHeader && strings.HasPrefix(line, "[") {
-			// Another section header, stop searching
-			break
 		}
 	}
 
@@ -231,6 +231,60 @@ func insertDeviceAllowLine(lines []string, sectionHeader, newLine string) ([]str
 	copy(newLines[candidateLineIndex+1:], lines[candidateLineIndex:])
 
 	return newLines, nil
+}
+
+// missingDeviceAllowLines returns the lines of wanted, newline-terminated, that are not in effect in the given
+// section of a systemd unit, or "" if they all are. An empty "DeviceAllow=" assignment resets the list in systemd,
+// so only the assignments after the last reset count. Whitespace around "=" and between values is ignored.
+func missingDeviceAllowLines(lines []string, sectionHeader, wanted string) string {
+	present := make(map[string]struct{})
+	inSection := false
+	for _, line := range lines {
+		line = normalizeSystemdAssignment(line)
+		switch {
+		case line == sectionHeader:
+			inSection = true
+		case strings.HasPrefix(line, "["):
+			inSection = false
+		case !inSection:
+		case line == "DeviceAllow=":
+			present = make(map[string]struct{})
+		default:
+			present[line] = struct{}{}
+		}
+	}
+	var missing strings.Builder
+	for _, line := range strings.Split(strings.TrimSpace(wanted), "\n") {
+		if _, ok := present[normalizeSystemdAssignment(line)]; !ok {
+			missing.WriteString(strings.TrimSpace(line) + "\n")
+		}
+	}
+	return missing.String()
+}
+
+// normalizeSystemdAssignment trims a systemd unit line and removes the whitespace around its "=" and between
+// its values, e.g. "DeviceAllow = char-nvidia  rwm" becomes "DeviceAllow=char-nvidia rwm".
+func normalizeSystemdAssignment(line string) string {
+	line = strings.TrimSpace(line)
+	key, value, found := strings.Cut(line, "=")
+	if !found || strings.HasPrefix(line, "[") {
+		return line
+	}
+	return strings.TrimSpace(key) + "=" + strings.Join(strings.Fields(value), " ")
+}
+
+// SelfHostPID returns the PID of the current process in the host PID namespace, as seen in the host procfs, or its
+// own PID when that cannot be determined.
+func SelfHostPID() uint32 {
+	if pid, err := kernel.RootNSPID(); err == nil && pid > 0 {
+		return uint32(pid)
+	}
+	return uint32(os.Getpid())
+}
+
+// CgroupPathForProcess returns the cgroup of a process, as seen from the host.
+func CgroupPathForProcess(pid uint32, hostRoot string) (string, error) {
+	return getAbsoluteCgroupForProcess("/", hostRoot, SelfHostPID(), pid, cgroups.Mode())
 }
 
 func configureSystemDAllow(rootfs, containerID string) error {
@@ -268,8 +322,13 @@ func configureSystemDAllow(rootfs, containerID string) error {
 
 	lines := strings.Split(string(content), "\n")
 
-	// Insert the nvidiaSystemdDeviceAllow line after [Scope]
-	newLines, err := insertDeviceAllowLine(lines, "[Scope]", nvidiaSystemdDeviceAllow)
+	// Insert the nvidiaSystemdDeviceAllow lines after [Scope], unless an earlier run already did: the
+	// permissions can be re-applied every few seconds, and the file would grow on each run.
+	missing := missingDeviceAllowLines(lines, "[Scope]", nvidiaSystemdDeviceAllow)
+	if missing == "" {
+		return nil
+	}
+	newLines, err := insertDeviceAllowLine(lines, "[Scope]", missing)
 	if err != nil {
 		return fmt.Errorf("failed to insert device allow line in %s: %w", configFilePath, err)
 	}

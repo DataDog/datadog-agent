@@ -127,11 +127,7 @@ func (ds *DebugServer) setupMux() *http.ServeMux {
 		pprof.Handler("block").ServeHTTP(w, r)
 		runtime.SetBlockProfileRate(0)
 	})
-	ds.mux.Handle("/debug/vars", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		// allow the GUI to call this endpoint so that the status can be reported
-		w.Header().Set("Access-Control-Allow-Origin", "http://127.0.0.1:"+ds.conf.GUIPort)
-		expvar.Handler().ServeHTTP(w, req)
-	}))
+	ds.mux.Handle("/debug/vars", expvar.Handler())
 	apiutil.SetupCoverageHandler(ds.mux)
 	return ds.mux
 }

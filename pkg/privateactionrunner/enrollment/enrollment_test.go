@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
@@ -76,6 +77,29 @@ func TestShouldReenroll(t *testing.T) {
 			flavor.SetTestFlavor(t, tt.flavor)
 
 			assert.Equal(t, tt.want, ShouldReenroll(&AgentIdentifier{Hostname: tt.agentHostname}, tt.identity, tt.currentKey))
+		})
+	}
+}
+
+func TestIdentityMatchesPAROverrides(t *testing.T) {
+	for _, tc := range []struct {
+		name, key, site, region, wifOrg string
+		want                            bool
+	}{
+		{name: "legacy behavior", region: "eu1", want: true},
+		{name: "own key", key: "par-key", region: "eu1", want: true},
+		{name: "own key replaces WIF identity", key: "par-key", region: "eu1", wifOrg: "old-org"},
+		{name: "own site matches", site: "datadoghq.com", region: "us1", want: true},
+		{name: "own site replaces other region", site: "datadoghq.com", region: "eu1"},
+		{name: "normalized site", site: " US3.DATADOGHQ.COM. ", region: "us3", want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			cfg.SetInTest("site", "datadoghq.eu")
+			cfg.SetInTest(par.APIKey, tc.key)
+			cfg.SetInTest(par.RunnerSite, tc.site)
+			identity := &PersistedIdentity{URN: "urn:dd:apps:on-prem-runner:" + tc.region + ":42:runner", WIFOrgUUID: tc.wifOrg}
+			require.Equal(t, tc.want, identity.MatchesPAROverrides(cfg))
 		})
 	}
 }

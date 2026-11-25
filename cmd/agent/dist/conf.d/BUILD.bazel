@@ -83,7 +83,7 @@ pkg_filegroup(
     prefix = conf_dir(),
     visibility = [
         "//cmd/agent/dist:__pkg__",
-        "//packages/agent:__subpackages__",
+        "//packages:__subpackages__",
     ],
 )
 

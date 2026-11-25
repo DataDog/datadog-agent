@@ -35,6 +35,7 @@ const (
 	telemetryDetectorProcessingTimeNs        = "observer.detector.processing_time_ns"         // Per-detector processing time in nanoseconds.
 	telemetryDetectorEmissions               = "observer.detections.detector_emissions"       // Deduplicated detector emissions by score severity before correlation.
 	telemetryScorerEWMA                      = "observer.scorer.ewma"                         // Anomaly scorer smoothed EWMA signal, updated every second.
+	telemetryScorerEWMAFinalized             = "observer.scorer.ewma_finalized"               // Anomaly scorer EWMA that is old enough not to be revised by replay.
 	telemetryScorerSeverity                  = "observer.scorer.severity"                     // Current anomaly scorer severity level (0=Low,1=Medium,2=High).
 )
 
@@ -73,6 +74,7 @@ type observerTelemetry struct {
 	processingTime       telemetry.Gauge
 	detectorEmissions    telemetry.Counter
 	scorerEwma           telemetry.Gauge
+	scorerEwmaFinalized  telemetry.Gauge
 	scorerSeverity       telemetry.Gauge
 
 	inFlightInternal   atomic.Int64
@@ -195,6 +197,12 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			telemetryScorerEWMA,
 			[]string{"scorer"},
 			"Anomaly scorer EWMA signal, updated every second",
+		),
+		scorerEwmaFinalized: telemetryComp.NewGauge(
+			"observer",
+			telemetryScorerEWMAFinalized,
+			[]string{"scorer"},
+			"Anomaly scorer EWMA after the configured reordering window has passed",
 		),
 		scorerSeverity: telemetryComp.NewGauge(
 			"observer",

@@ -12,7 +12,6 @@ import (
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
@@ -84,7 +83,7 @@ func (cs *CheckSampler) SetObserverHandle(h observer.Handle) {
 	cs.observerHandle = h
 }
 
-func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList filterlist.TagMatcher) {
+func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList metricname.TagMatcher) {
 	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
 	if cs.observerHandle != nil {
 		context, _ := cs.contextResolver.get(contextKey)
@@ -124,7 +123,7 @@ func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Ske
 	return ss
 }
 
-func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList filterlist.TagMatcher) {
+func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList metricname.TagMatcher) {
 	if bucket.Value < 0 {
 		if !cs.logThrottling.ShouldThrottle() {
 			log.Warnf("Negative bucket value %d for metric %s discarding", bucket.Value, bucket.Name)

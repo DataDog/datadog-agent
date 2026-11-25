@@ -72,7 +72,7 @@ func TestDecompressInvalidData(t *testing.T) {
 Run the implementation tests:
 
 ```shell
-dda inv test --targets=./comp/compression/impl-zstd --verbose
+dda inv test --targets=./comp/compression/impl-zstd
 ```
 
 Expect both `TestCompressionRoundTrip` subtests and `TestDecompressInvalidData` to pass. You have now checked successful round trips, the empty-input boundary, and an error case through the public compression interface.
@@ -191,7 +191,7 @@ func TestLifecycleHooks(t *testing.T) {
 Run the lifecycle test:
 
 ```shell
-dda inv test --targets=./comp/lifecycleexample/impl --verbose
+dda inv test --targets=./comp/lifecycleexample/impl
 ```
 
 Expect `TestLifecycleHooks` to pass. Its assertions verify that construction leaves the component stopped, startup makes it running, and shutdown stops it again. The test observes these changes through the public interface.

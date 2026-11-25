@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    GPU monitoring: on AMD Instinct GPUs (Linux 6.19+ or a recent
+    amdgpu-dkms), the ``amd_gpu`` check now reports VR and HBM thermal
+    throttling (``gpu.clock.throttle_reasons.vr_thermal_slowdown`` and
+    ``gpu.clock.throttle_reasons.hbm_thermal_slowdown``), as the fraction
+    of the interval spent throttled, and the PCIe link recovery and NAK
+    counts (``gpu.pci.recovery_counter``, ``gpu.pci.nak_sent_counter``
+    and ``gpu.pci.nak_received_counter``).

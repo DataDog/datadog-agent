@@ -1,0 +1,3 @@
+# description: violations of system-probe.yaml are reported as invalid system-probe configuration issues
+
+# the main configuration is valid: only the system-probe configuration raises issues

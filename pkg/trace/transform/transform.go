@@ -7,6 +7,7 @@
 package transform
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/hex"
@@ -15,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/tinylib/msgp/msgp"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
@@ -258,6 +260,9 @@ func GetDDKeyForOTLPAttribute(k string) string {
 
 func conditionallyMapOTLPAttributeToMeta(k string, value string, ddspan *pb.Span) {
 	mappedKey := GetDDKeyForOTLPAttribute(k)
+	if _, ok := ddspan.MetaStruct[mappedKey]; ok {
+		return
+	}
 	if ddspan.Meta[mappedKey] != "" {
 		return
 	}
@@ -267,6 +272,47 @@ func conditionallyMapOTLPAttributeToMeta(k string, value string, ddspan *pb.Span
 	if mappedKey != "" {
 		SetMetaOTLPIfEmpty(ddspan, mappedKey, value)
 	}
+}
+
+// isMetaStructOTLPKey matches report roots and their dotted descendants.
+// Custom events and fingerprints are read from ordinary metadata.
+func isMetaStructOTLPKey(k string) bool {
+	for _, prefix := range []string{"appsec.events", "appsec.fingerprint"} {
+		if k == prefix || strings.HasPrefix(k, prefix+".") {
+			return false
+		}
+	}
+	for _, root := range []string{
+		"appsec", "iast", "_dd.appsec_shadow_deployed", "_dd.stack", "threat_intel",
+		"api.security", "api.entity", "api.definition", "api.endpoint", "http.request.body", "ai_guard", "_llmobs",
+	} {
+		if k == root || strings.HasPrefix(k, root+".") {
+			return true
+		}
+	}
+	return false
+}
+
+// SetMetaStructOTLP preserves MessagePack maps under known structured report keys.
+// Other keys and byte encodings retain the normal OTLP attribute mapping.
+func SetMetaStructOTLP(s *pb.Span, k string, v pcommon.Value) bool {
+	if v.Type() != pcommon.ValueTypeBytes || !isMetaStructOTLPKey(k) {
+		return false
+	}
+	data := v.Bytes().AsRaw()
+	if msgp.NextType(data) != msgp.MapType {
+		return false
+	}
+	remaining, err := msgp.Skip(data)
+	if err != nil || len(remaining) != 0 {
+		return false
+	}
+	if s.MetaStruct == nil {
+		s.MetaStruct = make(map[string][]byte)
+	}
+	s.MetaStruct[k] = bytes.Clone(data)
+	delete(s.Meta, k)
+	return true
 }
 
 func conditionallyMapOTLPAttributeToMetric(k string, value float64, ddspan *pb.Span) {
@@ -295,7 +341,6 @@ func GetOTelHostname(span ptrace.Span, res pcommon.Resource, tr *attributes.Tran
 		if v := GetOTelAttrValInResAndSpanAttrs(span, res, false, "_dd.hostname"); v != "" {
 			src = source.Source{
 				Kind:             source.HostnameKind,
-				Identifier:       v, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{Primary: v},
 			}
 			srcok = true
@@ -304,7 +349,7 @@ func GetOTelHostname(span ptrace.Span, res pcommon.Resource, tr *attributes.Tran
 	if srcok {
 		switch src.Kind {
 		case source.HostnameKind:
-			return src.Identifier //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+			return src.SourceIdentifier.Primary
 		default:
 			// We are not on a hostname (serverless), hence the hostname is empty
 			return ""
@@ -395,6 +440,10 @@ func OtelSpanToDDSpan(
 			conditionallyMapOTLPAttributeToMetric(k, v.Double(), ddspan)
 		case pcommon.ValueTypeInt:
 			conditionallyMapOTLPAttributeToMetric(k, float64(v.Int()), ddspan)
+		case pcommon.ValueTypeBytes:
+			if !SetMetaStructOTLP(ddspan, k, v) {
+				conditionallyMapOTLPAttributeToMeta(k, v.AsString(), ddspan)
+			}
 		default:
 			conditionallyMapOTLPAttributeToMeta(k, v.AsString(), ddspan)
 		}
