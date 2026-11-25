@@ -553,6 +553,36 @@ func Test_labelJoiner(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Renamed Argo Rollout label is not kept under its KSM name for other joins",
+			config: map[string]*joinsConfig{
+				"kube_namespace_labels": {
+					labelsToMatch: []string{"namespace"},
+					labelsToGet:   map[string]string{argoRolloutLabelName: "rollout_hash"},
+				},
+			},
+			families: map[string][]ksmstore.DDMetricsFam{
+				"uuid1": {
+					{
+						Name: "kube_namespace_labels",
+						ListMetrics: []ksmstore.DDMetric{
+							{Labels: map[string]string{"namespace": "my-ns", argoRolloutLabelName: "7f59c78c9b"}},
+						},
+					},
+				},
+			},
+			expected: []struct {
+				inputLabels map[string]string
+				labelsToAdd []label
+			}{
+				{
+					inputLabels: map[string]string{"namespace": "my-ns"},
+					labelsToAdd: []label{
+						{key: "rollout_hash", value: "7f59c78c9b"},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

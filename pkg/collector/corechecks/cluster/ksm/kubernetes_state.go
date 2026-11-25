@@ -1432,7 +1432,7 @@ func (k *KSMCheck) mergeLabelsMapper(extra map[string]string) {
 // only adds the default joins when the key is absent, so a user-defined join
 // would otherwise silently drop this required label.
 func (k *KSMCheck) ensureArgoRolloutLabelJoin() {
-	for _, family := range []string{"kube_pod_labels", "kube_replicaset_labels"} {
+	for _, family := range argoRolloutLabelFamilies {
 		labelJoin, found := k.instance.LabelJoins[family]
 		if !found || labelJoin.GetAllLabels || slices.Contains(labelJoin.LabelsToGet, argoRolloutLabelName) {
 			continue
