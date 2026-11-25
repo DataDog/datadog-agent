@@ -93,6 +93,7 @@ func (c *Check) init() error {
 		log.Errorf("%s failed to determine hostname, consider setting reported_hostname", c.logPrompt)
 	}
 	c.dbInstanceIdentifier = c.createDatabaseIdentifier()
+	c.publishRemoteIdentifier(c.dbInstanceIdentifier)
 	tags = append(tags, "database_instance:"+c.dbInstanceIdentifier)
 
 	tags = append(tags, "dd.internal.resource:database_instance:"+c.dbHostname)

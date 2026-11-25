@@ -78,23 +78,20 @@ custom_queries:
 	}
 }
 
-func TestServerEmbedsPortIsDerived(t *testing.T) {
-	for name, tc := range map[string]struct {
-		instance string
-		embeds   bool
-		server   string
-		port     int
-	}{
-		"separate port":    {"username: u\nserver: db.example.com\nport: 1522\nservice_name: S\n", false, "db.example.com", 1522},
-		"default port":     {"username: u\nserver: db.example.com\nservice_name: S\n", false, "db.example.com", 1521},
-		"embedded port":    {"username: u\nserver: db.example.com:1522\nservice_name: S\n", true, "db.example.com", 1522},
-		"both port forms":  {"username: u\nserver: db.example.com:1522\nport: 1523\nservice_name: S\n", true, "db.example.com", 1523},
-		"yaml key ignored": {"username: u\nserver: db.example.com\nserver_embeds_port: true\nservice_name: S\n", false, "db.example.com", 1521},
-	} {
-		cfg, err := NewCheckConfig([]byte(tc.instance), []byte(""))
-		require.NoError(t, err, name)
-		assert.Equal(t, tc.embeds, cfg.ServerEmbedsPort, name)
-		assert.Equal(t, tc.server, cfg.Server, name)
-		assert.Equal(t, tc.port, cfg.Port, name)
+// CONFIG-01
+func TestCONFIG01_RemoteQueryTimeout(t *testing.T) {
+	base := "username: u\nserver: db.example.com\nservice_name: S\n"
+	cfg, err := NewCheckConfig([]byte(base), []byte(""))
+	require.NoError(t, err)
+	assert.Nil(t, cfg.RemoteQueries.TimeoutMs, "unset by default")
+
+	cfg, err = NewCheckConfig([]byte(base+"remote_queries:\n  timeout_ms: 5000\n"), []byte(""))
+	require.NoError(t, err)
+	require.NotNil(t, cfg.RemoteQueries.TimeoutMs)
+	assert.Equal(t, 5000, *cfg.RemoteQueries.TimeoutMs)
+
+	for _, bad := range []string{"0", "-1"} {
+		_, err = NewCheckConfig([]byte(base+"remote_queries:\n  timeout_ms: "+bad+"\n"), []byte(""))
+		require.ErrorContains(t, err, "remote_queries.timeout_ms", bad)
 	}
 }

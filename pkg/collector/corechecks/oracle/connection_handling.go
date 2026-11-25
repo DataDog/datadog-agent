@@ -11,20 +11,32 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/jmoiron/sqlx"
 	go_ora "github.com/sijms/go-ora/v2"
 )
 
 func buildGoOraURL(c *Check) string {
-	connectionOptions := map[string]string{"TIMEOUT": c.config.QueryTimeoutString()}
-	if c.config.Protocol == "TCPS" {
-		connectionOptions["SSL"] = "TRUE"
-		if c.config.Wallet != "" {
-			connectionOptions["WALLET"] = c.config.Wallet
+	return goOraURL(c.config.ConnectionConfig, map[string]string{"TIMEOUT": c.config.QueryTimeoutString()})
+}
+
+// goOraURL is the go-ora connection string of a configuration, with its TLS settings
+// added to the given options.
+func goOraURL(cfg config.ConnectionConfig, options map[string]string) string {
+	if cfg.Protocol == "TCPS" {
+		options["SSL"] = "TRUE"
+		if cfg.Wallet != "" {
+			options["WALLET"] = cfg.Wallet
 		}
 	}
-	return go_ora.BuildUrl(c.config.Server, c.config.Port, c.config.ServiceName, c.config.Username, c.config.Password, connectionOptions)
+	return go_ora.BuildUrl(cfg.Server, cfg.Port, cfg.ServiceName, cfg.Username, cfg.Password, options)
+}
+
+// usesGoOra reports whether Connect opens the configuration with the go-ora driver,
+// rather than with godror and an Oracle Client.
+func usesGoOra(cfg config.ConnectionConfig) bool {
+	return cfg.TnsAlias == "" && !cfg.OracleClient
 }
 
 // Connect establishes a connection to an Oracle instance and returns an open connection to the database.

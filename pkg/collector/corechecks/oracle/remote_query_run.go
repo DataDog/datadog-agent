@@ -10,74 +10,60 @@ package oracle
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
+	"regexp"
 	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	go_ora "github.com/sijms/go-ora/v2"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
+	"github.com/DataDog/datadog-agent/pkg/collector/remotequeries/session"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// remoteDBConfig is everything needed to open the run's own connection. It is built
-// from the check's configuration at execute time and never logged.
-type remoteDBConfig struct {
-	Server      string
-	Port        int
-	ServiceName string
-	Username    string
-	Password    string
-	Timeout     time.Duration
-}
+// remoteCancelGrace bounds how long a cancelled statement may take to stop after the
+// driver asked the database to cancel it, before the run closes its sockets.
+const remoteCancelGrace = 5 * time.Second
 
-// remoteDB is a run-scoped connection pool of one connection plus the means to tear
-// its sockets down regardless of what the driver is blocked on.
+// remoteSessionSettings fix how the run's session converts values to text, for
+// conversions the query itself makes (QUERY-04). They do not change how result values
+// are encoded, which the integration does from the driver's values.
+const remoteSessionSettings = `ALTER SESSION SET TIME_ZONE = 'UTC' NLS_NUMERIC_CHARACTERS = '.,' ` +
+	`NLS_DATE_FORMAT = 'YYYY-MM-DD"T"HH24:MI:SS' NLS_TIMESTAMP_FORMAT = 'YYYY-MM-DD"T"HH24:MI:SS.FF' ` +
+	`NLS_TIMESTAMP_TZ_FORMAT = 'YYYY-MM-DD"T"HH24:MI:SS.FFTZH:TZM'`
+
+var oraCodePattern = regexp.MustCompile(`ORA-[0-9]{5}`)
+
+// remoteDB is a run's connection pool of one connection, with the means to close its
+// sockets whatever the driver is blocked on.
 type remoteDB struct {
 	*sql.DB
-	// kill closes every socket the run's connections opened. It is safe to call
-	// repeatedly and concurrently.
+	// kill closes every socket of the run's connection. It is safe to call repeatedly
+	// and concurrently.
 	kill func()
 }
 
-// remoteQueryHooks are the production dependencies of a run. Tests replace them; the
-// zero value of Check uses the defaults, so the production path has no test branch.
-type remoteQueryHooks struct {
-	openDB          func(cfg remoteDBConfig) (*remoteDB, error)
-	apiKey          func() string
-	httpClient      func() (*http.Client, func())
-	validateBaseURL func(baseURL string) bool
+// remoteDependencies are what a run uses outside the check. Configure sets the
+// production ones; tests replace them.
+type remoteDependencies struct {
+	openDB     func(cfg config.ConnectionConfig, timeout time.Duration) (*remoteDB, error)
+	apiKey     func() string
+	httpClient func() (*http.Client, func())
 }
 
-func defaultRemoteQueryHooks() remoteQueryHooks {
-	return remoteQueryHooks{
+func defaultRemoteDependencies() *remoteDependencies {
+	return &remoteDependencies{
 		openDB: openRemoteOracle,
 		apiKey: func() string { return strings.TrimSpace(pkgconfigsetup.Datadog().GetString("api_key")) },
 		httpClient: func() (*http.Client, func()) {
-			transport := httputils.CreateHTTPTransport(pkgconfigsetup.Datadog())
-			// The upload carries the API key: always verify the intake certificate, even if
-			// monitoring traffic is configured to skip verification.
-			if transport.TLSClientConfig != nil {
-				transport.TLSClientConfig.InsecureSkipVerify = false
-			}
-			client := &http.Client{
-				Transport: transport,
-				// Each request also has its own, shorter, context timeout.
-				Timeout: intakePageTimeout + intakeRequestTimeout,
-				// Never follow a redirect with the API key attached.
-				CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-			}
-			return client, transport.CloseIdleConnections
-		},
-		validateBaseURL: func(baseURL string) bool {
-			want, ok := intakeSiteBaseURL(pkgconfigsetup.Datadog().GetString("site"))
-			return ok && baseURL == want
+			return session.NewHTTPClient(pkgconfigsetup.Datadog())
 		},
 	}
 }
@@ -116,12 +102,12 @@ func (t *socketTracker) closeAll() {
 	}
 }
 
-// openRemoteOracle opens a fresh go-ora pool for one run: the configured direct TCP
-// server and explicit service only, no monitoring pool or state. The driver's per-read
-// TIMEOUT is the run's remaining time, not the monitoring query_timeout.
-func openRemoteOracle(cfg remoteDBConfig) (*remoteDB, error) {
-	seconds := max(1, int((cfg.Timeout+time.Second-1)/time.Second))
-	dsn := go_ora.BuildUrl(cfg.Server, cfg.Port, cfg.ServiceName, cfg.Username, cfg.Password, map[string]string{"TIMEOUT": strconv.Itoa(seconds)})
+// openRemoteOracle opens a go-ora pool of one connection for one run, with the check's
+// connection settings, including TLS and wallet (QUERY-01). The driver's read timeout
+// is the run's remaining database time, not the monitoring query_timeout.
+func openRemoteOracle(cfg config.ConnectionConfig, timeout time.Duration) (*remoteDB, error) {
+	seconds := max(1, int((timeout+time.Second-1)/time.Second))
+	dsn := goOraURL(cfg, map[string]string{"TIMEOUT": strconv.Itoa(seconds)})
 	connector, ok := go_ora.NewConnector(dsn).(*go_ora.OracleConnector)
 	if !ok {
 		return nil, errors.New("unsupported driver connector")
@@ -136,296 +122,300 @@ func openRemoteOracle(cfg remoteDBConfig) (*remoteDB, error) {
 
 // remoteRun is one execute call.
 type remoteRun struct {
-	check   *Check
-	req     remoteRequest
-	hooks   remoteQueryHooks
-	failure *remoteFailure
-	pages   int
-	rows    int64
+	check     *Check
+	req       session.Request
+	deps      *remoteDependencies
+	received  time.Time
+	logPrefix string
+	failure   *session.Failure
+	pages     int
+	rows      int64
 }
 
-func (r *remoteRun) fail(code, message string) {
-	r.failure = newRemoteFailure(code, message)
-}
-
-// execute returns the final answer. Every path that does not finalize the upload
-// session aborts it, so the worker learns the outcome without waiting for expiry.
+// execute returns the run's final answer. Every run that fails after its request was
+// validated aborts its upload session with the failure (ABORT-01).
 func (r *remoteRun) execute(parent context.Context) (answer string) {
-	req := r.req
-	d := req.Delivery
-	apiKey := r.hooks.apiKey()
-	var intake *intakeClient
+	d := r.req.Delivery
+	ctx, cancel := context.WithDeadline(parent, r.received.Add(time.Duration(d.Limits.TimeoutMs)*time.Millisecond))
+	defer cancel()
+	var intake *session.Client
 	finalized := false
 
 	defer func() {
 		if p := recover(); p != nil {
 			// Frames only: the panic value could carry query text or data.
-			log.Errorf("oracle remote query panic: %s", debug.Stack())
-			r.fail(remoteCodeInternalError, "the remote query failed unexpectedly")
-			answer = remoteFailed(remoteCodeInternalError, "the remote query failed unexpectedly")
+			log.Errorf("%s panic: %s", r.logPrefix, debug.Stack())
+			r.failure = session.Fail(session.CodeInternalError, "the remote query failed unexpectedly")
 		}
 		if finalized {
+			answer = session.Succeeded()
 			return
 		}
-		if intake != nil {
-			// Best effort; the run may already be past its deadline or cancelled.
-			_ = intake.abort()
-		}
 		if r.failure == nil {
-			r.fail(remoteCodeInternalError, "the remote query failed unexpectedly")
+			r.failure = session.Fail(session.CodeInternalError, "the remote query failed unexpectedly")
 		}
-		answer = remoteFailed(r.failure.code, r.failure.message)
+		if intake != nil {
+			if err := intake.Abort(r.failure); err != nil {
+				log.Warnf("%s abort failed: %s", r.logPrefix, abortErrorCode(err))
+			}
+		} else {
+			log.Warnf("%s not aborted: the Agent API key is unavailable", r.logPrefix)
+		}
+		answer = session.Failed(r.failure)
 	}()
 
-	// Revalidate from configuration, then choose the statement: both before any
-	// connection or upload request. A bad delivery cannot be aborted safely, so only
-	// an upload-capable run aborts its session below.
+	apiKey := r.deps.apiKey()
 	if apiKey == "" {
-		r.fail(remoteCodeCredentials, "the Agent API key is unavailable")
+		r.failure = session.Fail(session.CodeCredentialsUnavailable, "the Agent API key is unavailable")
 		return ""
 	}
-	if !r.hooks.validateBaseURL(d.BaseURL) {
-		r.fail(remoteCodeInvalidRequest, "the upload address is not the Agent's own intake")
-		return ""
-	}
-	client, closeClient := r.hooks.httpClient()
+	client, closeClient := r.deps.httpClient()
 	defer closeClient()
-	intake = newIntakeClient(client, d.BaseURL, d.UploadID, apiKey, req.Trace)
+	intake = session.NewClient(client, d, apiKey, r.req.Trace)
 
-	if !remoteServes(r.check.config, req.Target) {
-		r.fail(remoteCodeTargetNotFound, "this Oracle check does not serve the target")
+	// Match again, then check the statement and the Agent's identity, all before
+	// connecting (MATCH-05, QUERY-02).
+	if f := r.check.remoteMatch(r.req.Target); f != nil {
+		r.failure = f
 		return ""
 	}
-	statement, ok := approvedRemoteQuery(req.Query)
-	if !ok {
-		r.fail(remoteCodeUnsupportedQuery, "the query is not one of the fixed queries this integration runs")
+	if !remoteQueryIsSelect(r.req.Query) {
+		r.failure = session.Fail(codeUnsupportedQuery, "the query is not a single SELECT or WITH query; remote queries run queries only")
 		return ""
 	}
 	hostname := r.check.agentHostname
 	if hostname == "" {
-		r.fail(remoteCodeInternalError, "the Agent hostname is unavailable")
+		r.failure = session.Fail(session.CodeInternalError, "the Agent hostname is unavailable")
 		return ""
 	}
 
-	ctx, cancel := context.WithTimeout(parent, time.Duration(d.Limits.TimeoutMs)*time.Millisecond)
-	defer cancel()
-	if err := r.stream(ctx, intake, statement, hostname); err != nil {
+	uploader, err := r.stream(ctx, intake, hostname)
+	if uploader != nil {
+		r.pages, r.rows = uploader.Pages(), uploader.Rows()
+	}
+	if err != nil {
 		r.failure = r.classify(ctx, err)
 		return ""
 	}
 	finalized = true
-	return encodeRemoteAnswer(remoteAnswer{Status: "SUCCEEDED"})
+	return ""
 }
 
-// classify maps an error to a final failure. Cancellation and the run deadline win over
-// the secondary errors they cause.
-func (r *remoteRun) classify(ctx context.Context, err error) *remoteFailure {
-	var rf *remoteFailure
-	if errors.As(err, &rf) && ctx.Err() == nil {
-		return rf
-	}
-	switch {
-	case errors.Is(ctx.Err(), context.DeadlineExceeded):
-		return newRemoteFailure(remoteCodeTimeout, "the remote query exceeded its time limit")
-	case ctx.Err() != nil:
-		return newRemoteFailure(remoteCodeCancelled, "the remote query was cancelled")
-	}
-	var ie *intakeError
+func abortErrorCode(err error) string {
+	var ie *session.IntakeError
 	if errors.As(err, &ie) {
-		return newRemoteFailure(remoteCodeUploadFailed, "intake request failed: "+ie.code)
+		return ie.Code
 	}
-	return newRemoteFailure(remoteCodeInternalError, "the remote query failed unexpectedly")
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "timeout"
+	}
+	return "transport_error"
 }
 
-func databaseFailure(code, message string, err error) *remoteFailure {
-	// Only an Oracle error code is surfaced; driver text can carry hosts, SQL or data.
-	if ora := remoteOraCodeRegexp.FindString(err.Error()); ora != "" {
+// errDBTimeout marks the end of the database time that the instance's
+// remote_queries.timeout_ms set (QUERY-05).
+var errDBTimeout = errors.New("remote query database time limit")
+
+// classify maps an error to the run's failure. Cancellation and time limits win over
+// the secondary errors they cause.
+func (r *remoteRun) classify(ctx context.Context, err error) *session.Failure {
+	switch {
+	case errors.Is(ctx.Err(), context.DeadlineExceeded), errors.Is(err, errDBTimeout):
+		return session.Fail(session.CodeTimeout, "the remote query exceeded its time limit")
+	case ctx.Err() != nil:
+		return session.Fail(session.CodeCancelled, "the remote query was cancelled")
+	}
+	var f *session.Failure
+	if errors.As(err, &f) {
+		return f
+	}
+	var ie *session.IntakeError
+	if errors.As(err, &ie) {
+		return session.Fail(session.CodeUploadFailed, "intake request failed: "+ie.Code)
+	}
+	return session.Fail(session.CodeInternalError, "the remote query failed unexpectedly")
+}
+
+// databaseFailure carries only the Oracle error code of a driver error: driver text
+// can include hosts, SQL, or data (QUERY-06).
+func databaseFailure(code, message string, err error) *session.Failure {
+	if ora := oraCodePattern.FindString(err.Error()); ora != "" {
 		message += " (" + ora + ")"
 	}
-	return newRemoteFailure(code, message)
+	return session.Fail(code, message)
 }
 
-func (r *remoteRun) dbConfig(timeout time.Duration) remoteDBConfig {
-	c := r.check.config.ConnectionConfig
-	return remoteDBConfig{Server: c.Server, Port: c.Port, ServiceName: strings.TrimSpace(c.ServiceName), Username: c.Username, Password: c.Password, Timeout: timeout}
-}
-
-// stream runs the statement in a read-only transaction on a dedicated connection and
-// uploads its rows page by page, then finalizes the session.
-func (r *remoteRun) stream(ctx context.Context, intake *intakeClient, statement, hostname string) error {
+// dbDeadline is when the run's database time ends: the run time limit, or the
+// instance's remote query timeout when that is sooner (QUERY-05).
+func (r *remoteRun) dbDeadline(ctx context.Context) time.Time {
 	deadline, _ := ctx.Deadline()
-	db, err := r.hooks.openDB(r.dbConfig(time.Until(deadline)))
-	if err != nil {
-		return databaseFailure(remoteCodeConnectionFailed, "the database connection could not be opened", err)
+	if t := r.check.config.RemoteQueries.TimeoutMs; t != nil {
+		if own := time.Now().Add(time.Duration(*t) * time.Millisecond); own.Before(deadline) {
+			return own
+		}
 	}
-	// Whatever the driver is blocked on, cancellation closes the sockets.
-	stopWatch := context.AfterFunc(ctx, db.kill)
-	defer func() {
+	return deadline
+}
+
+// stream runs the query in a read-only transaction on the run's own connection and
+// uploads its rows page by page, then finalizes the session.
+func (r *remoteRun) stream(ctx context.Context, intake *session.Client, hostname string) (*session.Uploader, error) {
+	dbDeadline := r.dbDeadline(ctx)
+	dbCtx, cancelDB := context.WithDeadlineCause(ctx, dbDeadline, errDBTimeout)
+	defer cancelDB()
+	db, err := r.deps.openDB(r.check.config.ConnectionConfig, time.Until(dbDeadline))
+	if err != nil {
+		return nil, databaseFailure(session.CodeConnectionFailed, "the database connection could not be opened", err)
+	}
+	// When the run is cancelled or its database time ends, the driver asks the
+	// database to cancel the statement; the sockets are closed if it has not stopped
+	// within the grace time (CANCEL-01).
+	var graceTimer *time.Timer
+	var graceMu sync.Mutex
+	stopWatch := context.AfterFunc(dbCtx, func() {
+		graceMu.Lock()
+		defer graceMu.Unlock()
+		graceTimer = time.AfterFunc(remoteCancelGrace, db.kill)
+	})
+	closeDB := sync.OnceFunc(func() {
 		stopWatch()
+		graceMu.Lock()
+		if graceTimer != nil {
+			graceTimer.Stop()
+		}
+		graceMu.Unlock()
 		_ = db.Close() // best effort: the sockets are closed next regardless
 		db.kill()
-	}()
+	})
+	defer closeDB()
 
-	tx, rows, err := r.startQuery(ctx, db, statement)
+	conn, tx, rows, err := r.startQuery(dbCtx, db)
 	if err != nil {
-		return err
+		return nil, r.dbError(dbCtx, err)
 	}
+	defer func() { _ = conn.Close() }()
 	defer func() { _ = tx.Rollback() }() // best effort: a finished transaction reports ErrTxDone
 	defer rows.Close()
 
-	columns, err := r.describe(rows, r.req.Delivery.Limits)
+	columns, err := r.describe(rows)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	page, err := r.registerDescriptor(ctx, intake, columns, hostname)
-	if err != nil {
-		return err
+	sessionColumns := make([]session.Column, len(columns))
+	for i, c := range columns {
+		sessionColumns[i] = c.Column
 	}
-	if err := r.pump(ctx, intake, rows, columns, page); err != nil {
-		return err
+	uploader, failure := session.NewUploader(intake, r.req.Delivery, sessionColumns, r.req.IncludeSchema, hostname, r.logPrefix)
+	if failure != nil {
+		return nil, failure
 	}
-	// All rows are read: release the database before finalizing.
+	if err := uploader.Register(ctx); err != nil {
+		return uploader, err
+	}
+	if err := r.pump(dbCtx, uploader, rows, columns); err != nil {
+		return uploader, r.dbError(dbCtx, err)
+	}
+	// Every row is read: release the database before the last page and the finalize.
 	if err := rows.Close(); err != nil {
-		return databaseFailure(remoteCodeQueryFailed, "the database cursor could not be closed", err)
+		return uploader, r.dbError(dbCtx, databaseFailure(session.CodeQueryFailed, "the database cursor could not be closed", err))
 	}
 	_ = tx.Rollback() // read-only: nothing to keep
-	_ = db.Close()
-	return intake.finalize(ctx, r.pages)
+	_ = conn.Close()
+	closeDB()
+	return uploader, uploader.Finish(ctx)
 }
 
-// startQuery begins the run's transaction, makes it read-only and starts the fixed
-// statement. On error it leaves nothing open.
-func (r *remoteRun) startQuery(ctx context.Context, db *remoteDB, statement string) (*sql.Tx, *sql.Rows, error) {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, nil, databaseFailure(remoteCodeConnectionFailed, "the database connection could not be opened", err)
+// dbError reports the database time limit instead of the driver error it causes.
+func (r *remoteRun) dbError(dbCtx context.Context, err error) error {
+	if errors.Is(context.Cause(dbCtx), errDBTimeout) {
+		return errDBTimeout
 	}
-	// go-ora does not support sql.TxOptions{ReadOnly}: ask the database explicitly. This
-	// must be the transaction's first statement. The approved fixed statement is the
-	// primary guard; this is defence in depth.
+	return err
+}
+
+// startQuery fixes the session's settings, starts the read-only transaction, and
+// starts the query, all on the run's one connection. On error it leaves nothing open.
+func (r *remoteRun) startQuery(ctx context.Context, db *remoteDB) (*sql.Conn, *sql.Tx, *sql.Rows, error) {
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return nil, nil, nil, databaseFailure(session.CodeConnectionFailed, "the database connection could not be opened", err)
+	}
+	fail := func(tx *sql.Tx, f *session.Failure) (*sql.Conn, *sql.Tx, *sql.Rows, error) {
+		if tx != nil {
+			_ = tx.Rollback() // best effort on an already failed run
+		}
+		_ = conn.Close()
+		return nil, nil, nil, f
+	}
+	if _, err := conn.ExecContext(ctx, remoteSessionSettings); err != nil {
+		return fail(nil, databaseFailure(session.CodeQueryFailed, "the database refused the session settings", err))
+	}
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		return fail(nil, databaseFailure(session.CodeConnectionFailed, "the database connection could not be opened", err))
+	}
+	// go-ora does not support sql.TxOptions{ReadOnly}: ask the database. This must be
+	// the transaction's first statement.
 	if _, err := tx.ExecContext(ctx, "SET TRANSACTION READ ONLY"); err != nil {
-		_ = tx.Rollback() // best effort on an already failed run
-		return nil, nil, databaseFailure(remoteCodeQueryFailed, "the database refused a read-only transaction", err)
+		return fail(tx, databaseFailure(session.CodeQueryFailed, "the database refused a read-only transaction", err))
 	}
-	rows, err := tx.QueryContext(ctx, statement)
+	rows, err := tx.QueryContext(ctx, r.req.Query)
 	if err != nil {
-		_ = tx.Rollback() // best effort on an already failed run
-		return nil, nil, databaseFailure(remoteCodeQueryFailed, "the database rejected the query", err)
+		return fail(tx, databaseFailure(session.CodeQueryFailed, "the database rejected the query", err))
 	}
-	return tx, rows, nil
+	return conn, tx, rows, nil
 }
 
-// describe maps the result columns to the descriptor, rejecting anything unsupported.
-func (r *remoteRun) describe(rows *sql.Rows, limits remoteLimits) ([]remoteColumn, error) {
+// describe maps the result's columns to the descriptor, rejecting types it cannot
+// carry (DESC-01, DESC-02, ORA-01).
+func (r *remoteRun) describe(rows *sql.Rows) ([]remoteColumn, error) {
 	types, err := rows.ColumnTypes()
 	if err != nil {
-		return nil, databaseFailure(remoteCodeQueryFailed, "the result columns could not be read", err)
-	}
-	if len(types) == 0 || int64(len(types)) > limits.MaxColumns {
-		return nil, newRemoteFailure(remoteCodeInvalidColumns, "the result has no columns or exceeds the column limit")
+		return nil, databaseFailure(session.CodeQueryFailed, "the result columns could not be read", err)
 	}
 	columns := make([]remoteColumn, len(types))
-	seen := make(map[string]struct{}, len(types))
 	for i, t := range types {
-		col, failure := classifyRemoteColumn(t.Name(), t.DatabaseTypeName())
+		precision, scale, hasScale := t.DecimalSize()
+		col, failure := remoteColumnType(t.Name(), t.DatabaseTypeName(), precision, scale, hasScale)
 		if failure != nil {
 			return nil, failure
 		}
-		if _, dup := seen[col.Name]; dup {
-			return nil, newRemoteFailure(remoteCodeInvalidColumns, "the result has duplicate column names")
-		}
-		seen[col.Name] = struct{}{}
 		columns[i] = col
-	}
-	if r.req.IncludeSchema && int64(schemaJSONBytes(columns)) > limits.MaxSchemaBytes {
-		return nil, newRemoteFailure(remoteCodeDescriptorTooLarge, "the result schema exceeds its size limit")
 	}
 	return columns, nil
 }
 
-// registerDescriptor sends the descriptor and returns the page encoder for the columns.
-func (r *remoteRun) registerDescriptor(ctx context.Context, intake *intakeClient, columns []remoteColumn, hostname string) (*pageEncoder, error) {
-	d := r.req.Delivery
-	body, err := json.Marshal(newRemoteDescriptor(columns, r.req.IncludeSchema, hostname))
-	if err != nil {
-		return nil, newRemoteFailure(remoteCodeInternalError, "the descriptor could not be encoded")
-	}
-	page, failure := newPageEncoder(columns, r.req.IncludeSchema, d.CrawlID, d.TaskID, hostname)
-	if failure != nil {
-		return nil, failure
-	}
-	if page.emptyBound() > d.Limits.MaxFileBytes {
-		return nil, newRemoteFailure(remoteCodeResultTooLarge, "the page envelope exceeds the result file limit")
-	}
-	if err := intake.registerDescriptor(ctx, body); err != nil {
-		return nil, err
-	}
-	return page, nil
-}
-
-// pump reads rows, encodes them and uploads each full page, then the last one. An
-// empty result is one empty page, so every finalized session has a file.
-func (r *remoteRun) pump(ctx context.Context, intake *intakeClient, rows *sql.Rows, columns []remoteColumn, page *pageEncoder) error {
-	limits := r.req.Delivery.Limits
-	target := min(limits.MaxFileBytes, remoteMaxPageTargetBytes)
-	var offset, resultBytes int64
-	flush := func() error {
-		if int64(r.pages) >= limits.MaxPages || resultBytes+page.pageBound() > limits.MaxResultBytes || int64(page.body.Len()) > remoteMaxSourcePageBytes {
-			return newRemoteFailure(remoteCodeResultTooLarge, "the result exceeds its page or total size limit")
-		}
-		if err := intake.putPage(ctx, r.pages, page.bytes(), page.rows, offset); err != nil {
-			if isIntakeCode(err, "result_file_too_large") {
-				return newRemoteFailure(remoteCodeRowTooLarge, "a page exceeded intake's result file limit")
-			}
-			return err
-		}
-		r.pages++
-		r.rows += page.rows
-		offset += page.rows
-		resultBytes += page.pageBound()
-		page.reset()
-		return nil
-	}
-
+// pump reads the rows, encodes them, and hands them to the uploader.
+func (r *remoteRun) pump(ctx context.Context, uploader *session.Uploader, rows *sql.Rows, columns []remoteColumn) error {
 	values := make([]any, len(columns))
 	dest := make([]any, len(columns))
 	for i := range values {
 		dest[i] = &values[i]
 	}
-	tokens := make([]string, len(columns))
-	bounds := make([]int, len(columns))
+	cells := make([]session.Cell, len(columns))
 	for rows.Next() {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 		if err := rows.Scan(dest...); err != nil {
-			return databaseFailure(remoteCodeQueryFailed, "a result row could not be read", err)
+			return databaseFailure(session.CodeQueryFailed, "a result row could not be read", err)
 		}
 		for i, col := range columns {
-			token, bound, failure := encodeRemoteCell(col.kind, values[i])
+			cell, failure := remoteCell(col.kind, values[i])
 			if failure != nil {
-				return failure
+				return session.Fail(failure.Code, failure.Message+" in column "+quoteColumn(col.Name))
 			}
-			tokens[i], bounds[i] = token, bound
+			cells[i] = cell
 		}
-		rowBound := page.rowBound(bounds)
-		if rowBound > limits.MaxRowBytes || int64(page.overhead)+rowBound > limits.MaxFileBytes {
-			return newRemoteFailure(remoteCodeRowTooLarge, "a result row exceeds the row or file size limit")
+		if err := uploader.Add(ctx, cells); err != nil {
+			return err
 		}
-		if !page.empty() && page.fileBound(rowBound) > target {
-			if err := flush(); err != nil {
-				return err
-			}
-		}
-		if failure := page.add(tokens, rowBound); failure != nil {
-			return failure
-		}
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	if err := rows.Err(); err != nil {
-		return databaseFailure(remoteCodeQueryFailed, "the database failed while returning rows", err)
-	}
-	if !page.empty() || r.pages == 0 {
-		return flush()
+		return databaseFailure(session.CodeQueryFailed, "the database failed while returning rows", err)
 	}
 	return nil
 }

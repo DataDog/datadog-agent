@@ -338,6 +338,16 @@ instances:
       #
       # replace_bind_parameter: false
 
+    ## Settings for remote queries requested by the Agent.
+    #
+    # remote_queries:
+
+      ## @param timeout_ms - integer - optional
+      ## Maximum database time for a remote query, in milliseconds. When unset, the run's
+      ## remaining time applies. This setting can shorten, but never extend, that time.
+      #
+      # timeout_ms: 5000
+
     ## @param use_global_custom_queries - string - optional - default: 'true'
     ## How `global_custom_queries` should be used for this instance. There are 3 options:
     ##

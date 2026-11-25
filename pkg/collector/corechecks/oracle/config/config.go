@@ -152,9 +152,13 @@ type ConnectionConfig struct {
 	Wallet       string `yaml:"wallet"`
 	OracleClient bool   `yaml:"oracle_client"`
 	QueryTimeout int    `yaml:"query_timeout"`
-	// ServerEmbedsPort reports that `server` carried a `host:port` shorthand, which
-	// NewCheckConfig split. It is derived, never read from YAML.
-	ServerEmbedsPort bool `yaml:"-"`
+}
+
+// RemoteQueriesConfig holds the instance settings for remote queries.
+type RemoteQueriesConfig struct {
+	// TimeoutMs shortens the database time of a remote query, in milliseconds. Nil
+	// leaves the run's own time limit.
+	TimeoutMs *int `yaml:"timeout_ms"`
 }
 
 func (c ConnectionConfig) QueryTimeoutString() string {
@@ -194,6 +198,7 @@ type InstanceConfig struct {
 	Asm                                asmConfig                `yaml:"asm"`
 	ResourceManager                    resourceManagerConfig    `yaml:"resource_manager"`
 	Locks                              locksConfig              `yaml:"locks"`
+	RemoteQueries                      RemoteQueriesConfig      `yaml:"remote_queries"`
 	OnlyCustomQueries                  bool                     `yaml:"only_custom_queries"`
 	Service                            string                   `yaml:"service"`
 	Loader                             string                   `yaml:"loader"`
@@ -301,10 +306,12 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	if err := validateCustomQueryCollectionIntervals("global_custom_queries", initCfg.CustomQueries); err != nil {
 		return nil, err
 	}
+	if t := instance.RemoteQueries.TimeoutMs; t != nil && *t < 1 {
+		return nil, errors.New("`remote_queries.timeout_ms` must be at least 1")
+	}
 
 	serverSlice := strings.Split(instance.Server, ":")
 	instance.Server = serverSlice[0]
-	instance.ServerEmbedsPort = len(serverSlice) > 1
 
 	if instance.Port == 0 {
 		if len(serverSlice) > 1 {

@@ -121,7 +121,7 @@ type Check struct {
 	lastSampleID                            uint64
 	obfuscator                              *obfuscate.Obfuscator
 	remote                                  remoteQueryState
-	remoteTestHooks                         *remoteQueryHooks // tests only; nil in production
+	remoteDeps                              *remoteDependencies
 }
 
 type vDatabase struct {
@@ -390,6 +390,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 		return fmt.Errorf("failed to build check config: %w", err)
 	}
 	c.clock = clock.New()
+	c.remoteDeps = defaultRemoteDependencies()
 
 	// Must be called before c.CommonConfigure because this integration supports multiple instances
 	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
