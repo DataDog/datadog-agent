@@ -520,10 +520,11 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 			if host == "" {
 				host = l.hostname
 			}
-			seriesKey := storageKeyForContextKey(extractor.Name(), e.contextKeyForLogComposite(m.Name, host, tags))
+			contextKey := e.contextKeyForLogComposite(m.Name, host, tags)
 			if l.service != "" {
-				seriesKey = storageKeyWithService(seriesKey, l.service)
+				contextKey ^= fnv64aString(l.service)
 			}
+			seriesKey := storageKeyForContextKey(extractor.Name(), contextKey)
 			if e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
 				if _, ok := e.baseline.mutedHashes[seriesKey]; ok {
 					continue
@@ -557,23 +558,6 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 
 func (e *engine) contextKeyForLogComposite(name, host string, tags tagset.CompositeTags) uint64 {
 	return uint64(e.logKeyGenerator.GenerateComposite(name, host, tags))
-}
-
-func storageKeyWithService(seriesKey uint64, service string) uint64 {
-	const (
-		prime64 = 1099511628211
-		sep     = "|service:"
-	)
-	hash := seriesKey
-	for index := 0; index < len(sep); index++ {
-		hash ^= uint64(sep[index])
-		hash *= prime64
-	}
-	for index := 0; index < len(service); index++ {
-		hash ^= uint64(service[index])
-		hash *= prime64
-	}
-	return hash
 }
 
 // removeEvictedMetricSeries removes all storage series for the given metric

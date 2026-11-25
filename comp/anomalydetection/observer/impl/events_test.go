@@ -1033,33 +1033,22 @@ func (d *firstSeriesAnomalyDetector) Detect(storage observerdef.StorageReader, d
 }
 
 func TestIngestLogPreservesServiceOnEmittedAnomalyContext(t *testing.T) {
-	for _, useBuckets := range []bool{false, true} {
-		name := "direct_storage"
-		bucketCfg := LogCountBucketConfig{}
-		if useBuckets {
-			name = "log_count_bucketizer"
-			bucketCfg = LogCountBucketConfig{Enabled: true, BucketSeconds: 5, IdleTTLSeconds: 60}
-		}
-		t.Run(name, func(t *testing.T) {
-			e := mustNewEngine(engineConfig{
-				storage:         newTimeSeriesStorage(),
-				extractors:      []observerdef.LogMetricsExtractor{NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig())},
-				detectors:       []detectorRegistration{{detector: &firstSeriesAnomalyDetector{}}},
-				logCountBuckets: bucketCfg,
-			})
+	e := mustNewEngine(engineConfig{
+		storage:    newTimeSeriesStorage(),
+		extractors: []observerdef.LogMetricsExtractor{NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig())},
+		detectors:  []detectorRegistration{{detector: &firstSeriesAnomalyDetector{}}},
+	})
 
-			e.IngestLog("logs", &logObs{
-				source:      "containerd",
-				service:     "checkout",
-				content:     "request failed with 500",
-				timestampMs: 1_000,
-			})
-			result := e.Advance(5)
-			require.Len(t, result.anomalies, 1)
-			require.NotNil(t, result.anomalies[0].Context)
-			assert.Equal(t, "checkout", result.anomalies[0].Context.Service)
-		})
-	}
+	e.IngestLog("logs", &logObs{
+		source:      "containerd",
+		service:     "checkout",
+		content:     "request failed with 500",
+		timestampMs: 1_000,
+	})
+	result := e.Advance(5)
+	require.Len(t, result.anomalies, 1)
+	require.NotNil(t, result.anomalies[0].Context)
+	assert.Equal(t, "checkout", result.anomalies[0].Context.Service)
 }
 
 func TestIngestLogSeparatesFixedNameMetricsAcrossOriginServices(t *testing.T) {

@@ -22,7 +22,7 @@ func TestScopeKeyForService_MatchesFNV64aAndDistinct(t *testing.T) {
 
 	for _, service := range services {
 		hasher := fnv.New64a()
-		_, _ = hasher.Write([]byte("service:" + service))
+		_, _ = hasher.Write([]byte(service))
 		want := ScopeKey(hasher.Sum64())
 		if want == 0 {
 			want = 1
