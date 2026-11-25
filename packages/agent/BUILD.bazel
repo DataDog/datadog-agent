@@ -40,6 +40,12 @@ config_setting(
     ],
 )
 
+config_setting(
+    name = "linux_iot",
+    constraint_values = ["@platforms//os:linux"],
+    flag_values = {"//packages/agent:flavor": "iot"},
+)
+
 selects.config_setting_group(
     name = "macos_x86_64_base",
     match_all = [
