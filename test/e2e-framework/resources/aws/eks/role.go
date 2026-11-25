@@ -133,3 +133,24 @@ func GetFargatePodExecutionRole(e aws.Environment, name string) (*awsIam.Role, e
 		PermissionsBoundary: permissionsBoundary(e),
 	}, e.WithProviders(config.ProviderAWS))
 }
+
+// GetAutoModeNodeRole returns a node role for EKS Auto Mode's managed instances. pulumi-eks creates one itself
+// otherwise, but without a way to set its permissions boundary.
+// See https://docs.aws.amazon.com/eks/latest/userguide/automode-get-started-cli.html
+func GetAutoModeNodeRole(e aws.Environment, name string) (*awsIam.Role, error) {
+	assumeRolePolicy, err := iam.GetAWSPrincipalAssumeRoleWithActions(e, []string{iam.EC2ServicePrincipal}, []string{"sts:AssumeRole", "sts:TagSession"})
+	if err != nil {
+		return nil, err
+	}
+
+	return awsIam.NewRole(e.Ctx(), e.Namer.ResourceName(name), &awsIam.RoleArgs{
+		Name:        e.CommonNamer().DisplayName(64, pulumi.String(name)),
+		Description: pulumi.StringPtr("Auto Mode node role for EKS Cluster: " + e.Ctx().Stack()),
+		ManagedPolicyArns: pulumi.ToStringArray([]string{
+			"arn:aws:iam::aws:policy/AmazonEKSWorkerNodeMinimalPolicy",
+			"arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPullOnly",
+		}),
+		AssumeRolePolicy:    pulumi.String(assumeRolePolicy.Json),
+		PermissionsBoundary: permissionsBoundary(e),
+	}, e.WithProviders(config.ProviderAWS))
+}

@@ -152,6 +152,18 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 			clusterArgs.AutoMode = &eks.AutoModeOptionsArgs{
 				Enabled: true,
 			}
+			// pulumi-eks's own Auto Mode node role can't carry a permissions boundary
+			if e.EKSRolePermissionsBoundary() != "" {
+				nodeRole, err := localEks.GetAutoModeNodeRole(e, "eks-auto-node-role")
+				if err != nil {
+					return err
+				}
+				clusterArgs.AutoMode.CreateNodeRole = pulumi.BoolRef(false)
+				clusterArgs.AutoMode.ComputeConfig = &eks.ClusterComputeConfigArgs{
+					NodePools:   pulumi.ToStringArray([]string{"general-purpose", "system"}),
+					NodeRoleArn: nodeRole.Arn,
+				}
+			}
 		} else {
 			clusterArgs.InstanceRoles = awsIam.RoleArray{
 				linuxNodeRole,
