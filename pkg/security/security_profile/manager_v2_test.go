@@ -1409,7 +1409,7 @@ func TestManagerV2_onCGroupDeleted(t *testing.T) {
 		require.NoError(t, m.resolvers.CGroupResolver.RegisterListener(cgroup.CGroupDeleted, m.onCGroupDeleted))
 		require.NotNil(t, m.resolvers.CGroupResolver.Add(childCGroup))
 
-		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 		require.True(t, inserted)
 		require.Len(t, p.Instances, 1)
 
@@ -1423,7 +1423,7 @@ func TestManagerV2_onCGroupDeleted(t *testing.T) {
 		nextEvent.ProcessCacheEntry.Pid = 99
 		nextEvent.ProcessCacheEntry.FileEvent.Inode = 99
 		nextEvent.ProcessCacheEntry.CGroup.CGroupPathKey.Inode = 4242
-		_, inserted = m.insertEventIntoProfile(nextEvent)
+		_, inserted, _ = m.insertEventIntoProfile(nextEvent)
 		assert.True(t, inserted)
 		assert.Zero(t, m.insertionErrors[insertionErrorKey{eventType: model.DNSEventType, errorType: activity_tree.InsertionErrorProcessNodeNotCreated, outcome: insertionErrorDropped}].Load())
 
