@@ -189,41 +189,19 @@ func TestMarkersInTheTreeAreIgnored(t *testing.T) {
 	assert.Equal(t, State{StableDeploymentID: "stable-1", ExperimentDeploymentID: "experiment-1"}, state)
 }
 
-// TestALegacyStableDeploymentIDIsCarriedOver covers a host whose configuration experiment a build
-// before the state file promoted: that build left the stable ID in etc/.deployment-id. With no ID
-// recorded yet, it is reported as the stable ID, and the next experiment records it.
-func TestALegacyStableDeploymentIDIsCarriedOver(t *testing.T) {
+// TestAStableDirectoryDeploymentIDIsIgnored pins that only the state file records the stable ID:
+// a .deployment-id left in the stable directory, as the shared Unix layout writes, is not read.
+func TestAStableDirectoryDeploymentIDIsIgnored(t *testing.T) {
 	dirs := newTestDirectories(t)
 	require.NoError(t, os.Remove(dirs.StatePath))
-	require.NoError(t, os.WriteFile(filepath.Join(dirs.StablePath, ".deployment-id"), []byte("legacy-1"), 0640))
+	require.NoError(t, os.WriteFile(filepath.Join(dirs.StablePath, ".deployment-id"), []byte("stray-1"), 0640))
 
 	state, err := dirs.GetState()
 	require.NoError(t, err)
-	assert.Equal(t, State{StableDeploymentID: "legacy-1"}, state)
+	assert.Equal(t, State{}, state)
 
-	require.NoError(t, dirs.WriteExperiment(context.Background(), mergePatch("experiment-1", `{"log_level":"debug"}`)))
-	assert.Equal(t, "legacy-1", readTestState(t, dirs).StableDeploymentID)
-}
-
-// TestALinkedLegacyDeploymentIDIsIgnored pins that the legacy ID is only taken from a file the
-// Agent's account cannot have planted: a link, or a file linked from elsewhere, reads as no ID.
-func TestALinkedLegacyDeploymentIDIsIgnored(t *testing.T) {
-	for name, plant := range map[string]func(t *testing.T, outside, path string){
-		"a symlink":  func(t *testing.T, outside, path string) { require.NoError(t, os.Symlink(outside, path)) },
-		"a hardlink": func(t *testing.T, outside, path string) { require.NoError(t, os.Link(outside, path)) },
-	} {
-		t.Run(name, func(t *testing.T) {
-			dirs := newTestDirectories(t)
-			require.NoError(t, os.Remove(dirs.StatePath))
-			outside := filepath.Join(t.TempDir(), "id")
-			require.NoError(t, os.WriteFile(outside, []byte("forged"), 0640))
-			plant(t, outside, filepath.Join(dirs.StablePath, ".deployment-id"))
-
-			state, err := dirs.GetState()
-			require.NoError(t, err)
-			assert.Empty(t, state.StableDeploymentID)
-		})
-	}
+	require.NoError(t, dirs.RemoveExperiment(context.Background()))
+	assert.NoFileExists(t, dirs.StatePath, "nothing to record")
 }
 
 // TestWriteExperimentLeavesNoTraceWhenItFails is the property the copy-then-publish order exists

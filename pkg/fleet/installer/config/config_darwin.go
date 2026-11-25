@@ -15,7 +15,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
@@ -100,11 +99,7 @@ func (d *Directories) resolve() (recorded configState, settled configState, depl
 		return recorded, recorded, false, err
 	}
 	if recorded.Experiment == nil {
-		settled = recorded
-		if settled.StableDeploymentID == "" {
-			settled.StableDeploymentID = d.legacyStableDeploymentID()
-		}
-		return recorded, settled, false, nil
+		return recorded, recorded, false, nil
 	}
 	stable, ok, err := inodeOf(d.StablePath)
 	if err != nil {
@@ -121,40 +116,6 @@ func (d *Directories) resolve() (recorded configState, settled configState, depl
 		return recorded, recorded, true, nil
 	}
 	return recorded, configState{StableDeploymentID: recorded.StableDeploymentID}, false, nil
-}
-
-// legacyDeploymentIDFile is where builds before the state file recorded a configuration's
-// deployment ID: in the configuration directory itself.
-const legacyDeploymentIDFile = ".deployment-id"
-
-// legacyStableDeploymentID returns the stable deployment ID a build before the state file left in
-// the stable directory, for a host with no recorded stable ID yet. The next state written records
-// it, so it is read until then only.
-//
-// The configuration tree belongs to the Agent's account, so only a file that account cannot have
-// written is taken: a regular file, not a link, with a single link, owned by the account this
-// process runs as (root for the installer, which wrote it). Anything else reads as no ID.
-func (d *Directories) legacyStableDeploymentID() string {
-	path := filepath.Join(d.StablePath, legacyDeploymentIDFile)
-	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
-	if err != nil {
-		return ""
-	}
-	defer f.Close()
-	info, err := f.Stat()
-	if err != nil || !info.Mode().IsRegular() {
-		return ""
-	}
-	st, ok := info.Sys().(*syscall.Stat_t)
-	if !ok || int(st.Uid) != os.Geteuid() || st.Nlink != 1 {
-		log.Warnf("ignoring the legacy deployment ID %s: not a file of the installer's own", path)
-		return ""
-	}
-	raw, err := io.ReadAll(io.LimitReader(f, maxStateSize+1))
-	if err != nil || len(raw) > maxStateSize {
-		return ""
-	}
-	return strings.TrimSpace(string(raw))
 }
 
 // inodeOf returns the inode of the directory at path, without following a link. ok is false when
@@ -276,14 +237,14 @@ func (d *Directories) PromoteExperiment(ctx context.Context) error {
 // the directories hold, which also finishes a promote interrupted after its swap.
 //
 // A state file of the installer's own that cannot be parsed is replaced: nothing can be told from
-// it, and every other operation refuses it, so the experiment is discarded and the stable ID read
+// it, and every other operation refuses it, so the experiment is discarded and the stable ID reset,
 // as on a host with no state file yet. A file that is not the installer's own is still refused.
 func (d *Directories) RemoveExperiment(_ context.Context) error {
 	recorded, settled, _, err := d.resolve()
 	corrupt := errors.Is(err, errCorruptState)
 	if corrupt {
 		log.Warnf("discarding the configuration experiment and resetting its state: %v", err)
-		settled = configState{StableDeploymentID: d.legacyStableDeploymentID()}
+		settled = configState{}
 	} else if err != nil {
 		return err
 	}
