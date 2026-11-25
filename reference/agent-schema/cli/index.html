@@ -4487,8 +4487,8 @@
 </span></code></pre></div>
 <hr />
 <h2 id="schemaproduce-jsonschema"><code>schema.produce-jsonschema</code><a class="headerlink" href="#schemaproduce-jsonschema" title="Permanent link">&para;</a></h2>
-<p>Build the pure JSON Schemas published for external tools (IDEs, SchemaStore, CI validators): <code>datadog.schema.json</code> for <code>datadog.yaml</code> and <code>system-probe.schema.json</code> for <code>system-probe.yaml</code>.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.produce-jsonschema<span class="w"> </span>/tmp/agent-schemas<span class="w"> </span>--version<span class="w"> </span><span class="m">7</span>.85.1
+<p>Build the JSON Schemas published for external tools (IDEs, SchemaStore, CI validators): <code>datadog.schema.json</code> for <code>datadog.yaml</code> and <code>system-probe.schema.json</code> for <code>system-probe.yaml</code>.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>schema.produce-jsonschema<span class="w"> </span>-o<span class="w"> </span>/tmp/agent-schemas<span class="w"> </span>-v<span class="w"> </span><span class="m">7</span>.87.1-rc.2
 </span></code></pre></div>
 <table>
 <thead>
@@ -4500,18 +4500,25 @@
 </thead>
 <tbody>
 <tr>
-<td><code>output_dir</code></td>
+<td><code>-o</code>, <code>--output-dir</code></td>
 <td>yes</td>
-<td>Directory to write <code>datadog.schema.json</code> and <code>system-probe.schema.json</code> into. Created if missing.</td>
+<td>Directory to write <code>datadog.schema.json</code> and <code>system-probe.schema.json</code> into. Created if missing. Can also be passed as the first argument.</td>
 </tr>
 <tr>
-<td><code>--version</code></td>
+<td><code>-v</code>, <code>--version</code></td>
 <td>no</td>
-<td>Stable Agent version the schemas are published for (<code>7.85.1</code> or <code>v7.85.1</code>). Omit it to build the copy published as the latest version. Pre-releases such as <code>7.85.0-rc.1</code> are rejected.</td>
+<td>Agent version the schemas are published for, used as given in their <code>$id</code>: e.g. <code>7.87.1</code>, <code>7.87.1-rc.2</code>, or whatever <code>dda inv agent.version --url-safe</code> prints. A leading <code>v</code> is dropped. It becomes a folder of the published URL, so it can't contain <code>/</code>, <code>\</code>, <code>?</code>, <code>#</code>, <code>%</code> or whitespace. Omit it to build the copy published as the latest version.</td>
 </tr>
 </tbody>
 </table>
-<p>The output keeps only standard JSON Schema keywords, so any conforming library can use it. It also replaces the Agent formats (<a href="../keywords/#format-duration"><code>format: duration</code></a>, <a href="../keywords/#format-url"><code>format: url</code></a>) with the <code>pattern</code> they stand for.</p>
+<p>The output keeps only standard JSON Schema keywords, so any conforming library can use it, plus <code>patternErrorMessage</code> on the format definitions: the error message VS Code shows instead of the regexp, ignored by other tools. It also replaces the Agent formats (<a href="../keywords/#format-duration"><code>format: duration</code></a>, <a href="../keywords/#format-url"><code>format: url</code></a>) with a reference (<code>$ref</code>) to the regexp they stand for, defined once in the schema's <code>$defs</code>.</p>
+<p>The output declares no <code>default</code>, because IDEs copy declared defaults into the configuration when auto-completing:</p>
+<ul>
+<li>Completing a section inserts all of its settings, non-public ones included, set to their default value.</li>
+<li>These settings are then explicitly set in the user's configuration: if a later Agent version changes a default, the user keeps the old value.</li>
+</ul>
+<p>This is common for published schemas: most <a href="https://www.schemastore.org/">SchemaStore</a> schemas declare few or no defaults.</p>
+<p>Instead, the default of each public setting is written at the end of its <code>description</code>, where IDEs show it on hover (see <a href="../keywords/#default"><code>default</code></a>).</p>
 <p>Each file's <code>$id</code> is the URL it is published at in the <a href="https://github.com/DataDog/schema">DataDog/schema</a> repository, under the same file name, so the output can be copied there as-is:</p>
 <table>
 <thead>
@@ -4522,12 +4529,16 @@
 </thead>
 <tbody>
 <tr>
-<td><code>7.85.1</code></td>
-<td><code>https://raw.githubusercontent.com/DataDog/schema/main/agent/v7.85.1/datadog.schema.json</code></td>
+<td><code>7.87.1</code></td>
+<td><code>https://raw.githubusercontent.com/DataDog/schema/main/datadog-agent/v7.87.1/datadog.schema.json</code></td>
+</tr>
+<tr>
+<td><code>7.87.1-rc.2</code></td>
+<td><code>https://raw.githubusercontent.com/DataDog/schema/main/datadog-agent/v7.87.1-rc.2/datadog.schema.json</code></td>
 </tr>
 <tr>
 <td>omitted</td>
-<td><code>https://raw.githubusercontent.com/DataDog/schema/main/agent/datadog.schema.json</code></td>
+<td><code>https://raw.githubusercontent.com/DataDog/schema/main/datadog-agent/datadog.schema.json</code></td>
 </tr>
 </tbody>
 </table>
