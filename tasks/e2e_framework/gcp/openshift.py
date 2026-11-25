@@ -73,7 +73,6 @@ def create_openshift(
     }
 
     deploy(
-        ctx,
         scenario_name,
         config_path,
         stack_name=stack_name,
@@ -106,7 +105,6 @@ def destroy_openshift(
     Destroy an environment created by invoke gcp.create-openshift.
     """
     destroy(
-        ctx,
         scenario_name=scenario_name,
         config_path=config_path,
         stack=stack_name,

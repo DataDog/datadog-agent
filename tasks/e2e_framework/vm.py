@@ -32,7 +32,7 @@ def get_vm_password(
     if not stack_name:
         raise Exit("Please provide a stack name to connect to.")
 
-    out = tool.get_stack_json_outputs(ctx, stack_name, config_path=config_path, ci=ci)
+    out = tool.get_stack_json_outputs(stack_name, config_path=config_path, ci=ci)
     if not out:
         raise Exit("No VM found in the stack.")
 

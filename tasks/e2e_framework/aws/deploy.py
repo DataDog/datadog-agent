@@ -33,7 +33,7 @@ def deploy(
     agent_env: str | None = None,
     helm_config: str | None = None,
     local_package: str | None = None,
-    pulumi_extra_args: str = "",
+    pulumi_extra_args: tuple[str, ...] = (),
     pulumi_env: dict[str, str] | None = None,
     needs_agent_containers: bool = True,
     extra_image_paths: list[str | None] | None = None,
@@ -86,7 +86,6 @@ def deploy(
     if needs_agent_containers:
         flags.update(_image_pull_flags(ctx, full_image_path, cluster_agent_full_image_path, *(extra_image_paths or [])))
     return common_deploy(
-        ctx,
         scenario_name,
         config_path,
         app_key_required,

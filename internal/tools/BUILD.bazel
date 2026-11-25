@@ -29,11 +29,6 @@ go_shim(
 )
 
 go_shim(
-    name = "pulumi",
-    tool = "@pulumi//:cli",
-)
-
-go_shim(
     name = "wwhrd",
     tool = "@com_github_frapposelli_wwhrd//:wwhrd",
 )

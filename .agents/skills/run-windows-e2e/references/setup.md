@@ -17,7 +17,7 @@ AWS access as all other E2E tests. Without valid AWS credentials and
 `PULUMI_CONFIG_PASSPHRASE` set, the run fails before any test code executes.
 
 `dda inv e2e.setup` (defined in `tasks/e2e_framework/setup/`) walks through this
-interactively: it validates CLI tools, installs Pulumi if missing, prompts for
+interactively: it validates CLI tools, installs the pinned Pulumi, prompts for
 AWS keypair paths, Datadog API key, and Pulumi passphrase, then writes
 `~/.test_infra_config.yaml`.
 

@@ -15,8 +15,7 @@ from tasks.libs.common.status import Status
 
 
 class TestPulumiRequirement(unittest.TestCase):
-    @patch("tasks.kernel_matrix_testing.setup.common.pulumi_command", return_value="pulumi")
-    def test_pulumi_user_logged_in(self, _):
+    def test_pulumi_user_logged_in(self):
         logged_out_output = """
         Backend
 Name           pulumi.com
@@ -26,8 +25,8 @@ Organizations
 Token type     personal
 """
 
-        ctx = MockContext(run={"pulumi about": logged_out_output})
-        self.assertEqual(Pulumi()._check_user_logged_in(ctx).state, Status.FAIL)
+        with patch("tasks.kernel_matrix_testing.setup.common.bazel", return_value=logged_out_output):
+            self.assertEqual(Pulumi()._check_user_logged_in(MockContext()).state, Status.FAIL)
 
         logged_in_output = """
 Backend
@@ -38,8 +37,8 @@ Organizations
 Token type     personal
 """
 
-        ctx = MockContext(run={"pulumi about": logged_in_output})
-        self.assertEqual(Pulumi()._check_user_logged_in(ctx).state, Status.OK)
+        with patch("tasks.kernel_matrix_testing.setup.common.bazel", return_value=logged_in_output):
+            self.assertEqual(Pulumi()._check_user_logged_in(MockContext()).state, Status.OK)
 
 
 class MockContextWithTempFile:
