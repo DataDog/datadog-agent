@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -76,6 +77,8 @@ type Server struct {
 	forwardEndpoint    string
 	logForwardEndpoint string
 	apiKey             string
+	// pathPrefix, when set, is the path segment every intake request must start with; see WithPathPrefix
+	pathPrefix string
 
 	urlMutex sync.RWMutex
 	url      string
@@ -185,12 +188,22 @@ func NewServer(options ...Option) *Server {
 		Registry:          registry,
 	}))
 
+	var handler http.Handler = mux
+	if fi.pathPrefix != "" {
+		rejected := prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "rejected_path_prefix_requests_total",
+			Help: "Intake requests rejected because they did not start with the configured path prefix",
+		})
+		registry.MustRegister(rejected)
+		handler = pathPrefixHandler(fi.pathPrefix, mux, rejected)
+	}
+
 	fi.server.Handler = func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Fakeintake-ID", fi.uuid.String())
 			next.ServeHTTP(w, r)
 		})
-	}(mux)
+	}(handler)
 
 	return fi
 }
@@ -228,6 +241,61 @@ func WithListener(listener net.Listener, url string) Option {
 // If the port is 0, a port number is automatically chosen
 func WithPort(port int) Option {
 	return WithAddress(fmt.Sprintf("0.0.0.0:%d", port))
+}
+
+// WithPathPrefix makes the server accept intake requests only under /<prefix>, which is stripped before the request
+// is routed, so http://host/<prefix>/api/v2/series is stored as /api/v2/series. Intake requests outside the prefix are
+// rejected with a 404 and not stored: an Agent left over from a previous test, still configured with the prefix of a
+// fakeintake that used to have the same address, cannot pollute the payloads of a new test.
+// The fakeintake control and debug endpoints (/fakeintake/..., /debug/..., /metrics) are served both under the prefix
+// and at the root, so health checks and monitoring that don't know the prefix keep working, and so are the
+// unprefixedIntakeRoutes, which the Agent cannot send under a prefix.
+func WithPathPrefix(prefix string) Option {
+	return func(fi *Server) {
+		if fi.IsRunning() {
+			log.Println("Fake intake is already running. Stop it and try again to change the path prefix.")
+			return
+		}
+		fi.pathPrefix = strings.Trim(prefix, "/")
+	}
+}
+
+// pathPrefixHandler serves next under /<prefix>, stripping it, and at the root for the control endpoints only.
+func pathPrefixHandler(prefix string, next http.Handler, rejected prometheus.Counter) http.Handler {
+	prefixPath := "/" + prefix
+	stripped := http.StripPrefix(prefixPath, next)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		switch {
+		case path == prefixPath || strings.HasPrefix(path, prefixPath+"/"):
+			stripped.ServeHTTP(w, r)
+		case isControlPath(path) || slices.Contains(unprefixedIntakeRoutes, path):
+			next.ServeHTTP(w, r)
+		default:
+			rejected.Inc()
+			log.Printf("Rejecting %s request to %s: it is not under the path prefix of this fakeintake", r.Method, path)
+			http.Error(w, "unknown fakeintake path prefix", http.StatusNotFound)
+		}
+	})
+}
+
+// unprefixedIntakeRoutes are the intake routes accepted at the root even when a path prefix is set, because the Agent
+// cannot send them under one: the process and orchestrator forwarders key their endpoints by scheme://host and drop
+// any path of process_config.process_dd_url / orchestrator_explorer.orchestrator_dd_url
+// (pkg/process/util/api/config/endpoint.go removePathIfPresent). They are not protected against stale Agents.
+var unprefixedIntakeRoutes = []string{
+	"/api/v1/collector",
+	"/api/v1/connections",
+	"/api/v1/container",
+	"/api/v1/discovery",
+	"/api/v1/orchestrator",
+	"/api/v2/orch",
+	"/api/v2/orchmanif",
+}
+
+// isControlPath reports whether path is a fakeintake control, debug or monitoring endpoint, rather than an intake one
+func isControlPath(path string) bool {
+	return path == "/metrics" || strings.HasPrefix(path, "/fakeintake/") || strings.HasPrefix(path, "/debug/")
 }
 
 // WithReadyChannel assign a boolean channel to get notified when the server is ready

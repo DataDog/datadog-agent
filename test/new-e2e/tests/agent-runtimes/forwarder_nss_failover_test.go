@@ -128,13 +128,15 @@ func multiFakeIntakeAWS(agentOptions ...agentparams.Option) provisioners.Provisi
 		}
 		agent.Export(ctx, &env.Agent.HostAgentOutput)
 
-		fakeIntake1, err := fakeintake.NewECSFargateInstance(awsEnv, fakeintake1Name, fakeintake.WithTaskFamilyName("fakeintake-"+fakeintake1Name+"-ecs"))
+		// The Agent switches between both fakeintakes through one intake hostname, so it can't be given their path
+		// prefixes: they accept intake requests on any path instead.
+		fakeIntake1, err := fakeintake.NewECSFargateInstance(awsEnv, fakeintake1Name, fakeintake.WithTaskFamilyName("fakeintake-"+fakeintake1Name+"-ecs"), fakeintake.WithoutPathPrefix())
 		if err != nil {
 			return err
 		}
 		fakeIntake1.Export(ctx, &env.Fakeintake1.FakeintakeOutput)
 
-		fakeIntake2, err := fakeintake.NewECSFargateInstance(awsEnv, fakeintake2Name, fakeintake.WithTaskFamilyName("fakeintake-"+fakeintake2Name+"-ecs"))
+		fakeIntake2, err := fakeintake.NewECSFargateInstance(awsEnv, fakeintake2Name, fakeintake.WithTaskFamilyName("fakeintake-"+fakeintake2Name+"-ecs"), fakeintake.WithoutPathPrefix())
 		if err != nil {
 			return err
 		}

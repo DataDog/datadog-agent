@@ -260,6 +260,20 @@ When provisioning multiple AWS ECS fakeintakes in one stack, pass
 each instance. The stack name is prepended automatically. By default, fakeintakes
 use the historical `<stack>-fakeintake-ecs` task definition family.
 
+### Fakeintake path prefix
+
+Each provisioned fakeintake gets a random UUID path prefix (`PathPrefix`, kept in
+the stack state) and only accepts intake payloads under `/<uuid>`. That way an
+Agent left over from an old stack can't pollute a new fakeintake that reuses its
+IP address. `FakeIntake.URL` already includes the prefix. Always point Agents at
+`URL`, never at `scheme://Host:Port`. When a setting can only take a host, add the
+prefix yourself: give `*.logs_dd_url` a `http://host:port/<uuid>` URL, and give
+logs-style `additional_endpoints` a `"path_prefix": "/<uuid>"` with HTTP enabled.
+`/fakeintake/*` control endpoints are also served at the root. The process and
+orchestrator routes are too, because the Agent drops the path on those intakes.
+When the Agent can't be given the URL (for example, one intake hostname switched
+between fakeintakes), use `fakeintake.WithoutPathPrefix()` (AWS ECS).
+
 ## Validating E2E tests
 
 E2E tests provision real cloud infrastructure (~10 min per run). **Always run

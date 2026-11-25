@@ -18,6 +18,8 @@ type Params struct {
 	Memory              int
 	DDDevForwarding     bool
 	RetentionPeriod     string
+	// PathPrefixDisabled makes the fakeintake accept intake requests on any path, see WithoutPathPrefix
+	PathPrefixDisabled bool
 }
 
 type Option = func(*Params) error
@@ -97,6 +99,17 @@ func WithoutDDDevForwarding() Option {
 func WithRetentionPeriod(retentionPeriod string) Option {
 	return func(p *Params) error {
 		p.RetentionPeriod = retentionPeriod
+		return nil
+	}
+}
+
+// WithoutPathPrefix makes the fakeintake accept intake requests on any path, rather than only under the random
+// path prefix included in its URL. Use it when the Agent can't be given that URL, for instance when one intake
+// hostname is switched between several fakeintakes. The fakeintake is then exposed to payloads of Agents left over
+// from previous stacks that used the same address.
+func WithoutPathPrefix() Option {
+	return func(p *Params) error {
+		p.PathPrefixDisabled = true
 		return nil
 	}
 }

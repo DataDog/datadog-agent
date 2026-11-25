@@ -49,6 +49,15 @@ func NewECSFargateInstance(e aws.Environment, name string, option ...Option) (*f
 		namer := e.Namer.WithPrefix("fakeintake").WithPrefix(name)
 		opts := []pulumi.ResourceOption{pulumi.Parent(fi)}
 
+		pathPrefix := fakeintake.NoPathPrefix()
+		if !params.PathPrefixDisabled {
+			var err error
+			if pathPrefix, err = fakeintake.NewPathPrefix(&e, name, opts...); err != nil {
+				return err
+			}
+		}
+		fi.PathPrefix = pathPrefix
+
 		apiKeyParam, err := ssm.NewParameter(e.Ctx(), namer.ResourceName("agent", "apikey"), &ssm.ParameterArgs{
 			Name:      e.CommonNamer().DisplayName(1011, pulumi.String(name), pulumi.String("apikey")),
 			Type:      ssm.ParameterTypeSecureString,
@@ -63,7 +72,7 @@ func NewECSFargateInstance(e aws.Environment, name string, option ...Option) (*f
 			namer.ResourceName("taskdef"),
 			pulumi.String(params.TaskFamilyName),
 			params.CPU, params.Memory,
-			map[string]awsxEcs.TaskDefinitionContainerDefinitionArgs{"fakeintake": *fargateLinuxContainerDefinition(apiKeyParam.Name, params)},
+			map[string]awsxEcs.TaskDefinitionContainerDefinitionArgs{"fakeintake": *fargateLinuxContainerDefinition(apiKeyParam.Name, params, pathPrefix)},
 			apiKeyParam.Name,
 			nil,
 			// Pulled by the ECS control plane along with the task definition, so the
@@ -157,7 +166,9 @@ func fargateSvcNoLB(e aws.Environment, namer namer.Namer, taskDef *awsxEcs.Farga
 	fi.Scheme = pulumi.Sprintf("%s", "http")
 	fi.Port = pulumi.Int(httpPort).ToIntOutput()
 	fi.Host = output.Index(pulumi.Int(0))
-	fi.URL = output.Index(pulumi.Int(1))
+	fi.URL = pulumi.All(output.Index(pulumi.Int(1)), fi.PathPrefix).ApplyT(func(args []any) string {
+		return fakeintake.URLWithPathPrefix(args[0].(string), args[1].(string))
+	}).(pulumi.StringOutput)
 
 	return err
 }
@@ -217,11 +228,13 @@ func fargateSvcLB(e aws.Environment, namer namer.Namer, taskDef *awsxEcs.Fargate
 	fi.Scheme = pulumi.Sprintf("%s", "https")
 	fi.Port = pulumi.Int(httpsPort).ToIntOutput()
 	fi.Host = host
-	fi.URL = pulumi.Sprintf("%s://%s", fi.Scheme, host)
+	fi.URL = pulumi.All(pulumi.Sprintf("%s://%s", fi.Scheme, host), fi.PathPrefix).ApplyT(func(args []any) string {
+		return fakeintake.URLWithPathPrefix(args[0].(string), args[1].(string))
+	}).(pulumi.StringOutput)
 	return nil
 }
 
-func fargateLinuxContainerDefinition(apiKeySSMParamName pulumi.StringInput, params *Params) *awsxEcs.TaskDefinitionContainerDefinitionArgs {
+func fargateLinuxContainerDefinition(apiKeySSMParamName pulumi.StringInput, params *Params, pathPrefix pulumi.StringOutput) *awsxEcs.TaskDefinitionContainerDefinitionArgs {
 	command := []string{}
 	if params.DDDevForwarding {
 		command = append(command, "--dddev-forward")
@@ -236,10 +249,12 @@ func fargateLinuxContainerDefinition(apiKeySSMParamName pulumi.StringInput, para
 	command = append(command, "--rc-key-data="+fakeintake.DefaultRCSigningKeySeed)
 
 	return &awsxEcs.TaskDefinitionContainerDefinitionArgs{
-		Name:        pulumi.String(containerName),
-		Image:       pulumi.String(params.ImageURL),
-		Essential:   pulumi.BoolPtr(true),
-		Command:     pulumi.ToStringArray(command),
+		Name:      pulumi.String(containerName),
+		Image:     pulumi.String(params.ImageURL),
+		Essential: pulumi.BoolPtr(true),
+		Command: pathPrefix.ApplyT(func(prefix string) []string {
+			return append(command, fakeintake.PathPrefixArgs(prefix)...)
+		}).(pulumi.StringArrayOutput),
 		MountPoints: awsxEcs.TaskDefinitionMountPointArray{},
 		Environment: awsxEcs.TaskDefinitionKeyValuePairArray{
 			awsxEcs.TaskDefinitionKeyValuePairArgs{

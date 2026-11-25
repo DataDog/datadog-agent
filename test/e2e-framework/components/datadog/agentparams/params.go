@@ -7,7 +7,9 @@ package agentparams
 
 import (
 	"fmt"
+	"net"
 	"path"
+	"strconv"
 	"strings"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -284,60 +286,76 @@ func WithPulumiResourceOptions(resources ...pulumi.ResourceOption) func(*Params)
 	}
 }
 
-func withIntakeHostname(scheme pulumi.StringInput, hostname pulumi.StringInput, port pulumi.IntInput) func(*Params) error {
+// withIntakeHostname points every Agent intake at scheme://hostname:port, under the given fakeintake path prefix if
+// not empty.
+//
+// The logs-style intakes (`*.logs_dd_url`) take host:port, which can't carry a path: with a path prefix, they are
+// given a http:// URL instead, the only form whose path they keep, and which keeps them on plain HTTP like
+// `logs_no_ssl: true` does with host:port.
+func withIntakeHostname(scheme pulumi.StringInput, hostname pulumi.StringInput, port pulumi.IntInput, pathPrefix pulumi.StringInput) func(*Params) error {
 	return func(p *Params) error {
-		extraConfig := pulumi.Sprintf(`dd_url: %[3]s://%[1]s:%[2]d
-logs_config.logs_dd_url: %[1]s:%[2]d
+		urls := pulumi.All(scheme, hostname, port, pathPrefix).ApplyT(func(args []any) []string {
+			scheme, hostname, port, prefix := args[0].(string), args[1].(string), args[2].(int), args[3].(string)
+			hostPort := net.JoinHostPort(hostname, strconv.Itoa(port))
+			ddURL := fakeintake.URLWithPathPrefix(scheme+"://"+hostPort, prefix)
+			logsURL := hostPort
+			if prefix != "" {
+				logsURL = fakeintake.URLWithPathPrefix("http://"+hostPort, prefix)
+			}
+			return []string{ddURL, logsURL}
+		}).(pulumi.StringArrayOutput)
+		extraConfig := pulumi.Sprintf(`dd_url: %[1]s
+logs_config.logs_dd_url: %[2]s
 logs_config.logs_no_ssl: true
 logs_config.force_use_http: true
-process_config.process_dd_url: %[3]s://%[1]s:%[2]d
-apm_config.apm_dd_url: %[3]s://%[1]s:%[2]d
-health_platform.forwarder.dd_url: %[3]s://%[1]s:%[2]d
-database_monitoring.metrics.logs_dd_url: %[1]s:%[2]d
+process_config.process_dd_url: %[1]s
+apm_config.apm_dd_url: %[1]s
+health_platform.forwarder.dd_url: %[1]s
+database_monitoring.metrics.logs_dd_url: %[2]s
 database_monitoring.metrics.logs_no_ssl: true
-database_monitoring.activity.logs_dd_url: %[1]s:%[2]d
+database_monitoring.activity.logs_dd_url: %[2]s
 database_monitoring.activity.logs_no_ssl: true
-database_monitoring.samples.logs_dd_url: %[1]s:%[2]d
+database_monitoring.samples.logs_dd_url: %[2]s
 database_monitoring.samples.logs_no_ssl: true
-network_devices.metadata.logs_dd_url: %[1]s:%[2]d
+network_devices.metadata.logs_dd_url: %[2]s
 network_devices.metadata.logs_no_ssl: true
-network_devices.snmp_traps.forwarder.logs_dd_url: %[1]s:%[2]d
+network_devices.snmp_traps.forwarder.logs_dd_url: %[2]s
 network_devices.snmp_traps.forwarder.logs_no_ssl: true
-network_devices.netflow.forwarder.logs_dd_url: %[1]s:%[2]d
+network_devices.netflow.forwarder.logs_dd_url: %[2]s
 network_devices.netflow.forwarder.logs_no_ssl: true
-network_path.forwarder.logs_dd_url: %[1]s:%[2]d
+network_path.forwarder.logs_dd_url: %[2]s
 network_path.forwarder.logs_no_ssl: true
-network_devices.config_management.forwarder.logs_dd_url: %[1]s:%[2]d
+network_devices.config_management.forwarder.logs_dd_url: %[2]s
 network_devices.config_management.forwarder.logs_no_ssl: true
-synthetics.forwarder.logs_dd_url: %[1]s:%[2]d
+synthetics.forwarder.logs_dd_url: %[2]s
 synthetics.forwarder.logs_no_ssl: true
-container_lifecycle.logs_dd_url: %[1]s:%[2]d
+container_lifecycle.logs_dd_url: %[2]s
 container_lifecycle.logs_no_ssl: true
-container_image.logs_dd_url: %[1]s:%[2]d
+container_image.logs_dd_url: %[2]s
 container_image.logs_no_ssl: true
-sbom.logs_dd_url: %[1]s:%[2]d
+sbom.logs_dd_url: %[2]s
 sbom.logs_no_ssl: true
-sds_result.forwarder.logs_dd_url: %[1]s:%[2]d
+sds_result.forwarder.logs_dd_url: %[2]s
 sds_result.forwarder.logs_no_ssl: true
-service_discovery.forwarder.logs_dd_url: %[1]s:%[2]d
+service_discovery.forwarder.logs_dd_url: %[2]s
 service_discovery.forwarder.logs_no_ssl: true
-config_files_discovery.forwarder.logs_dd_url: %[1]s:%[2]d
+config_files_discovery.forwarder.logs_dd_url: %[2]s
 config_files_discovery.forwarder.logs_no_ssl: true
-software_inventory.forwarder.logs_dd_url: %[1]s:%[2]d
+software_inventory.forwarder.logs_dd_url: %[2]s
 software_inventory.forwarder.logs_no_ssl: true
-data_streams.forwarder.logs_dd_url: %[1]s:%[2]d
+data_streams.forwarder.logs_dd_url: %[2]s
 data_streams.forwarder.logs_no_ssl: true
-event_management.forwarder.logs_dd_url: %[1]s:%[2]d
+event_management.forwarder.logs_dd_url: %[2]s
 event_management.forwarder.logs_no_ssl: true
-agent_telemetry.logs_dd_url: %[1]s:%[2]d
+agent_telemetry.logs_dd_url: %[2]s
 agent_telemetry.logs_no_ssl: true
 agent_telemetry.use_compression: false
-compliance_config.endpoints.logs_dd_url: %[1]s:%[2]d
+compliance_config.endpoints.logs_dd_url: %[2]s
 compliance_config.endpoints.logs_no_ssl: true
 compliance_config.endpoints.force_use_http: true
-runtime_security_config.endpoints.logs_dd_url: %[1]s:%[2]d
+runtime_security_config.endpoints.logs_dd_url: %[2]s
 runtime_security_config.endpoints.logs_no_ssl: true
-`, hostname, port, scheme)
+`, urls.Index(pulumi.Int(0)), urls.Index(pulumi.Int(1)))
 		// Set (not append) the shared primary-endpoint slot so a later WithSite
 		// clears this dd_url override and vice-versa.
 		p.primaryEndpointConfig = extraConfig
@@ -358,7 +376,7 @@ func WithIntakeHostname(scheme string, hostname string) func(*Params) error {
 		port = 443
 	}
 
-	return withIntakeHostname(pulumi.String(scheme), pulumi.String(hostname), pulumi.Int(port))
+	return withIntakeHostname(pulumi.String(scheme), pulumi.String(hostname), pulumi.Int(port), pulumi.String(""))
 }
 
 // WithFakeintake installs the fake intake and configures the Agent to use it,
@@ -372,7 +390,7 @@ func WithIntakeHostname(scheme string, hostname string) func(*Params) error {
 func WithFakeintake(fi *fakeintake.Fakeintake) func(*Params) error {
 	return func(p *Params) error {
 		p.ResourceOptions = append(p.ResourceOptions, pulumi.DependsOn([]pulumi.Resource{fi}))
-		if err := withIntakeHostname(fi.Scheme, fi.Host, fi.Port)(p); err != nil {
+		if err := withIntakeHostname(fi.Scheme, fi.Host, fi.Port, fi.PathPrefix)(p); err != nil {
 			return err
 		}
 		rootJSON, err := fakeintake.RCRootJSON()

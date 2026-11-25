@@ -11,11 +11,14 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
@@ -108,11 +111,18 @@ var integrationFolderPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
 func buildAgentConfig(env *environments.Host, apiKey, extraConfig string) (string, error) {
 	config := fmt.Sprintf("api_key: %q\n", apiKey)
 	if env.FakeIntake != nil {
-		config += fmt.Sprintf(`dd_url: %s://%s:%d
-logs_config.logs_dd_url: %s:%d
+		fi := env.FakeIntake
+		hostPort := net.JoinHostPort(fi.Host, strconv.FormatUint(uint64(fi.Port), 10))
+		// logs_dd_url keeps the path only from a URL, http:// to keep it on plain HTTP like logs_no_ssl
+		logsURL := hostPort
+		if fi.PathPrefix != "" {
+			logsURL = fakeintake.URLWithPathPrefix("http://"+hostPort, fi.PathPrefix)
+		}
+		config += fmt.Sprintf(`dd_url: %s
+logs_config.logs_dd_url: %s
 logs_config.logs_no_ssl: true
 logs_config.force_use_http: true
-`, env.FakeIntake.Scheme, env.FakeIntake.Host, env.FakeIntake.Port, env.FakeIntake.Host, env.FakeIntake.Port)
+`, fakeintake.URLWithPathPrefix(fi.Scheme+"://"+hostPort, fi.PathPrefix), logsURL)
 	}
 	if extraConfig == "" {
 		return config, nil

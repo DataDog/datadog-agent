@@ -232,6 +232,18 @@ isn't there — `filter sketches` may even be missing from older builds.
 Always run `dda inv fakeintake.build` after pulling.
 
 
+## Path prefix (`-path-prefix`)
+
+With `-path-prefix=<p>` (`server.WithPathPrefix`), the server accepts intake
+requests only under `/<p>`, which it strips before routing, so stored routes stay
+`/api/v2/series` etc. Any other intake request gets a 404, is not stored, and is
+counted in `rejected_path_prefix_requests_total` on `/metrics`. Served at the root
+as well: the control and debug endpoints (`/fakeintake/*`, `/debug/*`,
+`/metrics`) and `unprefixedIntakeRoutes` in `server/server.go`. Those are the
+process and orchestrator routes, whose Agent forwarders drop the path of their
+configured URL. The e2e framework sets a random UUID prefix on every fakeintake
+it provisions.
+
 ## Adding a new payload type
 
 When the agent starts sending a new type of data to a new endpoint:

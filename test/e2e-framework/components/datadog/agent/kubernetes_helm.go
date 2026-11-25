@@ -1045,6 +1045,9 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 			return scheme == "https"
 		}).(pulumi.BoolOutput)
 
+		// path_prefix is honored by the HTTP logs-style endpoints only, hence the *_USE_HTTP variables below
+		logsPathPrefix := fi.PathPrefix.ApplyT(fakeintake.PathPrefixPath).(pulumi.StringOutput)
+
 		endpointsEnvVar = pulumi.StringMapArray{
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_SKIP_SSL_VALIDATION"),
@@ -1068,7 +1071,7 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t}]`, fi.Host, fi.Port, useSSL),
+				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t, "path_prefix": "%s"}]`, fi.Host, fi.Port, useSSL, logsPathPrefix),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_LOGS_CONFIG_USE_HTTP"),
@@ -1076,7 +1079,7 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_AGENT_TELEMETRY_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t}]`, fi.Host, fi.Port, useSSL),
+				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t, "path_prefix": "%s"}]`, fi.Host, fi.Port, useSSL, logsPathPrefix),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_AGENT_TELEMETRY_USE_HTTP"),
@@ -1084,15 +1087,15 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_CONTAINER_IMAGE_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t}]`, fi.Host, fi.Port, useSSL),
+				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t, "path_prefix": "%s"}]`, fi.Host, fi.Port, useSSL, logsPathPrefix),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_CONTAINER_LIFECYCLE_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t}]`, fi.Host, fi.Port, useSSL),
+				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t, "path_prefix": "%s"}]`, fi.Host, fi.Port, useSSL, logsPathPrefix),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_SBOM_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t}]`, fi.Host, fi.Port, useSSL),
+				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t, "path_prefix": "%s"}]`, fi.Host, fi.Port, useSSL, logsPathPrefix),
 			},
 		}
 	} else {

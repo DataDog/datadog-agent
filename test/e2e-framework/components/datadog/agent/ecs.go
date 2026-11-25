@@ -310,12 +310,13 @@ func ecsFakeintakeAdditionalEndpointsEnv(fi *fakeintake.Fakeintake) ([]ecs.TaskD
 		},
 		ecs.TaskDefinitionKeyValuePairArgs{
 			Name: pulumi.String("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS"),
-			Value: pulumi.All(fi.Host, fi.Port, fi.Scheme).ApplyT(func(args []interface{}) (string, error) {
+			Value: pulumi.All(fi.Host, fi.Port, fi.Scheme, fi.PathPrefix).ApplyT(func(args []interface{}) (string, error) {
 				host := args[0].(string)
 				port := args[1].(int)
 				scheme := args[2].(string)
+				pathPrefix := fakeintake.PathPrefixPath(args[3].(string))
 				useSSL := scheme != "http"
-				return fmt.Sprintf(`[{"host": %q, "port": %d, "use_ssl": %t}]`, host, port, useSSL), nil
+				return fmt.Sprintf(`[{"host": %q, "port": %d, "use_ssl": %t, "path_prefix": %q}]`, host, port, useSSL, pathPrefix), nil
 			}).(pulumi.StringOutput),
 		},
 		ecs.TaskDefinitionKeyValuePairArgs{

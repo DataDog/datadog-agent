@@ -52,8 +52,16 @@ func NewVMInstance(e azure.Environment, option ...Option) (*fakeintake.Fakeintak
 
 		cmdArgs = append(cmdArgs, "--rc-key-data="+fakeintake.DefaultRCSigningKeySeed)
 
+		pathPrefix, err := fakeintake.NewPathPrefix(&e, "fakeintake", pulumi.Parent(fi))
+		if err != nil {
+			return err
+		}
+		pathPrefixArgs := pathPrefix.ApplyT(func(prefix string) string {
+			return strings.Join(fakeintake.PathPrefixArgs(prefix), " ")
+		}).(pulumi.StringOutput)
+
 		_, err = vm.OS.Runner().Command("docker_run_fakeintake", &command.Args{
-			Create: pulumi.Sprintf("docker run --restart unless-stopped --name fakeintake -d -p 80:80 -e DD_API_KEY=%s %s %s", e.AgentAPIKey(), params.ImageURL, strings.Join(cmdArgs, " ")),
+			Create: pulumi.Sprintf("docker run --restart unless-stopped --name fakeintake -d -p 80:80 -e DD_API_KEY=%s %s %s %s", e.AgentAPIKey(), params.ImageURL, strings.Join(cmdArgs, " "), pathPrefixArgs),
 			Delete: pulumi.String("docker stop fakeintake"),
 		}, utils.PulumiDependsOn(manager), pulumi.DeleteBeforeReplace(true))
 		if err != nil {
@@ -63,7 +71,10 @@ func NewVMInstance(e azure.Environment, option ...Option) (*fakeintake.Fakeintak
 		fi.Host = vm.Address
 		fi.Scheme = pulumi.Sprintf("%s", "http")
 		fi.Port = pulumi.Int(80).ToIntOutput()
-		fi.URL = pulumi.Sprintf("%s://%s:%v", fi.Scheme, vm.Address, fi.Port)
+		fi.PathPrefix = pathPrefix
+		fi.URL = pulumi.All(pulumi.Sprintf("%s://%s:%v", fi.Scheme, vm.Address, fi.Port), pathPrefix).ApplyT(func(args []any) string {
+			return fakeintake.URLWithPathPrefix(args[0].(string), args[1].(string))
+		}).(pulumi.StringOutput)
 
 		return nil
 	})
