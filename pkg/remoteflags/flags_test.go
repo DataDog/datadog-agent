@@ -8,6 +8,7 @@ package remoteflags
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -102,9 +103,9 @@ type stubHandler struct {
 func newStubHandler(flag FlagName) *stubHandler {
 	h := &stubHandler{
 		name:       flag,
-		onChangeCh: make(chan FlagValue, 1),
-		noConfigCh: make(chan struct{}, 1),
-		recoverCh:  make(chan FlagValue, 1),
+		onChangeCh: make(chan FlagValue, 16),
+		noConfigCh: make(chan struct{}, 16),
+		recoverCh:  make(chan FlagValue, 16),
 	}
 	h.healthy.Store(true)
 	return h
@@ -530,5 +531,526 @@ func TestHealthMonitor_RecoveryProbeStaysUnhealthy(t *testing.T) {
 		default:
 			// expected: recovery monitor gave up gracefully
 		}
+	})
+}
+
+// recHandler is a FlagHandler that records every callback, in completion order,
+// and lets tests block or fail individual calls through hooks.
+type recHandler struct {
+	name        FlagName
+	mu          sync.Mutex
+	events      []string
+	healthy     atomic.Bool
+	healthCalls atomic.Int32
+	onChange    func(FlagValue) error
+	onNoConfig  func()
+	onRecover   func()
+}
+
+func newRecHandler(flag FlagName) *recHandler {
+	h := &recHandler{name: flag}
+	h.healthy.Store(true)
+	return h
+}
+
+func (h *recHandler) record(s string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.events = append(h.events, s)
+}
+
+func (h *recHandler) snapshot() []string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return append([]string(nil), h.events...)
+}
+
+func (h *recHandler) count(ev string) int {
+	n := 0
+	for _, e := range h.snapshot() {
+		if e == ev {
+			n++
+		}
+	}
+	return n
+}
+
+func (h *recHandler) FlagName() FlagName { return h.name }
+func (h *recHandler) OnChange(v FlagValue) error {
+	var err error
+	if h.onChange != nil {
+		err = h.onChange(v)
+	}
+	h.record(fmt.Sprintf("change(%v)", bool(v)))
+	return err
+}
+func (h *recHandler) OnNoConfig() {
+	if h.onNoConfig != nil {
+		h.onNoConfig()
+	}
+	h.record("noconfig")
+}
+func (h *recHandler) SafeRecover(_ error, v FlagValue) {
+	if h.onRecover != nil {
+		h.onRecover()
+	}
+	h.record(fmt.Sprintf("recover(%v)", bool(v)))
+}
+func (h *recHandler) IsHealthy() bool {
+	h.healthCalls.Add(1)
+	return h.healthy.Load()
+}
+
+// sendRemoval sends an update that does not contain any subscribed flag.
+func sendRemoval(client *Client) {
+	sendUpdate(client, Flag{Name: "unrelated_flag", Enabled: true})
+}
+
+// stopAndWait stops the client and waits for every goroutine in the bubble to settle.
+func stopAndWait(client *Client) {
+	client.Stop()
+	synctest.Wait()
+}
+
+// 1. A removal must not overtake an in-flight OnChange.
+func TestOrdering_NoConfigDoesNotOvertakeInFlightChange(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := NewClient()
+		defer stopAndWait(client)
+
+		gate := make(chan struct{})
+		h := newRecHandler(testFlag1)
+		h.onChange = func(FlagValue) error { <-gate; return nil }
+		require.NoError(t, client.SubscribeWithHandler(h))
+
+		sendUpdate(client, Flag{Name: string(testFlag1), Enabled: true})
+		synctest.Wait() // OnChange(true) is now blocked
+
+		sendRemoval(client)
+		synctest.Wait()
+
+		close(gate)
+		synctest.Wait()
+
+		assert.Equal(t, []string{"change(true)", "noconfig"}, h.snapshot())
+	})
+}
+
+// 2. The flag comes back while the first OnChange is still running: the
+// intermediate removal is coalesced, the final state is on, and OnChange(true)
+// is delivered exactly once.
+func TestOrdering_FlagReturnsAfterOverlappingRemoval(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := NewClient()
+		defer stopAndWait(client)
+
+		gate := make(chan struct{})
+		h := newRecHandler(testFlag1)
+		h.onChange = func(FlagValue) error { <-gate; return nil }
+		require.NoError(t, client.SubscribeWithHandler(h))
+
+		sendUpdate(client, Flag{Name: string(testFlag1), Enabled: true})
+		synctest.Wait()
+		sendRemoval(client)
+		synctest.Wait()
+		sendUpdate(client, Flag{Name: string(testFlag1), Enabled: true})
+		synctest.Wait()
+
+		close(gate)
+		synctest.Wait()
+
+		assert.Equal(t, 1, h.count("change(true)"), "events: %v", h.snapshot())
+		evs := h.snapshot()
+		require.NotEmpty(t, evs)
+		assert.NotEqual(t, "noconfig", evs[len(evs)-1], "final state must be on")
+		v, ok := client.GetCurrentValue(testFlag1)
+		assert.True(t, ok)
+		assert.True(t, bool(v))
+	})
+}
+
+// 3. OnChange(false) fails while a newer change(true) (which also Sets the
+// configuration field) is pending: the true is delivered afterwards, and the
+// recover of the failed false must not wipe the newer Set.
+func TestOrdering_FailedChangeWithPendingChange(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := NewClient()
+		defer stopAndWait(client)
+		setter := newFakeConfigSetter()
+		client.WithConfigSetter(setter)
+
+		const key = "feature.x.enabled"
+		gate := make(chan struct{})
+		var calls atomic.Int32
+		h := newRecHandler(testFlag1)
+		h.onChange = func(FlagValue) error {
+			if calls.Add(1) == 2 {
+				<-gate
+				return errors.New("apply failed")
+			}
+			return nil
+		}
+		require.NoError(t, client.SubscribeWithHandler(h))
+
+		flag := func(on bool) Flag {
+			return Flag{Name: string(testFlag1), Enabled: FlagValue(on), ConfigurationField: key}
+		}
+		sendUpdate(client, flag(true))
+		synctest.Wait()
+		sendUpdate(client, flag(false))
+		synctest.Wait() // OnChange(false) blocked
+		sendUpdate(client, flag(true))
+		synctest.Wait()
+
+		close(gate)
+		synctest.Wait()
+
+		evs := h.snapshot()
+		assert.Equal(t, []string{"change(true)", "change(false)", "recover(false)", "change(true)"}, evs)
+
+		setter.mu.Lock()
+		defer setter.mu.Unlock()
+		assert.Equal(t, true, setter.values[key], "newer Set must not be wiped by the recover of the failed change")
+		assert.Empty(t, setter.unsets, "UnsetForSource must be skipped when a newer Set happened")
+	})
+}
+
+// 4. The health monitor threshold calls SafeRecover, then a recovery monitor probes.
+func TestHealthMonitor_RecoverThenProbe(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := NewClient().WithHealthCheckInterval(100 * time.Millisecond)
+		defer stopAndWait(client)
+
+		h := newRecHandler(testFlag1)
+		h.healthy.Store(false)
+		require.NoError(t, client.SubscribeWithHandler(h))
+
+		sendUpdate(client, Flag{
+			Name:                             string(testFlag1),
+			Enabled:                          true,
+			HealthCheckDurationSeconds:       5,
+			HealthCheckFailuresBeforeRecover: 1,
+		})
+		synctest.Wait()
+		time.Sleep(150 * time.Millisecond)
+		synctest.Wait()
+
+		require.Equal(t, 1, h.count("recover(true)"), "events: %v", h.snapshot())
+		callsAtRecover := h.healthCalls.Load()
+
+		time.Sleep(500 * time.Millisecond)
+		synctest.Wait()
+
+		assert.Greater(t, h.healthCalls.Load(), callsAtRecover, "recovery monitor must probe IsHealthy after SafeRecover")
+		assert.Equal(t, 1, h.count("recover(true)"), "SafeRecover must not be called again while probing")
+	})
+}
+
+// 5a. After the flag is removed no health monitor SafeRecover may fire.
+func TestHealthMonitor_NoRecoverAfterRemoval(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := NewClient().WithHealthCheckInterval(100 * time.Millisecond)
+		defer stopAndWait(client)
+
+		h := newRecHandler(testFlag1)
+		require.NoError(t, client.SubscribeWithHandler(h))
+		sendUpdate(client, Flag{Name: string(testFlag1), Enabled: true, HealthCheckDurationSeconds: 10})
+		synctest.Wait()
+
+		sendRemoval(client)
+		synctest.Wait()
+		h.healthy.Store(false)
+
+		time.Sleep(2 * time.Second)
+		synctest.Wait()
+
+		assert.Zero(t, h.count("recover(true)"), "events: %v", h.snapshot())
+	})
+}
+
+// 5b. A monitor of an older application must not outlive or override the monitor
+// of a newer one: true (threshold 1), false, true (threshold 3). Only the newest
+// monitor may trigger SafeRecover, and only after its own threshold.
+func TestHealthMonitor_StaleMonitorDoesNotOverrideNewer(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := NewClient().WithHealthCheckInterval(100 * time.Millisecond)
+		defer stopAndWait(client)
+
+		h := newRecHandler(testFlag1)
+		require.NoError(t, client.SubscribeWithHandler(h))
+
+		sendUpdate(client, Flag{Name: string(testFlag1), Enabled: true, HealthCheckDurationSeconds: 10, HealthCheckFailuresBeforeRecover: 1})
+		synctest.Wait()
+		sendUpdate(client, Flag{Name: string(testFlag1), Enabled: false})
+		synctest.Wait()
+		sendUpdate(client, Flag{Name: string(testFlag1), Enabled: true, HealthCheckDurationSeconds: 10, HealthCheckFailuresBeforeRecover: 3})
+		synctest.Wait()
+
+		h.healthy.Store(false)
+		time.Sleep(250 * time.Millisecond) // two failures, newest threshold is three
+		synctest.Wait()
+		assert.Zero(t, h.count("recover(true)"), "stale monitor fired; events: %v", h.snapshot())
+
+		time.Sleep(200 * time.Millisecond)
+		synctest.Wait()
+		assert.Equal(t, 1, h.count("recover(true)"), "events: %v", h.snapshot())
+	})
+}
+
+// 6. A true to false transition cancels the monitor started for the true.
+func TestHealthMonitor_TrueToFalseCancelsMonitor(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := NewClient().WithHealthCheckInterval(100 * time.Millisecond)
+		defer stopAndWait(client)
+
+		h := newRecHandler(testFlag1)
+		require.NoError(t, client.SubscribeWithHandler(h))
+
+		sendUpdate(client, Flag{Name: string(testFlag1), Enabled: true, HealthCheckDurationSeconds: 10})
+		synctest.Wait()
+		sendUpdate(client, Flag{Name: string(testFlag1), Enabled: false})
+		synctest.Wait()
+		h.healthy.Store(false)
+
+		time.Sleep(2 * time.Second)
+		synctest.Wait()
+
+		assert.Zero(t, h.count("recover(true)"), "monitor of the true value must be cancelled; events: %v", h.snapshot())
+	})
+}
+
+// 7a. A late subscriber receives the full Flag metadata: the ConfigurationField
+// is known, so a failing OnChange unsets it.
+func TestSubscribe_LateSubscriberGetsConfigurationField(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := NewClient()
+		defer stopAndWait(client)
+		setter := newFakeConfigSetter()
+		client.WithConfigSetter(setter)
+
+		const key = "feature.x.enabled"
+		sendUpdate(client, Flag{Name: string(testFlag1), Enabled: true, ConfigurationField: key})
+		synctest.Wait()
+
+		h := newRecHandler(testFlag1)
+		h.onChange = func(FlagValue) error { return errors.New("apply failed") }
+		require.NoError(t, client.SubscribeWithHandler(h))
+		synctest.Wait()
+
+		assert.Equal(t, []string{"change(true)", "recover(true)"}, h.snapshot())
+		setter.mu.Lock()
+		defer setter.mu.Unlock()
+		require.Len(t, setter.unsets, 1, "late subscriber must see ConfigurationField")
+		assert.Equal(t, key, setter.unsets[0].key)
+		_, stillSet := setter.values[key]
+		assert.False(t, stillSet)
+	})
+}
+
+// 7b. A late subscriber also receives the health check settings.
+func TestSubscribe_LateSubscriberGetsHealthSettings(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := NewClient().WithHealthCheckInterval(100 * time.Millisecond)
+		defer stopAndWait(client)
+
+		sendUpdate(client, Flag{Name: string(testFlag1), Enabled: true, HealthCheckDurationSeconds: 10, HealthCheckFailuresBeforeRecover: 3})
+		synctest.Wait()
+
+		h := newRecHandler(testFlag1)
+		h.healthy.Store(false)
+		require.NoError(t, client.SubscribeWithHandler(h))
+		synctest.Wait()
+
+		time.Sleep(250 * time.Millisecond) // two failures of three
+		synctest.Wait()
+		assert.Zero(t, h.count("recover(true)"), "events: %v", h.snapshot())
+
+		time.Sleep(200 * time.Millisecond)
+		synctest.Wait()
+		assert.Equal(t, 1, h.count("recover(true)"), "events: %v", h.snapshot())
+	})
+}
+
+// 8. A handler may call back into the client from OnNoConfig. Not a synctest:
+// a mutex deadlock is not a durable block there and would hang the bubble.
+func TestOnNoConfig_HandlerCanCallGetCurrentValue(t *testing.T) {
+	client := NewClient()
+	defer client.Stop()
+
+	called := make(chan struct{})
+	h := newRecHandler(testFlag1)
+	h.onNoConfig = func() {
+		client.GetCurrentValue(testFlag1)
+		close(called)
+	}
+	require.NoError(t, client.SubscribeWithHandler(h))
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		sendRemoval(client)
+	}()
+
+	select {
+	case <-called:
+	case <-time.After(2 * time.Second):
+		t.Fatal("deadlock: OnNoConfig calling GetCurrentValue never returned")
+	}
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("OnUpdate never returned")
+	}
+}
+
+// 9. Stop with a pending event leaves no goroutine behind (synctest fails the
+// test if any goroutine of the bubble is still blocked), and the queued event is
+// not delivered after Stop.
+func TestStop_WithPendingEventLeavesNoGoroutine(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := NewClient()
+
+		gate := make(chan struct{})
+		h := newRecHandler(testFlag1)
+		h.onChange = func(FlagValue) error { <-gate; return nil }
+		require.NoError(t, client.SubscribeWithHandler(h))
+
+		sendUpdate(client, Flag{Name: string(testFlag1), Enabled: true})
+		synctest.Wait()
+		sendRemoval(client) // pending behind the in-flight OnChange
+		synctest.Wait()
+
+		client.Stop()
+		close(gate)
+		synctest.Wait()
+
+		assert.Equal(t, []string{"change(true)"}, h.snapshot(), "queued event must not be delivered after Stop")
+	})
+}
+
+// A deduped change (same value, newer version) must leave the healthy monitor alone.
+func TestHealthMonitor_DedupedChangeKeepsMonitor(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := NewClient().WithHealthCheckInterval(100 * time.Millisecond)
+		defer stopAndWait(client)
+
+		h := newRecHandler(testFlag1)
+		require.NoError(t, client.SubscribeWithHandler(h))
+
+		sendUpdate(client, Flag{Name: string(testFlag1), Enabled: true, Version: 1, HealthCheckDurationSeconds: 10})
+		synctest.Wait()
+		sendUpdate(client, Flag{Name: string(testFlag1), Enabled: true, Version: 2, HealthCheckDurationSeconds: 10})
+		synctest.Wait()
+		assert.Equal(t, 1, h.count("change(true)"))
+
+		h.healthy.Store(false)
+		time.Sleep(150 * time.Millisecond)
+		synctest.Wait()
+		assert.Equal(t, 1, h.count("recover(true)"), "monitor must survive the deduped change; events: %v", h.snapshot())
+	})
+}
+
+// A removal followed by the same value, both queued while SafeRecover is still
+// running, collapses into one change(true). It must be re-applied after the
+// recover (the recover resets the last applied value), and monitored again.
+func TestHealthMonitor_RecoverThenCoalescedSameValueReenables(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := NewClient().WithHealthCheckInterval(100 * time.Millisecond)
+		defer stopAndWait(client)
+
+		h := newRecHandler(testFlag1)
+		inRecover := make(chan struct{})
+		releaseRecover := make(chan struct{})
+		var once sync.Once
+		h.onRecover = func() {
+			once.Do(func() {
+				close(inRecover)
+				<-releaseRecover
+			})
+		}
+		require.NoError(t, client.SubscribeWithHandler(h))
+
+		on := Flag{Name: string(testFlag1), Enabled: true, HealthCheckDurationSeconds: 10}
+		sendUpdate(client, on)
+		synctest.Wait()
+		require.Equal(t, 1, h.count("change(true)"))
+
+		h.healthy.Store(false)
+		time.Sleep(150 * time.Millisecond)
+		<-inRecover // the worker is now blocked inside SafeRecover
+
+		// Queued behind the recover: the removal is overwritten by the same value.
+		sendRemoval(client)
+		sendUpdate(client, on)
+		close(releaseRecover)
+		synctest.Wait()
+
+		assert.Equal(t, 2, h.count("change(true)"), "same value must be re-applied after the recover; events: %v", h.snapshot())
+		time.Sleep(150 * time.Millisecond)
+		synctest.Wait()
+		assert.Equal(t, 2, h.count("recover(true)"), "re-applied flag must be monitored again; events: %v", h.snapshot())
+	})
+}
+
+// After a removal, nothing stale is stored and a late subscriber gets no change.
+func TestSubscribe_NoStaleChangeAfterRemoval(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := NewClient()
+		defer stopAndWait(client)
+		setter := newFakeConfigSetter()
+		client.WithConfigSetter(setter)
+
+		// An early subscriber makes the flag tracked, so its removal is processed.
+		early := newRecHandler(testFlag1)
+		require.NoError(t, client.SubscribeWithHandler(early))
+		sendUpdate(client, Flag{Name: string(testFlag1), Enabled: true, ConfigurationField: "feature.x.enabled"})
+		synctest.Wait()
+		sendRemoval(client)
+		synctest.Wait()
+
+		_, ok := client.GetCurrentValue(testFlag1)
+		assert.False(t, ok)
+		client.mu.Lock()
+		_, stored := client.currentFlags[testFlag1]
+		client.mu.Unlock()
+		assert.False(t, stored, "the stored flag must be dropped together with its value")
+
+		h := newRecHandler(testFlag1)
+		require.NoError(t, client.SubscribeWithHandler(h))
+		synctest.Wait()
+		assert.Empty(t, h.snapshot(), "late subscriber must not get a change for a removed flag")
+	})
+}
+
+// A same-value version bump re-applies the configuration field but queues no
+// event, so a later health recover must still roll the field back.
+func TestHealthMonitor_RecoverUnsetsFieldAfterSameValueVersionBump(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := NewClient().WithHealthCheckInterval(100 * time.Millisecond)
+		defer stopAndWait(client)
+		setter := newFakeConfigSetter()
+		client.WithConfigSetter(setter)
+
+		h := newRecHandler(testFlag1)
+		require.NoError(t, client.SubscribeWithHandler(h))
+
+		flag := Flag{Name: string(testFlag1), Enabled: true, ConfigurationField: "feature.x.enabled", HealthCheckDurationSeconds: 10}
+		flag.Version = 1
+		sendUpdate(client, flag)
+		synctest.Wait()
+		flag.Version = 2
+		sendUpdate(client, flag)
+		synctest.Wait()
+		require.Equal(t, 1, h.count("change(true)"))
+
+		h.healthy.Store(false)
+		time.Sleep(150 * time.Millisecond)
+		synctest.Wait()
+
+		require.Equal(t, 1, h.count("recover(true)"), "events: %v", h.snapshot())
+		setter.mu.Lock()
+		defer setter.mu.Unlock()
+		require.Len(t, setter.unsets, 1, "the rollback of the field must not be lost")
+		assert.Equal(t, "feature.x.enabled", setter.unsets[0].key)
 	})
 }
