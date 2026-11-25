@@ -33,10 +33,14 @@ class _FakeAws:
     def __init__(self):
         self.clients, self.stubs = {}, {}
         self.uploads, self.downloads = [], {}
+        self.calls = []  # "<service>.<Operation>" in call order, across services
 
     def client(self, name):
         if name not in self.clients:
             c = boto3.client(name, region_name=lab.REGION, aws_access_key_id="testing", aws_secret_access_key="testing")
+            c.meta.events.register(
+                "before-parameter-build.*.*", lambda model, **_: self.calls.append(f"{name}.{model.name}")
+            )
             self.stubs[name] = Stubber(c)
             self.stubs[name].activate()
             if name == "s3":
@@ -53,6 +57,12 @@ class _FakeAws:
     def assert_done(self):
         for stub in self.stubs.values():
             stub.assert_no_pending_responses()
+
+
+def _expect_secret(aws, key):
+    aws.stub("secretsmanager").add_response(
+        "put_secret_value", {}, {"SecretId": lab.LAB_KEYS_SECRET, "SecretString": json.dumps({"api_key": key})}
+    )
 
 
 def _instances(state):
@@ -168,11 +178,7 @@ class TestRun(_InTempDir):
         ec2.add_response("describe_instances", _instances("stopped"), {"Filters": ANY})
         ssm.add_response("list_commands", {"Commands": []}, {"InstanceId": INSTANCE, "MaxResults": 50})
         if staging_key:
-            aws.stub("secretsmanager").add_response(
-                "put_secret_value",
-                {},
-                {"SecretId": lab.LAB_KEYS_SECRET, "SecretString": json.dumps({"api_key": staging_key})},
-            )
+            _expect_secret(aws, staging_key)
         ec2.add_response("describe_instances", _instances("running"), {"InstanceIds": [INSTANCE]})
         ec2.add_response("describe_instances", _instances("running"), {"InstanceIds": [INSTANCE]})
         ssm.add_response(
@@ -221,8 +227,41 @@ class TestRun(_InTempDir):
         aws.stub("s3").add_client_error("get_object", "NoSuchKey", expected_params=log_key)
         aws.stub("s3").add_client_error("get_object", "NoSuchKey", expected_params=log_key)
         self._expect_results(aws, f"runs/{self.RUN_ID}/", {"EXIT_CODE": "0\n"})
+        _expect_secret(aws, "")
         self._run(aws, env={"CNM_PERF_LAB_STAGING_API_KEY": "k" * 32}, send_metrics=False)
         aws.assert_done()
+        puts = [i for i, c in enumerate(aws.calls) if c == "secretsmanager.PutSecretValue"]
+        self.assertEqual(len(puts), 2)
+        # Filled before the driver starts, blanked once the run is over
+        self.assertLess(puts[0], aws.calls.index("ssm.DescribeInstanceInformation"))
+        self.assertGreater(puts[1], aws.calls.index("ssm.SendCommand"))
+        self.assertFalse(lab.KEY_WRITTEN.exists())
+
+    def test_blanks_the_staging_key_when_the_run_fails(self):
+        aws = _FakeAws()
+        self._expect_start(aws, staging_key="k" * 32)
+        invocation = {"CommandId": COMMAND, "InstanceId": INSTANCE}
+        ssm, s3 = aws.stub("ssm"), aws.stub("s3")
+        ssm.add_response("get_command_invocation", {"Status": "Failed"}, invocation)
+        log_key = {"Bucket": lab.BUCKET, "Key": f"runs/{self.RUN_ID}/driver.log"}
+        s3.add_client_error("get_object", "NoSuchKey", expected_params=log_key)
+        s3.add_client_error("get_object", "NoSuchKey", expected_params=log_key)
+        self._expect_results(aws, f"runs/{self.RUN_ID}/", {})
+        ssm.add_response("get_command_invocation", {"Status": "Failed"}, invocation)
+        self._expect_results(aws, f"ssm/{self.RUN_ID}/", {})
+        _expect_secret(aws, "")
+        with self.assertRaises(Exit):
+            self._run(aws, env={"CNM_PERF_LAB_STAGING_API_KEY": "k" * 32}, send_metrics=False)
+        aws.assert_done()
+        self.assertFalse(lab.KEY_WRITTEN.exists())
+
+    def test_leaves_the_secret_alone_while_another_run_is_in_progress(self):
+        aws = _FakeAws()
+        self._expect_busy(aws)
+        with self.assertRaises(Exit):
+            self._run(aws, env={"CNM_PERF_LAB_STAGING_API_KEY": "k" * 32}, send_metrics=False)
+        aws.assert_done()
+        self.assertNotIn("secretsmanager.PutSecretValue", aws.calls)
 
     def test_successful_run_collects_results_and_sends_metrics(self):
         aws = _FakeAws()
@@ -264,8 +303,7 @@ class TestRun(_InTempDir):
         aws.assert_done()
         self.assertEqual(Path("cnm-perf-lab-results/ssm/stderr").read_text(), "boom")
 
-    def test_refuses_to_start_while_another_run_is_in_progress(self):
-        aws = _FakeAws()
+    def _expect_busy(self, aws):
         aws.stub("s3").add_response("head_object", {}, {"Bucket": lab.BUCKET, "Key": lab.LAB_TARBALL_KEY})
         aws.stub("ec2").add_response("describe_instances", _instances("running"), {"Filters": ANY})
         aws.stub("ssm").add_response(
@@ -277,6 +315,10 @@ class TestRun(_InTempDir):
             },
             {"InstanceId": INSTANCE, "MaxResults": 50},
         )
+
+    def test_refuses_to_start_while_another_run_is_in_progress(self):
+        aws = _FakeAws()
+        self._expect_busy(aws)
         with self.assertRaises(Exit):
             self._run(aws, send_metrics=False)
         aws.assert_done()
@@ -318,6 +360,17 @@ class TestCancel(_InTempDir):
         )
         self._cancel(aws)
         aws.assert_done()
+
+    def test_blanks_the_staging_key_the_run_wrote(self):
+        lab.MARKER.write_text(f"{INSTANCE} {COMMAND}\n")
+        lab.KEY_WRITTEN.touch()
+        aws = _FakeAws()
+        invocation = {"CommandId": COMMAND, "InstanceId": INSTANCE}
+        aws.stub("ssm").add_response("get_command_invocation", {"Status": "Success"}, invocation)
+        _expect_secret(aws, "")
+        self._cancel(aws)
+        aws.assert_done()
+        self.assertFalse(lab.KEY_WRITTEN.exists())
 
     def test_leaves_an_ended_run_alone(self):
         lab.MARKER.write_text(f"{INSTANCE} {COMMAND}\n")

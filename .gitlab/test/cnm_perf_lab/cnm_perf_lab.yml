@@ -37,11 +37,13 @@ cnm-perf-lab:
   before_script:
     - dda self dep sync -f legacy-tasks
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
-    # The lab's agents report to staging with a short-lived key; the run task hands it to the driver
+    # dd-sts's shared org 2 staging API key, for the lab's agents; the run task puts it in the driver's secret for the
+    # length of the run
     - >-
-      CNM_PERF_LAB_STAGING_API_KEY=$(curl -sf --max-time 30 -H "Authorization: Bearer $DD_STS_OIDC_TOKEN"
+      CNM_PERF_LAB_STAGING_API_KEY=$(curl -sSf --max-time 30 -H "Authorization: Bearer $DD_STS_OIDC_TOKEN"
       "https://dd-sts.us1.ddbuild.io/sts/datadog/exchange?policy=datadog-agent-cnm-perf-lab"
-      | python3 -c 'import json,sys;print(json.load(sys.stdin)["api_key"])') || exit $?; export CNM_PERF_LAB_STAGING_API_KEY
+      | python3 -c 'import json,sys;k=json.load(sys.stdin).get("api_key");isinstance(k,str) and k or sys.exit("dd-sts returned no api_key");print(k)')
+      || exit $?; export CNM_PERF_LAB_STAGING_API_KEY
   script:
     - dda inv -- -e cnm-perf-lab.run --mode "$CNM_PERF_LAB_MODE" --variants "$CNM_PERF_LAB_VARIANTS"
   after_script:

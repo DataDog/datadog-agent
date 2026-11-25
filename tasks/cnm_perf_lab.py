@@ -26,9 +26,11 @@ CI_ROLE_EXTERNAL_ID = "ddbuild-cnm-perf-lab-ci"
 DRIVER_TAG = "cnm-perf-lab-driver"  # tag:service on the driver instance
 BUCKET = "datadog-cnm-perf-lab"
 LAB_TARBALL_KEY = "inputs/cnm-perf-lab.tgz"
-# The driver reads the agents' staging API key from this secret (JSON with api_key); the run refreshes it from
-# CNM_PERF_LAB_STAGING_API_KEY when that is set
+# The driver reads the agents' staging API key from this secret (JSON with api_key) when its run starts. With
+# CNM_PERF_LAB_STAGING_API_KEY set (dd-sts's shared org 2 staging key, from the CI job), the run fills the secret and
+# blanks it when the run ends; KEY_WRITTEN records that, so the cancel task can blank it too.
 LAB_KEYS_SECRET = "cnm-perf-lab/staging-keys"
+KEY_WRITTEN = Path("cnm-perf-lab-key-written")
 RUN_COMMENT = "cnm-perf-lab run"  # prefix of the SSM command comment, to find a run in progress
 MARKER = Path("cnm-perf-lab-command-id")  # "<instance id> [<command id>]", for the cancel task
 # The driver-run.sh steps' limits plus teardown sum to about 5 h 20 min; add the driver setup
@@ -70,6 +72,15 @@ class _Aws:
             )
             self._assumed_at = time.time()
         return self._session.client(name)
+
+
+def _clear_staging_key(aws: _Aws) -> None:
+    if KEY_WRITTEN.exists():
+        aws.client("secretsmanager").put_secret_value(
+            SecretId=LAB_KEYS_SECRET, SecretString=json.dumps({"api_key": ""})
+        )
+        KEY_WRITTEN.unlink()
+        print(f"blanked {LAB_KEYS_SECRET}")
 
 
 def _hub_get(url: str, token: str | None = None, method: str = "GET", accept: str | None = None):
@@ -317,14 +328,22 @@ def run(
     busy = _runs_in_progress(aws, instance_id)
     if busy:
         raise Exit(f"another lab run is in progress on the driver (SSM {', '.join(busy)}); not starting", code=1)
+    MARKER.write_text(f"{instance_id}\n")  # cancel stops the driver if no run was handed over yet
     staging_key = os.environ.get("CNM_PERF_LAB_STAGING_API_KEY")
     if staging_key:
         aws.client("secretsmanager").put_secret_value(
             SecretId=LAB_KEYS_SECRET, SecretString=json.dumps({"api_key": staging_key})
         )
+        KEY_WRITTEN.touch()
     else:
         print(f"CNM_PERF_LAB_STAGING_API_KEY not set; the driver uses the key already in {LAB_KEYS_SECRET}")
-    MARKER.write_text(f"{instance_id}\n")  # cancel stops the driver if no run was handed over yet
+    try:
+        _run_on_driver(aws, instance_id, run_id, mode, refs_key, check_ndq, results_dir, send_metrics, variant_tags)
+    finally:
+        _clear_staging_key(aws)
+
+
+def _run_on_driver(aws, instance_id, run_id, mode, refs_key, check_ndq, results_dir, send_metrics, variant_tags):
     _start_driver(aws, instance_id)
     command_id = aws.client("ssm").send_command(
         InstanceIds=[instance_id],
@@ -380,6 +399,7 @@ def cancel(ctx: Context):
             return
         aws.client("ec2").stop_instances(InstanceIds=[instance_id])
         print(f"no run was handed over; stopped the driver {instance_id}")
+        _clear_staging_key(aws)
         return
     command_id = rest[0]
     # The run clears the cancel flag when it starts, so wait until it has started before setting it
@@ -390,6 +410,7 @@ def cancel(ctx: Context):
         time.sleep(10)
     if status not in ("Pending", "InProgress", "Delayed"):
         print(f"the lab run already ended ({status})")
+        _clear_staging_key(aws)
         return
     # Interrupt the current lab step rather than cancelling the SSM command, so driver-run.sh's exit trap still destroys
     # the cluster, uploads the results and powers the instance off. The flag also stops a run still in setup from
@@ -406,3 +427,5 @@ def cancel(ctx: Context):
         },
     )
     print(f"asked the driver {instance_id} to stop the run; it destroys the cluster and powers off on its own")
+    # The driver read the key when its run started, so the run doesn't need the secret any more
+    _clear_staging_key(aws)
