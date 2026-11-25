@@ -12,7 +12,16 @@
 
     <xsl:template match="/domain/features">
         <xsl:copy>
-            <xsl:apply-templates select="@*|node()" />
+            <xsl:choose>
+                <xsl:when test="'{hypervisor}'='hvf'">
+                    <!-- HVF's hardware interrupt controller requires GICv3. -->
+                    <xsl:apply-templates select="@*|node()[not(self::gic)]" />
+                    <gic version='3' />
+                </xsl:when>
+                <xsl:otherwise>
+                    <xsl:apply-templates select="@*|node()" />
+                </xsl:otherwise>
+            </xsl:choose>
         </xsl:copy>
         <cpu mode='host-passthrough' check='full' />
         <clock offset='utc'>
