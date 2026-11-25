@@ -71,14 +71,9 @@
     # (invoke agent.version) must find the cache file locally instead of
     # trying to fetch it from S3. The file is fetched on the runner, which
     # has credentials; the setup stage guarantees it was uploaded.
-    # AIX_SKIP_VERSION_CACHE=1 skips this for jobs that run before the setup
-    # stage completes and set their own AGENT_VERSION (see cleanup_aix-ppc64).
     - 'echo "=== AIX: shipping agent-version cache to the host ==="'
-    - |
-      if [ "${AIX_SKIP_VERSION_CACHE:-}" != "1" ]; then
-        $S3_CP_CMD "s3://dd-ci-artefacts-build-stable/datadog-agent/$CI_PIPELINE_ID/agent-version.cache" "$CI_PROJECT_DIR/agent-version.cache"
-        copy_file_to_aix "$CI_PROJECT_DIR/agent-version.cache" "$AIX_AGENT_SRC/agent-version.cache"
-      fi
+    - $S3_CP_CMD "s3://dd-ci-artefacts-build-stable/datadog-agent/$CI_PIPELINE_ID/agent-version.cache" "$CI_PROJECT_DIR/agent-version.cache"
+    - copy_file_to_aix "$CI_PROJECT_DIR/agent-version.cache" "$AIX_AGENT_SRC/agent-version.cache"
 
     # IBM MQ Client (required by setup-host.sh for the packaging build).
     # Fetch the installp archive from MASS on the runner and transfer it to the host.

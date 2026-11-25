@@ -106,8 +106,6 @@ deploy_packages_aix-ppc64:
 cleanup_aix-ppc64:
   stage: setup
   extends: .aix_remote
-  # Start at pipeline start instead of after setup_agent_version
-  needs: []
   allow_failure: true
   rules:
     - !reference [.except_light_pipeline]
@@ -119,10 +117,6 @@ cleanup_aix-ppc64:
   variables:
     # Deep cleanup at most once every N days
     AIX_CLEANUP_INTERVAL_DAYS: "14"
-    # env.sh requires a version; this job doesn't need the real one
-    AGENT_VERSION: "0.0.0-ci-cleanup"
-    # Runs before the setup stage could have uploaded it
-    AIX_SKIP_VERSION_CACHE: "1"
   script:
     - 'echo "=== AIX: host cleanup ==="'
     # Marker lives outside /opt/dd-build. Only whole numeric lines: the -tt
@@ -149,6 +143,9 @@ cleanup_aix-ppc64:
     # Redo the before_script's clone, wiped above
     - 'echo "=== AIX: re-cloning agent source ==="'
     - source $CI_PROJECT_DIR/.gitlab/aix/common/aix_git_setup.sh
+    # Re-ship the version cache the before_script fetched, wiped above;
+    # env.sh needs it locally for version detection.
+    - copy_file_to_aix "$CI_PROJECT_DIR/agent-version.cache" "$AIX_AGENT_SRC/agent-version.cache"
     # Best-effort warm-up so the next AIX job starts warm
     - |
       aix_run_cmd <<EOF
@@ -157,8 +154,6 @@ cleanup_aix-ppc64:
       sh packaging/aix/setup-host.sh || echo "WARNING: setup-host failed"
       python3.12 -m invoke -e deps || echo "WARNING: invoke deps failed"
       sh packaging/aix/stages/00-checkout.sh || echo "WARNING: 00-checkout failed"
-      # Cold cargo builds OOM-kill at 4 parallel rustc on this host (8GiB RAM)
-      export CARGO_BUILD_JOBS=2
       sh packaging/aix/stages/05-agent-data-plane.sh || echo "WARNING: 05-agent-data-plane failed"
       EOF
 

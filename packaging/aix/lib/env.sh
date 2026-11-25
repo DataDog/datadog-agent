@@ -167,13 +167,16 @@ GOPROXY=https://proxy.golang.org,direct
 # toolchain version (go.mod may require a newer patch than is installed).
 # Auto-download spawns extra processes and consumes significant memory on AIX.
 GOTOOLCHAIN=local
-# On hosts with at least 4 GiB of RAM, allow one Go package compilation per
-# 4 GiB of memory and cap each compiler's heap at 3 GiB, leaving 1GiB of margin for each.
+# On hosts with at least 4 GiB of RAM, allow one compiler (go build, rustc)
+# per 4 GiB of memory and cap each Go compiler's heap at 3 GiB, leaving 1 GiB
+# of margin for each. Uncapped rustc processes exhaust paging space on small
+# hosts during cold agent-data-plane builds and get SIGKILLed.
 _mem_kb=$(lsattr -El sys0 -a realmem 2>/dev/null | awk '{print $2}')
 if [ -n "$_mem_kb" ] && [ "$_mem_kb" -ge 4194304 ]; then
     GOFLAGS="-p=$((_mem_kb / 4194304))"
     GOMEMLIMIT=3GiB
-    export GOFLAGS GOMEMLIMIT
+    CARGO_BUILD_JOBS=$((_mem_kb / 4194304))
+    export GOFLAGS GOMEMLIMIT CARGO_BUILD_JOBS
 fi
 unset _mem_kb
 # Redirect the Go build cache off /tmp (which is only 12 GB) to the larger
