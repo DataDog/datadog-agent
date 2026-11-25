@@ -10,170 +10,34 @@ package k8s
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	wmutil "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
 	"github.com/DataDog/datadog-agent/pkg/redact"
 
 	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 // ReplicaSetHandlers implements the Handlers interface for Kubernetes ReplicaSets.
-type ReplicaSetHandlers struct {
-	common.BaseHandlers
-	tagger tagger.Component
-}
+type ReplicaSetHandlers = common.ModelHandlers[*appsv1.ReplicaSet, *model.ReplicaSet]
 
 // NewReplicaSetHandlers creates a new ReplicaSetHandlers.
 func NewReplicaSetHandlers(tagger tagger.Component) *ReplicaSetHandlers {
-	return &ReplicaSetHandlers{tagger: tagger}
-}
-
-// EnrichModel is a handler called before cache lookup.
-//
-//nolint:revive
-func (h *ReplicaSetHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
-	r := resource.(*appsv1.ReplicaSet)
-	m := resourceModel.(*model.ReplicaSet)
-
-	entityID := taggertypes.NewEntityID(
-		taggertypes.KubernetesMetadata,
-		string(wmutil.GenerateKubeMetadataEntityID(ctx.GetCollectorGroup(), ctx.GetCollectorName(), r.Namespace, r.Name)),
-	)
-	taggerTags, err := h.tagger.Tag(entityID, taggertypes.HighCardinality)
-	if err != nil {
-		log.Debugf("Could not retrieve tags for replicaset %s/%s: %s", r.Namespace, r.Name, err)
-		return
-	}
-
-	m.Tags = append(m.Tags, taggerTags...)
-	return
-}
-
-// AfterMarshalling is a handler called after resource marshalling.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *ReplicaSetHandlers) AfterMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
-	m := resourceModel.(*model.ReplicaSet)
-	m.Yaml = yaml
-	return
-}
-
-// BeforeMarshalling is a handler called before resource marshalling.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *ReplicaSetHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
-	r := resource.(*appsv1.ReplicaSet)
-	r.Kind = ctx.GetKind()
-	r.APIVersion = ctx.GetAPIVersion()
-	return
-}
-
-// BuildMessageBody is a handler called to build a message body out of a list of
-// extracted resources.
-func (h *ReplicaSetHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
-	pctx := ctx.(*processors.K8sProcessorContext)
-	models := make([]*model.ReplicaSet, 0, len(resourceModels))
-
-	for _, m := range resourceModels {
-		models = append(models, m.(*model.ReplicaSet))
-	}
-
-	return &model.CollectorReplicaSet{
-		ClusterName:  pctx.Cfg.KubeClusterName,
-		ClusterId:    pctx.ClusterID,
-		GroupId:      pctx.MsgGroupID,
-		GroupSize:    int32(groupSize),
-		ReplicaSets:  models,
-		Tags:         util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
-		AgentVersion: ctx.GetAgentVersion(),
-	}
-}
-
-// ExtractResource is a handler called to extract the resource model out of a raw resource.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *ReplicaSetHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
-	r := resource.(*appsv1.ReplicaSet)
-	return k8sTransformers.ExtractReplicaSet(ctx, r)
-}
-
-// ResourceList is a handler called to convert a list passed as a generic
-// interface to a list of generic interfaces.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *ReplicaSetHandlers) ResourceList(ctx processors.ProcessorContext, list interface{}) (resources []interface{}) {
-	resourceList := list.([]*appsv1.ReplicaSet)
-	resources = make([]interface{}, 0, len(resourceList))
-
-	for _, resource := range resourceList {
-		resources = append(resources, resource)
-	}
-
-	return resources
-}
-
-// CloneResource returns a deep copy of the resource.
-//
-//nolint:revive
-func (h *ReplicaSetHandlers) CloneResource(resource interface{}) interface{} {
-	return resource.(*appsv1.ReplicaSet).DeepCopy()
-}
-
-// ResourceVersionFromRaw returns the resource version from the raw resource.
-//
-//nolint:revive
-func (h *ReplicaSetHandlers) ResourceVersionFromRaw(_ processors.ProcessorContext, resource interface{}) string {
-	return resource.(*appsv1.ReplicaSet).ResourceVersion
-}
-
-// ResourceUID is a handler called to retrieve the resource UID.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *ReplicaSetHandlers) ResourceUID(ctx processors.ProcessorContext, resource interface{}) types.UID {
-	return resource.(*appsv1.ReplicaSet).UID
-}
-
-// ResourceVersion is a handler called to retrieve the resource version.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *ReplicaSetHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
-	return resource.(*appsv1.ReplicaSet).ResourceVersion
-}
-
-// GetMetadataTags returns the tags in the metadata model.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *ReplicaSetHandlers) GetMetadataTags(ctx processors.ProcessorContext, resourceMetadataModel interface{}) []string {
-	m, ok := resourceMetadataModel.(*model.ReplicaSet)
-	if !ok {
-		return nil
-	}
-	return m.Tags
-}
-
-// ScrubBeforeExtraction is a handler called to redact the raw resource before
-// it is extracted as an internal resource model.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *ReplicaSetHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
-	r := resource.(*appsv1.ReplicaSet)
-	redact.RemoveSensitiveAnnotationsAndLabels(r.Annotations, r.Labels)
-}
-
-// ScrubBeforeMarshalling is a handler called to redact the raw resource before
-// it is marshalled to generate a manifest.
-func (h *ReplicaSetHandlers) ScrubBeforeMarshalling(ctx processors.ProcessorContext, resource interface{}) {
-	pctx := ctx.(*processors.K8sProcessorContext)
-	r := resource.(*appsv1.ReplicaSet)
-	if pctx.Cfg.IsScrubbingEnabled {
-		redact.ScrubPodTemplateSpec(&r.Spec.Template, pctx.Cfg.Scrubber)
-	}
+	return common.NewModelHandlers(tagger, common.ModelSpec[*appsv1.ReplicaSet, *model.ReplicaSet]{
+		Extract: k8sTransformers.ExtractReplicaSet,
+		Tags:    func(m *model.ReplicaSet) *[]string { return &m.Tags },
+		YAML:    func(m *model.ReplicaSet) *[]byte { return &m.Yaml },
+		Entity:  common.MetadataEntity[*appsv1.ReplicaSet],
+		Scrub:   func(r *appsv1.ReplicaSet, s *redact.DataScrubber) { redact.ScrubPodTemplateSpec(&r.Spec.Template, s) },
+		Message: func(h common.MessageHeader, models []*model.ReplicaSet) model.MessageBody {
+			return &model.CollectorReplicaSet{
+				ClusterName:  h.ClusterName,
+				ClusterId:    h.ClusterID,
+				GroupId:      h.GroupID,
+				GroupSize:    h.GroupSize,
+				ReplicaSets:  models,
+				Tags:         h.Tags,
+				AgentVersion: h.AgentVersion,
+			}
+		},
+	})
 }

@@ -9,8 +9,6 @@ package k8s
 
 import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
@@ -19,11 +17,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/redact"
 )
 
-// CRHandlers implements the Handlers interface for Kubernetes CronJobs.
+// CRHandlers implements the Handlers interface for Kubernetes custom resources and generic resources.
 type CRHandlers struct {
+	common.TypedHandlers[*unstructured.Unstructured]
 	// IsGenericResource is a flag to indicate if the resource is a generic resource.
 	IsGenericResource bool
-	common.BaseHandlers
+}
+
+// BeforeMarshalling keeps the kind and the API version that unstructured objects get from the API server.
+func (cr *CRHandlers) BeforeMarshalling(processors.ProcessorContext, interface{}, interface{}) (skip bool) {
+	return
 }
 
 // AfterMarshalling is a handler called after resource marshalling.
@@ -67,43 +70,8 @@ func (cr *CRHandlers) ExtractResource(ctx processors.ProcessorContext, resource 
 // interface to a list of generic interfaces.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (cr *CRHandlers) ResourceList(ctx processors.ProcessorContext, list interface{}) (resources []interface{}) {
-	resourceList := list.([]runtime.Object)
-	resources = make([]interface{}, 0, len(resourceList))
-
-	for _, resource := range resourceList {
-		resources = append(resources, resource)
-	}
-
-	return resources
-}
-
-// CloneResource returns a deep copy of the resource.
-//
-//nolint:revive
-func (cr *CRHandlers) CloneResource(resource interface{}) interface{} {
-	return resource.(*unstructured.Unstructured).DeepCopy()
-}
-
-// ResourceVersionFromRaw returns the resource version from the raw resource.
-//
-//nolint:revive
-func (cr *CRHandlers) ResourceVersionFromRaw(_ processors.ProcessorContext, resource interface{}) string {
-	return resource.(*unstructured.Unstructured).GetResourceVersion()
-}
-
-// ResourceUID is a handler called to retrieve the resource UID.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (cr *CRHandlers) ResourceUID(ctx processors.ProcessorContext, resource interface{}) types.UID {
-	return resource.(*unstructured.Unstructured).GetUID()
-}
-
-// ResourceVersion is a handler called to retrieve the resource version.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (cr *CRHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
-	return resource.(*unstructured.Unstructured).GetResourceVersion()
+func (cr *CRHandlers) ResourceList(_ processors.ProcessorContext, list interface{}) []interface{} {
+	return common.RuntimeObjectList(list)
 }
 
 // GetMetadataTags returns the tags in the metadata model.
@@ -118,15 +86,8 @@ func (cr *CRHandlers) GetMetadataTags(ctx processors.ProcessorContext, resourceM
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (cr *CRHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
-	pctx := ctx.(*processors.K8sProcessorContext)
-	r := resource.(*unstructured.Unstructured)
-	annotations := r.GetAnnotations()
-	labels := r.GetLabels()
-	redact.RemoveSensitiveAnnotationsAndLabels(annotations, labels)
-	r.SetAnnotations(annotations)
-	r.SetLabels(labels)
-
-	if pctx.Cfg.IsScrubbingEnabled {
-		redact.ScrubCRManifest(r, pctx.Cfg.Scrubber)
+	cr.TypedHandlers.ScrubBeforeExtraction(ctx, resource)
+	if pctx := ctx.(*processors.K8sProcessorContext); pctx.Cfg.IsScrubbingEnabled {
+		redact.ScrubCRManifest(resource.(*unstructured.Unstructured), pctx.Cfg.Scrubber)
 	}
 }

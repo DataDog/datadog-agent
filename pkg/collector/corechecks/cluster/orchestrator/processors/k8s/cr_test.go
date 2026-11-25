@@ -432,3 +432,38 @@ func TestCRHandlers_CloneResource(t *testing.T) {
 	assert.NotSame(t, original, clonedTyped)
 	assert.Equal(t, original, clonedTyped)
 }
+
+// TestCRHandlers_BeforeMarshalling checks that a custom resource keeps the kind and the API version from the API server.
+func TestCRHandlers_BeforeMarshalling(t *testing.T) {
+	cr := createTestCustomResource("test-cr", "default")
+	want := cr.DeepCopy()
+	ctx := &processors.K8sProcessorContext{BaseProcessorContext: processors.BaseProcessorContext{APIVersion: "other.example.com/v2", Kind: "Other"}}
+
+	assert.False(t, (&CRHandlers{}).BeforeMarshalling(ctx, cr, nil))
+	assert.Equal(t, want, cr)
+}
+
+// TestCRHandlers_GenericResource checks the overrides of the generic resource handlers: the list of a dynamic informer,
+// the kind and API version from the API server, and the scrubbing of the whole object.
+func TestCRHandlers_GenericResource(t *testing.T) {
+	handlers := &CRHandlers{IsGenericResource: true}
+	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
+	cfg.IsScrubbingEnabled = true
+	ctx := &processors.K8sProcessorContext{BaseProcessorContext: processors.BaseProcessorContext{
+		Cfg: cfg, APIVersion: "other.example.com/v2", Kind: "Other",
+	}}
+	resource := createTestCustomResource("test-cr", "default")
+	resource.SetAnnotations(map[string]string{"kubectl.kubernetes.io/last-applied-configuration": "secret"})
+	resource.Object["spec"].(map[string]interface{})["password"] = "secret"
+
+	listed := handlers.ResourceList(ctx, []runtime.Object{resource})
+	handlers.BeforeMarshalling(ctx, resource, nil)
+	handlers.ScrubBeforeExtraction(ctx, resource)
+
+	want := createTestCustomResource("test-cr", "default")
+	want.SetAnnotations(map[string]string{"kubectl.kubernetes.io/last-applied-configuration": "-"})
+	want.Object["spec"].(map[string]interface{})["password"] = "********"
+	require.Len(t, listed, 1)
+	assert.Same(t, resource, listed[0], "the list holds the informer objects")
+	assert.Equal(t, want, resource)
+}

@@ -10,169 +10,36 @@ package k8s
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	wmutil "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/redact"
 
 	batchv1 "k8s.io/api/batch/v1"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 // CronJobV1Handlers implements the Handlers interface for Kubernetes CronJobs.
-type CronJobV1Handlers struct {
-	common.BaseHandlers
-	tagger tagger.Component
-}
+type CronJobV1Handlers = common.ModelHandlers[*batchv1.CronJob, *model.CronJob]
 
 // NewCronJobV1Handlers creates a new CronJobV1Handlers.
 func NewCronJobV1Handlers(tagger tagger.Component) *CronJobV1Handlers {
-	return &CronJobV1Handlers{tagger: tagger}
-}
-
-// EnrichModel is a handler called before cache lookup.
-//
-//nolint:revive
-func (h *CronJobV1Handlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
-	r := resource.(*batchv1.CronJob)
-	m := resourceModel.(*model.CronJob)
-
-	entityID := taggertypes.NewEntityID(
-		taggertypes.KubernetesMetadata,
-		string(wmutil.GenerateKubeMetadataEntityID(ctx.GetCollectorGroup(), ctx.GetCollectorName(), r.Namespace, r.Name)),
-	)
-	taggerTags, err := h.tagger.Tag(entityID, taggertypes.HighCardinality)
-	if err != nil {
-		log.Debugf("Could not retrieve tags for cronjobv1 %s/%s: %s", r.Namespace, r.Name, err)
-		return
-	}
-
-	m.Tags = append(m.Tags, taggerTags...)
-	return
-}
-
-// AfterMarshalling is a handler called after resource marshalling.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *CronJobV1Handlers) AfterMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
-	m := resourceModel.(*model.CronJob)
-	m.Yaml = yaml
-	return
-}
-
-// BeforeMarshalling is a handler called before resource marshalling.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *CronJobV1Handlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
-	r := resource.(*batchv1.CronJob)
-	r.Kind = ctx.GetKind()
-	r.APIVersion = ctx.GetAPIVersion()
-	return
-}
-
-// BuildMessageBody is a handler called to build a message body out of a list of
-// extracted resources.
-func (h *CronJobV1Handlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
-	pctx := ctx.(*processors.K8sProcessorContext)
-	models := make([]*model.CronJob, 0, len(resourceModels))
-
-	for _, m := range resourceModels {
-		models = append(models, m.(*model.CronJob))
-	}
-
-	return &model.CollectorCronJob{
-		ClusterName:  pctx.Cfg.KubeClusterName,
-		ClusterId:    pctx.ClusterID,
-		GroupId:      pctx.MsgGroupID,
-		GroupSize:    int32(groupSize),
-		CronJobs:     models,
-		Tags:         util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
-		AgentVersion: ctx.GetAgentVersion(),
-	}
-}
-
-// ExtractResource is a handler called to extract the resource model out of a raw resource.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *CronJobV1Handlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
-	r := resource.(*batchv1.CronJob)
-	return k8sTransformers.ExtractCronJobV1(ctx, r)
-}
-
-// ResourceList is a handler called to convert a list passed as a generic
-// interface to a list of generic interfaces.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *CronJobV1Handlers) ResourceList(ctx processors.ProcessorContext, list interface{}) (resources []interface{}) {
-	resourceList := list.([]*batchv1.CronJob)
-	resources = make([]interface{}, 0, len(resourceList))
-
-	for _, resource := range resourceList {
-		resources = append(resources, resource)
-	}
-
-	return resources
-}
-
-// CloneResource returns a deep copy of the resource.
-//
-//nolint:revive
-func (h *CronJobV1Handlers) CloneResource(resource interface{}) interface{} {
-	return resource.(*batchv1.CronJob).DeepCopy()
-}
-
-// ResourceVersionFromRaw returns the resource version from the raw resource.
-//
-//nolint:revive
-func (h *CronJobV1Handlers) ResourceVersionFromRaw(_ processors.ProcessorContext, resource interface{}) string {
-	return resource.(*batchv1.CronJob).ResourceVersion
-}
-
-// ResourceUID is a handler called to retrieve the resource UID.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *CronJobV1Handlers) ResourceUID(ctx processors.ProcessorContext, resource interface{}) types.UID {
-	return resource.(*batchv1.CronJob).UID
-}
-
-// ResourceVersion is a handler called to retrieve the resource version.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *CronJobV1Handlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
-	return resource.(*batchv1.CronJob).ResourceVersion
-}
-
-// GetMetadataTags returns the tags in the metadata model.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *CronJobV1Handlers) GetMetadataTags(ctx processors.ProcessorContext, resourceMetadataModel interface{}) []string {
-	m, ok := resourceMetadataModel.(*model.CronJob)
-	if !ok {
-		return nil
-	}
-	return m.Tags
-}
-
-// ScrubBeforeExtraction is a handler called to redact the raw resource before
-// it is extracted as an internal resource model.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *CronJobV1Handlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
-	r := resource.(*batchv1.CronJob)
-	redact.RemoveSensitiveAnnotationsAndLabels(r.Annotations, r.Labels)
-}
-
-// ScrubBeforeMarshalling is a handler called to redact the raw resource before
-// it is marshalled to generate a manifest.
-func (h *CronJobV1Handlers) ScrubBeforeMarshalling(ctx processors.ProcessorContext, resource interface{}) {
-	pctx := ctx.(*processors.K8sProcessorContext)
-	r := resource.(*batchv1.CronJob)
-	if pctx.Cfg.IsScrubbingEnabled {
-		redact.ScrubPodTemplateSpec(&r.Spec.JobTemplate.Spec.Template, pctx.Cfg.Scrubber)
-	}
+	return common.NewModelHandlers(tagger, common.ModelSpec[*batchv1.CronJob, *model.CronJob]{
+		Extract: k8sTransformers.ExtractCronJobV1,
+		Tags:    func(m *model.CronJob) *[]string { return &m.Tags },
+		YAML:    func(m *model.CronJob) *[]byte { return &m.Yaml },
+		Entity:  common.MetadataEntity[*batchv1.CronJob],
+		Scrub: func(r *batchv1.CronJob, s *redact.DataScrubber) {
+			redact.ScrubPodTemplateSpec(&r.Spec.JobTemplate.Spec.Template, s)
+		},
+		Message: func(h common.MessageHeader, models []*model.CronJob) model.MessageBody {
+			return &model.CollectorCronJob{
+				ClusterName:  h.ClusterName,
+				ClusterId:    h.ClusterID,
+				GroupId:      h.GroupID,
+				GroupSize:    h.GroupSize,
+				CronJobs:     models,
+				Tags:         h.Tags,
+				AgentVersion: h.AgentVersion,
+			}
+		},
+	})
 }

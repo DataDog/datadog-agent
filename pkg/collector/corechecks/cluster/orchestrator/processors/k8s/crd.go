@@ -9,20 +9,16 @@ package k8s
 
 import (
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
-	"github.com/DataDog/datadog-agent/pkg/redact"
-
-	"k8s.io/apimachinery/pkg/types"
 )
 
-// CRDHandlers implements the Handlers interface for Kubernetes CronJobs.
+// CRDHandlers implements the Handlers interface for Kubernetes CustomResourceDefinitions.
 type CRDHandlers struct {
-	common.BaseHandlers
+	common.TypedHandlers[*v1.CustomResourceDefinition]
 }
 
 // BuildManifestMessageBody builds the manifest payload body
@@ -40,16 +36,6 @@ func (crd *CRDHandlers) BuildManifestMessageBody(ctx processors.ProcessorContext
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (crd *CRDHandlers) AfterMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
-	return
-}
-
-// BeforeMarshalling is a handler called before resource marshalling.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *CRDHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
-	r := resource.(*v1.CustomResourceDefinition)
-	r.Kind = ctx.GetKind()
-	r.APIVersion = ctx.GetAPIVersion()
 	return
 }
 
@@ -72,43 +58,8 @@ func (crd *CRDHandlers) ExtractResource(ctx processors.ProcessorContext, resourc
 // interface to a list of generic interfaces.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (crd *CRDHandlers) ResourceList(ctx processors.ProcessorContext, list interface{}) (resources []interface{}) {
-	resourceList := list.([]runtime.Object)
-	resources = make([]interface{}, 0, len(resourceList))
-
-	for _, resource := range resourceList {
-		resources = append(resources, resource)
-	}
-
-	return resources
-}
-
-// CloneResource returns a deep copy of the resource.
-//
-//nolint:revive
-func (crd *CRDHandlers) CloneResource(resource interface{}) interface{} {
-	return resource.(*v1.CustomResourceDefinition).DeepCopy()
-}
-
-// ResourceVersionFromRaw returns the resource version from the raw resource.
-//
-//nolint:revive
-func (crd *CRDHandlers) ResourceVersionFromRaw(_ processors.ProcessorContext, resource interface{}) string {
-	return resource.(*v1.CustomResourceDefinition).ResourceVersion
-}
-
-// ResourceUID is a handler called to retrieve the resource UID.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (crd *CRDHandlers) ResourceUID(ctx processors.ProcessorContext, resource interface{}) types.UID {
-	return resource.(*v1.CustomResourceDefinition).UID
-}
-
-// ResourceVersion is a handler called to retrieve the resource version.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (crd *CRDHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
-	return resource.(*v1.CustomResourceDefinition).ResourceVersion
+func (crd *CRDHandlers) ResourceList(_ processors.ProcessorContext, list interface{}) []interface{} {
+	return common.RuntimeObjectList(list)
 }
 
 // GetMetadataTags returns the tags in the metadata model.
@@ -116,13 +67,4 @@ func (crd *CRDHandlers) ResourceVersion(ctx processors.ProcessorContext, resourc
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (crd *CRDHandlers) GetMetadataTags(ctx processors.ProcessorContext, resourceMetadataModel interface{}) []string {
 	return nil
-}
-
-// ScrubBeforeExtraction is a handler called to redact the raw resource before
-// it is extracted as an internal resource model.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (crd *CRDHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
-	r := resource.(*v1.CustomResourceDefinition)
-	redact.RemoveSensitiveAnnotationsAndLabels(r.Annotations, r.Labels)
 }
