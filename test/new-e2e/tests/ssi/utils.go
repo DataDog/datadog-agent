@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	kubeClient "k8s.io/client-go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
@@ -40,33 +41,62 @@ func GetPodsInNamespace(t *testing.T, client kubeClient.Interface, namespace str
 }
 
 func FindPodInNamespace(t *testing.T, client kubeClient.Interface, namespace string, appName string) *corev1.Pod {
-	pods := GetPodsInNamespace(t, client, namespace)
-	for _, pod := range pods {
+	t.Helper()
+	pod, err := findPodInNamespace(context.Background(), client, namespace, appName)
+	require.NoError(t, err)
+	return pod
+}
+
+func findPodInNamespace(ctx context.Context, client kubeClient.Interface, namespace, appName string) (*corev1.Pod, error) {
+	pods, err := client.CoreV1().Pods(namespace).List(ctx, v1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("fetch pods in namespace %s: %w", namespace, err)
+	}
+	for _, pod := range pods.Items {
 		if strings.Contains(pod.Name, appName) && pod.DeletionTimestamp == nil {
-			return &pod
+			return &pod, nil
 		}
 	}
-	require.NoError(t, fmt.Errorf("did not find pod with app name %s in namespace %s", appName, namespace))
-	return nil
+	return nil, fmt.Errorf("did not find pod with app name %s in namespace %s", appName, namespace)
 }
 
 // RestartPod deletes the pod backing appName so its Deployment recreates it, forcing a fresh pass
 // through the admission webhook. It blocks until a new running pod (different from the deleted one)
 // is observed.
 func RestartPod(t *testing.T, client kubeClient.Interface, namespace string, appName string) {
-	old := FindPodInNamespace(t, client, namespace, appName)
-	err := client.CoreV1().Pods(namespace).Delete(context.Background(), old.Name, v1.DeleteOptions{})
-	require.NoError(t, err, "failed to delete pod %s in namespace %s", old.Name, namespace)
+	t.Helper()
+	_, err := restartPod(context.Background(), client, namespace, appName)
+	require.NoError(t, err)
+}
 
-	require.Eventually(t, func() bool {
-		for _, pod := range GetPodsInNamespace(t, client, namespace) {
+func restartPod(ctx context.Context, client kubeClient.Interface, namespace, appName string) (*corev1.Pod, error) {
+	old, err := findPodInNamespace(ctx, client, namespace, appName)
+	if err != nil {
+		return nil, err
+	}
+	if err := client.CoreV1().Pods(namespace).Delete(ctx, old.Name, v1.DeleteOptions{}); err != nil {
+		return nil, fmt.Errorf("delete pod %s in namespace %s: %w", old.Name, namespace, err)
+	}
+
+	var restarted *corev1.Pod
+	err = wait.PollUntilContextTimeout(ctx, 5*time.Second, 4*time.Minute, true, func(ctx context.Context) (bool, error) {
+		pods, err := client.CoreV1().Pods(namespace).List(ctx, v1.ListOptions{})
+		if err != nil {
+			return false, fmt.Errorf("fetch pods in namespace %s: %w", namespace, err)
+		}
+		for _, pod := range pods.Items {
 			if strings.Contains(pod.Name, appName) && pod.Name != old.Name &&
 				pod.DeletionTimestamp == nil && pod.Status.Phase == corev1.PodRunning {
-				return true
+				restarted = &pod
+				return true, nil
 			}
 		}
-		return false
-	}, 4*time.Minute, 5*time.Second, "pod %s was not recreated in namespace %s", appName, namespace)
+		return false, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("pod %s was not recreated in namespace %s: %w", appName, namespace, err)
+	}
+	return restarted, nil
 }
 
 // WaitForAdmissionWebhookReady blocks until the Datadog mutating webhook configuration exists. The
@@ -123,13 +153,24 @@ func hasAPMInjectionAnnotation(pod *corev1.Pod) bool {
 // RestartUntil deletes and recreates the app pod until ready returns true.
 func RestartUntil(t *testing.T, client kubeClient.Interface, namespace, appName string, ready func(*corev1.Pod) bool) *corev1.Pod {
 	t.Helper()
-	var pod *corev1.Pod
-	require.Eventually(t, func() bool {
-		RestartPod(t, client, namespace, appName)
-		pod = FindPodInNamespace(t, client, namespace, appName)
-		return ready(pod)
-	}, 6*time.Minute, 5*time.Second, "pod %s in namespace %s did not reach the expected admission state", appName, namespace)
+	pod, err := restartUntil(context.Background(), client, namespace, appName, ready)
+	require.NoError(t, err, "pod %s in namespace %s did not reach the expected admission state", appName, namespace)
 	return pod
+}
+
+func restartUntil(ctx context.Context, client kubeClient.Interface, namespace, appName string, ready func(*corev1.Pod) bool) (*corev1.Pod, error) {
+	var pod *corev1.Pod
+	// Poll synchronously and return pod-operation errors to the test goroutine.
+	// Fatal assertions inside require.Eventually's callback can abandon the poll.
+	err := wait.PollUntilContextTimeout(ctx, 5*time.Second, 6*time.Minute, true, func(ctx context.Context) (bool, error) {
+		var err error
+		pod, err = restartPod(ctx, client, namespace, appName)
+		if err != nil {
+			return false, err
+		}
+		return ready(pod), nil
+	})
+	return pod, err
 }
 
 func containerEnv(pod *corev1.Pod, container, key string) (string, bool) {
