@@ -361,8 +361,8 @@ NEXT:
 			if n.MatchesProcessInfo(&n2.Process, false, false) {
 				newNode := *n
 				processID := utils.NewGraphID(utils.NewNodeIDFromPtr(&newNode))
-				newNode.Children = diffADSubtree(n.Children, n2.Children, states)
-				newNode.DNSNames = diffADDNSNodes(n.DNSNames, n2.DNSNames, states, processID)
+				newNode.Children = diffADSubtree(n2.Children, n.Children, states)
+				newNode.DNSNames = diffADDNSNodes(n2.DNSNames, n.DNSNames, states, processID)
 				nodes = append(nodes, &newNode)
 				continue NEXT
 			}

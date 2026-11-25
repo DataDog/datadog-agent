@@ -121,6 +121,48 @@ func TestComputeActivityDumpDiffUnattributedActivity(t *testing.T) {
 	})
 }
 
+func TestComputeActivityDumpDiffMatchedProcess(t *testing.T) {
+	newProcess := func(path string, children ...*activity_tree.ProcessNode) *activity_tree.ProcessNode {
+		pn := &activity_tree.ProcessNode{Children: children, DNSNames: make(map[string]*activity_tree.DNSNode)}
+		pn.Process.FileEvent.PathnameStr = path
+		return pn
+	}
+	removedChild := newProcess("/bin/removed")
+	addedChild := newProcess("/bin/added")
+	originRoot := newProcess("/bin/root", removedChild)
+	originRoot.DNSNames["removed.com"] = &activity_tree.DNSNode{}
+	targetRoot := newProcess("/bin/root", addedChild)
+	targetRoot.DNSNames["added.com"] = &activity_tree.DNSNode{}
+	origin := profile.New()
+	origin.ActivityTree = &activity_tree.ActivityTree{ProcessNodes: []*activity_tree.ProcessNode{originRoot}}
+	target := profile.New()
+	target.ActivityTree = &activity_tree.ActivityTree{ProcessNodes: []*activity_tree.ProcessNode{targetRoot}}
+	states := make(map[string]bool)
+
+	diff := computeActivityDumpDiff(origin, target, states)
+
+	require.Len(t, diff.ActivityTree.ProcessNodes, 1)
+	root := diff.ActivityTree.ProcessNodes[0]
+	assert.Len(t, root.Children, 2)
+	assert.Equal(t, addedADNode, addedChild.GenerationType)
+	assert.Equal(t, removedADNode, removedChild.GenerationType)
+	rootID := utils.NewGraphID(utils.NewNodeIDFromPtr(root))
+	for _, node := range []struct {
+		name  string
+		id    utils.GraphID
+		added bool
+	}{
+		{"added child", utils.NewGraphID(utils.NewNodeIDFromPtr(addedChild)), true},
+		{"removed child", utils.NewGraphID(utils.NewNodeIDFromPtr(removedChild)), false},
+		{"added domain", rootID.Derive(utils.NewNodeIDFromPtr(root.DNSNames["added.com"])), true},
+		{"removed domain", rootID.Derive(utils.NewNodeIDFromPtr(root.DNSNames["removed.com"])), false},
+	} {
+		state, found := states[node.id.String()]
+		assert.True(t, found, node.name)
+		assert.Equal(t, node.added, state, node.name)
+	}
+}
+
 func TestDumpActivityDumpCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
