@@ -490,6 +490,19 @@ variables:
 .if_pr_skip_e2e_tests: &if_pr_skip_e2e_tests
   if: $CI_COMMIT_BRANCH != "main" && $CI_COMMIT_BRANCH !~ /^[0-9]+\.[0-9]+\.x$/ && $CI_COMMIT_TAG == null && $CI_PIPELINE_SOURCE != "trigger" && $CI_PIPELINE_SOURCE != "pipeline" && $DEPLOY_AGENT != "true" && $DDR_WORKFLOW_ID == null && $RUN_ALL_BUILDS != "true" && $DISABLE_PRE_MERGE_TESTS_AGENT == "true" && $RUN_E2E_TESTS != "on"
 
+.kmt_test_definition_paths: &kmt_test_definition_paths
+  - test/new-e2e/system-probe/**/*
+  - test/new-e2e/scenarios/system-probe/**/*
+  - tasks/kmt.py
+  - tasks/kernel_matrix_testing/*
+
+.if_kmt_test_definition_paths: &if_kmt_test_definition_paths
+  if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
+  changes:
+    paths: *kmt_test_definition_paths
+    compare_to: $COMPARE_TO_BRANCH
+  when: on_success
+
 .if_pr_skip_kmt_tests: &if_pr_skip_kmt_tests
   if: $CI_COMMIT_BRANCH != "main" && $CI_COMMIT_BRANCH !~ /^[0-9]+\.[0-9]+\.x$/ && $CI_COMMIT_TAG == null && $CI_PIPELINE_SOURCE != "trigger" && $CI_PIPELINE_SOURCE != "pipeline" && $DEPLOY_AGENT != "true" && $DDR_WORKFLOW_ID == null && $RUN_ALL_BUILDS != "true" && $DISABLE_PRE_MERGE_TESTS_AGENT == "true" && $RUN_KMT_TESTS != "on"
 
@@ -975,6 +988,7 @@ workflow:
     allow_failure: true
   - !reference [.except_light_pipeline]
   - <<: *if_pre_merge_tests_paths
+  - <<: *if_kmt_test_definition_paths
   - <<: *if_pr_skip_kmt_tests
     when: manual
     allow_failure: true
@@ -1040,6 +1054,7 @@ workflow:
   - <<: *if_main_branch
   - !reference [.except_light_pipeline]
   - <<: *if_pre_merge_tests_paths
+  - <<: *if_kmt_test_definition_paths
   - <<: *if_pr_skip_kmt_tests
     when: manual
     allow_failure: true
@@ -1052,10 +1067,14 @@ workflow:
 
 # New E2E related rules
 
-.on_e2e_main_release_or_rc: # This rule is used as a base for all new-e2e rules
+# Pre-checks shared by all E2E rules: RUN_E2E_TESTS=off and light pipelines never run E2E jobs.
+.on_e2e_guard:
   - <<: *if_disable_e2e_tests
     when: never
   - !reference [.except_light_pipeline]
+
+.on_e2e_main_release_or_rc: # This rule is used as a base for all new-e2e rules
+  - !reference [.on_e2e_guard]
   - <<: *if_pre_merge_tests_paths
   - <<: *if_pr_skip_e2e_tests
     when: manual
@@ -1111,6 +1130,13 @@ workflow:
 
 # fakeintake changes (and the override) are handled by .on_e2e_main_release_or_rc.
 .on_e2e_or_fakeintake_changes_or_manual:
+  - !reference [.on_e2e_guard]
+  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
+    changes:
+      paths:
+        - test/new-e2e/tests/agent-devx/pre-test/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -1121,6 +1147,13 @@ workflow:
     allow_failure: true
 
 .on_npm_or_e2e_changes:
+  - !reference [.on_e2e_guard]
+  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
+    changes:
+      paths:
+        - test/new-e2e/tests/npm/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -1130,6 +1163,13 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
 
 .on_acfg_or_e2e_changes:
+  - !reference [.on_e2e_guard]
+  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
+    changes:
+      paths:
+        - test/new-e2e/tests/agent-configuration/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -1140,6 +1180,13 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
 
 .on_process_or_e2e_changes:
+  - !reference [.on_e2e_guard]
+  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
+    changes:
+      paths:
+        - test/new-e2e/tests/process/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -1154,6 +1201,13 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
 
 .on_alp_or_e2e_changes:
+  - !reference [.on_e2e_guard]
+  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
+    changes:
+      paths:
+        - test/new-e2e/tests/agent-log-pipelines/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -1167,12 +1221,27 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
 
 .on_cws_or_e2e_changes:
+  - !reference [.on_e2e_guard]
+  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
+    changes:
+      paths:
+        - test/new-e2e/tests/cws/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths: *security_agent_change_paths
       compare_to: $COMPARE_TO_BRANCH
 
 .on_installer_or_e2e_changes:
+  - !reference [.on_e2e_guard]
+  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
+    changes:
+      paths:
+        - test/new-e2e/tests/fleet/**/*
+        - test/new-e2e/tests/installer/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -1193,6 +1262,13 @@ workflow:
     when: on_success
 
 .on_netpath_or_e2e_changes:
+  - !reference [.on_e2e_guard]
+  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
+    changes:
+      paths:
+        - test/new-e2e/tests/netpath/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -1211,6 +1287,13 @@ workflow:
     when: on_success
 
 .on_otel_or_e2e_changes:
+  - !reference [.on_e2e_guard]
+  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
+    changes:
+      paths:
+        - test/new-e2e/tests/otel/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -1237,6 +1320,13 @@ workflow:
     when: on_success
 
 .on_windows_service_or_e2e_changes:
+  - !reference [.on_e2e_guard]
+  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
+    changes:
+      paths:
+        - test/new-e2e/tests/windows/service-test/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -1255,6 +1345,13 @@ workflow:
     when: on_success
 
 .on_windows_powershell_check_or_e2e_changes:
+  - !reference [.on_e2e_guard]
+  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
+    changes:
+      paths:
+        - test/new-e2e/tests/windows/powershell-check/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -1267,6 +1364,13 @@ workflow:
     when: on_success
 
 .on_windows_certificate_or_e2e_changes:
+  - !reference [.on_e2e_guard]
+  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
+    changes:
+      paths:
+        - test/new-e2e/tests/windows/windows-certificate/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -1276,6 +1380,13 @@ workflow:
     when: on_success
 
 .on_windows_fips_compliance_or_e2e_changes:
+  - !reference [.on_e2e_guard]
+  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
+    changes:
+      paths:
+        - test/new-e2e/tests/fips-compliance/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - <<: *on_build_changes
     when: on_success
@@ -1297,6 +1408,14 @@ workflow:
     allow_failure: true
 
 .on_systemprobe_or_e2e_changes:
+  - !reference [.on_e2e_guard]
+  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
+    changes:
+      paths:
+        - test/new-e2e/tests/sysprobe-functional/**/*
+        - test/new-e2e/tests/usm/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -1311,6 +1430,13 @@ workflow:
     when: on_success
 
 .on_windows_security_or_e2e_changes:
+  - !reference [.on_e2e_guard]
+  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
+    changes:
+      paths:
+        - test/new-e2e/tests/security-agent-functional/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
