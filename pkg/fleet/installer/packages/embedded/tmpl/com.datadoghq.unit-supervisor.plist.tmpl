@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+    <dict>
+        <key>Label</key>
+        <string>com.datadoghq.unit-supervisor</string>
+{{- /* The unit supervisor gives the configuration experiment's jobs the semantics of their Linux
+       units (unit_supervisor_darwin.go). It never starts at load: a reboot mid-experiment comes back
+       on the stable jobs only, as on Linux, where the experiment units are not enabled. A hook
+       kickstarts it. KeepAlive Crashed relaunches it after a crash, and unlike SuccessfulExit it
+       does not imply RunAtLoad. */}}
+        <key>RunAtLoad</key>
+        <false/>
+        <key>KeepAlive</key>
+        <dict>
+            <key>Crashed</key>
+            <true/>
+        </dict>
+        <key>EnvironmentVariables</key>
+        <dict>
+            <key>DD_LOG_TO_CONSOLE</key>
+            <string>false</string>
+        </dict>
+        <key>ProgramArguments</key>
+        <array>
+            <string>{{.ProgramDir}}/embedded/bin/installer</string>
+            <string>package-command</string>
+            <string>datadog-agent</string>
+            <string>superviseUnits</string>
+        </array>
+        <key>StandardOutPath</key>
+        <string>{{.LogDir}}/launchd_unit-supervisor.log</string>
+        <key>StandardErrorPath</key>
+        <string>{{.LogDir}}/launchd_unit-supervisor.log</string>
+        <key>ExitTimeOut</key>
+        <integer>10</integer>
+        <key>UserName</key>
+        <string>root</string>
+        <key>GroupName</key>
+        <string>admin</string>
+    </dict>
+</plist>

@@ -6,8 +6,9 @@
         <string>com.datadoghq.installer{{.LabelSuffix}}</string>
 {{- /* Only the stable daemon starts at load and is relaunched by launchd: a reboot
        mid-experiment brings back only the stable daemon, which reports the experiment for Fleet
-       to stop, and an experiment daemon that exits stays down, so the watcher reverts the
-       experiment. */}}
+       to stop. The experiment daemon is never relaunched: any exit of it, clean or not, fails the
+       experiment, and the unit supervisor starts the stable set again. It is replaced by the stable
+       daemon when the experiment ends. */}}
         <key>RunAtLoad</key>
         <{{if .Supervised}}true{{else}}false{{end}}/>
 {{- if .Supervised}}
@@ -28,21 +29,12 @@
        Agent's run directory, which belongs to the Agent's account. */}}
         <key>ProgramArguments</key>
         <array>
-{{- if .Stable}}
             <string>{{.ProgramDir}}/embedded/bin/installer</string>
             <string>run</string>
             <string>-c</string>
             <string>{{.EtcDir}}</string>
             <string>-p</string>
             <string>{{.StateDir}}/installer.pid</string>
-{{- else}}
-{{- /* The experiment daemon first launches the second watcher that supervises the experiment
-       (startSupervisorRelay), which returns at once and never fails the start, then becomes the
-       daemon: exec keeps the pid launchd tracks for the job. */}}
-            <string>/bin/sh</string>
-            <string>-c</string>
-            <string>'{{.ProgramDir}}/embedded/bin/installer' package-command datadog-agent startSupervisorRelay; exec '{{.ProgramDir}}/embedded/bin/installer' run -c '{{.EtcDir}}' -p '{{.StateDir}}/installer.pid'</string>
-{{- end}}
         </array>
         <key>StandardOutPath</key>
         <string>{{.LogDir}}/launchd_installer{{.LabelSuffix}}.log</string>

@@ -46,7 +46,10 @@ nocap_service_srcs = glob([
 
 # The launchd job definitions for macOS, read by GetLaunchdJob.
 # keep
-launchd_job_srcs = glob(["tmpl/gen/darwin/*.plist"])
+launchd_job_srcs = glob([
+    "tmpl/gen/darwin/*.plist",
+    "tmpl/gen/darwin-supervisor/*.plist",
+])
 
 go_library(
     name = "embedded",
@@ -70,6 +73,7 @@ go_library(
         "tmpl/com.datadoghq.installer.plist.tmpl",
         "tmpl/com.datadoghq.procmgr.plist.tmpl",
         "tmpl/com.datadoghq.sysprobe.plist.tmpl",
+        "tmpl/com.datadoghq.unit-supervisor.plist.tmpl",
         "tmpl/datadog-agent-par-control.yaml.tmpl",
         "tmpl/datadog-agent-par-control-windows.yaml.tmpl",
         "tmpl/datadog-agent-action-executor.yaml.tmpl",

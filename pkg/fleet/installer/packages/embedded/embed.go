@@ -46,6 +46,12 @@ var procmgrUnits embed.FS
 //go:embed tmpl/gen/darwin
 var launchdJobs embed.FS
 
+// launchdUnitSupervisorJob is the launchd job definition of the configuration experiment's unit
+// supervisor on macOS (see embedded/tmpl/main.go).
+//
+//go:embed tmpl/gen/darwin-supervisor/com.datadoghq.unit-supervisor.plist
+var launchdUnitSupervisorJob []byte
+
 // darwinProcmgrConfigs holds the macOS processes.d entries (see embedded/tmpl/main.go).
 //
 //go:embed tmpl/gen/darwin-pm/processes.d
@@ -183,6 +189,13 @@ func LaunchdJobs(variant LaunchdVariant) ([]string, error) {
 		labels = append(labels, strings.TrimSuffix(label, string(LaunchdExperiment)))
 	}
 	return labels, nil
+}
+
+// GetLaunchdUnitSupervisorJob returns the launchd job definition of the configuration
+// experiment's unit supervisor. It has no experiment variant, and LaunchdJobs does not list it: it
+// is not one of the jobs the Agent package installs.
+func GetLaunchdUnitSupervisorJob() []byte {
+	return launchdUnitSupervisorJob
 }
 
 // DarwinProcmgrProcesses returns the basenames of the macOS processes.d entries.

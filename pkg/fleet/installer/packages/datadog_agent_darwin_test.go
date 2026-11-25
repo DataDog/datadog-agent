@@ -403,8 +403,9 @@ func TestPreRemoveUnloadsTheStableSet(t *testing.T) {
 			bootedOut = append(bootedOut, args[1])
 		}
 	}
-	// The experiment set goes first, so no -exp job outlives the configuration it reads.
-	var expected []string
+	// The unit supervisor goes first, so it does not read the experiment jobs going away as a
+	// failure; then the experiment set, so no -exp job outlives the configuration it reads.
+	expected := []string{"system/" + unitSupervisorJob}
 	for _, label := range slices.Backward(configExperimentJobs) {
 		expected = append(expected, "system/"+label+"-exp")
 	}

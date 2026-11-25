@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+    <dict>
+        <key>Label</key>
+        <string>com.datadoghq.unit-supervisor</string>
+        <key>RunAtLoad</key>
+        <false/>
+        <key>KeepAlive</key>
+        <dict>
+            <key>Crashed</key>
+            <true/>
+        </dict>
+        <key>EnvironmentVariables</key>
+        <dict>
+            <key>DD_LOG_TO_CONSOLE</key>
+            <string>false</string>
+        </dict>
+        <key>ProgramArguments</key>
+        <array>
+            <string>/opt/datadog-agent/embedded/bin/installer</string>
+            <string>package-command</string>
+            <string>datadog-agent</string>
+            <string>superviseUnits</string>
+        </array>
+        <key>StandardOutPath</key>
+        <string>/opt/datadog-agent/logs/launchd_unit-supervisor.log</string>
+        <key>StandardErrorPath</key>
+        <string>/opt/datadog-agent/logs/launchd_unit-supervisor.log</string>
+        <key>ExitTimeOut</key>
+        <integer>10</integer>
+        <key>UserName</key>
+        <string>root</string>
+        <key>GroupName</key>
+        <string>admin</string>
+    </dict>
+</plist>

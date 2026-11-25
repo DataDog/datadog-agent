@@ -57,6 +57,11 @@ func generate(outputDir string) error {
 			return err
 		}
 	}
+	for _, lay := range launchdUnitSupervisorEmbeddedLayouts {
+		if err := lay.writeFilesToSubdir(outputDir); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -91,8 +96,8 @@ type launchdTemplateData struct {
 	// Stable reports whether this is the stable set, for the experiment-only environment.
 	Stable bool
 	// Supervised reports whether launchd starts the job at load and relaunches it on an
-	// unsuccessful exit. The -exp set is unsupervised, so an experiment that exits stays down
-	// and the installer reverts to the stable set instead of launchd respawning it.
+	// unsuccessful exit. The -exp set is unsupervised: launchd never starts or relaunches it, the
+	// configuration experiment's unit supervisor does.
 	Supervised bool
 	// ProgramDir is the install root the job's program is resolved under. Both sets name the
 	// same root: a configuration experiment does not change which binaries run.
@@ -399,4 +404,13 @@ func darwinProcmgrYAMLSet() map[string][]byte {
 // A sibling of darwin/, not a child: launchdJobs embeds darwin/ and expects only job definitions.
 var darwinProcmgrEmbeddedLayouts = []embeddedLayout{
 	{subdir: "darwin-pm/processes.d", units: darwinProcmgrYAMLSet()},
+}
+
+// launchdUnitSupervisorEmbeddedLayouts renders the configuration experiment's unit supervisor job.
+// It has no experiment variant and is not one of the Agent's jobs, so it is a sibling of darwin/:
+// every stable definition in darwin/ is loaded at install.
+var launchdUnitSupervisorEmbeddedLayouts = []embeddedLayout{
+	{subdir: "darwin-supervisor", units: map[string][]byte{
+		"com.datadoghq.unit-supervisor.plist": mustRenderLaunchdJob("com.datadoghq.unit-supervisor.plist", stableDataLaunchd),
+	}},
 }

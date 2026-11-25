@@ -224,21 +224,17 @@ func TestExitObserverDisarmIsIdempotent(t *testing.T) {
 	require.NoError(t, observer.Disarm())
 }
 
-// TestDeadlineMarkReverting pins what the hand-back to the stable set relies on: the marker
-// replaces the value every earlier reader holds, and counts as expired, so whoever finds it
-// reverts rather than resumes.
-func TestDeadlineMarkReverting(t *testing.T) {
+// TestDeadlineWriteRaw pins the raw writer the supervisor's state files use: the value comes back
+// exactly, and a following Write replaces it.
+func TestDeadlineWriteRaw(t *testing.T) {
 	d := testDeadline(t)
-	require.NoError(t, d.Write(time.Hour))
-	token, err := d.Read()
-	require.NoError(t, err)
-
-	require.NoError(t, d.MarkReverting())
+	require.NoError(t, d.WriteRaw("experiment 42"))
 	current, err := d.Read()
 	require.NoError(t, err)
-	assert.Equal(t, DeadlineReverting, current)
-	assert.NotEqual(t, token, current)
-	expired, err := d.Expired(time.Hour)
+	assert.Equal(t, "experiment 42", current)
+
+	require.NoError(t, d.Write(time.Hour))
+	current, err = d.Read()
 	require.NoError(t, err)
-	assert.True(t, expired)
+	assert.NotEqual(t, "experiment 42", current)
 }

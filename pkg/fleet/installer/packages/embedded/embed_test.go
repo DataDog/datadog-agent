@@ -286,6 +286,42 @@ func TestLaunchdInstallerJob(t *testing.T) {
 	}
 	require.NoError(t, xml.Unmarshal(content, &plist))
 	assert.Equal(t, []string{"/opt/datadog-agent/embedded/bin/installer", "run", "-c", "/opt/datadog-agent/etc", "-p", "/opt/datadog-packages/run/installer.pid"}, plist.Args)
+
+	// The experiment daemon runs the installer directly too, on the experiment configuration.
+	experiment, err := GetLaunchdJob("com.datadoghq.installer", LaunchdExperiment)
+	require.NoError(t, err)
+	plist.Args = nil
+	require.NoError(t, xml.Unmarshal(experiment, &plist))
+	assert.Equal(t, []string{"/opt/datadog-agent/embedded/bin/installer", "run", "-c", "/opt/datadog-agent/etc-exp", "-p", "/opt/datadog-packages/run/installer.pid"}, plist.Args)
+}
+
+// TestLaunchdUnitSupervisorJob pins the configuration experiment's unit supervisor job: it runs the
+// installer's superviseUnits package command as root, never starts at load, is relaunched by launchd
+// only after a crash, and is not one of the jobs the Agent package installs.
+func TestLaunchdUnitSupervisorJob(t *testing.T) {
+	content := GetLaunchdUnitSupervisorJob()
+	assertPropertyList(t, content)
+	definition := string(content)
+
+	assert.Contains(t, definition, "<string>com.datadoghq.unit-supervisor</string>")
+	assert.Regexp(t, `<key>RunAtLoad</key>\s*<false/>`, definition)
+	// SuccessfulExit would imply RunAtLoad, and start the supervisor at boot.
+	assert.Regexp(t, `<key>KeepAlive</key>\s*<dict>\s*<key>Crashed</key>\s*<true/>\s*</dict>`, definition)
+	assert.NotContains(t, definition, "SuccessfulExit")
+	assert.Regexp(t, `<key>UserName</key>\s*<string>root</string>`, definition)
+	assert.Regexp(t, `<key>StandardOutPath</key>\s*<string>/opt/datadog-agent/logs/launchd_unit-supervisor.log</string>`, definition)
+
+	var plist struct {
+		Args []string `xml:"dict>array>string"`
+	}
+	require.NoError(t, xml.Unmarshal(content, &plist))
+	assert.Equal(t, []string{"/opt/datadog-agent/embedded/bin/installer", "package-command", "datadog-agent", "superviseUnits"}, plist.Args)
+
+	for _, variant := range []LaunchdVariant{LaunchdStable, LaunchdExperiment} {
+		labels, err := LaunchdJobs(variant)
+		require.NoError(t, err)
+		assert.NotContains(t, labels, "com.datadoghq.unit-supervisor")
+	}
 }
 
 // assertPropertyList checks that content is a well-formed XML property list. The repository has no

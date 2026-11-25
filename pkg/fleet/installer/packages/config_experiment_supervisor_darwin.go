@@ -23,11 +23,11 @@ var stateWatchPoll = time.Second
 
 // watchExperimentState watches the directory that holds the experiment deadline
 // (configExperimentDeadlinePath), and delivers an event on the returned channel each time an entry
-// in it is added, removed or renamed. Writing the deadline renames a temporary file into place, and
-// clearing it removes it (launchd.Deadline), so every change to the deadline -- a stop or promote
-// marking it as reverting, then clearing it -- reaches the supervising watcher at once, rather than
-// on its next deadline tick. Events are coalesced: one pending event stands for any number of
-// changes, and the watcher re-reads the deadline anyway. The returned function ends the watch.
+// in it is added, removed or renamed. Writing the deadline, or the unit supervisor's target beside
+// it, renames a temporary file into place, and clearing one removes it (launchd.Deadline), so a hook
+// asking the supervisor for a new target reaches it at once, rather than on its next tick. Events
+// are coalesced: one pending event stands for any number of changes, and the supervisor re-reads its
+// target anyway. The returned function ends the watch.
 //
 // The directory is opened for event notification only (O_EVTONLY), so the watch does not keep its
 // volume busy.

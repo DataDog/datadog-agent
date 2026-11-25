@@ -22,11 +22,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Deadline is a wall-clock bound on an unsupervised experiment, persisted to disk so it survives
-// a restart of whichever process enforces it. It is the only coverage for an experiment that is
-// alive but hung: the ExitObserver sees exit, nothing else.
+// Deadline is a wall-clock bound on an experiment, persisted to disk so it survives a restart of
+// whichever process enforces it. It is the only coverage for an experiment that is alive but hung:
+// the ExitObserver sees exit, nothing else.
 //
-// The root watchers and the experiment hooks act on what this file says, so it is only trusted when
+// The root unit supervisor and the experiment hooks act on what this file says, so it is only trusted when
 // it and the directory holding it are owned by OwnerUID and writable by nobody else: a file another
 // account could have planted or replaced is refused rather than read.
 type Deadline struct {
@@ -117,31 +117,11 @@ func (d Deadline) Write(window time.Duration) error {
 	return d.write(time.Now().Add(window).Format(time.RFC3339Nano))
 }
 
-// DeadlineReverting is what MarkReverting persists in place of a deadline. It is never a value
-// Write persists, and Expired reports it as expired.
-const DeadlineReverting = "reverting"
-
-// MarkReverting replaces the deadline with DeadlineReverting: the experiment is being handed back
-// to the stable job set, and is to be reverted again by whoever finds the marker still there,
-// because the hand-back did not complete.
-//
-// Every process that read the deadline earlier sees it change, so a watcher stands down exactly as
-// it does when the file is cleared, while the file itself survives a failed or interrupted
-// hand-back for whatever ends the experiment next to finish.
-func (d Deadline) MarkReverting() error {
-	return d.write(DeadlineReverting)
-}
-
-// DeadlineFailed is what MarkFailed persists in place of a deadline. Like DeadlineReverting, it is
-// never a value Write persists, and Expired reports it as expired.
-const DeadlineFailed = "failed"
-
-// MarkFailed replaces the deadline with DeadlineFailed: the experiment failed on the host and its
-// jobs are back on the stable set, but its configuration is kept, still reported, for Fleet to
-// stop. Fleet's health check sees the running configuration fall back to the stable one and rolls
-// the experiment back with a stop, which clears the marker.
-func (d Deadline) MarkFailed() error {
-	return d.write(DeadlineFailed)
+// WriteRaw persists value in place of a deadline, with the same atomic write and ownership as
+// Write. It is for the other root-owned state files kept beside the deadline (the unit
+// supervisor's target and status), which share the deadline's trust rules.
+func (d Deadline) WriteRaw(value string) error {
+	return d.write(value)
 }
 
 func (d Deadline) write(deadline string) error {
