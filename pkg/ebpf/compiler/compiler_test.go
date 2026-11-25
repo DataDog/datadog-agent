@@ -1,0 +1,142 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux && bpf
+
+package compiler
+
+import (
+	"bytes"
+	"os"
+	"path/filepath"
+	"syscall"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// tool is a compilation step that system-probe runs as root, along with the
+// path variable it executes.
+type tool struct {
+	name    string
+	binPath *string
+	run     func() error
+}
+
+var tools = []tool{
+	{name: "clang", binPath: &clangBinPath, run: func() error { return clang(nil) }},
+	{name: "llc", binPath: &llcBinPath, run: func() error { return llc(&bytes.Buffer{}, os.DevNull) }},
+}
+
+func setBinPath(t *testing.T, binPath *string, path string) {
+	original := *binPath
+	t.Cleanup(func() { *binPath = original })
+	*binPath = path
+}
+
+// copyExecutable copies an existing executable into a fresh temporary directory
+// with the given mode, so its ownership is that of the test user.
+func copyExecutable(t *testing.T, src string, mode os.FileMode) string {
+	data, err := os.ReadFile(src)
+	require.NoError(t, err)
+	dst := filepath.Join(t.TempDir(), filepath.Base(src))
+	require.NoError(t, os.WriteFile(dst, data, mode))
+	// WriteFile applies the umask; set the exact mode under test.
+	require.NoError(t, os.Chmod(dst, mode))
+	return dst
+}
+
+func TestRefusesUntrustedBinary(t *testing.T) {
+	tests := []struct {
+		name string
+		// skipAsRoot is set for cases that rely on the test user not being root.
+		skipAsRoot bool
+		binPath    func(t *testing.T) string
+		wantErr    string
+	}{
+		{
+			// Group/other-writable is rejected regardless of which user runs the test.
+			name:    "group/other writable",
+			binPath: func(t *testing.T) string { return copyExecutable(t, "/bin/true", 0777) },
+			wantErr: "incorrect permissions",
+		},
+		{
+			// A group that can write could swap the binary, whichever group it is.
+			name:    "group writable",
+			binPath: func(t *testing.T) string { return copyExecutable(t, "/bin/true", 0775) },
+			wantErr: "incorrect permissions",
+		},
+		{
+			name:       "not owned by root",
+			skipAsRoot: true,
+			binPath:    func(t *testing.T) string { return copyExecutable(t, "/bin/true", 0755) },
+			wantErr:    "incorrect permissions",
+		},
+		{
+			name: "symlink",
+			binPath: func(t *testing.T) string {
+				link := filepath.Join(t.TempDir(), "bin")
+				require.NoError(t, os.Symlink("/bin/true", link))
+				return link
+			},
+			wantErr: "error opening",
+		},
+		{
+			// Opening a FIFO without a writer would block forever without O_NONBLOCK.
+			name: "fifo",
+			binPath: func(t *testing.T) string {
+				fifo := filepath.Join(t.TempDir(), "bin")
+				require.NoError(t, syscall.Mkfifo(fifo, 0755))
+				return fifo
+			},
+			wantErr: "incorrect permissions",
+		},
+	}
+
+	for _, tl := range tools {
+		for _, tt := range tests {
+			t.Run(tl.name+"/"+tt.name, func(t *testing.T) {
+				if tt.skipAsRoot && os.Geteuid() == 0 {
+					t.Skip("files created by root are root-owned")
+				}
+				setBinPath(t, tl.binPath, tt.binPath(t))
+
+				err := tl.run()
+				require.Error(t, err)
+				assert.ErrorContains(t, err, "refusing to execute "+tl.name)
+				assert.ErrorContains(t, err, tt.wantErr)
+			})
+		}
+	}
+}
+
+func TestClangExecutesVerifiedBinary(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("requires root to create a root-owned binary")
+	}
+	bin := copyExecutable(t, "/bin/echo", 0755)
+	// The owning group does not matter when it cannot write: CI and KMT hosts
+	// provision clang-bpf as root with a non-root group.
+	require.NoError(t, os.Chown(bin, 0, 1000))
+	setBinPath(t, &clangBinPath, bin)
+
+	out := &bytes.Buffer{}
+	require.NoError(t, clang([]string{"hello"}, WithStdout(out)))
+	assert.Equal(t, "hello\n", out.String())
+}
+
+func TestLLCExecutesVerifiedBinary(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("requires root to create a root-owned binary")
+	}
+	// llc discards stdout, so a root-owned /bin/true succeeding shows the
+	// verified descriptor was executed.
+	bin := copyExecutable(t, "/bin/true", 0755)
+	require.NoError(t, os.Chown(bin, 0, 1000))
+	setBinPath(t, &llcBinPath, bin)
+
+	require.NoError(t, llc(&bytes.Buffer{}, os.DevNull))
+}
