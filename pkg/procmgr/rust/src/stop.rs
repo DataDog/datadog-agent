@@ -23,8 +23,9 @@ use std::time::{Duration, Instant};
 
 use log::{debug, error};
 
-/// Set by the early SIGTERM and SIGINT handler, which tokio's handler chains to. Never cleared,
-/// so it outlives any one `ProcessManager` run.
+/// Set by the early SIGTERM and SIGINT handler, which tokio's handler chains to (on Unix), and by
+/// the Windows service stop and console control handlers. Never cleared, so it outlives any one
+/// `ProcessManager` run.
 static STOP: AtomicBool = AtomicBool::new(false);
 
 /// The stop signal number that set `STOP`, or 0. Stored before `STOP` is set.

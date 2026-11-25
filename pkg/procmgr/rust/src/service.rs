@@ -28,6 +28,7 @@ use log::{error, info, warn};
 use windows_sys::Win32::Foundation::{
     ERROR_FAILED_SERVICE_CONTROLLER_CONNECT, ERROR_SERVICE_SPECIFIC_ERROR, GetLastError, NO_ERROR,
 };
+use windows_sys::Win32::System::Console::{CTRL_C_EVENT, SetConsoleCtrlHandler};
 use windows_sys::Win32::System::Services::{
     RegisterServiceCtrlHandlerExW, SERVICE_ACCEPT_PRESHUTDOWN, SERVICE_ACCEPT_SHUTDOWN,
     SERVICE_ACCEPT_STOP, SERVICE_CONTROL_INTERROGATE, SERVICE_CONTROL_PRESHUTDOWN,
@@ -245,6 +246,19 @@ pub fn run_as_service() -> Result<i32> {
     bail!("StartServiceCtrlDispatcherW failed: error {err}");
 }
 
+/// Console control callback for console mode. Like [`ctrl_handler`], it runs on an OS thread, so
+/// a Ctrl+C reaches the stop flag even while a filesystem call blocks the runtime. Only Ctrl+C is
+/// taken.
+unsafe extern "system" fn console_ctrl_handler(ctrl_type: u32) -> i32 {
+    if ctrl_type == CTRL_C_EVENT {
+        crate::stop::request_stop();
+        platform::shutdown_notify().notify_one();
+        1
+    } else {
+        0
+    }
+}
+
 /// Fallback console mode: runs the process manager directly without SCM,
 /// useful for interactive debugging.
 fn run_console_fallback() -> Result<i32> {
@@ -256,6 +270,13 @@ fn run_console_fallback() -> Result<i32> {
     .context("failed to initialize logging")?;
 
     info!("dd-procmgrd starting (console mode)");
+
+    // Before the runtime and the catalog load, so an early Ctrl+C is kept.
+    if unsafe { SetConsoleCtrlHandler(Some(console_ctrl_handler), 1) } == 0 {
+        warn!("SetConsoleCtrlHandler failed: {}", unsafe {
+            GetLastError()
+        });
+    }
 
     let runtime = tokio::runtime::Runtime::new().context("failed to create tokio runtime")?;
     runtime.block_on(async {

@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use log::warn;
+use std::path::Path;
 use std::ptr;
 use windows_sys::Win32::Foundation::{
     CloseHandle, DUPLICATE_SAME_ACCESS, DuplicateHandle, HANDLE, HANDLE_FLAG_INHERIT,
@@ -27,6 +28,9 @@ use super::logon::{logon_user_credentials, logon_user_token, with_impersonated_t
 ///
 /// On Windows, children inherit stdio via HANDLEs, not file descriptors. We impersonate the
 /// spawn account when opening log paths so ACLs match that user. Falls back to inherit or NUL.
+///
+/// A log path is opened under `stop::bounded`. When that open does not finish, the spawn fails
+/// instead of falling back to inherit. Any other open failure still falls back.
 pub(super) fn map_stdio_setting(
     process_name: &str,
     setting: &StdioSetting,
@@ -38,7 +42,7 @@ pub(super) fn map_stdio_setting(
         StdioSetting::Inherit => map_stdio_inherit(kind),
         StdioSetting::File(path) => {
             let path = path.to_string_lossy();
-            match open_stdio_file_as_account(process_name, path.as_ref(), credential) {
+            match open_stdio_file_bounded(process_name, path.as_ref(), credential)? {
                 Ok(handle) => Ok(handle),
                 Err(e) => {
                     warn!(
@@ -98,6 +102,36 @@ impl Drop for MappedStdioHandle {
             }
         }
     }
+}
+
+/// The outcome of an open on the helper thread, handed back to the caller.
+///
+/// A `HANDLE` is a raw pointer, so not `Send` on its own. A kernel handle is valid on any thread,
+/// and dropping this on the helper thread closes it if the caller gave up.
+struct OpenOutcome(Result<MappedStdioHandle>);
+
+// SAFETY: see the type's documentation. The handle is owned by the outcome alone.
+unsafe impl Send for OpenOutcome {}
+
+/// Runs [`open_stdio_file_as_account`] under `stop::bounded`. The outer error means the open did
+/// not finish. Impersonation is per thread, so it happens inside the call.
+fn open_stdio_file_bounded(
+    process_name: &str,
+    path: &str,
+    credential: &SpawnCredential,
+) -> Result<Result<MappedStdioHandle>> {
+    let process = process_name.to_owned();
+    let owned_path = path.to_owned();
+    let credential = credential.clone();
+    let outcome = crate::stop::bounded(Path::new(path), move || {
+        OpenOutcome(open_stdio_file_as_account(
+            &process,
+            &owned_path,
+            &credential,
+        ))
+    })
+    .with_context(|| format!("[{process_name}] opening stdio file {path} did not finish"))?;
+    Ok(outcome.0)
 }
 
 fn open_stdio_file_as_account(

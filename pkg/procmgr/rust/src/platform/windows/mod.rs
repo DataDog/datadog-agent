@@ -59,17 +59,14 @@ pub fn start_reaper() -> Reaper {
     Reaper
 }
 
+/// Resolves on a stop request: an SCM stop, or Ctrl+C in console mode.
+///
+/// Both arrive through [`shutdown_notify`], from native handlers that also raise the stop flag
+/// (`service::ctrl_handler`, `service::console_ctrl_handler`). tokio's `ctrl_c` is not used: it
+/// raises the flag only once polled, which a blocked filesystem call prevents.
 pub async fn shutdown_signal() {
-    tokio::select! {
-        result = tokio::signal::ctrl_c() => {
-            result.expect("failed to register Ctrl+C handler");
-            crate::stop::request_stop();
-            log::info!("received Ctrl+C");
-        }
-        _ = shutdown_notify().notified() => {
-            log::info!("received service stop request");
-        }
-    }
+    shutdown_notify().notified().await;
+    log::info!("received stop request");
 }
 
 pub(crate) fn open_datadog_agent_key() -> Option<windows_registry::Key> {
