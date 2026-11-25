@@ -3,14 +3,19 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # gazelle:resolve go github.com/DataDog/libdd-rc/ffi-hosts/go/rcx509 @libdd_rc_source//:rcx509
 # gazelle:resolve go github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/magic_tunnel/remote_config @libdd_rc_source//:remote_config_go_proto
+# gazelle:resolve go github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/magic_tunnel/agent_integrations/remote_queries @libdd_rc_source//:remote_queries_go_proto
 
 go_library(
     name = "impl",
     srcs = [
+        "connection_report.go",
         "debug_ping.go",
+        "execute_wiring.go",
         "factory.go",
         "factory_testbuild.go",
         "rcx509client.go",
+        "remote_queries.go",
+        "tunnel_metadata.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/remote-config/rcx509client/impl",
     target_compatible_with = select({
@@ -21,15 +26,20 @@ go_library(
     }),
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/collector/collector/def",
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/def",
+        "//comp/metadata/inventorychecks/def",
         "//comp/remote-config/rcx509client/def",
+        "//pkg/collector/check",
+        "//pkg/collector/remotequeries",
         "//pkg/config/remote/api",
         "//pkg/config/utils",
         "//pkg/version",
         "@libdd_rc_source//:rcx509",
         "@libdd_rc_source//:remote_config_go_proto",
+        "@libdd_rc_source//:remote_queries_go_proto",
         "@org_golang_google_protobuf//proto",
         "@org_golang_google_protobuf//types/known/timestamppb",
     ],
@@ -37,7 +47,13 @@ go_library(
 
 dd_agent_go_test(
     name = "impl_test",
-    srcs = ["rcx509client_test.go"],
+    srcs = [
+        "connection_report_test.go",
+        "execute_wiring_test.go",
+        "rcx509client_test.go",
+        "remote_queries_test.go",
+        "tunnel_metadata_test.go",
+    ],
     embed = [":impl"],
     target_compatible_with = select({
         "@rules_go//go/platform:darwin": [],
@@ -46,13 +62,20 @@ dd_agent_go_test(
         "//conditions:default": ["@platforms//:incompatible"],
     }),
     deps = [
+        "//comp/collector/collector/def",
         "//comp/core/config",
         "//comp/core/log/mock",
         "//comp/def",
+        "//comp/metadata/inventorychecks/def",
         "//comp/remote-config/rcx509client/def",
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+        "//pkg/collector/check/stub",
+        "//pkg/collector/remotequeries",
         "//pkg/version",
         "@com_github_stretchr_testify//require",
         "@libdd_rc_source//:remote_config_go_proto",
+        "@libdd_rc_source//:remote_queries_go_proto",
         "@org_golang_google_protobuf//proto",
     ],
 )

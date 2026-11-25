@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "fx",
@@ -31,4 +32,57 @@ go_library(
         ],
         "//conditions:default": [],
     }),  # keep
+)
+
+dd_agent_go_test(
+    name = "fx_test",
+    srcs = ["fx_test.go"],
+    embed = [":fx"],
+    gotags_sets = [["rc_x509"]],
+    include_default = False,
+    target_compatible_with = select({
+        "//packages/agent:linux_arm64_fips": ["@platforms//:incompatible"],
+        "//packages/agent:linux_x86_64_fips": ["@platforms//:incompatible"],
+        "//packages/agent:windows_x86_64_fips": ["@platforms//:incompatible"],
+        "@rules_go//go/platform:darwin": [],
+        "@rules_go//go/platform:linux": [],
+        "@rules_go//go/platform:windows": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = select({
+        "@rules_go//go/platform:darwin": [
+            "//comp/collector/collector/def",
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/core/log/mock",
+            "//comp/remote-config/rcx509client/def",
+            "//pkg/collector/check",
+            "//pkg/util/fxutil",
+            "@com_github_stretchr_testify//require",
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/collector/collector/def",
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/core/log/mock",
+            "//comp/remote-config/rcx509client/def",
+            "//pkg/collector/check",
+            "//pkg/util/fxutil",
+            "@com_github_stretchr_testify//require",
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//comp/collector/collector/def",
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/core/log/mock",
+            "//comp/remote-config/rcx509client/def",
+            "//pkg/collector/check",
+            "//pkg/util/fxutil",
+            "@com_github_stretchr_testify//require",
+            "@org_uber_go_fx//:fx",
+        ],
+        "//conditions:default": [],
+    }),
 )

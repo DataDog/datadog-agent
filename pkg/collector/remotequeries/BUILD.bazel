@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "request.go",
         "service.go",
+        "tunnel.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/remotequeries",
     visibility = ["//visibility:public"],
@@ -21,6 +22,7 @@ dd_agent_go_test(
     srcs = [
         "request_test.go",
         "service_test.go",
+        "tunnel_test.go",
     ],
     embed = [":remotequeries"],
     deps = [

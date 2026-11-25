@@ -23,10 +23,11 @@ import (
 )
 
 const (
-	enabledSetting          = "remote_configuration.x509.enabled"
-	debugPingEnabledSetting = "remote_configuration.x509.debug_ping_enabled"
-	websocketPath           = "api/v2/ws"
-	appName                 = "core-agent"
+	enabledSetting            = "remote_configuration.x509.enabled"
+	debugPingEnabledSetting   = "remote_configuration.x509.debug_ping_enabled"
+	reportConnectionIDSetting = "remote_configuration.x509.report_connection_id"
+	websocketPath             = "api/v2/ws"
+	appName                   = "core-agent"
 )
 
 // Dependencies defines the dependencies for the x509 client component.
@@ -37,6 +38,10 @@ type Dependencies struct {
 	Config    cfgcomp.Component
 	Logger    log.Component
 	Factory   rcx509client.ClientFactory `optional:"true"`
+	// ExecuteHandler is provided only when remote_queries.tunnel.execute_enabled
+	// is on and its preconditions hold (see NewExecuteHandler). It is nil by
+	// default, so the Execute URI stays unregistered.
+	ExecuteHandler rcx509client.ExecuteHandler `optional:"true"`
 }
 
 // Provides defines the output of the x509 client component.
@@ -75,6 +80,7 @@ func New(deps Dependencies) Provides {
 		deps.Logger.Errorf("remote config x509 client configuration failed: %v", err)
 		return Provides{Comp: comp}
 	}
+	clientConfig.ExecuteHandler = deps.ExecuteHandler
 
 	client, err := deps.Factory(clientConfig)
 	if err != nil {
@@ -132,12 +138,13 @@ func buildClientConfig(cfg cfgcomp.Component) (rcx509client.ClientConfig, error)
 	}
 
 	return rcx509client.ClientConfig{
-		URL:              websocketURL.String(),
-		AppName:          appName,
-		Version:          version.AgentVersion,
-		APIKey:           apiKey,
-		HTTPClient:       &http.Client{Transport: transport},
-		DebugPingEnabled: cfg.GetBool(debugPingEnabledSetting),
+		URL:                websocketURL.String(),
+		AppName:            appName,
+		Version:            version.AgentVersion,
+		APIKey:             apiKey,
+		HTTPClient:         &http.Client{Transport: transport},
+		DebugPingEnabled:   cfg.GetBool(debugPingEnabledSetting),
+		ReportConnectionID: cfg.GetBool(reportConnectionIDSetting),
 	}, nil
 }
 

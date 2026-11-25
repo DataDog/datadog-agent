@@ -160,4 +160,14 @@ properties:
         default: false
         description: |-
           Register the x509 DebugService/Ping handler for manual staging validation. Do not enable in production.
+      report_connection_id:
+        node_type: setting
+        type: boolean
+        default: false
+        description: |-
+          Set to true, together with remote_configuration.x509.enabled, to log the current x509 Remote Configuration
+          connection ID in the Agent log when each connection handshake completes and every 5 minutes. Experimental,
+          for staging validation. It is not needed to register the Remote Queries Execute handler, which captures
+          the connection ID on its own. Enabling it installs a process-wide log sink in the x509 client library and sets
+          RC_LOG when unset.
 comment: Delegated authentication for remote_configuration

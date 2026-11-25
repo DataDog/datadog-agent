@@ -1,0 +1,9 @@
+---
+other:
+  - |
+    Add the experimental, disabled-by-default setting
+    ``remote_configuration.x509.report_connection_id``. When it is enabled
+    together with ``remote_configuration.x509.enabled``, the Agent logs the
+    current x509 Remote Configuration connection ID at the INFO level when each
+    connection handshake completes and every 5 minutes. It also sets ``RC_LOG``
+    when that variable is unset.

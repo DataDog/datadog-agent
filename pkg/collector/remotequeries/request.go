@@ -45,8 +45,11 @@ type Limits struct {
 
 // Delivery is the remote action's upload session contract. The destination and
 // credentials are owned by the Agent, never supplied by the remote caller.
+// CrawlID is always set for the Private Action Runner path, whose parser
+// requires it. The tunnel path has no crawl: it omits the field and never
+// substitutes another ID for it.
 type Delivery struct {
-	CrawlID  string `json:"crawlId"`
+	CrawlID  string `json:"crawlId,omitempty"`
 	TaskID   string `json:"taskId"`
 	UploadID string `json:"uploadId"`
 	Limits   Limits `json:"limits"`
