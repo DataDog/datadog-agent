@@ -1886,8 +1886,7 @@ func (s *configMacOSSuite) TestStopEdgeCasesMacOS() {
 		s.startConfigExperimentRC(deploymentID, logLevelPatch("debug"), nil)
 		s.requireInstallerDaemon(installerDaemonExperimentLabel, installerDaemonLabel)
 		s.requireSingleSupervisor()
-		// The experiment daemon has just been swapped in: wait until it serves Remote Config, so the
-		// stop below is not pushed while it is still starting and never executed.
+		// The experiment daemon has just been swapped in; wait for its own report before pushing.
 		require.True(s.T(), s.waitForPackageState(func(pkg backend.RemoteConfigStatePackage) bool {
 			return pkg.ExperimentConfigVersion == deploymentID && pkg.RunningConfigVersion == deploymentID
 		}, 60*time.Second), "the experiment daemon should report the experiment as running")
@@ -1895,14 +1894,14 @@ func (s *configMacOSSuite) TestStopEdgeCasesMacOS() {
 		// Kill the experiment daemon and its stop command as soon as the stop asks the unit
 		// supervisor for the stable jobs, from a background shell on the host, so the kill lands
 		// inside the stop, while the supervisor restores the Agent jobs. The shell gives up without
-		// killing anything after 90 s: a kill that fires later would hit whatever runs then.
+		// killing anything after 120 s: a kill that fires later would hit whatever runs then.
 		_, err := s.Env().RemoteHost.Execute(`sudo sh -c 'nohup sh -c "` +
-			`end=\$((\$(date +%s) + 90)); hit=0; ` +
+			`end=\$((\$(date +%s) + 120)); hit=0; ` +
 			`while [ \$(date +%s) -lt \$end ]; do grep -q ^stable ` + unitsTargetPath + ` 2>/dev/null && hit=1 && break; sleep 0.01; done; ` +
 			`[ \$hit = 1 ] && pkill -9 -f \"installer remove-config-experiment\"; [ \$hit = 1 ] && launchctl kill SIGKILL system/` + installerDaemonExperimentLabel +
 			`" >/dev/null 2>&1 &'`)
 		require.NoError(s.T(), err)
-		s.pushTask("stop_experiment_config", s.currentExpectedState(), nil)
+		s.pushStopUntilRequested()
 
 		require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 			for label, loaded := range s.launchdLabelsLoaded(experimentLabels()...) {
@@ -1926,6 +1925,31 @@ func (s *configMacOSSuite) TestStopEdgeCasesMacOS() {
 		require.False(s.T(), s.pathExists(experimentDeadlinePath), "the stop should leave no deadline")
 		require.Equal(s.T(), agentPID, s.jobPID("com.datadoghq.agent"), "the stop must not restart the stable Agent")
 	})
+}
+
+// pushStopUntilRequested pushes a stop and waits for its hook to ask the unit supervisor for the
+// stable jobs, re-pushing under a fresh id if it does not, as pushTaskUntil does. A restarted daemon
+// subscribes to UPDATER_TASK only once its first catalog is applied (pkg/fleet/daemon/remote_config.go),
+// and a task already in the Remote Config version it first fetched is not delivered until the next
+// one: the experiment daemon, just swapped in, misses a stop pushed then. pushTaskUntil cannot be
+// used, since the stop it waits for is killed before the daemon reports anything.
+func (s *configMacOSSuite) pushStopUntilRequested() {
+	const attempts, perTry = 3, 25 * time.Second
+	for attempt := 1; attempt <= attempts; attempt++ {
+		s.pushTask("stop_experiment_config", s.currentExpectedState(), nil)
+		requested := func() bool {
+			out, err := s.Env().RemoteHost.Execute("sudo cat " + unitsTargetPath + " 2>/dev/null || true")
+			return err == nil && strings.HasPrefix(strings.TrimSpace(out), "stable ")
+		}
+		for end := time.Now().Add(perTry); time.Now().Before(end); time.Sleep(time.Second) {
+			if requested() {
+				return
+			}
+		}
+		s.T().Logf("stop_experiment_config: the daemon did not run the stop within %s (attempt %d/%d); pushing it again under a new id",
+			perTry, attempt, attempts)
+	}
+	require.FailNow(s.T(), "stop_experiment_config: the daemon never ran the stop")
 }
 
 // unitsTargetPath is the unit supervisor's target file, which a hook writes to ask for a change.
