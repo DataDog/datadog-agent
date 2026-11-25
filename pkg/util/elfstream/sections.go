@@ -9,6 +9,7 @@ package elfstream
 
 import (
 	"debug/elf" //nolint:depguard // ELF encoding structs are not exposed by safeelf.
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -127,6 +128,53 @@ func (s *ELFStream) omitUnselectedSections(selected []bool) {
 	}
 }
 
+// applySections adds or replaces sections with supplied bytes, such as Go tables
+// extracted from a larger section.
+func (s *ELFStream) applySections(supplied []StreamSection) error {
+	for _, section := range supplied {
+		if section.Name == "" || strings.ContainsRune(section.Name, 0) {
+			return errors.New("invalid additional section name")
+		}
+		replacement := outputSection{
+			name:     section.Name,
+			ownBytes: section.Data,
+			header: elf.Section64{
+				Type:      uint32(elf.SHT_PROGBITS),
+				Addr:      section.Address,
+				Size:      uint64(len(section.Data)),
+				Addralign: 8,
+			},
+		}
+		existing := s.sectionIndex(section.Name)
+		if existing == -1 {
+			s.sections = append(s.sections, replacement)
+			continue
+		}
+		// Replaces the input section of that name, such as a Go binary's own
+		// .gopclntab, at the same index. Symbol, string and name tables can't be
+		// replaced: the plan still patches and appends into them.
+		if existing == int(s.elfHeader.Shstrndx) || isSymbolOrStringTable(s.sections[existing].typ()) {
+			return fmt.Errorf("cannot replace section %q", section.Name)
+		}
+		s.sections[existing] = replacement
+		s.omitRelocationsOf(existing)
+	}
+	return nil
+}
+
+// omitRelocationsOf omits kept relocations of section index, which describe the
+// input bytes, not the supplied ones. This is an edge case: it only happens when
+// a caller replaces a section that is also kept, such as a debug section. The
+// uploader only replaces .gopclntab, whose relocations are never kept.
+func (s *ELFStream) omitRelocationsOf(targetIndex int) {
+	for i := 1; i < len(s.sections); i++ {
+		sec := &s.sections[i]
+		if isRelocation(sec.typ()) && int(sec.header.Info) == targetIndex {
+			sec.omit()
+		}
+	}
+}
+
 // omit turns sec into NOBITS: its header stays, with no bytes in the output.
 func (sec *outputSection) omit() {
 	sec.header.Type = uint32(elf.SHT_NOBITS)
@@ -140,6 +188,10 @@ func isRelocation(typ elf.SectionType) bool {
 
 func isSymbolTable(typ elf.SectionType) bool {
 	return typ == elf.SHT_SYMTAB || typ == elf.SHT_DYNSYM
+}
+
+func isSymbolOrStringTable(typ elf.SectionType) bool {
+	return typ == elf.SHT_SYMTAB || typ == elf.SHT_DYNSYM || typ == elf.SHT_STRTAB
 }
 
 func isDebugSection(name string) bool {

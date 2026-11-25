@@ -46,10 +46,18 @@ const (
 	maxSectionNames = 16 << 20
 )
 
+// StreamSection supplies an already-extracted section, without copying its data.
+type StreamSection struct {
+	Name    string
+	Address uint64
+	Data    []byte
+}
+
 // StreamOptions selects extra content. Debug sections, notes and static symbol
 // tables are always retained; GNU version payloads are always omitted.
 type StreamOptions struct {
-	KeepSections []string // Extra input sections to retain, by name.
+	KeepSections []string        // Extra input sections to retain, by name.
+	Sections     []StreamSection // Sections to add or replace.
 }
 
 // outputSection describes the bytes to emit for one section, not a copy of them:
@@ -59,15 +67,15 @@ type outputSection struct {
 	name        string
 	inputOffset uint64 // Start of the input range to copy.
 	inputSize   uint64 // Length of the input range; 0 copies nothing.
-	ownBytes    []byte // The rebuilt name table.
+	ownBytes    []byte // Supplied section bytes, or the rebuilt name table.
 }
 
 func (sec *outputSection) typ() elf.SectionType { return elf.SectionType(sec.header.Type) }
 
-// ELFStream writes a debug ELF in one forward pass. Keep its input unchanged
-// until writing is done. Code and data bytes are omitted unless selected;
-// retained section bytes, including existing compressed sections, are copied
-// unchanged.
+// ELFStream writes a debug ELF in one forward pass. Keep its input, and any
+// supplied StreamSection.Data, unchanged until writing is done. Code and data
+// bytes are omitted unless selected; retained section bytes, including existing
+// compressed sections, are copied unchanged.
 type ELFStream struct {
 	input             io.ReaderAt
 	inputSectionNames []byte // Input section-name table; the output appends to a copy.
@@ -88,6 +96,9 @@ func NewELFStream(ctx context.Context, input io.ReaderAt, inputSize int64, opts 
 	if err := s.selectSections(opts.KeepSections); err != nil {
 		return nil, err
 	}
+	if err := s.applySections(opts.Sections); err != nil {
+		return nil, err
+	}
 	if err := s.checkRetainedSections(inputSize); err != nil {
 		return nil, err
 	}
@@ -103,6 +114,15 @@ func NewELFStream(ctx context.Context, input io.ReaderAt, inputSize int64, opts 
 		return nil, err
 	}
 	return s, nil
+}
+
+func (s *ELFStream) sectionIndex(name string) int {
+	for i := range s.sections {
+		if s.sections[i].name == name {
+			return i
+		}
+	}
+	return -1
 }
 
 // Size is the exact number of ELF bytes Write will emit.

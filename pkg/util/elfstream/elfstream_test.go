@@ -158,6 +158,7 @@ func TestELFStreamMetadataPhase(t *testing.T) {
 	// Later selection and layout use loaded metadata, not another input read.
 	r.size, r.maxRead = 0, 0
 	require.NoError(t, s.selectSections(nil))
+	require.NoError(t, s.applySections(nil))
 	require.NoError(t, s.checkRetainedSections(int64(len(input))))
 	require.NoError(t, s.planProgramHeaders())
 	require.NoError(t, s.planLayout())
@@ -476,9 +477,10 @@ func TestELFStreamDebugRelocations(t *testing.T) {
 }
 
 // A retained relocation section keeps its symbol table; one whose target is
-// omitted is omitted itself, without following its links.
+// omitted or replaced is omitted itself, without following its links.
 func TestELFStreamRelocationLinks(t *testing.T) {
 	t.Parallel()
+	replaced := StreamOptions{Sections: []StreamSection{{Name: ".debug_info", Data: []byte("replacement")}}}
 	for name, tc := range map[string]struct {
 		link, target uint32
 		opts         StreamOptions
@@ -490,6 +492,7 @@ func TestELFStreamRelocationLinks(t *testing.T) {
 		"omitted_strings":  {8, 3, StreamOptions{}, 0},
 		"outside_input":    {11, 3, StreamOptions{}, 0},
 		"discarded_target": {11, 1, StreamOptions{}, elf.SHT_NOBITS},
+		"replaced_target":  {9, 3, replaced, elf.SHT_NOBITS},
 	} {
 		t.Run(name, func(t *testing.T) {
 			input := withPayload(t, testELF(t, binary.LittleEndian), 2, make([]byte, 24), func(sh *elf.Section64) {
@@ -530,8 +533,8 @@ func TestELFStreamWrite(t *testing.T) {
 	require.ErrorIs(t, plan.Write(t.Context(), io.Discard), io.ErrUnexpectedEOF)
 }
 
-// Header fields of omitted sections are never used, and those of retained
-// sections are checked.
+// Header fields of omitted sections are never used, those of retained sections
+// are checked, and a replacement is checked instead of the input payload.
 func TestELFStreamSectionMetadata(t *testing.T) {
 	t.Parallel()
 	for name, mutate := range map[string]func(*elf.Section64){
@@ -550,6 +553,16 @@ func TestELFStreamSectionMetadata(t *testing.T) {
 			changeSection(t, input, 3, mutate) // .debug_info is retained.
 			_, err := NewELFStream(t.Context(), bytes.NewReader(input), int64(len(input)), StreamOptions{})
 			require.Error(t, err)
+
+			replacement := StreamSection{Name: ".debug_info", Address: 0x700000, Data: []byte("replacement debug data")}
+			_, ef = exportELF(t, input, StreamOptions{Sections: []StreamSection{replacement}})
+			section := ef.Section(replacement.Name)
+			require.Equal(t, elf.SHT_PROGBITS, section.Type)
+			require.Equal(t, replacement.Address, section.Addr)
+			require.Zero(t, section.Flags&elf.SHF_COMPRESSED)
+			data, err := section.Data()
+			require.NoError(t, err)
+			require.Equal(t, replacement.Data, data)
 		})
 	}
 }
@@ -579,6 +592,26 @@ func TestELFStreamSectionNames(t *testing.T) {
 		data, err := ef.Sections[3].Data()
 		require.NoError(t, err)
 		require.Equal(t, "debug information", string(data))
+	})
+	t.Run("supplied", func(t *testing.T) {
+		t.Parallel()
+		input := testELF(t, binary.LittleEndian)
+		original, err := elf.NewFile(bytes.NewReader(input))
+		require.NoError(t, err)
+		names, err := original.Sections[10].Data()
+		require.NoError(t, err)
+		_, ef := exportELF(t, input, StreamOptions{Sections: []StreamSection{{Name: name, Data: []byte("supplied")}}})
+		got, err := ef.Sections[10].Data()
+		require.NoError(t, err)
+		// The input table is kept as-is, so existing offsets stay valid; new names follow it.
+		require.Equal(t, names, got[:len(names)])
+		require.Equal(t, name+"\x00", string(got[len(names):]))
+		for i, sec := range original.Sections {
+			require.Equal(t, sec.Name, ef.Sections[i].Name)
+		}
+		data, err := ef.Sections[len(ef.Sections)-1].Data()
+		require.NoError(t, err)
+		require.Equal(t, "supplied", string(data))
 	})
 	t.Run("unexpected_table_name", func(t *testing.T) {
 		t.Parallel()
@@ -631,6 +664,42 @@ func TestELFStreamOmitsVersionTables(t *testing.T) {
 			require.Equal(t, versionStrings, data)
 		})
 	}
+}
+
+func TestELFStreamAdditionalSections(t *testing.T) {
+	t.Parallel()
+	input := testELF(t, binary.LittleEndian)
+	var opts StreamOptions
+	for i := 0; i < 17; i++ {
+		opts.Sections = append(opts.Sections, StreamSection{Name: fmt.Sprintf(".go_metadata_%d", i), Data: []byte("metadata")})
+	}
+	_, ef := exportELF(t, input, opts)
+	for _, extra := range opts.Sections {
+		data, err := ef.Section(extra.Name).Data()
+		require.NoError(t, err)
+		require.Equal(t, extra.Data, data)
+	}
+
+	for _, tc := range []struct{ name, err string }{
+		{"", "invalid additional section name"},
+		{".go\x00data", "invalid additional section name"},
+		{".symtab", "cannot replace section"},
+		{".strtab", "cannot replace section"},
+		{".shstrtab", "cannot replace section"},
+		{".dynsym", "cannot replace section"},
+		{".dynstr", "cannot replace section"},
+	} {
+		_, err := NewELFStream(t.Context(), bytes.NewReader(input), int64(len(input)), StreamOptions{
+			KeepSections: []string{".dynsym"},
+			Sections:     []StreamSection{{Name: tc.name, Data: []byte("replacement")}},
+		})
+		require.ErrorContains(t, err, tc.err, "%q", tc.name)
+	}
+	changeSection(t, input, 3, func(sh *elf.Section64) { sh.Link = 11 })
+	_, err := NewELFStream(t.Context(), bytes.NewReader(input), int64(len(input)), StreamOptions{
+		Sections: []StreamSection{{Name: ".extra", Data: []byte("metadata")}},
+	})
+	require.ErrorContains(t, err, "invalid retained section 3 link", "retained links cannot target appended sections")
 }
 
 func FuzzELFStream(f *testing.F) {
