@@ -139,8 +139,6 @@ new-e2e-unit-tests:
     - !reference [.upload_junit_source]
   variables:
     KUBERNETES_CPU_REQUEST: 6
-    KUBERNETES_MEMORY_REQUEST: 8Gi
-    KUBERNETES_MEMORY_LIMIT: 8Gi
     # Fixed resources: GOMEMLIMIT is derived from the memory limit
     DD_DISABLE_VPA: true
     GOMEMLIMIT: "${KUBERNETES_MEMORY_LIMIT}B"
