@@ -5,7 +5,9 @@ go_library(
     name = "elfstream",
     srcs = [
         "elfstream.go",
+        "layout.go",
         "read.go",
+        "sections.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/elfstream",
     visibility = ["//visibility:public"],

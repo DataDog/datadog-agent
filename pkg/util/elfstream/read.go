@@ -159,6 +159,48 @@ func (s *ELFStream) readSections(ctx context.Context, inputSize int64) error {
 	return nil
 }
 
+// checkRetainedSections validates the sections Write will copy, after
+// replacements: links name an input section, alignment is a power of two, bytes
+// are inside the input, and compressed sections hold a compression header.
+// Metadata of omitted sections is deliberately not checked.
+func (s *ELFStream) checkRetainedSections(inputSize int64) error {
+	for i := range s.sections {
+		sec := &s.sections[i]
+		if sec.typ() == elf.SHT_NOBITS {
+			continue
+		}
+		// Links must target input slots; replacement sections have none.
+		if sec.header.Link >= uint32(s.elfHeader.Shnum) {
+			return fmt.Errorf("invalid retained section %d link", i)
+		}
+		// Layout rounds offsets with (pos+a-1) &^ (a-1), which needs a power of
+		// two; the ELF spec requires it too. 0 and 1 mean no alignment.
+		if align := sec.header.Addralign; align != 0 && align&(align-1) != 0 {
+			return fmt.Errorf("invalid retained section %d alignment", i)
+		}
+		// Fail on a known truncation before the upload starts.
+		if sec.inputSize != 0 && !withinInput(sec.inputOffset, sec.inputSize, inputSize) {
+			return fmt.Errorf("section %d is outside the input", i)
+		}
+		// Compressed contents are copied as is; only the header must fit.
+		compressed := sec.header.Flags&uint64(elf.SHF_COMPRESSED) != 0
+		if compressed && sec.header.Size < chdrSize {
+			return fmt.Errorf("invalid compression header in section %d", i)
+		}
+		// Symbol tables are arrays of 24-byte entries starting with the null
+		// symbol, and Info (the first global) is within the table.
+		if isSymbolTable(sec.typ()) && !compressed && !validSymbolTable(sec.header) {
+			return fmt.Errorf("invalid symbol table %d layout", i)
+		}
+	}
+	return nil
+}
+
+func validSymbolTable(header elf.Section64) bool {
+	return header.Entsize == symSize && header.Size >= symSize && header.Size%symSize == 0 &&
+		uint64(header.Info) <= header.Size/symSize
+}
+
 func withinInput(offset, length uint64, inputSize int64) bool {
 	return inputSize >= 0 && offset <= uint64(inputSize) && length <= uint64(inputSize)-offset
 }
