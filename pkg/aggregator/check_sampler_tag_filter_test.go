@@ -8,6 +8,9 @@
 package aggregator
 
 import (
+	"slices"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 	"unsafe"
@@ -202,4 +205,184 @@ func TestCheckSamplerCountsFilteredTagsPerSample(t *testing.T) {
 	// Refiltering without new samples doesn't increment the counter.
 	cs.refilter(matcher)
 	assert.Equal(t, before+2, tlmFilteredTags.Get())
+}
+
+func TestCheckSamplerFiltersTagsOfCounts(t *testing.T) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	cs := newTagFilterTestSampler("check:0", newFilteredIdentityTable())
+	matcher := filterPodMatcher(t, "my.count", "my.histogram")
+	flushMatcher := metricname.NewMatcher(nil, false)
+
+	for _, pod := range []string{"a", "b"} {
+		cs.addSample(podSample("my.count", metrics.CountType, pod, 2, 100.1), matcher)
+		cs.addSample(podSample("my.histogram", metrics.HistogramType, pod, 2, 100.1), matcher)
+	}
+	cs.commit(100.4, &flushMatcher)
+	out := flushSampler(cs)
+
+	require.Len(t, out.mergeableSeries, 2)
+	for _, s := range out.mergeableSeries {
+		assert.Equal(t, "my.count", s.Name)
+		assert.Equal(t, metrics.APICountType, s.MType)
+		assert.ElementsMatch(t, []string{"env:prod"}, tagsOf(s.Tags))
+	}
+	require.NotEmpty(t, out.series)
+	for _, s := range out.series {
+		assert.True(t, strings.HasPrefix(s.Name, "my.histogram."), "histogram statistics can't be merged, so they keep their tags")
+		assert.True(t, slices.ContainsFunc(tagsOf(s.Tags), func(tag string) bool { return strings.HasPrefix(tag, "pod:") }))
+	}
+}
+
+func TestCheckSamplerKeepsMonotonicCountsPerSource(t *testing.T) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	cs := newTagFilterTestSampler("check:0", newFilteredIdentityTable())
+	matcher := filterPodMatcher(t, "my.mono")
+	flushMatcher := metricname.NewMatcher(nil, false)
+	merger := newCheckOutputMerger()
+
+	// Three sources filter to one series: two with a pod tag, and one whose full tags already are the filtered
+	// series'. Their raw counters are far apart: sharing state between them would produce differences between
+	// sources instead of each source's increase.
+	sourceTags := map[string][]string{"a": {"env:prod", "pod:a"}, "b": {"env:prod", "pod:b"}, "c": {"env:prod"}}
+	type raw struct {
+		value      float64
+		flushFirst bool
+	}
+	run := func(timestamp int, samples map[string]raw) (series metrics.Series) {
+		for source, r := range samples {
+			cs.addSample(&metrics.MetricSample{Name: "my.mono", Mtype: metrics.MonotonicCountType, Value: r.value, Tags: sourceTags[source],
+				SampleRate: 1, Timestamp: float64(timestamp), FlushFirstValue: r.flushFirst}, matcher)
+		}
+		cs.commit(float64(timestamp)+0.5, &flushMatcher)
+		out := flushSampler(cs)
+		series = append(series, out.series...)
+		merger.mergeSeries(out.mergeableSeries)
+		merger.drain(&series, nil)
+		return series
+	}
+	values := func(series metrics.Series) map[string]float64 {
+		out := map[string]float64{}
+		for _, s := range series {
+			for _, p := range s.Points {
+				out[strings.Join(sortedTagsOf(s.Tags), ",")] += p.Value
+			}
+		}
+		return out
+	}
+
+	assert.Empty(t, run(100, map[string]raw{"a": {10, false}, "b": {1000, false}, "c": {100000, false}}), "no previous values yet")
+	assert.Equal(t, map[string]float64{"env:prod": 5 + 2 + 4}, values(run(101, map[string]raw{"a": {15, false}, "b": {1002, false}, "c": {100004, false}})))
+	// b resets without flushFirstValue: its sample is ignored.
+	assert.Equal(t, map[string]float64{"env:prod": 1 + 1}, values(run(102, map[string]raw{"a": {16, false}, "b": {1, false}, "c": {100005, false}})))
+	// a stops: its context expires after two commits without samples, but its state is kept.
+	assert.Equal(t, map[string]float64{"env:prod": 2 + 1}, values(run(103, map[string]raw{"b": {3, false}, "c": {100006, false}})))
+	assert.Equal(t, map[string]float64{"env:prod": 1 + 1}, values(run(104, map[string]raw{"b": {4, false}, "c": {100007, false}})))
+	assert.Equal(t, map[string]float64{"env:prod": 1}, values(run(105, map[string]raw{"c": {100008, false}})))
+	// a comes back with flushFirstValue: only its increase since its previous value counts. b resets with
+	// flushFirstValue: its new value counts.
+	assert.Equal(t, map[string]float64{"env:prod": 5 + 2 + 1}, values(run(106, map[string]raw{"a": {21, true}, "b": {2, true}, "c": {100009, false}})))
+
+	// The rule is removed: every source goes on from its own state, in its own series.
+	cs.refilter(filterlistimpl.NewNoopTagMatcher())
+	matcher = filterlistimpl.NewNoopTagMatcher()
+	assert.Equal(t, map[string]float64{"env:prod,pod:a": 1, "env:prod,pod:b": 1, "env:prod": 1},
+		values(run(107, map[string]raw{"a": {22, false}, "b": {3, false}, "c": {100010, false}})))
+}
+
+func sortedTagsOf(tags tagsJoiner) []string {
+	out := tagsOf(tags)
+	sort.Strings(out)
+	return out
+}
+
+// flushThrough commits a sampler, and sends its output through a merger.
+func flushThrough(cs *CheckSampler, merger *checkOutputMerger, commit float64, cutoff int64) (metrics.Series, metrics.SketchSeriesList) {
+	flushMatcher := metricname.NewMatcher(nil, false)
+	cs.commit(commit, &flushMatcher)
+	out := flushSampler(cs)
+	sentSeries, sentSketches := out.series, out.sketches
+	merger.mergeSeries(out.mergeableSeries)
+	merger.mergeSketches(out.mergeableSketches)
+	merger.flush(cutoff, &sentSeries, &sentSketches)
+	return sentSeries, sentSketches
+}
+
+func TestCheckSamplerKeepsExplicitTimestampsOutOfTheMerge(t *testing.T) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	table := newFilteredIdentityTable()
+	matcher := filterPodMatcher(t, "my.count")
+	merger := newCheckOutputMerger()
+
+	// A filtered count: timestamp 100 is sent, and timestamp 101 is held.
+	filtered := newTagFilterTestSampler("check:0", table)
+	filtered.addSample(podSample("my.count", metrics.CountType, "a", 1, 100), matcher)
+	flushThrough(filtered, merger, 100.5, 101)
+	filtered.addSample(podSample("my.count", metrics.CountType, "a", 1, 101), matcher)
+	flushThrough(filtered, merger, 101.5, 101)
+
+	// A count with an explicit timestamp, whose full tags are the filtered series': explicit-timestamp metrics are
+	// never filtered, and keep their timestamps.
+	explicit := newTagFilterTestSampler("check:1", table)
+	explicit.addSample(&metrics.MetricSample{Name: "my.count", Mtype: metrics.CountWithTimestampType, Value: 5,
+		Tags: []string{"env:prod"}, SampleRate: 1, Timestamp: 90}, matcher)
+	series, _ := flushThrough(explicit, merger, 101.6, 101)
+
+	require.Len(t, series, 1)
+	assert.Equal(t, []metrics.Point{{Ts: 90, Value: 5}}, series[0].Points)
+}
+
+func bucketSample(name, pod string, value int64, ts float64) *metrics.HistogramBucket {
+	tags := []string{"env:prod"}
+	if pod != "" {
+		tags = append(tags, "pod:"+pod)
+	}
+	return &metrics.HistogramBucket{Name: name, Value: value, LowerBound: 1, UpperBound: 2, Monotonic: true, Tags: tags, Timestamp: ts, MultipleBuckets: true}
+}
+
+func TestCheckSamplerMergesHistogramBucketsPerSource(t *testing.T) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	cs := newTagFilterTestSampler("check:0", newFilteredIdentityTable())
+	matcher := filterPodMatcher(t, "my.hist")
+	flushMatcher := metricname.NewMatcher(nil, false)
+	merger := newCheckOutputMerger()
+
+	// Monotonic bucket counts keep their previous value per source: three sources with counts far apart, one of
+	// them without the pod tag, filter to one sketch whose count is the sum of each source's increase.
+	var sketches metrics.SketchSeriesList
+	for i, run := range []map[string]int64{{"a": 10, "b": 1000, "": 100000}, {"a": 15, "b": 1002, "": 100004}} {
+		for pod, value := range run {
+			cs.addBucket(bucketSample("my.hist", pod, value, float64(100+i)), matcher)
+		}
+		// An ordinary histogram of the same name, from another source, keeps its tags: its statistics can't be merged.
+		cs.addSample(podSample("my.hist", metrics.HistogramType, "h", 1, float64(100+i)), matcher)
+		cs.commit(float64(100+i)+0.5, &flushMatcher)
+		out := flushSampler(cs)
+		assert.Empty(t, out.mergeableSeries)
+		assert.Empty(t, out.sketches)
+		merger.mergeSketches(out.mergeableSketches)
+	}
+	merger.drain(nil, &sketches)
+
+	require.Len(t, sketches, 1)
+	assert.ElementsMatch(t, []string{"env:prod"}, tagsOf(sketches[0].Tags))
+	require.Len(t, sketches[0].Points, 1, "the first run has no previous counts")
+	assert.Equal(t, int64(101), sketches[0].Points[0].Ts, "stamped at the commit")
+	assert.Equal(t, int64(5+2+4), sketches[0].Points[0].Sketch.Basic.Cnt)
+}
+
+func TestCheckSamplerRefiltersHistogramBuckets(t *testing.T) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	cs := newTagFilterTestSampler("check:0", newFilteredIdentityTable())
+	key := cs.contextResolver.trackContext(bucketSample("my.hist", "a", 1, 100), filterlistimpl.NewNoopTagMatcher())
+	histogram := cs.contextResolver.trackContext(podSample("my.hist", metrics.HistogramType, "b", 1, 100), filterlistimpl.NewNoopTagMatcher())
+
+	// A rule added later filters bucket contexts, leaving ordinary histograms unfiltered.
+	for range 2 { // the same rules sent again change nothing
+		cs.refilter(filterPodMatcher(t, "my.hist"))
+		_, filtered := filteredTags(cs, key)
+		assert.True(t, filtered)
+		_, filtered = filteredTags(cs, histogram)
+		assert.False(t, filtered)
+		assert.Len(t, cs.contextResolver.resolver.filteredIdentities.byKey, 1)
+	}
 }

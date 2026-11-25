@@ -759,8 +759,8 @@ func TestTypeFiltersAtOutput(t *testing.T) {
 	cases := map[metrics.MetricType]bool{
 		metrics.GaugeType:              false,
 		metrics.RateType:               false,
-		metrics.CountType:              false,
-		metrics.MonotonicCountType:     false,
+		metrics.CountType:              true,
+		metrics.MonotonicCountType:     true,
 		metrics.CounterType:            true,
 		metrics.HistogramType:          false,
 		metrics.HistorateType:          false,
@@ -768,7 +768,7 @@ func TestTypeFiltersAtOutput(t *testing.T) {
 		metrics.DistributionType:       true,
 		metrics.GaugeWithTimestampType: false,
 		metrics.CountWithTimestampType: false,
-		metrics.HistogramBucketType:    false,
+		metrics.HistogramBucketType:    true,
 	}
 	require.Len(t, cases, int(metrics.NumMetricTypes), "every metric type is listed")
 	for mt, want := range cases {
