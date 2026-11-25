@@ -142,7 +142,7 @@ func newKueueWorkloadStore(wlmetaStore workloadmeta.Component, client dynamic.In
 	store := &reflectorStore{
 		wlmetaStore: wlmetaStore,
 		seen:        make(map[string]workloadmeta.EntityID),
-		parser:      kubernetesresourceparsers.NewKueueWorkloadParser(cfg.GetBool("cluster_agent.kueue.pod_template_tags")),
+		parser:      kubernetesresourceparsers.NewKueueWorkloadParser(cfg.GetBool("cluster_agent.kueue.pod_template_tags"), cfg.GetBool("cluster_agent.kueue.events.enabled")),
 		filter:      nil,
 	}
 	reflector := cache.NewNamedReflector(

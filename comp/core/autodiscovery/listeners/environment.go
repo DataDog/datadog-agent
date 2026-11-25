@@ -54,6 +54,7 @@ func (l *EnvironmentListener) createServices() {
 		"containerd":                  env.Containerd,
 		"kube_orchestrator":           env.KubeOrchestratorExplorer,
 		"kubelet_config_orchestrator": env.KubeletConfigOrchestratorCheck,
+		"job_scheduler_events":        env.JobSchedulerEvents,
 		"ecs_orchestrator":            env.ECSOrchestratorExplorer,
 	}
 

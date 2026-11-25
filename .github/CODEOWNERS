@@ -137,7 +137,7 @@
 
 /.gitlab/.ci-linters.yml                                                  @DataDog/agent-devx @DataDog/agent-build
 /.gitlab/.pre/*                                                           @DataDog/agent-devx
-/.gitlab/aix/*                                                            @DataDog/agent-build @DataDog/agent-runtimes
+/.gitlab/aix/aix.yml                                                      @DataDog/agent-devx @DataDog/agent-build @DataDog/agent-delivery
 /.gitlab/.post/*                                                        @DataDog/agent-devx
 /.gitlab/build/bazel/*                                                    @DataDog/agent-build @DataDog/agent-devx
 /.gitlab/build/package_build/*                                            @DataDog/agent-build @Datadog/agent-delivery
@@ -747,6 +747,8 @@
 /pkg/collector/corechecks/cluster/orchestrator/collectors/ecs/        @DataDog/ecs-experiences
 /pkg/collector/corechecks/cluster/orchestrator/processors/ecs/        @DataDog/ecs-experiences
 /pkg/collector/corechecks/cluster/orchestrator/transformers/ecs/      @DataDog/ecs-experiences
+/pkg/collector/corechecks/cluster/schedulerevents/                    @DataDog/accelerator-telemetry
+/Dockerfiles/cluster-agent/conf.d/job_scheduler_events.d/             @DataDog/accelerator-telemetry
 /pkg/collector/corechecks/containers/                                 @DataDog/container-integrations
 /pkg/collector/corechecks/containers/csi_driver/                      @DataDog/container-platform
 /pkg/collector/corechecks/containerimage/                             @DataDog/container-integrations
@@ -1292,6 +1294,7 @@
 # This needs to go after all other rules that may include BUILD.bazel files, it otherwise gets overridden
 /**/*.bzl       @DataDog/agent-build
 /tasks/agent_payload_version.bzl # do not notify anyone
+/bazel/go_tags/closure_tags.bzl  # do not notify anyone
 
 # Packaging rules (which files go into which package) for the main agent binary, owned by agent-build.
 # Must stay last for the same reason as the /**/*.bzl rule above.

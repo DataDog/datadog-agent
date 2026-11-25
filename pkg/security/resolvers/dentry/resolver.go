@@ -302,10 +302,12 @@ func (dr *Resolver) ResolveNameFromMap(pathKey model.PathKey, cache bool, caller
 func (dr *Resolver) ResolveName(pathKey model.PathKey, cache bool, caller Caller) string {
 	var (
 		name string
-		err  error
+		err  = ErrEntryNotFound
 	)
 
-	name, err = dr.ResolveNameFromCache(pathKey, caller)
+	if cache {
+		name, err = dr.ResolveNameFromCache(pathKey, caller)
+	}
 
 	if err != nil && dr.config.MapDentryResolutionEnabled {
 		name, _ = dr.ResolveNameFromMap(pathKey, cache, caller)

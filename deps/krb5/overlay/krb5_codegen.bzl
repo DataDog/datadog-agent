@@ -43,11 +43,11 @@ krb5_compile_et = rule(
             doc = "Generated C source.",
         ),
         "_et_h": attr.label(
-            default = Label("@krb5//src/util:et/et_h.awk"),
+            default = Label("//src/util:et/et_h.awk"),
             allow_single_file = True,
         ),
         "_et_c": attr.label(
-            default = Label("@krb5//src/util:et/et_c.awk"),
+            default = Label("//src/util:et/et_c.awk"),
             allow_single_file = True,
         ),
         "_gawk": _GAWK,

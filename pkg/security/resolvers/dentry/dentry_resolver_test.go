@@ -285,3 +285,53 @@ func TestResolveFromMapParentCacheFallbackEdgeCases(t *testing.T) {
 		require.ErrorAs(t, err, &notFound)
 	})
 }
+
+func TestHardLinkBypassesLeafCache(t *testing.T) {
+	dr, err := NewResolver(&config.Config{
+		DentryCacheSize:            128,
+		MapDentryResolutionEnabled: true,
+	}, &statsd.NoOpClient{}, nil)
+	require.NoError(t, err)
+
+	const mountID = uint32(9)
+	const highPathID = uint32(0x00010000)
+
+	leafKey := model.PathKey{Inode: 500, MountID: mountID, PathID: highPathID | 0x0003}
+	parentKey := model.PathKey{Inode: 100, MountID: mountID, PathID: highPathID | 0x0003}
+	rootKey := model.PathKey{Inode: 1, MountID: mountID, PathID: highPathID | 0x0003}
+
+	// Preload stale alias A in the userspace cache under the same key.
+	dr.cacheInode(leafKey, PathEntry{Parent: parentKey, Name: "alias-a"})
+
+	var leafB model.PathLeaf
+	leafB.Parent = parentKey
+	leafB.SetName("alias-b")
+
+	var parentLeaf model.PathLeaf
+	parentLeaf.Parent = rootKey
+	parentLeaf.SetName("dir")
+
+	var rootLeaf model.PathLeaf
+	rootLeaf.SetName("/")
+
+	dr.pathnames = &fakePathnamesMap{
+		entries: map[model.PathKey]model.PathLeaf{
+			leafKey:   leafB,
+			parentKey: parentLeaf,
+			rootKey:   rootLeaf,
+		},
+	}
+
+	// Both full-path and basename resolution with cache=false (hardlink path) must return alias B from the kernel map.
+	fullPath, err := dr.Resolve(leafKey, false, CallerFileHardLink)
+	require.NoError(t, err)
+	assert.Equal(t, "/dir/alias-b", fullPath)
+
+	basename := dr.ResolveName(leafKey, false, CallerFileHardLink)
+	assert.Equal(t, "alias-b", basename)
+
+	// The leaf cache entry was not overwritten by the cache=false lookups.
+	cachedLeaf, err := dr.lookupInodeFromCache(leafKey)
+	require.NoError(t, err)
+	assert.Equal(t, "alias-a", cachedLeaf.Name)
+}
