@@ -97,7 +97,7 @@ func macosBoundedProcmgrCommand(seconds, args string) string {
 
 // waitMacosSleepGone polls until a probe finds no child. A probe error only ends the wait at the deadline.
 func waitMacosSleepGone(client *common.MacOSTestClient, sleepArg string, timeout time.Duration) (string, error) {
-	check := "sudo sh -c 'pgrep -f \"" + macosSleepPattern(sleepArg) + "\"; status=$?; if [ \"$status\" -eq 1 ]; then exit 0; fi; exit \"$status\"'"
+	check := "sudo sh -c 'perl -e \"alarm shift; exec @ARGV or die\" 10 pgrep -f \"" + macosSleepPattern(sleepArg) + "\"; status=$?; if [ \"$status\" -eq 1 ]; then exit 0; fi; exit \"$status\"'"
 	deadline := time.Now().Add(timeout)
 	for {
 		left, err := client.Execute(check)
