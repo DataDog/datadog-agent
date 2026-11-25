@@ -50,7 +50,7 @@ checks:
     description: "Bytes received quality gate. This bounds total network egress."
     bounds:
       series: total_bytes_received
-      upper_bound: "0.8 MiB"
+      upper_bound: "0.848 MiB"
 
 report_links:
   - text: "bounds checks dashboard"

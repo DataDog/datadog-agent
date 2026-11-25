@@ -64,6 +64,7 @@ type StructField struct {
 	IsArray          bool
 	IsLength         bool
 	IsRootDomain     bool
+	IsDict           bool // a `map[string]string` dictionary, only evaluated at a key: `process.env["PATH"]`
 	Event            string
 	Handler          string
 	Helper           bool // specify the handler as just a helper and not a real resolver. It means that this handler won't be called by the ResolveFields function
@@ -107,6 +108,11 @@ func (sf *StructField) GetEvaluatorType() string {
 		if sf.Iterator != nil || (sf.IsArray && !sf.IsLength) {
 			evaluatorType = "eval.CIDRArrayEvaluator"
 		}
+	} else if sf.IsDict {
+		evaluatorType = "eval.StringMapEvaluator"
+		if sf.Iterator != nil {
+			evaluatorType = "eval.StringMapArrayEvaluator"
+		}
 	} else {
 		evaluatorType = "eval.StringEvaluator"
 		if sf.Iterator != nil || (sf.IsArray && !sf.IsLength) {
@@ -137,6 +143,8 @@ func (sf *StructField) GetDefaultReturnValue() string {
 			return "[]net.IPNet{}"
 		}
 		return "net.IPNet{}"
+	} else if sf.IsDict {
+		return "nil"
 	} else if sf.Iterator != nil || sf.IsArray {
 		return "[]string{}"
 	}
@@ -151,6 +159,8 @@ func (sf *StructField) GetDefaultScalarReturnValue() string {
 		return "false"
 	} else if sf.ReturnType == "net.IPNet" {
 		return "net.IPNet{}"
+	} else if sf.IsDict {
+		return "nil"
 	}
 	return `""`
 }
@@ -174,6 +184,8 @@ func (sf *StructField) GetCacheName() string {
 		return "BoolCache"
 	case "net.IPNet":
 		return "IPNetCache"
+	case "map[string]string":
+		return "StringMapCache"
 	default:
 		panic(fmt.Sprintf("no cache name defined for return type '%s'", sf.ReturnType))
 	}

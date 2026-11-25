@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Add Private Action Runner actions for Kubernetes HorizontalPodAutoscalers
+    (autoscaling/v2), Roles, ClusterRoles, and their bindings. Include their read
+    actions in the Cluster Agent default allowlist.

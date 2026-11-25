@@ -8,10 +8,18 @@ package ndmdiscoveryimpl
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+)
+
+var (
+	// errUnknownRange is returned for a range this Agent does not sweep.
+	errUnknownRange = errors.New("unknown autodiscovery id")
+	// errAlreadySweeping is returned for a range whose sweep is in flight.
+	errAlreadySweeping = errors.New("a sweep is already running")
 )
 
 // schedulerOptions are the agent-wide settings the scheduler needs.
@@ -30,6 +38,9 @@ type scheduledRange struct {
 	cfg    rangeConfig
 	cancel context.CancelFunc
 
+	// trigger carries an out-of-band request to sweep now. Buffered, so a
+	// second request while one is pending is dropped rather than queued twice.
+	trigger chan struct{}
 	// prepared is what the latest wake found unusable, refreshed so it tracks credential rotations.
 	prepared []string
 	// sweepErr is the failure of the last sweep that ran.
@@ -150,7 +161,7 @@ func (s *scheduler) set(cfg rangeConfig) error {
 		replaced = existing.cancel
 	}
 	rangeCtx, rangeCancel := context.WithCancel(s.ctx)
-	sr := &scheduledRange{cfg: cfg, cancel: rangeCancel}
+	sr := &scheduledRange{cfg: cfg, cancel: rangeCancel, trigger: make(chan struct{}, 1)}
 	s.ranges[cfg.AutodiscoveryID] = sr
 	previous := s.cycles[cfg.AutodiscoveryID]
 	done := make(chan struct{})
@@ -176,6 +187,28 @@ func (s *scheduler) set(cfg rangeConfig) error {
 		}
 		s.run(rangeCtx, sr)
 	}()
+	return nil
+}
+
+// triggerNow asks a scheduled range to sweep immediately. It refuses a range
+// that is already sweeping; the caller is expected to retry later.
+func (s *scheduler) triggerNow(autodiscoveryID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	r, ok := s.ranges[autodiscoveryID]
+	if !ok {
+		return fmt.Errorf("%w: no range %q is scheduled on this Agent", errUnknownRange, autodiscoveryID)
+	}
+	if r.sweeping {
+		return fmt.Errorf("%w: range %q is already sweeping", errAlreadySweeping, autodiscoveryID)
+	}
+
+	select {
+	case r.trigger <- struct{}{}:
+	default:
+		// A request is already pending, and one sweep satisfies both.
+	}
 	return nil
 }
 
@@ -225,8 +258,11 @@ func (s *scheduler) run(ctx context.Context, sr *scheduledRange) {
 		interval = floor
 	}
 
+	// fresh carries a request to sweep now into the cycle that follows it.
+	fresh := false
 	for {
-		wait := s.runCycle(ctx, sr, interval)
+		wait := s.runCycle(ctx, sr, interval, fresh)
+		fresh = false
 		if wait <= 0 {
 			wait = interval
 		}
@@ -237,6 +273,9 @@ func (s *scheduler) run(ctx context.Context, sr *scheduledRange) {
 			stopTimer()
 			return
 		case <-tick:
+		case <-sr.trigger:
+			fresh = true
+			s.log.Infof("ndmdiscovery: sweeping range %s now, on request", sr.cfg.AutodiscoveryID)
 		}
 		stopTimer()
 	}
@@ -244,7 +283,7 @@ func (s *scheduler) run(ctx context.Context, sr *scheduledRange) {
 
 // runCycle sweeps the range when it is due, and otherwise returns how long is
 // left before it is.
-func (s *scheduler) runCycle(ctx context.Context, sr *scheduledRange, interval time.Duration) time.Duration {
+func (s *scheduler) runCycle(ctx context.Context, sr *scheduledRange, interval time.Duration, fresh bool) time.Duration {
 	if ctx.Err() != nil {
 		return 0
 	}
@@ -278,6 +317,7 @@ func (s *scheduler) runCycle(ctx context.Context, sr *scheduledRange, interval t
 		Digest:   rangeDigest(cfg, opts.Fingerprints()),
 		Workers:  s.workerShare(),
 		Interval: interval,
+		Fresh:    fresh,
 	}
 
 	if wait := s.sweeper.dueIn(req); wait > 0 {

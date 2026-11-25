@@ -22,7 +22,9 @@
 /.claude/rules/msi.md                           @DataDog/windows-products
 /.claude/rules/ndm-testing.md                   @DataDog/network-device-monitoring-core @DataDog/ndm-integrations
 /.claude/rules/systemd.md                       @DataDog/agent-runtimes
+/.claude/rules/system-probe-testing.md          @DataDog/ebpf-platform @DataDog/cloud-network-monitoring
 /.cursor/rules/bazel-buildifier.mdc             @DataDog/agent-build
+/.cursor/rules/system_probe_testing.mdc         @DataDog/ebpf-platform @DataDog/cloud-network-monitoring
 /.agents/*                                      @DataDog/agent-devx
 /.agents/skills/*                               @DataDog/agent-devx
 /.agents/skills/allium/                         @DataDog/single-machine-performance
@@ -135,7 +137,7 @@
 
 /.gitlab/.ci-linters.yml                                                  @DataDog/agent-devx @DataDog/agent-build
 /.gitlab/.pre/*                                                           @DataDog/agent-devx
-/.gitlab/aix/*                                                            @DataDog/agent-build @DataDog/agent-runtimes
+/.gitlab/aix/aix.yml                                                      @DataDog/agent-devx @DataDog/agent-build @DataDog/agent-delivery
 /.gitlab/.post/*                                                        @DataDog/agent-devx
 /.gitlab/build/bazel/*                                                    @DataDog/agent-build @DataDog/agent-devx
 /.gitlab/build/package_build/*                                            @DataDog/agent-build @Datadog/agent-delivery
@@ -745,6 +747,8 @@
 /pkg/collector/corechecks/cluster/orchestrator/collectors/ecs/        @DataDog/ecs-experiences
 /pkg/collector/corechecks/cluster/orchestrator/processors/ecs/        @DataDog/ecs-experiences
 /pkg/collector/corechecks/cluster/orchestrator/transformers/ecs/      @DataDog/ecs-experiences
+/pkg/collector/corechecks/cluster/schedulerevents/                    @DataDog/accelerator-telemetry
+/Dockerfiles/cluster-agent/conf.d/job_scheduler_events.d/             @DataDog/accelerator-telemetry
 /pkg/collector/corechecks/containers/                                 @DataDog/container-integrations
 /pkg/collector/corechecks/containers/csi_driver/                      @DataDog/container-platform
 /pkg/collector/corechecks/containerimage/                             @DataDog/container-integrations
@@ -837,6 +841,7 @@
 /pkg/fleet/installer/msi/                                             @DataDog/fleet @DataDog/windows-products
 /pkg/fleet/**/windows/                                                @DataDog/fleet @DataDog/windows-products
 /pkg/fleet/installer/setup/djm/                                       @DataDog/fleet @DataDog/data-observability
+/pkg/fleet/installer/setup/gpu/                                       @DataDog/accelerator-telemetry @DataDog/fleet
 /pkg/inventory/                                                       @DataDog/windows-products
 /pkg/inventory/software/                                              @DataDog/windows-products
 /pkg/inventory/systeminfo/                                            @DataDog/windows-products
@@ -1033,6 +1038,7 @@
 /runbooks/ @DataDog/agent-build
 
 /tasks/                                                         @DataDog/agent-devx
+/tasks/oracle.py                                                @DataDog/database-monitoring
 /tasks/macos.py                                                 @DataDog/windows-products
 /tasks/msi.py                                                   @DataDog/windows-products
 /tasks/agent.py                                                 @DataDog/agent-runtimes
@@ -1227,6 +1233,7 @@
 /test/new-e2e/tests/fleet                                       @DataDog/fleet
 /test/new-e2e/tests/installer                                   @DataDog/fleet
 /test/new-e2e/tests/installer/script                            @DataDog/fleet @DataDog/data-observability
+/test/new-e2e/tests/installer/script/databricks_gpu_test.go     @DataDog/accelerator-telemetry @DataDog/fleet
 /test/new-e2e/tests/sbom                                        @DataDog/agent-security
 # windows-products primary owner for windows tests so we get failure notifications
 /test/new-e2e/tests/installer/windows                           @DataDog/windows-products @DataDog/fleet
@@ -1247,6 +1254,7 @@
 /test/regression/container/selection.yaml                         @DataDog/single-machine-performance
 /test/regression/container/logs/                                  @DataDog/agent-log-pipelines
 /test/regression/container/agent-metric-pipelines/                @DataDog/agent-metric-pipelines
+/test/regression/container/openmetrics/                         @DataDog/single-machine-performance @DataDog/agent-integrations
 
 /tools/                                                              @DataDog/agent-devx
 /tools/privateactionrunner/                                          @DataDog/action-platform
@@ -1286,6 +1294,7 @@
 # This needs to go after all other rules that may include BUILD.bazel files, it otherwise gets overridden
 /**/*.bzl       @DataDog/agent-build
 /tasks/agent_payload_version.bzl # do not notify anyone
+/bazel/go_tags/closure_tags.bzl  # do not notify anyone
 
 # Packaging rules (which files go into which package) for the main agent binary, owned by agent-build.
 # Must stay last for the same reason as the /**/*.bzl rule above.
