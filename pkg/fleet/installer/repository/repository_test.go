@@ -425,7 +425,7 @@ func TestRepairDirectoryDifferentCasingDifferentContent(t *testing.T) {
 	targetDir := createTestDirectory(t, targetFiles)
 
 	err := repairDirectory(sourceDir, targetDir)
-	assert.Error(t, err)
+	assert.ErrorContains(t, err, "file content mismatch")
 
 	verifyDirectoryContent(t, targetDir, targetFiles)
 }
