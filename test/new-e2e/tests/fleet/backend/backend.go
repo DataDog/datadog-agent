@@ -198,7 +198,10 @@ func (b *Backend) PromoteExperiment(pkg string) error {
 
 func isTransientRegistryError(err error) bool {
 	message := err.Error()
-	return strings.Contains(message, "500 Internal Server Error") || strings.Contains(message, "unexpected EOF")
+	// Only a daemon-reported install failure guarantees no experiment was started;
+	// a bare EOF may come from the transport after the daemon restarted.
+	return strings.Contains(message, "could not install experiment") &&
+		(strings.Contains(message, "500 Internal Server Error") || strings.Contains(message, "unexpected EOF"))
 }
 
 // StopExperiment stops an update experiment for the given package.
@@ -292,7 +295,7 @@ func (c *Catalog) LatestMinus(branch Branch, pkg string, minus int) string {
 // 7.86.1-2). RC and development builds must not become upgrade baselines.
 var releasedPackageVersion = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$`)
 
-var fullPackageVersion = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+([+-].+)?$`)
+var fullPackageVersion = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$`)
 
 // Pipeline versions embed the git short SHA in their prerelease, which strict
 // semver rejects when it is all digits with a leading zero (for example

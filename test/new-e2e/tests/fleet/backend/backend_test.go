@@ -6,6 +6,7 @@
 package backend
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -184,4 +185,20 @@ func TestWindowsCRTEscapeRoundTrip(t *testing.T) {
 		require.Equal(t, []string{arg}, crtDecode(windowsCRTEscape(arg)),
 			"argument should round-trip through PowerShell + C runtime for %q", arg)
 	}
+}
+
+func TestValidPackageVersion(t *testing.T) {
+	for _, version := range []string{"7.86.2-1", "v7.86.2-1", "7.87.0-devel.git.1099.0920558.pipeline.155663328-1", "7.86.0-devel+git.1231.9bb5f01"} {
+		require.True(t, validPackageVersion(version), version)
+	}
+	for _, version := range []string{"7.87.0-devel..git", "7.87.0-", "7.87.0+", "7.87", "unknown"} {
+		require.False(t, validPackageVersion(version), version)
+	}
+}
+
+func TestIsTransientRegistryError(t *testing.T) {
+	require.True(t, isTransientRegistryError(errors.New("error starting experiment: could not install experiment: could not get image: unexpected status code 500 Internal Server Error")))
+	require.True(t, isTransientRegistryError(errors.New("error starting experiment: could not install experiment: could not extract layer: could not write file: unexpected EOF")))
+	require.False(t, isTransientRegistryError(errors.New("Post \"http://installer/datadog-agent/experiment/start\": unexpected EOF")))
+	require.False(t, isTransientRegistryError(errors.New("could not install experiment: invalid package")))
 }
