@@ -95,6 +95,10 @@ func (r *PolicyRule) isFiltered() bool {
 	return !r.Accepted && r.Error == nil
 }
 
+// isSameOverrideAction compares two ActionDefinitions while ignoring Set.Private.
+// Overriding rules may carry stale snapshots of base set actions with outdated
+// Private flags after default or content-pack updates; ignoring Set.Private here
+// lets applyOverride deduplicate those stale copies against the base rule.
 func isSameOverrideAction(a, b *ActionDefinition) bool {
 	if a == nil || b == nil {
 		return a == b
@@ -109,6 +113,10 @@ func isSameOverrideAction(a, b *ActionDefinition) bool {
 	return reflect.DeepEqual(a, b)
 }
 
+// alignOverrideSetActionPrivate aligns an overriding set action's Private flag to
+// the base rule's Set.Private when they target the same (Name, Scope) variable so
+// base-rule Private takes precedence and PopulateFieldsWithRuleActionsData does not
+// reject the variable for conflicting Private flags.
 func alignOverrideSetActionPrivate(action *ActionDefinition, baseActions []*ActionDefinition) *ActionDefinition {
 	if action == nil || action.Set == nil {
 		return action
@@ -141,13 +149,14 @@ func applyOverride(rd1, rd2 *PolicyRule) {
 		wasOverridden = true
 	} else {
 		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideActionFields) {
+			baseActions := rd1.Def.Actions
 			for _, action := range rd2.Def.Actions {
-				if slices.ContainsFunc(rd1.Def.Actions, func(a *ActionDefinition) bool {
+				if slices.ContainsFunc(baseActions, func(a *ActionDefinition) bool {
 					return isSameOverrideAction(action, a)
 				}) {
 					continue
 				}
-				rd1.Def.Actions = append(rd1.Def.Actions, alignOverrideSetActionPrivate(action, rd1.Def.Actions))
+				rd1.Def.Actions = append(rd1.Def.Actions, alignOverrideSetActionPrivate(action, baseActions))
 				wasOverridden = true
 			}
 		}
