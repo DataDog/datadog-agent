@@ -66,9 +66,11 @@ type Component interface {
 
 	// ResolveIssue marks the issue with the given IssueId as resolved.
 	// No-op if no such issue is currently active. Like ReportIssue, it queues
-	// the change and returns without waiting for it to apply; it is dropped,
-	// and counted, when the queue is full.
-	ResolveIssue(issueID string)
+	// the change and returns without waiting for it to apply. It returns
+	// ErrQueueFull when the queue is full, or the store is stopping, and the
+	// resolution was dropped and counted; callers that can run again should
+	// keep the ID and retry.
+	ResolveIssue(issueID string) error
 
 	// ResolveAllIssues marks every active issue as resolved. Like ReportIssue,
 	// it queues the change and returns without waiting for it to apply.

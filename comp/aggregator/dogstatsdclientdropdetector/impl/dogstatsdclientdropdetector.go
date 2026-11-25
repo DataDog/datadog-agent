@@ -77,7 +77,10 @@ type clientState struct {
 	staleIssueIDs []string
 	// confirmationPending means unhealthy confirmation when inactive and recovery when active.
 	confirmationPending bool
-	pendingSince        time.Time
+	// resolutionPending means recovery was confirmed but the queue dropped the
+	// resolution; the next window, healthy or quiet, retries it.
+	resolutionPending bool
+	pendingSince      time.Time
 	// pendingStats accumulates the unhealthy windows used to construct a new issue.
 	pendingStats clientByteStats
 }
@@ -135,7 +138,9 @@ func NewComponent(req Requires) Provides {
 func resolveActiveIssues(healthPlatform healthplatformstore.Component) {
 	for _, library := range dogstatsdclientdrops.ClientLibraries() {
 		for _, issueID := range healthPlatform.GetActiveIssueIDsByIssueName(dogstatsdclientdrops.UDSIssueName(library)) {
-			healthPlatform.ResolveIssue(issueID)
+			// Runs once at startup with the detector disabled, so there is no
+			// later window to retry on: the issue stays until the next restart.
+			_ = healthPlatform.ResolveIssue(issueID)
 		}
 	}
 }
@@ -206,6 +211,10 @@ func (d *component) completeWindow(state *clientState) {
 	stats := d.takeWindow(state)
 	// Drop-reason breakdowns alone cannot establish the sent/drop ratio.
 	if stats.sent == 0 && stats.dropped == 0 {
+		// A quiet client sends no healthy window, so retry resolutions the
+		// queue dropped here too, or they would wait for traffic that may
+		// never come.
+		d.retryDroppedResolutions(state)
 		return
 	}
 	_, violated := droppedRatio(stats, d.droppedRatioThreshold)
@@ -247,6 +256,10 @@ func (d *component) handleUnhealthyWindow(state *clientState, stats clientByteSt
 }
 
 func (d *component) handleHealthyWindow(state *clientState) {
+	d.retryDroppedResolutions(state)
+	if state.resolutionPending {
+		return
+	}
 	if !state.issueActive {
 		d.resetPendingTransition(state)
 		return
@@ -264,14 +277,37 @@ func (d *component) handleHealthyWindow(state *clientState) {
 		return
 	}
 
-	d.resolveIssue(state)
+	if !d.resolveIssue(state) {
+		// Dropped on a full queue: the recovery is confirmed, so the next
+		// window retries the resolution, healthy or quiet.
+		state.resolutionPending = true
+		return
+	}
 	d.resetPendingTransition(state)
+}
+
+// retryDroppedResolutions retries resolutions the queue dropped: the current
+// issue once its recovery was confirmed, and stale issue IDs, which stay
+// tracked after the current issue resolves.
+func (d *component) retryDroppedResolutions(state *clientState) {
+	if state.resolutionPending {
+		if !d.resolveIssue(state) {
+			return
+		}
+		state.resolutionPending = false
+		d.resetPendingTransition(state)
+		return
+	}
+	if !state.issueActive && len(state.staleIssueIDs) > 0 {
+		d.resolveStaleIssues(state)
+	}
 }
 
 func (d *component) resetPendingTransition(state *clientState) {
 	state.confirmationPending = false
 	state.pendingSince = time.Time{}
 	state.pendingStats = clientByteStats{}
+	state.resolutionPending = false
 }
 
 func (s *clientByteStats) add(other clientByteStats) {
@@ -364,19 +400,31 @@ func (d *component) reportIssue(state *clientState, stats clientByteStats, ratio
 	d.resolveStaleIssues(state)
 }
 
-func (d *component) resolveIssue(state *clientState) {
-	d.healthPlatform.ResolveIssue(state.issueID)
+// resolveIssue resolves the current and stale issues, and returns whether the
+// current issue's resolution was queued. When it was dropped, the issue stays
+// active so the caller can retry.
+func (d *component) resolveIssue(state *clientState) bool {
 	d.resolveStaleIssues(state)
+	if err := d.healthPlatform.ResolveIssue(state.issueID); err != nil {
+		d.logger.Debugf("failed to resolve DogStatsD client payload drop health issue, will retry: %v", err)
+		return false
+	}
 	state.issueActive = false
 	state.lastReport = time.Time{}
 	state.issueNeedsRefresh = false
+	return true
 }
 
+// resolveStaleIssues resolves the stale issue IDs, keeping those whose
+// resolution was dropped so the next call retries them.
 func (d *component) resolveStaleIssues(state *clientState) {
+	var kept []string
 	for _, issueID := range state.staleIssueIDs {
-		d.healthPlatform.ResolveIssue(issueID)
+		if err := d.healthPlatform.ResolveIssue(issueID); err != nil {
+			kept = append(kept, issueID)
+		}
 	}
-	state.staleIssueIDs = nil
+	state.staleIssueIDs = kept
 }
 
 func droppedRatio(stats clientByteStats, threshold float64) (float64, bool) {

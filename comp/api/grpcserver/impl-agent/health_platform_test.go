@@ -173,6 +173,18 @@ func TestResolveHealthIssue_ClearsIssue(t *testing.T) {
 	assert.Nil(t, storeMock.GetIssue("to-resolve"))
 }
 
+func TestResolveHealthIssue_QueueFull(t *testing.T) {
+	storeMock := healthplatformmock.New(t)
+	srv := serverWithStore(storeMock)
+	require.NoError(t, storeMock.ReportIssue(&healthplatformpayload.Issue{Id: "to-resolve", IssueName: "to-resolve"}))
+	storeMock.SetResolveIssueError(healthplatformstore.ErrQueueFull)
+
+	_, err := srv.ResolveHealthIssue(context.Background(), &pb.ResolveHealthIssueRequest{IssueId: "to-resolve"})
+	require.Error(t, err)
+	assert.Equal(t, codes.ResourceExhausted, status.Code(err), "a dropped resolution must be retryable by the remote reporter")
+	assert.NotNil(t, storeMock.GetIssue("to-resolve"))
+}
+
 func TestResolveHealthIssue_EmptyIssueID(t *testing.T) {
 	srv := serverWithStore(healthplatformmock.New(t))
 

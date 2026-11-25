@@ -272,7 +272,9 @@ func (p *Probe) reportHealthIssue() {
 }
 
 func (p *Probe) clearHealthIssue() {
-	p.healthPlatform.ResolveIssue(healthIssueID)
+	if err := p.healthPlatform.ResolveIssue(healthIssueID); err != nil {
+		log.Debugf("Failed to clear admission probe health issue: %v", err)
+	}
 }
 
 func (p *Probe) execute(ctx context.Context) error {

@@ -55,7 +55,8 @@ func (n *noopHealthPlatform) GetIssue(_ string) *healthplatformpayload.Issue {
 
 func (n *noopHealthPlatform) RegisterIssuesObserver(_ healthplatformdef.IssuesObserver) {}
 
-func (n *noopHealthPlatform) ResolveIssue(_ string) {
+func (n *noopHealthPlatform) ResolveIssue(_ string) error {
+	return nil
 }
 
 func (n *noopHealthPlatform) ResolveAllIssues() {

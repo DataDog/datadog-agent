@@ -566,7 +566,9 @@ func (cm *reconcilingConfigManager) clearTemplateResolutionFailure(tpl integrati
 		return
 	}
 	issueID := admisconfig.TemplateIssueID + ":" + tpl.Name + ":" + svc.GetServiceID() + ":" + tpl.Digest()
-	cm.healthPlatform.ResolveIssue(issueID)
+	if err := cm.healthPlatform.ResolveIssue(issueID); err != nil {
+		log.Debugf("Failed to clear template resolution issue: %v", err)
+	}
 }
 
 // clearTemplateResolutionFailureByID clears a health issue using string identifiers.
@@ -576,7 +578,9 @@ func (cm *reconcilingConfigManager) clearTemplateResolutionFailureByID(tplName, 
 		return
 	}
 	issueID := admisconfig.TemplateIssueID + ":" + tplName + ":" + svcID + ":" + tplDigest
-	cm.healthPlatform.ResolveIssue(issueID)
+	if err := cm.healthPlatform.ResolveIssue(issueID); err != nil {
+		log.Debugf("Failed to clear template resolution issue: %v", err)
+	}
 }
 
 func (cm *reconcilingConfigManager) addStaticConfigIndex(config integration.Config) {

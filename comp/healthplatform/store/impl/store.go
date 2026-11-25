@@ -670,13 +670,16 @@ func hydrateIssue(issue *healthplatform.Issue, stored *storedIssue) {
 // ============================================================================
 
 // ResolveIssue queues the issue to be marked resolved and removed from the
-// active set, without waiting for the worker to apply it. It is dropped, and
-// counted, when the queue is full.
-func (h *healthPlatformImpl) ResolveIssue(issueID string) {
+// active set, without waiting for the worker to apply it. It returns
+// ErrQueueFull when the resolution was dropped.
+func (h *healthPlatformImpl) ResolveIssue(issueID string) error {
 	if issueID == "" {
-		return
+		return nil
 	}
-	h.enqueue("resolve_issue", func() { h.resolveIssue(issueID) })
+	if !h.enqueue("resolve_issue", func() { h.resolveIssue(issueID) }) {
+		return healthplatformdef.ErrQueueFull
+	}
+	return nil
 }
 
 // resolveIssue marks an issue as resolved and removes it from the active set.

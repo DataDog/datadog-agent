@@ -360,7 +360,10 @@ func (s *serverSecure) ResolveHealthIssue(_ context.Context, in *pb.ResolveHealt
 		return nil, status.Error(codes.InvalidArgument, "issue_id cannot be empty")
 	}
 
-	s.healthPlatformStore.ResolveIssue(in.GetIssueId())
+	if err := s.healthPlatformStore.ResolveIssue(in.GetIssueId()); err != nil {
+		// Dropped on a full queue: tell the remote reporter so it can retry.
+		return nil, status.Error(codes.ResourceExhausted, err.Error())
+	}
 	return &emptypb.Empty{}, nil
 }
 

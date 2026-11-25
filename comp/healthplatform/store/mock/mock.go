@@ -26,6 +26,7 @@ type Mock struct {
 	resolvedIDs   []string
 	reportErrOnID string
 	reportErr     error
+	resolveErr    error
 	resourceType  string
 	resourceID    string
 }
@@ -47,6 +48,14 @@ func WithReportIssueError(issueID string, err error) Option {
 		m.reportErrOnID = issueID
 		m.reportErr = err
 	}
+}
+
+// SetResolveIssueError makes ResolveIssue return err, without resolving
+// anything, until it is called again with nil. It stands in for a full queue.
+func (m *Mock) SetResolveIssueError(err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.resolveErr = err
 }
 
 // WithResourceIdentity overrides the resourceType/resourceID returned by
@@ -132,17 +141,22 @@ func (m *Mock) GetIssue(issueID string) *healthplatformpayload.Issue {
 	return proto.Clone(issue).(*healthplatformpayload.Issue)
 }
 
-func (m *Mock) ResolveIssue(issueID string) {
+func (m *Mock) ResolveIssue(issueID string) error {
 	m.mu.Lock()
+	if m.resolveErr != nil {
+		err := m.resolveErr
+		m.mu.Unlock()
+		return err
+	}
 	issue := m.issues[issueID]
 	delete(m.issues, issueID)
 	m.resolvedIDs = append(m.resolvedIDs, issueID)
 	obs := m.observer
 	m.mu.Unlock()
-	if issue == nil {
-		return
+	if issue != nil {
+		notifyResolved(obs, issue)
 	}
-	notifyResolved(obs, issue)
+	return nil
 }
 
 func (m *Mock) ResolveAllIssues() {
