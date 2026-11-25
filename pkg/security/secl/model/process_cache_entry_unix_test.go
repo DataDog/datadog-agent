@@ -64,6 +64,32 @@ func TestHasValidLineage(t *testing.T) {
 		assert.ErrorAs(t, err, &mn)
 	})
 
+	t.Run("pid1-reexec", func(t *testing.T) {
+		pid1 := newPCE(1, nil, false)
+		reexec1 := newPCE(1, nil, false)
+		pid1.Exec(reexec1)
+		reexec2 := newPCE(1, nil, false)
+		reexec1.Exec(reexec2)
+		child := newPCE(2, reexec2, false)
+
+		isValid, err := child.HasValidLineage()
+		assert.True(t, isValid)
+		assert.NoError(t, err)
+	})
+
+	t.Run("pid1-reexec-with-parent", func(t *testing.T) {
+		other := newPCE(2, nil, false)
+		pid1 := newPCE(1, other, false)
+		reexec := newPCE(1, nil, false)
+		pid1.Exec(reexec)
+		child := newPCE(3, reexec, false)
+
+		isValid, err := child.HasValidLineage()
+		assert.False(t, isValid)
+
+		var mn *ErrProcessWrongParentNode
+		assert.ErrorAs(t, err, &mn)
+	})
 }
 
 func TestExecSetsStopExecutionTimeWithoutExitTime(t *testing.T) {
