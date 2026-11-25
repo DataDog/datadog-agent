@@ -9,6 +9,7 @@ package customresources
 
 import (
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -271,74 +272,76 @@ func TestCleanupDeletedDeployment_NonExistent(t *testing.T) {
 }
 
 func TestStoreDeployment_RevisionBasedRolloutDetection(t *testing.T) {
-	tracker := NewRolloutTracker()
+	synctest.Test(t, func(t *testing.T) {
+		tracker := NewRolloutTracker()
 
-	namespace := "default"
-	deploymentName := "test-deployment"
-	key := namespace + "/" + deploymentName
+		namespace := "default"
+		deploymentName := "test-deployment"
+		key := namespace + "/" + deploymentName
 
-	// Store first deployment (revision "1")
-	deployment1 := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       deploymentName,
-			Namespace:  namespace,
-			Generation: 1,
-			Annotations: map[string]string{
-				RevisionAnnotationKey: "1",
+		// Store first deployment (revision "1")
+		deployment1 := &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       deploymentName,
+				Namespace:  namespace,
+				Generation: 1,
+				Annotations: map[string]string{
+					RevisionAnnotationKey: "1",
+				},
 			},
-		},
-	}
+		}
 
-	tracker.StoreDeployment(deployment1)
+		tracker.StoreDeployment(deployment1)
 
-	tracker.deploymentMutex.RLock()
-	firstStartTime := tracker.deploymentStartTime[key]
-	tracker.deploymentMutex.RUnlock()
+		tracker.deploymentMutex.RLock()
+		firstStartTime := tracker.deploymentStartTime[key]
+		tracker.deploymentMutex.RUnlock()
 
-	// Wait a bit to ensure time difference
-	time.Sleep(10 * time.Millisecond)
+		// Wait a bit to ensure time difference
+		time.Sleep(10 * time.Millisecond)
 
-	// Store same deployment with new revision (new rollout)
-	deployment2 := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       deploymentName,
-			Namespace:  namespace,
-			Generation: 2,
-			Annotations: map[string]string{
-				RevisionAnnotationKey: "2", // New revision
+		// Store same deployment with new revision (new rollout)
+		deployment2 := &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       deploymentName,
+				Namespace:  namespace,
+				Generation: 2,
+				Annotations: map[string]string{
+					RevisionAnnotationKey: "2", // New revision
+				},
 			},
-		},
-	}
+		}
 
-	tracker.StoreDeployment(deployment2)
+		tracker.StoreDeployment(deployment2)
 
-	tracker.deploymentMutex.RLock()
-	secondStartTime := tracker.deploymentStartTime[key]
-	tracker.deploymentMutex.RUnlock()
+		tracker.deploymentMutex.RLock()
+		secondStartTime := tracker.deploymentStartTime[key]
+		tracker.deploymentMutex.RUnlock()
 
-	// Second rollout should have a newer start time (revision changed)
-	assert.True(t, secondStartTime.After(firstStartTime), "New rollout should have updated start time")
+		// Second rollout should have a newer start time (revision changed)
+		assert.True(t, secondStartTime.After(firstStartTime), "New rollout should have updated start time")
 
-	// Store same deployment again with same revision (no rollout change)
-	deployment2Again := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       deploymentName,
-			Namespace:  namespace,
-			Generation: 3, // Generation changes (e.g., scaling)
-			Annotations: map[string]string{
-				RevisionAnnotationKey: "2", // Same revision
+		// Store same deployment again with same revision (no rollout change)
+		deployment2Again := &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       deploymentName,
+				Namespace:  namespace,
+				Generation: 3, // Generation changes (e.g., scaling)
+				Annotations: map[string]string{
+					RevisionAnnotationKey: "2", // Same revision
+				},
 			},
-		},
-	}
+		}
 
-	tracker.StoreDeployment(deployment2Again)
+		tracker.StoreDeployment(deployment2Again)
 
-	tracker.deploymentMutex.RLock()
-	thirdStartTime := tracker.deploymentStartTime[key]
-	tracker.deploymentMutex.RUnlock()
+		tracker.deploymentMutex.RLock()
+		thirdStartTime := tracker.deploymentStartTime[key]
+		tracker.deploymentMutex.RUnlock()
 
-	// Same revision should NOT update start time (even if generation changed)
-	assert.Equal(t, secondStartTime, thirdStartTime, "Same revision should not update start time")
+		// Same revision should NOT update start time (even if generation changed)
+		assert.Equal(t, secondStartTime, thirdStartTime, "Same revision should not update start time")
+	})
 }
 
 func TestStoreControllerRevision(t *testing.T) {
@@ -593,74 +596,76 @@ func TestCleanupControllerRevision(t *testing.T) {
 }
 
 func TestStoreStatefulSet_RevisionBasedRolloutDetection(t *testing.T) {
-	tracker := NewRolloutTracker()
+	synctest.Test(t, func(t *testing.T) {
+		tracker := NewRolloutTracker()
 
-	namespace := "default"
-	statefulSetName := "test-statefulset"
-	key := namespace + "/" + statefulSetName
+		namespace := "default"
+		statefulSetName := "test-statefulset"
+		key := namespace + "/" + statefulSetName
 
-	// Store first StatefulSet (updateRevision "sts-rev1")
-	statefulSet1 := &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       statefulSetName,
-			Namespace:  namespace,
-			Generation: 1,
-		},
-		Status: appsv1.StatefulSetStatus{
-			UpdateRevision: "sts-rev1",
-		},
-	}
+		// Store first StatefulSet (updateRevision "sts-rev1")
+		statefulSet1 := &appsv1.StatefulSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       statefulSetName,
+				Namespace:  namespace,
+				Generation: 1,
+			},
+			Status: appsv1.StatefulSetStatus{
+				UpdateRevision: "sts-rev1",
+			},
+		}
 
-	tracker.StoreStatefulSet(statefulSet1)
+		tracker.StoreStatefulSet(statefulSet1)
 
-	tracker.statefulSetMutex.RLock()
-	firstStartTime := tracker.statefulSetStartTime[key]
-	tracker.statefulSetMutex.RUnlock()
+		tracker.statefulSetMutex.RLock()
+		firstStartTime := tracker.statefulSetStartTime[key]
+		tracker.statefulSetMutex.RUnlock()
 
-	// Wait a bit to ensure time difference
-	time.Sleep(10 * time.Millisecond)
+		// Wait a bit to ensure time difference
+		time.Sleep(10 * time.Millisecond)
 
-	// Store same StatefulSet with new updateRevision (new rollout)
-	statefulSet2 := &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       statefulSetName,
-			Namespace:  namespace,
-			Generation: 2,
-		},
-		Status: appsv1.StatefulSetStatus{
-			UpdateRevision: "sts-rev2", // New revision
-		},
-	}
+		// Store same StatefulSet with new updateRevision (new rollout)
+		statefulSet2 := &appsv1.StatefulSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       statefulSetName,
+				Namespace:  namespace,
+				Generation: 2,
+			},
+			Status: appsv1.StatefulSetStatus{
+				UpdateRevision: "sts-rev2", // New revision
+			},
+		}
 
-	tracker.StoreStatefulSet(statefulSet2)
+		tracker.StoreStatefulSet(statefulSet2)
 
-	tracker.statefulSetMutex.RLock()
-	secondStartTime := tracker.statefulSetStartTime[key]
-	tracker.statefulSetMutex.RUnlock()
+		tracker.statefulSetMutex.RLock()
+		secondStartTime := tracker.statefulSetStartTime[key]
+		tracker.statefulSetMutex.RUnlock()
 
-	// Second rollout should have a newer start time (updateRevision changed)
-	assert.True(t, secondStartTime.After(firstStartTime), "New rollout should have updated start time")
+		// Second rollout should have a newer start time (updateRevision changed)
+		assert.True(t, secondStartTime.After(firstStartTime), "New rollout should have updated start time")
 
-	// Store same StatefulSet again with same updateRevision (no rollout change - e.g., scaling)
-	statefulSet2Again := &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       statefulSetName,
-			Namespace:  namespace,
-			Generation: 3, // Generation changes (e.g., scaling)
-		},
-		Status: appsv1.StatefulSetStatus{
-			UpdateRevision: "sts-rev2", // Same revision
-		},
-	}
+		// Store same StatefulSet again with same updateRevision (no rollout change - e.g., scaling)
+		statefulSet2Again := &appsv1.StatefulSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       statefulSetName,
+				Namespace:  namespace,
+				Generation: 3, // Generation changes (e.g., scaling)
+			},
+			Status: appsv1.StatefulSetStatus{
+				UpdateRevision: "sts-rev2", // Same revision
+			},
+		}
 
-	tracker.StoreStatefulSet(statefulSet2Again)
+		tracker.StoreStatefulSet(statefulSet2Again)
 
-	tracker.statefulSetMutex.RLock()
-	thirdStartTime := tracker.statefulSetStartTime[key]
-	tracker.statefulSetMutex.RUnlock()
+		tracker.statefulSetMutex.RLock()
+		thirdStartTime := tracker.statefulSetStartTime[key]
+		tracker.statefulSetMutex.RUnlock()
 
-	// Same updateRevision should NOT update start time (even if generation changed)
-	assert.Equal(t, secondStartTime, thirdStartTime, "Same updateRevision should not update start time")
+		// Same updateRevision should NOT update start time (even if generation changed)
+		assert.Equal(t, secondStartTime, thirdStartTime, "Same updateRevision should not update start time")
+	})
 }
 
 func TestHasStatefulSetRolloutCondition(t *testing.T) {
@@ -943,65 +948,67 @@ func TestCleanupDaemonSet(t *testing.T) {
 }
 
 func TestStoreDaemonSet_GenerationBasedRolloutDetection(t *testing.T) {
-	tracker := NewRolloutTracker()
+	synctest.Test(t, func(t *testing.T) {
+		tracker := NewRolloutTracker()
 
-	namespace := "default"
-	daemonSetName := "test-daemonset"
-	key := namespace + "/" + daemonSetName
+		namespace := "default"
+		daemonSetName := "test-daemonset"
+		key := namespace + "/" + daemonSetName
 
-	// Store first DaemonSet (generation 1)
-	daemonSet1 := &appsv1.DaemonSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       daemonSetName,
-			Namespace:  namespace,
-			Generation: 1,
-		},
-	}
+		// Store first DaemonSet (generation 1)
+		daemonSet1 := &appsv1.DaemonSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       daemonSetName,
+				Namespace:  namespace,
+				Generation: 1,
+			},
+		}
 
-	tracker.StoreDaemonSet(daemonSet1)
+		tracker.StoreDaemonSet(daemonSet1)
 
-	tracker.daemonSetMutex.RLock()
-	firstStartTime := tracker.daemonSetStartTime[key]
-	tracker.daemonSetMutex.RUnlock()
+		tracker.daemonSetMutex.RLock()
+		firstStartTime := tracker.daemonSetStartTime[key]
+		tracker.daemonSetMutex.RUnlock()
 
-	// Wait a bit to ensure time difference
-	time.Sleep(10 * time.Millisecond)
+		// Wait a bit to ensure time difference
+		time.Sleep(10 * time.Millisecond)
 
-	// Store same DaemonSet with higher generation (new rollout)
-	daemonSet2 := &appsv1.DaemonSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       daemonSetName,
-			Namespace:  namespace,
-			Generation: 2, // New generation
-		},
-	}
+		// Store same DaemonSet with higher generation (new rollout)
+		daemonSet2 := &appsv1.DaemonSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       daemonSetName,
+				Namespace:  namespace,
+				Generation: 2, // New generation
+			},
+		}
 
-	tracker.StoreDaemonSet(daemonSet2)
+		tracker.StoreDaemonSet(daemonSet2)
 
-	tracker.daemonSetMutex.RLock()
-	secondStartTime := tracker.daemonSetStartTime[key]
-	tracker.daemonSetMutex.RUnlock()
+		tracker.daemonSetMutex.RLock()
+		secondStartTime := tracker.daemonSetStartTime[key]
+		tracker.daemonSetMutex.RUnlock()
 
-	// Second rollout should have a newer start time
-	assert.True(t, secondStartTime.After(firstStartTime), "New rollout should have updated start time")
+		// Second rollout should have a newer start time
+		assert.True(t, secondStartTime.After(firstStartTime), "New rollout should have updated start time")
 
-	// Store same DaemonSet again with same generation (no rollout change)
-	daemonSet2Again := &appsv1.DaemonSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       daemonSetName,
-			Namespace:  namespace,
-			Generation: 2, // Same generation
-		},
-	}
+		// Store same DaemonSet again with same generation (no rollout change)
+		daemonSet2Again := &appsv1.DaemonSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       daemonSetName,
+				Namespace:  namespace,
+				Generation: 2, // Same generation
+			},
+		}
 
-	tracker.StoreDaemonSet(daemonSet2Again)
+		tracker.StoreDaemonSet(daemonSet2Again)
 
-	tracker.daemonSetMutex.RLock()
-	thirdStartTime := tracker.daemonSetStartTime[key]
-	tracker.daemonSetMutex.RUnlock()
+		tracker.daemonSetMutex.RLock()
+		thirdStartTime := tracker.daemonSetStartTime[key]
+		tracker.daemonSetMutex.RUnlock()
 
-	// Same generation should NOT update start time
-	assert.Equal(t, secondStartTime, thirdStartTime, "Same generation should not update start time")
+		// Same generation should NOT update start time
+		assert.Equal(t, secondStartTime, thirdStartTime, "Same generation should not update start time")
+	})
 }
 
 func TestHasDaemonSetRolloutCondition(t *testing.T) {
@@ -1247,100 +1254,102 @@ func TestDeploymentNodeMigrationScenario(t *testing.T) {
 
 // TestDeploymentRollbackScenario tests that rollbacks are correctly detected and tracked
 func TestDeploymentRollbackScenario(t *testing.T) {
-	tracker := NewRolloutTracker()
+	synctest.Test(t, func(t *testing.T) {
+		tracker := NewRolloutTracker()
 
-	namespace := "default"
-	deploymentName := "test-deployment"
-	key := namespace + "/" + deploymentName
+		namespace := "default"
+		deploymentName := "test-deployment"
+		key := namespace + "/" + deploymentName
 
-	// Step 1: Deploy v1 (revision "1")
-	deploymentV1 := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       deploymentName,
-			Namespace:  namespace,
-			Generation: 1,
-			Annotations: map[string]string{
-				RevisionAnnotationKey: "1",
+		// Step 1: Deploy v1 (revision "1")
+		deploymentV1 := &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       deploymentName,
+				Namespace:  namespace,
+				Generation: 1,
+				Annotations: map[string]string{
+					RevisionAnnotationKey: "1",
+				},
 			},
-		},
-		Status: appsv1.DeploymentStatus{
-			ObservedGeneration: 1,
-		},
-	}
-
-	// First rollout - should be tracked
-	assert.True(t, tracker.HasRevisionChanged(namespace, deploymentName, "1"), "First deployment should be detected as new")
-	tracker.StoreDeployment(deploymentV1)
-	tracker.UpdateLastSeenRevision(namespace, deploymentName, "1")
-
-	v1StartTime := tracker.deploymentStartTime[key]
-	assert.False(t, v1StartTime.IsZero(), "v1 start time should be set")
-
-	// Simulate rollout completion
-	tracker.CleanupDeployment(namespace, deploymentName)
-
-	// Verify lastSeenRevision is preserved after cleanup
-	tracker.deploymentMutex.RLock()
-	lastRev := tracker.lastSeenRevision[key]
-	tracker.deploymentMutex.RUnlock()
-	assert.Equal(t, "1", lastRev, "lastSeenRevision should be preserved after cleanup")
-
-	// Step 2: Deploy v2 (revision "2")
-	time.Sleep(10 * time.Millisecond) // Ensure time difference
-
-	deploymentV2 := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       deploymentName,
-			Namespace:  namespace,
-			Generation: 2,
-			Annotations: map[string]string{
-				RevisionAnnotationKey: "2",
+			Status: appsv1.DeploymentStatus{
+				ObservedGeneration: 1,
 			},
-		},
-		Status: appsv1.DeploymentStatus{
-			ObservedGeneration: 1, // Not yet caught up
-		},
-	}
+		}
 
-	assert.True(t, tracker.HasRevisionChanged(namespace, deploymentName, "2"), "v2 should be detected as revision change")
-	tracker.StoreDeployment(deploymentV2)
-	tracker.UpdateLastSeenRevision(namespace, deploymentName, "2")
+		// First rollout - should be tracked
+		assert.True(t, tracker.HasRevisionChanged(namespace, deploymentName, "1"), "First deployment should be detected as new")
+		tracker.StoreDeployment(deploymentV1)
+		tracker.UpdateLastSeenRevision(namespace, deploymentName, "1")
 
-	v2StartTime := tracker.deploymentStartTime[key]
-	assert.True(t, v2StartTime.After(v1StartTime), "v2 start time should be after v1")
+		v1StartTime := tracker.deploymentStartTime[key]
+		assert.False(t, v1StartTime.IsZero(), "v1 start time should be set")
 
-	// Complete v2 rollout
-	tracker.CleanupDeployment(namespace, deploymentName)
+		// Simulate rollout completion
+		tracker.CleanupDeployment(namespace, deploymentName)
 
-	// Step 3: Rollback to v1 (revision increments to "3", but uses old RS)
-	time.Sleep(10 * time.Millisecond)
+		// Verify lastSeenRevision is preserved after cleanup
+		tracker.deploymentMutex.RLock()
+		lastRev := tracker.lastSeenRevision[key]
+		tracker.deploymentMutex.RUnlock()
+		assert.Equal(t, "1", lastRev, "lastSeenRevision should be preserved after cleanup")
 
-	deploymentRollback := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       deploymentName,
-			Namespace:  namespace,
-			Generation: 3, // Generation increases
-			Annotations: map[string]string{
-				RevisionAnnotationKey: "3", // Revision increments on rollback
+		// Step 2: Deploy v2 (revision "2")
+		time.Sleep(10 * time.Millisecond) // Ensure time difference
+
+		deploymentV2 := &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       deploymentName,
+				Namespace:  namespace,
+				Generation: 2,
+				Annotations: map[string]string{
+					RevisionAnnotationKey: "2",
+				},
 			},
-		},
-		Status: appsv1.DeploymentStatus{
-			ObservedGeneration: 2, // Not yet caught up
-		},
-	}
+			Status: appsv1.DeploymentStatus{
+				ObservedGeneration: 1, // Not yet caught up
+			},
+		}
 
-	// This is the key test: rollback should be detected as a new rollout
-	assert.True(t, tracker.HasRevisionChanged(namespace, deploymentName, "3"), "Rollback should be detected as revision change")
-	tracker.StoreDeployment(deploymentRollback)
-	tracker.UpdateLastSeenRevision(namespace, deploymentName, "3")
+		assert.True(t, tracker.HasRevisionChanged(namespace, deploymentName, "2"), "v2 should be detected as revision change")
+		tracker.StoreDeployment(deploymentV2)
+		tracker.UpdateLastSeenRevision(namespace, deploymentName, "2")
 
-	rollbackStartTime := tracker.deploymentStartTime[key]
-	assert.True(t, rollbackStartTime.After(v2StartTime), "Rollback start time should be after v2")
+		v2StartTime := tracker.deploymentStartTime[key]
+		assert.True(t, v2StartTime.After(v1StartTime), "v2 start time should be after v1")
 
-	// Duration should be calculated from rollback start, not from old RS creation time
-	duration := tracker.GetRolloutDuration(namespace, deploymentName)
-	assert.GreaterOrEqual(t, duration, 0.0, "Duration should be non-negative")
-	assert.Less(t, duration, 1.0, "Duration should be small (just started)")
+		// Complete v2 rollout
+		tracker.CleanupDeployment(namespace, deploymentName)
+
+		// Step 3: Rollback to v1 (revision increments to "3", but uses old RS)
+		time.Sleep(10 * time.Millisecond)
+
+		deploymentRollback := &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       deploymentName,
+				Namespace:  namespace,
+				Generation: 3, // Generation increases
+				Annotations: map[string]string{
+					RevisionAnnotationKey: "3", // Revision increments on rollback
+				},
+			},
+			Status: appsv1.DeploymentStatus{
+				ObservedGeneration: 2, // Not yet caught up
+			},
+		}
+
+		// This is the key test: rollback should be detected as a new rollout
+		assert.True(t, tracker.HasRevisionChanged(namespace, deploymentName, "3"), "Rollback should be detected as revision change")
+		tracker.StoreDeployment(deploymentRollback)
+		tracker.UpdateLastSeenRevision(namespace, deploymentName, "3")
+
+		rollbackStartTime := tracker.deploymentStartTime[key]
+		assert.True(t, rollbackStartTime.After(v2StartTime), "Rollback start time should be after v2")
+
+		// Duration should be calculated from rollback start, not from old RS creation time
+		duration := tracker.GetRolloutDuration(namespace, deploymentName)
+		assert.GreaterOrEqual(t, duration, 0.0, "Duration should be non-negative")
+		assert.Less(t, duration, 1.0, "Duration should be small (just started)")
+	})
 }
 
 // TestScalingAfterRollbackDoesNotTriggerRollout tests that scaling after a completed rollback
@@ -1469,74 +1478,76 @@ func TestLastSeenRevisionPreservedAfterCleanup(t *testing.T) {
 
 // TestStatefulSetRollbackScenario tests that StatefulSet rollbacks are correctly detected
 func TestStatefulSetRollbackScenario(t *testing.T) {
-	tracker := NewRolloutTracker()
+	synctest.Test(t, func(t *testing.T) {
+		tracker := NewRolloutTracker()
 
-	namespace := "default"
-	stsName := "test-statefulset"
-	key := namespace + "/" + stsName
+		namespace := "default"
+		stsName := "test-statefulset"
+		key := namespace + "/" + stsName
 
-	// Deploy v1
-	stsV1 := &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       stsName,
-			Namespace:  namespace,
-			Generation: 1,
-		},
-		Status: appsv1.StatefulSetStatus{
-			ObservedGeneration: 1,
-			UpdateRevision:     "sts-rev-1",
-			CurrentRevision:    "sts-rev-1",
-		},
-	}
+		// Deploy v1
+		stsV1 := &appsv1.StatefulSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       stsName,
+				Namespace:  namespace,
+				Generation: 1,
+			},
+			Status: appsv1.StatefulSetStatus{
+				ObservedGeneration: 1,
+				UpdateRevision:     "sts-rev-1",
+				CurrentRevision:    "sts-rev-1",
+			},
+		}
 
-	assert.True(t, tracker.HasStatefulSetRevisionChanged(namespace, stsName, "sts-rev-1"))
-	tracker.StoreStatefulSet(stsV1)
-	tracker.UpdateLastSeenStatefulSetRevision(namespace, stsName, "sts-rev-1")
-	tracker.CleanupStatefulSet(namespace, stsName)
+		assert.True(t, tracker.HasStatefulSetRevisionChanged(namespace, stsName, "sts-rev-1"))
+		tracker.StoreStatefulSet(stsV1)
+		tracker.UpdateLastSeenStatefulSetRevision(namespace, stsName, "sts-rev-1")
+		tracker.CleanupStatefulSet(namespace, stsName)
 
-	// Deploy v2
-	time.Sleep(10 * time.Millisecond)
-	assert.True(t, tracker.HasStatefulSetRevisionChanged(namespace, stsName, "sts-rev-2"))
-	stsV2 := &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       stsName,
-			Namespace:  namespace,
-			Generation: 2,
-		},
-		Status: appsv1.StatefulSetStatus{
-			ObservedGeneration: 1,
-			UpdateRevision:     "sts-rev-2",
-			CurrentRevision:    "sts-rev-1",
-		},
-	}
-	tracker.StoreStatefulSet(stsV2)
-	tracker.UpdateLastSeenStatefulSetRevision(namespace, stsName, "sts-rev-2")
-	v2StartTime := tracker.statefulSetStartTime[key]
-	tracker.CleanupStatefulSet(namespace, stsName)
+		// Deploy v2
+		time.Sleep(10 * time.Millisecond)
+		assert.True(t, tracker.HasStatefulSetRevisionChanged(namespace, stsName, "sts-rev-2"))
+		stsV2 := &appsv1.StatefulSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       stsName,
+				Namespace:  namespace,
+				Generation: 2,
+			},
+			Status: appsv1.StatefulSetStatus{
+				ObservedGeneration: 1,
+				UpdateRevision:     "sts-rev-2",
+				CurrentRevision:    "sts-rev-1",
+			},
+		}
+		tracker.StoreStatefulSet(stsV2)
+		tracker.UpdateLastSeenStatefulSetRevision(namespace, stsName, "sts-rev-2")
+		v2StartTime := tracker.statefulSetStartTime[key]
+		tracker.CleanupStatefulSet(namespace, stsName)
 
-	// Rollback to v1 - updateRevision changes back
-	time.Sleep(10 * time.Millisecond)
-	assert.True(t, tracker.HasStatefulSetRevisionChanged(namespace, stsName, "sts-rev-1"),
-		"Rollback to v1 should be detected as revision change")
+		// Rollback to v1 - updateRevision changes back
+		time.Sleep(10 * time.Millisecond)
+		assert.True(t, tracker.HasStatefulSetRevisionChanged(namespace, stsName, "sts-rev-1"),
+			"Rollback to v1 should be detected as revision change")
 
-	stsRollback := &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       stsName,
-			Namespace:  namespace,
-			Generation: 3,
-		},
-		Status: appsv1.StatefulSetStatus{
-			ObservedGeneration: 2,
-			UpdateRevision:     "sts-rev-1", // Rolling back to rev-1
-			CurrentRevision:    "sts-rev-2",
-		},
-	}
+		stsRollback := &appsv1.StatefulSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       stsName,
+				Namespace:  namespace,
+				Generation: 3,
+			},
+			Status: appsv1.StatefulSetStatus{
+				ObservedGeneration: 2,
+				UpdateRevision:     "sts-rev-1", // Rolling back to rev-1
+				CurrentRevision:    "sts-rev-2",
+			},
+		}
 
-	tracker.StoreStatefulSet(stsRollback)
-	tracker.UpdateLastSeenStatefulSetRevision(namespace, stsName, "sts-rev-1")
+		tracker.StoreStatefulSet(stsRollback)
+		tracker.UpdateLastSeenStatefulSetRevision(namespace, stsName, "sts-rev-1")
 
-	rollbackStartTime := tracker.statefulSetStartTime[key]
-	assert.True(t, rollbackStartTime.After(v2StartTime), "Rollback should have new start time")
+		rollbackStartTime := tracker.statefulSetStartTime[key]
+		assert.True(t, rollbackStartTime.After(v2StartTime), "Rollback should have new start time")
+	})
 }
 
 // TestStatefulSetScalingAfterRollback tests that scaling doesn't trigger rollout detection
@@ -1557,138 +1568,142 @@ func TestStatefulSetScalingAfterRollback(t *testing.T) {
 // TestStatefulSetPartitionChangeDoesNotResetDuration tests that partition changes
 // don't reset rollout duration
 func TestStatefulSetPartitionChangeDoesNotResetDuration(t *testing.T) {
-	tracker := NewRolloutTracker()
+	synctest.Test(t, func(t *testing.T) {
+		tracker := NewRolloutTracker()
 
-	namespace := "default"
-	stsName := "test-statefulset"
-	key := namespace + "/" + stsName
+		namespace := "default"
+		stsName := "test-statefulset"
+		key := namespace + "/" + stsName
 
-	// Initial rollout with partition=2
-	partition := int32(2)
-	sts := &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       stsName,
-			Namespace:  namespace,
-			Generation: 1,
-		},
-		Spec: appsv1.StatefulSetSpec{
-			UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
-				RollingUpdate: &appsv1.RollingUpdateStatefulSetStrategy{
-					Partition: &partition,
+		// Initial rollout with partition=2
+		partition := int32(2)
+		sts := &appsv1.StatefulSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       stsName,
+				Namespace:  namespace,
+				Generation: 1,
+			},
+			Spec: appsv1.StatefulSetSpec{
+				UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
+					RollingUpdate: &appsv1.RollingUpdateStatefulSetStrategy{
+						Partition: &partition,
+					},
 				},
 			},
-		},
-		Status: appsv1.StatefulSetStatus{
-			ObservedGeneration: 1,
-			UpdateRevision:     "sts-rev-2",
-			CurrentRevision:    "sts-rev-1",
-		},
-	}
+			Status: appsv1.StatefulSetStatus{
+				ObservedGeneration: 1,
+				UpdateRevision:     "sts-rev-2",
+				CurrentRevision:    "sts-rev-1",
+			},
+		}
 
-	tracker.StoreStatefulSet(sts)
-	tracker.UpdateLastSeenStatefulSetRevision(namespace, stsName, "sts-rev-2")
-	initialStartTime := tracker.statefulSetStartTime[key]
+		tracker.StoreStatefulSet(sts)
+		tracker.UpdateLastSeenStatefulSetRevision(namespace, stsName, "sts-rev-2")
+		initialStartTime := tracker.statefulSetStartTime[key]
 
-	time.Sleep(10 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 
-	// Change partition to 1 - same updateRevision
-	partition = int32(1)
-	stsPartition1 := &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       stsName,
-			Namespace:  namespace,
-			Generation: 2, // Generation changes
-		},
-		Spec: appsv1.StatefulSetSpec{
-			UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
-				RollingUpdate: &appsv1.RollingUpdateStatefulSetStrategy{
-					Partition: &partition,
+		// Change partition to 1 - same updateRevision
+		partition = int32(1)
+		stsPartition1 := &appsv1.StatefulSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       stsName,
+				Namespace:  namespace,
+				Generation: 2, // Generation changes
+			},
+			Spec: appsv1.StatefulSetSpec{
+				UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
+					RollingUpdate: &appsv1.RollingUpdateStatefulSetStrategy{
+						Partition: &partition,
+					},
 				},
 			},
-		},
-		Status: appsv1.StatefulSetStatus{
-			ObservedGeneration: 1,
-			UpdateRevision:     "sts-rev-2", // Same revision
-			CurrentRevision:    "sts-rev-1",
-		},
-	}
+			Status: appsv1.StatefulSetStatus{
+				ObservedGeneration: 1,
+				UpdateRevision:     "sts-rev-2", // Same revision
+				CurrentRevision:    "sts-rev-1",
+			},
+		}
 
-	// Partition change should NOT be detected as revision change
-	assert.False(t, tracker.HasStatefulSetRevisionChanged(namespace, stsName, "sts-rev-2"),
-		"Partition change should NOT be detected as revision change")
+		// Partition change should NOT be detected as revision change
+		assert.False(t, tracker.HasStatefulSetRevisionChanged(namespace, stsName, "sts-rev-2"),
+			"Partition change should NOT be detected as revision change")
 
-	tracker.StoreStatefulSet(stsPartition1)
+		tracker.StoreStatefulSet(stsPartition1)
 
-	// Start time should NOT change
-	assert.Equal(t, initialStartTime, tracker.statefulSetStartTime[key],
-		"Start time should NOT change on partition change")
+		// Start time should NOT change
+		assert.Equal(t, initialStartTime, tracker.statefulSetStartTime[key],
+			"Start time should NOT change on partition change")
+	})
 }
 
 // TestDaemonSetRollbackScenario tests that DaemonSet rollbacks are correctly detected
 // Note: DaemonSets don't expose UpdateRevision in their status, so we use generation-based tracking
 func TestDaemonSetRollbackScenario(t *testing.T) {
-	tracker := NewRolloutTracker()
+	synctest.Test(t, func(t *testing.T) {
+		tracker := NewRolloutTracker()
 
-	namespace := "default"
-	dsName := "test-daemonset"
-	key := namespace + "/" + dsName
+		namespace := "default"
+		dsName := "test-daemonset"
+		key := namespace + "/" + dsName
 
-	// Deploy v1
-	dsV1 := &appsv1.DaemonSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       dsName,
-			Namespace:  namespace,
-			Generation: 1,
-		},
-		Status: appsv1.DaemonSetStatus{
-			ObservedGeneration: 1,
-		},
-	}
+		// Deploy v1
+		dsV1 := &appsv1.DaemonSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       dsName,
+				Namespace:  namespace,
+				Generation: 1,
+			},
+			Status: appsv1.DaemonSetStatus{
+				ObservedGeneration: 1,
+			},
+		}
 
-	tracker.StoreDaemonSet(dsV1)
-	v1StartTime := tracker.daemonSetStartTime[key]
-	assert.False(t, v1StartTime.IsZero(), "v1 start time should be set")
-	tracker.CleanupDaemonSet(namespace, dsName)
+		tracker.StoreDaemonSet(dsV1)
+		v1StartTime := tracker.daemonSetStartTime[key]
+		assert.False(t, v1StartTime.IsZero(), "v1 start time should be set")
+		tracker.CleanupDaemonSet(namespace, dsName)
 
-	// Deploy v2
-	time.Sleep(10 * time.Millisecond)
-	dsV2 := &appsv1.DaemonSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       dsName,
-			Namespace:  namespace,
-			Generation: 2,
-		},
-		Status: appsv1.DaemonSetStatus{
-			ObservedGeneration: 1,
-		},
-	}
+		// Deploy v2
+		time.Sleep(10 * time.Millisecond)
+		dsV2 := &appsv1.DaemonSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       dsName,
+				Namespace:  namespace,
+				Generation: 2,
+			},
+			Status: appsv1.DaemonSetStatus{
+				ObservedGeneration: 1,
+			},
+		}
 
-	tracker.StoreDaemonSet(dsV2)
-	v2StartTime := tracker.daemonSetStartTime[key]
-	assert.True(t, v2StartTime.After(v1StartTime), "v2 start time should be after v1")
-	tracker.CleanupDaemonSet(namespace, dsName)
+		tracker.StoreDaemonSet(dsV2)
+		v2StartTime := tracker.daemonSetStartTime[key]
+		assert.True(t, v2StartTime.After(v1StartTime), "v2 start time should be after v1")
+		tracker.CleanupDaemonSet(namespace, dsName)
 
-	// Rollback (generation changes again)
-	time.Sleep(10 * time.Millisecond)
-	dsRollback := &appsv1.DaemonSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       dsName,
-			Namespace:  namespace,
-			Generation: 3, // Generation increases on rollback
-		},
-		Status: appsv1.DaemonSetStatus{
-			ObservedGeneration: 2,
-		},
-	}
+		// Rollback (generation changes again)
+		time.Sleep(10 * time.Millisecond)
+		dsRollback := &appsv1.DaemonSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       dsName,
+				Namespace:  namespace,
+				Generation: 3, // Generation increases on rollback
+			},
+			Status: appsv1.DaemonSetStatus{
+				ObservedGeneration: 2,
+			},
+		}
 
-	tracker.StoreDaemonSet(dsRollback)
-	rollbackStartTime := tracker.daemonSetStartTime[key]
-	assert.True(t, rollbackStartTime.After(v2StartTime), "Rollback should have new start time")
+		tracker.StoreDaemonSet(dsRollback)
+		rollbackStartTime := tracker.daemonSetStartTime[key]
+		assert.True(t, rollbackStartTime.After(v2StartTime), "Rollback should have new start time")
 
-	// Duration should use stored start time
-	duration := tracker.GetDaemonSetRolloutDuration(namespace, dsName)
-	assert.GreaterOrEqual(t, duration, 0.0, "Duration should be non-negative")
-	assert.Less(t, duration, 1.0, "Duration should be small (just started)")
+		// Duration should use stored start time
+		duration := tracker.GetDaemonSetRolloutDuration(namespace, dsName)
+		assert.GreaterOrEqual(t, duration, 0.0, "Duration should be non-negative")
+		assert.Less(t, duration, 1.0, "Duration should be small (just started)")
+	})
 }
 
 // TestGetRolloutDurationUsesStoredStartTime verifies that duration calculation

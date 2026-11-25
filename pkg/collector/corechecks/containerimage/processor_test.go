@@ -8,6 +8,7 @@ package containerimage
 import (
 	"context"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/contimage"
@@ -22,6 +23,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	pkgconfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -573,43 +575,49 @@ func TestProcessEvents(t *testing.T) {
 		},
 	}
 
+	// Resolve the hostname outside of the bubble, from the configuration so that
+	// no provider is probed: the other providers start goroutines that never stop.
+	pkgconfigmock.New(t).SetInTest("hostname", "test-hostname")
+	_, _ = hostname.Get(context.TODO())
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			imagesSent := atomic.NewInt32(0)
+			synctest.Test(t, func(t *testing.T) {
+				imagesSent := atomic.NewInt32(0)
 
-			sender := mocksender.NewMockSender(t, "")
-			sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {
-				imagesSent.Inc()
-			})
-
-			// Define a max size of 1 for the queue. With a size > 1, it's difficult to
-			// control the number of events sent on each call.
-			p := newProcessor(sender, 1, 50*time.Millisecond, fakeTagger)
-
-			p.processEvents(workloadmeta.EventBundle{
-				Events: test.inputEvents,
-				Ch:     make(chan struct{}),
-			})
-
-			p.stop()
-
-			// The queue is processing the events in a different go routine and might
-			// need some time
-			assert.Eventually(t, func() bool {
-				return imagesSent.Load() == int32(len(test.expectedImages))
-			}, 1*time.Second, 5*time.Millisecond)
-
-			hname, _ := hostname.Get(context.TODO())
-			for _, expectedImage := range test.expectedImages {
-				encoded, err := proto.Marshal(&model.ContainerImagePayload{
-					Version: "v1",
-					Host:    hname,
-					Source:  &sourceAgent,
-					Images:  []*model.ContainerImage{expectedImage},
+				sender := mocksender.NewMockSender(t, "")
+				sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {
+					imagesSent.Inc()
 				})
-				assert.Nil(t, err)
-				sender.AssertEventPlatformEvent(t, encoded, eventplatform.EventTypeContainerImages)
-			}
+
+				// Define a max size of 1 for the queue. With a size > 1, it's difficult to
+				// control the number of events sent on each call.
+				p := newProcessor(sender, 1, 50*time.Millisecond, fakeTagger)
+
+				p.processEvents(workloadmeta.EventBundle{
+					Events: test.inputEvents,
+					Ch:     make(chan struct{}),
+				})
+
+				p.stop()
+
+				// The queue is processing the events in a different goroutine.
+				// Wait for it to be done with them.
+				synctest.Wait()
+				assert.Equal(t, int32(len(test.expectedImages)), imagesSent.Load())
+
+				hname, _ := hostname.Get(context.TODO())
+				for _, expectedImage := range test.expectedImages {
+					encoded, err := proto.Marshal(&model.ContainerImagePayload{
+						Version: "v1",
+						Host:    hname,
+						Source:  &sourceAgent,
+						Images:  []*model.ContainerImage{expectedImage},
+					})
+					assert.Nil(t, err)
+					sender.AssertEventPlatformEvent(t, encoded, eventplatform.EventTypeContainerImages)
+				}
+			})
 		})
 	}
 }
