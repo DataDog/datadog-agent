@@ -39,7 +39,7 @@ func NewAPMInjectExec(execBinPath string) *APMInjectExec {
 	// ddinjector-installer.exe fails if it cannot create its log file, and its
 	// default log directory is %TEMP%, which can point to a deleted directory
 	// (e.g. the temp directory of a closed RDP session).
-	if _, err := os.Stat(paths.RootTmpDir); err == nil {
+	if info, err := os.Stat(paths.RootTmpDir); err == nil && info.IsDir() {
 		a.logPath = paths.RootTmpDir
 	}
 	return a
