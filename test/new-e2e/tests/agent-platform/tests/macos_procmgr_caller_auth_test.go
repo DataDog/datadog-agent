@@ -347,7 +347,7 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 	assert.Equal(t, "Skipped", deniedTarget.State)
 	assert.Equal(t, 0, deniedTarget.Pid)
 
-	assertMacosProcmgrRequiresRoot(t, client, macosCallerAuthAgentCLI+" create --name "+macosCallerAuthAgentEntry+" --command /bin/sleep --args 600 --no-auto-start")
+	assertMacosProcmgrRequiresRoot(t, client, macosCallerAuthAgentCLI+" create --name "+macosCallerAuthAgentEntry+" --command /bin/sleep --args "+sleepArg+" --no-auto-start")
 	assertMacosProcmgrRequiresRoot(t, client, macosCallerAuthAgentCLI+" start "+macosCallerAuthStartEntry)
 	assertMacosProcmgrRequiresRoot(t, client, macosCallerAuthAgentCLI+" stop "+macosCallerAuthEntry)
 	denied := assertMacosProcmgrRequiresRoot(t, client, macosCallerAuthAgentCLI+" start does-not-exist")
