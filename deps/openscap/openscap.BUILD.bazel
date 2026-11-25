@@ -524,6 +524,7 @@ cc_shared_library(
         "@xmlsec//:xmlsec1_pkg",
         "@xmlsec//:xmlsec1-openssl_pkg",
         "@acl//:acl_pkg",
+        "@zstd//:zstd_pkg",
     ],
     deps = [
         ":libopenscap",
@@ -575,6 +576,7 @@ cc_binary(
         "@xz//:lzma_pkg",
         "@zlib//:z_pkg",
         "@nghttp2//:nghttp2_pkg",
+        "@zstd//:zstd_pkg",
     ],
     includes = COMMON_INCLUDE_DIRS + PUBLIC_HEADERS_DIRS,
     linkstatic = False,
@@ -621,6 +623,7 @@ cc_binary(
         "@xz//:lzma_pkg",
         "@zlib//:z_pkg",
         "@nghttp2//:nghttp2_pkg",
+        "@zstd//:zstd_pkg",
     ],
     includes = COMMON_INCLUDE_DIRS + PUBLIC_HEADERS_DIRS,
     linkstatic = False,

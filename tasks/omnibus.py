@@ -827,9 +827,32 @@ def _replace_dylib_id_paths_with_rpath(ctx, otool_output, install_path, file):
         ctx.run(f"install_name_tool -id {new_dylib_path} {file}")
 
 
+def _rewrite_linux_rpath(binary_rpath: str, install_path: str, new_rpath: str) -> str:
+    """Replace RPATH entries containing ``install_path`` with ``$ORIGIN/{new_rpath}/embedded/lib``,
+    preserving other entries (such as ``$ORIGIN`` or ``$ORIGIN/../<pkg>.libs``).
+    """
+    replacement = f"$ORIGIN/{new_rpath}/embedded/lib"
+    entries: list[str] = []
+    for line in binary_rpath.splitlines():
+        tokens = line.split()
+        if not tokens:
+            continue
+        raw_rpath = tokens[-1]
+        for entry in raw_rpath.split(":"):
+            if not entry:
+                continue
+            updated = replacement if install_path in entry else entry
+            if updated not in entries:
+                entries.append(updated)
+    if not entries:
+        entries.append(replacement)
+    return ":".join(entries)
+
+
 def _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, file):
     if platform == "linux":
-        ctx.run(f"patchelf --force-rpath --set-rpath \\$ORIGIN/{new_rpath}/embedded/lib {file}")
+        rewritten = _rewrite_linux_rpath(binary_rpath, install_path, new_rpath).replace("$", r"\$")
+        ctx.run(f"patchelf --force-rpath --set-rpath {rewritten} {file}")
     else:
         # The macOS agent binary has 18 RPATH definition, replacing the first one should be enough
         # but just in case we're replacing them all.
@@ -961,3 +984,48 @@ def deduplicate_files(ctx, directory):
 
     print(f"Found {sum(len(v) - 1 for v in duplicates.values())} duplicate files.")
     replace_with_symlinks(duplicates)
+
+
+@task
+def deduplicate_wheel_libs(
+    ctx,
+    install_dir,
+    site_packages=None,
+    embedded_lib=None,
+    rpath_dir=None,
+    require_dedup="",
+    patchelf="patchelf",
+    readelf="readelf",
+    dry_run=False,
+):
+    """Deduplicate auditwheel-bundled Linux shared libraries against embedded/lib."""
+    from pathlib import Path
+
+    from tasks.libs.package.wheel_libs import (
+        deduplicate_wheel_libs as _deduplicate_wheel_libs,
+    )
+    from tasks.libs.package.wheel_libs import (
+        find_site_packages_dirs,
+        format_summary,
+    )
+
+    install_path = Path(install_dir)
+    embedded_lib_dir = Path(embedded_lib) if embedded_lib else install_path / "embedded" / "lib"
+    site_packages_dirs = [Path(site_packages)] if site_packages else find_site_packages_dirs(install_path)
+    required = {item.strip() for item in require_dedup.split(",") if item.strip()}
+
+    if not site_packages_dirs:
+        print(f"No site-packages directories found under {install_path}")
+        return
+
+    for sp_dir in site_packages_dirs:
+        result = _deduplicate_wheel_libs(
+            sp_dir,
+            embedded_lib_dir,
+            rpath_dir=rpath_dir,
+            require_dedup=required,
+            readelf=readelf,
+            patchelf=patchelf,
+            dry_run=dry_run,
+        )
+        print(format_summary(result))

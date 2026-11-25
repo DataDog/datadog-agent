@@ -133,6 +133,14 @@ cc_library(
 
 cc_shared_library(
     name = "z",
+    additional_linker_inputs = select({
+        "@platforms//os:linux": ["zlib.map"],
+        "//conditions:default": [],
+    }),
+    user_link_flags = select({
+        "@platforms//os:linux": ["-Wl,--version-script=$(execpath :zlib.map)"],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:public"],
     win_def_file = "win32/zlib.def",
     deps = [":zlib"],

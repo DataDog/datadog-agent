@@ -141,6 +141,13 @@ build do
             # cleanup clutter
             delete "#{install_dir}/etc"
 
+            # Deduplicate hash-mangled wheel-bundled shared libraries (site-packages/*.libs/)
+            # against libraries already shipped in embedded/lib/, after checking ELF symbol
+            # and version compatibility. Runs before .installed_by_pkg.txt, deduplicate-files,
+            # and rpath-edit so removed libraries are not recorded and patched RPATHs are updated.
+            require_dedup_arg = fips_mode? ? " --require-dedup=libcrypto,libssl" : ""
+            command "dda inv -- omnibus.deduplicate-wheel-libs --install-dir #{install_dir}#{require_dedup_arg}", cwd: Dir.pwd
+
             # The prerm and preinst scripts of the package will use this list to detect which files
             # have been setup by the installer, this way, on removal, we'll be able to delete only files
             # which have not been created by the package.
