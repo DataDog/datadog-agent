@@ -273,10 +273,7 @@ func (v *ssiSuite) TestInjectionMode() {
 				podValidator.RequireCSIDriverStatus(v.T(), testutils.CSIDriverStatusAPMEnabled)
 			}
 
-			require.Eventually(v.T(), func() bool {
-				traces := FindTracesForService(v.T(), intake, tc.name)
-				return traces != 0
-			}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", tc.name)
+			RequireTracesForService(v.T(), intake, pod, tc.name)
 		})
 	}
 }
@@ -350,10 +347,7 @@ func (v *ssiSuite) TestLocalSDKInjection() {
 		podValidator.RequireInjectedLibraries(v.T(), map[string]string{"injector": "injected", "python": "injected"})
 
 		// Ensure the service has traces.
-		require.Eventually(v.T(), func() bool {
-			traces := FindTracesForService(v.T(), intake, "local-sdk-injection-app")
-			return traces != 0
-		}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", "local-sdk-injection-app")
+		RequireTracesForService(v.T(), intake, pod, "local-sdk-injection-app")
 	})
 
 	v.Run("ExpectNoInjection", func() {
@@ -420,10 +414,7 @@ func (v *ssiSuite) TestNamespaceSelection() {
 		podValidator.RequireInjectedLibraries(v.T(), map[string]string{"injector": "injected", "python": "injected"})
 
 		// Ensure the service has traces.
-		require.Eventually(v.T(), func() bool {
-			traces := FindTracesForService(v.T(), intake, "namespace-selection-inject")
-			return traces != 0
-		}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", "namespace-selection-inject")
+		RequireTracesForService(v.T(), intake, pod, "namespace-selection-inject")
 	})
 	v.Run("ExpectNoInjection", func() {
 		pods := GetPodsInNamespace(v.T(), v.Env().KubernetesCluster.Client(), "expect-no-injection")
@@ -490,10 +481,7 @@ func (v *ssiSuite) TestWorkloadSelection() {
 		podValidator.RequireInjectedLibraries(v.T(), map[string]string{"injector": "injected", "python": "injected"})
 
 		// Ensure the service has traces.
-		require.Eventually(v.T(), func() bool {
-			traces := FindTracesForService(v.T(), intake, "workload-selection-inject")
-			return traces != 0
-		}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", "workload-selection-inject")
+		RequireTracesForService(v.T(), intake, pod, "workload-selection-inject")
 	})
 
 	v.Run("ExpectNoInjection", func() {
@@ -573,10 +561,7 @@ func (v *ssiSuite) TestRegistryAllowList() {
 		podValidator.RequireInjectionStatus(v.T(), testutils.InjectionStatusInjected)
 		podValidator.RequireInjectedLibraries(v.T(), map[string]string{"injector": "injected", "python": "injected"})
 
-		require.Eventually(v.T(), func() bool {
-			traces := FindTracesForService(v.T(), intake, "registry-allow-list-allowed")
-			return traces != 0
-		}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", "registry-allow-list-allowed")
+		RequireTracesForService(v.T(), intake, pod, "registry-allow-list-allowed")
 	})
 
 	v.Run("InjectorRegistryBlockedByAllowList", func() {
@@ -700,9 +685,7 @@ func (v *ssiSuite) testDatadogInstrumentation() {
 	validator.RequireEnvs(v.T(), map[string]string{"DD_SERVICE": ddiAPMService, "DD_TRACE_ENABLED": "true"}, []string{ddiApp})
 	validator.RequireAppliedConfigName(v.T(), "datadoginstrumentation:"+ddiNamespace+"/"+ddiAPMName)
 	validator.RequireAnnotations(v.T(), map[string]string{testutils.InjectionSourceAnnotation: "datadog-instrumentation"})
-	require.Eventually(v.T(), func() bool {
-		return FindTracesForService(v.T(), fi, ddiAPMService) != 0
-	}, time.Minute, 10*time.Second, "did not find traces for DDI-configured service %s", ddiAPMService)
+	RequireTracesForService(v.T(), fi, pod, ddiAPMService)
 }
 
 func (v *ssiSuite) TestRemoteConfig() {

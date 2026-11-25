@@ -9,6 +9,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -103,7 +106,7 @@ func (e *Kubernetes) Diagnose(outputDir string) (string, error) {
 		for _, pod := range linuxPods.Items {
 			diagnoseOutput = append(diagnoseOutput, fmt.Sprintf("Pod %s:\n", pod.Name))
 			if podRejectsExec(pod) {
-				diagnoseOutput = append(diagnoseOutput, gkeAutopilotNoFlareMessage)
+				diagnoseOutput = append(diagnoseOutput, gkeAutopilotNoFlareMessage, e.downloadContainerLogs(ctx, pod, outputDir))
 				continue
 			}
 			flarePath, err := e.generateAndDownloadAgentFlare("agent", pod, "agent", outputDir)
@@ -151,7 +154,7 @@ func (e *Kubernetes) Diagnose(outputDir string) (string, error) {
 		for _, pod := range cluserAgentPods.Items {
 			diagnoseOutput = append(diagnoseOutput, fmt.Sprintf("Pod %s:\n", pod.Name))
 			if podRejectsExec(pod) {
-				diagnoseOutput = append(diagnoseOutput, gkeAutopilotNoFlareMessage)
+				diagnoseOutput = append(diagnoseOutput, gkeAutopilotNoFlareMessage, e.downloadContainerLogs(ctx, pod, outputDir))
 				continue
 			}
 			flarePath, err := e.generateAndDownloadAgentFlare("datadog-cluster-agent", pod, "cluster-agent", outputDir)
@@ -178,6 +181,50 @@ const gkeAutopilotNoFlareMessage = "Skipping flare: GKE Autopilot blocks exec in
 // flare generation impossible.
 func podRejectsExec(pod v1.Pod) bool {
 	return pod.Annotations[gkeAutopilotNoConnectAnnotation] == "true"
+}
+
+// downloadContainerLogs writes the logs of every container of the pod to <outputDir>/<pod>/<container>.log,
+// plus <container>.previous.log for restarted containers. Reading logs does not need exec.
+func (e *Kubernetes) downloadContainerLogs(ctx context.Context, pod v1.Pod, outputDir string) string {
+	dir := filepath.Join(outputDir, pod.Name)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Sprintf("Failed to create %s: %s\n", dir, err)
+	}
+	restarted := map[string]bool{}
+	for _, status := range pod.Status.ContainerStatuses {
+		restarted[status.Name] = status.RestartCount > 0
+	}
+	var output []string
+	for _, container := range pod.Spec.Containers {
+		files := map[string]bool{container.Name + ".log": false}
+		if restarted[container.Name] {
+			files[container.Name+".previous.log"] = true
+		}
+		for file, previous := range files {
+			path := filepath.Join(dir, file)
+			if err := e.writeContainerLogs(ctx, pod, container.Name, previous, path); err != nil {
+				output = append(output, fmt.Sprintf("Failed to download %s: %s", path, err))
+				continue
+			}
+			output = append(output, "Downloaded container logs: "+path)
+		}
+	}
+	return strings.Join(output, "\n") + "\n"
+}
+
+func (e *Kubernetes) writeContainerLogs(ctx context.Context, pod v1.Pod, container string, previous bool, path string) error {
+	logs, err := e.KubernetesCluster.Client().CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &v1.PodLogOptions{Container: container, Previous: previous}).Stream(ctx)
+	if err != nil {
+		return err
+	}
+	defer logs.Close()
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = io.Copy(f, logs)
+	return err
 }
 
 func (e *Kubernetes) generateAndDownloadAgentFlare(agentBinary string, pod v1.Pod, container string, outputDir string) (string, error) {
