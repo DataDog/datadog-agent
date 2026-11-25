@@ -371,7 +371,7 @@ func TestStrippingNormalizedRules(t *testing.T) {
 	matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
 		"my_app.request_count": {Tags: []string{"pod_name", "env"}, Action: "exclude"},
 	}, logmock.New(t))
-	contextResolver := newContextResolver(setupTagger(t), store, "test")
+	contextResolver := newContextResolver(setupTagger(t), store, "test", nil)
 
 	s1 := &metrics.MetricSample{
 		Name:       "my-app.request count",
@@ -768,6 +768,7 @@ func TestTypeFiltersAtOutput(t *testing.T) {
 		metrics.DistributionType:       true,
 		metrics.GaugeWithTimestampType: false,
 		metrics.CountWithTimestampType: false,
+		metrics.HistogramBucketType:    false,
 	}
 	require.Len(t, cases, int(metrics.NumMetricTypes), "every metric type is listed")
 	for mt, want := range cases {
