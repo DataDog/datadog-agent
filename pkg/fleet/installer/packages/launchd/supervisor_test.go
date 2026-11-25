@@ -73,7 +73,7 @@ func TestDeadlineRefusesAnUntrustedFile(t *testing.T) {
 	})
 	t.Run("oversized", func(t *testing.T) {
 		d := testDeadline(t)
-		require.NoError(t, os.WriteFile(d.Path, make([]byte, maxDeadlineSize+1), 0644))
+		require.NoError(t, os.WriteFile(d.Path, make([]byte, MaxDeadlineSize+1), 0644))
 		_, err := d.Read()
 		assert.Error(t, err)
 	})

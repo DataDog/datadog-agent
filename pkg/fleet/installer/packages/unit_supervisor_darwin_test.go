@@ -307,6 +307,34 @@ func TestSupervisorFailsTheExperimentOnAnyServiceCrash(t *testing.T) {
 	}
 }
 
+// TestWriteUnitsStatusFitsItsFile pins that a failure message, however long, leaves a status the
+// supervisor and the hooks can still read: the status file is read with the deadline's size limit.
+func TestWriteUnitsStatusFitsItsFile(t *testing.T) {
+	stubDeadlinePath(t)
+	stubUnitsState(t)
+	const nonce = "1234567890123456789"
+
+	writeUnitsStatus(nonce, unitsPhaseFailed, "could not restore com.datadoghq.agent")
+	status, err := readUnitsStatus()
+	require.NoError(t, err)
+	assert.Equal(t, unitsStatus{nonce: nonce, phase: unitsPhaseFailed, message: "could not restore com.datadoghq.agent"}, status, "a short message is kept whole")
+
+	// The cut falls inside the two-byte "é": it moves back to the start of the character.
+	prefix := nonce + " " + unitsPhaseFailed + " "
+	cutInMessage := launchd.MaxDeadlineSize - len(unitsStatusEllipsis) - len(prefix)
+	long := strings.Repeat("a", cutInMessage-1) + "é" + strings.Repeat("b", 800)
+	writeUnitsStatus(nonce, unitsPhaseFailed, long)
+
+	raw, err := os.ReadFile(unitsStatusPath)
+	require.NoError(t, err)
+	assert.LessOrEqual(t, len(raw), launchd.MaxDeadlineSize)
+	status, err = readUnitsStatus()
+	require.NoError(t, err)
+	assert.Equal(t, nonce, status.nonce)
+	assert.Equal(t, unitsPhaseFailed, status.phase)
+	assert.Equal(t, strings.Repeat("a", cutInMessage-1)+unitsStatusEllipsis, status.message)
+}
+
 // TestSupervisorLeavesACleanChildExitDown pins that a job other than the Agent and the installer
 // daemon may exit cleanly, as it does when its feature is off, without failing the experiment.
 func TestSupervisorLeavesACleanChildExitDown(t *testing.T) {

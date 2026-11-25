@@ -37,9 +37,9 @@ type Deadline struct {
 	OwnerUID int
 }
 
-// maxDeadlineSize bounds how much of the deadline file is read. A deadline is one RFC 3339
-// timestamp; anything larger was not written by Write.
-const maxDeadlineSize = 256
+// MaxDeadlineSize bounds how much of the deadline file, or of a state file kept beside it
+// (WriteRaw), is read. Anything larger was not written by this package's callers.
+const MaxDeadlineSize = 256
 
 // checkOwnership verifies that info, the result of an Lstat or an Fstat, belongs to the deadline's
 // owner and is writable by no one else.
@@ -99,12 +99,12 @@ func (d Deadline) readRaw() (string, error) {
 	if err := d.checkOwnership(d.Path, info); err != nil {
 		return "", fmt.Errorf("refusing to trust the deadline file: %w", err)
 	}
-	raw, err := io.ReadAll(io.LimitReader(f, maxDeadlineSize+1))
+	raw, err := io.ReadAll(io.LimitReader(f, MaxDeadlineSize+1))
 	if err != nil {
 		return "", fmt.Errorf("could not read deadline file: %w", err)
 	}
-	if len(raw) > maxDeadlineSize {
-		return "", fmt.Errorf("refusing to trust the deadline file %s: larger than %d bytes", d.Path, maxDeadlineSize)
+	if len(raw) > MaxDeadlineSize {
+		return "", fmt.Errorf("refusing to trust the deadline file %s: larger than %d bytes", d.Path, MaxDeadlineSize)
 	}
 	return strings.TrimSpace(string(raw)), nil
 }

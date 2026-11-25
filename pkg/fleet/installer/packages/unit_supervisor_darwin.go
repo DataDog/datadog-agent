@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
@@ -123,8 +124,22 @@ func readUnitsStatus() (unitsStatus, error) {
 	return unitsStatus{nonce: fields[0], phase: fields[1], message: fields[2]}, nil
 }
 
+// unitsStatusEllipsis marks a status message cut to fit the status file.
+const unitsStatusEllipsis = "..."
+
 func writeUnitsStatus(nonce, phase, message string) {
-	if err := unitsStatusFile().WriteRaw(strings.TrimSpace(nonce + " " + phase + " " + message)); err != nil {
+	line := strings.TrimSpace(nonce + " " + phase + " " + message)
+	if len(line) > launchd.MaxDeadlineSize {
+		// The status is read with the deadline's size limit: a longer one would be refused, by the
+		// supervisor and by every hook, until a reinstall. The message is only informative.
+		log.Warnf("unit supervisor: status message cut to fit its file: %s", message)
+		cut := launchd.MaxDeadlineSize - len(unitsStatusEllipsis)
+		for cut > 0 && !utf8.RuneStart(line[cut]) {
+			cut--
+		}
+		line = line[:cut] + unitsStatusEllipsis
+	}
+	if err := unitsStatusFile().WriteRaw(line); err != nil {
 		log.Errorf("unit supervisor: could not write its status: %v", err)
 	}
 }
