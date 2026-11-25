@@ -15,13 +15,16 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/fx"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/grpclog"
+	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -52,7 +55,8 @@ const (
 )
 
 type client struct {
-	cl sbompb.SBOMCollectorClient
+	cl    sbompb.SBOMCollectorClient
+	usage *sbompkg.UsageStream
 }
 
 func (c *client) StreamEntities(ctx context.Context) (remote.Stream, error) {
@@ -62,24 +66,48 @@ func (c *client) StreamEntities(ctx context.Context) (remote.Stream, error) {
 		&sbompb.SBOMStreamParams{},
 	)
 	if err != nil {
+		c.usage.OpenFailed(time.Now())
 		return nil, err
 	}
-	return &stream{cl: streamcl}, nil
+	return &stream{cl: streamcl, usage: c.usage}, nil
 }
 
 type stream struct {
-	cl sbompb.SBOMCollector_GetSBOMStreamClient
+	cl    sbompb.SBOMCollector_GetSBOMStreamClient
+	usage *sbompkg.UsageStream
+	// served is set once a report arrived, which shows the server took the
+	// stream: the server answers the call at the first Recv alone.
+	served bool
 }
 
+// Recv returns the next report of the stream. A server without the usage
+// service ends the stream at once with codes.Unimplemented. A server that ends
+// the stream before its first report, as one that rejects the credentials of
+// the client does, fails the attempt to open it. The other errors end one
+// stream, and the next attempt to open one tells whether system-probe is still
+// out of reach.
 func (s *stream) Recv() (interface{}, error) {
 	log.Trace("calling stream recv")
-	return s.cl.Recv()
+	msg, err := s.cl.Recv()
+	switch {
+	case err == nil:
+		s.served = true
+		s.usage.Reported()
+	case status.Code(err) == codes.Unimplemented:
+		if s.usage.Unserved() {
+			log.Warnf("system-probe serves no runtime usage of packages, SBOMs go out without waiting for it: %v", err)
+		}
+	case !s.served:
+		s.usage.OpenFailed(time.Now())
+	}
+	return msg, err
 }
 
 type streamHandler struct {
 	agentConfig       model.Reader
 	systemProbeConfig model.Reader
 	pending           *pendingReports
+	usage             *sbompkg.UsageStream
 }
 
 // errNotReady marks a report that arrived before its container, its image or
@@ -460,7 +488,7 @@ func forgetRemovedImages(ctx context.Context, store workloadmeta.Component) {
 func NewCollector(ipc ipc.Component) (workloadmeta.CollectorProvider, error) {
 	cfg := pkgconfigsetup.Datadog() //nolint:depguard
 	// TODO(components): make sure StreamHandler uses the config component not pkg/config
-	handler := &streamHandler{agentConfig: cfg, systemProbeConfig: pkgconfigsetup.SystemProbe()}
+	handler := &streamHandler{agentConfig: cfg, systemProbeConfig: pkgconfigsetup.SystemProbe(), usage: sbompkg.Usage()}
 	// A report waits only for an image SBOM that the runtime collectors scan.
 	if cfg.GetBool("container_image.enabled") && cfg.GetBool("sbom.container_image.enabled") {
 		handler.pending = newPendingReports()
@@ -531,7 +559,7 @@ func (s *streamHandler) IsEnabled() bool {
 func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient {
 	log.Debug("creating grpc client")
 
-	return &client{cl: sbompb.NewSBOMCollectorClient(cc)}
+	return &client{cl: sbompb.NewSBOMCollectorClient(cc), usage: s.usage}
 }
 
 func (s *streamHandler) HandleResponse(store workloadmeta.Component, resp interface{}) ([]workloadmeta.CollectorEvent, error) {
