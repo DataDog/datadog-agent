@@ -11,10 +11,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"maps"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -29,19 +34,37 @@ import (
 	"go.uber.org/fx"
 	"go.yaml.in/yaml/v3"
 
+	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
+	schemanoopfx "github.com/DataDog/datadog-agent/comp/core/schema/fx-noop"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	extensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
+)
+
+const (
+	// defaultExtensionTimeout is the timeout of the ddflare extension request, matching the core Agent flare
+	defaultExtensionTimeout = 20 * time.Second
+	// debugSourceTimeout leaves room for the pprof CPU profile, which takes 30 seconds
+	debugSourceTimeout = 45 * time.Second
+	// noConfigProvided replaces the configurations when no --config is given. It isn't a YAML
+	// comment, which the scrubber would remove.
+	noConfigProvided = "No configuration files provided, pass the --config flags given to the collector"
 )
 
 // cliParams are the command-line arguments for this subcommand
@@ -81,15 +104,16 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 			flareParams.KeepArchiveAfterSend = cliParams.keepArchive
 			return fxutil.OneShot(makeFlare,
 				fx.Supply(cliParams),
-				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigName(globalParams.ConfigName)),
-					LogParams:    log.ForOneShot(globalParams.LoggerName, "info", false),
-				}),
+				flareConfigModule(globalParams),
+				fx.Supply(log.ForOneShot(globalParams.LoggerName, "info", false)),
+				logfx.Module(),
+				secretsnoopfx.Module(),
+				delegatedauthnoopfx.Module(),
 				flare.Module(flareParams),
-				core.Bundle(),
 				// Provide empty option for workloadmeta (optional dependency)
 				fx.Supply(option.None[workloadmeta.Component]()),
-				// Provide required modules
+				// Insecure so the flare is still created when the IPC artifacts are missing,
+				// e.g. when the collector isn't running
 				ipcfx.ModuleInsecure(),
 			)
 		},
@@ -103,10 +127,29 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 	return flareCmd
 }
 
+// flareConfigModule provides the Datadog configuration used to reach the running collector and
+// to send the flare. When collector configs are given, it is built from them like `otel-agent run`
+// does, so the flare is uploaded with the datadog exporter's API key and site.
+func flareConfigModule(params *subcommands.GlobalParams) fx.Option {
+	if len(params.ConfPaths) > 0 {
+		acfg, err := agentConfig.NewConfigComponent(context.Background(), params.CoreConfPath, params.ConfPaths)
+		if err == nil || errors.Is(err, agentConfig.ErrNoDDExporter) {
+			return fx.Provide(func() config.Component { return acfg })
+		}
+		fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Warning: could not build the configuration from the collector configuration: %v", err)))
+	}
+	return fx.Options(
+		fx.Supply(config.NewAgentParams(params.CoreConfPath, config.WithConfigName(params.ConfigName))),
+		config.Module(),
+		schemanoopfx.Module(),
+	)
+}
+
 func makeFlare(
 	flareComp flare.Component,
 	_ log.Component,
-	_ config.Component,
+	cfg config.Component,
+	ipcComp ipc.Component,
 	cliParams *cliParams,
 ) error {
 	// Get case ID
@@ -127,10 +170,14 @@ func makeFlare(
 	}
 
 	// Collect flare data
-	fmt.Fprintln(color.Output, color.BlueString("Collecting diagnostic data from OTel Agent configuration..."))
-	filePath, err := createOTelFlare(cliParams.GlobalParams)
+	fmt.Fprintln(color.Output, color.BlueString("Collecting diagnostic data from the OTel Agent..."))
+	filePath, err := createOTelFlare(cliParams.GlobalParams, cfg, ipcComp.GetClient())
 	if err != nil {
 		return err
+	}
+
+	if cfg.GetString("api_key") == "" {
+		fmt.Fprintln(color.Output, color.YellowString("Warning: no API key found in the collector configuration or DD_API_KEY, the upload will be rejected."))
 	}
 
 	// Check if file exists
@@ -156,13 +203,19 @@ func makeFlare(
 }
 
 // createOTelFlare collects diagnostic data and creates a flare archive
-func createOTelFlare(params *subcommands.GlobalParams) (string, error) {
+func createOTelFlare(params *subcommands.GlobalParams, cfg pkgconfigmodel.Reader, client ipc.HTTPClient) (string, error) {
 	// Collect data
-	fmt.Fprintln(color.Output, "Collecting OTel configuration data...")
-	data, err := collectOTelData(params)
+	data, err := collectOTelData(params, cfg, client)
 	if err != nil {
 		return "", fmt.Errorf("failed to collect OTel data: %w", err)
 	}
+	// Scrub the data before serializing it: once embedded in JSON, secrets are out of reach of the
+	// text scrubber applied to every file of the archive.
+	data, err = scrubResponse(data)
+	if err != nil {
+		return "", fmt.Errorf("failed to scrub OTel data: %w", err)
+	}
+	files := append(responseFiles(data), collectDebugSources(data.Sources)...)
 
 	// Private, unpredictable dir (0700 on Unix; per-user temp ACL on Windows) so others can't read/symlink the flare.
 	// Not RemoveAccessToOtherUsers: it grants dd-agent, not the caller, locking out a non-admin operator on Windows.
@@ -175,7 +228,7 @@ func createOTelFlare(params *subcommands.GlobalParams) (string, error) {
 	filename := fmt.Sprintf("otel-agent-flare_%s.zip", timestamp)
 	filePath := filepath.Join(tmpDir, filename)
 
-	if err := createFlareArchive(filePath, data); err != nil {
+	if err := createFlareArchive(filePath, files); err != nil {
 		return "", fmt.Errorf("failed to create flare archive: %w", err)
 	}
 
@@ -183,8 +236,86 @@ func createOTelFlare(params *subcommands.GlobalParams) (string, error) {
 	return filePath, nil
 }
 
-// collectOTelData collects diagnostic data similar to ddflareextension
-func collectOTelData(params *subcommands.GlobalParams) (*extensiontypes.Response, error) {
+// collectOTelData returns the flare data served by the ddflare extension of the running collector,
+// like the core Agent flare does. When the collector can't be reached, it falls back to the data
+// that can be read from the configuration files.
+func collectOTelData(params *subcommands.GlobalParams, cfg pkgconfigmodel.Reader, client ipc.HTTPClient) (*extensiontypes.Response, error) {
+	extensionURL := cfg.GetString("otelcollector.extension_url")
+	fmt.Fprintf(color.Output, "Requesting the flare data of the running OTel Agent at %s...\n", extensionURL)
+	resp, err := requestRunningCollector(cfg, client, extensionURL)
+	if err == nil {
+		return resp, nil
+	}
+	fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Warning: could not get the flare data of the running OTel Agent: %v", err)))
+	fmt.Fprintln(color.Output, color.YellowString("Falling back to the configuration files: the flare won't contain the effective configuration."))
+	return collectConfigData(params)
+}
+
+// requestRunningCollector requests the flare data from the ddflare extension of the running collector.
+func requestRunningCollector(cfg pkgconfigmodel.Reader, client ipc.HTTPClient, extensionURL string) (*extensiontypes.Response, error) {
+	timeout := time.Duration(cfg.GetInt("otelcollector.extension_timeout")) * time.Second
+	if timeout <= 0 {
+		timeout = defaultExtensionTimeout
+	}
+	body, err := client.Get(extensionURL, ipchttp.WithTimeout(timeout))
+	if err != nil {
+		return nil, err
+	}
+	var resp extensiontypes.Response
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("could not read the ddflare extension response: %w", err)
+	}
+	return &resp, nil
+}
+
+// collectDebugSources fetches the debug extension (pprof, zpages, health_check) endpoints, like the
+// core Agent flare does for the embedded collector.
+func collectDebugSources(sources map[string]extensiontypes.OTelFlareSource) []flareFile {
+	client := &http.Client{Timeout: debugSourceTimeout}
+	var files []flareFile
+	for _, name := range slices.Sorted(maps.Keys(sources)) {
+		for i, sourceURL := range sources[name].URLs {
+			if !strings.HasPrefix(sourceURL, "http://") && !strings.HasPrefix(sourceURL, "https://") {
+				sourceURL = "http://" + sourceURL
+			}
+			u, err := url.Parse(sourceURL)
+			if err != nil {
+				files = append(files, flareFile{name: fmt.Sprintf("otel-flare/%s_%d.err", name, i), content: []byte(err.Error()), scrub: true})
+				continue
+			}
+			fileName := "otel-flare/" + name + strings.ReplaceAll(u.Path, "/", "_")
+			fmt.Fprintf(color.Output, "Collecting %s...\n", sourceURL)
+			content, scrub, err := fetchDebugSource(client, sourceURL)
+			if err != nil {
+				files = append(files, flareFile{name: fileName + ".err", content: []byte(err.Error()), scrub: true})
+				continue
+			}
+			files = append(files, flareFile{name: fileName + ".dat", content: content, scrub: scrub})
+		}
+	}
+	return files
+}
+
+// fetchDebugSource returns the content of a debug endpoint and whether it should be scrubbed:
+// binary content (pprof profiles) is kept as is.
+func fetchDebugSource(client *http.Client, sourceURL string) ([]byte, bool, error) {
+	resp, err := client.Get(sourceURL)
+	if err != nil {
+		return nil, false, err
+	}
+	defer resp.Body.Close()
+	content, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, false, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, false, fmt.Errorf("%s returned %s", sourceURL, resp.Status)
+	}
+	return content, resp.Header.Get("Content-Type") != "application/octet-stream", nil
+}
+
+// collectConfigData collects diagnostic data similar to ddflareextension from the configuration files
+func collectConfigData(params *subcommands.GlobalParams) (*extensiontypes.Response, error) {
 	ctx := context.Background()
 
 	// Build URIs from configuration paths
@@ -210,9 +341,9 @@ func collectOTelData(params *subcommands.GlobalParams) (*extensiontypes.Response
 			fmt.Fprintf(color.Output, "%s", color.YellowString(fmt.Sprintf("Warning: Could not load runtime config: %v\n", err)))
 		}
 	} else {
-		customerConfig = "# No configuration files provided"
-		runtimeConfig = "# No configuration files provided"
-		envConfig = "# No configuration files provided"
+		customerConfig = noConfigProvided
+		runtimeConfig = noConfigProvided
+		envConfig = noConfigProvided
 	}
 
 	// Collect environment variables
@@ -247,11 +378,13 @@ func collectOTelData(params *subcommands.GlobalParams) (*extensiontypes.Response
 
 // loadCustomerConfig loads the customer-provided configuration
 func loadCustomerConfig(ctx context.Context, uris []string) (string, error) {
-	// Use only file provider to get raw customer config
+	// No remote providers. The env provider is required to resolve ${env:...} references,
+	// otherwise the whole customer config is dropped.
 	rs := confmap.ResolverSettings{
 		URIs: uris,
 		ProviderFactories: []confmap.ProviderFactory{
 			fileprovider.NewFactory(),
+			envprovider.NewFactory(),
 			yamlprovider.NewFactory(),
 		},
 		DefaultScheme: "file",
@@ -505,8 +638,87 @@ func extractZpagesEndpoint(conf *confmap.Conf) (string, error) {
 	return "http://" + endpoint, nil
 }
 
-// createFlareArchive creates a zip archive with the diagnostic data
-func createFlareArchive(filePath string, data *extensiontypes.Response) error {
+// flareFile is a file of the flare archive
+type flareFile struct {
+	name    string
+	content []byte
+	// scrub is false for binary content only (pprof profiles)
+	scrub bool
+}
+
+// scrubResponse returns a copy of the flare data with credentials scrubbed from the configurations
+// and the environment, using the structured YAML and JSON scrubbers.
+func scrubResponse(data *extensiontypes.Response) (*extensiontypes.Response, error) {
+	scrubbed := *data
+	for _, conf := range []*string{&scrubbed.CustomerConfig, &scrubbed.EnvConfig, &scrubbed.RuntimeOverrideConfig, &scrubbed.RuntimeConfig} {
+		if *conf == "" || *conf == noConfigProvided {
+			continue
+		}
+		s, err := scrubber.ScrubYamlString(*conf)
+		if err != nil {
+			return nil, err
+		}
+		*conf = s
+	}
+
+	if len(data.Environment) > 0 {
+		envJSON, err := json.Marshal(data.Environment)
+		if err != nil {
+			return nil, err
+		}
+		if envJSON, err = scrubber.ScrubJSON(envJSON); err != nil {
+			return nil, err
+		}
+		scrubbed.Environment = nil
+		if err := json.Unmarshal(envJSON, &scrubbed.Environment); err != nil {
+			return nil, err
+		}
+	}
+	return &scrubbed, nil
+}
+
+// responseFiles returns the flare files built from the flare data
+func responseFiles(data *extensiontypes.Response) []flareFile {
+	var files []flareFile
+	add := func(name string, content []byte) {
+		files = append(files, flareFile{name: name, content: content, scrub: true})
+	}
+	addJSON := func(name string, v any) {
+		content, err := json.MarshalIndent(v, "", "  ")
+		if err != nil {
+			add(name+".err", []byte(err.Error()))
+			return
+		}
+		add(name, content)
+	}
+
+	addJSON("otel-response.json", data)
+	add("build-info.txt", fmt.Appendf(nil, "Agent Version: %s\nAgent Command: %s\nAgent Description: %s\nExtension Version: %s\nBYOC: %v\n",
+		data.AgentVersion, data.AgentCommand, data.AgentDesc, data.ExtensionVersion, data.BYOC))
+
+	configs := []struct{ name, content string }{
+		{"config/customer-config.yaml", data.CustomerConfig},
+		{"config/env-config.yaml", data.EnvConfig},
+		{"config/runtime-override-config.yaml", data.RuntimeOverrideConfig},
+		{"config/runtime-config.yaml", data.RuntimeConfig},
+	}
+	for _, c := range configs {
+		if c.content != "" {
+			add(c.name, []byte(c.content))
+		}
+	}
+
+	if len(data.Environment) > 0 {
+		addJSON("environment.json", data.Environment)
+	}
+	if len(data.Sources) > 0 {
+		addJSON("debug-sources.json", data.Sources)
+	}
+	return files
+}
+
+// createFlareArchive creates a zip archive with the given files, scrubbing their content
+func createFlareArchive(filePath string, files []flareFile) error {
 	// Parent dir is created private (0700) by createOTelFlare, so no other user can pre-seed a symlink here.
 	zipFile, err := os.Create(filePath)
 	if err != nil {
@@ -517,66 +729,18 @@ func createFlareArchive(filePath string, data *extensiontypes.Response) error {
 	zipWriter := zip.NewWriter(zipFile)
 	defer zipWriter.Close()
 
-	// Add raw response JSON
-	rawJSON, err := json.MarshalIndent(data, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal response: %w", err)
-	}
-	if err := addFileToZip(zipWriter, "otel-response.json", rawJSON); err != nil {
-		return err
-	}
-
-	// Add build info
-	buildInfo := fmt.Sprintf("Agent Version: %s\nAgent Command: %s\nAgent Description: %s\nExtension Version: %s\nBYOC: %v\n",
-		data.AgentVersion, data.AgentCommand, data.AgentDesc, data.ExtensionVersion, data.BYOC)
-	if err := addFileToZip(zipWriter, "build-info.txt", []byte(buildInfo)); err != nil {
-		return err
-	}
-
-	// Add configurations
-	if data.CustomerConfig != "" {
-		if err := addFileToZip(zipWriter, "config/customer-config.yaml", []byte(data.CustomerConfig)); err != nil {
+	for _, f := range files {
+		content := f.content
+		if f.scrub {
+			// Fail closed: never write a file that could not be scrubbed
+			if content, err = scrubber.ScrubBytes(content); err != nil {
+				return fmt.Errorf("failed to scrub %s: %w", f.name, err)
+			}
+		}
+		if err := addFileToZip(zipWriter, f.name, content); err != nil {
 			return err
 		}
 	}
-	if data.EnvConfig != "" {
-		if err := addFileToZip(zipWriter, "config/env-config.yaml", []byte(data.EnvConfig)); err != nil {
-			return err
-		}
-	}
-	if data.RuntimeOverrideConfig != "" {
-		if err := addFileToZip(zipWriter, "config/runtime-override-config.yaml", []byte(data.RuntimeOverrideConfig)); err != nil {
-			return err
-		}
-	}
-	if data.RuntimeConfig != "" {
-		if err := addFileToZip(zipWriter, "config/runtime-config.yaml", []byte(data.RuntimeConfig)); err != nil {
-			return err
-		}
-	}
-
-	// Add environment variables
-	if len(data.Environment) > 0 {
-		envJSON, err := json.MarshalIndent(data.Environment, "", "  ")
-		if err != nil {
-			return fmt.Errorf("failed to marshal environment: %w", err)
-		}
-		if err := addFileToZip(zipWriter, "environment.json", envJSON); err != nil {
-			return err
-		}
-	}
-
-	// Add debug source URLs (if any)
-	if len(data.Sources) > 0 {
-		sourcesJSON, err := json.MarshalIndent(data.Sources, "", "  ")
-		if err != nil {
-			return fmt.Errorf("failed to marshal debug sources: %w", err)
-		}
-		if err := addFileToZip(zipWriter, "debug-sources.json", sourcesJSON); err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
