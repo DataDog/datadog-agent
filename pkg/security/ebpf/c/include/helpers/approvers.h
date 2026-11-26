@@ -241,6 +241,9 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(str
     return approve_bind_connect_sample(&bind_samples, EVENT_BIND, BIND_SAMPLE_LIMITER, event_sampling_bind_rate, (u8)event_sampling_bind_threshold, key, syscall);
 }
 
+// The *_approvers functions return the state of the first approver approving the event: the auid approver, the only
+// one returning ACCEPTED, comes first so that an event it approves bypasses the discarders whatever else approves it,
+// then the others from the cheapest to the most costly, approve_by_basename last.
 static enum SYSCALL_STATE __attribute__((always_inline)) approve_by_auid(struct syscall_cache_t *syscall, u64 event_type) {
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
@@ -357,18 +360,18 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_by_in_upper_lay
 }
 
 static enum SYSCALL_STATE __attribute__((always_inline)) chmod_approvers(struct syscall_cache_t *syscall) {
-    enum SYSCALL_STATE state = approve_by_basename(syscall->setattr.dentry, EVENT_CHMOD);
+    enum SYSCALL_STATE state = approve_by_auid(syscall, EVENT_CHMOD);
     if (state == DISCARDED) {
-        state = approve_by_auid(syscall, EVENT_CHMOD);
+        state = approve_by_basename(syscall->setattr.dentry, EVENT_CHMOD);
     }
 
     return state;
 }
 
 static enum SYSCALL_STATE __attribute__((always_inline)) chown_approvers(struct syscall_cache_t *syscall) {
-    enum SYSCALL_STATE state = approve_by_basename(syscall->setattr.dentry, EVENT_CHOWN);
+    enum SYSCALL_STATE state = approve_by_auid(syscall, EVENT_CHOWN);
     if (state == DISCARDED) {
-        state = approve_by_auid(syscall, EVENT_CHOWN);
+        state = approve_by_basename(syscall->setattr.dentry, EVENT_CHOWN);
     }
 
     return state;
@@ -416,17 +419,12 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_mmap_by_protect
 }
 
 static enum SYSCALL_STATE __attribute__((always_inline)) mmap_approvers(struct syscall_cache_t *syscall) {
-    enum SYSCALL_STATE state = DISCARDED;
-
-    if (syscall->mmap.dentry != NULL) {
-        state = approve_by_basename(syscall->mmap.dentry, EVENT_MMAP);
-    }
-
-    if (state == DISCARDED) {
-        state = approve_mmap_by_protection_flags(syscall);
-    }
+    enum SYSCALL_STATE state = approve_mmap_by_protection_flags(syscall);
     if (state == DISCARDED) {
         state = approve_mmap_by_flags(syscall);
+    }
+    if (state == DISCARDED && syscall->mmap.dentry != NULL) {
+        state = approve_by_basename(syscall->mmap.dentry, EVENT_MMAP);
     }
 
     return state;
@@ -442,18 +440,18 @@ static enum SYSCALL_STATE __attribute__((always_inline)) link_approvers(struct s
 }
 
 static enum SYSCALL_STATE __attribute__((always_inline)) mkdir_approvers(struct syscall_cache_t *syscall) {
-    enum SYSCALL_STATE state = approve_by_basename(syscall->mkdir.dentry, EVENT_MKDIR);
+    enum SYSCALL_STATE state = approve_by_auid(syscall, EVENT_MKDIR);
     if (state == DISCARDED) {
-        state = approve_by_auid(syscall, EVENT_MKDIR);
+        state = approve_by_basename(syscall->mkdir.dentry, EVENT_MKDIR);
     }
 
     return state;
 }
 
 static enum SYSCALL_STATE __attribute__((always_inline)) chdir_approvers(struct syscall_cache_t *syscall) {
-    enum SYSCALL_STATE state = approve_by_basename(syscall->chdir.dentry, EVENT_CHDIR);
+    enum SYSCALL_STATE state = approve_by_auid(syscall, EVENT_CHDIR);
     if (state == DISCARDED) {
-        state = approve_by_auid(syscall, EVENT_CHDIR);
+        state = approve_by_basename(syscall->chdir.dentry, EVENT_CHDIR);
     }
 
     return state;
@@ -617,15 +615,15 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(str
 
 
 static enum SYSCALL_STATE __attribute__((always_inline)) open_approvers(struct syscall_cache_t *syscall) {
-    enum SYSCALL_STATE state = approve_by_basename(syscall->open.dentry, EVENT_OPEN);
+    enum SYSCALL_STATE state = approve_by_auid(syscall, EVENT_OPEN);
+    if (state == DISCARDED) {
+        state = approve_by_in_upper_layer(EVENT_OPEN, &syscall->open.file);
+    }
     if (state == DISCARDED) {
         state = approve_open_by_flags(syscall);
     }
     if (state == DISCARDED) {
-        state = approve_by_auid(syscall, EVENT_OPEN);
-    }
-    if (state == DISCARDED) {
-        state = approve_by_in_upper_layer(EVENT_OPEN, &syscall->open.file);
+        state = approve_by_basename(syscall->open.dentry, EVENT_OPEN);
     }
 
     if (state == DISCARDED && approve_open_sample(syscall->open.dentry, &syscall->open.file, syscall) == SAMPLED) {
@@ -636,21 +634,21 @@ static enum SYSCALL_STATE __attribute__((always_inline)) open_approvers(struct s
 }
 
 static __always_inline enum SYSCALL_STATE rename_approvers(struct syscall_cache_t *syscall) {
-    enum SYSCALL_STATE state = approve_by_basename(syscall->rename.src_dentry, EVENT_RENAME);
+    enum SYSCALL_STATE state = approve_by_auid(syscall, EVENT_RENAME);
     if (state == DISCARDED) {
-        state = approve_by_basename(syscall->rename.target_dentry, EVENT_RENAME);
+        state = approve_by_basename(syscall->rename.src_dentry, EVENT_RENAME);
     }
     if (state == DISCARDED) {
-        state = approve_by_auid(syscall, EVENT_RENAME);
+        state = approve_by_basename(syscall->rename.target_dentry, EVENT_RENAME);
     }
 
     return state;
 }
 
 static __always_inline enum SYSCALL_STATE rmdir_approvers(struct syscall_cache_t *syscall) {
-    enum SYSCALL_STATE state = approve_by_basename(syscall->rmdir.dentry, EVENT_RMDIR);
+    enum SYSCALL_STATE state = approve_by_auid(syscall, EVENT_RMDIR);
     if (state == DISCARDED) {
-        state = approve_by_auid(syscall, EVENT_RMDIR);
+        state = approve_by_basename(syscall->rmdir.dentry, EVENT_RMDIR);
     }
     return state;
 }
@@ -686,34 +684,29 @@ static __always_inline enum SYSCALL_STATE approve_splice_by_exit_flags(struct sy
 }
 
 static enum SYSCALL_STATE __attribute__((always_inline)) splice_approvers(struct syscall_cache_t *syscall) {
-    enum SYSCALL_STATE state = DISCARDED;
-
-    if (syscall->splice.dentry != NULL) {
-        state = approve_by_basename(syscall->splice.dentry, EVENT_SPLICE);
-    }
-
-    if (state == DISCARDED) {
-        state = approve_splice_by_exit_flags(syscall);
-    }
+    enum SYSCALL_STATE state = approve_splice_by_exit_flags(syscall);
     if (state == DISCARDED) {
         state = approve_splice_by_entry_flags(syscall);
+    }
+    if (state == DISCARDED && syscall->splice.dentry != NULL) {
+        state = approve_by_basename(syscall->splice.dentry, EVENT_SPLICE);
     }
 
     return state;
 }
 
 static enum SYSCALL_STATE __attribute__((always_inline)) unlink_approvers(struct syscall_cache_t *syscall) {
-    enum SYSCALL_STATE state = approve_by_basename(syscall->unlink.dentry, EVENT_UNLINK);
+    enum SYSCALL_STATE state = approve_by_auid(syscall, EVENT_UNLINK);
     if (state == DISCARDED) {
-        state = approve_by_auid(syscall, EVENT_UNLINK);
+        state = approve_by_basename(syscall->unlink.dentry, EVENT_UNLINK);
     }
     return state;
 }
 
 static enum SYSCALL_STATE __attribute__((always_inline)) utime_approvers(struct syscall_cache_t *syscall) {
-    enum SYSCALL_STATE state = approve_by_basename(syscall->setattr.dentry, EVENT_UTIME);
+    enum SYSCALL_STATE state = approve_by_auid(syscall, EVENT_UTIME);
     if (state == DISCARDED) {
-        state = approve_by_auid(syscall, EVENT_UTIME);
+        state = approve_by_basename(syscall->setattr.dentry, EVENT_UTIME);
     }
     return state;
 }
