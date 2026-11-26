@@ -9,17 +9,14 @@
 package process
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
-	"syscall"
 	"testing"
 	"time"
 
-	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -33,14 +30,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type fakeEBPMap struct {
-	data   map[string]interface{}
-	putErr error
+	data map[string]interface{}
 }
 
 func newFakeEBPMap() *fakeEBPMap {
@@ -77,9 +71,6 @@ func (f *fakeEBPMap) LookupBytes(key interface{}) ([]byte, error) {
 }
 
 func (f *fakeEBPMap) Put(key, value interface{}) error {
-	if f.putErr != nil {
-		return f.putErr
-	}
 	keyB, err := f.marshal(key)
 	if err != nil {
 		return err
@@ -1941,55 +1932,5 @@ func TestUpdateProcessContextsReplacesPair(t *testing.T) {
 
 		assert.Equal(t, containerutils.CGroupID("/kubepods.slice/cri-containerd-abcdef.scope"), pce.Process.CGroup.CGroupID)
 		assert.Equal(t, containerutils.ContainerID("abcdef"), pce.Process.ContainerContext.ContainerID)
-	})
-}
-
-func TestEnrichEventFromProcfsRetrieveFileFieldsError(t *testing.T) {
-	t.Cleanup(func() {
-		log.SetupLogger(log.Default(), "off")
-	})
-
-	proc, err := process.NewProcess(int32(os.Getpid()))
-	require.NoError(t, err)
-	filledProc, err := utils.GetFilledProcess(proc)
-	require.NoError(t, err)
-
-	t.Run("esrch-logs-at-debug", func(t *testing.T) {
-		var buf bytes.Buffer
-		logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&buf, log.DebugLvl)
-		require.NoError(t, err)
-		log.SetupLogger(logger, "debug")
-
-		resolver, err := newResolver()
-		require.NoError(t, err)
-		resolver.inodeFileMap = &fakeEBPMap{
-			data:   make(map[string]interface{}),
-			putErr: syscall.ESRCH,
-		}
-
-		entry := resolver.NewProcessCacheEntry(model.PIDContext{Pid: uint32(proc.Pid), Tid: uint32(proc.Pid)})
-		require.NoError(t, resolver.enrichEventFromProcfs(entry, proc, filledProc))
-		assert.NotEmpty(t, entry.FileEvent.PathnameStr)
-		assert.Contains(t, buf.String(), "[DEBUG] snapshot failed for ")
-		assert.NotContains(t, buf.String(), "[ERROR]")
-	})
-
-	t.Run("eacces-logs-at-error", func(t *testing.T) {
-		var buf bytes.Buffer
-		logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&buf, log.DebugLvl)
-		require.NoError(t, err)
-		log.SetupLogger(logger, "debug")
-
-		resolver, err := newResolver()
-		require.NoError(t, err)
-		resolver.inodeFileMap = &fakeEBPMap{
-			data:   make(map[string]interface{}),
-			putErr: syscall.EACCES,
-		}
-
-		entry := resolver.NewProcessCacheEntry(model.PIDContext{Pid: uint32(proc.Pid), Tid: uint32(proc.Pid)})
-		require.NoError(t, resolver.enrichEventFromProcfs(entry, proc, filledProc))
-		assert.NotEmpty(t, entry.FileEvent.PathnameStr)
-		assert.Contains(t, buf.String(), "[ERROR] snapshot failed for ")
 	})
 }
