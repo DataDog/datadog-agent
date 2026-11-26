@@ -6,7 +6,9 @@
 package remoteflags
 
 import (
+	"runtime"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -100,11 +102,11 @@ func TestConfigKeyHandlerPrecedence(t *testing.T) {
 	}
 
 	// A local value must be left alone by every flag transition.
-	transitions := map[string]func(h FlagHandler){
-		"flag true":    func(h FlagHandler) { require.NoError(t, h.OnChange(true)) },
-		"flag false":   func(h FlagHandler) { require.NoError(t, h.OnChange(false)) },
-		"flag removed": func(h FlagHandler) { h.OnNoConfig() },
-		"recover":      func(h FlagHandler) { h.SafeRecover(assert.AnError, true) },
+	transitions := map[string]func(t *testing.T, h FlagHandler){
+		"flag true":    func(t *testing.T, h FlagHandler) { require.NoError(t, h.OnChange(true)) },
+		"flag false":   func(t *testing.T, h FlagHandler) { require.NoError(t, h.OnChange(false)) },
+		"flag removed": func(_ *testing.T, h FlagHandler) { h.OnNoConfig() },
+		"recover":      func(_ *testing.T, h FlagHandler) { h.SafeRecover(assert.AnError, true) },
 	}
 	for _, src := range localSources {
 		for _, localValue := range []bool{true, false} {
@@ -113,7 +115,7 @@ func TestConfigKeyHandlerPrecedence(t *testing.T) {
 					s := newLayeredSetter()
 					s.Set(testKey, localValue, src)
 					s.sets = nil
-					apply(NewConfigKeyHandler("f", s, testKey, nil))
+					apply(t, NewConfigKeyHandler("f", s, testKey, nil))
 					assert.Equal(t, localValue, s.effective(), "local value must keep winning")
 					assert.False(t, s.hasLayer(model.SourceRC), "no remote layer may be written over a local value")
 					assert.False(t, s.wroteFalse())
@@ -137,17 +139,17 @@ func TestConfigKeyHandlerPrecedence(t *testing.T) {
 		assert.True(t, s.effective())
 	})
 
-	releases := map[string]func(h FlagHandler){
-		"flag false":   func(h FlagHandler) { require.NoError(t, h.OnChange(false)) },
-		"flag removed": func(h FlagHandler) { h.OnNoConfig() },
-		"recover":      func(h FlagHandler) { h.SafeRecover(assert.AnError, true) },
+	releases := map[string]func(t *testing.T, h FlagHandler){
+		"flag false":   func(t *testing.T, h FlagHandler) { require.NoError(t, h.OnChange(false)) },
+		"flag removed": func(_ *testing.T, h FlagHandler) { h.OnNoConfig() },
+		"recover":      func(_ *testing.T, h FlagHandler) { h.SafeRecover(assert.AnError, true) },
 	}
 	for name, release := range releases {
 		t.Run("flag true then "+name+" gives the layer back", func(t *testing.T) {
 			s := newLayeredSetter()
 			h := NewConfigKeyHandler("f", s, testKey, nil)
 			require.NoError(t, h.OnChange(true))
-			release(h)
+			release(t, h)
 			assert.False(t, s.hasLayer(model.SourceRC))
 			assert.False(t, s.effective())
 			assert.False(t, s.wroteFalse(), "false must never be written")
@@ -252,6 +254,22 @@ func (g *gatedSetter) GetSource(key string) model.Source {
 	return src
 }
 
+// releaseBlockedOnLock reports whether a goroutine is parked acquiring a mutex
+// inside the handler's OnNoConfig. testing/synctest cannot be used here because
+// a goroutine waiting on a sync.Mutex is not durably blocked, so synctest.Wait
+// would never return while the handler holds its lock.
+func releaseBlockedOnLock() bool {
+	buf := make([]byte, 1<<20)
+	buf = buf[:runtime.Stack(buf, true)]
+	for _, g := range strings.Split(string(buf), "\n\n") {
+		if strings.Contains(g, "configKeyHandler).OnNoConfig") &&
+			(strings.Contains(g, "sync.(*Mutex).Lock") || strings.Contains(g, "sync.runtime_SemacquireMutex")) {
+			return true
+		}
+	}
+	return false
+}
+
 func TestConfigKeyHandlerSerializesReadAndWrite(t *testing.T) {
 	s := &gatedSetter{
 		layeredSetter: newLayeredSetter(),
@@ -273,13 +291,26 @@ func TestConfigKeyHandlerSerializesReadAndWrite(t *testing.T) {
 		h.OnNoConfig()
 	}()
 
-	select {
-	case <-releaseDone:
-		close(s.gate)
-		<-enableDone
-		t.Fatal("the release ran between the read and the write of the enable")
-	case <-time.After(50 * time.Millisecond):
+	// The release must end up parked on the handler's lock while the enable is
+	// paused. If it finishes instead, the lock does not serialize the two calls.
+	deadline := time.Now().Add(10 * time.Second)
+	for !releaseBlockedOnLock() {
+		select {
+		case <-releaseDone:
+			close(s.gate)
+			<-enableDone
+			t.Fatal("the release ran between the read and the write of the enable")
+		default:
+		}
+		if time.Now().After(deadline) {
+			close(s.gate)
+			<-enableDone
+			<-releaseDone
+			t.Fatal("the release goroutine never blocked on the handler lock")
+		}
+		time.Sleep(time.Millisecond)
 	}
+
 	close(s.gate)
 	<-enableDone
 	<-releaseDone
