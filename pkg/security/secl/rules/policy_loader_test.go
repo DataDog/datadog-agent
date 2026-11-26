@@ -2466,6 +2466,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 									{
 										Kill: &KillDefinition{
 											Signal: "SIGUSR2",
+											Scope:  "process",
 										},
 									},
 								},
