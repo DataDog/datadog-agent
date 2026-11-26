@@ -68,6 +68,15 @@ func (s *Scrubber) IsEnvWithValue(name string) bool {
 	return s != nil && s.envsWithValue[name]
 }
 
+// FilterEnv returns an envp entry, KEY=value, with its value only when KEY is
+// listed in envs_with_value
+func (s *Scrubber) FilterEnv(entry string) string {
+	if key, _, found := strings.Cut(entry, "="); found && !s.IsEnvWithValue(key) {
+		return key
+	}
+	return entry
+}
+
 // ScrubCommand scrubs the command line using the proc scrubber and the regex scrubber
 func (s *Scrubber) ScrubCommand(cmdline []string) []string {
 	args := make([]string, len(cmdline))

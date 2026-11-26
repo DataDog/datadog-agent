@@ -132,3 +132,38 @@ func TestVariablesEnvValues(t *testing.T) {
 	variables = newVariablesContext(model.NewFakeEvent(), rule, "", nil)
 	assert.Equal(t, Variables{"plain": "value"}, variables)
 }
+
+// The variables holding envp entries copied as is are serialized entry by entry,
+// with a value only for the keys of `envs_with_value`.
+func TestVariablesEnvpValues(t *testing.T) {
+	store := &eval.VariableStore{}
+	store.Add("entries", eval.NewStringArrayVariable([]string{"PATH=/bin", "AWS_SECRET_ACCESS_KEY=secret", "PATHX=secret", "NO_VALUE"}, eval.VariableOpts{EnvFiltered: true}))
+	store.Add("listed", eval.NewStringVariable("PATH=/bin", eval.VariableOpts{EnvFiltered: true}))
+	store.Add("unlisted", eval.NewStringVariable("TOKEN=secret", eval.VariableOpts{EnvFiltered: true}))
+	store.Add("hidden", eval.NewStringVariable("TOKEN=secret", eval.VariableOpts{EnvFiltered: true, EnvKeyEvaluated: true}))
+	store.Add("plain", eval.NewStringVariable("TOKEN=value", eval.VariableOpts{}))
+	rule := &rules.Rule{Rule: &eval.Rule{Opts: &eval.Opts{VariableStore: store}}}
+
+	scrubber, err := utils.NewScrubber(nil, nil)
+	require.NoError(t, err)
+	scrubber.WithEnvsWithValue([]string{"PATH"})
+
+	for _, test := range []struct {
+		name     string
+		scrubber *utils.Scrubber
+		entries  []string
+		others   Variables
+	}{
+		{"listed", scrubber, []string{"PATH=/bin", "AWS_SECRET_ACCESS_KEY", "PATHX", "NO_VALUE"}, Variables{"listed": "PATH=/bin", "unlisted": "TOKEN", "plain": "TOKEN=value"}},
+		// without the list, only the keys are serialized
+		{"no-list", nil, []string{"PATH", "AWS_SECRET_ACCESS_KEY", "PATHX", "NO_VALUE"}, Variables{"listed": "PATH", "unlisted": "TOKEN", "plain": "TOKEN=value"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			variables := newVariablesContext(model.NewFakeEvent(), rule, "", test.scrubber)
+			// the values of an array variable are unordered
+			assert.ElementsMatch(t, test.entries, variables["entries"])
+			delete(variables, "entries")
+			assert.Equal(t, test.others, variables)
+		})
+	}
+}

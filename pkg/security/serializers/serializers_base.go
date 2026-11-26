@@ -612,8 +612,15 @@ func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string, secScr
 
 			// Skip private variables, and the ones read from environment
 			// variables whose values aren't serialized
-			if opts := variable.GetVariableOpts(); opts.Private || isEnvValueHidden(opts, secScrubber) {
+			opts := variable.GetVariableOpts()
+			if opts.Private || isEnvValueHidden(opts, secScrubber) {
 				continue
+			}
+			filterEnv := func(value string) string {
+				if opts.EnvFiltered {
+					return secScrubber.FilterEnv(value)
+				}
+				return value
 			}
 
 			evaluator := variable.GetEvaluator()
@@ -628,13 +635,13 @@ func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string, secScr
 					case []string:
 						scrubbedValues := make([]string, 0, len(value))
 						for _, elem := range value {
-							if scrubbed, err := scrubber.ScrubString(elem); err == nil {
+							if scrubbed, err := scrubber.ScrubString(filterEnv(elem)); err == nil {
 								scrubbedValues = append(scrubbedValues, scrubbed)
 							}
 						}
 						variables[trimmedName] = scrubbedValues
 					case string:
-						if scrubbed, err := scrubber.ScrubString(value); err == nil {
+						if scrubbed, err := scrubber.ScrubString(filterEnv(value)); err == nil {
 							variables[trimmedName] = scrubbed
 						}
 					default:
