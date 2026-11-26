@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strconv"
 	"syscall"
 	"time"
@@ -135,6 +136,11 @@ func isVanishedTargetError(err error) bool {
 		errors.Is(err, syscall.EIO) || errors.Is(err, io.EOF)
 }
 
+func isUnreadableTargetError(err error) bool {
+	return errors.Is(err, syscall.EACCES) || errors.Is(err, syscall.EPERM) ||
+		errors.Is(err, os.ErrPermission)
+}
+
 // classifySpanCtxError maps an error to a status
 func classifySpanCtxError(err error) spanCtxStatus {
 	switch {
@@ -142,6 +148,8 @@ func classifySpanCtxError(err error) spanCtxStatus {
 		return spanCtxOK
 	case errors.Is(err, errSpanCtxGone), isVanishedTargetError(err):
 		return spanCtxGone
+	case isUnreadableTargetError(err):
+		return spanCtxUnreadable
 	case errors.Is(err, errSpanCtxNotApplicable), errors.Is(err, otelprocessctx.ErrLegacyVersion):
 		return spanCtxNotApplicable
 	case errors.Is(err, errSpanCtxUnsupported), errors.Is(err, golabels.ErrUnsupported):
@@ -164,8 +172,6 @@ func classifySpanCtxError(err error) spanCtxStatus {
 		return spanCtxStaleID
 	case errors.Is(err, otelattrs.ErrMalformed):
 		return spanCtxMalformed
-	case errors.Is(err, syscall.EACCES), errors.Is(err, syscall.EPERM):
-		return spanCtxUnreadable
 	default:
 		return spanCtxUnknown
 	}
