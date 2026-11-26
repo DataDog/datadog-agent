@@ -33,3 +33,31 @@ github_rate_limit_info:
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - inv github.send-rate-limit-info-datadog --pipeline-id $CI_PIPELINE_ID
   allow_failure: true
+
+# Builds the Agent 6 release candidate once the weekly RC PR (create-rc-pr.yml on main) is merged,
+# by running main's release tasks as on-call does by hand.
+agent6_build_rc:
+  stage: .pre
+  # 6.53.x's build images predate dda, dd-octo-sts and authanywhere: use main's.
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux:v154724683-ae4099a8
+  tags: ["arch:amd64"]
+  needs: []
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "6.53.x" && $CI_COMMIT_TITLE =~ /^\[release\] Update release\.json and Go modules for 6\.53\.[0-9]+-rc\.[0-9]+/
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  variables:
+    GIT_STRATEGY: none
+  # build-rc follows the RC pipeline until it finishes (up to 5 hours).
+  timeout: 6h
+  script:
+    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.write)
+    - git config --global credential.https://github.com.helper '!f() { printf "username=x-access-token\npassword=%s\n" "$GITHUB_TOKEN"; }; f'
+    - git config --global user.name "datadog-agent-ci"
+    - git config --global user.email "datadog-agent-ci@datadoghq.com"
+    # build-rc clones its worktree from this checkout's origin and pushes the RC tag there, so origin must be GitHub.
+    - WORKDIR=$(mktemp -d) && git clone --depth 1 --branch main https://github.com/DataDog/datadog-agent.git "$WORKDIR/datadog-agent" && cd "$WORKDIR/datadog-agent"
+    - dda self dep sync -f legacy-tasks
+    # Answers build-rc's "create tags for <version> on the current commit" confirmation.
+    - echo y | dda inv -- -e release.build-rc -r 6.53.x --patch-version
