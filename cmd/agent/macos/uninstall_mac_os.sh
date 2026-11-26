@@ -58,8 +58,17 @@ uninstall_without_installer() {
     # A configuration experiment's unit supervisor first: it would read the jobs going away as a
     # failure and load the stable jobs again.
     stop_unit_supervisor() {
+        # Its target goes first: a supervisor still in its SIGTERM grace then finds nothing to
+        # apply, and does not read the jobs going away below as an experiment failure.
+        $sudo_cmd rm -f /opt/datadog-packages/run/units-target
         $sudo_cmd launchctl bootout system/com.datadoghq.unit-supervisor 2>/dev/null || true
         $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.unit-supervisor.plist
+        # bootout returns before the job has left; wait for it, as for the installer daemons.
+        attempts=0
+        while [ $attempts -lt 30 ] && $sudo_cmd launchctl print system/com.datadoghq.unit-supervisor >/dev/null 2>&1; do
+            sleep 1
+            attempts=$((attempts + 1))
+        done
     }
     stop_unit_supervisor
     # Then the installer daemons, waited for: launchd kills the installer commands they started

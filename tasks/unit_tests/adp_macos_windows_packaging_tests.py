@@ -168,6 +168,23 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         self.assertLess(calls[0], daemons[0])
         self.assertLess(daemons[-1], calls[1])
 
+    def test_stop_unit_supervisor_clears_its_target_and_waits_for_it(self):
+        # bootout returns while the supervisor is still in its SIGTERM grace: its target is cleared
+        # first so it stands down, and the job is waited for before anything else is stopped.
+        for script in ("omnibus/package-scripts/agent-dmg/preinst", "cmd/agent/macos/uninstall_mac_os.sh"):
+            with self.subTest(script=script):
+                text = (REPO_ROOT / script).read_text()
+                start = text.find("stop_unit_supervisor() {")
+                self.assertNotEqual(start, -1)
+                body = text[start : text.find("\n    }\n", start)]
+                clear = body.find("rm -f /opt/datadog-packages/run/units-target")
+                bootout = body.find("launchctl bootout system/com.datadoghq.unit-supervisor")
+                wait = body.find("launchctl print system/com.datadoghq.unit-supervisor")
+                self.assertNotEqual(clear, -1)
+                self.assertNotEqual(wait, -1)
+                self.assertLess(clear, bootout)
+                self.assertLess(bootout, wait)
+
     def test_uninstall_without_installer_removes_the_experiment_jobs(self):
         # When the installer can't uninstall, the script still removes a configuration experiment's
         # jobs, before the stable ones, so none is left registered against binaries that are gone.
