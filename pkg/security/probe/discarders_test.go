@@ -482,6 +482,9 @@ func TestIsDiscarderOverride(t *testing.T) {
 	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, &opts, &evalOpts)
 	rs.AddListener(&listener)
 	rules.AddTestRuleExpr(t, rs, `unlink.file.path == "/var/log/httpd" && process.file.path == "/bin/touch"`)
+	if _, err := rs.PrepareDiscarders(nil); err != nil {
+		t.Fatal(err)
+	}
 
 	event := rs.NewEvent().(*model.Event)
 	event.Init()

@@ -12,6 +12,7 @@ import (
 	"math"
 	"path"
 	"reflect"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -99,13 +100,6 @@ func TestRuleBuckets(t *testing.T) {
 	if bucket, ok := rs.eventRuleBuckets["mkdir"]; !ok || len(bucket.rules) != 1 {
 		t.Fatal("unable to find `mkdir` rules or incorrect number of rules")
 	}
-	for _, bucket := range rs.eventRuleBuckets {
-		for _, rule := range bucket.rules {
-			if rule.GetPartialEval("process.uid") == nil {
-				t.Fatal("failed to initialize partials")
-			}
-		}
-	}
 }
 
 func TestRuleSetDiscarders(t *testing.T) {
@@ -124,6 +118,9 @@ func TestRuleSetDiscarders(t *testing.T) {
 	}
 
 	AddTestRuleExpr(t, rs, exprs...)
+	if _, err := rs.PrepareDiscarders(nil); err != nil {
+		t.Fatal(err)
+	}
 
 	ev1 := model.NewFakeEvent()
 	ev1.Type = uint32(model.FileOpenEventType)
@@ -188,7 +185,9 @@ func TestRuleSetDiscardersWithName(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			rs := newRuleSet()
 			AddTestRuleExpr(t, rs, test.expr)
-			rules := rs.GetBucket("open").GetRules()
+			if _, err := rs.PrepareDiscarders(nil); err != nil {
+				t.Fatal(err)
+			}
 
 			event := model.NewFakeEvent()
 			event.Type = uint32(model.FileOpenEventType)
@@ -200,11 +199,7 @@ func TestRuleSetDiscardersWithName(t *testing.T) {
 				}
 			}
 
-			isDiscarder, _, err := rs.IsDiscarder(eval.NewContext(event), fields, rules)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if isDiscarder != test.isDiscarder {
+			if isDiscarder := isPreparedDiscarder(rs, event, fields[0]); isDiscarder != test.isDiscarder {
 				t.Errorf("expected discarder %v for the event, got %v", test.isDiscarder, isDiscarder)
 			}
 		})
@@ -693,6 +688,9 @@ func TestRuleSetApprovers16(t *testing.T) {
 	}
 
 	// shouldn't generate a discarder
+	if _, err := rs.PrepareDiscarders(nil); err != nil {
+		t.Fatal(err)
+	}
 	ev := model.NewFakeEvent()
 	ev.Type = uint32(model.FileOpenEventType)
 	ev.SetFieldValue("open.file.path", "/usr/local/bin/rootkit")
@@ -724,7 +722,9 @@ func TestRuleSetApprovers16(t *testing.T) {
 		t.Fatalf("should get an approver`: %v", approvers)
 	}
 
-	rs.WithExcludedRuleFromDiscarders(ruleListToMap(noDiscarderRules))
+	if _, err := rs.PrepareDiscarders(ruleListToMap(noDiscarderRules)); err != nil {
+		t.Fatal(err)
+	}
 
 	if !rs.Evaluate(ev) {
 		rs.EvaluateDiscarders(ev)
@@ -741,11 +741,11 @@ func TestRuleSetExcludedRuleDiscarderFields(t *testing.T) {
 	excludedExpr := `open.file.path != "/tmp/sample" && process.auid == 1000`
 
 	rs := newRuleSet()
+	rs.opts.SupportedDiscarders["process.auid"] = []eval.Field{"process.auid"}
 	AddTestRuleExpr(t, rs, excludedExpr, `open.file.path == "/tmp/sample" && process.auid != 1000`)
 
 	excluded := make(map[eval.RuleID]bool)
-	rules := rs.GetBucket("open").GetRules()
-	for _, rule := range rules {
+	for _, rule := range rs.GetBucket("open").GetRules() {
 		if rule.Rule.Expression == excludedExpr {
 			excluded[rule.Rule.ID] = true
 		}
@@ -756,17 +756,28 @@ func TestRuleSetExcludedRuleDiscarderFields(t *testing.T) {
 	if err := event.SetFieldValue("process.auid", 1000); err != nil {
 		t.Fatal(err)
 	}
-	fields := []eval.Field{"process.auid"}
-
-	rs.WithExcludedRuleFromDiscarders(excluded)
-	if isDiscarder, _, err := rs.IsDiscarder(eval.NewContext(event), fields, rules); err != nil || !isDiscarder {
-		t.Errorf("expected a discarder without the excluded rule, got %v, %v", isDiscarder, err)
+	if _, err := rs.PrepareDiscarders(excluded); err != nil {
+		t.Fatal(err)
+	}
+	if !isPreparedDiscarder(rs, event, "process.auid") {
+		t.Error("expected a discarder without the excluded rule")
 	}
 
-	rs.WithExcludedRuleFromDiscarders(excluded, "process.auid")
-	if isDiscarder, _, err := rs.IsDiscarder(eval.NewContext(event), fields, rules); err != nil || isDiscarder {
-		t.Errorf("expected no discarder with the excluded rule, got %v, %v", isDiscarder, err)
+	if _, err := rs.PrepareDiscarders(excluded, "process.auid"); err != nil {
+		t.Fatal(err)
 	}
+	if isPreparedDiscarder(rs, event, "process.auid") {
+		t.Error("expected no discarder with the excluded rule")
+	}
+}
+
+// isPreparedDiscarder returns whether the prepared discarder of the field is
+// found for the event
+func isPreparedDiscarder(rs *RuleSet, event eval.Event, field eval.Field) bool {
+	ctx := eval.NewContext(event)
+	return slices.ContainsFunc(rs.discarders[event.GetType()], func(d *discarder) bool {
+		return d.field == field && d.isDiscarder(ctx)
+	})
 }
 
 func TestRuleSetApprovers17(t *testing.T) {

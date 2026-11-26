@@ -647,7 +647,7 @@ func TestPartial(t *testing.T) {
 
 		ctx := NewContext(event)
 
-		result, err := rule.PartialEval(ctx, test.Field)
+		result, err := partialEval(rule, ctx, test.Field)
 		if err != nil {
 			t.Fatalf("error while partial evaluating `%s` for `%s`: %s", test.Expr, test.Field, err)
 		}
@@ -818,7 +818,7 @@ func TestMacroPartial(t *testing.T) {
 
 	ctx := NewContext(event)
 
-	result, err := rule.PartialEval(ctx, "open.filename")
+	result, err := partialEval(rule, ctx, "open.filename")
 	if err != nil {
 		t.Fatalf("error while partial evaluating `%s` : %s", expr, err)
 	}
@@ -828,7 +828,7 @@ func TestMacroPartial(t *testing.T) {
 	}
 
 	event.open.filename = "abc"
-	result, err = rule.PartialEval(ctx, "open.filename")
+	result, err = partialEval(rule, ctx, "open.filename")
 	if err != nil {
 		t.Fatalf("error while partial evaluating `%s` : %s", expr, err)
 	}
@@ -911,12 +911,12 @@ func TestNestedMacrosPartial(t *testing.T) {
 	}
 	ctx := NewContext(event)
 
-	result, err := rule.PartialEval(ctx, "open.filename")
+	result, err := partialEval(rule, ctx, "open.filename")
 	assert.NoError(t, err)
 	assert.True(t, result, "open.filename shouldn't be a discarder")
 
 	event.open.filename = "/etc/group"
-	result, err = rule.PartialEval(ctx, "open.filename")
+	result, err = partialEval(rule, ctx, "open.filename")
 	assert.NoError(t, err)
 	assert.False(t, result, "open.filename should be a discarder")
 }
@@ -1145,7 +1145,7 @@ func TestRegisterPartial(t *testing.T) {
 
 		ctx := NewContext(event)
 
-		result, err := rule.PartialEval(ctx, test.Field)
+		result, err := partialEval(rule, ctx, test.Field)
 		if err != nil {
 			t.Fatalf("error while partial evaluating `%s` for `%s`: %s", test.Expr, test.Field, err)
 		}
@@ -1538,7 +1538,7 @@ func TestOpOverridePartials(t *testing.T) {
 
 		ctx := NewContext(event)
 
-		result, err := rule.PartialEval(ctx, test.Field)
+		result, err := partialEval(rule, ctx, test.Field)
 		if err != nil {
 			t.Fatalf("error while partial evaluating `%s` for `%s`: %s", test.Expr, test.Field, err)
 		}
@@ -2416,11 +2416,14 @@ func BenchmarkPartial(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	evaluator := rule.GetEvaluator()
+	partial, _, err := rule.CompilePartial([]Field{"process.name"})
+	if err != nil || partial == nil {
+		b.Fatal("partial not compiled")
+	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if ok, _ := evaluator.PartialEval(ctx, "process.name"); ok {
+		if partial(ctx) {
 			b.Fatal("unexpected result")
 		}
 	}
@@ -2742,4 +2745,13 @@ func TestResolvedAstFoldedFields(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, `true`, ast.Sprint(rule.GetResolvedAst()))
 	require.ElementsMatch(t, []Field{"process.name", "process.uid"}, rule.GetFields())
+}
+
+// partialEval evaluates the partial of the rule over the field
+func partialEval(rule *Rule, ctx *Context, field Field) (bool, error) {
+	partial, value, err := rule.CompilePartial([]Field{field})
+	if err != nil || partial == nil {
+		return value, err
+	}
+	return partial(ctx), nil
 }
