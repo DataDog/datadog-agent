@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -124,7 +123,9 @@ func runIntegrationScenario(t *testing.T, localErrortracking string, scenario fu
 	cfg := configmock.NewFromYAML(t, integrationConfig(localErrortracking))
 	logComp := makeLogMock(t)
 	telComp := makeTelMock(t)
-	require.NoError(t, pkglogsetup.SetupLogger("TEST", "info", filepath.Join(t.TempDir(), "agent.log"), "", false, false, false, cfg))
+	// Log to the console, not to a file: the file stays open until the process
+	// ends, which on Windows makes the temporary directory impossible to remove.
+	require.NoError(t, pkglogsetup.SetupLogger("TEST", "info", "", "", false, true, false, cfg))
 	t.Cleanup(pkglog.Flush)
 
 	synctest.Test(t, func(t *testing.T) {
