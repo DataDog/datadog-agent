@@ -483,6 +483,9 @@ else
     ./configure --prefix="$EMBEDDED" $LIBXML2_CONFIGURE_FLAGS
     make -j"$NPROC"
     make install DESTDIR="$STAGING"
+    # lxml needs Schematron symbols from our libxml2
+    dump -X64 -Tv "$EMBEDDED_DESTDIR/lib/libxml2.so" | grep -q xmlSchematronParse \
+        || { echo "libxml2 built without Schematron" >&2; exit 1; }
     lib_cache_save libxml2 "$LIBXML2_CACHE_KEY" "$_pre"
     rm -f "$_pre"
     cd "$BUILD_DIR"
@@ -490,9 +493,6 @@ else
     log "libxml2 ${LIBXML2_VERSION} done"
     CURRENT_LIB=
 fi
-# lxml needs Schematron symbols from our libxml2
-dump -X64 -Tv "$EMBEDDED_DESTDIR/lib/libxml2.so" | grep -q xmlSchematronParse \
-    || { echo "libxml2 built without Schematron" >&2; exit 1; }
 
 # ── libxslt (AIX Toolbox: yum install libxslt-devel) ─────────────────────────
 #
