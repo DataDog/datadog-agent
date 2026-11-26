@@ -1789,6 +1789,20 @@ func Test_validateJob(t *testing.T) {
 			want1: true,
 		},
 		{
+			name:  "kube_job with colons",
+			val:   1.0,
+			tags:  []string{"foo:bar", "kube_job:batch:worker-1600167000"},
+			want:  []string{"foo:bar", "kube_job:batch:worker-1600167000"},
+			want1: true,
+		},
+		{
+			name:  "invalid reason before kube_job",
+			val:   1.0,
+			tags:  []string{"reason:Invalid", "kube_job:foo-1600167000", "foo:bar"},
+			want:  []string{"kube_job:foo-1600167000", "foo:bar", "kube_cronjob:foo"},
+			want1: true,
+		},
+		{
 			name:  "no cronjob",
 			val:   1.0,
 			tags:  []string{"foo:bar", "job_name:foo"},

@@ -10,14 +10,13 @@ package ksm
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
 	// time/tzdata embeds the timezone database to support legacy timezone names
 	// (e.g. US/Central) used in upstream cronjob scheduling metric calculations
 	_ "time/tzdata"
-
-	"github.com/samber/lo"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	crs "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
@@ -158,7 +157,9 @@ func nodeConditionTransformer(s sender.Sender, name string, metric ksmstore.DDMe
 		return
 	}
 
-	s.Gauge(ksmMetricPrefix+"node.by_condition", metric.Val, hostname, tags)
+	// Gauge may append to the tags it receives, which the service check below
+	// sends again: it gets a copy.
+	s.Gauge(ksmMetricPrefix+"node.by_condition", metric.Val, hostname, cloneTags(tags))
 	statusLabel, found := metric.Labels.Lookup("status")
 	if !found {
 		log.Debugf("Couldn't find 'status' label, ignoring service check for metric '%s'", name)
@@ -439,22 +440,7 @@ func cronJobLastSuccessfulTransformer(s sender.Sender, _ string, metric ksmstore
 
 // jobCompleteTransformer sends a metric and a service check based on kube_job_complete
 func jobCompleteTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
-	for i, tag := range tags {
-		if tag == "condition:true" {
-			tags = append(tags[:i], tags[i+1:]...)
-			break
-		}
-	}
-
-	// jobMetric calls sender.Gauge. Like the rest of the sender.Sender funcs,
-	// Gauge might modify the tags slice that it receives, so it's not safe to
-	// reuse it later. We need the slice for the jobServiceCheck call, so we
-	// need to create a copy.
-	tagsCopy := make([]string, len(tags))
-	copy(tagsCopy, tags)
-	jobMetric(s, metric, ksmMetricPrefix+"job.completion.succeeded", hostname, tagsCopy)
-
-	jobServiceCheck(s, metric, servicecheck.ServiceCheckOK, hostname, tags)
+	jobCompletion(s, metric, ksmMetricPrefix+"job.completion.succeeded", servicecheck.ServiceCheckOK, hostname, tags)
 }
 
 func jobDurationTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
@@ -463,19 +449,25 @@ func jobDurationTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric,
 
 // jobFailedTransformer sends a metric and a service check based on kube_job_failed
 func jobFailedTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
-	for i, tag := range tags {
-		if tag == "condition:true" {
-			tags = append(tags[:i], tags[i+1:]...)
-			break
-		}
+	jobCompletion(s, metric, ksmMetricPrefix+"job.completion.failed", servicecheck.ServiceCheckCritical, hostname, tags)
+}
+
+// jobCompletion sends the metric of a job completion condition, and its service
+// check for active jobs
+func jobCompletion(s sender.Sender, metric ksmstore.DDMetric, metricName string, status servicecheck.ServiceCheckStatus, hostname string, tags []string) {
+	if i := slices.Index(tags, "condition:true"); i >= 0 {
+		tags = slices.Delete(tags, i, i+1)
 	}
 
-	// Need a copy for the same reason as in the func jobCompleteTransformer defined above
-	tagsCopy := make([]string, len(tags))
-	copy(tagsCopy, tags)
-	jobMetric(s, metric, ksmMetricPrefix+"job.completion.failed", hostname, tagsCopy)
-
-	jobServiceCheck(s, metric, servicecheck.ServiceCheckCritical, hostname, tags)
+	if metric.Val != 1.0 {
+		// No service check for inactive jobs
+		jobMetric(s, metric, metricName, hostname, tags)
+		return
+	}
+	// Gauge may append to the tags it receives, which the service check sends
+	// again: it gets a copy.
+	jobMetric(s, metric, metricName, hostname, cloneTags(tags))
+	jobServiceCheck(s, metric, status, hostname, tags)
 }
 
 // jobTimestampPattern extracts the timestamp in the job name label
@@ -502,18 +494,22 @@ func validJobFailureReason(reason string) bool {
 
 // validateJob detects active jobs and adds the `kube_cronjob` tag
 func validateJob(val float64, tags []string) ([]string, bool) {
+	tags = slices.DeleteFunc(tags, func(tag string) bool {
+		reason, ok := strings.CutPrefix(tag, "reason:")
+		return ok && !validJobFailureReason(reason)
+	})
 	kubeCronjob := ""
-	for i, tag := range tags {
-		if reason, ok := strings.CutPrefix(tag, "reason:"); ok {
-			if !validJobFailureReason(reason) {
-				tags = append(tags[:i], tags[i+1:]...)
-				continue
-			}
+	for _, tag := range tags {
+		key, value, found := strings.Cut(tag, ":")
+		if !found || (key == "kube_job" && strings.Contains(value, ":")) {
+			// Only kube_job tags with a single colon name a job
+			continue
 		}
-		split := strings.Split(tag, ":")
-		if len(split) == 2 && split[0] == "kube_job" || split[0] == "job" || split[0] == "job_name" {
+		// Up to the next colon, if any, like the second part of a split
+		value, _, _ = strings.Cut(value, ":")
+		if key == "kube_job" || key == "job" || key == "job_name" {
 			// Trim the timestamp suffix to avoid high cardinality
-			if name, trimmed := trimJobTag(split[1]); trimmed {
+			if name, trimmed := trimJobTag(value); trimmed {
 				// The trimmed job name corresponds to the parent cronjob name
 				// https://github.com/kubernetes/kubernetes/blob/v1.21.0/pkg/controller/cronjob/utils.go#L240
 				kubeCronjob = name
@@ -642,9 +638,7 @@ func serviceTypeTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric,
 
 // removeSecretTransformer removes the secret tag from the kube_ingress_tls metric
 func removeSecretTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
-	if len(tags) > 0 {
-		tags = lo.Filter(tags, func(x string, _ int) bool { return !strings.HasPrefix(x, "secret:") })
-	}
+	tags = slices.DeleteFunc(tags, func(x string) bool { return strings.HasPrefix(x, "secret:") })
 	s.Gauge(ksmMetricPrefix+"ingress.tls", metric.Val, hostname, tags)
 }
 
@@ -666,13 +660,15 @@ func endpointAddressTransformer(s sender.Sender, _ string, metric ksmstore.DDMet
 	}
 	// Remove the "ready" tag to match the legacy metric shape — the ready/not-ready
 	// distinction is encoded in the metric name, not as a tag.
-	tags = lo.Filter(tags, func(x string, _ int) bool { return !strings.HasPrefix(x, "ready:") })
+	tags = slices.DeleteFunc(tags, func(x string) bool { return strings.HasPrefix(x, "ready:") })
+	// Gauge may append to the tags it receives, which are sent twice: the
+	// first send gets a copy.
 	switch ready {
 	case "true":
-		s.Gauge(ksmMetricPrefix+"endpoint.address_available", metric.Val, hostname, tags)
+		s.Gauge(ksmMetricPrefix+"endpoint.address_available", metric.Val, hostname, cloneTags(tags))
 		s.Gauge(ksmMetricPrefix+"endpoint.address_not_ready", 0, hostname, tags)
 	case "false":
-		s.Gauge(ksmMetricPrefix+"endpoint.address_available", 0, hostname, tags)
+		s.Gauge(ksmMetricPrefix+"endpoint.address_available", 0, hostname, cloneTags(tags))
 		s.Gauge(ksmMetricPrefix+"endpoint.address_not_ready", metric.Val, hostname, tags)
 	}
 }
@@ -685,7 +681,7 @@ func endpointAddressTransformer(s sender.Sender, _ string, metric ksmstore.DDMet
 // and KSM surfaces nil as an empty string — treat it as "true".
 func endpointSliceEndpointsTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	ready := metric.Labels.Get("ready")
-	tags = lo.Filter(tags, func(x string, _ int) bool { return !strings.HasPrefix(x, "ready:") })
+	tags = slices.DeleteFunc(tags, func(x string) bool { return strings.HasPrefix(x, "ready:") })
 	switch ready {
 	case "true", "":
 		s.Gauge(ksmMetricPrefix+"endpointslice.address_available", metric.Val, hostname, tags)
@@ -749,4 +745,10 @@ func (k *KSMCheck) transformKubeDaemonSetRolloutDurationWithTracker(s sender.Sen
 
 	duration := k.rolloutTracker.GetDaemonSetRolloutDuration(namespace, daemonSetName)
 	s.Gauge(ksmMetricPrefix+"daemonset.rollout_duration", duration, hostname, tags)
+}
+
+// cloneTags returns a copy of tags with the same spare capacity, for the senders
+// that append to the tags they receive in place, when tags is sent again.
+func cloneTags(tags []string) []string {
+	return append(make([]string, 0, cap(tags)), tags...)
 }

@@ -372,6 +372,14 @@ type KSMCheck struct {
 	// Autoscaler tags cached for the current run, by workload, in the DCA and
 	// CLC runners
 	workloadAutoscalerTags map[autoscaledWorkload][]string
+	// Namespace tags cached for the current run, by namespace
+	runNamespaceTags map[string][]string
+	// tagsBuffer is the buffer that hostnameAndTags builds the tags of every
+	// series in
+	tagsBuffer []string
+	// infraModeTags is the number of infra mode tags that the sender appends
+	// to the tags of every sample
+	infraModeTags int
 }
 
 type podOwner struct {
@@ -978,6 +986,9 @@ func (k *KSMCheck) Run() error {
 	// the aggregator contexts: a run that isn't the leader keeps them, as the
 	// aggregator keeps its contexts.
 	defer k.endStringCachesRun()
+	// The namespace and autoscaler tags are cached for the stores of this run
+	// only
+	defer k.resetRunCaches()
 
 	labelJoiner := newLabelJoiner(k.instance.labelJoins)
 	for _, stores := range k.allStores {
@@ -1053,7 +1064,7 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 	// (via aggregator flush). Skip per-pod transformer/mapper dispatch to avoid
 	// double-emission of per-pod metrics already produced by node-agents.
 	aggregatesOnly := k.instance.PodCollectionMode == clusterAggregatesOnlyPodCollection
-	k.podAutoscalerTags, k.podOwnerAutoscalerTags, k.workloadAutoscalerTags = nil, nil, nil
+	k.podAutoscalerTags, k.podOwnerAutoscalerTags = nil, nil
 	if k.isRunningOnNodeAgent && k.instance.PodCollectionMode == nodeKubeletPodCollection && k.workloadmetaStore != nil {
 		k.podAutoscalerTags, k.podOwnerAutoscalerTags = autoscalerTagsFromPods(k.workloadmetaStore.ListKubernetesPods())
 	}
@@ -1123,78 +1134,26 @@ func (k *KSMCheck) hostnameAndTags(metricName string, labels ksmstore.Labels, la
 
 	labelsToAdd := labelJoiner.getLabelsToAdd(labels)
 
-	// generate a dedicated tags slice. The +1 is for the kube_autoscaler_kind
-	// tag, which is added separately
-	tagList := make([]string, 0, labels.Len()+len(labelsToAdd)+1)
-
-	ownerKind, ownerName, resourceNamespace := "", "", ""
-	isArgoRollout := false
+	// The tags are built in a buffer reused for every series, then copied into
+	// a slice of their size, so that their number doesn't have to be predicted
+	tagList := k.tagsBuffer[:0]
+	var owner seriesOwner
 
 	for key, value := range labels.All() {
-
-		if key == namespaceKey {
-			resourceNamespace = value
-		}
-
-		switch key {
-		case createdByKindKey, ownerKindKey:
-			ownerKind = value
-		case createdByNameKey, ownerNameKey:
-			ownerName = value
-		case argoRolloutLabelName:
-			isArgoRollout = value != ""
-		default:
-			tag, hostTag := k.buildTag(key, value, lMapperOverride)
-			tagList = append(tagList, tag)
-			if hostTag != "" {
-				hostname = k.hostname(hostTag)
-			}
-		}
+		tagList, hostname = k.appendLabelTag(tagList, hostname, &owner, key, value, lMapperOverride)
 	}
-
 	// apply label joins
 	for _, label := range labelsToAdd {
-
-		if label.key == namespaceKey {
-			resourceNamespace = label.value
-		}
-
-		switch label.key {
-		case createdByKindKey, ownerKindKey:
-			ownerKind = label.value
-		case createdByNameKey, ownerNameKey:
-			ownerName = label.value
-		case argoRolloutLabelName:
-			isArgoRollout = label.value != ""
-		default:
-			tag, hostTag := k.buildTag(label.key, label.value, lMapperOverride)
-			tagList = append(tagList, tag)
-			if hostTag != "" {
-				hostname = k.hostname(hostTag)
-			}
-		}
+		tagList, hostname = k.appendLabelTag(tagList, hostname, &owner, label.key, label.value, lMapperOverride)
 	}
 
-	tagList, deploymentName := k.appendOwnerTags(tagList, ownerKind, ownerName)
+	tagList, deploymentName := k.appendOwnerTags(tagList, owner.kind, owner.name)
 
-	if isArgoRollout && deploymentName != "" {
+	if owner.isArgoRollout && deploymentName != "" {
 		tagList = append(tagList, k.cachedTag(tags.KubeArgoRollout, deploymentName))
 	}
 
-	var namespaceTags []string
-	var tagErr error
-
-	if resourceNamespace != "" {
-		namespaceTags, tagErr = k.tagger.Tag(types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("", "namespaces", "", resourceNamespace))), types.LowCardinality)
-	}
-
-	if tagErr != nil {
-		if k.namespaceTagsErrorLogLimit.ShouldLog() {
-			log.Errorf("failed to get namespace tags for %q from tagger: %v", resourceNamespace, tagErr)
-		}
-	} else if len(namespaceTags) > 0 {
-		tagList = append(tagList, namespaceTags...)
-	}
+	tagList = append(tagList, k.namespaceTags(owner.namespace)...)
 
 	if k.isRunningOnNodeAgent && k.instance.PodCollectionMode == nodeKubeletPodCollection {
 		// Node agents don't have autoscaled workload entities, but they have
@@ -1203,16 +1162,84 @@ func (k *KSMCheck) hostnameAndTags(metricName string, labels ksmstore.Labels, la
 			tagList = append(tagList, k.podAutoscalerTags[uid]...)
 		} else {
 			// Aggregated series have no uid. They get the tags of their owner.
-			tagList = append(tagList, k.podOwnerAutoscalerTags[podOwner{kind: ownerKind, namespace: resourceNamespace, name: ownerName}]...)
+			tagList = append(tagList, k.podOwnerAutoscalerTags[podOwner{kind: owner.kind, namespace: owner.namespace, name: owner.name}]...)
 		}
-	} else if resourceNamespace != "" {
+	} else if owner.namespace != "" {
 		var workloads [2]autoscaledWorkload // To avoid an allocation on every call
-		for _, workload := range autoscaledWorkloads(workloads[:0], metricName, labels, resourceNamespace, ownerKind, ownerName, isArgoRollout) {
+		for _, workload := range autoscaledWorkloads(workloads[:0], metricName, labels, owner.namespace, owner.kind, owner.name, owner.isArgoRollout) {
 			tagList = append(tagList, k.autoscaledWorkloadTags(workload)...)
 		}
 	}
 
-	return hostname, tagList
+	k.tagsBuffer = tagList
+	// With room for the check tags and the infra mode tag that the sender
+	// appends in place, so that it doesn't grow the slice
+	return hostname, append(make([]string, 0, len(tagList)+len(k.instance.Tags)+k.infraModeTags), tagList...)
+}
+
+// seriesOwner holds the labels of a series that lead to tags other than theirs.
+type seriesOwner struct {
+	namespace, kind, name string
+	isArgoRollout         bool
+}
+
+// appendLabelTag appends to tagList the tag of the label key=value, unless it
+// only leads to the owner tags, and records it in owner if it is one of its
+// labels. It returns tagList along with the hostname of the series, which the
+// label sets when it is a host or a node.
+func (k *KSMCheck) appendLabelTag(tagList []string, hostname string, owner *seriesOwner, key, value string, lMapperOverride map[string]string) ([]string, string) {
+	switch key {
+	case createdByKindKey, ownerKindKey:
+		owner.kind = value
+		return tagList, hostname
+	case createdByNameKey, ownerNameKey:
+		owner.name = value
+		return tagList, hostname
+	case argoRolloutLabelName:
+		owner.isArgoRollout = value != ""
+		return tagList, hostname
+	case namespaceKey:
+		owner.namespace = value
+	}
+	tag, hostTag := k.buildTag(key, value, lMapperOverride)
+	if hostTag != "" {
+		hostname = k.hostname(hostTag)
+	}
+	return append(tagList, tag), hostname
+}
+
+// resetRunCaches drops the namespace and autoscaler tags cached for a run, and
+// the tags that the buffer of hostnameAndTags still refers to.
+func (k *KSMCheck) resetRunCaches() {
+	k.runNamespaceTags, k.workloadAutoscalerTags = nil, nil
+	clear(k.tagsBuffer[:cap(k.tagsBuffer)])
+}
+
+// namespaceTags returns the tags of the namespace from the tagger, which copies
+// them. They are cached for the run, because many series belong to the same
+// namespace.
+func (k *KSMCheck) namespaceTags(namespace string) []string {
+	if namespace == "" {
+		return nil
+	}
+	if namespaceTags, found := k.runNamespaceTags[namespace]; found {
+		return namespaceTags
+	}
+
+	namespaceTags, err := k.tagger.Tag(types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("", "namespaces", "", namespace))), types.LowCardinality)
+	if err != nil {
+		if k.namespaceTagsErrorLogLimit.ShouldLog() {
+			log.Errorf("failed to get namespace tags for %q from tagger: %v", namespace, err)
+		}
+		// Not cached: the next series of the namespace tries again
+		return nil
+	}
+
+	if k.runNamespaceTags == nil {
+		k.runNamespaceTags = make(map[string][]string)
+	}
+	k.runNamespaceTags[namespace] = namespaceTags
+	return namespaceTags
 }
 
 // autoscaledWorkloadTags returns the autoscaler tags of the workload. They are
@@ -1741,6 +1768,11 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Compone
 		workloadmetaStore:          wmeta,
 		rolloutTracker:             customresources.NewRolloutTracker(),
 		namespaceTagsErrorLogLimit: log.NewLogLimit(10, 10*time.Minute),
+	}
+	// The sender appends an infra_mode tag in the marked infra modes (see
+	// infratags.NewMetricTagger)
+	if configUtils.MarkedInfraMode(pkgconfigsetup.Datadog()) != "" {
+		k.infraModeTags = 1
 	}
 	// The cached strings live as long as the aggregator contexts that share them
 	keepRuns := pkgconfigsetup.Datadog().GetInt("check_sampler_bucket_commits_count_expiry")
