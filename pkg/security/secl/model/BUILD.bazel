@@ -476,6 +476,7 @@ go_library(
 dd_agent_go_test(
     name = "model_test",
     srcs = [
+        "args_envs_test.go",
         "consts_test.go",
         "dns_helpers_linux_test.go",
         "event_deep_copy_unix_test.go",

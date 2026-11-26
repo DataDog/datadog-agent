@@ -33,6 +33,7 @@ go_library(
         "//test/e2e-framework/components/kubernetes",
         "//test/e2e-framework/components/kubernetes/argorollouts",
         "//test/e2e-framework/components/kubernetes/cilium",
+        "//test/e2e-framework/components/kubernetes/mokka",
         "//test/e2e-framework/components/kubernetes/vpa",
         "//test/e2e-framework/components/os",
         "//test/e2e-framework/resources/aws",

@@ -44,6 +44,7 @@ import (
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	parconstants "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/deployment"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -131,11 +132,15 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 		privateactionrunnerfx.Module(),
 	}
 
-	err := fxutil.Run(fxOptions...)
-	if errors.Is(err, privateactionrunner.ErrNotEnabled) || errors.Is(err, privateactionrunner.ErrSplitDeployment) {
-		return nil
-	}
-	return err
+	return fxutil.Run(fxOptions...)
+}
+
+// isCleanStop reports whether err means the runner intentionally did not start
+// (disabled, split deployment or unsupported environment) and should exit cleanly.
+func isCleanStop(err error) bool {
+	return errors.Is(err, privateactionrunner.ErrNotEnabled) ||
+		errors.Is(err, privateactionrunner.ErrSplitDeployment) ||
+		errors.Is(err, deployment.ErrFIPSUnsupported)
 }
 
 // Commands returns a slice of subcommands for the 'private-action-runner' command.
@@ -149,7 +154,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Run the Private Action Runner",
 		Long:  `Runs the private-action-runner in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return runPrivateActionRunner(context.Background(), globalParams.ConfFilePath, cliParams.ExtraConfFilePath)
+			if err := runPrivateActionRunner(context.Background(), globalParams.ConfFilePath, cliParams.ExtraConfFilePath); err != nil && !isCleanStop(err) {
+				return err
+			}
+			return nil
 		},
 	}
 

@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    APM: When the spans of a trace chunk carry different sampling decision makers (``_dd.p.dm``),
+    the Agent now promotes the first one that isn't ``-0`` (the tracer's startup default) as the
+    chunk's sampling mechanism, whatever the position of the ``-0`` spans. Previously, this could result in
+    some trace payloads during tracer startup not being marked with the correct decision maker.

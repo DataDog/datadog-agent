@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    APM: Fix a trace-agent crash when an ``apm_config.replace_tags`` rule turns the
+    value of a numeric span metric into text and the span has no string tags.

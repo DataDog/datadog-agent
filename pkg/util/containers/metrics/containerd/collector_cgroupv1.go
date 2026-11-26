@@ -67,7 +67,12 @@ func getMemoryStatsCgroupV1(memStat *v1.MemoryStat) *provider.ContainerMemStats 
 
 	if memStat.Usage != nil {
 		res.UsageTotal = pointer.Ptr(float64(memStat.Usage.Usage))
-		res.Limit = pointer.Ptr(float64(memStat.Usage.Limit))
+		// An unlimited cgroup reports a very large value, never 0. A limit of
+		// 0 means the runtime did not fill it (e.g. gVisor's runsc shim), so it
+		// is left unset and taken from the OCI spec instead when possible.
+		if memStat.Usage.Limit > 0 {
+			res.Limit = pointer.Ptr(float64(memStat.Usage.Limit))
+		}
 
 		// guard against buffer overflows
 		if memStat.InactiveFile < memStat.Usage.Usage {

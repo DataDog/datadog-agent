@@ -1,0 +1,7 @@
+---
+issues:
+  - |
+    On Windows nodes, the kubelet check reports ``kubernetes.memory.usage`` only
+    when the container runtime provides container memory usage to the kubelet,
+    which containerd does from version 2.2. With older runtimes, use
+    ``container.memory.usage``, which the Agent reads from the container runtime.

@@ -15,6 +15,7 @@ jobs:
     name: Add Milestone on PR
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: write

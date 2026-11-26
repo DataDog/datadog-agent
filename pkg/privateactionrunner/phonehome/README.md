@@ -17,7 +17,10 @@ state; they do not cause core to launch or stop a monolithic runner.
 
 - Core: PAR enabled, split mode enabled, local RC enabled.
 - Non-containerized, non-FIPS Linux core Agent; matching core/executor config, API key,
-  site, proxy, secrets and user. RC-specific credentials/unsupported endpoint overrides
+  site, proxy, secrets and user. PAR may override the Agent's API key and site with
+  `private_action_runner.api_key` and `private_action_runner.site`; core and executor
+  must see the same overrides. RC and telemetry continue to use the Agent's settings.
+  RC-specific credentials/unsupported endpoint overrides
   and extra PAR config files are not supported. Live credential/endpoint changes need
   a coordinated restart.
 - The standard supervisor socket is `/var/run/datadog-procmgrd/dd-procmgrd.sock`.

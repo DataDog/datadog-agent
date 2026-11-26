@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"strings"
 
@@ -17,6 +16,9 @@ import (
 	"cloud.google.com/go/compute/apiv1/computepb"
 	"k8s.io/client-go/tools/clientcmd"
 
+	kubecomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/gcp"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	k8sutils "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/k8s"
 	sshutils "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/ssh"
 )
@@ -41,8 +43,7 @@ func DumpOpenshiftClusterState(ctx context.Context, name string) (ret string, er
 	// search for the unique instance using labels: manged-by, stack name and unique label on the vm 'kube-provider'
 	// to prevent returning the fakeintake vm and only return the vm running openshift.
 	instanceFilter := "(labels.managed-by=pulumi) (labels.stack=" + name + ") (labels.kube-provider=openshift)"
-	project := "datadog-agent-qa"
-	zone := "us-central1-a"
+	project, zone := gcp.DefaultProjectAndZone(strings.Split(runner.GetProfile().EnvironmentNames(), ","))
 	openshiftInstance, err := gcpClient.List(ctx, &computepb.ListInstancesRequest{
 		Filter:  &instanceFilter,
 		Project: project,
@@ -88,11 +89,11 @@ func DumpOpenshiftClusterState(ctx context.Context, name string) (ret string, er
 
 	sshOutput, err := sshutils.SshRunCommand(
 		sshClient,
-		"cat .kube/config",
+		"cat ~/.crc/machines/crc/kubeconfig",
 		&out,
 	)
 	if err != nil {
-		err = fmt.Errorf("failed to read kubeconfig under '.kube/config': %w", err)
+		err = fmt.Errorf("failed to read kubeconfig: %w", err)
 		err = errors.Join(append(errs, err)...)
 		return
 	}
@@ -103,31 +104,10 @@ func DumpOpenshiftClusterState(ctx context.Context, name string) (ret string, er
 		err = errors.Join(append(errs, err)...)
 		return
 	}
-
-	// patch the kubeconfig file to use the private IP address and the port listening on that address
-	for _, cluster := range kubeConfig.Clusters {
-		serverUrl, err := url.Parse(cluster.Server)
-		if err != nil {
-			fmt.Fprintf(&out, "[SKIP] failed to parse cluster url: %s - %v\n", cluster.Server, err)
-			continue
-		}
-		// use the vm IP
-		// on the localhost, kube api listens on 6443
-		// on the private IP kube api listens on 8443
-		serverUrl.Host = vmIP + ":8443"
-
-		cluster.Server = serverUrl.String()
-		cluster.CertificateAuthorityData = nil
-		cluster.InsecureSkipTLSVerify = true
+	if err = kubecomp.OpenShiftKubeconfigForVM(kubeConfig, vmIP); err != nil {
+		err = errors.Join(append(errs, err)...)
+		return
 	}
-
-	kubeconfigStr, err := clientcmd.Write(*kubeConfig)
-	if err != nil {
-		err = fmt.Errorf("failed to write kubeconfig to yaml format: %w", err)
-		errs = append(errs, err)
-	}
-
-	fmt.Fprintf(&out, "---------- Kubeconfig ----------\n%s\n", string(kubeconfigStr))
 
 	// use the global k8s dump cluster function to dump the cluster state to help debug
 	err = k8sutils.DumpK8sClusterState(ctx, kubeConfig, &out)

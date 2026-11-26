@@ -26,6 +26,7 @@ import (
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 )
 
@@ -391,6 +392,158 @@ func TestWorkloadProfileDedicatedAnomalyDetection(t *testing.T) {
 	}
 }
 
+var _ = declareInlineConfig(TestWorkloadProfileDedicatedEventCooldown)
+
+const (
+	// cooldownNoSampling is sampling off. Filters are off too, so that the kernel delivers every event.
+	cooldownNoSampling = "no-sampling"
+	// cooldownSampling is sampling on and no matching rule. The kernel sampler drops the repeats of a known sample
+	// key. When the cooldown of a node expires, its sample keys are deleted from the kernel, so that the next event
+	// reaches userspace.
+	cooldownSampling = "sampling"
+	// cooldownSamplingRule is sampling on, and a rule that approves the activity is loaded after its first sampled
+	// emit. The approver runs before the sampler, so that the next events reach userspace.
+	cooldownSamplingRule = "sampling-rule"
+
+	// workloadProfileCooldownExpiryPeriod must match the period at which the security profile manager deletes the
+	// kernel sample keys of the nodes whose cooldown has expired
+	workloadProfileCooldownExpiryPeriod = 10 * time.Second
+)
+
+// TestWorkloadProfileDedicatedEventCooldown checks, for every event type and sampling mode, that an activity triggers
+// an anomaly, that repeating it during the event cooldown doesn't, and that repeating it once the cooldown has
+// expired does again.
+func TestWorkloadProfileDedicatedEventCooldown(t *testing.T) {
+	skipIfNoWorkloadProfileEnv(t)
+
+	for _, mode := range []string{cooldownNoSampling, cooldownSampling, cooldownSamplingRule} {
+		t.Run(mode, func(t *testing.T) {
+			runWorkloadProfileCooldownMode(t, mode)
+		})
+	}
+}
+
+func runWorkloadProfileCooldownMode(t *testing.T, mode string) {
+	t.Helper()
+
+	// The repeat, and the policy reload before it in the sampling-rule mode, must run inside it
+	const eventCooldown = 10 * time.Second
+
+	tagger := NewFakeManualTagger()
+	opts := workloadProfileTestOpts(t.TempDir(), tagger)
+	opts.anomalyDetectionEventCooldown = eventCooldown
+	opts.capabilitiesMonitoringEnabled = true
+	opts.capabilitiesMonitoringPeriod = time.Second
+	opts.workloadProfileEventTypes = []string{"exec", "open", "dns", "bind", "connect", "capabilities", "mount", "syscalls"}
+	if mode == cooldownNoSampling {
+		opts.disableEventSampling = true
+		opts.disableFilters = true
+	}
+
+	// The policy file outlives the test module, and an empty rule list does not rewrite it. Always write one, so
+	// the rules of a previous test cannot approve the activity.
+	ruleDefs := []*rules.RuleDefinition{{
+		ID:         "test_wp_cooldown_unused",
+		Expression: `open.file.path == "/tmp/wp-cooldown-unused"`,
+	}}
+
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(opts))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, et := range workloadProfileEventCooldownTypes() {
+		t.Run(et.name, func(t *testing.T) {
+			switch mode {
+			case cooldownNoSampling:
+				if !eventTypeHasKernelSampler(et.eventType) {
+					t.Skip("the event type has no sampler, the sampling mode already covers it")
+				}
+			case cooldownSamplingRule:
+				if !eventTypeHasKernelSampler(et.eventType) || workloadProfileCooldownRule(et) == nil {
+					t.Skip("needs both a sampled event type and a rule that can approve the activity")
+				}
+			}
+			et.skipIfUnsupported(t)
+
+			dockerInstance, _ := startWorkloadProfileContainerWithRunArgs(t, test, tagger, syscallTester, newWorkloadProfileImage(), "v1", et.containerRunArgs)
+			trigger := func() []workloadProfileAnomaly {
+				return collectAnomalies(t, test, func() error {
+					et.trigger(t, dockerInstance, "known")
+					return nil
+				}, dockerInstance, et.matchProbeEvent)
+			}
+
+			started := time.Now()
+			first := trigger()
+			firstSent := time.Now()
+			require.True(t, et.hasAnomalyFor(first, "known"), "the first %s activity should trigger an anomaly", et.name)
+
+			if mode == cooldownSamplingRule {
+				ruleDefs = append(ruleDefs, workloadProfileCooldownRule(et))
+				require.NoError(t, setTestPolicy(commonCfgDir, nil, ruleDefs))
+				require.NoError(t, test.reloadPolicies())
+			}
+
+			repeat := trigger()
+			require.Less(t, time.Since(started), eventCooldown, "the repeat must run inside the event cooldown")
+			require.False(t, et.hasAnomalyFor(repeat, "known"), "the %s repeat shouldn't trigger an anomaly during the event cooldown", et.name)
+
+			// with sampling on, the kernel delivers the activity again once the expired cooldown has released its
+			// sample keys
+			wait := eventCooldown + time.Second
+			if mode != cooldownNoSampling {
+				wait += workloadProfileCooldownExpiryPeriod
+			}
+			time.Sleep(time.Until(firstSent.Add(wait)))
+
+			again := trigger()
+			require.True(t, et.hasAnomalyFor(again, "known"), "the %s activity should trigger an anomaly again once the event cooldown has expired", et.name)
+		})
+	}
+}
+
+// eventTypeHasKernelSampler reports whether the kernel samples this event type
+func eventTypeHasKernelSampler(eventType model.EventType) bool {
+	switch eventType {
+	case model.FileOpenEventType, model.BindEventType, model.ConnectEventType:
+		return true
+	default:
+		return false
+	}
+}
+
+// workloadProfileCooldownRule is the rule that approves the "known" activity of et.
+// nil means the event type cannot be matched by a SECL rule.
+func workloadProfileCooldownRule(et workloadProfileEventType) *rules.RuleDefinition {
+	var expression string
+	switch et.name {
+	case "open":
+		expression = `open.file.path == "/tmp/wp-open-known"`
+	case "exec":
+		expression = `exec.file.name == "wp-exec-known"`
+	case "bind":
+		expression = `bind.addr.family == AF_INET && bind.addr.port == 4251`
+	case "connect":
+		expression = `connect.addr.family == AF_INET && connect.addr.port == 4251`
+	case "dns":
+		expression = `dns.question.name == "one.one.one.one"`
+	case "capabilities":
+		expression = `capabilities.used == CAP_SYS_CHROOT && process.file.name == "wp-exec-capabilities"`
+	case "mount":
+		expression = `mount.mountpoint.path == "/tmp/wp-mount-dst-known"`
+	default:
+		return nil
+	}
+	return &rules.RuleDefinition{ID: "test_wp_cooldown_" + et.name, Expression: expression}
+}
+
 var _ = declareInlineConfig(TestWorkloadProfileDedicatedAnomalyDetectionVariables)
 
 // TestWorkloadProfileDedicatedAnomalyDetectionVariables checks that the variables set by a rule are present in the anomaly
@@ -691,11 +844,9 @@ func TestWorkloadProfileDedicatedAnomalyTags(t *testing.T) {
 
 var _ = declareInlineConfig(TestWorkloadProfileDedicatedTags)
 
-// TestWorkloadProfileDedicatedTags checks that the tags sent with a profile shared by several image tags and containers
-// cover all of them.
+// TestWorkloadProfileDedicatedTags checks that each version context of a profile shared by several image tags and
+// containers holds the tags of its own containers, and that the tags sent with the profile cover all of them.
 func TestWorkloadProfileDedicatedTags(t *testing.T) {
-	t.Skip("Skip until the fix is implemented")
-
 	skipIfNoWorkloadProfileEnv(t)
 
 	tagger := NewFakeManualTagger()
@@ -716,13 +867,21 @@ func TestWorkloadProfileDedicatedTags(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// the profile format doesn't hold the tags of the profile, the live profile does and they are sent with it to the backend
 	live := m.GetProfile(*p.GetWorkloadSelector())
 	if live == nil {
 		t.Fatal("no live profile")
 	}
-	tags := live.GetTags()
-	if !assert.NotEmpty(t, tags, "the live profile should hold tags") {
+	for imageTag, instance := range map[string]*dockerCmdWrapper{"v1": v1Instance, "v2": v2Instance} {
+		versionTags, ok := live.GetVersionContextTags(imageTag)
+		if !assert.True(t, ok, "the profile should hold the %s version", imageTag) {
+			continue
+		}
+		assert.Equal(t, []string{imageTag}, tagValues(versionTags, "image_tag"), "the %s version should only hold its own image tag", imageTag)
+		assert.Equal(t, []string{instance.containerID}, tagValues(versionTags, "container_id"), "the %s version should only hold the container id of its container", imageTag)
+	}
+
+	tags := live.GetDumpTags()
+	if !assert.NotEmpty(t, tags, "the profile should be sent with tags") {
 		return
 	}
 	if imageTags := tagValues(tags, "image_tag"); len(imageTags) > 0 {
@@ -731,6 +890,62 @@ func TestWorkloadProfileDedicatedTags(t *testing.T) {
 	if containerIDs := tagValues(tags, "container_id"); len(containerIDs) > 0 {
 		assert.ElementsMatch(t, []string{v1Instance.containerID, v2Instance.containerID}, containerIDs, "the tags of a profile shared by several containers shouldn't only hold the container id of its first container")
 	}
+}
+
+var _ = declareInlineConfig(TestWorkloadProfileDedicatedEvictedVersionTags)
+
+// TestWorkloadProfileDedicatedEvictedVersionTags checks that, once the max number of image tags is reached, the tags
+// of the evicted image tag and of its container are no longer sent with the profile.
+func TestWorkloadProfileDedicatedEvictedVersionTags(t *testing.T) {
+	skipIfNoWorkloadProfileEnv(t)
+
+	tagger := NewFakeManualTagger()
+	opts := workloadProfileTestOpts(t.TempDir(), tagger)
+	opts.securityProfileMaxImageTags = 2
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(opts))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := getManagerV2(test)
+	if err != nil {
+		t.Fatal(err)
+	}
+	execType := workloadProfileEventTypeByName(t, "exec")
+
+	// the v1 container stays idle once v2 is started: any later event of it would bring v1 back and evict v2
+	v1Instance, v2Instance, p := startTwoImageTagsWorkload(t, test, tagger, syscallTester)
+	selector := *p.GetWorkloadSelector()
+
+	dumpTags := func() []string {
+		live := m.GetProfile(selector)
+		if live == nil {
+			t.Fatal("no live profile")
+		}
+		return live.GetDumpTags()
+	}
+
+	tags := dumpTags()
+	assert.ElementsMatch(t, []string{"v1", "v2"}, tagValues(tags, "image_tag"))
+	assert.ElementsMatch(t, []string{v1Instance.containerID, v2Instance.containerID}, tagValues(tags, "container_id"))
+
+	v3Instance, _ := startWorkloadProfileContainer(t, test, tagger, syscallTester, selector.Image, "v3")
+	execType.trigger(t, v3Instance, "known")
+	if _, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
+		return slices.Contains(p.GetVersions(), "v3")
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	assert.ElementsMatch(t, []string{"v2", "v3"}, m.GetProfile(selector).GetVersions(), "v1 should have been evicted")
+	tags = dumpTags()
+	assert.ElementsMatch(t, []string{"v2", "v3"}, tagValues(tags, "image_tag"), "the image tag of the evicted version shouldn't be sent with the profile")
+	assert.ElementsMatch(t, []string{v2Instance.containerID, v3Instance.containerID}, tagValues(tags, "container_id"), "the container id of the evicted version shouldn't be sent with the profile")
 }
 
 // Profile lifecycle
@@ -896,10 +1111,17 @@ func TestWorkloadProfileDedicatedPersistence(t *testing.T) {
 
 	storageDir := t.TempDir()
 	image := newWorkloadProfileImage()
+	// the kernel sampling isn't tested here: it is turned off, with the filters, so that every event is delivered
+	newOpts := func(tagger *FakeManualTagger) testOpts {
+		opts := workloadProfileTestOpts(storageDir, tagger)
+		opts.disableEventSampling = true
+		opts.disableFilters = true
+		return opts
+	}
 
 	// first run: learn an activity of each type, then persist the profile
 	tagger := NewFakeManualTagger()
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(workloadProfileTestOpts(storageDir, tagger)))
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(newOpts(tagger)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -936,7 +1158,7 @@ func TestWorkloadProfileDedicatedPersistence(t *testing.T) {
 
 	// second run: the profile is reloaded from the local storage for a new container of the image
 	tagger = NewFakeManualTagger()
-	test, err = newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(workloadProfileTestOpts(storageDir, tagger)), withForceReload())
+	test, err = newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(newOpts(tagger)), withForceReload())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -969,6 +1191,112 @@ func TestWorkloadProfileDedicatedPersistence(t *testing.T) {
 			}, dockerInstance)
 			assert.True(t, et.hasAnomalyFor(anomalies, "new"), "a new %s activity should trigger an anomaly after the restart", et.name)
 		})
+	}
+}
+
+var _ = declareInlineConfig(TestWorkloadProfileDedicatedEventCooldownPersistence)
+
+// TestWorkloadProfileDedicatedEventCooldownPersistence checks that the event cooldown of an activity survives a
+// restart. The first run learns the "known" activity without an anomaly, alerts on the "new" one, and persists the
+// profile. Once the profile is reloaded, the alerted activity is held until its cooldown expires and then triggers
+// exactly one anomaly, while the activity learned without an anomaly stays quiet.
+func TestWorkloadProfileDedicatedEventCooldownPersistence(t *testing.T) {
+	skipIfNoWorkloadProfileEnv(t)
+
+	// covers the restart of the module and the repeats that follow it
+	const eventCooldown = 2 * time.Minute
+
+	storageDir := t.TempDir()
+	image := newWorkloadProfileImage()
+	eventTypes := supportedWorkloadProfileEventTypes(t)
+	newOpts := func(tagger *FakeManualTagger, waitPersistence bool) testOpts {
+		opts := workloadProfileTestOpts(storageDir, tagger)
+		opts.anomalyDetectionEventCooldown = eventCooldown
+		opts.profileReportingWaitPersistence = waitPersistence
+		// the container runtime can exhaust the global open sampling rate before the test opens its file
+		opts.eventSamplingOpenRateUnlimited = true
+		return opts
+	}
+	trigger := func(t *testing.T, test *testModule, dockerInstance *dockerCmdWrapper, variants ...string) []workloadProfileAnomaly {
+		return collectAnomalies(t, test, func() error {
+			for _, et := range eventTypes {
+				for _, variant := range variants {
+					et.trigger(t, dockerInstance, variant)
+				}
+			}
+			return nil
+		}, dockerInstance)
+	}
+
+	// first run: the activities are learned without an anomaly until the first persistence
+	var alertedBefore, alertedAfter time.Time
+	func() {
+		tagger := NewFakeManualTagger()
+		test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(newOpts(tagger, true)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer test.CloseTest()
+		syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+		if err != nil {
+			t.Fatal(err)
+		}
+		m, err := getManagerV2(test)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		dockerInstance, _ := startWorkloadProfileContainer(t, test, tagger, syscallTester, image, "v1")
+		defer dockerInstance.stop()
+
+		anomalies := trigger(t, test, dockerInstance, "known")
+		for _, et := range eventTypes {
+			require.False(t, et.hasAnomalyFor(anomalies, "known"), "no %s anomaly should be sent before the first persistence", et.name)
+		}
+		m.PersistAllProfiles()
+
+		alertedBefore = time.Now()
+		anomalies = trigger(t, test, dockerInstance, "new")
+		alertedAfter = time.Now()
+		for _, et := range eventTypes {
+			require.True(t, et.hasAnomalyFor(anomalies, "new"), "a new %s activity should trigger an anomaly after the first persistence", et.name)
+		}
+		m.PersistAllProfiles()
+	}()
+
+	// second run: the profile is reloaded from the local storage, and reports right away
+	tagger := NewFakeManualTagger()
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(newOpts(tagger, false)), withForceReload())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dockerInstance, _ := startWorkloadProfileContainer(t, test, tagger, syscallTester, image, "v1")
+
+	anomalies := trigger(t, test, dockerInstance, "known", "new")
+	require.Less(t, time.Since(alertedBefore), eventCooldown, "the repeats must run inside the event cooldown of the first run")
+	for _, et := range eventTypes {
+		assert.False(t, et.hasAnomalyFor(anomalies, "new"), "the %s activity alerted before the restart shouldn't trigger an anomaly during its event cooldown", et.name)
+		assert.False(t, et.hasAnomalyFor(anomalies, "known"), "the %s activity learned without an anomaly shouldn't trigger one after the restart", et.name)
+	}
+
+	// the kernel sample keys of the repeats are released by the expiry ticker once the cooldown has expired
+	time.Sleep(time.Until(alertedAfter.Add(eventCooldown + time.Second + workloadProfileCooldownExpiryPeriod)))
+
+	anomalies = trigger(t, test, dockerInstance, "known", "new", "new")
+	for _, et := range eventTypes {
+		var count int
+		for _, anomaly := range anomalies {
+			if anomaly.eventType == et.eventType && et.matchAnomaly(anomaly, "new") {
+				count++
+			}
+		}
+		assert.Equal(t, 1, count, "the %s activity alerted before the restart should trigger exactly one anomaly once its event cooldown has expired", et.name)
+		assert.False(t, et.hasAnomalyFor(anomalies, "known"), "the %s activity learned without an anomaly should stay quiet", et.name)
 	}
 }
 

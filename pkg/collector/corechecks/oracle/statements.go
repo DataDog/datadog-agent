@@ -11,7 +11,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"strconv"
 	"strings"
 	"time"
@@ -333,11 +332,6 @@ type PlanRows struct {
 	PlanStepRows
 }
 
-func (c *Check) copyToPreviousMap(newMap map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB) {
-	c.statementMetricsMonotonicCountsPrevious = make(map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB)
-	maps.Copy(c.statementMetricsMonotonicCountsPrevious, newMap)
-}
-
 func handlePredicate(predicateType string, dbValue sql.NullString, payloadValue *string, statement StatementMetricsDB, c *Check, o *obfuscate.Obfuscator) {
 	if dbValue.Valid && dbValue.String != "" {
 		obfuscated, err := o.ObfuscateSQLString(dbValue.String)
@@ -373,7 +367,7 @@ func (c *Check) StatementMetrics() (int, error) {
 	var planErrors uint16
 	queries := getStatementMetricsQueries(c)
 	if c.config.QueryMetrics.Enabled {
-		var statementMetrics []StatementMetricsDB
+		var statementMetricsAll []StatementMetricsDB
 		var sql string
 		if c.config.QueryMetrics.DisableLastActive {
 			sql = queries[fmsRandomQuery]
@@ -390,7 +384,7 @@ func (c *Check) StatementMetrics() (int, error) {
 
 		err := selectWrapper(
 			c,
-			&statementMetrics,
+			&statementMetricsAll,
 			sql,
 			lookback,
 			c.config.QueryMetrics.DBRowsLimit,
@@ -398,15 +392,13 @@ func (c *Check) StatementMetrics() (int, error) {
 		if err != nil {
 			return 0, fmt.Errorf("error collecting statement metrics for force_matching_signature: %w %s", err, sql)
 		}
-		log.Debugf("%s number of collected metrics with force_matching_signature %+v", c.logPrompt, len(statementMetrics))
+		log.Debugf("%s number of collected metrics with force_matching_signature %+v", c.logPrompt, len(statementMetricsAll))
 
-		statementMetricsAll := make([]StatementMetricsDB, len(statementMetrics))
-		copy(statementMetricsAll, statementMetrics)
-
+		var sqlIDMetrics []StatementMetricsDB
 		sql = queries[sqlIDQuery]
 		err = selectWrapper(
 			c,
-			&statementMetrics,
+			&sqlIDMetrics,
 			sql,
 			lookback,
 			c.config.QueryMetrics.DBRowsLimit,
@@ -414,22 +406,18 @@ func (c *Check) StatementMetrics() (int, error) {
 		if err != nil {
 			return 0, fmt.Errorf("error collecting statement metrics for SQL_IDs: %w %s", err, sql)
 		}
-		log.Debugf("%s number of collected metrics with SQL_ID %+v", c.logPrompt, len(statementMetrics))
-		statementMetricsAll = append(statementMetricsAll, statementMetrics...)
+		log.Debugf("%s number of collected metrics with SQL_ID %+v", c.logPrompt, len(sqlIDMetrics))
+		statementMetricsAll = append(statementMetricsAll, sqlIDMetrics...)
 		SQLCount = len(statementMetricsAll)
 
 		// query metrics cache
-		newCache := make(map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB)
-		if c.statementMetricsMonotonicCountsPrevious == nil {
-			c.copyToPreviousMap(newCache)
-			return 0, nil
-		}
+		newCache := make(map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB, len(statementMetricsAll))
 
 		o := c.LazyInitObfuscator()
 		var diff OracleRowMonotonicCount
 		planErrors = 0
 		sendPlan := true
-		for i, statementMetricRow := range statementMetricsAll {
+		for _, statementMetricRow := range statementMetricsAll {
 			var trace bool
 			for _, t := range c.config.QueryMetrics.Trackers {
 				if len(t.ContainsText) > 0 {
@@ -560,6 +548,9 @@ func (c *Check) StatementMetrics() (int, error) {
 				if diff.AvoidedExecutions = statementMetricRow.AvoidedExecutions - previousMonotonic.AvoidedExecutions; diff.AvoidedExecutions < 0 {
 					continue
 				}
+				if diff == (OracleRowMonotonicCount{}) {
+					continue
+				}
 			} else {
 				continue
 			}
@@ -637,16 +628,16 @@ func (c *Check) StatementMetrics() (int, error) {
 			}
 
 			if c.config.ExecutionPlans.Enabled && sendPlan && statementMetricRow.PlanHashValue != 0 {
-				if (i+1)%10 == 0 && time.Since(start).Seconds() >= float64(c.config.QueryMetrics.MaxRunTime) {
-					sendPlan = false
-				}
-
 				planCacheKey := strconv.FormatUint(statementMetricRow.PlanHashValue, 10)
 				if c.planEmitted == nil {
 					c.planEmitted = getPlanEmittedCache(c)
 				}
 				_, found := c.planEmitted.Get(planCacheKey)
 				if c.config.ExecutionPlans.PlanCacheRetention == 0 || !found {
+					if time.Since(start).Seconds() >= float64(c.config.QueryMetrics.MaxRunTime) {
+						sendPlan = false
+						continue
+					}
 					var planStepsPayload []PlanDefinition
 					var planStepsDB []PlanRows
 					var oraclePlan OraclePlan
@@ -831,7 +822,7 @@ func (c *Check) StatementMetrics() (int, error) {
 
 			}
 		}
-		c.copyToPreviousMap(newCache)
+		c.statementMetricsMonotonicCountsPrevious = newCache
 	} else {
 		heartbeatStatement := "__other__"
 		queryRowHeartbeat := QueryRow{QuerySignature: heartbeatStatement}

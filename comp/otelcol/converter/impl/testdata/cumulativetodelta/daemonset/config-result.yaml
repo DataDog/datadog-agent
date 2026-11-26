@@ -13,7 +13,7 @@ exporters:
 processors:
   infraattributes:
     cardinality: 2
-  cumulativetodelta/dd-autoconfigured:
+  cumulative_to_delta/dd-autoconfigured:
 connectors:
   datadog/connector:
 service:
@@ -24,7 +24,7 @@ service:
       exporters: [otlphttp, datadog/connector]
     metrics:
       receivers: [otlp, datadog/connector]
-      processors: [infraattributes, cumulativetodelta/dd-autoconfigured]
+      processors: [infraattributes, cumulative_to_delta/dd-autoconfigured]
       exporters: [otlphttp]
     logs:
       receivers: [otlp]

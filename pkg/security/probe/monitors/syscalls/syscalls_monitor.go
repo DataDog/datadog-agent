@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
 
@@ -84,9 +83,9 @@ func (d *Monitor) Flush() error {
 
 // NewSyscallsMonitor returns a new Monitor
 func NewSyscallsMonitor(manager *manager.Manager, statsdClient statsd.ClientInterface) (*Monitor, error) {
-	numCPU, err := utils.NumCPU()
+	numCPU, err := lib.PossibleCPU()
 	if err != nil {
-		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
+		return nil, fmt.Errorf("couldn't fetch the possible CPU count: %w", err)
 	}
 
 	monitor := &Monitor{

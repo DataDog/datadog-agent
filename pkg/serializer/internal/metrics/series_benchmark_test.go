@@ -28,7 +28,7 @@ func benchmarkPopulateDeviceField(numberOfTags int, b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		serie.Tags = t
 		for _, serie := range series {
-			serie.PopulateDeviceField()
+			serie.PopulateDeviceAndResources()
 		}
 	}
 }
@@ -68,7 +68,7 @@ func BenchmarkPopulateResources(b *testing.B) {
 			for n := 0; n < b.N; n++ {
 				serie.Tags = t
 				for _, serie := range series {
-					serie.PopulateResources()
+					serie.PopulateDeviceAndResources()
 				}
 			}
 		})

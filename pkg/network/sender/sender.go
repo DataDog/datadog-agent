@@ -50,12 +50,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const clientID = "local_client"
+
+// missingTaskARNLogLimit limits the log when the ECS task tags have no task_arn.
+var missingTaskARNLogLimit = utillog.NewLogLimit(1, 10*time.Minute)
+
 const telemetrySubsystem = "sender__connections"
 
 var senderTelemetry = struct {
@@ -66,6 +72,21 @@ var senderTelemetry = struct {
 	telemetryimpl.GetCompatComponent().NewGauge(telemetrySubsystem, "queue_size", nil, ""),
 	telemetryimpl.GetCompatComponent().NewGauge(telemetrySubsystem, "queue_bytes", nil, ""),
 	telemetryimpl.GetCompatComponent().NewCounter(telemetrySubsystem, "connection_count", nil, ""),
+}
+
+// hostTags returns the host tags for the payloads of a check run: the expected host tags and, on
+// ECS Fargate, the task's tags, which identify the task since the hostname is empty there. They're
+// sorted and deduplicated, so encoding them for each chunk doesn't modify them.
+func (d *directSender) hostTags() []string {
+	hostTags := slices.Clone(d.hostTagProvider.GetHostTags())
+	taskTags, onECSFargate := fargate.ECSTaskTags(d.tagger)
+	if onECSFargate && !fargate.HasTaskARN(taskTags) && missingTaskARNLogLimit.ShouldLog() {
+		// expected briefly after startup, until the tagger has the task's metadata
+		d.log.Infof("no task_arn in the ECS task tags yet: connections can't be attributed to the task until it's available")
+	}
+	hostTags = append(hostTags, taskTags...)
+	slices.Sort(hostTags)
+	return slices.Compact(hostTags)
 }
 
 // New creates a direct sender
@@ -219,6 +240,12 @@ type directSender struct {
 	checkInterval       time.Duration
 	runCount            uint64
 	collectWG           sync.WaitGroup
+
+	// Compression state reused across chunks and collects. Only the serial
+	// collect loop touches it.
+	compressor  zstd.Compressor
+	rawBuf      bytes.Buffer
+	compressBuf []byte
 }
 
 func (d *directSender) start() {
@@ -426,6 +453,9 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 	sortConnections(conns.Conns)
 
 	builder := model.NewCollectorConnectionsBuilder(io.Discard)
+	// the same for every chunk of the group
+	hostTags := d.hostTags()
+	tagCache := newChunkTagCache()
 
 	return func(yield func([]byte) bool) {
 		defer func() {
@@ -434,24 +464,11 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 			}
 		}()
 		defer d.resolver.removeDeadTagContainers()
+		defer d.trimCompressScratch()
 
 		for connsChunk := range slices.Chunk(conns.Conns, d.maxConnsPerMessage) {
-			// TODO is there some way to get a larger lower bound on the size of a payload
-			// ex: (minConnSize * len(connsChunk)) + len(d.staticEncodedHeader)
-			// compression makes this calculation difficult
-			dstBuf := bytes.NewBuffer(make([]byte, 0, len(d.staticEncodedHeader)))
-			_, err := dstBuf.Write(d.staticEncodedHeader)
-			if err != nil {
-				d.log.Errorf("Unable to encode message header: %s", err)
-				continue
-			}
-			zw, err := zstd.NewWriter(dstBuf)
-			if err != nil {
-				d.log.Errorf("Unable to create zstd writer: %s", err)
-				continue
-			}
-
-			builder.Reset(zw)
+			d.rawBuf.Reset()
+			builder.Reset(&d.rawBuf)
 			d.encodeConfiguration(builder)
 			builder.SetGroupId(groupID)
 			builder.SetGroupSize(numBatches)
@@ -468,20 +485,21 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 			tagsEncoder := model.NewV3TagEncoder()
 			// Adding a dummy tag to ensure the indices we get are always >= 0.
 			_ = tagsEncoder.Encode([]string{"-"})
+			tagCache.reset()
 
 			for i := range connsChunk {
 				nc := &connsChunk[i]
 				builder.AddConnections(func(builder *model.ConnectionBuilder) {
 					d.encodeConnection(builder, nc, conns, routeSet, resolvConfSet)
-					d.addContainerTags(builder, nc.ContainerID.Source, tagsEncoder)
+					d.addContainerTags(builder, nc.ContainerID.Source, tagsEncoder, tagCache)
 					d.addRemoteServiceTags(builder, nc, remoteServiceResolver, tagsEncoder)
-					d.addTags(builder, nc, tagsSet, usmEncoders, connectionsTagsEncoder)
+					d.addTags(builder, nc, tagsSet, usmEncoders, connectionsTagsEncoder, tagCache)
 					d.addDNS(builder, nc, dnsSet, indexToOffset)
 				})
 			}
 
 			// this must come before we access tagsEncoder.Buffer()
-			builder.SetHostTagsIndex(int32(tagsEncoder.Encode(d.hostTagProvider.GetHostTags())))
+			builder.SetHostTagsIndex(int32(tagsEncoder.Encode(hostTags)))
 			builder.SetEncodedTags(func(b *bytes.Buffer) {
 				b.Write(tagsEncoder.Buffer())
 			})
@@ -493,16 +511,52 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 				builder.AddResolvConfs(v.Get())
 			}
 
-			if err := zw.Close(); err != nil {
-				d.log.Errorf("Unable to close compression writer: %s", err)
+			body, err := d.compressChunk(d.rawBuf.Bytes())
+			if err != nil {
+				d.log.Errorf("Unable to compress payload: %s", err)
 				continue
 			}
 
-			if !yield(dstBuf.Bytes()) {
+			if !yield(body) {
 				return
 			}
 			messageIndex++
 		}
+	}
+}
+
+// maxRetainedScratch bounds the scratch memory kept between collects.
+const maxRetainedScratch = 4 << 20
+
+// compressChunk returns the message header followed by one zstd frame of raw.
+// The forwarder keeps the returned slice, so it is always newly allocated; only
+// the context and the scratch buffer are reused.
+func (d *directSender) compressChunk(raw []byte) ([]byte, error) {
+	if d.compressor == nil {
+		d.compressor = zstd.NewCompressor()
+	}
+	bound := zstd.CompressBound(len(raw))
+	if cap(d.compressBuf) < bound {
+		d.compressBuf = make([]byte, bound)
+	}
+	compressed, err := d.compressor.CompressLevel(d.compressBuf[:bound], raw, zstd.DefaultCompression)
+	if err != nil {
+		// Never reuse a context after a failure.
+		d.compressor = nil
+		return nil, err
+	}
+	body := make([]byte, len(d.staticEncodedHeader)+len(compressed))
+	n := copy(body, d.staticEncodedHeader)
+	copy(body[n:], compressed)
+	return body, nil
+}
+
+func (d *directSender) trimCompressScratch() {
+	if d.rawBuf.Cap() > maxRetainedScratch {
+		d.rawBuf = bytes.Buffer{}
+	}
+	if cap(d.compressBuf) > maxRetainedScratch {
+		d.compressBuf = nil
 	}
 }
 

@@ -19,6 +19,7 @@ import (
 	"path"
 	"runtime"
 	"slices"
+	"strings"
 
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -49,6 +50,30 @@ const (
 // statFn is the function used to check path existence. It defaults to os.Stat
 // and can be overridden in tests.
 var statFn = os.Stat
+
+// maxSandboxWarningsInSummary is the number of sandbox warnings that the
+// per-run summary warning lists. The full list is logged at debug level.
+const maxSandboxWarningsInSummary = 5
+
+// logSandboxWarnings logs one warning line per run that gives the number of
+// sandbox warnings (for example allowed paths that rshell cannot open, or
+// unsupported system service actions) and the first few of them. When the list is truncated, the full list is logged at
+// debug level.
+func logSandboxWarnings(warnings []string) {
+	if len(warnings) == 0 {
+		return
+	}
+	shown := warnings
+	more := ""
+	if len(warnings) > maxSandboxWarningsInSummary {
+		shown = warnings[:maxSandboxWarningsInSummary]
+		more = fmt.Sprintf(" (and %d more, full list at debug level)", len(warnings)-maxSandboxWarningsInSummary)
+	}
+	log.Warnf("rshell sandbox: %d allowlist warnings: %s%s", len(warnings), strings.Join(shown, "; "), more)
+	if len(warnings) > maxSandboxWarningsInSummary {
+		log.Debugf("rshell sandbox warnings: %s", strings.Join(warnings, "; "))
+	}
+}
 
 // RunCommandHandlerConfig carries agent-side rshell policy settings.
 type RunCommandHandlerConfig struct {
@@ -341,12 +366,6 @@ func (h *RunCommandHandler) Run(
 		return nil, fmt.Errorf("failed to parse command: %w", err)
 	}
 
-	for _, p := range effectiveAllowedPaths {
-		statPath := pathSpecPath(p)
-		if _, err := statFn(statPath); err != nil {
-			log.Warnf("path %q not found, rshell may fail to execute commands", statPath)
-		}
-	}
 	var stdout, stderr bytes.Buffer
 	// Route sandbox diagnostics to a dedicated sink so they do not leak
 	// into the action's stderr field. We discard the streaming output and
@@ -372,6 +391,8 @@ func (h *RunCommandHandler) Run(
 		return nil, fmt.Errorf("failed to create runner: %w", err)
 	}
 	defer runner.Close()
+	sandboxWarnings := runner.Warnings()
+	logSandboxWarnings(sandboxWarnings)
 
 	// Spans emitted by rshell inherit the rshell service via context.
 	runErr := runner.Run(telemetry.WithService(ctx, observability.RshellService), prog)
@@ -389,7 +410,7 @@ func (h *RunCommandHandler) Run(
 		ExitCode:        exitCode,
 		Stdout:          stdout.String(),
 		Stderr:          stderr.String(),
-		SandboxWarnings: runner.Warnings(),
+		SandboxWarnings: sandboxWarnings,
 	}, nil
 }
 

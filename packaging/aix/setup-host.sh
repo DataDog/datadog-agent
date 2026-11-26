@@ -56,7 +56,7 @@ log "Refreshing dnf metadata"
 dnf_install \
     cyrus-sasl \
     gcc8 gcc8-c++ \
-    git make cmake binutils diffutils rsync \
+    git make cmake binutils diffutils rsync gawk \
     protobuf protobuf-compiler \
     zstd xz curl bash \
     libffi-devel ncurses-devel readline-devel libxslt-devel libiconv \

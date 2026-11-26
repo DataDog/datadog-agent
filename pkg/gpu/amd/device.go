@@ -53,7 +53,10 @@ type Device struct {
 	// nonzero 64-bit hex serial, or "amd-" followed by the PCI address
 	// otherwise, or when the serial is shared by several PCI functions.
 	UUID string
-	// Index is the position of the device when sorted by PCI address.
+	// Index is the GPU index amd-smi reports: the GPU KFD nodes, one per
+	// compute partition, are numbered in PCI address order, so a partitioned
+	// GPU has the index of its first partition. It is -1 when the KFD topology
+	// is not fully readable or has no node for the device.
 	Index int
 	// Name is the product name, from product_name or a device ID table.
 	Name string
@@ -151,8 +154,8 @@ func Discover(sysRoot string) ([]*Device, error) {
 	}
 
 	slices.SortFunc(devices, func(a, b *Device) int { return cmp.Compare(a.PCIBusID, b.PCIBusID) })
-	for i, dev := range devices {
-		dev.Index = i
+	for _, dev := range devices {
+		dev.Index = -1
 	}
 
 	if len(devices) > 0 {
@@ -164,6 +167,7 @@ func Discover(sysRoot string) ([]*Device, error) {
 			dev.KFDAccessDenied = denied > 0
 			dev.kfdTopologyIncomplete = !complete
 			if gpu, ok := kfd[dev.PCIBusID]; ok {
+				dev.Index = gpu.amdSMIIndex
 				dev.Architecture = gpu.gfxTarget
 				dev.kfdGPUIDs = gpu.gpuIDs
 				dev.renderMinors = gpu.renderMinors

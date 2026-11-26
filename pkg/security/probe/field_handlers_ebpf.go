@@ -119,8 +119,14 @@ func (fh *EBPFFieldHandlers) ResolveFileBasename(_ *model.Event, f *model.FileEv
 	if !f.IsBasenameStrResolved && len(f.BasenameStr) == 0 {
 		if f.PathnameStr != "" {
 			f.SetBasenameStr(path.Base(f.PathnameStr))
-		} else {
-			f.SetBasenameStr(fh.resolvers.PathResolver.ResolveBasename(&f.FileFields))
+		} else if f.PathKey.IsNull() {
+			f.SetBasenameStr("")
+		} else if fh.resolvers != nil && fh.resolvers.PathResolver != nil {
+			if basename := fh.resolvers.PathResolver.ResolveBasename(&f.FileFields); basename != "" {
+				f.SetBasenameStr(basename)
+			} else if dentryPath, err := fh.resolvers.PathResolver.ResolveDentryFilePath(&f.FileFields); err == nil && dentryPath != "" && dentryPath != "/" {
+				f.SetBasenameStr(path.Base(dentryPath))
+			}
 		}
 	}
 	return f.BasenameStr
@@ -188,6 +194,7 @@ func (fh *EBPFFieldHandlers) ResolveMountPointPath(ev *model.Event, e *model.Mou
 			return ""
 		}
 		e.MountPointPath = mountPointPath
+		e.MountPointPathResolutionError = nil
 	}
 	return e.MountPointPath
 }
@@ -212,6 +219,7 @@ func (fh *EBPFFieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.Mo
 		}
 		rootStr = mount.TrimMountRoot(rootStr, bindSourceMountRoot)
 		e.MountSourcePath = path.Join(bindSourceMountPath, rootStr)
+		e.MountSourcePathResolutionError = nil
 	}
 	return e.MountSourcePath
 }
@@ -225,6 +233,7 @@ func (fh *EBPFFieldHandlers) ResolveMountRootPath(ev *model.Event, e *model.Moun
 			return ""
 		}
 		e.MountRootPath = mountRootPath
+		e.MountRootPathResolutionError = nil
 	}
 	return e.MountRootPath
 }
@@ -288,6 +297,14 @@ func (fh *EBPFFieldHandlers) ResolveProcessArgvScrubbed(_ *model.Event, process 
 func (fh *EBPFFieldHandlers) ResolveProcessEnvp(_ *model.Event, process *model.Process) []string {
 	envp, _ := fh.resolvers.ProcessResolver.GetProcessEnvp(process)
 	return envp
+}
+
+// ResolveProcessEnv resolves the environment variables of the process, by name
+func (fh *EBPFFieldHandlers) ResolveProcessEnv(_ *model.Event, process *model.Process) map[string]string {
+	if process.EnvsEntry == nil {
+		return process.Env
+	}
+	return process.EnvsEntry.KeyValues()
 }
 
 // ResolveProcessArgsTruncated returns whether the args are truncated

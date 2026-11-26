@@ -1,5 +1,11 @@
-// Enables the *_btf helpers in tracer/stats.h. Only the fentry/fexit handlers call them, with BTF sock pointers
-// (arguments or return values). The kprobe and raw tracepoint programs in this file do not call them.
+// Enables the handle_*_btf / *_btf wrappers in tracer/stats.h. The *_btf field and tuple readers in sock.h, netns.h,
+// skb.h and stats.h are not gated by this define: they exist in every CO-RE object. Only the fentry/fexit/tp_btf
+// handlers call *_btf helpers, with BTF pointers (arguments, return values, or pointers loaded directly from them, like
+// skb->sk). The kprobe and raw tracepoint programs in this file keep the probe-read helpers.
+// Never pass a *_btf helper a pointer that came from a map, a probe read or PT_REGS: the direct loads in its body
+// are only valid on BTF-typed pointers, and the verifier rejects them otherwise, so the fentry tracer fails to load.
+// With network_config.allow_kprobe_fallback (on by default), system-probe then loads the kprobe tracer instead, so
+// the mistake shows up only as lost performance; with it off, the network tracer fails to start.
 #define SOCK_PTR_IS_BTF
 #include "ktypes.h"
 #include "bpf_telemetry.h"
@@ -34,26 +40,22 @@ static __always_inline int read_conn_tuple_partial_from_flowi4(conn_tuple_t *t, 
     t->pid = GET_USER_MODE_PID(pid_tgid);
     t->metadata = type;
 
-    if (t->saddr_l == 0) {
-        t->saddr_l = BPF_CORE_READ(fl4, saddr);
-    }
-    if (t->daddr_l == 0) {
-        t->daddr_l = BPF_CORE_READ(fl4, daddr);
-    }
+    // The flow is IPv4 and fl4 holds what the kernel actually sends with. The
+    // failed socket read may have left IPv6 address bits (an AF_INET6 socket
+    // sending to an IPv4-mapped address) or a source that a per-send override
+    // (IP_PKTINFO/IPV6_PKTINFO) replaced, so take everything from fl4.
+    t->saddr_h = 0;
+    t->daddr_h = 0;
+    t->saddr_l = fl4->saddr;
+    t->daddr_l = fl4->daddr;
 
     if (t->saddr_l == 0 || t->daddr_l == 0) {
         log_debug("ERR(fl4): src/dst addr not set src:%llu,dst:%llu", t->saddr_l, t->daddr_l);
         return 0;
     }
 
-    if (t->sport == 0) {
-        t->sport = BPF_CORE_READ(fl4, fl4_sport);
-        t->sport = bpf_ntohs(t->sport);
-    }
-    if (t->dport == 0) {
-        t->dport = BPF_CORE_READ(fl4, fl4_dport);
-        t->dport = bpf_ntohs(t->dport);
-    }
+    t->sport = bpf_ntohs(fl4->fl4_sport);
+    t->dport = bpf_ntohs(fl4->fl4_dport);
 
     if (t->sport == 0 || t->dport == 0) {
         log_debug("ERR(fl4): src/dst port not set: src:%d, dst:%d", t->sport, t->dport);
@@ -67,13 +69,13 @@ static __always_inline int read_conn_tuple_partial_from_flowi6(conn_tuple_t *t, 
     t->pid = GET_USER_MODE_PID(pid_tgid);
     t->metadata = type;
 
-    struct in6_addr addr = BPF_CORE_READ(fl6, saddr);
     if (t->saddr_l == 0 || t->saddr_h == 0) {
-        read_in6_addr(&t->saddr_h, &t->saddr_l, &addr);
+        struct in6_addr addr = fl6->saddr;
+        copy_in6_addr_from_stack(&t->saddr_h, &t->saddr_l, &addr);
     }
     if (t->daddr_l == 0 || t->daddr_h == 0) {
-        addr = BPF_CORE_READ(fl6, daddr);
-        read_in6_addr(&t->daddr_h, &t->daddr_l, &addr);
+        struct in6_addr addr = fl6->daddr;
+        copy_in6_addr_from_stack(&t->daddr_h, &t->daddr_l, &addr);
     }
 
     if (!(t->saddr_h || t->saddr_l)) {
@@ -97,12 +99,10 @@ static __always_inline int read_conn_tuple_partial_from_flowi6(conn_tuple_t *t, 
     }
 
     if (t->sport == 0) {
-        t->sport = BPF_CORE_READ(fl6, fl6_sport);
-        t->sport = bpf_ntohs(t->sport);
+        t->sport = bpf_ntohs(fl6->fl6_sport);
     }
     if (t->dport == 0) {
-        t->dport = BPF_CORE_READ(fl6, fl6_dport);
-        t->dport = bpf_ntohs(t->dport);
+        t->dport = bpf_ntohs(fl6->fl6_dport);
     }
 
     if (t->sport == 0 || t->dport == 0) {
@@ -125,7 +125,7 @@ int BPF_PROG(tcp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t size,
     log_debug("fexit/tcp_sendmsg: pid_tgid: %llu, sent: %d, sock: %p", pid_tgid, sent, sk);
 
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple_btf(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
 
@@ -150,7 +150,7 @@ int BPF_PROG(tcp_sendpage_exit, struct sock *sk, struct page *page, int offset, 
     log_debug("fexit/tcp_sendpage: pid_tgid: %llu, sent: %d, sock: %p", pid_tgid, sent, sk);
 
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple_btf(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
 
@@ -175,7 +175,7 @@ int BPF_PROG(udp_sendpage_exit, struct sock *sk, struct page *page, int offset, 
     log_debug("fexit/udp_sendpage: pid_tgid: %llu, sent: %d, sock: %p", pid_tgid, sent, sk);
 
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
+    if (!read_conn_tuple_btf(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
         return 0;
     }
 
@@ -185,6 +185,11 @@ int BPF_PROG(udp_sendpage_exit, struct sock *sk, struct page *page, int offset, 
 SEC("fexit/tcp_recvmsg")
 int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int flags, int *addr_len, int copied) {
     if (copied < 0) { // error
+        return 0;
+    }
+    // A peek leaves the data in the receive queue, and the receive that later
+    // consumes it is counted. Counting the peek too would double the received bytes.
+    if (flags & MSG_PEEK) {
         return 0;
     }
 
@@ -200,6 +205,9 @@ int BPF_PROG(tcp_recvmsg_exit_no_addr_len, struct sock *sk, struct msghdr *msg, 
     if (copied < 0) { // error
         return 0;
     }
+    if (flags & MSG_PEEK) { // see tcp_recvmsg_exit
+        return 0;
+    }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
     return handle_tcp_recv_btf(pid_tgid, sk, copied);
@@ -208,6 +216,9 @@ int BPF_PROG(tcp_recvmsg_exit_no_addr_len, struct sock *sk, struct msghdr *msg, 
 SEC("fexit/tcp_recvmsg")
 int BPF_PROG(tcp_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int nonblock, int flags, int *addr_len, int copied) {
     if (copied < 0) { // error
+        return 0;
+    }
+    if (flags & MSG_PEEK) { // see tcp_recvmsg_exit
         return 0;
     }
 
@@ -222,7 +233,7 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
 
     // Get network namespace id
     log_debug("fentry/tcp_close: kernel thread id: %llu, user mode pid: %llu", GET_KERNEL_THREAD_ID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple_btf(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
     log_debug("fentry/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
@@ -230,7 +241,7 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     // Pass the entry-time tuple to fexit/tcp_close for protocol-classification
     // cleanup. sk is guaranteed valid here; at fexit it may not be.
     if (is_protocol_classification_supported()) {
-        bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &t, BPF_ANY);
+        store_tcp_close_args(pid_tgid, &t);
     }
 
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
@@ -238,7 +249,7 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
 
     bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
 
-    handle_tcp_failure(sk, &t);
+    handle_tcp_failure_btf(sk, &t);
 
     if (cleanup_conn(ctx, &t, sk) == 0) {
         increment_telemetry_count(tcp_close_connection_flush);
@@ -255,13 +266,13 @@ SEC("fentry/tcp_disconnect")
 int BPF_PROG(tcp_disconnect, struct sock *sk, int flags) {
     conn_tuple_t t = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple_btf(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
     skp_conn.tup.pid = 0;
     if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn) == 0) {
-        handle_tcp_failure(sk, &t);
+        handle_tcp_failure_btf(sk, &t);
     }
 
     if (cleanup_conn(ctx, &t, sk) == 0) {
@@ -277,12 +288,12 @@ int BPF_PROG(tcp_close_exit, struct sock *sk, long timeout) {
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    conn_tuple_t *t = bpf_map_lookup_elem(&tcp_close_args, &pid_tgid);
-    if (t == NULL) {
+    tcp_close_args_t *args = bpf_map_lookup_elem(&tcp_close_args, &pid_tgid);
+    if (args == NULL) {
         return 0;
     }
 
-    clean_protocol_classification(t);
+    clean_protocol_classification(args);
     bpf_map_delete_elem(&tcp_close_args, &pid_tgid);
     return 0;
 }
@@ -291,7 +302,7 @@ SEC("fentry/tcp_done")
 int BPF_PROG(tcp_done, struct sock *sk) {
     conn_tuple_t t = {};
 
-    if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple_btf(&t, sk, 0, CONN_TYPE_TCP)) {
         increment_telemetry_count(tcp_done_failed_tuple);
         return 0;
     }
@@ -313,10 +324,11 @@ int BPF_PROG(tcp_done, struct sock *sk) {
         return 0;
     }
 
-    if (!handle_tcp_failure(sk, &t)) {
+    if (!handle_tcp_failure_btf(sk, &t)) {
         return 0;
     }
 
+    clean_skb_tuple_protocol_classification(&t);
     if (cleanup_conn(ctx, &t, sk) == 0) {
         increment_telemetry_count(tcp_done_connection_flush);
     }
@@ -347,9 +359,9 @@ static __always_inline int handle_udp_send(struct sock *sk, int sent) {
 SEC("fentry/udp_v6_send_skb")
 int BPF_PROG(udp_v6_send_skb_entry, struct sk_buff *skb, struct flowi6 *fl6) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    struct sock *sk = BPF_CORE_READ(skb, sk);
+    struct sock *sk = skb->sk;
     conn_tuple_t t;
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP) &&
+    if (!read_conn_tuple_btf(&t, sk, pid_tgid, CONN_TYPE_UDP) &&
         !read_conn_tuple_partial_from_flowi6(&t, fl6, pid_tgid, CONN_TYPE_UDP)) {
         goto miss;
     }
@@ -372,9 +384,9 @@ int BPF_PROG(udpv6_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t len
 SEC("fentry/udp_send_skb")
 int BPF_PROG(udp_send_skb_entry, struct sk_buff *skb, struct flowi4 *fl4) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    struct sock *sk = BPF_CORE_READ(skb, sk);
+    struct sock *sk = skb->sk;
     conn_tuple_t t;
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP) &&
+    if (!read_conn_tuple_btf(&t, sk, pid_tgid, CONN_TYPE_UDP) &&
         !read_conn_tuple_partial_from_flowi4(&t, fl4, pid_tgid, CONN_TYPE_UDP)) {
         goto miss;
     }
@@ -463,17 +475,17 @@ int BPF_PROG(udpv6_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg,
 
 SEC("fentry/skb_free_datagram_locked")
 int BPF_PROG(skb_free_datagram_locked, struct sock *sk, struct sk_buff *skb) {
-    return handle_skb_consume_udp(sk, skb, 0);
+    return handle_skb_consume_udp_btf(sk, skb, 0);
 }
 
 SEC("fentry/__skb_free_datagram_locked")
 int BPF_PROG(__skb_free_datagram_locked, struct sock *sk, struct sk_buff *skb, int len) {
-    return handle_skb_consume_udp(sk, skb, len);
+    return handle_skb_consume_udp_btf(sk, skb, len);
 }
 
 SEC("fentry/skb_consume_udp")
 int BPF_PROG(skb_consume_udp, struct sock *sk, struct sk_buff *skb, int len) {
-    return handle_skb_consume_udp(sk, skb, len);
+    return handle_skb_consume_udp_btf(sk, skb, len);
 }
 
 SEC("fexit/tcp_retransmit_skb")
@@ -484,7 +496,7 @@ int BPF_PROG(tcp_retransmit_skb_exit, struct sock *sk, struct sk_buff *skb, int 
     }
 
     u16 skb_pcount = TCP_SKB_CB(skb)->tcp_gso_segs;
-    return handle_retransmit(sk, skb_pcount);
+    return handle_retransmit_btf(sk, skb_pcount);
 }
 
 SEC("fentry/tcp_connect")
@@ -493,7 +505,7 @@ int BPF_PROG(tcp_connect, struct sock *sk) {
     log_debug("fentry/tcp_connect: kernel thread id: %llu, user mode pid: %llu", GET_KERNEL_THREAD_ID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
 
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple_btf(&t, sk, 0, CONN_TYPE_TCP)) {
         increment_telemetry_count(tcp_connect_failed_tuple);
         return 0;
     }
@@ -508,7 +520,7 @@ int BPF_PROG(tcp_connect, struct sock *sk) {
 SEC("fentry/tcp_finish_connect")
 int BPF_PROG(tcp_finish_connect, struct sock *sk, struct sk_buff *skb, int rc) {
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple_btf(&t, sk, 0, CONN_TYPE_TCP)) {
         increment_telemetry_count(tcp_finish_connect_failed_tuple);
         return 0;
     }
@@ -538,7 +550,7 @@ static __always_inline int handle_inet_csk_accept_exit(struct sock *sk) {
     log_debug("fexit/inet_csk_accept: kernel thread id: %llu, user mode pid: %llu", GET_KERNEL_THREAD_ID(pid_tgid), GET_USER_MODE_PID(pid_tgid));
 
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple_btf(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
     handle_tcp_stats_btf(&t, sk, tcp_sk_btf(sk), TCP_ESTABLISHED);
@@ -571,14 +583,14 @@ int BPF_PROG(inet_csk_accept_exit, struct sock *_sk, struct proto_accept_arg *ar
 
 SEC("fentry/inet_csk_listen_stop")
 int BPF_PROG(inet_csk_listen_stop_enter, struct sock *sk) {
-    __u16 lport = read_sport(sk);
+    __u16 lport = read_sport_btf(sk);
     if (lport == 0) {
         log_debug("ERR(inet_csk_listen_stop): lport is 0 ");
         return 0;
     }
 
     port_binding_t pb = {};
-    pb.netns = get_netns_from_sock(sk);
+    pb.netns = get_netns_from_sock_btf(sk);
     pb.port = lport;
     remove_port_bind(&pb, &port_bindings);
     log_debug("fentry/inet_csk_listen_stop: net ns: %u, lport: %u", pb.netns, pb.port);
@@ -588,7 +600,7 @@ int BPF_PROG(inet_csk_listen_stop_enter, struct sock *sk) {
 static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *sk) {
     conn_tuple_t tup = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    int valid_tuple = read_conn_tuple(&tup, sk, pid_tgid, CONN_TYPE_UDP);
+    int valid_tuple = read_conn_tuple_btf(&tup, sk, pid_tgid, CONN_TYPE_UDP);
 
     __u16 lport = 0;
     if (valid_tuple) {
@@ -596,7 +608,7 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *sk) {
         lport = tup.sport;
     } else {
         // get the port for the current sock
-        lport = read_sport(sk);
+        lport = read_sport_btf(sk);
     }
 
     if (lport == 0) {
@@ -605,7 +617,7 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *sk) {
     }
 
     port_binding_t pb = {};
-    pb.netns = get_netns_from_sock(sk);
+    pb.netns = get_netns_from_sock_btf(sk);
     pb.port = lport;
     remove_port_bind(&pb, &udp_port_bindings);
 
@@ -731,9 +743,17 @@ static __always_inline int fentry_handle_net_dev_queue(struct sk_buff* skb, cons
     }
 
     if (!is_equal(&skb_tup, &sock_tup)) {
-        normalize_tuple(&skb_tup);
+        // the key is normalized, but the value keeps the packet's orientation, with the socket's end as the
+        // source: get_skb_tuple normalizes it and uses the orientation to tell the ends apart when the ports are
+        // equal.
+        // Look up first and write only when the entry is missing or differs, so the last value wins (a stale value,
+        // e.g. from a reused 4-tuple, doesn't stick) without a write on every egress packet: the lookup doesn't take
+        // the bucket lock that an update takes.
         normalize_tuple(&sock_tup);
-        bpf_map_update_with_telemetry(conn_tuple_to_socket_skb_conn_tuple, &sock_tup, &skb_tup, BPF_NOEXIST, -EEXIST);
+        conn_tuple_t *cur = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &sock_tup);
+        if (!cur || !is_equal(cur, &skb_tup)) {
+            bpf_map_update_with_telemetry(conn_tuple_to_socket_skb_conn_tuple, &sock_tup, &skb_tup, BPF_ANY);
+        }
     }
 
     return 0;

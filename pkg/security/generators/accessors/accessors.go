@@ -141,7 +141,7 @@ func isBasicTypeForGettersOnly(kind string) bool {
 
 func qualifiedType(module *common.Module, kind string) string {
 	switch kind {
-	case "int", "string", "bool":
+	case "int", "string", "bool", dictType:
 		return kind
 	default:
 		return module.SourcePkgPrefix + kind
@@ -435,6 +435,27 @@ func getFieldName(expr ast.Expr) string {
 	}
 }
 
+// markDict marks the field exposed under the alias as a dictionary
+func markDict(module *common.Module, aliasPrefix, alias string) {
+	if aliasPrefix != "" {
+		alias = aliasPrefix + "." + alias
+	}
+	module.Fields[alias].IsDict = true
+}
+
+// dictType is the type of the dictionary fields, the only one supported
+const dictType = "map[string]string"
+
+// getDictType returns the type of a dictionary field
+func getDictType(fieldName string, mapType *ast.MapType) string {
+	key, _ := mapType.Key.(*ast.Ident)
+	value, _ := mapType.Value.(*ast.Ident)
+	if key == nil || key.Name != "string" || value == nil || value.Name != "string" {
+		panic(fmt.Sprintf("dictionary field %s: only %s is supported", fieldName, dictType))
+	}
+	return dictType
+}
+
 func getFieldIdentName(expr ast.Expr) (name string, isPointer bool, isArray bool) {
 	switch expr.(type) {
 	case *ast.StarExpr:
@@ -634,10 +655,19 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 				prefixedFieldName = fmt.Sprintf("%s.%s", prefix, fieldBasename)
 			}
 
+			mapType, isDict := field.Type.(*ast.MapType)
+			if isDict {
+				fieldType = getDictType(prefixedFieldName, mapType)
+			}
+
 			for _, seclField := range fields {
 				alias := seclField.name
 
 				handleNonEmbedded(module, seclField, aliasPrefix, alias, prefixedFieldName, fieldEvent, restrictedTo, fieldType, isPointer, isArray)
+
+				if isDict && (seclField.iterator != "" || seclField.lengthField || seclField.rootDomainField) {
+					panic(fmt.Sprintf("dictionary field %s: iterator, length and root_domain aren't supported", prefixedFieldName))
+				}
 
 				if seclFieldIterator := seclField.iterator; seclFieldIterator != "" {
 					fieldIterator = handleIterator(module, seclField, fieldType, seclFieldIterator, aliasPrefix, prefixedFieldName, fieldEvent, restrictedTo, fieldCommentText, opOverrides, isPointer, isArray)
@@ -645,6 +675,9 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 
 				if handler := seclField.handler; handler != "" {
 					handleFieldWithHandler(module, seclField, aliasPrefix, prefix, prefixedFieldName, fieldType, seclField.containerStructName, fieldEvent, restrictedTo, fieldCommentText, opOverrides, handler, isPointer, isArray, fieldIterator)
+					if isDict {
+						markDict(module, aliasPrefix, alias)
+					}
 
 					delete(dejavu, fieldBasename)
 					continue
@@ -660,8 +693,11 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 					continue
 				}
 
-				if isBasicType(fieldType) {
+				if isBasicType(fieldType) || isDict {
 					handleBasic(module, seclField, fieldBasename, alias, aliasPrefix, prefix, fieldType, fieldEvent, restrictedTo, opOverrides, fieldCommentText, seclField.containerStructName, fieldIterator, isArray)
+					if isDict {
+						markDict(module, aliasPrefix, alias)
+					}
 				} else {
 					spec := astFiles.LookupSymbol(fieldType)
 					if spec != nil {
@@ -688,6 +724,10 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 			for _, seclField := range gettersOnlyFields {
 				alias := seclField.name
 
+				if isDict {
+					panic(fmt.Sprintf("dictionary field %s: getters only fields aren't supported", prefixedFieldName))
+				}
+
 				handleNonEmbedded(module, seclField, aliasPrefix, alias, prefixedFieldName, fieldEvent, restrictedTo, fieldType, isPointer, isArray)
 
 				if seclFieldIterator := seclField.iterator; seclFieldIterator != "" {
@@ -696,7 +736,6 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 
 				if handler := seclField.handler; handler != "" {
 					handleFieldWithHandler(module, seclField, aliasPrefix, prefix, prefixedFieldName, fieldType, seclField.containerStructName, fieldEvent, restrictedTo, fieldCommentText, opOverrides, handler, isPointer, isArray, fieldIterator)
-
 					delete(dejavu, fieldBasename)
 					continue
 				}
@@ -1203,6 +1242,10 @@ func getFieldRestrictions(field *common.StructField) string {
 }
 
 func getFieldReflectType(field *common.StructField) string {
+	if field.IsDict {
+		return "reflect.Map"
+	}
+
 	switch field.ReturnType {
 	case "string":
 		return "reflect.String"

@@ -16,7 +16,7 @@ from tasks.libs.common.color import Color, color_message
 
 # Keep in sync with anomalydetection-scorer/score.go. Used to invalidate local
 # Bayesian report reuse when the scoring contract changes.
-F1_SCORING_VERSION = "high-severity-onset-recovery-v2"
+F1_SCORING_VERSION = "high-severity-onset-recovery-v3"
 
 AWS_PROFILE = "sso-agent-sandbox-account-admin-8h"
 
@@ -31,9 +31,9 @@ DETECTORS = ["bocpd", "holt_residual", "scanmw", "scanwelch", "tukey_biweight"]
 # explicitly: otherwise an enabled-only entry would lock the Go parser to its
 # production defaults and bypass the testbench profile.
 TESTBENCH_WARMUP_PARAMS = {
-    "bocpd": {"warmup_points": 40},
+    "bocpd": {"warmup_points": 20},
     "holt_residual": {"warmup_points": 15, "residual_window": 25},
-    "tukey_biweight": {"window_size": 40, "min_points": 40},
+    "tukey_biweight": {"window_size": 40, "min_points": 20},
 }
 ABLATION_CORRELATORS = ["anomaly_scorer"]
 SUPPORTED_CORRELATORS = ["anomaly_scorer", "time_cluster"]
@@ -396,7 +396,15 @@ def _component_base_config(name: str, enabled: bool) -> dict:
     if enabled and name == "anomaly_scorer":
         # F1 measures high-severity episode starts. Keep cooldown at zero so
         # those periods end on actual scorer de-escalation, not a delivery delay.
-        cfg.update({"correlation_events": True, "correlation_event_threshold": "high", "cooldown_secs": 0})
+        cfg.update(
+            {
+                "correlation_events": True,
+                "correlation_event_threshold": "high",
+                "cooldown_secs": 0,
+                "anomaly_reordering_window_secs": 600,
+                "late_anomaly_behavior": "clamp",
+            }
+        )
     return cfg
 
 
@@ -492,6 +500,9 @@ def _sample_component_params(trial, component: str) -> dict:
         },
         "holt_residual": sample_holt_residual,
         "tukey_biweight": sample_tukey_biweight,
+        "log_metrics_extractor": lambda: {
+            "min_token_match_ratio": trial.suggest_float("log_metrics_extractor.min_token_match_ratio", 0.2, 0.95),
+        },
         "log_pattern_extractor": lambda: {
             # "disable_optimizations": trial.suggest_categorical(...),
             # "min_cluster_size_before_emit": trial.suggest_int(...),

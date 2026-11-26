@@ -50,6 +50,16 @@ profiles:
         preserve_tags:
           - issue_type
           - severity
+      - name: health_platform.active_issues
+        preserve_tags:
+          - issue_type
+      - name: health_platform.reports_sent
+        preserve_tags:
+          - status
+          - error_type
+      - name: health_platform.issues_resolved
+        preserve_tags:
+          - issue_type
   schedule:
     start_after: 30
     iterations: 0
@@ -301,6 +311,11 @@ profiles:
           - code
           - endpoint
           - forwarder
+      - name: forwarder.errors
+        preserve_tags:
+          - error_type
+          - endpoint
+          - forwarder
   schedule:
     start_after: 30
     iterations: 0
@@ -493,6 +508,15 @@ profiles:
         - status:disabled
     metrics:
       - name: gpu.device_total
+        preserve_tags:
+          - gpu_device
+          - gpu_virtualization_mode
+          - gpu_architecture
+          - gpu_slicing_mode
+          - gpu_nvlink_capable
+          - gpu_nvlink_version
+          - gpu_driver_version
+          - gpu_sharing_mode
       - name: amd_gpu.device_total
       # GPU telemetry uses nested subsystems (e.g. "gpu__collectors"), and only the first
       # "__" of the Prometheus name is normalized, so the second one must be kept here.
@@ -606,6 +630,7 @@ profiles:
           - proxy_type
           - operation
           - success
+          - reason
       - name: appsec_injector.sidecar_mutations
         preserve_tags:
           - proxy_type

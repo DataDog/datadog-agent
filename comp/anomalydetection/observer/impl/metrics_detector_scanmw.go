@@ -88,6 +88,14 @@ func NewScanMWDetector(cfg ScanMWConfig) *ScanMWDetector {
 		logging.Warnf("ScanMW max_points=%d is below min_points=%d; using %d", cfg.MaxPoints, cfg.MinPoints, cfg.MinPoints)
 		cfg.MaxPoints = cfg.MinPoints
 	}
+	if cfg.MinSegment > cfg.MaxPoints/2 {
+		fallback := defaults.MinSegment
+		if fallback > cfg.MaxPoints/2 {
+			fallback = max(1, cfg.MaxPoints/2)
+		}
+		logging.Warnf("ScanMW min_segment=%d exceeds half of max_points=%d; using %d", cfg.MinSegment, cfg.MaxPoints, fallback)
+		cfg.MinSegment = fallback
+	}
 	if cfg.SignificanceThreshold <= 0 {
 		cfg.SignificanceThreshold = defaults.SignificanceThreshold
 	}
@@ -226,13 +234,16 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64, 
 // Returns (anomaly, changeIndex, found). Pure function over the input data.
 func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series, agg observer.Aggregate) (observer.Anomaly, int, bool) {
 	n := len(points)
+	minSeg := d.config.MinSegment
+	if minSeg <= 0 || minSeg > n/2 {
+		return observer.Anomaly{}, 0, false
+	}
 
 	values := d.workspace.valuesFromPoints(points)
 
 	// Efficient O(n log n) scan: assign ranks once, then slide the split point.
 	ranks, tieCorrection := d.workspace.assignRanks(values)
 
-	minSeg := d.config.MinSegment
 	var R1 float64
 	for i := 0; i < minSeg; i++ {
 		R1 += ranks[i]
