@@ -58,12 +58,13 @@ const (
 	// spanCtxMalformed: the process published something that violates the
 	// contract.
 	spanCtxMalformed
-	// spanCtxUnpublished: seqlock timestamp 0 -- publisher mid-update or not yet
-	// published.
+	// spanCtxUnpublished: zeroed OTEL_CTX header signature or seqlock timestamp 0
+	// (publisher mid-update or not yet published).
 	spanCtxUnpublished
 	// spanCtxTorn: the payload changed under us on every attempt.
 	spanCtxTorn
-	// spanCtxUnreadable: permission/namespace -- /proc/<pid>/mem is not readable.
+	// spanCtxUnreadable: permission or namespace failure reading /proc/<pid>/mem
+	// or opening tracer files under the target process root.
 	spanCtxUnreadable
 	// spanCtxGone: the process exited while we were resolving.
 	spanCtxGone
