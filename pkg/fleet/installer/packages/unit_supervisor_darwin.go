@@ -334,7 +334,7 @@ func superviseUnitsStep(ctx context.Context) (done bool, err error) {
 		if finished {
 			return true, nil
 		}
-		err = applyStable(ctx, request, request.target == unitsTargetRestartStable)
+		err = applyStable(ctx, request, status, request.target == unitsTargetRestartStable)
 	default:
 		return true, nil
 	}
@@ -571,15 +571,19 @@ func failExperiment(ctx context.Context, request unitsRequest, reason string) er
 // installer command that asked for it has exited, the installer daemon. A stop leaves alone a stable
 // job that already runs (after a reboot, or after the experiment failed on the host); a promote
 // restarts every stable job so it reads the promoted configuration.
-func applyStable(ctx context.Context, request unitsRequest, restart bool) error {
+func applyStable(ctx context.Context, request unitsRequest, status unitsStatus, restart bool) error {
 	ctx = context.WithoutCancel(ctx)
-	agents := configExperiment{jobs: agentJobSet(), keepRunningStable: !restart}
-	if err := agents.restoreStable(ctx); err != nil {
-		writeUnitsStatus(request.nonce, unitsPhaseFailed, err.Error())
-		return nil
+	// A retry of this request picks up after the Agent jobs, as runExperiment does: restarting them
+	// again on every retry of the installer daemon step would restart the Agent every few seconds.
+	if status.nonce != request.nonce || status.phase != unitsPhaseAgents {
+		agents := configExperiment{jobs: agentJobSet(), keepRunningStable: !restart}
+		if err := agents.restoreStable(ctx); err != nil {
+			writeUnitsStatus(request.nonce, unitsPhaseFailed, err.Error())
+			return nil
+		}
+		ensureProcmgr(ctx, restart)
+		writeUnitsStatus(request.nonce, unitsPhaseAgents, "")
 	}
-	ensureProcmgr(ctx, restart)
-	writeUnitsStatus(request.nonce, unitsPhaseAgents, "")
 
 	ok, err := waitForInstallerCommand(ctx, targetUnchanged(request))
 	if err != nil {
@@ -588,16 +592,16 @@ func applyStable(ctx context.Context, request unitsRequest, restart bool) error 
 	if !ok {
 		return errTargetChanged
 	}
-	status, err := launchdClient().Print(ctx, installerJob+string(launchd.Experiment))
+	daemon, err := launchdClient().Print(ctx, installerJob+string(launchd.Experiment))
 	if err != nil {
 		return fmt.Errorf("unit supervisor: could not tell whether the experiment daemon runs: %w", err)
 	}
 	switch {
-	case status.PID != 0:
+	case daemon.PID != 0:
 		if err := swapInstallerDaemon(ctx, launchd.Experiment, launchd.Stable); err != nil {
 			return fmt.Errorf("unit supervisor: %w", err)
 		}
-	case status.Loaded:
+	case daemon.Loaded:
 		// Loaded without running: what launchd leaves of it after a reboot mid-experiment, or after it
 		// died during the stop.
 		if err := installerLaunchdClient().Bootout(ctx, installerJob+string(launchd.Experiment)); err != nil {

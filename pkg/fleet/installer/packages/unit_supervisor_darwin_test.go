@@ -131,6 +131,19 @@ func (l *liveLaunchd) count(verb, target string) int {
 	return n
 }
 
+// countBootstraps reports how many times label's job definition was bootstrapped.
+func (l *liveLaunchd) countBootstraps(label string) int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	n := 0
+	for _, args := range l.calls {
+		if args[0] == "bootstrap" && filepath.Base(args[len(args)-1]) == label+".plist" {
+			n++
+		}
+	}
+	return n
+}
+
 // stubUnitsState points the supervisor's state files at a temporary directory beside the deadline,
 // and shortens its waits.
 func stubUnitsState(t *testing.T) {
@@ -582,6 +595,30 @@ func TestPromoteRestartsTheStableJobs(t *testing.T) {
 	for _, label := range agentJobs {
 		assert.Positive(t, l.count("bootout", "system/"+label), "%s should be restarted", label)
 	}
+}
+
+// TestPromoteRetriesTheDaemonStepWithoutRestartingTheAgentJobs pins that a promote whose installer
+// daemon step fails is retried from that step: the stable Agent jobs and the process manager are
+// restarted once, not again on every retry.
+func TestPromoteRetriesTheDaemonStepWithoutRestartingTheAgentJobs(t *testing.T) {
+	l := supervisedHost(t)
+	require.NoError(t, configExperiment{jobs: configExperimentJobSet()}.Start(context.Background()))
+	l.mu.Lock()
+	l.calls = nil
+	// Two passes fail to start the stable installer daemon; the third gets it.
+	l.failBootstrap["system/"+installerJob] = 2
+	l.mu.Unlock()
+	r := request(t, unitsTargetRestartStable)
+
+	require.NoError(t, superviseUnits(context.Background()))
+	status, err := readUnitsStatus()
+	require.NoError(t, err)
+	assert.Equal(t, unitsStatus{nonce: r.nonce, phase: unitsPhaseDone}, status)
+	assert.True(t, l.isRunning(installerJob), "the stable daemon should be back")
+	for _, label := range agentJobs {
+		assert.Equal(t, 1, l.countBootstraps(label), "%s should be restarted once", label)
+	}
+	assert.Equal(t, 1, l.count("kickstart", "system/"+procmgrJob), "the process manager should be restarted once")
 }
 
 // TestRequestUnitsWaitsForTheAgentJobs pins the hooks' side: a request returns once the supervisor
