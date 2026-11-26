@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/qri-io/jsonpointer"
@@ -188,7 +189,7 @@ func collectViolations(ve *jsonschema.ValidationError, cfg model.Reader, data in
 		}
 		path := jsonpointer.Pointer(ve.InstanceLocation).String()
 		violation := &model.Violation{
-			Message:    scrubMessage(ve.Error(), path),
+			Message:    violationMessage(ve, path),
 			Path:       path,
 			SettingKey: settingKey,
 			Reason:     violationReason(ve.ErrorKind),
@@ -224,6 +225,35 @@ func validateData(sch *jsonschema.Schema, cfg model.Reader, data interface{}, sk
 	var out []*model.Violation
 	collectViolations(ve, cfg, data, skipSecretPlaceholders, &out)
 	return out, nil
+}
+
+// patternPlaceholder stands for the regexp of a pattern error while its message is scrubbed. It's quoted as is by the
+// validator, and the scrubber leaves it unchanged.
+const patternPlaceholder = "SCHEMA_PATTERN"
+
+// violationMessage returns the scrubbed message of ve. The regexp of a pattern error comes from the schema and is kept
+// as is: the scrubber could rewrite it, e.g. a URL pattern accepting credentials looks like credentials itself. The
+// rest of the message is scrubbed as a whole, so the setting path still gives context to the scrubber.
+func violationMessage(ve *jsonschema.ValidationError, path string) string {
+	pattern, ok := ve.ErrorKind.(*kind.Pattern)
+	if !ok {
+		return scrubMessage(ve.Error(), path)
+	}
+	masked := *ve
+	masked.ErrorKind = &kind.Pattern{Got: pattern.Got, Want: patternPlaceholder}
+	maskedMessage := masked.Error()
+	message := ve.Error()
+	quotedPlaceholder := "'" + patternPlaceholder + "'"
+	// the messages only differ by their quoted regexp, which ends them
+	prefix, ok := strings.CutSuffix(maskedMessage, quotedPlaceholder)
+	if !ok || !strings.HasPrefix(message, prefix) {
+		return scrubMessage(message, path)
+	}
+	scrubbedPrefix, ok := strings.CutSuffix(scrubMessage(maskedMessage, path), quotedPlaceholder)
+	if !ok {
+		return scrubMessage(message, path)
+	}
+	return scrubbedPrefix + message[len(prefix):]
 }
 
 // scrubMessage scrubs the credentials from a validator message, which can contain the configured value

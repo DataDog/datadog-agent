@@ -78,6 +78,24 @@ exporters:
     api:
       key: abc123
 `
+	newNameHostmetricsConfig := `
+receivers:
+  host_metrics:
+    collection_interval: 10s
+exporters:
+  datadog:
+    api:
+      key: abc123
+`
+	newNameNamedHostmetricsConfig := `
+receivers:
+  host_metrics/production:
+    collection_interval: 10s
+exporters:
+  datadog:
+    api:
+      key: abc123
+`
 	noHostmetricsConfig := `
 receivers:
   otlp:
@@ -104,6 +122,18 @@ exporters:
 		{
 			name:           "named hostmetrics instance in connected mode",
 			runtimeConfig:  namedHostmetricsConfig,
+			overrides:      map[string]interface{}{"otel_standalone": false},
+			expectWarnings: true,
+		},
+		{
+			name:           "host_metrics (current name) in connected mode",
+			runtimeConfig:  newNameHostmetricsConfig,
+			overrides:      map[string]interface{}{"otel_standalone": false},
+			expectWarnings: true,
+		},
+		{
+			name:           "named host_metrics instance in connected mode",
+			runtimeConfig:  newNameNamedHostmetricsConfig,
 			overrides:      map[string]interface{}{"otel_standalone": false},
 			expectWarnings: true,
 		},

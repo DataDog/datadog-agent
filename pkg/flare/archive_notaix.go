@@ -18,3 +18,9 @@ import (
 func getSvmonData(_ context.Context, _ flaretypes.FlareBuilder) error {
 	return nil
 }
+
+// getErrptData is a no-op outside of AIX, which is the only platform with the
+// errpt command.
+func getErrptData(_ context.Context, _ flaretypes.FlareBuilder) error {
+	return nil
+}

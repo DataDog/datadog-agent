@@ -12,14 +12,17 @@ load("//bazel/tools/tar_checksums:tar_md5sums.bzl", "tar_md5sums")
 load("//packages/rules:description.bzl", "deb_description")
 load("//packages/rules:package_naming.bzl", "package_name_variables")
 
-def _deb_package(name, srcs, variables, **kwargs):
+def _deb_package(name, srcs, variables, tags, **kwargs):
+    if "no-cache" in (tags or []):
+        fail("%s: dd_pkg_deb already sets the no-cache tag" % name)
+
     data_tar = "%s_data_tar" % name
     pkg_tar(
         name = data_tar,
         srcs = srcs,
         out = "%s_data.tar" % name,
         owner = "0.0",
-        tags = ["manual"],
+        tags = ["manual", "no-cache"],
         visibility = ["//visibility:private"],
     )
 
@@ -31,7 +34,7 @@ def _deb_package(name, srcs, variables, **kwargs):
         # TODO: account for pipeline injected compression level.
         # https://datadoghq.atlassian.net/browse/ABLD-364
         level = get_compression_level(),
-        tags = ["manual"],
+        tags = ["manual", "no-cache"],
         visibility = ["//visibility:private"],
     )
 
@@ -42,6 +45,7 @@ def _deb_package(name, srcs, variables, **kwargs):
         src = ":" + data_tar,
         installed_size = size_out,
         md5sums = sums_out,
+        tags = ["no-cache"],
     )
 
     pkg_deb_impl(
@@ -50,6 +54,7 @@ def _deb_package(name, srcs, variables, **kwargs):
         installed_size_file = ":" + size_out,
         md5sums = ":" + sums_out,
         package_variables = ":" + variables,
+        tags = (tags or []) + ["no-cache"],
         **kwargs
     )
 
@@ -65,6 +70,7 @@ def _dd_pkg_deb_impl(name, visibility, architecture, debug_symbols, description,
     package_name_variables(
         name = variables_name,
         product_name = product_name,
+        tags = ["no-cache"],
     )
 
     common = dict(

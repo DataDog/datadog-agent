@@ -1006,6 +1006,16 @@ func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uin
 			parent.Fork(entry)
 		} else {
 			entry.IsParentMissing = true
+			if entry.FileEvent.Inode != 0 && !entry.FileEvent.IsPathnameStrResolved && len(entry.FileEvent.PathnameStr) == 0 && len(entry.FileEvent.BasenameStr) == 0 {
+				if p.mountResolver != nil {
+					p.mountResolver.SetPidMntNs(entry.Pid, entry.MntNS)
+				}
+				if _, err := p.setProcessPath(&entry.FileEvent, entry); err != nil {
+					entry.FileEvent.IsPathnameStrResolved = false
+					entry.FileEvent.IsBasenameStrResolved = false
+					entry.FileEvent.PathResolutionError = nil
+				}
+			}
 		}
 	}
 
