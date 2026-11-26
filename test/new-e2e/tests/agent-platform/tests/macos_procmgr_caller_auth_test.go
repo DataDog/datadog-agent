@@ -171,11 +171,6 @@ func healMacosCallerAuthLeftovers(t *testing.T, client *common.MacOSTestClient) 
 		return
 	}
 	if previous != "" {
-		// A restart drops runtime entries, so a listed entry means the restart did not take effect.
-		if found {
-			t.Errorf("heal: dd-procmgrd still lists this test's entries after the restart")
-			return
-		}
 		if strings.Trim(previous, "0123456789") != "" {
 			t.Logf("heal: ignoring invalid %s content %q", macosCallerAuthSleepMarker, previous)
 		} else {
@@ -187,6 +182,11 @@ func healMacosCallerAuthLeftovers(t *testing.T, client *common.MacOSTestClient) 
 				t.Errorf("heal: /bin/sleep %s from an earlier attempt could not be stopped: %v\n%s", previous, err, left)
 				return
 			}
+		}
+		// Reap before the listing check, so a fixture that reloaded cannot skip it. Keep the marker while the listing is dirty.
+		if found {
+			t.Errorf("heal: dd-procmgrd still lists this test's entries after the restart")
+			return
 		}
 		if _, err := client.Execute("sudo rm -f " + macosCallerAuthSleepMarker); err != nil {
 			t.Logf("heal: failed to remove %s: %v", macosCallerAuthSleepMarker, err)
