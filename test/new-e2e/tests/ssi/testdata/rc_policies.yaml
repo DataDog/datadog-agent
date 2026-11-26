@@ -6,6 +6,9 @@ clusterChecksRunner:
 clusterAgent:
   admissionController:
     configMode: "hostip"
+    # An unavailable webhook must block admission: an uninjected pod could
+    # otherwise satisfy the negative policy checks without being processed.
+    failurePolicy: "Fail"
     # Temporary RC gate on the published chart (clusterAgent-remoteConfiguration-enabled
     # does not yet treat onDemand as a trigger). Drop once
     # https://github.com/DataDog/helm-charts/pull/2868 is released.
@@ -16,9 +19,6 @@ clusterAgent:
   # Use envDict, not env: Helm replaces clusterAgent.env wholesale across values files,
   # which drops fakeintake RC settings from the E2E framework (DD_REMOTE_CONFIGURATION_RC_DD_URL, …).
   envDict:
-    # An unavailable webhook must block admission: an uninjected pod could
-    # otherwise satisfy the negative policy checks without being processed.
-    DD_ADMISSION_CONTROLLER_FAILURE_POLICY: "Fail"
     # Disable gradual rollout so injected images keep their human-readable tag
     # instead of being resolved to a digest.
     DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_GRADUAL_ROLLOUT_ENABLED: "false"
