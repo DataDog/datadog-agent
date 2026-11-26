@@ -17,24 +17,23 @@ import (
 // values if the rule can be true for an event with them, whatever the rest of the
 // event. It is false for values no event with them can match: a discarder.
 //
-// The leaves of the boolean expression, the comparisons and the boolean values,
-// that depend on anything but the fields are unknown. An unknown leaf is replaced
-// by the value that lets the rule be true: true, or false under an odd number of
-// negations. `!(a == 1 && b == 2)` projected on `a` is `!(a == 1 && false)`, true
-// for any value of `a`. Only the logical operators and the boolean negation are
-// walked through, a leaf is kept or replaced as a whole.
+// The leaves of the boolean expression, the comparisons, the boolean values and
+// their negations, that depend on anything but the fields are unknown. An unknown
+// leaf is replaced by true, the value letting the rule be true.
+// `a != 1 || b != 2` projected on `a` is `a != 1 || true`, true for any value of
+// `a`. Only the logical operators are walked through, a leaf is kept or replaced
+// as a whole.
 //
 // The pass doesn't fold the boolean literals it introduces, FoldBools does:
 // once folded, a rule that can't be decided by the fields alone, or that doesn't
 // use them, projects to `true`.
 //
-// The names of the rule are expected to be resolved, see ResolveFields.
+// The rule is expected in negation normal form, see NegationNormalForm, and its
+// names resolved, see ResolveFields.
 func ProjectFields(fields []string) Pass {
 	p := projection{fields: fields}
 	return func(node ast.Node) (ast.Node, error) {
-		ast.EditChildren(node, func(root ast.Node) ast.Node {
-			return p.project(root, true)
-		})
+		ast.EditChildren(node, p.project)
 		return node, nil
 	}
 }
@@ -43,25 +42,18 @@ type projection struct {
 	fields []string
 }
 
-// project projects a boolean expression, positive when it is under an even
-// number of negations.
-func (p projection) project(node ast.Node, positive bool) ast.Node {
-	switch n := node.(type) {
-	case *ast.LogicalExpr:
-		n.Left = p.project(n.Left, positive)
-		n.Right = p.project(n.Right, positive)
+// project projects a boolean expression in negation normal form.
+func (p projection) project(node ast.Node) ast.Node {
+	if n, ok := node.(*ast.LogicalExpr); ok {
+		n.Left = p.project(n.Left)
+		n.Right = p.project(n.Right)
 		return node
-	case *ast.UnaryExpr:
-		if n.Op == ast.UnaryNot {
-			n.Operand = p.project(n.Operand, !positive)
-			return node
-		}
 	}
 
 	if !ast.Any(node, p.isUnknown) {
 		return node
 	}
-	return &ast.Literal{Meta: ast.At(node.Position()), Value: ast.MakeBool(positive)}
+	return &ast.Literal{Meta: ast.At(node.Position()), Value: ast.MakeBool(true)}
 }
 
 // isUnknown returns whether the value of the node depends on anything but the

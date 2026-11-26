@@ -19,7 +19,9 @@ source ──parse──▶ AST ──passes──▶ AST ──compile──▶
   the parser, no dependency on the evaluators.
 - `pass` — the compilation passes, each rewriting in place a copy of the tree:
   the resolution of the identifiers referring to macros and constants, then of
-  the names left to fields, and the folding of the boolean operations.
+  the names left to fields. The tree a compiled rule keeps for the analyses
+  (approvers, discarders, partials) is then rewritten in negation normal form
+  and its boolean literals folded.
 - `eval` — the evaluators, and their construction from the AST (`compile.go`).
   `eval.Compile` walks the AST, type checks it against a `Model`, and returns a
   tree of closures. `eval.Rule` holds the AST of a rule, runs the passes over

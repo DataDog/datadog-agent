@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/parser"
@@ -2716,4 +2717,29 @@ func TestDictErrors(t *testing.T) {
 			assert.ErrorContains(t, err, test.Error)
 		})
 	}
+}
+
+func TestResolvedAstNormalized(t *testing.T) {
+	for _, test := range []struct {
+		expr     string
+		expected string
+	}{
+		{`!(process.name == "a" && process.uid == 0)`, `(|| (!= process.name "a") (!= process.uid 0))`},
+		{`!(process.name in ["a"] || process.uid < 1)`, `(&& (notin process.name ["a"]) (! (< process.uid 1)))`},
+		{`process.name == "a" || (true && process.uid == 0)`, `(|| (== process.name "a") (== process.uid 0))`},
+	} {
+		t.Run(test.expr, func(t *testing.T) {
+			rule, err := parseRule(test.expr, &testModel{}, newOptsWithParams(testConstants, nil))
+			require.NoError(t, err)
+			require.Equal(t, test.expected, ast.Sprint(rule.GetResolvedAst()))
+		})
+	}
+}
+
+func TestResolvedAstFoldedFields(t *testing.T) {
+	// the fields are the ones of the rule as written
+	rule, err := parseRule(`process.name == "a" || (process.uid == 0 || true)`, &testModel{}, newOptsWithParams(testConstants, nil))
+	require.NoError(t, err)
+	require.Equal(t, `true`, ast.Sprint(rule.GetResolvedAst()))
+	require.ElementsMatch(t, []Field{"process.name", "process.uid"}, rule.GetFields())
 }

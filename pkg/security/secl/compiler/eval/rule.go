@@ -47,8 +47,9 @@ type RuleEvaluator struct {
 	Eval      BoolEvalFnc
 	EventType EventType
 
-	// tree is the parsed tree after the compilation passes. It is compiled for the
-	// rule, and projected then compiled for each of its partials.
+	// tree is the parsed tree after the compilation passes, in negation normal
+	// form and its boolean literals folded. It is projected then compiled for
+	// each of the partials of the rule.
 	tree *ast.Rule
 
 	fieldValues map[Field][]FieldValue
@@ -191,7 +192,9 @@ func (r *Rule) GetAst() *ast.Rule {
 	return r.ast
 }
 
-// GetResolvedAst returns the tree of the rule after the compilation passes
+// GetResolvedAst returns the tree of the rule after the compilation passes, in
+// negation normal form and its boolean literals folded, see
+// pass.NegationNormalForm and pass.FoldBools.
 func (r *Rule) GetResolvedAst() *ast.Rule {
 	if r.evaluator == nil {
 		return nil
@@ -201,6 +204,11 @@ func (r *Rule) GetResolvedAst() *ast.Rule {
 
 // NewRuleEvaluator returns a new evaluator for a parsed rule: it runs the
 // compilation passes over the tree and compiles the result.
+//
+// The tree it keeps is normalized after the compilation, see GetResolvedAst.
+// The errors and the fields of the rule are the ones of the tree as written: the
+// normalization rewrites the operators and folds away the operands of
+// `|| true`, a field of the rule can be missing from the kept tree.
 func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, error) {
 	node, err := pass.Run(rule, opts.passes()...)
 	if err != nil {
@@ -268,10 +276,15 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, 
 		}
 	}
 
+	normalized, err := pass.Run(rule, pass.NegationNormalForm(), pass.FoldBools())
+	if err != nil {
+		return nil, err
+	}
+
 	return &RuleEvaluator{
 		Eval:        evalBool.EvalFnc,
 		EventType:   eventType,
-		tree:        rule,
+		tree:        normalized.(*ast.Rule),
 		fieldValues: state.fieldValues,
 		fields:      KeysOfMap(state.fieldValues),
 	}, nil
