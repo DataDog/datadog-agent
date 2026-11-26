@@ -243,8 +243,9 @@ func TestStatusShowsANewRunBeforeItsFirstChunkCompletes(t *testing.T) {
 	d := &ndmDiscovery{log: logmock.New(t), sched: newScheduler(sw, logmock.New(t), schedulerOptions{MaxAddresses: 65536})}
 	addStatusRange(d, testRangeConfig("ad-1", "10.0.0.0/24"))
 
+	req := testSweepRequest(t, "10.0.0.0/24", nil)
 	done := make(chan error, 1)
-	go func() { done <- sw.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/24", nil)) }()
+	go func() { done <- sw.sweep(context.Background(), req) }()
 	<-scanner.entered
 
 	r := statusAt(d, statusNowMs).Ranges[0]

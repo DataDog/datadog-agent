@@ -620,8 +620,9 @@ func TestSweepCountsItselfOnlyWhileSweeping(t *testing.T) {
 	scanner := newBlockingScanner()
 	s := newTestSweeper(t, &scanner.recordingScanner, &recordingReporter{}, newMemCursorStore(), 10)
 
+	req := testSweepRequest(t, "10.0.0.0/26", nil)
 	done := make(chan error, 1)
-	go func() { done <- s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/26", nil)) }()
+	go func() { done <- s.sweep(context.Background(), req) }()
 	<-scanner.entered
 	assert.Equal(t, int64(1), s.sweeping.Load())
 
