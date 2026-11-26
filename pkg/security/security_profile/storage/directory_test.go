@@ -243,6 +243,10 @@ func TestNewDirectoryRemovesInvalidProfileFiles(t *testing.T) {
 		require.NoError(t, err, "unreadable profile file must not be removed")
 	}
 
+	_, err = profile.LoadProtoFromFile(filepath.Join(testDir, "missing.profile"))
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, profile.ErrDecodeProtobufProfile)
+
 	_, err = os.Stat(validPath)
 	require.NoError(t, err)
 
