@@ -2,6 +2,7 @@ import unittest
 from unittest import mock
 
 from invoke.runners import Result
+from pydantic import SecretStr
 
 from tasks.e2e_framework.aws.deploy import _image_pull_flags
 from tasks.e2e_framework.image_pull import AGENT_QA_ECR, AGENT_SANDBOX_ECR
@@ -23,7 +24,7 @@ class TestImagePullFlags(unittest.TestCase):
             {
                 "ddagent:imagePullRegistry": AGENT_QA_ECR,
                 "ddagent:imagePullUsername": "AWS",
-                "ddagent:imagePullPassword": "qa-token",
+                "ddagent:imagePullPassword": SecretStr("qa-token"),
             },
         )
 
@@ -32,7 +33,7 @@ class TestImagePullFlags(unittest.TestCase):
         flags = _image_pull_flags(ctx, f"{AGENT_SANDBOX_ECR}/agent-e2e-tests:me", None)
         self.assertEqual(flags["ddagent:imagePullRegistry"], f"{AGENT_QA_ECR},{AGENT_SANDBOX_ECR}")
         self.assertEqual(flags["ddagent:imagePullUsername"], "AWS,AWS")
-        self.assertEqual(flags["ddagent:imagePullPassword"], "qa-token,sandbox-token")
+        self.assertEqual(flags["ddagent:imagePullPassword"].get_secret_value(), "qa-token,sandbox-token")
 
     def test_sandbox_cluster_agent_image_adds_sandbox_credentials(self):
         ctx = _ctx(Result(stdout="qa-token"), Result(stdout="sandbox-token"))
@@ -44,7 +45,7 @@ class TestImagePullFlags(unittest.TestCase):
         with mock.patch("builtins.print"):
             flags = _image_pull_flags(ctx, f"{AGENT_SANDBOX_ECR}/agent-e2e-tests:me", None)
         self.assertEqual(flags["ddagent:imagePullRegistry"], AGENT_SANDBOX_ECR)
-        self.assertEqual(flags["ddagent:imagePullPassword"], "sandbox-token")
+        self.assertEqual(flags["ddagent:imagePullPassword"].get_secret_value(), "sandbox-token")
 
     def test_no_credentials_returns_no_flags(self):
         with mock.patch("builtins.print"):

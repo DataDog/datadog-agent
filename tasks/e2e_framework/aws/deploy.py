@@ -110,8 +110,10 @@ def deploy(
     )
 
 
-def _image_pull_flags(ctx: Context, *images: str | None) -> dict[str, str]:
+def _image_pull_flags(ctx: Context, *images: str | None) -> dict[str, Any]:
     """Pull secret flags for the cluster: agent-qa always, plus agent-sandbox when an image lives there."""
+    from pydantic import SecretStr
+
     creds = [c for c in (agent_qa_ecr_credential(ctx), agent_sandbox_ecr_credential(ctx, *images)) if c is not None]
     if not creds:
         return {}
@@ -119,7 +121,7 @@ def _image_pull_flags(ctx: Context, *images: str | None) -> dict[str, str]:
     return {
         "ddagent:imagePullRegistry": ",".join(registries),
         "ddagent:imagePullUsername": ",".join(usernames),
-        "ddagent:imagePullPassword": ",".join(passwords),
+        "ddagent:imagePullPassword": SecretStr(",".join(passwords)),
     }
 
 

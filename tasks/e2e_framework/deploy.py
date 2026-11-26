@@ -57,6 +57,7 @@ def deploy(
     pulumi_extra_args: tuple[str, ...] = (),
     pulumi_env: dict[str, str] | None = None,
 ) -> str:
+    from pydantic import SecretStr
     from pydantic_core._pydantic_core import ValidationError
 
     from tasks.e2e_framework import config
@@ -93,15 +94,15 @@ def deploy(
     # Configure SSH keys for the different cloud providers
     privateKeyPassword = cfg.get_aws().privateKeyPassword
     if privateKeyPassword is not None:
-        flags["ddinfra:aws/defaultPrivateKeyPassword"] = privateKeyPassword
+        flags["ddinfra:aws/defaultPrivateKeyPassword"] = SecretStr(privateKeyPassword)
 
     privateKeyPassword = cfg.get_azure().privateKeyPassword
     if privateKeyPassword is not None:
-        flags["ddinfra:az/defaultPrivateKeyPassword"] = privateKeyPassword
+        flags["ddinfra:az/defaultPrivateKeyPassword"] = SecretStr(privateKeyPassword)
 
     privateKeyPassword = cfg.get_gcp().privateKeyPassword
     if privateKeyPassword is not None:
-        flags["ddinfra:gcp/defaultPrivateKeyPassword"] = privateKeyPassword
+        flags["ddinfra:gcp/defaultPrivateKeyPassword"] = SecretStr(privateKeyPassword)
 
     privateKeyPath = cfg.get_azure().privateKeyPath
     if privateKeyPath is not None:
@@ -132,7 +133,7 @@ def deploy(
         if commit_sha:
             flags["ddagent:commit_sha"] = commit_sha
 
-    flags["ddagent:apiKey"] = config.get_api_key(cfg)
+    flags["ddagent:apiKey"] = SecretStr(config.get_api_key(cfg))
 
     # When using fakeintake, enable dual shipping to send data to both fakeintake and Datadog
     # Otherwise pulumi will configure the agent to send data directly to fakeintake
@@ -148,7 +149,7 @@ def deploy(
             flags[f"{namespace}:{key}"] = value
 
     if app_key_required:
-        flags["ddagent:appKey"] = config.get_app_key(cfg)
+        flags["ddagent:appKey"] = SecretStr(config.get_app_key(cfg))
 
     return _deploy(
         stack_name,
@@ -221,6 +222,8 @@ def _deploy(
     pulumi_extra_args: tuple[str, ...] = (),
     pulumi_env: dict[str, str] | None = None,
 ) -> str:
+    from pydantic import SecretStr
+
     # get_stack_name normalizes the name, so destroy looks for the one deployed here
     stack_name = tool.get_stack_name(stack_name, flags["scenario"])
     log_flags: list[str] = []
@@ -228,7 +231,7 @@ def _deploy(
 
     # Building run func parameters
     for key, value in flags.items():
-        if value is not None:
+        if value is not None and not isinstance(value, SecretStr):
             up_flags += ["-c", f"{key}={value}"]
 
     should_log = debug or log_level is not None or log_to_stderr
@@ -245,6 +248,17 @@ def _deploy(
             up_flags.append("--debug")
 
     _create_stack(stack_name, log_flags, config_path)
+    for key, value in flags.items():
+        if isinstance(value, SecretStr):
+            tool.run_pulumi(
+                "config",
+                "set",
+                "--secret",
+                key,
+                stack=stack_name,
+                config_path=config_path,
+                input=value.get_secret_value(),
+            )
 
     tool.run_pulumi(
         *log_flags,

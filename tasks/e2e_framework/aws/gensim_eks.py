@@ -172,6 +172,8 @@ def submit_gensim_eks(
         inv aws.eks.gensim.submit --image=... --episode-manifest=./gensim-eval-scenarios.json
         inv aws.eks.gensim.submit --image=... --episodes=... --mode=live-anomaly-detection
     """
+    from pydantic import SecretStr
+
     if not image:
         raise Exit("--image is required (e.g. docker.io/datadog/agent-dev:my-tag)")
     if episodes and episode_manifest:
@@ -397,8 +399,8 @@ def submit_gensim_eks(
         "gensim:clusterName": cluster_name,
         "gensim:runId": run_id,
         # Datadog keys -- must be explicit since install_agent=False
-        "ddagent:apiKey": _get_api_key(local_config),
-        "ddagent:appKey": _get_app_key(local_config),
+        "ddagent:apiKey": SecretStr(_get_api_key(local_config)),
+        "ddagent:appKey": SecretStr(_get_app_key(local_config)),
     }
 
     # Gensim-specific Pulumi flags:

@@ -260,6 +260,7 @@ def run_pulumi(
     capture_output: bool = False,
     capture_stderr: bool = False,
     ignore_errors: bool = False,
+    input: str | None = None,
 ) -> str | subprocess.CompletedProcess[str]:
     """
     Run a Pulumi command.
@@ -290,6 +291,7 @@ def run_pulumi(
         capture_output=capture_output,
         capture_stderr=capture_stderr,
         ignore_errors=ignore_errors,
+        input=input,
     )
 
 
