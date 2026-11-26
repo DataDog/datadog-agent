@@ -51,7 +51,7 @@ bazel:package:linux-amd64:
   extends: .bazel:package
   variables:
     BAZEL_PACKAGE_FLAGS: "--//packages/agent:flavor=iot"
-    BAZEL_PACKAGE_TARGETS: "//packages/iot:debian //packages/iot:rpm"
+    BAZEL_PACKAGE_TARGETS: "//packages/iot:debian //packages/iot:debian_dbg //packages/iot:rpm //packages/iot:rpm_dbg"
     BAZEL_PACKAGE_REQUIRED_FILES: test/required_files/iot-agent
 
 bazel:package:iot:linux-amd64:
@@ -73,7 +73,7 @@ bazel:package:iot:suse-amd64:
   variables:
     BAZEL_PACKAGE_DIR: bazel-packages/suse
     BAZEL_PACKAGE_FLAGS: "--//packages/agent:flavor=iot --//packages/agent:host_distribution=suse"
-    BAZEL_PACKAGE_TARGETS: "//packages/iot:rpm"
+    BAZEL_PACKAGE_TARGETS: "//packages/iot:rpm //packages/iot:rpm_dbg"
 
 bazel:package:heroku:linux-amd64:
   extends: [.bazel:runner:linux-amd64, .bazel:package]
