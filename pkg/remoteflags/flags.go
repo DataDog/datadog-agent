@@ -179,6 +179,8 @@ type event struct {
 	// cfgGen is the configuration field generation observed when the event was created.
 	cfgGen uint64
 	err    error
+	// seq is the enqueue order within the subscription, set by enqueue.
+	seq uint64
 }
 
 // subscription represents an active subscription to a remote flag.
@@ -191,11 +193,13 @@ type subscription struct {
 	pending        *event // latest change or noconfig event, latest wins
 	recoverPending *event // latest recover event, kept apart so it is never overwritten
 	running        bool   // true while a worker goroutine owns delivery
+	nextSeq        uint64 // enqueue order of the next event, so delivery follows it
 
 	// Guarded by Client.mu.
 	cancelHealthCheck context.CancelFunc // Cancel ongoing health check if any
 	monitorGen        uint64             // bumped whenever the current monitor is invalidated
-	appliedCfgGen     uint64             // configuration field generation of the applied value; a recover rolls back only if it is still current
+	appliedCfgField   string             // configuration field of the applied value
+	appliedCfgGen     uint64             // generation of appliedCfgField for the applied value; a recover rolls back only if it is still current
 }
 
 // Client is the Remote Flags client that manages flag subscriptions
@@ -207,8 +211,9 @@ type subscription struct {
 // SubscribeWithHandler, which only enqueue. Delivery is latest-wins: intermediate
 // states may be coalesced. A change equal to the last applied value is skipped,
 // and a removal immediately followed by the same value again may not be delivered
-// at all. A hung handler delays only the flag it subscribes to. Stop prevents
-// further deliveries but does not interrupt a handler call already in flight.
+// at all. A hung handler delays only the flag it subscribes to. Stop drops queued
+// events and prevents later deliveries, but does not interrupt a handler call
+// already in flight, and a callback the worker has already dequeued may still run.
 //
 // After SafeRecover runs, the last applied value is cleared but the flag's current
 // value is kept, so the same value is not redelivered by itself. Redelivery needs
@@ -281,8 +286,10 @@ func shouldApplyConfig(currentSource model.Source, overrideLocal bool) bool {
 }
 
 // Stop cancels all health monitors and cleans up resources. Queued events are
-// dropped and no further callbacks start; a handler call already in flight is
-// not interrupted. This should be called when the client is no longer needed.
+// dropped; a handler call already in flight, or an event the worker dequeued just
+// before Stop, is not interrupted (Stop does not wait for handlers, which may
+// themselves call back into the client). This should be called when the client
+// is no longer needed.
 func (c *Client) Stop() {
 	c.cancel()
 }
@@ -439,7 +446,7 @@ func (c *Client) notifyNoConfig(flag FlagName) {
 }
 
 // enqueue places ev in the subscription's slot (latest wins, recover has its own
-// slot) and starts a worker if none is running. It never blocks and never takes
+// slot, delivery follows enqueue order across both) and starts a worker if none is running. It never blocks and never takes
 // c.mu; it may be called with c.mu held (lock order is c.mu then qmu).
 func (c *Client) enqueue(sub *subscription, ev event) {
 	if c.ctx.Err() != nil {
@@ -447,6 +454,8 @@ func (c *Client) enqueue(sub *subscription, ev event) {
 	}
 	sub.qmu.Lock()
 	defer sub.qmu.Unlock()
+	sub.nextSeq++
+	ev.seq = sub.nextSeq
 	if ev.kind == eventRecover {
 		sub.recoverPending = &ev
 	} else {
@@ -458,7 +467,7 @@ func (c *Client) enqueue(sub *subscription, ev event) {
 	}
 }
 
-// runWorker delivers queued events for one subscription, recover first, until
+// runWorker delivers queued events for one subscription, oldest first, until
 // both slots are empty. Handlers run outside every lock.
 func (c *Client) runWorker(sub *subscription) {
 	clean := false
@@ -479,12 +488,11 @@ func (c *Client) runWorker(sub *subscription) {
 			clean = true
 			return
 		}
-		ev := sub.recoverPending
-		if ev != nil {
-			sub.recoverPending = nil
+		var ev *event
+		if sub.recoverPending != nil && (sub.pending == nil || sub.recoverPending.seq < sub.pending.seq) {
+			ev, sub.recoverPending = sub.recoverPending, nil
 		} else {
-			ev = sub.pending
-			sub.pending = nil
+			ev, sub.pending = sub.pending, nil
 		}
 		if ev == nil {
 			sub.running = false
@@ -505,11 +513,11 @@ func (c *Client) handleEvent(sub *subscription, ev event) {
 		if last := sub.lastValue.Load(); last != nil && *last == ev.flag.Enabled {
 			// The applied value is unchanged but the field may have been Set again
 			// since: let the active monitor roll back the latest write.
-			c.refreshAppliedCfgGen(sub, ev.cfgGen)
+			c.refreshAppliedCfg(sub, ev.flag.ConfigurationField, ev.cfgGen)
 			return
 		}
 		gen := c.invalidateMonitor(sub)
-		c.refreshAppliedCfgGen(sub, ev.cfgGen)
+		c.refreshAppliedCfg(sub, ev.flag.ConfigurationField, ev.cfgGen)
 		if err := sub.handler.OnChange(ev.flag.Enabled); err != nil {
 			sub.lastValue.Store(nil)
 			applyErr := fmt.Errorf("remote flag %s (enabled=%v): %w", ev.flag.Name, ev.flag.Enabled, err)
@@ -526,6 +534,9 @@ func (c *Client) handleEvent(sub *subscription, ev event) {
 	case eventRecover:
 		c.mu.Lock()
 		stale := sub.monitorGen != ev.gen
+		// Roll back the field of the latest applied value, which may differ from
+		// the one of the event that started the monitor when events were coalesced.
+		ev.flag.ConfigurationField = sub.appliedCfgField
 		ev.cfgGen = sub.appliedCfgGen
 		c.mu.Unlock()
 		if stale {
@@ -537,14 +548,15 @@ func (c *Client) handleEvent(sub *subscription, ev event) {
 	}
 }
 
-// refreshAppliedCfgGen records cfgGen as the configuration field generation the
-// applied value corresponds to. It never moves backwards.
-func (c *Client) refreshAppliedCfgGen(sub *subscription, cfgGen uint64) {
+// refreshAppliedCfg records the configuration field and generation the applied
+// value corresponds to. Events are delivered in enqueue order, so for one field
+// the generation never moves backwards; generations of different fields are
+// unrelated, so the latest delivered pair is kept as is.
+func (c *Client) refreshAppliedCfg(sub *subscription, field string, cfgGen uint64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if cfgGen > sub.appliedCfgGen {
-		sub.appliedCfgGen = cfgGen
-	}
+	sub.appliedCfgField = field
+	sub.appliedCfgGen = cfgGen
 }
 
 // enqueueRecover queues a recover event raised by the monitor of generation gen.
@@ -596,6 +608,9 @@ func (c *Client) installMonitor(sub *subscription, gen uint64, cancel context.Ca
 func (c *Client) recoverFlag(sub *subscription, ev event, err error) {
 	field := ev.flag.ConfigurationField
 	if field != "" {
+		// The generation check and the Unset share one critical section so a
+		// concurrent OnUpdate, which Sets the field under the same lock, cannot slip
+		// in between and have its value wiped.
 		c.mu.Lock()
 		if c.configSetter != nil && c.configGens[field] == ev.cfgGen {
 			c.configSetter.UnsetForSource(field, model.SourceRC)

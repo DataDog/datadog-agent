@@ -1146,3 +1146,123 @@ func TestHealthMonitor_StaleMonitorCannotOverwriteCurrentRecovery(t *testing.T) 
 		assert.Equal(t, 1, h.count("recover(true)"), "recovery of the current monitor was lost; events: %v", h.snapshot())
 	})
 }
+
+// 7. A queued recover must not overtake an earlier queued change: the change
+// invalidates the monitor that raised the recover, so no SafeRecover runs.
+func TestOrdering_RecoverDoesNotOvertakeEarlierChange(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := NewClient().WithHealthCheckInterval(time.Hour)
+		defer stopAndWait(client)
+
+		h := newRecHandler(testFlag1)
+		require.NoError(t, client.SubscribeWithHandler(h))
+		on := Flag{Name: string(testFlag1), Enabled: true, HealthCheckDurationSeconds: 3600}
+		sendUpdate(client, on)
+		synctest.Wait()
+		sub := client.subscriptions[testFlag1][0]
+
+		// Hold delivery so both events are queued before any worker runs.
+		sub.qmu.Lock()
+		sub.running = true
+		sub.qmu.Unlock()
+
+		sendUpdate(client, Flag{Name: string(testFlag1), Enabled: false})
+		client.mu.Lock()
+		gen := sub.monitorGen
+		client.mu.Unlock()
+		client.enqueueRecover(sub, event{kind: eventRecover, flag: on, gen: gen, err: errors.New("unhealthy")})
+
+		go client.runWorker(sub)
+		synctest.Wait()
+
+		assert.Equal(t, []string{"change(true)", "change(false)"}, h.snapshot())
+	})
+}
+
+// 8. The configuration field generation of the applied value is kept per
+// delivered event, so a flag that moves to another field whose generation is
+// lower still has that field rolled back by a recover.
+func TestRecover_FlagMovesToOtherConfigField(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := NewClient().WithHealthCheckInterval(100 * time.Millisecond)
+		defer stopAndWait(client)
+		setter := newFakeConfigSetter()
+		client.WithConfigSetter(setter)
+
+		const fieldA, fieldB = "feature.a.enabled", "feature.b.enabled"
+		h := newRecHandler(testFlag1)
+		require.NoError(t, client.SubscribeWithHandler(h))
+		flag := func(on bool, field string) Flag {
+			return Flag{Name: string(testFlag1), Enabled: FlagValue(on), ConfigurationField: field,
+				HealthCheckDurationSeconds: 10, HealthCheckFailuresBeforeRecover: 1}
+		}
+		for _, on := range []bool{true, false, true} { // field A reaches generation 3
+			sendUpdate(client, flag(on, fieldA))
+			synctest.Wait()
+		}
+		sendUpdate(client, flag(false, fieldB)) // field B generation 1
+		synctest.Wait()
+		sendUpdate(client, flag(true, fieldB)) // field B generation 2, below A's
+		synctest.Wait()
+
+		h.healthy.Store(false)
+		time.Sleep(150 * time.Millisecond)
+		synctest.Wait()
+
+		require.Equal(t, 1, h.count("recover(true)"), "events: %v", h.snapshot())
+		setter.mu.Lock()
+		defer setter.mu.Unlock()
+		var unsetB bool
+		for _, u := range setter.unsets {
+			unsetB = unsetB || u.key == fieldB
+		}
+		assert.True(t, unsetB, "field B must be rolled back; unsets: %v", setter.unsets)
+	})
+}
+
+// 9. A change coalesced onto the applied value but aimed at another configuration
+// field makes that field the one a recover rolls back.
+func TestRecover_CoalescedChangeOnOtherConfigField(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := NewClient().WithHealthCheckInterval(100 * time.Millisecond)
+		defer stopAndWait(client)
+		setter := newFakeConfigSetter()
+		client.WithConfigSetter(setter)
+
+		const fieldA, fieldB = "feature.a.enabled", "feature.b.enabled"
+		gate := make(chan struct{})
+		var calls atomic.Int32
+		h := newRecHandler(testFlag1)
+		h.onChange = func(FlagValue) error {
+			if calls.Add(1) == 1 {
+				<-gate
+			}
+			return nil
+		}
+		require.NoError(t, client.SubscribeWithHandler(h))
+		flag := func(on bool, field string) Flag {
+			return Flag{Name: string(testFlag1), Enabled: FlagValue(on), ConfigurationField: field,
+				HealthCheckDurationSeconds: 10, HealthCheckFailuresBeforeRecover: 1}
+		}
+		sendUpdate(client, flag(true, fieldA))
+		synctest.Wait() // OnChange(true) on A is blocked
+		sendUpdate(client, flag(false, fieldB))
+		sendUpdate(client, flag(true, fieldB)) // coalesces onto the pending slot, same value as the applied one
+		synctest.Wait()
+		close(gate)
+		synctest.Wait()
+
+		h.healthy.Store(false)
+		time.Sleep(150 * time.Millisecond)
+		synctest.Wait()
+
+		require.Equal(t, 1, h.count("recover(true)"), "events: %v", h.snapshot())
+		setter.mu.Lock()
+		defer setter.mu.Unlock()
+		var unsetB bool
+		for _, u := range setter.unsets {
+			unsetB = unsetB || u.key == fieldB
+		}
+		assert.True(t, unsetB, "field B must be rolled back; unsets: %v", setter.unsets)
+	})
+}
