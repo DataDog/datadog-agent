@@ -124,7 +124,7 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/cmd/otel-agent/config": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "requirefips", "serverless", "test", "zlib"],
     "github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/controlsvc": ["otlp", "test"],
     "github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/coverage": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
-    "github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/flare": ["bpf", "cel", "clusterchecks", "containerd", "cri", "docker", "ec2", "fargateprocess", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "requirefips", "serverless", "test"],
+    "github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/flare": ["cel", "clusterchecks", "containerd", "cri", "docker", "ec2", "fargateprocess", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "requirefips", "serverless", "test", "zlib"],
     "github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/run": None,
     "github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/status": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/cmd/otel-agent/windows/controlsvc": ["test"],
