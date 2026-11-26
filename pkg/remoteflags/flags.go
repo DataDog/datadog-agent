@@ -153,6 +153,9 @@ type subscription struct {
 	handler           FlagHandler
 	lastValue         atomic.Pointer[FlagValue] // nil means no value has been applied yet
 	cancelHealthCheck context.CancelFunc        // Cancel ongoing health check if any
+	// gen counts the events queued for this subscription. Guarded by the client
+	// lock. An event is current while no newer one has been queued after it.
+	gen uint64
 
 	// Handler callbacks run outside the client lock, in the order the client
 	// queued them: queue holds the pending events, and draining is true while
@@ -167,6 +170,7 @@ type subscription struct {
 type event struct {
 	flag     Flag
 	noConfig bool
+	gen      uint64 // value of subscription.gen when the event was queued
 }
 
 // Client is the Remote Flags client that manages flag subscriptions
@@ -369,9 +373,11 @@ func (c *Client) notifyChange(flag Flag) {
 }
 
 // enqueue schedules ev to be delivered to sub after the events already queued
-// for it. It never blocks on the handler, so it is safe to call with the client
-// lock held.
+// for it. Must be called with the client lock held; it never blocks on the
+// handler.
 func (c *Client) enqueue(sub *subscription, ev event) {
+	sub.gen++
+	ev.gen = sub.gen
 	sub.queueMu.Lock()
 	defer sub.queueMu.Unlock()
 	sub.queue = append(sub.queue, ev)
@@ -381,10 +387,14 @@ func (c *Client) enqueue(sub *subscription, ev event) {
 	}
 }
 
-// drain delivers the queued events of sub one at a time until its queue is empty.
+// drain delivers the queued events of sub one at a time until its queue is
+// empty. Once the client is stopped, it drops the events not delivered yet.
 func (c *Client) drain(sub *subscription) {
 	for {
 		sub.queueMu.Lock()
+		if c.ctx.Err() != nil {
+			sub.queue = nil
+		}
 		if len(sub.queue) == 0 {
 			sub.draining = false
 			sub.queueMu.Unlock()
@@ -427,7 +437,7 @@ func (c *Client) deliver(sub *subscription, ev event) {
 	} else {
 		successValue := f.Enabled
 		sub.lastValue.Store(&successValue)
-		c.startHealthMonitor(sub, f)
+		c.startHealthMonitor(sub, f, ev.gen)
 	}
 }
 
@@ -468,9 +478,17 @@ func (c *Client) notifyNoConfig(flag FlagName) {
 // after a flag is enabled (value=true). If the component becomes unhealthy for the configured
 // number of consecutive checks, SafeRecover is called, followed by a recovery probe to validate
 // that the recovery was successful.
-func (c *Client) startHealthMonitor(sub *subscription, flag Flag) {
+func (c *Client) startHealthMonitor(sub *subscription, flag Flag, gen uint64) {
 	// Only monitor when enabling (value=true)
 	if !flag.Enabled {
+		return
+	}
+
+	c.mu.Lock()
+	// Don't monitor an enable that a newer update has superseded while its
+	// OnChange was running: that update may have removed or disabled the flag.
+	if sub.gen != gen {
+		c.mu.Unlock()
 		return
 	}
 
@@ -478,7 +496,6 @@ func (c *Client) startHealthMonitor(sub *subscription, flag Flag) {
 	ctx, cancel := context.WithTimeout(c.ctx, flag.HealthCheckDuration())
 
 	// Store cancel func to stop previous monitor if new change comes in
-	c.mu.Lock()
 	if sub.cancelHealthCheck != nil {
 		sub.cancelHealthCheck() // Cancel previous health check
 	}
