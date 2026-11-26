@@ -894,8 +894,8 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 		return
 	}
 
-	if event.Error != nil && !activity_tree.IsInsertableEventError(event.Error) {
-		m.incrementInsertionError(eventType, event.Error, insertionErrorDropped)
+	if activity_tree.EventInsertionError(event) != nil {
+		m.incrementEventWithError(event, insertionErrorDropped)
 		return
 	}
 
@@ -1664,24 +1664,25 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	secprof.Unlock()
 	if err != nil {
 		switch {
+		case errors.Is(err, activity_tree.ErrBrokenLineage) && errors.Is(event.Error, model.ErrNoProcessContext):
+			// the tree only finds the lineage of the placeholder process broken
+			m.incrementEventWithError(event, insertionErrorDropped)
 		case !activity_tree.IsExpectedFilterError(err):
 			m.incrementInsertionError(event.GetEventType(), err, insertionErrorDropped)
 			seclog.Debugf("couldn't insert event into profile: %v", err)
 		case event.Error != nil:
-			m.incrementInsertionError(profileEventType(event), event.Error, insertionErrorDropped)
+			m.incrementEventWithError(event, insertionErrorDropped)
 		}
 		return nil, false, nil
 	}
-	if unattributed || event.Error != nil {
-		outcome, countedErr := insertionErrorKept, event.Error
-		if unattributed {
-			outcome = insertionErrorUnattributed
-			// the activity tree may find the lineage broken although the event doesn't carry the error
-			if countedErr == nil {
-				countedErr = activity_tree.ErrBrokenLineage
-			}
-		}
-		m.incrementInsertionError(event.GetEventType(), countedErr, outcome)
+	switch {
+	case unattributed && event.Error == nil:
+		// the activity tree may find the lineage broken although the event doesn't carry the error
+		m.incrementInsertionError(profileEventType(event), activity_tree.ErrBrokenLineage, insertionErrorUnattributed)
+	case unattributed:
+		m.incrementEventWithError(event, insertionErrorUnattributed)
+	case event.Error != nil:
+		m.incrementEventWithError(event, insertionErrorKept)
 	}
 
 	// the unattributed activity isn't compared with the activity of the processes, what is new there may not be new
@@ -2241,6 +2242,16 @@ func (m *ManagerV2) incrementInsertionError(eventType model.EventType, err error
 	if entry, ok := m.insertionErrors[key]; ok {
 		entry.Inc()
 	}
+}
+
+// incrementEventWithError records an event carrying an error, labeled with the error that kept it out of the tree if
+// there is one
+func (m *ManagerV2) incrementEventWithError(event *model.Event, outcome string) {
+	err := activity_tree.EventInsertionError(event)
+	if err == nil {
+		err = event.Error
+	}
+	m.incrementInsertionError(profileEventType(event), err, outcome)
 }
 
 // evictUnusedNodes performs periodic eviction of non-touched nodes from all active profiles
