@@ -2,6 +2,16 @@
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
+constants_repo = use_repo_rule("//bazel/repo:constants_repo.bzl", "constants_repo")
+
+constants_repo(
+    name = "curl_constants",
+    items = {
+        "URL": "https://curl.haxx.se/download/curl-8.23.0.tar.gz",
+        "VERSION": "8.23.0",
+    },
+)
+
 http_archive(
     name = "curl",
     files = {

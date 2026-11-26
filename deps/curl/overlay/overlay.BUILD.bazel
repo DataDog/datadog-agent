@@ -4,6 +4,7 @@ load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@curl_constants//:constants.bzl", "URL", "VERSION")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
@@ -16,7 +17,6 @@ load(
     "LIB_CURLU_SRCS_DARWIN",
     "LIB_CURLU_SRCS_LINUX",
     "LIB_CURL_SRCS_ALL",
-    "VERSION",
 )
 
 package(
@@ -32,7 +32,7 @@ package_metadata(
         ":license",
     ],
     purl = purl_for_generic(
-        download_url = "https://curl.haxx.se/download/curl-{version}.tar.gz",
+        download_url = URL,
         package = "curl",
         version = VERSION,
     ),

@@ -5,6 +5,7 @@ load(":overlay/lib_contents.bzl", "VERSION")
 generate_module_bazel(
     name = "curl_module_bazel_new",
     out = "curl.MODULE.bazel.new",
+    constants_version = VERSION,
     module = "curl",
     sha256 = "e3de77cfa6367083c776a26647fc9f633b538c06c3baa73d931a252ac8f72b49",
     strip_prefix = "curl-%s" % VERSION,

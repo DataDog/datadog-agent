@@ -2,6 +2,16 @@
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
+constants_repo = use_repo_rule("//bazel/repo:constants_repo.bzl", "constants_repo")
+
+constants_repo(
+    name = "libxml2_constants",
+    items = {
+        "URL": "https://download.gnome.org/sources/libxml2/2.15/libxml2-2.15.4.tar.xz",
+        "VERSION": "2.15.4",
+    },
+)
+
 http_archive(
     name = "libxml2",
     files = {
