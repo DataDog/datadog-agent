@@ -27,8 +27,8 @@
 # Windows-specific Go source files, pkg/, and cmd/ (26 paths), need to be split because Gitlab has a limit to 50 paths in a single rule
 .windows_path:
   &windows_path # Windows-specific Go source files (by filename convention)
-  - "**/*_windows.go"
-  - "**/*_windows_test.go"
+  - '**/*_windows.go'
+  - '**/*_windows_test.go'
 
   # Windows-specific packages in pkg/
   - pkg/util/winutil/**/*
@@ -66,7 +66,7 @@
 # Covers MODULE.bazel, MODULE.bazel.lock, BUILD.bazel, REPO.bazel, .bazelrc, .bazelversion,
 # including nested BUILD.bazel files (a single "*" does not cross "/" in GitLab's changes:paths glob).
 .bazel_paths: &bazel_paths
-  - "**/*.bazel*"
+  - '**/*.bazel*'
   - deps/**/*
   - bazel/**/*
   - tasks/build_tags.bzl
@@ -311,42 +311,42 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
   CI_IMAGE_BTF_GEN: v154724683-ae4099a8
-  CI_IMAGE_BTF_GEN_SUFFIX: ""
+  CI_IMAGE_BTF_GEN_SUFFIX: ''
   CI_IMAGE_DOCKER_X64: v154724683-ae4099a8
-  CI_IMAGE_DOCKER_X64_SUFFIX: ""
+  CI_IMAGE_DOCKER_X64_SUFFIX: ''
   CI_IMAGE_DOCKER_ARM64: v154724683-ae4099a8
-  CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
+  CI_IMAGE_DOCKER_ARM64_SUFFIX: ''
   CI_IMAGE_GITLAB_AGENT_DEPLOY: v154724683-ae4099a8
-  CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
+  CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ''
   CI_IMAGE_LINUX: v154724683-ae4099a8
-  CI_IMAGE_LINUX_SUFFIX: ""
+  CI_IMAGE_LINUX_SUFFIX: ''
   CI_IMAGE_RPM_X64: v154724683-ae4099a8
-  CI_IMAGE_RPM_X64_SUFFIX: ""
+  CI_IMAGE_RPM_X64_SUFFIX: ''
   CI_IMAGE_RPM_ARM64: v154724683-ae4099a8
-  CI_IMAGE_RPM_ARM64_SUFFIX: ""
+  CI_IMAGE_RPM_ARM64_SUFFIX: ''
   CI_IMAGE_RPM_ARMHF: v154724683-ae4099a8
-  CI_IMAGE_RPM_ARMHF_SUFFIX: ""
+  CI_IMAGE_RPM_ARMHF_SUFFIX: ''
   CI_IMAGE_WIN_LTSC2022_X64: v154696753-09b90e4c
-  CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
+  CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ''
   CI_IMAGE_WIN_LTSC2025_X64: v154696753-09b90e4c
-  CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
+  CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ''
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
-  DEB_GPG_KEY_NAME: "Datadog, Inc. APT key"
-  RPM_GPG_KEY_NAME: "Datadog, Inc. RPM key"
+  DEB_GPG_KEY_NAME: 'Datadog, Inc. APT key'
+  RPM_GPG_KEY_NAME: 'Datadog, Inc. RPM key'
   # note the unusual ID for a GPG key:
   # it's the path of a Vault key to be used with gpg-vault
   # (https://github.com/DataDog/dd-source/tree/main/domains/seceng/sit/apps/artifact-security/vault-gpg-client/gpg-vault)
   GPG_TEST_KEY_ID: crypto/k8s/keys/k8s_gitlab-runner-datadog-agent_datadog-agent_testing_signing-key
   DOCKER_REGISTRY_URL: docker.io
   CLANG_LLVM_VER: 12.0.1
-  KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-05b3973acf5422348"
-  KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-0b5f838a19d37fc61"
-  RUN_E2E_TESTS: "auto" # Should be "off", "auto" or "on" it will change the trigger condition for new-e2e tests on branch != main
-  RUN_KMT_TESTS: "auto" # Should be "auto" or "on". "on" forces all Kernel Matrix Testing jobs to run.
-  RUN_UNIT_TESTS: "auto" # Should be "auto", "on", "off" it will change the trigger condition for unit tests on branch != main
+  KERNEL_MATRIX_TESTING_X86_AMI_ID: 'ami-05b3973acf5422348'
+  KERNEL_MATRIX_TESTING_ARM_AMI_ID: 'ami-0b5f838a19d37fc61'
+  RUN_E2E_TESTS: 'auto' # Should be "off", "auto" or "on" it will change the trigger condition for new-e2e tests on branch != main
+  RUN_KMT_TESTS: 'auto' # Should be "auto" or "on". "on" forces all Kernel Matrix Testing jobs to run.
+  RUN_UNIT_TESTS: 'auto' # Should be "auto", "on", "off" it will change the trigger condition for unit tests on branch != main
   # skip known flaky tests by default
-  GO_TEST_SKIP_FLAKE: "true"
+  GO_TEST_SKIP_FLAKE: 'true'
 
   # Start aws ssm variables
   # They must be defined as environment variables in the GitLab CI/CD settings, to ease rotation if needed
@@ -377,7 +377,7 @@ variables:
   # POSIX only (Linux and macOS): Windows jobs override this in .windows_docker_default
   DDA_FEATURE_FLAGS_CI_TOKEN_COMMAND: tools/ci/read_ci_secret.sh feature-flags-client token
 
-  PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
+  PIPELINE_KEY_ALIAS: 'alias/ci_datadog-agent_pipeline-key'
 
   DISABLE_GIT_CACHE: true
 
@@ -398,7 +398,7 @@ variables:
   PYTHONUNBUFFERED: 1
   PYTHONDONTWRITEBYTECODE: 1 # Avoid __pycache__ races when uv removes packages daemons use (e.g. dda.telemetry.daemon)
 
-  SKIP_WINDOWS: "false"
+  SKIP_WINDOWS: 'false'
 
 #
 # Condition mixins for simplification of rules
@@ -473,7 +473,7 @@ variables:
 
 .fakeintake_paths: &fakeintake_paths
   paths:
-    - "test/fakeintake/**/*"
+    - 'test/fakeintake/**/*'
     - .gitlab/build/binary_build/fakeintake.yml
     - .gitlab/deploy/container_build/fakeintake.yml
     - .gitlab/deploy/dev_container_deploy/fakeintake.yml
@@ -538,15 +538,15 @@ workflow:
   rules:
     - <<: *if_scheduled_main
       variables:
-        WINDOWS_SIGNING_CERT: "s3://windows-code-signing-certificates/certs/beta/kms-signed.crt"
-        WINDOWS_SIGNING_CONFIG: "s3://windows-code-signing-certificates/certs/beta/config.json"
-        BAZEL_CACHE_POLICY_SUFFIX: "-push"
-        GO_TEST_SKIP_FLAKE: "false"
+        WINDOWS_SIGNING_CERT: 's3://windows-code-signing-certificates/certs/beta/kms-signed.crt'
+        WINDOWS_SIGNING_CONFIG: 's3://windows-code-signing-certificates/certs/beta/config.json'
+        BAZEL_CACHE_POLICY_SUFFIX: '-push'
+        GO_TEST_SKIP_FLAKE: 'false'
     - <<: *if_triggered_pipeline
     - <<: *if_main_branch
       variables:
-        BAZEL_CACHE_POLICY_SUFFIX: "-push"
-        GO_TEST_SKIP_FLAKE: "false"
+        BAZEL_CACHE_POLICY_SUFFIX: '-push'
+        GO_TEST_SKIP_FLAKE: 'false'
     - <<: *if_release_branch
     - <<: *if_deploy
     - <<: *if_run_all_e2e_tests
@@ -561,36 +561,36 @@ workflow:
           - deps/agent_data_plane/agent_data_plane.MODULE.bazel
         compare_to: $COMPARE_TO_BRANCH
       variables:
-        ADP_VERSION_BUMP: "true"
-        SKIP_WINDOWS: "false"
+        ADP_VERSION_BUMP: 'true'
+        SKIP_WINDOWS: 'false'
     - changes:
         paths: *windows_path
         compare_to: main
       variables:
-        SKIP_WINDOWS: "false"
+        SKIP_WINDOWS: 'false'
     - changes:
         paths: *windows_path_2
         compare_to: main
       variables:
-        SKIP_WINDOWS: "false"
+        SKIP_WINDOWS: 'false'
     - changes:
         paths: *windows_path_3
         compare_to: main
       variables:
-        SKIP_WINDOWS: "false"
+        SKIP_WINDOWS: 'false'
     - changes:
         paths: *windows_path_4
         compare_to: main
       variables:
-        SKIP_WINDOWS: "false"
+        SKIP_WINDOWS: 'false'
     - changes:
         paths: *bazel_paths
         compare_to: main
       variables:
-        SKIP_WINDOWS: "false"
+        SKIP_WINDOWS: 'false'
     - if: $CI_COMMIT_TAG == null
       variables:
-        SKIP_WINDOWS: "true"
+        SKIP_WINDOWS: 'true'
 
 #
 # List of rule blocks used in the pipeline
@@ -648,18 +648,18 @@ workflow:
   - !reference [.except_light_pipeline]
   - <<: *if_deploy
     variables:
-      RELEASE_PROD: "true"
+      RELEASE_PROD: 'true'
   - changes:
       paths:
         - .gitlab/deploy/internal_image_deploy/internal_image_deploy.yml
         - Dockerfiles/**/*
       compare_to: $COMPARE_TO_BRANCH
     variables:
-      RELEASE_PROD: "false"
+      RELEASE_PROD: 'false'
   - when: manual
     allow_failure: true
     variables:
-      RELEASE_PROD: "false"
+      RELEASE_PROD: 'false'
 
 .on_deploy_nightly_repo_branch:
   - <<: *if_not_nightly_or_dev_repo_branch
@@ -1000,7 +1000,7 @@ workflow:
       <<: *fakeintake_server_paths
       compare_to: $COMPARE_TO_BRANCH
     variables:
-      E2E_FAKEINTAKE_IMAGE_OVERRIDE: "public.ecr.aws/datadog/fakeintake:v$CI_COMMIT_SHORT_SHA"
+      E2E_FAKEINTAKE_IMAGE_OVERRIDE: 'public.ecr.aws/datadog/fakeintake:v$CI_COMMIT_SHORT_SHA'
     when: on_success
   - <<: *if_run_all_e2e_tests
     when: on_success
@@ -1018,7 +1018,6 @@ workflow:
     when: on_success
   - changes:
       paths:
-        - pkg/config/schema/**/* # incident-60254
         - .gitlab/test/e2e/*.yml
         - bazel/rules/go_shim/**/* # Runs bazelified Go tools
         - internal/tools/**/* # Go tools: gotestsum, etc. (incident-59251/59255/59256/59257/59258)
@@ -1301,7 +1300,7 @@ workflow:
   - changes:
       paths:
         - comp/core/gui/impl/systray/**/*
-        - "**/*.m"
+        - '**/*.m'
       compare_to: $COMPARE_TO_BRANCH
 
 .on_macos_change:
@@ -1345,32 +1344,32 @@ workflow:
 .fast_tests_variables_named_branches:
   - <<: *if_main_branch
     variables:
-      FAST_TESTS: "false"
+      FAST_TESTS: 'false'
       # Push coverage cache on main branch
-      COVERAGE_CACHE_FLAG: "--push-coverage-cache"
+      COVERAGE_CACHE_FLAG: '--push-coverage-cache'
   - <<: *if_release_branch
     variables:
-      FAST_TESTS: "false"
-      COVERAGE_CACHE_FLAG: ""
+      FAST_TESTS: 'false'
+      COVERAGE_CACHE_FLAG: ''
   - <<: *if_tagged_commit
     variables:
-      FAST_TESTS: "false"
-      COVERAGE_CACHE_FLAG: ""
+      FAST_TESTS: 'false'
+      COVERAGE_CACHE_FLAG: ''
   - <<: *if_triggered_pipeline
     variables:
-      FAST_TESTS: "false"
-      COVERAGE_CACHE_FLAG: ""
+      FAST_TESTS: 'false'
+      COVERAGE_CACHE_FLAG: ''
   - <<: *if_run_all_unit_tests
     variables:
-      FAST_TESTS: "false"
-      COVERAGE_CACHE_FLAG: ""
+      FAST_TESTS: 'false'
+      COVERAGE_CACHE_FLAG: ''
 
 .fast_on_dev_branch_only:
   - !reference [.fast_tests_variables_named_branches]
   - variables:
-      FAST_TESTS: "true"
+      FAST_TESTS: 'true'
       # Pull coverage cache on dev branches
-      COVERAGE_CACHE_FLAG: "--pull-coverage-cache"
+      COVERAGE_CACHE_FLAG: '--pull-coverage-cache'
 
 # macOS runners are scarce and queue for tens of minutes under load. These jobs stay
 # mandatory wherever they gate a merge (main/release/light pipeline/forced runs), but on
@@ -1379,11 +1378,11 @@ workflow:
   - !reference [.fast_tests_variables_named_branches]
   - <<: *if_light_pipeline
     variables:
-      FAST_TESTS: "true"
-      COVERAGE_CACHE_FLAG: "--pull-coverage-cache"
+      FAST_TESTS: 'true'
+      COVERAGE_CACHE_FLAG: '--pull-coverage-cache'
   - variables:
-      FAST_TESTS: "true"
-      COVERAGE_CACHE_FLAG: "--pull-coverage-cache"
+      FAST_TESTS: 'true'
+      COVERAGE_CACHE_FLAG: '--pull-coverage-cache'
     when: manual
     allow_failure: true
 
