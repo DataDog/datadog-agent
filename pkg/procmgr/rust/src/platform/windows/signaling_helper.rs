@@ -281,7 +281,7 @@ pub(crate) struct SignalingHelper {
 enum HelperBackend {
     Process(HelperProcess),
     #[cfg(test)]
-    Injected(Option<Report>),
+    Injected(Option<Result<Report, String>>),
 }
 
 /// Initiate Windows graceful signaling using the original process identity.
@@ -299,10 +299,10 @@ pub(crate) fn send_graceful_stop(
 pub(crate) enum Delivery {
     /// CTRL_BREAK was generated for the original target.
     Generated,
-    /// No signal was generated: signaling failed, or the target had already exited. Also used
-    /// when the helper errored or exited without a report, since delivery is unknown.
+    /// No signal was generated: signaling failed, or the target had already exited.
     Failed,
-    /// No report before the deadline. Whether the signal was generated is unknown.
+    /// No usable report: none arrived before the deadline, or it could not be read. Whether the
+    /// signal was generated is unknown.
     Unreported,
 }
 
@@ -342,8 +342,8 @@ pub(crate) async fn wait_for_graceful_stop(
                     Delivery::Failed
                 }
                 Err(error) => {
-                    log::warn!("[{name}] signaling helper failed: {error}");
-                    Delivery::Failed
+                    log::warn!("[{name}] signaling helper failed, delivery unknown: {error}");
+                    Delivery::Unreported
                 }
             };
         }
@@ -378,7 +378,7 @@ impl SignalingHelper {
     #[cfg(test)]
     pub(crate) fn test_report(outcome: Outcome) -> Self {
         Self {
-            backend: HelperBackend::Injected(Some(Report {
+            backend: HelperBackend::Injected(Some(Ok(Report {
                 outcome,
                 stage: if outcome == Outcome::Failed {
                     Stage::Attachment
@@ -387,7 +387,15 @@ impl SignalingHelper {
                 },
                 error: if outcome == Outcome::Failed { 5 } else { 0 },
                 target_pid: 42,
-            })),
+            }))),
+        }
+    }
+
+    /// A helper whose report is present but cannot be read.
+    #[cfg(test)]
+    pub(crate) fn test_report_error(message: &str) -> Self {
+        Self {
+            backend: HelperBackend::Injected(Some(Err(message.to_owned()))),
         }
     }
 
@@ -395,7 +403,7 @@ impl SignalingHelper {
         match &mut self.backend {
             #[cfg(test)]
             HelperBackend::Injected(report) => HelperObservation {
-                report: report.map(Ok),
+                report: report.clone(),
                 exit: None,
             },
             HelperBackend::Process(helper) => {
@@ -673,6 +681,12 @@ mod tests {
         let mut unreported = SignalingHelper::test_unreported();
         assert_eq!(
             wait_for_graceful_stop(&mut unreported, "delivery-test", Duration::ZERO).await,
+            Delivery::Unreported
+        );
+        // A report that cannot be read leaves delivery unknown, so it is not a Failed.
+        let mut unreadable = SignalingHelper::test_report_error("report read failed");
+        assert_eq!(
+            wait_for_graceful_stop(&mut unreadable, "delivery-test", Duration::from_secs(90)).await,
             Delivery::Unreported
         );
     }

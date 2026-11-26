@@ -7,22 +7,32 @@ use crate::process::ManagedProcess;
 #[cfg(test)]
 use crate::process::test_exit_channel;
 
-/// Signals in `order`, then waits on all processes concurrently. Each wait keeps its own
-/// deadline, so `order` only sets when signals go out.
+/// Signals each process in `order` and starts its wait right after its own signal, then
+/// runs all the waits concurrently. Each process is force-killed at its own deadline, so
+/// a dependency with a short `stop_timeout` can be killed while its dependents are still
+/// shutting down.
 pub async fn shutdown_ordered(processes: &mut [ManagedProcess], order: &[usize]) {
+    let mut waits = Vec::new();
     for &idx in order {
         processes[idx].request_stop();
+        if let Some(wait) = processes[idx].take_stop_wait() {
+            waits.push((idx, tokio::spawn(wait.run())));
+        }
     }
-    let waits: Vec<_> = order
-        .iter()
-        .filter_map(|&idx| processes[idx].take_stop_wait())
-        .map(|wait| tokio::spawn(wait.run()))
-        .collect();
-    for wait in waits {
-        wait.await.expect("stop wait task panicked");
+    let mut failed = Vec::new();
+    for (idx, wait) in waits {
+        if let Err(error) = wait.await {
+            log::warn!(
+                "[{}] stop wait failed: {error}; leaving its state unfinalized",
+                processes[idx].name()
+            );
+            failed.push(idx);
+        }
     }
     for &idx in order {
-        processes[idx].finish_stop();
+        if !failed.contains(&idx) {
+            processes[idx].finish_stop();
+        }
     }
 }
 

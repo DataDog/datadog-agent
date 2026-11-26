@@ -169,11 +169,13 @@ impl ProcessKiller {
 pub(crate) struct StopWait {
     name: String,
     handle: JoinHandle<()>,
-    /// When the stop was requested. The grace counts from here.
+    /// When this wait was taken. The grace counts from here.
     started: Instant,
     /// How long to let the child exit on its own. `None` means it was never
     /// asked to, so there is nothing for a full `stop_timeout` to wait for.
     timeout: Option<Duration>,
+    /// The configured `stop_timeout`, which caps the undelivered allowance.
+    stop_timeout: Duration,
     killer: ProcessKiller,
     #[cfg(windows)]
     helper: Option<platform::SignalingHelper>,
@@ -186,6 +188,7 @@ impl StopWait {
             handle,
             started,
             timeout,
+            stop_timeout,
             mut killer,
             #[cfg(windows)]
             helper,
@@ -198,7 +201,10 @@ impl StopWait {
         // `delivered` is false only when the stop is known to have failed. It picks the log.
         let (grace, delivered) = match timeout {
             Some(stop) => (stop, true),
-            None => (ManagedProcess::UNDELIVERED_STOP_GRACE, false),
+            None => (
+                stop_timeout.min(ManagedProcess::UNDELIVERED_STOP_GRACE),
+                false,
+            ),
         };
         #[cfg(windows)]
         let (grace, delivered) = if let Some(mut helper) = helper {
@@ -264,8 +270,6 @@ pub struct ManagedProcess {
     /// records native creation failure; `StopWait` resolves actual delivery
     /// from the helper's report.
     graceful_stop_failed: bool,
-    /// When `mark_stop_requested` began this stop. `StopWait` measures its grace from here.
-    stop_started: Option<Instant>,
     /// Set only where a respawn was skipped because a start condition was
     /// closed, and cleared in `spawn()`.
     restart_block: RestartBlock,
@@ -288,7 +292,8 @@ impl ManagedProcess {
     pub(crate) const FORCE_KILL_TIMEOUT: Duration = Duration::from_secs(10);
 
     /// How long to give the exit watcher when the graceful stop never reached
-    /// the child.
+    /// the child. The allowance is capped by the configured `stop_timeout`, so
+    /// a shorter timeout is never stretched to this value.
     ///
     /// Sending it fails both when the child cannot hear us and when it has
     /// already exited, and the two are indistinguishable from here: on Unix a
@@ -328,7 +333,6 @@ impl ManagedProcess {
             restarts,
             stop_requested: false,
             graceful_stop_failed: false,
-            stop_started: None,
             restart_block: RestartBlock::None,
             origin,
             last_exit_status: None,
@@ -653,7 +657,6 @@ impl ManagedProcess {
             bail!("[{}] cannot spawn: invalid state {}", self.name, self.state);
         }
         self.stop_requested = false;
-        self.stop_started = None;
         self.graceful_stop_failed = false;
         // The single clear site, which is what keeps the reason from going
         // stale: boot, restart, manual start, and reload all land here.
@@ -740,7 +743,6 @@ impl ManagedProcess {
         // below would otherwise read as a crash or a failure.
         if self.stop_requested {
             self.stop_requested = false;
-            self.stop_started = None;
             self.transition_to(ProcessState::Stopped);
         } else if status.success() {
             self.transition_to(ProcessState::Exited);
@@ -770,7 +772,6 @@ impl ManagedProcess {
             return false;
         }
         self.stop_requested = true;
-        self.stop_started = Some(Instant::now());
         // The manager lock is free while the child goes down, so this state is
         // what `list`, `describe`, and `status` report for as long as the stop
         // runs. Reporting `Running` throughout is how a stop that takes its
@@ -859,10 +860,11 @@ impl ManagedProcess {
         Some(StopWait {
             name: self.name.clone(),
             handle,
-            started: self.stop_started.take().unwrap_or_else(Instant::now),
+            started: Instant::now(),
             // A stop that never reached the child leaves nothing to wait for:
             // the timeout would pass with the process untouched.
             timeout: (!self.graceful_stop_failed).then(|| self.stop_timeout()),
+            stop_timeout: self.stop_timeout(),
             killer: ProcessKiller {
                 #[cfg(not(windows))]
                 pid: self.pid,
@@ -887,7 +889,6 @@ impl ManagedProcess {
 
     fn mark_stopped(&mut self) {
         self.stop_requested = false;
-        self.stop_started = None;
         self.transition_to(ProcessState::Stopped);
         self.pid = None;
         #[cfg(windows)]
@@ -1003,6 +1004,7 @@ pub mod tests {
             handle,
             started: Instant::now(),
             timeout: Some(timeout),
+            stop_timeout: timeout,
             killer: ProcessKiller {
                 job_object: Some(job),
                 identity: None,
@@ -1195,9 +1197,9 @@ pub mod tests {
             elapsed >= grace,
             "force-killed before the grace: {elapsed:?}"
         );
-        // The upper bound rules out the 2 s undelivered fallback.
+        // Preservation check: a generated report keeps the configured grace, as before.
         assert!(
-            elapsed < grace + Duration::from_millis(500),
+            elapsed < grace + Duration::from_secs(1),
             "generated report extended the grace: {elapsed:?}"
         );
         assert_eq!(faults.terminate_calls.load(Ordering::SeqCst), 1);
@@ -1211,7 +1213,7 @@ pub mod tests {
         let faults = Arc::clone(&job.faults);
         let grace = Duration::from_secs(2);
         let mut stop = injected_stop(job, platform::SignalOutcome::Generated, grace);
-        // Pretend the stop was requested 2.5 s ago, so the grace has mostly run out.
+        // Backdate the wait start by 2.5 s, so the 2 s grace has already run out.
         stop.started = Instant::now()
             .checked_sub(Duration::from_millis(2500))
             .expect("host uptime exceeds the backdated stop start");
@@ -1242,8 +1244,33 @@ pub mod tests {
             "force-killed before the configured grace ran out: {forced_at:?}"
         );
         assert!(
-            forced_at < grace + Duration::from_millis(500),
+            forced_at < grace + Duration::from_secs(1),
             "pending helper report extended the grace: force-killed at {forced_at:?}"
+        );
+        assert_eq!(faults.terminate_calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn shared_wait_unreported_keeps_configured_grace() {
+        use std::sync::{Arc, atomic::Ordering};
+        let job = platform::JobObject::new().unwrap();
+        let faults = Arc::clone(&job.faults);
+        // Longer than UNDELIVERED_STOP_GRACE: the helper wait covers only 2 s of it, so the
+        // force-kill must still come at the configured grace, not at the 2 s allowance.
+        let grace = Duration::from_secs(3);
+        let mut stop = injected_stop(job, platform::SignalOutcome::Generated, grace);
+        stop.helper = Some(platform::SignalingHelper::test_unreported());
+        let stop_started = stop.started;
+        stop.run().await;
+        let forced_at = stop_started.elapsed();
+        assert!(
+            forced_at >= grace,
+            "force-killed before the configured 3 s grace ran out: {forced_at:?}"
+        );
+        assert!(
+            forced_at < grace + Duration::from_secs(1),
+            "unreported report shortened or extended a 3 s grace: force-killed at {forced_at:?}"
         );
         assert_eq!(faults.terminate_calls.load(Ordering::SeqCst), 1);
     }
@@ -1320,6 +1347,7 @@ pub mod tests {
             handle: tokio::spawn(async {}),
             started: Instant::now(),
             timeout: Some(Duration::from_secs(90)),
+            stop_timeout: Duration::from_secs(90),
             killer: ProcessKiller {
                 job_object: Some(job),
                 identity: None,
@@ -2167,6 +2195,31 @@ runtime_success_sec: 5
             started.elapsed() < std::time::Duration::from_secs(20),
             "an undelivered stop should force-kill instead of waiting out stop_timeout (took {:?})",
             started.elapsed()
+        );
+    }
+
+    /// An undelivered stop still honors a `stop_timeout` shorter than the 2 s allowance.
+    #[tokio::test]
+    async fn test_undelivered_graceful_stop_is_capped_by_stop_timeout() {
+        let mut cfg = test_helpers::sleep_test_config(60);
+        cfg.stop_timeout = Some(1);
+        let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
+        let mut exit_rx = spawn_ok(&mut proc);
+
+        // Staged as in the test above: nothing is sent, so the force kill is the only exit.
+        assert!(proc.mark_stop_requested());
+        proc.graceful_stop_failed = true;
+
+        let started = std::time::Instant::now();
+        proc.wait_for_stop().await;
+        let elapsed = started.elapsed();
+        let _ = exit_rx.try_recv();
+
+        assert_eq!(proc.state(), ProcessState::Stopped);
+        assert!(
+            elapsed >= std::time::Duration::from_secs(1)
+                && elapsed < std::time::Duration::from_millis(1900),
+            "a 1 s stop_timeout should cap the undelivered allowance (took {elapsed:?})"
         );
     }
 
