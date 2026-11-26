@@ -35,6 +35,13 @@ func readDeploymentID(path string) ([]byte, error) {
 	return os.ReadFile(path)
 }
 
+// experimentSuperseded reports whether the experiment directory is the stable one a promote
+// replaced. The promote here renames the directories, which leaves nothing behind to mistake for
+// an experiment.
+func experimentSuperseded(_ string) bool {
+	return false
+}
+
 // exchangeDirectories is not supported here: PromoteExperiment renames the directories instead
 // (replaceConfigDirectory).
 func exchangeDirectories(_, _ string) error {

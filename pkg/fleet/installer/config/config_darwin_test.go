@@ -496,6 +496,7 @@ func TestPromoteLeavesBothDirectoriesWhenTheSwapFails(t *testing.T) {
 	require.NoError(t, err, "the stable configuration was disturbed")
 	assert.Contains(t, string(content), "warn")
 	assert.Equal(t, State{StableDeploymentID: "stable-1", ExperimentDeploymentID: "experiment-1"}, readState(t, dirs))
+	assert.NoFileExists(t, filepath.Join(dirs.StablePath, supersededFile), "the failed promote left its marker")
 }
 
 // TestPromoteFallsBackWhenTheSwapIsUnsupported pins the fallback on a volume that cannot exchange
@@ -516,9 +517,34 @@ func TestPromoteFallsBackWhenTheSwapIsUnsupported(t *testing.T) {
 	assert.Equal(t, "experiment-1", readState(t, dirs).StableDeploymentID)
 }
 
+// TestAPromoteInterruptedBeforeTheSwapStillReportsTheStableID covers a crash between marking the
+// stable directory superseded and the exchange: nothing has moved, so the stable and experiment
+// IDs are reported as before, and Fleet can still promote or stop. A later start does not carry
+// the marker into its copy.
+func TestAPromoteInterruptedBeforeTheSwapStillReportsTheStableID(t *testing.T) {
+	dirs := newTestDirectories(t)
+	ctx := context.Background()
+	require.NoError(t, dirs.WriteExperiment(ctx, mergePatch("experiment-1", `{"log_level":"debug"}`)))
+	original := renameSwap
+	renameSwap = func(string, string) error { return nil } // the process dies before the exchange
+	require.NoError(t, exchangeDirectories(dirs.StablePath, dirs.ExperimentPath))
+	renameSwap = original
+	require.FileExists(t, filepath.Join(dirs.StablePath, supersededFile))
+
+	assert.Equal(t, State{StableDeploymentID: "stable-1", ExperimentDeploymentID: "experiment-1"}, readState(t, dirs))
+
+	require.NoError(t, dirs.RemoveExperiment(ctx))
+	require.NoError(t, dirs.WriteExperiment(ctx, mergePatch("experiment-2", `{"log_level":"info"}`)))
+	assert.NoFileExists(t, filepath.Join(dirs.ExperimentPath, supersededFile), "the copy carried the marker")
+	assert.Equal(t, State{StableDeploymentID: "stable-1", ExperimentDeploymentID: "experiment-2"}, readState(t, dirs))
+	require.NoError(t, dirs.PromoteExperiment(ctx))
+	assert.Equal(t, State{StableDeploymentID: "experiment-2"}, readState(t, dirs))
+}
+
 // TestAPromoteInterruptedAfterTheSwapIsReadAsPromoted covers a crash between the exchange and the
-// removal of what it left at the experiment path: the previous stable directory must not read as
-// a deployed experiment, and the next remove finishes the promote.
+// removal of what it left at the experiment path: the previous stable directory, carrying the
+// marker and the previous stable ID, must not read as a deployed experiment, nor be promoted, and
+// the next remove finishes the promote.
 func TestAPromoteInterruptedAfterTheSwapIsReadAsPromoted(t *testing.T) {
 	dirs := newTestDirectories(t)
 	ctx := context.Background()
@@ -526,7 +552,12 @@ func TestAPromoteInterruptedAfterTheSwapIsReadAsPromoted(t *testing.T) {
 
 	require.NoError(t, exchangeDirectories(dirs.StablePath, dirs.ExperimentPath))
 
+	assert.FileExists(t, filepath.Join(dirs.ExperimentPath, supersededFile))
+	assert.NoFileExists(t, filepath.Join(dirs.StablePath, supersededFile))
 	assert.Equal(t, State{StableDeploymentID: "experiment-1"}, readState(t, dirs))
+	err := dirs.PromoteExperiment(ctx)
+	require.Error(t, err, "the superseded stable directory must not be promoted back")
+	assert.Contains(t, err.Error(), "no configuration experiment")
 	require.NoError(t, dirs.RemoveExperiment(ctx))
 	assertResting(t, dirs)
 	assert.Equal(t, State{StableDeploymentID: "experiment-1"}, readState(t, dirs))

@@ -41,6 +41,10 @@ func (d *Directories) GetState() (State, error) {
 	if stableExists && experimentExists && isSameFile(stablePath, experimentPath) {
 		experimentDeploymentID = nil
 	}
+	// Nor is it when the experiment path holds what a promote left of the previous stable directory.
+	if experimentExists && experimentSuperseded(d.ExperimentPath) {
+		experimentDeploymentID = nil
+	}
 	return State{
 		StableDeploymentID:     string(stableDeploymentID),
 		ExperimentDeploymentID: string(experimentDeploymentID),

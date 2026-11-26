@@ -47,6 +47,9 @@ const (
 	// the stable directory, only root can enter it, and the experiment is published from it with a
 	// single rename, so the Agent never reads a half-built tree.
 	incomingPrefix = ".datadog-config-incoming"
+	// supersededFile marks a stable directory a promote is about to replace. The exchange moves it,
+	// marker included, to the experiment path, where it then reads as no experiment.
+	supersededFile = ".superseded"
 	// maxDeploymentIDSize bounds how much of a deployment ID file is read.
 	maxDeploymentIDSize = 256
 	// aclBatchSize bounds how many paths one chmod is given.
@@ -71,9 +74,12 @@ func (d *Directories) stageExperiment(ctx context.Context, fill func(dir string)
 	if err := checkCopy(ctx, d.StablePath, dir); err != nil {
 		return err
 	}
-	// The stable deployment ID came along with the copy: only fill writes the experiment's.
-	if err := os.RemoveAll(filepath.Join(dir, deploymentIDFile)); err != nil {
-		return err
+	// The stable deployment ID came along with the copy, and a promote that stopped before its
+	// exchange may have left its marker there: only fill writes the experiment's state.
+	for _, name := range []string{deploymentIDFile, supersededFile} {
+		if err := os.RemoveAll(filepath.Join(dir, name)); err != nil {
+			return err
+		}
 	}
 	if err := fill(dir); err != nil {
 		return err
@@ -262,27 +268,25 @@ var renameSwap = func(from, to string) error {
 // exchangeDirectories puts the deployed experiment at the stable path in one step, leaving the
 // previous stable directory at the experiment path.
 //
-// The stable deployment ID is removed first: the previous stable directory ends up at the
-// experiment path, and must not read as a deployed experiment if the promote stops there.
+// The stable directory is marked superseded first, and the exchange carries the marker along: the
+// previous stable directory then reads as no experiment if the promote stops after the exchange,
+// while the stable deployment ID is still reported if it stops before.
 func exchangeDirectories(stable, experiment string) error {
 	info, err := os.Lstat(experiment)
 	if err != nil {
 		return err
 	}
 	id, _ := readDeploymentID(filepath.Join(experiment, deploymentIDFile))
-	if !info.IsDir() || len(id) == 0 {
+	if !info.IsDir() || len(id) == 0 || experimentSuperseded(experiment) {
 		return fmt.Errorf("no configuration experiment is deployed at %s", experiment)
 	}
-	idPath := filepath.Join(stable, deploymentIDFile)
-	previous, _ := readDeploymentID(idPath)
-	if err := os.RemoveAll(idPath); err != nil {
-		return err
+	marker := filepath.Join(stable, supersededFile)
+	if err := os.WriteFile(marker, nil, 0640); err != nil {
+		return fmt.Errorf("could not mark %s as superseded: %w", stable, err)
 	}
 	if err := renameSwap(experiment, stable); err != nil {
-		if len(previous) > 0 {
-			if restoreErr := os.WriteFile(idPath, previous, 0640); restoreErr != nil {
-				log.Warnf("could not restore the stable deployment ID: %v", restoreErr)
-			}
+		if removeErr := os.Remove(marker); removeErr != nil {
+			log.Warnf("could not remove %s: %v", marker, removeErr)
 		}
 		if errors.Is(err, unix.ENOTSUP) {
 			return errors.ErrUnsupported
@@ -290,6 +294,13 @@ func exchangeDirectories(stable, experiment string) error {
 		return err
 	}
 	return nil
+}
+
+// experimentSuperseded reports whether the experiment directory is the stable one a promote
+// exchanged out: it carries the marker the promote put there, as a regular file.
+func experimentSuperseded(experiment string) bool {
+	info, err := os.Lstat(filepath.Join(experiment, supersededFile))
+	return err == nil && info.Mode().IsRegular()
 }
 
 // readDeploymentID reads a deployment ID from the Agent's configuration tree without following a
