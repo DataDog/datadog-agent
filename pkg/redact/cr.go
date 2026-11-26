@@ -90,6 +90,45 @@ func scrubUnstructuredCommand(m map[string]interface{}, scrubber *DataScrubber) 
 	}
 }
 
+// scrubCommandArguments preserves the original argument boundaries. A regex
+// match masks the whole argument containing the value, including any spaces.
+func (ds *DataScrubber) scrubCommandArguments(cmd, args []string) ([]string, []string, bool) {
+	original := make([]string, 0, len(cmd)+len(args))
+	original = append(original, cmd...)
+	original = append(original, args...)
+	cmdline := append([]string(nil), original...)
+	rawCmdline := " " + strings.Join(original, " ")
+	firstParam := 0
+	if len(cmd) > 0 {
+		firstParam = 1
+	}
+	changed := ds.scrubCommandTokens(cmdline, firstParam)
+	for _, pattern := range ds.RegexSensitivePatterns {
+		valueIndex := pattern.SubexpIndex("value")
+		if valueIndex < 0 {
+			continue
+		}
+		for _, match := range pattern.FindAllStringSubmatchIndex(rawCmdline, -1) {
+			start, end := match[2*valueIndex], match[2*valueIndex+1]
+			if start < 0 {
+				continue
+			}
+			offset := 1
+			for i, arg := range original {
+				argEnd := offset + len(arg)
+				overlapsValue := start < argEnd && end > offset
+				emptyValue := start == end && start >= offset && start <= argEnd
+				if overlapsValue || emptyValue {
+					cmdline[i] = redactedSecret
+					changed = true
+				}
+				offset = argEnd + 1
+			}
+		}
+	}
+	return cmdline[:len(cmd)], cmdline[len(cmd):], changed
+}
+
 // scrubSlice recursively scrubs sensitive values in a slice
 func scrubSlice(a []interface{}, scrubber *DataScrubber, parentSensitive bool) {
 	for i, item := range a {
@@ -128,4 +167,9 @@ func scrubEnvMap(env map[string]interface{}, scrubber *DataScrubber, parentSensi
 			env[name] = redactedSecret
 		}
 	}
+}
+
+func isSensitiveEnvVarName(name string, scrubber *DataScrubber) bool {
+	lowerName := strings.ToLower(name)
+	return scrubber.ContainsSensitiveWord(name) || lowerName == "token" || strings.HasSuffix(lowerName, "_token")
 }
