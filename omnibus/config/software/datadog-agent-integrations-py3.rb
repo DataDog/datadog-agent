@@ -112,10 +112,10 @@ build do
 
       # In FIPS builds these must use the Agent's OpenSSL, so they can't come with their own, even statically linked
       if fips_mode?
-        fips_critical = [
-          "#{site_packages_path}/cryptography/hazmat/bindings/_rust.abi3.so",
-          *Dir.glob("#{site_packages_path}/psycopg_c.libs/libpq-*.so*"),
-        ]
+        libpq = Dir.glob("#{site_packages_path}/psycopg_c.libs/libpq-*.so*")
+        raise "expected psycopg's libpq in #{site_packages_path}/psycopg_c.libs, got: #{libpq}" if libpq.size != 1
+
+        fips_critical = ["#{site_packages_path}/cryptography/hazmat/bindings/_rust.abi3.so", *libpq]
         missing = fips_critical - openssl_users
         raise "expected #{missing} to load OpenSSL from #{agent_lib_dir}" unless missing.empty?
       end
