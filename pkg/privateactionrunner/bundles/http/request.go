@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/httpclient"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
@@ -27,11 +28,23 @@ type Handler struct {
 	allowIMDSEndpoints bool
 	httpTimeout        time.Duration
 	httpClientProvider httpclient.Provider
+	encryptionStore    *encryptioncontext.Store
 }
 
 func (h *Handler) WithHttpClientProvider(httpClientProvider httpclient.Provider) *Handler {
 	h.httpClientProvider = httpClientProvider
 	return h
+}
+
+func (h *Handler) WithEncryptionStore(encryptionStore *encryptioncontext.Store) *Handler {
+	h.encryptionStore = encryptionStore
+	return h
+}
+
+// SecretInputs is the decrypted encryptedCredentials payload, sealed by the backend to the key
+// this runner returned from prepareEncryption (e.g. the Authorization header of an OAuth2 connection).
+type SecretInputs struct {
+	Headers map[string]string `json:"headers"`
 }
 
 func NewHttpRequestAction(cfg *config.Config) *Handler {
@@ -66,17 +79,19 @@ const (
 )
 
 type RequestInputs struct {
-	Verb                    string          `json:"verb"` // Allowed values: HEAD, GET, PUT, POST, DELETE, PATCH
-	URL                     string          `json:"url"`  // Must be a valid URL
-	Body                    interface{}     `json:"body,omitempty"`
-	RequestHeaders          []Header        `json:"requestHeaders,omitempty"`
-	URLParams               []UrlParam      `json:"urlParams,omitempty"`
-	FormData                []FormDataField `json:"formData,omitempty"`
-	FollowRedirect          *bool           `json:"followRedirect,omitempty"`
-	AllowExpiredCertificate *bool           `json:"allowExpiredCertificate,omitempty"`
-	ErrorOnStatus           []string        `json:"errorOnStatus,omitempty"`
-	ResponseParsing         *string         `json:"responseParsing,omitempty"`
-	ResponseEncoding        *string         `json:"responseEncoding,omitempty"`
+	Verb                    string                              `json:"verb"` // Allowed values: HEAD, GET, PUT, POST, DELETE, PATCH
+	URL                     string                              `json:"url"`  // Must be a valid URL
+	Body                    interface{}                         `json:"body,omitempty"`
+	RequestHeaders          []Header                            `json:"requestHeaders,omitempty"`
+	URLParams               []UrlParam                          `json:"urlParams,omitempty"`
+	FormData                []FormDataField                     `json:"formData,omitempty"`
+	FollowRedirect          *bool                               `json:"followRedirect,omitempty"`
+	AllowExpiredCertificate *bool                               `json:"allowExpiredCertificate,omitempty"`
+	ErrorOnStatus           []string                            `json:"errorOnStatus,omitempty"`
+	ResponseParsing         *string                             `json:"responseParsing,omitempty"`
+	ResponseEncoding        *string                             `json:"responseEncoding,omitempty"`
+	EncryptedCredentials    string                              `json:"encryptedCredentials,omitempty"`
+	EncryptionContext       encryptioncontext.EncryptionContext `json:"encryptionContext"`
 }
 
 var allowedVerbs = []string{
@@ -132,6 +147,20 @@ func (h *Handler) Run(
 	)
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(err, "fail to build header")
+	}
+	// Applied after buildHeaders so decrypted values never go through header variable evaluation.
+	if inputs.EncryptedCredentials != "" {
+		if h.encryptionStore == nil {
+			e := errors.New("encrypted credentials are not supported by this runner")
+			return nil, util.DefaultActionErrorWithDisplayError(e, e.Error())
+		}
+		secrets, err := encryptioncontext.DecryptInto[SecretInputs](h.encryptionStore, inputs.EncryptionContext, inputs.EncryptedCredentials)
+		if err != nil {
+			return nil, util.DefaultActionErrorWithDisplayError(err, "failed to decrypt credentials")
+		}
+		for key, value := range secrets.Headers {
+			headers[key] = value
+		}
 	}
 
 	// Validate inputs

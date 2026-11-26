@@ -17,6 +17,7 @@ go_library(
         "//pkg/privateactionrunner/adapters/logging",
         "//pkg/privateactionrunner/adapters/tmpl",
         "//pkg/privateactionrunner/bundle-support/httpclient",
+        "//pkg/privateactionrunner/libs/encryptioncontext",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
         "//pkg/privateactionrunner/util",
@@ -28,6 +29,7 @@ dd_agent_go_test(
     srcs = [
         "basic_runner_credential_smoke_test.go",
         "helper_test.go",
+        "request_encrypted_credentials_test.go",
         "request_test.go",
     ],
     embed = [":http"],
@@ -36,6 +38,7 @@ dd_agent_go_test(
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/bundle-support/httpclient",
         "//pkg/privateactionrunner/credentials/resolver",
+        "//pkg/privateactionrunner/libs/encryptioncontext",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
         "//pkg/proto/pbgo/privateactionrunner/privateactions",
