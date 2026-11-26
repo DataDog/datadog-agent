@@ -3619,6 +3619,37 @@ func TestActionSetVariableEnvpField(t *testing.T) {
 		})
 	})
 
+	t.Run("rejected", func(t *testing.T) {
+		// a rule that fails to load doesn't mark the variables it shares with
+		// valid rules, from a failing action or from a valid one before it
+		rs, errs := loadPolicy(t, &PolicyDef{Rules: []*RuleDefinition{
+			setEnvpRule("valid",
+				&SetDefinition{Name: "shared", Field: "exec.file.path"},
+				&SetDefinition{Name: "before_failing", Field: "exec.file.path"},
+			),
+			// an exec field in an open rule
+			{ID: "rejected_field", Expression: `open.file.path == "/tmp/test"`, Actions: []*ActionDefinition{
+				{Set: &SetDefinition{Name: "shared", Field: "exec.envp[0]"}},
+			}},
+			setEnvpRule("rejected_action",
+				&SetDefinition{Name: "before_failing", Field: "exec.envp[0]"},
+				&SetDefinition{Name: "failing", Field: "open.file.path"},
+			),
+		}}, PolicyLoaderOpts{})
+		require.Error(t, errs.ErrorOrNil())
+		// rejected when their actions are compiled
+		assert.Contains(t, errs.Error(), "is not compatible with 'open' rules")
+		assert.Contains(t, errs.Error(), "is not compatible with 'exec' rules")
+		assert.Contains(t, errs.Error(), "rejected_field")
+		assert.Contains(t, errs.Error(), "rejected_action")
+		require.NotNil(t, rs.GetRuleByID("valid"))
+
+		assertEnvpMarks(t, rs, map[string]envpMark{
+			"shared":         envpAsIs,
+			"before_failing": envpAsIs,
+		})
+	})
+
 	t.Run("chaining", func(t *testing.T) {
 		// a hidden variable can still be read by other rules
 		rs, errs := loadPolicy(t, &PolicyDef{Rules: []*RuleDefinition{
