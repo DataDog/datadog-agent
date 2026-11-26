@@ -37,7 +37,8 @@ type PendingDevice struct {
 	Failures       int
 }
 
-func (d DeviceInfo) equal(other DeviceInfo) bool {
+// Equal returns whether both infos describe the same device
+func (d DeviceInfo) Equal(other DeviceInfo) bool {
 	diff := math.Abs(float64(d.BootTimeMs - other.BootTimeMs))
 
 	return d.Name == other.Name &&
@@ -119,7 +120,7 @@ func (d *deviceDeduperImpl) checkPreviousIPs(deviceIP string) bool {
 
 func (d *deviceDeduperImpl) contains(device DeviceInfo) bool {
 	for _, existingDevice := range d.deviceInfos {
-		if existingDevice.equal(device) {
+		if existingDevice.Equal(device) {
 			return true
 		}
 	}
@@ -139,7 +140,7 @@ func (d *deviceDeduperImpl) AddPendingDevice(device PendingDevice) {
 	newPendingDevices := make([]PendingDevice, 0)
 
 	for _, pendingDevice := range d.pendingDevices {
-		if pendingDevice.Info.equal(device.Info) {
+		if pendingDevice.Info.Equal(device.Info) {
 			if minimumIP(pendingDevice.IP, device.IP) != device.IP {
 				// current device IP is greater than the pending one, so we don't add it
 				return

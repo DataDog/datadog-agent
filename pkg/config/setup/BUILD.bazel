@@ -19,6 +19,7 @@ go_library(
         "constants_compat.go",
         "delegated_auth_endpoints.go",
         "fixup_init.go",
+        "fleet_test_helpers_windows.go",
         "otlp.go",
         "process.go",
         "system_probe.go",

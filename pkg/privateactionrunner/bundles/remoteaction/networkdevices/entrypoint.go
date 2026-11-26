@@ -21,7 +21,8 @@ type NetworkDevicesBundle struct {
 func NewNetworkDevices(encryptionStore *encryptioncontext.Store, ipcClient ipc.HTTPClient) types.Bundle {
 	return &NetworkDevicesBundle{
 		actions: map[string]types.Action{
-			"connectivityCheck": NewConnectivityCheckHandler(encryptionStore, ipcClient),
+			"connectivityCheck":   NewConnectivityCheckHandler(encryptionStore, ipcClient),
+			"triggerNdmDiscovery": NewTriggerDiscoveryHandler(ipcClient),
 		},
 	}
 }

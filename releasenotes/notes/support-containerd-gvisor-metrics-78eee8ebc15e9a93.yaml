@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Support container metrics for gVisor (runsc) containers using containerd.
+    Their stats are now collected from containerd or the kubelet instead of
+    the host cgroups, which gVisor leaves empty.

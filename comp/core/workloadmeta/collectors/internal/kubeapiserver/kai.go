@@ -35,7 +35,7 @@ func shouldHaveKAIMetadata(cfg config.Reader) bool {
 	return cfg.GetBool("cluster_agent.kai_scheduler.enabled")
 }
 
-func newKAIPodGroupStore(wlmetaStore workloadmeta.Component, client dynamic.Interface, gvr schema.GroupVersionResource) (*cache.Reflector, *reflectorStore) {
+func newKAIPodGroupStore(wlmetaStore workloadmeta.Component, client dynamic.Interface, gvr schema.GroupVersionResource, cfg config.Reader) (*cache.Reflector, *reflectorStore) {
 	listerWatcher := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			obj, err := client.Resource(gvr).Namespace(metav1.NamespaceAll).List(ctx, options)
@@ -56,7 +56,7 @@ func newKAIPodGroupStore(wlmetaStore workloadmeta.Component, client dynamic.Inte
 	store := &reflectorStore{
 		wlmetaStore: wlmetaStore,
 		seen:        make(map[string]workloadmeta.EntityID),
-		parser:      kubernetesresourceparsers.NewKAIPodGroupParser(),
+		parser:      kubernetesresourceparsers.NewKAIPodGroupParser(cfg.GetBool("cluster_agent.kai_scheduler.events.enabled")),
 	}
 	reflector := cache.NewNamedReflector(
 		componentName,

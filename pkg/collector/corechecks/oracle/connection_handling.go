@@ -19,6 +19,9 @@ import (
 
 func buildGoOraURL(c *Check) string {
 	connectionOptions := map[string]string{"TIMEOUT": c.config.SocketTimeoutString()}
+	if c.config.Schemas.Enabled {
+		connectionOptions["PREFETCH_ROWS"] = "100"
+	}
 	if c.config.Protocol == "TCPS" {
 		connectionOptions["SSL"] = "TRUE"
 		if c.config.Wallet != "" {

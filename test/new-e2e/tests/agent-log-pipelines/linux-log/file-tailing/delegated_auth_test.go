@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/utils"
 )
 
@@ -32,11 +33,12 @@ const (
 	delegatedAuthAPIHost = "api.datadoghq.com"
 	delegatedLogsHost    = "agent-http-intake.logs.datadoghq.com"
 	delegatedLogFile     = "dela-dual-shipping.log"
+	delegatedLogPath     = utils.LinuxLogsFolderPath + "/" + delegatedLogFile
 	delegatedLogMessage  = "delegated-auth-log-delivered"
 	delegatedServerPath  = "/tmp/dela_auth_server.py"
 	delegatedLogConfig   = `logs:
   - type: file
-    path: /tmp/logs/dela-dual-shipping.log
+    path: ` + delegatedLogPath + `
     service: dela-dual-shipping`
 )
 
@@ -109,10 +111,9 @@ logs_config:
 	s.UpdateEnv(delegatedAuthProvisioner(config))
 	require.NoError(t, s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
-	logPath := utils.LinuxLogsFolderPath + "/" + delegatedLogFile
 	s.Env().RemoteHost.MustExecute("sudo mkdir -p " + utils.LinuxLogsFolderPath)
-	s.Env().RemoteHost.MustExecute("sudo touch " + logPath)
-	s.Env().RemoteHost.MustExecute("sudo chmod +r " + logPath)
+	s.Env().RemoteHost.MustExecute("sudo touch " + delegatedLogPath)
+	s.Env().RemoteHost.MustExecute("sudo chmod +r " + delegatedLogPath)
 	utils.AppendLog(s, delegatedLogFile, delegatedLogMessage, 1)
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
@@ -123,7 +124,12 @@ logs_config:
 		require.NoError(c, payloadsErr)
 		matched := false
 		for _, payload := range payloads {
-			if payload.APIKey == "dela-e2e-api-key" && bytes.Contains(payload.Data, []byte(delegatedLogMessage)) {
+			if payload.APIKey != "dela-e2e-api-key" {
+				continue
+			}
+			data, inflateErr := aggregator.Inflate(payload.Data, payload.Encoding)
+			require.NoError(c, inflateErr)
+			if bytes.Contains(data, []byte(delegatedLogMessage)) {
 				matched = true
 				break
 			}

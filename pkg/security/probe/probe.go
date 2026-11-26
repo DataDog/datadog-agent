@@ -137,6 +137,7 @@ func newProbe(config *config.Config, opts Opts) (*Probe, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create event scrubber: %w", err)
 	}
+	scrubber.WithEnvsWithValue(config.Probe.EnvsWithValue)
 
 	return &Probe{
 		Opts:            opts,

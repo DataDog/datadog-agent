@@ -255,6 +255,27 @@ class TestDDEvalAlignment(unittest.TestCase):
             with self.subTest(kwargs=kwargs), self.assertRaisesRegex(Exit, "production LLMObs"):
                 eval_ddeval.body(None, **kwargs)
 
+    def test_staging_submits_to_named_test_drive_with_pinned_artifact(self):
+        submitted = self.submit(env="staging", workflow_test_drive="aad165-scorer-v3", limit=1)
+        args = submitted["args"]
+        self.assertEqual(args[args.index("--env") + 1], "staging")
+        self.assertEqual(args[args.index("--workflow-test-drive") + 1], "aad165-scorer-v3")
+        self.assertEqual(args[args.index("--limit") + 1], "1")
+        self.assertNotIn("--data-env", args)
+        executor_config = submitted["config"]["executor_config"]
+        self.assertEqual(executor_config["binary_artifacts"]["testbench"]["uri"], PRESIGNED_URL)
+        self.assertFalse(executor_config["score_timeout_as_zero"])
+        self.assertNotIn("time_mode", executor_config)
+
+    def test_invalid_remote_targets_fail_before_build_or_upload(self):
+        for kwargs, message in (
+            ({"env": "prod"}, "--env must be"),
+            ({"env": "staging", "workflow_test_drive": " "}, "requires --workflow-test-drive"),
+            ({"workflow_test_drive": "my-drive"}, "requires --env staging"),
+        ):
+            with self.subTest(kwargs=kwargs), self.assertRaisesRegex(Exit, message):
+                eval_ddeval.body(None, **kwargs)
+
     def test_conflicting_config_aliases_fail_before_build_or_upload(self):
         with self.assertRaisesRegex(Exit, "must not specify different files"):
             eval_ddeval.body(None, config="one.json", testbench_config="two.json")

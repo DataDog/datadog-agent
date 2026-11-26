@@ -190,7 +190,7 @@ func WithMsiFromPackagePath(target, product string, fipsMode bool) MsiexecOption
 // WithProduct specifies the product name to target for msiexec
 func WithProduct(productName string) MsiexecOption {
 	return func(a *msiexecArgs) error {
-		product, err := FindProductCode(productName)
+		product, err := FindProductCodeFromUninstallRegistry(productName)
 		if err != nil {
 			return fmt.Errorf("error trying to find product %s: %w", productName, err)
 		}
@@ -663,10 +663,13 @@ func formatPropertyArg(key, value string) string {
 
 func setProductCodeTags(span *telemetry.Span) {
 	// Get all product codes associated with "Datadog Agent" display name
-	products, err := FindAllProductCodes("Datadog Agent")
-	if err != nil {
+	products, err := FindMsiProductCodesByName("Datadog Agent")
+	if err != nil && len(products) == 0 {
 		span.SetTag("installer.msi.product_codes", fmt.Sprintf("error getting product codes: %v", err))
 	} else {
+		if err != nil {
+			span.SetTag("installer.msi.product_codes_error", fmt.Sprintf("error getting product codes: %v", err))
+		}
 		productCodes := []string{}
 		features := []string{}
 		for _, product := range products {
@@ -680,7 +683,7 @@ func setProductCodeTags(span *telemetry.Span) {
 		span.SetTag("installer.msi.product_codes", strings.Join(productCodes, ";"))
 		span.SetTag("installer.msi.features", strings.Join(features, ";"))
 	}
-	uninstallProducts, err := FindUninstallProductCodes("Datadog Agent")
+	uninstallProducts, err := FindUninstallRegistryProductCodes("Datadog Agent")
 	if err != nil {
 		span.SetTag("installer.uninstall_product_codes", fmt.Sprintf("error getting uninstall product codes: %v", err))
 	} else {

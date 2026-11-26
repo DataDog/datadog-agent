@@ -454,8 +454,10 @@
   "new-e2e-fleet-extensions: [windows, --run \"TestFleetExtensions$/.+/(TestExtensionInstallAndRemove|TestExtensionSurvivesExperiment|TestExtensionSurvivesExperimentManagedByProcmgr)$\"]": [
     "TestFleetExtensions"
   ],
-  "new-e2e-fleet-upgrade: [linux, --run \"TestFleetUpgrade$|TestFleetIntegrationPreservation$\"]": [
-    "TestFleetIntegrationPreservation",
+  "new-e2e-fleet-upgrade: [linux, --run \"TestFleetIntegrationPreservation$\"]": [
+    "TestFleetIntegrationPreservation"
+  ],
+  "new-e2e-fleet-upgrade: [linux, --run \"TestFleetUpgrade$\"]": [
     "TestFleetUpgrade"
   ],
   "new-e2e-fleet-upgrade: [windows, --run \"TestFleetUpgrade$\" --skip \"TestFleetUpgrade$/.+/(TestUpgrade|TestIntegrationPreservationDebToOCI|TestUpgradeFailureHealth)$\"]": [
