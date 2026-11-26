@@ -894,20 +894,20 @@
         "pulumi-resource-aws-v7.55.0-windows-amd64.tar.gz": "sha1-MTqmuC7xgq+wolLVgxc7WPV9sJM=",
         "pulumi-resource-aws-v7.55.0-windows-arm64.tar.gz": "sha1-HNhRIptWyRVJSn2kKou6j8mmH9U="
       },
-      "https://github.com/pulumi/pulumi-awsx/releases/download/v3.13.0/pulumi-awsx_3.13.0_checksums.txt": {
-        "pulumi-resource-awsx-v3.13.0-darwin-amd64.tar.gz": "sha1-4c+URGhfPt7KU85zqljfNLbmC64=",
-        "pulumi-resource-awsx-v3.13.0-darwin-arm64.tar.gz": "sha1-v/ES6PI72Mg9UNLgskArqB19ZOY=",
-        "pulumi-resource-awsx-v3.13.0-linux-amd64.tar.gz": "sha1-G+Vltfs9Gzo35C40nhe3hZzkJ6k=",
-        "pulumi-resource-awsx-v3.13.0-linux-arm64.tar.gz": "sha1-NgAYsvliebzCjXEkbFMInFYUMh8=",
-        "pulumi-resource-awsx-v3.13.0-windows-amd64.tar.gz": "sha1-h5/Gj6Xvh8LZzOnOMP3p2RDGSgU=",
-        "pulumi-resource-awsx-v3.13.0-windows-arm64.tar.gz": "sha1-9eaMWUJOxxEbtdH1NhX33osa+tk="
+      "https://github.com/pulumi/pulumi-awsx/releases/download/v3.14.0/pulumi-awsx_3.14.0_checksums.txt": {
+        "pulumi-resource-awsx-v3.14.0-darwin-amd64.tar.gz": "sha1-P0MQywWdpR0fyb7kbN4kGaBSs5s=",
+        "pulumi-resource-awsx-v3.14.0-darwin-arm64.tar.gz": "sha1-yOoAUWWekkBFHB/lgIf5oOdyFG8=",
+        "pulumi-resource-awsx-v3.14.0-linux-amd64.tar.gz": "sha1-atBO07DmV1L1HHDXTn4y6P9ZAss=",
+        "pulumi-resource-awsx-v3.14.0-linux-arm64.tar.gz": "sha1-vmQP432RgtcP8LqIcB6dTrpPQY0=",
+        "pulumi-resource-awsx-v3.14.0-windows-amd64.tar.gz": "sha1-djnixMQJvd18VjY7XUrPBlhPiZo=",
+        "pulumi-resource-awsx-v3.14.0-windows-arm64.tar.gz": "sha1-dt2qesROBpOYQ6HF1C26KvziqsE="
       },
-      "https://github.com/pulumi/pulumi-azure-native/releases/download/v3.30.0/pulumi-azure-native_3.30.0_checksums.txt": {
-        "pulumi-resource-azure-native-v3.30.0-darwin-amd64.tar.gz": "sha1-SDD6hUdB+YBeRlAiUQea6+7qxig=",
-        "pulumi-resource-azure-native-v3.30.0-darwin-arm64.tar.gz": "sha1-A31ivb6CR/x8f9Ai85QCloOj6Io=",
-        "pulumi-resource-azure-native-v3.30.0-linux-amd64.tar.gz": "sha1-Gnj9sUckffpfooT27vKCJNQaNuk=",
-        "pulumi-resource-azure-native-v3.30.0-linux-arm64.tar.gz": "sha1-+noQqnLlMxxtDasSeha7XUCnolI=",
-        "pulumi-resource-azure-native-v3.30.0-windows-amd64.tar.gz": "sha1-85TcPLIOLClXYpP5usb/jkvm+0w="
+      "https://github.com/pulumi/pulumi-azure-native/releases/download/v3.32.0/pulumi-azure-native_3.32.0_checksums.txt": {
+        "pulumi-resource-azure-native-v3.32.0-darwin-amd64.tar.gz": "sha1-d1Byu4Dj90vP9ssAMlvOi8/b2bg=",
+        "pulumi-resource-azure-native-v3.32.0-darwin-arm64.tar.gz": "sha1-GFxOIbgCah4It5IOsIPNeC6buL0=",
+        "pulumi-resource-azure-native-v3.32.0-linux-amd64.tar.gz": "sha1-KlrlAY14aWd0e69qpLYZ5WMbjRQ=",
+        "pulumi-resource-azure-native-v3.32.0-linux-arm64.tar.gz": "sha1-G9OStHkCNSLJPTGwePP5t1wGx/4=",
+        "pulumi-resource-azure-native-v3.32.0-windows-amd64.tar.gz": "sha1-lSvATPq7P3bzgGdtS7pACXhYM5s="
       },
       "https://github.com/pulumi/pulumi-command/releases/download/v1.3.0/pulumi-command_1.3.0_checksums.txt": {
         "pulumi-resource-command-v1.3.0-darwin-amd64.tar.gz": "sha256-s9krML7JXg+oT6O1Qwe0o1dh++Oux9FUxlrr52oaLX8=",
@@ -949,13 +949,13 @@
         "pulumi-resource-eks-v4.6.0-windows-amd64.tar.gz": "sha1-94ir7VMnVLR4Og9YMCS11bQPHWU=",
         "pulumi-resource-eks-v4.6.0-windows-arm64.tar.gz": "sha1-DkhiY/D0xFo5KQv5HpqsS78uGY8="
       },
-      "https://github.com/pulumi/pulumi-gcp/releases/download/v10.3.0/pulumi-gcp_10.3.0_checksums.txt": {
-        "pulumi-resource-gcp-v10.3.0-darwin-amd64.tar.gz": "sha1-0MXHM7GRfD5T54R9MFeV981vCkk=",
-        "pulumi-resource-gcp-v10.3.0-darwin-arm64.tar.gz": "sha1-fZDSuQlxPCNsU9asHt+xw70COrs=",
-        "pulumi-resource-gcp-v10.3.0-linux-amd64.tar.gz": "sha1-a1J+NgM0CLGsMWm4EeuxqK0+94w=",
-        "pulumi-resource-gcp-v10.3.0-linux-arm64.tar.gz": "sha1-OT8UqC6NgYUqBTLxz7SH9ys+pDk=",
-        "pulumi-resource-gcp-v10.3.0-windows-amd64.tar.gz": "sha1-aO1cDkjRSXgkGL9SKnNtdH+tUUE=",
-        "pulumi-resource-gcp-v10.3.0-windows-arm64.tar.gz": "sha1-7fub/pMqHLhDc1UxZQJCQ50a1qE="
+      "https://github.com/pulumi/pulumi-gcp/releases/download/v10.5.0/pulumi-gcp_10.5.0_checksums.txt": {
+        "pulumi-resource-gcp-v10.5.0-darwin-amd64.tar.gz": "sha1-SvbQ35uQUFH0OcRXolmmZoFKIMU=",
+        "pulumi-resource-gcp-v10.5.0-darwin-arm64.tar.gz": "sha1-qJMNvOBau3gp4Q/LGeUQ0eyIYCY=",
+        "pulumi-resource-gcp-v10.5.0-linux-amd64.tar.gz": "sha1-8ttEHWuCjGoKsFu3rm07+fDVPvg=",
+        "pulumi-resource-gcp-v10.5.0-linux-arm64.tar.gz": "sha1-Le7npFACLdzDJBe7z0GB/E+nK5E=",
+        "pulumi-resource-gcp-v10.5.0-windows-amd64.tar.gz": "sha1-fVkxRL+7dfWW5YjzojTKPz7wJGU=",
+        "pulumi-resource-gcp-v10.5.0-windows-arm64.tar.gz": "sha1-wHLlNGhQlxTXOTf4QnPfQBOXFV4="
       },
       "https://github.com/pulumi/pulumi-kubernetes/releases/download/v4.19.0/pulumi-kubernetes_4.19.0_checksums.txt": {
         "pulumi-resource-kubernetes-v4.19.0-darwin-amd64.tar.gz": "sha256-3VMMAwhVu/12ZXPKt9q8clAQP7+Js4OgwlfWL8pW2Sk=",
@@ -1009,7 +1009,7 @@
         "name": "aws",
         "url": "https://github.com/pulumi/pulumi-aws"
       },
-      "https://registry.npmjs.org/@pulumi/awsx/3.13.0": {
+      "https://registry.npmjs.org/@pulumi/awsx/3.14.0": {
         "dependencies": {
           "@pulumi/aws": "v7.53.0",
           "@pulumi/docker": "v4.6.0",
@@ -1018,7 +1018,7 @@
         "name": "awsx",
         "url": "https://github.com/pulumi/pulumi-awsx"
       },
-      "https://registry.npmjs.org/@pulumi/azure-native/3.30.0": {
+      "https://registry.npmjs.org/@pulumi/azure-native/3.32.0": {
         "dependencies": {},
         "name": "azure-native",
         "url": "https://github.com/pulumi/pulumi-azure-native"
@@ -1052,7 +1052,7 @@
         "name": "eks",
         "url": "https://github.com/pulumi/pulumi-eks"
       },
-      "https://registry.npmjs.org/@pulumi/gcp/10.3.0": {
+      "https://registry.npmjs.org/@pulumi/gcp/10.5.0": {
         "dependencies": {},
         "name": "gcp",
         "url": "https://github.com/pulumi/pulumi-gcp"
