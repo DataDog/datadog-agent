@@ -53,8 +53,7 @@ type gpuPeering struct {
 type PeeringScanner struct {
 	interval time.Duration
 	lastScan time.Time
-	gpus     []string // lowercase UUIDs of the last scan, sorted
-	scanned  map[string]*gpuPeering
+	scanned  map[string]*gpuPeering // by lowercase UUID; one entry per GPU of the last scan
 }
 
 // NewPeeringScanner creates a scanner that rescans at most once per interval.
@@ -66,24 +65,25 @@ func NewPeeringScanner(interval time.Duration) *PeeringScanner {
 // previous scan unless the interval elapsed or the GPU set changed.
 func (s *PeeringScanner) Scan(now time.Time, devices []safenvml.Device) map[string]Peering {
 	physical := physicalDevices(devices)
-	uuids := make([]string, 0, len(physical))
 	byBDF := make(map[string]string, len(physical))
+	sameGPUs := s.scanned != nil && len(s.scanned) == len(physical)
 	for _, device := range physical {
 		uuid := strings.ToLower(device.UUID)
-		uuids = append(uuids, uuid)
 		if device.PCIBusID != "" {
 			byBDF[device.PCIBusID] = uuid
 		}
+		if _, ok := s.scanned[uuid]; !ok {
+			sameGPUs = false
+		}
 	}
-	slices.Sort(uuids)
 
-	if s.scanned == nil || !slices.Equal(uuids, s.gpus) || now.Sub(s.lastScan) >= s.interval {
+	if !sameGPUs || now.Sub(s.lastScan) >= s.interval {
 		scanned := make(map[string]*gpuPeering, len(physical))
 		for _, device := range physical {
 			uuid := strings.ToLower(device.UUID)
 			scanned[uuid] = scanGPU(device, physical, byBDF, s.scanned[uuid])
 		}
-		s.scanned, s.gpus, s.lastScan = scanned, uuids, now
+		s.scanned, s.lastScan = scanned, now
 		s.logIncomplete()
 	}
 
