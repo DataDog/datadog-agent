@@ -230,7 +230,7 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 					containerID = ctrID
 					return true, nil
 				}
-				err = fmt.Errorf("%w: %w", ErrStatCGroupPath, err)
+				err = fmt.Errorf("%w %s: %w", ErrStatCGroupPath, cgroupPath, err)
 				lastStatErr = err
 			}
 		}

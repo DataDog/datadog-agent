@@ -447,5 +447,30 @@ func TestCGroupFS(t *testing.T) {
 			assert.Empty(t, containerID)
 			assert.Empty(t, cgroupContext.CGroupID)
 		})
+
+		t.Run("find-cgroup-context-stat-error-hybrid-v1", func(t *testing.T) {
+			const pid = uint32(700002)
+			expectedCgroupPath := "/systemd/docker/d308fe417b11e128c3b42d910f3b3df6f778439edba9ab600e62dfeb5631a46f"
+
+			procTaskDir := filepath.Join(hostProc, "700002/task/700002")
+			require.NoError(t, os.MkdirAll(procTaskDir, 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(procTaskDir, "cgroup"), []byte("1:name=systemd:/docker/d308fe417b11e128c3b42d910f3b3df6f778439edba9ab600e62dfeb5631a46f\n0::/\n"), 0o644))
+
+			cgroupDir := filepath.Join(tempDir, "sys/fs/cgroup", expectedCgroupPath)
+			require.NoError(t, os.MkdirAll(cgroupDir, 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(cgroupDir, "cgroup.procs"), []byte("700002\n"), 0o644))
+
+			cfsHybrid := *cfs
+			cfsHybrid.rootCGroupPath = ""
+			cfsHybrid.statPath = func(string, *CGroupContext) error {
+				return unix.ENOENT
+			}
+
+			containerID, cgroupContext, _, err := cfsHybrid.FindCGroupContext(pid, pid)
+			require.ErrorIs(t, err, ErrStatCGroupPath)
+			require.ErrorIs(t, err, unix.ENOENT)
+			assert.Empty(t, containerID)
+			assert.Empty(t, cgroupContext.CGroupID)
+		})
 	})
 }
