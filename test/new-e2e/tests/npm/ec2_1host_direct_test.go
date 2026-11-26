@@ -47,7 +47,7 @@ func (v *ec2VMDirectSuite) SetupSuite() {
 	v.Env().RemoteHost.Reconnect()
 
 	// prefetch docker image locally
-	pullNPMToolsImage(v.T(), v.Env().RemoteHost)
+	pullNPMToolsImage(v.Env().RemoteHost)
 }
 
 // BeforeTest will be called before each test

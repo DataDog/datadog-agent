@@ -8,7 +8,6 @@ package npm
 import (
 	"fmt"
 	"strings"
-	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
@@ -21,10 +20,6 @@ import (
 // `docker run` and docker-compose calls of the tests find it locally and never pull it.
 const npmToolsImage = "ghcr.io/datadog/apps-npm-tools:" + apps.Version
 
-// npmToolsDockerConfig is the docker config directory used for the internal registry pull. A
-// dedicated directory enables the ECR credential helper without touching the user's config.
-const npmToolsDockerConfig = "/tmp/npm-tools-docker"
-
 // internalNPMToolsImage returns the apps-npm-tools image in the internal registry, or an empty
 // string when no registry is configured. The workload app images are published at the root of the
 // first registry of the image pull registry parameter, which may hold a comma-separated list.
@@ -36,19 +31,20 @@ func internalNPMToolsImage(imagePullRegistry string) string {
 	return reg + "/apps-npm-tools:" + apps.Version
 }
 
-// pullNPMToolsImage pulls apps-npm-tools on host from the internal registry and tags it as
-// npmToolsImage. Pulls from ghcr.io time out often enough to fail whole suites in SetupSuite, so
-// ghcr.io is only the fallback for a host that cannot pull from the internal registry.
-func pullNPMToolsImage(t testing.TB, host *components.RemoteHost) {
+// pullNPMToolsImage pulls apps-npm-tools on host and stores it as npmToolsImage. Pulls from
+// ghcr.io time out often enough to fail whole suites in SetupSuite, so when an internal registry is
+// configured, as in CI, the image comes from there and a failed pull fails the suite. ghcr.io is only
+// used for runs without a registry.
+func pullNPMToolsImage(host *components.RemoteHost) {
 	reg, _ := runner.GetProfile().ParamStore().GetWithDefault(parameters.ImagePullRegistry, "")
-	if image := internalNPMToolsImage(reg); image != "" {
-		_, err := host.Execute(fmt.Sprintf(
-			`mkdir -p %[1]s && echo '{"credsStore":"ecr-login"}' > %[1]s/config.json && DOCKER_CONFIG=%[1]s docker pull %[2]s && docker tag %[2]s %[3]s`,
-			npmToolsDockerConfig, image, npmToolsImage))
-		if err == nil {
-			return
-		}
-		t.Logf("failed to pull %s, falling back to %s: %v", image, npmToolsImage, err)
+	image := internalNPMToolsImage(reg)
+	if image == "" {
+		host.MustExecute("docker pull " + npmToolsImage)
+		return
 	}
-	host.MustExecute("docker pull " + npmToolsImage)
+	// A private docker config directory enables the ECR credential helper without touching the
+	// user's config, and is removed whether or not the pull succeeds.
+	host.MustExecute(fmt.Sprintf(
+		`cfg=$(mktemp -d) && trap 'rm -rf "$cfg"' EXIT && echo '{"credsStore":"ecr-login"}' > "$cfg/config.json" && DOCKER_CONFIG="$cfg" docker pull %[1]s && docker tag %[1]s %[2]s`,
+		image, npmToolsImage))
 }

@@ -91,7 +91,7 @@ func (v *ec2VMContainerizedSuite) SetupSuite() {
 	defer v.CleanupOnSetupFailure()
 
 	// prefetch docker image locally
-	pullNPMToolsImage(v.T(), v.Env().RemoteHost)
+	pullNPMToolsImage(v.Env().RemoteHost)
 }
 
 // BeforeTest will be called before each test

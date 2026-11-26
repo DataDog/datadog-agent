@@ -60,7 +60,7 @@ func (v *ec2VMSELinuxSuite) SetupSuite() {
 	v.Env().RemoteHost.Reconnect()
 
 	// prefetch docker image locally
-	pullNPMToolsImage(v.T(), v.Env().RemoteHost)
+	pullNPMToolsImage(v.Env().RemoteHost)
 }
 
 // TestFakeIntakeNPM_HostRequests Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
