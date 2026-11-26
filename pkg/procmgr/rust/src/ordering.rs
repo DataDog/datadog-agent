@@ -17,6 +17,10 @@ pub struct ResolvedOrder {
     pub skipped: Vec<String>,
     /// Human-readable warnings (e.g. missing dependencies).
     pub warnings: Vec<String>,
+    /// For each index, the indices that depend on it (must start after it), sorted.
+    /// Shutdown stops a process only after its dependents have stopped.
+    /// Shutdown breaks each dependency cycle by dropping one of its edges (see `shutdown_ordered`).
+    pub dependents: Vec<Vec<usize>>,
 }
 
 /// Resolve the startup order of processes using a topological sort on the
@@ -102,10 +106,20 @@ pub fn resolve_order(configs: &[ProcessDefinition]) -> ResolvedOrder {
         .map(|i| configs[i].name.clone())
         .collect();
 
+    let dependents = edges
+        .into_iter()
+        .map(|set| {
+            let mut v: Vec<usize> = set.into_iter().collect();
+            v.sort_unstable();
+            v
+        })
+        .collect();
+
     ResolvedOrder {
         order,
         skipped,
         warnings,
+        dependents,
     }
 }
 
@@ -147,6 +161,34 @@ mod tests {
             names_in_order(&configs, &result.order),
             vec!["alpha", "bravo", "charlie"]
         );
+    }
+
+    #[test]
+    fn test_dependents_after_constraint() {
+        // api (0) starts after db (1), so api is a dependent of db.
+        let configs = vec![np("api", &["db"], &[]), np("db", &[], &[])];
+        let result = resolve_order(&configs);
+        assert_eq!(result.dependents, vec![vec![], vec![0]]);
+    }
+
+    #[test]
+    fn test_dependents_before_constraint() {
+        // db (0) starts before api (1), so api is a dependent of db.
+        let configs = vec![np("db", &[], &["api"]), np("api", &[], &[])];
+        let result = resolve_order(&configs);
+        assert_eq!(result.dependents, vec![vec![1], vec![]]);
+    }
+
+    #[test]
+    fn test_dependents_chain() {
+        // a after b, b after c: b is a dependent of c, and a is a dependent of b.
+        let configs = vec![
+            np("a", &["b"], &[]),
+            np("b", &["c"], &[]),
+            np("c", &[], &[]),
+        ];
+        let result = resolve_order(&configs);
+        assert_eq!(result.dependents, vec![vec![], vec![0], vec![1]]);
     }
 
     #[test]

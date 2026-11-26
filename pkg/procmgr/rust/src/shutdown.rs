@@ -6,40 +6,143 @@
 use crate::process::ManagedProcess;
 #[cfg(test)]
 use crate::process::test_exit_channel;
+use std::collections::{HashMap, HashSet};
+use tokio::task::{Id, JoinSet};
 
-/// Signals each process in `order` and starts its wait right after its own signal, then
-/// runs all the waits concurrently. Each process is force-killed at its own deadline, so
-/// a dependency with a short `stop_timeout` can be killed while its dependents are still
-/// shutting down.
-pub async fn shutdown_ordered(processes: &mut [ManagedProcess], order: &[usize]) {
-    let mut waits = Vec::new();
-    for &idx in order {
-        processes[idx].request_stop();
-        if let Some(wait) = processes[idx].take_stop_wait() {
-            waits.push((idx, tokio::spawn(wait.run())));
+/// Stops every process in `order`. A process is signaled only after each process that
+/// depends on it (`dependents[idx]`, limited to `order`) has finished stopping, so a
+/// dependency stays up while its dependents shut down. Processes whose dependents are
+/// all finished stop concurrently, and each is force-killed at its own deadline.
+///
+/// A dependency cycle among the stopped processes cannot be ordered. When no stop wait is
+/// active and no process is ready, the scheduler walks unfinished dependents from the
+/// earliest pending process until one repeats. It then drops only the dependency edge that
+/// closes that walk, which lies on a cycle. Every other dependency edge keeps its order.
+pub async fn shutdown_ordered(
+    processes: &mut [ManagedProcess],
+    order: &[usize],
+    dependents: &[Vec<usize>],
+) {
+    let scheduled: HashSet<usize> = order.iter().copied().collect();
+    let mut blockers: HashMap<usize, HashSet<usize>> = order
+        .iter()
+        .map(|&idx| {
+            let waits_for = dependents
+                .get(idx)
+                .into_iter()
+                .flatten()
+                .copied()
+                .filter(|&dep| dep != idx && scheduled.contains(&dep))
+                .collect();
+            (idx, waits_for)
+        })
+        .collect();
+    let mut signaled: HashSet<usize> = HashSet::new();
+    let mut finished: HashSet<usize> = HashSet::new();
+    let mut waits: JoinSet<usize> = JoinSet::new();
+    let mut wait_owner: HashMap<Id, usize> = HashMap::new();
+
+    loop {
+        // A process without a wait finishes at once, which can unblock others, so repeat
+        // until no new process can be signaled.
+        let mut progressed = true;
+        while progressed {
+            progressed = false;
+            for &idx in order {
+                if signaled.contains(&idx) || !blockers[&idx].iter().all(|b| finished.contains(b)) {
+                    continue;
+                }
+                signaled.insert(idx);
+                processes[idx].request_stop();
+                match processes[idx].take_stop_wait() {
+                    Some(wait) => {
+                        let handle = waits.spawn(async move {
+                            wait.run().await;
+                            idx
+                        });
+                        wait_owner.insert(handle.id(), idx);
+                    }
+                    None => {
+                        processes[idx].finish_stop();
+                        finished.insert(idx);
+                        progressed = true;
+                    }
+                }
+            }
+        }
+
+        if waits.is_empty() {
+            // No stop wait is active, so every unsignaled process waits on another unsignaled one.
+            let Some(start) = order.iter().copied().find(|idx| !signaled.contains(idx)) else {
+                break;
+            };
+            match cycle_edge(start, order, &blockers, &finished) {
+                Some((from, to)) => {
+                    log::warn!(
+                        "[{}] dependency cycle among stopped processes, will not wait for dependent [{}]",
+                        processes[from].name(),
+                        processes[to].name()
+                    );
+                    blockers.entry(from).or_default().remove(&to);
+                }
+                None => {
+                    // Unreachable while the invariant above holds. Clearing the blockers of
+                    // `start` still guarantees progress if it ever does not.
+                    debug_assert!(false, "stall without a cycle edge");
+                    blockers.entry(start).or_default().clear();
+                }
+            }
+            continue;
+        }
+
+        match waits.join_next().await {
+            Some(Ok(idx)) => {
+                processes[idx].finish_stop();
+                finished.insert(idx);
+            }
+            Some(Err(error)) => {
+                // finish_stop is skipped for a failed wait, so its state stays unfinalized.
+                let idx = wait_owner[&error.id()];
+                log::warn!(
+                    "[{}] stop wait failed: {error}; leaving its state unfinalized",
+                    processes[idx].name()
+                );
+                finished.insert(idx);
+            }
+            None => unreachable!("waits checked non-empty above"),
         }
     }
-    let mut failed = Vec::new();
-    for (idx, wait) in waits {
-        if let Err(error) = wait.await {
-            log::warn!(
-                "[{}] stop wait failed: {error}; leaving its state unfinalized",
-                processes[idx].name()
-            );
-            failed.push(idx);
+}
+
+/// Follows unfinished dependents from `start` until a process repeats. Returns the edge
+/// `(from, to)` that closes the walk, where `to` was already visited, so the edge lies on a
+/// cycle. With no stop wait active, every unsignaled process has an unfinished dependent that
+/// is also unsignaled, so the walk normally finds such an edge. `None` means that invariant
+/// does not hold.
+fn cycle_edge(
+    start: usize,
+    order: &[usize],
+    blockers: &HashMap<usize, HashSet<usize>>,
+    finished: &HashSet<usize>,
+) -> Option<(usize, usize)> {
+    let mut seen = HashSet::from([start]);
+    let mut current = start;
+    loop {
+        let next = order
+            .iter()
+            .copied()
+            .find(|dep| blockers[&current].contains(dep) && !finished.contains(dep))?;
+        if !seen.insert(next) {
+            return Some((current, next));
         }
-    }
-    for &idx in order {
-        if !failed.contains(&idx) {
-            processes[idx].finish_stop();
-        }
+        current = next;
     }
 }
 
 #[cfg(test)]
 pub async fn shutdown_all(processes: &mut [ManagedProcess]) {
     let order: Vec<usize> = (0..processes.len()).collect();
-    shutdown_ordered(processes, &order).await;
+    shutdown_ordered(processes, &order, &[]).await;
 }
 
 #[cfg(test)]
@@ -47,7 +150,6 @@ mod tests {
     use super::*;
     use crate::state::ProcessState;
     use crate::test_helpers;
-    #[cfg(unix)]
     use tokio::time::Duration;
 
     fn sleep_config() -> crate::config::ProcessConfig {
@@ -268,7 +370,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_shutdown_ordered_reverse() {
+    async fn test_shutdown_ordered_explicit_order() {
         let mut p1 =
             ManagedProcess::new_config("p1".into(), test_helpers::test_uuid(), sleep_config());
         let mut p2 =
@@ -280,16 +382,209 @@ mod tests {
         p3.spawn(test_exit_channel().0).unwrap();
 
         let mut procs = vec![p1, p2, p3];
-        shutdown_ordered(&mut procs, &[2, 1, 0]).await;
+        shutdown_ordered(&mut procs, &[2, 1, 0], &[]).await;
 
         assert_eq!(procs[0].state(), ProcessState::Stopped);
         assert_eq!(procs[1].state(), ProcessState::Stopped);
         assert_eq!(procs[2].state(), ProcessState::Stopped);
     }
 
+    /// The dependency (index 0) handles TERM by writing a marker, but only if the dependent
+    /// (index 1) has already written its own marker. The dependent takes about 300 ms to finish,
+    /// so the dependency's marker appears only if it was signaled after the dependent finished.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_shutdown_ordered_signals_dependency_after_dependents() {
+        let dir = tempfile::tempdir().unwrap();
+        let done = dir.path().join("dependent.done").display().to_string();
+        let ordered = dir.path().join("dependency.ordered");
+        let dependency_ready = dir.path().join("dependency.ready");
+        let dependent_ready = dir.path().join("dependent.ready");
+
+        let dependency_script = format!(
+            "trap 'if [ -e \"{done}\" ]; then touch \"{}\"; fi; exit 0' TERM; touch \"{}\"; while :; do sleep 0.05; done",
+            ordered.display(),
+            dependency_ready.display()
+        );
+        let dependent_script = format!(
+            "trap 'sleep 0.3; touch \"{done}\"; exit 0' TERM; touch \"{}\"; while :; do sleep 0.05; done",
+            dependent_ready.display()
+        );
+        let mut dependency = ManagedProcess::new_config(
+            "dependency".into(),
+            test_helpers::test_uuid(),
+            test_helpers::make_config("/bin/sh", vec!["-c".into(), dependency_script]),
+        );
+        let mut dependent = ManagedProcess::new_config(
+            "dependent".into(),
+            test_helpers::test_uuid(),
+            test_helpers::make_config("/bin/sh", vec!["-c".into(), dependent_script]),
+        );
+        dependency.spawn(test_exit_channel().0).unwrap();
+        dependent.spawn(test_exit_channel().0).unwrap();
+        test_helpers::wait_for_file(&dependency_ready, Duration::from_secs(10)).await;
+        test_helpers::wait_for_file(&dependent_ready, Duration::from_secs(10)).await;
+
+        let mut procs = vec![dependency, dependent];
+        // dependents[0] == [1]: the dependency must wait for the dependent to stop.
+        shutdown_ordered(&mut procs, &[1, 0], &[vec![1], vec![]]).await;
+
+        assert!(
+            std::path::Path::new(&done).exists(),
+            "dependent should have finished stopping"
+        );
+        assert!(
+            ordered.exists(),
+            "dependency was signaled before its dependent finished stopping"
+        );
+        for proc in &procs {
+            assert_eq!(proc.state(), ProcessState::Stopped);
+        }
+    }
+
+    /// A dependency cycle cannot be ordered, so shutdown must still finish and stop every process.
+    #[tokio::test]
+    async fn test_shutdown_ordered_breaks_dependency_cycle() {
+        let mut p1 =
+            ManagedProcess::new_config("p1".into(), test_helpers::test_uuid(), sleep_config());
+        let mut p2 =
+            ManagedProcess::new_config("p2".into(), test_helpers::test_uuid(), sleep_config());
+        p1.spawn(test_exit_channel().0).unwrap();
+        p2.spawn(test_exit_channel().0).unwrap();
+
+        let mut procs = vec![p1, p2];
+        let completed = tokio::time::timeout(
+            Duration::from_secs(60),
+            shutdown_ordered(&mut procs, &[0, 1], &[vec![1], vec![0]]),
+        )
+        .await;
+        assert!(completed.is_ok(), "shutdown hung on a dependency cycle");
+
+        assert_eq!(procs[0].state(), ProcessState::Stopped);
+        assert_eq!(procs[1].state(), ProcessState::Stopped);
+    }
+
+    /// `db` (index 0) is not in the cycle. `a` (index 1) depends on `db`, and `a` and `b`
+    /// (index 2) form a cycle. `db` must not be signaled before `a` has finished. `db` writes
+    /// its marker only if `a` has already finished, and `a` exits as soon as it gets TERM.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_shutdown_ordered_breaks_cycle_not_upstream_dependency() {
+        let dir = tempfile::tempdir().unwrap();
+        let a_done = dir.path().join("a.done").display().to_string();
+        let db_ordered = dir.path().join("db.ordered");
+        let db_ready = dir.path().join("db.ready");
+        let a_ready = dir.path().join("a.ready");
+
+        let db_script = format!(
+            "trap 'if [ -e \"{a_done}\" ]; then touch \"{}\"; fi; exit 0' TERM; touch \"{}\"; while :; do sleep 0.05; done",
+            db_ordered.display(),
+            db_ready.display()
+        );
+        let a_script = format!(
+            "trap 'touch \"{a_done}\"; exit 0' TERM; touch \"{}\"; while :; do sleep 0.05; done",
+            a_ready.display()
+        );
+        let mut db = ManagedProcess::new_config(
+            "db".into(),
+            test_helpers::test_uuid(),
+            test_helpers::make_config("/bin/sh", vec!["-c".into(), db_script]),
+        );
+        let mut a = ManagedProcess::new_config(
+            "a".into(),
+            test_helpers::test_uuid(),
+            test_helpers::make_config("/bin/sh", vec!["-c".into(), a_script]),
+        );
+        let mut b =
+            ManagedProcess::new_config("b".into(), test_helpers::test_uuid(), sleep_config());
+        db.spawn(test_exit_channel().0).unwrap();
+        a.spawn(test_exit_channel().0).unwrap();
+        b.spawn(test_exit_channel().0).unwrap();
+        test_helpers::wait_for_file(&db_ready, Duration::from_secs(10)).await;
+        test_helpers::wait_for_file(&a_ready, Duration::from_secs(10)).await;
+
+        let mut procs = vec![db, a, b];
+        // dependents[0] == [1]: a starts after db. a and b depend on each other.
+        let dependents = vec![vec![1], vec![2], vec![1]];
+        let completed = tokio::time::timeout(
+            Duration::from_secs(60),
+            shutdown_ordered(&mut procs, &[0, 1, 2], &dependents),
+        )
+        .await;
+        assert!(completed.is_ok(), "shutdown hung on a dependency cycle");
+
+        assert!(
+            db_ordered.exists(),
+            "db was signaled before its dependent a had finished stopping"
+        );
+        for proc in &procs {
+            assert_eq!(proc.state(), ProcessState::Stopped);
+        }
+    }
+
+    /// Two cycles are connected by one edge. Process 0 is in a cycle with 1, and process 2 is in
+    /// a cycle with 3. Process 2 also depends on process 0, so process 2 must stop first. Breaking the
+    /// first cycle must not drop that edge. Process 0 writes its marker only if process 2 has
+    /// already finished.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_shutdown_ordered_breaks_two_connected_cycles() {
+        let dir = tempfile::tempdir().unwrap();
+        let p2_done = dir.path().join("p2.done").display().to_string();
+        let p0_ordered = dir.path().join("p0.ordered");
+        let p0_ready = dir.path().join("p0.ready");
+        let p2_ready = dir.path().join("p2.ready");
+
+        let p0_script = format!(
+            "trap 'if [ -e \"{p2_done}\" ]; then touch \"{}\"; fi; exit 0' TERM; touch \"{}\"; while :; do sleep 0.05; done",
+            p0_ordered.display(),
+            p0_ready.display()
+        );
+        let p2_script = format!(
+            "trap 'touch \"{p2_done}\"; exit 0' TERM; touch \"{}\"; while :; do sleep 0.05; done",
+            p2_ready.display()
+        );
+        let mut procs = vec![
+            ManagedProcess::new_config(
+                "p0".into(),
+                test_helpers::test_uuid(),
+                test_helpers::make_config("/bin/sh", vec!["-c".into(), p0_script]),
+            ),
+            ManagedProcess::new_config("p1".into(), test_helpers::test_uuid(), sleep_config()),
+            ManagedProcess::new_config(
+                "p2".into(),
+                test_helpers::test_uuid(),
+                test_helpers::make_config("/bin/sh", vec!["-c".into(), p2_script]),
+            ),
+            ManagedProcess::new_config("p3".into(), test_helpers::test_uuid(), sleep_config()),
+        ];
+        for proc in &mut procs {
+            proc.spawn(test_exit_channel().0).unwrap();
+        }
+        test_helpers::wait_for_file(&p0_ready, Duration::from_secs(10)).await;
+        test_helpers::wait_for_file(&p2_ready, Duration::from_secs(10)).await;
+
+        // dependents[0] == [1, 2]: 0 stops after 1 and 2. Cycles: 0 <-> 1 and 2 <-> 3.
+        let dependents = vec![vec![1, 2], vec![0], vec![3], vec![2]];
+        let completed = tokio::time::timeout(
+            Duration::from_secs(60),
+            shutdown_ordered(&mut procs, &[0, 1, 2, 3], &dependents),
+        )
+        .await;
+        assert!(completed.is_ok(), "shutdown hung on two connected cycles");
+
+        assert!(
+            p0_ordered.exists(),
+            "p0 was signaled before its dependent p2 had finished stopping"
+        );
+        for proc in &procs {
+            assert_eq!(proc.state(), ProcessState::Stopped);
+        }
+    }
+
     #[tokio::test]
     async fn test_shutdown_ordered_empty() {
         let mut procs: Vec<ManagedProcess> = vec![];
-        shutdown_ordered(&mut procs, &[]).await;
+        shutdown_ordered(&mut procs, &[], &[]).await;
     }
 }
