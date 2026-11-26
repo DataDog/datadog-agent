@@ -58,7 +58,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestInstallFromMSI() {
 	s.installCurrentAgentVersion(
 		WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
 		// TODO: remove override once image is published in prod
-		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
+		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
 		WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:"+version.Version()),
 		WithMSILogFile("install.log"),
 	)
@@ -84,7 +84,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestUpgradeWithMSI() {
 		WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
 		// TODO: remove override once image is published in prod
 		// TODO: support DD_INSTALLER_REGISTRY_URL
-		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
+		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
 		WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:"+oldVersion.Version()),
 		WithMSILogFile("install.log"),
 	)
@@ -103,7 +103,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestUpgradeWithMSI() {
 		WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
 		// TODO: remove override once image is published in prod
 		// TODO: support DD_INSTALLER_REGISTRY_URL
-		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
+		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
 		WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:"+newVersion.Version()),
 		WithMSILogFile("upgrade.log"),
 	)
@@ -135,7 +135,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestMSIRollbackRemovesLibrary() {
 		WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
 		// TODO: remove override once image is published in prod
 		// TODO: support DD_INSTALLER_REGISTRY_URL
-		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
+		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
 		WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:"+version.Version()),
 		WithMSILogFile("install-rollback.log"),
 		WithMSIArg("WIXFAILWHENDEFERRED=1"),
@@ -159,7 +159,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestMSISkipRollbackIfInstalled() {
 		WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
 		// TODO: remove override once image is published in prod
 		// TODO: support DD_INSTALLER_REGISTRY_URL
-		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
+		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
 		WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:"+oldVersion.Version()),
 		WithMSILogFile("install.log"),
 	)
@@ -169,7 +169,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestMSISkipRollbackIfInstalled() {
 		WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
 		// TODO: remove override once image is published in prod
 		// TODO: support DD_INSTALLER_REGISTRY_URL
-		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
+		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
 		WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:"+newVersion.Version()),
 		WithMSILogFile("install-rollback.log"),
 		WithMSIArg("WIXFAILWHENDEFERRED=1"),
@@ -191,7 +191,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestUninstallKeepsLibrary() {
 	s.installCurrentAgentVersion(
 		WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
 		// TODO: remove override once image is published in prod
-		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
+		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
 		WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:"+version.Version()),
 		WithMSILogFile("install.log"),
 	)
@@ -221,7 +221,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestUninstallScript() {
 	s.installCurrentAgentVersion(
 		WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
 		// TODO: remove override once image is published in prod
-		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
+		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
 		WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:"+version.Version()),
 		WithMSILogFile("install.log"),
 	)
@@ -254,7 +254,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestMSIPurge() {
 	s.installCurrentAgentVersion(
 		WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
 		// TODO: remove override once image is published in prod
-		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
+		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
 		WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:"+version.Version()),
 		WithMSILogFile("install.log"),
 	)
@@ -290,7 +290,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestMSIPurgeDisabled() {
 	s.installCurrentAgentVersion(
 		WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
 		// TODO: remove override once image is published in prod
-		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
+		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
 		WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:"+version.Version()),
 		WithMSILogFile("install.log"),
 	)
@@ -329,7 +329,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestDisableEnableScript() {
 	s.installCurrentAgentVersion(
 		WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
 		// TODO: remove override once image is published in prod
-		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
+		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
 		WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:"+version.Version()),
 		WithMSILogFile("install.log"),
 	)
@@ -370,7 +370,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestEnableSSIOnReinstall() {
 	// First install: Install agent without SSI enabled
 	s.installCurrentAgentVersion(
 		// TODO: remove override once image is published in prod
-		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
+		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
 		WithMSILogFile("install-no-ssi.log"),
 	)
 
@@ -384,7 +384,7 @@ func (s *testAgentMSIInstallsDotnetLibrary) TestEnableSSIOnReinstall() {
 	s.installCurrentAgentVersion(
 		WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
 		// TODO: remove override once image is published in prod
-		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com.internal.dda-testing.com"),
+		WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
 		WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:"+version.Version()),
 		WithMSILogFile("install-with-ssi.log"),
 	)

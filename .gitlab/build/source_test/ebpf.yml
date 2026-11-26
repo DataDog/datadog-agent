@@ -1,7 +1,7 @@
 ---
 .retrieve_sysprobe_deps:
   - mkdir -p $DATADOG_AGENT_EMBEDDED_PATH/include
-  - bazel run @llvm_bpf//:install -- --destdir=/opt/datadog-agent
+  - bazel run //bazel/toolchains/llvm_bpf:install -- --destdir=/opt/datadog-agent/embedded/bin
 
 # Run tests for eBPF code
 .tests_linux_ebpf:

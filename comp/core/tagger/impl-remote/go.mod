@@ -43,7 +43,7 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.3.0 // indirect
 	cloud.google.com/go/compute v1.75.0 // indirect
 	cloud.google.com/go/compute/metadata v0.10.0 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.216 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.217 // indirect
 	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.72.0-rc.5 // indirect

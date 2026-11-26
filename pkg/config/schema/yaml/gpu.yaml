@@ -44,6 +44,14 @@ properties:
       AMD sysfs metrics require only the core Agent.
       On Linux Agents with NVML support, enabling GPU Monitoring delays readiness
       until NVML initializes or gpu.readiness_timeout expires (one minute by default).
+  legacy_host_metadata:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: |-
+      Set to true to enable the deprecated legacy GPU host metadata payload.
+      Inventory metadata collection must also be enabled.
   readiness_timeout:
     node_type: setting
     type: string

@@ -3664,10 +3664,13 @@ properties:
       type: string
     visibility: public
     description: |-
-      The list of environment variables that are allowed to be resolved in check
-      configurations.
-      If the list is not set or is empty, all envs are allowed except the ones
-      bound to Agent settings holding credentials, like `DD_API_KEY`.
+      The list of environment variables that are allowed to be resolved by
+      `%%env_*%%` template variables in Autodiscovery check and logs configurations.
+      If the list is not set or is empty, all environment variables are allowed
+      except the ones bound to Agent settings holding credentials, like
+      `DD_API_KEY` or `DD_CLUSTER_AGENT_AUTH_TOKEN`, which are rejected.
+      When the list is set, only the environment variables it contains are
+      allowed, including credential ones listed explicitly.
       This list only applies when `ad_disable_env_var_resolution` is set to false.
     example: |2-
 
@@ -5930,6 +5933,10 @@ properties:
                     node_type: setting
                     type: integer
                     default: 120
+                  min_segment:
+                    node_type: setting
+                    type: integer
+                    default: 12
               scanwelch:
                 node_type: section
                 type: object
@@ -5942,6 +5949,10 @@ properties:
                     node_type: setting
                     type: integer
                     default: 120
+                  min_segment:
+                    node_type: setting
+                    type: integer
+                    default: 12
               bocpd:
                 node_type: section
                 type: object
@@ -6305,7 +6316,7 @@ properties:
     description: |-
       Whether distributions and histogram buckets submitted by checks are timestamped when the check
       run completes, one point per run, like other check metrics. Set to false to timestamp them per
-      second of submission instead.
+      second of submission instead. When false, metric_tag_filterlist doesn't filter tags from them.
     comment: |-
       Temporary opt-out for timestamping check sketches at commit, to be removed once the new behavior
       has shipped without issue.
@@ -8822,6 +8833,16 @@ properties:
     default: true
     tags:
     - full-agent-only:true
+  inventories_checks_max_logs_metadata_entries:
+    node_type: setting
+    type: integer
+    default: 1000
+    tags:
+    - full-agent-only:true
+    comment: |-
+      Maximum number of logs_metadata entries reported per logs source name in the
+      inventory checks payload; extra entries are dropped (sources in error first) and
+      counted in logs_metadata_truncated. 0 or a negative value disables the cap.
   inventories_collect_cloud_provider_account_id:
     node_type: setting
     type: boolean

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"strconv"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -1116,6 +1117,14 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_LOGS_CONFIG_LOGS_DD_URL"),
 				"value": pulumi.Sprintf("%s", fi.URL),
+			},
+			pulumi.StringMap{
+				"name":  pulumi.String("DD_GENRESOURCES_LOGS_DD_URL"),
+				"value": fi.URL,
+			},
+			pulumi.StringMap{
+				"name":  pulumi.String("DD_GENRESOURCES_LOGS_NO_SSL"),
+				"value": fi.Scheme.ApplyT(func(scheme string) string { return strconv.FormatBool(scheme == "http") }).(pulumi.StringOutput),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_AGENT_TELEMETRY_LOGS_DD_URL"),

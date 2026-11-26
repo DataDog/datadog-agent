@@ -546,12 +546,26 @@ func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, err
 	return true, nil
 }
 
-// Insert inserts the event in the activity tree
-func (at *ActivityTree) Insert(event *model.Event, insertMissingProcesses bool, imageTag string, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, *ProcessNode, *NodeBase, error) {
+// nodeList returns the activity node of a single-activity event. A nil node yields a nil
+// slice, which callers already treat as "this event has no activity node".
+func nodeList(node *NodeBase) []*NodeBase {
+	if node == nil {
+		return nil
+	}
+	return []*NodeBase{node}
+}
+
+// Insert inserts the event in the activity tree.
+//
+// The activity nodes are the nodes whose lastAnomalySent tracks this event: the process
+// node for an exec, the leaf for a file, DNS, bind, connect or mount, and every syscall
+// or capability node the event touched. Nodes that already existed are included. The slice
+// is nil for event types that are not tracked per node.
+func (at *ActivityTree) Insert(event *model.Event, insertMissingProcesses bool, imageTag string, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, *ProcessNode, []*NodeBase, error) {
 	freshTag := at.GetImageTagID(imageTag) == 0
 	imageTagID := at.GetOrInsertImageTag(imageTag)
 
-	newEntry, node, eventNodeBase, err := at.insertEvent(event, false /* !dryRun */, insertMissingProcesses, imageTagID, generationType, resolvers)
+	newEntry, node, activityNodes, err := at.insertEvent(event, false /* !dryRun */, insertMissingProcesses, imageTagID, generationType, resolvers)
 	if newEntry {
 		at.Stats.counts[event.GetEventType()].addedCount[generationType].Inc()
 	}
@@ -562,7 +576,7 @@ func (at *ActivityTree) Insert(event *model.Event, insertMissingProcesses bool, 
 		at.removeImageTag(imageTag)
 	}
 
-	return newEntry, node, eventNodeBase, err
+	return newEntry, node, activityNodes, err
 }
 
 // Contains looks up the event in the activity tree
@@ -577,8 +591,9 @@ func (at *ActivityTree) Contains(event *model.Event, insertMissingProcesses bool
 }
 
 // insertEvent inserts the event in the activity tree, returns true if the event generated a new entry in the tree.
-// The returned *NodeBase is the event-level node (file, bind, etc.) when applicable, nil otherwise.
-func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissingProcesses bool, imageTagID uint64, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, *ProcessNode, *NodeBase, error) {
+// The activity nodes are the ones Insert documents. A dry run of syscalls or capabilities returns
+// no nodes: those scans stop at the first value that is not already present.
+func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissingProcesses bool, imageTagID uint64, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, *ProcessNode, []*NodeBase, error) {
 	if generationType == Unknown || generationType > MaxNodeGenerationType {
 		return false, nil, nil, fmt.Errorf("%w: %v", ErrInvalidGenerationType, generationType)
 	}
@@ -610,7 +625,7 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 	}
 
 	at.Stats.counts[event.GetEventType()].processedCount.Inc()
-	newEntry, eventNodeBase := at.insertActivity(node, newProcessNode, event, imageTagID, generationType, dryRun, resolvers)
+	newEntry, activityNodes := at.insertActivity(node, newProcessNode, event, imageTagID, generationType, dryRun, resolvers)
 	if unattributed && !node.hasActivity() {
 		// the unattributed activity only exists to hold activity, which a failed bind for instance doesn't have
 		at.Stats.SizeBytes -= node.size()
@@ -619,34 +634,39 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 	}
 	node.AppendImageTagID(imageTagID, event.ResolveEventTime())
 
-	return newEntry, node, eventNodeBase, nil
+	return newEntry, node, activityNodes, nil
 }
 
 // insertActivity inserts the activity of the event in its process node, returns true if it generated a new entry in the
-// tree, and the event-level node when applicable
-func (at *ActivityTree) insertActivity(node *ProcessNode, newProcessNode bool, event *model.Event, imageTagID uint64, generationType NodeGenerationType, dryRun bool, resolvers *resolvers.EBPFResolvers) (bool, *NodeBase) {
+// tree, and the activity nodes of the event, as described by Insert
+func (at *ActivityTree) insertActivity(node *ProcessNode, newProcessNode bool, event *model.Event, imageTagID uint64, generationType NodeGenerationType, dryRun bool, resolvers *resolvers.EBPFResolvers) (bool, []*NodeBase) {
 	switch event.GetEventType() {
 	case model.ExecEventType:
 		node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
-		return newProcessNode, nil
+		return newProcessNode, nodeList(&node.NodeBase)
 	case model.FileOpenEventType:
-		return node.InsertFileEvent(&event.Open.File, event, imageTagID, generationType, at.Stats, dryRun, at.pathsReducer, resolvers)
+		newEntry, eventNode := node.InsertFileEvent(&event.Open.File, event, imageTagID, generationType, at.Stats, dryRun, at.pathsReducer, resolvers)
+		return newEntry, nodeList(eventNode)
 	case model.DNSEventType:
-		return node.InsertDNSEvent(event, imageTagID, generationType, at.Stats, at.DNSNames, dryRun, at.DNSMatchMaxDepth), nil
+		newEntry, eventNode := node.InsertDNSEvent(event, imageTagID, generationType, at.Stats, at.DNSNames, dryRun, at.DNSMatchMaxDepth)
+		return newEntry, nodeList(eventNode)
 	case model.IMDSEventType:
 		return node.InsertIMDSEvent(event, imageTagID, generationType, at.Stats, dryRun), nil
 	case model.BindEventType:
-		return node.InsertBindEvent(event, imageTagID, generationType, at.Stats, dryRun)
+		newEntry, eventNode := node.InsertBindEvent(event, imageTagID, generationType, at.Stats, dryRun)
+		return newEntry, nodeList(eventNode)
 	case model.ConnectEventType:
-		return node.InsertConnectEvent(event, imageTagID, generationType, at.Stats, dryRun)
+		newEntry, eventNode := node.InsertConnectEvent(event, imageTagID, generationType, at.Stats, dryRun)
+		return newEntry, nodeList(eventNode)
 	case model.SyscallsEventType:
-		return node.InsertSyscalls(event, imageTagID, at.SyscallsMask, at.Stats, dryRun), nil
+		return node.InsertSyscalls(event, imageTagID, at.SyscallsMask, at.Stats, dryRun)
 	case model.NetworkFlowMonitorEventType:
 		return node.InsertNetworkFlowMonitorEvent(event, imageTagID, generationType, at.Stats, dryRun), nil
 	case model.CapabilitiesEventType:
-		return node.InsertCapabilitiesUsageEvent(event, imageTagID, at.Stats, dryRun), nil
+		return node.InsertCapabilitiesUsageEvent(event, imageTagID, at.Stats, dryRun)
 	case model.FileMountEventType, model.FileMoveMountEventType, model.PivotRootEventType:
-		return at.insertMountEvent(event, imageTagID, generationType, resolvers, dryRun), nil
+		newEntry, eventNode := at.insertMountEvent(event, imageTagID, generationType, resolvers, dryRun)
+		return newEntry, nodeList(eventNode)
 	case model.ExitEventType:
 		node.Process.ExitTime = event.Timestamp
 	}

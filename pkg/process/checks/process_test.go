@@ -619,7 +619,7 @@ func TestProcessWithNoCommandline(t *testing.T) {
 	useImprovedAlgorithm := false
 	serviceExtractor := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), hostnameimpl.MockModule(), taggerfxmock.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, nil, false, serviceExtractor, nil, taggerMock, now)
+	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, nil, false, false, serviceExtractor, nil, taggerMock, now)
 	assert.Len(t, procs, 1)
 
 	require.Len(t, procs[""], 1)
@@ -741,31 +741,65 @@ func (s gpuTagsSubscriber) GetGPUTags() map[int32][]string {
 
 func TestProcessCheckZombieConfigControlsAggregation(t *testing.T) {
 	for _, tc := range []struct {
-		ignoreZombies, collectRealtime bool
+		ignoreZombies, enableAllZombies, collectRealtime bool
+		wantNonGPUZombie                                 bool
 	}{
 		{
-			ignoreZombies:   false,
-			collectRealtime: false,
+			ignoreZombies:    false,
+			enableAllZombies: false,
+			collectRealtime:  false,
+			wantNonGPUZombie: false,
 		},
 		{
-			ignoreZombies:   true,
-			collectRealtime: false,
+			ignoreZombies:    true,
+			enableAllZombies: false,
+			collectRealtime:  false,
+			wantNonGPUZombie: false,
 		},
 		{
-			ignoreZombies:   false,
-			collectRealtime: true,
+			ignoreZombies:    false,
+			enableAllZombies: false,
+			collectRealtime:  true,
+			wantNonGPUZombie: false,
 		},
 		{
-			ignoreZombies:   true,
-			collectRealtime: true,
+			ignoreZombies:    true,
+			enableAllZombies: false,
+			collectRealtime:  true,
+			wantNonGPUZombie: false,
+		},
+		{
+			ignoreZombies:    false,
+			enableAllZombies: true,
+			collectRealtime:  false,
+			wantNonGPUZombie: true,
+		},
+		{
+			ignoreZombies:    true,
+			enableAllZombies: true,
+			collectRealtime:  false,
+			wantNonGPUZombie: false,
+		},
+		{
+			ignoreZombies:    false,
+			enableAllZombies: true,
+			collectRealtime:  true,
+			wantNonGPUZombie: true,
+		},
+		{
+			ignoreZombies:    true,
+			enableAllZombies: true,
+			collectRealtime:  true,
+			wantNonGPUZombie: false,
 		},
 	} {
-		t.Run(fmt.Sprintf("ignore_zombies=%t/realtime=%t", tc.ignoreZombies, tc.collectRealtime), func(t *testing.T) {
+		t.Run(fmt.Sprintf("ignore_zombies=%t/enable_all_zombies=%t/realtime=%t", tc.ignoreZombies, tc.enableAllZombies, tc.collectRealtime), func(t *testing.T) {
 			processCheck, probe, wmeta := processCheckWithMocks(t)
 			cfg := configmock.New(t)
 			cfg.SetInTest(configIgnoreZombies, tc.ignoreZombies)
+			cfg.SetInTest(configEnableAllZombies, tc.enableAllZombies)
 			processCheck.config = cfg
-			processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
+			processCheck.loadZombieConfig()
 
 			now := processCheck.clock.Now().UnixMilli()
 			parent := makeProcessWithCreateTime(1, "parent", now)
@@ -792,6 +826,9 @@ func TestProcessCheckZombieConfigControlsAggregation(t *testing.T) {
 			if !tc.ignoreZombies {
 				wantPIDs = append(wantPIDs, zombie1.Pid, zombie2.Pid, emptyTaggedZombie.Pid)
 				wantSubmittedPIDs = append(wantSubmittedPIDs, zombie1.Pid, emptyTaggedZombie.Pid)
+			}
+			if tc.wantNonGPUZombie {
+				wantSubmittedPIDs = append(wantSubmittedPIDs, zombie2.Pid)
 			}
 			if tc.collectRealtime {
 				wantRealtimeState = map[int32]*procutil.Stats{parent.Pid: parent.Stats}
@@ -830,7 +867,13 @@ func TestProcessCheckZombieConfigControlsAggregation(t *testing.T) {
 			}
 			assert.Equal(t, wantZombieCount, parentProcess.ZombieChildrenCount)
 			assert.Zero(t, parentProcess.ZombieNetRate)
-			assert.NotContains(t, payloadByPID, zombie2.Pid)
+			if tc.wantNonGPUZombie {
+				require.NotNil(t, payloadByPID[zombie2.Pid])
+				assert.Equal(t, model.ProcessState_Z, payloadByPID[zombie2.Pid].State)
+				assert.Empty(t, payloadByPID[zombie2.Pid].Tags)
+			} else {
+				assert.NotContains(t, payloadByPID, zombie2.Pid)
+			}
 			if !tc.ignoreZombies {
 				require.NotNil(t, payloadByPID[zombie1.Pid])
 				require.NotNil(t, payloadByPID[emptyTaggedZombie.Pid])
@@ -853,7 +896,12 @@ func TestProcessCheckZombieConfigControlsAggregation(t *testing.T) {
 			}
 			require.NotNil(t, realtimeByPID[parent.Pid])
 			assert.NotEqual(t, model.ProcessState_Z, realtimeByPID[parent.Pid].ProcessState)
-			assert.NotContains(t, realtimeByPID, zombie2.Pid)
+			if tc.wantNonGPUZombie {
+				require.NotNil(t, realtimeByPID[zombie2.Pid])
+				assert.Equal(t, model.ProcessState_Z, realtimeByPID[zombie2.Pid].ProcessState)
+			} else {
+				assert.NotContains(t, realtimeByPID, zombie2.Pid)
+			}
 			if !tc.ignoreZombies {
 				require.NotNil(t, realtimeByPID[zombie1.Pid])
 				require.NotNil(t, realtimeByPID[emptyTaggedZombie.Pid])
@@ -1070,6 +1118,7 @@ func TestProcessTaggerIntegration(t *testing.T) {
 		nil,   // no lookup probe
 		nil,   // no zombie aggregates
 		false, // zombies are not ignored
+		false, // non-GPU zombies are not submitted individually
 		serviceExtractor,
 		nil, // no GPU tags
 		taggerMock,

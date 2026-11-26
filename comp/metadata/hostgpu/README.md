@@ -3,7 +3,7 @@
 This package populates some of the Agent-related fields in the `Resource Catalog` product in DataDog. More specifically the
 `host_gpu_agent` table.
 
-This is enabled by default but can be turned off using `inventories_gpu_enabled` config.
+This legacy payload is disabled by default. Set `gpu.legacy_host_metadata` to `true` to enable it; `inventories_enabled` and `enable_metadata_collection` must also be enabled.
 
 The payload is sent every 10min (see `inventories_max_interval` in the config) or whenever it's updated with at most 1
 update every 5 minutes (see `inventories_min_interval`).
