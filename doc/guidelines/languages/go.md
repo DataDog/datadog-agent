@@ -128,19 +128,23 @@ The typed atomics avoid the two pitfalls of atomic code:
 1. **Mixed access.** It is very easy to access a raw integer variable using a mix of atomic and non-atomic operations. This mix may be enough to satisfy the race detector, but not sufficient to actually prevent undefined behavior. A typed atomic can only be accessed through its methods.
 ///
 
-Declare them as plain values; no pointer is needed:
+Declare them as plain values; no pointer is needed. The zero value is ready to use:
 
 ```go
 type FooTracker struct {
-    maxCount atomic.Uint64
+    count atomic.Uint64
 }
 
 func NewFooTracker() *FooTracker {
-    t := &FooTracker{}
-    t.maxCount.Store(42)
-    return t
+    return &FooTracker{}
+}
+
+func (t *FooTracker) Record() {
+    t.count.Add(1)
 }
 ```
+
+To start from a non-zero value, call `Store` in the constructor.
 
 Do not copy a struct holding an atomic once it is in use: pass a pointer to it instead. `go vet` reports such copies.
 
