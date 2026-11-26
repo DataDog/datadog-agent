@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/google/gopacket/layers"
 	gopsutilprocess "github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
@@ -1365,4 +1366,70 @@ func TestUpdateEBPFCheckMappingKeepsTCPrograms(t *testing.T) {
 	assert.Error(t, err, "program of a flushed network namespace")
 	_, err = ddebpf.GetModuleFromProgID(200)
 	assert.Error(t, err, "program that is no longer loaded")
+}
+
+func TestSelectTCAttachMode(t *testing.T) {
+	for _, test := range []struct {
+		name                string
+		networkEnabled      bool
+		tcxEnabled          bool
+		kernelHasTCX        bool
+		expectedTCX         bool
+		expectedUnsupported bool
+		expectedProbe       bool
+	}{
+		{name: "flag off, kernel without TCX", networkEnabled: true},
+		{name: "flag off, kernel with TCX", networkEnabled: true, kernelHasTCX: true},
+		{name: "flag on, kernel without TCX", networkEnabled: true, tcxEnabled: true, expectedUnsupported: true, expectedProbe: true},
+		{name: "flag on, kernel with TCX", networkEnabled: true, tcxEnabled: true, kernelHasTCX: true, expectedTCX: true, expectedProbe: true},
+		{name: "flag on, network disabled", tcxEnabled: true, kernelHasTCX: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := &pconfig.Config{NetworkEnabled: test.networkEnabled, NetworkTCXEnabled: test.tcxEnabled}
+
+			var probed bool
+			unsupported := selectTCAttachMode(cfg, func() bool {
+				probed = true
+				return test.kernelHasTCX
+			})
+
+			assert.Equal(t, test.expectedTCX, cfg.NetworkTCXEnabled)
+			assert.Equal(t, test.expectedUnsupported, unsupported)
+			assert.Equal(t, test.expectedProbe, probed, "the kernel must only be probed when TCX is enabled")
+
+			expectedMode := manager.TCAttachModeLegacy
+			if test.expectedTCX {
+				expectedMode = manager.TCAttachModeTCX
+			}
+			assert.Equal(t, expectedMode, tc.NewResolver(cfg).AttachMode())
+		})
+	}
+}
+
+func TestVerifyEnvironmentTCX(t *testing.T) {
+	for _, test := range []struct {
+		name            string
+		tcxUnsupported  bool
+		tcxConfigured   bool
+		expectedWarning bool
+	}{
+		{name: "requested and unsupported", tcxUnsupported: true, tcxConfigured: true, expectedWarning: true},
+		{name: "unsupported by default", tcxUnsupported: true},
+		{name: "requested and supported", tcxConfigured: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			p := &EBPFProbe{
+				config:         &config.Config{Probe: &pconfig.Config{NetworkTCXConfigured: test.tcxConfigured}},
+				kernelVersion:  &kernel.Version{},
+				pid:            utils.Getpid(),
+				tcxUnsupported: test.tcxUnsupported,
+			}
+
+			var warnings string
+			if err := p.VerifyEnvironment(); err != nil {
+				warnings = err.Error()
+			}
+			assert.Equal(t, test.expectedWarning, strings.Contains(warnings, "network.tcx.enabled"), warnings)
+		})
+	}
 }

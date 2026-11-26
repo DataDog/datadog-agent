@@ -27,7 +27,12 @@ const (
 	errorClassLinkNotFound = "link_not_found"
 	// errorClassNoSuchDevice is reported when an interface is gone while its classifier is attached
 	errorClassNoSuchDevice = "no_such_device"
-	// errorClassFilterNotFound is reported when the filter of an interface is gone right after being added
+	// errorClassSetns is reported when a TCX link can't be attached from the network namespace of its interface
+	errorClassSetns = "setns"
+	// errorClassTCXAttach is reported when the kernel refuses a TCX link, for instance when its hook is full
+	errorClassTCXAttach = "tcx_attach"
+	// errorClassFilterNotFound is reported when the filter of an interface is gone right after being added, which
+	// only happens to legacy tc filters
 	errorClassFilterNotFound = "filter_not_found"
 	// errorClassClassifierExists is reported when the eBPF manager already holds a classifier for an interface
 	errorClassClassifierExists = "classifier_exists"
@@ -52,6 +57,8 @@ const (
 var errorClasses = []string{
 	errorClassLinkNotFound,
 	errorClassNoSuchDevice,
+	errorClassSetns,
+	errorClassTCXAttach,
 	errorClassFilterNotFound,
 	errorClassClassifierExists,
 	errorClassQueueFull,
@@ -95,11 +102,16 @@ const tcFilterNotFoundMsg = "filter not found"
 func classifyTCClassifierError(err error) string {
 	var linkNotFound netlink.LinkNotFoundError
 
+	// a TCX attach on an interface that vanishes wraps both ENODEV and ErrTCXAttach
 	switch {
 	case errors.As(err, &linkNotFound):
 		return errorClassLinkNotFound
 	case errors.Is(err, unix.ENODEV):
 		return errorClassNoSuchDevice
+	case errors.Is(err, manager.ErrNetnsSwitch):
+		return errorClassSetns
+	case errors.Is(err, manager.ErrTCXAttach):
+		return errorClassTCXAttach
 	case errors.Is(err, manager.ErrIdentificationPairInUse):
 		return errorClassClassifierExists
 	case strings.Contains(err.Error(), tcFilterNotFoundMsg):
@@ -116,10 +128,12 @@ func (nr *Resolver) reportTCClassifierError(err error, device model.NetDevice) {
 	class := classifyTCClassifierError(err)
 	nr.countError(class)
 
-	if class != errorClassUnknown {
+	switch class {
+	case errorClassUnknown:
+		seclog.Errorf("couldn't set up tc classifier on %+v: %v", device, err)
+	case errorClassSetns, errorClassTCXAttach:
+		seclog.Errorf("couldn't set up tc classifier on %+v [%s]: %v", device, class, err)
+	default:
 		seclog.Debugf("couldn't set up tc classifier on %+v [%s]: %v", device, class, err)
-		return
 	}
-
-	seclog.Errorf("couldn't set up tc classifier on %+v: %v", device, err)
 }
