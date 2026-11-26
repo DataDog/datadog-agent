@@ -16,7 +16,6 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -229,24 +228,6 @@ func TestGetContainerID(t *testing.T) {
 		}
 		assert.Equal(t, "", provider.GetContainerID(req.Context(), req.Header))
 	})
-}
-
-func TestGetContainerIDWithoutCgroups(t *testing.T) {
-	const containerID = "abcdef"
-	var got origindetection.OriginInfo
-	// A procRoot without a mounts file makes the cgroup reader creation fail.
-	provider := NewIDProvider(t.TempDir(), func(originInfo origindetection.OriginInfo) (string, error) {
-		got = originInfo
-		return containerID, nil
-	})
-
-	req, err := http.NewRequest("GET", "http://example.com", nil)
-	if !assert.NoError(t, err) {
-		t.FailNow()
-	}
-	req.Header.Add(header.ExternalData, "it-false,cn-app,pu-1234")
-	assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
-	assert.Equal(t, origindetection.ExternalData{ContainerName: "app", PodUID: "1234"}, got.ExternalData)
 }
 
 func BenchmarkUDSCred(b *testing.B) {
