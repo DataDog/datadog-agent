@@ -234,8 +234,6 @@ def build_sysprobe_binary(
     if enable_bazel:
         if race:
             raise NotImplementedError("--enable-bazel does not support --race.")
-        if install_path is not None:
-            raise NotImplementedError("--enable-bazel does not support --install-path.")
         if bundle_ebpf:
             raise NotImplementedError("--enable-bazel does not support --bundle-ebpf.")
         if strip_binary:
@@ -246,9 +244,11 @@ def build_sysprobe_binary(
             raise NotImplementedError("--enable-bazel does not support --no-glibc.")
         if arch_obj.is_cross_compiling():
             raise NotImplementedError("--enable-bazel does not support cross-compilation.")
+        if is_windows:
+            raise NotImplementedError("--enable-bazel does not support Windows yet (no PDB output).")
 
-        bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
-        build_binary_with_bazel(BAZEL_TARGET, args=bazel_args, bin_path=binary)
+        bazel_args = [f"--//:install_dir={install_path}"] if install_path else []
+        build_binary_with_bazel(BAZEL_TARGET, args=bazel_args, bin_path=binary, fips_backend=fips_backend)
         return
 
     ldflags, gcflags, env = get_build_flags(

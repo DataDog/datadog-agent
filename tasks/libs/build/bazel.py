@@ -322,34 +322,6 @@ def build_binary_with_bazel(
                 fips_backend=fips_backend,
             )
 
-def build_go_binary_with_bazel(target: str, bin_path: str) -> None:
-    """Build a ``go_binary``/``dd_agent_go_binary`` Bazel target and copy its output to ``bin_path``.
-
-    Args:
-        target: Bazel target
-        bin_path: directory to copy the binary to. None for no copy.
-    """
-    args = args or []
-    bazel("build", target, *args)
-    # We need cquery to find the output path that has the configuration hash in it.
-    output = bazel("cquery", "--output=files", target, *args, capture_output=True).strip()
-    outputs = [line for line in output.splitlines() if line]
-    if len(outputs) != 1:
-        raise SystemExit(f"Expected exactly one output file for Bazel target {target!r}, got: {outputs!r}")
-    src = os.path.join(get_repo_root(), outputs[0])
-
-    os.makedirs(os.path.dirname(bin_path), exist_ok=True)
-    shutil.copy2(src, bin_path)
-    os.chmod(bin_path, 0o755)
-    if bin_path:
-        os.makedirs(os.path.dirname(bin_path), exist_ok=True)
-        shutil.copy2(src, bin_path)
-        os.chmod(bin_path, 0o755)
-        uid = os.environ.get("HOST_UID", "-1")
-        gid = os.environ.get("HOST_GID", "-1")
-        if uid != "-1" and gid != "-1":
-            os.chown(bin_path, int(uid), int(gid))
-
 
 def _insert_omnibazel_flags(args: tuple[str, ...], fips_backend: FipsBackend) -> tuple[str, ...]:
     """Insert either --platforms for the given FIPS backend or --//packages/agent:flavor, then --//:install_dir and
