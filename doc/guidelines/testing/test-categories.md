@@ -53,7 +53,7 @@ An integration test is only as good as what it keeps real:
 
 `dda inv test` leaves out the test targets tagged for a local dependency (the `tagset_*` filters in <<<repo("bazel/configs/go_tests.bazelrc")>>>). Such a test runs in CI only in a job that selects its tag on a runner that provides the dependency.
 
-The `write-test` skill's <<<repo(".agents/skills/write-test/references/integration.md", "integration reference")>>> has the wiring patterns, and <<<repo("comp/healthplatform/invalidconfig_integration_test.go")>>> is a worked example.
+The `write-test` skill's <<<repo(".agents/skills/write-test/references/integration.md", "integration reference")>>> has the wiring patterns, and <<<repo("comp/healthplatform/invalidconfig_payload_integration_test.go")>>> is a worked example: it replaced a nine-scenario E2E suite with the same scenarios and golden payloads, in seconds.
 
 **Does not catch:** anything that only appears in a shipped binary or a running service, or kernel behavior that differs from the kernel the test runs on.
 
@@ -80,7 +80,12 @@ The `write-test` skill's <<<repo(".agents/skills/write-test/references/integrati
 - operating-system, cloud, container-orchestrator, or network behavior that cannot be represented faithfully by a local dependency, and kernel behavior that kernel matrix testing cannot reproduce;
 - user-visible data reaching fakeintake when the installed Agent's assembly, configuration, encoding, or forwarding path is material to the test; a built binary sending to a local fakeintake is a [binary test](#binary-test).
 
-A behavior is not E2E-worthy merely because the current test reaches it through SSH, a CLI, or remote infrastructure. If those layers add no relevant coverage, use a cheaper category.
+A behavior is not E2E-worthy merely because the current test reaches it through SSH, a CLI, or remote infrastructure. If those layers add no relevant coverage, use a cheaper category. Signs that an E2E test belongs in a cheaper category:
+
+- most of its time goes into provisioning and restarting the Agent, not into the behavior under test;
+- it waits with long `EventuallyWithT` windows, or watches a fixed time to prove that something did not happen;
+- its scenarios differ only in configuration or input files;
+- asked whether the behavior depends on the platform, the answer is no.
 
 E2E tests live in <<<repo("test/new-e2e")>>>. Each suite provisions its own VM, cluster, or ECS environment with Pulumi, and a run takes 10 to 40 minutes. <<<repo("test/new-e2e/codereview_guideline.md")>>> has the reliability rules and time budgets.
 

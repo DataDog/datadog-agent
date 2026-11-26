@@ -153,4 +153,4 @@ The skill succeeded when every assertion in the agreed scope has a test that was
 
 Had the copy failed to build its scenarios for a missing ignored file, the row would read **written, not validated**: deliberate break not run, with that failure, and the report would say so rather than claim the test validated.
 
-The first version of this test was a new-e2e suite provisioning an EC2 host per run. It became `comp/healthplatform/invalidconfig_payload_integration_test.go` ([#60753](https://github.com/DataDog/datadog-agent/pull/60753), not yet on `main` when this skill was written): the same 9 scenarios and golden reports, in about 4 seconds, failing on the same regressions.
+The first version of this test was a new-e2e suite provisioning an EC2 host per run. It became `comp/healthplatform/invalidconfig_payload_integration_test.go` ([#60252](https://github.com/DataDog/datadog-agent/pull/60252), written in [#60753](https://github.com/DataDog/datadog-agent/pull/60753)): the same 9 scenarios and golden reports, in about 4 seconds, failing on the same regressions.

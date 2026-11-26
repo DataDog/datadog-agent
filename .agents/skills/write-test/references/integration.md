@@ -2,7 +2,7 @@
 
 An integration test runs the components of a pipeline together, in-process, so that it catches the pieces disagreeing with each other, which unit tests on each piece miss. Its value comes from what it keeps real. Each section below starts with the rule, then why it matters.
 
-Worked examples on `main`: `comp/healthplatform/invalidconfig_integration_test.go` and `comp/healthplatform/missedbytes_integration_test.go`. [#60753](https://github.com/DataDog/datadog-agent/pull/60753) adds `comp/healthplatform/invalidconfig_payload_integration_test.go`, which applies every pattern below; read it from that PR until it reaches `main` (it merged into the branch of #60252).
+Worked examples: `comp/healthplatform/invalidconfig_payload_integration_test.go`, which applies every pattern below, and the smaller `comp/healthplatform/invalidconfig_integration_test.go` and `comp/healthplatform/missedbytes_integration_test.go`.
 
 ## Placement and naming
 
@@ -24,7 +24,7 @@ deps := fxutil.Test[struct {
 }](t,
 	Bundle(),
 	config.Module(),
-	fx.Supply(config.NewAgentParams(datadogYAML)),
+	fx.Supply(agentParams), // see "Feed the input the way production does"
 	schemafx.Module(),
 	hostnameinterface.MockModule(), // the hostname is not part of the behavior
 	// ...
@@ -47,14 +47,21 @@ A skip passes, so a run on a machine without the dependency proves nothing: Step
 
 ## Feed the input the way production does
 
-When the input is configuration, write real files to `t.TempDir()` and load them with the real config components (`config.Module()` with `config.NewAgentParams(path)`, `sysprobeconfigfx.Module()`), not `config.NewMockFromYAML`. The config mocks skip the post-init fixups and allow a dynamic schema, so they don't load configuration like the Agent does.
-
-The config components load into the global configurations. Reset them to the state the Agent starts with, and restore them at the end of the test so tests don't leak into each other:
-
-- If `grep -n "func InitAgentConfigs" pkg/config/mock/*.go` finds it (added by #60753), call `configmock.InitAgentConfigs(t)`. It also sets the mock guards, so `configmock.New` returns the same configurations.
-- Otherwise, do what it does in the test: save `pkgconfigsetup.GlobalConfigBuilder()` and `GlobalSystemProbeConfigBuilder()`, call `pkgconfigsetup.InitConfigObjects()`, and restore them with `SetDatadog` and `SetSystemProbe` in `t.Cleanup`. `InitConfigObjects` registers its override functions again on every call, so restore those too, or they pile up across tests. `comp/` may not import `pkg/config/setup` (depguard): prefer adding the helper to `pkg/config/mock` over a lint exception.
+When the input is configuration, write real files to `t.TempDir()` and load them with the real config components (`config.Module()`, `sysprobeconfigfx.Module()`), not `config.NewMockFromYAML`. That mock only reads the YAML: it skips what the config component does when loading, such as resolving secrets, validating against the schema and merging fleet policies.
 
 Environment variables are read while the configuration is built, so set them first, after clearing the `DD_*` variables of the process: a CI runner's `DD_API_KEY` or `DD_SITE` would otherwise change the result. Use `t.Setenv`, which restores them.
+
+The config components load into the global configurations. Then call `configmock.InitAgentConfigs(t)`, before building the Fx app: it swaps in fresh globals holding the defaults and the schema, restores the previous globals and override functions at the end of the test so tests don't leak into each other, and sets the mock guards, so `configmock.New` returns the same configurations. The fresh globals miss the fixups that the Agent's startup sets directly on the configuration (`fixupInitConfig` in `pkg/config/setup`, such as the logs and socket path fixups): when the behavior depends on one, list it under **Not covered**.
+
+Point the config component at the files with `config.NewParams`, and give it a test-owned fleet policies path, which need not exist, so that a Fleet Automation policy on the host can't be merged in. An empty path falls back to the host's `fleet_policies_dir`:
+
+```go
+configmock.InitAgentConfigs(t)
+agentParams := config.NewParams(config.DefaultConfPath, config.WithFleetPoliciesDirPath(filepath.Join(t.TempDir(), "fleet")))
+agentParams.ConfFilePath = datadogYAML
+```
+
+Don't use `config.NewAgentParams`: it calls `setup.InitConfigObjects()`, which replaces the configurations `InitAgentConfigs` created in the middle of the test and registers their override functions again. The worked example's scenario setup does all of this, for system-probe configuration too.
 
 Other inputs follow the same rule: a real socket or listener for network input, a real file for a tailed log, a real check instance for a check.
 
