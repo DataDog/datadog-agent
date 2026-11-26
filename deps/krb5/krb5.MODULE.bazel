@@ -1,0 +1,50 @@
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+constants_repo = use_repo_rule("//bazel/repo:constants_repo.bzl", "constants_repo")
+
+KRB5_VERSION = "1.22.2"
+
+KRB5_URL = "https://kerberos.org/dist/krb5/{}/krb5-{}.tar.gz".format(
+    ".".join(KRB5_VERSION.split(".")[:2]),
+    KRB5_VERSION,
+)
+
+# Read by the overlay BUILD file for the package_metadata purl.
+constants_repo(
+    name = "krb5_constants",
+    items = {
+        "URL": KRB5_URL,
+        "VERSION": KRB5_VERSION,
+    },
+)
+
+http_archive(
+    name = "krb5",
+    files = {
+        "BUILD.bazel": "//deps/krb5:overlay/overlay.BUILD.bazel",
+        "autoconf-linux-arm64.h": "//deps/krb5:overlay/autoconf-linux-arm64.h",
+        "autoconf-linux-x86_64.h": "//deps/krb5:overlay/autoconf-linux-x86_64.h",
+        "krb5_codegen.bzl": "//deps/krb5:overlay/krb5_codegen.bzl",
+        "krb5_defs.bzl": "//deps/krb5:overlay/krb5_defs.bzl",
+        "krb5_library.bzl": "//deps/krb5:overlay/krb5_library.bzl",
+        "krb5_tests.bzl": "//deps/krb5:overlay/krb5_tests.bzl",
+        "src/clients/kinit/BUILD.bazel": "//deps/krb5:overlay/src/clients/kinit/overlay.BUILD.bazel",
+        "src/lib/BUILD.bazel": "//deps/krb5:overlay/src/lib/overlay.BUILD.bazel",
+        "src/lib/crypto/BUILD.bazel": "//deps/krb5:overlay/src/lib/crypto/overlay.BUILD.bazel",
+        "src/lib/gssapi/BUILD.bazel": "//deps/krb5:overlay/src/lib/gssapi/overlay.BUILD.bazel",
+        "src/lib/krb5/BUILD.bazel": "//deps/krb5:overlay/src/lib/krb5/overlay.BUILD.bazel",
+        "src/plugins/BUILD.bazel": "//deps/krb5:overlay/src/plugins/overlay.BUILD.bazel",
+        "src/util/BUILD.bazel": "//deps/krb5:overlay/src/util/overlay.BUILD.bazel",
+    },
+    patch_strip = 1,
+    patches = [
+        "//deps/krb5:0001-Fix-two-NegoEx-parsing-vulnerabilities.patch",
+        "//deps/krb5:0002-Avoid-null-dereference-in-krb5_rd_cred.patch",
+        "//deps/krb5:0003-Avoid-another-null-dereference-in-krb5_rd_cred.patch",
+        "//deps/krb5:0004-compile_et-allow-overriding-the-name-in-file-header.patch",
+        "//deps/krb5:0005-Resolve-LIBDIR-token-from-the-loaded-library-on-Unix.patch",
+    ],
+    sha256 = "3243ffbc8ea4d4ac22ddc7dd2a1dc54c57874c40648b60ff97009763554eaf13",
+    strip_prefix = "krb5-{}".format(KRB5_VERSION),
+    url = KRB5_URL,
+)

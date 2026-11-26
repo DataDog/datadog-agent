@@ -13,6 +13,7 @@ import (
 	"net"
 	"reflect"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -253,6 +254,30 @@ func TestSetFieldValue(t *testing.T) {
 					t.Errorf("unable to get the expected value: %v", err)
 				}
 			}
+		case reflect.Map:
+			err = event.SetFieldValue(field, map[string]string{"KEY": "aaa"})
+			if err != nil {
+				if errors.As(err, &readOnlyError) {
+					continue
+				}
+				t.Error(err)
+			}
+			dict, err := event.GetFieldValue(field)
+			if err != nil {
+				t.Errorf("unable to get the expected `%s` value: %v", field, err)
+			}
+			switch v := dict.(type) {
+			case map[string]string:
+				if v["KEY"] != "aaa" {
+					t.Errorf("unable to get the expected `%s` value: %v", field, v)
+				}
+			case []map[string]string:
+				if len(v) == 0 || v[0]["KEY"] != "aaa" {
+					t.Errorf("unable to get the expected `%s` value: %v", field, v)
+				}
+			default:
+				t.Errorf("unable to get the expected `%s` value: %v", field, v)
+			}
 		default:
 			t.Errorf("type of field %s unknown: %v", field, kind)
 		}
@@ -306,4 +331,21 @@ func TestProcessAWSSecurityCredentials(t *testing.T) {
 			t.Errorf("unexpected credentials types: %v", values)
 		}
 	})
+}
+
+func TestFileFieldsHasHardLinks(t *testing.T) {
+	regSingle := FileFields{Mode: syscall.S_IFREG | 0o644, NLink: 1}
+	if regSingle.HasHardLinks() {
+		t.Fatal("expected single-link regular file not to have hardlinks")
+	}
+
+	regHardLink := FileFields{Mode: syscall.S_IFREG | 0o644, NLink: 2}
+	if !regHardLink.HasHardLinks() {
+		t.Fatal("expected multi-link regular file to have hardlinks")
+	}
+
+	dir := FileFields{Mode: syscall.S_IFDIR | 0o755, NLink: 2}
+	if dir.HasHardLinks() {
+		t.Fatal("expected directory with NLink=2 not to have hardlinks")
+	}
 }

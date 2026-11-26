@@ -422,9 +422,10 @@ var (
 	// Security Profile metrics
 
 	// MetricSecurityProfileProfiles is the gauge of security profiles currently tracked by the
-	// Security Profile V2 manager on this host, enabled or disabled, per image. A profile disabled
-	// after reaching the max dump size stays tracked until it is removed.
-	// Tags: profile_image_name
+	// Security Profile V2 manager on this host, enabled or disabled. V2 keeps one profile per
+	// image name, so each series is emitted with a value of 1. A profile disabled after reaching
+	// the max dump size stays tracked until it is removed.
+	// Tags: profile_image_name, profile_short_image (omitted when the short image is unknown)
 	MetricSecurityProfileProfiles = newRuntimeMetric(".security_profile.profiles")
 	// MetricSecurityProfileCacheLen is the name of the metric used to report the size of the Security Profile cache
 	// Tags: -
@@ -491,7 +492,7 @@ var (
 	// MetricNamespaceResolverError is the name of the metric used to report the count of errors hit by the
 	// NamespaceResolver, mostly while attaching TC classifiers to network devices.
 	// Tags: error_type ('link_not_found', 'no_such_device', 'filter_not_found', 'classifier_exists',
-	// 'queue_full', 'netlink_socket', 'link_list', 'unknown')
+	// 'queue_full', 'netlink_socket', 'link_list', 'filter_list', 'tcx_query', 'unknown')
 	MetricNamespaceResolverError = newRuntimeMetric(".namespace_resolver.error")
 
 	// Policies
@@ -604,9 +605,12 @@ var (
 	// Tags: source (runtime, replay or related), event_type
 	MetricSecurityProfileV2EventsImmediate = newRuntimeMetric(".security_profile_v2.events.immediate")
 
-	// MetricSecurityProfileV2InsertionErrors is the name of the metric used to report activity-tree
-	// insertion failures that are not routine filtering rejections (i.e. unexpected errors).
-	// Tags: event_type, error_type
+	// MetricSecurityProfileV2InsertionErrors is the name of the metric used to report events that carry
+	// an error and activity-tree insertion failures that are not routine filtering rejections
+	// (i.e. unexpected errors), whether the profile manager kept the event in the process tree of a
+	// profile, kept it in its unattributed activity or dropped it. An event whose error doesn't prevent
+	// its insertion is only counted once it reaches the activity tree
+	// Tags: event_type, error_type, outcome (kept, unattributed or dropped)
 	MetricSecurityProfileV2InsertionErrors = newRuntimeMetric(".security_profile_v2.insertion_errors")
 
 	// Tag Resolution metrics
@@ -642,7 +646,7 @@ var (
 	// Event Processing metrics
 
 	// MetricSecurityProfileV2DisabledProfiles is the name of the metric used to report the amount of disabled profiles in this host
-	// Tags: profile_image_name, profile_image_tag
+	// Tags: profile_image_name, profile_image_tag, profile_short_image (omitted when the short image is unknown)
 	MetricSecurityProfileV2DisabledProfiles = newRuntimeMetric(".security_profile_v2.disabled_profiles")
 
 	// Persistence metrics
@@ -688,17 +692,17 @@ var (
 	// Path pattern metrics
 
 	// MetricSecurityProfileV2PathPatternsFileNodesMerged counts FileNode siblings absorbed by path-pattern merging.
-	// Tags: tree_type
+	// Tags: tree_type, profile_short_image (omitted when the short image is unknown)
 	MetricSecurityProfileV2PathPatternsFileNodesMerged = newRuntimeMetric(".security_profile_v2.path_patterns.file_nodes_merged")
 
 	// MetricSecurityProfileV2PathPatternsLookupHits counts path components absorbed by an existing pattern node instead of a node of their own name.
-	// Tags: tree_type
+	// Tags: tree_type, profile_short_image (omitted when the short image is unknown)
 	MetricSecurityProfileV2PathPatternsLookupHits = newRuntimeMetric(".security_profile_v2.path_patterns.lookup_hits")
 
 	// MetricSecurityProfileV2ProfileSize is the unified size metric for active security profiles.
-	// Tags: profile_image_name, profile_image_tag, storage (ram|disk).
-	// Note: profile_image_* is used instead of image_* to avoid collision with Datadog's
-	// container auto-tagging (the submitting agent's own image_name gets stamped on metrics).
+	// Tags: profile_image_name, profile_image_tag, storage (ram|disk), profile_short_image (omitted when unknown).
+	// Note: profile_image_* and profile_short_image are used instead of image_* and short_image to avoid
+	// collision with Datadog's container auto-tagging (the submitting agent's own image tags get stamped on metrics).
 	MetricSecurityProfileV2ProfileSize = newRuntimeMetric(".security_profile_v2.profile_size")
 
 	// Event sampling metrics (kernel-side)
@@ -792,6 +796,23 @@ type ITMetric struct {
 	Subsystem string
 	// Name is the name of the metric, used to identify it
 	Name string
+}
+
+// ProfileShortImageTag is the statsd tag carrying a security profile's short image.
+// The name is not short_image: that tag is already applied by container auto-tagging
+// and would be overwritten by the submitting agent's own image.
+const ProfileShortImageTag = "profile_short_image"
+
+// WithProfileShortImage returns tags with profile_short_image appended when shortName is known,
+// without mutating tags' backing array.
+func WithProfileShortImage(tags []string, shortName string) []string {
+	if shortName == "" {
+		return tags
+	}
+	out := make([]string, len(tags)+1)
+	copy(out, tags)
+	out[len(tags)] = ProfileShortImageTag + ":" + shortName
+	return out
 }
 
 func newITRuntimeMetric(subsystem string, name string) ITMetric {

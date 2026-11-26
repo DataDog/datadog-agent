@@ -73,7 +73,12 @@ properties:
     type: integer
     default: 5
     visibility: public
-    description: Maximum number of actions that can be executed concurrently.
+    description: |-
+      Maximum number of actions that a single runner can execute concurrently.
+      Increase task_concurrency to reduce queue delays during bursts of actions.
+      For actions with low resource usage, values up to 100 are generally safe.
+      Choose a value based on the actions' resource requirements and the runner's
+      available resources.
   task_timeout_seconds:
     node_type: setting
     type: integer

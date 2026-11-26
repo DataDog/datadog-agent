@@ -227,9 +227,9 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 		env["TESTING_YUM_URL"] = "s3.amazonaws.com/yumtesting.datad0g.com"
 		env["TESTING_YUM_VERSION_PATH"] = fmt.Sprintf("testing/pipeline-%s-a7/7", params.pipelineID)
 		env["DD_APM_INSTRUMENTATION_PIPELINE_ID"] = params.pipelineID
-		env["DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE"] = "installtesting.datad0g.com.internal.dda-testing.com"
+		env["DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE"] = "installtesting.datad0g.com"
 		env["DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT"] = "pipeline-" + params.pipelineID
-		env["DD_INSTALLER_REGISTRY_URL"] = "installtesting.datad0g.com.internal.dda-testing.com"
+		env["DD_INSTALLER_REGISTRY_URL"] = "installtesting.datad0g.com"
 	} else if params.stagingPackages != "" {
 		env["DD_REPO_URL"] = "datad0g.com"
 		env["DD_AGENT_MAJOR_VERSION"] = "7"
@@ -265,12 +265,12 @@ func (a *Agent) installWindowsInstallExe(params *installParams) error {
 		installerURL = artifactURL
 		env["DD_SITE"] = "datad0g.com"
 		env["DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT"] = "pipeline-" + params.pipelineID
-		env["DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE"] = "installtesting.datad0g.com.internal.dda-testing.com"
+		env["DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE"] = "installtesting.datad0g.com"
 	} else if params.stagingPackages != "" {
 		env["DD_SITE"] = "datad0g.com"
 		installerURL = fmt.Sprintf("https://install.datad0g.com/builds/beta/datadog-installer-%s-1-x86_64.exe", strings.ReplaceAll(params.stagingPackages, "~", "-"))
 		env["DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT"] = strings.ReplaceAll(params.stagingPackages, "~", "-") + "-1"
-		env["DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE"] = "install.datad0g.com.internal.dda-testing.com"
+		env["DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE"] = "install.datad0g.com"
 	}
 	for name, value := range params.pinnedStableEnvironment() {
 		env[name] = value

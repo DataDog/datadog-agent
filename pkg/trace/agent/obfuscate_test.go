@@ -6,6 +6,7 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -17,6 +18,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 
 	"github.com/go-viper/mapstructure/v2"
@@ -57,6 +59,31 @@ func TestObfuscateStatsGroup(t *testing.T) {
 		agnt.obfuscateStatsGroup(tt.in)
 		assert.Equal(t, tt.in.Resource, tt.out)
 	}
+}
+
+// TestObfuscateStatsGroupNeverLogsRawSQL checks that a stats group resource that
+// cannot be obfuscated is not written to the logs at any level, because the raw
+// query can contain sensitive values.
+func TestObfuscateStatsGroupNeverLogsRawSQL(t *testing.T) {
+	var b bytes.Buffer
+	// The buffer logger records every level, DEBUG included.
+	oldLogger := log.SetLogger(log.NewBufferLogger(&b))
+	defer log.SetLogger(oldLogger)
+
+	agnt, stop := agentWithDefaults()
+	defer stop()
+
+	const secret = "s3cr3t-token-9f3c"
+	in := &pb.ClientGroupedStats{
+		Type:     "sql",
+		Resource: "SELECT 1\nFROM users AS [b\nWHERE token = '" + secret + "'",
+	}
+	agnt.obfuscateStatsGroup(in)
+
+	assert.Equal(t, textNonParsable, in.Resource)
+	assert.Contains(t, b.String(), "[DEBUG] Error obfuscating stats group resource", "the obfuscation failure should still be logged")
+	assert.NotContains(t, b.String(), secret)
+	assert.NotContains(t, b.String(), "FROM users")
 }
 
 // TestObfuscateDefaults ensures that running the obfuscator with no config continues to obfuscate/quantize

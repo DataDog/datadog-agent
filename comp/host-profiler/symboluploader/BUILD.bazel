@@ -115,13 +115,14 @@ dd_agent_go_test(
         "GO_BINARY_RLOCATION": "$(rlocationpath @go_work_sdk//:bin/go)",
         "GO_ROOT_RLOCATION": "$(rlocationpath @go_work_sdk//:ROOT)",
     },
+    pure = "on",
     target_compatible_with = ["@platforms//os:linux"],
     deps = select({
         "@rules_go//go/platform:android": [
             "//comp/host-profiler/symboluploader/symbol",
             "//pkg/util/safeelf",
+            "//pkg/zstd",
             "@com_github_datadog_jsonapi//:jsonapi",
-            "@com_github_datadog_zstd//:zstd",
             "@com_github_jarcoal_httpmock//:httpmock",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
@@ -135,8 +136,8 @@ dd_agent_go_test(
         "@rules_go//go/platform:linux": [
             "//comp/host-profiler/symboluploader/symbol",
             "//pkg/util/safeelf",
+            "//pkg/zstd",
             "@com_github_datadog_jsonapi//:jsonapi",
-            "@com_github_datadog_zstd//:zstd",
             "@com_github_jarcoal_httpmock//:httpmock",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",

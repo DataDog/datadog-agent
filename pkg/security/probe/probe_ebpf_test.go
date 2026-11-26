@@ -10,6 +10,8 @@ package probe
 
 import (
 	"encoding/binary"
+	"errors"
+	"fmt"
 	"math"
 	"net"
 	"net/netip"
@@ -190,6 +192,90 @@ func TestNewLoadModuleEventFromProcFSSnapshotTimes(t *testing.T) {
 	event := p.newLoadModuleEventFromProcFSSnapshot(utils.ProcFSModule{Name: "mod"}, modulePath, newSyntheticUnknownLoaderEntry())
 	assert.Equal(t, uint64(st.Ctim.Nano()), event.LoadModule.File.CTime)
 	assert.Equal(t, uint64(st.Mtim.Nano()), event.LoadModule.File.MTime)
+}
+
+type coldBasenamePathResolver struct {
+	path.NoOpResolver
+	dentryPath string
+	dentryErr  error
+}
+
+func (r *coldBasenamePathResolver) ResolveDentryFilePath(_ *model.FileFields) (string, error) {
+	return r.dentryPath, r.dentryErr
+}
+
+func (r *coldBasenamePathResolver) ResolveFullFilePath(_ *model.FileFields, _ *model.PIDContext) (string, string, model.MountSource, model.MountOrigin, error) {
+	return r.dentryPath, "", model.MountSourceUnknown, model.MountOriginEvent, r.dentryErr
+}
+
+func marshalLoadModuleEventPayload(ino uint64, mountID uint32, name string, loadedFromMemory bool) []byte {
+	buf := make([]byte, 272)
+	binary.NativeEndian.PutUint64(buf[8:16], ino)
+	binary.NativeEndian.PutUint32(buf[16:20], mountID)
+	copy(buf[80:136], name)
+	if loadedFromMemory {
+		binary.NativeEndian.PutUint32(buf[268:272], 1)
+	}
+	return buf
+}
+
+func TestLoadModuleNameFallbackFromFilename(t *testing.T) {
+	t.Run("handleRegularEvent derives module name from file basename when kernel name is empty", func(t *testing.T) {
+		p := newTestEBPFProbe()
+		p.fieldHandlers.resolvers = &resolvers.EBPFResolvers{
+			PathResolver: &coldBasenamePathResolver{
+				dentryPath: "/lib/modules/6.8.0/kernel/net/netfilter/nf-conntrack-netlink.ko.zst",
+			},
+		}
+
+		ev := p.getPoolEvent()
+		ev.Type = uint32(model.LoadModuleEventType)
+		payload := marshalLoadModuleEventPayload(4242, 12, "", false)
+
+		require.True(t, p.handleRegularEvent(ev, 0, uint64(len(payload)), payload))
+		assert.Equal(t, "nf_conntrack_netlink", ev.LoadModule.Name)
+		assert.Equal(t, "nf-conntrack-netlink.ko.zst", p.fieldHandlers.ResolveFileBasename(ev, &ev.LoadModule.File))
+	})
+
+	t.Run("handleRegularEvent preserves kernel module name when present", func(t *testing.T) {
+		p := newTestEBPFProbe()
+		p.fieldHandlers.resolvers = &resolvers.EBPFResolvers{
+			PathResolver: &coldBasenamePathResolver{
+				dentryPath: "/lib/modules/6.8.0/kernel/net/netfilter/other-name.ko",
+			},
+		}
+
+		ev := p.getPoolEvent()
+		ev.Type = uint32(model.LoadModuleEventType)
+		payload := marshalLoadModuleEventPayload(4242, 12, "explicit_mod", false)
+
+		require.True(t, p.handleRegularEvent(ev, 0, uint64(len(payload)), payload))
+		assert.Equal(t, "explicit_mod", ev.LoadModule.Name)
+	})
+
+	t.Run("cold basename miss does not finalize empty basename while path can still resolve", func(t *testing.T) {
+		p := newTestEBPFProbe()
+		pr := &coldBasenamePathResolver{
+			dentryErr: assert.AnError,
+		}
+		p.fieldHandlers.resolvers = &resolvers.EBPFResolvers{
+			PathResolver: pr,
+		}
+
+		ev := p.getPoolEvent()
+		ev.Type = uint32(model.LoadModuleEventType)
+		payload := marshalLoadModuleEventPayload(4242, 12, "", false)
+
+		require.True(t, p.handleRegularEvent(ev, 0, uint64(len(payload)), payload))
+		assert.Empty(t, ev.LoadModule.Name)
+		assert.False(t, ev.LoadModule.File.IsBasenameStrResolved)
+		assert.False(t, ev.LoadModule.File.IsPathnameStrResolved)
+
+		pr.dentryErr = nil
+		pr.dentryPath = "/tmp/late-resolved-mod.ko"
+		assert.Equal(t, "late-resolved-mod.ko", p.fieldHandlers.ResolveFileBasename(ev, &ev.LoadModule.File))
+		assert.Equal(t, "/tmp/late-resolved-mod.ko", p.fieldHandlers.ResolveFilePath(ev, &ev.LoadModule.File))
+	})
 }
 
 func TestSameProcessAsCached(t *testing.T) {
@@ -600,9 +686,11 @@ func TestApplyPostDispatchProcessUpdates(t *testing.T) {
 			},
 		},
 		{
-			name:   "imds",
+			name:   "imds received response",
 			evType: model.IMDSEventType,
 			setup: func(_ *model.ProcessCacheEntry, e *model.Event) {
+				e.IMDS.Type = model.IMDSResponseType
+				e.NetworkContext.NetworkDirection = uint32(model.Ingress)
 				e.IMDS.AWS.SecurityCredentials.AccessKeyID = accessKeyID
 			},
 			before: func(t *testing.T, pce *model.ProcessCacheEntry) { assert.Empty(t, pce.AWSSecurityCredentials) },
@@ -610,6 +698,17 @@ func TestApplyPostDispatchProcessUpdates(t *testing.T) {
 				require.Len(t, pce.AWSSecurityCredentials, 1)
 				assert.Equal(t, accessKeyID, pce.AWSSecurityCredentials[0].AccessKeyID)
 			},
+		},
+		{
+			name:   "imds sent response",
+			evType: model.IMDSEventType,
+			setup: func(_ *model.ProcessCacheEntry, e *model.Event) {
+				e.IMDS.Type = model.IMDSResponseType
+				e.NetworkContext.NetworkDirection = uint32(model.Egress)
+				e.IMDS.AWS.SecurityCredentials.AccessKeyID = accessKeyID
+			},
+			before: func(t *testing.T, pce *model.ProcessCacheEntry) { assert.Empty(t, pce.AWSSecurityCredentials) },
+			after:  func(t *testing.T, pce *model.ProcessCacheEntry) { assert.Empty(t, pce.AWSSecurityCredentials) },
 		},
 	}
 
@@ -715,6 +814,16 @@ func (fh *failingMountFSFieldHandlers) ResolveFileFilesystem(ev *model.Event, f 
 	return fh.FakeFieldHandlers.ResolveFileFilesystem(ev, f)
 }
 
+// mountFSFieldHandlers resolves filesystems with the mount resolver
+type mountFSFieldHandlers struct {
+	*model.FakeFieldHandlers
+	ebpf *EBPFFieldHandlers
+}
+
+func (fh *mountFSFieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.FileEvent) string {
+	return fh.ebpf.ResolveFileFilesystem(ev, f)
+}
+
 type serializingWildcardHandler struct{}
 
 func (serializingWildcardHandler) HandleEvent(ev *model.Event) {
@@ -722,9 +831,92 @@ func (serializingWildcardHandler) HandleEvent(ev *model.Event) {
 	_ = serializers.NewEventSerializer(ev, nil, nil)
 }
 
-func TestDispatchEventV2SerializerAncestorError(t *testing.T) {
+func TestNewContainerPlaceholder(t *testing.T) {
 	const containerID = containerutils.ContainerID("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
 
+	cgr, err := cgroup.NewResolver(&statsd.NoOpClient{}, nil, nil)
+	require.NoError(t, err)
+	require.NotNil(t, cgr.Add(model.CGroupContext{
+		CGroupID:      containerutils.CGroupID("/docker/" + string(containerID)),
+		CGroupPathKey: model.PathKey{Inode: 4242, MountID: 1},
+	}))
+	require.NotNil(t, cgr.Add(model.CGroupContext{
+		CGroupID:      "/system.slice/foo.service",
+		CGroupPathKey: model.PathKey{Inode: 4343, MountID: 1},
+	}))
+
+	p := &EBPFProbe{Resolvers: &resolvers.EBPFResolvers{CGroupResolver: cgr}, kernelTracksCGroupID: true}
+	pidContext := model.PIDContext{Pid: 42, Tid: 43, MntNS: 7}
+	cgroupOf := func(inode uint64) model.CGroupContext {
+		return model.CGroupContext{CGroupPathKey: model.PathKey{Inode: inode, MountID: 1}}
+	}
+
+	entry := p.newContainerPlaceholder(pidContext, cgroupOf(4242))
+	require.NotNil(t, entry)
+	cgroupEntry := cgr.GetCacheEntryByInode(4242)
+	assert.Equal(t, containerID, entry.ContainerContext.ContainerID)
+	assert.Equal(t, cgroupEntry.GetContainerContext(), entry.ContainerContext)
+	assert.Equal(t, cgroupEntry.GetCGroupContext(), entry.CGroup)
+	assert.Equal(t, pidContext, entry.PIDContext)
+	assert.EqualValues(t, model.ProcessCacheEntryFromPlaceholder, entry.Source)
+	assert.Nil(t, entry.Ancestor)
+	assert.NotSame(t, entry, p.newContainerPlaceholder(pidContext, cgroupOf(4242)), "each event gets its own placeholder")
+	assert.NotSame(t, model.GetPlaceholderProcessCacheEntry(pidContext), entry, "the shared placeholder must not be reused")
+
+	assert.Nil(t, p.newContainerPlaceholder(pidContext, cgroupOf(4343)), "a host cgroup has no container")
+	assert.Nil(t, p.newContainerPlaceholder(pidContext, cgroupOf(4444)), "the cgroup is unknown")
+	assert.Nil(t, p.newContainerPlaceholder(pidContext, model.CGroupContext{}), "the kernel doesn't know the process")
+
+	p.kernelTracksCGroupID = false
+	assert.Nil(t, p.newContainerPlaceholder(pidContext, cgroupOf(4242)), "the cgroup reported by the kernel can be stale")
+}
+
+func TestSetProcessContextContainerPlaceholder(t *testing.T) {
+	const containerID = containerutils.ContainerID("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+
+	cgr, err := cgroup.NewResolver(&statsd.NoOpClient{}, nil, nil)
+	require.NoError(t, err)
+	require.NotNil(t, cgr.Add(model.CGroupContext{
+		CGroupID:      containerutils.CGroupID("/docker/" + string(containerID)),
+		CGroupPathKey: model.PathKey{Inode: 4242, MountID: 1},
+	}))
+	// the process resolver isn't snapshotted, so that no process can be resolved
+	ebpfResolvers := &resolvers.EBPFResolvers{CGroupResolver: cgr, ProcessResolver: newTestProcessResolver(t)}
+	p := &EBPFProbe{
+		Resolvers:            ebpfResolvers,
+		fieldHandlers:        &EBPFFieldHandlers{resolvers: ebpfResolvers},
+		kernelTracksCGroupID: true,
+	}
+	cgroupContext := model.CGroupContext{CGroupPathKey: model.PathKey{Inode: 4242, MountID: 1}}
+
+	tests := []struct {
+		name        string
+		eventType   model.EventType
+		isKworker   bool
+		containerID containerutils.ContainerID
+		err         error
+	}{
+		{"unresolved process", model.FileOpenEventType, false, containerID, model.ErrNoProcessContext},
+		{"DNS request of an unresolved process", model.DNSEventType, false, containerID, nil},
+		{"kworker", model.FileOpenEventType, true, "", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event := model.NewFakeEvent()
+			event.PIDContext = model.PIDContext{Pid: 42, Tid: 42, IsKworker: tt.isKworker}
+
+			require.True(t, p.setProcessContext(tt.eventType, event, cgroupContext))
+
+			assert.Equal(t, tt.containerID, event.ProcessContext.ContainerContext.ContainerID)
+			assert.Equal(t, tt.err, event.Error)
+			assert.False(t, needsDNSRequestTracking(event))
+			assert.True(t, model.GetPlaceholderProcessCacheEntry(event.PIDContext).ContainerContext.IsNull(), "the shared placeholder must not get the container")
+		})
+	}
+}
+
+// newV2DispatchTestProbe returns a probe dispatching events to v2 profiles, containerID running the my-app image
+func newV2DispatchTestProbe(t *testing.T, containerID containerutils.ContainerID, sendAnomalyDetection func(*model.Event)) (*EBPFProbe, *securityprofile.ManagerV2) {
 	cfg := &config.Config{
 		RuntimeSecurity: &config.RuntimeSecurityConfig{
 			RuntimeEnabled:                                  true,
@@ -759,7 +951,6 @@ func TestDispatchEventV2SerializerAncestorError(t *testing.T) {
 		HashResolver:   &hash.Resolver{},
 	}
 
-	var anomalies []*model.Event
 	pm, err := securityprofile.NewManagerV2(
 		cfg,
 		&statsd.NoOpClient{},
@@ -767,9 +958,8 @@ func TestDispatchEventV2SerializerAncestorError(t *testing.T) {
 		ebpfResolvers,
 		&kernel.Version{},
 		nil,
-		func(event *model.Event) {
-			anomalies = append(anomalies, event)
-		},
+		sendAnomalyDetection,
+		nil,
 		"test-host",
 		time.Now(),
 		nil,
@@ -786,6 +976,16 @@ func TestDispatchEventV2SerializerAncestorError(t *testing.T) {
 		profileManager: pm,
 	}
 	p.monitors = &EBPFMonitors{ebpfProbe: p}
+	return p, pm
+}
+
+func TestDispatchEventV2SerializerAncestorError(t *testing.T) {
+	const containerID = containerutils.ContainerID("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+
+	var anomalies []*model.Event
+	p, pm := newV2DispatchTestProbe(t, containerID, func(event *model.Event) {
+		anomalies = append(anomalies, event)
+	})
 
 	fh := &failingMountFSFieldHandlers{
 		FakeFieldHandlers: &model.FakeFieldHandlers{},
@@ -894,6 +1094,63 @@ func TestDispatchEventV2SerializerAncestorError(t *testing.T) {
 	require.ErrorIs(t, parentErrEv.Error, assert.AnError)
 	assert.NotContains(t, appNode.Files["tmp"].Children, "parent-bad")
 	assert.Len(t, anomalies, 1)
+}
+
+func TestDispatchEventV2NoProcessContext(t *testing.T) {
+	const containerID = containerutils.ContainerID("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+
+	p, pm := newV2DispatchTestProbe(t, containerID, func(*model.Event) {})
+
+	mr, err := mount.NewResolver(&statsd.NoOpClient{}, nil, mount.ResolverOpts{})
+	require.NoError(t, err)
+	require.NoError(t, mr.Insert(model.Mount{MountID: 1, MountPointStr: "/", Path: "/", RootStr: "/", FSType: "ext4"}))
+	fh := &mountFSFieldHandlers{
+		FakeFieldHandlers: &model.FakeFieldHandlers{},
+		ebpf:              &EBPFFieldHandlers{resolvers: &resolvers.EBPFResolvers{MountResolver: mr}},
+	}
+
+	placeholder := model.NewPlaceholderProcessCacheEntry(42, 42, false)
+	placeholder.ContainerContext.ContainerID = containerID
+
+	ev := model.NewFakeEvent()
+	ev.Type = uint32(model.FileOpenEventType)
+	ev.Timestamp = time.Now()
+	ev.TimestampRaw = uint64(ev.Timestamp.UnixNano())
+	ev.FieldHandlers = fh
+	ev.ProcessCacheEntry = placeholder
+	ev.ProcessContext = &placeholder.ProcessContext
+	ev.Error = model.ErrNoProcessContext
+	ev.Open.File.PathnameStr = "/tmp/ok"
+	ev.Open.File.BasenameStr = "ok"
+	ev.Open.File.Inode = 100
+	ev.Open.File.MountID = 1
+
+	p.DispatchEvent(ev, false)
+
+	assert.Equal(t, model.ErrNoProcessContext, ev.Error)
+	assert.Equal(t, model.UnknownFS, placeholder.FileEvent.Filesystem)
+
+	selector, err := cgroupModel.NewWorkloadSelector("my-app", "*")
+	require.NoError(t, err)
+	secprof := pm.GetProfile(selector)
+	require.NotNil(t, secprof)
+	require.NotNil(t, secprof.ActivityTree.UnattributedActivity)
+	assert.Contains(t, secprof.ActivityTree.UnattributedActivity.Files, "tmp")
+}
+
+func TestFilesystemResolutionError(t *testing.T) {
+	var notCritical *path.ErrPathResolutionNotCritical
+	var critical *path.ErrPathResolution
+
+	kernelMount := filesystemResolutionError(3, 42, fmt.Errorf("%w (mount_id=3 < min_mount_id=20)", mount.ErrMountKernelID))
+	assert.ErrorAs(t, kernelMount, &notCritical)
+	assert.ErrorIs(t, kernelMount, mount.ErrMountKernelID)
+
+	// not a path error, which the probe monitor would report as an abnormal path
+	undefined := filesystemResolutionError(0, 42, mount.ErrMountUndefined)
+	assert.ErrorIs(t, undefined, mount.ErrMountUndefined)
+	assert.False(t, errors.As(undefined, &notCritical))
+	assert.False(t, errors.As(undefined, &critical))
 }
 
 func TestResolveMountSourcePath(t *testing.T) {
@@ -1038,6 +1295,49 @@ func TestResolveMountSourcePath(t *testing.T) {
 	}
 }
 
+func TestResolveMountPathsAfterFailedLookup(t *testing.T) {
+	mr, err := mount.NewResolver(&statsd.NoOpClient{}, nil, mount.ResolverOpts{})
+	require.NoError(t, err)
+	fh := &EBPFFieldHandlers{
+		resolvers: &resolvers.EBPFResolvers{
+			MountResolver: mr,
+			PathResolver:  path.NewResolver(nil, mr),
+		},
+	}
+
+	ev := model.NewFakeEvent()
+	ev.FieldHandlers = fh
+	ev.Mount = model.MountEvent{
+		Mount: model.Mount{
+			MountID:        11,
+			ParentPathKey:  model.PathKey{MountID: 1},
+			BindSrcMountID: 10,
+			MountPointStr:  "/dst",
+			RootStr:        "/src",
+		},
+	}
+
+	assert.Empty(t, fh.ResolveMountPointPath(ev, &ev.Mount))
+	assert.Empty(t, fh.ResolveMountSourcePath(ev, &ev.Mount))
+	assert.Empty(t, fh.ResolveMountRootPath(ev, &ev.Mount))
+	require.Error(t, ev.Mount.MountPointPathResolutionError)
+	require.Error(t, ev.Mount.MountSourcePathResolutionError)
+	require.Error(t, ev.Mount.MountRootPathResolutionError)
+
+	// as an event queued for tag resolution, resolved again once the mounts are known
+	cpy := ev.DeepCopy()
+	require.NoError(t, mr.Insert(model.Mount{MountID: 1, MountPointStr: "/", Path: "/", RootStr: "/"}))
+	require.NoError(t, mr.Insert(model.Mount{MountID: 10, ParentPathKey: model.PathKey{MountID: 1}, MountPointStr: "/mnt/base", RootStr: "/"}))
+	require.NoError(t, mr.Insert(cpy.Mount.Mount))
+
+	assert.Equal(t, "/dst", fh.ResolveMountPointPath(cpy, &cpy.Mount))
+	assert.Equal(t, "/mnt/base/src", fh.ResolveMountSourcePath(cpy, &cpy.Mount))
+	assert.Equal(t, "/src", fh.ResolveMountRootPath(cpy, &cpy.Mount))
+	assert.NoError(t, cpy.Mount.MountPointPathResolutionError)
+	assert.NoError(t, cpy.Mount.MountSourcePathResolutionError)
+	assert.NoError(t, cpy.Mount.MountRootPathResolutionError)
+}
+
 func TestUpdateEBPFCheckMappingKeepsTCPrograms(t *testing.T) {
 	ddebpf.ResetAllMappings()
 	t.Cleanup(ddebpf.ResetAllMappings)
@@ -1051,7 +1351,7 @@ func TestUpdateEBPFCheckMappingKeepsTCPrograms(t *testing.T) {
 		Manager:   ebpf.NewRuntimeSecurityManager(false, false),
 		Resolvers: &resolvers.EBPFResolvers{TCResolver: tcResolver},
 	}
-	tcResolver.FlushNetworkNamespaceID(2, p.Manager.Get())
+	tcResolver.CleanupNetworkNamespace(2, p.Manager.Get())
 	p.updateEBPFCheckMapping()
 
 	name, err := ddebpf.GetProgNameFromProgID(100)

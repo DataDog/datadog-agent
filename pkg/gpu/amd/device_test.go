@@ -29,6 +29,7 @@ func TestDiscoverFiltersAndOrdersDevices(t *testing.T) {
 	fs.SetDriverVersion("6.14.14")
 
 	// Listed out of PCI order on purpose: devices are sorted by PCI address.
+	// Without a KFD topology, amd-smi lists no GPU, so no index is known.
 	second := fs.AddPCIDevice("0000:c1:00.0", "amdgpu", MI300XAttributes("ABCDEF0123456789"))
 	first := fs.AddPCIDevice("0000:11:00.0", "amdgpu", MI300XAttributes(""))
 	fs.AddCard("card1", second)
@@ -59,10 +60,10 @@ func TestDiscoverFiltersAndOrdersDevices(t *testing.T) {
 	require.Len(t, devices, 4)
 
 	expected := []Device{
-		{UUID: "amd-0000-11-00-0", Index: 0, Name: "AMD Instinct MI300X", PCIBusID: "0000:11:00.0", DeviceID: 0x74a1, DriverVersion: "6.14.14", MemoryTotal: 206141652992},
-		{UUID: "amd-0000-41-00-0", Index: 1, Name: "AMD Radeon AI PRO R9700", PCIBusID: "0000:41:00.0", DeviceID: 0x7551, DriverVersion: "6.14.14", MemoryTotal: 206141652992},
-		{UUID: "amd-0000-51-00-0", Index: 2, Name: "AMD GPU 0x7fff", PCIBusID: "0000:51:00.0", DeviceID: 0x7fff, DriverVersion: "6.14.14", MemoryTotal: 206141652992},
-		{UUID: "ab0074a1-0000-1000-80cd-ef0123456789", Index: 3, Name: "AMD Instinct MI300X", PCIBusID: "0000:c1:00.0", DeviceID: 0x74a1, DriverVersion: "6.14.14", MemoryTotal: 206141652992, serial: "abcdef0123456789"},
+		{UUID: "amd-0000-11-00-0", Index: -1, Name: "AMD Instinct MI300X", PCIBusID: "0000:11:00.0", DeviceID: 0x74a1, DriverVersion: "6.14.14", MemoryTotal: 206141652992},
+		{UUID: "amd-0000-41-00-0", Index: -1, Name: "AMD Radeon AI PRO R9700", PCIBusID: "0000:41:00.0", DeviceID: 0x7551, DriverVersion: "6.14.14", MemoryTotal: 206141652992},
+		{UUID: "amd-0000-51-00-0", Index: -1, Name: "AMD GPU 0x7fff", PCIBusID: "0000:51:00.0", DeviceID: 0x7fff, DriverVersion: "6.14.14", MemoryTotal: 206141652992},
+		{UUID: "ab0074a1-0000-1000-80cd-ef0123456789", Index: -1, Name: "AMD Instinct MI300X", PCIBusID: "0000:c1:00.0", DeviceID: 0x74a1, DriverVersion: "6.14.14", MemoryTotal: 206141652992, serial: "abcdef0123456789"},
 	}
 	for i, dev := range devices {
 		got := *dev
@@ -110,12 +111,15 @@ func TestDiscoverReportsUnreadableDeviceIDAndKeepsOthers(t *testing.T) {
 	broken["device"] = "garbage\n"
 	fs.AddCard("card0", fs.AddPCIDevice("0000:11:00.0", "amdgpu", broken))
 	fs.AddCard("card1", fs.AddPCIDevice("0000:21:00.0", "amdgpu", MI300XAttributes("")))
+	fs.AddKFDNode(1, 1001, 0, 0x1100, 90402)
+	fs.AddKFDNode(2, 1002, 0, 0x2100, 90402)
 
 	devices, err := Discover(fs.Root)
 	require.Error(t, err)
 	require.Len(t, devices, 1)
 	assert.Equal(t, "0000:21:00.0", devices[0].PCIBusID)
-	assert.Equal(t, 0, devices[0].Index)
+	// amd-smi still lists the GPU the agent cannot identify.
+	assert.Equal(t, 1, devices[0].Index)
 }
 
 func TestDiscoverIgnoresDanglingDeviceLink(t *testing.T) {

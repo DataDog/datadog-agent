@@ -46,8 +46,12 @@ const (
 
 // SeverityEvent records a severity state-machine transition.
 type SeverityEvent struct {
-	// Timestamp is the data time (unix seconds) when the transition occurred.
+	// Timestamp is the data time (Unix seconds) when the transition took effect.
 	Timestamp int64 `json:"timestamp"`
+	// HistoricalTimestamp is the Medium or High period start, when known. It
+	// is zero for transitions that do not introduce a new discovery. Cooldown
+	// always starts at Timestamp.
+	HistoricalTimestamp int64 `json:"historical_timestamp,omitempty"`
 	// FromLevel is the state before the transition.
 	FromLevel SeverityLevel `json:"from_level"`
 	// ToLevel is the state after the transition.
@@ -84,9 +88,8 @@ type SeverityEventsConfiguration struct {
 	// Filter controls which transitions are delivered.
 	// Zero value SeverityEventFilter{} delivers all transitions.
 	Filter SeverityEventFilter
-	// CooldownSecs is the minimum number of seconds that must elapse after a
-	// delivered transition before a downward (de-escalation) transition can be
-	// delivered again.
+	// CooldownSecs is the minimum time before a de-escalation. A new period of
+	// the held severity renews the cooldown without another transition.
 	// Zero means no cooldown (every matching transition is delivered).
 	CooldownSecs int64
 }

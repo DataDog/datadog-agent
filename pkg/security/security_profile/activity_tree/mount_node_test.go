@@ -299,3 +299,29 @@ func TestMountsProtoRoundTrip(t *testing.T) {
 	assert.Equal(t, first.UnixNano(), firstSeen)
 	assert.Equal(t, last.UnixNano(), lastSeen)
 }
+
+func TestInsertMountEventReturnsExistingNode(t *testing.T) {
+	at := newMountTestTree()
+	tagID := at.GetOrInsertImageTag("v1")
+	ev := &model.Event{
+		BaseEvent: model.BaseEvent{FieldHandlers: &model.FakeFieldHandlers{}},
+	}
+	ev.Mount.Mount.Path = "/tmp/wp-mount-dst"
+	ev.Mount.Mount.RootStr = "/"
+	ev.Mount.Mount.FSType = "ext4"
+
+	inserted, node := at.insertMountEvent(ev, tagID, Runtime, nil, false)
+	require.True(t, inserted)
+	require.Len(t, at.Mounts, 1)
+	require.Same(t, &at.Mounts[0].NodeBase, node)
+
+	inserted, node = at.insertMountEvent(ev, tagID, Runtime, nil, false)
+	assert.False(t, inserted)
+	assert.Same(t, &at.Mounts[0].NodeBase, node)
+
+	ev.Mount.Mount.MountFlags = 1
+	inserted, other := at.insertMountEvent(ev, tagID, Runtime, nil, false)
+	assert.True(t, inserted)
+	require.NotNil(t, other)
+	assert.NotSame(t, node, other)
+}

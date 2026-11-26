@@ -9,9 +9,11 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func runExpansionScript(t *testing.T, script string, opts ...RunnerOption) (string, string, error) {
@@ -70,6 +72,80 @@ func TestBraceExpansionLimit(t *testing.T) {
 	requireExitStatus(t, err, 1)
 	if !strings.Contains(stderr, "brace expansion would exceed 16384 elements") {
 		t.Fatalf("stderr = %q, want brace expansion limit", stderr)
+	}
+}
+
+func TestBraceExpansionWorkLimit(t *testing.T) {
+	chain := strings.Repeat("{a..a}", 6000)
+	for name, script := range map[string]string{
+		"chained single-valued ranges": "true " + chain,
+		"nested alternatives":          "true " + strings.Repeat("{a,", 1000) + strings.Repeat("}", 1000),
+		"unclosed braces":              "true " + strings.Repeat("{a", 2000),
+		"many parts beside braces":     "true " + strings.Repeat("{a,b}", 8) + strings.Repeat("$e", 20000),
+		"alternatives without fields":  "true " + strings.Repeat("{$e,$e}", 14) + strings.Repeat("$e", 5000),
+		"blank values in alternatives": "true " + strings.Repeat("{$S,$S}", 8),
+		"command name":                 chain,
+		"for-loop word list":           "for v in " + chain + "; do :; done",
+	} {
+		t.Run(name, func(t *testing.T) {
+			start := time.Now()
+			stdout, stderr, err := runExpansionScript(t, script+"\necho AFTER",
+				AllowedCommands([]string{"rshell:true", "rshell:echo"}),
+				Env("S="+strings.Repeat(" ", 64<<10)),
+			)
+			if elapsed := time.Since(start); elapsed > 5*time.Second {
+				t.Fatalf("expansion took %v, want rejection before expanding", elapsed)
+			}
+			requireExitStatus(t, err, 1)
+			if stdout != "" {
+				t.Fatalf("stdout = %q, want script aborted before echo", stdout)
+			}
+			if !strings.Contains(stderr, "brace expansion exceeds maximum word complexity") {
+				t.Fatalf("stderr = %q, want brace complexity limit", stderr)
+			}
+		})
+	}
+}
+
+func TestBraceExpansionBelowWorkLimit(t *testing.T) {
+	stdout, stderr, err := runExpansionScript(t,
+		"echo pre{a,b}mid{1..3}post {x,{y,z}}w\necho "+strings.Repeat("{a..a}", 300)+
+			"\necho "+strings.Repeat("{}", 2000),
+		AllowedCommands([]string{"rshell:echo"}),
+	)
+	if err != nil {
+		t.Fatalf("Run: %v, stderr=%q", err, stderr)
+	}
+	want := "preamid1post preamid2post preamid3post prebmid1post prebmid2post prebmid3post xw yw zw\n" +
+		strings.Repeat("a", 300) + "\n" + strings.Repeat("{}", 2000) + "\n"
+	if stdout != want {
+		t.Fatalf("stdout = %q, want %q", stdout, want)
+	}
+
+	// A wide list costs each alternative only its own element.
+	list := make([]string, 6000)
+	for i := range list {
+		list[i] = strconv.Itoa(i)
+	}
+	stdout, stderr, err = runExpansionScript(t, "echo {"+strings.Join(list, ",")+"}",
+		AllowedCommands([]string{"rshell:echo"}),
+	)
+	if err != nil {
+		t.Fatalf("Run: %v, stderr=%q", err, stderr)
+	}
+	if got := strings.Fields(stdout); len(got) != len(list) || got[len(got)-1] != "5999" {
+		t.Fatalf("got %d fields, want %d ending in 5999", len(got), len(list))
+	}
+
+	// The most alternatives expand.BracesSeq allows still expand.
+	stdout, stderr, err = runExpansionScript(t, "echo "+strings.Repeat("{a,b}", 14)+"\necho {1..16384}",
+		AllowedCommands([]string{"rshell:echo"}),
+	)
+	if err != nil {
+		t.Fatalf("Run: %v, stderr=%q", err, stderr)
+	}
+	if got := len(strings.Fields(stdout)); got != 2*16384 {
+		t.Fatalf("got %d fields, want %d", got, 2*16384)
 	}
 }
 

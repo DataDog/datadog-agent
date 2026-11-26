@@ -64,7 +64,8 @@ func deepCopyIPBytes(fieldToCopy []byte, c deepCopyContext) []byte {
 	return copied
 }
 
-// DeepCopy creates a deep copy of the Event where the copy shares nothing with the original
+// DeepCopy creates a deep copy of the Event where the copy shares nothing with the original but its FieldHandlers and
+// its errors, so a change made to an error is seen by both events
 func (e *Event) DeepCopy() *Event {
 	if e == nil {
 		return nil
@@ -228,6 +229,7 @@ func deepCopyuint32Arr(fieldToCopy []uint32, c deepCopyContext) []uint32 {
 }
 func deepCopyBaseEvent(fieldToCopy BaseEvent, c deepCopyContext) BaseEvent {
 	copied := BaseEvent{}
+	copied.Error = fieldToCopy.Error
 	copied.Flags = fieldToCopy.Flags
 	copied.Hostname = fieldToCopy.Hostname
 	copied.ID = fieldToCopy.ID
@@ -312,6 +314,7 @@ func deepCopyProcessPtr(fieldToCopy *Process, c deepCopyContext) *Process {
 	copied.Cookie = fieldToCopy.Cookie
 	copied.CreatedAt = fieldToCopy.CreatedAt
 	copied.Credentials = deepCopyCredentials(fieldToCopy.Credentials, c)
+	copied.Env = deepCopystringMap(fieldToCopy.Env, c)
 	copied.Envp = deepCopystringArr(fieldToCopy.Envp, c)
 	copied.Envs = deepCopystringArr(fieldToCopy.Envs, c)
 	copied.EnvsEntry = deepCopyEnvsEntryPtr(fieldToCopy.EnvsEntry, c)
@@ -439,6 +442,21 @@ func deepCopyCredentials(fieldToCopy Credentials, c deepCopyContext) Credentials
 	copied.User = fieldToCopy.User
 	return copied
 }
+func deepCopystringMap(fieldToCopy map[string]string, c deepCopyContext) map[string]string {
+	if fieldToCopy == nil {
+		return nil
+	}
+	key := mapKey(fieldToCopy, deepCopystringMapType)
+	if copied, ok := c[key]; ok {
+		return mapFromPointer[string](copied)
+	}
+	copied := make(map[string]string, len(fieldToCopy))
+	c[key] = mapPointer(copied)
+	for k, v := range fieldToCopy {
+		copied[k] = v
+	}
+	return copied
+}
 func deepCopyEnvsEntryPtr(fieldToCopy *EnvsEntry, c deepCopyContext) *EnvsEntry {
 	if fieldToCopy == nil {
 		return nil
@@ -477,6 +495,7 @@ func deepCopyFileEvent(fieldToCopy FileEvent, c deepCopyContext) FileEvent {
 	copied.MountSource = fieldToCopy.MountSource
 	copied.MountVisibilityResolved = fieldToCopy.MountVisibilityResolved
 	copied.MountVisible = fieldToCopy.MountVisible
+	copied.PathResolutionError = fieldToCopy.PathResolutionError
 	copied.PathnameStr = fieldToCopy.PathnameStr
 	copied.PkgEpoch = fieldToCopy.PkgEpoch
 	copied.PkgName = fieldToCopy.PkgName
@@ -538,21 +557,6 @@ func deepCopySpanContext(fieldToCopy SpanContext, c deepCopyContext) SpanContext
 	copied.HasExtraAttrs = fieldToCopy.HasExtraAttrs
 	copied.SpanID = fieldToCopy.SpanID
 	copied.TraceID = deepCopyTraceID(fieldToCopy.TraceID, c)
-	return copied
-}
-func deepCopystringMap(fieldToCopy map[string]string, c deepCopyContext) map[string]string {
-	if fieldToCopy == nil {
-		return nil
-	}
-	key := mapKey(fieldToCopy, deepCopystringMapType)
-	if copied, ok := c[key]; ok {
-		return mapFromPointer[string](copied)
-	}
-	copied := make(map[string]string, len(fieldToCopy))
-	c[key] = mapPointer(copied)
-	for k, v := range fieldToCopy {
-		copied[k] = v
-	}
 	return copied
 }
 func deepCopyTraceID(fieldToCopy utils.TraceID, c deepCopyContext) utils.TraceID {
@@ -626,6 +630,7 @@ func deepCopyProcess(fieldToCopy Process, c deepCopyContext) Process {
 	copied.Cookie = fieldToCopy.Cookie
 	copied.CreatedAt = fieldToCopy.CreatedAt
 	copied.Credentials = deepCopyCredentials(fieldToCopy.Credentials, c)
+	copied.Env = deepCopystringMap(fieldToCopy.Env, c)
 	copied.Envp = deepCopystringArr(fieldToCopy.Envp, c)
 	copied.Envs = deepCopystringArr(fieldToCopy.Envs, c)
 	copied.EnvsEntry = deepCopyEnvsEntryPtr(fieldToCopy.EnvsEntry, c)
@@ -1051,8 +1056,11 @@ func deepCopyMountEvent(fieldToCopy MountEvent, c deepCopyContext) MountEvent {
 	copied := MountEvent{}
 	copied.Mount = deepCopyMount(fieldToCopy.Mount, c)
 	copied.MountPointPath = fieldToCopy.MountPointPath
+	copied.MountPointPathResolutionError = fieldToCopy.MountPointPathResolutionError
 	copied.MountRootPath = fieldToCopy.MountRootPath
+	copied.MountRootPathResolutionError = fieldToCopy.MountRootPathResolutionError
 	copied.MountSourcePath = fieldToCopy.MountSourcePath
+	copied.MountSourcePathResolutionError = fieldToCopy.MountSourcePathResolutionError
 	copied.SyscallContext = deepCopySyscallContext(fieldToCopy.SyscallContext, c)
 	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent, c)
 	copied.SyscallFSType = fieldToCopy.SyscallFSType

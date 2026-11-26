@@ -16,6 +16,7 @@ import tempfile
 import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from pathlib import Path
 
 import yaml
@@ -273,6 +274,11 @@ GO_TEST_MIN_TIMEOUT_SECONDS = 60
 # Fallback go test timeout when no GitLab CI timeout is available (local runs).
 DEFAULT_GO_TEST_TIMEOUT = "4h"
 
+# Match a complete panic header line, not timeout text embedded in other test logs.
+GO_TEST_TIMEOUT_PANIC_RE = re.compile(
+    r"^panic: test timed out after (?:[0-9]+(?:\.[0-9]+)?(?:ns|[uµμ]s|ms|s|m|h))+\r?$", re.MULTILINE
+)
+
 
 def _format_go_duration(seconds: int) -> str:
     """Format an integer number of seconds as a Go duration literal (e.g. "1h55m0s")."""
@@ -371,7 +377,7 @@ def _compute_go_test_timeout(explicit: str | None, now: datetime.datetime | None
         "flavor": 'Agent package flavor to install (e.g. "datadog-agent")',
         "stack_name_suffix": "Suffix to add to the stack name, it can be useful when your stack is stuck in a weird state and you need to run the tests again",
         "use_bazel_built_binaries": "Build the test binaries with Bazel first instead of building them on the fly, then execute them with gotestsum",
-        "max_retries": "Maximum number of retries for failed tests, only in e2e CI jobs where the job after_script cleans up the stacks",
+        "max_retries": "Maximum number of retries for failed tests (except Go test timeouts), only in e2e CI jobs where the job after_script cleans up the stacks",
         "impacted": "Only run tests that are impacted by the changes (only available in CI for now)",
         "keep_stack": "Keep the stack after running the test, you are responsible for destroying the stack later.",
         "timeout": "Go test timeout (Go duration string, e.g. '1h55m'). Defaults to CI_JOB_TIMEOUT minus a teardown buffer when running in GitLab CI, otherwise to 4h.",
@@ -687,6 +693,19 @@ def run(
         washer = TestWasher(test_output_json_file=partial_result_json)
 
         if remaining_tries > 0:
+            if any(
+                line.action == ActionType.OUTPUT and line.output and GO_TEST_TIMEOUT_PANIC_RE.search(line.output)
+                for line in washer.test_output_json.lines
+            ):
+                # A Go test timeout can leave remote commands running on the stacks that retries would reuse.
+                print(
+                    color_message(
+                        "Go test timed out; skipping retries because remote commands may still be running.",
+                        Color.ORANGE,
+                    )
+                )
+                break
+
             failed_tests = filter_only_leaf_tests(
                 (package, test_name) for package, tests in washer.get_failing_tests().items() for test_name in tests
             )
@@ -895,10 +914,12 @@ def list_stacks(ctx: Context, project: str = "e2eci") -> list[dict]:
 
 
 @task
-def cleanup_remote_stacks(ctx, stack_regex):
+def cleanup_remote_stacks(ctx, stack_regex, pipeline_id=None):
     """
-    Clean up remote stacks created by the pipeline
+    Clean up remote stacks, attributing requests to pipeline_id (current by default).
     """
+    if pipeline_id is not None and not str(pipeline_id).isdecimal():
+        raise Exit("Provide a numeric --pipeline-id", code=1)
     remote_stack_cleaning = os.getenv("REMOTE_STACK_CLEANING") == "true"
     if remote_stack_cleaning:
         print("Using remote stack cleaning")
@@ -924,7 +945,11 @@ def cleanup_remote_stacks(ctx, stack_regex):
     print("About to delete the following stacks:", to_delete_stacks)
 
     with multiprocessing.Pool(len(to_delete_stacks)) as pool:
-        destroy_func = destroy_remote_stack_api if remote_stack_cleaning else destroy_remote_stack_local
+        destroy_func = (
+            partial(destroy_remote_stack_api, pipeline_id=pipeline_id)
+            if remote_stack_cleaning
+            else destroy_remote_stack_local
+        )
         res = pool.map(destroy_func, to_delete_stacks)
         destroyed_stack = set()
         failed_stack = set()

@@ -112,3 +112,9 @@ securityContext:
 ```
 
 The provided profile limits what the Host Profiler container can execute. It allows `objcopy`, which is used for debug symbol extraction.
+
+## Partial deployment (optional)
+
+To run the Host Profiler on selected Linux nodes, add the labels that identify those nodes to `nodeSelector` in [`helm/collector-values.yaml`](helm/collector-values.yaml). Keep `kubernetes.io/os: linux`. For more complex rules, use [required node affinity](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#node-affinity) under `affinity.nodeAffinity`. If taints block scheduling, add matching [tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/) under `tolerations`.
+
+After rollout, verify that every intended node runs a Collector pod and that no Collector pods run on other nodes.

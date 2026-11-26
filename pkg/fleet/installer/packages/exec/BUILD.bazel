@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "exec",
@@ -12,7 +13,22 @@ go_library(
     deps = select({
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/errors",
+            "//pkg/fleet/installer/paths",
             "//pkg/fleet/installer/telemetry",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "exec_test",
+    srcs = ["apm_inject_exec_windows_test.go"],
+    embed = [":exec"],
+    target_compatible_with = ["@platforms//os:windows"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/paths",
+            "@com_github_stretchr_testify//assert",
         ],
         "//conditions:default": [],
     }),

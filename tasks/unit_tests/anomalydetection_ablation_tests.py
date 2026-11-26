@@ -460,6 +460,7 @@ class TestAblationHTTPIntegration(unittest.TestCase):
                     "n_trials_tune": 1,
                     "ddeval_limit": 1,
                     "seed": 42,
+                    "time_mode": "trigger",
                     "ddeval_testbench_binary_s3_uri": "s3://bucket/testbench",
                     "ddeval_testbench_sha256": "a" * 64,
                 }
@@ -481,6 +482,13 @@ class TestAblationHTTPIntegration(unittest.TestCase):
                     self.assertEqual(resumed_state["trials"][label], trial)
                 self.assertEqual(len(resumed_state["trials"][failed_label]["attempts"]), 1)
                 self.assertEqual(len(experiments), 14)  # 13 successful trials plus the preserved failed attempt.
+                self.assertEqual(
+                    {
+                        json.loads(request["experiment_config"])["executor_config"]["time_mode"]
+                        for request in experiments.values()
+                    },
+                    {"trigger"},
+                )
                 self.assertEqual(len(report["searches"]), 1)
                 self.assertEqual(report["dataset_version"], 7)
                 self.assertEqual(report["best"]["score"], 0.75)

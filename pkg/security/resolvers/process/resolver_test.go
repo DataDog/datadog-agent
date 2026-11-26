@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sync"
 	"testing"
 	"time"
 
@@ -22,9 +23,11 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	tracermetadatamodel "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -419,19 +422,71 @@ func TestResolveFromKernelMapsUsesEventPPid(t *testing.T) {
 	assert.False(t, entry.IsParentMissing)
 }
 
+type testMountResolver struct {
+	mount.NoOpResolver
+	pidMntNs map[uint32]uint32
+}
+
+func (m *testMountResolver) SetPidMntNs(pid uint32, ns uint32) {
+	if m.pidMntNs != nil {
+		m.pidMntNs[pid] = ns
+	}
+}
+
+type testPathResolver struct {
+	path.NoOpResolver
+	resolveFullFilePath func(e *model.FileFields, pidCtx *model.PIDContext) (string, string, model.MountSource, model.MountOrigin, error)
+	resolveBasename     func(e *model.FileFields) string
+}
+
+func (r *testPathResolver) ResolveFullFilePath(e *model.FileFields, pidCtx *model.PIDContext) (string, string, model.MountSource, model.MountOrigin, error) {
+	if r.resolveFullFilePath != nil {
+		return r.resolveFullFilePath(e, pidCtx)
+	}
+	return r.NoOpResolver.ResolveFullFilePath(e, pidCtx)
+}
+
+func (r *testPathResolver) ResolveBasename(e *model.FileFields) string {
+	if r.resolveBasename != nil {
+		return r.resolveBasename(e)
+	}
+	return r.NoOpResolver.ResolveBasename(e)
+}
+
 func TestOrphanExec(t *testing.T) {
 	resolver, err := newResolver()
 	if err != nil {
 		t.Fatal()
 	}
+	mountRes := &testMountResolver{pidMntNs: make(map[uint32]uint32)}
+	resolver.mountResolver = mountRes
+	var mntNsObservedDuringResolve uint32
+	resolver.pathResolver = &testPathResolver{
+		resolveFullFilePath: func(e *model.FileFields, pidCtx *model.PIDContext) (string, string, model.MountSource, model.MountOrigin, error) {
+			mntNsObservedDuringResolve = mountRes.pidMntNs[pidCtx.Pid]
+			if e.Inode == 456 {
+				return "/usr/bin/execed", "", model.MountSourceMountID, model.MountOriginEvent, nil
+			}
+			return "/usr/bin/orphan", "", model.MountSourceMountID, model.MountOriginEvent, nil
+		},
+	}
 
 	parent := newFakeForkEvent(0, 3, 123, resolver)
+	parent.ProcessCacheEntry.FileEvent.MountID = 1
+	parent.ProcessCacheEntry.MntNS = 4026531840
 	child := newFakeForkEvent(3, 4, 123, resolver)
+	child.ProcessCacheEntry.FileEvent.MountID = 1
 	exec := newFakeExecEvent(3, 4, 456, resolver)
+	exec.ProcessCacheEntry.FileEvent.MountID = 1
 
 	// X(pid:3)
 	resolver.AddForkEntry(parent, model.CGroupContext{}, nil)
+	assert.Equal(t, uint32(4026531840), mntNsObservedDuringResolve)
 	assert.Equal(t, parent.ProcessCacheEntry, resolver.entryCache[parent.ProcessCacheEntry.Pid])
+	assert.True(t, parent.ProcessCacheEntry.FileEvent.IsPathnameStrResolved)
+	assert.True(t, parent.ProcessCacheEntry.FileEvent.IsBasenameStrResolved)
+	assert.Equal(t, "/usr/bin/orphan", parent.ProcessCacheEntry.FileEvent.PathnameStr)
+	assert.Equal(t, "orphan", parent.ProcessCacheEntry.FileEvent.BasenameStr)
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assertChildrenConsistency(t, resolver)
 
@@ -440,6 +495,8 @@ func TestOrphanExec(t *testing.T) {
 	// X(pid:4)
 	resolver.AddForkEntry(child, model.CGroupContext{}, nil)
 	assert.Equal(t, child.ProcessCacheEntry, resolver.entryCache[child.ProcessCacheEntry.Pid])
+	assert.Equal(t, "/usr/bin/orphan", child.ProcessCacheEntry.FileEvent.PathnameStr)
+	assert.Equal(t, "orphan", child.ProcessCacheEntry.FileEvent.BasenameStr)
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
 	assertChildrenConsistency(t, resolver)
@@ -459,6 +516,8 @@ func TestOrphanExec(t *testing.T) {
 	//  X(pid:4) --> Y(pid:4)
 	resolver.AddExecEntry(exec, model.CGroupContext{})
 	assert.Equal(t, exec.ProcessCacheEntry, resolver.entryCache[exec.ProcessCacheEntry.Pid])
+	assert.Equal(t, "/usr/bin/execed", exec.ProcessCacheEntry.FileEvent.PathnameStr)
+	assert.Equal(t, "execed", exec.ProcessCacheEntry.FileEvent.BasenameStr)
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.Equal(t, child.ProcessCacheEntry, exec.ProcessCacheEntry.Ancestor)
 	assert.Equal(t, parent.ProcessCacheEntry, exec.ProcessCacheEntry.Ancestor.Ancestor)
@@ -470,6 +529,50 @@ func TestOrphanExec(t *testing.T) {
 	resolver.DeleteEntry(exec.ProcessCacheEntry.Pid, time.Now())
 	assert.Zero(t, len(resolver.entryCache))
 	assertChildrenConsistency(t, resolver)
+
+	t.Run("failure-preserves-retry-and-basename", func(t *testing.T) {
+		failFullPath := true
+		resolver.pathResolver = &testPathResolver{
+			resolveFullFilePath: func(_ *model.FileFields, _ *model.PIDContext) (string, string, model.MountSource, model.MountOrigin, error) {
+				if failFullPath {
+					return "", "", model.MountSourceUnknown, model.MountOriginUnknown, errors.New("parent dentry missing")
+				}
+				return "/usr/bin/orphan-leaf", "", model.MountSourceMountID, model.MountOriginEvent, nil
+			},
+			resolveBasename: func(_ *model.FileFields) string {
+				return "orphan-leaf"
+			},
+		}
+
+		orphan := newFakeForkEvent(99, 10, 789, resolver)
+		orphan.ProcessCacheEntry.FileEvent.MountID = 1
+		resolver.AddForkEntry(orphan, model.CGroupContext{}, nil)
+		fe := &orphan.ProcessCacheEntry.FileEvent
+		assert.False(t, fe.IsPathnameStrResolved)
+		assert.False(t, fe.IsBasenameStrResolved)
+		assert.Empty(t, fe.PathnameStr)
+		assert.Empty(t, fe.BasenameStr)
+		assert.Nil(t, fe.PathResolutionError)
+
+		// Exercise the same !IsBasenameStrResolved && len(BasenameStr) == 0 guard used by EBPFFieldHandlers.ResolveFileBasename
+		if !fe.IsBasenameStrResolved && len(fe.BasenameStr) == 0 {
+			fe.SetBasenameStr(resolver.pathResolver.ResolveBasename(&fe.FileFields))
+		}
+		assert.True(t, fe.IsBasenameStrResolved)
+		assert.Equal(t, "orphan-leaf", fe.BasenameStr)
+		assert.False(t, fe.IsPathnameStrResolved)
+
+		// Exercise the same !IsPathnameStrResolved && len(PathnameStr) == 0 guard used by EBPFFieldHandlers.ResolveFilePath
+		failFullPath = false
+		if !fe.IsPathnameStrResolved && len(fe.PathnameStr) == 0 {
+			resolvedPath, err := resolver.setProcessPath(fe, orphan.ProcessCacheEntry)
+			require.NoError(t, err)
+			assert.Equal(t, "/usr/bin/orphan-leaf", resolvedPath)
+		}
+		assert.True(t, fe.IsPathnameStrResolved)
+		assert.Equal(t, "/usr/bin/orphan-leaf", fe.PathnameStr)
+		assert.Equal(t, "orphan-leaf", fe.BasenameStr)
+	})
 }
 
 func TestForkExecExec(t *testing.T) {
@@ -1589,6 +1692,8 @@ func TestAWSSecurityCredentialsScopedToProcess(t *testing.T) {
 	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
 
 	// the child receives credentials from an IMDS v2 response
+	child.IMDS.Type = model.IMDSResponseType
+	child.NetworkContext.NetworkDirection = uint32(model.Ingress)
 	child.IMDS.AWS.SecurityCredentials = model.AWSSecurityCredentials{
 		Code:        "Success",
 		Type:        "AWS-HMAC",
@@ -1610,9 +1715,9 @@ func TestAWSSecurityCredentialsScopedToProcess(t *testing.T) {
 	assert.Empty(t, parentCreds, "ancestors must not report the requesting process's credentials")
 }
 
-// TestAWSSecurityCredentialsSkipsPodIdentityAgent ensures the EKS Pod Identity
-// Agent's own process never gets attributed the credentials it serves.
-func TestAWSSecurityCredentialsSkipsPodIdentityAgent(t *testing.T) {
+// TestAWSSecurityCredentialsSkipsPodIdentityBroker ensures the EKS Pod Identity
+// Agent's own process never gets attributed the credentials it sends.
+func TestAWSSecurityCredentialsSkipsPodIdentityBroker(t *testing.T) {
 	resolver, err := newResolver()
 	if err != nil {
 		t.Fatal(err)
@@ -1623,6 +1728,8 @@ func TestAWSSecurityCredentialsSkipsPodIdentityAgent(t *testing.T) {
 	resolver.AddForkEntry(agent, model.CGroupContext{}, nil)
 
 	agent.IMDS.CredentialSource = uint32(model.CredentialSourceEKSPodIdentity)
+	agent.IMDS.Type = model.IMDSResponseType
+	agent.NetworkContext.NetworkDirection = uint32(model.Egress)
 	agent.IMDS.AWS.SecurityCredentials = model.AWSSecurityCredentials{
 		AccessKeyID: "AKIAIOSFODNN7EXAMPLE",
 		Expiration:  time.Now().Add(time.Hour),
@@ -1646,6 +1753,8 @@ func TestAWSSecurityCredentialsPodIdentityRequester(t *testing.T) {
 	resolver.AddForkEntry(proc, model.CGroupContext{}, nil)
 
 	proc.IMDS.CredentialSource = uint32(model.CredentialSourceEKSPodIdentity)
+	proc.IMDS.Type = model.IMDSResponseType
+	proc.NetworkContext.NetworkDirection = uint32(model.Ingress)
 	proc.IMDS.AWS.SecurityCredentials = model.AWSSecurityCredentials{
 		AccessKeyID: "AKIAIOSFODNN7EXAMPLE",
 		Expiration:  time.Now().Add(time.Hour),
@@ -1667,6 +1776,8 @@ func TestAWSSecurityCredentialsExpiration(t *testing.T) {
 	proc := newFakeForkEvent(0, 3, 123, resolver)
 	resolver.AddForkEntry(proc, model.CGroupContext{}, nil)
 
+	proc.IMDS.Type = model.IMDSResponseType
+	proc.NetworkContext.NetworkDirection = uint32(model.Ingress)
 	proc.IMDS.AWS.SecurityCredentials = model.AWSSecurityCredentials{
 		Code:        "Success",
 		Type:        "AWS-HMAC",
@@ -1677,6 +1788,88 @@ func TestAWSSecurityCredentialsExpiration(t *testing.T) {
 
 	creds := resolver.FetchAWSSecurityCredentials(proc, &proc.ProcessCacheEntry.Process)
 	assert.Empty(t, creds, "expired credentials should be pruned on fetch")
+}
+
+func TestAWSSecurityCredentialsAttribution(t *testing.T) {
+	sources := []struct {
+		name   string
+		source uint32
+	}{
+		{"imds", uint32(model.CredentialSourceIMDS)},
+		{"eks", uint32(model.CredentialSourceEKSPodIdentity)},
+		{"ecs", uint32(model.CredentialSourceECS)},
+	}
+	tests := []struct {
+		name      string
+		filename  string
+		eventType string
+		direction model.NetworkDirection
+		pid       uint32
+		emptyKey  bool
+		want      bool
+	}{
+		{name: "requester", filename: "my-app", eventType: model.IMDSResponseType, direction: model.Ingress, pid: 3, want: true},
+		{name: "requester named agent", filename: "agent", eventType: model.IMDSResponseType, direction: model.Ingress, pid: 3, want: true},
+		{name: "requester named eks agent", filename: "eks-pod-identity-agent", eventType: model.IMDSResponseType, direction: model.Ingress, pid: 3, want: true},
+		{name: "broker", filename: "agent", eventType: model.IMDSResponseType, direction: model.Egress, pid: 3},
+		{name: "unknown direction", filename: "my-app", eventType: model.IMDSResponseType, pid: 3},
+		{name: "request", filename: "my-app", eventType: model.IMDSRequestType, direction: model.Ingress, pid: 3},
+		{name: "unknown recipient", filename: "my-app", eventType: model.IMDSResponseType, direction: model.Ingress},
+		{name: "uncached recipient", filename: "my-app", eventType: model.IMDSResponseType, direction: model.Ingress, pid: 4},
+		{name: "empty key", filename: "my-app", eventType: model.IMDSResponseType, direction: model.Ingress, pid: 3, emptyKey: true},
+	}
+	for _, source := range sources {
+		for _, tc := range tests {
+			t.Run(source.name+"/"+tc.name, func(t *testing.T) {
+				resolver, err := newResolver()
+				require.NoError(t, err)
+				proc := newFakeForkEvent(0, 3, 123, resolver)
+				proc.ProcessCacheEntry.FileEvent.SetPathnameStr("/usr/bin/" + tc.filename)
+				require.NoError(t, resolver.AddForkEntry(proc, model.CGroupContext{}, nil))
+				proc.IMDS.CredentialSource = source.source
+				proc.IMDS.Type = tc.eventType
+				proc.NetworkContext.NetworkDirection = uint32(tc.direction)
+				if !tc.emptyKey {
+					proc.IMDS.AWS.SecurityCredentials.AccessKeyID = "ASIAIOSFODNN7EXAMPLE"
+				}
+				// Repeated observations must not duplicate a received key.
+				resolver.UpdateAWSSecurityCredentials(tc.pid, proc)
+				resolver.UpdateAWSSecurityCredentials(tc.pid, proc)
+				if tc.want {
+					require.Len(t, proc.ProcessCacheEntry.AWSSecurityCredentials, 1)
+					assert.Equal(t, proc.IMDS.AWS.SecurityCredentials.AccessKeyID, proc.ProcessCacheEntry.AWSSecurityCredentials[0].AccessKeyID)
+				} else {
+					assert.Empty(t, proc.ProcessCacheEntry.AWSSecurityCredentials)
+				}
+			})
+		}
+	}
+}
+
+func TestAWSSecurityCredentialsBrokerAndRequesters(t *testing.T) {
+	resolver, err := newResolver()
+	require.NoError(t, err)
+	broker := newFakeForkEvent(0, 3, 123, resolver)
+	first := newFakeForkEvent(0, 4, 124, resolver)
+	second := newFakeForkEvent(0, 5, 125, resolver)
+	for _, proc := range []*model.Event{broker, first, second} {
+		require.NoError(t, resolver.AddForkEntry(proc, model.CGroupContext{}, nil))
+		proc.IMDS.Type = model.IMDSResponseType
+		proc.IMDS.CredentialSource = uint32(model.CredentialSourceECS)
+	}
+	broker.NetworkContext.NetworkDirection = uint32(model.Egress)
+	for i, requester := range []*model.Event{first, second} {
+		key := fmt.Sprintf("ASIAREQUESTER%07d", i)
+		broker.IMDS.AWS.SecurityCredentials.AccessKeyID = key
+		resolver.UpdateAWSSecurityCredentials(broker.PIDContext.Pid, broker)
+		requester.IMDS.AWS.SecurityCredentials.AccessKeyID = key
+		requester.NetworkContext.NetworkDirection = uint32(model.Ingress)
+		resolver.UpdateAWSSecurityCredentials(requester.PIDContext.Pid, requester)
+	}
+	assert.Empty(t, broker.ProcessCacheEntry.AWSSecurityCredentials)
+	require.Len(t, first.ProcessCacheEntry.AWSSecurityCredentials, 1)
+	require.Len(t, second.ProcessCacheEntry.AWSSecurityCredentials, 1)
+	assert.NotEqual(t, first.ProcessCacheEntry.AWSSecurityCredentials[0].AccessKeyID, second.ProcessCacheEntry.AWSSecurityCredentials[0].AccessKeyID)
 }
 
 func TestUpdateProcessContextsReplacesPair(t *testing.T) {
@@ -1741,5 +1934,184 @@ func TestUpdateProcessContextsReplacesPair(t *testing.T) {
 
 		assert.Equal(t, containerutils.CGroupID("/kubepods.slice/cri-containerd-abcdef.scope"), pce.Process.CGroup.CGroupID)
 		assert.Equal(t, containerutils.ContainerID("abcdef"), pce.Process.ContainerContext.ContainerID)
+	})
+}
+
+func TestApplyPendingOTelUpdates(t *testing.T) {
+	t.Run("applies-metadata-and-attribute-keys-on-drain", func(t *testing.T) {
+		resolver, err := newResolver()
+		require.NoError(t, err)
+
+		fork := newFakeForkEvent(1, 100, 123, resolver)
+		require.NoError(t, resolver.AddForkEntry(fork, model.CGroupContext{}, nil))
+		entry := resolver.getEntry(100)
+		require.NotNil(t, entry)
+
+		tmeta := tracermetadatamodel.TracerMetadata{
+			ServiceName:    "svc",
+			ServiceEnv:     "prod",
+			ServiceVersion: "1.0.0",
+			ProcessTags:    "foo:bar",
+		}
+		resolver.enqueueOTelUpdate(otelTracerUpdate{
+			pid:         100,
+			entry:       entry,
+			tmeta:       tmeta,
+			hasMetadata: true,
+		})
+		resolver.enqueueOTelAttributeKeys(100, entry, []string{"k1", "k2"})
+
+		// Enqueuing must not mutate the entry until ApplyPendingOTelUpdates runs.
+		assert.True(t, entry.Tracer.Metadata.IsZero())
+		assert.Empty(t, entry.Tracer.ThreadlocalAttributeKeys)
+
+		resolver.ApplyPendingOTelUpdates()
+
+		assert.Equal(t, tmeta, entry.Tracer.Metadata)
+		assert.Equal(t, model.TracerMetadataSourceOTelProcessContext, entry.Tracer.MetadataSource)
+		assert.Equal(t, []string{"k1", "k2"}, entry.Tracer.ThreadlocalAttributeKeys)
+	})
+
+	t.Run("memfd-metadata-takes-precedence", func(t *testing.T) {
+		resolver, err := newResolver()
+		require.NoError(t, err)
+
+		fork := newFakeForkEvent(1, 101, 124, resolver)
+		require.NoError(t, resolver.AddForkEntry(fork, model.CGroupContext{}, nil))
+		entry := resolver.getEntry(101)
+		require.NotNil(t, entry)
+
+		memfdMeta := tracermetadatamodel.TracerMetadata{ServiceName: "memfd-svc", ServiceEnv: "staging"}
+		resolver.applyTracerMetadata(101, memfdMeta)
+
+		resolver.enqueueOTelUpdate(otelTracerUpdate{
+			pid:         101,
+			entry:       entry,
+			tmeta:       tracermetadatamodel.TracerMetadata{ServiceName: "otel-svc", ServiceEnv: "prod"},
+			hasMetadata: true,
+		})
+		resolver.ApplyPendingOTelUpdates()
+
+		assert.Equal(t, memfdMeta, entry.Tracer.Metadata)
+		assert.Equal(t, model.TracerMetadataSourceMemfd, entry.Tracer.MetadataSource)
+	})
+
+	t.Run("preserves-update-on-exec-ancestor-without-polluting-new-entry", func(t *testing.T) {
+		resolver, err := newResolver()
+		require.NoError(t, err)
+
+		fork := newFakeForkEvent(1, 102, 125, resolver)
+		require.NoError(t, resolver.AddForkEntry(fork, model.CGroupContext{}, nil))
+		oldEntry := resolver.getEntry(102)
+		require.NotNil(t, oldEntry)
+
+		// Queue an update captured against oldEntry before exec replaces entryCache[102].
+		oldMeta := tracermetadatamodel.TracerMetadata{ServiceName: "old-svc", ServiceEnv: "prod"}
+		resolver.enqueueOTelUpdate(otelTracerUpdate{
+			pid:           102,
+			entry:         oldEntry,
+			tmeta:         oldMeta,
+			hasMetadata:   true,
+			attributeKeys: []string{"old-key"},
+			hasAttrKeys:   true,
+		})
+
+		execEv := newFakeExecEvent(1, 102, 126, resolver)
+		require.NoError(t, resolver.AddExecEntry(execEv, model.CGroupContext{}))
+		newEntry := resolver.getEntry(102)
+		require.NotNil(t, newEntry)
+		require.NotSame(t, oldEntry, newEntry)
+		require.Same(t, oldEntry, newEntry.Ancestor)
+
+		resolver.ApplyPendingOTelUpdates()
+
+		// The new exec entry must not inherit the pre-exec binary's metadata or keys directly,
+		// while the original exec ancestor keeps them so otelAttributeKeyNames can walk ancestors.
+		assert.True(t, newEntry.Tracer.Metadata.IsZero())
+		assert.Equal(t, model.TracerMetadataSourceNone, newEntry.Tracer.MetadataSource)
+		assert.Empty(t, newEntry.Tracer.ThreadlocalAttributeKeys)
+		assert.Equal(t, oldMeta, oldEntry.Tracer.Metadata)
+		assert.Equal(t, model.TracerMetadataSourceOTelProcessContext, oldEntry.Tracer.MetadataSource)
+		assert.Equal(t, []string{"old-key"}, oldEntry.Tracer.ThreadlocalAttributeKeys)
+	})
+
+	t.Run("ignores-stale-update-after-pid-reuse", func(t *testing.T) {
+		resolver, err := newResolver()
+		require.NoError(t, err)
+
+		fork := newFakeForkEvent(1, 104, 128, resolver)
+		require.NoError(t, resolver.AddForkEntry(fork, model.CGroupContext{}, nil))
+		oldEntry := resolver.getEntry(104)
+		require.NotNil(t, oldEntry)
+
+		resolver.enqueueOTelUpdate(otelTracerUpdate{
+			pid:           104,
+			entry:         oldEntry,
+			tmeta:         tracermetadatamodel.TracerMetadata{ServiceName: "old-svc", ServiceEnv: "prod"},
+			hasMetadata:   true,
+			attributeKeys: []string{"old-key"},
+			hasAttrKeys:   true,
+		})
+
+		// Simulate exit + PID reuse by a new unrelated process.
+		resolver.DeleteEntry(104, time.Now())
+		reusedFork := newFakeForkEvent(1, 104, 129, resolver)
+		require.NoError(t, resolver.AddForkEntry(reusedFork, model.CGroupContext{}, nil))
+		reusedEntry := resolver.getEntry(104)
+		require.NotNil(t, reusedEntry)
+		require.NotSame(t, oldEntry, reusedEntry)
+
+		resolver.ApplyPendingOTelUpdates()
+
+		assert.True(t, reusedEntry.Tracer.Metadata.IsZero())
+		assert.Empty(t, reusedEntry.Tracer.ThreadlocalAttributeKeys)
+		assert.True(t, oldEntry.Tracer.Metadata.IsZero())
+		assert.Empty(t, oldEntry.Tracer.ThreadlocalAttributeKeys)
+	})
+
+	t.Run("no-data-race-between-background-enqueue-and-event-loop-reads", func(t *testing.T) {
+		resolver, err := newResolver()
+		require.NoError(t, err)
+
+		fork := newFakeForkEvent(1, 103, 127, resolver)
+		require.NoError(t, resolver.AddForkEntry(fork, model.CGroupContext{}, nil))
+		entry := resolver.getEntry(103)
+		require.NotNil(t, entry)
+
+		const iterations = 2000
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < iterations; i++ {
+				resolver.enqueueOTelUpdate(otelTracerUpdate{
+					pid:   103,
+					entry: entry,
+					tmeta: tracermetadatamodel.TracerMetadata{
+						ServiceName:    fmt.Sprintf("svc-%d", i),
+						ServiceEnv:     fmt.Sprintf("env-%d", i),
+						ServiceVersion: fmt.Sprintf("v%d", i),
+						ProcessTags:    fmt.Sprintf("k%d:v%d", i, i),
+					},
+					hasMetadata:   true,
+					attributeKeys: []string{fmt.Sprintf("attr-%d", i)},
+					hasAttrKeys:   true,
+				})
+			}
+		}()
+
+		for i := 0; i < iterations; i++ {
+			resolver.ApplyPendingOTelUpdates()
+			if tmeta := fork.GetProcessTracerMetadata(); !tmeta.IsZero() {
+				for k, v := range tmeta.Tags() {
+					_ = k + ":" + v
+				}
+			}
+			_ = fork.DeepCopy()
+		}
+
+		wg.Wait()
+		resolver.ApplyPendingOTelUpdates()
+		assert.Equal(t, fmt.Sprintf("env-%d", iterations-1), entry.Tracer.Metadata.ServiceEnv)
 	})
 }

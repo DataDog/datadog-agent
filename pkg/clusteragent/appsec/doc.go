@@ -31,7 +31,7 @@ The appsec injector follows a controller pattern with these key components:
   - ConfigMapReconciler: Watches original ConfigMaps for changes and re-syncs DD-owned copies (nginx only)
 
 The controller watches proxy resources using Kubernetes informers and maintains a work queue for
-processing add/modify/delete events with exponential backoff retry logic.
+processing add/delete events with exponential backoff retry logic.
 
 # Supported Proxies
 
@@ -347,7 +347,10 @@ For Envoy Gateway in EXTERNAL mode:
  1. Watches Gateway resources (gateway.networking.k8s.io/v1)
  2. Creates EnvoyExtensionPolicy resources that configure External Processing
  3. EnvoyExtensionPolicy backendRefs point at a Kubernetes Service
- 4. Manages ReferenceGrant resources for cross-namespace access
+ 4. Manages one ReferenceGrant per Gateway namespace (named datadog-appsec-extproc-<namespace>, in the
+    processor namespace) for cross-namespace access; a single shared grant would hit the 16-entry
+    limit of ReferenceGrant spec.from. The shared datadog-appsec-extproc grant created by older
+    versions is drained as its namespaces lose their last Gateway
  5. Handles cleanup when gateways are deleted
 
 ### SIDECAR Mode (envoyGatewaySidecarPattern)
@@ -577,8 +580,9 @@ Without the gcptrafficextensions permissions:
   - Any non-NotFound error on Get/Create/Delete (e.g. Forbidden) causes the reconcile to fail.
   - A WARN log is emitted and a Kubernetes event with reason GCPTrafficExtensionCreateFailed or
     GCPTrafficExtensionDeleteFailed is recorded on the Gateway object.
-  - The work item is retried under the shared injector's requeue policy and then dropped. No
-    GCPTrafficExtension is installed.
+  - A Forbidden error from missing RBAC is not retried: the shared injector drops the work item
+    after the first attempt. No GCPTrafficExtension is installed, and the Cluster Agent must be
+    restarted after the RBAC is fixed.
   - Customer traffic is unaffected (the missing extension is a silent pass-through at the LB layer).
   - This is NOT a silent no-op: failures are observable via events and cluster-agent logs.
 
@@ -587,8 +591,8 @@ Without the gcptrafficextensions permissions:
 The package records Kubernetes events for important operations:
 
   - EnvoyExtensionPolicy creation/deletion
-  - ReferenceGrant creation/update/deletion
-  - Namespace additions/removals from grants
+  - ReferenceGrant creation
+  - Namespace removals from the legacy shared grant
   - Failure conditions
 
 Events are recorded on the relevant resources (Gateway, EnvoyExtensionPolicy) to provide
@@ -608,8 +612,14 @@ that is monitored by the Cluster Agent's health probe system.
 
 The package emits telemetry metrics:
 
-  - appsec_injector.watched_changes: Counter tracking add/modify/delete operations
-    Tags: proxy_type, operation, success
+  - appsec_injector.watched_changes: Counter tracking added and deleted operations (there is no
+    update handler), incremented on every attempt (retries included)
+    Tags: proxy_type, operation, success, reason (Kubernetes API status reason such as Forbidden or
+    Invalid, "unknown" for non-API errors and reasons outside the known Kubernetes set, "none" on
+    success). Forbidden and Invalid errors are not retried since they need a change on the cluster
+    side, except Forbidden errors from a ResourceQuota (exhausted, or with its usage not computed
+    yet) or from admission plugins still starting up, which can clear on their own and are retried.
+    An error that joins several failures is dropped only if all of them are permanent
 
   - appsec_injector.sidecar_mutations: Counter tracking sidecar injection outcomes on the
     CREATE (MutatePod) admission path, emitted once per admission for a pod owned by a sidecar
@@ -673,13 +683,16 @@ delimit injected directives, enabling idempotent updates and clean removal.
 The package implements robust error handling with:
 
   - Exponential backoff retry for transient failures
-  - Maximum retry limits (default: 5 attempts)
+  - A fixed limit of 5 retries
   - Detailed error logging with context
   - Event recording for operational awareness
   - Configuration validation at startup with detailed error messages
 
 Failed operations are requeued with exponential backoff, and after exceeding retry limits,
-errors are logged but do not crash the controller.
+errors are logged but do not crash the controller. Permanent errors (Invalid, and Forbidden apart
+from the ResourceQuota and admission startup cases) are logged and dropped after the first attempt.
+The informer has no update handler or periodic resync, so a dropped item is only replayed when the
+Cluster Agent restarts or leadership changes, for example once the RBAC or admission policy is fixed.
 
 In SIDECAR mode, webhook failures are handled gracefully:
   - Invalid configurations prevent webhook registration
