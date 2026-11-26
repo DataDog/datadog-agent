@@ -204,6 +204,12 @@ func (pn *ProcessNode) size() int64 {
 	return s
 }
 
+// hasActivity reports whether the node holds activity of its own, beside its process and children
+func (pn *ProcessNode) hasActivity() bool {
+	return len(pn.Files) > 0 || len(pn.DNSNames) > 0 || len(pn.IMDSEvents) > 0 || len(pn.NetworkDevices) > 0 ||
+		len(pn.Sockets) > 0 || len(pn.Syscalls) > 0 || len(pn.Capabilities) > 0
+}
+
 // NewProcessNode returns a new ProcessNode instance
 func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) *ProcessNode {
 	// call the callback to resolve additional fields before copying them
@@ -923,7 +929,15 @@ func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCach
 		}
 	}
 
-	// Note: NetworkDeviceNode doesn't embed NodeBase so we skip eviction for network devices
+	// Evict unused network flows: a device is removed once it holds no flows
+	for key, device := range pn.NetworkDevices {
+		deviceEmpty, deviceRemoved := device.evictBeforeTimestamp(before)
+		removedBytes += deviceRemoved
+		if deviceEmpty {
+			removedBytes += device.size()
+			delete(pn.NetworkDevices, key)
+		}
+	}
 
 	// Evict unused socket nodes: children age out by their own timestamps, and a socket is
 	// removed only once it holds no children (see SocketNode.evictBeforeTimestamp).
