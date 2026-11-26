@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
@@ -32,9 +33,16 @@ type APMInjectExec struct {
 
 // NewAPMInjectExec returns a new APMInjectExec.
 func NewAPMInjectExec(execBinPath string) *APMInjectExec {
-	return &APMInjectExec{
+	a := &APMInjectExec{
 		execBinPath: execBinPath,
 	}
+	// ddinjector-installer.exe fails if it cannot create its log file, and its
+	// default log directory is %TEMP%, which can point to a deleted directory
+	// (e.g. the temp directory of a closed RDP session).
+	if info, err := os.Stat(paths.RootTmpDir); err == nil && info.IsDir() {
+		a.logPath = paths.RootTmpDir
+	}
+	return a
 }
 
 // WithDebug enables debug logging.
@@ -49,7 +57,7 @@ func (a *APMInjectExec) WithSilent(silent bool) *APMInjectExec {
 	return a
 }
 
-// WithLogPath sets the log file path.
+// WithLogPath sets the directory where the driver installer writes its log file.
 func (a *APMInjectExec) WithLogPath(logPath string) *APMInjectExec {
 	a.logPath = logPath
 	return a

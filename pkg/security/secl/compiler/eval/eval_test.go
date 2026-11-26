@@ -2658,6 +2658,30 @@ func TestDictIn(t *testing.T) {
 	assert.ErrorContains(t, err, "string expected: 1:25")
 }
 
+// Testing the keys of a dictionary doesn't allocate, it is evaluated for every
+// event of its rule.
+func TestDictInAllocs(t *testing.T) {
+	event := &testEvent{process: testProcess{name: "ls", env: map[string]string{"PATH": "/bin", "LD_PRELOAD": "x.so"}}}
+
+	for _, expr := range []string{
+		`"PATH" in process.env`,
+		`process.name in process.env`,
+		`["MISSING", "PATH"] in process.env`,
+		`["PATH", ~"LD_*"] allin process.env`,
+	} {
+		t.Run(expr, func(t *testing.T) {
+			rule, err := parseRule(expr, &testModel{}, newOptsWithParams(testConstants, nil))
+			if !assert.NoError(t, err) {
+				return
+			}
+			ctx := NewContext(event)
+			if allocs := testing.AllocsPerRun(100, func() { rule.Eval(ctx) }); allocs != 0 {
+				t.Errorf("expected no allocation, got %v per evaluation", allocs)
+			}
+		})
+	}
+}
+
 func TestDictFields(t *testing.T) {
 	rule, err := parseRule(`process.env["HOME"] == "/root" && process.array[A].env["PATH"] == "/usr/bin"`, &testModel{}, newOptsWithParams(testConstants, nil))
 	if !assert.NoError(t, err) {
@@ -2671,6 +2695,12 @@ func TestDictErrors(t *testing.T) {
 		Expr  string
 		Error string
 	}{
+		{Expr: `process.env == "/root"`, Error: `dictionary field 'process.env' is read at a key: process.env["KEY"]: 1:1`},
+		{Expr: `process.name == "ls" && process.env =~ "/root*"`, Error: `dictionary field 'process.env' is read at a key: process.env["KEY"]: 1:25`},
+		{Expr: `process.array.env == "/root"`, Error: `dictionary field 'process.array.env' is read at a key`},
+		{Expr: `process.env in ["PATH"]`, Error: `dictionary field 'process.env' is read at a key: process.env["KEY"]: 1:1`},
+		{Expr: `process.array.env not in ["PATH"]`, Error: `dictionary field 'process.array.env' is read at a key`},
+		{Expr: `%{process.env} == "/root"`, Error: `dictionary field 'process.env' is read at a key`},
 		{Expr: `"/root" == process.env`, Error: `string expected`},
 		{Expr: `"/root" == %{process.env}`, Error: `string expected`},
 		{Expr: `process.name["HOME"] == "/root"`, Error: `field 'process.name' is not a dictionary`},

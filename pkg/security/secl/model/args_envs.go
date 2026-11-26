@@ -103,9 +103,10 @@ func (p *EnvsEntry) toMap() {
 
 	p.kv = make(map[string]string, len(p.Values))
 
+	// a variable set more than once has its first value, the one getenv returns
 	for _, value := range p.Values {
 		k, v, found := strings.Cut(value, "=")
-		if found {
+		if _, set := p.kv[k]; found && !set {
 			p.kv[k] = v
 		}
 	}
@@ -115,6 +116,13 @@ func (p *EnvsEntry) toMap() {
 func (p *EnvsEntry) Get(key string) string {
 	p.toMap()
 	return p.kv[key]
+}
+
+// KeyValues returns the values of the environment variables, by name, the first
+// value of a variable set more than once
+func (p *EnvsEntry) KeyValues() map[string]string {
+	p.toMap()
+	return p.kv
 }
 
 // Equals compares two EnvsEntry

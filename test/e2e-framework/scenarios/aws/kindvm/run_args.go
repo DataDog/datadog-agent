@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/operatorparams"
 	kubecomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/cilium"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/mokka"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -40,6 +41,10 @@ type RunParams struct {
 	deployDogstatsd    bool
 	deployTestWorkload bool
 	deployArgoRollout  bool
+
+	// mokkaInstallations holds one set of options per Mokka installation (simulated GPU pool).
+	// See WithMokka.
+	mokkaInstallations [][]mokka.Option
 
 	// standaloneDdotFunc, when non-nil, deploys a standalone DDOT (Datadog
 	// Distribution of OpenTelemetry) agent DaemonSet using raw Kubernetes
@@ -217,6 +222,24 @@ func WithAgentDependentWorkloadApp(appFunc kubecomp.AgentDependentWorkloadAppFun
 // WithDeployArgoRollout enables Argo Rollout deployment
 func WithDeployArgoRollout() RunOption {
 	return func(p *RunParams) error { p.deployArgoRollout = true; return nil }
+}
+
+// WithMokka installs Mokka (NVIDIA nvml-mock) and the NVIDIA device plugin before the Agent,
+// so that the kind nodes expose simulated NVIDIA GPUs (nvidia.com/gpu) on a CPU-only VM.
+// The Helm-deployed Agent is configured to see the mock GPUs (see mokka.AgentHelmValues).
+//
+// Call it once per GPU pool, giving each installation its own mokka.WithName and
+// mokka.WithNodeSelector, e.g. to combine a T4 pool and a GB200 pool in the same cluster
+// (untested: no suite combines several pools yet, and the chart may not support several releases
+// in one namespace). Duplicate names are rejected.
+//
+// Mokka and the device plugin are pulled from ghcr.io and nvcr.io, so the VM needs internet
+// access (WithInternetAccess) until those images are mirrored in the internal registry.
+func WithMokka(opts ...mokka.Option) RunOption {
+	return func(p *RunParams) error {
+		p.mokkaInstallations = append(p.mokkaInstallations, opts)
+		return nil
+	}
 }
 
 // WithOperatorOptions sets operator options

@@ -14,6 +14,7 @@ static __always_inline int trace__sys_link(void *ctx, u8 async, const char *oldp
         .type = EVENT_LINK,
         .policy = policy,
         .async = async,
+        .state = APPROVED,
     };
 
     if (!async) {
@@ -172,6 +173,10 @@ static __always_inline int sys_link_ret(void *ctx, int retval, enum TAIL_CALL_PR
         expire_inode_discarders(syscall->link.src_file.path_key.mount_id, syscall->link.src_file.path_key.ino);
     }
 
+    if (syscall->state == DISCARDED || syscall->resolver.ret <= 0) {
+        goto pop_and_exit;
+    }
+
     // at this point we have both the source and target dentry so we can check for approvers
     syscall->state = approve_syscall(syscall, link_approvers);
 
@@ -240,6 +245,10 @@ static __always_inline int dr_link_dst_callback(void *ctx, enum TAIL_CALL_PROG_T
     s64 retval = syscall->retval;
 
     if (IS_UNHANDLED_ERROR(retval)) {
+        goto pop_and_exit;
+    }
+
+    if (syscall->resolver.ret <= 0) {
         goto pop_and_exit;
     }
 

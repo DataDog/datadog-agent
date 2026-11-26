@@ -9,6 +9,7 @@ package main
 import (
 	"bytes"
 	"embed"
+	"errors"
 	"flag"
 	"fmt"
 	"go/format"
@@ -26,9 +27,11 @@ import (
 var assets embed.FS
 
 type targetConfig struct {
-	Version       string   `yaml:"version"`
-	CopyrightYear int      `yaml:"copyrightYear"`
-	Resources     []string `yaml:"resources"`
+	APIGroup              string   `yaml:"apiGroup"`
+	Version               string   `yaml:"version"`
+	CopyrightYear         int      `yaml:"copyrightYear"`
+	Resources             []string `yaml:"resources"`
+	ListNamespaceRequired bool     `yaml:"listNamespaceRequired"`
 }
 
 type action struct {
@@ -82,7 +85,7 @@ func main() {
 
 func run(sdkRoot, bundle, source, out string, check bool) error {
 	if sdkRoot == "" {
-		return fmt.Errorf("--sdk-root is required; use bazel run //tools/privateactionrunner/kubernetes-generator")
+		return errors.New("--sdk-root is required; use bazel run //tools/privateactionrunner/kubernetes-generator")
 	}
 	raw, err := assets.ReadFile("config.yaml")
 	if err != nil {
@@ -98,6 +101,26 @@ func run(sdkRoot, bundle, source, out string, check bool) error {
 			return fmt.Errorf("unknown bundle %q", bundle)
 		}
 		targets = map[string]targetConfig{bundle: cfg}
+	} else {
+		entries, err := os.ReadDir(source)
+		if err != nil {
+			return err
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			if _, ok := targets[entry.Name()]; ok {
+				continue
+			}
+			generated, err := generatedFiles(filepath.Join(source, entry.Name()))
+			if err != nil {
+				return err
+			}
+			if len(generated) > 0 {
+				return fmt.Errorf("unconfigured generated bundle %q: add it to config.yaml", entry.Name())
+			}
+		}
 	}
 	names := make([]string, 0, len(targets))
 	for name := range targets {
@@ -117,7 +140,10 @@ func run(sdkRoot, bundle, source, out string, check bool) error {
 	}
 	var stale []string
 	for _, name := range names {
-		old, err := filepath.Glob(filepath.Join(out, name, "*.gen.go"))
+		old, err := generatedFiles(filepath.Join(out, name))
+		if os.IsNotExist(err) {
+			continue
+		}
 		if err != nil {
 			return err
 		}
@@ -159,6 +185,20 @@ func run(sdkRoot, bundle, source, out string, check bool) error {
 	return nil
 }
 
+func generatedFiles(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".gen.go") {
+			files = append(files, filepath.Join(dir, entry.Name()))
+		}
+	}
+	return files, nil
+}
+
 func render(name string, data any) ([]byte, error) {
 	raw, err := assets.ReadFile("templates/" + name + ".go.tmpl")
 	if err != nil {
@@ -190,6 +230,18 @@ func title(name string) string {
 		return ""
 	}
 	return strings.ToUpper(name[:1]) + name[1:]
+}
+
+// Shorten long resource names to fit the Windows release checkout path budget.
+// Only filenames use these abbreviations; action names and Go identifiers stay intact.
+func actionFilename(name string) string {
+	return strings.NewReplacer(
+		"horizontal_pod_autoscaler", "hpa",
+		"mutating_webhook_configuration", "mutating_webhook",
+		"validating_webhook_configuration", "validating_webhook",
+		"validating_admission_policies", "vaps",
+		"validating_admission_policy", "vap",
+	).Replace(snake(name)) + ".gen.go"
 }
 
 func snake(name string) string {

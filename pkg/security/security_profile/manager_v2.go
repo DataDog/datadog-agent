@@ -112,11 +112,12 @@ type insertionErrorKey struct {
 
 // Outcomes of an event counted as an insertion error
 const (
-	insertionErrorKept    = "kept"
-	insertionErrorDropped = "dropped"
+	insertionErrorKept         = "kept"
+	insertionErrorUnattributed = "unattributed"
+	insertionErrorDropped      = "dropped"
 )
 
-var insertionErrorOutcomes = []string{insertionErrorKept, insertionErrorDropped}
+var insertionErrorOutcomes = []string{insertionErrorKept, insertionErrorUnattributed, insertionErrorDropped}
 
 // perEventTypeMetrics holds the precomputed statsd tags and the counters for a
 // (source, event_type) pair.
@@ -893,8 +894,8 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 		return
 	}
 
-	if event.Error != nil && !activity_tree.IsInsertableEventError(event.Error) {
-		m.incrementInsertionError(eventType, event.Error, insertionErrorDropped)
+	if activity_tree.EventInsertionError(event) != nil {
+		m.incrementEventWithError(event, insertionErrorDropped)
 		return
 	}
 
@@ -1596,8 +1597,8 @@ func (m *ManagerV2) SendStats() error {
 }
 
 // insertEventIntoProfile gets or creates a profile for the workload and inserts the event into its ActivityTree.
-// Returns the profile, whether the event was actually inserted (new data added), and the activity
-// nodes the anomaly event cooldown is tracked on.
+// Returns the profile, whether the event added new data to the process tree, and the activity nodes the anomaly event
+// cooldown is tracked on.
 func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile, bool, []*activity_tree.NodeBase) {
 	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
 		return nil, false, nil
@@ -1650,6 +1651,7 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	// Same lock as FinalizePatterns, so an activity node can't be folded before its cookie exists.
 	secprof.Lock()
 	inserted, processNode, activityNodes, err := secprof.InsertLocked(event, true, imageTag, activity_tree.Runtime, m.resolvers)
+	unattributed := processNode != nil && processNode == secprof.ActivityTree.UnattributedActivity
 	if err == nil {
 		m.retargetSampleCookies(secprof, secprof.ActivityTree.Stats.TakeMovedNodes())
 		m.registerSampleCookie(event, secprof, processNode, activityNodes, imageTag)
@@ -1662,19 +1664,30 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	secprof.Unlock()
 	if err != nil {
 		switch {
+		case errors.Is(err, activity_tree.ErrBrokenLineage) && errors.Is(event.Error, model.ErrNoProcessContext):
+			// the tree only finds the lineage of the placeholder process broken
+			m.incrementEventWithError(event, insertionErrorDropped)
 		case !activity_tree.IsExpectedFilterError(err):
 			m.incrementInsertionError(event.GetEventType(), err, insertionErrorDropped)
 			seclog.Debugf("couldn't insert event into profile: %v", err)
 		case event.Error != nil:
-			m.incrementInsertionError(profileEventType(event), event.Error, insertionErrorDropped)
+			m.incrementEventWithError(event, insertionErrorDropped)
 		}
 		return nil, false, nil
 	}
-	if event.Error != nil {
-		m.incrementInsertionError(event.GetEventType(), event.Error, insertionErrorKept)
+	switch {
+	case unattributed && event.Error == nil:
+		// the activity tree may find the lineage broken although the event doesn't carry the error
+		m.incrementInsertionError(profileEventType(event), activity_tree.ErrBrokenLineage, insertionErrorUnattributed)
+	case unattributed:
+		m.incrementEventWithError(event, insertionErrorUnattributed)
+	case event.Error != nil:
+		m.incrementEventWithError(event, insertionErrorKept)
 	}
 
-	return secprof, inserted, activityNodes
+	// the unattributed activity isn't compared with the activity of the processes, what is new there may not be new
+	// for the workload
+	return secprof, inserted && !unattributed, activityNodes
 }
 
 // registerSampleCookie maps the event's sample cookie to its nodes. Callers must hold prof's lock.
@@ -2069,6 +2082,7 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 		profile.WithEventTypes(m.config.RuntimeSecurity.SecurityProfileV2EventTypes),
 		profile.WithWorkloadSelector(selector),
 		profile.WithObservedRollups(),
+		profile.WithUnattributedActivity(),
 		profile.WithPathPatterns(m.pathPatternConfig()),
 	)
 
@@ -2123,6 +2137,7 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 		profile.WithEventTypes(m.config.RuntimeSecurity.SecurityProfileV2EventTypes),
 		profile.WithWorkloadSelector(selector),
 		profile.WithObservedRollups(),
+		profile.WithUnattributedActivity(),
 		profile.WithPathPatterns(m.pathPatternConfig()),
 	)
 	secprof.SetTreeType(secprof, "security_profile")
@@ -2227,6 +2242,16 @@ func (m *ManagerV2) incrementInsertionError(eventType model.EventType, err error
 	if entry, ok := m.insertionErrors[key]; ok {
 		entry.Inc()
 	}
+}
+
+// incrementEventWithError records an event carrying an error, labeled with the error that kept it out of the tree if
+// there is one
+func (m *ManagerV2) incrementEventWithError(event *model.Event, outcome string) {
+	err := activity_tree.EventInsertionError(event)
+	if err == nil {
+		err = event.Error
+	}
+	m.incrementInsertionError(profileEventType(event), err, outcome)
 }
 
 // evictUnusedNodes performs periodic eviction of non-touched nodes from all active profiles

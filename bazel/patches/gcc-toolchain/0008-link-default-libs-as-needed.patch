@@ -1,0 +1,38 @@
+From ad451e144680a65e69a97ab511f0f45a0c0d3029 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
+Date: Thu, 26 Nov 2026 10:27:01 +0100
+Subject: [PATCH] link libm, libdl and librt only when needed
+
+-lm, -ldl and -lrt were passed unconditionally in default_link_flags, so
+every linked binary got DT_NEEDED entries for them, even when unused.
+Move them next to -lstdc++ in default_link_libs, under --as-needed.
+---
+ toolchain/cc_toolchain_config.bzl | 5 +----
+ 1 file changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/toolchain/cc_toolchain_config.bzl b/toolchain/cc_toolchain_config.bzl
+index c1cfe9e..3447a22 100644
+--- a/toolchain/cc_toolchain_config.bzl
++++ b/toolchain/cc_toolchain_config.bzl
+@@ -123,9 +123,6 @@ def _impl(ctx):
+                         flags = [
+                             "-Wl,-z,relro,-z,now",
+                             "-pass-exit-codes",
+-                            "-lm",
+-                            "-ldl",
+-                            "-lrt",
+                             "-pthread",
+                         ],
+                     ),
+@@ -145,7 +142,7 @@ def _impl(ctx):
+         flag_sets = [
+             flag_set(
+                 actions = base_link_actions + lto_index_actions,
+-                flag_groups = [flag_group(flags = ["-Wl,--push-state,-as-needed", "-lstdc++", "-Wl,--pop-state"])],
++                flag_groups = [flag_group(flags = ["-Wl,--push-state,-as-needed", "-lstdc++", "-lm", "-ldl", "-lrt", "-Wl,--pop-state"])],
+             ),
+         ],
+     )
+-- 
+2.43.0
+

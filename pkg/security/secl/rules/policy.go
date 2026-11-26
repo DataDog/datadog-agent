@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"maps"
 	"reflect"
 	"slices"
 
@@ -95,6 +96,47 @@ func (r *PolicyRule) isFiltered() bool {
 	return !r.Accepted && r.Error == nil
 }
 
+// isSameOverrideAction compares two ActionDefinitions while ignoring Set.Private.
+// Overriding rules may carry stale snapshots of base set actions with outdated
+// Private flags after default or content-pack updates; ignoring Set.Private here
+// lets applyOverride deduplicate those stale copies against the base rule.
+func isSameOverrideAction(a, b *ActionDefinition) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	if a.Set != nil && b.Set != nil {
+		bSet := *b.Set
+		bSet.Private = a.Set.Private
+		bCopy := *b
+		bCopy.Set = &bSet
+		return reflect.DeepEqual(a, &bCopy)
+	}
+	return reflect.DeepEqual(a, b)
+}
+
+// alignOverrideSetActionPrivate aligns an overriding set action's Private flag to
+// the base rule's Set.Private when they target the same (Name, Scope) variable so
+// base-rule Private takes precedence and PopulateFieldsWithRuleActionsData does not
+// reject the variable for conflicting Private flags.
+func alignOverrideSetActionPrivate(action *ActionDefinition, baseActions []*ActionDefinition) *ActionDefinition {
+	if action == nil || action.Set == nil {
+		return action
+	}
+	for _, base := range baseActions {
+		if base != nil && base.Set != nil && base.Set.Name == action.Set.Name && base.Set.Scope == action.Set.Scope {
+			if base.Set.Private != action.Set.Private {
+				setCopy := *action.Set
+				setCopy.Private = base.Set.Private
+				actionCopy := *action
+				actionCopy.Set = &setCopy
+				return &actionCopy
+			}
+			return action
+		}
+	}
+	return action
+}
+
 func applyOverride(rd1, rd2 *PolicyRule) {
 	// keep track of the combine
 	rd1.Def.Combine = rd2.Def.Combine
@@ -108,34 +150,27 @@ func applyOverride(rd1, rd2 *PolicyRule) {
 		wasOverridden = true
 	} else {
 		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideActionFields) {
-			var toAdd []*ActionDefinition
+			baseActions := rd1.Def.Actions
 			for _, action := range rd2.Def.Actions {
-				duplicated := false
-				for _, a := range rd1.Def.Actions {
-					if reflect.DeepEqual(action, a) {
-						duplicated = true
-						break
-					}
+				if slices.ContainsFunc(baseActions, func(a *ActionDefinition) bool {
+					return isSameOverrideAction(action, a)
+				}) {
+					continue
 				}
-				if !duplicated {
-					toAdd = append(toAdd, action)
-				}
-			}
-
-			if len(toAdd) > 0 {
+				rd1.Def.Actions = append(rd1.Def.Actions, alignOverrideSetActionPrivate(action, baseActions))
 				wasOverridden = true
-				rd1.Def.Actions = append(rd1.Def.Actions, toAdd...)
 			}
 		}
 		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideEveryField) {
 			rd1.Def.Every = rd2.Def.Every
 			wasOverridden = true
 		}
-		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideTagsField) {
-			for k, tag := range rd2.Def.Tags {
-				rd1.Def.Tags[k] = tag
-				wasOverridden = true
+		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideTagsField) && len(rd2.Def.Tags) > 0 {
+			if rd1.Def.Tags == nil {
+				rd1.Def.Tags = make(map[string]string, len(rd2.Def.Tags))
 			}
+			maps.Copy(rd1.Def.Tags, rd2.Def.Tags)
+			wasOverridden = true
 		}
 		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideProductTagsField) {
 			rd1.Def.ProductTags = rd2.Def.ProductTags

@@ -314,6 +314,7 @@ func deepCopyProcessPtr(fieldToCopy *Process, c deepCopyContext) *Process {
 	copied.Cookie = fieldToCopy.Cookie
 	copied.CreatedAt = fieldToCopy.CreatedAt
 	copied.Credentials = deepCopyCredentials(fieldToCopy.Credentials, c)
+	copied.Env = deepCopystringMap(fieldToCopy.Env, c)
 	copied.Envp = deepCopystringArr(fieldToCopy.Envp, c)
 	copied.Envs = deepCopystringArr(fieldToCopy.Envs, c)
 	copied.EnvsEntry = deepCopyEnvsEntryPtr(fieldToCopy.EnvsEntry, c)
@@ -441,6 +442,21 @@ func deepCopyCredentials(fieldToCopy Credentials, c deepCopyContext) Credentials
 	copied.User = fieldToCopy.User
 	return copied
 }
+func deepCopystringMap(fieldToCopy map[string]string, c deepCopyContext) map[string]string {
+	if fieldToCopy == nil {
+		return nil
+	}
+	key := mapKey(fieldToCopy, deepCopystringMapType)
+	if copied, ok := c[key]; ok {
+		return mapFromPointer[string](copied)
+	}
+	copied := make(map[string]string, len(fieldToCopy))
+	c[key] = mapPointer(copied)
+	for k, v := range fieldToCopy {
+		copied[k] = v
+	}
+	return copied
+}
 func deepCopyEnvsEntryPtr(fieldToCopy *EnvsEntry, c deepCopyContext) *EnvsEntry {
 	if fieldToCopy == nil {
 		return nil
@@ -543,21 +559,6 @@ func deepCopySpanContext(fieldToCopy SpanContext, c deepCopyContext) SpanContext
 	copied.TraceID = deepCopyTraceID(fieldToCopy.TraceID, c)
 	return copied
 }
-func deepCopystringMap(fieldToCopy map[string]string, c deepCopyContext) map[string]string {
-	if fieldToCopy == nil {
-		return nil
-	}
-	key := mapKey(fieldToCopy, deepCopystringMapType)
-	if copied, ok := c[key]; ok {
-		return mapFromPointer[string](copied)
-	}
-	copied := make(map[string]string, len(fieldToCopy))
-	c[key] = mapPointer(copied)
-	for k, v := range fieldToCopy {
-		copied[k] = v
-	}
-	return copied
-}
 func deepCopyTraceID(fieldToCopy utils.TraceID, c deepCopyContext) utils.TraceID {
 	copied := utils.TraceID{}
 	copied.Hi = fieldToCopy.Hi
@@ -629,6 +630,7 @@ func deepCopyProcess(fieldToCopy Process, c deepCopyContext) Process {
 	copied.Cookie = fieldToCopy.Cookie
 	copied.CreatedAt = fieldToCopy.CreatedAt
 	copied.Credentials = deepCopyCredentials(fieldToCopy.Credentials, c)
+	copied.Env = deepCopystringMap(fieldToCopy.Env, c)
 	copied.Envp = deepCopystringArr(fieldToCopy.Envp, c)
 	copied.Envs = deepCopystringArr(fieldToCopy.Envs, c)
 	copied.EnvsEntry = deepCopyEnvsEntryPtr(fieldToCopy.EnvsEntry, c)

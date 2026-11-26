@@ -1655,6 +1655,10 @@ func (p *EBPFProbe) regularUnmarshalEvent(bu BinaryUnmarshaler, eventType model.
 
 // handleEvent processes raw eBPF events received from the kernel, unmarshaling and dispatching them appropriately.
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
+	// Apply completed async OTel process context resolutions before handling or
+	// replaying events so ProcessCacheEntry.Tracer stays single-writer.
+	p.Resolvers.ProcessResolver.ApplyPendingOTelUpdates()
+
 	// handle play snapshot
 	if p.replayEventsState.Swap(false) {
 		// do not notify consumers as we are replaying the process cache entries after a ruleset reload
@@ -2003,6 +2007,8 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			// no need to trigger a dentry resolver, not backed by any file
 			event.LoadModule.File.SetPathnameStr("")
 			event.LoadModule.File.SetBasenameStr("")
+		} else if event.LoadModule.Name == "" {
+			event.LoadModule.Name = utils.ModuleNameFromFilename(p.fieldHandlers.ResolveFileBasename(event, &event.LoadModule.File))
 		}
 	case model.UnloadModuleEventType:
 		if !p.regularUnmarshalEvent(&event.UnloadModule, eventType, offset, dataLen, data) {
@@ -4434,6 +4440,9 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 
 	// module
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameModuleName, "struct module", "name")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructFiles, "struct task_struct", "files")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameFilesStructFdt, "struct files_struct", "fdt")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameFdtableStructFd, "struct fdtable", "fd")
 
 	// cgroup
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameKernfsOpenFileFile, "struct kernfs_open_file", "file")

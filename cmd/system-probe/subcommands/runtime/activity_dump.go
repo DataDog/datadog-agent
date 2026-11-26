@@ -361,8 +361,8 @@ NEXT:
 			if n.MatchesProcessInfo(&n2.Process, false, false) {
 				newNode := *n
 				processID := utils.NewGraphID(utils.NewNodeIDFromPtr(&newNode))
-				newNode.Children = diffADSubtree(n.Children, n2.Children, states)
-				newNode.DNSNames = diffADDNSNodes(n.DNSNames, n2.DNSNames, states, processID)
+				newNode.Children = diffADSubtree(n2.Children, n.Children, states)
+				newNode.DNSNames = diffADDNSNodes(n2.DNSNames, n.DNSNames, states, processID)
 				nodes = append(nodes, &newNode)
 				continue NEXT
 			}
@@ -389,10 +389,29 @@ NEXT2:
 	return
 }
 
+func diffADUnattributedActivity(origin, target *activity_tree.ProcessNode, states map[string]bool) *activity_tree.ProcessNode {
+	switch {
+	case origin == nil && target == nil:
+		return nil
+	case origin == nil:
+		markADSubtree(target, addedADNode)
+		states[utils.NewGraphID(utils.NewNodeIDFromPtr(target)).String()] = true
+		return target
+	case target == nil:
+		markADSubtree(origin, removedADNode)
+		states[utils.NewGraphID(utils.NewNodeIDFromPtr(origin)).String()] = false
+		return origin
+	}
+	newNode := *target
+	newNode.DNSNames = diffADDNSNodes(origin.DNSNames, target.DNSNames, states, utils.NewGraphID(utils.NewNodeIDFromPtr(&newNode)))
+	return &newNode
+}
+
 func computeActivityDumpDiff(p1, p2 *profile.Profile, states map[string]bool) *profile.Profile {
 	p := profile.New()
 	p.ActivityTree = &activity_tree.ActivityTree{
-		ProcessNodes: diffADSubtree(p1.ActivityTree.ProcessNodes, p2.ActivityTree.ProcessNodes, states),
+		ProcessNodes:         diffADSubtree(p1.ActivityTree.ProcessNodes, p2.ActivityTree.ProcessNodes, states),
+		UnattributedActivity: diffADUnattributedActivity(p1.ActivityTree.UnattributedActivity, p2.ActivityTree.UnattributedActivity, states),
 	}
 	return p
 }
