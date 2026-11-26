@@ -57,7 +57,9 @@ func macosProcmgrDescribe(t *testing.T, client *common.MacOSTestClient, name str
 func assertMacosProcmgrRequiresRoot(t *testing.T, client *common.MacOSTestClient, command string) string {
 	t.Helper()
 	_, err := client.Execute(command)
-	require.Error(t, err, command)
+	if !assert.Error(t, err, command) {
+		return ""
+	}
 	// Check the message and the CLI's PermissionDenied description: the message alone could come from another status.
 	assert.Contains(t, err.Error(), "operation requires root")
 	assert.Contains(t, err.Error(), "does not have permission to execute the specified operation")
