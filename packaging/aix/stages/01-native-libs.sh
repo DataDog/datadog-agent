@@ -109,7 +109,7 @@ lib_mark() {
 # after their first successful build. On subsequent clean builds, if the pinned
 # version matches, the archive is restored directly into $STAGING — no recompile.
 #
-# Cache key: $LIB_CACHE/<name>-<version>.tar.gz
+# Cache key: $LIB_CACHE/<name>-<version>.tar.gz (libxml2 adds a hash of its configure flags)
 # Format:    cpio archive (relative to $STAGING), gzip-compressed.
 #
 # Toolbox libraries (libffi, ncurses, readline, sqlite, libxslt) are not
@@ -484,8 +484,8 @@ else
     make -j"$NPROC"
     make install DESTDIR="$STAGING"
     # lxml needs Schematron symbols from our libxml2
-    dump -X64 -Tv "$EMBEDDED_DESTDIR/lib/libxml2.so" | grep -q xmlSchematronParse \
-        || { echo "libxml2 built without Schematron" >&2; exit 1; }
+    dump -X64 -Tv "$EMBEDDED_DESTDIR/lib/libxml2.so" | grep -q 'EXP.*xmlSchematronParse$' \
+        || { log "ERROR: libxml2.so does not export xmlSchematronParse"; exit 1; }
     lib_cache_save libxml2 "$LIBXML2_CACHE_KEY" "$_pre"
     rm -f "$_pre"
     cd "$BUILD_DIR"
