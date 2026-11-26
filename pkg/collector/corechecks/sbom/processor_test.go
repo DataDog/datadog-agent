@@ -855,7 +855,7 @@ func TestInUseFlagAccuracy(t *testing.T) {
 		mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
 		// Queue size 1 so each entity becomes its own event, matching the assertion style.
 		p, err := newProcessor(store, mockFilterStore, sender, fakeTagger, cfg, 1, 50*time.Millisecond, time.Second)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		return p, sender, counter, store
 	}
 
@@ -1138,7 +1138,7 @@ func TestCorruptedSBOM(t *testing.T) {
 	ensureBubbleGlobals(t)
 	synctest.Test(t, func(t *testing.T) {
 		p, err := newProcessor(store, workloadfilterfxmock.SetupMockFilter(t), sender, taggerfxmock.SetupFakeTagger(t), cfg, 1, 50*time.Millisecond, time.Second)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		store.Set(imageEntity)
 		p.processContainerImagesEvents(workloadmeta.EventBundle{

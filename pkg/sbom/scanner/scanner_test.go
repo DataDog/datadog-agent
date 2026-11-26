@@ -45,6 +45,21 @@ import (
 
 // TestMain makes the done channel of the Agent's main context, which
 // workloadmeta stores share, outside every synctest bubble.
+// receiveScanResult returns the next scan result. In a synctest bubble, a result
+// that never comes fails the test once the virtual-time deadline is reached
+// (the fake clock moves past the whole backoff schedule while the scanner is
+// idle), instead of deadlocking the bubble.
+func receiveScanResult(t *testing.T, resultCh <-chan sbom.ScanResult, what string) sbom.ScanResult {
+	t.Helper()
+	select {
+	case res := <-resultCh:
+		return res
+	case <-time.After(10 * time.Second):
+		t.Fatalf("no %s result received", what)
+		return sbom.ScanResult{}
+	}
+}
+
 func TestMain(m *testing.M) {
 	ctx, _ := common.GetMainCtxCancel()
 	ctx.Done()
@@ -173,27 +188,13 @@ func TestRetryLogic_Error(t *testing.T) {
 				err := scanner.Scan(sbom.ScanRequest(&scanRequest{collectorName: collName, id: imageID, scanRequestType: sbom.ScanFilesystemType}))
 				assert.NoError(t, err)
 
-				// receive fails the test, instead of deadlocking the bubble, when a
-				// result is missing: the fake clock moves past the whole backoff
-				// schedule while the scanner is idle.
-				receive := func(what string) sbom.ScanResult {
-					t.Helper()
-					select {
-					case res := <-resultCh:
-						return res
-					case <-time.After(10 * time.Second):
-						t.Fatalf("no %s result received", what)
-						return sbom.ScanResult{}
-					}
-				}
-
 				// Assert error results
-				res := receive("first error")
+				res := receiveScanResult(t, resultCh, "first error")
 				assert.Equal(t, errorResult.Error, res.Error)
-				res = receive("second error")
+				res = receiveScanResult(t, resultCh, "second error")
 				assert.Equal(t, errorResult.Error, res.Error)
 				// Assert expected result
-				res = receive("expected")
+				res = receiveScanResult(t, resultCh, "expected")
 				assert.Equal(t, expectedResult.Report, res.Report)
 
 				// Make sure we don't receive anything afterward
@@ -251,7 +252,7 @@ func TestRetryLogic_NotSupported(t *testing.T) {
 		err := scanner.Scan(sbom.ScanRequest(&scanRequest{collectorName: collName, id: imageID, scanRequestType: sbom.ScanFilesystemType}))
 		assert.NoError(t, err)
 
-		res := <-resultCh
+		res := receiveScanResult(t, resultCh, "scan")
 		assert.ErrorIs(t, res.Error, sbom.ErrScanNotSupported)
 
 		// A retried scan would deliver a second result within the backoff window.
@@ -338,7 +339,7 @@ func TestRetryLogic_OSFallback(t *testing.T) {
 				err := scanner.Scan(sbom.ScanRequest(&scanRequest{collectorName: collName, id: imageID, scanRequestType: sbom.ScanFilesystemType}))
 				assert.NoError(t, err)
 
-				res := <-resultCh
+				res := receiveScanResult(t, resultCh, "scan")
 				assert.Equal(t, fallbackResult.Report, res.Report)
 				if tt.wantRetried {
 					select {
@@ -399,6 +400,7 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 		// Create a scanner and start it
 		scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
 		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel() // also stops the scanner if an assertion below fails early
 		scanner.Start(ctx)
 
 		// Enqueue a scan request for container images
@@ -406,7 +408,7 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Assert error results
-		res := <-resultCh
+		res := receiveScanResult(t, resultCh, "scan")
 		assert.Equal(t, errorResult.Error, res.Error)
 
 		// Stop retrying after the image is unset
@@ -525,12 +527,13 @@ func TestRetryLogic_ContainerStopped(t *testing.T) {
 
 		scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
 		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel() // also stops the scanner if an assertion below fails early
 		scanner.Start(ctx)
 
 		for _, id := range []string{"missing", "stopped", "running"} {
 			assert.NoError(t, scanner.Scan(&scanRequest{collectorName: collName, id: id, scanRequestType: sbom.ScanFilesystemType}))
 		}
-		res := <-resultCh
+		res := receiveScanResult(t, resultCh, "scan")
 		assert.Equal(t, errorResult.Error, res.Error)
 
 		// The retries end once the container stops.
@@ -567,7 +570,7 @@ func TestProcessScanAttachesImage(t *testing.T) {
 	imgMeta := &workloadmeta.ContainerImageMetadata{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "id"}}
 	scanner.processScan(context.Background(), &scanRequest{collectorName: "mock", id: "id"}, imgMeta, collector)
 
-	result := <-resultCh
+	result := receiveScanResult(t, resultCh, "scan")
 	assert.EqualError(t, result.Error, "scan error")
 	assert.Same(t, imgMeta, result.ImgMeta)
 }
@@ -611,6 +614,7 @@ func TestRetryChannelFull(t *testing.T) {
 		// Create a scanner and start it
 		scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
 		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel() // also stops the scanner if an assertion below fails early
 		scanner.Start(ctx)
 
 		// Enqueue a scan request for container images
@@ -621,7 +625,7 @@ func TestRetryChannelFull(t *testing.T) {
 		time.Sleep(sendTimeout + 50*time.Millisecond)
 
 		// Make sure we recover
-		res := <-resultCh
+		res := receiveScanResult(t, resultCh, "scan")
 		assert.Equal(t, expectedResult.Report, res.Report)
 
 		// Make sure we don't receive anything afterward
