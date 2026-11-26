@@ -156,11 +156,10 @@ impl ProcessManager {
     }
 
     /// Runs until `shutdown` resolves. Create `shutdown` before [`ProcessManager::new`] to keep
-    /// a stop request that arrives while the catalog loads. On Windows, `shutdown_signal` installs
-    /// nothing, so that holds for the entry points that install the stop sources before the
-    /// runtime exists: the console control handler (Ctrl+C) and the service control handler. The
-    /// stop flag is process-wide and never cleared, so a stop recorded by an earlier run also
-    /// ends this one.
+    /// a stop request that arrives while the catalog loads. On Windows that holds because the
+    /// console and service control handlers are installed before the runtime exists. The stop
+    /// flag is process-wide and never cleared, so a stop recorded by an earlier run also ends
+    /// this one.
     /// The flag is checked only during startup. After startup, only `shutdown` ends the run, so a
     /// caller that passes its own future must watch for signals itself.
     pub async fn run_with_shutdown(&self, shutdown: impl Future<Output = ()>) -> Result<i32> {

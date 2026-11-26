@@ -193,8 +193,7 @@ fn bounded_with<T: Send + 'static>(
             let abandoned = lock_abandoned();
             let sent = tx.send(result);
             drop(abandoned);
-            // A result nobody received drops here, outside the lock: dropping it can block, as
-            // closing a Windows handle for a remote file does.
+            // An unreceived result drops here, outside the lock, as dropping it can block.
             drop(sent);
         })?;
 
@@ -216,8 +215,7 @@ fn bounded_with<T: Send + 'static>(
                         return stopped_or(result, stop);
                     }
                     Err(mpsc::TryRecvError::Disconnected) => return Err(reader_ended()),
-                    // Nothing is buffered, so closing the channel here drops nothing, and a late
-                    // send fails inside the helper instead of leaving a result for this thread.
+                    // Nothing is buffered, so a late send fails in the helper, not on this thread.
                     Err(mpsc::TryRecvError::Empty) => drop(rx),
                 }
                 abandoned.push(Abandoned {
@@ -244,16 +242,15 @@ fn bounded_with<T: Send + 'static>(
     }
 }
 
-/// Drops `value` on a short detached thread, for a value whose drop can block, as closing a
-/// Windows handle for a remote file does. If the thread cannot start, the value drops inline.
+/// Drops `value` on a detached thread, for a value whose drop can block (a Windows handle to a
+/// remote file). Drops inline if the thread cannot start.
 pub(crate) fn drop_detached<T: Send + 'static>(value: T) {
     let _ = thread::Builder::new()
         .name("fs-discard".to_string())
         .spawn(move || drop(value));
 }
 
-/// A ready result, unless a stop was requested, which discards it off this thread: the caller
-/// is shutting down.
+/// A ready result, unless a stop was requested, which discards it off this thread.
 fn stopped_or<T: Send + 'static>(result: T, stop: &AtomicBool) -> io::Result<T> {
     if stop.load(Ordering::SeqCst) {
         drop_detached(result);
@@ -361,8 +358,8 @@ mod tests {
 
     impl Drop for DropProbe {
         fn drop(&mut self) {
-            // The retries ride out another test holding the table for a moment. A drop under the
-            // table's own lock never sees it free.
+            // Retries ride out another test holding the table. A drop under the lock never sees
+            // it free.
             let free = (0..100).any(|_| {
                 let held = matches!(
                     ABANDONED.try_lock(),
@@ -392,7 +389,6 @@ mod tests {
         .unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::TimedOut, "{err}");
         started_rx.recv().unwrap();
-        // The caller is gone, so the send fails and the probe drops in the helper thread.
         release_tx.send(()).unwrap();
         let free = probe_rx.recv_timeout(Duration::from_secs(10)).unwrap();
         assert!(

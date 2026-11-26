@@ -16,9 +16,8 @@ use super::stdio::{
 };
 use super::win32::{build_windows_command_line, env_block_from_baseline_plus_overrides};
 
-/// Hands a value to `discard` when dropped, unless it was released first. `prepare` holds each
-/// opened log handle this way: if a later step fails, the handle may be the last reference to a
-/// remote file, and closing that can block the spawn thread.
+/// Hands a value to `discard` when dropped, unless released first. Closing the last handle to a
+/// remote file can block, so `prepare` keeps each opened log handle in one.
 struct DiscardOnDrop<T> {
     value: Option<T>,
     discard: fn(T),
@@ -88,8 +87,6 @@ impl SpawnInputs {
         credential: &SpawnCredential,
         env_token: HANDLE,
     ) -> Result<Self> {
-        // On a failure below the guards hand stderr off before stdout. Each handle closes on its
-        // own thread, so the order the closes finish in is not promised.
         let stdout_handle = DiscardOnDrop::new(
             map_stdio_setting(
                 process_name,

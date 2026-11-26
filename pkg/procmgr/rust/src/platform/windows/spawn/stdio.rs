@@ -137,15 +137,13 @@ impl Drop for MappedStdioHandle {
     }
 }
 
-/// Carries an open result, or a handle to close, to another thread. `HANDLE` is not `Send` on
-/// its own.
+/// Carries a handle to another thread. `HANDLE` is not `Send` on its own.
 struct OpenOutcome(Result<MappedStdioHandle>);
 
 // SAFETY: the handle is owned solely by this value.
 unsafe impl Send for OpenOutcome {}
 
-/// Closes `handle` on a short detached thread. Closing the last handle to a remote file can
-/// block, and the caller is a failed spawn, which holds the process table write lock.
+/// Closes `handle` on a detached thread, as the caller holds the process table write lock.
 pub(super) fn discard_off_thread(handle: MappedStdioHandle) {
     crate::stop::drop_detached(OpenOutcome(Ok(handle)));
 }
@@ -328,7 +326,6 @@ mod tests {
         assert!(format!("{err:#}").contains("stalled-stdio.log"), "{err:#}");
         assert!(is_timed_out(&err), "{err:#}");
 
-        // A refusal fails the spawn too.
         let refused = open_log_file("test-proc", path, &credential, |_, _, _| {
             bail!("never reached")
         });
