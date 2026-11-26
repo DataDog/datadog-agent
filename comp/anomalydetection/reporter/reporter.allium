@@ -138,7 +138,7 @@ external entity ChangeEvent {
 --       after inactivity) in the correlator's active set; triggers a
 --       ChangeEvent publication.
 --   kind = EpisodeStarted       — the anomaly scorer's EWMA crossed its
---       configured episode threshold, opening a new episode.
+--       configured Medium or High episode threshold, opening a new episode.
 --   kind = EpisodeEnded         — the scorer's EWMA dropped below its
 --       configured episode threshold, closing the active episode.
 --

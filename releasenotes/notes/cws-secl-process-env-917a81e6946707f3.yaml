@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    CWS: SECL rules can now read an environment variable of a process by name
+    with the new ``process.env`` field, also available as ``exec.env``,
+    ``process.parent.env`` and ``process.ancestors.env``. For example,
+    ``exec.env["LD_PRELOAD"] != ""`` matches a variable set to a value, and
+    ``"LD_PRELOAD" in exec.env`` matches a variable that is set, even to an
+    empty value. Linux only.

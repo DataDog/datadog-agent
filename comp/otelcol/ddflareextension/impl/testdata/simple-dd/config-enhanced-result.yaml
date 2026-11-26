@@ -100,7 +100,7 @@ extensions:
     transport: tcp
     write_timeout: 30s
 processors:
-  cumulativetodelta/dd-autoconfigured:
+  cumulative_to_delta/dd-autoconfigured:
     exclude:
       match_type: ""
       metric_types: []
@@ -203,7 +203,7 @@ service:
       - datadog
       processors:
       - infraattributes/dd-autoconfigured
-      - cumulativetodelta/dd-autoconfigured
+      - cumulative_to_delta/dd-autoconfigured
       receivers:
       - otlp
       - prometheus

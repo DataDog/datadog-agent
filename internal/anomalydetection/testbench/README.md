@@ -81,7 +81,16 @@ dda inv anomalydetection.eval-ddeval --dataset "my-recordings" --config params.j
 `--dataset` accepts a name or UUID and reads its latest version. If omitted, it
 defaults to `observer-metric-types-2026-10-26`. Both evaluators default to project
 `observer-log-ad` on `datadoghq.com`. Local replay accepts other `--site` values;
-the remote command targets the production DDBuild worker. See [available datasets](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/7384334870/AAD+evaluation+datasets).
+the remote command targets the production DDBuild worker by default. See [available datasets](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/7384334870/AAD+evaluation+datasets).
+
+To evaluate against an existing staging test drive, pass its name and a dataset
+available in staging. The task uploads or reuses the testbench artifact and pins
+its SHA-256 automatically. Staging timeouts fail by default.
+
+```bash
+dda inv anomalydetection.eval-ddeval --env staging --workflow-test-drive my-drive \
+  --dataset observer-metric-types-2026-10-26 --limit 1 --jobs 1
+```
 
 Use local evaluation for detector iteration and visual investigation, and DDEval
 for worker execution and shared experiment results. DDEval also accepts the older
@@ -190,7 +199,7 @@ Slowly sampled metrics can therefore retain fewer points, just as in production.
 Retained replay remains unbounded and serves as a diagnostic reference; identical
 detections between the two modes are not guaranteed.
 JSON eval configs inherit the same replay profile as CLI toggles, including
-BOCPD's 40-point warmup. Only fields explicitly supplied in JSON override that
+BOCPD's 20-point warmup. Only fields explicitly supplied in JSON override that
 profile; an enabled-only entry preserves the replay defaults.
 
 ### Correlators
@@ -201,15 +210,26 @@ profile; an enabled-only entry preserves the replay defaults.
 | `time_cluster` | disabled | Groups anomalies that occur close together in time |
 | `passthrough` | disabled | Testbench-only adapter that serializes every raw anomaly as its own evaluation period |
 
-The Scorer tab defaults to **Detection time**, which shows the original replay
-with the scorer's effective input seconds and cooldown-filtered transitions.
-**Change-point time** recomputes the same anomaly set at detector change-point
-timestamps, including scan-detector lookback, so the two views intentionally
-differ when detection is delayed.
+The Scorer tab has three timing views:
+
+- **Reordered** (default): replays the recorded arrival trace with anomaly
+  reordering enabled (10m + clamp by default in the testbench). Notifications
+  appear when evidence becomes available, and the sidebar reports
+  input-arrival and High-crossing delay statistics.
+- **Detection time**: replays in arrival order with reordering disabled
+  (0s + clamp). Late anomalies enter the score at the next unscored second.
+- **Change-point time**: recomputes the same anomaly set at detector
+  change-point timestamps, including scan-detector lookback — the
+  retrospective ideal.
+
+The Reordered view exposes live controls for the reordering window (0s / 5m /
+10m / 30m presets plus a custom value) and the late-anomaly behavior
+(`clamp` / `ignore`).
 
 ### Extractors
 
-Extractors are always enabled and convert raw observations into timeseries:
+Extractors convert raw observations into timeseries. The log metrics and log
+pattern extractors are enabled by default; the connection error extractor is opt-in:
 
 | Name | Description |
 |------|-------------|
@@ -406,7 +426,7 @@ Use `scanmw`, `scanwelch`, or `bocpd` as the only detector block. Legacy
 
 | Param | Default | Description |
 |-------|---------|-------------|
-| `warmup_points` | 40 | Points used to build the initial baseline (testbench replay profile) |
+| `warmup_points` | 20 | Points used to build the initial baseline (testbench replay profile) |
 | `hazard` | 0.05 | Prior P(changepoint) per time step — primary sensitivity knob |
 | `cp_threshold` | 0.6 | Posterior P(changepoint) threshold to fire — primary FP/FN knob |
 | `short_run_length` | 5 | Secondary trigger: run-length horizon k |
@@ -423,6 +443,23 @@ Use `scanmw`, `scanwelch`, or `bocpd` as the only detector block. Legacy
 | `proximity_seconds` | 10 | Max time gap between anomalies to consider them in the same cluster |
 | `window_seconds` | 120 | How long to keep anomalies before eviction |
 | `min_cluster_size` | 0 | Minimum cluster size to report (0 = report all) |
+
+#### `log_metrics_extractor`
+
+Uses the shared Logs tokenizer and frequency-ordered first matching within each
+source/service/env/host group. Count metrics emit from the first matching log;
+JSON numeric extraction is preserved. Representatives remain fixed until eviction.
+
+| Param | Default | Description |
+|-------|---------|-------------|
+| `min_token_match_ratio` | 0.6 | Shared tokenizer structural matching threshold |
+| `max_eval_bytes` | 4096 | Tokenized prefix length; testbench JSON config only |
+
+The cache has internal limits of 3,000 representatives globally, 1,024 per group
+and 256 groups. Idle representatives expire on the next ingested log after four
+hours of data-time inactivity. These bounds are not exposed in Agent YAML or
+testbench JSON. Invalid thresholds use the 0.6 default. Eviction removes the
+associated storage and detector state through the engine cleanup path.
 
 #### `log_pattern_extractor`
 

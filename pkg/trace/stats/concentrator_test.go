@@ -1671,6 +1671,35 @@ func TestLangInStatsV1(t *testing.T) {
 	assert.Equal(t, "python", stats.Stats[0].Lang)
 }
 
+// TestDBSystemPeerTagsKeepBothSpellings checks that stats keep db.system and db.system.name as sent,
+// and keep spans that set only db.system.name.
+func TestDBSystemPeerTagsKeepBothSpellings(t *testing.T) {
+	now := time.Now()
+	conf := &config.AgentConfig{BucketInterval: time.Duration(testBucketInterval), PeerTagsAggregation: true}
+	c := NewTestConcentratorWithCfg(now, conf)
+	span := func(id uint64, meta map[string]string) *pb.Span {
+		meta["span.kind"] = "client"
+		return &pb.Span{SpanID: id, Service: "svc", Name: "db.query", Resource: "r", Duration: 100, Meta: meta, Metrics: map[string]float64{"_dd.measured": 1}}
+	}
+	for _, sp := range []*pb.Span{
+		span(1, map[string]string{"db.system": "mssql", "db.system.name": "microsoft.sql_server"}),
+		span(2, map[string]string{"db.system.name": "microsoft.sql_server"}),
+	} {
+		c.addNow(toProcessedTrace([]*pb.Span{sp}, "none", "", "", "", "", ""), infraTags{})
+	}
+	stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
+	require.Len(t, stats.Stats, 1)
+	var got [][]string
+	for _, g := range stats.Stats[0].Stats[0].Stats {
+		got = append(got, g.PeerTags)
+	}
+	// The Agent forwards each source unchanged; the backend picks the peer.db.system value from them.
+	assert.ElementsMatch(t, [][]string{
+		{"db.system.name:microsoft.sql_server", "db.system:mssql"},
+		{"db.system.name:microsoft.sql_server"},
+	}, got)
+}
+
 // TestPubSubIdentityPeerTags checks that Agent-computed stats keep the Pub/Sub topic and
 // subscription identities of each observation, as separate groups, including cross-project pairs.
 func TestPubSubIdentityPeerTags(t *testing.T) {

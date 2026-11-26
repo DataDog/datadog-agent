@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    The SBOM resolver of system-probe scans a container again when its scan
+    found no process on the root of the container, as when the container has
+    just started. Such containers kept no package index until a package
+    database change, and their runtime usage went unreported.

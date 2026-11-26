@@ -49,6 +49,7 @@ const (
 	nvlinkStateless CollectorName = "nvlink_stateless"
 	nvlinkGPM       CollectorName = "nvlink_gpm"
 	sharing         CollectorName = "sharing"
+	stateChanges    CollectorName = "state_changes"
 )
 
 // subsystemBuilder is a function that creates a new subsystem Collector. device the device it should collect metrics from. It also receives
@@ -72,12 +73,16 @@ var factory = map[CollectorName]subsystemBuilder{
 	deviceEvents:    newDeviceEventsCollector,
 	ebpf:            newEbpfCollector,
 	sharing:         newSharingCollector,
+	stateChanges:    newStateChangesCollector,
 }
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
 type CollectorDependencies struct {
 	// DeviceEventsGatherer acts like a cache for the most recent device events
 	DeviceEventsGatherer *DeviceEventsGatherer
+	// StateChangesGatherer reads the watched values of the devices every second and keeps
+	// the events of their changes
+	StateChangesGatherer *StateChangesGatherer
 	// SystemProbeCache is a (optional) cache of the latest metrics obtained from system probe
 	SystemProbeCache *SystemProbeCache
 	// PRMCache is a cache of privileged PRM metrics obtained from system-probe
@@ -232,7 +237,7 @@ func (b *CollectorBuilder) buildCollector(name CollectorName, builder subsystemB
 
 	c, err := builder(dev, deps)
 	if errors.Is(err, errUnsupportedDevice) {
-		log.Warnf("device %s does not support collector %s", deviceUUID, name)
+		log.Debugf("device %s does not support collector %s", deviceUUID, name)
 		deps.Telemetry.addCollectorCreation(name, "unsupported", dev)
 		b.clearFailure(deviceUUID, name)
 		return nil
@@ -318,8 +323,8 @@ func NewCollectorTelemetry(tm telemetry.Component) *CollectorTelemetry {
 	}
 }
 
-var collectorTelemetryTagNames = []string{
-	"collector",
+// DeviceTelemetryTagNames are the NVML device labels shared by GPU telemetry.
+var DeviceTelemetryTagNames = []string{
 	"gpu_device",
 	"gpu_virtualization_mode",
 	"gpu_architecture",
@@ -328,6 +333,8 @@ var collectorTelemetryTagNames = []string{
 	"gpu_nvlink_version",
 	"gpu_driver_version",
 }
+
+var collectorTelemetryTagNames = append([]string{"collector"}, DeviceTelemetryTagNames...)
 
 var (
 	cachedDriverVersion     string
@@ -342,9 +349,13 @@ func CollectorTelemetryTags(collector Collector) []string {
 }
 
 func collectorTelemetryTags(name CollectorName, device ddnvml.Device) []string {
+	return append([]string{string(name)}, DeviceTelemetryTags(device)...)
+}
+
+// DeviceTelemetryTags returns values in DeviceTelemetryTagNames order.
+func DeviceTelemetryTags(device ddnvml.Device) []string {
 	deviceInfo := device.GetDeviceInfo()
 	return []string{
-		string(name),
 		gpuutil.NormalizeGPUDeviceName(deviceInfo.Name),
 		gpuutil.VirtualizationModeToString(deviceInfo.VirtualizationMode),
 		gpuutil.ArchToString(deviceInfo.Architecture),

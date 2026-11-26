@@ -3,7 +3,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
-    srcs = ["forwarder.go"],
+    srcs = [
+        "forwarder.go",
+        "test_helpers.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/impl",
     visibility = ["//visibility:public"],
     deps = [
@@ -29,6 +32,7 @@ dd_agent_go_test(
         "//comp/core/log/mock",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/mock",
+        "//comp/healthplatform/forwarder/def",
         "//pkg/util/telemetry",
         "//pkg/version",
         "@com_github_datadog_agent_payload_v5//healthplatform",

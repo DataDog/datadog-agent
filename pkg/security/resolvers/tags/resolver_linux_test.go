@@ -8,8 +8,12 @@
 package tags
 
 import (
+	"context"
+	"errors"
 	"math"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
@@ -101,5 +105,77 @@ func TestTagsQueueKeepsNewWorkloads(t *testing.T) {
 	}
 	if len(queued) != 2 || queued[0] != "b" || queued[1] != "c" {
 		t.Errorf("queued workloads = %v, want [b c]", queued)
+	}
+}
+
+type fakeSubscription struct {
+	ch chan []types.EntityEvent
+}
+
+func (s *fakeSubscription) EventsChan() chan []types.EntityEvent { return s.ch }
+func (s *fakeSubscription) ID() string                           { return "test" }
+func (s *fakeSubscription) Unsubscribe()                         {}
+
+type resubscribingTagger struct {
+	mu       sync.Mutex
+	attempts int
+	subs     []types.Subscription
+	errs     []error
+}
+
+func (f *resubscribingTagger) Tag(types.EntityID, types.TagCardinality) ([]string, error) {
+	return nil, nil
+}
+
+func (f *resubscribingTagger) GlobalTags(types.TagCardinality) ([]string, error) {
+	return nil, nil
+}
+
+func (f *resubscribingTagger) Subscribe(string, *types.Filter) (types.Subscription, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	i := f.attempts
+	f.attempts++
+	return f.subs[i], f.errs[i]
+}
+
+func TestSubscribeContainerTagsResubscribeRetry(t *testing.T) {
+	prevDelay := taggerResubscribeDelay
+	taggerResubscribeDelay = time.Millisecond
+	t.Cleanup(func() {
+		taggerResubscribeDelay = prevDelay
+	})
+
+	ch1 := make(chan []types.EntityEvent)
+	ch2 := make(chan []types.EntityEvent, 1)
+	tagger := &resubscribingTagger{
+		subs: []types.Subscription{&fakeSubscription{ch: ch1}, nil, &fakeSubscription{ch: ch2}},
+		errs: []error{nil, errors.New("temporary subscribe failure"), nil},
+	}
+
+	r := NewDefaultResolver(tagger)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	updated := make(chan struct{}, 4)
+	if err := r.SubscribeContainerTags(ctx, "test-sub", func() {
+		updated <- struct{}{}
+	}); err != nil {
+		t.Fatalf("SubscribeContainerTags: %v", err)
+	}
+
+	close(ch1)
+
+	select {
+	case <-updated:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for resubscribe callback")
+	}
+
+	ch2 <- []types.EntityEvent{{EventType: types.EventTypeModified}}
+	select {
+	case <-updated:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for event on resubscribed channel")
 	}
 }

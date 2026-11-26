@@ -29,6 +29,7 @@ import (
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/securitycontext"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
@@ -50,6 +51,21 @@ type VersionContext struct {
 	Tags []string
 }
 
+// AddTags adds to the version context the tags it doesn't hold yet. Two values of the
+// same tag name are both kept, so that each workload running this version contributes its tags.
+func (ctx *VersionContext) AddTags(tags []string) {
+	ctx.Tags = appendMissingTags(ctx.Tags, tags)
+}
+
+func appendMissingTags(dst []string, tags []string) []string {
+	for _, tag := range tags {
+		if tag != "" && !slices.Contains(dst, tag) {
+			dst = append(dst, tag)
+		}
+	}
+	return dst
+}
+
 // EventTypeState defines an event type state
 type EventTypeState struct {
 	LastAnomalyNano uint64
@@ -61,6 +77,8 @@ type activityTreeOpts struct {
 	differentiateArgs bool
 	dnsMatchMaxDepth  int
 	pathPatterns      activity_tree.PathPatternConfig
+
+	unattributedActivity bool
 }
 
 // Profile represents a security profile
@@ -97,6 +115,11 @@ type Profile struct {
 	isEnabled          bool
 	// observedRollups makes the encoder derive per-version syscall/capability lists from the tree.
 	observedRollups bool
+	// insertingContainerID and insertingCGroupID hold the workload ID of the event
+	// being inserted under p.Mutex so MatchesSelector accepts its process lineage
+	// even if the container or cgroup already exited and is not in Instances.
+	insertingContainerID containerutils.ContainerID
+	insertingCGroupID    containerutils.CGroupID
 
 	baseMountNSByCgroup map[uint64]baseMountNSPin
 }
@@ -145,6 +168,7 @@ func (p *Profile) Disable() {
 func (p *Profile) resetActivityTreeLocked() {
 	p.ActivityTree = activity_tree.NewActivityTree(p, p.treeOpts.pathsReducer, "security_profile")
 	p.ActivityTree.DNSMatchMaxDepth = p.treeOpts.dnsMatchMaxDepth
+	p.ActivityTree.KeepUnattributedActivity = p.treeOpts.unattributedActivity
 	if p.treeOpts.differentiateArgs {
 		p.ActivityTree.DifferentiateArgs()
 	}
@@ -182,6 +206,13 @@ func WithEventTypes(eventTypes []model.EventType) Opts {
 func WithObservedRollups() Opts {
 	return func(p *Profile) {
 		p.observedRollups = true
+	}
+}
+
+// WithUnattributedActivity keeps the activity of the processes that can't be placed in the activity tree
+func WithUnattributedActivity() Opts {
+	return func(p *Profile) {
+		p.treeOpts.unattributedActivity = true
 	}
 }
 
@@ -234,6 +265,7 @@ func New(opts ...Opts) *Profile {
 
 	p.ActivityTree = activity_tree.NewActivityTree(p, p.treeOpts.pathsReducer, "security_profile")
 	p.ActivityTree.DNSMatchMaxDepth = p.treeOpts.dnsMatchMaxDepth
+	p.ActivityTree.KeepUnattributedActivity = p.treeOpts.unattributedActivity
 	if p.treeOpts.differentiateArgs {
 		p.ActivityTree.DifferentiateArgs()
 	}
@@ -349,10 +381,28 @@ func (p *Profile) InsertAndGetSize(event *model.Event, insertMissingProcesses bo
 	return ok, p.ActivityTree.Stats.ApproximateSize(), nil
 }
 
-// Insert inserts an event in the profile and returns the matched/created process node and event node
-func (p *Profile) Insert(event *model.Event, insertMissingProcesses bool, imageTag string, generationType activity_tree.NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, *activity_tree.ProcessNode, *activity_tree.NodeBase, error) {
+// Insert inserts an event in the profile and returns the matched or created process node
+// and the activity nodes that correspond to the event.
+func (p *Profile) Insert(event *model.Event, insertMissingProcesses bool, imageTag string, generationType activity_tree.NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, *activity_tree.ProcessNode, []*activity_tree.NodeBase, error) {
 	p.Lock()
 	defer p.Unlock()
+
+	return p.InsertLocked(event, insertMissingProcesses, imageTag, generationType, resolvers)
+}
+
+// InsertLocked inserts an event in the profile while the caller already holds p's lock
+func (p *Profile) InsertLocked(event *model.Event, insertMissingProcesses bool, imageTag string, generationType activity_tree.NodeGenerationType, resolvers *resolvers.EBPFResolvers) (bool, *activity_tree.ProcessNode, []*activity_tree.NodeBase, error) {
+	if p.observedRollups && event != nil && event.ProcessCacheEntry != nil {
+		if id := event.ProcessCacheEntry.ContainerContext.ContainerID; id != "" {
+			p.insertingContainerID = id
+		} else {
+			p.insertingCGroupID = event.ProcessCacheEntry.CGroup.CGroupID
+		}
+		defer func() {
+			p.insertingContainerID = ""
+			p.insertingCGroupID = ""
+		}()
+	}
 
 	return p.ActivityTree.Insert(event, insertMissingProcesses, imageTag, generationType, resolvers)
 }
@@ -504,6 +554,23 @@ func (p *Profile) GetTags() []string {
 	return tags
 }
 
+// GetDumpTags returns the tags sent with a dump of the profile: the tags of each version
+// context, each distinct tag once.
+func (p *Profile) GetDumpTags() []string {
+	p.Lock()
+	defer p.Unlock()
+
+	return p.getDumpTags()
+}
+
+func (p *Profile) getDumpTags() []string {
+	var tags []string
+	for _, ctx := range p.getTimeOrderedVersionContexts() {
+		tags = appendMissingTags(tags, ctx.Tags)
+	}
+	return tags
+}
+
 // Snapshot collects procfs data for all the processes in the activity tree
 func (p *Profile) Snapshot(newEvent func() *model.Event) {
 	p.Lock()
@@ -649,6 +716,18 @@ func (p *Profile) GetVersionContext(imageTag string) (*VersionContext, bool) {
 	return ctx, ok
 }
 
+// GetVersionContextTags returns the tags of the given version if any. They grow as new workloads are seen.
+func (p *Profile) GetVersionContextTags(imageTag string) ([]string, bool) {
+	p.Lock()
+	defer p.Unlock()
+
+	ctx, ok := p.versionContexts[imageTag]
+	if !ok {
+		return nil, false
+	}
+	return ctx.Tags, true
+}
+
 // UpdateVersionContextLastSeen refreshes an existing version's last seen timestamp.
 // It returns false if the version has already been evicted.
 func (p *Profile) UpdateVersionContextLastSeen(imageTag string, nowTimestamp uint64) bool {
@@ -720,7 +799,8 @@ func (p *Profile) GetGlobalEventTypeState(et model.EventType) model.EventFilteri
 	return globalState // AutoLearning or StableEventType
 }
 
-// PrepareNewVersion creates a version context or refreshes its last seen timestamp.
+// PrepareNewVersion creates a version context or refreshes its last seen timestamp, and
+// adds to it the tags it doesn't hold yet.
 // It evicts the least recently seen versions to enforce maxImageTags, retaining at
 // least one version and never evicting the version being observed.
 func (p *Profile) PrepareNewVersion(imageTag string, tags []string, maxImageTags int, nowTimestamp uint64) []string {
@@ -732,10 +812,10 @@ func (p *Profile) PrepareNewVersion(imageTag string, tags []string, maxImageTags
 		ctx = &VersionContext{
 			EventTypeState: make(map[model.EventType]*EventTypeState),
 			FirstSeenNano:  nowTimestamp,
-			Tags:           slices.Clone(tags),
 		}
 		p.versionContexts[imageTag] = ctx
 	}
+	ctx.AddTags(tags)
 	ctx.LastSeenNano = nowTimestamp
 
 	// Also trim profiles loaded from disk with more versions than the current limit.
@@ -798,6 +878,7 @@ func (p *Profile) LoadFromNewProfile(newProfile *Profile) {
 	if p.treeOpts.pathPatterns.Enabled {
 		p.ActivityTree.Stats.SetPathPatternConfig(p.treeOpts.pathPatterns)
 	}
+	p.ActivityTree.KeepUnattributedActivity = p.treeOpts.unattributedActivity
 	p.Header = newProfile.Header
 	p.tags = newProfile.tags
 	p.versionContexts = newProfile.versionContexts
@@ -829,6 +910,14 @@ func (p *Profile) ComputeSyscallsList() []uint32 {
 
 // MatchesSelector is used to control how an event should be added to a profile
 func (p *Profile) MatchesSelector(entry *model.ProcessCacheEntry) bool {
+	if entry == nil {
+		return false
+	}
+	if (p.insertingContainerID != "" && p.insertingContainerID == entry.ContainerContext.ContainerID) ||
+		(p.insertingCGroupID != "" && p.insertingCGroupID == entry.CGroup.CGroupID) {
+		return true
+	}
+
 	p.InstancesLock.Lock()
 	defer p.InstancesLock.Unlock()
 

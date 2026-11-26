@@ -7,6 +7,7 @@ package agentparams
 
 import (
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -73,4 +74,35 @@ func TestParams(t *testing.T) {
 			assert.Equal(t, definition.Content, "some_config")
 		}
 	})
+}
+
+func TestWithIntakeHostnameGenResources(t *testing.T) {
+	for _, tt := range []struct {
+		scheme string
+		url    string
+	}{
+		{scheme: "http", url: "http://fake.example.com:80"},
+		{scheme: "https", url: "https://fake.example.com:443"},
+	} {
+		t.Run(tt.scheme, func(t *testing.T) {
+			params := &Params{}
+			if err := WithIntakeHostname(tt.scheme, "fake.example.com")(params); err != nil {
+				t.Fatal(err)
+			}
+
+			config := make(chan string, 1)
+			params.primaryEndpointConfig.ToStringOutput().ApplyT(func(value string) string {
+				config <- value
+				return value
+			})
+
+			select {
+			case value := <-config:
+				assert.Contains(t, value, "genresources.logs_dd_url: "+tt.url+"\n")
+				assert.NotContains(t, value, "genresources.logs_no_ssl:")
+			case <-time.After(5 * time.Second):
+				t.Fatal("timed out resolving host intake configuration")
+			}
+		})
+	}
 }

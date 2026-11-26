@@ -328,6 +328,20 @@ static struct dentry *__attribute__((always_inline)) get_path_dentry(struct path
     return dentry;
 }
 
+static u16 __attribute__((always_inline)) get_inode_mode(struct inode *inode) {
+    u64 inode_mode_offset;
+    LOAD_CONSTANT("inode_mode_offset", inode_mode_offset);
+
+    u16 mode = 0;
+    bpf_probe_read(&mode, sizeof(mode), (void *)inode + inode_mode_offset);
+
+    return mode;
+}
+
+static u16 __attribute__((always_inline)) get_dentry_mode(struct dentry *dentry) {
+    return get_inode_mode(get_dentry_inode(dentry));
+}
+
 static u32 __attribute__((always_inline)) get_inode_nlink(struct inode *inode) {
     u64 inode_nlink_offset;
     LOAD_CONSTANT("inode_nlink_offset", inode_nlink_offset);
@@ -372,6 +386,20 @@ static const char *__attribute__((always_inline)) get_dentry_name_ptr_at(struct 
 
 static const char *__attribute__((always_inline)) get_dentry_name_ptr(struct dentry *dentry) {
     return get_dentry_name_ptr_at(dentry, get_dentry_name_offset());
+}
+
+// get_dentry_name_len returns qstr.len of the dentry name, or 0 when the offset could not be resolved.
+static u32 __attribute__((always_inline)) get_dentry_name_len(struct dentry *dentry) {
+    u64 dentry_d_name_offset;
+    LOAD_CONSTANT("dentry_d_name_offset", dentry_d_name_offset);
+    u64 qstr_len_offset;
+    LOAD_CONSTANT("qstr_len_offset", qstr_len_offset);
+
+    u32 len = 0;
+    if (qstr_len_offset) {
+        bpf_probe_read(&len, sizeof(len), (void *)dentry + dentry_d_name_offset + qstr_len_offset);
+    }
+    return len;
 }
 
 static void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void *buffer, size_t n) {

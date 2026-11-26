@@ -123,6 +123,8 @@ type ScorerHistory struct {
 	Events       []severityeventsdef.SeverityEvent `json:"events"`
 	Reports      []ScorerHistoryReport             `json:"reports"`
 	Inputs       []ScorerHistoryInput              `json:"inputs"`
+	Arrivals     []observerdef.Anomaly             `json:"arrivals"`
+	Advances     []ScorerHistoryAdvance            `json:"advances"`
 	Config       observerdef.AnomalyScorerConfig   `json:"config"`
 	CooldownSecs int64                             `json:"cooldown_secs"`
 }
@@ -138,6 +140,13 @@ type ScorerHistoryReport struct {
 type ScorerHistoryInput struct {
 	ScoringSecond int64               `json:"scoring_second"`
 	Anomaly       observerdef.Anomaly `json:"anomaly"`
+}
+
+// ScorerHistoryAdvance records one Advance call boundary so a replay can
+// reproduce the exact arrival batching.
+type ScorerHistoryAdvance struct {
+	DataTime   int64 `json:"data_time"`
+	ArrivalEnd int   `json:"arrival_end"`
 }
 
 // Ensure observerImpl satisfies DebugView at compile time.

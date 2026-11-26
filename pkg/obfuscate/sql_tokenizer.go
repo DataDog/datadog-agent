@@ -610,6 +610,9 @@ func (tkn *SQLTokenizer) scanIdentifier() (TokenKind, []byte) {
 		tkn.advance()
 	}
 
+	if tkn.lastChar == '\'' && tkn.isOracleQuotedStringStart() {
+		return tkn.scanOracleQuotedString()
+	}
 	t := tkn.bytes()
 	// Space allows us to upper-case identifiers 256 bytes long or less without allocating heap
 	// storage for them, since space is allocated on the stack. A size of 256 bytes was chosen
@@ -620,6 +623,58 @@ func (tkn *SQLTokenizer) scanIdentifier() (TokenKind, []byte) {
 		return keywordID, t
 	}
 	return ID, t
+}
+
+// isOracleQuotedStringStart reports whether the identifier scanned so far is the q or nq prefix
+// of an Oracle alternative quoted string such as q'[it's]'. tkn.lastChar is the opening quote.
+// Oracle accepts any delimiter except space, tab and return; with those, or at the end of the
+// input, the quote is scanned as an ordinary string. The DBMS is often unknown (e.g. in the
+// trace-agent), so this applies unless another dialect is configured explicitly.
+func (tkn *SQLTokenizer) isOracleQuotedStringStart() bool {
+	switch tkn.cfg.DBMS {
+	case DBMSSQLServer, DBMSPostgres, DBMSMySQL:
+		return false
+	}
+	word := tkn.buf[:tkn.off-1] // the identifier, excluding the quote in tkn.lastChar
+	if !bytes.EqualFold(word, []byte("q")) && !bytes.EqualFold(word, []byte("nq")) {
+		return false
+	}
+	switch tkn.peek() {
+	case EndChar, ' ', '\t', '\n', '\r':
+		return false
+	}
+	return true
+}
+
+// scanOracleQuotedString scans an Oracle alternative quoted string, from the opening quote to
+// the closing delimiter followed by a quote. Quotes inside the literal don't end it.
+// See: https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/Literals.html#GUID-1824CBAA-6E16-4921-B2A6-112FB02248DA
+func (tkn *SQLTokenizer) scanOracleQuotedString() (TokenKind, []byte) {
+	tkn.advance() // consume the opening quote
+	closing := tkn.lastChar
+	switch closing {
+	case '[':
+		closing = ']'
+	case '{':
+		closing = '}'
+	case '(':
+		closing = ')'
+	case '<':
+		closing = '>'
+	}
+	tkn.advance() // consume the opening delimiter
+	for {
+		ch := tkn.lastChar
+		if ch == EndChar {
+			tkn.setErr("unexpected EOF in string")
+			return LexError, tkn.bytes()
+		}
+		tkn.advance()
+		if ch == closing && tkn.lastChar == '\'' {
+			tkn.advance()
+			return String, tkn.bytes()
+		}
+	}
 }
 
 func (tkn *SQLTokenizer) scanVariableIdentifier(_ rune) (TokenKind, []byte) {
@@ -643,21 +698,27 @@ func (tkn *SQLTokenizer) scanFormatParameter(_ rune) (TokenKind, []byte) {
 // scanDollarQuotedString scans a Postgres dollar-quoted string constant.
 // See: https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-DOLLAR-QUOTING
 func (tkn *SQLTokenizer) scanDollarQuotedString() (TokenKind, []byte) {
-	kind, tag := tkn.scanString('$', String)
-	if kind == LexError {
-		return kind, tkn.bytes()
+	// The opening '$' has already been consumed. A tag cannot contain '$', so the
+	// first '$' always ends the opening delimiter. Unlike in scanString, a doubled
+	// '$' is not an escaped delimiter: in `$tag$$tag$` the content is empty.
+	delim := []byte{'$'}
+	for {
+		ch := tkn.lastChar
+		tkn.advance()
+		if ch == '$' {
+			break
+		}
+		if ch == EndChar {
+			tkn.setErr("unexpected EOF in string")
+			return LexError, tkn.bytes()
+		}
+		delim = utf8.AppendRune(delim, ch)
 	}
+	delim = append(delim, '$')
 	var (
 		got int
 		buf bytes.Buffer
 	)
-	delim := tag
-	// on empty strings, tkn.scanString returns the delimiters
-	if string(delim) != "$$" {
-		// on non-empty strings, the delimiter is $tag$
-		delim = append([]byte{'$'}, delim...)
-		delim = append(delim, '$')
-	}
 	for {
 		ch := tkn.lastChar
 		tkn.advance()
@@ -679,6 +740,12 @@ func (tkn *SQLTokenizer) scanDollarQuotedString() (TokenKind, []byte) {
 				return LexError, buf.Bytes()
 			}
 			got = 0
+			// The tag holds no '$', so a partial match can only restart at the
+			// current character, as in the '$$' of `$tag$$$tag$`.
+			if ch == '$' {
+				got = 1
+				continue
+			}
 		}
 		buf.WriteRune(ch)
 	}
@@ -742,8 +809,10 @@ func (tkn *SQLTokenizer) scanBindVar() (TokenKind, []byte) {
 	return token, tkn.bytes()
 }
 
+// scanMantissa scans digits of the given base. An underscore followed by such a digit is a
+// digit separator (PostgreSQL 16+), e.g. 1_000_000 or 0xFF_FF, and is part of the number.
 func (tkn *SQLTokenizer) scanMantissa(base int) {
-	for digitVal(tkn.lastChar) < base {
+	for digitVal(tkn.lastChar) < base || (tkn.lastChar == '_' && digitVal(tkn.peek()) < base) {
 		tkn.advance()
 	}
 }
@@ -757,16 +826,24 @@ func (tkn *SQLTokenizer) scanNumber(seenDecimalPoint bool) (TokenKind, []byte) {
 	if tkn.lastChar == '0' {
 		// int or float
 		tkn.advance()
-		if tkn.lastChar == 'x' || tkn.lastChar == 'X' {
+		switch {
+		case tkn.lastChar == 'x' || tkn.lastChar == 'X':
 			// hexadecimal int
 			tkn.advance()
 			tkn.scanMantissa(16)
-		} else {
-			// octal int or float
+		case (tkn.lastChar == 'b' || tkn.lastChar == 'B') && tkn.isPrefixedNumberBody(2):
+			// binary int (MySQL, PostgreSQL 16+)
+			tkn.advance()
+			tkn.scanMantissa(2)
+		case (tkn.lastChar == 'o' || tkn.lastChar == 'O') && tkn.isPrefixedNumberBody(8):
+			// octal int (PostgreSQL 16+)
+			tkn.advance()
 			tkn.scanMantissa(8)
-			if tkn.lastChar == '8' || tkn.lastChar == '9' {
-				tkn.scanMantissa(10)
-			}
+		default:
+			// int or float with a leading zero. Scan in base 10: SQL has no implicit
+			// octal, and a base-8 scan would stop at a separator before an 8 or 9,
+			// splitting a literal like 0_987 and leaking its tail.
+			tkn.scanMantissa(10)
 			if tkn.lastChar == '.' || tkn.lastChar == 'e' || tkn.lastChar == 'E' {
 				goto fraction
 			}
@@ -888,6 +965,35 @@ func (tkn *SQLTokenizer) advance() {
 	}
 	tkn.off += n
 	tkn.lastChar = ch
+}
+
+// peek returns the rune after tkn.lastChar without advancing, or EndChar if there is none.
+func (tkn *SQLTokenizer) peek() rune {
+	return tkn.peekAt(0)
+}
+
+// peekAt returns the rune n runes after the one following tkn.lastChar, or EndChar if
+// there is none.
+func (tkn *SQLTokenizer) peekAt(n int) rune {
+	off := tkn.off
+	for {
+		ch, size := utf8.DecodeRune(tkn.buf[off:])
+		if ch == utf8.RuneError && size < 2 {
+			return EndChar
+		}
+		if n == 0 {
+			return ch
+		}
+		off += size
+		n--
+	}
+}
+
+// isPrefixedNumberBody reports whether the runes after a 0b or 0o prefix in tkn.lastChar
+// start a number in the given base: a digit, or a separator followed by a digit (e.g. 0b_1).
+func (tkn *SQLTokenizer) isPrefixedNumberBody(base int) bool {
+	next := tkn.peek()
+	return digitVal(next) < base || (next == '_' && digitVal(tkn.peekAt(1)) < base)
 }
 
 // bytes returns all the bytes that were advanced over since its last call.

@@ -71,6 +71,10 @@ type testMetricExpectArgs struct {
 type testMetricExpectValueArgs struct {
 	Min float64
 	Max float64
+	// RecentWindow, when set, also accepts in-range values from series with the expected
+	// tags received up to that long before the latest one. Use it for fluctuating metrics:
+	// several samples can arrive between two polls, and the latest alone can miss them.
+	RecentWindow time.Duration `yaml:"recentWindow,omitempty"`
 }
 
 // myCollectT does nothing more than "github.com/stretchr/testify/assert".CollectT
@@ -170,24 +174,38 @@ func (suite *baseSuite[Env]) testMetric(args *testMetricArgs) {
 			require.NoErrorf(c, err, "Failed to query fake intake")
 			require.NotEmptyf(c, metrics, "No `%s` metrics yet", prettyMetricQuery)
 
-			// Check tags
-			if expectedTags != nil {
-				err := assertTags(metrics[len(metrics)-1].GetTags(), expectedTags, optionalTags, args.Expect.AcceptUnexpectedTags)
-				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyMetricQuery)
+			// The series are grouped by intake endpoint (v2, v1, v3), so the last one
+			// is not necessarily the most recent.
+			latest := lo.LatestBy(metrics, (*aggregator.MetricSeries).GetCollectedTime)
+
+			checkTags := func(m *aggregator.MetricSeries) error {
+				if expectedTags == nil {
+					return nil
+				}
+				return assertTags(m.GetTags(), expectedTags, optionalTags, args.Expect.AcceptUnexpectedTags)
 			}
+
+			// Check tags
+			assert.NoErrorf(c, checkTags(latest), "Tags mismatch on `%s`", prettyMetricQuery)
 
 			// Check value
 			if args.Expect.Value != nil {
-				assert.NotEmptyf(c, lo.Filter(metrics[len(metrics)-1].GetPoints(), func(v *gogen.MetricPayload_MetricPoint, _ int) bool {
-					return v.GetValue() >= args.Expect.Value.Min &&
-						v.GetValue() <= args.Expect.Value.Max
-				}), "No value of `%s` is in the range [%f;%f]: %v",
+				recentSince := latest.GetCollectedTime().Add(-args.Expect.Value.RecentWindow)
+				recentSeries := lo.Filter(metrics, func(m *aggregator.MetricSeries, _ int) bool {
+					return !m.GetCollectedTime().Before(recentSince) && checkTags(m) == nil
+				})
+				recentValues := lo.FlatMap(recentSeries, func(m *aggregator.MetricSeries, _ int) []float64 {
+					return lo.Map(m.GetPoints(), func(p *gogen.MetricPayload_MetricPoint, _ int) float64 {
+						return p.GetValue()
+					})
+				})
+				assert.Truef(c, lo.ContainsBy(recentValues, func(v float64) bool {
+					return v >= args.Expect.Value.Min && v <= args.Expect.Value.Max
+				}), "No recent value of `%s` is in the range [%f;%f]: %v",
 					prettyMetricQuery,
 					args.Expect.Value.Min,
 					args.Expect.Value.Max,
-					lo.Map(metrics[len(metrics)-1].GetPoints(), func(v *gogen.MetricPayload_MetricPoint, _ int) float64 {
-						return v.GetValue()
-					}),
+					recentValues,
 				)
 			}
 		}, cmp.Or(args.Timeout, 2*time.Minute), 10*time.Second, "Failed finding `%s` with proper tags and value", prettyMetricQuery)

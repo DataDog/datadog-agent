@@ -12,13 +12,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/twmb/murmur3"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 )
 
 func TestNewTagMatcher(t *testing.T) {
-	matcher := newTagMatcher(map[string]MetricTagList{
+	matcher := NewTagMatcher(map[string]MetricTagList{
 		"metric1": {
 			Tags:   []string{"env", "host"},
 			Action: "exclude",
@@ -33,49 +33,17 @@ func TestNewTagMatcher(t *testing.T) {
 		},
 	}, logmock.New(t))
 
-	metric1Tags := []uint64{murmur3.StringSum64("env"), murmur3.StringSum64("host")}
-	slices.Sort(metric1Tags)
+	list, ok := matcher.ShouldStripTags("metric1")
+	assert.True(t, ok)
+	assert.Equal(t, metricname.NewHashedMetricTagList(true, []string{"env", "host"}), list)
 
-	assert.NotNil(t, matcher)
-	assert.Equal(t, matcher.MetricTags["metric1"], hashedMetricTagList{
-		tags:   metric1Tags,
-		action: exclude,
-	})
+	list, ok = matcher.ShouldStripTags("metric2")
+	assert.True(t, ok)
+	assert.Equal(t, metricname.NewHashedMetricTagList(false, []string{}), list)
 
-	assert.Equal(t, matcher.MetricTags["metric2"], hashedMetricTagList{
-		tags:   []uint64{},
-		action: include,
-	})
-
-	assert.Equal(t, matcher.MetricTags["metric3"], hashedMetricTagList{
-		tags:   []uint64{murmur3.StringSum64("pod")},
-		action: exclude,
-	})
-}
-
-func TestTagNameExtraction(t *testing.T) {
-	t.Run("extracts name from tag with value", func(t *testing.T) {
-		assert.Equal(t, "env", tagName("env:prod"))
-		assert.Equal(t, "host", tagName("host:server1"))
-		assert.Equal(t, "version", tagName("version:1.0.0"))
-	})
-
-	t.Run("handles tag without value", func(t *testing.T) {
-		assert.Equal(t, "env", tagName("env"))
-		assert.Equal(t, "host", tagName("host"))
-	})
-
-	t.Run("handles tag with empty value", func(t *testing.T) {
-		assert.Equal(t, "env", tagName("env:"))
-	})
-
-	t.Run("handles tag with colon in value", func(t *testing.T) {
-		assert.Equal(t, "url", tagName("url:http://example.com"))
-	})
-
-	t.Run("handles invalid tag", func(t *testing.T) {
-		assert.Equal(t, "", tagName(":invalid"))
-	})
+	list, ok = matcher.ShouldStripTags("metric3")
+	assert.True(t, ok)
+	assert.Equal(t, metricname.NewHashedMetricTagList(true, []string{"pod"}), list)
 }
 
 func TestTagMatcher(t *testing.T) {
@@ -98,41 +66,117 @@ func TestTagMatcher(t *testing.T) {
 		},
 	}
 
-	matcher := newTagMatcher(metrics, logmock.New(t))
+	matcher := NewTagMatcher(metrics, logmock.New(t))
 
 	// Test metric1 tags are excluded
-	keepTagFunc, shouldStrip := matcher.ShouldStripTags("metric1")
+	tagList, shouldStrip := matcher.ShouldStripTags("metric1")
 	assert.True(t, shouldStrip)
 
-	assert.False(t, keepTagFunc("env:prod"))
-	assert.False(t, keepTagFunc("host:server1"))
-	assert.True(t, keepTagFunc("version:1.0"))
+	assert.False(t, tagList.KeepTag("env:prod"))
+	assert.False(t, tagList.KeepTag("host:server1"))
+	assert.True(t, tagList.KeepTag("version:1.0"))
 
 	// Test metric2 tags are included
-	keepTagFunc, shouldStrip = matcher.ShouldStripTags("metric2")
+	tagList, shouldStrip = matcher.ShouldStripTags("metric2")
 	assert.True(t, shouldStrip)
 
-	assert.True(t, keepTagFunc("env:prod"))
-	assert.True(t, keepTagFunc("host:server1"))
-	assert.False(t, keepTagFunc("version:1.0"))
+	assert.True(t, tagList.KeepTag("env:prod"))
+	assert.True(t, tagList.KeepTag("host:server1"))
+	assert.False(t, tagList.KeepTag("version:1.0"))
 
 	// Test metric3 tags are all excluded
-	keepTagFunc, shouldStrip = matcher.ShouldStripTags("metric3")
+	tagList, shouldStrip = matcher.ShouldStripTags("metric3")
 	assert.True(t, shouldStrip)
 
-	assert.False(t, keepTagFunc("env:prod"))
-	assert.False(t, keepTagFunc("host:server1"))
-	assert.False(t, keepTagFunc("version:1.0"))
+	assert.False(t, tagList.KeepTag("env:prod"))
+	assert.False(t, tagList.KeepTag("host:server1"))
+	assert.False(t, tagList.KeepTag("version:1.0"))
 
 	// Test metric4 tags are all included
-	keepTagFunc, shouldStrip = matcher.ShouldStripTags("metric4")
+	tagList, shouldStrip = matcher.ShouldStripTags("metric4")
 	if shouldStrip { // 2 behaviors are acceptable: return true with a function that keeps all tags, or return false
-		assert.True(t, keepTagFunc("env:prod"))
-		assert.True(t, keepTagFunc("host:server1"))
-		assert.True(t, keepTagFunc("version:1.0"))
+		assert.True(t, tagList.KeepTag("env:prod"))
+		assert.True(t, tagList.KeepTag("host:server1"))
+		assert.True(t, tagList.KeepTag("version:1.0"))
 	}
 
 	// metric5 is not configured
 	_, shouldStrip = matcher.ShouldStripTags("metric5")
 	assert.False(t, shouldStrip)
+}
+
+// TestCompileTagFilterListNormalizesRules checks that rules are compiled in the
+// form the intake stores names and tag keys in.
+func TestCompileTagFilterListNormalizesRules(t *testing.T) {
+	matcher := compileTagFilterList([]MetricTagListEntry{
+		{MetricName: "My-Metric", Action: "exclude", Tags: []string{"Env", "pod name", "123", "a:b", "foo_"}},
+		{MetricName: "123", Action: "exclude", Tags: []string{"env"}},
+		{MetricName: "", Action: "exclude", Tags: []string{"env"}},
+	}, logmock.New(t))
+
+	assert.Equal(t, 1, matcher.Len())
+	list, ok := matcher.ShouldStripTags("My_Metric")
+	assert.True(t, ok)
+	// "123" is the empty stored key, as in `123:foo` (stored as `:foo`); "a:b" cannot be a key.
+	assert.Equal(t, metricname.NewHashedMetricTagList(true, []string{"env", "pod_name", "", "foo_"}), list)
+}
+
+// TestCompileTagFilterListMergesNormalizedNames checks that rules naming the same
+// metric once normalized are merged, regardless of their order.
+func TestCompileTagFilterListMergesNormalizedNames(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		entries []MetricTagListEntry
+		want    metricname.HashedMetricTagList
+	}{
+		{
+			name: "same action merges tags",
+			entries: []MetricTagListEntry{
+				{MetricName: "a.b-c", Action: "include", Tags: []string{"env"}},
+				{MetricName: "a.b_c", Action: "include", Tags: []string{"Host", "env"}},
+			},
+			want: metricname.NewHashedMetricTagList(false, []string{"env", "host"}),
+		},
+		{
+			name: "exclude wins",
+			entries: []MetricTagListEntry{
+				{MetricName: "a.b-c", Action: "include", Tags: []string{"env"}},
+				{MetricName: "a.b c", Action: "exclude", Tags: []string{"pod"}},
+				{MetricName: "a.b_c", Action: "", Tags: []string{"host"}},
+				{MetricName: "a.b__c", Action: "include", Tags: []string{"version"}},
+			},
+			want: metricname.NewHashedMetricTagList(true, []string{"pod", "host"}),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, entries := range [][]MetricTagListEntry{tc.entries, reversed(tc.entries)} {
+				matcher := compileTagFilterList(entries, logmock.New(t))
+				assert.Equal(t, 1, matcher.Len())
+				list, ok := matcher.ShouldStripTags("a.b_c")
+				assert.True(t, ok)
+				assert.Equal(t, tc.want, list)
+			}
+		})
+	}
+}
+
+// TestTagMatcherMatchesNormalizedSamples checks the compiled matcher end to end:
+// rules and samples in different raw forms of the same stored name and key.
+func TestTagMatcherMatchesNormalizedSamples(t *testing.T) {
+	matcher := NewTagMatcher(map[string]MetricTagList{
+		"my_metric.count": {Tags: []string{"Pod Name"}, Action: "exclude"},
+	}, logmock.New(t))
+
+	list, ok := matcher.ShouldStripTags("my-metric.count")
+	assert.True(t, ok)
+	assert.False(t, list.KeepTag("pod_name:web"))
+	// `-` is kept in tag keys, so this is a different key.
+	assert.True(t, list.KeepTag("pod-name:web"))
+	assert.True(t, list.KeepTag("env:prod"))
+}
+
+func reversed[T any](s []T) []T {
+	r := slices.Clone(s)
+	slices.Reverse(r)
+	return r
 }

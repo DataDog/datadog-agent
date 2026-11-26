@@ -32,12 +32,14 @@ type Opts struct {
 	SupportedDiscarders        map[eval.Field][]eval.Field
 	SupportedMultiDiscarders   []*MultiDiscarder
 	ExcludedRuleFromDiscarders map[eval.RuleID]bool
-	ReservedRuleIDs            []RuleID
-	EventTypeEnabled           map[eval.EventType]bool
-	StateScopes                map[Scope]VariableProviderFactory
-	Logger                     log.Logger
-	ruleActionPerformedCb      RuleActionPerformedCb
-	RuleCacheEnabled           bool
+	// ExcludedRuleDiscarderFields are the fields of the discarders the excluded rules still take part in
+	ExcludedRuleDiscarderFields []eval.Field
+	ReservedRuleIDs             []RuleID
+	EventTypeEnabled            map[eval.EventType]bool
+	StateScopes                 map[Scope]VariableProviderFactory
+	Logger                      log.Logger
+	ruleActionPerformedCb       RuleActionPerformedCb
+	RuleCacheEnabled            bool
 }
 
 // WithSupportedDiscarders set supported discarders: the field a discarder is

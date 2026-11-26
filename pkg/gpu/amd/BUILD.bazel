@@ -52,6 +52,10 @@ dd_agent_go_test(
         "testdata/smu15_0_8_synthetic/device/*",
     ]),
     embed = [":amd"],
+    embedsrcs = [
+        "testdata/mi300x_vf/device/gpu_metrics",
+        "testdata/mi350x_vf/device/gpu_metrics",
+    ],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/util/gpu",
