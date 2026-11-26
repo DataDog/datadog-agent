@@ -8,8 +8,10 @@ package remoteflags
 import (
 	"runtime"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -252,14 +254,20 @@ func (g *gatedSetter) GetSource(key string) model.Source {
 	return src
 }
 
-// waitUntilQuiet yields the processor until goroutines that can still make
-// progress have had ample chance to run. testing/synctest cannot be used here
-// because a goroutine waiting on a sync.Mutex is not durably blocked, so
-// synctest.Wait would never return while the handler holds its lock.
-func waitUntilQuiet() {
-	for range 2000 {
-		runtime.Gosched()
+// releaseBlockedOnLock reports whether a goroutine is parked acquiring a mutex
+// inside the handler's OnNoConfig. testing/synctest cannot be used here because
+// a goroutine waiting on a sync.Mutex is not durably blocked, so synctest.Wait
+// would never return while the handler holds its lock.
+func releaseBlockedOnLock() bool {
+	buf := make([]byte, 1<<20)
+	buf = buf[:runtime.Stack(buf, true)]
+	for _, g := range strings.Split(string(buf), "\n\n") {
+		if strings.Contains(g, "configKeyHandler).OnNoConfig") &&
+			(strings.Contains(g, "sync.(*Mutex).Lock") || strings.Contains(g, "sync.runtime_SemacquireMutex")) {
+			return true
+		}
 	}
+	return false
 }
 
 func TestConfigKeyHandlerSerializesReadAndWrite(t *testing.T) {
@@ -277,22 +285,30 @@ func TestConfigKeyHandlerSerializesReadAndWrite(t *testing.T) {
 	}()
 	<-s.reading // the enable has read the source and is paused before writing
 
-	releaseStarted := make(chan struct{})
 	releaseDone := make(chan struct{})
 	go func() {
 		defer close(releaseDone)
-		close(releaseStarted)
 		h.OnNoConfig()
 	}()
-	<-releaseStarted
-	waitUntilQuiet() // without the lock the release finishes during this window
 
-	select {
-	case <-releaseDone:
-		close(s.gate)
-		<-enableDone
-		t.Fatal("the release ran between the read and the write of the enable")
-	default:
+	// The release must end up parked on the handler's lock while the enable is
+	// paused. If it finishes instead, the lock does not serialize the two calls.
+	deadline := time.Now().Add(10 * time.Second)
+	for !releaseBlockedOnLock() {
+		select {
+		case <-releaseDone:
+			close(s.gate)
+			<-enableDone
+			t.Fatal("the release ran between the read and the write of the enable")
+		default:
+		}
+		if time.Now().After(deadline) {
+			close(s.gate)
+			<-enableDone
+			<-releaseDone
+			t.Fatal("the release goroutine never blocked on the handler lock")
+		}
+		time.Sleep(time.Millisecond)
 	}
 
 	close(s.gate)
