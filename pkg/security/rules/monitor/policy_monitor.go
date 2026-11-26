@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -623,31 +624,20 @@ func extractMonitoredFilesAndFolders(rs *rules.RuleSet) []string {
 		return nil
 	}
 
+	// file.name and file.path of each FIM event
+	fimFields := make(map[string]bool)
+	for _, event := range model.GetEventTypePerCategory(model.FIMCategory)[model.FIMCategory] {
+		fimFields[event+".file.name"] = true
+		fimFields[event+".file.path"] = true
+	}
+
 	pathsSet := make(map[string]bool)
-
-	// Get FIM events
-	fimEvents := model.GetEventTypePerCategory(model.FIMCategory)[model.FIMCategory]
-
-	// Check both file.name and file.path for each FIM event
-	for _, event := range fimEvents {
-		for _, suffix := range []string{".file.name", ".file.path"} {
-			field := event + suffix
-			// Get all rules that use this field
-			for _, rule := range rs.GetRules() {
-				values := rule.GetFieldValues(field)
-				for _, value := range values {
-					path, ok := value.Value.(string)
-					if !ok || path == "" {
-						continue
-					}
-
-					// Check if this value is used positively in the rule expression (NO: not in or !=)
-					if isPositivelyUsed(rule, field, value, rs) {
-						pathsSet[path] = true
-					}
-				}
-			}
+	for _, rule := range rs.GetRules() {
+		tree := rule.GetResolvedAst()
+		if tree == nil {
+			continue
 		}
+		collectMonitoredPaths(tree.Root, fimFields, pathsSet)
 	}
 
 	if len(pathsSet) == 0 {
@@ -662,38 +652,52 @@ func extractMonitoredFilesAndFolders(rs *rules.RuleSet) []string {
 	return monitored
 }
 
-// isPositivelyUsed checks if a field value is used positively
-func isPositivelyUsed(rule *rules.Rule, field eval.Field, value eval.FieldValue, rs *rules.RuleSet) bool {
-	fakeEvent := rs.NewFakeEvent()
-	ctx := eval.NewContext(fakeEvent)
-
-	// Test with the actual value
-	err := fakeEvent.SetFieldValue(field, value.Value)
-	if err != nil {
-		return false
+// collectMonitoredPaths adds to paths the strings a FIM field is positively
+// compared to in a boolean expression in negation normal form: `==`, `=~` and
+// `in`. A negated comparison is a UnaryExpr, and is skipped like `!=`, `!~` and
+// `not in`.
+func collectMonitoredPaths(node ast.Node, fimFields map[string]bool, paths map[string]bool) {
+	switch n := node.(type) {
+	case *ast.LogicalExpr:
+		collectMonitoredPaths(n.Left, fimFields, paths)
+		collectMonitoredPaths(n.Right, fimFields, paths)
+	case *ast.ScalarCompareExpr:
+		if n.Op != ast.ScalarEqual && n.Op != ast.ScalarMatch {
+			return
+		}
+		field, value := n.Left, n.Right
+		if !isFIMField(field, fimFields) {
+			field, value = value, field
+		}
+		if isFIMField(field, fimFields) {
+			addStringLiteral(value, paths)
+		}
+	case *ast.ArrayCompareExpr:
+		if n.Op != ast.ArrayIn || !isFIMField(n.Left, fimFields) {
+			return
+		}
+		if array, ok := n.Right.(*ast.Array); ok {
+			for _, member := range array.Members {
+				addStringLiteral(member, paths)
+			}
+		}
 	}
+}
 
-	origResult, err := rule.PartialEval(ctx, field)
-	if err != nil {
-		return false
+// isFIMField returns whether node is a reference to one of the FIM fields.
+func isFIMField(node ast.Node, fimFields map[string]bool) bool {
+	field, ok := node.(*ast.FieldRef)
+	return ok && fimFields[field.Name]
+}
+
+// addStringLiteral adds to paths the value of node if it is a non-empty string,
+// pattern or regexp literal.
+func addStringLiteral(node ast.Node, paths map[string]bool) {
+	literal, ok := node.(*ast.Literal)
+	if !ok || literal.Value.Kind().Family() != ast.StringFamily {
+		return
 	}
-
-	// Test with a different value to see if the rule behavior changes
-	notValue, err := eval.NotOfValue(value.Value)
-	if err != nil {
-		return false
+	if path := ast.StringVal(literal.Value); path != "" {
+		paths[path] = true
 	}
-
-	err = fakeEvent.SetFieldValue(field, notValue)
-	if err != nil {
-		return false
-	}
-
-	notResult, err := rule.PartialEval(ctx, field)
-	if err != nil {
-		return false
-	}
-
-	// If the results are different, this means the field is used positively
-	return origResult != notResult
 }
