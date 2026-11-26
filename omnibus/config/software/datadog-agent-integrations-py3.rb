@@ -106,7 +106,8 @@ build do
           foreign = sorted(path for path in loaded if os.path.dirname(path) != sys.argv[1])
           sys.exit(f"OpenSSL loaded from outside {sys.argv[1]}: {foreign}" if foreign else 0)
         PYTHON
-        shellout! Shellwords.join([python, "-I", "-S", "-c", load_check, agent_lib_dir, *openssl_users])
+        # `-B`: don't write `.pyc` files for the modules this imports into the package
+        shellout! Shellwords.join([python, "-B", "-I", "-S", "-c", load_check, agent_lib_dir, *openssl_users])
       end
 
       # In FIPS builds these must use the Agent's OpenSSL, so they can't come with their own, even statically linked
