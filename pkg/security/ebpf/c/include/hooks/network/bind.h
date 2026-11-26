@@ -43,8 +43,7 @@ static __always_inline int sys_bind_ret_impl(void *ctx, int retval, enum TAIL_CA
     }
     syscall->retval = retval;
 
-    // approve on behalf of the io_uring submitter, so that activity dump tracing and sampling apply to it
-    approve_syscall_with_tgid(get_bind_tgid(syscall), syscall, bind_approvers);
+    approve_syscall(syscall, bind_approvers);
 
     // these probes are also loaded with the network probes, only send the event when a rule asks for it
     if (!is_event_enabled(EVENT_BIND)) {
@@ -86,14 +85,6 @@ static __always_inline int sys_bind_ret_impl(void *ctx, int retval, enum TAIL_CA
     pop_syscall(EVENT_BIND);
 
     fill_cgroup_context(entry, &event->cgroup);
-
-    // v1: check if this PID is traced by an activity dump
-    struct activity_dump_config *config = lookup_or_delete_traced_pid(event->process.pid, bpf_ktime_get_ns(), NULL);
-    if (config) {
-        if (mask_has_event(config->event_mask, EVENT_BIND)) {
-            event->event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
-        }
-    }
 
     span_fill_tail_call(ctx, prog_type);
 

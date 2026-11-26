@@ -162,11 +162,3 @@ func TestComputeActivityDumpDiffMatchedProcess(t *testing.T) {
 		assert.Equal(t, node.added, state, node.name)
 	}
 }
-
-func TestDumpActivityDumpCommand(t *testing.T) {
-	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
-		[]string{"runtime", "activity-dump", "generate", "dump"},
-		generateActivityDump,
-		func() {})
-}

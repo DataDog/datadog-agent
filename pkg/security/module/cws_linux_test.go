@@ -23,8 +23,6 @@ func newProfilingConfig(runtimeEnabled bool) *config.Config {
 		Probe: &pconfig.Config{NetworkEnabled: true, EventStreamUseSyscallTaskStorage: true},
 		RuntimeSecurity: &config.RuntimeSecurityConfig{
 			RuntimeEnabled:           runtimeEnabled,
-			ActivityDumpEnabled:      true,
-			SecurityProfileEnabled:   true,
 			SecurityProfileV2Enabled: true,
 			SysCtlEnabled:            true,
 		},
@@ -38,8 +36,6 @@ func TestUpdateEventMonitorOptsDisablesProfilingWithoutRuntimeSecurity(t *testin
 	cfg := newProfilingConfig(false)
 	UpdateEventMonitorOpts(&eventmonitor.Opts{}, cfg)
 
-	assert.False(t, cfg.RuntimeSecurity.ActivityDumpEnabled)
-	assert.False(t, cfg.RuntimeSecurity.SecurityProfileEnabled)
 	assert.False(t, cfg.RuntimeSecurity.SecurityProfileV2Enabled)
 	assert.False(t, cfg.RuntimeSecurity.SysCtlEnabled)
 	assert.False(t, cfg.Probe.NetworkEnabled)
@@ -51,8 +47,6 @@ func TestUpdateEventMonitorOptsKeepsProfilingWithRuntimeSecurity(t *testing.T) {
 	cfg := newProfilingConfig(true)
 	UpdateEventMonitorOpts(&eventmonitor.Opts{}, cfg)
 
-	assert.True(t, cfg.RuntimeSecurity.ActivityDumpEnabled)
-	assert.True(t, cfg.RuntimeSecurity.SecurityProfileEnabled)
 	assert.True(t, cfg.RuntimeSecurity.SecurityProfileV2Enabled)
 	assert.True(t, cfg.Probe.EventStreamUseSyscallTaskStorage)
 }

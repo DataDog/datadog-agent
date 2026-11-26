@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
@@ -366,12 +365,6 @@ var ProcessSources = [...]string{
 // ProcessSourceToString returns the string corresponding to a process source
 func ProcessSourceToString(source uint64) string {
 	return ProcessSources[source]
-}
-
-// SetTimeout updates the timeout of an activity dump
-func (adlc *ActivityDumpLoadConfig) SetTimeout(duration time.Duration) {
-	adlc.Timeout = duration
-	adlc.EndTimestampRaw = adlc.StartTimestampRaw + uint64(duration)
 }
 
 // GetKey returns a key to uniquely identify a network device on the system

@@ -30,12 +30,6 @@ static __attribute__((always_inline)) void send_capabilities_usage_event(void *c
     struct proc_cache_t *proc_entry = fill_process_context_with_pid_tgid(&event.process, pid_tgid);
     fill_cgroup_context(proc_entry, &event.cgroup);
 
-    // should we mark this event for activity dumps ?
-    struct activity_dump_config *config = lookup_or_delete_traced_pid(event.process.pid, bpf_ktime_get_ns(), NULL);
-    if (config && mask_has_event(config->event_mask, EVENT_CAPABILITIES)) {
-        event.event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
-    }
-
     send_event(ctx, EVENT_CAPABILITIES, event);
 }
 

@@ -921,7 +921,6 @@ func newV2DispatchTestProbe(t *testing.T, containerID containerutils.ContainerID
 	cfg := &config.Config{
 		RuntimeSecurity: &config.RuntimeSecurityConfig{
 			RuntimeEnabled:                                  true,
-			SecurityProfileEnabled:                          true,
 			SecurityProfileV2Enabled:                        true,
 			SecurityProfileMaxImageTags:                     20,
 			AnomalyDetectionEnabled:                         true,
