@@ -13,3 +13,6 @@ fixes:
     10000 operators, selectors or subscripts once its macros are expanded,
     is now rejected with an error when the policy loads, like an expression
     with a syntax error.
+  - |
+    CWS: Parsing a rule or macro holding long dotted names no longer takes
+    time quadratic in their length.

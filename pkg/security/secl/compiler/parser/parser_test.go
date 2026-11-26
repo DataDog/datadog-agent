@@ -768,3 +768,27 @@ func TestDepthLimitWideNodes(t *testing.T) {
 	require.Equal(t, allocs(array(1)), allocs(array(100000)), "checking an array allocates per member")
 	require.Equal(t, allocs(interpolation(1)), allocs(interpolation(100000)), "checking an interpolation allocates per part")
 }
+
+func TestIPv6Lookahead(t *testing.T) {
+	first := func(src string) Token {
+		var errs ErrorList
+		return newScanner("", src, &errs).next()
+	}
+
+	// the longest IPv6
+	longest := "ffff:ffff:ffff:ffff:ffff:ffff:255.255.255.255"
+	require.Equal(t, Token{Kind: IP, Text: longest, Pos: ast.Position{Line: 1, Column: 1}}, first(longest+" == a"))
+
+	// a run of hexadecimal digits and dots longer than any IPv6 is a name,
+	// whatever follows it
+	name := "a" + strings.Repeat(".b", 100)
+	for _, src := range []string{name + " == 1", name + ":1 == 1"} {
+		tok := first(src)
+		require.Equal(t, Ident, tok.Kind, src)
+		require.Equal(t, "a", tok.Text, src)
+	}
+
+	rule, err := parseRule(name + ` == 1`)
+	require.NoError(t, err)
+	require.Equal(t, name, ast.Sprint(rule.Root.(*ast.ScalarCompareExpr).Left))
+}

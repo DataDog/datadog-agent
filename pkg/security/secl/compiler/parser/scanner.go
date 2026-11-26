@@ -7,7 +7,6 @@ package parser
 
 import (
 	"fmt"
-	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -291,10 +290,24 @@ func (s *scanner) scanDuration(start ast.Position) Token {
 
 // atIPv6 returns whether an IPv6 starts at the next character. A colon
 // appears nowhere else in the language: any run of hexadecimal digits, dots
-// and colons holding one is an IPv6.
+// and colons holding one is an IPv6, unless it is longer than any IPv6.
 func (s *scanner) atIPv6() bool {
-	n := s.hexRunLen()
-	return strings.IndexByte(s.src[s.pos.Offset:s.pos.Offset+n], ':') >= 0
+	// stop at the longest IPv6: this runs before every token, and a dotted
+	// name of hexadecimal letters, `a.b.c`, is a single run
+	const maxLen = len("ffff:ffff:ffff:ffff:ffff:ffff:255.255.255.255")
+	colon := false
+	for n := 0; ; n++ {
+		switch c := s.peek(n); {
+		case c == ':':
+			colon = true
+		case isHexDigit(c) || c == '.':
+		default:
+			return colon
+		}
+		if n >= maxLen {
+			return false
+		}
+	}
 }
 
 // hexRunLen returns the length of the run of hexadecimal digits, dots and
