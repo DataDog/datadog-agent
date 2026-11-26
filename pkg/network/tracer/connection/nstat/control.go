@@ -27,17 +27,23 @@ const (
 	messageAddAllSources uint32 = 1002
 	messageQuerySource   uint32 = 1004
 	messageGetSourceDesc uint32 = 1005
+	messageGetUpdate     uint32 = 1007
 
 	headerFlagSupportsAggregate uint16 = 1
 	filterFlagsV1Usage          uint64 = 0x1f7f
-	sourceRefAll                uint64 = ^uint64(0)
+	// filterAllowDomainInfo lets the kernel append the domain extension
+	// (NSTAT_FILTER_ALLOWED_EXTENSIONS_SHIFT plus its type) to updates, which
+	// a client receives only once it has requested one. The kernel withholds
+	// extensions from unprivileged clients.
+	filterAllowDomainInfo uint64 = 1 << (40 + extensionTypeDomain)
+	sourceRefAll          uint64 = ^uint64(0)
 
 	addAllSourcesRequestSize = 56
 	sourceRefRequestSize     = 24
 
 	// descriptionContextFlag marks request contexts that carry the source
-	// reference of a description request. Other requests take contexts from
-	// a counter that never reaches this bit.
+	// reference of a description or update request. Other requests take
+	// contexts from a counter that never reaches this bit.
 	descriptionContextFlag uint64 = 1 << 63
 )
 
@@ -74,13 +80,36 @@ func OpenControl() (*Control, error) {
 	}
 	// Connecting resets the buffer to the control's registered size (8 KiB),
 	// which a burst of source events overflows, silently dropping them.
-	if err := unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_RCVBUF, receiveBufferSize); err != nil {
+	if err := setReceiveBuffer(fd); err != nil {
 		return cleanup(fmt.Errorf("set nstat receive buffer: %w", err))
 	}
 	if err := unix.SetNonblock(fd, true); err != nil {
 		return cleanup(fmt.Errorf("set nstat control non-blocking: %w", err))
 	}
 	return &Control{fd: fd}, nil
+}
+
+// setReceiveBuffer sets the receive buffer to receiveBufferSize. Kernels
+// before macOS 14.4 cap buffers below kern.ipc.maxsockbuf, which is at most
+// 8 MiB by default, and reject the size with ENOBUFS. It then retries with
+// the largest size they accept.
+func setReceiveBuffer(fd int) error {
+	err := unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_RCVBUF, receiveBufferSize)
+	if !errors.Is(err, unix.ENOBUFS) {
+		return err
+	}
+	maxSocketBuffer, sysctlErr := unix.SysctlUint32("kern.ipc.maxsockbuf")
+	if sysctlErr != nil {
+		return err
+	}
+	return unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_RCVBUF, receiveBufferLimit(maxSocketBuffer))
+}
+
+// receiveBufferLimit is the largest receive buffer, up to receiveBufferSize,
+// that kernels before macOS 14.4 accept. They reserve a 256-byte mbuf for
+// every 2 KiB cluster, so they cap buffers at 8/9 of kern.ipc.maxsockbuf.
+func receiveBufferLimit(maxSocketBuffer uint32) int {
+	return int(min(uint64(maxSocketBuffer)*2048/(256+2048), receiveBufferSize))
 }
 
 // Subscribe requests all existing and future sources for one provider and
@@ -103,6 +132,15 @@ func (c *Control) QueryAll() error {
 // names the source through DescriptionSourceRef.
 func (c *Control) RequestDescription(sourceRef uint64) error {
 	return c.send(encodeDescriptionRequest(sourceRef))
+}
+
+// RequestUpdate requests one source's description, counts and domain in a
+// single update, under the same request context as RequestDescription. The
+// first update request switches the client to update messages for good: the
+// kernel then reports a closing source with one final update instead of
+// counts followed by a description.
+func (c *Control) RequestUpdate(sourceRef uint64) error {
+	return c.send(encodeUpdateRequest(sourceRef))
 }
 
 // DescriptionContext returns the request context of a description request
@@ -207,7 +245,7 @@ func (c *Control) send(request []byte) error {
 func encodeAddAllSources(context uint64, provider uint32) []byte {
 	request := make([]byte, addAllSourcesRequestSize)
 	encodeHeader(request, context, messageAddAllSources)
-	binary.LittleEndian.PutUint64(request[16:24], filterFlagsV1Usage)
+	binary.LittleEndian.PutUint64(request[16:24], filterFlagsV1Usage|filterAllowDomainInfo)
 	binary.LittleEndian.PutUint32(request[32:36], provider)
 	binary.LittleEndian.PutUint32(request[36:40], ^uint32(0))
 	return request
@@ -215,6 +253,10 @@ func encodeAddAllSources(context uint64, provider uint32) []byte {
 
 func encodeDescriptionRequest(sourceRef uint64) []byte {
 	return encodeSourceRequest(DescriptionContext(sourceRef), messageGetSourceDesc, sourceRef)
+}
+
+func encodeUpdateRequest(sourceRef uint64) []byte {
+	return encodeSourceRequest(DescriptionContext(sourceRef), messageGetUpdate, sourceRef)
 }
 
 func encodeSourceRequest(context uint64, messageType uint32, sourceRef uint64) []byte {

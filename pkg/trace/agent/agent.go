@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/payload"
 	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
@@ -63,7 +64,7 @@ const (
 	probabilitySamplingV1 = 9
 
 	// tagDecisionMaker specifies the sampling decision maker
-	tagDecisionMaker = "_dd.p.dm"
+	tagDecisionMaker = string(semantics.ConceptDDDecisionMaker)
 
 	// tagAPMMode specifies whether running APM in "edge" mode (may support other modes in the future)
 	tagAPMMode = "_dd.apm_mode"
@@ -732,6 +733,11 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 
 		tracen := int64(len(chunk.Spans))
 		ts.SpansReceived.Add(tracen)
+		if p.TracerPayload.ChunkEnvVersionOverridesEnabled() {
+			// Keep a single, normalized "env"/"version" attribute per chunk so the forwarded
+			// chunk carries exactly the values used for sampling and stats.
+			chunk.CanonicalizeEnvVersion(normalize.NormalizeTagValue)
+		}
 		err := a.normalizeTraceChunkV1(ts, chunk)
 		if err != nil {
 			log.Debugf("Dropping invalid trace: %s", err)
@@ -931,6 +937,16 @@ func processedTraceV1(p *api.PayloadV1, chunk *idx.InternalTraceChunk, root *idx
 		Lang:                   p.TracerPayload.LanguageName(),
 		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.TracerPayload.Chunks)),
 		GitCommitSha:           gitCommitSha,
+	}
+	// A chunk-level env/app version overrides the payload-level value for this chunk only.
+	// Only native v1 payloads opt in; converted legacy payloads keep their chunk tags as plain attributes.
+	if p.TracerPayload.ChunkEnvVersionOverridesEnabled() {
+		if env := chunk.Env(); env != "" {
+			pt.TracerEnv = env
+		}
+		if version := chunk.AppVersion(); version != "" {
+			pt.AppVersion = version
+		}
 	}
 	pt.ImageTag = imageTag
 	if payloadGitCommitSha, ok := p.TracerPayload.GetAttributeAsString("_dd.git.commit.sha"); ok {

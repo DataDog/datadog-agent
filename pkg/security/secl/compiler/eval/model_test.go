@@ -29,11 +29,13 @@ type testItem struct {
 	key   int
 	value string
 	flag  bool
+	env   map[string]string
 }
 
 type testProcess struct {
 	name      string
 	argv0     string
+	env       map[string]string
 	uid       int
 	gid       int
 	pid       int
@@ -196,6 +198,14 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID, offset int) (Eva
 
 		return &StringEvaluator{
 			EvalFnc: func(ctx *Context) string { return ctx.Event.(*testEvent).process.argv0 },
+			Field:   field,
+			Offset:  offset,
+		}, nil
+
+	case "process.env":
+
+		return &StringMapEvaluator{
+			EvalFnc: func(ctx *Context) map[string]string { return ctx.Event.(*testEvent).process.env },
 			Field:   field,
 			Offset:  offset,
 		}, nil
@@ -432,6 +442,36 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID, offset int) (Eva
 				}
 
 				return result
+			},
+			Field:  field,
+			Weight: IteratorWeight,
+			Offset: offset,
+		}, nil
+
+	case "process.array.env":
+
+		if regID != "" {
+			return &StringMapArrayEvaluator{
+				EvalFnc: func(ctx *Context) []map[string]string {
+					idx := ctx.Registers[regID]
+
+					return []map[string]string{ctx.Event.(*testEvent).process.array[idx].env}
+				},
+				Field:  field,
+				Weight: IteratorWeight,
+				Offset: offset,
+			}, nil
+		}
+
+		return &StringMapArrayEvaluator{
+			EvalFnc: func(ctx *Context) []map[string]string {
+				var values []map[string]string
+
+				for _, el := range ctx.Event.(*testEvent).process.array {
+					values = append(values, el.env)
+				}
+
+				return values
 			},
 			Field:  field,
 			Weight: IteratorWeight,
@@ -710,6 +750,10 @@ func (e *testEvent) GetFieldValue(field Field) (interface{}, error) {
 
 		return e.process.argv0, nil
 
+	case "process.env":
+
+		return e.process.env, nil
+
 	case "process.uid":
 
 		return e.process.uid, nil
@@ -829,6 +873,14 @@ func (e *testEvent) GetFieldMetadata(field Field) (string, reflect.Kind, string,
 
 		return "", reflect.String, "string", false, nil
 
+	case "process.env":
+
+		return "", reflect.Map, "map[string]string", false, nil
+
+	case "process.array.env":
+
+		return "", reflect.Map, "map[string]string", false, nil
+
 	case "process.array.flag":
 
 		return "", reflect.Bool, "bool", false, nil
@@ -911,6 +963,11 @@ func (e *testEvent) SetFieldValue(field Field, value interface{}) error {
 	case "process.argv0":
 
 		e.process.argv0 = value.(string)
+		return nil
+
+	case "process.env":
+
+		e.process.env = value.(map[string]string)
 		return nil
 
 	case "process.uid":

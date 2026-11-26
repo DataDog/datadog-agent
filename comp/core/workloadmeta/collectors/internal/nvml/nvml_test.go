@@ -30,6 +30,7 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 )
 
 type recordingDeviceCache struct {
@@ -47,10 +48,7 @@ func newTestCollector(t *testing.T, store workloadmeta.Component) *collector {
 	config := config.NewMock(t)
 	config.SetInTest("gpu.enabled", true)
 
-	c := newCollector(store, config, noopsimpl.NewComponent())
-	// Keep tests independent of the host's PCI devices.
-	c.pciDevicesRoots = []string{t.TempDir()}
-	return c
+	return newCollector(store, config, noopsimpl.NewComponent())
 }
 
 func TestStartDisabledWhenGPUMonitoringDisabled(t *testing.T) {
@@ -212,14 +210,15 @@ func TestPullPlatformInfo(t *testing.T) {
 			d.GetPlatformInfoFunc = func() (nvml.PlatformInfo, nvml.Return) {
 				return nvml.PlatformInfo{IbGuid: fabricGUID, ChassisSerialNumber: chassisSerial, SlotNumber: 20, TrayIndex: 10, HostId: 1, ModuleId: 2}, nvml.SUCCESS
 			}
-			d.GetNumaNodeIdFunc = func() (int, nvml.Return) {
-				return 1, nvml.SUCCESS
-			}
 			d.GetSerialFunc = func() (string, nvml.Return) {
 				return "1650825051135", nvml.SUCCESS
 			}
+			d.GetPciInfoFunc = func() (nvml.PciInfo, nvml.Return) {
+				return nvml.PciInfo{Domain: 0x18, Bus: 1}, nvml.SUCCESS
+			}
 		})),
 	)
+	ddnvml.WithMockPCISysfs(t, writePCIDevice(t, "pci0018:00/0018:00:00.0/0018:01:00.0", "1"))
 	c := newTestCollector(t, wmetaMock)
 
 	c.Pull(context.Background())
@@ -248,53 +247,26 @@ func TestPullPlatformInfo(t *testing.T) {
 	}
 }
 
-func TestPCINUMANode(t *testing.T) {
-	hostSys, containerSys := t.TempDir(), t.TempDir()
-	writeNUMA := func(root, address, value string) {
-		require.NoError(t, os.MkdirAll(filepath.Join(root, address), 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(root, address, "numa_node"), []byte(value), 0o644))
-	}
-	writeNUMA(containerSys, "0008:01:00.0", "0\n")
-	writeNUMA(containerSys, "0019:01:00.0", "1\n")
-	writeNUMA(hostSys, "0019:01:00.0", "1\n")
-	writeNUMA(containerSys, "0000:00:1e.0", "-1\n")
-	writeNUMA(containerSys, "10000:01:00.0", "3\n")
-	writeNUMA(containerSys, "0000:01:00.0", "5\n")
-	roots := []string{hostSys, containerSys}
-
-	node, err := pciNUMANode(roots, "0008:01:00.0") // only in the second root
-	require.NoError(t, err)
-	require.Equal(t, 0, node)
-
-	node, err = pciNUMANode(roots, "00000019:01:00.0") // 8-digit domain from NVML
-	require.NoError(t, err)
-	require.Equal(t, 1, node)
-
-	node, err = pciNUMANode(roots, "0000:00:1E.0") // unknown to the kernel
-	require.NoError(t, err)
-	require.Equal(t, -1, node)
-
-	// Domains above 0xffff keep their significant digits.
-	node, err = pciNUMANode(roots, "00010000:01:00.0")
-	require.NoError(t, err)
-	require.Equal(t, 3, node)
-
-	node, err = pciNUMANode(roots, "10000:01:00.0")
-	require.NoError(t, err)
-	require.Equal(t, 3, node)
-
-	_, err = pciNUMANode(roots, "0009:01:00.0")
-	require.Error(t, err)
+// writePCIDevice returns a sysfs root holding one PCI device at path (e.g.
+// "pci0000:00/0000:00:1e.0"), linked from bus/pci/devices like the kernel does.
+func writePCIDevice(t *testing.T, path, numaNode string) string {
+	t.Helper()
+	sysRoot := t.TempDir()
+	deviceDir := filepath.Join(sysRoot, "devices", path)
+	require.NoError(t, os.MkdirAll(deviceDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(deviceDir, "numa_node"), []byte(numaNode+"\n"), 0o644))
+	busDir := filepath.Join(sysRoot, "bus", "pci", "devices")
+	require.NoError(t, os.MkdirAll(busDir, 0o755))
+	require.NoError(t, os.Symlink(filepath.Join("..", "..", "..", "devices", path), filepath.Join(busDir, filepath.Base(path))))
+	return sysRoot
 }
 
 func TestPullNUMANodeFromSysfs(t *testing.T) {
-	// NVML doesn't support GetNumaNodeId (default mock), so the collector reads sysfs.
+	// The NUMA node comes from sysfs, never from NVML.
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	nvmltestutil.SetupMockNVML(t)
+	ddnvml.WithMockPCISysfs(t, writePCIDevice(t, "pci0000:00/0000:00:1e.0", "1"))
 	c := newTestCollector(t, wmetaMock)
-	root := c.pciDevicesRoots[0]
-	require.NoError(t, os.MkdirAll(filepath.Join(root, "0000:00:1e.0"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "0000:00:1e.0", "numa_node"), []byte("1\n"), 0o644))
 
 	c.Pull(context.Background())
 
@@ -309,8 +281,8 @@ func TestPullNUMANodeFromSysfs(t *testing.T) {
 func TestPlatformFabricGUID(t *testing.T) {
 	// Bytes as returned on a GB200 GPU; nvidia-smi shows "GPU Fabric GUID: 0x8505c454f59170d4".
 	info := nvml.PlatformInfo{IbGuid: [16]uint8{0xd4, 0x70, 0x91, 0xf5, 0x54, 0xc4, 0x05, 0x85}}
-	require.Equal(t, "0x8505c454f59170d4", platformFabricGUID(info))
-	require.Empty(t, platformFabricGUID(nvml.PlatformInfo{}))
+	require.Equal(t, "0x8505c454f59170d4", gpuutil.PlatformFabricGUID(info))
+	require.Empty(t, gpuutil.PlatformFabricGUID(nvml.PlatformInfo{}))
 }
 
 func TestPullPlatformInfoHGXB200(t *testing.T) {
@@ -344,9 +316,9 @@ func TestPullPlatformInfoHGXB200(t *testing.T) {
 func TestPlatformChassisSerial(t *testing.T) {
 	var padded [16]uint8
 	copy(padded[:], "1821825880999")
-	require.Equal(t, "1821825880999", platformChassisSerial(nvml.PlatformInfo{ChassisSerialNumber: padded}))
+	require.Equal(t, "1821825880999", gpuutil.PlatformChassisSerial(nvml.PlatformInfo{ChassisSerialNumber: padded}))
 	// Non-rack systems report an empty serial, e.g. HGX H100 where only the module ID is set.
-	require.Empty(t, platformChassisSerial(nvml.PlatformInfo{HostId: 1, ModuleId: 3}))
+	require.Empty(t, gpuutil.PlatformChassisSerial(nvml.PlatformInfo{HostId: 1, ModuleId: 3}))
 }
 
 func TestFabricInfoToTags(t *testing.T) {
@@ -400,7 +372,7 @@ func TestFabricInfoToTags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			clusterID, cliqueID, available := fabricInfoToTags(tt.fabricInfo)
+			clusterID, cliqueID, available := gpuutil.FabricInfoToTags(tt.fabricInfo)
 			require.Equal(t, tt.expectedClusterID, clusterID)
 			require.Equal(t, tt.expectedCliqueID, cliqueID)
 			require.Equal(t, tt.expectedAvailable, available)
@@ -411,7 +383,7 @@ func TestFabricInfoToTags(t *testing.T) {
 func TestFabricClusterUUIDFromNVMLInfo(t *testing.T) {
 	clusterUUID := [16]uint8{0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}
 
-	require.Equal(t, "00112233-4455-6677-8899-aabbccddeeff", fabricClusterUUIDFromNVMLInfo(clusterUUID))
+	require.Equal(t, "00112233-4455-6677-8899-aabbccddeeff", gpuutil.FabricClusterUUIDFromNVMLInfo(clusterUUID))
 }
 
 func TestGpuProcessInfoUpdate(t *testing.T) {
@@ -525,6 +497,36 @@ func TestPullKeepsLostGPU(t *testing.T) {
 		require.Equal(t, before.FabricCliqueID, after.FabricCliqueID, "pull %d", pull)
 		require.Equal(t, before.MaxClockRates, after.MaxClockRates, "pull %d", pull)
 	}
+}
+
+func TestFillNVMLAttributesDetectsLossAfterEnumeration(t *testing.T) {
+	lost := false
+	mock := nvmltestutil.SetupMockNVML(t,
+		testutil.WithDeviceCount(1),
+		testutil.WithDeviceOptions(0, testutil.WithCustomHook(func(d *testutil.MockDevice) {
+			getVirtualizationMode := d.GetVirtualizationModeFunc
+			d.GetVirtualizationModeFunc = func() (nvml.GpuVirtualizationMode, nvml.Return) {
+				if lost {
+					return 0, nvml.ERROR_GPU_IS_LOST
+				}
+				return getVirtualizationMode()
+			}
+		})),
+	)
+	device, err := ddnvml.NewPhysicalDevice(mock.Device(0))
+	require.NoError(t, err)
+	c := newTestCollector(t, nil)
+	id := workloadmeta.EntityID{Kind: workloadmeta.KindGPU, ID: device.UUID}
+	c.lastPublishedGPUs[device.UUID] = &workloadmeta.GPU{
+		VirtualizationMode: "none", MemoryBusWidth: 256,
+	}
+
+	lost = true
+	gpu := &workloadmeta.GPU{EntityID: id}
+	c.fillNVMLAttributes(gpu, device)
+	require.True(t, gpu.Lost)
+	require.Equal(t, "none", gpu.VirtualizationMode)
+	require.Equal(t, uint32(256), gpu.MemoryBusWidth)
 }
 
 func TestProcessEntities(t *testing.T) {

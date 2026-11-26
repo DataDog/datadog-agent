@@ -624,7 +624,11 @@ func TestReadinessWaitsForNVMLInitialization(t *testing.T) {
 		synctest.Wait()
 		require.Contains(t, health.GetReady().Unhealthy, CheckName)
 
+		// Stop the state changes worker before replacing the NVML singleton, and before
+		// this mock is reset at cleanup: cleanups run in reverse order.
+		check.stateChanges.Stop()
 		nvmltestutil.SetupMockNVML(t, testutil.WithPhysicalDeviceUUIDs([]string{testutil.DefaultGpuUUID}), testutil.WithMockAllFunctions())
+		t.Cleanup(check.stateChanges.Stop)
 		require.NoError(t, check.Run())
 		require.True(t, check.telemetry.nvmlState.LastNvmlInitSuccess())
 		time.Sleep(15 * time.Second)
@@ -649,8 +653,10 @@ func TestReadinessStaysHealthyAfterNVMLBecomesUnavailable(t *testing.T) {
 		synctest.Wait()
 		require.Contains(t, health.GetReady().Healthy, CheckName)
 
-		// Stop the event worker before replacing the NVML singleton with a failing mock.
+		// Stop the event and state changes workers before replacing the NVML singleton with
+		// a failing mock.
 		require.NoError(t, check.deviceEvtGatherer.Stop())
+		check.stateChanges.Stop()
 		lib.InitFunc = func() nvml.Return { return nvml.ERROR_UNKNOWN }
 		ddnvml.WithPartialMockNVML(t, nil, nil)
 		ddnvml.WithMockNvmlNewFunc(t, func(...nvml.LibraryOption) nvml.Interface { return lib })
@@ -877,8 +883,9 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 	// eBPF is disabled by default, and PLR requires the system-probe
 	// endpoint.
 	parentCollectorTypes := nvidia.NumCollectors() - 2
-	// MIG slices have no NVLink ports, so per-port NVLink collectors are not created.
-	migCollectorTypes := parentCollectorTypes - 4
+	// MIG slices have no NVLink ports, so per-port NVLink collectors are not created, and
+	// state changes are only watched on physical devices.
+	migCollectorTypes := parentCollectorTypes - 5
 
 	// Track the number of visible MIG children dynamically.
 	migDeviceCount := 0
@@ -1742,7 +1749,7 @@ func TestEmitSharingFractionPerContainer(t *testing.T) {
 		fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.ContainerID, container.ID), "foo", []string{"pod_name:" + container.ID}, nil, nil, nil)
 	}
 	for _, uuid := range []string{gpu0, gpu1} {
-		fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, uuid), "foo", []string{"gpu_uuid:" + uuid, "gpu_sharing_mode:kai_fraction"}, nil, nil, nil)
+		fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, uuid), "foo", []string{"gpu_uuid:" + uuid, "gpu_sharing_mode:kai-fraction"}, nil, nil, nil)
 	}
 
 	require.NoError(t, check.Run())
@@ -1766,9 +1773,9 @@ func TestEmitSharingFractionPerContainer(t *testing.T) {
 
 	perPod := func(value float64) []series {
 		return []series{
-			{value, []string{"gpu_sharing_mode:kai_fraction", "gpu_uuid:" + gpu0, "pod_name:frac-a"}},
-			{value, []string{"gpu_sharing_mode:kai_fraction", "gpu_uuid:" + gpu0, "pod_name:frac-multi"}},
-			{value, []string{"gpu_sharing_mode:kai_fraction", "gpu_uuid:" + gpu1, "pod_name:frac-multi"}},
+			{value, []string{"gpu_sharing_mode:kai-fraction", "gpu_uuid:" + gpu0, "pod_name:frac-a"}},
+			{value, []string{"gpu_sharing_mode:kai-fraction", "gpu_uuid:" + gpu0, "pod_name:frac-multi"}},
+			{value, []string{"gpu_sharing_mode:kai-fraction", "gpu_uuid:" + gpu1, "pod_name:frac-multi"}},
 		}
 	}
 	assert.ElementsMatch(t, perPod(0.5), emitted["gpu.device.sharing_fraction"])
@@ -2107,7 +2114,7 @@ func TestNvlinkErrorCounterDedupPrefersStatelessCollector(t *testing.T) {
 
 	disabled := []string{
 		"stateless", "sampling", "fields", "gpm", "device_events", "sharing",
-		"nvlink_plr", "nvlink_fec", "nvlink_gpm",
+		"nvlink_plr", "nvlink_fec", "nvlink_gpm", "state_changes",
 	}
 	deps := &nvidia.CollectorDependencies{
 		Workloadmeta: testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
@@ -2342,7 +2349,7 @@ func TestReleaseNVMLRebuildsCollectorsOfDevicesPendingRetry(t *testing.T) {
 }
 
 func TestMetricsFollowSpec(t *testing.T) {
-	// - KubernetesDevicePlugins required for gpu.device.unhealthy metric
+	// - KubernetesDevicePlugins enables device-plugin health reporting for gpu.device.unavailable
 	// - NVML required to ensure the NVML workloadmeta collector starts up
 	env.SetFeatures(t, env.KubernetesDevicePlugins, env.NVML)
 	nvidia.WithDeviceEventsSetWaitTimeoutForTest(t, time.Millisecond)
@@ -2696,4 +2703,73 @@ func TestCancelEndsReleaseWindow(t *testing.T) {
 	c.Cancel()
 	assert.False(t, ddnvml.IsNVMLReleased(), "Cancel must end the release window: no Run() is coming")
 	assert.Equal(t, []model.NvmlState{model.NvmlStateAcquired}, *pushes, "Cancel must end the system-probe lease too")
+}
+
+// Counts follow the physical inventory even while workloadmeta is catching up;
+// MIG children are not extra physical GPUs.
+func TestDeviceCountTelemetrySharingModes(t *testing.T) {
+	nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions())
+	store := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
+	check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), store, mocksender.CreateDefaultDemultiplexer(t), nil, nil)
+	require.NoError(t, check.deviceCache.Refresh())
+	devices, err := check.deviceCache.AllPhysicalDevices()
+	require.NoError(t, err)
+	require.NotEmpty(t, devices)
+	tm := check.telemetry.component.(telemetry.Mock)
+	assertCounts := func(want map[workloadmeta.GPUSharingMode]float64) {
+		t.Helper()
+		metrics, err := tm.GetGaugeMetric(CheckName, "device_total")
+		require.NoError(t, err)
+		got := map[workloadmeta.GPUSharingMode]float64{}
+		var total float64
+		for _, metric := range metrics {
+			require.Positive(t, metric.Value(), "stale label sets must be removed")
+			require.Len(t, metric.Tags(), len(nvidia.DeviceTelemetryTagNames)+1)
+			got[workloadmeta.GPUSharingMode(metric.Tags()["gpu_sharing_mode"])] += metric.Value()
+			total += metric.Value()
+		}
+		for _, mode := range []workloadmeta.GPUSharingMode{
+			workloadmeta.GPUSharingModeNone,
+			workloadmeta.GPUSharingModeKAIFraction,
+			workloadmeta.GPUSharingModeTimeSlicing,
+			workloadmeta.GPUSharingModeMPS,
+			workloadmeta.GPUSharingModeUnknown,
+		} {
+			assert.Equal(t, want[mode], got[mode], mode)
+		}
+		assert.Equal(t, float64(len(devices)), total)
+	}
+	for _, mode := range []workloadmeta.GPUSharingMode{
+		workloadmeta.GPUSharingModeTimeSlicing, workloadmeta.GPUSharingModeMPS,
+		workloadmeta.GPUSharingModeKAIFraction, workloadmeta.GPUSharingModeUnknown, "",
+	} {
+		store.Set(&workloadmeta.GPU{
+			EntityID:    workloadmeta.EntityID{Kind: workloadmeta.KindGPU, ID: devices[0].GetDeviceInfo().UUID},
+			SharingMode: mode,
+		})
+		store.Set(&workloadmeta.GPU{
+			EntityID:      workloadmeta.EntityID{Kind: workloadmeta.KindGPU, ID: "MIG-child"},
+			ParentGPUUUID: devices[0].GetDeviceInfo().UUID,
+			SharingMode:   workloadmeta.GPUSharingModeTimeSlicing,
+		})
+		check.updateDeviceCountTelemetry(devices)
+		want := map[workloadmeta.GPUSharingMode]float64{workloadmeta.GPUSharingModeNone: float64(len(devices) - 1)}
+		if mode == "" {
+			want[workloadmeta.GPUSharingModeNone]++
+		} else {
+			want[mode]++
+		}
+		assertCounts(want)
+	}
+	store.Unset(&workloadmeta.GPU{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindGPU, ID: devices[0].GetDeviceInfo().UUID}})
+	check.updateDeviceCountTelemetry(devices)
+	assertCounts(map[workloadmeta.GPUSharingMode]float64{workloadmeta.GPUSharingModeNone: float64(len(devices))})
+	// Device attributes are part of the grouping key too: changing them must
+	// replace the old label set without inflating the sum.
+	devices[0].GetDeviceInfo().Name = "NVIDIA H200"
+	check.updateDeviceCountTelemetry(devices)
+	assertCounts(map[workloadmeta.GPUSharingMode]float64{workloadmeta.GPUSharingModeNone: float64(len(devices))})
+	check.updateDeviceCountTelemetry(nil)
+	_, err = tm.GetGaugeMetric(CheckName, "device_total")
+	require.ErrorContains(t, err, "not found")
 }

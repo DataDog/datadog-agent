@@ -47,6 +47,7 @@ var (
 	}
 	scriptTestsWithSkippedFlavors = []installerScriptTestsWithSkippedFlavors{
 		{t: testDatabricksScript},
+		{t: testDatabricksGPUScript},
 		{t: testDefaultScript, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7}},
 		{t: testSSIScript},
 	}
@@ -171,7 +172,7 @@ func (s *installerScriptBaseSuite) RunInstallScriptWithError(url string, params 
 		time.Sleep(1 * time.Second)
 	}
 
-	scriptParams := append(params, "DD_API_KEY="+installer.GetAPIKey(), "DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE=installtesting.datad0g.com.internal.dda-testing.com")
+	scriptParams := append(params, "DD_API_KEY="+installer.GetAPIKey(), "DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE=installtesting.datad0g.com")
 	_, err = s.Env().RemoteHost.Execute(strings.Join(scriptParams, " ") + " bash install_script")
 	return err
 }

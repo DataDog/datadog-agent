@@ -10,7 +10,9 @@ package tracer
 import (
 	"bytes"
 	"net"
+	"net/netip"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -33,20 +35,27 @@ func TestNStatQualificationConnectionsPayload(t *testing.T) {
 	if address == "" {
 		t.Skip("set NSTAT_PAYLOAD_TARGET to a listening TCP host:port reached through a non-loopback interface")
 	}
+	// A target given by name must reach the payload as a name of the
+	// connection's destination, which takes root on macOS 12.1 or later.
+	host, _, err := net.SplitHostPort(address)
+	require.NoError(t, err)
+	hostname := ""
+	if _, err := netip.ParseAddr(host); err != nil {
+		hostname = strings.ToLower(strings.TrimSuffix(host, "."))
+	}
 
 	cfg := config.New()
 	cfg.DarwinConnectionTracerBackend = config.DarwinConnectionTracerNStat
 	cfg.DarwinConnectionTracerPacketEnabled = false
-	cfg.DNSInspection = false
+	cfg.DNSInspection = hostname != ""
 	tr, err := NewTracer(cfg, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
 	require.NoError(t, tr.RegisterClient("nstat-qualification"))
 
-	remote, err := net.ResolveTCPAddr("tcp4", address)
+	dialed, err := net.Dial("tcp4", address)
 	require.NoError(t, err)
-	client, err := net.DialTCP("tcp4", nil, remote)
-	require.NoError(t, err)
+	client := dialed.(*net.TCPConn)
 	defer client.Close()
 
 	payload := []byte("nstat-product-path")
@@ -102,6 +111,9 @@ func TestNStatQualificationConnectionsPayload(t *testing.T) {
 			conn.Raddr.Port == remotePort {
 			require.Equal(t, uint64(len(payload)), conn.LastBytesSent)
 			require.Equal(t, model.ConnectionDirection_outgoing, conn.Direction)
+			if hostname != "" {
+				require.Contains(t, decoded.Dns[conn.Raddr.Ip].GetNames(), hostname)
+			}
 			found = true
 			break
 		}

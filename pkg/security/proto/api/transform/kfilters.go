@@ -7,6 +7,7 @@
 package transform
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
@@ -112,21 +113,11 @@ func fromApproversToProto(approvers rules.Approvers) *api.Approvers {
 	for field, filterValues := range approvers {
 		for _, filterValue := range filterValues {
 			protoApprovers.Field = field
-			stringFilterValue, ok := filterValue.Value.(string)
-			if !ok {
-				intFilterValue := filterValue.Value.(int)
-				protoApprovers.ApproverDetails = append(protoApprovers.ApproverDetails, &api.ApproverDetails{
-					Field: filterValue.Field,
-					Value: strconv.Itoa(intFilterValue),
-					Type:  int32(filterValue.Type),
-				})
-			} else {
-				protoApprovers.ApproverDetails = append(protoApprovers.ApproverDetails, &api.ApproverDetails{
-					Field: filterValue.Field,
-					Value: stringFilterValue,
-					Type:  int32(filterValue.Type),
-				})
-			}
+			protoApprovers.ApproverDetails = append(protoApprovers.ApproverDetails, &api.ApproverDetails{
+				Field: filterValue.Field,
+				Value: fmt.Sprint(filterValue.Value),
+				Type:  int32(filterValue.Type),
+			})
 		}
 	}
 

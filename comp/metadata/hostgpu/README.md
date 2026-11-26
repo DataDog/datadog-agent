@@ -3,7 +3,7 @@
 This package populates some of the Agent-related fields in the `Resource Catalog` product in DataDog. More specifically the
 `host_gpu_agent` table.
 
-This is enabled by default but can be turned off using `inventories_gpu_enabled` config.
+This legacy payload is disabled by default. Set `gpu.legacy_host_metadata` to `true` to enable it; `inventories_enabled` and `enable_metadata_collection` must also be enabled.
 
 The payload is sent every 10min (see `inventories_max_interval` in the config) or whenever it's updated with at most 1
 update every 5 minutes (see `inventories_min_interval`).
@@ -17,7 +17,7 @@ The payload is a JSON dict with the following fields
 - `timestamp` - **int**: the timestamp when the payload was created.
 - `host_gpu_metadata` - **dict of string to JSON type**:
   - `devices` - **array**: list of gpu devices. Each element will have the following fields.
-    - `gpu_index` - **int**:  the internal index of the gpu device (e.g: 0, 1, ...).
+    - `gpu_index` - **int**:  the index of the gpu device as nvidia-smi or amd-smi reports it (e.g: 0, 1, ...); for MIG devices, the index NVML gives them within their parent; -1 when unknown (AMD GPUs with an unreadable KFD topology).
     - `gpu_vendor` - **string**: the GPU vendor. (e.g: nvidia, amd, intel. Currently only nvidia devices are supported.
     - `gpu_device` - **string**:  Device is the commercial name of the device (e.g., Tesla V100).
     - `gpu_type` - **string**: The general type of the GPU device. (e.g: a100, t4, h100).

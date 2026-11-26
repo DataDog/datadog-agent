@@ -19,32 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
-type inventoryAgentSuite struct {
-	e2e.BaseSuite[environments.Host]
-}
-
-func TestInventoryAgentSuite(t *testing.T) {
-	t.Parallel()
-	e2e.Run(t, &inventoryAgentSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess())))))
-}
-
-func (v *inventoryAgentSuite) TestInventoryDefaultConfig() {
-	inventory := v.Env().Agent.Client.Diagnose(agentclient.WithArgs([]string{"show-metadata", "inventory-agent"}))
-	assert.Contains(v.T(), inventory, `"feature_apm_enabled": true`)
-	assert.Contains(v.T(), inventory, `"feature_logs_enabled": false`)
-	assert.Contains(v.T(), inventory, `"feature_process_enabled": false`)
-	assert.Contains(v.T(), inventory, `"feature_networks_enabled": false`)
-	assert.Contains(v.T(), inventory, `"feature_traceroute_enabled": false`)
-	assert.Contains(v.T(), inventory, `"feature_synthetics_collector_enabled": false`)
-	assert.Contains(v.T(), inventory, `"feature_network_path_remote_config_enabled": false`)
-	assert.Contains(v.T(), inventory, `"feature_network_path_connections_monitoring_enabled": false`)
-	assert.Contains(v.T(), inventory, `"feature_cspm_enabled": false`)
-	assert.Contains(v.T(), inventory, `"feature_cws_enabled": false`)
-	assert.Contains(v.T(), inventory, `"feature_usm_enabled": false`)
-}
-
-func (v *inventoryAgentSuite) TestInventoryAllEnabled() {
-	agentConfig := `logs_enabled: true
+const agentConfig = `logs_enabled: true
 process_config:
   enabled: true
   process_collection:
@@ -58,9 +33,12 @@ network_path:
   remote_config:
     enabled: true
   connections_monitoring:
+    enabled: true
+autoscaling:
+  cluster:
     enabled: true`
 
-	systemProbeConfiguration := `runtime_security_config:
+const systemProbeConfiguration = `runtime_security_config:
   enabled: true
 service_monitoring_config:
   enabled: true
@@ -69,13 +47,21 @@ network_config:
 traceroute:
   enabled: true`
 
+type inventoryAgentSuite struct {
+	e2e.BaseSuite[environments.Host]
+}
+
+func TestInventoryAgentSuite(t *testing.T) {
+	t.Parallel()
 	agentOptions := []agentparams.Option{
 		agentparams.WithAgentConfig(string(agentConfig)),
 		agentparams.WithSystemProbeConfig(string(systemProbeConfiguration)),
 	}
 
-	v.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentOptions...))))
+	e2e.Run(t, &inventoryAgentSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithAgentOptions(agentOptions...)))))
+}
 
+func (v *inventoryAgentSuite) TestInventoryAllEnabled() {
 	inventory := v.Env().Agent.Client.Diagnose(agentclient.WithArgs([]string{"show-metadata", "inventory-agent"}))
 	assert.Contains(v.T(), inventory, `"feature_apm_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_logs_enabled": true`)
@@ -88,4 +74,6 @@ traceroute:
 	assert.Contains(v.T(), inventory, `"feature_cspm_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_cws_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_usm_enabled": true`)
+	assert.Contains(v.T(), inventory, `"feature_infra_enabled": true`)
+	assert.Contains(v.T(), inventory, `"feature_autoscaling_cluster_enabled": true`)
 }

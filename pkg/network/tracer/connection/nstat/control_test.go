@@ -27,7 +27,19 @@ func TestOpenControlKeepsReceiveBufferSize(t *testing.T) {
 
 	size, err := unix.GetsockoptInt(control.fd, unix.SOL_SOCKET, unix.SO_RCVBUF)
 	require.NoError(t, err)
-	require.Equal(t, receiveBufferSize, size)
+	maxSocketBuffer, err := unix.SysctlUint32("kern.ipc.maxsockbuf")
+	require.NoError(t, err)
+	require.Contains(t, []int{receiveBufferSize, receiveBufferLimit(maxSocketBuffer)}, size)
+}
+
+func TestReceiveBufferLimit(t *testing.T) {
+	for maxSocketBuffer, limit := range map[uint32]int{
+		8 << 20:  7456540, // the default
+		1 << 20:  932067,
+		16 << 20: receiveBufferSize,
+	} {
+		require.Equal(t, limit, receiveBufferLimit(maxSocketBuffer), maxSocketBuffer)
+	}
 }
 
 func TestEncodeAddAllSources(t *testing.T) {
@@ -38,7 +50,8 @@ func TestEncodeAddAllSources(t *testing.T) {
 	require.Equal(t, messageAddAllSources, binary.LittleEndian.Uint32(request[8:12]))
 	require.Equal(t, uint16(addAllSourcesRequestSize), binary.LittleEndian.Uint16(request[12:14]))
 	require.Equal(t, headerFlagSupportsAggregate, binary.LittleEndian.Uint16(request[14:16]))
-	require.Equal(t, filterFlagsV1Usage, binary.LittleEndian.Uint64(request[16:24]))
+	// NSTAT_EXTENSION_FILTER_DOMAIN_INFO is 1 << (40 + 1).
+	require.Equal(t, filterFlagsV1Usage|1<<41, binary.LittleEndian.Uint64(request[16:24]))
 	require.Equal(t, ProviderTCPKernel, binary.LittleEndian.Uint32(request[32:36]))
 	require.Equal(t, ^uint32(0), binary.LittleEndian.Uint32(request[36:40]))
 	require.Equal(t, make([]byte, 16), request[40:])
@@ -69,6 +82,14 @@ func TestDescriptionRequestContextNamesSource(t *testing.T) {
 	require.False(t, ok, "counter contexts are not description contexts")
 }
 
+func TestUpdateRequestSharesDescriptionContext(t *testing.T) {
+	request := encodeUpdateRequest(42)
+
+	require.Equal(t, messageGetUpdate, binary.LittleEndian.Uint32(request[8:12]))
+	require.Equal(t, uint64(42), binary.LittleEndian.Uint64(request[16:24]))
+	require.Equal(t, DescriptionContext(42), binary.LittleEndian.Uint64(request[0:8]))
+}
+
 func TestClosedControlRejectsOperations(t *testing.T) {
 	control := &Control{fd: -1}
 
@@ -76,6 +97,7 @@ func TestClosedControlRejectsOperations(t *testing.T) {
 	require.ErrorIs(t, err, io.ErrClosedPipe)
 	require.ErrorIs(t, control.QueryAll(), io.ErrClosedPipe)
 	require.ErrorIs(t, control.RequestDescription(42), io.ErrClosedPipe)
+	require.ErrorIs(t, control.RequestUpdate(42), io.ErrClosedPipe)
 	_, err = control.Poll(0)
 	require.ErrorIs(t, err, io.ErrClosedPipe)
 	_, err = control.Receive(make([]byte, 1))

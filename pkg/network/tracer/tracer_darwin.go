@@ -71,6 +71,11 @@ func NewTracer(cfg *config.Config, telemetryComp telemetry.Component, _ statsd.C
 	} else {
 		reverseDNS = dns.NewNullReverseDNS()
 	}
+	// The DNS monitor resolves the domains the connection tracer reports along
+	// with the DNS answers it sees.
+	if recorder, ok := reverseDNS.(connection.DarwinDomainRecorder); ok {
+		connection.RecordDarwinDomains(connTracer, recorder)
+	}
 
 	tr := &Tracer{
 		config:          cfg,
@@ -89,6 +94,7 @@ func NewTracer(cfg *config.Config, telemetryComp telemetry.Component, _ statsd.C
 	})
 	if err != nil {
 		tr.interfaceTagger.Close()
+		reverseDNS.Close()
 		return nil, fmt.Errorf("error starting connection tracer: %w", err)
 	}
 
