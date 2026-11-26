@@ -234,10 +234,15 @@ func getParentDiscarderFnc(rs *rules.RuleSet, eventType model.EventType, field e
 }
 
 // canMatchBelow returns whether the expression, in negation normal form, can be
-// true below a directory. Only the comparisons of the field are decided, a
-// negated one being undecided.
+// true below a directory. Only the comparisons of the field and the false
+// literal are decided, a negated comparison being undecided.
 func canMatchBelow(node ast.Node, field eval.Field) (func(dir, overlayDir string) bool, error) {
 	switch n := node.(type) {
+	case *ast.Literal:
+		if n.Value.Kind() == ast.Bool && !ast.BoolVal(n.Value) {
+			// never true, below any directory
+			return func(_, _ string) bool { return false }, nil
+		}
 	case *ast.LogicalExpr:
 		left, err := canMatchBelow(n.Left, field)
 		if err != nil {

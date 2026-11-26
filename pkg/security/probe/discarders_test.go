@@ -299,6 +299,29 @@ func TestIsParentDiscarder(t *testing.T) {
 	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", "/var/www/index.html", 1, ""); is {
 		t.Error("shouldn't be a parent discarder")
 	}
+	for _, test := range []struct {
+		exprs     []string
+		path      string
+		discarder bool
+	}{
+		// a rule never true matches below no directory
+		{[]string{`unlink.file.path == "/etc/passwd" && false`}, "/var/lib/x/y", true},
+		{[]string{`unlink.file.path == "/etc/passwd" && false`, `unlink.file.path == "/etc/shadow"`}, "/var/lib/x/y", true},
+		{[]string{`unlink.file.path == "/etc/passwd" && false`, `unlink.file.path == "/etc/shadow"`}, "/etc/x", false},
+
+		// a negated negative comparison is the positive one
+		{[]string{`!(unlink.file.path != "/etc/conf.d/a")`}, "/var/lib/x/y", true},
+		{[]string{`!(unlink.file.path != "/etc/conf.d/a")`}, "/etc/conf.d/b", false},
+		{[]string{`!(unlink.file.path not in ["/etc/conf.d/a"])`}, "/var/lib/x/y", true},
+		{[]string{`!(unlink.file.path not in ["/etc/conf.d/a"])`}, "/etc/conf.d/b", false},
+	} {
+		rs = rules.NewRuleSet(&model.Model{}, newFakeEvent, &opts, &evalOpts)
+		rules.AddTestRuleExpr(t, rs, test.exprs...)
+
+		if is, _ := id.isParentPathDiscarder(rs, model.FileUnlinkEventType, "unlink.file.path", test.path, 1, ""); is != test.discarder {
+			t.Errorf("%v on %s: parent discarder %v, expected %v", test.exprs, test.path, is, test.discarder)
+		}
+	}
 }
 
 func TestIsGrandParentDiscarder(t *testing.T) {
