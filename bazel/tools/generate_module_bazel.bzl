@@ -10,6 +10,8 @@ def _generate_module_bazel_impl(ctx):
     args.add("--module", ctx.attr.module)
     args.add("--package", ctx.label.package)
     args.add_all(ctx.attr.urls, before_each = "--url")
+    if ctx.attr.constants_version:
+        args.add("--constants_version", ctx.attr.constants_version)
     args.add("--sha256", ctx.attr.sha256)
     args.add("--strip_prefix", ctx.attr.strip_prefix)
     args.add("--output", ctx.outputs.out.path)
@@ -33,6 +35,9 @@ _generate_module_bazel = rule(
         "urls": attr.string_list(
             mandatory = True,
             doc = "URLs for http_archive",
+        ),
+        "constants_version": attr.string(
+            doc = "If set, also generate a <module>_constants constants_repo holding VERSION and URL (the first URL).",
         ),
         "sha256": attr.string(
             mandatory = True,

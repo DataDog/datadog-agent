@@ -30,10 +30,30 @@ def generate_module_bazel(args, files):
         "",
         """http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")""",
         "",
-        "http_archive(",
-        f'    name = "{args.module}",',
-        "    files = {",
     ]
+    if args.constants_version:
+        # Lets the overlay BUILD file read the version and URL without repeating them.
+        lines.extend(
+            [
+                """constants_repo = use_repo_rule("//bazel/repo:constants_repo.bzl", "constants_repo")""",
+                "",
+                "constants_repo(",
+                f'    name = "{args.module}_constants",',
+                "    items = {",
+                f'        "URL": "{args.urls[0]}",',
+                f'        "VERSION": "{args.constants_version}",',
+                "    },",
+                ")",
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            "http_archive(",
+            f'    name = "{args.module}",',
+            "    files = {",
+        ]
+    )
 
     # Add files entries
     for path in sorted(files.keys()):
@@ -62,6 +82,10 @@ def main():
     parser.add_argument("--module", help="Name of the module")
     parser.add_argument("--package", help="path to this package")
     parser.add_argument("--url", action="append", dest="urls", required=True, help="URLs for http_archive")
+    parser.add_argument(
+        "--constants_version",
+        help="Version to publish, with the first URL, in a <module>_constants constants_repo (default: no repo)",
+    )
     parser.add_argument("--sha256", help="SHA256 hash")
     parser.add_argument("--strip_prefix", help="Strip prefix for archive")
     parser.add_argument(

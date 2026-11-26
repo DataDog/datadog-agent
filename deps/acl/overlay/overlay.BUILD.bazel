@@ -3,6 +3,7 @@
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
+load("@acl_constants//:constants.bzl", "URL", "VERSION")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
@@ -10,8 +11,6 @@ load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "strip_prefix")
 
 package(default_package_metadata = [":package_metadata", ":ship_source_offer"])
-
-VERSION = "2.4.0"
 
 package_metadata(
     name = "package_metadata",
@@ -22,7 +21,7 @@ package_metadata(
     purl = purl_for_generic(
         package = "acl",
         version = VERSION,
-        download_url = "https://download.savannah.nongnu.org/releases/acl/acl-{version}.tar.xz",
+        download_url = URL,
     ),
 )
 

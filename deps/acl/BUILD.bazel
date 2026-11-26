@@ -6,6 +6,7 @@ VERSION = "2.4.0"
 generate_module_bazel(
     name = "module_bazel",
     out = "acl.MODULE.bazel.new",
+    constants_version = VERSION,
     module = "acl",
     sha256 = "e661131456d2708a01c614a0f400e11d7d1bfaeb6f3e74b75bb980b72f0161a3",
     strip_prefix = "acl-%s" % VERSION,

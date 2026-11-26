@@ -2,6 +2,16 @@
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
+constants_repo = use_repo_rule("//bazel/repo:constants_repo.bzl", "constants_repo")
+
+constants_repo(
+    name = "acl_constants",
+    items = {
+        "URL": "https://download.savannah.nongnu.org/releases/acl/acl-2.4.0.tar.xz",
+        "VERSION": "2.4.0",
+    },
+)
+
 http_archive(
     name = "acl",
     files = {
