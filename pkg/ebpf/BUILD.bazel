@@ -144,7 +144,7 @@ ebpf_object_group(
 
 # DEBUG=1 variants of the ebpf_program_suite programs, staged only by
 # `dda inv system-probe.object-files --debug`.
-filegroup(
+ebpf_object_group(
     name = "prebuilt_debug_objects",
     srcs = [
         "//pkg/network/ebpf/c/prebuilt:conntrack-debug.stripped",
@@ -157,7 +157,7 @@ filegroup(
     ],
 )
 
-filegroup(
+ebpf_object_group(
     name = "co_re_debug_objects",
     srcs = [
         "//pkg/collector/corechecks/ebpf/c/runtime:ebpf-debug.stripped",
@@ -230,6 +230,18 @@ filegroup(
     srcs = [":co_re_objects"],
     output_group = "with_line_info",
     visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "prebuilt_debug_objects_with_line_info",
+    srcs = [":prebuilt_debug_objects"],
+    output_group = "with_line_info",
+)
+
+filegroup(
+    name = "co_re_debug_objects_with_line_info",
+    srcs = [":co_re_debug_objects"],
+    output_group = "with_line_info",
 )
 
 # Linux-only, so ebpf_test stays analyzable on other platforms.
@@ -378,6 +390,35 @@ pkg_install(
     srcs = [
         ":install_co_re_objects_with_line_info",
         ":install_prebuilt_objects_with_line_info",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+pkg_files(
+    name = "install_prebuilt_debug_objects_with_line_info",
+    srcs = [":prebuilt_debug_objects_with_line_info"],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = select({
+        ":ebpf_aarch64": "pkg/ebpf/bytecode/build/line-info/arm64",
+        "//conditions:default": "pkg/ebpf/bytecode/build/line-info/x86_64",
+    }),
+)
+
+pkg_files(
+    name = "install_co_re_debug_objects_with_line_info",
+    srcs = [":co_re_debug_objects_with_line_info"],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = select({
+        ":ebpf_aarch64": "pkg/ebpf/bytecode/build/line-info/arm64/co-re",
+        "//conditions:default": "pkg/ebpf/bytecode/build/line-info/x86_64/co-re",
+    }),
+)
+
+pkg_install(
+    name = "install_debug_line_info_object_files",
+    srcs = [
+        ":install_co_re_debug_objects_with_line_info",
+        ":install_prebuilt_debug_objects_with_line_info",
     ],
     target_compatible_with = ["@platforms//os:linux"],
 )

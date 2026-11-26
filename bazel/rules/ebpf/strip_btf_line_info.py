@@ -3,13 +3,18 @@
 # This product includes software developed at Datadog (https://www.datadoghq.com/).
 # Copyright 2026-present Datadog, Inc.
 
-"""Strip .BTF.ext line_info records from a stripped ELF64 eBPF object file.
+"""Strip non-entry .BTF.ext line_info records from a stripped ELF64 eBPF object file.
 
 Preserves .BTF, .BTF.ext func_info, and .BTF.ext core_relo intact while
-replacing the line_info sub-section with only its 4-byte record size header
-(0 section records). Both cilium/ebpf and libbpf/bpftool accept this format
-cleanly, and the Linux kernel BPF verifier skips check_btf_line() when
-line_info_cnt == 0.
+reducing each .BTF.ext line_info section to only the function-entry records
+matching func_info offsets (or the first record if a section has no matching
+func_info).
+
+Keeping one valid record per function satisfies all three consumers:
+- libbpf / bpftool gen min_core_btf (rejects 4-byte empty subsections with EINVAL)
+- cilium/ebpf parseLineInfos() (rejects 0-byte subsections with EOF)
+- Linux kernel BPF verifier check_btf_line() (requires a line_info entry at each
+  function's first instruction whenever line_info_cnt > 0)
 """
 
 from __future__ import annotations
@@ -71,12 +76,41 @@ def _read_cstr(strtab: bytes, offset: int) -> str:
     return strtab[offset:end].decode("utf-8", errors="replace")
 
 
-def strip_btf_ext_line_info(btf_ext: bytes, endian: str = "<") -> bytes:
-    """Strip line_info section records from a .BTF.ext payload.
+def _parse_ext_info_sections(subsection: bytes, endian: str, name: str) -> tuple[int, list[tuple[int, list[bytes]]]]:
+    """Parse a .BTF.ext func_info or line_info sub-section into (record_size, [(sec_name_off, [records])])."""
+    if len(subsection) < 4:
+        raise ValueError(f".BTF.ext {name} too small ({len(subsection)} bytes)")
 
-    Keeps the 4-byte line_info record size (typically 16) with zero section
-    records so cilium/ebpf's parseLineInfos() and libbpf's btf_ext_setup_info()
-    both parse an empty line_info table cleanly.
+    (rec_size,) = struct.unpack_from(f"{endian}I", subsection, 0)
+    if rec_size < 4 or rec_size > 256 or (rec_size & 3) != 0:
+        raise ValueError(f"unexpected .BTF.ext {name} record size: {rec_size}")
+
+    pos = 4
+    sections: list[tuple[int, list[bytes]]] = []
+    while pos < len(subsection):
+        if pos + 8 > len(subsection):
+            raise ValueError(f"truncated .BTF.ext {name} section header at offset {pos}")
+        sec_name_off, num_info = struct.unpack_from(f"{endian}II", subsection, pos)
+        pos += 8
+        if num_info == 0:
+            raise ValueError(f".BTF.ext {name} section (name_off={sec_name_off}) has zero records")
+        sec_bytes = num_info * rec_size
+        if pos + sec_bytes > len(subsection):
+            raise ValueError(f"truncated .BTF.ext {name} records for section name_off={sec_name_off}")
+        records = [subsection[pos + i * rec_size : pos + (i + 1) * rec_size] for i in range(num_info)]
+        pos += sec_bytes
+        sections.append((sec_name_off, records))
+
+    return rec_size, sections
+
+
+def strip_btf_ext_line_info(btf_ext: bytes, endian: str = "<") -> bytes:
+    """Strip non-entry line_info records from a .BTF.ext payload.
+
+    For each section in line_info, keeps only the first record at each insn_off
+    present in that section's func_info (or the first record if no func_info
+    matches). This removes >99% of line_info bytes while keeping .BTF.ext valid
+    for libbpf/bpftool, cilium/ebpf, and the Linux kernel BPF verifier.
     """
     if len(btf_ext) < BTF_EXT_BASE_HDR_LEN:
         raise ValueError(f".BTF.ext too small ({len(btf_ext)} bytes)")
@@ -134,17 +168,43 @@ def strip_btf_ext_line_info(btf_ext: bytes, endian: str = "<") -> bytes:
     if len(trailing) > 3 or any(b != 0 for b in trailing):
         raise ValueError(f".BTF.ext contains {len(trailing)} unexpected trailing bytes beyond known subsections")
 
-    # Already stripped or empty.
-    if line_info_len <= 4:
+    # Empty line_info sub-section: nothing to strip.
+    if line_info_len == 0:
         return btf_ext
 
-    line_info_rec_size_bytes = payload[line_info_off : line_info_off + 4]
-    (rec_size,) = struct.unpack(f"{endian}I", line_info_rec_size_bytes)
-    if rec_size < 4 or rec_size > 256 or (rec_size & 3) != 0:
-        raise ValueError(f"unexpected .BTF.ext line_info record size: {rec_size}")
-
     func_info = payload[func_info_off : func_info_off + func_info_len]
+    line_info = payload[line_info_off : line_info_off + line_info_len]
     core_relo = payload[core_relo_off : core_relo_off + core_relo_len] if (has_core_relo and core_relo_len) else b""
+
+    func_offs_by_sec: dict[int, set[int]] = {}
+    if func_info_len > 0:
+        _, func_sections = _parse_ext_info_sections(func_info, endian, "func_info")
+        for sec_name_off, records in func_sections:
+            func_offs_by_sec[sec_name_off] = {struct.unpack_from(f"{endian}I", rec, 0)[0] for rec in records}
+
+    line_rec_size, line_sections = _parse_ext_info_sections(line_info, endian, "line_info")
+
+    new_line_info = bytearray(struct.pack(f"{endian}I", line_rec_size))
+    changed = False
+    for sec_name_off, records in line_sections:
+        target_offs = func_offs_by_sec.get(sec_name_off, set())
+        seen_offs: set[int] = set()
+        kept: list[bytes] = []
+        for rec in records:
+            (insn_off,) = struct.unpack_from(f"{endian}I", rec, 0)
+            if insn_off in target_offs and insn_off not in seen_offs:
+                kept.append(rec)
+                seen_offs.add(insn_off)
+        if not kept:
+            kept.append(records[0])
+        if len(kept) != len(records):
+            changed = True
+        new_line_info.extend(struct.pack(f"{endian}II", sec_name_off, len(kept)))
+        for rec in kept:
+            new_line_info.extend(rec)
+
+    if not changed:
+        return btf_ext
 
     new_payload = bytearray()
 
@@ -153,8 +213,8 @@ def strip_btf_ext_line_info(btf_ext: bytes, endian: str = "<") -> bytes:
     _pad_to(new_payload, 4)
 
     new_line_info_off = len(new_payload)
-    new_line_info_len = 4
-    new_payload.extend(line_info_rec_size_bytes)
+    new_line_info_len = len(new_line_info)
+    new_payload.extend(new_line_info)
     _pad_to(new_payload, 4)
 
     if has_core_relo:
@@ -185,10 +245,10 @@ def strip_btf_ext_line_info(btf_ext: bytes, endian: str = "<") -> bytes:
 
 
 def strip_elf_btf_line_info(elf_bytes: bytes) -> bytes:
-    """Rewrite an ELF64 ET_REL object file to strip .BTF.ext line_info records.
+    """Rewrite an ELF64 ET_REL object file to strip non-entry .BTF.ext line_info records.
 
     Returns the input bytes unchanged if there is no .BTF.ext section or if its
-    line_info sub-section is already stripped.
+    line_info sub-section is already minimal.
     """
     if len(elf_bytes) < ELF64_EHDR_SIZE or elf_bytes[:4] != ELF_MAGIC:
         raise ValueError("input is not an ELF file")
@@ -331,7 +391,9 @@ def strip_elf_btf_line_info(elf_bytes: bytes) -> bytes:
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Strip .BTF.ext line_info records from an eBPF ELF64 object file.")
+    parser = argparse.ArgumentParser(
+        description="Strip non-entry .BTF.ext line_info records from an eBPF ELF64 object file."
+    )
     parser.add_argument("--input", required=True, type=Path, help="Input ELF64 eBPF object file.")
     parser.add_argument("--output", required=True, type=Path, help="Output ELF64 eBPF object file.")
     return parser.parse_args(argv)

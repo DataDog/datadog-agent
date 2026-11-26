@@ -328,7 +328,7 @@ def test(
         )
 
     if not skip_object_files:
-        build_object_files(ctx)
+        build_object_files(ctx, line_info=True)
 
     build_tags = get_sysprobe_test_buildtags(is_windows, bundle_ebpf)
 
@@ -341,6 +341,8 @@ def test(
 
     _, _, env = get_build_flags(ctx)
     env["DD_SYSTEM_PROBE_BPF_DIR"] = EMBEDDED_SHARE_DIR
+    if not is_windows:
+        env["DD_SYSTEM_PROBE_BPF_LINE_INFO_DIR"] = str(get_ebpf_line_info_build_dir(Arch.local()).absolute())
 
     go_root = os.getenv("GOROOT")
     if go_root:
@@ -710,6 +712,8 @@ _EBPF_INSTALL_TARGET = "//pkg/ebpf:install_object_files"
 _EBPF_BALOUM_INSTALL_TARGET = "//pkg/ebpf:install_object_files_baloum"
 # Installs stripped eBPF objects that retain .BTF.ext line_info for verifier source mapping.
 _EBPF_LINE_INFO_INSTALL_TARGET = "//pkg/ebpf:install_line_info_object_files"
+# DEBUG=1 variants retaining .BTF.ext line_info.
+_EBPF_DEBUG_LINE_INFO_INSTALL_TARGET = "//pkg/ebpf:install_debug_line_info_object_files"
 
 # DEBUG=1 variants of the ebpf_program_suite programs, installed only on request.
 _EBPF_DEBUG_INSTALL_TARGET = "//pkg/ebpf:install_debug_object_files"
@@ -796,6 +800,8 @@ def bazel_build_ebpf(
         install_targets.append(_EBPF_DEBUG_INSTALL_TARGET)
     if line_info:
         install_targets.append(_EBPF_LINE_INFO_INSTALL_TARGET)
+        if debug:
+            install_targets.append(_EBPF_DEBUG_LINE_INFO_INSTALL_TARGET)
     targets = [*install_targets, *extra_targets]
     if verify:
         targets.append("//pkg/ebpf:verify_generated_files")

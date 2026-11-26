@@ -34,6 +34,7 @@ func TestStrippedObjectsPreserveBTFWithoutLineInfo(t *testing.T) {
 	require.Equal(t, len(lineInfoAssets), len(strippedAssets), "mismatched stripped and with_line_info asset counts")
 
 	totalOrigLines := 0
+	totalStrippedLines := 0
 	totalFuncInfos := 0
 	totalCORERelos := 0
 
@@ -57,6 +58,7 @@ func TestStrippedObjectsPreserveBTFWithoutLineInfo(t *testing.T) {
 			require.Equal(t, len(origSpec.Maps), len(strippedSpec.Maps))
 
 			objOrigLines := 0
+			objStrippedLines := 0
 			for name, origProg := range origSpec.Programs {
 				strippedProg, exists := strippedSpec.Programs[name]
 				require.True(t, exists, "missing program %s in stripped object", name)
@@ -66,12 +68,6 @@ func TestStrippedObjectsPreserveBTFWithoutLineInfo(t *testing.T) {
 					origInsn := origProg.Instructions[i]
 					strippedInsn := strippedProg.Instructions[i]
 
-					if _, hasLine := origInsn.Source().(*btf.Line); hasLine {
-						objOrigLines++
-					}
-					_, strippedHasLine := strippedInsn.Source().(*btf.Line)
-					require.False(t, strippedHasLine, "program %s instruction %d still has BTF line info", name, i)
-
 					origFunc := btf.FuncMetadata(&origInsn)
 					strippedFunc := btf.FuncMetadata(&strippedInsn)
 					if origFunc == nil {
@@ -80,6 +76,25 @@ func TestStrippedObjectsPreserveBTFWithoutLineInfo(t *testing.T) {
 						require.NotNil(t, strippedFunc, "missing func_info at %s insn %d", name, i)
 						require.Equal(t, origFunc.Name, strippedFunc.Name)
 						totalFuncInfos++
+					}
+
+					origLine, origHasLine := origInsn.Source().(*btf.Line)
+					strippedLine, strippedHasLine := strippedInsn.Source().(*btf.Line)
+					if origHasLine {
+						objOrigLines++
+					}
+					if strippedHasLine {
+						objStrippedLines++
+					}
+
+					if origFunc != nil && origHasLine {
+						// Function-entry line record must be preserved for libbpf/bpftool and kernel verifier compatibility.
+						require.True(t, strippedHasLine, "missing function-entry line_info at %s insn %d", name, i)
+						require.Equal(t, origLine.FileName(), strippedLine.FileName())
+						require.Equal(t, origLine.LineNumber(), strippedLine.LineNumber())
+					} else if origFunc == nil {
+						// Non-entry body line records must be stripped.
+						require.False(t, strippedHasLine, "program %s instruction %d still has non-entry BTF line info", name, i)
 					}
 
 					origRelo := btf.CORERelocationMetadata(&origInsn)
@@ -95,7 +110,8 @@ func TestStrippedObjectsPreserveBTFWithoutLineInfo(t *testing.T) {
 			}
 
 			totalOrigLines += objOrigLines
-			if objOrigLines > 0 {
+			totalStrippedLines += objStrippedLines
+			if objOrigLines > objStrippedLines {
 				strippedInfo, err := os.Stat(strippedPath)
 				require.NoError(t, err)
 				origInfo, err := os.Stat(lineInfoPath)
@@ -106,6 +122,7 @@ func TestStrippedObjectsPreserveBTFWithoutLineInfo(t *testing.T) {
 	}
 
 	require.NotZero(t, totalOrigLines, "expected at least one original BTF line_info record across test assets")
+	require.Less(t, totalStrippedLines, totalOrigLines/10, "expected >90% of BTF line_info records to be stripped")
 	require.NotZero(t, totalFuncInfos, "expected BTF func_info records to be preserved")
 	require.NotZero(t, totalCORERelos, "expected CO-RE relocation records to be preserved")
 }
