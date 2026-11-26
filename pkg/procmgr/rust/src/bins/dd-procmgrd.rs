@@ -11,7 +11,7 @@
 //! initialization. On Unix it runs as a plain console daemon.
 
 fn main() {
-    // First, so a SIGTERM that arrives after the entrypoint's exec is recorded, not discarded.
+    // Must run first, so a SIGTERM after the entrypoint's exec is recorded, not lost.
     #[cfg(unix)]
     dd_procmgrd::platform::install_early_stop_handler();
     #[cfg(windows)]
@@ -51,8 +51,7 @@ fn run() -> anyhow::Result<i32> {
 
     let runtime = tokio::runtime::Runtime::new()?;
     runtime.block_on(async {
-        // Installed before the catalog loads. The watcher then logs a stop sent during that load,
-        // even while the load blocks the main thread.
+        // Before the catalog loads, so a stop during the load is logged even while it blocks.
         let shutdown = platform::shutdown_signal();
         let loader = Arc::new(YamlConfigLoader::from_env());
         let mgr = ProcessManager::new(loader, Arc::new(V4UuidGenerator));

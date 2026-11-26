@@ -89,9 +89,8 @@ impl ProcessManager {
         self.start_until(exit_tx, &mut never).await;
     }
 
-    /// Starts the auto-start processes. Returns true if `shutdown` resolved first or the
-    /// process-wide stop flag is set. The pass then stops, and processes it did not reach stay
-    /// `Created`.
+    /// Starts auto-start processes. Returns true if `shutdown` resolved or the stop flag is set.
+    /// Processes the pass did not reach stay `Created`.
     async fn start_until<F: Future<Output = ()>>(
         &self,
         exit_tx: &mpsc::Sender<ExitEvent>,
@@ -156,18 +155,15 @@ impl ProcessManager {
         self.run_with_shutdown(platform::shutdown_signal()).await
     }
 
-    /// Runs until `shutdown` resolves. Create `shutdown` before [`ProcessManager::new`] to keep
-    /// a stop request that arrives while the catalog loads. That holds on Unix only. On Windows,
-    /// `shutdown_signal` registers Ctrl+C only when it is first polled, so a Ctrl+C before that is
-    /// not caught. A service stop is kept. The stop flag is process-wide and never cleared, so a
-    /// stop recorded by an earlier run also ends this one.
-    /// The flag is checked only during startup. After startup, only `shutdown` ends the run, so a
-    /// caller that passes its own future must watch for signals itself.
+    /// Runs until `shutdown` resolves. Create `shutdown` before [`ProcessManager::new`] so a stop
+    /// during the catalog load is kept. On Windows, Ctrl+C is registered on the first poll, so an
+    /// earlier Ctrl+C is not caught. The process-wide stop flag is never cleared, so a stop
+    /// recorded by an earlier run also ends this one. The flag is checked only during startup, so
+    /// after startup only `shutdown` ends the run.
     pub async fn run_with_shutdown(&self, shutdown: impl Future<Output = ()>) -> Result<i32> {
         tokio::pin!(shutdown);
 
-        // A stop that arrived while the catalog loaded returns before anything is bound or
-        // spawned. Poll once without waiting.
+        // Poll once: a stop during the catalog load returns before anything is bound or spawned.
         if stop_requested(&mut shutdown, true).await {
             self.shutting_down.store(true, Ordering::SeqCst);
             info!("stop requested before startup, not starting processes");
@@ -879,9 +875,8 @@ impl ProcessManager {
     }
 
     /// Evaluates each selected process's start gate and spawns it unless a hold applies. Returns
-    /// `None` if `shutdown` resolves first or the process-wide stop flag is set. It is polled
-    /// before each process and again after the gate read, and after each spawn. A FIFO gate can
-    /// block the read until a writer releases it.
+    /// `None` on a stop. `shutdown` and the stop flag are checked before each process, after the
+    /// gate read, and after each spawn. A FIFO gate can block the read until a writer releases it.
     async fn run_start_pass<F: Future<Output = ()>>(
         &self,
         procs: &mut [ManagedProcess],
@@ -921,9 +916,8 @@ impl ProcessManager {
         Some(decided)
     }
 
-    /// Start pass for create and reload. It does not watch for a stop, so a stop request
-    /// that arrives during it does not end the pass. Its gate reads and spawns are blocking
-    /// calls and run to completion.
+    /// Start pass for create and reload. It ignores stops, so the pass visits every selected
+    /// process.
     async fn run_start_pass_uninterrupted(
         &self,
         procs: &mut [ManagedProcess],
@@ -938,11 +932,8 @@ impl ProcessManager {
     }
 }
 
-/// Polls `shutdown` once without waiting. Returns true if it has resolved.
-///
-/// With `honor_flag`, the stop flag counts too. It covers a signal recorded before the watcher
-/// task signalled the shutdown future, and a stop recorded before the handlers were registered.
-/// Create and reload pass `false`, since a stop does not interrupt them.
+/// Polls `shutdown` once without waiting. With `honor_flag`, a recorded stop also counts.
+/// Create and reload pass `false`.
 async fn stop_requested<F: Future<Output = ()>>(
     shutdown: &mut Pin<&mut F>,
     honor_flag: bool,

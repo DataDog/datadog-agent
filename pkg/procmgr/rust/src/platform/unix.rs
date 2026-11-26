@@ -87,9 +87,7 @@ pub fn stderr_inheritable() -> bool {
 }
 
 /// Installs SIGTERM and SIGINT handlers that only record the stop request. Call it first in
-/// `main`: as PID 1 an unhandled SIGTERM is discarded, and the entrypoint's `exec` resets the
-/// shell's handler, so a signal before this call would be lost. The record survives tokio's
-/// later registration, because tokio chains to the handler installed here.
+/// `main`. As PID 1 an unhandled SIGTERM is discarded, and tokio chains to this handler.
 pub fn install_early_stop_handler() {
     extern "C" fn on_stop(signal: nix::libc::c_int) {
         crate::stop::request_stop(signal);
@@ -108,24 +106,18 @@ pub fn install_early_stop_handler() {
     }
 }
 
-/// Wait for a shutdown trigger (SIGTERM or SIGINT).
-///
-/// Handlers install on this call, not on the first poll. A stop recorded by
-/// [`install_early_stop_handler`] before this call resolves the future once the watcher task
-/// runs, so the first poll may still be pending. A caller that polls only once must also check
-/// the stop flag. Call it inside the tokio runtime, since it spawns the task that waits for the
-/// signal.
+/// Waits for SIGTERM or SIGINT. Handlers install on this call, not on the first poll. Call it
+/// inside the tokio runtime. A stop already recorded by [`install_early_stop_handler`] resolves
+/// the future on the watcher task, so the first poll may still be pending.
 pub fn shutdown_signal() -> impl std::future::Future<Output = ()> {
     use tokio::signal::unix::{SignalKind, signal};
     let mut sigterm = signal(SignalKind::terminate()).expect("failed to register SIGTERM handler");
     let mut sigint = signal(SignalKind::interrupt()).expect("failed to register SIGINT handler");
-    // On a multi-thread runtime the task runs on a worker thread, so it logs a stop even while
-    // the main thread is blocked in a startup read. It waits on the signal streams and does no
-    // work while idle.
+    // On a multi-thread runtime the watcher runs on a worker thread, so it logs a stop while the
+    // main thread is blocked.
     let (mut done_tx, done_rx) = tokio::sync::oneshot::channel::<()>();
     tokio::spawn(async move {
-        // The flag can rise before this task runs, since the early handler sets it first. Log
-        // through the shared one-shot log, so the main thread and this task never both log it.
+        // A stop recorded before registration never reaches the streams.
         if crate::stop::stop_requested_flag() {
             crate::stop::log_received(crate::stop::stop_signal_name());
         } else {
@@ -133,7 +125,7 @@ pub fn shutdown_signal() -> impl std::future::Future<Output = ()> {
                 biased;
                 _ = sigterm.recv() => { crate::stop::log_received("SIGTERM"); }
                 _ = sigint.recv() => { crate::stop::log_received("SIGINT"); }
-                // The returned future was dropped, so nobody is waiting for this signal.
+                // The returned future was dropped. Nobody waits for this signal.
                 _ = done_tx.closed() => {}
             }
         }

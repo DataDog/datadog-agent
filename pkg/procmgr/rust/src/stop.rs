@@ -8,14 +8,11 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-/// Set by the SIGTERM and SIGINT handler that `dd-procmgrd` installs first in `main`. Before the
-/// runtime exists, the early handler is the only one, so a signal delivered earlier is kept here.
-/// tokio's handler chains to it, so the flag also rises for later signals. The flag is
-/// process-wide and never cleared, so it outlives any one `ProcessManager` run.
+/// Set by the early SIGTERM and SIGINT handler, which tokio's handler chains to. Never cleared,
+/// so it outlives any one `ProcessManager` run.
 static STOP: AtomicBool = AtomicBool::new(false);
 
-/// The number of the stop signal that set `STOP`, or 0 if none. The handler stores it before
-/// setting `STOP`, so a reader that sees the flag also sees the signal.
+/// The stop signal number that set `STOP`, or 0. Stored before `STOP` is set.
 #[cfg(unix)]
 static STOP_SIGNAL: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
 
@@ -28,7 +25,7 @@ pub(crate) fn request_stop(signal: i32) {
     STOP.store(true, Ordering::SeqCst);
 }
 
-/// Name of the recorded stop signal. Call it after `stop_requested_flag` returns true.
+/// Name of the recorded stop signal.
 #[cfg(unix)]
 pub(crate) fn stop_signal_name() -> &'static str {
     use nix::libc::{SIGINT, SIGTERM};
@@ -45,17 +42,14 @@ pub(crate) fn stop_signal_name() -> &'static str {
     "stop signal"
 }
 
-/// Set once the stop request has been logged.
 static LOGGED: std::sync::Once = std::sync::Once::new();
 
-/// Logs `received <signal>` once per process. The main thread and the watcher can both see the
-/// stop, so only the first caller logs it. A second caller waits until the first has finished
-/// logging, so the line is written before that caller goes on.
+/// Logs `received <signal>` once per process. Both the main thread and the watcher may see the
+/// stop. A second caller waits until the first has finished logging.
 pub(crate) fn log_received(signal: &str) {
     LOGGED.call_once(|| log::info!("received {signal}"));
 }
 
-/// Whether a stop request has arrived.
 pub(crate) fn stop_requested_flag() -> bool {
     STOP.load(Ordering::SeqCst)
 }
