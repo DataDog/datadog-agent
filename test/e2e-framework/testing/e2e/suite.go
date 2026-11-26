@@ -866,12 +866,15 @@ func (bs *BaseSuite[Env]) releasePoolInstanceForEnv(env *Env) {
 		}
 
 		ctx, cancel := bs.providerContext(deleteTimeout)
-		err := pool.RevertAndRelease(ctx, remoteHost.PoolRegion, remoteHost.PoolProfile, remoteHost.PoolLeaseBucket, remoteHost.PoolInstanceID, remoteHost.PoolLeaseToken, bs.params.devMode)
+		result, err := pool.RevertAndRelease(ctx, remoteHost.PoolRegion, remoteHost.PoolProfile, remoteHost.PoolLeaseBucket, remoteHost.PoolInstanceID, remoteHost.PoolLeaseToken, bs.params.devMode)
 		cancel()
-		if err != nil {
+		switch {
+		case err != nil:
 			utils.Errorf(bs.T(), "unable to revert/release macOS pool instance %s: %v", remoteHost.PoolInstanceID, err)
-		} else {
+		case result.Reverted:
 			utils.Logf(bs.T(), "reverted and released macOS pool instance %s successfully", remoteHost.PoolInstanceID)
+		default:
+			utils.Logf(bs.T(), "released macOS pool instance %s without reverting its root volume (%s)", remoteHost.PoolInstanceID, result.SkipReason)
 		}
 	}
 }
