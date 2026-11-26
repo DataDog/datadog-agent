@@ -21,7 +21,7 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.uber.org/atomic v1.12.0
 	go.yaml.in/yaml/v3 v3.0.6
-	golang.org/x/net v0.62.0
+	golang.org/x/net v0.63.0
 	golang.org/x/sys v0.50.0
 	golang.org/x/text v0.44.0
 	sigs.k8s.io/yaml v1.6.0
