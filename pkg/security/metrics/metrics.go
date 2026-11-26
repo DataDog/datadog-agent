@@ -415,6 +415,9 @@ var (
 	// MetricCGroupResolverFallbackFailed is the name of the metric used to report the number of failed fallbacks
 	// Tags: -
 	MetricCGroupResolverFallbackFailed = newRuntimeMetric(".cgroup_resolver.fallback_failed")
+	// MetricCGroupResolverStatFailed is the name of the metric used to report the number of failed cgroup path stats
+	// Tags: -
+	MetricCGroupResolverStatFailed = newRuntimeMetric(".cgroup_resolver.stat_failed")
 	// MetricCGroupResolverRemainingPids is the name of the metric used to report when a cgroup being delete still has pids
 	// Tags: -
 	MetricCGroupResolverRemainingPids = newRuntimeMetric(".cgroup_resolver.remaining_pids")

@@ -15,6 +15,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	cgutil "github.com/DataDog/datadog-agent/pkg/security/utils/cgroup"
@@ -342,6 +344,19 @@ func TestCGroupFS(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, expectedFullCgroupPath, cgroupPath)
 		})
+
+		t.Run("find-cgroup-context-stat-error", func(t *testing.T) {
+			cfsStatErr := *cfs
+			cfsStatErr.statPath = func(string, *CGroupContext) error {
+				return unix.ENOENT
+			}
+
+			containerID, cgroupContext, _, err := cfsStatErr.FindCGroupContext(600894, 600894)
+			require.ErrorIs(t, err, ErrStatCGroupPath)
+			require.ErrorIs(t, err, unix.ENOENT)
+			assert.Empty(t, containerID)
+			assert.Empty(t, cgroupContext.CGroupID)
+		})
 	})
 
 	t.Run("cgroupv1", func(t *testing.T) {
@@ -380,6 +395,19 @@ func TestCGroupFS(t *testing.T) {
 			assert.Equal(t, containerutils.ContainerID("d308fe417b11e128c3b42d910f3b3df6f778439edba9ab600e62dfeb5631a46f"), containerID)
 			assert.NoError(t, err)
 			assert.Equal(t, expectedFullCgroupPath, cgroupPath)
+		})
+
+		t.Run("find-cgroup-context-stat-error", func(t *testing.T) {
+			cfsStatErr := *cfs
+			cfsStatErr.statPath = func(string, *CGroupContext) error {
+				return unix.ENOENT
+			}
+
+			containerID, cgroupContext, _, err := cfsStatErr.FindCGroupContext(18865, 18865)
+			require.ErrorIs(t, err, ErrStatCGroupPath)
+			require.ErrorIs(t, err, unix.ENOENT)
+			assert.Empty(t, containerID)
+			assert.Empty(t, cgroupContext.CGroupID)
 		})
 	})
 }

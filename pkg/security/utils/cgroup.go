@@ -104,10 +104,14 @@ var defaultCGroupMountpoints = []string{
 // ErrNoCGroupMountpoint is returned when no cgroup mount point is found
 var ErrNoCGroupMountpoint = errors.New("no cgroup mount point found")
 
+// ErrStatCGroupPath is returned when a cgroup path cannot be statted
+var ErrStatCGroupPath = errors.New("unable to stat cgroup path")
+
 // CGroupFS is a helper type used to find the cgroup context of a process
 type CGroupFS struct {
 	cGroupMountPoints []string
 	rootCGroupPath    string
+	statPath          func(string, *CGroupContext) error
 }
 
 var defaultCGroupFS *CGroupFS
@@ -147,6 +151,27 @@ func (cfs *CGroupFS) removeMountPointFromCGroupPath(cpath string) string {
 	return cpath
 }
 
+func statCGroupPath(cgroupPath string, cgroupContext *CGroupContext) error {
+	var (
+		fileStatx unix.Statx_t
+		fileStats unix.Stat_t
+		err       error
+	)
+
+	if err = unix.Statx(unix.AT_FDCWD, cgroupPath, 0, unix.STATX_INO|unix.STATX_MNT_ID, &fileStatx); err == nil {
+		cgroupContext.CGroupFileMountID = uint32(fileStatx.Mnt_id)
+		cgroupContext.CGroupFileInode = fileStatx.Ino
+		cgroupContext.CreatedAt = time.Unix(fileStatx.Mtime.Sec, int64(fileStatx.Mtime.Nsec))
+		return nil
+	}
+	if err = unix.Stat(cgroupPath, &fileStats); err == nil {
+		cgroupContext.CGroupFileInode = fileStats.Ino
+		cgroupContext.CreatedAt = time.Unix(int64(fileStats.Mtim.Sec), int64(fileStats.Mtim.Nsec))
+		return nil
+	}
+	return err
+}
+
 // FindCGroupContext returns the container ID, cgroup context and sysfs cgroup path the process belongs to.
 // Returns "" as container ID if the process does not belong to a container.
 func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.ContainerID, CGroupContext, string, error) {
@@ -158,16 +183,17 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 		containerID   containerutils.ContainerID
 		cgroupContext CGroupContext
 		cgroupPath    string
+		lastStatErr   error
 	)
 
 	err := parseProcControlGroups(tgid, pid, func(_, ctrl, path string) (bool, error) {
 		if path == "/" && cfs.rootCGroupPath == "" {
-			return false, nil
+			return false, lastStatErr
 		} else if ctrl != "" && !strings.HasPrefix(ctrl, "name=") {
 			// On cgroup v1 we choose to take the "name" ctrl entry (ID 1), as the ID 0 could be empty
 			// On cgroup v2, it's only a single line with ID 0 and no ctrl
 			// (Cf unit tests for examples)
-			return false, nil
+			return false, lastStatErr
 		}
 
 		var (
@@ -194,27 +220,23 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 					continue
 				}
 				ctrID := containerutils.FindContainerID(cgroupID)
-				cgroupContext.CGroupID = cgroupID
-				containerID = ctrID
 
-				var (
-					fileStatx unix.Statx_t
-					fileStats unix.Stat_t
-				)
-
-				if err = unix.Statx(unix.AT_FDCWD, cgroupPath, 0, unix.STATX_INO|unix.STATX_MNT_ID, &fileStatx); err == nil {
-					cgroupContext.CGroupFileMountID = uint32(fileStatx.Mnt_id)
-					cgroupContext.CGroupFileInode = fileStatx.Ino
-					cgroupContext.CreatedAt = time.Unix(fileStatx.Mtime.Sec, int64(fileStatx.Mtime.Nsec))
-				} else if err = unix.Stat(cgroupPath, &fileStats); err == nil {
-					cgroupContext.CGroupFileInode = fileStats.Ino
-					cgroupContext.CreatedAt = time.Unix(int64(fileStats.Mtim.Sec), int64(fileStats.Mtim.Nsec))
+				statFn := statCGroupPath
+				if cfs.statPath != nil {
+					statFn = cfs.statPath
 				}
-				if err == nil {
+				if err = statFn(cgroupPath, &cgroupContext); err == nil {
+					cgroupContext.CGroupID = cgroupID
+					containerID = ctrID
 					return true, nil
 				}
-				seclog.Warnf("Unable to stat cgroup path %s", cgroupPath)
+				err = fmt.Errorf("%w: %w", ErrStatCGroupPath, err)
+				lastStatErr = err
+				break
 			}
+		}
+		if lastStatErr != nil {
+			return false, lastStatErr
 		}
 		// not found
 		if err == nil {
