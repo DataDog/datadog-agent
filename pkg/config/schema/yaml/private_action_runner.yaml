@@ -114,6 +114,15 @@ properties:
       When true, a set of default actions are automatically
       allowed without needing to be listed in actions_allowlist.
       Set to false to disable these default actions.
+  kubernetes_remediations_enabled:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: |-
+      Add a predefined set of Kubernetes remediation actions to the runner's
+      effective allowlist independently of default_actions_enabled.
+      Requires the corresponding Kubernetes RBAC permissions.
   credentials:
     node_type: section
     type: object

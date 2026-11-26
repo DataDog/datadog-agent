@@ -59,6 +59,20 @@ var KubeActionsActionFQNs = []string{
 	"com.datadoghq.kubernetes.kubeactions.getResource",
 }
 
+var KubernetesRemediationActionFQNs = []string{
+	"com.datadoghq.kubernetes.apps.scaleDeployment",
+	"com.datadoghq.kubernetes.apps.scaleDeploymentVertically",
+	"com.datadoghq.kubernetes.apps.rollbackDeployment",
+	"com.datadoghq.kubernetes.apps.restartDeployment",
+	"com.datadoghq.kubernetes.apps.scaleStatefulSetHorizontally",
+	"com.datadoghq.kubernetes.apps.scaleStatefulSetVertically",
+	"com.datadoghq.kubernetes.autoscaling.updateAutoscalerLimits",
+	"com.datadoghq.kubernetes.batch.deleteJob",
+	"com.datadoghq.kubernetes.batch.updateCronJobSchedule",
+	"com.datadoghq.kubernetes.core.deletePod",
+	"com.datadoghq.kubernetes.watermarkpodautoscaler.updateWatermarkAutoscalerLimits",
+}
+
 // DefaultClusterAgentActionFQNs is a list of action FQNs that are enabled by default
 // when the agent runs as a Cluster Agent flavor.
 // Users can opt out by setting private_action_runner.default_actions_enabled to false.
