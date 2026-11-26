@@ -158,7 +158,7 @@ A lot of existing code uses [`go.uber.org/atomic`](https://pkg.go.dev/go.uber.or
 
 - types such as `atomic.Duration`, `atomic.Float64`, `atomic.String`, `atomic.Time`, and `atomic.Error`, or conveniences such as `Inc`/`Dec`;
 - JSON marshaling: pointers to `go.uber.org/atomic` types marshal to their enclosed value, while the standard library types marshal to `{}`;
-- the <<<repo("pkg/util/atomicstats", "`atomicstats`")>>> package, which only reads `go.uber.org/atomic` values.
+- the <<<repo("pkg/util/atomicstats", "`atomicstats`")>>> package, which only reads pointers to `go.uber.org/atomic` values: a tagged field such as `*atomic.Int64` works, while `atomic.Int64` makes `Report` panic.
 
 Unlike the standard library types, `go.uber.org/atomic.Int64` and `Uint64` are not aligned automatically. Declare them using a pointer, for example `maxCount *atomic.Uint64` created with `atomic.NewUint64(42)`. If the additional pointer allocation poses an undue performance burden, include the value as the *first* element in the struct, with a comment saying that it must remain in that position and why a pointer was not suitable.
 
