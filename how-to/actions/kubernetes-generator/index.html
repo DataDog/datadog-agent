@@ -4143,6 +4143,9 @@ SDK sources:</p>
 </span></code></pre></div>
 <p>Edit <code>tools/privateactionrunner/kubernetes-generator/config.yaml</code> to select
 resources and API versions. Edit the templates to change generated handlers.
+Generated files include a notice and the command to regenerate them.
+Long resource names use <code>hpa</code>, <code>vap</code>, and <code>webhook</code> in filenames to stay
+within the Windows checkout path limit. Public action names remain unchanged.
 Handwritten <code>New…Handler</code> constructors are registered alongside generated actions.
 Generation replaces and removes <code>*.gen.go</code> files only in selected bundles;
 <code>--check</code> reports stale files without modifying them. Use <code>--out=/tmp/kubernetes-actions</code>
