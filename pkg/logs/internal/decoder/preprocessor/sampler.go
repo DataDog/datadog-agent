@@ -7,8 +7,8 @@
 package preprocessor
 
 import (
-	"hash/fnv"
 	"regexp"
+	"slices"
 	"strconv"
 	"time"
 
@@ -77,16 +77,53 @@ func adaptiveSamplerSampledCountTag(count int64) string {
 	return "adaptive_sampler_sampled_count:" + strconv.FormatInt(count, 10)
 }
 
-const adaptiveSamplerNoisyLogTag = "noisy_log:true"
+const (
+	adaptiveSamplerNoisyLogTag = "noisy_log:true"
+
+	// FNV-1a 64-bit parameters (identical to hash/fnv.New64a).
+	fnvOffset64 = uint64(14695981039346656037)
+	fnvPrime64  = uint64(1099511628211)
+
+	// exactIndexMinEntries is the number of hottest entries scanned linearly
+	// before falling back to the O(1) exact-match index. Keeping the hottest
+	// entries on the direct SWAR scan avoids hashing overhead for top patterns.
+	exactIndexMinEntries = 4
+
+	// exactIndexMinTableSize is the table size at which the exact-match index is
+	// built. Below it, a linear scan is cheaper than hashing every log.
+	exactIndexMinTableSize = 32
+)
+
+// hashTokens64 computes the FNV-1a 64-bit hash of tokens without allocations.
+func hashTokens64(tokens []Token) uint64 {
+	h := fnvOffset64
+	for _, t := range tokens {
+		h ^= uint64(t)
+		h *= fnvPrime64
+	}
+	return h
+}
+
+// hashTokensIndex is a fast word-at-a-time hash used only as an exactIndex key.
+// Every index hit is verified with slices.Equal, so collisions only cost speed.
+func hashTokensIndex(tokens []Token) uint64 {
+	h := fnvOffset64 ^ uint64(len(tokens))
+	for len(tokens) >= 8 {
+		_ = tokens[7]
+		w := uint64(tokens[0]) | uint64(tokens[1])<<8 | uint64(tokens[2])<<16 | uint64(tokens[3])<<24 |
+			uint64(tokens[4])<<32 | uint64(tokens[5])<<40 | uint64(tokens[6])<<48 | uint64(tokens[7])<<56
+		h = (h ^ w) * 0x9E3779B97F4A7C15
+		h ^= h >> 32
+		tokens = tokens[8:]
+	}
+	for _, t := range tokens {
+		h = (h ^ uint64(t)) * fnvPrime64
+	}
+	return h
+}
 
 func adaptiveSamplerLogHashTag(tokens []Token) string {
-	var b [1]byte
-	h := fnv.New64a()
-	for _, t := range tokens {
-		b[0] = byte(t)
-		_, _ = h.Write(b[:])
-	}
-	return "log_hash:" + strconv.FormatUint(h.Sum64(), 16)
+	return "log_hash:" + strconv.FormatUint(hashTokens64(tokens), 16)
 }
 
 // AdaptiveSamplerConfig holds the configuration for the AdaptiveSampler.
@@ -158,6 +195,7 @@ type AdaptiveSamplerFilter struct {
 // samplerEntry tracks the credit-based rate limiting state for a single log pattern.
 type samplerEntry struct {
 	tokens     []Token
+	hash       uint64    // hashTokensIndex(tokens); valid once exactIndex is built
 	credits    float64   // remaining log allowance; decremented on each emitted log
 	lastSeen   time.Time // used for credit refill
 	matchCount int64     // total number of times this pattern has matched; drives sort order
@@ -171,8 +209,17 @@ type samplerEntry struct {
 // entries is maintained as a sorted list in descending matchCount order. The most
 // frequently matched patterns appear at the front, so the scan exits early for the
 // common case where a hot pattern is matched.
+//
+// Because every entry added via Process failed IsMatch against all entries present
+// at insertion time and IsMatch is symmetric, any two entries in the table are
+// pairwise non-matching under MatchThreshold (for MatchThreshold <= 1). Thus an
+// exact byte-for-byte match in exactIndex is guaranteed to be the unique matching
+// entry in the table, preserving exact first-match ordering while avoiding an O(N)
+// scan for warm/tail exact hits.
 type AdaptiveSampler struct {
 	entries           []samplerEntry
+	exactIndex        map[uint64]int // hashTokensIndex(tokens) -> index in entries
+	indexedCount      int            // tracks len(entries) managed via Process; -1 disables index on direct test mutations
 	config            AdaptiveSamplerConfig
 	sourceTag         func() string // resolves the log_source telemetry tag
 	now               func() time.Time
@@ -346,12 +393,31 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens BorrowedTokens) *
 	detectionOnly := s.config.DetectionOnly
 	passThrough := s.config.PassThrough
 
-	for i := range s.entries {
-		if IsMatch(s.entries[i].tokens, raw, s.config.MatchThreshold) {
+	thresh := s.config.MatchThreshold
+	n := len(s.entries)
+	hotEnd := min(n, exactIndexMinEntries)
+	for i := range hotEnd {
+		if IsMatch(s.entries[i].tokens, raw, thresh) {
 			return s.processMatchedEntry(i, msg, now, sourceTag, detectionOnly, passThrough)
 		}
 	}
-	return s.trackNewPattern(msg, tokens, now, sourceTag)
+
+	var rawHash uint64
+	var hasHash bool
+	if n >= exactIndexMinTableSize && thresh <= 1.0 && s.exactIndex != nil && n == s.indexedCount {
+		rawHash = hashTokensIndex(raw)
+		hasHash = true
+		if idx, ok := s.exactIndex[rawHash]; ok && idx >= exactIndexMinEntries && idx < n && slices.Equal(s.entries[idx].tokens, raw) {
+			return s.processMatchedEntry(idx, msg, now, sourceTag, detectionOnly, passThrough)
+		}
+	}
+
+	for i := hotEnd; i < n; i++ {
+		if IsMatch(s.entries[i].tokens, raw, thresh) {
+			return s.processMatchedEntry(i, msg, now, sourceTag, detectionOnly, passThrough)
+		}
+	}
+	return s.trackNewPattern(msg, tokens, raw, rawHash, hasHash, now, sourceTag)
 }
 
 // processMatchedEntry handles a log that matched the pattern at index i: it refills
@@ -387,8 +453,27 @@ func (s *AdaptiveSampler) processMatchedEntry(i int, msg *message.Message, now t
 	s.updateForMatchedPattern(e, msg, matchedTokens, allow, detectionOnly)
 
 	// Bubble the matched entry toward the front to maintain descending order.
+	maintainIndex := s.exactIndex != nil && len(s.entries) == s.indexedCount
 	for i > 0 && s.entries[i-1].matchCount < s.entries[i].matchCount {
 		s.entries[i-1], s.entries[i] = s.entries[i], s.entries[i-1]
+		if maintainIndex {
+			hMovedUp := s.entries[i-1].hash // moved i -> i-1
+			hMovedDown := s.entries[i].hash // moved i-1 -> i
+			if hMovedUp != hMovedDown {
+				if cur, ok := s.exactIndex[hMovedUp]; ok && cur == i {
+					s.exactIndex[hMovedUp] = i - 1
+				}
+				if cur, ok := s.exactIndex[hMovedDown]; ok && cur == i-1 {
+					s.exactIndex[hMovedDown] = i
+				}
+			} else if cur, ok := s.exactIndex[hMovedUp]; ok {
+				if cur == i {
+					s.exactIndex[hMovedUp] = i - 1
+				} else if cur == i-1 {
+					s.exactIndex[hMovedUp] = i
+				}
+			}
+		}
 		i--
 	}
 
@@ -403,21 +488,55 @@ func (s *AdaptiveSampler) processMatchedEntry(i int, msg *message.Message, now t
 
 // trackNewPattern records a never-before-seen pattern, evicting the
 // least-frequently-matched entry when the table is full, and emits the message.
-func (s *AdaptiveSampler) trackNewPattern(msg *message.Message, tokens BorrowedTokens, now time.Time, sourceTag string) *message.Message {
+func (s *AdaptiveSampler) trackNewPattern(msg *message.Message, tokens BorrowedTokens, raw []Token, rawHash uint64, hasHash bool, now time.Time, sourceTag string) *message.Message {
 	tlmAdaptiveSamplerNewPatterns.Inc(sourceTag)
+	indexValid := s.indexedCount == len(s.entries) && s.config.MatchThreshold <= 1.0
+	if !indexValid {
+		s.exactIndex = nil
+		s.indexedCount = -1
+	}
+
 	if len(s.entries) >= s.config.MaxPatterns {
 		tlmAdaptiveSamplerEvictions.Inc(sourceTag)
-		s.entries = s.entries[:len(s.entries)-1]
+		lastIdx := len(s.entries) - 1
+		if indexValid && s.exactIndex != nil {
+			evictedHash := s.entries[lastIdx].hash
+			if cur, ok := s.exactIndex[evictedHash]; ok && cur == lastIdx {
+				delete(s.exactIndex, evictedHash)
+			}
+		}
+		s.entries = s.entries[:lastIdx]
+	}
+	// Only hash when the index is live; small tables never pay for hashing.
+	indexed := indexValid && s.exactIndex != nil
+	if indexed && !hasHash {
+		rawHash = hashTokensIndex(raw)
 	}
 	// New patterns start with matchCount=1 and belong at the end of the sorted list.
 	// The entry outlives this call, so it must own the tokens.
+	newIdx := len(s.entries)
 	s.entries = append(s.entries, samplerEntry{
 		tokens:     tokens.Clone(),
+		hash:       rawHash,
 		credits:    s.config.BurstSize - 1,
 		lastSeen:   now,
 		matchCount: 1,
 		sampled:    0,
 	})
+	if indexValid {
+		s.indexedCount = len(s.entries)
+		if indexed {
+			s.exactIndex[rawHash] = newIdx
+		} else if len(s.entries) >= exactIndexMinTableSize {
+			// The table just grew large enough: build the index once.
+			s.exactIndex = make(map[uint64]int, len(s.entries))
+			for i := range s.entries {
+				h := hashTokensIndex(s.entries[i].tokens)
+				s.entries[i].hash = h
+				s.exactIndex[h] = i
+			}
+		}
+	}
 	tlmAdaptiveSamplerKept.Inc(sourceTag)
 	s.recordSmartSeverityOutcome("kept")
 	return msg

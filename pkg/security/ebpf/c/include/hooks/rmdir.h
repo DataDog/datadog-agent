@@ -109,6 +109,10 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
         syscall->state = INTERNAL;
     }
 
+    if (syscall->state == DISCARDED) {
+        return 0;
+    }
+
     if (dentry != NULL) {
         syscall->resolver.key = key;
         syscall->resolver.dentry = dentry;

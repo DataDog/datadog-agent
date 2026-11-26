@@ -184,9 +184,6 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 		GetSerialFunc: func() (string, nvml.Return) {
 			return "", nvml.ERROR_NOT_SUPPORTED
 		},
-		GetNumaNodeIdFunc: func() (int, nvml.Return) {
-			return 0, nvml.ERROR_NOT_SUPPORTED
-		},
 		GetNameFunc: func() (string, nvml.Return) {
 			if opts.isMIGChild() {
 				return DefaultGPUName + " MIG 3g.40gb", nvml.SUCCESS
@@ -217,10 +214,8 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 			if opts.isMIGChild() || !opts.migEnabled {
 				return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
 			}
-			if opts.migDeviceCount(deviceIdx) > 0 {
-				return nvml.DEVICE_MIG_ENABLE, 0, nvml.SUCCESS
-			}
-			return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
+			// MIG mode is enabled even if no MIG devices have been created yet.
+			return nvml.DEVICE_MIG_ENABLE, 0, nvml.SUCCESS
 		},
 		GetMaxMigDeviceCountFunc: func() (int, nvml.Return) {
 			if opts.isMIGChild() || !opts.migEnabled {
@@ -343,6 +338,15 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return 4, nvml.SUCCESS
+		},
+		GetGpuMaxPcieLinkGenerationFunc: func() (int, nvml.Return) {
+			if isMIGChildOrVGPUUnsupported {
+				return 0, nvml.ERROR_NOT_SUPPORTED
+			}
+			return 4, nvml.SUCCESS
+		},
+		GetBoardPartNumberFunc: func() (string, nvml.Return) {
+			return "", nvml.ERROR_NOT_SUPPORTED
 		},
 		GetCurrPcieLinkWidthFunc: func() (int, nvml.Return) {
 			if isMIGChildOrVGPUUnsupported {

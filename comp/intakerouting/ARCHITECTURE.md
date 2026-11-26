@@ -48,7 +48,7 @@ This document uses these terms with one meaning only.
 
 | Telemetry type | Status |
 |---|---|
-| Core logs agent (`agent-http-intake.logs.<site>`) | Implemented |
+| Core logs agent (`<name>.logs.<site>`, such as `agent-http-intake.logs.<site>`) | Implemented |
 | Metrics, traces, EVP | Not implemented. Refer to [Other telemetry types](#other-telemetry-types). |
 | CWS and compliance, agent telemetry, OTel, serverless | Out of scope. These are different telemetry types. |
 
@@ -210,8 +210,14 @@ The Agent always sends telemetry to an override over HTTPS.
 
 ### Pre-flight check
 
-The component sends `GET https://<host>[:port]/probe` with the API key of the route in the
-`DD-API-KEY` header. Any 2xx status passes. A redirect fails the check.
+The component sends `GET https://<host>[:port]<path>` with the API key of the route in the
+`DD-API-KEY` header. `<path>` is `intake_routing.preflight_path`, `/api/v1/validate` by default.
+Any 2xx status passes. A redirect fails the check.
+
+The API key is never in the URL. The connectivity diagnosis (`agent diagnose`) and other callers
+of `/api/v1/validate` also send it in the `DD-API-KEY` header. The forwarder health check is the
+exception: it puts the key in an `api_key` query parameter. The component does not do this,
+because proxies and access logs can record a URL.
 
 ### Default host path check
 
@@ -248,12 +254,25 @@ The component never logs API keys. It logs these events:
 
 | Event | Level |
 |---|---|
+| Intake routing is enabled, with its settings | Info |
+| Intake routing is disabled | Debug |
 | Change to an override, or back to the default endpoint | Info |
 | Failed pre-flight check, override that is not valid | Warn |
 | The Agent stops or starts to reach a default host directly | Info (Warn for a DNS failure), one time for each change |
 | First failed query of a series | Warn |
 | Next failed queries of the same series | Debug |
 | First successful query after a series of failures | Info |
+| Registration of an endpoint, or an endpoint not routed because its host is not under an official domain | Debug |
+| API key of an endpoint not ready, ready again, or changed | Debug, one time for each change |
+| Query sent; its result and when the next query is due | Debug |
+| Query not sent because no endpoint of the group is reached directly | Debug |
+| Default host still not reached directly, at each refresh | Debug |
+| Answer that leaves an endpoint where it is, with the reason | Debug |
+| Passed pre-flight check | Debug |
+| Answer entries for telemetry types that no endpoint uses | Debug |
+| Active overrides for each telemetry type, after each answer | Debug |
+| Startup grace period elapsed before the first decision of every endpoint | Debug |
+| Registration closed, component stopping | Debug |
 
 ## Wire protocol (provisional)
 
@@ -307,10 +326,14 @@ customers, and they apply only to the full Agent.
 | `intake_routing.enabled` | `false` | |
 | `intake_routing.startup_grace_period` | `1s` | 0s to 30s. A value outside this range is changed, with a warning. |
 | `intake_routing.refresh_interval` | `10m` | 1m minimum. A smaller value is changed, with a warning. |
+| `intake_routing.preflight_path` | `/api/v1/validate` | An absolute path, without a query or a fragment. An invalid path is changed to the default, with a warning. |
 
 ## Telemetry
 
-The metrics use the subsystem `intake_routing`. No tag contains a host or a key.
+The metrics use the subsystem `intake_routing`. No tag contains a host or a key. When intake
+routing is enabled, the component creates every metric with every combination of the tag values
+below at 0, at startup. Thus, the metrics show in the Agent's `/telemetry` endpoint even when no
+consumer registers an endpoint.
 
 | Metric | Type | Tags |
 |---|---|---|
@@ -341,17 +364,22 @@ registers. An endpoint is eligible when all these conditions are true:
 - The logs agent uses HTTP. Refer to [Additional endpoints and TCP](#additional-endpoints-and-tcp).
 - The endpoint is the main endpoint or one of `logs_config.additional_endpoints`. MRF and
   Observability Pipelines Worker endpoints are not eligible.
-- The host is exactly `agent-http-intake.logs.<official site>`, with or without a final dot. The
-  host can come from `site` or from an explicit setting such as `logs_dd_url`. Dedicated
-  PrivateLink host names, proxies, and custom hosts are not eligible.
+- The host is under the logs subdomain of an official site: `<name>.logs.<official site>`, with or
+  without a final dot. Examples: `agent-http-intake.logs.datadoghq.com` (the default),
+  `foobar.logs.datad0g.com`. The host can come from `site` or from an explicit setting such as
+  `logs_dd_url`. Proxies and custom hosts are not eligible.
 - SSL is on, there is no path prefix, the port is 0 or 443, and the endpoint uses the v2 API.
 
 Each eligible endpoint becomes one route with its own API key. Thus, when additional endpoints send
 to other organizations or other sites, the component routes each of them separately. Refer to
 [Routes and groups](#routes-and-groups).
 
-PrivateLink with private DNS keeps the official host name, so it is eligible. The
-[default host path check](#default-host-path-check) keeps it on its default endpoint.
+PrivateLink keeps the official host names, which private DNS resolves to the VPC endpoint, so it is
+eligible. The [default host path check](#default-host-path-check) keeps it on its default endpoint.
+
+At debug level, the logs agent logs each endpoint that it checks, and whether it is eligible. For an
+endpoint that is not eligible, the log gives the reason. When the logs agent uses TCP, it logs one
+line instead, because no endpoint is eligible.
 
 ### Additional endpoints and TCP
 
@@ -411,7 +439,8 @@ the logs agent restarts.
 
 To do an end-to-end test:
 
-1. Run a fake backend that answers the routing path, `/probe`, and `POST /api/v2/logs`.
+1. Run a fake backend that answers the routing path, `GET /api/v1/validate` (or the path in
+   `intake_routing.preflight_path`), and `POST /api/v2/logs`.
 2. Send `config.datad0g.com` and an override host such as
    `acme.agent-http-intake.logs.datad0g.com` to the fake backend (with `/etc/hosts` or a proxy).
 3. Run the Agent with `site: datad0g.com`, `logs_config.force_use_http: true`,
@@ -446,5 +475,5 @@ possible solutions:
 - **Additional endpoints over TCP**: these Agents get no routing. Refer to
   [Additional endpoints and TCP](#additional-endpoints-and-tcp).
 - **Not done**: a status section for intake routing, and inventory fields.
-- **Release note**: none while the settings are not documented. Add a `features` note when the
-  backend API is final.
+- **Release notes**: each change of behavior gets a note. The settings stay undocumented for
+  customers until the backend API is final.

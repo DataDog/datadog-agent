@@ -74,6 +74,7 @@ type pgaOverAllocationCount struct {
 //nolint:revive // TODO(DBM) Fix revive linter
 type Check struct {
 	core.CheckBase
+	*schemaWorkerState
 	config                                  *config.CheckConfig
 	db                                      *sqlx.DB
 	dbCustomQueries                         *sqlx.DB
@@ -97,6 +98,15 @@ type Check struct {
 	statementsLastRun                       time.Time
 	dbInstanceLastRun                       time.Time
 	tablespaceLastRun                       time.Time
+	schemaPayloadChunkSize                  int
+	schemasLastRun                          time.Time
+	lastSnapshotID                          int64
+	schemaQueryer                           schemaQueryer
+	schemaContainerConn                     *sqlx.Conn
+	schemaContainerID                       int64
+	schemaEmitter                           payloadEmitter
+	schemaQueryError                        error
+	schemaDetailsIncomplete                 bool
 	filePath                                string
 	sqlTraceRunsCount                       int
 	sqlSubstringLength                      int
@@ -279,6 +289,10 @@ func (c *Check) Run() error {
 		}
 	}
 
+	if err := c.collectSchemasIfDue(); err != nil {
+		allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect schemas %w", c.logPrompt, err))
+	}
+
 	if c.dbmEnabled {
 		if c.config.QuerySamples.Enabled {
 			err := c.SampleSession()
@@ -331,11 +345,20 @@ func (c *Check) Run() error {
 		c.sqlTraceRunsCount++
 		if c.sqlTraceRunsCount >= c.config.AgentSQLTrace.TracedRuns {
 			c.config.AgentSQLTrace.Enabled = false
-			_, err := c.db.Exec("BEGIN dbms_monitor.session_trace_disable; END;")
+			var err error
+			if c.db == nil {
+				err = reconnectOnConnectionLose(c)
+			}
+			if err == nil {
+				err = execWithDeadline(c, c.db, "BEGIN dbms_monitor.session_trace_disable; END;")
+				err = handleError(c, &c.db, err)
+			}
 			if err != nil {
 				log.Errorf("%s failed to stop SQL trace: %v", c.logPrompt, err)
 			}
-			c.db.SetMaxOpenConns(MAX_OPEN_CONNECTIONS)
+			if c.db != nil {
+				c.db.SetMaxOpenConns(MAX_OPEN_CONNECTIONS)
+			}
 		}
 	}
 
@@ -361,14 +384,17 @@ func assertBool(val bool) bool {
 
 // Teardown cleans up resources used throughout the check.
 func (c *Check) Teardown() {
+	c.stopSchemaWorker(false)
 	log.Infof("%s Teardown", c.logPrompt)
-	closeDatabase(c, c.db)
-	closeDatabase(c, c.dbCustomQueries)
-	c.dbCustomQueries = nil
+	disposePool(c, &c.db)
+	disposePool(c, &c.dbCustomQueries)
 }
 
 // Configure configures the Oracle check.
 func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string, provider string) error {
+	if c.schemaWorkerState == nil {
+		c.schemaWorkerState = &schemaWorkerState{}
+	}
 	var err error
 	c.config, err = config.NewCheckConfig(rawInstance, rawInitConfig)
 	if err != nil {
@@ -436,7 +462,7 @@ func Factory() option.Option[func() check.Check] {
 }
 
 func newCheck() check.Check {
-	return &Check{CheckBase: core.NewCheckBaseWithInterval(common.IntegrationNameScheduler, 10*time.Second)}
+	return &Check{CheckBase: core.NewCheckBaseWithInterval(common.IntegrationNameScheduler, 10*time.Second), schemaWorkerState: &schemaWorkerState{}}
 }
 
 //nolint:revive // TODO(DBM) Fix revive linter

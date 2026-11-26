@@ -2,8 +2,9 @@ import { useMemo, useRef, useEffect, useState } from 'react';
 import { CorrelatorSection } from './CorrelatorSection';
 import { AnomalySwimlane } from './AnomalySwimlane';
 import { CompressedGroupCard } from './CompressedGroupCard';
+import { ScenarioSelector } from './ScenarioSelector';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
-import type { ScenarioInfo, Correlation } from '../api/client';
+import type { Correlation } from '../api/client';
 import type { TimeRange, PhaseMarker } from './ChartWithAnomalyDetails';
 import { MAIN_TAG_FILTER_KEYS } from '../constants';
 import { parseTagFilter, extractTagGroups, toggleTagInInput, matchesTagFilter } from '../filters';
@@ -81,7 +82,7 @@ export function CorrelatorView({ state, actions, sidebarWidth, timeRange, phaseM
         style={{ width: sidebarWidth }}
       >
         {/* Scenarios */}
-        <ScenarioSelector
+        <ScenarioSelector busy={state.connectionState === 'loading'}
           scenarios={scenarios}
           activeScenario={state.activeScenario}
           onLoadScenario={actions.loadScenario}
@@ -247,51 +248,6 @@ export function CorrelatorView({ state, actions, sidebarWidth, timeRange, phaseM
   );
 }
 
-function ScenarioSelector({
-  scenarios,
-  activeScenario,
-  onLoadScenario,
-}: {
-  scenarios: ScenarioInfo[];
-  activeScenario: string | null;
-  onLoadScenario: (name: string) => Promise<void>;
-}) {
-  return (
-    <div className="p-4 border-b border-slate-700">
-      <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-        Scenarios
-      </h2>
-      <div className="space-y-1">
-        {scenarios.length === 0 ? (
-          <div className="text-sm text-slate-500">No scenarios found</div>
-        ) : (
-          scenarios.map((scenario) => (
-            <button
-              key={scenario.name}
-              onClick={() => onLoadScenario(scenario.name)}
-              className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                activeScenario === scenario.name
-                  ? 'bg-purple-600 text-white'
-                  : 'text-slate-300 hover:bg-slate-700'
-              }`}
-            >
-              <div className="font-medium">{scenario.name}</div>
-              <div className="text-xs text-slate-400 mt-0.5">
-                {[
-                  scenario.hasParquet && 'parquet',
-                  scenario.hasLogs && 'logs',
-                  scenario.hasEvents && 'events',
-                ]
-                  .filter(Boolean)
-                  .join(', ') || 'empty'}
-              </div>
-            </button>
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
 
 function StatsLabel({ stats }: { stats: Record<string, unknown> }) {
   // Show the most interesting stat as a label

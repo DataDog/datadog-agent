@@ -62,7 +62,7 @@ type ScanWelchDetector struct {
 	// scanBuf is shared by this single-writer detector instead of being retained
 	// once per live series and aggregation.
 	scanBuf   []observer.Point
-	workspace scanDetectorWorkspace
+	workspace stableDetectorWorkspace
 
 	// Cache the discovered series list across Detect calls.
 	cachedRefs []observer.SeriesRef
@@ -97,6 +97,14 @@ func NewScanWelchDetector(cfg ScanWelchConfig) *ScanWelchDetector {
 	if cfg.MaxPoints < cfg.MinPoints {
 		logging.Warnf("ScanWelch max_points=%d is below min_points=%d; using %d", cfg.MaxPoints, cfg.MinPoints, cfg.MinPoints)
 		cfg.MaxPoints = cfg.MinPoints
+	}
+	if cfg.MinSegment > cfg.MaxPoints/2 {
+		fallback := defaults.MinSegment
+		if fallback > cfg.MaxPoints/2 {
+			fallback = max(1, cfg.MaxPoints/2)
+		}
+		logging.Warnf("ScanWelch min_segment=%d exceeds half of max_points=%d; using %d", cfg.MinSegment, cfg.MaxPoints, fallback)
+		cfg.MinSegment = fallback
 	}
 	if cfg.MinTStatistic <= 0 {
 		cfg.MinTStatistic = defaults.MinTStatistic
@@ -239,7 +247,7 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 	// A valid split requires MinSegment points on each side. MinPoints is
 	// independently configurable, so a newly activated series may legitimately
 	// reach this method before a candidate split exists.
-	if n < 2*minSeg {
+	if minSeg <= 0 || minSeg > n/2 {
 		return observer.Anomaly{}, 0, false
 	}
 

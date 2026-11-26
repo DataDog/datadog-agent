@@ -63,24 +63,24 @@
 .agent_variables: &agent_variables
   IMAGE_NAME: datadog-agent
   TMPL_SRC_REPO: ci/datadog-agent/agent
-  IMAGE_VERSION: tmpl-v30
+  IMAGE_VERSION: tmpl-v31
 
 .cluster_agent_variables: &cluster_agent_variables
   IMAGE_NAME: datadog-cluster-agent
   TMPL_SRC_REPO: ci/datadog-agent/cluster-agent
   RELEASE_PROD: "true"
-  IMAGE_VERSION: tmpl-v13
+  IMAGE_VERSION: tmpl-v14
 
 .ot_standalone_variables: &ot_standalone_variables
   IMAGE_NAME: otel-agent
   TMPL_SRC_REPO: ci/datadog-agent/otel-agent
-  IMAGE_VERSION: tmpl-v8
+  IMAGE_VERSION: tmpl-v9
 
 .host_profiler_standalone_variables: &host_profiler_standalone_variables
   IMAGE_NAME: ddot-ebpf
   TMPL_SRC_REPO: ci/datadog-agent/ddot-ebpf
   RELEASE_PROD_OVERRIDE: "true"
-  IMAGE_VERSION: tmpl-v2
+  IMAGE_VERSION: tmpl-v3
 
 # -- publish jobs --
 publish_internal_container_image-jmx:

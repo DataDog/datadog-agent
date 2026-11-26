@@ -183,7 +183,7 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 
 	// OCI path: Run MSI to uninstall
 	if !ctx.Upgrade {
-		return removeAgentIfInstalledAndRestartOnFailure(ctx)
+		return removeAgentIfInstalledAndRestartOnFailure(ctx, ctx.WindowsArgs...)
 	}
 	return nil
 }
@@ -233,6 +233,8 @@ func ensureProcmgrConfig(cfg procmgrConfig) error {
 	return nil
 }
 
+var checkAgentFlavorForExperiment = msi.CheckAgentFlavor
+
 // preStartExperimentDatadogAgent checks prerequisites before starting the experiment
 //
 // These checks are intended to prevent entering a state where we are unable to reinstall stable
@@ -243,6 +245,12 @@ func ensureProcmgrConfig(cfg procmgrConfig) error {
 // otherwise unecessarily try to uninstall and then reinstall the stable Agent.
 func preStartExperimentDatadogAgent(_ HookContext) error {
 	env := getenv()
+	// Reject a cross-flavor update before the experiment is recorded or any services
+	// are stopped. The downloader selects the experiment flavor using FIPSMode.
+	// A FIPS installation may otherwise be upgraded with a standard Agent package.
+	if err := checkAgentFlavorForExperiment(env.FIPSMode); err != nil {
+		return fmt.Errorf("cannot start remote update: %w", err)
+	}
 	err := windowsuser.ValidateAgentUserRemoteUpdatePrerequisites(env.MsiParams.AgentUserName)
 	if err != nil {
 		return fmt.Errorf("cannot start remote update: %w", err)
@@ -587,7 +595,7 @@ func argsHaveProperty(args []string, property string) bool {
 	return false
 }
 
-func removeProductIfInstalled(ctx context.Context, product string) (err error) {
+func removeProductIfInstalled(ctx context.Context, product string, windowsArgs ...string) (err error) {
 	if msi.IsProductInstalled(product) {
 		span, ctx := telemetry.StartSpanFromContext(ctx, "remove_agent")
 		defer func() {
@@ -600,6 +608,7 @@ func removeProductIfInstalled(ctx context.Context, product string) (err error) {
 		}()
 		err := msi.RemoveProduct(ctx, product,
 			msi.WithProperties(map[string]string{"FLEET_INSTALL": "1"}),
+			msi.WithAdditionalArgs(windowsArgs),
 		)
 		if err != nil {
 			return err
@@ -610,7 +619,7 @@ func removeProductIfInstalled(ctx context.Context, product string) (err error) {
 	return nil
 }
 
-func removeAgentIfInstalled(ctx context.Context) (err error) {
+func removeAgentIfInstalled(ctx context.Context, windowsArgs ...string) (err error) {
 	// Stop all Datadog Agent services before trying to remove the Agent
 	// This helps reduce the chance that we run into the InstallValidate
 	// delay issue from msi.dll.
@@ -618,11 +627,11 @@ func removeAgentIfInstalled(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to stop all Agent services: %w", err)
 	}
-	return removeProductIfInstalled(ctx, msi.AgentProductName(getenv().FIPSMode))
+	return removeProductIfInstalled(ctx, msi.AgentProductName(getenv().FIPSMode), windowsArgs...)
 }
 
-func removeAgentIfInstalledAndRestartOnFailure(ctx context.Context) (err error) {
-	err = removeAgentIfInstalled(ctx)
+func removeAgentIfInstalledAndRestartOnFailure(ctx context.Context, windowsArgs ...string) (err error) {
+	err = removeAgentIfInstalled(ctx, windowsArgs...)
 	if err != nil {
 		// failed to remove existing Agent, try to restart it if we can.
 		// If MSI failed it should rollback to a working state.

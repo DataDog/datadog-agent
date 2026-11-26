@@ -69,6 +69,7 @@ type Probe struct {
 	links                 []link.Link
 	mapBuffers            entryCountBuffers
 	entryCountMaxRestarts int
+	programs              programAggregator
 
 	mphCache *mapProgHelperCache
 
@@ -80,7 +81,7 @@ type Probe struct {
 }
 
 // NewProbe creates a [Probe]
-func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
+func NewProbe(_ *ddebpf.Config) (*Probe, error) {
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("kernel version: %s", err)
@@ -90,11 +91,7 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 	}
 
 	var probe *Probe
-	filename := "ebpf.o"
-	if cfg.BPFDebug {
-		filename = "ebpf-debug.o"
-	}
-	err = ddebpf.LoadCOREAsset(filename, func(buf bytecode.AssetReader, opts manager.Options) error {
+	err = ddebpf.LoadCOREAsset("ebpf.o", func(buf bytecode.AssetReader, opts manager.Options) error {
 		var err error
 		probe, err = startEBPFCheck(buf, opts)
 		return err
@@ -193,7 +190,7 @@ func startEBPFCheck(buf bytecode.AssetReader, opts manager.Options) (*Probe, err
 		}
 	}
 
-	p := Probe{nrcpus: nrcpus}
+	p := Probe{nrcpus: nrcpus, programs: newProgramAggregator()}
 	p.coll, err = ebpf.NewCollectionWithOptions(collSpec, opts.VerifierOptions)
 	if err != nil {
 		var ve *ebpf.VerifierError
@@ -386,15 +383,12 @@ func (k *Probe) getProgramStats(stats *model.EBPFStats, uniquePrograms map[progr
 		ps, err := k.readSingleProgram(progid)
 		if err != nil {
 			log.Debug(err)
+			k.programs.keep(progid)
 			continue
 		}
-		key := progKey(ps)
-		if _, ok := uniquePrograms[key]; ok {
-			continue
-		}
-		uniquePrograms[key] = progid
-		stats.Programs = append(stats.Programs, *ps)
+		k.programs.add(stats, uniquePrograms, ps)
 	}
+	k.programs.flush(stats, uniquePrograms)
 
 	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef("found %d programs", len(stats.Programs))

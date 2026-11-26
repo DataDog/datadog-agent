@@ -24,6 +24,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
@@ -73,6 +75,9 @@ const (
 	intakeMaxWaitTime    = 2 * time.Minute
 	intakeUnusedWaitTime = 20 * time.Second
 	intakeTick           = 5 * time.Second
+
+	// traceGeneratorImage is the local tag of the apps-tracegen image pulled at provisioning time
+	traceGeneratorImage = "apps-tracegen:e2e"
 )
 
 // templateVars is used to template the configs
@@ -88,10 +93,6 @@ var customLogsConfigTmplFile string
 //go:embed forwarder/testfixtures/config.yaml.tmpl
 var configTmplFile string
 
-func pullTraceGeneratorImage(h *components.RemoteHost) {
-	h.MustExecute("docker pull ghcr.io/datadog/apps-tracegen:" + apps.Version)
-}
-
 func runUDSTraceGenerator(h *components.RemoteHost, service string, addSpanTags string) func() {
 	rm := "docker rm -f " + service
 	h.MustExecute(rm) // kill any existing leftover container
@@ -102,7 +103,7 @@ func runUDSTraceGenerator(h *components.RemoteHost, service string, addSpanTags 
 		" -e DD_SERVICE=" + service +
 		" -e DD_GIT_COMMIT_SHA=abcd1234 " +
 		" -e TRACEGEN_ADDSPANTAGS=" + addSpanTags +
-		" ghcr.io/datadog/apps-tracegen:" + apps.Version
+		" " + traceGeneratorImage
 	h.MustExecute(run)
 
 	return func() { h.MustExecute(rm) }
@@ -127,13 +128,13 @@ func multiFakeIntakeAWS(agentOptions ...agentparams.Option) provisioners.Provisi
 		}
 		agent.Export(ctx, &env.Agent.HostAgentOutput)
 
-		fakeIntake1, err := fakeintake.NewECSFargateInstance(awsEnv, fakeintake1Name)
+		fakeIntake1, err := fakeintake.NewECSFargateInstance(awsEnv, fakeintake1Name, fakeintake.WithTaskFamilyName("fakeintake-"+fakeintake1Name+"-ecs"))
 		if err != nil {
 			return err
 		}
 		fakeIntake1.Export(ctx, &env.Fakeintake1.FakeintakeOutput)
 
-		fakeIntake2, err := fakeintake.NewECSFargateInstance(awsEnv, fakeintake2Name)
+		fakeIntake2, err := fakeintake.NewECSFargateInstance(awsEnv, fakeintake2Name, fakeintake.WithTaskFamilyName("fakeintake-"+fakeintake2Name+"-ecs"))
 		if err != nil {
 			return err
 		}
@@ -146,6 +147,20 @@ func multiFakeIntakeAWS(agentOptions ...agentparams.Option) provisioners.Provisi
 		}
 		// export the docker manager configuration to the environment, this will automatically initialize the docker client
 		err = dockerManager.Export(ctx, &env.Docker.ManagerOutput)
+		if err != nil {
+			return err
+		}
+
+		// pull the tracegen image from the internal registry (ghcr.io when there is none) once ECR auth
+		// is set up, and retag it so that the test doesn't need to resolve the registry
+		tracegenImage := apps.Image(&awsEnv, "apps-tracegen")
+		_, err = host.OS.Runner().Command(
+			awsEnv.CommonNamer().ResourceName("pull-tracegen"),
+			&command.Args{
+				Create: pulumi.Sprintf("docker pull %s && docker tag %s %s", tracegenImage, tracegenImage, traceGeneratorImage),
+			},
+			utils.PulumiDependsOn(dockerManager),
+		)
 		if err != nil {
 			return err
 		}
@@ -230,9 +245,6 @@ func (v *multiFakeIntakeSuite) TestNSSFailover() {
 
 	customLogsConfig, err := readTmplConfig(customLogsConfigTmplFile)
 	v.NoError(err)
-
-	// pull tracegen docker image
-	pullTraceGeneratorImage(v.Env().Host)
 
 	// ensure host uses files for NSS
 	enforceNSSwitchFiles(v.T(), v.Env().Host)

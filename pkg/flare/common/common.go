@@ -11,17 +11,18 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
-	"io"
 	"net"
-	"net/http"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"go.yaml.in/yaml/v3"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -102,8 +103,10 @@ func GetDefaultLogFiles(fb flaretypes.FlareBuilder, logFileDir string) {
 	})
 }
 
-// GetExpVar copies expvar files to the flare archive.
-func GetExpVar(_ context.Context, fb flaretypes.FlareBuilder) error {
+// GetExpVar copies expvar files to the flare archive, including the trace-agent's
+// /debug/vars, fetched over TLS with the IPC client. No auth token is sent: the
+// endpoint is not authenticated.
+func GetExpVar(_ context.Context, fb flaretypes.FlareBuilder, client ipc.HTTPClient) error {
 	variables := make(map[string]interface{})
 	expvar.Do(func(kv expvar.KeyValue) {
 		variable := make(map[string]interface{})
@@ -130,21 +133,15 @@ func GetExpVar(_ context.Context, fb flaretypes.FlareBuilder) error {
 	apmDebugPort := cfg.GetInt("apm_config.debug.port")
 	f := filepath.Join("expvar", "trace-agent")
 	addr := net.JoinHostPort(pkgconfighelper.APMDebugHost(cfg), strconv.Itoa(apmDebugPort))
-	resp, err := http.Get("https://" + addr + "/debug/vars")
+	timeout := time.Duration(cfg.GetInt("server_timeout")) * time.Second
+	body, err := client.Get("https://"+addr+"/debug/vars",
+		ipchttp.WithCloseConnection, ipchttp.WithTimeout(timeout), ipchttp.WithoutAuthToken)
 	if err != nil {
 		return fb.AddFile(f, []byte(fmt.Sprintf("Error retrieving vars: %v", err)))
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		slurp, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return err
-		}
-		return fb.AddFile(f, []byte(fmt.Sprintf("Got response %s from /debug/vars:\n%s", resp.Status, slurp)))
-	}
 	var all map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&all); err != nil {
-		return fmt.Errorf("error decoding trace-agent /debug/vars response: %v", err)
+	if err := json.Unmarshal(body, &all); err != nil {
+		return fb.AddFile(f, []byte(fmt.Sprintf("Error decoding trace-agent /debug/vars response: %v\n%s", err, body)))
 	}
 	v, err := yaml.Marshal(all)
 	if err != nil {

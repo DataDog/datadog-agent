@@ -56,7 +56,7 @@ func (s *testAgentScriptInstallsDotnetLibrary) TestInstallFromScript() {
 		WithExtraEnvVars(map[string]string{
 			"DD_APM_INSTRUMENTATION_ENABLED": "iis",
 			// TODO: remove override once image is published in prod
-			"DD_INSTALLER_REGISTRY_URL":        "install.datad0g.com.internal.dda-testing.com",
+			"DD_INSTALLER_REGISTRY_URL":        "install.datad0g.com",
 			"DD_APM_INSTRUMENTATION_LIBRARIES": "dotnet:" + version.Version(),
 		}),
 	)

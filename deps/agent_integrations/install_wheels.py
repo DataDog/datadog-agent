@@ -3,11 +3,35 @@
 
 import argparse
 import shutil
-from pathlib import Path
+import zipfile
+from pathlib import Path, PurePosixPath
 
 from installer import install
 from installer.destinations import SchemeDictionaryDestination
 from installer.sources import WheelFile
+
+
+def is_site_packages_test_file(path: str, data_dir: str, scheme: dict[str, str], site_packages: Path) -> bool:
+    parts = PurePosixPath(path).parts
+    if parts[0] == data_dir:
+        destination = Path(scheme[parts[1]], *parts[2:])
+    else:
+        destination = site_packages.joinpath(*parts)
+    if not destination.is_relative_to(site_packages):
+        return False
+    return "tests" in destination.relative_to(site_packages).parts[:-1]
+
+
+class SkipTestsWheelFile(WheelFile):
+    def __init__(self, f: zipfile.ZipFile, scheme: dict[str, str], site_packages: Path) -> None:
+        super().__init__(f)
+        self._scheme = scheme
+        self._site_packages = site_packages
+
+    def get_contents(self):
+        for record, stream, is_executable in super().get_contents():
+            if not is_site_packages_test_file(record[0], self.data_dir, self._scheme, self._site_packages):
+                yield record, stream, is_executable
 
 
 def parse_args() -> argparse.Namespace:
@@ -78,7 +102,8 @@ def main():
     )
 
     for wheel in expand_wheels(args.wheels):
-        with WheelFile.open(wheel) as source:
+        with zipfile.ZipFile(wheel) as f:
+            source = SkipTestsWheelFile(f, scheme, site_packages)
             install(
                 source=source,
                 destination=destination,

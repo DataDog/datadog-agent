@@ -27,7 +27,10 @@ go_library(
 
 dd_agent_go_test(
     name = "tailers_test",
-    srcs = ["tailer_test.go"],
+    srcs = [
+        "source_test.go",
+        "tailer_test.go",
+    ],
     embed = [":tailers"],
     gotags_sets = [[
         "cel",
@@ -38,6 +41,8 @@ dd_agent_go_test(
     ]],
     include_default = False,
     deps = [
+        "//comp/logs/agent/config",
+        "//pkg/logs/sources",
         "//pkg/logs/tailers/container",
         "@com_github_stretchr_testify//require",
         "@org_uber_go_atomic//:atomic",

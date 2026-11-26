@@ -45,12 +45,12 @@ and the testbench use the same engine.
 | `impl/component_catalog.go` | Registry of all detectors, correlators, extractors |
 | `impl/agent_logs.go` | Agent internal log tap (source: `agent_logs`) |
 | `impl/log_pattern_extractor.go` | Log → virtual metrics via pattern clustering |
-| `impl/log_metrics_extractor.go` | Log → virtual metrics: a count per log signature (`log.pattern.<hash>.count`), plus JSON numeric fields |
+| `impl/log_metrics_extractor.go` | Log → virtual metrics: bounded fuzzy pattern counts (`log.pattern.<id>.count`) at 0.6, plus JSON numeric fields |
 | `impl/anomaly_correlator_time_cluster.go` | Time-proximity correlator |
 | `impl/anomaly_scorer.go` | Unified EWMA anomaly scorer (Correlator + standalone replay); derives severity, delegates push subscriptions to `severityevents/impl.Dispatcher` |
 | `impl/correlation_emitter.go` | Shared first-seen/recurrence helper used by all non-scorer correlators |
 | `impl/patterns/` | Tokenizer + clusterer used by log pattern extractor |
-| `impl/logsignature/` | Log signatures (via `pkg/logs/tokenizer`) used by log metrics extractor |
+| `impl/logsignature/` | Bounded group/pattern cache using the shared Logs tokenizer and matcher |
 
 ### Component catalog (defaults)
 
@@ -90,6 +90,15 @@ name through engine cleanup. The internal per-group and tag-group safeguards
 still apply. This setting does not limit `log_metrics_extractor` outputs; the
 shared storage series budget remains separate.
 
+`anomaly_detection.detectors.log_metrics_extractor` separately configures the
+shared-tokenizer cache. Structural matching uses `min_token_match_ratio`
+(default 0.6) within each source/service/env/host group. Internal limits are 3,000
+patterns globally, 1,024 per group and 256 groups. Patterns expire on the next
+ingested log after four hours of data-time inactivity. Evictions clear the
+associated storage, detector and bucketizer state.
+The log metrics extractor's pattern-count gauge is separate from the log pattern
+extractor's gauge. Both extractors remain enabled by default.
+
 
 The `anomaly_scorer` correlator has a **dedicated config namespace** under `anomaly_detection.anomaly_scorer.*` (not `detectors.*`) with an `output` sub-section controlling logs and correlation events:
 
@@ -99,6 +108,8 @@ anomaly_detection:
     enabled: true
     alpha: 0.3
     window: 30s
+    anomaly_reordering_window: 0s
+    late_anomaly_behavior: clamp # or ignore
     low_threshold: 0.030
     high_threshold: 0.060
     output:
@@ -107,6 +118,22 @@ anomaly_detection:
       correlation_event_threshold: high # medium or high
       cooldown: 300s
 ```
+
+`window` controls how long an anomaly contributes evidence (default `15s`).
+`anomaly_reordering_window` controls how far back the scorer can place a
+late arrival at its original timestamp. It accepts whole seconds from `0s`
+through `1h`; invalid values use `0s`. At advance `T` with replay enabled, the
+oldest replayable second is `T - anomaly_reordering_window + 1s`. For late arrivals
+older than that, `late_anomaly_behavior: ignore` drops the evidence and `clamp`
+scores it at that oldest second. With the default `0s`, replay is disabled and
+`clamp` scores late arrivals at the next unscored second. Inputs whose second
+has not been scored yet keep their original scoring time.
+The scorer uses the same per-second calculation for forward scoring and replay.
+When reordering is enabled, the Agent publishes
+`datadog.agent.observer.scorer.ewma_finalized` as `EWMA(T - anomaly_reordering_window)`.
+This value is outside the replayable range, so later evidence cannot revise it; the
+displayed signal is delayed by the reordering window in scorer data time. The metric
+is absent with reordering disabled and during warm-up before that checkpoint exists.
 
 The scorer is also available standalone (without the engine) via `NewAnomalyScorer` in `impl/`.
 Observer replay enables the scorer's internal transition watcher so configured
@@ -122,7 +149,14 @@ The scorer does not own subscription state itself. Each `anomalyScorer` owns a
 plain slice of `severityeventsimpl.Dispatcher` instances (see
 `../AGENTS.md#severity-events-scorer-push-contract` and `../severityevents/`);
 on every `Advance` tick the scorer derives the raw severity level from its
-EWMA and feeds it to every dispatcher via `dispatcher.Advance(sec, level)`.
+EWMA and sends the result to each dispatcher. A distinct Medium or High
+discovered during replay triggers at the current tick even if it has already
+ended. A catch-up preserves an ordinary forward entry only if it still belongs
+to a corrected period of the same severity that starts during that catch-up.
+A distinct period, whether on time or late, renews an existing hold of the
+same severity without producing another transition. Revisions that overlap an
+already recognized period do not renew the hold. High takes priority over
+Medium.
 Each dispatcher binds exactly one listener plus one fixed cooldown/filter state
 machine. `anomalyScorer.SubscribeSeverityEvents` and
 `observerImpl.SubscribeSeverityEvents` are thin wrappers: each call creates one
@@ -229,10 +263,13 @@ After reactivation to a supported kind, only anomalies after the cutoff are
 emitted; suppressed candidates are not retained. Direct `UNSET` assignments are
 not gated. Engine resets clear kinds, and series eviction clears pipeline state.
 
-The stable registration runs a `StablePipeline`: ScanMW plus a relative-change
+The stable registration runs a `StablePipeline` plus a relative-change
 gate (`anomaly_detection.metric_pipeline.stable.min_relative_change`, default
-5%, `0` disables it). The gate mutes candidates whose medians differ by less
-than the threshold without touching ScanMW state. `detections.gated` counts
+5%, `0` disables it). Select the detector with `stable.scanmw` (default),
+`stable.scanwelch`, or `stable.bocpd`; at most one block is allowed, and empty
+blocks use that detector's defaults. Stable BOCPD derives pre/post medians from
+retained history at alert onset. The gate mutes candidates whose medians differ
+by less than the threshold without touching detector state. `detections.gated` counts
 these mutes; kind emission counters stay downstream of dedup.
 Accepted anomalies are scored from relative change (≤6%, ≤10%, ≤20%, ≤50%
 bands) and gain one level when detector confidence is High or XHigh.

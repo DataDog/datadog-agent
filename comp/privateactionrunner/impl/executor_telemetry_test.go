@@ -11,7 +11,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"net"
 	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -199,4 +203,56 @@ func (telemetryTestKeysManager) Start(context.Context) {}
 func (telemetryTestKeysManager) WaitForReady()         {}
 func (telemetryTestKeysManager) GetKey(string) (types.DecodedKey, *types.DirectorKeyProof) {
 	return nil, nil
+}
+
+func TestTelemetryKeepsMainAgentBackend(t *testing.T) {
+	received := make(chan [2]string, 1)
+	intake := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received <- [2]string{r.Host, r.Header.Get("DD-API-KEY")}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer intake.Close()
+	// Tunnel telemetry to a local intake without changing its requested hostname.
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !assert.Equal(t, http.MethodConnect, r.Method) {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		upstream, err := net.DialTimeout("tcp", intake.Listener.Addr().String(), time.Second)
+		if !assert.NoError(t, err) {
+			w.WriteHeader(http.StatusBadGateway)
+			return
+		}
+		defer upstream.Close()
+		conn, _, err := w.(http.Hijacker).Hijack()
+		if !assert.NoError(t, err) {
+			return
+		}
+		defer conn.Close()
+		_, err = fmt.Fprint(conn, "HTTP/1.1 200 Connection Established\r\n\r\n")
+		if !assert.NoError(t, err) {
+			return
+		}
+		go func() { _, _ = io.Copy(upstream, conn) }()
+		_, _ = io.Copy(conn, upstream)
+	}))
+	defer proxy.Close()
+	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+		"api_key": "agent-key", "site": "datadoghq.eu",
+		"private_action_runner.api_key": "par-key", "private_action_runner.site": "datadoghq.com",
+		"skip_ssl_validation": true,
+		"proxy.https":         proxy.URL,
+		"proxy.no_proxy":      []string{},
+	})
+	runner := &PrivateActionRunner{coreConfig: cfg}
+	runner.startTelemetry()
+	span, _ := telemetry.StartSpanFromUint64IDs(telemetry.WithService(context.Background(), observability.ParService), "test", 42, 0)
+	span.Finish(nil)
+	runner.stopTelemetry()
+	select {
+	case got := <-received:
+		require.Equal(t, [2]string{"instrumentation-telemetry-intake.datadoghq.eu", "agent-key"}, got)
+	default:
+		t.Fatal("telemetry did not reach the main Agent intake")
+	}
 }

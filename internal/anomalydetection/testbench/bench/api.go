@@ -1214,6 +1214,8 @@ type scorerReport struct {
 }
 
 type scorerInputResponse struct {
+	ArrivalSecond     int64    `json:"arrivalSecond,omitempty"`
+	LateAction        string   `json:"lateAction,omitempty"`
 	ScoringSecond     int64    `json:"scoringSecond"`
 	IsLog             bool     `json:"isLog,omitempty"`
 	Source            string   `json:"source"`
@@ -1227,14 +1229,46 @@ type scorerInputResponse struct {
 	Timestamp         int64    `json:"timestamp"`
 }
 
+// scorerDelayStats summarises a set of non-negative delays in seconds.
+type scorerDelayStats struct {
+	Count      int   `json:"count"`
+	LateCount  int   `json:"late_count"`
+	MinSecs    int64 `json:"min_secs"`
+	MedianSecs int64 `json:"median_secs"`
+	MaxSecs    int64 `json:"max_secs"`
+}
+
 type scorerScoreResponse struct {
 	observerdef.AnomalyScoreState
-	Available    bool                              `json:"available"`
-	CooldownSecs int64                             `json:"cooldown_secs"`
-	Events       []severityeventsdef.SeverityEvent `json:"events"`
-	Reports      []scorerReport                    `json:"reports"`
-	Inputs       []scorerInputResponse             `json:"inputs,omitempty"`
+	Available          bool                              `json:"available"`
+	CooldownSecs       int64                             `json:"cooldown_secs"`
+	Events             []severityeventsdef.SeverityEvent `json:"events"`
+	Reports            []scorerReport                    `json:"reports"`
+	Inputs             []scorerInputResponse             `json:"inputs,omitempty"`
+	Mode               string                            `json:"mode,omitempty"`
+	ReorderWindowSecs  int64                             `json:"reorder_window_secs,omitempty"`
+	HistoryAvailable   bool                              `json:"history_available,omitempty"`
+	InputDelay         *scorerDelayStats                 `json:"input_delay,omitempty"`
+	HighCrossingDelay  *scorerDelayStats                 `json:"high_crossing_delay,omitempty"`
+	OutsideWindowCount int                               `json:"outside_window_count"`
 }
+
+// replayRequest is the POST body for /api/scores/replay.
+type replayRequest struct {
+	observerdef.AnomalyScorerConfig
+	CooldownSecs int64  `json:"cooldown_secs"`
+	Mode         string `json:"mode,omitempty"`
+}
+
+// Scorer replay modes: reordered replays the arrival trace with reordering,
+// detection replays it without reordering, and change-point sorts by
+// change-point timestamp (the retrospective ideal).
+const (
+	scorerReplayReordered      = "reordered"
+	scorerReplayDetection      = "detection"
+	scorerReplayChangePoint    = "change-point"
+	testbenchReorderWindowSecs = 600
+)
 
 // handleScores returns the scorer history captured during the original replay.
 // GET /api/scores
@@ -1321,26 +1355,16 @@ func (api *BenchAPI) handleScoresConfig(w http.ResponseWriter, r *http.Request) 
 // using a config provided in the POST body. This lets the UI inspect scorer
 // output without re-running detectors.
 //
-// The testbench simulates the live agent's 1-second timer: anomalies are sorted
-// by timestamp and fed second-by-second, with Advance called once per unique
-// second (and for any empty seconds in between).
-//
-// POST /api/scores/replay   body: { AnomalyScorerConfig fields... , "cooldown": N }
+// POST /api/scores/replay   body: { ..., "cooldown": N, "mode": "reordered" }
 func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		api.writeError(w, http.StatusMethodNotAllowed, "use POST")
 		return
 	}
 
-	// replayRequest embeds the EWMA config fields at the top level and adds
-	// CooldownSecs for the subscription, preserving the flat JSON wire format
-	// the UI sends.
-	type replayRequest struct {
-		observerdef.AnomalyScorerConfig
-		CooldownSecs int64 `json:"cooldown_secs"`
-	}
 	defaults := observerimpl.DefaultAnomalyScorerConfig()
 	req := replayRequest{AnomalyScorerConfig: defaults.AnomalyScorerConfig, CooldownSecs: defaults.CooldownSecs}
+	req.ReorderingWindowSecs = testbenchReorderWindowSecs
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		api.writeError(w, http.StatusBadRequest, "invalid config: "+err.Error())
 		return
@@ -1348,6 +1372,14 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 	// Replay always keeps all buckets so the UI can render the full time range.
 	// math.MaxInt64 signals "unlimited" to the trim logic (which defaults to WindowSecs when 0).
 	req.AnomalyScorerConfig.MaxBuckets = math.MaxInt64
+	mode := req.Mode
+	if mode != scorerReplayReordered && mode != scorerReplayDetection {
+		mode = scorerReplayChangePoint
+	}
+	if mode != scorerReplayReordered {
+		req.ReorderingWindowSecs = 0
+		req.LateAnomalyBehavior = "clamp"
+	}
 
 	sv := api.tb.getStateView()
 	if sv == nil {
@@ -1372,24 +1404,29 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 			AnomalyScoreState: observerdef.AnomalyScoreState{Config: req.AnomalyScorerConfig},
 			Available:         true,
 			CooldownSecs:      req.CooldownSecs,
+			Mode:              mode,
 		})
 		return
 	}
 
-	// Sort anomalies by timestamp so the scorer processes time monotonically.
-	//
-	// Known limitation: scan detectors (scanmw, scanwelch) emit changepoint timestamps
-	// that are historically earlier than the engine tick at which the anomaly was
-	// produced. In the live agent, ProcessAnomaly clamps such anomalies to
-	// lastAdvancedSec+1 via the engine detection tick. Faithfully replicating that
-	// requires storing the engine arrival time alongside the anomaly timestamp, which
-	// Anomaly.Timestamp does not currently encode. Sorting by Timestamp places scan
-	// anomalies at their changepoint second rather than their detection second; this
-	// is a known approximation in the Scorer tab for scan-detector scenarios.
-	sorted := make([]observerdef.Anomaly, len(anomalies))
-	copy(sorted, anomalies)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].Timestamp < sorted[j].Timestamp
+	if mode != scorerReplayChangePoint {
+		history := sv.ScorerHistory()
+		if !history.Available || len(history.Advances) == 0 {
+			api.writeJSON(w, scorerScoreResponse{
+				AnomalyScoreState: observerdef.AnomalyScoreState{Config: req.AnomalyScorerConfig},
+				Available:         false,
+				CooldownSecs:      req.CooldownSecs,
+				Mode:              mode,
+			})
+			return
+		}
+		api.writeJSON(w, api.replayScoresFromArrivals(req, history, mode))
+		return
+	}
+
+	// Change-point replay ignores arrival order.
+	sort.Slice(anomalies, func(i, j int) bool {
+		return anomalies[i].Timestamp < anomalies[j].Timestamp
 	})
 
 	scorerCfg := observerimpl.DefaultAnomalyScorerConfig()
@@ -1398,8 +1435,18 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 	scorerCfg.CooldownSecs = req.CooldownSecs
 	scorer := observerimpl.NewAnomalyScorer(scorerCfg)
 
-	first := sorted[0].Timestamp
-	last := sorted[len(sorted)-1].Timestamp
+	first := anomalies[0].Timestamp
+	lastAnalyzed := anomalies[len(anomalies)-1].Timestamp
+	history := sv.ScorerHistory()
+	if history.Available {
+		if len(history.Buckets) > 0 && history.Buckets[0].Second < first {
+			first = history.Buckets[0].Second
+		}
+		if len(history.Advances) > 0 {
+			lastAnalyzed = history.Advances[len(history.Advances)-1].DataTime
+		}
+	}
+	last := lastAnalyzed
 
 	collector := &scorerEventCollector{}
 	subscription, err := scorer.SubscribeSeverityEvents(severityeventsdef.SeverityEventsConfiguration{
@@ -1415,8 +1462,8 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 	var reports []scorerReport
 	storage := api.tb.debug.StorageReader()
 	for sec := first; sec <= last; sec++ {
-		for ai < len(sorted) && sorted[ai].Timestamp == sec {
-			scorer.ProcessAnomaly(sorted[ai])
+		for ai < len(anomalies) && anomalies[ai].Timestamp == sec {
+			scorer.ProcessAnomaly(anomalies[ai])
 			ai++
 		}
 		scorer.Advance(sec)
@@ -1436,7 +1483,159 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 		CooldownSecs:      req.CooldownSecs,
 		Events:            collector.events,
 		Reports:           reports,
+		Mode:              mode,
 	})
+}
+
+// replayScoresFromArrivals replays the recorded arrival trace through a fresh
+// production scorer with the requested reordering settings.
+func (api *BenchAPI) replayScoresFromArrivals(
+	req replayRequest,
+	history observerimpl.ScorerHistory,
+	mode string,
+) scorerScoreResponse {
+	scorerCfg := observerimpl.DefaultAnomalyScorerConfig()
+	scorerCfg.AnomalyScorerConfig = req.AnomalyScorerConfig
+	scorerCfg.CorrelationEvents = true
+	scorerCfg.CooldownSecs = req.CooldownSecs
+	scorer := observerimpl.NewAnomalyScorer(scorerCfg)
+
+	collector := &scorerEventCollector{}
+	subscription, err := scorer.SubscribeSeverityEvents(severityeventsdef.SeverityEventsConfiguration{
+		CooldownSecs: req.CooldownSecs,
+	}, collector)
+	if err != nil {
+		return scorerScoreResponse{Available: false, CooldownSecs: req.CooldownSecs, Mode: mode}
+	}
+	defer subscription.Unsubscribe()
+
+	windowSecs := req.AnomalyScorerConfig.ReorderingWindowSecs
+	behavior := req.AnomalyScorerConfig.LateAnomalyBehavior
+	arrivalIdx := 0
+	prevDataTime := int64(0)
+	var inputs []scorerInputResponse
+	var reports []scorerReport
+	var inputDelays []int64
+	outsideWindow := 0
+	storage := api.tb.debug.StorageReader()
+
+	for _, advance := range history.Advances {
+		for arrivalIdx < advance.ArrivalEnd && arrivalIdx < len(history.Arrivals) {
+			anomaly := history.Arrivals[arrivalIdx]
+			scorer.ProcessAnomaly(anomaly)
+			scoringSecond, lateAction := effectiveScoringSecond(
+				anomaly.Timestamp, prevDataTime, advance.DataTime, windowSecs, behavior,
+			)
+			delay := max(0, advance.DataTime-anomaly.Timestamp)
+			inputDelays = append(inputDelays, delay)
+			if windowSecs > 0 && (lateAction == "clamped" || lateAction == "ignored") {
+				outsideWindow++
+			}
+			inputs = append(inputs, buildScorerInput(anomaly, scoringSecond, advance.DataTime, lateAction))
+			arrivalIdx++
+		}
+		scorer.Advance(advance.DataTime)
+		for _, event := range scorer.PendingEvents() {
+			if event.Kind != observerdef.CorrelatorEventEpisodeStarted {
+				continue
+			}
+			reports = append(reports, buildScorerReport(event.Timestamp, event.Contributors, storage))
+		}
+		prevDataTime = advance.DataTime
+	}
+
+	var highDelays []int64
+	for _, event := range collector.events {
+		if event.ToLevel == severityeventsdef.SeverityHigh &&
+			event.ToLevel > event.FromLevel && event.HistoricalTimestamp > 0 {
+			highDelays = append(highDelays, max(0, event.Timestamp-event.HistoricalTimestamp))
+		}
+	}
+
+	state := scorer.ScoreState()
+	return scorerScoreResponse{
+		AnomalyScoreState:  state,
+		Available:          true,
+		CooldownSecs:       req.CooldownSecs,
+		Events:             collector.events,
+		Reports:            reports,
+		Inputs:             inputs,
+		Mode:               mode,
+		ReorderWindowSecs:  windowSecs,
+		HistoryAvailable:   true,
+		InputDelay:         newDelayStats(inputDelays),
+		HighCrossingDelay:  newDelayStats(highDelays),
+		OutsideWindowCount: outsideWindow,
+	}
+}
+
+// effectiveScoringSecond mirrors the scorer's late-arrival handling.
+func effectiveScoringSecond(anomalyTS, prevDataTime, dataTime, windowSecs int64, behavior string) (int64, string) {
+	if anomalyTS > prevDataTime {
+		return anomalyTS, ""
+	}
+	if windowSecs <= 0 {
+		if behavior == "ignore" {
+			return 0, "ignored"
+		}
+		return prevDataTime + 1, "clamped"
+	}
+	oldest := dataTime - windowSecs + 1
+	if behavior == "ignore" && anomalyTS < oldest {
+		return 0, "ignored"
+	}
+	if anomalyTS < oldest {
+		return oldest, "clamped"
+	}
+	return anomalyTS, "reordered"
+}
+
+func buildScorerInput(
+	anomaly observerdef.Anomaly,
+	scoringSecond, arrivalSecond int64,
+	lateAction string,
+) scorerInputResponse {
+	title, description := observerdef.FormatAnomaly(anomaly)
+	sourceSeriesID := ""
+	if anomaly.SourceRef != nil {
+		sourceSeriesID = anomaly.SourceRef.CompactID()
+	}
+	return scorerInputResponse{
+		ScoringSecond:  scoringSecond,
+		ArrivalSecond:  arrivalSecond,
+		LateAction:     lateAction,
+		IsLog:          anomaly.Type == observerdef.AnomalyTypeLog,
+		Source:         anomaly.Source.String(),
+		SourceSeriesID: sourceSeriesID,
+		DetectorName:   anomaly.DetectorName,
+		Title:          title,
+		Description:    description,
+		Host:           anomaly.Source.Host,
+		Tags:           anomaly.Source.Tags.UnsafeToReadOnlySliceString(),
+		Timestamp:      anomaly.Timestamp,
+	}
+}
+
+// newDelayStats builds min/median/max stats from a list of non-negative delays.
+func newDelayStats(delays []int64) *scorerDelayStats {
+	if len(delays) == 0 {
+		return nil
+	}
+	sorted := append([]int64(nil), delays...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
+	late := 0
+	for _, d := range delays {
+		if d > 0 {
+			late++
+		}
+	}
+	return &scorerDelayStats{
+		Count:      len(delays),
+		LateCount:  late,
+		MinSecs:    sorted[0],
+		MedianSecs: sorted[len(sorted)/2],
+		MaxSecs:    sorted[len(sorted)-1],
+	}
 }
 
 func buildScorerReport(

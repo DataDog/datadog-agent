@@ -74,6 +74,7 @@ common --run_env=GOTOOLCHAIN=local # Extend https://github.com/bazel-contrib/rul
 common --run_env=RULES_PYTHON_ADDITIONAL_INTERPRETER_ARGS=-I # Prevent user env, path, and site from shadowing runfiles
 common --skip_incompatible_explicit_targets # Let target_compatible_with skip rather than fail
 common:linux --strip=never # TODO: Apply independently of platform
+common:windows --strip=never
 common --test_output=errors # Print test errors to console output instead of only capturing them in buried test.log
 common --verbose_failures
 
@@ -94,12 +95,23 @@ common:lint --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect --output_groups=
 
 # Linux config ---------------------------------------------------------------------------------------------------------
 common:linux --strategy=sandboxed
+# Third-party C/C++ code (external/): drop -Wall and default-on warnings we don't intend to fix, but keep the ones
+# that catch wrong hand-written config.h files. The host_ variants cover tools built in the exec configuration.
+common:linux --per_file_copt=external/.*@-Wno-all,-Wno-attribute-warning,-Wno-deprecated-declarations,-Wno-stringop-overflow,-Wno-attributes,-Wno-alloc-size-larger-than
+common:linux --per_file_copt=external/.*[.]c$@-Werror=implicit-function-declaration,-Werror=implicit-int,-Werror=int-conversion,-Werror=incompatible-pointer-types
+common:linux --host_per_file_copt=external/.*@-Wno-all,-Wno-attribute-warning,-Wno-deprecated-declarations,-Wno-stringop-overflow,-Wno-attributes,-Wno-alloc-size-larger-than
+common:linux --host_per_file_copt=external/.*[.]c$@-Werror=implicit-function-declaration,-Werror=implicit-int,-Werror=int-conversion,-Werror=incompatible-pointer-types
 common --@llvm//runtimes/glibc:glibc_additional_library_search_directory=//bazel/toolchains/glibc_static # -static links; hermetic-llvm ships glibc stubs only
 
 # macOS config ---------------------------------------------------------------------------------------------------------
 common:macos --experimental_use_llvm_covmap # gcov's runtime is missing in foreign_cc links (CPython's _ctypes)
 common:macos --macos_minimum_os=12.0 # Keep in sync with https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
 common:macos --strategy=sandboxed
+# Same as the Linux third-party warning flags above, restricted to options clang understands.
+common:macos --per_file_copt=external/.*@-Wno-all,-Wno-deprecated-declarations,-Wno-deprecated-non-prototype
+common:macos --per_file_copt=external/.*[.]c$@-Werror=implicit-function-declaration,-Werror=implicit-int,-Werror=int-conversion,-Werror=incompatible-pointer-types
+common:macos --host_per_file_copt=external/.*@-Wno-all,-Wno-deprecated-declarations,-Wno-deprecated-non-prototype
+common:macos --host_per_file_copt=external/.*[.]c$@-Werror=implicit-function-declaration,-Werror=implicit-int,-Werror=int-conversion,-Werror=incompatible-pointer-types
 
 # Windows config -------------------------------------------------------------------------------------------------------
 # Override the common credential helper with the Windows launcher.
@@ -154,7 +166,7 @@ common:no-remote-cache --remote_cache=
 common:ci --config=lint
 common:ci --noexperimental_convenience_symlinks # not CI-suitable: "These symlinks are only for the user's convenience"
 common:ci --remote_download_regex=.*/test\.xml$ # force-download test.xml even under --remote_download_outputs=toplevel, so junit collection can read it locally
-common:ci --remote_download_regex=.*/test\.log$ # force-download test.log for test2json postprocessing
+common:ci --remote_download_regex=.*/test\.outputs/test2json\.json$ # force-download test2json.json for test2json postprocessing
 
 # Project/Language configs --------------------------------------------------------------------------------------
 import %workspace%/bazel/configs/go_tests.bazelrc

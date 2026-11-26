@@ -106,6 +106,8 @@ func (s *dummyService) GetImageName() string {
 func TestResolve(t *testing.T) {
 	// Prepare envvars for test
 	t.Setenv("test_envvar_key", "test_value")
+	t.Setenv("DD_CLUSTER_AGENT_AUTH_TOKEN", "test_token")
+	t.Setenv("DD_KUBERNETES_KUBELET_HOST", "10.0.0.1")
 	os.Unsetenv("test_envvar_not_set")
 
 	testCases := []struct {
@@ -551,6 +553,76 @@ func TestResolve(t *testing.T) {
 				"ad_allowed_env_vars":           []string{"some_env"}, // Same env as in the template
 			},
 		},
+		{
+			testName: "sensitive agent setting env var is disallowed by default",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Pid:           1337,
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: %%env_DD_CLUSTER_AGENT_AUTH_TOKEN%%")},
+			},
+			errorString: "envvar DD_CLUSTER_AGENT_AUTH_TOKEN is not allowed in check configs, skipping service a5901276aed1",
+		},
+		{
+			testName: "sensitive agent setting env var is disallowed by default (logs check)",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Pid:           1337,
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{},
+				LogsConfig:    integration.Data("test: %%env_dd_api_key%%"),
+			},
+			errorString: "envvar dd_api_key is not allowed in check configs, skipping service a5901276aed1",
+		},
+		{
+			testName: "non-sensitive agent setting env var is allowed by default",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Pid:           1337,
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: %%env_DD_KUBERNETES_KUBELET_HOST%%")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("tags:\n    - foo:bar\ntest: 10.0.0.1\n")},
+				ServiceID:     "a5901276aed1",
+			},
+		},
+		{
+			testName: "sensitive agent setting env var in the allow list",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Pid:           1337,
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: %%env_DD_CLUSTER_AGENT_AUTH_TOKEN%%")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("tags:\n    - foo:bar\ntest: test_token\n")},
+				ServiceID:     "a5901276aed1",
+			},
+			configSettings: map[string]interface{}{
+				"ad_allowed_env_vars": []string{"DD_CLUSTER_AGENT_AUTH_TOKEN"},
+			},
+		},
 		//// envvars (logs check)
 		{
 			testName: "simple %%env_test_envvar_key%% (logs check)",
@@ -947,6 +1019,40 @@ func TestResolve(t *testing.T) {
 				assert.Equal(t, tc.out, cfg)
 				assert.Equal(t, checksum, tc.tpl.Digest())
 			}
+		})
+	}
+}
+
+// Check configs commonly template these Agent env vars, so they must never be marked sensitive.
+func TestResolveNonSensitiveAgentEnvVars(t *testing.T) {
+	envVars := []string{
+		"DD_APM_RECEIVER_PORT",
+		"DD_CLUSTER_NAME",
+		"DD_DOGSTATSD_PORT",
+		"DD_ENV",
+		"DD_HOSTNAME",
+		"DD_KUBE_RESOURCES_NAMESPACE",
+		"DD_KUBERNETES_KUBELET_HOST",
+		"DD_KUBERNETES_KUBELET_NODENAME",
+		"DD_SITE",
+		"DD_TAGS",
+	}
+
+	mockconfig.New(t)
+	svc := &dummyService{ID: "a5901276aed1", ADIdentifiers: []string{"redis"}}
+
+	for _, envVar := range envVars {
+		t.Run(envVar, func(t *testing.T) {
+			t.Setenv(envVar, "test_value")
+			tpl := integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: %%env_" + envVar + "%%")},
+			}
+
+			cfg, err := Resolve(tpl, svc)
+			assert.NoError(t, err)
+			assert.Equal(t, []integration.Data{integration.Data("tags:\n    - foo:bar\ntest: test_value\n")}, cfg.Instances)
 		})
 	}
 }

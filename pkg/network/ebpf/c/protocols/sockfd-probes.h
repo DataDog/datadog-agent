@@ -41,10 +41,7 @@ int BPF_KPROBE(kprobe__tcp_close, struct sock *sk) {
         void *ssl_ctx = *ssl_ctx_ptr;
         bpf_map_delete_elem(&ssl_ctx_by_tuple, &t);
         if (ssl_ctx) {
-            ssl_ctx_pid_tgid_t key = {
-                .pid_tgid = pid_tgid,
-                .ctx = ssl_ctx,
-            };
+            ssl_ctx_pid_tgid_t key = ssl_sock_by_ctx_key(pid_tgid, ssl_ctx);
             bpf_map_delete_elem(&ssl_sock_by_ctx, &key);
         }
     }

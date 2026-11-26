@@ -19,7 +19,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -205,6 +204,69 @@ func TestFilterOpenBasenamePrefixApprover(t *testing.T) {
 	}
 }
 
+func TestFilterOpenBasenameSuffixApprover(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// longer than the kernel basename buffer, so the suffix is only visible in the full dentry name
+	basename := strings.Repeat("a", 64) + ".php"
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.file.name =~ "*.php"`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withDynamicOpts(dynamicTestOpts{disableBundledRules: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	var fd1, fd2 int
+	var testFile1, testFile2 string
+
+	testFile1, _, err = test.Path(basename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile1)
+
+	if err := waitForOpenProbeEvent(test, func() error {
+		fd1, err = openTestFile(test, testFile1, syscall.O_CREAT)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd1)
+	}, testFile1); err != nil {
+		t.Fatal(err)
+	}
+
+	// stats
+	err = retry(t, func() error {
+		test.eventMonitor.SendStats()
+		defer test.statsdClient.Flush()
+		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:basename"); count == 0 {
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
+		}
+		return nil
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(1*time.Second)), backoff.WithMaxTries(5))
+	assert.NoError(t, err)
+
+	testFile2, _, err = test.Path("test-obs-2.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile2)
+
+	if err := waitForOpenProbeEvent(test, func() error {
+		fd2, err = openTestFile(test, testFile2, syscall.O_CREAT)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd2)
+	}, testFile2); err == nil {
+		t.Fatal("shouldn't get an event")
+	}
+}
+
 func TestFilterOpenParentBasenameApprover(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -289,6 +351,57 @@ func TestFilterOpenParentBasenameApprover(t *testing.T) {
 	}, testFile2); err == nil {
 		t.Fatal("shouldn't get an event")
 	}
+}
+
+// TestFilterLinkParentBasename checks that the links into the directory of a link rule are
+// reported, from either side of the link, when its glob has no usable basename.
+func TestFilterLinkParentBasename(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// one rule per test module: a rule without approvers would put the links in accept mode for the others
+	link := func(t *testing.T, expression, source, destination string) {
+		rule := &rules.RuleDefinition{ID: "test_rule", Expression: expression}
+		test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withDynamicOpts(dynamicTestOpts{disableBundledRules: true}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer test.CloseTest()
+
+		sourcePath, _, err := test.Path(source)
+		if err != nil {
+			t.Fatal(err)
+		}
+		destinationPath, _, err := test.Path(destination)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, file := range []string{sourcePath, destinationPath} {
+			if err := os.MkdirAll(filepath.Dir(file), 0777); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		if _, _, err := test.Create(source); err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(sourcePath)
+		defer os.Remove(destinationPath)
+
+		test.WaitSignalFromRule(t, func() error {
+			return os.Link(sourcePath, destinationPath)
+		}, func(event *model.Event, _ *rules.Rule) {
+			assertFieldEqual(t, event, "link.file.path", sourcePath)
+			assertFieldEqual(t, event, "link.file.destination.path", destinationPath)
+		}, "test_rule")
+	}
+
+	t.Run("source", func(t *testing.T) {
+		link(t, `link.file.path =~ "{{.Root}}/link-source/*"`, "link-source/source-file", "destination-file")
+	})
+
+	t.Run("destination", func(t *testing.T) {
+		link(t, `link.file.name == "watched" || link.file.destination.path =~ "{{.Root}}/link-target/*"`, "source-file", "link-target/destination-file")
+	})
 }
 
 func TestFilterOpenLeafDiscarder(t *testing.T) {
@@ -603,12 +716,12 @@ func TestFilterOpenApproverWorkloadProfile(t *testing.T) {
 
 // In deny mode, every rejected open of the host goes through the sampler: the global open sampling rate could be
 // exhausted by the opens of the container runtime before the syscall tester runs.
-var _ = declare(TestFilterOpenSavedByWorkloadProfileSampler, testOpts{eventSamplingOpenRateUnlimited: true})
+var _ = declare(TestFilterSavedByWorkloadProfileSampler, testOpts{eventSamplingOpenRateUnlimited: true})
 
-// TestFilterOpenSavedByWorkloadProfileSampler checks that an event rejected by the approvers is still forwarded
+// TestFilterSavedByWorkloadProfileSampler checks that an event rejected by the approvers is still forwarded
 // to user space when the workload profile sampler samples it, flagged so that the rule engine doesn't evaluate it,
-// and that the sampler then rejects the same event for the same process.
-func TestFilterOpenSavedByWorkloadProfileSampler(t *testing.T) {
+// and that the sampler then drops the same event for the same process.
+func TestFilterSavedByWorkloadProfileSampler(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
@@ -629,6 +742,10 @@ func TestFilterOpenSavedByWorkloadProfileSampler(t *testing.T) {
 		{
 			ID:         "test_rule_sampler_open",
 			Expression: `open.file.path == "{{.Root}}/test-sampler-approved"`,
+		},
+		{
+			ID:         "test_rule_sampler_bind",
+			Expression: `bind.addr.family == AF_INET6`,
 		},
 		{
 			ID:         "test_rule_sampler_connect",
@@ -652,11 +769,14 @@ func TestFilterOpenSavedByWorkloadProfileSampler(t *testing.T) {
 	}
 	defer dockerInstance.stop()
 
-	// countSavedEvents runs the syscall tester in the container and counts its forwarded events flagged as saved
-	// from the approvers that match the filter. The test files are on the host and can be opened by other processes
-	// too, which are sampled under their own key.
-	countSavedEvents := func(t *testing.T, eventType model.EventType, filter eventKeyValueFilter, args ...string) int {
-		var count atomic.Int32
+	// forwardedEvents runs the syscall tester in the container and returns whether each of its forwarded events
+	// that match the filter is flagged as saved by the sampler. The test files are on the host and can be opened
+	// by other processes too, which are sampled under their own key.
+	forwardedEvents := func(t *testing.T, eventType model.EventType, filter eventKeyValueFilter, args ...string) []bool {
+		var (
+			lock  sync.Mutex
+			saved []bool
+		)
 		runUntilSentinel(t, test, dockerInstance, func() error {
 			cmd := dockerInstance.Command("sh", append([]string{"-c", `"$@" && true`, "--", syscallTester}, args...), []string{})
 			if out, err := cmd.CombinedOutput(); err != nil {
@@ -664,36 +784,59 @@ func TestFilterOpenSavedByWorkloadProfileSampler(t *testing.T) {
 			}
 			return nil
 		}, func(event *model.Event) {
-			if event.GetEventType() != eventType || !event.IsSavedByActivityDumps() {
-				return
-			}
-			if event.ProcessContext.FileEvent.PathnameStr != syscallTester {
+			if event.GetEventType() != eventType || event.ProcessContext.FileEvent.PathnameStr != syscallTester {
 				return
 			}
 			if v, _ := event.GetFieldValue(filter.key); v == filter.value {
-				count.Add(1)
+				lock.Lock()
+				saved = append(saved, event.IsSavedByActivityDumps())
+				lock.Unlock()
 			}
 		})
-		return int(count.Load())
+		lock.Lock()
+		defer lock.Unlock()
+		return saved
 	}
 
-	t.Run("open", func(t *testing.T) {
-		testFile, _, err := test.Path("test-sampler-sampled")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer os.Remove(testFile)
+	testFile, _, err := test.Path("test-sampler-sampled")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile)
 
-		// the same process opens the same file twice: only the first open is sampled
-		count := countSavedEvents(t, model.FileOpenEventType, eventKeyValueFilter{key: "open.file.path", value: testFile}, "open", testFile, testFile)
-		assert.Equal(t, 1, count, "the first open should be saved by the sampler, the second one rejected")
-	})
-
-	t.Run("connect", func(t *testing.T) {
-		// the same process connects twice to the same address: only the first connect is sampled
-		count := countSavedEvents(t, model.ConnectEventType, eventKeyValueFilter{key: "connect.addr.port", value: 4254}, "connect", "AF_INET", "any", "udp", "4254", "2")
-		assert.Equal(t, 1, count, "the first connect should be saved by the sampler, the second one rejected")
-	})
+	for _, tc := range []struct {
+		name      string
+		eventType model.EventType
+		filter    eventKeyValueFilter
+		// args make the syscall tester emit the event twice from the same process, with the same sample key
+		args []string
+	}{
+		{
+			name:      "open",
+			eventType: model.FileOpenEventType,
+			filter:    eventKeyValueFilter{key: "open.file.path", value: testFile},
+			args:      []string{"open", testFile, testFile},
+		},
+		{
+			name:      "bind",
+			eventType: model.BindEventType,
+			filter:    eventKeyValueFilter{key: "bind.addr.port", value: 4255},
+			args:      []string{"bind", "AF_INET", "any", "udp", "4255", ";", "bind", "AF_INET", "any", "udp", "4255"},
+		},
+		{
+			name:      "connect",
+			eventType: model.ConnectEventType,
+			filter:    eventKeyValueFilter{key: "connect.addr.port", value: 4254},
+			args:      []string{"connect", "AF_INET", "any", "udp", "4254", "2"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			saved := forwardedEvents(t, tc.eventType, tc.filter, tc.args...)
+			if assert.Len(t, saved, 1, "the kernel should forward the first %s, and drop the second one", tc.name) {
+				assert.True(t, saved[0], "the first %s should be saved by the sampler", tc.name)
+			}
+		})
+	}
 }
 
 var _ = declareInlineConfig(TestFilterOpenSampleRefreshWorkloadProfile)
@@ -1109,6 +1252,75 @@ func TestFilterUnlinkAUIDEqualApprover(t *testing.T) {
 	t.Run("equal-fixed-value", func(t *testing.T) {
 		runAUIDTest(t, test, goSyscallTester, model.FileUnlinkEventType, "unlink.file.path", "/tmp/test-auid", "1009", "6000")
 	})
+}
+
+// TestFilterOpenAUIDDiscarderApproverOnly checks that the auid discarders don't drop the events
+// of a rule approved on its auid only.
+func TestFilterOpenAUIDDiscarderApproverOnly(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_auid",
+			Expression: `open.file.path != "/tmp/test-auid-sample" && process.auid == 1009`,
+		},
+		{
+			ID:         "test_rule_sample",
+			Expression: `(open.file.path == "/tmp/test-auid-sample" || open.flags & O_WRONLY > 0) && process.auid != 1009`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, withDynamicOpts(dynamicTestOpts{disableBundledRules: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cmdWrapper, err := test.StartADocker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cmdWrapper.stop()
+
+	open := func(path string) error {
+		args := []string{
+			"-login-uid-test",
+			"-login-uid-event-type", "open",
+			"-login-uid-path", path,
+			"-login-uid-value", "1009",
+		}
+		return cmdWrapper.Command(goSyscallTester, args, []string{}).Run()
+	}
+
+	// an open matching no rule, the auid discarders of its auid being discovered on it
+	if err := waitForOpenProbeEvent(test, func() error {
+		return open("/tmp/test-auid-sample")
+	}, "/tmp/test-auid-sample"); err != nil {
+		t.Fatal(err)
+	}
+
+	test.WaitSignalFromRule(t, func() error {
+		return open("/tmp/test-auid-other")
+	}, func(event *model.Event, _ *rules.Rule) {
+		assertFieldEqual(t, event, "open.file.path", "/tmp/test-auid-other")
+	}, "test_rule_auid")
 }
 
 func TestFilterDiscarderMask(t *testing.T) {

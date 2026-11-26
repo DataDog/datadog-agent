@@ -1,0 +1,15 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    The Cluster Agent API no longer runs internal endpoints, such as ``/stop``,
+    ``/flare`` or ``/config``, for requests authenticated with the cluster agent
+    token (``cluster_agent.auth_token``). These requests were already answered
+    with a ``403`` status, but the endpoint still ran. Internal endpoints now
+    accept only the Cluster Agent's local IPC token.
