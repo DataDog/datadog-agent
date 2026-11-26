@@ -43,10 +43,6 @@ func defaultCloudProviderDetectors() []cloudProviderDetector {
 	}
 }
 
-func queryAccountID(ctx context.Context) (string, string, error) {
-	return queryAccountIDFromDetectors(ctx, defaultCloudProviderDetectors())
-}
-
 func queryAccountIDFromDetectors(ctx context.Context, detectors []cloudProviderDetector) (string, string, error) {
 	for _, cloudDetector := range detectors {
 		if cloudDetector.callback(ctx) {
@@ -68,7 +64,9 @@ func queryAccountIDFromDetectors(ctx context.Context, detectors []cloudProviderD
 
 type accountIDTagResolver struct {
 	mu           sync.Mutex
+	inFlightWG   sync.WaitGroup
 	resolved     atomic.Bool
+	inFlight     bool
 	value        string
 	attempts     int
 	maxAttempts  int
@@ -91,22 +89,47 @@ func (r *accountIDTagResolver) queryAccountIDTag() string {
 	}
 
 	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	if r.resolved.Load() {
+		r.mu.Unlock()
 		return r.value
+	}
+
+	if r.inFlight {
+		r.mu.Unlock()
+		return ""
 	}
 
 	if !r.lastAttempt.IsZero() && time.Since(r.lastAttempt) < r.retryBackoff {
-		return r.value
+		r.mu.Unlock()
+		return ""
 	}
+
+	r.inFlight = true
+	r.attempts++
+	attempt := r.attempts
+	r.inFlightWG.Add(1)
+	r.mu.Unlock()
+
+	if attempt > 1 {
+		go r.performAttempt(attempt)
+		return ""
+	}
+
+	return r.performAttempt(attempt)
+}
+
+func (r *accountIDTagResolver) performAttempt(attempt int) string {
+	defer r.inFlightWG.Done()
 
 	ctx, cancel := context.WithTimeout(context.Background(), accountIDQueryTimeout)
 	defer cancel()
 
-	r.attempts++
-
 	tagName, tagValue, err := queryAccountIDFromDetectors(ctx, r.detectors)
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.inFlight = false
+
 	if err == nil {
 		r.value = tagName + ":" + tagValue
 		r.resolved.Store(true)
@@ -119,15 +142,19 @@ func (r *accountIDTagResolver) queryAccountIDTag() string {
 		return ""
 	}
 
-	if r.attempts >= r.maxAttempts {
-		log.Warnf("failed to query account id after %d attempts: %v", r.attempts, err)
+	if attempt >= r.maxAttempts {
+		log.Warnf("failed to query account id after %d attempts: %v", attempt, err)
 		r.resolved.Store(true)
 		return ""
 	}
 
 	r.lastAttempt = time.Now()
-	log.Debugf("failed to query account id (attempt %d/%d): %v", r.attempts, r.maxAttempts, err)
+	log.Debugf("failed to query account id (attempt %d/%d): %v", attempt, r.maxAttempts, err)
 	return ""
+}
+
+func (r *accountIDTagResolver) waitForInFlight() {
+	r.inFlightWG.Wait()
 }
 
 var accountIDTagCache = newAccountIDTagResolver(

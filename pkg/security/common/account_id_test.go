@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -136,11 +137,14 @@ func TestQueryAccountIDTagTransientFailureThenSuccess(t *testing.T) {
 
 		time.Sleep(accountIDRetryBackoff)
 		assert.Empty(t, resolver.queryAccountIDTag())
+		resolver.waitForInFlight()
 		assert.Equal(t, 2, accountIDCalls)
 
 		time.Sleep(accountIDRetryBackoff)
-		assert.Equal(t, "account_id:123456789012", resolver.queryAccountIDTag())
+		assert.Empty(t, resolver.queryAccountIDTag())
+		resolver.waitForInFlight()
 		assert.Equal(t, 3, accountIDCalls)
+		assert.Equal(t, "account_id:123456789012", resolver.queryAccountIDTag())
 
 		time.Sleep(accountIDRetryBackoff)
 		assert.Equal(t, "account_id:123456789012", resolver.queryAccountIDTag())
@@ -180,10 +184,12 @@ func TestQueryAccountIDTagRetryExhaustion(t *testing.T) {
 
 		time.Sleep(accountIDRetryBackoff)
 		assert.Empty(t, resolver.queryAccountIDTag())
+		resolver.waitForInFlight()
 		assert.Equal(t, 2, accountIDCalls)
 
 		time.Sleep(accountIDRetryBackoff)
 		assert.Empty(t, resolver.queryAccountIDTag())
+		resolver.waitForInFlight()
 		assert.Equal(t, 3, accountIDCalls)
 
 		time.Sleep(accountIDRetryBackoff)
@@ -196,4 +202,64 @@ func TestQueryAccountIDTagRetryExhaustion(t *testing.T) {
 	assert.Contains(t, output, "[DEBUG] failed to query account id (attempt 2/3): could not detect cloud provider account ID: HTTP 503")
 	assert.Contains(t, output, "[WARN] failed to query account id after 3 attempts: could not detect cloud provider account ID: HTTP 503")
 	assert.NotContains(t, output, "[ERROR]")
+}
+
+func TestQueryAccountIDTagAsyncRetryAndInFlightNonBlocking(t *testing.T) {
+	_ = captureLogs(t)
+
+	synctest.Test(t, func(t *testing.T) {
+		var calls atomic.Int32
+		initialEntered := make(chan struct{})
+		releaseInitial := make(chan struct{})
+		retryEntered := make(chan struct{})
+		releaseRetry := make(chan struct{})
+
+		detectors := []cloudProviderDetector{
+			{
+				name:          "AWS",
+				accountIDName: "account_id",
+				callback: func(context.Context) bool {
+					return true
+				},
+				accountIDCallback: func(context.Context) (string, error) {
+					callNum := calls.Add(1)
+					if callNum == 1 {
+						close(initialEntered)
+						<-releaseInitial
+						return "", errors.New("transient error")
+					}
+					close(retryEntered)
+					<-releaseRetry
+					return "123456789012", nil
+				},
+			},
+		}
+
+		resolver := newAccountIDTagResolver(detectors, maxAccountIDAttempts, accountIDRetryBackoff)
+
+		initialDone := make(chan string, 1)
+		go func() {
+			initialDone <- resolver.queryAccountIDTag()
+		}()
+
+		<-initialEntered
+		assert.Empty(t, resolver.queryAccountIDTag())
+		assert.Equal(t, int32(1), calls.Load())
+
+		close(releaseInitial)
+		assert.Empty(t, <-initialDone)
+
+		time.Sleep(accountIDRetryBackoff)
+
+		assert.Empty(t, resolver.queryAccountIDTag())
+		<-retryEntered
+		assert.Empty(t, resolver.queryAccountIDTag())
+		assert.Equal(t, int32(2), calls.Load())
+
+		close(releaseRetry)
+		resolver.waitForInFlight()
+
+		assert.Equal(t, "account_id:123456789012", resolver.queryAccountIDTag())
+		assert.Equal(t, int32(2), calls.Load())
+	})
 }
