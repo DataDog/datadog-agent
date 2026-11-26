@@ -47,6 +47,7 @@ dd_agent_go_test(
     srcs = [
         "catalog_darwin_test.go",
         "procmgr_yaml_placeholders_windows_test.go",
+        "reload_windows_test.go",
     ],
     embed = [":processmanager"],
     deps = select({

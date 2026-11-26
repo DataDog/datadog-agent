@@ -943,6 +943,17 @@ impl CliOutput {
         self
     }
 
+    pub fn assert_exit_code(&self, expected: i32) -> &Self {
+        assert_eq!(
+            self.status.code(),
+            Some(expected),
+            "unexpected exit code\nstdout: {}\nstderr: {}",
+            self.stdout,
+            self.stderr,
+        );
+        self
+    }
+
     pub fn assert_stderr_contains(&self, pattern: &str) -> &Self {
         assert!(
             self.stderr.contains(pattern),

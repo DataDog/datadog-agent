@@ -179,6 +179,29 @@ fn test_cli_reload_text_added_removed() {
 }
 
 #[test]
+fn test_cli_reload_refused_has_its_own_exit_code() {
+    let env = TestEnv::new().with_process("sleeper").start();
+    env.wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
+
+    // A file in place of the config directory is a catalog that cannot be read.
+    std::fs::remove_dir_all(env.config_dir()).expect("failed to remove the config dir");
+    std::fs::write(env.config_dir(), "not a directory").expect("failed to write the file");
+
+    env.cli_reload()
+        .assert_exit_code(3)
+        .assert_stderr_contains("config reload refused");
+    env.wait_for_process_running("sleeper")
+        .expect("the refused reload must keep sleeper running");
+
+    // The installer then stops the one process it needs gone, with the catalog still unreadable.
+    env.cli_stop("sleeper").assert_success();
+
+    // Any other failure keeps the generic exit code.
+    env.cli_describe("no-such-process").assert_exit_code(1);
+}
+
+#[test]
 fn test_cli_reload_json() {
     let env = TestEnv::new()
         .with_config("existing", test_helpers::sleep_config_yaml())
