@@ -619,6 +619,25 @@ func TestPromoteRetriesTheDaemonStepWithoutRestartingTheAgentJobs(t *testing.T) 
 		assert.Equal(t, 1, l.countBootstraps(label), "%s should be restarted once", label)
 	}
 	assert.Equal(t, 1, l.count("kickstart", "system/"+procmgrJob), "the process manager should be restarted once")
+	assert.Zero(t, l.count("kickstart", "system/"+installerJob), "the swap already started the stable daemon on the promoted configuration")
+}
+
+// TestPromoteRestartsARunningStableDaemon pins that a promote with no experiment daemon to swap,
+// after the experiment failed on the host or a reboot, restarts the stable daemon that runs, so it
+// reads the promoted configuration.
+func TestPromoteRestartsARunningStableDaemon(t *testing.T) {
+	l := supervisedHost(t)
+	l.mu.Lock()
+	l.calls = nil
+	l.mu.Unlock()
+	r := request(t, unitsTargetRestartStable)
+
+	require.NoError(t, superviseUnits(context.Background()))
+	status, err := readUnitsStatus()
+	require.NoError(t, err)
+	assert.Equal(t, unitsStatus{nonce: r.nonce, phase: unitsPhaseDone}, status)
+	assert.Equal(t, 1, l.count("kickstart", "system/"+installerJob), "the stable daemon should be restarted once")
+	assert.True(t, l.isRunning(installerJob))
 }
 
 // TestRequestUnitsWaitsForTheAgentJobs pins the hooks' side: a request returns once the supervisor

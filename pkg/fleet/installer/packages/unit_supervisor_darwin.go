@@ -603,11 +603,14 @@ func applyStable(ctx context.Context, request unitsRequest, status unitsStatus, 
 	if err != nil {
 		return fmt.Errorf("unit supervisor: could not tell whether the experiment daemon runs: %w", err)
 	}
+	restartDaemon := restart
 	switch {
 	case daemon.PID != 0:
 		if err := swapInstallerDaemon(ctx, launchd.Experiment, launchd.Stable); err != nil {
 			return fmt.Errorf("unit supervisor: %w", err)
 		}
+		// The swap started the stable daemon on the promoted configuration.
+		restartDaemon = false
 	case daemon.Loaded:
 		// Loaded without running: what launchd leaves of it after a reboot mid-experiment, or after it
 		// died during the stop.
@@ -617,9 +620,18 @@ func applyStable(ctx context.Context, request unitsRequest, status unitsStatus, 
 	}
 	// Whatever happened to the experiment daemon, the host keeps a daemon: the stable one is started
 	// when it is not loaded.
-	if loaded, err := launchdClient().Loaded(ctx, installerJob); err == nil && !loaded {
+	loaded, err := launchdClient().Loaded(ctx, installerJob)
+	switch {
+	case err == nil && !loaded:
 		if err := startInstallerDaemon(ctx, installerJobSet(), launchd.Stable); err != nil {
 			return fmt.Errorf("unit supervisor: could not start the stable installer daemon: %w", err)
+		}
+	case err == nil && restartDaemon:
+		// A promote with no experiment daemon to swap, after the experiment failed on the host or a
+		// reboot: the stable daemon read the configuration before it was promoted. As on Linux, where
+		// the installer unit restarts with the Agent's, it is restarted to read it.
+		if err := installerLaunchdClient().Kickstart(ctx, installerJob, true); err != nil {
+			return fmt.Errorf("unit supervisor: could not restart the stable installer daemon: %w", err)
 		}
 	}
 	if err := installerJobSet().Remove(launchd.Experiment); err != nil {
