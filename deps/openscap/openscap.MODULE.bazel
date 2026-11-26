@@ -2,23 +2,10 @@
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
-constants_repo = use_repo_rule("//bazel/repo:constants_repo.bzl", "constants_repo")
-
 # Releases of the datadog branch of github.com/0intro/openscap: an upstream
 # OpenSCAP release plus the changes the Agent needs, each on a branch of its
 # own (.datadog/README.md there).
 VERSION = "1.4.6-dd.20261022.4"
-
-URL = "https://github.com/0intro/openscap/releases/download/v{0}/openscap-{0}.tar.gz".format(VERSION)
-
-# Read by the overlay BUILD file for the package_metadata purl.
-constants_repo(
-    name = "openscap_constants",
-    items = {
-        "RELEASE": VERSION,
-        "URL": URL,
-    },
-)
 
 http_archive(
     name = "openscap",
@@ -27,5 +14,5 @@ http_archive(
     },
     sha256 = "235d783cecc815db9f3493d895ba4ef0eac57ef3305a023dbaafb61fac977c5f",
     strip_prefix = "openscap-{}".format(VERSION),
-    url = URL,
+    url = "https://github.com/0intro/openscap/releases/download/v{0}/openscap-{0}.tar.gz".format(VERSION),
 )

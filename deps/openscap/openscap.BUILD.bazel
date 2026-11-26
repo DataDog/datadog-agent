@@ -5,7 +5,6 @@ load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
-load("@openscap_constants//:constants.bzl", "RELEASE", "URL")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
@@ -22,6 +21,8 @@ package(
 
 # RELEASE names the release of github.com/0intro/openscap that
 # openscap.MODULE.bazel downloads, VERSION the upstream release it holds.
+RELEASE = "1.4.6-dd.20261022.4"
+
 VERSION = RELEASE.split("-")[0]
 
 package_metadata(
@@ -31,7 +32,7 @@ package_metadata(
         ":ship_source_offer",
     ],
     purl = purl_for_generic(
-        download_url = URL,
+        download_url = "https://github.com/0intro/openscap/releases/download/v{version}/openscap-{version}.tar.gz",
         package = "openscap",
         version = RELEASE,
     ),
