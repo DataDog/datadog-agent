@@ -52,6 +52,7 @@ dd_agent_go_test(
     srcs = [
         "agenttelemetry_test.go",
         "errortracking_flag_test.go",
+        "errortracking_integration_test.go",
         "errortracking_sender_test.go",
         "phonehome_test.go",
         "runner_test.go",
@@ -77,6 +78,7 @@ dd_agent_go_test(
         "//pkg/util/flavor",
         "//pkg/util/fxutil",
         "//pkg/util/jsonquery",
+        "//pkg/util/log",
         "//pkg/util/log/errortracking",
         "//pkg/util/log/setup",
         "@com_github_datadog_zstd//:zstd",
