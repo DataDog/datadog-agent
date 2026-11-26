@@ -223,7 +223,6 @@ e2e_pre_test*                     @DataDog/agent-devx
 new-e2e*                          @DataDog/agent-devx
 # --- E2E framework / infra ---
 new-e2e-base*                           @DataDog/agent-devx
-new-e2e-unit-tests                      @DataDog/agent-devx
 new-e2e-cleanup-on-failure              @DataDog/agent-devx
 # --- Agent core ---
 new-e2e-agent-configuration*            @DataDog/fleet-automation
