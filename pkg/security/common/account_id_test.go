@@ -238,16 +238,20 @@ func TestQueryAccountIDTagAsyncRetryAndInFlightNonBlocking(t *testing.T) {
 		resolver := newAccountIDTagResolver(detectors, maxAccountIDAttempts, accountIDRetryBackoff)
 
 		initialDone := make(chan string, 1)
+		concurrentInitialDone := make(chan string, 1)
 		go func() {
 			initialDone <- resolver.queryAccountIDTag()
 		}()
 
 		<-initialEntered
-		assert.Empty(t, resolver.queryAccountIDTag())
+		go func() {
+			concurrentInitialDone <- resolver.queryAccountIDTag()
+		}()
 		assert.Equal(t, int32(1), calls.Load())
 
 		close(releaseInitial)
 		assert.Empty(t, <-initialDone)
+		assert.Empty(t, <-concurrentInitialDone)
 
 		time.Sleep(accountIDRetryBackoff)
 

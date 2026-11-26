@@ -65,6 +65,7 @@ func queryAccountIDFromDetectors(ctx context.Context, detectors []cloudProviderD
 type accountIDTagResolver struct {
 	mu           sync.Mutex
 	inFlightWG   sync.WaitGroup
+	initDone     chan struct{}
 	resolved     atomic.Bool
 	inFlight     bool
 	value        string
@@ -77,6 +78,7 @@ type accountIDTagResolver struct {
 
 func newAccountIDTagResolver(detectors []cloudProviderDetector, maxAttempts int, retryBackoff time.Duration) *accountIDTagResolver {
 	return &accountIDTagResolver{
+		initDone:     make(chan struct{}),
 		maxAttempts:  maxAttempts,
 		retryBackoff: retryBackoff,
 		detectors:    detectors,
@@ -95,7 +97,14 @@ func (r *accountIDTagResolver) queryAccountIDTag() string {
 	}
 
 	if r.inFlight {
+		firstAttempt := r.attempts == 1
 		r.mu.Unlock()
+		if firstAttempt {
+			<-r.initDone
+			if r.resolved.Load() {
+				return r.value
+			}
+		}
 		return ""
 	}
 
@@ -129,6 +138,9 @@ func (r *accountIDTagResolver) performAttempt(attempt int) string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.inFlight = false
+	if attempt == 1 {
+		defer close(r.initDone)
+	}
 
 	if err == nil {
 		r.value = tagName + ":" + tagValue
