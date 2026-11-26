@@ -19,7 +19,9 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -208,72 +210,50 @@ func (c *Client) Do(ctx context.Context, action string, params url.Values, out a
 
 type partition struct {
 	id                 string
+	regionRegexPattern string
 	dnsSuffix          string
 	dualStackDNSSuffix string
+	supportsFIPS       bool
+	supportsDualStack  bool
 }
 
 var (
-	partitionAWS = partition{
-		id:                 "aws",
-		dnsSuffix:          "amazonaws.com",
-		dualStackDNSSuffix: "api.aws",
-	}
-	partitionAWSCN = partition{
-		id:                 "aws-cn",
-		dnsSuffix:          "amazonaws.com.cn",
-		dualStackDNSSuffix: "api.amazonwebservices.com.cn",
-	}
-	partitionAWSUSGov = partition{
-		id:                 "aws-us-gov",
-		dnsSuffix:          "amazonaws.com",
-		dualStackDNSSuffix: "api.aws",
-	}
-	partitionAWSEUSC = partition{
-		id:                 "aws-eusc",
-		dnsSuffix:          "amazonaws.eu",
-		dualStackDNSSuffix: "api.amazonwebservices.eu",
-	}
-	partitionAWSISO = partition{
-		id:                 "aws-iso",
-		dnsSuffix:          "c2s.ic.gov",
-		dualStackDNSSuffix: "api.aws.ic.gov",
-	}
-	partitionAWSISOB = partition{
-		id:                 "aws-iso-b",
-		dnsSuffix:          "sc2s.sgov.gov",
-		dualStackDNSSuffix: "api.aws.scloud",
-	}
-	partitionAWSISOE = partition{
-		id:                 "aws-iso-e",
-		dnsSuffix:          "cloud.adc-e.uk",
-		dualStackDNSSuffix: "api.cloud-aws.adc-e.uk",
-	}
-	partitionAWSISOF = partition{
-		id:                 "aws-iso-f",
-		dnsSuffix:          "csp.hci.ic.gov",
-		dualStackDNSSuffix: "api.aws.hci.ic.gov",
-	}
+	compilePartitionsOnce sync.Once
+	compiledPartitions    []compiledPartition
+	defaultAWSPartition   partition
 )
 
+type compiledPartition struct {
+	partition
+	regionRegex *regexp.Regexp
+}
+
+func initPartitions() {
+	compilePartitionsOnce.Do(func() {
+		compiledPartitions = make([]compiledPartition, 0, len(awsPartitions))
+		for _, p := range awsPartitions {
+			compiledPartitions = append(compiledPartitions, compiledPartition{
+				partition:   p,
+				regionRegex: regexp.MustCompile(p.regionRegexPattern),
+			})
+			if p.id == "aws" {
+				defaultAWSPartition = p
+			}
+		}
+	})
+}
+
+// partitionForRegion resolves the AWS partition matching region using the compiled
+// RegionRegex table generated from aws-sdk-go-v2, falling back to the "aws" partition
+// (matching aws-sdk-go-v2's awsrulesfn.GetPartition).
 func partitionForRegion(region string) partition {
-	switch {
-	case strings.HasPrefix(region, "cn-"):
-		return partitionAWSCN
-	case strings.HasPrefix(region, "us-gov-"):
-		return partitionAWSUSGov
-	case strings.HasPrefix(region, "eusc-"):
-		return partitionAWSEUSC
-	case strings.HasPrefix(region, "us-isob-"):
-		return partitionAWSISOB
-	case strings.HasPrefix(region, "us-isof-"):
-		return partitionAWSISOF
-	case strings.HasPrefix(region, "us-iso-"):
-		return partitionAWSISO
-	case strings.HasPrefix(region, "eu-isoe-"):
-		return partitionAWSISOE
-	default:
-		return partitionAWS
+	initPartitions()
+	for _, p := range compiledPartitions {
+		if p.regionRegex.MatchString(region) {
+			return p.partition
+		}
 	}
+	return defaultAWSPartition
 }
 
 func resolveFromConfig(ctx context.Context, cfg aws.Config, service, sdkID string) (string, string, error) {
@@ -416,6 +396,16 @@ func ResolveEndpoint(service, region, baseEndpoint string, useFIPS, useDualStack
 	}
 
 	part := partitionForRegion(region)
+
+	if useFIPS && useDualStack && (!part.supportsFIPS || !part.supportsDualStack) {
+		return "", fmt.Errorf("FIPS and dual-stack are enabled, but partition %q does not support one or both", part.id)
+	}
+	if useFIPS && !part.supportsFIPS {
+		return "", fmt.Errorf("FIPS is enabled, but partition %q does not support FIPS", part.id)
+	}
+	if useDualStack && !part.supportsDualStack {
+		return "", fmt.Errorf("dual-stack is enabled, but partition %q does not support dual-stack", part.id)
+	}
 
 	hostPrefix := service
 	if useFIPS {

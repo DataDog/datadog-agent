@@ -1,9 +1,38 @@
+load("@bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+run_binary(
+    name = "gen_partitions",
+    srcs = ["@com_github_aws_aws_sdk_go_v2//internal/endpoints/awsrulesfn:partitions.go"],
+    outs = ["gen_partitions/partitions_gen.go"],
+    args = [
+        "-in",
+        "$(execpath @com_github_aws_aws_sdk_go_v2//internal/endpoints/awsrulesfn:partitions.go)",
+        "-out",
+        "$(execpath gen_partitions/partitions_gen.go)",
+    ],
+    tags = ["manual"],
+    tool = "//pkg/util/aws/query/gen",
+)
+
+exports_files(["partitions_gen.go"])
+
+write_source_file(
+    name = "update_partitions",
+    check_that_out_file_exists = False,
+    in_file = ":gen_partitions",
+    out_file = "partitions_gen.go",
+    visibility = ["//visibility:public"],
+)
+
 go_library(
     name = "query",
-    srcs = ["client.go"],
+    srcs = [
+        "client.go",
+        "partitions_gen.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/aws/query",
     visibility = ["//visibility:public"],
     deps = [
