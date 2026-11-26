@@ -993,7 +993,8 @@ func mergeEnvMarks(opts *eval.VariableOpts, keys []string, evaluated, filtered b
 
 // propagateEnvKeys merges into each variable the env marks of the variables its
 // set actions read, once all the rules are added: a variable read from a hidden
-// one is hidden, whatever order the rules are added in, cycles included
+// one is hidden, whatever order the rules are added in, cycles included. A value
+// read from envp entries is no longer a list of entries to filter: it is hidden
 func (rs *RuleSet) propagateEnvKeys() {
 	for changed := true; changed; {
 		changed = false
@@ -1007,7 +1008,7 @@ func (rs *RuleSet) propagateEnvKeys() {
 			for _, read := range reads {
 				if source := rs.evalOpts.VariableStore.Get(read); source != nil {
 					sourceOpts := source.GetVariableOpts()
-					updated = mergeEnvMarks(&opts, sourceOpts.EnvKeys, sourceOpts.EnvKeyEvaluated, false) || updated
+					updated = mergeEnvMarks(&opts, sourceOpts.EnvKeys, sourceOpts.EnvKeyEvaluated || sourceOpts.EnvFiltered, false) || updated
 				}
 			}
 			if updated {

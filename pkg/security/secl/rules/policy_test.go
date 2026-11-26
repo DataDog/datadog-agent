@@ -3571,6 +3571,38 @@ func TestActionSetVariableEnvpField(t *testing.T) {
 		})
 	})
 
+	t.Run("propagation", func(t *testing.T) {
+		// the variables read from envp ones are added before them
+		rs, errs := loadPolicy(t, &PolicyDef{Rules: []*RuleDefinition{
+			setEnvpRule("derived",
+				&SetDefinition{Name: "derived", Expression: `"display:${display}"`, DefaultValue: ""},
+				&SetDefinition{Name: "derived_twice", Expression: `"${derived}"`, DefaultValue: ""},
+				&SetDefinition{Name: "copied_from_filtered", Expression: `${first_env}`, DefaultValue: ""},
+				&SetDefinition{Name: "derived_from_filtered", Expression: `"${first_env}"`, DefaultValue: ""},
+				&SetDefinition{Name: "length_of_filtered", Expression: `${first_env.length}`, DefaultValue: 0},
+				&SetDefinition{Name: "unrelated", Expression: `"${path}"`, DefaultValue: ""},
+			),
+			setEnvpRule("source",
+				&SetDefinition{Name: "display", Field: "exec.envp[0]", Capture: "^DISPLAY=(.+)$"},
+				&SetDefinition{Name: "first_env", Field: "exec.envp[0]"},
+				&SetDefinition{Name: "path", Field: "exec.file.path"},
+			),
+		}}, PolicyLoaderOpts{})
+		require.NoError(t, errs.ErrorOrNil())
+
+		assertEnvpMarks(t, rs, map[string]envpMark{
+			"display":               envpHidden,
+			"derived":               envpHidden,
+			"derived_twice":         envpHidden,
+			"first_env":             envpFiltered,
+			"copied_from_filtered":  envpHidden,
+			"derived_from_filtered": envpHidden,
+			"length_of_filtered":    envpHidden,
+			"path":                  envpAsIs,
+			"unrelated":             envpAsIs,
+		})
+	})
+
 	t.Run("most-restrictive", func(t *testing.T) {
 		// a variable set by several rules gets the marks of all of them
 		rs, errs := loadPolicy(t, &PolicyDef{Rules: []*RuleDefinition{
