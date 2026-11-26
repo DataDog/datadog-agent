@@ -8,12 +8,18 @@ package backend
 
 import (
 	"compress/gzip"
+	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/textproto"
+	"net/url"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -111,6 +117,42 @@ func isRetryableStatusCode(code int) bool {
 	}
 }
 
+func isRetryableTransportError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		err = urlErr.Err
+	}
+	if errors.Is(err, context.Canceled) {
+		return false
+	}
+	var (
+		certVerifyErr  *tls.CertificateVerificationError
+		unknownAuthErr x509.UnknownAuthorityError
+		certInvalidErr x509.CertificateInvalidError
+		hostnameErr    x509.HostnameError
+		sysRootsErr    x509.SystemRootsError
+	)
+	if errors.As(err, &certVerifyErr) ||
+		errors.As(err, &unknownAuthErr) ||
+		errors.As(err, &certInvalidErr) ||
+		errors.As(err, &hostnameErr) ||
+		errors.As(err, &sysRootsErr) {
+		return false
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true
+	}
+	var errno syscall.Errno
+	return errors.As(err, &errno)
+}
+
 // sendToEndpoint streams the multipart body straight into the HTTP request instead of
 // materializing the whole gzipped payload in memory (encoding chain: protobuf dump -> multipart
 // -> gzip -> io.Pipe -> request body).
@@ -171,13 +213,15 @@ func (backend *ActivityDumpRemoteBackend) sendToEndpoint(url string, apiKey stri
 		resp, err := backend.client.Do(r)
 		_ = body.Close()
 		if err != nil {
+			if !isRetryableTransportError(err) {
+				return err
+			}
 			lastErr = err
 			if attempt < maxRetries {
 				time.Sleep(baseDelay * (1 << attempt))
 			}
 			continue
 		}
-		_, _ = io.Copy(io.Discard, resp.Body)
 		_ = resp.Body.Close()
 		if resp.StatusCode == http.StatusAccepted {
 			return nil

@@ -401,6 +401,50 @@ func TestSendToEndpointRetriesTransientFailures(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("permanent transport errors fail on first attempt", func(t *testing.T) {
+		t.Run("untrusted TLS certificate", func(t *testing.T) {
+			attempts := atomic.NewInt64(0)
+
+			srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusAccepted)
+			}))
+			srv.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+				if state == http.StateNew {
+					attempts.Inc()
+				}
+			}
+			srv.StartTLS()
+			defer srv.Close()
+
+			backend := &ActivityDumpRemoteBackend{
+				tooLargeEntities: atomic.NewUint64(0),
+				client:           &http.Client{},
+				maxRetries:       3,
+				retryBaseDelay:   time.Second,
+			}
+
+			start := time.Now()
+			err := backend.sendToEndpoint(srv.URL+"/api/v2/secdump", "api-key", header, dump)
+			require.Error(t, err)
+			assert.Equal(t, int64(1), attempts.Load())
+			assert.Less(t, time.Since(start), time.Second)
+		})
+
+		t.Run("unsupported protocol scheme", func(t *testing.T) {
+			backend := &ActivityDumpRemoteBackend{
+				tooLargeEntities: atomic.NewUint64(0),
+				client:           &http.Client{},
+				maxRetries:       3,
+				retryBaseDelay:   time.Second,
+			}
+
+			start := time.Now()
+			err := backend.sendToEndpoint("ftp://127.0.0.1/api/v2/secdump", "api-key", header, dump)
+			require.ErrorContains(t, err, "unsupported protocol scheme")
+			assert.Less(t, time.Since(start), time.Second)
+		})
+	})
 }
 
 func TestHandleActivityDumpSkipsEndpointWaitingForDelegatedAuth(t *testing.T) {
