@@ -71,12 +71,14 @@ static __always_inline int trace_init_module(void *ctx, u32 loaded_from_memory, 
             struct dentry *dentry = get_file_dentry(f);
             syscall.init_module.file.path_key.mount_id = get_file_mount_id(f);
             fill_file_metadata(dentry, &syscall.init_module.file);
+            if (S_ISREG(syscall.init_module.file.metadata.mode)) {
+                set_file_inode(dentry, &syscall.init_module.file, PATH_ID_INVALIDATE_TYPE_NONE);
+            }
 
             struct file *f_expected = f;
             f = NULL;
             bpf_probe_read(&f, sizeof(f), fd_slot);
             if (f == f_expected && S_ISREG(syscall.init_module.file.metadata.mode)) {
-                set_file_inode(dentry, &syscall.init_module.file, PATH_ID_INVALIDATE_TYPE_NONE);
                 if (syscall.init_module.file.path_key.ino != 0 &&
                     syscall.init_module.file.path_key.mount_id > 0) {
                     syscall.init_module.dentry = dentry;
