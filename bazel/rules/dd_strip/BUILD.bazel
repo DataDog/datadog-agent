@@ -45,12 +45,14 @@ filegroup(
     name = "test_tree_stripped_files",
     srcs = [":test_tree_stripped"],
     output_group = "stripped",
+    tags = ["manual"],
 )
 
 filegroup(
     name = "test_tree_debug_files",
     srcs = [":test_tree_stripped"],
     output_group = "debug",
+    tags = ["manual"],
 )
 
 # Inspects the real split action's outputs: .dbg twin for ELF with
