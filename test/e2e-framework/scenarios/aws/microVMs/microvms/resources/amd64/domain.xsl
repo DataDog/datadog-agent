@@ -8,6 +8,9 @@
       </xsl:copy>
    </xsl:template>
   <xsl:template match="/domain/features">
+      <features>
+           <acpi/>
+       </features>
        <cpu mode='host-passthrough' check='none'>
            <model fallback='forbid'>qemu64</model>
        </cpu>
