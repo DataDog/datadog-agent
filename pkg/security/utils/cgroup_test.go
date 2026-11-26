@@ -357,6 +357,44 @@ func TestCGroupFS(t *testing.T) {
 			assert.Empty(t, containerID)
 			assert.Empty(t, cgroupContext.CGroupID)
 		})
+
+		t.Run("find-cgroup-context-stat-fallback-mountpoint", func(t *testing.T) {
+			const pid = uint32(700001)
+			expectedCgroupPath := "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podf099a5b1_192b_4df6_b6d2_aa0b366fc2f1.slice/cri-containerd-b82e1003daa43c88a8f2ee5369e1a6905db37e28d29d61e189d176aea52b2b17.scope"
+
+			procTaskDir := filepath.Join(hostProc, "700001/task/700001")
+			require.NoError(t, os.MkdirAll(procTaskDir, 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(procTaskDir, "cgroup"), []byte("0::"+expectedCgroupPath+"\n"), 0o644))
+
+			firstMount := filepath.Join(tempDir, "sys/fs/cgroup-first")
+			secondMount := filepath.Join(tempDir, "sys/fs/cgroup-second")
+			firstCgroupPath := filepath.Join(firstMount, expectedCgroupPath)
+			secondCgroupPath := filepath.Join(secondMount, expectedCgroupPath)
+
+			require.NoError(t, os.MkdirAll(firstCgroupPath, 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(firstCgroupPath, "cgroup.procs"), []byte("700001\n"), 0o644))
+			require.NoError(t, os.MkdirAll(secondCgroupPath, 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(secondCgroupPath, "cgroup.procs"), []byte("700001\n"), 0o644))
+
+			cfsFallback := *cfs
+			cfsFallback.cGroupMountPoints = []string{firstMount, secondMount}
+			cfsFallback.statPath = func(path string, ctx *CGroupContext) error {
+				if path == firstCgroupPath {
+					return unix.ENOENT
+				}
+				ctx.CGroupFileMountID = 42
+				ctx.CGroupFileInode = 12345
+				return nil
+			}
+
+			containerID, cgroupContext, cgroupPath, err := cfsFallback.FindCGroupContext(pid, pid)
+			require.NoError(t, err)
+			assert.Equal(t, containerutils.ContainerID("b82e1003daa43c88a8f2ee5369e1a6905db37e28d29d61e189d176aea52b2b17"), containerID)
+			assert.Equal(t, containerutils.CGroupID(expectedCgroupPath), cgroupContext.CGroupID)
+			assert.Equal(t, uint32(42), cgroupContext.CGroupFileMountID)
+			assert.Equal(t, uint64(12345), cgroupContext.CGroupFileInode)
+			assert.Equal(t, secondCgroupPath, cgroupPath)
+		})
 	})
 
 	t.Run("cgroupv1", func(t *testing.T) {

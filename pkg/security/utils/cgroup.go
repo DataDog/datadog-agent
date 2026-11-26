@@ -232,7 +232,6 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 				}
 				err = fmt.Errorf("%w: %w", ErrStatCGroupPath, err)
 				lastStatErr = err
-				break
 			}
 		}
 		if lastStatErr != nil {
