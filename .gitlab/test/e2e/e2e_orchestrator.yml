@@ -3,14 +3,14 @@
 # Owned by: kubernetes-experiences, container-autoscaling, agent-devx
 
 .on_orchestrator_or_e2e_changes:
-  - !reference [.on_e2e_guard]
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/orchestrator/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_default]
   - changes:
       paths:
         - comp/core/tagger/**/*
@@ -46,8 +46,8 @@ new-e2e-orchestrator:
 .on_autoscaling_or_e2e_changes:
   # Do not skip known flaky tests on PRs that change spot scheduling code or tests.
   # Remove the GO_TEST_SKIP_FLAKE variable once the flakes are fixed.
-  # To make this work, the spot rules must come before .on_e2e_main_release_or_rc because the first matching rule wins.
-  - !reference [.on_e2e_guard]
+  # To make this work, the spot rules must come before .on_e2e_default because the first matching rule wins.
+  - !reference [.except_e2e_disabled]
   # Spot test definitions always run.
   - changes:
       paths:
@@ -64,13 +64,13 @@ new-e2e-orchestrator:
       compare_to: $COMPARE_TO_BRANCH
     variables:
       GO_TEST_SKIP_FLAKE: "false"
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/autoscaling/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_default]
   - changes:
       paths:
         - pkg/clusteragent/autoscaling/cluster/**/*

@@ -3,14 +3,14 @@
 # Owned by: injection-platform, agent-devx
 
 .on_ssi_or_e2e_changes:
-  - !reference [.on_e2e_guard]
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/ssi/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_default]
   - changes:
       paths:
         - pkg/clusteragent/admission/mutate/autoinstrumentation/**/*
@@ -44,14 +44,14 @@
     - go_e2e_deps
     - !reference [.needs_fakeintake_publish]
   rules:
-    - !reference [.on_e2e_guard]
-    - !reference [.on_e2e_fakeintake_changes]
+    - !reference [.except_e2e_disabled]
+    - !reference [.on_e2e_infra_changes]
     - changes:
         paths:
           - test/new-e2e/tests/ssi/**/*
         compare_to: $COMPARE_TO_BRANCH
       when: on_success
-    - !reference [.on_e2e_main_release_or_rc]
+    - !reference [.on_e2e_default]
     - !reference [.manual]
   variables:
     TARGETS: ./tests/ssi
@@ -66,14 +66,14 @@
 .new-e2e_ssi_extra_distribution:
   extends: .new-e2e_ssi
   rules:
-    - !reference [.on_e2e_guard]
-    - !reference [.on_e2e_fakeintake_changes]
+    - !reference [.except_e2e_disabled]
+    - !reference [.on_e2e_infra_changes]
     - changes:
         paths:
           - test/new-e2e/tests/ssi/**/*
         compare_to: $COMPARE_TO_BRANCH
       when: on_success
-    - !reference [.on_e2e_main_release_or_rc]
+    - !reference [.on_e2e_default]
     - !reference [.manual]
 
 new-e2e-ssi-kind:
@@ -156,8 +156,8 @@ new-e2e-ssi-aks:
 new-e2e-ssi-gradual-rollout:
   extends: .new_e2e_template
   rules:
-    - !reference [.on_e2e_guard]
-    - !reference [.on_e2e_fakeintake_changes]
+    - !reference [.except_e2e_disabled]
+    - !reference [.on_e2e_infra_changes]
     - changes:
         paths:
           - test/new-e2e/tests/ssi-gradual-rollout/**/*

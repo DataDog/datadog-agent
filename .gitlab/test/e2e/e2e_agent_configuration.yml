@@ -3,14 +3,14 @@
 # Owned by: agent-configuration, fleet-automation, fleet-remediation, remote-config, agent-devx
 
 .on_rc_or_e2e_changes:
-  - !reference [.on_e2e_guard]
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/remote-config/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_default]
   - changes:
       paths:
         - pkg/config/remote/**/*
@@ -18,14 +18,14 @@
       compare_to: $COMPARE_TO_BRANCH
 
 .on_subcommands_or_e2e_changes:
-  - !reference [.on_e2e_guard]
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/agent-subcommands/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_default]
   - changes:
       paths:
         - cmd/**/*

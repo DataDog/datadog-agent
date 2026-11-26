@@ -466,18 +466,8 @@ variables:
 # When DISABLE_PRE_MERGE_TESTS_AGENT is "true", E2E and KMT jobs become manual on PR/branch pipelines
 # (any pipeline that is not main, a release branch, a tag, or a triggered/deploy pipeline).
 # A "full pipeline" still runs everything: RUN_E2E_TESTS=on / RUN_KMT_TESTS=on / RUN_ALL_BUILDS=true.
-# Changes to test/e2e-framework (.pre_merge_tests_paths) always trigger the tests, even when the variable is set.
-.pre_merge_tests_paths: &pre_merge_tests_paths
-  - test/e2e-framework/**/*
-
-.if_pre_merge_tests_paths: &if_pre_merge_tests_paths
-  if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
-  changes:
-    paths: *pre_merge_tests_paths
-    compare_to: $COMPARE_TO_BRANCH
-  when: on_success
-
-.if_pr_skip_e2e_tests: &if_pr_skip_e2e_tests
+# Changes to test/e2e-framework and fakeintake always trigger the E2E tests, see .on_e2e_infra_changes.
+.if_e2e_pr_disabled: &if_e2e_pr_disabled
   if: $CI_COMMIT_BRANCH != "main" && $CI_COMMIT_BRANCH !~ /^[0-9]+\.[0-9]+\.x$/ && $CI_COMMIT_TAG == null && $CI_PIPELINE_SOURCE != "trigger" && $CI_PIPELINE_SOURCE != "pipeline" && $DEPLOY_AGENT != "true" && $DDR_WORKFLOW_ID == null && $RUN_ALL_BUILDS != "true" && $DISABLE_PRE_MERGE_TESTS_AGENT == "true" && $RUN_E2E_TESTS != "on"
 
 .kmt_test_definition_paths: &kmt_test_definition_paths
@@ -486,14 +476,14 @@ variables:
   - tasks/kmt.py
   - tasks/kernel_matrix_testing/*
 
-.if_kmt_test_definition_paths: &if_kmt_test_definition_paths
+.if_kmt_test_definition_changed: &if_kmt_test_definition_changed
   if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
   changes:
     paths: *kmt_test_definition_paths
     compare_to: $COMPARE_TO_BRANCH
   when: on_success
 
-.if_pr_skip_kmt_tests: &if_pr_skip_kmt_tests
+.if_kmt_pr_disabled: &if_kmt_pr_disabled
   if: $CI_COMMIT_BRANCH != "main" && $CI_COMMIT_BRANCH !~ /^[0-9]+\.[0-9]+\.x$/ && $CI_COMMIT_TAG == null && $CI_PIPELINE_SOURCE != "trigger" && $CI_PIPELINE_SOURCE != "pipeline" && $DEPLOY_AGENT != "true" && $DDR_WORKFLOW_ID == null && $RUN_ALL_BUILDS != "true" && $DISABLE_PRE_MERGE_TESTS_AGENT == "true" && $RUN_KMT_TESTS != "on"
 
 .if_disable_unit_tests: &if_disable_unit_tests
@@ -832,18 +822,15 @@ workflow:
   - <<: *on_build_changes
 
 .on_all_install_script_tests:
-  - !reference [.except_light_pipeline]
-  - <<: *if_disable_e2e_tests
-    when: never
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/agent-platform/tests/install_script*
         - test/e2e-framework/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - <<: *if_pre_merge_tests_paths
-  - <<: *if_pr_skip_e2e_tests
+  - <<: *if_e2e_pr_disabled
     when: manual
     allow_failure: true
   - <<: *if_installer_tests
@@ -867,17 +854,14 @@ workflow:
 
 # Specific rules for each e2e test type
 .on_install_script_tests:
-  - !reference [.except_light_pipeline]
-  - <<: *if_disable_e2e_tests
-    when: never
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/agent-platform/tests/install_script*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - <<: *if_pre_merge_tests_paths
-  - <<: *if_pr_skip_e2e_tests
+  - <<: *if_e2e_pr_disabled
     when: manual
     allow_failure: true
   - <<: *if_installer_tests
@@ -887,17 +871,14 @@ workflow:
         - test/e2e-framework/**/*
 
 .on_ddot_tests:
-  - !reference [.except_light_pipeline]
-  - <<: *if_disable_e2e_tests
-    when: never
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/agent-platform/tests/ddot*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - <<: *if_pre_merge_tests_paths
-  - <<: *if_pr_skip_e2e_tests
+  - <<: *if_e2e_pr_disabled
     when: manual
     allow_failure: true
   - <<: *if_installer_tests
@@ -908,17 +889,14 @@ workflow:
         - test/e2e-framework/**/*
 
 .on_step_by_step_tests:
-  - !reference [.except_light_pipeline]
-  - <<: *if_disable_e2e_tests
-    when: never
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/agent-platform/tests/step_by_step*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - <<: *if_pre_merge_tests_paths
-  - <<: *if_pr_skip_e2e_tests
+  - <<: *if_e2e_pr_disabled
     when: manual
     allow_failure: true
   - <<: *if_installer_tests
@@ -928,17 +906,14 @@ workflow:
         - test/e2e-framework/**/*
 
 .on_upgrade_tests:
-  - !reference [.except_light_pipeline]
-  - <<: *if_disable_e2e_tests
-    when: never
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/agent-platform/tests/upgrade*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - <<: *if_pre_merge_tests_paths
-  - <<: *if_pr_skip_e2e_tests
+  - <<: *if_e2e_pr_disabled
     when: manual
     allow_failure: true
   - <<: *if_installer_tests
@@ -948,17 +923,14 @@ workflow:
         - test/e2e-framework/**/*
 
 .on_persisting_integrations_tests:
-  - !reference [.except_light_pipeline]
-  - <<: *if_disable_e2e_tests
-    when: never
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/agent-platform/tests/persisting_integrations*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - <<: *if_pre_merge_tests_paths
-  - <<: *if_pr_skip_e2e_tests
+  - <<: *if_e2e_pr_disabled
     when: manual
     allow_failure: true
   - <<: *if_installer_tests
@@ -968,17 +940,14 @@ workflow:
         - test/e2e-framework/**/*
 
 .on_rpm_tests:
-  - !reference [.except_light_pipeline]
-  - <<: *if_disable_e2e_tests
-    when: never
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/agent-platform/tests/rpm*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - <<: *if_pre_merge_tests_paths
-  - <<: *if_pr_skip_e2e_tests
+  - <<: *if_e2e_pr_disabled
     when: manual
     allow_failure: true
   - <<: *if_installer_tests
@@ -988,17 +957,14 @@ workflow:
         - test/e2e-framework/**/*
 
 .on_package_signing_tests:
-  - !reference [.except_light_pipeline]
-  - <<: *if_disable_e2e_tests
-    when: never
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/agent-platform/tests/package_signing*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - <<: *if_pre_merge_tests_paths
-  - <<: *if_pr_skip_e2e_tests
+  - <<: *if_e2e_pr_disabled
     when: manual
     allow_failure: true
   - <<: *if_installer_tests
@@ -1028,9 +994,8 @@ workflow:
   - <<: *if_main_branch
     allow_failure: true
   - !reference [.except_light_pipeline]
-  - <<: *if_pre_merge_tests_paths
-  - <<: *if_kmt_test_definition_paths
-  - <<: *if_pr_skip_kmt_tests
+  - <<: *if_kmt_test_definition_changed
+  - <<: *if_kmt_pr_disabled
     when: manual
     allow_failure: true
   - <<: *if_run_all_kmt_tests
@@ -1094,9 +1059,8 @@ workflow:
 .on_system_probe_or_e2e_changes_or_manual:
   - <<: *if_main_branch
   - !reference [.except_light_pipeline]
-  - <<: *if_pre_merge_tests_paths
-  - <<: *if_kmt_test_definition_paths
-  - <<: *if_pr_skip_kmt_tests
+  - <<: *if_kmt_test_definition_changed
+  - <<: *if_kmt_pr_disabled
     when: manual
     allow_failure: true
   - <<: *if_run_all_kmt_tests
@@ -1107,17 +1071,31 @@ workflow:
     allow_failure: true
 
 # New E2E related rules
+#
+# Every E2E test rule is written in this order (the first matching rule wins):
+#
+#   - !reference [.except_e2e_disabled]    RUN_E2E_TESTS=off and light pipelines: never run
+#   - !reference [.on_e2e_infra_changes]   fakeintake / e2e-framework changed: always run
+#   - changes: <the test's own definition, test/new-e2e/tests/<area>/**>   (written by the owner)
+#       when: on_success                   always runs, even with DISABLE_PRE_MERGE_TESTS_AGENT=true
+#   - !reference [.on_e2e_default]         main / release / rc / full pipelines run; on a PR it is manual
+#                                          when DISABLE_PRE_MERGE_TESTS_AGENT is "true"
+#   - changes: <the owner's source paths, pkg/**, cmd/**, ...>             (written by the owner)
+#                                          only reached when DISABLE_PRE_MERGE_TESTS_AGENT is not "true"
+#
+# Jobs that run on every PR and have no paths of their own use .on_e2e_pr_manual instead of the last two.
 
-# Pre-checks shared by all E2E rules: RUN_E2E_TESTS=off and light pipelines never run E2E jobs.
-# This always comes first, so nothing below it can override it.
-.on_e2e_guard:
+# Never run when E2E is explicitly disabled or in a light pipeline.
+# Always first in an E2E rule, so nothing below it can override it.
+.except_e2e_disabled:
   - <<: *if_disable_e2e_tests
     when: never
   - !reference [.except_light_pipeline]
 
-# Fakeintake changes run E2E even with DISABLE_PRE_MERGE_TESTS_AGENT=true. Always reference this
-# right after .on_e2e_guard so that RUN_E2E_TESTS=off and light pipelines still win.
-.on_e2e_fakeintake_changes:
+# Changes to the test infrastructure (fakeintake, e2e framework) always run the E2E tests, even with
+# DISABLE_PRE_MERGE_TESTS_AGENT=true. Always reference this right after .except_e2e_disabled so that
+# RUN_E2E_TESTS=off and light pipelines still win.
+.on_e2e_infra_changes:
   # Fakeintake server change: run e2e against the built v<sha> override image.
   # Main-targeting pipelines only.
   - if: $COMPARE_TO_BRANCH == "main"
@@ -1133,21 +1111,27 @@ workflow:
       <<: *fakeintake_paths
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
+  # The e2e framework is shared by all the tests: any change runs them.
+  - changes:
+      paths:
+        - test/e2e-framework/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
 
 # For E2E jobs that normally run on every PR (so they have no path-based rules to build on):
 # stays automatic with DISABLE_PRE_MERGE_TESTS_AGENT unset, becomes manual on PRs when it is "true".
-# Reference it after .on_e2e_fakeintake_changes and the job's own test-definition paths.
-.on_e2e_pr_skip:
-  - <<: *if_pre_merge_tests_paths
-  - <<: *if_pr_skip_e2e_tests
+# Reference it after .on_e2e_infra_changes and the job's own test-definition paths.
+.on_e2e_pr_manual:
+  - <<: *if_e2e_pr_disabled
     when: manual
     allow_failure: true
 
-.on_e2e_main_release_or_rc: # This rule is used as a base for all new-e2e rules
-  - !reference [.on_e2e_guard]
-  - !reference [.on_e2e_fakeintake_changes]
-  - <<: *if_pre_merge_tests_paths
-  - <<: *if_pr_skip_e2e_tests
+# Decides by pipeline type: main / release / rc / full pipelines run; on a PR it is manual when
+# DISABLE_PRE_MERGE_TESTS_AGENT is "true". Reference it after the test's own definition paths.
+.on_e2e_default: # This rule is used as a base for all new-e2e rules
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
+  - <<: *if_e2e_pr_disabled
     when: manual
     allow_failure: true
   - <<: *if_run_all_e2e_tests
@@ -1164,7 +1148,6 @@ workflow:
         - .gitlab/test/e2e/*.yml
         - bazel/rules/go_shim/**/* # Runs bazelified Go tools
         - internal/tools/**/* # Go tools: gotestsum, etc. (incident-59251/59255/59256/59257/59258)
-        - test/e2e-framework/**/*
         - test/new-e2e/go.mod
         - flakes.yaml
         - release.json
@@ -1180,8 +1163,8 @@ workflow:
     when: on_success
 
 .on_e2e_or_windows_installer_changes:
-  - !reference [.on_e2e_guard]
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   # Test definitions (also listed in .if_windows_installer_changes, which is shared with
   # .except_windows_installer_changes, hence not removed there).
   - changes:
@@ -1190,32 +1173,32 @@ workflow:
         - test/new-e2e/tests/windows/domain-test/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_default]
   - <<: *if_windows_installer_changes
     when: on_success
 
-# fakeintake changes (and the override) are handled by .on_e2e_main_release_or_rc.
+# fakeintake changes (and the override) are handled by .on_e2e_default.
 .on_e2e_or_fakeintake_changes_or_manual:
-  - !reference [.on_e2e_guard]
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/agent-devx/pre-test/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_default]
   - when: manual
     allow_failure: true
 
 .on_npm_or_e2e_changes:
-  - !reference [.on_e2e_guard]
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/npm/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_default]
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for npm
@@ -1223,14 +1206,14 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
 
 .on_acfg_or_e2e_changes:
-  - !reference [.on_e2e_guard]
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/agent-configuration/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_default]
   - changes:
       paths:
         - cmd/**/*
@@ -1239,14 +1222,14 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
 
 .on_process_or_e2e_changes:
-  - !reference [.on_e2e_guard]
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/process/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_default]
   - changes:
       paths:
         - cmd/process-agent/**/*
@@ -1259,14 +1242,14 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
 
 .on_alp_or_e2e_changes:
-  - !reference [.on_e2e_guard]
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/agent-log-pipelines/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_default]
   - changes:
       paths:
         - cmd/agent/subcommands/streamlogs/*
@@ -1278,28 +1261,28 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
 
 .on_cws_or_e2e_changes:
-  - !reference [.on_e2e_guard]
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/cws/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_default]
   - changes:
       paths: *security_agent_change_paths
       compare_to: $COMPARE_TO_BRANCH
 
 .on_installer_or_e2e_changes:
-  - !reference [.on_e2e_guard]
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/fleet/**/*
         - test/new-e2e/tests/installer/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_default]
   - changes:
       paths:
         - .gitlab/build/packaging/**/* # https://github.com/DataDog/datadog-agent/pull/56690
@@ -1317,14 +1300,14 @@ workflow:
     when: on_success
 
 .on_netpath_or_e2e_changes:
-  - !reference [.on_e2e_guard]
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/netpath/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_default]
   - changes:
       paths:
         - cmd/system-probe/modules/traceroute.go
@@ -1341,14 +1324,14 @@ workflow:
     when: on_success
 
 .on_otel_or_e2e_changes:
-  - !reference [.on_e2e_guard]
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/otel/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_default]
   - changes:
       paths:
         - cmd/otel-agent/**/*
@@ -1373,14 +1356,14 @@ workflow:
     when: on_success
 
 .on_windows_service_or_e2e_changes:
-  - !reference [.on_e2e_guard]
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/windows/service-test/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_default]
   - changes:
       paths:
         - cmd/agent/**/*
@@ -1397,14 +1380,14 @@ workflow:
     when: on_success
 
 .on_windows_powershell_check_or_e2e_changes:
-  - !reference [.on_e2e_guard]
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/windows/powershell-check/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_default]
   - changes:
       paths:
         - cmd/agent/dist/conf.d/powershell.d/**/*
@@ -1415,14 +1398,14 @@ workflow:
     when: on_success
 
 .on_windows_certificate_or_e2e_changes:
-  - !reference [.on_e2e_guard]
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/windows/windows-certificate/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_default]
   - changes:
       paths:
         - pkg/collector/corechecks/system/windowscertificate/**/*
@@ -1430,14 +1413,14 @@ workflow:
     when: on_success
 
 .on_windows_fips_compliance_or_e2e_changes:
-  - !reference [.on_e2e_guard]
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/fips-compliance/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_default]
   - <<: *on_build_changes
     when: on_success
 
@@ -1466,15 +1449,15 @@ workflow:
     allow_failure: true
 
 .on_systemprobe_or_e2e_changes:
-  - !reference [.on_e2e_guard]
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/sysprobe-functional/**/*
         - test/new-e2e/tests/usm/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_default]
   - changes:
       paths:
         - pkg/discovery/module/*
@@ -1486,14 +1469,14 @@ workflow:
     when: on_success
 
 .on_windows_security_or_e2e_changes:
-  - !reference [.on_e2e_guard]
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/security-agent-functional/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_default]
   - changes:
       paths:
         - pkg/security/**/*
@@ -1560,7 +1543,7 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
 
 # Gates build/publish/version-check jobs on image-rebuilding (server) changes.
-# The e2e override is set in .on_e2e_main_release_or_rc, not here.
+# The e2e override is set in .on_e2e_default, not here.
 .on_fakeintake_changes:
   - changes:
       <<: *fakeintake_server_paths

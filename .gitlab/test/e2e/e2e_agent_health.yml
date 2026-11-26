@@ -3,14 +3,14 @@
 # Owned by: fleet-remediation, agent-devx
 
 .on_healthplatform_or_e2e_changes:
-  - !reference [.on_e2e_guard]
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/agent-health/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_default]
   - changes:
       paths:
         - comp/healthplatform/**/*
@@ -30,14 +30,14 @@ new-e2e-agent-health:
     TEAM: fleet-remediation
 
 .on_agenttelemetry_or_e2e_changes:
-  - !reference [.on_e2e_guard]
-  - !reference [.on_e2e_fakeintake_changes]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/agent-telemetry/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_default]
   - changes:
       paths:
         - cmd/agent/subcommands/run/**/*
