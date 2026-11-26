@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"sync/atomic"
 
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 )
 
@@ -37,6 +38,12 @@ const (
 	telemetryScorerEWMA                      = "observer.scorer.ewma"                         // Anomaly scorer smoothed EWMA signal, updated every second.
 	telemetryScorerEWMAFinalized             = "observer.scorer.ewma_finalized"               // Anomaly scorer EWMA that is old enough not to be revised by replay.
 	telemetryScorerSeverity                  = "observer.scorer.severity"                     // Current anomaly scorer severity level (0=Low,1=Medium,2=High).
+	telemetryScopedScorerActiveScopes        = "observer.scoped_scorer.active_scopes"         // Number of active per-service child scorers.
+	telemetryScopedScorerEvictedScopes       = "observer.scoped_scorer.evicted_scopes"        // Number of per-service child scorers evicted, tagged by reason.
+	telemetryScopedScorerAnomalies           = "observer.scoped_scorer.anomalies"             // Anomalies processed by the scoped scorer, tagged by status (scoped/unscoped).
+	telemetryScopedScorerEWMA                = "observer.scoped_scorer.ewma"                  // Scoped anomaly scorer EWMA signal per service, updated every second.
+	telemetryScopedScorerEWMAFinalized       = "observer.scoped_scorer.ewma_finalized"        // Scoped anomaly scorer finalized EWMA per service after reordering window.
+	telemetryScopedScorerSeverity            = "observer.scoped_scorer.severity"              // Current scoped anomaly scorer severity level per service (0=Low,1=Medium,2=High).
 )
 
 const (
@@ -47,6 +54,61 @@ const (
 	telemetryKindProcessingTimeNs  = "observer.detector.kind_processing_time_ns"
 	telemetryKindProcessingCalls   = "observer.detector.kind_processing_calls"
 )
+
+type scorerGauges struct {
+	ewma          telemetry.Gauge
+	ewmaFinalized telemetry.Gauge
+	severity      telemetry.Gauge
+}
+
+func newScorerGauges(
+	telemetryComp telemetry.Component,
+	ewmaName, ewmaFinalizedName, severityName, tagName string,
+) scorerGauges {
+	tags := []string{tagName}
+	return scorerGauges{
+		ewma: telemetryComp.NewGauge(
+			"observer", ewmaName, tags,
+			"Anomaly scorer EWMA signal, updated every second",
+		),
+		ewmaFinalized: telemetryComp.NewGauge(
+			"observer", ewmaFinalizedName, tags,
+			"Anomaly scorer EWMA after the configured reordering window has passed",
+		),
+		severity: telemetryComp.NewGauge(
+			"observer", severityName, tags,
+			"Current anomaly scorer severity level (0=Low, 1=Medium, 2=High)",
+		),
+	}
+}
+
+func (g scorerGauges) enabled() bool {
+	return g.ewma != nil || g.ewmaFinalized != nil || g.severity != nil
+}
+
+func (g scorerGauges) record(tagValue string, ewma float64, level severityeventsdef.SeverityLevel, finalizedEWMA float64, hasFinalized bool) {
+	if g.ewma != nil {
+		g.ewma.Set(ewma, tagValue)
+	}
+	if g.ewmaFinalized != nil && hasFinalized {
+		g.ewmaFinalized.Set(finalizedEWMA, tagValue)
+	}
+	if g.severity != nil {
+		g.severity.Set(float64(level), tagValue)
+	}
+}
+
+func (g scorerGauges) deleteAll(tagValue string) {
+	if g.ewma != nil {
+		g.ewma.Delete(tagValue)
+	}
+	if g.ewmaFinalized != nil {
+		g.ewmaFinalized.Delete(tagValue)
+	}
+	if g.severity != nil {
+		g.severity.Delete(tagValue)
+	}
+}
 
 type observerTelemetry struct {
 	metricKindTransitions  telemetry.Counter
@@ -73,9 +135,14 @@ type observerTelemetry struct {
 	inputRateLimiterDrop telemetry.Counter
 	processingTime       telemetry.Gauge
 	detectorEmissions    telemetry.Counter
+	scorerGauges         scorerGauges
 	scorerEwma           telemetry.Gauge
 	scorerEwmaFinalized  telemetry.Gauge
 	scorerSeverity       telemetry.Gauge
+	scopedActiveScopes   telemetry.Gauge
+	scopedEvictedScopes  telemetry.Counter
+	scopedAnomalies      telemetry.Counter
+	scopedScorerGauges   scorerGauges
 
 	inFlightInternal   atomic.Int64
 	inFlightKubelet    atomic.Int64
@@ -83,6 +150,9 @@ type observerTelemetry struct {
 }
 
 func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry {
+	globalGauges := newScorerGauges(
+		telemetryComp, telemetryScorerEWMA, telemetryScorerEWMAFinalized, telemetryScorerSeverity, "scorer",
+	)
 	return &observerTelemetry{
 		metricKindTransitions: telemetryComp.NewCounter("observer", telemetryMetricKindTransitions, []string{"from", "to"}, "Confirmed metric kind transitions"),
 		metricKindSeriesCount: telemetryComp.NewGauge("observer", telemetryMetricKindSeriesCount, []string{"kind"}, "Non-telemetry gauge series by committed kind"),
@@ -192,23 +262,34 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			[]string{"detector", "severity"},
 			"Deduplicated detector emissions by score severity before correlation and reporting",
 		),
-		scorerEwma: telemetryComp.NewGauge(
+		scorerGauges:        globalGauges,
+		scorerEwma:          globalGauges.ewma,
+		scorerEwmaFinalized: globalGauges.ewmaFinalized,
+		scorerSeverity:      globalGauges.severity,
+		scopedActiveScopes: telemetryComp.NewGauge(
 			"observer",
-			telemetryScorerEWMA,
-			[]string{"scorer"},
-			"Anomaly scorer EWMA signal, updated every second",
+			telemetryScopedScorerActiveScopes,
+			nil,
+			"Number of active per-service child scorers",
 		),
-		scorerEwmaFinalized: telemetryComp.NewGauge(
+		scopedEvictedScopes: telemetryComp.NewCounter(
 			"observer",
-			telemetryScorerEWMAFinalized,
-			[]string{"scorer"},
-			"Anomaly scorer EWMA after the configured reordering window has passed",
+			telemetryScopedScorerEvictedScopes,
+			[]string{"reason"},
+			"Number of per-service child scorers evicted, tagged by reason",
 		),
-		scorerSeverity: telemetryComp.NewGauge(
+		scopedAnomalies: telemetryComp.NewCounter(
 			"observer",
-			telemetryScorerSeverity,
-			[]string{"scorer"},
-			"Current anomaly scorer severity level (0=Low, 1=Medium, 2=High)",
+			telemetryScopedScorerAnomalies,
+			[]string{"status"},
+			"Anomalies processed by the scoped scorer, tagged by status",
+		),
+		scopedScorerGauges: newScorerGauges(
+			telemetryComp,
+			telemetryScopedScorerEWMA,
+			telemetryScopedScorerEWMAFinalized,
+			telemetryScopedScorerSeverity,
+			"service",
 		),
 	}
 }
@@ -369,4 +450,22 @@ func (t *observerTelemetry) recordDetectorTiming(detector, kind string, meanNs f
 
 func (t *observerTelemetry) recordMetricKindTransitions(from, to string, count uint64) {
 	t.metricKindTransitions.Add(float64(count), from, to)
+}
+
+func (t *observerTelemetry) setScopedScorerActiveScopes(count int) {
+	t.scopedActiveScopes.Set(float64(count))
+}
+
+func (t *observerTelemetry) recordScopedScorerEvicted(reason string) {
+	if reason == "" {
+		return
+	}
+	t.scopedEvictedScopes.Add(1, reason)
+}
+
+func (t *observerTelemetry) recordScopedScorerAnomalies(status string, count uint64) {
+	if count == 0 {
+		return
+	}
+	t.scopedAnomalies.Add(float64(count), status)
 }

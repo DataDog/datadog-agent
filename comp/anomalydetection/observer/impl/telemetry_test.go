@@ -11,6 +11,7 @@ import (
 	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
@@ -44,6 +45,11 @@ func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 	tel.recordDetectorEmission("bocpd", "unset", "medium", 1)
 	tel.scorerSeverity.Set(2, "anomaly_scorer")
 	tel.scorerEwmaFinalized.Set(1, "anomaly_scorer")
+	tel.setScopedScorerActiveScopes(2)
+	tel.recordScopedScorerEvicted("idle")
+	tel.recordScopedScorerAnomalies("scoped", 1)
+	tel.scopedScorerGauges.record("checkout", 0.5, severityeventsdef.SeverityHigh, 0.4, true)
+	tel.scopedScorerGauges.deleteAll("checkout")
 }
 
 func TestObserverTelemetry_EmitsNewMetrics(t *testing.T) {
@@ -85,6 +91,41 @@ func TestObserverTelemetry_EmitsNewMetrics(t *testing.T) {
 	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetrySeriesFresh, nil).GetCounter().GetValue())
 	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryScorerSeverity, map[string]string{"scorer": "anomaly_scorer"}).GetGauge().GetValue())
 	assert.Equal(t, 3.0, observerMetric(t, telComp, telemetryScorerEWMAFinalized, map[string]string{"scorer": "anomaly_scorer"}).GetGauge().GetValue())
+}
+
+func TestObserverTelemetry_ScopedScorerMetrics(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	tel := newObserverTelemetry(telComp)
+
+	tel.setScopedScorerActiveScopes(3)
+	tel.recordScopedScorerEvicted("idle")
+	tel.recordScopedScorerEvicted("capacity")
+	tel.recordScopedScorerEvicted("")
+	tel.recordScopedScorerAnomalies("scoped", 0)
+	tel.recordScopedScorerAnomalies("scoped", 4)
+	tel.recordScopedScorerAnomalies("unscoped", 2)
+
+	assert.Equal(t, 3.0, observerMetric(t, telComp, telemetryScopedScorerActiveScopes, nil).GetGauge().GetValue())
+	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryScopedScorerEvictedScopes, map[string]string{"reason": "idle"}).GetCounter().GetValue())
+	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryScopedScorerEvictedScopes, map[string]string{"reason": "capacity"}).GetCounter().GetValue())
+	assert.Equal(t, 4.0, observerMetric(t, telComp, telemetryScopedScorerAnomalies, map[string]string{"status": "scoped"}).GetCounter().GetValue())
+	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryScopedScorerAnomalies, map[string]string{"status": "unscoped"}).GetCounter().GetValue())
+
+	tel.scopedScorerGauges.record("checkout", 0.42, severityeventsdef.SeverityHigh, 0.31, true)
+	assert.Equal(t, 0.42, observerMetric(t, telComp, telemetryScopedScorerEWMA, map[string]string{"service": "checkout"}).GetGauge().GetValue())
+	assert.Equal(t, 0.31, observerMetric(t, telComp, telemetryScopedScorerEWMAFinalized, map[string]string{"service": "checkout"}).GetGauge().GetValue())
+	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryScopedScorerSeverity, map[string]string{"service": "checkout"}).GetGauge().GetValue())
+
+	tel.scopedScorerGauges.deleteAll("checkout")
+	metrics, err := telComp.Gather(telemetry.NoFilter)
+	require.NoError(t, err)
+	for _, family := range metrics {
+		if family.GetName() == telemetryScopedScorerEWMA ||
+			family.GetName() == telemetryScopedScorerEWMAFinalized ||
+			family.GetName() == telemetryScopedScorerSeverity {
+			assert.Empty(t, family.GetMetric(), "expected %s series to be deleted", family.GetName())
+		}
+	}
 }
 
 func TestLogExtractorsPublishIndependentPatternCounts(t *testing.T) {
