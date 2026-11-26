@@ -27,7 +27,6 @@ const (
 	// SSH has no deadline. Perl runs inside sudo so SIGALRM reaches dd-procmgr.
 	macosBoundedPerl        = "perl -e 'alarm shift; exec @ARGV or die \"exec: $!\\n\"' "
 	macosProcmgrRPCTimeout  = "30"
-	macosProcmgrHealTimeout = "15"
 	macosProcmgrStopTimeout = "120"
 	// _dd-agent is in group daemon, so it can reach the socket, but it is not root.
 	macosCallerAuthAgentCLI = "sudo -u _dd-agent " + macosBoundedPerl + macosProcmgrRPCTimeout + " " + macosProcmgrCLI
@@ -96,9 +95,9 @@ func macosBoundedProcmgrCommand(seconds, args string) string {
 
 // waitMacosSleepGone polls until a probe finds no child. A probe error only ends the wait at the deadline.
 func waitMacosSleepGone(client *common.MacOSTestClient, sleepArg string, timeout time.Duration) (string, error) {
-	check := "sudo sh -c 'perl -e \"alarm shift; exec @ARGV or die\" 10 pgrep -f \"" + macosSleepPattern(sleepArg) + "\"; status=$?; if [ \"$status\" -eq 1 ]; then exit 0; fi; exit \"$status\"'"
 	deadline := time.Now().Add(timeout)
 	for {
+		check := "sudo sh -c 'perl -e \"alarm shift; exec @ARGV or die\" " + macosBoundSeconds(deadline, 10) + " pgrep -f \"" + macosSleepPattern(sleepArg) + "\"; status=$?; if [ \"$status\" -eq 1 ]; then exit 0; fi; exit \"$status\"'"
 		left, err := client.Execute(check)
 		if err == nil && strings.TrimSpace(left) == "" {
 			return left, nil
@@ -108,6 +107,12 @@ func waitMacosSleepGone(client *common.MacOSTestClient, sleepArg string, timeout
 		}
 		time.Sleep(250 * time.Millisecond)
 	}
+}
+
+// macosBoundSeconds bounds a remote probe by the time left before deadline. The 3 second floor gives a probe
+// near the deadline time to run, and keeps the Perl alarm from reaching 0.
+func macosBoundSeconds(deadline time.Time, limit int) string {
+	return strconv.Itoa(min(limit, max(3, int(time.Until(deadline).Seconds()))))
 }
 
 func killMacosSleep(t *testing.T, client *common.MacOSTestClient, sleepArg string) (string, error) {
@@ -152,7 +157,7 @@ func healMacosCallerAuthLeftovers(t *testing.T, client *common.MacOSTestClient) 
 	}
 	var found bool
 	for deadline := time.Now().Add(time.Minute); ; time.Sleep(time.Second) {
-		out, err = client.Execute(macosBoundedProcmgrCommand(macosProcmgrHealTimeout, "list --json"))
+		out, err = client.Execute(macosBoundedProcmgrCommand(macosBoundSeconds(deadline, 15), "list --json"))
 		list = nil
 		if err == nil {
 			err = json.Unmarshal([]byte(strings.TrimSpace(out)), &list)
