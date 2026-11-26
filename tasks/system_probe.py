@@ -180,7 +180,7 @@ def build(
     static=False,
     fips_backend=FipsBackend.none,
     glibc=True,
-    enable_bazel=False,
+    enable_bazel=not is_windows,  # TODO(ABLD-310): temporary, revert to False before merge
 ):
     """
     Build the system-probe
@@ -227,7 +227,7 @@ def build_sysprobe_binary(
     fips_backend=FipsBackend.none,
     static=False,
     glibc=True,
-    enable_bazel=False,
+    enable_bazel=not is_windows,  # TODO(ABLD-310): temporary, revert to False before merge
 ) -> None:
     arch_obj = Arch.from_str(arch)
 
