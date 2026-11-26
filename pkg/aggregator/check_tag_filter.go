@@ -21,7 +21,7 @@ import (
 // whose sources' points add up.
 func typeFiltersAtOutput(mtype metrics.MetricType) bool {
 	switch mtype {
-	case metrics.DistributionType, metrics.CounterType:
+	case metrics.DistributionType, metrics.CounterType, metrics.CountType, metrics.MonotonicCountType, metrics.HistogramBucketType:
 		return true
 	}
 	return false
