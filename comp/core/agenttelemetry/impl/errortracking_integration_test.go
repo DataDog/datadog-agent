@@ -12,16 +12,18 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/DataDog/zstd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgremoteflags "github.com/DataDog/datadog-agent/pkg/remoteflags"
@@ -29,22 +31,15 @@ import (
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
-// The tests below run the whole errortracking path in one process: the
-// component built the way the Agent builds it, the remote flag delivered
-// through the subscriber it provides, an error logged through the Agent
-// logger, and the payload received by an HTTP server standing for the intake.
+// The tests below run the whole errortracking path in one process, in a
+// testing/synctest bubble: the component built the way the Agent builds it, the
+// remote flag delivered through the subscriber it provides, an error logged
+// through the Agent logger, and the payload received by an HTTP server standing
+// for the intake. The sender and the intake talk over an in-memory connection,
+// so the tests know when the flush ran instead of waiting for it.
 
-const (
-	// integrationFlushInterval is the flush period of the integration tests.
-	// The flush job runs on the real runner, so it is the shortest period the
-	// configuration accepts.
-	integrationFlushInterval = time.Second
-	// integrationReceiveTimeout bounds the wait for a payload that must arrive.
-	integrationReceiveTimeout = 15 * time.Second
-	// integrationQuietPeriod is how long nothing must arrive for a payload that
-	// must not be sent: it covers several flush periods.
-	integrationQuietPeriod = 3 * integrationFlushInterval
-)
+// integrationFlushInterval is the flush period of the errortracking job.
+const integrationFlushInterval = time.Second
 
 // intakeRequest is what the intake received.
 type intakeRequest struct {
@@ -52,22 +47,40 @@ type intakeRequest struct {
 	body        []byte
 }
 
-// startIntake starts an HTTP server that records every telemetry request.
-func startIntake(t *testing.T) (*httptest.Server, <-chan intakeRequest) {
+// recordingIntake records every request it receives.
+type recordingIntake struct {
+	mu       sync.Mutex
+	requests []intakeRequest
+}
+
+func (i *recordingIntake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err == nil && r.Header.Get("Content-Encoding") == "zstd" {
+		body, err = zstd.Decompress(nil, body)
+	}
+	if err == nil {
+		i.mu.Lock()
+		i.requests = append(i.requests, intakeRequest{requestType: r.Header.Get("DD-Telemetry-request-type"), body: body})
+		i.mu.Unlock()
+	}
+	w.WriteHeader(http.StatusAccepted)
+}
+
+// agentLogsPayloads returns the agent-logs payloads received so far.
+func (i *recordingIntake) agentLogsPayloads(t *testing.T) []agentLogsPayload {
 	t.Helper()
-	requests := make(chan intakeRequest, 32)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
-		if err == nil && r.Header.Get("Content-Encoding") == "zstd" {
-			body, err = zstd.Decompress(nil, body)
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	var payloads []agentLogsPayload
+	for _, req := range i.requests {
+		if req.requestType != logsPayloadType {
+			continue
 		}
-		if err == nil {
-			requests <- intakeRequest{requestType: r.Header.Get("DD-Telemetry-request-type"), body: body}
-		}
-		w.WriteHeader(http.StatusAccepted)
-	}))
-	t.Cleanup(server.Close)
-	return server, requests
+		var payload agentLogsPayload
+		require.NoError(t, json.Unmarshal(req.body, &payload), "payload: %s", req.body)
+		payloads = append(payloads, payload)
+	}
+	return payloads
 }
 
 // agentLogsPayload is the part of the agent-logs payload the tests read.
@@ -84,55 +97,78 @@ type agentLogsPayload struct {
 	} `json:"payload"`
 }
 
-// integrationConfig points the component at the intake and enables
-// errortracking-capable agent telemetry. localErrortracking is added under
-// agent_telemetry.errortracking and may be empty to leave the key unset.
-func integrationConfig(intakeURL, localErrortracking string) string {
+// integrationConfig points the component at the intake. localErrortracking is
+// added under agent_telemetry.errortracking and may be empty to leave the key
+// unset.
+func integrationConfig(localErrortracking string) string {
 	return "api_key: integration-key\n" +
 		"agent_telemetry:\n" +
 		"  enabled: true\n" +
 		"  use_compression: false\n" +
-		"  dd_url: " + intakeURL + "\n" +
+		"  dd_url: http://" + pipeListenerAddress + "\n" +
 		"  errortracking:\n" +
 		"    flush_interval_seconds: 1\n" +
 		"    startup_jitter_seconds: 0\n" +
 		localErrortracking
 }
 
-// startIntegrationAgent builds and starts the component over the given
-// configuration, routes the Agent logger to a file in a temporary directory and
-// returns the handler of the errortracking flag as the Remote Flags client
-// holds it.
-func startIntegrationAgent(t *testing.T, yaml string) pkgremoteflags.FlagHandler {
+// runIntegrationScenario builds and starts the component over the given local
+// configuration inside a synctest bubble and hands the scenario the handler of
+// the errortracking flag, as the Remote Flags client holds it, and the intake.
+func runIntegrationScenario(t *testing.T, localErrortracking string, scenario func(t *testing.T, flag pkgremoteflags.FlagHandler, intake *recordingIntake)) {
 	t.Helper()
 	cleanupErrortrackingSlots(t)
 
-	cfg := configmock.NewFromYAML(t, yaml)
-	lc := compdef.NewTestLifecycle(t)
-	provides := NewComponent(Requires{
-		Config:    cfg,
-		Log:       makeLogMock(t),
-		Telemetry: makeTelMock(t),
-		Lc:        lc,
-	})
-	require.NoError(t, lc.Start(context.Background()))
-	t.Cleanup(func() { _ = lc.Stop(context.Background()) })
-
+	// The process-wide state the components create lazily is created outside
+	// the bubble: created inside, it would be bound to it.
+	cfg := configmock.NewFromYAML(t, integrationConfig(localErrortracking))
+	logComp := makeLogMock(t)
+	telComp := makeTelMock(t)
 	require.NoError(t, pkglogsetup.SetupLogger("TEST", "info", filepath.Join(t.TempDir(), "agent.log"), "", false, false, false, cfg))
 	t.Cleanup(pkglog.Flush)
 
-	for _, h := range provides.Subscriber.Handlers() {
-		if h.FlagName() == flagErrortracking {
-			return h
+	synctest.Test(t, func(t *testing.T) {
+		listener := newPipeListener()
+		intake := &recordingIntake{}
+		server := &http.Server{Handler: intake, ReadHeaderTimeout: time.Minute}
+		go func() { _ = server.Serve(listener) }()
+		t.Cleanup(func() { _ = server.Close() })
+
+		// the sender reaches the intake, and only it, over the in-memory connection
+		transport := listener.transport()
+		t.Cleanup(transport.CloseIdleConnections)
+		previous := newTransport
+		newTransport = func(config.Reader) http.RoundTripper { return transport }
+		t.Cleanup(func() { newTransport = previous })
+
+		lc := compdef.NewTestLifecycle(t)
+		provides := NewComponent(Requires{Config: cfg, Log: logComp, Telemetry: telComp, Lc: lc})
+		require.NoError(t, lc.Start(context.Background()))
+		t.Cleanup(func() { _ = lc.Stop(context.Background()) })
+
+		var flag pkgremoteflags.FlagHandler
+		for _, h := range provides.Subscriber.Handlers() {
+			if h.FlagName() == flagErrortracking {
+				flag = h
+			}
 		}
-	}
-	require.FailNow(t, "the errortracking flag is not subscribed")
-	return nil
+		require.NotNil(t, flag, "the errortracking flag is not subscribed")
+
+		scenario(t, flag, intake)
+	})
+}
+
+// letFlushesRun gives the flush job several periods of bubble time and waits
+// until everything it started is idle again.
+func letFlushesRun() {
+	time.Sleep(3 * integrationFlushInterval)
+	synctest.Wait()
 }
 
 // Each helper logs from its own call site, because the bouncer reports a stack
 // once per window: a second record from the same call site would be counted,
 // not sent.
+func logIntegrationErrorBeforeFlag()   { _ = pkglog.Errorf("integration: before the flag") }
 func logIntegrationErrorFromFlagOn()   { _ = pkglog.Errorf("integration: flag on") }
 func logIntegrationErrorFromLocalOff() { _ = pkglog.Errorf("integration: local off") }
 func logIntegrationErrorBeforeRemoval() {
@@ -140,97 +176,65 @@ func logIntegrationErrorBeforeRemoval() {
 }
 func logIntegrationErrorAfterRemoval() { _ = pkglog.Errorf("integration: after removal") }
 
-// waitForAgentLogs returns the next agent-logs payload the intake received.
-func waitForAgentLogs(t *testing.T, requests <-chan intakeRequest) agentLogsPayload {
-	t.Helper()
-	timeout := time.After(integrationReceiveTimeout)
-	for {
-		select {
-		case req := <-requests:
-			if req.requestType != logsPayloadType {
-				continue
-			}
-			var payload agentLogsPayload
-			require.NoError(t, json.Unmarshal(req.body, &payload), "payload: %s", req.body)
-			return payload
-		case <-timeout:
-			require.FailNow(t, "no agent-logs payload reached the intake")
-		}
-	}
-}
-
-// requireNoAgentLogs fails if an agent-logs payload reaches the intake within
-// the quiet period.
-func requireNoAgentLogs(t *testing.T, requests <-chan intakeRequest) {
-	t.Helper()
-	timeout := time.After(integrationQuietPeriod)
-	for {
-		select {
-		case req := <-requests:
-			if req.requestType == logsPayloadType {
-				require.FailNow(t, "unexpected agent-logs payload", "%s", req.body)
-			}
-		case <-timeout:
-			return
-		}
-	}
-}
-
 // With the key unset, the flag turns the forwarding on: an error logged
 // through the Agent logger reaches the intake as an agent-logs payload that
 // carries the Go stack of the call site.
 func TestErrortrackingIntegration_FlagOnForwardsErrors(t *testing.T) {
-	intake, requests := startIntake(t)
-	flag := startIntegrationAgent(t, integrationConfig(intake.URL, ""))
+	runIntegrationScenario(t, "", func(t *testing.T, flag pkgremoteflags.FlagHandler, intake *recordingIntake) {
+		// Nothing is forwarded before the flag arrives.
+		logIntegrationErrorBeforeFlag()
+		letFlushesRun()
+		require.Empty(t, intake.agentLogsPayloads(t))
 
-	// Nothing is forwarded before the flag arrives.
-	logIntegrationErrorFromLocalOff()
-	requireNoAgentLogs(t, requests)
+		require.NoError(t, flag.OnChange(true))
+		logIntegrationErrorFromFlagOn()
+		letFlushesRun()
 
-	require.NoError(t, flag.OnChange(true))
-	logIntegrationErrorFromFlagOn()
+		payloads := intake.agentLogsPayloads(t)
+		require.Len(t, payloads, 1)
+		assert.Equal(t, logsPayloadType, payloads[0].RequestType)
+		require.Len(t, payloads[0].Payload.Logs, 1)
+		entry := payloads[0].Payload.Logs[0]
+		assert.Equal(t, "ERROR", entry.Level)
+		assert.Empty(t, entry.Message, "the message is user data and must not be sent")
+		assert.GreaterOrEqual(t, entry.Count, 1)
+		assert.Contains(t, entry.Tags, "git.repository_url:https://github.com/DataDog/datadog-agent")
+		assert.Contains(t, entry.Tags, "agent.flavor:agent")
 
-	payload := waitForAgentLogs(t, requests)
-	assert.Equal(t, logsPayloadType, payload.RequestType)
-	require.Len(t, payload.Payload.Logs, 1)
-	entry := payload.Payload.Logs[0]
-	assert.Equal(t, "ERROR", entry.Level)
-	assert.Empty(t, entry.Message, "the message is user data and must not be sent")
-	assert.GreaterOrEqual(t, entry.Count, 1)
-	assert.Contains(t, entry.Tags, "git.repository_url:https://github.com/DataDog/datadog-agent")
-	assert.Contains(t, entry.Tags, "agent.flavor:agent")
-
-	// Go stack format: a function line followed by a tab-indented file:line +0xaddr line.
-	assert.Contains(t, entry.StackTrace, "logIntegrationErrorFromFlagOn")
-	assert.Regexp(t, `(?m)^\t\S+\.go:\d+ \+0x[0-9a-f]+$`, entry.StackTrace)
+		// Go stack format: a function line followed by a tab-indented file:line +0xaddr line.
+		assert.Contains(t, entry.StackTrace, "logIntegrationErrorFromFlagOn")
+		assert.Regexp(t, `(?m)^\t\S+\.go:\d+ \+0x[0-9a-f]+$`, entry.StackTrace)
+	})
 }
 
 // An explicit local false wins over the flag: the flag is accepted and nothing
 // is forwarded.
 func TestErrortrackingIntegration_LocalFalseWins(t *testing.T) {
-	intake, requests := startIntake(t)
-	flag := startIntegrationAgent(t, integrationConfig(intake.URL, "    enabled: false\n"))
+	runIntegrationScenario(t, "    enabled: false\n", func(t *testing.T, flag pkgremoteflags.FlagHandler, intake *recordingIntake) {
+		require.NoError(t, flag.OnChange(true))
+		logIntegrationErrorFromLocalOff()
+		letFlushesRun()
 
-	require.NoError(t, flag.OnChange(true))
-	logIntegrationErrorFromLocalOff()
-
-	requireNoAgentLogs(t, requests)
+		assert.Empty(t, intake.agentLogsPayloads(t))
+	})
 }
 
 // When the flag is removed, forwarding stops: what was logged before arrives,
 // what is logged afterwards does not.
 func TestErrortrackingIntegration_FlagRemovalStopsForwarding(t *testing.T) {
-	intake, requests := startIntake(t)
-	flag := startIntegrationAgent(t, integrationConfig(intake.URL, ""))
+	runIntegrationScenario(t, "", func(t *testing.T, flag pkgremoteflags.FlagHandler, intake *recordingIntake) {
+		require.NoError(t, flag.OnChange(true))
+		logIntegrationErrorBeforeRemoval()
+		letFlushesRun()
+		payloads := intake.agentLogsPayloads(t)
+		require.Len(t, payloads, 1)
+		require.Len(t, payloads[0].Payload.Logs, 1)
+		assert.True(t, strings.Contains(payloads[0].Payload.Logs[0].StackTrace, "logIntegrationErrorBeforeRemoval"))
 
-	require.NoError(t, flag.OnChange(true))
-	logIntegrationErrorBeforeRemoval()
-	payload := waitForAgentLogs(t, requests)
-	require.Len(t, payload.Payload.Logs, 1)
-	assert.True(t, strings.Contains(payload.Payload.Logs[0].StackTrace, "logIntegrationErrorBeforeRemoval"))
+		flag.OnNoConfig()
+		logIntegrationErrorAfterRemoval()
+		letFlushesRun()
 
-	flag.OnNoConfig()
-	logIntegrationErrorAfterRemoval()
-
-	requireNoAgentLogs(t, requests)
+		assert.Len(t, intake.agentLogsPayloads(t), 1, "nothing may arrive after the flag was removed")
+	})
 }

@@ -55,6 +55,7 @@ dd_agent_go_test(
         "errortracking_integration_test.go",
         "errortracking_sender_test.go",
         "phonehome_test.go",
+        "pipelistener_test.go",
         "runner_test.go",
         "utils_test.go",
     ],
@@ -65,6 +66,7 @@ dd_agent_go_test(
         "testdata/zero_metric_histogram.yaml",
     ],
     deps = [
+        "//comp/core/config",
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/core/telemetry/def",
