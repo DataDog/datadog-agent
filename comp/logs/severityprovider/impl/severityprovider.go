@@ -46,9 +46,11 @@ type scopedState struct {
 }
 
 type component struct {
-	reader atomic.Pointer[readerState]
-	scoped atomic.Pointer[scopedState]
-	mu     sync.Mutex
+	reader  atomic.Pointer[readerState]
+	scoped  atomic.Pointer[scopedState]
+	mu      sync.Mutex
+	active  bool
+	staging map[severityeventsdef.ScopeKey]severityeventsdef.SeverityLevel
 }
 
 const scopedSeverityProfilesEnabled = false
@@ -88,16 +90,30 @@ func newComponentWithScoped(reqs Requires, scopedEnabled bool) (Provides, error)
 
 			if scopedEnabled {
 				comp.mu.Lock()
-				comp.scoped.Store(&scopedState{})
+				comp.active = true
+				comp.staging = make(map[severityeventsdef.ScopeKey]severityeventsdef.SeverityLevel)
 				comp.mu.Unlock()
 
 				subscription, err := observer.SubscribeScopedSeverityEvents(smartSeverityProfilesSubscriptionConfig(reqs.Config), comp)
 				if err != nil {
 					comp.mu.Lock()
+					comp.active = false
+					comp.staging = nil
 					comp.scoped.Store(nil)
 					comp.mu.Unlock()
 					return err
 				}
+
+				comp.mu.Lock()
+				if comp.active {
+					var initial map[severityeventsdef.ScopeKey]severityeventsdef.SeverityLevel
+					if len(comp.staging) > 0 {
+						initial = comp.staging
+					}
+					comp.staging = nil
+					comp.scoped.Store(&scopedState{elevated: initial})
+				}
+				comp.mu.Unlock()
 
 				unsubscribe = subscription.Unsubscribe
 				reqs.Log.Debugf("registered scoped smart adaptive-sampling severity listener")
@@ -120,6 +136,8 @@ func newComponentWithScoped(reqs Requires, scopedEnabled bool) (Provides, error)
 				unsubscribe = nil
 			}
 			comp.mu.Lock()
+			comp.active = false
+			comp.staging = nil
 			comp.scoped.Store(nil)
 			comp.mu.Unlock()
 			comp.reader.Store(nil)
@@ -151,8 +169,19 @@ func (c *component) OnScopedSeverityTransition(evt severityeventsdef.ScopedSever
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	if !c.active {
+		return
+	}
+
 	old := c.scoped.Load()
 	if old == nil {
+		if c.staging != nil {
+			if level <= severityeventsdef.SeverityLow {
+				delete(c.staging, evt.ScopeKey)
+			} else {
+				c.staging[evt.ScopeKey] = level
+			}
+		}
 		return
 	}
 
@@ -161,6 +190,18 @@ func (c *component) OnScopedSeverityTransition(evt severityeventsdef.ScopedSever
 		if !exists {
 			return
 		}
+		if len(old.elevated) == 1 {
+			c.scoped.Store(&scopedState{})
+			return
+		}
+		next := make(map[severityeventsdef.ScopeKey]severityeventsdef.SeverityLevel, len(old.elevated)-1)
+		for key, val := range old.elevated {
+			if key != evt.ScopeKey {
+				next[key] = val
+			}
+		}
+		c.scoped.Store(&scopedState{elevated: next})
+		return
 	} else if exists && prevLevel == level {
 		return
 	}
@@ -169,11 +210,7 @@ func (c *component) OnScopedSeverityTransition(evt severityeventsdef.ScopedSever
 	for key, val := range old.elevated {
 		next[key] = val
 	}
-	if level <= severityeventsdef.SeverityLow {
-		delete(next, evt.ScopeKey)
-	} else {
-		next[evt.ScopeKey] = level
-	}
+	next[evt.ScopeKey] = level
 	c.scoped.Store(&scopedState{elevated: next})
 }
 

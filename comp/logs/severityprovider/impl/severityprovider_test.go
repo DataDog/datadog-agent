@@ -23,6 +23,7 @@ import (
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	severityprovider "github.com/DataDog/datadog-agent/comp/logs/severityprovider/def"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -237,6 +238,7 @@ func TestScopedLifecycleBootstrapAndErrorCleanup(t *testing.T) {
 	obs := &fakeObserverComponent{
 		scopedInitial: []severityeventsdef.ScopedSeverityEvent{
 			{ScopeKey: checkout, Event: severityeventsdef.SeverityEvent{ToLevel: severityeventsdef.SeverityHigh}},
+			{ScopeKey: billing, Event: severityeventsdef.SeverityEvent{ToLevel: severityeventsdef.SeverityLevel(99)}},
 		},
 	}
 	comp, lifecycle := newScopedComponent(t, true, 1500*time.Millisecond, option.New[observerdef.Component](obs))
@@ -249,7 +251,30 @@ func TestScopedLifecycleBootstrapAndErrorCleanup(t *testing.T) {
 
 	level, ok = comp.CurrentForScope(func() severityeventsdef.ScopeKey { return billing })
 	require.True(t, ok)
-	assert.Equal(t, severityeventsdef.SeverityLow, level)
+	assert.Equal(t, severityeventsdef.SeverityHigh, level, "out-of-range level should clamp to SeverityHigh")
+
+	disabledComp, disabledLifecycle := newScopedComponent(t, false, 0, option.New[observerdef.Component](&fakeObserverComponent{}))
+	require.NoError(t, disabledLifecycle.Start(context.Background()))
+	_, ok = disabledComp.CurrentForScope(func() severityeventsdef.ScopeKey { return checkout })
+	assert.False(t, ok)
+
+	noObsComp, noObsLifecycle := newScopedComponent(t, true, 0, option.None[observerdef.Component]())
+	require.NoError(t, noObsLifecycle.Start(context.Background()))
+	_, ok = noObsComp.CurrentForScope(func() severityeventsdef.ScopeKey { return checkout })
+	assert.False(t, ok)
+
+	// Bridge falls back to Current() when scopedProvider is nil.
+	t.Cleanup(func() {
+		severityprovider.SetSeverityProvider(nil)
+		severityprovider.SetScopedSeverityProvider(nil)
+	})
+	severityprovider.SetSeverityProvider(func() (severityeventsdef.SeverityLevel, bool) {
+		return severityeventsdef.SeverityMedium, true
+	})
+	severityprovider.SetScopedSeverityProvider(nil)
+	level, ok = severityprovider.CurrentForScope(func() severityeventsdef.ScopeKey { return checkout })
+	require.True(t, ok)
+	assert.Equal(t, severityeventsdef.SeverityMedium, level)
 
 	errObs := &fakeObserverComponent{err: assert.AnError}
 	errComp, errLifecycle := newScopedComponent(t, true, 0, option.New[observerdef.Component](errObs))
@@ -276,6 +301,10 @@ func TestScopedTransitionsIsolationAndStop(t *testing.T) {
 	assert.False(t, getScopeCalled)
 
 	// Escalate checkout; billing and unscoped (key=0) stay Low.
+	obs.scopedListener.OnScopedSeverityTransition(severityeventsdef.ScopedSeverityEvent{
+		ScopeKey: 0,
+		Event:    severityeventsdef.SeverityEvent{ToLevel: severityeventsdef.SeverityHigh},
+	})
 	obs.scopedListener.OnScopedSeverityTransition(severityeventsdef.ScopedSeverityEvent{
 		ScopeKey: checkout,
 		Event:    severityeventsdef.SeverityEvent{ToLevel: severityeventsdef.SeverityMedium},

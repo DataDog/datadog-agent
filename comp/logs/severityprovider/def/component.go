@@ -12,7 +12,7 @@ import severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection
 
 // Component exposes the current anomaly-detection severity to log samplers.
 type Component interface {
-	// Current returns the current severity level, if available.
+	// Current returns the global severity level, if available (unavailable when scoped mode is active).
 	Current() (severityeventsdef.SeverityLevel, bool)
 
 	// CurrentForScope returns the severity level for getScope, if available.

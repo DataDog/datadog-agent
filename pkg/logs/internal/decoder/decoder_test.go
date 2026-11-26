@@ -1627,3 +1627,25 @@ func BenchmarkBuildSeverityProvider(b *testing.B) {
 		_, _ = provider()
 	}
 }
+
+func BenchmarkBuildSeverityProviderActive(b *testing.B) {
+	b.Cleanup(func() {
+		severityprovider.SetSeverityProvider(nil)
+		severityprovider.SetScopedSeverityProvider(nil)
+	})
+	checkout := severityeventsdef.ScopeKeyForService("checkout")
+	severityprovider.SetScopedSeverityProvider(func(getScope func() severityeventsdef.ScopeKey) (severityeventsdef.SeverityLevel, bool) {
+		if getScope() == checkout {
+			return severityeventsdef.SeverityHigh, true
+		}
+		return severityeventsdef.SeverityLow, true
+	})
+	src := sources.NewReplaceableSource(sources.NewLogSource("app", &config.LogsConfig{Service: "checkout"}))
+	provider := buildSeverityProvider(src)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		_, _ = provider()
+	}
+}

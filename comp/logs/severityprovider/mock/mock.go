@@ -35,10 +35,14 @@ func (c *Component) CurrentForScope(getScope func() severityeventsdef.ScopeKey) 
 	if !c.Available {
 		return severityeventsdef.SeverityLow, false
 	}
-	if getScope == nil {
+	if len(c.ScopedLevels) == 0 || getScope == nil {
 		return severityeventsdef.SeverityLow, true
 	}
-	if level, ok := c.ScopedLevels[getScope()]; ok {
+	key := getScope()
+	if key == 0 {
+		return severityeventsdef.SeverityLow, true
+	}
+	if level, ok := c.ScopedLevels[key]; ok {
 		return level, true
 	}
 	return severityeventsdef.SeverityLow, true

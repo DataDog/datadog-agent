@@ -553,7 +553,7 @@ func NewComponent(deps Requires) (Provides, error) {
 		scorer = newAnomalyScorerWithTelemetry(rawScorer.config, obsTelemetry.scorerSeverity, obsTelemetry.scorerEwma, obsTelemetry.scorerEwmaFinalized)
 		logging.Infof("anomaly scorer registered (logs=%v, correlation_events=%v, cooldown=%ds)",
 			scorer.config.Logs, scorer.config.CorrelationEvents, scorer.config.CooldownSecs)
-		if scopedAnomalyScorerEnabled {
+		if scopedAnomalyScorerEnabled && anomalydetectionconfig.SmartSeverityProfilesEnabled(cfg) {
 			scopedScorer = newScopedAnomalyScorer(ScopedAnomalyScorerConfig{Scorer: rawScorer.config})
 		}
 	}

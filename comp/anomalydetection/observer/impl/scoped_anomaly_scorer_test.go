@@ -547,7 +547,7 @@ func TestObserverImplSubscribeScopedSeverityEventsThroughEngine(t *testing.T) {
 
 	require.Greater(t, lastScopedLevel(listener.eventsForService("checkout")), severityeventsdef.SeverityLow)
 	require.Empty(t, listener.eventsForService("billing"))
-	require.NotNil(t, svcBilling)
+	require.NotEqual(t, svcCheckout.Ref, svcBilling.Ref)
 
 	require.NoError(t, eng.ResetForReplay(nil, nil, nil, nil, StorageConfig{}, BaselineConfig{}))
 	_, err = obs.SubscribeScopedSeverityEvents(severityeventsdef.SeverityEventsConfiguration{}, listener)
