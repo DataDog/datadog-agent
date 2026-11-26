@@ -87,7 +87,11 @@ func (h *UpdateCronJobScheduleHandler) Run(
 		return nil, err
 	}
 
-	return &UpdateCronJobScheduleOutputs{CronJob: response}, nil
+	redacted, err := support.ScrubResourceOutput(response)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]interface{}{"cronJob": redacted}, nil
 }
 
 func (h *UpdateCronJobScheduleHandler) getClient(credential *privateconnection.PrivateCredentials) (kubernetes.Interface, error) {

@@ -57,8 +57,8 @@ func (h *ListClusterCustomObjectHandler) Run(
 		return nil, err
 	}
 
-	return &ListClusterCustomObjectOutputs{
+	return support.ScrubResourceOutput(&ListClusterCustomObjectOutputs{
 		Items: resp.Items,
 		Meta:  resp.Object["metadata"],
-	}, nil
+	})
 }

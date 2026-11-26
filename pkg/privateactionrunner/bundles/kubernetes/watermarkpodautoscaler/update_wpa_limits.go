@@ -95,7 +95,11 @@ func (h *UpdateWatermarkAutoscalerLimitsHandler) Run(
 		return nil, err
 	}
 
-	return &UpdateWatermarkAutoscalerLimitsOutputs{WatermarkPodAutoscaler: watermarkPodAutoscaler}, nil
+	redacted, err := support.ScrubResourceOutput(watermarkPodAutoscaler)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]interface{}{"watermarkPodAutoscaler": redacted}, nil
 }
 
 // validate checks the bounds the caller supplied, without reading the cluster.

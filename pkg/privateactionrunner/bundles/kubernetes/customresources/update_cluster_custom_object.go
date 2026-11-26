@@ -55,5 +55,5 @@ func (h *UpdateClusterCustomObjectHandler) Run(
 		return nil, err
 	}
 
-	return resp.Object, nil
+	return support.ScrubResourceOutput(&resp.Object)
 }

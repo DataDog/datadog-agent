@@ -166,11 +166,11 @@ func (h *ScaleStatefulSetVerticallyHandler) Run(
 		return nil, err
 	}
 
-	return &ScaleStatefulSetVerticallyOutputs{
+	return support.ScrubResourceOutput(&ScaleStatefulSetVerticallyOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }
 
 func (h *ScaleStatefulSetVerticallyHandler) getClient(credential *privateconnection.PrivateCredentials) (kubernetes.Interface, error) {

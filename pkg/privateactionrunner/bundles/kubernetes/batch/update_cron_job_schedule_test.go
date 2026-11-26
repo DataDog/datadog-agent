@@ -144,8 +144,10 @@ func TestUpdateCronJobSchedule(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			output, ok := outputs.(*UpdateCronJobScheduleOutputs)
-			require.True(t, ok)
+			encoded, err := json.Marshal(outputs)
+			require.NoError(t, err)
+			var output UpdateCronJobScheduleOutputs
+			require.NoError(t, json.Unmarshal(encoded, &output))
 			assert.Equal(t, cronJobName, output.CronJob.Name)
 			assert.Equal(t, namespace, output.CronJob.Namespace)
 			assert.Equal(t, test.wantSchedule, output.CronJob.Spec.Schedule)

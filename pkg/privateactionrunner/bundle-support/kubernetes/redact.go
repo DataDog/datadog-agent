@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/redact"
 )
 
-// ScrubResourceOutput returns a redacted copy of a generated action's output.
+// ScrubResourceOutput returns a redacted copy of a Kubernetes action's output.
 // Keeping the output unstructured allows placeholders in encoded fields such
 // as ConfigMap binaryData without decoding them back into typed API objects.
 func ScrubResourceOutput(output interface{}) (map[string]interface{}, error) {

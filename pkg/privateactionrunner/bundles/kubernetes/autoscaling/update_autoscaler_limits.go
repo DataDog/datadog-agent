@@ -90,7 +90,11 @@ func (h *UpdateAutoscalerLimitsHandler) Run(
 		return nil, err
 	}
 
-	return &UpdateAutoscalerLimitsOutputs{HorizontalPodAutoscaler: response}, nil
+	redacted, err := support.ScrubResourceOutput(response)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]interface{}{"horizontalPodAutoscaler": redacted}, nil
 }
 
 func (h *UpdateAutoscalerLimitsHandler) getClient(credential *privateconnection.PrivateCredentials) (kubernetes.Interface, error) {

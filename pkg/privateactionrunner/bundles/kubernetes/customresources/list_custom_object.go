@@ -58,8 +58,8 @@ func (h *ListCustomObjectHandler) Run(
 		return nil, err
 	}
 
-	return &ListCustomObjectOutputs{
+	return support.ScrubResourceOutput(&ListCustomObjectOutputs{
 		Items: resp.Items,
 		Meta:  resp.Object["metadata"],
-	}, nil
+	})
 }

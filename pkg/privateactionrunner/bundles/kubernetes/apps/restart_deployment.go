@@ -74,9 +74,9 @@ func (h *RestartDeploymentHandler) Run(
 		return nil, err
 	}
 
-	return &RestartDeploymentOutputs{
+	return support.ScrubResourceOutput(&RestartDeploymentOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

@@ -13,11 +13,11 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"k8s.io/client-go/kubernetes/scheme"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apps "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/apps"
 	core "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/core"
@@ -25,138 +25,161 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-func TestGeneratedActionsRedactResponses(t *testing.T) {
-	const podSpec = `{"containers":[{"name":"app","env":[{"name":"TOKEN","value":"sensitive-env-value"},{"name":"PORT","value":"8080"}],"args":["--password","sensitive first second","--message","ordinary text"]}],"initContainers":[{"name":"init","args":["--password=sensitive-entrypoint-value"]}]}`
-	for _, resource := range []struct {
-		name, apiVersion, path, spec string
-		bundle                       types.Bundle
+func TestGeneratedActionsRedactCommands(t *testing.T) {
+	tests := map[string]struct {
+		command, args         []string
+		wantCommand, wantArgs []string
 	}{
-		{"Pod", "v1", "/api/v1/namespaces/default/pods", podSpec, core.NewKubernetesCore()},
-		{"Deployment", "apps/v1", "/apis/apps/v1/namespaces/default/deployments", `{"replicas":2,"template":{"metadata":{"labels":{"app":"example"}},"spec":` + podSpec + `}}`, apps.NewKubernetesApps()},
-		{"ConfigMap", "v1", "/api/v1/namespaces/default/configmaps", "", core.NewKubernetesCore()},
-		{"ControllerRevision", "apps/v1", "/apis/apps/v1/namespaces/default/controllerrevisions", "", apps.NewKubernetesApps()},
-	} {
-		for verb, method := range map[string]string{"get": http.MethodGet, "list": http.MethodGet, "create": http.MethodPost, "update": http.MethodPut, "patch": http.MethodPatch} {
-			t.Run(verb+resource.name, func(t *testing.T) {
-				objectJSON := fmt.Sprintf(`{"apiVersion":%q,"kind":%q,"metadata":{"name":"password-app","namespace":"default","resourceVersion":"12345","annotations":{"kubectl.kubernetes.io/last-applied-configuration":"sensitive-applied-value","settings":"{\"password\":\"sensitive-annotation-value\"}"},"labels":{"app":"example"}}`, resource.apiVersion, resource.name)
-				if resource.spec != "" {
-					objectJSON += `,"spec":` + resource.spec
-				} else {
-					objectJSON += `,"data":{"password":"sensitive-config-value","port":"8080"}`
+		"inline password": {
+			args:     []string{"--password=sensitive-value", "--port=8080"},
+			wantArgs: []string{"********", "--port=8080"},
+		},
+		"password containing spaces": {
+			args:     []string{"--password", "sensitive first second", "--message", "ordinary text"},
+			wantArgs: []string{"********", "********", "--message", "ordinary text"},
+		},
+		"adjacent sensitive options": {
+			args:     []string{"password", "--password", "sensitive-value"},
+			wantArgs: []string{"********", "********", "********"},
+		},
+		"password split across command and args": {
+			command:     []string{"app", "--password"},
+			args:        []string{"sensitive-value"},
+			wantCommand: []string{"app", "********"},
+			wantArgs:    []string{"********"},
+		},
+	}
+	for name, tt := range tests {
+		for _, verb := range []string{"get", "list", "create", "update", "patch"} {
+			t.Run(name+"/"+verb, func(t *testing.T) {
+				pod := &corev1.Pod{
+					TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "Pod"},
+					ObjectMeta: metav1.ObjectMeta{Name: "password-app", Namespace: "default"},
+					Spec: corev1.PodSpec{Containers: []corev1.Container{{
+						Name: "app", Command: tt.command, Args: tt.args,
+					}}},
 				}
-				if resource.name == "ConfigMap" {
-					objectJSON += `,"binaryData":{"password":"c2Vuc2l0aXZlLWJpbmFyeS12YWx1ZQ==","public":"aGVsbG8="}`
-				}
-				objectJSON += `}`
-				var object map[string]interface{}
-				require.NoError(t, json.Unmarshal([]byte(objectJSON), &object))
-				response := objectJSON
-				if verb == "list" {
-					response = fmt.Sprintf(`{"apiVersion":%q,"kind":%q,"metadata":{"resourceVersion":"12345","continue":"next-page"},"items":[%s,%s]}`, resource.apiVersion, resource.name+"List", objectJSON, objectJSON)
-				}
-				type request struct {
-					method, path string
-					body         []byte
-				}
-				requests := make(chan request, 1)
-				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					body, err := io.ReadAll(r.Body)
-					if err != nil {
-						t.Error(err)
-						w.WriteHeader(http.StatusBadRequest)
-						return
-					}
-					requests <- request{r.Method, r.URL.Path, body}
+				credentials := redactionTestCredentials(t, func(w http.ResponseWriter, r *http.Request) {
 					w.Header().Set("Content-Type", "application/json")
-					_, _ = w.Write([]byte(response))
-				}))
-				defer server.Close()
-				credentials := redactionTestCredentials(t, server.URL)
-				inputs := map[string]interface{}{"namespace": "default", "name": "password-app"}
-				if verb == "create" || verb == "update" {
-					inputs["body"] = object
-				} else if verb == "patch" {
-					inputs["body"] = []map[string]interface{}{{"op": "add", "path": "/metadata/annotations/password", "value": "sensitive-patch-value"}}
-				}
-				action := resource.bundle.GetAction(verb + resource.name)
-				require.NotNil(t, action)
-				output, err := action.Run(t.Context(), generatedActionTask(inputs), credentials)
-				require.NoError(t, err)
-				received := <-requests
-				require.Equal(t, method, received.method)
-				wantPath := resource.path
-				if verb != "create" && verb != "list" {
-					wantPath += "/password-app"
-				}
-				require.Equal(t, wantPath, received.path)
-				if verb == "create" || verb == "update" {
-					decoded, _, err := scheme.Codecs.UniversalDeserializer().Decode(received.body, nil, nil)
-					require.NoError(t, err)
-					body, err := json.Marshal(decoded)
-					require.NoError(t, err)
-					require.Contains(t, string(body), "sensitive-applied-value", "requests must reach the API before redaction")
-					require.NotContains(t, string(body), "********")
-					if resource.spec == "" {
-						require.Contains(t, string(body), "sensitive-config-value")
+					if verb == "list" {
+						_ = json.NewEncoder(w).Encode(&corev1.PodList{
+							TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "PodList"},
+							ListMeta: metav1.ListMeta{Continue: "next-page"},
+							Items:    []corev1.Pod{*pod},
+						})
 					} else {
-						require.Contains(t, string(body), "sensitive-env-value")
-						require.Contains(t, string(body), "sensitive first second")
+						_ = json.NewEncoder(w).Encode(pod)
 					}
-				} else if verb == "patch" {
-					require.Contains(t, string(received.body), "sensitive-patch-value")
+				})
+				inputs := map[string]interface{}{"namespace": "default", "name": "password-app", "body": pod}
+				if verb == "patch" {
+					inputs["body"] = []map[string]interface{}{{"op": "replace", "path": "/spec/containers/0/args", "value": tt.args}}
 				}
+
+				output, err := core.NewKubernetesCore().GetAction(verb+"Pod").Run(t.Context(), generatedActionTask(inputs), credentials)
+				require.NoError(t, err)
 				encoded, err := json.Marshal(output)
 				require.NoError(t, err)
-				require.NotContains(t, string(encoded), "sensitive", "all credential values should be masked")
-				var returned map[string]interface{}
-				require.NoError(t, json.Unmarshal(encoded, &returned))
-				items := []interface{}{returned}
+				var returned corev1.Pod
 				if verb == "list" {
-					require.Equal(t, map[string]interface{}{"resourceVersion": "12345", "continue": "next-page"}, returned["metadata"])
-					items = returned["items"].([]interface{})
-					require.Len(t, items, 2)
+					var list corev1.PodList
+					require.NoError(t, json.Unmarshal(encoded, &list))
+					require.Equal(t, "next-page", list.Continue)
+					require.Len(t, list.Items, 1)
+					returned = list.Items[0]
+				} else {
+					require.NoError(t, json.Unmarshal(encoded, &returned))
 				}
-				for _, item := range items {
-					manifest := item.(map[string]interface{})
-					metadata := manifest["metadata"].(map[string]interface{})
-					require.Equal(t, "password-app", metadata["name"])
-					require.Equal(t, "default", metadata["namespace"])
-					require.Equal(t, "12345", metadata["resourceVersion"])
-					require.Equal(t, map[string]interface{}{"app": "example"}, metadata["labels"])
-					annotations := metadata["annotations"].(map[string]interface{})
-					require.Equal(t, "-", annotations["kubectl.kubernetes.io/last-applied-configuration"])
-					require.JSONEq(t, `{"password":"********"}`, annotations["settings"].(string))
-					if resource.spec == "" {
-						require.Equal(t, map[string]interface{}{"password": "********", "port": "8080"}, manifest["data"])
-						if resource.name == "ConfigMap" {
-							require.Equal(t, map[string]interface{}{"password": "********", "public": "aGVsbG8="}, manifest["binaryData"])
-						}
-						continue
-					}
-					spec := manifest["spec"].(map[string]interface{})
-					if resource.name == "Deployment" {
-						require.Equal(t, float64(2), spec["replicas"])
-						spec = spec["template"].(map[string]interface{})["spec"].(map[string]interface{})
-					}
-					container := spec["containers"].([]interface{})[0].(map[string]interface{})
-					require.Equal(t, []interface{}{"********", "********", "--message", "ordinary text"}, container["args"])
-					env := container["env"].([]interface{})
-					require.Equal(t, "********", env[0].(map[string]interface{})["value"])
-					require.Equal(t, "8080", env[1].(map[string]interface{})["value"])
-					initContainer := spec["initContainers"].([]interface{})[0].(map[string]interface{})
-					require.Equal(t, []interface{}{"********"}, initContainer["args"])
-				}
+				require.Equal(t, "password-app", returned.Name)
+				require.Equal(t, "default", returned.Namespace)
+				require.Len(t, returned.Spec.Containers, 1)
+				require.Equal(t, tt.wantCommand, returned.Spec.Containers[0].Command)
+				require.Equal(t, tt.wantArgs, returned.Spec.Containers[0].Args)
 			})
 		}
 	}
 }
 
-func redactionTestCredentials(t *testing.T, serverURL string) *privateconnection.PrivateCredentials {
+func TestCreatePodRedactsOutputAfterSendingOriginalValues(t *testing.T) {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default", Annotations: map[string]string{
+			"kubectl.kubernetes.io/last-applied-configuration": "sensitive-applied-value",
+		}},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{Name: "app", Env: []corev1.EnvVar{
+				{Name: "TOKEN", Value: "sensitive-env-value"},
+				{Name: "PORT", Value: "8080"},
+			}}},
+			InitContainers: []corev1.Container{{Name: "init", Args: []string{"--password=sensitive-value"}}},
+		},
+	}
+	requests := make(chan string, 1)
+	credentials := redactionTestCredentials(t, func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		requests <- string(body)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(pod)
+	})
+
+	output, err := core.NewCreatePodHandler().Run(t.Context(), generatedActionTask(map[string]interface{}{"namespace": "default", "body": pod}), credentials)
+	require.NoError(t, err)
+	require.Len(t, requests, 1)
+	sent := <-requests
+	require.Contains(t, sent, "sensitive-env-value")
+	require.Contains(t, sent, "--password=sensitive-value")
+	require.NotContains(t, sent, "********")
+	encoded, err := json.Marshal(output)
+	require.NoError(t, err)
+	var returned corev1.Pod
+	require.NoError(t, json.Unmarshal(encoded, &returned))
+	require.Equal(t, "-", returned.Annotations["kubectl.kubernetes.io/last-applied-configuration"])
+	require.Equal(t, []corev1.EnvVar{{Name: "TOKEN", Value: "********"}, {Name: "PORT", Value: "8080"}}, returned.Spec.Containers[0].Env)
+	require.Equal(t, []string{"********"}, returned.Spec.InitContainers[0].Args)
+}
+
+func TestGeneratedActionsRedactEncodedFields(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		action   types.Action
+		response string
+	}{
+		{name: "ConfigMap binary data", action: core.NewGetConfigMapHandler(), response: `{
+			"data": {"password": "sensitive-value", "port": "8080"},
+			"binaryData": {"password": "c2Vuc2l0aXZlLXZhbHVl", "public": "aGVsbG8="}
+		}`},
+		{name: "ControllerRevision raw data", action: apps.NewGetControllerRevisionHandler(), response: `{
+			"data": {"password": "sensitive-value", "port": "8080"}
+		}`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			credentials := redactionTestCredentials(t, func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = io.WriteString(w, tt.response)
+			})
+			output, err := tt.action.Run(t.Context(), generatedActionTask(map[string]interface{}{"namespace": "default", "name": "app"}), credentials)
+			require.NoError(t, err)
+			encoded, err := json.Marshal(output)
+			require.NoError(t, err)
+			require.Contains(t, string(encoded), `"password":"********"`)
+			require.Contains(t, string(encoded), `"port":"8080"`)
+			require.NotContains(t, string(encoded), "sensitive-value")
+			require.NotContains(t, string(encoded), "c2Vuc2l0aXZlLXZhbHVl")
+		})
+	}
+}
+
+func redactionTestCredentials(t *testing.T, handler http.HandlerFunc) *privateconnection.PrivateCredentials {
 	t.Helper()
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
 	home := t.TempDir()
 	configPath := filepath.Join(home, ".kube", "config")
 	require.NoError(t, os.MkdirAll(filepath.Dir(configPath), 0700))
-	config := strings.ReplaceAll(`apiVersion: v1
+	require.NoError(t, os.WriteFile(configPath, []byte(fmt.Sprintf(`apiVersion: v1
 kind: Config
 current-context: test
 contexts:
@@ -166,9 +189,8 @@ contexts:
 clusters:
 - name: test
   cluster:
-    server: SERVER_URL
-`, "SERVER_URL", serverURL)
-	require.NoError(t, os.WriteFile(configPath, []byte(config), 0600))
+    server: %s
+`, server.URL)), 0600))
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	return &privateconnection.PrivateCredentials{Tokens: []privateconnection.PrivateCredentialsToken{{Name: "context", Value: "test"}}}

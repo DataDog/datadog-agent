@@ -57,8 +57,8 @@ func (h *ListCustomResourceDefinitionHandler) Run(
 		return nil, err
 	}
 
-	return &ListCustomResourceDefinitionOutputs{
+	return support.ScrubResourceOutput(&ListCustomResourceDefinitionOutputs{
 		Items: resp.Items,
 		Meta:  resp.Object["metadata"],
-	}, nil
+	})
 }

@@ -59,26 +59,26 @@ func (h *TestConnectionHandler) Run(
 	if err != nil {
 		configurationValid = false
 		errors = append(errors, fmt.Sprintf("Configuration validation failed: %v", err))
-		return &TestConnectionOutputs{
+		return kubernetes.ScrubResourceOutput(&TestConnectionOutputs{
 			ConfigurationValid: configurationValid,
 			ConnectionValid:    false,
 			UserInfo:           userInfo,
 			ServerInfo:         serverInfo,
 			Errors:             errors,
-		}, nil
+		})
 	}
 
 	selfSubjectReview := &authv1.SelfSubjectReview{}
 	result, err := client.AuthenticationV1().SelfSubjectReviews().Create(ctx, selfSubjectReview, metav1.CreateOptions{})
 	if err != nil {
 		errors = append(errors, fmt.Sprintf("Failed to connect to Kubernetes cluster: %v", err))
-		return &TestConnectionOutputs{
+		return kubernetes.ScrubResourceOutput(&TestConnectionOutputs{
 			ConfigurationValid: configurationValid,
 			ConnectionValid:    false,
 			UserInfo:           userInfo,
 			ServerInfo:         serverInfo,
 			Errors:             errors,
-		}, nil
+		})
 	}
 
 	extra := make(map[string]string)
@@ -106,11 +106,11 @@ func (h *TestConnectionHandler) Run(
 		}
 	}
 
-	return &TestConnectionOutputs{
+	return kubernetes.ScrubResourceOutput(&TestConnectionOutputs{
 		ConfigurationValid: configurationValid,
 		ConnectionValid:    true,
 		UserInfo:           userInfo,
 		ServerInfo:         serverInfo,
 		Errors:             errors,
-	}, nil
+	})
 }

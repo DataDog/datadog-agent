@@ -177,11 +177,11 @@ func (h *ScaleDeploymentVerticallyHandler) Run(
 		return nil, err
 	}
 
-	return &ScaleDeploymentVerticallyOutputs{
+	return support.ScrubResourceOutput(&ScaleDeploymentVerticallyOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }
 
 func (h *ScaleDeploymentVerticallyHandler) getClient(credential *privateconnection.PrivateCredentials) (kubernetes.Interface, error) {
