@@ -44,7 +44,6 @@ go_library(
         "//pkg/util/option",
         "//pkg/util/scrubber",
         "//pkg/util/uuid",
-        "@org_uber_go_atomic//:atomic",
     ],
 )
 

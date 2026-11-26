@@ -6,7 +6,7 @@
 package inventoryagentimpl
 
 import (
-	"go.uber.org/atomic"
+	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgremoteflags "github.com/DataDog/datadog-agent/pkg/remoteflags"
