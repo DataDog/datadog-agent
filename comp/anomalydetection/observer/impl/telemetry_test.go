@@ -118,9 +118,9 @@ func TestObserverTelemetry_ScopedScorerMetrics(t *testing.T) {
 	metrics, err := telComp.Gather(telemetry.NoFilter)
 	require.NoError(t, err)
 	for _, family := range metrics {
-		if family.GetName() == telemetryScopedScorerEWMA ||
-			family.GetName() == telemetryScopedScorerEWMAFinalized ||
-			family.GetName() == telemetryScopedScorerSeverity {
+		if family.GetName() == "observer__"+telemetryScopedScorerEWMA ||
+			family.GetName() == "observer__"+telemetryScopedScorerEWMAFinalized ||
+			family.GetName() == "observer__"+telemetryScopedScorerSeverity {
 			assert.Empty(t, family.GetMetric(), "expected %s series to be deleted", family.GetName())
 		}
 	}

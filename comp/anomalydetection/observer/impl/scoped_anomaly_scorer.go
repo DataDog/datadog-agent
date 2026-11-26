@@ -36,6 +36,8 @@ type ScopedAnomalyScorerConfig struct {
 	IdleEvictionSec int64
 	// OnScopeEvicted is called when a scope is evicted ("idle" or "capacity").
 	OnScopeEvicted func(reason string)
+	// Gauges configures optional per-service EWMA/severity gauges on child scorers.
+	Gauges scorerGauges
 }
 
 type scopedSubscription struct {
@@ -80,6 +82,9 @@ type scopedAnomalyScorer struct {
 	lru             *list.List
 	subs            []*scopedSubscription
 	lastAdvancedSec int64
+
+	scopedAnomalies   atomic.Uint64
+	unscopedAnomalies atomic.Uint64
 }
 
 var (
@@ -132,14 +137,21 @@ func (router *scopedAnomalyScorer) ActiveScopeCount() int {
 	return len(router.entries)
 }
 
+// drainAnomalyCounts returns and resets pending scoped and unscoped anomaly counts.
+func (router *scopedAnomalyScorer) drainAnomalyCounts() (scoped, unscoped uint64) {
+	return router.scopedAnomalies.Swap(0), router.unscopedAnomalies.Swap(0)
+}
+
 // ProcessAnomaly implements observerdef.Correlator.
 func (router *scopedAnomalyScorer) ProcessAnomaly(anomaly observerdef.Anomaly) {
-	key := severityeventsdef.ScopeKeyForService(anomalyService(anomaly))
+	service := anomalyService(anomaly)
+	key := severityeventsdef.ScopeKeyForService(service)
 	if key == 0 {
+		router.unscopedAnomalies.Add(1)
 		return
 	}
 
-	var evicted bool
+	var evictedScorer *anomalyScorer
 	var deescalations []pendingScopedDeescalation
 
 	router.mu.Lock()
@@ -157,14 +169,15 @@ func (router *scopedAnomalyScorer) ProcessAnomaly(anomaly observerdef.Anomaly) {
 	} else {
 		if len(router.entries) >= router.cfg.MaxScopes {
 			evictTime := max(anomaly.Timestamp, router.lastAdvancedSec)
-			deescalations = router.evictOneLRULocked(evictTime)
-			evicted = true
+			evictedScorer, deescalations = router.evictOneLRULocked(evictTime)
 		}
-		entry = router.createEntryLocked(key)
+		entry = router.createEntryLocked(key, service)
 	}
+	router.scopedAnomalies.Add(1)
 	router.mu.Unlock()
 
-	if evicted {
+	if evictedScorer != nil {
+		evictedScorer.clearGauges()
 		deliverPendingDeescalations(deescalations)
 		if router.cfg.OnScopeEvicted != nil {
 			router.cfg.OnScopeEvicted(scopedEvictionReasonCapacity)
@@ -173,10 +186,14 @@ func (router *scopedAnomalyScorer) ProcessAnomaly(anomaly observerdef.Anomaly) {
 	entry.scorer.ProcessAnomaly(anomaly)
 }
 
-func (router *scopedAnomalyScorer) createEntryLocked(key severityeventsdef.ScopeKey) *scopedScorerEntry {
+func (router *scopedAnomalyScorer) createEntryLocked(key severityeventsdef.ScopeKey, service string) *scopedScorerEntry {
 	child := newAnomalyScorerBase(router.cfg.Scorer)
 	if router.lastAdvancedSec > 0 {
 		child.advanceStates(router.lastAdvancedSec)
+	}
+	if router.cfg.Gauges.enabled() {
+		child.gauges = router.cfg.Gauges
+		child.gaugeTag = service
 	}
 	entry := &scopedScorerEntry{
 		key:         key,
@@ -231,19 +248,19 @@ func removeSubDispatcherCOW(existing []*scopedChildDispatcher, sub *scopedSubscr
 	return existing, false
 }
 
-func (router *scopedAnomalyScorer) evictOneLRULocked(evictSec int64) []pendingScopedDeescalation {
+func (router *scopedAnomalyScorer) evictOneLRULocked(evictSec int64) (*anomalyScorer, []pendingScopedDeescalation) {
 	for elem := router.lru.Back(); elem != nil; elem = elem.Prev() {
 		candidate := elem.Value.(*scopedScorerEntry)
 		if router.entryIsIdle(candidate) {
 			router.lru.Remove(elem)
 			delete(router.entries, candidate.key)
-			return nil
+			return candidate.scorer, nil
 		}
 	}
 
 	elem := router.lru.Back()
 	if elem == nil {
-		return nil
+		return nil, nil
 	}
 	victim := elem.Value.(*scopedScorerEntry)
 	router.lru.Remove(elem)
@@ -275,7 +292,7 @@ func (router *scopedAnomalyScorer) evictOneLRULocked(evictSec int64) []pendingSc
 			})
 		}
 	}
-	return deescalations
+	return victim.scorer, deescalations
 }
 
 func (s *anomalyScorer) isIdleForEviction() bool {
@@ -352,6 +369,7 @@ func (router *scopedAnomalyScorer) Advance(dataTime int64) {
 	}
 
 	idleEvicted := 0
+	var evictedScorers []*anomalyScorer
 	router.mu.Lock()
 	for _, item := range snapshot {
 		entry := item.entry
@@ -366,6 +384,9 @@ func (router *scopedAnomalyScorer) Advance(dataTime int64) {
 				router.lru.Remove(entry.lruElem)
 				delete(router.entries, entry.key)
 				idleEvicted++
+				if router.cfg.Gauges.enabled() {
+					evictedScorers = append(evictedScorers, entry.scorer)
+				}
 			}
 		} else {
 			entry.idleSince = 0
@@ -373,6 +394,9 @@ func (router *scopedAnomalyScorer) Advance(dataTime int64) {
 	}
 	router.mu.Unlock()
 
+	for _, scorer := range evictedScorers {
+		scorer.clearGauges()
+	}
 	if idleEvicted > 0 && router.cfg.OnScopeEvicted != nil {
 		for range idleEvicted {
 			router.cfg.OnScopeEvicted(scopedEvictionReasonIdle)
@@ -393,10 +417,17 @@ func (router *scopedAnomalyScorer) PendingEvents() []observerdef.CorrelatorEvent
 // Reset implements observerdef.Correlator.
 func (router *scopedAnomalyScorer) Reset() {
 	router.mu.Lock()
+	oldEntries := router.entries
 	router.entries = make(map[severityeventsdef.ScopeKey]*scopedScorerEntry)
 	router.lru = list.New()
 	router.lastAdvancedSec = 0
 	router.mu.Unlock()
+
+	if router.cfg.Gauges.enabled() {
+		for _, entry := range oldEntries {
+			entry.scorer.clearGauges()
+		}
+	}
 }
 
 // SubscribeScopedSeverityEvents implements severityeventsdef.ScopedSubscriber.

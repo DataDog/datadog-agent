@@ -14,6 +14,8 @@ import (
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -552,4 +554,98 @@ func TestObserverImplSubscribeScopedSeverityEventsThroughEngine(t *testing.T) {
 	require.NoError(t, eng.ResetForReplay(nil, nil, nil, nil, StorageConfig{}, BaselineConfig{}))
 	_, err = obs.SubscribeScopedSeverityEvents(severityeventsdef.SeverityEventsConfiguration{}, listener)
 	require.EqualError(t, err, "no active scoped anomaly scorer")
+}
+
+func TestScopedAnomalyScorerDrainAnomalyCounts(t *testing.T) {
+	cfg := fastScopedScorerConfig()
+	cfg.Scorer.LateAnomalyBehavior = lateAnomalyIgnore
+	cfg.Scorer.ReorderingWindowSecs = 0
+	router := newScopedAnomalyScorer(cfg)
+	router.Advance(100)
+
+	router.ProcessAnomaly(makeServiceMetricAnomaly("cpu", 101, "service:checkout"))
+	router.ProcessAnomaly(makeServiceMetricAnomaly("cpu", 101, "service:billing"))
+	router.ProcessAnomaly(makeServiceMetricAnomaly("cpu", 101))
+	router.ProcessAnomaly(makeServiceMetricAnomaly("cpu", 99, "service:checkout")) // dropped by lateAnomalyIgnore
+
+	scoped, unscoped := router.drainAnomalyCounts()
+	require.EqualValues(t, 2, scoped)
+	require.EqualValues(t, 1, unscoped)
+
+	scoped, unscoped = router.drainAnomalyCounts()
+	require.Zero(t, scoped)
+	require.Zero(t, unscoped)
+}
+
+func hasServiceSeries(t *testing.T, telComp telemetry.Component, metricName, service string) bool {
+	t.Helper()
+	families, err := telComp.Gather(telemetry.NoFilter)
+	require.NoError(t, err)
+	fullMetricName := "observer__" + metricName
+	for _, family := range families {
+		if family.GetName() != fullMetricName {
+			continue
+		}
+		for _, m := range family.GetMetric() {
+			for _, lp := range m.GetLabel() {
+				if lp.GetName() == "service" && lp.GetValue() == service {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func TestScopedAnomalyScorerPerServiceGaugesLifecycle(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	tel := newObserverTelemetry(telComp)
+
+	cfg := fastScopedScorerConfig()
+	cfg.MaxScopes = 2
+	cfg.IdleEvictionSec = 2
+	cfg.Scorer.WindowSecs = 1
+	cfg.Scorer.ReorderingWindowSecs = 2
+	cfg.Gauges = tel.scopedScorerGauges
+
+	router := newScopedAnomalyScorer(cfg)
+	router.Advance(100)
+	require.False(t, hasServiceSeries(t, telComp, telemetryScopedScorerEWMA, "checkout"))
+
+	// Creating checkout after Advance(100) runs catch-up before attaching gauges, so no spurious 0 series yet.
+	router.ProcessAnomaly(makeServiceMetricAnomaly("cpu", 101, "service:checkout"))
+	require.False(t, hasServiceSeries(t, telComp, telemetryScopedScorerEWMA, "checkout"))
+
+	router.Advance(101)
+	require.True(t, hasServiceSeries(t, telComp, telemetryScopedScorerEWMA, "checkout"))
+	require.True(t, hasServiceSeries(t, telComp, telemetryScopedScorerSeverity, "checkout"))
+	require.False(t, hasServiceSeries(t, telComp, telemetryScopedScorerEWMAFinalized, "checkout"))
+
+	router.Advance(102)
+	require.True(t, hasServiceSeries(t, telComp, telemetryScopedScorerEWMAFinalized, "checkout"))
+
+	// Capacity LRU eviction deletes victim gauges.
+	router.ProcessAnomaly(makeServiceMetricAnomaly("cpu", 102, "service:billing"))
+	router.Advance(103)
+	router.ProcessAnomaly(makeServiceMetricAnomaly("cpu", 103, "service:payments"))
+	require.False(t, hasServiceSeries(t, telComp, telemetryScopedScorerEWMA, "checkout"))
+	require.False(t, hasServiceSeries(t, telComp, telemetryScopedScorerEWMAFinalized, "checkout"))
+	require.False(t, hasServiceSeries(t, telComp, telemetryScopedScorerSeverity, "checkout"))
+	require.True(t, hasServiceSeries(t, telComp, telemetryScopedScorerEWMA, "billing"))
+
+	// Idle eviction deletes remaining gauges once settled back to Low.
+	for sec := int64(104); sec <= 130; sec++ {
+		router.Advance(sec)
+	}
+	require.Zero(t, router.ActiveScopeCount())
+	require.False(t, hasServiceSeries(t, telComp, telemetryScopedScorerEWMA, "billing"))
+	require.False(t, hasServiceSeries(t, telComp, telemetryScopedScorerSeverity, "payments"))
+
+	// Reset deletes gauges for active scopes.
+	router.ProcessAnomaly(makeServiceMetricAnomaly("cpu", 131, "service:auth"))
+	router.Advance(131)
+	require.True(t, hasServiceSeries(t, telComp, telemetryScopedScorerEWMA, "auth"))
+	router.Reset()
+	require.False(t, hasServiceSeries(t, telComp, telemetryScopedScorerEWMA, "auth"))
+	require.False(t, hasServiceSeries(t, telComp, telemetryScopedScorerSeverity, "auth"))
 }
