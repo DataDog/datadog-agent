@@ -151,6 +151,10 @@ impl ProcessManager {
         self.shutting_down.load(Ordering::SeqCst)
     }
 
+    /// Runs until a stop request. On Windows that request comes only from the handlers
+    /// `service::run_as_service` installs (SCM stop, console Ctrl+C), so a caller that does not
+    /// go through it must notify `platform::shutdown_notify` itself or use
+    /// [`ProcessManager::run_with_shutdown`].
     pub async fn run(&self) -> Result<i32> {
         self.run_with_shutdown(platform::shutdown_signal()).await
     }
