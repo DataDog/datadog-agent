@@ -230,6 +230,15 @@ The stock environments are highly customizable via provisioner options (OS,
 agent config, with/without fakeintake, etc.) — explore the `With*` options on
 each provisioner before creating a custom environment.
 
+Each fakeintake is an ECS Fargate task, so it costs one IP in the CI subnets for the whole life
+of the stack. When no assertion reads `Env().FakeIntake`, opt out with
+`ProvisionerNoFakeIntake` or the scenario's `WithoutFakeIntake()`, and use the same choice in
+every `UpdateEnv` of the suite: switching back and forth destroys and re-creates the Fargate
+task. Opting out doesn't change where the Agent's data ends up. By default the fakeintake
+forwards each payload to `app.datadoghq.com` (dddev) with the same API key the Agent would use
+(see `WithoutDDDevForwarding` in `scenarios/aws/fakeintake`), and without one the Agent sends
+straight there, unless `ddagent:site` points elsewhere.
+
 When that's not enough, common advanced patterns:
 
 - **Custom environment structs** — define your own struct with extra components

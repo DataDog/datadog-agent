@@ -133,6 +133,19 @@ It is ignored, or can't apply, in these cases:
 | Suites that pin a version in code (`agentparams.WithPipeline`, `WithVersion`, `WithLatest`) | The code option overrides the default version | Remove the option locally, or use a pipeline |
 | Docker, Kubernetes and ECS suites | They run the Agent image, not a package | `--agent-image` (see [below](#test-with-local-agent-image)) |
 | `ddagent:version` set in the config | It takes precedence over `--local-package` | Unset it |
+| Suites that require `E2E_PIPELINE_ID` (e.g. `tests/fips-compliance/`) | They pull pipeline-built images and fail fast without one | A CI pipeline, or run the job in the PR's pipeline |
+
+### Validating a test-only change
+
+A change to test code alone, such as switching a suite to `ProvisionerNoFakeIntake` or
+removing an `UpdateEnv`, doesn't need a local package: the default Agent (the latest nightly)
+is enough to show that the suite still provisions and passes. Suites from the table above still
+need their pipeline, so run those jobs in the PR's own pipeline. Its packages were built from
+the same branch.
+
+Separate suites can run in parallel from one worktree per branch (`git worktree add`), but each
+new worktree builds the test binary with a cold Bazel cache first, which takes about 15 minutes
+before anything is provisioned.
 
 ## Test with Local Agent Image
 
