@@ -3,6 +3,7 @@
 # objects or their relocation stub.
 #
 # usage: minimize_btfs.sh BPFTOOL MANIFEST REMOTE_FILE OUT_DIR OBJECT...
+# With FULL_BTF_DIR set, the full kernel BTFs are kept there as well.
 set -euo pipefail
 
 bpftool=$(realpath "$1")
@@ -11,6 +12,7 @@ remote=$(<"$3")
 mkdir -p "$4"
 out=$(realpath "$4")
 shift 4
+full=${FULL_BTF_DIR:+$(mkdir -p "$FULL_BTF_DIR" && realpath "$FULL_BTF_DIR")}
 
 # Empty objects are stubs without CO-RE relocations, which need no kernel type.
 objects=()
@@ -35,4 +37,8 @@ while read -r blob path; do
   mkdir -p "$out/$(dirname "$path")"
   git cat-file blob "$blob" | xz -dc | tar -xOf - >"$work/kernel.btf"
   "$bpftool" gen min_core_btf "$work/kernel.btf" "$out/$path" "${objects[@]}"
+  if [[ -n $full ]]; then
+    mkdir -p "$full/$(dirname "$path")"
+    cp "$work/kernel.btf" "$full/$path"
+  fi
 done <"$manifest"

@@ -224,6 +224,7 @@ sh_test(
     args = [
         "$(rootpath //bazel/rules/ebpf:minimize_btfs.sh)",
         "$(rootpath //deps/btfhub:bpftool)",
+        "$(rootpath //bazel/rules/ebpf/corecheck)",
         "$(rootpath @btfhub_archive//:remote.txt)",
     ] + select({
         setting: [
@@ -240,6 +241,7 @@ sh_test(
         ":co_re_btf_objects",
         ":co_re_relocations",
         "//bazel/rules/ebpf:minimize_btfs.sh",
+        "//bazel/rules/ebpf/corecheck",
         "//deps/btfhub:bpftool",
         "@btfhub_archive//:remote.txt",
     ] + select({
