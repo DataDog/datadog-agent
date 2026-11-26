@@ -2750,7 +2750,8 @@ func testRedisSketches(t *testing.T, tr *tracer.Tracer) {
 	client, err := redis.NewClient(serverAddress, &net.Dialer{}, false, redisProtocolVersion)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		timedContext, cancel := context.WithTimeout(t.Context(), defaultTimeout)
+		// t.Context() is canceled before Cleanup functions run, so it cannot be used here.
+		timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		defer cancel()
 		require.NoError(t, client.FlushDB(timedContext).Err())
 		require.NoError(t, client.Close())
