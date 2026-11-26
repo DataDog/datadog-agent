@@ -11,13 +11,9 @@ import (
 	"cmp"
 	"slices"
 	"strings"
+
+	manager "github.com/DataDog/ebpf-manager"
 )
-
-// AttachMode is the way the classifiers are attached to their hooks
-type AttachMode string
-
-// AttachModeLegacy attaches the classifiers as direct-action filters of a clsact qdisc
-const AttachModeLegacy AttachMode = "legacy"
 
 // BlindReason is the kind of foreign program that runs before the classifiers of a hook
 type BlindReason string
@@ -73,11 +69,11 @@ type ProgramAhead struct {
 // FindProgramAhead returns the foreign program that runs before the classifiers of a hook, given how the
 // classifiers are attached and the priority of their filters. A program known to end the chain is preferred
 // over the unknown programs that run before it, since the classifiers are blind either way.
-func FindProgramAhead(mode AttachMode, hook HookPrograms, filterPriority uint16, isOwn func(programID uint32) bool) (ProgramAhead, bool) {
+func FindProgramAhead(mode manager.TCAttachMode, hook HookPrograms, filterPriority uint16, isOwn func(programID uint32) bool) (ProgramAhead, bool) {
 	var ahead []ProgramAhead
 
 	switch mode {
-	case AttachModeLegacy:
+	case manager.TCAttachModeLegacy:
 		// the legacy tc chain only runs when every TCX program lets the hook go on
 		for _, prog := range hook.TCX {
 			if !isOwn(prog.ID) {
@@ -99,6 +95,14 @@ func FindProgramAhead(mode AttachMode, hook HookPrograms, filterPriority uint16,
 				ahead = append(ahead, newProgramAhead(filter.Name, BlindReasonCiliumTCFilter, BlindReasonUnknownTCFilter))
 			}
 		}
+
+	case manager.TCAttachModeTCX:
+		// legacy filters run after every TCX program, so only the TCX programs before a classifier can blind it
+		for _, prog := range hook.TCX[:lastOwnProgram(hook.TCX, isOwn)+1] {
+			if !isOwn(prog.ID) {
+				ahead = append(ahead, newProgramAhead(prog.Name, BlindReasonCiliumTCX, BlindReasonUnknownTCX))
+			}
+		}
 	}
 
 	if len(ahead) == 0 {
@@ -108,6 +112,16 @@ func FindProgramAhead(mode AttachMode, hook HookPrograms, filterPriority uint16,
 		return ahead[i], true
 	}
 	return ahead[0], true
+}
+
+// lastOwnProgram returns the index of the last classifier among the programs of a TCX hook, or -1 if there is none
+func lastOwnProgram(programs []TCXProgram, isOwn func(programID uint32) bool) int {
+	for i := len(programs) - 1; i >= 0; i-- {
+		if isOwn(programs[i].ID) {
+			return i
+		}
+	}
+	return -1
 }
 
 func newProgramAhead(name string, cilium BlindReason, unknown BlindReason) ProgramAhead {

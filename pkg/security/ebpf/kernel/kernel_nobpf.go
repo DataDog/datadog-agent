@@ -85,6 +85,12 @@ func (k *Version) HasBpfGetCurrentPidTgidForSchedCLS() bool {
 	return false
 }
 
+// HasTCX returns true if the kernel can attach Sched CLS programs with TCX links
+// here it's not, since we are built without eBPF support
+func (k *Version) HasTCX() bool {
+	return false
+}
+
 // HasBpfGetCurrentCgroupIDForSchedCLS returns if the kernel supports bpf_get_current_cgroup_id for Sched CLS program type
 // https://github.com/torvalds/linux/commit/c501bf55c88b834adefda870c7c092ec9052a437
 func (k *Version) HasBpfGetCurrentCgroupIDForSchedCLS() bool {

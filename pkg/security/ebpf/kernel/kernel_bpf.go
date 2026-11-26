@@ -9,7 +9,9 @@
 package kernel
 
 import (
+	"errors"
 	"runtime"
+	"sync"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -210,6 +212,38 @@ func (k *Version) SupportCORE() bool {
 // https://github.com/torvalds/linux/commit/eb166e522c77699fc19bfa705652327a1e51a117
 func (k *Version) HasBpfGetCurrentPidTgidForSchedCLS() bool {
 	return features.HaveProgramHelper(ebpf.SchedCLS, asm.FnGetCurrentPidTgid) == nil
+}
+
+var haveTCX = sync.OnceValue(func() bool {
+	prog, err := ebpf.NewProgramWithOptions(&ebpf.ProgramSpec{
+		Type: ebpf.SchedCLS,
+		Instructions: asm.Instructions{
+			asm.Mov.Imm(asm.R0, 0),
+			asm.Return(),
+		},
+	}, ebpf.ProgramOptions{
+		LogDisabled: true,
+	})
+	if err != nil {
+		return false
+	}
+	defer prog.Close()
+
+	// the kernel only looks the interface up once it accepts the TCX attach type, and no interface has this index
+	l, err := link.AttachTCX(link.TCXOptions{
+		Interface: int(^uint32(0)),
+		Program:   prog,
+		Attach:    ebpf.AttachTCXIngress,
+	})
+	if err == nil {
+		_ = l.Close()
+	}
+	return errors.Is(err, unix.ENODEV)
+})
+
+// HasTCX returns true if the kernel can attach Sched CLS programs with TCX links
+func (k *Version) HasTCX() bool {
+	return haveTCX()
 }
 
 // HasBpfGetCurrentCgroupIDForSchedCLS returns if the kernel supports bpf_get_current_cgroup_id for Sched CLS program type
