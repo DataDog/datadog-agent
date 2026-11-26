@@ -7,8 +7,8 @@
 
 // This file uses the cilium/ebpf library to build a source map for an eBPF object file, linking each
 // instruction of each program to the source line in the original C code. It relies on the BTF line
-// information of the .BTF.ext section, which the kernel requires for the first instruction of each
-// function and which, unlike DWARF, survives stripping debug information.
+// information of the .BTF.ext section, so callers must pass object files that retain .BTF.ext
+// line_info (the shipped stripped objects omit line_info to reduce package size).
 
 package verifier
 

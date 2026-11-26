@@ -51,6 +51,7 @@ if [ "${COLLECT_COMPLEXITY:-}" = "yes" ]; then
 
     test_root=$(echo "$@" | sed 's/.*-test-root \([^ ]*\).*/\1/')
     export DD_SYSTEM_PROBE_BPF_DIR="${test_root}/pkg/ebpf/bytecode/build/${arch}"
+    export DD_SYSTEM_PROBE_BPF_LINE_INFO_DIR="${test_root}/pkg/ebpf/bytecode/build/line-info/${arch}"
 
     # Set the value of COMPLEXITY_CALC_MAX_MEM_MB to 6000 if not set by the environment
     if [[ -z "${COMPLEXITY_CALC_MAX_MEM_MB:-}" ]]; then

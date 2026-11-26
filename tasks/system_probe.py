@@ -105,6 +105,10 @@ def get_ebpf_build_dir(arch: Arch) -> Path:
     return Path("pkg/ebpf/bytecode/build") / arch.kmt_arch  # Use KMT arch names for compatibility with CI
 
 
+def get_ebpf_line_info_build_dir(arch: Arch) -> Path:
+    return Path("pkg/ebpf/bytecode/build/line-info") / arch.kmt_arch
+
+
 def get_ebpf_runtime_dir() -> Path:
     return Path("pkg/ebpf/bytecode/build/runtime")
 
@@ -704,6 +708,8 @@ def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebp
 _EBPF_INSTALL_TARGET = "//pkg/ebpf:install_object_files"
 # Same, with the CWS objects built for Baloum unit tests.
 _EBPF_BALOUM_INSTALL_TARGET = "//pkg/ebpf:install_object_files_baloum"
+# Installs stripped eBPF objects that retain .BTF.ext line_info for verifier source mapping.
+_EBPF_LINE_INFO_INSTALL_TARGET = "//pkg/ebpf:install_line_info_object_files"
 
 # DEBUG=1 variants of the ebpf_program_suite programs, installed only on request.
 _EBPF_DEBUG_INSTALL_TARGET = "//pkg/ebpf:install_debug_object_files"
@@ -775,6 +781,7 @@ def bazel_build_ebpf(
     *,
     verify: bool = False,
     debug: bool = False,
+    line_info: bool = False,
     extra_targets: list[str] | tuple[str, ...] = (),
     install_target: str = _EBPF_INSTALL_TARGET,
     fips_backend: FipsBackend = FipsBackend.none,
@@ -782,8 +789,13 @@ def bazel_build_ebpf(
     """Build all eBPF artifacts in one Bazel invocation, then install them into the repository.
 
     With debug, the <name>-debug.o variants are built and installed as well.
+    With line_info, variants retaining .BTF.ext line_info are also installed for verifier tooling.
     """
-    install_targets = [install_target, _EBPF_DEBUG_INSTALL_TARGET] if debug else [install_target]
+    install_targets = [install_target]
+    if debug:
+        install_targets.append(_EBPF_DEBUG_INSTALL_TARGET)
+    if line_info:
+        install_targets.append(_EBPF_LINE_INFO_INSTALL_TARGET)
     targets = [*install_targets, *extra_targets]
     if verify:
         targets.append("//pkg/ebpf:verify_generated_files")
@@ -852,12 +864,16 @@ def _rust_install_targets(output_dir: Path | None = None, packages: list[str] | 
 
 @task(
     aliases=["object-files"],
-    help={"debug": "Also build and stage the DEBUG=1 <name>-debug.o variants"},
+    help={
+        "debug": "Also build and stage the DEBUG=1 <name>-debug.o variants",
+        "line_info": "Also stage .o variants retaining .BTF.ext line_info for verifier complexity tools",
+    },
 )
 def build_object_files(
     ctx,
     arch: str = CURRENT_ARCH,
     debug: bool = False,
+    line_info: bool = False,
     fips_backend: FipsBackend = FipsBackend.none,
 ) -> None:
     arch_obj = Arch.from_str(arch)
@@ -877,7 +893,13 @@ def build_object_files(
             extra_targets.extend(t for t, _ in _rust_install_targets())
 
         bazel_build_ebpf(
-            ctx, arch_obj, verify=True, debug=debug, extra_targets=extra_targets, fips_backend=fips_backend
+            ctx,
+            arch_obj,
+            verify=True,
+            debug=debug,
+            line_info=line_info,
+            extra_targets=extra_targets,
+            fips_backend=fips_backend,
         )
         for rel in stale_debug:
             stale = os.path.join(build_dir, rel)
