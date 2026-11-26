@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+security:
+  - |
+    When sent with security signals, CWS rule variables that were set out of a process environment field (``*.envp``)
+    no longer bypass the ``envs_with_value`` allowlist. Variables that copy environment
+    entries as-is include only the value of the environment variables listed
+    in ``envs_with_value``, like the ``*.envs`` fields. Signals do not include variables that extract
+    part of an entry with ``capture``, which are computed out of an ``*.envp`` field by
+    an expression or read from such a variable. You can still use them to chain rules. When a rule matches ``*.envp`` values, it filters them the same way in the rule context of the security signals.

@@ -902,11 +902,12 @@ func (rs *RuleSet) envKeys(tree ast.Node) (keys []string, evaluated bool) {
 
 // setSource is what the source of a set action reads: the keys of the
 // environment variables of a process, whether one of them is evaluated per
-// event, and the variables
+// event, whether it copies envp entries as is, and the variables
 type setSource struct {
 	variable  string
 	envKeys   []string
 	evaluated bool
+	filtered  bool
 	variables []string
 }
 
@@ -917,6 +918,13 @@ func (rs *RuleSet) newSetSource(set *SetDefinition, tree ast.Node) setSource {
 		source.variable = string(set.Scope) + "." + set.Name
 	}
 	source.envKeys, source.evaluated = rs.envKeys(tree)
+	// envp entries copied as is can be filtered on their keys, a part of one
+	// or a value computed out of one can't
+	if isEnvpEntries(tree) && set.Capture == "" {
+		source.filtered = true
+	} else if ast.Any(tree, isEnvpField) {
+		source.evaluated = true
+	}
 	ast.Any(tree, func(n ast.Node) bool {
 		if ref, ok := n.(*ast.VariableRef); ok {
 			source.variables = append(source.variables, rs.variableName(ref.Name))
@@ -924,6 +932,22 @@ func (rs *RuleSet) newSetSource(set *SetDefinition, tree ast.Node) setSource {
 		return false
 	})
 	return source
+}
+
+// isEnvpField returns whether a node reads the environment of a process as
+// KEY=value entries: `exec.envp`, `process.ancestors.envp`
+func isEnvpField(n ast.Node) bool {
+	ref, ok := n.(*ast.FieldRef)
+	return ok && strings.HasSuffix(ref.Name, ".envp")
+}
+
+// isEnvpEntries returns whether a tree is an envp field or one of its entries:
+// `exec.envp`, `exec.envp[0]`
+func isEnvpEntries(tree ast.Node) bool {
+	if index, ok := tree.(*ast.Index); ok {
+		tree = index.Base
+	}
+	return isEnvpField(tree)
 }
 
 // variableName returns the name of the variable a reference refers to, its
@@ -946,7 +970,7 @@ func (rs *RuleSet) recordSetSource(source setSource) {
 	}
 	if variable := rs.evalOpts.VariableStore.Get(source.variable); variable != nil {
 		opts := variable.GetVariableOpts()
-		if mergeEnvMarks(&opts, source.envKeys, source.evaluated) {
+		if mergeEnvMarks(&opts, source.envKeys, source.evaluated, source.filtered) {
 			variable.SetVariableOpts(opts)
 		}
 	}
@@ -954,9 +978,10 @@ func (rs *RuleSet) recordSetSource(source setSource) {
 
 // mergeEnvMarks merges env marks into the options of a variable, and returns
 // whether they changed
-func mergeEnvMarks(opts *eval.VariableOpts, keys []string, evaluated bool) bool {
-	changed := evaluated && !opts.EnvKeyEvaluated
+func mergeEnvMarks(opts *eval.VariableOpts, keys []string, evaluated, filtered bool) bool {
+	changed := (evaluated && !opts.EnvKeyEvaluated) || (filtered && !opts.EnvFiltered)
 	opts.EnvKeyEvaluated = opts.EnvKeyEvaluated || evaluated
+	opts.EnvFiltered = opts.EnvFiltered || filtered
 	for _, key := range keys {
 		if !slices.Contains(opts.EnvKeys, key) {
 			opts.EnvKeys = append(opts.EnvKeys, key)
@@ -968,7 +993,8 @@ func mergeEnvMarks(opts *eval.VariableOpts, keys []string, evaluated bool) bool 
 
 // propagateEnvKeys merges into each variable the env marks of the variables its
 // set actions read, once all the rules are added: a variable read from a hidden
-// one is hidden, whatever order the rules are added in, cycles included
+// one is hidden, whatever order the rules are added in, cycles included. A value
+// read from envp entries is no longer a list of entries to filter: it is hidden
 func (rs *RuleSet) propagateEnvKeys() {
 	for changed := true; changed; {
 		changed = false
@@ -982,7 +1008,7 @@ func (rs *RuleSet) propagateEnvKeys() {
 			for _, read := range reads {
 				if source := rs.evalOpts.VariableStore.Get(read); source != nil {
 					sourceOpts := source.GetVariableOpts()
-					updated = mergeEnvMarks(&opts, sourceOpts.EnvKeys, sourceOpts.EnvKeyEvaluated) || updated
+					updated = mergeEnvMarks(&opts, sourceOpts.EnvKeys, sourceOpts.EnvKeyEvaluated || sourceOpts.EnvFiltered, false) || updated
 				}
 			}
 			if updated {
