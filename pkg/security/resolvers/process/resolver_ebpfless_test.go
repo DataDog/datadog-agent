@@ -32,6 +32,7 @@ func TestEBPFLessExecWithoutFork(t *testing.T) {
 	entry := addEBPFLessTestExec(r, childKey, 100, "/bin/sh", 200)
 	require.Same(t, entry, r.Resolve(childKey))
 	assert.Equal(t, "/bin/sh", entry.FileEvent.PathnameStr)
+	assert.EqualValues(t, 1, entry.NSID)
 	assert.EqualValues(t, 100, entry.PPid)
 	assert.True(t, entry.IsExec)
 	assert.Equal(t, time.Unix(0, 200), entry.ExecTime)
@@ -41,6 +42,7 @@ func TestEBPFLessExecWithoutFork(t *testing.T) {
 	reconstructed := entry.Ancestor
 	require.NotNil(t, reconstructed)
 	assert.EqualValues(t, 200, reconstructed.Pid)
+	assert.EqualValues(t, 1, reconstructed.NSID)
 	assert.EqualValues(t, model.ProcessCacheEntryFromPlaceholder, reconstructed.Source)
 	assert.Equal(t, "/usr/sbin/php-fpm", reconstructed.FileEvent.PathnameStr)
 	assert.True(t, reconstructed.ForkTime.IsZero())
@@ -52,6 +54,7 @@ func TestEBPFLessExecWithoutFork(t *testing.T) {
 	// A subsequent utility must inherit sh, not the original php-fpm image.
 	utilityKey := CacheResolverKey{Pid: 300, NSID: 1}
 	fork := r.AddForkEntry(utilityKey, 200, 300)
+	assert.EqualValues(t, 1, fork.NSID)
 	utility := addEBPFLessTestExec(r, utilityKey, 200, "/usr/bin/realpath", 400)
 	require.Same(t, fork, utility.Ancestor)
 	assert.Equal(t, "/bin/sh", utility.Ancestor.FileEvent.PathnameStr)

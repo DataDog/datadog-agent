@@ -64,6 +64,9 @@ type killContext struct {
 	// cgroup is set when the process belongs to a cgroup that may be killed in a single
 	// operation, instead of signalling each of its processes.
 	cgroup cgroupKillTarget
+	// ebpflessScope is set for eBPF-less container/cgroup kills so the killer can trigger
+	// the tracer kill fallback and re-kill racing forks.
+	ebpflessScope *ebpflessKillScope
 }
 
 // cgroupKillTarget identifies a cgroup to kill in a single operation. The inode is carried along
@@ -232,49 +235,47 @@ func (p *ProcessKillerLinux) getProcesses(scope string, ev *model.Event, entry *
 		pcs := []killContext{}
 
 		// Use the CGroupResolver to get all PIDs of the container
-		if p.cgroupResolver != nil {
-			cacheEntry, err := p.getCgroupCacheEntry(entry)
+		cacheEntry, err := p.getCgroupCacheEntry(entry)
+		if err != nil {
+			return pcs, err
+		}
+
+		// Remember the cgroup these processes belong to, so that Kill can take them all down
+		// with a single write instead of signalling each of them.
+		var target cgroupKillTarget
+		if p.cgroupKiller != nil {
+			if id, inode := cacheEntry.GetCGroupID(), cacheEntry.GetCGroupInode(); id != "" && inode != 0 {
+				target = cgroupKillTarget{id: id, inode: inode}
+			}
+		}
+
+		pids := cacheEntry.GetPIDs()
+		if scope == "container" && !entry.ContainerContext.IsNull() {
+			pids = p.cgroupResolver.GetContainerPIDs(entry.ContainerContext.ContainerID)
+		}
+		for _, pid := range pids {
+			if pid < 1 {
+				continue
+			}
+			proc, err := psutil.NewProcess(int32(pid))
 			if err != nil {
-				return pcs, err
+				continue
 			}
-
-			// Remember the cgroup these processes belong to, so that Kill can take them all down
-			// with a single write instead of signalling each of them.
-			var target cgroupKillTarget
-			if p.cgroupKiller != nil {
-				if id, inode := cacheEntry.GetCGroupID(), cacheEntry.GetCGroupInode(); id != "" && inode != 0 {
-					target = cgroupKillTarget{id: id, inode: inode}
-				}
+			createdAt, err := proc.CreateTime()
+			if err != nil || createdAt == 0 {
+				continue
 			}
-
-			pids := cacheEntry.GetPIDs()
-			if scope == "container" && !entry.ContainerContext.IsNull() {
-				pids = p.cgroupResolver.GetContainerPIDs(entry.ContainerContext.ContainerID)
+			// Get the executable path from procfs
+			exe, err := proc.Exe()
+			if err != nil {
+				continue
 			}
-			for _, pid := range pids {
-				if pid < 1 {
-					continue
-				}
-				proc, err := psutil.NewProcess(int32(pid))
-				if err != nil {
-					continue
-				}
-				createdAt, err := proc.CreateTime()
-				if err != nil || createdAt == 0 {
-					continue
-				}
-				// Get the executable path from procfs
-				exe, err := proc.Exe()
-				if err != nil {
-					continue
-				}
-				pcs = append(pcs, killContext{
-					pid:       int(pid),
-					path:      exe,
-					createdAt: uint64(createdAt),
-					cgroup:    target,
-				})
-			}
+			pcs = append(pcs, killContext{
+				pid:       int(pid),
+				path:      exe,
+				createdAt: uint64(createdAt),
+				cgroup:    target,
+			})
 		}
 		return pcs, nil
 	}

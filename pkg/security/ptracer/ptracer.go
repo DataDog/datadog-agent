@@ -293,10 +293,10 @@ func (ctx *CWSPtracerCtx) trace() (int, error) {
 			children.forget(pid)
 			tracker.Exit(pid)
 
+			ctx.handleHooks(CallbackExitType, ExitNr, pid, 0, regs, &waitStatus)
 			if ctx.pidExited(pid) == 0 {
 				break
 			}
-			ctx.handleHooks(CallbackExitType, ExitNr, pid, 0, regs, &waitStatus)
 			continue
 		}
 
@@ -400,10 +400,10 @@ func (ctx *CWSPtracerCtx) traceWithSeccomp() (int, error) {
 
 		if isExited(waitStatus) {
 			children.forget(pid)
+			ctx.handleHooks(CallbackExitType, ExitNr, pid, 0, regs, &waitStatus)
 			if ctx.pidExited(pid) == 0 {
 				break
 			}
-			ctx.handleHooks(CallbackExitType, ExitNr, pid, 0, regs, &waitStatus)
 			continue
 		}
 

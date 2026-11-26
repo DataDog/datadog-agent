@@ -452,6 +452,7 @@ func (s SyscallMsg) String() string {
 // HelloMsg defines a hello message
 type HelloMsg struct {
 	NSID             uint64
+	PID              uint32 `json:",omitempty" msgpack:",omitempty"`
 	ContainerContext *ContainerContext
 	CGroupID         containerutils.CGroupID
 	EntrypointArgs   []string

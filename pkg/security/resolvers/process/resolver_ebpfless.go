@@ -118,6 +118,7 @@ func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32, ts ui
 
 	entry := model.NewProcessCacheEntry()
 	entry.PIDContext.Pid = key.Pid
+	entry.PIDContext.NSID = key.NSID
 	entry.PPid = ppid
 	entry.ForkTime = time.Unix(0, int64(ts))
 	entry.Source = model.ProcessCacheEntryFromEvent
@@ -136,6 +137,7 @@ func (p *EBPFLessResolver) NewEntry(key CacheResolverKey, ppid uint32, file stri
 
 	entry := model.NewProcessCacheEntry()
 	entry.PIDContext.Pid = key.Pid
+	entry.PIDContext.NSID = key.NSID
 	entry.PPid = ppid
 	entry.Source = source
 
@@ -294,6 +296,7 @@ func (p *EBPFLessResolver) insertExecEntry(key CacheResolverKey, entry *model.Pr
 		// namespace, and invent neither a fork timestamp nor a fork event.
 		prev = model.NewProcessCacheEntry()
 		prev.Pid = key.Pid
+		prev.NSID = key.NSID
 		prev.PPid = entry.PPid
 		prev.Source = model.ProcessCacheEntryFromPlaceholder
 		if parent := p.entryCache[CacheResolverKey{Pid: entry.PPid, NSID: key.NSID}]; parent != nil {

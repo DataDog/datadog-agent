@@ -358,6 +358,7 @@ func (ctx *CWSPtracerCtx) initCtxCommon() error {
 		Hello: &ebpfless.HelloMsg{
 			Mode:             ctx.opts.mode,
 			NSID:             getNSID(),
+			PID:              uint32(os.Getpid()),
 			ContainerContext: containerCtx,
 			CGroupID:         ctx.cgroupID,
 			EntrypointArgs:   ctx.Args,

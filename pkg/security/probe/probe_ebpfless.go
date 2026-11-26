@@ -46,10 +46,17 @@ const (
 )
 
 type client struct {
-	conn        net.Conn
-	probe       *EBPFLessProbe
-	nsID        uint64
-	containerID containerutils.ContainerID
+	conn             net.Conn
+	probe            *EBPFLessProbe
+	nsID             uint64
+	containerID      containerutils.ContainerID
+	cgroupID         containerutils.CGroupID
+	mode             ebpfless.Mode
+	tracerPID        uint32
+	tracerCreateTime uint64
+	killing          bool
+	killTimer        *time.Timer
+	disconnected     bool
 }
 
 type clientMsg struct {
@@ -80,7 +87,8 @@ type EBPFLessProbe struct {
 	wg            sync.WaitGroup
 
 	// kill action
-	processKiller *ProcessKiller
+	processKiller  *ProcessKiller
+	ebpfLessKiller *ProcessKillerEBPFLess
 
 	// hash action
 	fileHasher *FileHasher
@@ -94,9 +102,23 @@ func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
 				NewEBPFLessHelloMsgEvent(p.GetAgentContainerContext(), msg.Hello, p.probe.scrubber, p.probe.Opts.Tagger),
 			)
 
+			var tracerCreateTime uint64
+			if msg.Hello.PID != 0 && p.ebpfLessKiller != nil && p.ebpfLessKiller.samePIDNamespace(msg.Hello.NSID) {
+				tracerCreateTime = p.ebpfLessKiller.getProcCreateTime(msg.Hello.PID)
+			}
+
+			p.Lock()
 			cl.nsID = msg.Hello.NSID
+			cl.mode = msg.Hello.Mode
+			cl.cgroupID = msg.Hello.CGroupID
+			cl.tracerPID = msg.Hello.PID
+			cl.tracerCreateTime = tracerCreateTime
 			if msg.Hello.ContainerContext != nil {
 				cl.containerID = msg.Hello.ContainerContext.ID
+			}
+			p.Unlock()
+
+			if msg.Hello.ContainerContext != nil {
 				p.containerContexts[msg.Hello.ContainerContext.ID] = msg.Hello.ContainerContext
 				seclog.Infof("tracing started for container ID [%s] with entrypoint %q", msg.Hello.ContainerContext.ID, msg.Hello.EntrypointArgs)
 			}
@@ -106,6 +128,130 @@ func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
 	default:
 		seclog.Errorf("unknown message type: %d", msg.Type)
 	}
+}
+
+func (p *EBPFLessProbe) handleClientGoodbye(cl *client) {
+	p.Lock()
+	cl.disconnected = true
+	cl.killing = false
+	if cl.killTimer != nil {
+		cl.killTimer.Stop()
+		cl.killTimer = nil
+	}
+	containerID := cl.containerID
+	p.Unlock()
+
+	if containerID != "" {
+		delete(p.containerContexts, containerID)
+		seclog.Infof("tracing stopped for container ID [%s]", containerID)
+	}
+
+	p.processKiller.FlushPendingReports()
+	p.fileHasher.FlushPendingReports()
+}
+
+func (p *EBPFLessProbe) findClientLocked(nsID uint64, containerID containerutils.ContainerID, cgroupID containerutils.CGroupID) *client {
+	for _, cl := range p.clients {
+		if cl.disconnected {
+			continue
+		}
+		if nsID != 0 && cl.nsID != 0 && cl.nsID != nsID {
+			continue
+		}
+		if (containerID != "" && cl.containerID == containerID) ||
+			(cgroupID != "" && cl.cgroupID == cgroupID) {
+			return cl
+		}
+	}
+	return nil
+}
+
+func (p *EBPFLessProbe) getClientTracerPID(nsID uint64, containerID containerutils.ContainerID, cgroupID containerutils.CGroupID) uint32 {
+	p.Lock()
+	defer p.Unlock()
+
+	if cl := p.findClientLocked(nsID, containerID, cgroupID); cl != nil {
+		return cl.tracerPID
+	}
+	return 0
+}
+
+func (p *EBPFLessProbe) armContainerKillFallback(scope ebpflessKillScope) {
+	p.Lock()
+	defer p.Unlock()
+
+	if p.ctx != nil && p.ctx.Err() != nil {
+		return
+	}
+
+	cl := p.findClientLocked(scope.nsID, scope.containerID, scope.cgroupID)
+	if cl == nil || cl.mode != ebpfless.WrappedMode {
+		return
+	}
+
+	cl.killing = true
+	if cl.killTimer != nil {
+		return
+	}
+
+	delay := ebpflessTracerKillFallbackDelay
+	if p.ebpfLessKiller != nil && p.ebpfLessKiller.fallbackDelay > 0 {
+		delay = p.ebpfLessKiller.fallbackDelay
+	}
+	cl.killTimer = time.AfterFunc(delay, func() {
+		p.onTracerKillFallbackTimeout(cl)
+	})
+}
+
+func (p *EBPFLessProbe) onTracerKillFallbackTimeout(cl *client) {
+	p.Lock()
+	if cl.disconnected || !cl.killing || (p.ctx != nil && p.ctx.Err() != nil) {
+		p.Unlock()
+		return
+	}
+	tracerPID := cl.tracerPID
+	tracerCreateTime := cl.tracerCreateTime
+	containerID := cl.containerID
+	nsID := cl.nsID
+	cl.killTimer = nil
+	p.Unlock()
+
+	if tracerPID == 0 || p.ebpfLessKiller == nil || !p.ebpfLessKiller.samePIDNamespace(nsID) {
+		return
+	}
+
+	seclog.Warnf("tracer pid %d for container [%s] did not exit within %s after container kill, sending SIGKILL", tracerPID, containerID, p.ebpfLessKiller.fallbackDelay)
+	if err := p.ebpfLessKiller.killTracer(tracerPID, tracerCreateTime); err != nil {
+		seclog.Warnf("failed to kill tracer pid %d for container [%s]: %s", tracerPID, containerID, err)
+	}
+}
+
+func (p *EBPFLessProbe) maybeKillRacingProcess(cl *client, syscallMsg *ebpfless.SyscallMsg, entry *model.ProcessCacheEntry) {
+	if p.ebpfLessKiller == nil || (syscallMsg.Type != ebpfless.SyscallTypeFork && syscallMsg.Type != ebpfless.SyscallTypeExec) {
+		return
+	}
+
+	p.Lock()
+	killing := cl.killing && !cl.disconnected
+	tracerPID := cl.tracerPID
+	clContainerID := cl.containerID
+	clCGroupID := cl.cgroupID
+	nsID := cl.nsID
+	p.Unlock()
+
+	if !killing || syscallMsg.PID <= 1 || (tracerPID != 0 && syscallMsg.PID == tracerPID) {
+		return
+	}
+
+	// Only kill processes belonging to the container/cgroup being terminated; in pidMode: task,
+	// procfs scanning can report sibling containers (including the agent sidecar itself).
+	matchesContainer := clContainerID != "" && (syscallMsg.ContainerID == clContainerID || entry.ContainerContext.ContainerID == clContainerID)
+	matchesCGroup := clCGroupID != "" && (syscallMsg.CGroupID == clCGroupID || entry.CGroup.CGroupID == clCGroupID)
+	if !matchesContainer && !matchesCGroup {
+		return
+	}
+
+	p.ebpfLessKiller.killRacingProcess(nsID, syscallMsg.PID)
 }
 
 func copyFileAttributes(src *ebpfless.FileSyscallMsg, dst *model.FileEvent) {
@@ -199,6 +345,27 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		copyProcessCredentials(syscallMsg.Exec.Credentials, &entry.Credentials)
 		event.Exec.Process = &entry.Process
 		copyFileAttributes(&syscallMsg.Exec.File, &event.Exec.FileEvent)
+
+		// Backwards compatibility for older cws-instrumentation that did not send HelloMsg.PID:
+		// infer the tracer PID from the wrapped entrypoint's PPID.
+		if !syscallMsg.Exec.FromProcFS && syscallMsg.Exec.PPID > 1 {
+			p.Lock()
+			needsTracerPID := cl.mode == ebpfless.WrappedMode && cl.tracerPID == 0
+			nsID := cl.nsID
+			p.Unlock()
+			if needsTracerPID {
+				var createTime uint64
+				if p.ebpfLessKiller != nil && p.ebpfLessKiller.samePIDNamespace(nsID) {
+					createTime = p.ebpfLessKiller.getProcCreateTime(syscallMsg.Exec.PPID)
+				}
+				p.Lock()
+				if cl.tracerPID == 0 {
+					cl.tracerPID = syscallMsg.Exec.PPID
+					cl.tracerCreateTime = createTime
+				}
+				p.Unlock()
+			}
+		}
 
 	case ebpfless.SyscallTypeFork:
 		event.Type = uint32(model.ForkEventType)
@@ -432,12 +599,15 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	event.ProcessCacheEntry = p.Resolvers.ProcessResolver.Resolve(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID})
 	if event.ProcessCacheEntry == nil {
 		event.ProcessCacheEntry = model.NewPlaceholderProcessCacheEntry(syscallMsg.PID, syscallMsg.PID, false)
+		event.ProcessCacheEntry.PIDContext.NSID = cl.nsID
 	}
 	if event.ProcessCacheEntry.Process.CGroup.CGroupID == "" && syscallMsg.CGroupID != "" {
 		event.ProcessCacheEntry.Process.CGroup.CGroupID = syscallMsg.CGroupID
 		p.Resolvers.ProcessResolver.ResolveECSTaskID(event.ProcessCacheEntry)
 	}
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
+
+	p.maybeKillRacingProcess(cl, syscallMsg, event.ProcessCacheEntry)
 
 	p.fieldHandlers.ResolveSpanContext(event)
 
@@ -490,7 +660,13 @@ func (p *EBPFLessProbe) Stop() {
 	p.cancelFnc()
 
 	p.Lock()
-	for conn := range p.clients {
+	for conn, cl := range p.clients {
+		cl.disconnected = true
+		cl.killing = false
+		if cl.killTimer != nil {
+			cl.killTimer.Stop()
+			cl.killTimer = nil
+		}
 		conn.Close()
 	}
 	p.Unlock()
@@ -503,7 +679,13 @@ func (p *EBPFLessProbe) Close() error {
 	p.Lock()
 	defer p.Unlock()
 
-	for conn := range p.clients {
+	for conn, cl := range p.clients {
+		cl.disconnected = true
+		cl.killing = false
+		if cl.killTimer != nil {
+			cl.killTimer.Stop()
+			cl.killTimer = nil
+		}
 		conn.Close()
 		delete(p.clients, conn)
 	}
@@ -586,6 +768,12 @@ func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan clientMsg) {
 				}
 
 				p.Lock()
+				client.disconnected = true
+				client.killing = false
+				if client.killTimer != nil {
+					client.killTimer.Stop()
+					client.killTimer = nil
+				}
 				delete(p.clients, conn)
 				p.Unlock()
 				conn.Close()
@@ -646,18 +834,21 @@ func (p *EBPFLessProbe) Start() error {
 	go func() {
 		defer p.wg.Done()
 
+		flushTicker := time.NewTicker(ebpflessFlushReportsInterval)
+		defer flushTicker.Stop()
+
 		for {
 			select {
 			case <-p.ctx.Done():
 				listener.Close()
 
 				return
+			case <-flushTicker.C:
+				p.processKiller.FlushPendingReports()
+				p.fileHasher.FlushPendingReports()
 			case msg := <-ch:
 				if msg.Type == ebpfless.MessageTypeGoodbye {
-					if msg.client.containerID != "" {
-						delete(p.containerContexts, msg.client.containerID)
-						seclog.Infof("tracing stopped for container ID [%s]", msg.client.containerID)
-					}
+					p.handleClientGoodbye(msg.client)
 					continue
 				}
 				p.handleClientMsg(msg.client, &msg.Message)
@@ -815,11 +1006,6 @@ func (p *EBPFLessProbe) GetAgentContainerContext() *events.AgentContainerContext
 func NewEBPFLessProbe(probe *Probe, config *config.Config, hostname string, opts Opts) (*EBPFLessProbe, error) {
 	opts.normalize()
 
-	processKiller, err := NewProcessKiller(config, nil)
-	if err != nil {
-		return nil, err
-	}
-
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	var grpcOpts []grpc.ServerOption
@@ -832,7 +1018,6 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, hostname string, opts
 		ctx:               ctx,
 		cancelFnc:         cancelFnc,
 		clients:           make(map[net.Conn]*client),
-		processKiller:     processKiller,
 		containerContexts: make(map[containerutils.ContainerID]*ebpfless.ContainerContext),
 	}
 
@@ -840,7 +1025,14 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, hostname string, opts
 		Tagger: opts.Tagger,
 	}
 
+	var err error
 	p.Resolvers, err = resolvers.NewEBPFLessResolvers(config, p.statsdClient, probe.scrubber, resolversOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	p.ebpfLessKiller = NewProcessKillerEBPFLess(p)
+	p.processKiller, err = NewProcessKiller(config, p.ebpfLessKiller)
 	if err != nil {
 		return nil, err
 	}
