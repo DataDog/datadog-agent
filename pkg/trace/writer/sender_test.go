@@ -171,6 +171,24 @@ func TestSender(t *testing.T) {
 		assert.Equal(1, server.Accepted(), "accepted")
 	})
 
+	t.Run("retry-exhausted-logs", func(t *testing.T) {
+		var logs bytes.Buffer
+		old := log.SetLogger(log.NewBufferLogger(&logs))
+		defer log.SetLogger(old)
+		server := newTestServer()
+		defer server.Close()
+		defer useBackoffDuration(time.Nanosecond)()
+
+		s, err := newTestSender(server.URL)
+		require.NoError(t, err)
+		s.Push(expectResponses(503, 503, 503, 503))
+		s.Stop()
+
+		assert.Equal(t, 4, server.Total(), "total")
+		assert.NotContains(t, logs.String(), "Retried payload")
+		assert.Contains(t, logs.String(), "Dropping Payload after 4 retries")
+	})
+
 	t.Run("many", func(t *testing.T) {
 		assert := assert.New(t)
 		server := newTestServer()

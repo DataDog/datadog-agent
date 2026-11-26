@@ -27,6 +27,7 @@ const (
 	DistributionType
 	GaugeWithTimestampType
 	CountWithTimestampType
+	HistogramBucketType
 
 	// NumMetricTypes is the number of metric types; must be the last item here
 	NumMetricTypes
@@ -64,6 +65,8 @@ func (m MetricType) String() string {
 		return "GaugeWithTimestamp"
 	case CountWithTimestampType:
 		return "CountWithTimestamp"
+	case HistogramBucketType:
+		return "HistogramBucket"
 	default:
 		return ""
 	}

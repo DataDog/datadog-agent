@@ -123,6 +123,10 @@ type Config struct {
 	// IncludeDetectorAnomalies retains every detector return value before downstream
 	// filtering so headless output can compare detector behavior directly.
 	IncludeDetectorAnomalies bool
+
+	// TrackScorerHistory retains the original-run scorer timeline for the
+	// interactive UI. Leave it off for headless and production runs.
+	TrackScorerHistory bool
 }
 
 // ScenarioInfo describes an available scenario.
@@ -741,7 +745,7 @@ func (m parquetMetricView) GetMetricType() metrics.MetricType { return m.metricT
 // no point-retention or inactivity-eviction window (pre-loaded data stays in memory) and full
 // anomaly and correlation history accumulation enabled (disabled in live mode
 // because production reporters consume advance-local events directly).
-func unboundedStorageCfg(includeDetectorAnomalies bool) observerimpl.StorageConfig {
+func unboundedStorageCfg(includeDetectorAnomalies, trackScorerHistory bool) observerimpl.StorageConfig {
 	cfg := observerimpl.DefaultStorageConfig()
 	cfg.PointRetentionSecs = 0
 	cfg.InactiveSeriesTTLSeconds = 0
@@ -750,6 +754,7 @@ func unboundedStorageCfg(includeDetectorAnomalies bool) observerimpl.StorageConf
 	cfg.TrackCorrelationHistory = true // accumulate history for replay UI / output
 	cfg.TrackAnomalyHistory = true     // retain raw detector output for replay UI / output
 	cfg.TrackDetectorOutputHistory = includeDetectorAnomalies
+	cfg.TrackScorerHistory = trackScorerHistory
 	return cfg
 }
 
@@ -774,7 +779,7 @@ func (tb *Bench) resetAllState() error {
 	tb.baselineWindowEndSec = 0
 	tb.baselineMutedSeries = nil
 	tb.baselineMu.Unlock()
-	storageCfg := unboundedStorageCfg(tb.config.IncludeDetectorAnomalies)
+	storageCfg := unboundedStorageCfg(tb.config.IncludeDetectorAnomalies, tb.config.TrackScorerHistory)
 	if tb.config.StreamParquet {
 		cfg, err := streamingStorageCfg(tb.settings, tb.config.IncludeDetectorAnomalies)
 		if err != nil {
@@ -892,10 +897,14 @@ func (tb *Bench) GetStatus() StatusResponse {
 		} else {
 			periods := []scoring.Period{}
 			for _, corr := range tb.correlationsLocked(sv) {
-				periods = append(periods, scoring.Period{Pattern: corr.Pattern, Start: float64(corr.FirstSeen), End: float64(corr.LastUpdated)})
+				start := corr.HistoricalFirstSeen
+				if start == 0 {
+					start = corr.FirstSeen
+				}
+				periods = append(periods, scoring.Period{Pattern: corr.Pattern, Start: float64(start), End: float64(corr.LastUpdated)})
 			}
 			var err error
-			noFaultEvaluation, err = scoring.ScoreNoFaults(periods, tb.episodeInfo.HealthyEpisode)
+			noFaultEvaluation, err = scoring.ScoreNoFaults(periods, tb.episodeInfo.HealthyEpisode, "historical")
 			if err != nil {
 				evaluationError = err.Error()
 			}
@@ -942,7 +951,7 @@ func (tb *Bench) isComponentEnabled(name string) bool {
 // Caller must hold lock.
 func (tb *Bench) rerunDetectorsLocked() error {
 	// Reset engine with current settings (clears all storage).
-	if err := tb.debug.Reset(tb.settings, unboundedStorageCfg(tb.config.IncludeDetectorAnomalies)); err != nil {
+	if err := tb.debug.Reset(tb.settings, unboundedStorageCfg(tb.config.IncludeDetectorAnomalies, tb.config.TrackScorerHistory)); err != nil {
 		return err
 	}
 

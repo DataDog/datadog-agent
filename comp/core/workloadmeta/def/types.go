@@ -153,6 +153,7 @@ type ContainerRuntimeFlavor string
 const (
 	ContainerRuntimeFlavorDefault ContainerRuntimeFlavor = ""
 	ContainerRuntimeFlavorKata    ContainerRuntimeFlavor = "kata"
+	ContainerRuntimeFlavorGVisor  ContainerRuntimeFlavor = "gvisor"
 )
 
 // ContainerStatus is the status of the container
@@ -693,6 +694,13 @@ type Container struct {
 	// KAI Scheduler GPU fractions. A GPU without an entry is not shared that
 	// way.
 	GPUShares map[string]GPUShare `proto:"ignore"`
+	// GPUDeviceReplicas holds, keyed by the base device UUID, the number
+	// of shared NVIDIA device replicas (time-slicing or MPS) allocated to
+	// this container. The kubelet PodResources API reports each replica
+	// allocation as a device ID with a replica suffix,
+	// "<base-device-id>::<replica>"; a container can hold several
+	// replicas of the same base device.
+	GPUDeviceReplicas map[string]int `proto:"ignore"`
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
@@ -793,11 +801,16 @@ func (c Container) String(verbose bool) string {
 		}
 	}
 
-	if len(c.GPUDeviceIDs) > 0 {
+	if len(c.GPUDeviceIDs) > 0 || len(c.GPUShares) > 0 || len(c.GPUDeviceReplicas) > 0 {
 		_, _ = fmt.Fprintln(&sb, "----------- GPU Info -----------")
-		_, _ = fmt.Fprintln(&sb, "GPU Device IDs:", c.GPUDeviceIDs)
+		if len(c.GPUDeviceIDs) > 0 {
+			_, _ = fmt.Fprintln(&sb, "GPU Device IDs:", c.GPUDeviceIDs)
+		}
 		if len(c.GPUShares) > 0 {
 			_, _ = fmt.Fprintln(&sb, "GPU Shares:", c.GPUShares)
+		}
+		if len(c.GPUDeviceReplicas) > 0 {
+			_, _ = fmt.Fprintln(&sb, "GPU Device Replicas:", c.GPUDeviceReplicas)
 		}
 	}
 
@@ -862,7 +875,7 @@ type KubernetesPod struct {
 	Owners                     []KubernetesPodOwner
 	PersistentVolumeClaimNames []string
 	InitContainers             []OrchestratorContainer
-	Containers                 []OrchestratorContainer // Pod spec order; runtime IDs can be empty during startup.
+	Containers                 []OrchestratorContainer // Pod spec order. Containers that have not started have an empty ID and no Container entity.
 	EphemeralContainers        []OrchestratorContainer
 	Ready                      bool
 	Phase                      string
@@ -1709,6 +1722,11 @@ type KubernetesKueueWorkload struct {
 	PodSetAssignments      []KueuePodSetAssignment
 	PodTemplateLabels      map[string]string
 	PodTemplateAnnotations map[string]string
+
+	// SchedulerEvents holds what the Cluster Agent needs to emit Workload
+	// events, and is nil for any other consumer. It is an interface so that the
+	// type that carries the data stays out of the Agents that never emit them.
+	SchedulerEvents any
 }
 
 // GetID implements Entity#GetID.
@@ -1760,6 +1778,11 @@ type KubernetesKAIPodGroup struct {
 	EntityID
 	EntityMeta
 	QueueName string
+
+	// SchedulerEvents holds what the Cluster Agent needs to emit PodGroup
+	// events, and is nil for any other consumer. It is an interface so that the
+	// type that carries the data stays out of the Agents that never emit them.
+	SchedulerEvents any
 }
 
 // GetID implements Entity#GetID.
@@ -2032,7 +2055,7 @@ type SBOM struct {
 	CycloneDXBOM       *cyclonedx_v1_4.Bom
 	GenerationTime     time.Time
 	GenerationDuration time.Duration
-	GenerationMethod   string // method used to generate the SBOM. Can be one of tarball, filesystem or overlayfs. This is reported by the collector for the used container runtime (docker, containerd ir cri-o) and converted to the `scan_method` tag.
+	GenerationMethod   string // method used to generate the SBOM, converted to the `scan_method` tag: tarball or overlayfs for an image, as reported by the collector of its container runtime (docker, containerd or cri-o), and filesystem for a container scanned through procfs.
 	Status             SBOMStatus
 	Error              string // needs to be stored as a string otherwise the merge() will favor the nil value
 	OSFallback         bool   // the SBOM lists the OS packages alone because its scan with application analyzers ran out of time, until a retry replaces it
@@ -2518,7 +2541,17 @@ const (
 	GPUSharingModeNone GPUSharingMode = "none"
 	// GPUSharingModeKAIFraction means that KAI Scheduler shares the GPU
 	// between workloads that each request a fraction of it.
-	GPUSharingModeKAIFraction GPUSharingMode = "kai_fraction"
+	GPUSharingModeKAIFraction GPUSharingMode = "kai-fraction"
+	// GPUSharingModeTimeSlicing means that the NVIDIA device plugin shares the
+	// GPU between workloads as time-sliced replicas of it.
+	GPUSharingModeTimeSlicing GPUSharingMode = "time-slicing"
+	// GPUSharingModeMPS means that the NVIDIA device plugin shares the GPU
+	// between workloads as replicas served by Multi-Process Service.
+	GPUSharingModeMPS GPUSharingMode = "mps"
+	// GPUSharingModeUnknown means that the GPU is shared between workloads by
+	// a replication mechanism the node does not describe: a shared-replica
+	// allocation was detected, but the node carries no sharing-strategy label.
+	GPUSharingModeUnknown GPUSharingMode = "unknown"
 )
 
 // GPUShare is the share of a GPU assigned to a container that shares the GPU
@@ -2573,7 +2606,7 @@ type GPU struct {
 	// Index is the index of the GPU in the host system. This is useful as sometimes
 	// GPUs will be identified by their index instead of their UUID. Note that the index
 	// is not guaranteed to be stable across reboots, nor is necessarily the same inside
-	// of containers.
+	// of containers. It is the index nvidia-smi or amd-smi reports, -1 when unknown.
 	Index int
 
 	// Architecture contains the architecture of the GPU (e.g., Pascal, Volta, etc.). Optional, can be empty.
@@ -2650,6 +2683,10 @@ type GPU struct {
 	// ChildrenGPUUUIDs is the UUIDs of the child GPU devices. Empty slice if the device does not have children.
 	ChildrenGPUUUIDs []string
 
+	// MIGModeEnabled is true when MIG mode is enabled on a physical GPU, even
+	// if no MIG devices have been created on it yet.
+	MIGModeEnabled bool
+
 	// MIGProfile is the canonical MIG profile name of the device (e.g. "1g.35gb"),
 	// as reported by the driver for the device's GPU instance. Empty for physical
 	// devices and for MIG devices on drivers that do not expose the profile name.
@@ -2659,6 +2696,11 @@ type GPU struct {
 	// workloads. Empty when the collector does not detect sharing mechanisms,
 	// which means the same as GPUSharingModeNone.
 	SharingMode GPUSharingMode
+	// SharingReplicas is the number of device replicas the device plugin
+	// registered of this device when it is shared by replication (time-slicing
+	// or MPS), 0 when the device is not shared that way or the count is
+	// unknown.
+	SharingReplicas int
 }
 
 var _ Entity = &GPU{}
@@ -2724,6 +2766,10 @@ func (g GPU) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Sharing Mode:", g.SharingMode)
 	}
 
+	if g.MIGModeEnabled {
+		_, _ = fmt.Fprintln(&sb, "MIG Mode Enabled: true")
+	}
+
 	// Do not show "physical" device type as it's the default and redundant information
 	if g.DeviceType == GPUDeviceTypeMIG {
 		_, _ = fmt.Fprintln(&sb, "Device Type: MIG")
@@ -2732,10 +2778,13 @@ func (g GPU) String(verbose bool) string {
 	return sb.String()
 }
 
+// SlicingMode returns the value of the gpu_slicing_mode tag: "mig" for a MIG
+// device, "mig-parent" for a physical GPU with MIG mode enabled (whether or not
+// it has MIG devices yet) and "none" otherwise.
 func (g GPU) SlicingMode() string {
 	if g.DeviceType == GPUDeviceTypeMIG {
 		return "mig"
-	} else if len(g.ChildrenGPUUUIDs) > 0 {
+	} else if g.MIGModeEnabled || len(g.ChildrenGPUUUIDs) > 0 {
 		return "mig-parent"
 	}
 	return "none"

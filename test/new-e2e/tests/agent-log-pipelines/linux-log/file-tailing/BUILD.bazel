@@ -19,6 +19,7 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/provisioners",
         "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/fakeintake/aggregator",
         "//test/new-e2e/tests/agent-log-pipelines/utils",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

@@ -315,6 +315,7 @@ func TestRunnerCredentialHTTPDomains(t *testing.T) {
 	}{
 		{name: "allowed", domains: "[api.example.com]", bundle: "com.datadoghq.http", action: "request", target: "https://api.example.com/path", allowed: true},
 		{name: "other domain", domains: "[api.example.com]", bundle: "com.datadoghq.http", action: "request", target: "https://other.example.com"},
+		{name: "unicode host dialed as another domain", domains: "[api.example.com]", bundle: "com.datadoghq.http", action: "request", target: "https://ap\u0130.example.com"},
 		{name: "wildcard", domains: "['*.example.com']", bundle: "com.datadoghq.http", action: "request", target: "https://api.example.com", allowed: true},
 		{name: "empty denies", domains: "[]", bundle: "com.datadoghq.http", action: "request", target: "https://api.example.com"},
 		{name: "non http denied", domains: "[api.example.com]", bundle: "com.datadoghq.mongodb", action: "find", target: "https://api.example.com"},

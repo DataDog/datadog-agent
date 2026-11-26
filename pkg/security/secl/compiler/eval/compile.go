@@ -8,28 +8,36 @@ package eval
 
 import (
 	"reflect"
+	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/pass"
 )
 
 // Compile runs the compilation passes over a node, and builds its evaluator, of a
-// concrete type depending on the node.
-func Compile(node ast.Node, opts *Opts, state *State) (interface{}, ast.Position, error) {
+// concrete type depending on the node. It returns the tree it compiled, the
+// passes run over it.
+func Compile(node ast.Node, opts *Opts, state *State) (interface{}, ast.Node, ast.Position, error) {
 	pos := node.Position()
 	node, err := pass.Run(node, opts.passes()...)
 	if err != nil {
-		return nil, pos, err
+		return nil, nil, pos, err
 	}
 
-	switch node := node.(type) {
+	root := node
+	switch n := node.(type) {
 	case *ast.Rule:
-		return compileExpr(node.Root, opts, state)
+		root = n.Root
 	case *ast.Macro:
-		return compileExpr(node.Root, opts, state)
+		root = n.Root
 	}
 
-	return compileExpr(node, opts, state)
+	evaluator, pos, err := compileExpr(root, opts, state)
+	if err != nil {
+		return nil, nil, pos, err
+	}
+	return evaluator, node, pos, nil
 }
 
 // compileExpr compiles the root of a rule or a macro, or an operand of `&&`/`||`.
@@ -138,14 +146,23 @@ func compileNode(node ast.Node, opts *Opts, state *State) (interface{}, ast.Posi
 		}
 		return nil, pos, NewOpUnknownError(node.Pos, node.Op.String())
 
+	case *ast.Ident, *ast.Selector:
+		return nil, node.Position(), NewError(node.Position(), "unresolved name `%s`", ast.Sprint(node))
+
+	case *ast.Index:
+		return indexToEvaluator(node, opts, state)
+
 	case *ast.Literal:
-		return literalToEvaluator(node, opts, state)
+		return literalToEvaluator(node)
+
+	case *ast.Interpolation:
+		return interpolationToEvaluator(node, opts, state)
 
 	case *ast.VariableRef:
 		return evaluatorFromVariable(node.Name, node.Pos, opts, state)
 
 	case *ast.FieldRef:
-		return fieldToEvaluator(node.Name, node.Pos, opts, state)
+		return fieldToEvaluator(node, state)
 
 	case *ast.Array:
 		return arrayToEvaluator(node)
@@ -154,8 +171,136 @@ func compileNode(node ast.Node, opts *Opts, state *State) (interface{}, ast.Posi
 	return nil, ast.Position{}, NewError(ast.Position{}, "unknown entity '%s'", reflect.TypeOf(node))
 }
 
+// indexToEvaluator compiles the subscript ending a name: an index in an array,
+// `process.argv[0]`, or a key in a dictionary, `process.env["PATH"]`.
+func indexToEvaluator(node *ast.Index, opts *Opts, state *State) (interface{}, ast.Position, error) {
+	container, pos, err := compileNode(node.Base, opts, state)
+	if err != nil {
+		return nil, pos, err
+	}
+
+	index, pos, err := compileNode(node.Subscript, opts, state)
+	if err != nil {
+		return nil, pos, err
+	}
+
+	var (
+		key      *StringEvaluator
+		indexInt *IntEvaluator
+	)
+	switch index := index.(type) {
+	case *StringEvaluator:
+		if index.ValueType != PatternValueType && index.ValueType != RegexpValueType && index.ValueType != GlobValueType {
+			key = index
+		}
+	case *IntEvaluator:
+		if !index.isDuration {
+			indexInt = index
+		}
+	}
+	if key == nil && indexInt == nil {
+		return nil, pos, NewError(pos, "a subscript is an integer or a string")
+	}
+
+	containerEvaluator, ok := container.(Evaluator)
+	if !ok {
+		return nil, node.Pos, NewError(node.Pos, "`%s` isn't an array or a dictionary", ast.Sprint(node.Base))
+	}
+
+	if key != nil {
+		evaluator, err := wrapEvaluatorWithKey(containerEvaluator, key, containerEvaluator.GetField())
+		if err != nil {
+			return nil, node.Pos, NewError(node.Pos, "%s", err)
+		}
+		return evaluator, node.Pos, nil
+	}
+
+	evaluator, err := wrapEvaluatorWithArrayIndex(containerEvaluator, indexInt, containerEvaluator.GetField())
+	if err != nil {
+		return nil, node.Pos, NewError(node.Pos, "failed to create array index accessor: %v", err)
+	}
+	return evaluator, node.Pos, nil
+}
+
+// newDictionaryError returns the error of a dictionary compared whole, while it
+// is read at a key
+func newDictionaryError(pos ast.Position, field Field) error {
+	return NewError(pos, "dictionary field '%s' is read at a key: %s[\"KEY\"]", field, field)
+}
+
+// interpolationToEvaluator compiles a string with interpolations: its parts
+// are compiled, each converted to a string, and concatenated at evaluation.
+func interpolationToEvaluator(node *ast.Interpolation, opts *Opts, state *State) (interface{}, ast.Position, error) {
+	parts, weight := make([]*StringEvaluator, 0, len(node.Parts)), 0
+	for _, part := range node.Parts {
+		evaluator, pos, err := compileNode(part, opts, state)
+		if err != nil {
+			return nil, pos, err
+		}
+		str, ok := toStringEvaluator(evaluator)
+		if !ok {
+			if variable, ok := part.(*ast.VariableRef); ok {
+				return nil, pos, NewError(pos, "variable type not supported '%s'", variable.Name)
+			}
+			return nil, pos, NewError(pos, "field type not supported '%s'", ast.Sprint(part))
+		}
+		if field, ok := evaluator.(Evaluator); ok && field.GetField() != "" {
+			state.fieldValues[field.GetField()] = append(state.fieldValues[field.GetField()], FieldValue{Type: VariableValueType})
+		}
+		parts, weight = append(parts, str), weight+str.Weight
+	}
+
+	return &StringEvaluator{
+		ValueType: VariableValueType,
+		Weight:    weight,
+		EvalFnc: func(ctx *Context) string {
+			var builder strings.Builder
+			for _, part := range parts {
+				if part.EvalFnc != nil {
+					builder.WriteString(part.EvalFnc(ctx))
+				} else {
+					builder.WriteString(part.Value)
+				}
+			}
+			return builder.String()
+		},
+	}, node.Pos, nil
+}
+
+// toStringEvaluator converts an evaluator to one of its value as a string, an
+// array being joined by commas. It reports false for a type that has none.
+func toStringEvaluator(evaluator interface{}) (*StringEvaluator, bool) {
+	switch evaluator := evaluator.(type) {
+	case *StringEvaluator:
+		return evaluator, true
+	case *IntEvaluator:
+		if evaluator.EvalFnc == nil {
+			return &StringEvaluator{Value: strconv.Itoa(evaluator.Value)}, true
+		}
+		return &StringEvaluator{Weight: evaluator.Weight, EvalFnc: func(ctx *Context) string {
+			return strconv.Itoa(evaluator.EvalFnc(ctx))
+		}}, true
+	case *StringArrayEvaluator:
+		return &StringEvaluator{Weight: evaluator.Weight, EvalFnc: func(ctx *Context) string {
+			return strings.Join(evaluator.EvalFnc(ctx), ",")
+		}}, true
+	case *IntArrayEvaluator:
+		return &StringEvaluator{Weight: evaluator.Weight, EvalFnc: func(ctx *Context) string {
+			var builder strings.Builder
+			for i, number := range evaluator.EvalFnc(ctx) {
+				if i != 0 {
+					builder.WriteString(",")
+				}
+				builder.WriteString(strconv.Itoa(number))
+			}
+			return builder.String()
+		}}, true
+	}
+	return nil, false
+}
+
 // literalToEvaluator compiles a literal.
-func literalToEvaluator(node *ast.Literal, opts *Opts, state *State) (interface{}, ast.Position, error) {
+func literalToEvaluator(node *ast.Literal) (interface{}, ast.Position, error) {
 	switch node.Value.Kind() {
 	case ast.Bool:
 		return &BoolEvaluator{
@@ -176,17 +321,8 @@ func literalToEvaluator(node *ast.Literal, opts *Opts, state *State) (interface{
 		}, node.Pos, nil
 
 	case ast.String:
-		str := ast.StringVal(node.Value)
-
-		// contains variables or field references
-		hasVariables := len(variableRegex.FindAllIndex([]byte(str), -1)) > 0
-		hasFieldReferences := len(fieldReferenceRegex.FindAllIndex([]byte(str), -1)) > 0
-		if hasVariables || hasFieldReferences {
-			return stringEvaluatorFromVariable(str, node.Pos, opts, state)
-		}
-
 		return &StringEvaluator{
-			Value:     str,
+			Value:     ast.StringVal(node.Value),
 			ValueType: ScalarValueType,
 			Offset:    node.Pos.Offset,
 		}, node.Pos, nil
@@ -445,6 +581,16 @@ func compileArrayCompare(node *ast.ArrayCompareExpr, opts *Opts, state *State) (
 		return nil, pos, err
 	}
 
+	if boolEvaluator, ok, err := dictContains(left, right, node.Op == ast.ArrayAllIn, node.Left.Position()); ok {
+		if err != nil {
+			return nil, node.Left.Position(), err
+		}
+		if node.Op == ast.ArrayNotIn {
+			return Not(boolEvaluator, state), node.Pos, nil
+		}
+		return boolEvaluator, node.Pos, nil
+	}
+
 	switch left := left.(type) {
 	case *BoolEvaluator:
 		switch rightBool := right.(type) {
@@ -662,6 +808,8 @@ func compileArrayCompare(node *ast.ArrayCompareExpr, opts *Opts, state *State) (
 	case *BoolArrayEvaluator:
 		leftPos := node.Left.Position()
 		return nil, leftPos, NewTypeError(leftPos, reflect.Bool)
+	case *StringMapEvaluator, *StringMapArrayEvaluator:
+		return nil, node.Left.Position(), newDictionaryError(node.Left.Position(), left.(Evaluator).GetField())
 	default:
 		return nil, pos, NewTypeError(pos, reflect.Array)
 	}
@@ -1104,6 +1252,8 @@ func compileScalarCompare(node *ast.ScalarCompareExpr, opts *Opts, state *State)
 	case *CIDRValuesEvaluator:
 		leftPos := node.Left.Position()
 		return nil, leftPos, NewTypeError(leftPos, familyKinds[ast.IPFamily])
+	case *StringMapEvaluator, *StringMapArrayEvaluator:
+		return nil, node.Left.Position(), newDictionaryError(node.Left.Position(), left.(Evaluator).GetField())
 	}
 
 	return nil, ast.Position{}, NewError(ast.Position{}, "unknown entity '%s'", reflect.TypeOf(node))

@@ -85,7 +85,17 @@ type RuntimeFlavor string
 const (
 	RuntimeFlavorDefault RuntimeFlavor = ""
 	RuntimeFlavorKata    RuntimeFlavor = "kata"
+	RuntimeFlavorGVisor  RuntimeFlavor = "gvisor"
 )
+
+// SandboxedRuntimeFlavors lists the runtime flavors that run containers in a
+// sandbox (a VM for Kata, a user-space kernel for gVisor). The host cgroups of
+// these containers do not reflect their resource usage, so their stats must be
+// read from the runtime shim (through containerd or the kubelet) instead.
+var SandboxedRuntimeFlavors = []RuntimeFlavor{
+	RuntimeFlavorKata,
+	RuntimeFlavorGVisor,
+}
 
 // RuntimeMetadata contains the runtime flavor and runtime name
 type RuntimeMetadata struct {

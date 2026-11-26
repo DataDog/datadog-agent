@@ -28,9 +28,20 @@ LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repo
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 """
-OCB_VERSION = "0.164.0"
+OCB_VERSION = "0.165.0"
 # The version the core collector and collector-contrib may or may not match
-OTEL_CONTRIB_VERSION = "0.164.1"
+OTEL_CONTRIB_VERSION = "0.165.1"
+
+# Module path prefixes whose releases are cut in lockstep with the collector (and
+# therefore with OCB). Custom components outside of these repositories follow their own
+# versioning scheme, so pinning them to OCB_VERSION would mean requiring a version
+# they never published. OCB's own strict versioning check still verifies that the
+# version in the manifest matches the one resolved in the generated go.mod.
+LOCKSTEP_MODULE_PREFIXES = (
+    "go.opentelemetry.io/collector/",
+    "github.com/open-telemetry/opentelemetry-collector-contrib/",
+    "go.opentelemetry.io/collector-contrib/",  # future home of contrib modules
+)
 
 MANDATORY_COMPONENTS = {
     "extensions": [
@@ -147,12 +158,15 @@ def validate_manifest(manifest) -> list:
         if components:
             for component in components:
                 for module in component.values():
-                    module_info = module.split(" ")
+                    module_info = module.split()
                     if len(module_info) == 2:
-                        _, module_version = module_info
+                        module_path, module_version = module_info
                         # Stable (v1+) components (e.g. k8sattributesprocessor) are versioned
                         # independently of the collector release, so they cannot match OCB_VERSION.
                         if is_stable_version(module_version):
+                            continue
+                        # Custom components outside lockstep repos follow their own versioning scheme.
+                        if not module_path.startswith(LOCKSTEP_MODULE_PREFIXES):
                             continue
                         if not versions_equal(module_version, OCB_VERSION, True):
                             raise YAMLValidationError(
@@ -192,7 +206,7 @@ def strip_invalid_components(file_path, components_to_remove):
         ) from e
 
 
-@task(post=[tidy])
+@task
 def generate(ctx):
     arch = platform.machine()
     system = platform.system()
@@ -295,6 +309,22 @@ def generate(ctx):
                     f.write(content)
                 ctx.run(f"gofmt -l -s -w {file_path}")
                 print(f"Updated package name and ensured license header in: {file_path}")
+
+    # Imported here so it doesn't also get collected as a `collector.add-all-replace` task
+    from tasks.modules import add_all_replace
+
+    # OCB writes impl/go.mod from scratch, so the intra-repo replace block is gone and the local modules it pointed at
+    # resolve to their published versions instead. Restore it, otherwise `tidy` bakes those published versions into
+    # go.sum and CI's modules.check-all-replace fails.
+    #
+    # Two passes are needed. add-all-replace ends with check-go-mod-replaces, which repairs replaces that are missing
+    # according to go.sum — and spells them `../../../core/config` where add-all-replace itself writes the canonical
+    # `../../../../comp/core/config`. Until tidy drops the published versions from go.sum, that repair keeps firing and
+    # leaves the non-canonical spelling behind, which check-all-replace then reports as a diff.
+    print("Restoring intra-repo replace directives")
+    add_all_replace(ctx)
+    tidy(ctx)
+    add_all_replace(ctx)
 
 
 def update_go_mod_file(go_mod_path, module_versions):

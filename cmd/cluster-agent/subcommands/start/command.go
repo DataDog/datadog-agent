@@ -118,6 +118,7 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	clusterAgentFlare "github.com/DataDog/datadog-agent/pkg/flare/clusteragent"
+	parDeployment "github.com/DataDog/datadog-agent/pkg/privateactionrunner/deployment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -161,6 +162,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/schedulerevents"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 
@@ -593,6 +595,7 @@ func start(log log.Component,
 			})
 			// Set cluster checks handler in clusterchecks component
 			clusterChecksMetadataComp.SetClusterHandler(clusterCheckHandler)
+			api.SetKubeMetadataClusterChecks(clusterCheckHandler)
 		} else {
 			pkglog.Errorf("Error while setting up cluster check Autodiscovery, CLC API endpoints won't be available, err: %v", err)
 		}
@@ -924,6 +927,9 @@ func startPrivateActionRunner(
 	ha helmactions.Component,
 	ka kubeactionscomp.Component,
 ) (func(), error) {
+	if err := parDeployment.EnsureSupported(config); err != nil {
+		return nil, err
+	}
 	if rcClient == nil {
 		return nil, errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for private action runner")
 	}
@@ -990,5 +996,6 @@ func registerChecks(wlm workloadmeta.Component, tagger tagger.Component, cfg con
 	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory(tagger, nil)) // wmeta is not used in KSM when running from cluster-agent, so we can pass nil here
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
 	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory(wlm, cfg, tagger))
+	corecheckLoader.RegisterCheck(schedulerevents.CheckName, schedulerevents.Factory(wlm, tagger, cfg))
 	corecheckLoader.RegisterCheck(agentprofiling.CheckName, agentprofiling.Factory(clusterAgentFlare.NewCreator(cfg, statusComponent, diagnoseComp, ipc), cfg))
 }

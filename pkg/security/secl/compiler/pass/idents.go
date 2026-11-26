@@ -24,7 +24,12 @@ import (
 // An array of identifiers, `[O_RDONLY, O_WRONLY]`, is replaced by the array of
 // the trees they refer to, which must all be literals.
 //
-// The identifiers left refer to a field, they are replaced by field references.
+// A name and its iterator variables are never replaced: `process` and `A` in
+// `process.ancestors[A]`, even with a constant `A`. Its other subscripts are
+// resolved: `O_CREAT` in `process.argv[O_CREAT + 1]`.
+//
+// Once the identifiers are resolved, the names left refer to fields, see
+// ResolveFields.
 func ResolveIdents(lookup func(name string) (ast.Node, bool)) Pass {
 	return func(node ast.Node) (ast.Node, error) {
 		// one editor per tree, its error is the one of the tree
@@ -54,8 +59,17 @@ func (e *identEditor) edit(node ast.Node) ast.Node {
 		if tree, ok := e.lookup(n.Name); ok {
 			return copyAt(tree, n.Pos)
 		}
-		// after this pass all the Idents are resolved, only FieldRefs remain
-		return &ast.FieldRef{Meta: n.Meta, Name: n.Name}
+		return node
+	case *ast.Selector, *ast.Index:
+		// the name of a macro or of a constant is a lone identifier
+		e.editSubscripts(node)
+		return node
+	case *ast.Interpolation:
+		// a name in a `%{}` is a field, even a lone identifier
+		for _, part := range n.Parts {
+			e.editSubscripts(part)
+		}
+		return node
 	case *ast.IdentArray:
 		array, err := e.resolveIdentArray(n)
 		if err != nil {
@@ -67,6 +81,20 @@ func (e *identEditor) edit(node ast.Node) ast.Node {
 
 	ast.EditChildren(node, e.edit)
 	return node
+}
+
+// editSubscripts resolves the subscripts of a name that aren't iterator
+// variables.
+func (e *identEditor) editSubscripts(node ast.Node) {
+	switch n := node.(type) {
+	case *ast.Selector:
+		e.editSubscripts(n.Base)
+	case *ast.Index:
+		e.editSubscripts(n.Base)
+		if _, ok := n.Subscript.(*ast.Ident); !ok {
+			n.Subscript = e.edit(n.Subscript)
+		}
+	}
 }
 
 // resolveIdentArray returns the array of the trees the identifiers of an array

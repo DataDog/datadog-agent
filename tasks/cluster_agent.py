@@ -52,8 +52,6 @@ def build(
             raise NotImplementedError("--enable-bazel does not support --race.")
         if build_include is not None or build_exclude is not None:
             raise NotImplementedError("--enable-bazel does not support --build-include/--build-exclude.")
-        if fips_backend != FipsBackend.none:
-            raise NotImplementedError("--enable-bazel does not support --fips-backend.")
 
     build_common(
         ctx,
@@ -188,6 +186,7 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
         "signed_pull": doc.signed_pull,
         "arch": doc.arch,
         "development": doc.development,
+        "enable_bazel": doc.enable_bazel,
     }
 )
 def hacky_dev_image_build(
@@ -199,10 +198,11 @@ def hacky_dev_image_build(
     signed_pull=False,
     arch=None,
     development=True,
+    enable_bazel=False,
 ):
     if development:
         os.environ["DELVE"] = "1"
-    build(ctx, race=race, force_policies_clone=False)
+    build(ctx, race=race, force_policies_clone=False, enable_bazel=enable_bazel)
 
     if arch is None:
         arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())

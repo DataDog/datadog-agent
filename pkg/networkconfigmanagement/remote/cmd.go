@@ -81,7 +81,7 @@ func ExecuteSCP(ctx context.Context, client sshClient, cmd *profile.SCPCommand, 
 	}
 	defer session.Close()
 	cmdStr := fmt.Sprintf("%s -t %s", cmd.RemoteCommand, cmd.Filepath)
-	ch := make(chan *types.CommandResult)
+	ch := make(chan *types.CommandResult, 1)
 	go func() {
 		response, err := executeSCP(session, cmdStr, filepath.Base(cmd.Filepath), data)
 		ch <- &types.CommandResult{

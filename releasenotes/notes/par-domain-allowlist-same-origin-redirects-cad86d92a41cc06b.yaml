@@ -1,0 +1,30 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Add the optional ``private_action_runner.domain_allowlist`` setting, a list
+    of hostnames, IP addresses and ``*.domain`` patterns that Private Action
+    Runner actions may reach, checked on every request and redirect. When it is
+    set, even to an empty list, requests to other domains fail and
+    ``private_action_runner.http_allowlist`` is ignored. When it is unset, HTTP
+    actions use ``http_allowlist`` and other actions reach any domain, as
+    before. GitLab, MongoDB and Temporal actions do not enforce it yet.
+deprecations:
+  - |
+    ``private_action_runner.http_allowlist`` is deprecated in favor of
+    ``private_action_runner.domain_allowlist``, which replaces it when set.
+    ``http_allowlist`` still applies to Private Action Runner HTTP actions while
+    ``domain_allowlist`` is unset.
+fixes:
+  - |
+    Private Action Runner Jenkins actions no longer follow HTTP redirects to
+    a different scheme, host or port than the Jenkins connection's domain.
+    Redirects on the same host, including an upgrade from ``http`` to
+    ``https`` on default ports, are still followed. A redirect to another
+    origin now fails the action instead of being followed.

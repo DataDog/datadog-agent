@@ -13,6 +13,7 @@ import (
 	"maps"
 	"net/http"
 	"reflect"
+	"slices"
 	"sync"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
@@ -34,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
@@ -47,7 +50,11 @@ type Payload struct {
 	Metadata      map[string][]metadata `json:"check_metadata"`
 	LogsMetadata  map[string][]metadata `json:"logs_metadata"`
 	FilesMetadata metadata              `json:"files_metadata"`
+	EncInfo       metadata              `json:"enc_info,omitempty"`
 	UUID          string                `json:"uuid"`
+	// LogsMetadataTruncated maps a logs source name to the number of its
+	// entries dropped from LogsMetadata because of the per-name cap.
+	LogsMetadataTruncated map[string]int `json:"logs_metadata_truncated,omitempty"`
 }
 
 // PayloadType implements marshaler.TypedJSONMarshaler
@@ -78,7 +85,16 @@ type inventorychecksImpl struct {
 	conf     config.Component
 	coll     option.Option[collector.Component]
 	sources  option.Option[*sources.LogSources]
+	secrets  secrets.Component
 	hostname string
+
+	// maxLogsMetadataEntries bounds the number of logs_metadata entries sent for
+	// a single logs source name (inventories_checks_max_logs_metadata_entries).
+	// Some source names, such as container_collect_all, get one entry per
+	// container, so a leak of logs sources (or a host running a very large number
+	// of containers) can otherwise grow the payload past the intake limit.
+	// A value <= 0 disables the cap.
+	maxLogsMetadataEntries int
 }
 
 // Requires defines the component dependencies.
@@ -89,6 +105,7 @@ type Requires struct {
 	Coll       option.Option[collector.Component]
 	LogAgent   option.Option[logagent.Component]
 	Hostname   hostnameinterface.Component
+	Secrets    secrets.Component `optional:"true"`
 }
 
 // Provides defines the component outputs.
@@ -107,8 +124,11 @@ func NewComponent(deps Requires) Provides {
 		log:      deps.Log,
 		coll:     deps.Coll,
 		sources:  option.None[*sources.LogSources](),
+		secrets:  deps.Secrets,
 		hostname: hname,
 		data:     map[string]instanceMetadata{},
+
+		maxLogsMetadataEntries: deps.Config.GetInt("inventories_checks_max_logs_metadata_entries"),
 	}
 	ic.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ic.getPayloadWithConfigs, "checks.json")
 
@@ -254,6 +274,8 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.TypedJSONM
 		}
 	}
 
+	logsMetadataTruncated := ic.capLogsMetadata(logsMetadata)
+
 	jmxMetadata := ic.getJMXChecksMetadata(withConfigs)
 	for checkName, checks := range jmxMetadata {
 		if _, ok := payloadData[checkName]; !ok {
@@ -264,8 +286,9 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.TypedJSONM
 
 	// Never expose config file contents on the unauthenticated expvar payload.
 	filesMetadata := metadata{}
+	var encInfo metadata
 	if withConfigs {
-		filesMetadata = ic.getFilesMetadata()
+		filesMetadata, encInfo = ic.getFilesMetadata()
 	}
 
 	return &Payload{
@@ -274,13 +297,54 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.TypedJSONM
 		Metadata:      payloadData,
 		LogsMetadata:  logsMetadata,
 		FilesMetadata: filesMetadata,
+		EncInfo:       encInfo,
 		UUID:          uuid.GetUUID(),
+
+		LogsMetadataTruncated: logsMetadataTruncated,
 	}
 }
 
+// capLogsMetadata keeps at most ic.maxLogsMetadataEntries entries per logs
+// source name, preferring the entries whose source is not in error, and
+// returns the number of dropped entries per source name (nil if none).
+func (ic *inventorychecksImpl) capLogsMetadata(logsMetadata map[string][]metadata) map[string]int {
+	if ic.maxLogsMetadataEntries <= 0 {
+		return nil
+	}
+	var truncated map[string]int
+	for name, entries := range logsMetadata {
+		if len(entries) <= ic.maxLogsMetadataEntries {
+			continue
+		}
+		slices.SortStableFunc(entries, func(a, b metadata) int {
+			return boolToInt(isErrorEntry(a)) - boolToInt(isErrorEntry(b))
+		})
+		logsMetadata[name] = entries[:ic.maxLogsMetadataEntries]
+
+		if truncated == nil {
+			truncated = map[string]int{}
+		}
+		truncated[name] = len(entries) - ic.maxLogsMetadataEntries
+		ic.log.Warnf("inventory checks metadata: %d logs sources named %q, only reporting %d of them", len(entries), name, ic.maxLogsMetadataEntries)
+	}
+	return truncated
+}
+
+func isErrorEntry(m metadata) bool {
+	state, _ := m["state"].(map[string]string)
+	return state["status"] == "error"
+}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
 func (ic *inventorychecksImpl) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
-	// GetAsJSON already return scrubbed data
-	scrubbed, err := ic.GetAsJSON()
+	// Scrub by key name, as the flare does, so that sensitive fields such as the secret hashes are not exposed
+	scrubbed, err := ic.GetAsScrubbedJSON()
 	if err != nil {
 		httputils.SetJSONError(w, err, 500)
 		return
@@ -288,21 +352,59 @@ func (ic *inventorychecksImpl) writePayloadAsJSON(w http.ResponseWriter, _ *http
 	w.Write(scrubbed)
 }
 
-func (ic *inventorychecksImpl) getFilesMetadata() metadata {
+// getFilesMetadata returns the metadata of every integration configuration file, along with the enc_info summary
+// of the secrets declared across all of them. enc_info is nil when secrets metadata is disabled.
+func (ic *inventorychecksImpl) getFilesMetadata() (metadata, metadata) {
+	skipSecrets := ic.conf.GetBool("metadata_skip_secrets")
 	configFiles := providers.ReadConfigFormats()
 	if len(configFiles) == 0 {
 		ic.log.Debug("could not read files metadata")
-		return metadata{}
 	}
 
 	filesMetadata := metadata{}
+	allSecrets := []scrubber.ConfigSecret{}
 	for _, configFile := range configFiles {
 		// Use the filename as key
 		filesMetadata[configFile.Filename] = metadata{
 			"raw_config": configFile.ConfigFormat,
 			"hash":       configFile.Hash,
 		}
+		if !skipSecrets {
+			filesMetadata[configFile.Filename].(metadata)["secrets"] = configFile.Secrets
+			allSecrets = append(allSecrets, configFile.Secrets...)
+		}
 	}
 
-	return filesMetadata
+	if skipSecrets {
+		return filesMetadata, nil
+	}
+	return filesMetadata, ic.buildEncInfo(allSecrets)
+}
+
+// buildEncInfo aggregates the secrets declared across all integration configuration files, using the same format as
+// the inventoryagent enc_info field. "paths" and "handles" are parallel lists with one entry per ENC declaration,
+// "scrubbed" lists the paths of raw credentials and "hash_secret_id" maps each resolved handle to the hash of its
+// value. The hashes are stored under a key the default scrubber recognizes as sensitive (*_secret_id), so they
+// are scrubbed from flares and from the 'show-metadata' output.
+func (ic *inventorychecksImpl) buildEncInfo(configSecrets []scrubber.ConfigSecret) metadata {
+	paths, handles, scrubbed := []string{}, []string{}, []string{}
+	for _, secret := range configSecrets {
+		switch secret.Kind {
+		case "enc":
+			paths = append(paths, secret.Path)
+			handles = append(handles, secret.Handle)
+		case "raw":
+			scrubbed = append(scrubbed, secret.Path)
+		}
+	}
+	hashes := map[string]string{}
+	if ic.secrets != nil {
+		hashes = ic.secrets.GetHashValues(handles)
+	}
+	return metadata{
+		"paths":          paths,
+		"handles":        handles,
+		"scrubbed":       scrubbed,
+		"hash_secret_id": hashes,
+	}
 }

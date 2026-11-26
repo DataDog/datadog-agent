@@ -107,6 +107,12 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 		c.addExtensionToPipeline(conf, extension)
 	}
 
+	// The converter never adds the datadog extension in standalone mode, so any
+	// instance there is user-declared: give it the DDOT hostname.
+	if standalone {
+		c.setDatadogExtensionHostname(ctx, conf)
+	}
+
 	// dogtel extension (standalone mode only)
 	if c.coreConfig != nil && c.coreConfig.GetBool("otel_standalone") && !extensionIsInServicePipeline(conf, dogtelComponent) {
 		if !c.reuseExtension(conf, dogtelName) {
@@ -156,7 +162,7 @@ func (c *ddConverter) warnIfHostmetricsInConnectedMode(conf *confmap.Conf) {
 	if c.coreConfig == nil || c.coreConfig.GetBool("otel_standalone") {
 		return
 	}
-	if receivers := findComps(conf.ToStringMap(), "hostmetrics", "receivers"); len(receivers) > 0 {
+	if receivers := findComps(conf.ToStringMap(), "host_metrics", "receivers"); len(receivers) > 0 {
 		if c.logger != nil {
 			c.logger.Warn("The hostmetrics receiver is enabled but the OTel Agent is running " +
 				"in connected mode (DD_OTEL_STANDALONE=false). In connected mode, the core " +
@@ -178,6 +184,22 @@ func (c *ddConverter) resolvedSite() string {
 func componentName(fullName string) string {
 	base, _, _ := strings.Cut(fullName, "/")
 	return base
+}
+
+// deprecatedTypeAliases maps the current type of a component the converter looks
+// up to the deprecated alias the collector still accepts for it
+// (WithDeprecatedTypeAlias). A config may use either name.
+var deprecatedTypeAliases = map[string]string{
+	"cumulative_to_delta": "cumulativetodelta",
+	"host_metrics":        "hostmetrics",
+}
+
+// isComponentType reports whether fullName (<type> or <type>/<name>) has type
+// under its current name or its deprecated alias.
+func isComponentType(fullName, typ string) bool {
+	base := componentName(fullName)
+	alias, ok := deprecatedTypeAliases[typ]
+	return base == typ || (ok && base == alias)
 }
 
 // pipelineType selects which service pipelines a processor is injected into.
@@ -203,8 +225,9 @@ type exporterTarget struct {
 var (
 	datadogTarget = exporterTarget{exporters: []string{"datadog"}, name: "Datadog"}
 	// Exporters a DaemonSet in the DaemonSet+Gateway setup uses to reach the Gateway;
-	// otlp and otlphttp are the deprecated aliases of otlp_grpc and otlp_http.
-	gatewayTarget = exporterTarget{exporters: []string{"otlp", "otlp_grpc", "otlphttp", "otlp_http", "loadbalancing"}, name: "Gateway"}
+	// otlp, otlphttp and loadbalancing are the deprecated aliases of otlp_grpc,
+	// otlp_http and load_balancing.
+	gatewayTarget = exporterTarget{exporters: []string{"otlp", "otlp_grpc", "otlphttp", "otlp_http", "loadbalancing", "load_balancing"}, name: "Gateway"}
 )
 
 // pipelineExportsTo reports whether the pipeline exports to one of t's exporters.
@@ -236,15 +259,15 @@ func pipelineHasOtherExporter(componentsMap map[string]any, t exporterTarget) bo
 	return false
 }
 
-// pipelineHasProcessor reports whether the pipeline already lists a processor with
-// the given base component name (so a user-defined processor is not duplicated).
+// pipelineHasProcessor reports whether the pipeline already lists a processor of
+// the given type or its deprecated alias (so a user-defined processor is not duplicated).
 func pipelineHasProcessor(componentsMap map[string]any, name string) bool {
 	processors, ok := componentsMap["processors"].([]any)
 	if !ok {
 		return false
 	}
 	for _, processor := range processors {
-		if s, ok := processor.(string); ok && componentName(s) == name {
+		if s, ok := processor.(string); ok && isComponentType(s, name) {
 			return true
 		}
 	}
@@ -255,7 +278,7 @@ func pipelineHasProcessor(componentsMap map[string]any, name string) bool {
 // exports to one of t's exporters, appending it to the end of the pipeline's
 // processors list. pt restricts the eligible pipeline types (pipelineAll = every
 // type, pipelineMetrics = metrics only). It is a no-op for a pipeline that already
-// defines a processor with the same base name.
+// defines a processor of the same type or its deprecated alias.
 //
 // When warnOnMixedExporters is set, injecting into a pipeline that also exports to
 // an exporter outside t emits a warning (the processor is still injected). Collector
@@ -383,7 +406,8 @@ func addComponentToPipeline(conf *confmap.Conf, comp component, pipelineName str
 	*conf = *confmap.NewFromStringMap(stringMapConf)
 }
 
-// findComps finds and returns the matching components and their configs in a string conf map.
+// findComps finds and returns the components of type compName (or its deprecated
+// alias) and their configs in a string conf map.
 // Component can be receivers, processors, connectors or exporters.
 func findComps(stringMapConf map[string]any, compName string, compType string) map[string]map[string]any {
 	comps, ok := stringMapConf[compType]
@@ -396,7 +420,7 @@ func findComps(stringMapConf map[string]any, compName string, compType string) m
 	}
 	cfgsByRecv := make(map[string]map[string]any)
 	for name, cfg := range compsMap {
-		if componentName(name) != compName {
+		if !isComponentType(name, compName) {
 			continue
 		}
 		cfgMap, ok := cfg.(map[string]any)

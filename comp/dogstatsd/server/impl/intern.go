@@ -63,7 +63,7 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 	if len(i.strings) >= i.maxSize {
 		i.telemetry.Reset(len(i.strings))
 
-		i.strings = make(map[string]string)
+		clear(i.strings)
 	}
 
 	s := string(key)

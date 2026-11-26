@@ -1,0 +1,30 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    The metric tag filter list (``metric_tag_filterlist``) now matches metric
+    names and tag keys the way Datadog stores them, so rules written with the
+    names and tag keys shown in Datadog apply to metrics submitted in other
+    forms. For example, a rule for ``my_metric`` with the tag key ``pod_name``
+    now applies to the tag ``Pod Name:web`` on ``my-metric``. Metric names keep
+    their case, so ``My_Metric`` does not match ``my_metric``, while tag keys
+    are lowercased. As a result:
+
+    - Existing rules can match more tags than before, such as ``ENV:prod`` for
+      the key ``env``: ``exclude`` rules can remove more tags, and ``include``
+      rules can keep more, which can increase the number of tags sent.
+    - Entries whose metric names normalize to the same name are merged. If they
+      configure both ``include`` and ``exclude``, only the ``exclude`` entries
+      are kept, and the Agent logs a warning.
+    - An entry without an ``action`` counts as ``exclude`` when merged with
+      other entries for the same metric, whatever their order. An ``include``
+      rule followed by such an entry used to stay ``include``, and now becomes
+      ``exclude``, which can increase the number of tags sent.
+    - Entries for metric names Datadog never stores, such as ``123``, and tag
+      keys containing ``:``, are ignored with a warning.

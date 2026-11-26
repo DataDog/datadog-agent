@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"math"
 	"testing"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -135,6 +136,11 @@ func TestScanMW_DetectsStepChange(t *testing.T) {
 	require.NotNil(t, result.Anomalies[0].DebugInfo)
 	assert.Positive(t, result.Anomalies[0].DebugInfo.PValue)
 	assert.NotZero(t, result.Anomalies[0].DebugInfo.EffectSize)
+	require.NotNil(t, result.Anomalies[0].LevelChange)
+	assert.InDelta(t, 50, result.Anomalies[0].LevelChange.BeforeMedian, 1)
+	assert.InDelta(t, 200, result.Anomalies[0].LevelChange.AfterMedian, 1)
+	assert.Equal(t, result.Anomalies[0].DebugInfo.BaselineMedian, result.Anomalies[0].LevelChange.BeforeMedian)
+	assert.Equal(t, result.Anomalies[0].DebugInfo.CurrentValue, result.Anomalies[0].LevelChange.AfterMedian)
 	// Changepoint should be near the transition at index 20.
 	assert.InDelta(t, 21, result.Anomalies[0].Timestamp, 3)
 }
@@ -153,6 +159,9 @@ func TestScanMW_DetectsDownwardStepChange(t *testing.T) {
 	title, description := observer.FormatAnomaly(result.Anomalies[0])
 	assert.Equal(t, "ScanMW changepoint: metric:avg", title)
 	assert.Contains(t, description, "decreased")
+	require.NotNil(t, result.Anomalies[0].LevelChange)
+	assert.InDelta(t, 200, result.Anomalies[0].LevelChange.BeforeMedian, 1)
+	assert.InDelta(t, 50, result.Anomalies[0].LevelChange.AfterMedian, 1)
 }
 
 func TestScanMW_IncrementalAdvance(t *testing.T) {
@@ -296,4 +305,25 @@ func TestScanMW_PreloadedReplayFiresAsDataTimeAdvances(t *testing.T) {
 	}
 
 	assert.True(t, fired, "preloaded replay should detect the step change as dataTime advances")
+}
+
+func TestScanMW_MinSegmentLargerThanHalfWindowDoesNotPanic(t *testing.T) {
+	for _, minSegment := range []int{12, 40, math.MaxInt} {
+		dCfg := DefaultScanMWConfig()
+		dCfg.MinPoints = 4
+		dCfg.MinSegment = minSegment
+		dCfg.MaxPoints = 24
+		d := NewScanMWDetector(dCfg)
+		d.config.MinSegment = minSegment
+		storage := newTimeSeriesStorage()
+
+		for timestamp := int64(1); timestamp <= 12; timestamp++ {
+			storage.Add("ns", "metric", 100, timestamp, nil)
+		}
+
+		require.NotPanics(t, func() {
+			result := d.Detect(storage, 12, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
+			assert.Empty(t, result.Anomalies)
+		})
+	}
 }

@@ -8,6 +8,7 @@ package nodeunschedulable
 import (
 	"errors"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -188,12 +189,15 @@ func (s *Series) cancel(tags []string) {
 }
 
 // Cache holds the points of the current check run. The GPU check refreshes it once
-// per run, then every device collector reads the same points.
+// per run, then every device collector reads the same points. Points is safe to call
+// concurrently with Refresh.
 type Cache struct {
 	source  Source
 	tracker *Tracker
 	series  Series
-	points  []Point
+
+	mu     sync.RWMutex
+	points []Point
 }
 
 // NewCache creates a cache that reads src at most once per refresh interval.
@@ -208,10 +212,15 @@ func (c *Cache) Refresh(now time.Time) {
 		return
 	}
 	c.tracker.Refresh(c.source, now)
-	c.points = c.series.Step(c.tracker.Outcome(), now)
+	points := c.series.Step(c.tracker.Outcome(), now)
+	c.mu.Lock()
+	c.points = points
+	c.mu.Unlock()
 }
 
 // Points returns the points of the last refresh. Callers must not modify them.
 func (c *Cache) Points() []Point {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.points
 }

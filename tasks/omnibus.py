@@ -17,6 +17,7 @@ from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.flavor import AgentFlavor
 from tasks.go import deps
+from tasks.libs.build.bazel import bazel
 from tasks.libs.build.nosys_seccomp import build_nosys_so
 from tasks.libs.common.omnibus import (
     ENV_PASSHTROUGH,
@@ -758,6 +759,7 @@ def docker_build(
 
     # The Dockerfile copies nosys.so from the artifacts context, next to the tarball.
     build_nosys_so(arch, artifacts_dir)
+    bazel("run", f"//deps/s6_overlay:install_{arch}", "--", "--destdir=Dockerfiles/agent")
 
     # Build the Docker command
     build_args = [

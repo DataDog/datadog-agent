@@ -2,6 +2,10 @@
 set -euo pipefail
 featureDir=$(cd "$(dirname "$0")"; pwd)
 
+# Workspace tooling can provide npm 10. Install the npm 11 required by skill
+# scripts after the other features have finished installing their tooling.
+npm install --global npm@11
+
 # Add bits user to the docker group. This should probably be handled by the base feature. But not working for now.
 usermod -aG docker bits
 usermod -aG build-shared bits

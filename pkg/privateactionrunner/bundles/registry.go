@@ -52,6 +52,7 @@ import (
 	com_datadoghq_kubernetes_customresources "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/customresources"
 	com_datadoghq_kubernetes_discovery "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/discovery"
 	com_datadoghq_kubernetes_networking "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/networking"
+	com_datadoghq_kubernetes_rbac "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/rbac"
 	com_datadoghq_kubernetes_watermarkpodautoscaler "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/watermarkpodautoscaler"
 	com_datadoghq_mongodb "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/mongodb"
 	com_datadoghq_remoteaction "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction"
@@ -119,6 +120,7 @@ func NewRegistry(configuration *config.Config, rcClient rcclient.Client, tracero
 			"com.datadoghq.kubernetes.customresources":        com_datadoghq_kubernetes_customresources.NewKubernetesCustomResources(configuration.KubernetesAllowedCustomResources),
 			"com.datadoghq.kubernetes.discovery":              com_datadoghq_kubernetes_discovery.NewKubernetesDiscovery(),
 			"com.datadoghq.kubernetes.networking":             com_datadoghq_kubernetes_networking.NewKubernetesNetworking(),
+			"com.datadoghq.kubernetes.rbac":                   com_datadoghq_kubernetes_rbac.NewKubernetesRbac(),
 			"com.datadoghq.kubernetes.watermarkpodautoscaler": com_datadoghq_kubernetes_watermarkpodautoscaler.NewKubernetesWatermarkPodAutoscaler(),
 
 			"com.datadoghq.mongodb":                              com_datadoghq_mongodb.NewMongoDB(),

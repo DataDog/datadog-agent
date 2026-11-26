@@ -217,6 +217,8 @@ func withIntakeHostname(url pulumi.StringInput, shouldSkipSSLValidation pulumi.B
 			"DD_LOGS_CONFIG_FORCE_USE_HTTP":                   pulumi.Bool(true), // Force the use of HTTP/HTTPS rather than switching to TCP
 			"DD_LOGS_CONFIG_LOGS_DD_URL":                      pulumi.Sprintf("%s", url),
 			"DD_LOGS_CONFIG_LOGS_NO_SSL":                      shouldSkipSSLValidation,
+			"DD_GENRESOURCES_LOGS_DD_URL":                     pulumi.Sprintf("%s", url),
+			"DD_GENRESOURCES_LOGS_NO_SSL":                     shouldSkipSSLValidation,
 			"DD_SERVICE_DISCOVERY_FORWARDER_LOGS_DD_URL":      pulumi.Sprintf("%s", url),
 			"DD_CONFIG_FILES_DISCOVERY_FORWARDER_LOGS_DD_URL": pulumi.Sprintf("%s", url),
 			"DD_CONFIG_FILES_DISCOVERY_FORWARDER_LOGS_NO_SSL": shouldSkipSSLValidation,

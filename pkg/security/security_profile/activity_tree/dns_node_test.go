@@ -56,7 +56,8 @@ func dnsTestRoot(t *testing.T) (*ActivityTree, *ProcessNode, uint64) {
 }
 
 func (pn *ProcessNode) insertDNSForTest(evt *model.Event, tree *ActivityTree, tagID uint64) bool {
-	return pn.InsertDNSEvent(evt, tagID, Runtime, tree.Stats, tree.DNSNames, false, 0)
+	inserted, _ := pn.InsertDNSEvent(evt, tagID, Runtime, tree.Stats, tree.DNSNames, false, 0)
+	return inserted
 }
 
 // TestDNSResponseMergeIsNotDrift locks in the single most important property of DNS response

@@ -12,6 +12,7 @@ jobs:
   stale:
     if: contains(fromJSON('["DataDog/datadog-agent", "ddoghq/datadog-agent"]'), github.repository)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     environment:
       name: main
     permissions:

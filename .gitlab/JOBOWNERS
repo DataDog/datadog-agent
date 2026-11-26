@@ -6,6 +6,7 @@ observer-ablation-driver-tests        @DataDog/agent-anomaly-detection
 test_and_lint_gitlab_configuration   @DataDog/agent-devx
 test_gitlab_compare_to               @DataDog/agent-devx
 invoke_unit_tests                    @DataDog/agent-devx
+post-validation                      @DataDog/agent-devx
 skip-ci-check                        @DataDog/agent-devx
 slack_teams_channels_check           @DataDog/agent-devx
 lint*                                @DataDog/agent-devx
@@ -59,9 +60,9 @@ build_windows_container_entrypoint   @DataDog/windows-products
 cross_build_agent-binary_aix_ppc64        @DataDog/agent-build
 cross_build_trace_agent-binary_aix_ppc64  @DataDog/agent-build
 # AIX/ppc64 jobs
-tests_aix-ppc64                       @DataDog/agent-devx @DataDog/agent-runtimes
-package_aix-ppc64                     @DataDog/agent-build @DataDog/agent-runtimes
-deploy_packages_aix-ppc64             @DataDog/agent-delivery @DataDog/agent-runtimes
+tests_aix-ppc64                       @DataDog/agent-devx
+package_aix-ppc64                     @DataDog/agent-build
+deploy_packages_aix-ppc64             @DataDog/agent-delivery
 deploy_aix_install_script              @DataDog/agent-delivery
 
 # Package deps build
@@ -237,6 +238,7 @@ new-e2e-autoscaling*                    @DataDog/container-autoscaling
 new-e2e-containers*                     @DataDog/container-integrations @DataDog/container-platform
 new-e2e-ddi                             @DataDog/container-platform
 new-e2e-orchestrator*                   @DataDog/kubernetes-experiences
+new-e2e-orchestrator-ecs                @DataDog/ecs-experiences
 new-e2e-language-detection              @DataDog/container-experiences
 new-e2e-process*                        @DataDog/container-experiences
 new-e2e-ssi*                            @DataDog/injection-platform
@@ -255,7 +257,7 @@ new-e2e-apm*                            @DataDog/agent-apm
 # --- Security ---
 new-e2e-cws*                            @DataDog/agent-security
 new-e2e-sbom*                           @DataDog/agent-security
-new-e2e-cspm                            @DataDog/agent-cspm @DataDog/agent-security
+new-e2e-cspm*                           @DataDog/agent-cspm @DataDog/agent-security
 new-e2e-data-security*                  @DataDog/sensitive-data-scanner
 # --- OpenTelemetry ---
 new-e2e-otel*                           @DataDog/opentelemetry-agent

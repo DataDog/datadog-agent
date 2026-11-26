@@ -30,7 +30,7 @@ import (
 //	PCAP_REAL_SYSPROBE_TEST=1 \
 //	PCAP_REAL_SYSPROBE_SOCKET=/opt/datadog-agent/run/sysprobe.sock \
 //	PCAP_REAL_SYSPROBE_IFACE=eth0 \
-//	dda inv test --targets=./pkg/privateactionrunner/bundles/remoteaction/pcap/... --build-include=<tags incl. pcap>
+//	dda inv test --targets=./pkg/privateactionrunner/bundles/remoteaction/pcap/...
 //
 // while generating traffic on the target interface (e.g. `ping 8.8.8.8`) for
 // at least the capture duration below.

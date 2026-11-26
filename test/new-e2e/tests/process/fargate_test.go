@@ -13,6 +13,7 @@ import (
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/cpustress"
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
@@ -58,7 +59,11 @@ func (s *ECSFargateSuite) TestProcessCheck() {
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
-		assert.NoError(c, err, "failed to get process payloads from fakeintake")
+		require.NoError(c, err, "failed to get process payloads from fakeintake")
+
+		// Fakeintake can receive payloads from other CI runs, including ones running the same workload.
+		payloads = filterProcessPayloadsByECSCluster(payloads, s.Env().ECSCluster.ClusterName)
+		require.NotEmpty(c, payloads, "no process payloads for ECS cluster %q", s.Env().ECSCluster.ClusterName)
 
 		assertProcessCollected(c, payloads, false, "stress-ng-cpu [run]")
 		assertContainersCollected(c, payloads, []string{"stress-ng"})

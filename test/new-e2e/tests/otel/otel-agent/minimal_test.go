@@ -177,7 +177,7 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
                 - datadog
             processors:
                 - infraattributes/dd-autoconfigured
-                - cumulativetodelta/dd-autoconfigured
+                - cumulative_to_delta/dd-autoconfigured
             receivers:
                 - otlp
                 - datadog/connector
@@ -186,7 +186,7 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
                 - datadog
             processors:
                 - filter/drop-prometheus-internal-metrics/dd-autoconfigured
-                - cumulativetodelta/dd-autoconfigured
+                - cumulative_to_delta/dd-autoconfigured
             receivers:
                 - prometheus/dd-autoconfigured
         traces:

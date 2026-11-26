@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix a steady growth of kernel memory (reclaimable slab) on Linux hosts with
+    ``logs_enabled: true``, introduced in 7.84.4. After each successful write of
+    ``registry.json``, the logs auditor removed a temporary file that no longer
+    existed, leaving one negative dentry in the kernel per write.

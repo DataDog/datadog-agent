@@ -5,6 +5,7 @@ go_library(
     name = "fargate",
     srcs = [
         "detection.go",
+        "ecs_task_tags.go",
         "hostname_core.go",
         "hostname_process.go",
         "types.go",
@@ -12,6 +13,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/fargate",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/tagger/tags",
+        "//comp/core/tagger/types",
         "//pkg/config/env",
         "//pkg/config/setup",
         "//pkg/util/ecs/metadata",
@@ -21,9 +24,14 @@ go_library(
 
 dd_agent_go_test(
     name = "fargate_test",
-    srcs = ["hostname_process_test.go"],
+    srcs = [
+        "ecs_task_tags_test.go",
+        "hostname_process_test.go",
+    ],
     embed = [":fargate"],
     gotags_sets = [["fargateprocess"]],
-    include_default = False,
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = [
+        "//comp/core/tagger/types",
+        "@com_github_stretchr_testify//assert",
+    ],
 )

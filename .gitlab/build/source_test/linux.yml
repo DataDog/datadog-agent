@@ -106,6 +106,19 @@ new-e2e-unit-tests:
   extends: .linux_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
+  rules:
+    - !reference [.except_disable_unit_tests]
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $RUN_UNIT_TESTS == "on"
+    - changes:
+        paths:
+          - test/e2e-framework/**/*
+          - tasks/new_e2e_tests.py
+          - tasks/gotest.py
+          - tasks/e2e_framework/**/*
+          - .gitlab/build/source_test/linux.yml
+          - .gitlab/.pre/deps_fetch/deps_fetch.yml
+        compare_to: $COMPARE_TO_BRANCH
   needs:
     - go_e2e_deps
     - go_deps
