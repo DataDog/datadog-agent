@@ -231,6 +231,11 @@ var ensureUnitSupervisor = func(ctx context.Context) error {
 		}
 	}
 	if !loaded {
+		// A disabled override survives a bootout and a rewritten definition, and launchd does not
+		// bootstrap a disabled job: clear it, as JobSet.start does for every other job.
+		if err := client.Enable(ctx, unitSupervisorJob); err != nil {
+			return fmt.Errorf("could not enable the unit supervisor: %w", err)
+		}
 		if err := client.Bootstrap(ctx, job); err != nil {
 			return fmt.Errorf("could not load the unit supervisor: %w", err)
 		}

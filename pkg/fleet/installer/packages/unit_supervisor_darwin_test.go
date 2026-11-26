@@ -45,14 +45,17 @@ type liveLaunchd struct {
 	stuck map[string]bool
 	// failBootstrap makes the next bootstraps of a target fail, as many as its count.
 	failBootstrap map[string]int
-	pids          map[string]int
-	calls         [][]string
+	// disabled makes bootstrap refuse a target until it is enabled, as launchd does a job with a
+	// disabled override.
+	disabled map[string]bool
+	pids     map[string]int
+	calls    [][]string
 }
 
 func stubLiveLaunchd(t *testing.T, loaded ...string) *liveLaunchd {
 	t.Helper()
 
-	l := &liveLaunchd{loaded: map[string]bool{}, idle: map[string]bool{}, exited: map[string]int{}, exitOnStart: map[string]int{}, stuck: map[string]bool{}, failBootstrap: map[string]int{}, pids: map[string]int{}}
+	l := &liveLaunchd{loaded: map[string]bool{}, idle: map[string]bool{}, exited: map[string]int{}, exitOnStart: map[string]int{}, stuck: map[string]bool{}, failBootstrap: map[string]int{}, disabled: map[string]bool{}, pids: map[string]int{}}
 	for _, label := range loaded {
 		l.loaded["system/"+label] = true
 	}
@@ -87,6 +90,9 @@ func stubLiveLaunchd(t *testing.T, loaded ...string) *liveLaunchd {
 				delete(l.exited, target)
 			case "bootstrap":
 				label := "system/" + strings.TrimSuffix(filepath.Base(target), ".plist")
+				if l.disabled[label] {
+					return []byte("Bootstrap failed: 119: Service is disabled"), exitError(119)
+				}
 				if l.failBootstrap[label] > 0 {
 					l.failBootstrap[label]--
 					return []byte("Bootstrap failed: 5: Input/output error"), exitError(5)
@@ -96,6 +102,8 @@ func stubLiveLaunchd(t *testing.T, loaded ...string) *liveLaunchd {
 				if strings.HasSuffix(label, "-exp") || label == "system/"+unitSupervisorJob {
 					l.idle[label] = true
 				}
+			case "enable":
+				delete(l.disabled, target)
 			case "kickstart":
 				l.loaded[target] = true
 				if !l.stuck[target] {
@@ -745,6 +753,18 @@ func TestEnsureUnitSupervisorWritesTheEmbeddedDefinition(t *testing.T) {
 	require.NoError(t, ensureUnitSupervisor(context.Background()))
 	assert.Equal(t, 1, l.count("bootstrap", filepath.Join(dir, unitSupervisorJob+".plist")), "an unchanged loaded definition is not reloaded")
 	assert.Equal(t, 2, l.count("kickstart", "system/"+unitSupervisorJob))
+	assert.Equal(t, 1, l.count("enable", "system/"+unitSupervisorJob), "a loaded supervisor is not enabled again")
+}
+
+// TestEnsureUnitSupervisorClearsADisabledOverride pins that a supervisor someone disabled is still
+// loaded: launchd keeps the override across a bootout and refuses to bootstrap a disabled job.
+func TestEnsureUnitSupervisorClearsADisabledOverride(t *testing.T) {
+	l := stubLiveLaunchd(t)
+	stubJobDir(t)
+	l.disabled["system/"+unitSupervisorJob] = true
+
+	require.NoError(t, ensureUnitSupervisor(context.Background()))
+	assert.Equal(t, 1, l.count("kickstart", "system/"+unitSupervisorJob))
 }
 
 // stubEnsureUnitSupervisor counts the times the supervisor is started.
