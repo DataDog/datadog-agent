@@ -14,6 +14,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
@@ -29,14 +30,20 @@ import (
 
 // protobufFormat is `config.Protobuf.String()`, this is temporary duplication to not have
 // to import the whole pkg/security/config package
-const protobufFormat = "protobuf"
+const (
+	protobufFormat        = "protobuf"
+	defaultMaxRetries     = 3
+	defaultRetryBaseDelay = 200 * time.Millisecond
+)
 
 // ActivityDumpRemoteBackend is a remote backend that forwards dumps to the backend
 type ActivityDumpRemoteBackend struct {
 	endpoints        *logsconfig.Endpoints
 	tooLargeEntities *atomic.Uint64
 
-	client *http.Client
+	client         *http.Client
+	maxRetries     int
+	retryBaseDelay time.Duration
 }
 
 // NewActivityDumpRemoteBackend returns a new ActivityDumpRemoteBackend
@@ -52,7 +59,9 @@ func NewActivityDumpRemoteBackend() (*ActivityDumpRemoteBackend, error) {
 		client: &http.Client{
 			Transport: ddhttputil.CreateHTTPTransport(pkgconfigsetup.Datadog()),
 		},
-		endpoints: endpoints,
+		endpoints:      endpoints,
+		maxRetries:     defaultMaxRetries,
+		retryBaseDelay: defaultRetryBaseDelay,
 	}, nil
 }
 
@@ -88,6 +97,20 @@ func writeDump(writer *multipart.Writer, raw []byte) error {
 	return nil
 }
 
+func isRetryableStatusCode(code int) bool {
+	switch code {
+	case http.StatusRequestTimeout,
+		http.StatusTooManyRequests,
+		http.StatusInternalServerError,
+		http.StatusBadGateway,
+		http.StatusServiceUnavailable,
+		http.StatusGatewayTimeout:
+		return true
+	default:
+		return false
+	}
+}
+
 // sendToEndpoint streams the multipart body straight into the HTTP request instead of
 // materializing the whole gzipped payload in memory (encoding chain: protobuf dump -> multipart
 // -> gzip -> io.Pipe -> request body).
@@ -120,32 +143,58 @@ func (backend *ActivityDumpRemoteBackend) sendToEndpoint(url string, apiKey stri
 		return pr, nil
 	}
 
-	body, _ := newBody()
+	maxRetries := backend.maxRetries
+	if maxRetries <= 0 {
+		maxRetries = defaultMaxRetries
+	}
+	baseDelay := backend.retryBaseDelay
+	if baseDelay <= 0 {
+		baseDelay = defaultRetryBaseDelay
+	}
 
-	r, err := http.NewRequest("POST", url, body)
-	if err != nil {
-		// Unblock the writer goroutine, which is otherwise waiting on a reader for the pipe.
+	var lastErr error
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		body, _ := newBody()
+
+		r, err := http.NewRequest("POST", url, body)
+		if err != nil {
+			// Unblock the writer goroutine, which is otherwise waiting on a reader for the pipe.
+			_ = body.Close()
+			return err
+		}
+
+		r.GetBody = newBody
+		r.Header.Set("Content-Type", contentType)
+		r.Header.Set("dd-api-key", apiKey)
+		r.Header.Set("Content-Encoding", "gzip")
+
+		resp, err := backend.client.Do(r)
 		_ = body.Close()
-		return err
+		if err != nil {
+			lastErr = err
+			if attempt < maxRetries {
+				time.Sleep(baseDelay * (1 << attempt))
+			}
+			continue
+		}
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode == http.StatusAccepted {
+			return nil
+		}
+		if resp.StatusCode == http.StatusRequestEntityTooLarge {
+			backend.tooLargeEntities.Inc()
+			return errors.New(resp.Status)
+		}
+		lastErr = errors.New(resp.Status)
+		if !isRetryableStatusCode(resp.StatusCode) {
+			return lastErr
+		}
+		if attempt < maxRetries {
+			time.Sleep(baseDelay * (1 << attempt))
+		}
 	}
-
-	r.GetBody = newBody
-	r.Header.Set("Content-Type", contentType)
-	r.Header.Set("dd-api-key", apiKey)
-	r.Header.Set("Content-Encoding", "gzip")
-
-	resp, err := backend.client.Do(r)
-	if err != nil {
-		return err
-	}
-	_ = resp.Body.Close()
-	if resp.StatusCode == http.StatusAccepted {
-		return nil
-	}
-	if resp.StatusCode == http.StatusRequestEntityTooLarge {
-		backend.tooLargeEntities.Inc()
-	}
-	return errors.New(resp.Status)
+	return lastErr
 }
 
 // HandleActivityDump sends the activity dump to the remote backend
@@ -171,7 +220,7 @@ func (backend *ActivityDumpRemoteBackend) HandleActivityDump(imageName string, i
 		url := utils.GetEndpointURL(endpoint, "api/v2/secdump")
 
 		if err := backend.sendToEndpoint(url, endpoint.GetAPIKey(), header, data); err != nil {
-			seclog.Warnf("couldn't sent activity dump to [%s, dump size: %d]: %v", url, len(data), err)
+			seclog.Warnf("couldn't send activity dump to [%s, dump size: %d]: %v", url, len(data), err)
 		} else {
 			seclog.Infof("[%s] file for activity dump [image_name:%s image_tag:%s] successfully sent to [%s]", protobufFormat, imageName, imageTag, url)
 		}

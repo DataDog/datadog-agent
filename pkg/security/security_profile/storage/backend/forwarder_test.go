@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -266,6 +267,140 @@ func TestHandleActivityDumpGatesMRFEndpointOnFailover(t *testing.T) {
 	require.NoError(t, backend.HandleActivityDump("image", "tag", []byte(`{}`), []byte("dump")))
 	assert.Equal(t, int64(2), primaryHits.Load())
 	assert.Equal(t, int64(1), mrfHits.Load(), "MRF endpoint should receive the dump while failing over")
+}
+
+func TestSendToEndpointRetriesTransientFailures(t *testing.T) {
+	header := []byte(`{"meta":"data"}`)
+	dump := []byte("this is the raw protobuf dump payload")
+
+	t.Run("transient HTTP status codes succeed on retry", func(t *testing.T) {
+		statuses := []int{
+			http.StatusServiceUnavailable,
+			http.StatusRequestTimeout,
+			http.StatusAccepted,
+		}
+		attempts := atomic.NewInt64(0)
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			idx := int(attempts.Inc() - 1)
+			ev, dp := decodeGzipMultipart(t, r)
+			assert.Equal(t, header, ev)
+			assert.Equal(t, dump, dp)
+			w.WriteHeader(statuses[idx])
+		}))
+		defer srv.Close()
+
+		backend := &ActivityDumpRemoteBackend{
+			tooLargeEntities: atomic.NewUint64(0),
+			client:           srv.Client(),
+			maxRetries:       3,
+			retryBaseDelay:   time.Millisecond,
+		}
+
+		require.NoError(t, backend.sendToEndpoint(srv.URL+"/api/v2/secdump", "api-key", header, dump))
+		assert.Equal(t, int64(3), attempts.Load())
+	})
+
+	t.Run("transport EOF retries with fresh body and succeeds", func(t *testing.T) {
+		attempts := atomic.NewInt64(0)
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			attempt := attempts.Inc()
+			ev, dp := decodeGzipMultipart(t, r)
+			assert.Equal(t, header, ev)
+			assert.Equal(t, dump, dp)
+
+			if attempt == 1 {
+				hj, ok := w.(http.Hijacker)
+				require.True(t, ok)
+				conn, _, err := hj.Hijack()
+				require.NoError(t, err)
+				_ = conn.Close()
+				return
+			}
+			w.WriteHeader(http.StatusAccepted)
+		}))
+		defer srv.Close()
+
+		backend := &ActivityDumpRemoteBackend{
+			tooLargeEntities: atomic.NewUint64(0),
+			client:           srv.Client(),
+			maxRetries:       3,
+			retryBaseDelay:   time.Millisecond,
+		}
+
+		require.NoError(t, backend.sendToEndpoint(srv.URL+"/api/v2/secdump", "api-key", header, dump))
+		assert.Equal(t, int64(2), attempts.Load())
+	})
+
+	t.Run("exhausting all retries returns final error", func(t *testing.T) {
+		attempts := atomic.NewInt64(0)
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			attempts.Inc()
+			ev, dp := decodeGzipMultipart(t, r)
+			assert.Equal(t, header, ev)
+			assert.Equal(t, dump, dp)
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}))
+		defer srv.Close()
+
+		backend := &ActivityDumpRemoteBackend{
+			tooLargeEntities: atomic.NewUint64(0),
+			client:           srv.Client(),
+			maxRetries:       2,
+			retryBaseDelay:   time.Millisecond,
+		}
+
+		err := backend.sendToEndpoint(srv.URL+"/api/v2/secdump", "api-key", header, dump)
+		require.ErrorContains(t, err, "503 Service Unavailable")
+		assert.Equal(t, int64(3), attempts.Load())
+		assert.Equal(t, uint64(0), backend.tooLargeEntities.Load())
+	})
+
+	t.Run("non-retryable status codes fail on first attempt", func(t *testing.T) {
+		cases := []struct {
+			name             string
+			status           int
+			wantTooLargeHits uint64
+		}{
+			{
+				name:             "413 Request Entity Too Large",
+				status:           http.StatusRequestEntityTooLarge,
+				wantTooLargeHits: 1,
+			},
+			{
+				name:             "400 Bad Request",
+				status:           http.StatusBadRequest,
+				wantTooLargeHits: 0,
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				attempts := atomic.NewInt64(0)
+
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					attempts.Inc()
+					_, _ = decodeGzipMultipart(t, r)
+					w.WriteHeader(tc.status)
+				}))
+				defer srv.Close()
+
+				backend := &ActivityDumpRemoteBackend{
+					tooLargeEntities: atomic.NewUint64(0),
+					client:           srv.Client(),
+					maxRetries:       3,
+					retryBaseDelay:   time.Millisecond,
+				}
+
+				err := backend.sendToEndpoint(srv.URL+"/api/v2/secdump", "api-key", header, dump)
+				require.Error(t, err)
+				assert.Equal(t, int64(1), attempts.Load())
+				assert.Equal(t, tc.wantTooLargeHits, backend.tooLargeEntities.Load())
+			})
+		}
+	})
 }
 
 func TestHandleActivityDumpSkipsEndpointWaitingForDelegatedAuth(t *testing.T) {
