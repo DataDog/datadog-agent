@@ -88,6 +88,12 @@ type DiscarderInvalidReport struct {
 type DiscardersReport struct {
 	Supported []eval.Field             `json:"supported"`
 	Invalid   []DiscarderInvalidReport `json:"invalid"`
+
+	// discarders are the discarders that can be found for each event type, and
+	// multiDiscarders the ones of the entries of the supported multi discarders,
+	// nil for an entry without rules, see RuleSet.SetDiscarders.
+	discarders      map[eval.EventType][]*discarder
+	multiDiscarders [][]*discarder
 }
 
 // RuleSetListener describes the methods implemented by an object used to be
@@ -127,9 +133,7 @@ type RuleSet struct {
 	// added, see propagateEnvKeys
 	variableReads map[string][]string
 
-	// discarders are the discarders that can be found for each event type, and
-	// multiDiscarders the ones of the entries of the supported multi discarders,
-	// nil for an entry without rules. Both are set by PrepareDiscarders.
+	// discarders are the discarders of a report, set by SetDiscarders
 	discarders      map[eval.EventType][]*discarder
 	multiDiscarders [][]*discarder
 }
@@ -409,8 +413,8 @@ func (rs *RuleSet) AddRules(pRules []*PolicyRule) *multierror.Error {
 }
 
 // PrepareDiscarders compiles the discarders of the rule set and returns their
-// report. The excluded rules take no part in the discarders, but in the ones
-// of excludedFields.
+// report, which SetDiscarders applies. The excluded rules take no part in the
+// discarders, but in the ones of excludedFields.
 func (rs *RuleSet) PrepareDiscarders(excluded map[eval.RuleID]bool, excludedFields ...eval.Field) (*DiscardersReport, error) {
 	supported := slices.Sorted(maps.Keys(rs.opts.SupportedDiscarders))
 
@@ -461,10 +465,17 @@ func (rs *RuleSet) PrepareDiscarders(excluded map[eval.RuleID]bool, excludedFiel
 		}
 	}
 
-	rs.discarders = discarders
-	rs.multiDiscarders = multiDiscarders
+	report.discarders = discarders
+	report.multiDiscarders = multiDiscarders
 
 	return &report, nil
+}
+
+// SetDiscarders sets the discarders the rule set evaluates to the ones of a
+// report of PrepareDiscarders. It is called before the rule set is used.
+func (rs *RuleSet) SetDiscarders(report *DiscardersReport) {
+	rs.discarders = report.discarders
+	rs.multiDiscarders = report.multiDiscarders
 }
 
 func appendRuleLoadError(errs *multierror.Error, rule *PolicyRule, err error) *multierror.Error {

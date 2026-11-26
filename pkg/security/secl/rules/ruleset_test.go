@@ -118,9 +118,7 @@ func TestRuleSetDiscarders(t *testing.T) {
 	}
 
 	AddTestRuleExpr(t, rs, exprs...)
-	if _, err := rs.PrepareDiscarders(nil); err != nil {
-		t.Fatal(err)
-	}
+	prepareDiscarders(t, rs, nil)
 
 	ev1 := model.NewFakeEvent()
 	ev1.Type = uint32(model.FileOpenEventType)
@@ -185,9 +183,7 @@ func TestRuleSetDiscardersWithName(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			rs := newRuleSet()
 			AddTestRuleExpr(t, rs, test.expr)
-			if _, err := rs.PrepareDiscarders(nil); err != nil {
-				t.Fatal(err)
-			}
+			prepareDiscarders(t, rs, nil)
 
 			event := model.NewFakeEvent()
 			event.Type = uint32(model.FileOpenEventType)
@@ -688,9 +684,7 @@ func TestRuleSetApprovers16(t *testing.T) {
 	}
 
 	// shouldn't generate a discarder
-	if _, err := rs.PrepareDiscarders(nil); err != nil {
-		t.Fatal(err)
-	}
+	prepareDiscarders(t, rs, nil)
 	ev := model.NewFakeEvent()
 	ev.Type = uint32(model.FileOpenEventType)
 	ev.SetFieldValue("open.file.path", "/usr/local/bin/rootkit")
@@ -722,9 +716,7 @@ func TestRuleSetApprovers16(t *testing.T) {
 		t.Fatalf("should get an approver`: %v", approvers)
 	}
 
-	if _, err := rs.PrepareDiscarders(ruleListToMap(noDiscarderRules)); err != nil {
-		t.Fatal(err)
-	}
+	prepareDiscarders(t, rs, ruleListToMap(noDiscarderRules))
 
 	if !rs.Evaluate(ev) {
 		rs.EvaluateDiscarders(ev)
@@ -756,19 +748,25 @@ func TestRuleSetExcludedRuleDiscarderFields(t *testing.T) {
 	if err := event.SetFieldValue("process.auid", 1000); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := rs.PrepareDiscarders(excluded); err != nil {
-		t.Fatal(err)
-	}
+	prepareDiscarders(t, rs, excluded)
 	if !isPreparedDiscarder(rs, event, "process.auid") {
 		t.Error("expected a discarder without the excluded rule")
 	}
 
-	if _, err := rs.PrepareDiscarders(excluded, "process.auid"); err != nil {
-		t.Fatal(err)
-	}
+	prepareDiscarders(t, rs, excluded, "process.auid")
 	if isPreparedDiscarder(rs, event, "process.auid") {
 		t.Error("expected no discarder with the excluded rule")
 	}
+}
+
+// prepareDiscarders prepares the discarders of the rule set and sets them
+func prepareDiscarders(t *testing.T, rs *RuleSet, excluded map[eval.RuleID]bool, excludedFields ...eval.Field) {
+	t.Helper()
+	report, err := rs.PrepareDiscarders(excluded, excludedFields...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rs.SetDiscarders(report)
 }
 
 // isPreparedDiscarder returns whether the prepared discarder of the field is
