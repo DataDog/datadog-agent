@@ -111,7 +111,15 @@ func (s statusProvider) populateStatus(stats map[string]interface{}) {
 		parStatus["DefaultActionsEnabled"] = s.config.GetBool(par.DefaultActionsEnabled)
 		var allowlist []string
 		for bundleID, actions := range parconfig.MakeActionsAllowlist(s.config) {
+			// SplitFQN returns empty components for entries without a dot.
+			// They cannot identify an executable action and should not appear in status.
+			if bundleID == "" {
+				continue
+			}
 			for action := range actions {
+				if action == "" {
+					continue
+				}
 				allowlist = append(allowlist, bundleID+"."+action)
 			}
 		}

@@ -95,6 +95,15 @@ func TestStatusActionsAllowlist(t *testing.T) {
 			},
 		},
 		{
+			name:      "malformed entries",
+			allowlist: []string{"*", "request", "", ".request", "com.datadoghq.http.", "com.datadoghq.http.request"},
+			expected:  []string{"com.datadoghq.http.request", "com.datadoghq.http.testConnection"},
+		},
+		{
+			name:      "only malformed entries",
+			allowlist: []string{"*", "request", "", ".request", "."},
+		},
+		{
 			name:      "integration wildcard",
 			allowlist: []string{"com.datadoghq.kubernetes.*"},
 			expected:  []string{"com.datadoghq.kubernetes.*", "com.datadoghq.kubernetes.core.testConnection"},
