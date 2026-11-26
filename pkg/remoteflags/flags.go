@@ -155,41 +155,18 @@ type subscription struct {
 	cancelHealthCheck context.CancelFunc        // Cancel ongoing health check if any
 
 	// Handler callbacks run outside the client lock, in the order the client
-	// queued them: queue holds the pending callbacks, and draining is true while
-	// a goroutine is running them.
+	// queued them: queue holds the pending events, and draining is true while
+	// a goroutine is delivering them (see Client.enqueue).
 	queueMu  sync.Mutex
-	queue    []func()
+	queue    []event
 	draining bool
 }
 
-// enqueue schedules fn to run after the callbacks already queued for this
-// subscription. It never blocks on the handler, so it is safe to call with the
-// client lock held.
-func (s *subscription) enqueue(fn func()) {
-	s.queueMu.Lock()
-	defer s.queueMu.Unlock()
-	s.queue = append(s.queue, fn)
-	if !s.draining {
-		s.draining = true
-		go s.drain()
-	}
-}
-
-// drain runs the queued callbacks one at a time until the queue is empty.
-func (s *subscription) drain() {
-	for {
-		s.queueMu.Lock()
-		if len(s.queue) == 0 {
-			s.draining = false
-			s.queueMu.Unlock()
-			return
-		}
-		fn := s.queue[0]
-		s.queue[0] = nil
-		s.queue = s.queue[1:]
-		s.queueMu.Unlock()
-		fn()
-	}
+// event is a handler callback waiting to be delivered: OnChange with flag, or
+// OnNoConfig when noConfig is true.
+type event struct {
+	flag     Flag
+	noConfig bool
 }
 
 // Client is the Remote Flags client that manages flag subscriptions
@@ -378,7 +355,7 @@ func (c *Client) OnUpdate(updates map[string]state.RawConfig, applyStateCallback
 
 // notifyChange notifies all subscribers of a flag value change.
 // Must be called with lock held. The handlers are called asynchronously, in the
-// order of the notifications for each subscription (see subscription.enqueue).
+// order of the notifications for each subscription (see Client.enqueue).
 func (c *Client) notifyChange(flag Flag) {
 	flagName := FlagName(flag.Name)
 	subs, exists := c.subscriptions[flagName]
@@ -387,22 +364,70 @@ func (c *Client) notifyChange(flag Flag) {
 	}
 
 	for _, sub := range subs {
-		s, f := sub, flag
-		s.enqueue(func() {
-			// only notify if the value actually changed from last known value
-			last := s.lastValue.Load()
-			if last != nil && *last == f.Enabled {
-				return
-			}
-			if err := s.handler.OnChange(f.Enabled); err != nil {
-				applyErr := fmt.Errorf("remote flag %s (enabled=%v): %w", f.Name, f.Enabled, err)
-				c.recoverFlag(s, f, applyErr)
-			} else {
-				successValue := f.Enabled
-				s.lastValue.Store(&successValue)
-				c.startHealthMonitor(s, f)
-			}
-		})
+		c.enqueue(sub, event{flag: flag})
+	}
+}
+
+// enqueue schedules ev to be delivered to sub after the events already queued
+// for it. It never blocks on the handler, so it is safe to call with the client
+// lock held.
+func (c *Client) enqueue(sub *subscription, ev event) {
+	sub.queueMu.Lock()
+	defer sub.queueMu.Unlock()
+	sub.queue = append(sub.queue, ev)
+	if !sub.draining {
+		sub.draining = true
+		go c.drain(sub)
+	}
+}
+
+// drain delivers the queued events of sub one at a time until its queue is empty.
+func (c *Client) drain(sub *subscription) {
+	for {
+		sub.queueMu.Lock()
+		if len(sub.queue) == 0 {
+			sub.draining = false
+			sub.queueMu.Unlock()
+			return
+		}
+		ev := sub.queue[0]
+		sub.queue[0] = event{}
+		sub.queue = sub.queue[1:]
+		sub.queueMu.Unlock()
+		c.deliver(sub, ev)
+	}
+}
+
+// deliver calls the handler of sub for ev. It runs without the client lock,
+// after every event queued before ev has been delivered.
+func (c *Client) deliver(sub *subscription, ev event) {
+	if ev.noConfig {
+		// Also cancel a health check started by an OnChange that was still
+		// running when the flag was removed (see notifyNoConfig).
+		c.mu.Lock()
+		if sub.cancelHealthCheck != nil {
+			sub.cancelHealthCheck()
+			sub.cancelHealthCheck = nil
+		}
+		c.mu.Unlock()
+		sub.lastValue.Store(nil)
+		sub.handler.OnNoConfig()
+		return
+	}
+
+	// Only notify if the value differs from the last one applied. Checked here,
+	// not when queuing, so that it accounts for the events delivered before.
+	f := ev.flag
+	if last := sub.lastValue.Load(); last != nil && *last == f.Enabled {
+		return
+	}
+	if err := sub.handler.OnChange(f.Enabled); err != nil {
+		applyErr := fmt.Errorf("remote flag %s (enabled=%v): %w", f.Name, f.Enabled, err)
+		c.recoverFlag(sub, f, applyErr)
+	} else {
+		successValue := f.Enabled
+		sub.lastValue.Store(&successValue)
+		c.startHealthMonitor(sub, f)
 	}
 }
 
@@ -435,19 +460,7 @@ func (c *Client) notifyNoConfig(flag FlagName) {
 			sub.cancelHealthCheck()
 			sub.cancelHealthCheck = nil
 		}
-		s := sub
-		s.enqueue(func() {
-			// Also cancel a health check started by an OnChange that was still
-			// running when the flag was removed.
-			c.mu.Lock()
-			if s.cancelHealthCheck != nil {
-				s.cancelHealthCheck()
-				s.cancelHealthCheck = nil
-			}
-			c.mu.Unlock()
-			s.lastValue.Store(nil)
-			s.handler.OnNoConfig()
-		})
+		c.enqueue(sub, event{flag: Flag{Name: string(flag)}, noConfig: true})
 	}
 }
 
