@@ -246,6 +246,76 @@ func TestRuleMerge(t *testing.T) {
 	})
 }
 
+func TestRuleMergeOverrideTags(t *testing.T) {
+	tagsOverride := OverrideOptions{Fields: []OverrideField{OverrideTagsField}}
+
+	tests := []struct {
+		name     string
+		rules    []*RuleDefinition
+		expected map[string]string
+	}{
+		{
+			name: "base without tags",
+			rules: []*RuleDefinition{
+				{ID: "test_rule", Expression: `open.file.path == "/tmp/test"`},
+				{ID: "test_rule", Expression: `open.file.path == "/tmp/test"`, Combine: OverridePolicy, OverrideOptions: tagsOverride, Tags: map[string]string{"a": "1"}},
+			},
+			expected: map[string]string{"a": "1"},
+		},
+		{
+			name: "base with tags",
+			rules: []*RuleDefinition{
+				{ID: "test_rule", Expression: `open.file.path == "/tmp/test"`, Tags: map[string]string{"a": "1", "b": "2"}},
+				{ID: "test_rule", Expression: `open.file.path == "/tmp/test"`, Combine: OverridePolicy, OverrideOptions: tagsOverride, Tags: map[string]string{"b": "3", "c": "4"}},
+			},
+			expected: map[string]string{"a": "1", "b": "3", "c": "4"},
+		},
+		{
+			name: "empty override then override with tags",
+			rules: []*RuleDefinition{
+				{ID: "test_rule", Expression: `open.file.path == "/tmp/test"`},
+				{ID: "test_rule", Expression: `open.file.path == "/tmp/test"`, Combine: OverridePolicy, OverrideOptions: tagsOverride},
+				{ID: "test_rule", Expression: `open.file.path == "/tmp/test"`, Combine: OverridePolicy, OverrideOptions: tagsOverride, Tags: map[string]string{"a": "1"}},
+			},
+			expected: map[string]string{"a": "1"},
+		},
+		{
+			name: "empty override",
+			rules: []*RuleDefinition{
+				{ID: "test_rule", Expression: `open.file.path == "/tmp/test"`},
+				{ID: "test_rule", Expression: `open.file.path == "/tmp/test"`, Combine: OverridePolicy, OverrideOptions: tagsOverride},
+			},
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rs, errs := loadPolicy(t, &PolicyDef{Rules: tt.rules}, PolicyLoaderOpts{})
+			require.NoError(t, errs.ErrorOrNil())
+
+			rule := rs.GetRuleByID("test_rule")
+			require.NotNil(t, rule)
+			assert.Equal(t, tt.expected, rule.Def.Tags)
+		})
+	}
+
+	t.Run("policy attribution", func(t *testing.T) {
+		newRule := func(policy string, def *RuleDefinition) *PolicyRule {
+			return &PolicyRule{Def: def, Policy: PolicyInfo{Name: policy, InternalType: DefaultPolicyType}}
+		}
+
+		base := newRule("base", &RuleDefinition{ID: "test_rule"})
+		base.MergeWith(newRule("empty", &RuleDefinition{ID: "test_rule", Combine: OverridePolicy, OverrideOptions: tagsOverride}))
+		assert.Nil(t, base.Def.Tags)
+		assert.Equal(t, "base", base.Policy.Name)
+
+		base.MergeWith(newRule("tags", &RuleDefinition{ID: "test_rule", Combine: OverridePolicy, OverrideOptions: tagsOverride, Tags: map[string]string{"a": "1"}}))
+		assert.Equal(t, map[string]string{"a": "1"}, base.Def.Tags)
+		assert.Equal(t, "tags", base.Policy.Name)
+	})
+}
+
 func TestActionSetVariable(t *testing.T) {
 	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{{

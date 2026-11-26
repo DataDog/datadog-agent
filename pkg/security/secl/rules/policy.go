@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"maps"
 	"reflect"
 	"slices"
 
@@ -131,11 +132,12 @@ func applyOverride(rd1, rd2 *PolicyRule) {
 			rd1.Def.Every = rd2.Def.Every
 			wasOverridden = true
 		}
-		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideTagsField) {
-			for k, tag := range rd2.Def.Tags {
-				rd1.Def.Tags[k] = tag
-				wasOverridden = true
+		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideTagsField) && len(rd2.Def.Tags) > 0 {
+			if rd1.Def.Tags == nil {
+				rd1.Def.Tags = make(map[string]string, len(rd2.Def.Tags))
 			}
+			maps.Copy(rd1.Def.Tags, rd2.Def.Tags)
+			wasOverridden = true
 		}
 		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideProductTagsField) {
 			rd1.Def.ProductTags = rd2.Def.ProductTags
