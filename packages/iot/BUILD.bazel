@@ -8,9 +8,7 @@ load(
     "pkg_files",
     "pkg_mkdirs",
 )
-load("//bazel/rules/dd_packaging:agent_binary.bzl", "agent_binary_for_package")
 load("//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
-load("//bazel/rules/dd_strip:get_debug_symbols.bzl", "get_debug_symbols")
 load("//compliance:package_licenses.bzl", "package_licenses")
 load("//packages/rules:agent_path.bzl", "etc_dir")
 load("//packages/rules:dd_pkg_deb.bzl", "dd_pkg_deb")
@@ -32,10 +30,12 @@ exports_files(
 )
 
 # IoT agent binary, installed to bin/agent/agent (same as the standard agent binary).
-agent_binary_for_package(
+pkg_files(
     name = "iot_agent_binary",
+    srcs = ["//cmd/iot-agent"],
+    attributes = pkg_attributes(mode = "755"),
     prefix = "bin/agent",
-    target = "//cmd/iot-agent",
+    renames = {"//cmd/iot-agent": "agent"},
 )
 
 dd_collect_dependencies(
@@ -105,13 +105,6 @@ forwards metrics from your applications as well as system services.
 See http://www.datadoghq.com/ for more information
 """
 
-get_debug_symbols(
-    name = "debug_symbols",
-    srcs = [":whole_distro"],
-    prefix = "{install_dir}/.debug",
-    tags = ["manual"],
-)
-
 dd_pkg_deb(
     name = "debian",
     srcs = [
@@ -120,7 +113,6 @@ dd_pkg_deb(
     ],
     out = "debian.deb",
     conflicts = ["datadog-agent"],
-    debug_symbols = ":debug_symbols",
     description = _DESCRIPTION,
     homepage = "http://www.datadoghq.com",
     # epoch 1
@@ -148,7 +140,6 @@ dd_pkg_rpm(
         "//conditions:default": ["//packages/iot/redhat:all_files"],
     }),
     conflicts = ["datadog-agent"],
-    debug_symbols = ":debug_symbols",
     description = _DESCRIPTION,
     epoch = "1",
     group = "System Environment/Daemons",
