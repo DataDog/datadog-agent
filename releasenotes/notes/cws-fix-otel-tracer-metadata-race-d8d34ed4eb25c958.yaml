@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix a ``system-probe`` crash caused by a race condition when updating OpenTelemetry process tracer metadata concurrently with event processing.
