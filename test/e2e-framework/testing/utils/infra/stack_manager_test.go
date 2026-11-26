@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build e2eunit
-
 // Package infra implements utilities to interact with a Pulumi infrastructure
 package infra
 
@@ -15,6 +13,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -23,10 +22,86 @@ import (
 
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV1"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/workspace"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// TestMain runs the stacks under the runner's local profile, against a local backend in a temporary
+// dir, faking what the profile reads: the keys of its unused Datadog client and the home dir.
+// The CLI is the one Bazel pins, at runfile `PULUMI_CLI`, else the one in the Pulumi home, from
+// `bazel run @pulumi//:install -- --destdir=<Pulumi home>`.
+func TestMain(m *testing.M) {
+	os.Exit(runTests(m))
+}
+
+func runTests(m *testing.M) int {
+	pulumiHome, err := workspace.GetPulumiHomeDir() // before HOME changes
+	if err != nil {
+		panic(err)
+	}
+	tmp, err := os.MkdirTemp("", "infra_test")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(tmp)
+	if cli := os.Getenv("PULUMI_CLI"); cli != "" {
+		// Runfiles are enabled on every OS (.bazelrc), so the runfile is under RUNFILES_DIR.
+		cli = filepath.Join(os.Getenv("RUNFILES_DIR"), filepath.FromSlash(cli))
+		if pulumiHome, err = pulumiHomeWith(cli, filepath.Join(tmp, "pulumi")); err != nil {
+			panic(err)
+		}
+	}
+	backend := filepath.Join(tmp, "backend")
+	home := filepath.Join(tmp, "home")
+	for _, dir := range []string{backend, home} {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			panic(err)
+		}
+	}
+	for key, value := range map[string]string{
+		"CI":                       "false",
+		"E2E_PROFILE":              "local",
+		"E2E_API_KEY":              "fake-api-key",
+		"E2E_APP_KEY":              "fake-app-key",
+		"HOME":                     home, // for os.UserHomeDir on Unix
+		"USERPROFILE":              home, // and on Windows
+		"PULUMI_HOME":              pulumiHome,
+		"PULUMI_BACKEND_URL":       "file://" + filepath.ToSlash(backend),
+		"PULUMI_CONFIG_PASSPHRASE": "",
+	} {
+		if err := os.Setenv(key, value); err != nil {
+			panic(err)
+		}
+	}
+	return m.Run()
+}
+
+// pulumiHomeWith makes a Pulumi home with cli in its bin dir, where auto.NewPulumiCommand looks.
+func pulumiHomeWith(cli, pulumiHome string) (string, error) {
+	if _, err := os.Stat(cli); err != nil {
+		return "", err
+	}
+	bin := filepath.Join(pulumiHome, "bin")
+	if err := os.MkdirAll(bin, 0o700); err != nil {
+		return "", err
+	}
+	name := "pulumi"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	link := filepath.Join(bin, name)
+	if err := os.Symlink(cli, link); err == nil {
+		return pulumiHome, nil
+	}
+	// Windows creates symlinks only with a privilege or in developer mode: copy instead.
+	content, err := os.ReadFile(cli)
+	if err != nil {
+		return "", err
+	}
+	return pulumiHome, os.WriteFile(link, content, 0o755)
+}
 
 type mockWriter struct {
 	logs []string
