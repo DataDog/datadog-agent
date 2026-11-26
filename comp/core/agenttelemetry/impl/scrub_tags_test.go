@@ -233,6 +233,20 @@ func TestScrubKeepingTags_KeyShapes(t *testing.T) {
 		assert.Equal(t, "a:b", got["host_tags"])
 		assert.Equal(t, "c:d", got["tags"])
 	})
+	t.Run("a payload already using the temporary key name keeps both keys", func(t *testing.T) {
+		for _, in := range []string{
+			`{"tags_shielded_from_key_scrub":"keep","tags":"a:b"}`,
+			`{"tags":"a:b","tags_shielded_from_key_scrub":"keep","tags_shielded_from_key_scrub_1":"also"}`,
+		} {
+			out, err := scrubKeepingTags([]byte(in))
+			require.NoError(t, err)
+			var got map[string]any
+			require.NoError(t, json.Unmarshal(out, &got), string(out))
+			assert.Equal(t, "a:b", got["tags"], string(out))
+			assert.Equal(t, "keep", got["tags_shielded_from_key_scrub"], string(out))
+			assert.Equal(t, 1, strings.Count(string(out), `"tags":`), string(out))
+		}
+	})
 	t.Run("invalid JSON does not fail", func(t *testing.T) {
 		_, err := scrubKeepingTags([]byte(`not json "tags":`))
 		assert.NoError(t, err)

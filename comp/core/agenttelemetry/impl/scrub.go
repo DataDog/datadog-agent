@@ -6,17 +6,26 @@
 package agenttelemetryimpl
 
 import (
+	"bytes"
 	"regexp"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 const shieldedTagsKey = "tags_shielded_from_key_scrub"
 
-var (
-	tagsKeyRe         = regexp.MustCompile(`"tags"(\s*):`)
-	shieldedTagsKeyRe = regexp.MustCompile(`"` + shieldedTagsKey + `"(\s*):`)
-)
+var tagsKeyRe = regexp.MustCompile(`"tags"(\s*):`)
+
+// shieldTokenFor returns a key name that does not occur anywhere in the
+// payload, so renaming "tags" to it and back cannot touch any other key.
+func shieldTokenFor(payloadJSON []byte) string {
+	token := shieldedTagsKey
+	for i := 1; bytes.Contains(payloadJSON, []byte(token)); i++ {
+		token = shieldedTagsKey + "_" + strconv.Itoa(i)
+	}
+	return token
+}
 
 // scrubKeepingTags scrubs a JSON payload like scrubber.ScrubJSON, but never
 // treats the JSON key "tags" as a sensitive key.
@@ -30,6 +39,8 @@ var (
 // "tags".
 //
 // The key is shielded by renaming it before scrubbing and restoring it after.
+// The temporary name is chosen so that it does not appear anywhere in the
+// payload, so a payload that already uses that name is left intact.
 // Quotes inside JSON string values are always escaped, so the sequence
 // `"tags"` followed by optional whitespace and a colon can only be an object
 // key, never part of a value.
@@ -38,10 +49,12 @@ var (
 // excluding keys, or the secrets component registers full key paths instead
 // of bare key names.
 func scrubKeepingTags(payloadJSON []byte) ([]byte, error) {
-	shielded := tagsKeyRe.ReplaceAll(payloadJSON, []byte(`"`+shieldedTagsKey+`"$1:`))
+	token := shieldTokenFor(payloadJSON)
+	shielded := tagsKeyRe.ReplaceAll(payloadJSON, []byte(`"`+token+`"$1:`))
 	scrubbed, err := scrubber.ScrubJSON(shielded)
 	if err != nil {
 		return nil, err
 	}
-	return shieldedTagsKeyRe.ReplaceAll(scrubbed, []byte(`"tags"$1:`)), nil
+	shieldedKeyRe := regexp.MustCompile(`"` + regexp.QuoteMeta(token) + `"(\s*):`)
+	return shieldedKeyRe.ReplaceAll(scrubbed, []byte(`"tags"$1:`)), nil
 }
