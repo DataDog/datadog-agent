@@ -204,8 +204,8 @@ fn spawned_pid(daemon: &DaemonHandle, name: &str) -> u32 {
 
 /// A SIGTERM during startup ends the daemon cleanly and starts nothing after the gate. The FIFO
 /// gate holds startup open until the test releases it after the signal. A process started before
-/// the gate is stopped during teardown. This does not cover the window before the runtime exists,
-/// which needs a PID 1 or exec-based test.
+/// the gate is stopped during teardown. The library path for a stop before the runtime exists is
+/// covered by `tests/early_stop.rs`.
 #[cfg(unix)]
 #[test]
 fn test_cli_daemon_shutdown_during_startup_exits_cleanly() {

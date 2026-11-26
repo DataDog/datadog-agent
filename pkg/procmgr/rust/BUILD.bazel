@@ -246,6 +246,25 @@ rust_test(
     deps = ["@crates//:tempfile"],
 )
 
+# Raises SIGTERM inside the test process, so it gets its own binary.
+rust_test(
+    name = "early_stop_test",
+    srcs = ["tests/early_stop.rs"],
+    edition = "2024",
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "@platforms//os:macos": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = [
+        ":dd-procmgrd-lib",
+        "@crates//:log",
+        "@crates//:nix",
+        "@crates//:tempfile",
+        "@crates//:tokio",
+    ],
+)
+
 rust_test(
     name = "e2e_test",
     srcs = glob([
