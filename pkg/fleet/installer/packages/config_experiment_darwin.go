@@ -185,8 +185,13 @@ func waitForInstallerCommand(ctx context.Context, stillWanted func() (bool, erro
 	if err != nil || lock == nil {
 		return false, err
 	}
+	// The command just waited for may have withdrawn this very request before it exited.
+	wanted, err := stillWanted()
 	if err := lock.Close(); err != nil {
 		log.Warnf("could not release the installer lock: %v", err)
+	}
+	if err != nil || !wanted {
+		return false, err
 	}
 	return true, nil
 }

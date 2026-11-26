@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -636,6 +637,36 @@ func TestWaitForInstallerLockWaitsForAnInstallerCommand(t *testing.T) {
 	_, err = db.New(context.Background(), path, db.WithTimeout(100*time.Millisecond))
 	assert.Error(t, err, "an installer command must not open the database while the lock is held")
 	require.NoError(t, lock.Close())
+}
+
+// TestWaitForInstallerCommandRechecksOnceItHasTheLock pins that a request the command waited for
+// withdrew before it exited is not acted on: the waiter checks it is still wanted once it has the
+// lock, not only while it waits.
+func TestWaitForInstallerCommandRechecksOnceItHasTheLock(t *testing.T) {
+	path := stubConfigExperimentLock(t)
+	original := installerLockPoll
+	// No check while waiting: only the one after the lock is taken can see the withdrawal.
+	installerLockPoll = time.Hour
+	t.Cleanup(func() { installerLockPoll = original })
+	command, err := db.New(context.Background(), path)
+	require.NoError(t, err)
+
+	var withdrawn atomic.Bool
+	got := make(chan bool, 1)
+	go func() {
+		ok, err := waitForInstallerCommand(context.Background(), func() (bool, error) { return !withdrawn.Load(), nil })
+		assert.NoError(t, err)
+		got <- ok
+	}()
+	// The command withdraws the request, then exits.
+	withdrawn.Store(true)
+	require.NoError(t, command.Close())
+	select {
+	case ok := <-got:
+		assert.False(t, ok, "a withdrawn request must not be acted on")
+	case <-time.After(5 * time.Second):
+		t.Fatal("the waiter should take the lock once the command exits")
+	}
 }
 
 // TestInstallerSwapsOutwaitTheDaemonsExitTimeOut pins that a bootout of the installer daemon waits
