@@ -2,6 +2,16 @@
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
+constants_repo = use_repo_rule("//bazel/repo:constants_repo.bzl", "constants_repo")
+
+constants_repo(
+    name = "libpcap_constants",
+    items = {
+        "URL": "https://www.tcpdump.org/release/libpcap-1.10.5.tar.xz",
+        "VERSION": "1.10.5",
+    },
+)
+
 http_archive(
     name = "libpcap",
     files = {

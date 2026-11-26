@@ -1,13 +1,12 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@libpcap_constants//:constants.bzl", "URL", "VERSION")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "strip_prefix")
 
 package(default_package_metadata = [":package_metadata"])
-
-VERSION = "1.10.5"
 
 package_metadata(
     name = "package_metadata",
@@ -17,7 +16,7 @@ package_metadata(
     purl = purl_for_generic(
         package = "libpcap",
         version = VERSION,
-        download_url = "https://www.tcpdump.org/release/libpcap-{version}.tar.xz",
+        download_url = URL,
     ),
 )
 

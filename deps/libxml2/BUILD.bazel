@@ -6,6 +6,7 @@ VERSION = "2.15.4"
 generate_module_bazel(
     name = "module_bazel",
     out = "libxml2.MODULE.bazel.new",
+    constants_version = VERSION,
     module = "libxml2",
     sha256 = "98087fd181d9070724f3fbc65c7377db03038eb92bd882374daff44940138821",
     strip_prefix = "libxml2-%s" % VERSION,

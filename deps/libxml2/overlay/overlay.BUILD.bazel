@@ -1,11 +1,10 @@
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@libxml2_constants//:constants.bzl", "VERSION")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
-
-VERSION = "2.15.4"
 
 PUBLIC_HEADERS = glob(["include/libxml/*.h"]) + [":xmlversion_h"]
 
