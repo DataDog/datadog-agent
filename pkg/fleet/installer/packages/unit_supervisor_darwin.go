@@ -367,6 +367,9 @@ func runExperiment(ctx context.Context, request unitsRequest, status unitsStatus
 		}
 		// Wants and Conflicts: the experiment Agent and its jobs start, the stable ones stop.
 		if err := agents.Start(ctx); err != nil {
+			// When its rollback failed too, a stable Agent job is left on neither variant: nothing
+			// restarts it before the next request or a reboot, so say so loudly.
+			log.Errorf("unit supervisor: the configuration experiment could not start: %v", err)
 			_ = experimentDeadline().Clear()
 			writeUnitsStatus(request.nonce, unitsPhaseFailed, err.Error())
 			return nil
@@ -578,6 +581,10 @@ func applyStable(ctx context.Context, request unitsRequest, status unitsStatus, 
 	if status.nonce != request.nonce || status.phase != unitsPhaseAgents {
 		agents := configExperiment{jobs: agentJobSet(), keepRunningStable: !restart}
 		if err := agents.restoreStable(ctx); err != nil {
+			// Every attempt rewrote a missing or altered definition (WriteIfChanged); what still
+			// fails is launchd refusing the job. Nothing restarts it before the next request or a
+			// reboot, so say so loudly.
+			log.Errorf("unit supervisor: could not bring the stable Agent jobs back, they stay down until the next stop, promote or reboot: %v", err)
 			writeUnitsStatus(request.nonce, unitsPhaseFailed, err.Error())
 			return nil
 		}
