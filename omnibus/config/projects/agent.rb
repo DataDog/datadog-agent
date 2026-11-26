@@ -349,6 +349,13 @@ if windows_target?
   windows_symbol_stripping_file "#{install_dir}\\embedded3\\DLLs\\libcrypto-3-x64.dll"
   windows_symbol_stripping_file "#{install_dir}\\embedded3\\DLLs\\libssl-3-x64.dll"
   windows_symbol_stripping_file "#{install_dir}\\embedded3\\bin\\openssl.exe"
+  if fips_mode?
+    windows_symbol_stripping_file "#{install_dir}\\embedded3\\lib\\engines-3\\capi.dll"
+    windows_symbol_stripping_file "#{install_dir}\\embedded3\\lib\\engines-3\\loader_attic.dll"
+    windows_symbol_stripping_file "#{install_dir}\\embedded3\\lib\\engines-3\\padlock.dll"
+    windows_symbol_stripping_file "#{install_dir}\\embedded3\\lib\\ossl-modules\\fips.dll"
+    windows_symbol_stripping_file "#{install_dir}\\embedded3\\lib\\ossl-modules\\legacy.dll"
+  end
 
   if windows_signing_enabled?
     # Sign additional binaries from here.
