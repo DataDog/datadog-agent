@@ -9,6 +9,7 @@ go_library(
         "config.go",
         "config_darwin.go",
         "config_nix.go",
+        "config_nix_other.go",
         "config_rollback_windows.go",
         "config_tree.go",
         "config_windows.go",
