@@ -121,15 +121,19 @@ func newKubeletCollector(_ *provider.Cache, wmeta workloadmeta.Component) (provi
 // newCollectorMetadata registers collectors for every container runtime the
 // kubelet can run containers with.
 func newCollectorMetadata(collectors *provider.Collectors) provider.CollectorMetadata {
+	catalog := provider.CollectorCatalog{
+		provider.NewRuntimeMetadata(string(provider.RuntimeNameContainerd), ""):     collectors,
+		provider.NewRuntimeMetadata(string(provider.RuntimeNameCRIO), ""):           collectors,
+		provider.NewRuntimeMetadata(string(provider.RuntimeNameDocker), ""):         collectors,
+		provider.NewRuntimeMetadata(string(provider.RuntimeNameCRINonstandard), ""): collectors,
+	}
+	for _, flavor := range provider.SandboxedRuntimeFlavors {
+		catalog[provider.NewRuntimeMetadata(string(provider.RuntimeNameContainerd), string(flavor))] = collectors
+	}
+
 	return provider.CollectorMetadata{
-		ID: collectorID,
-		Collectors: provider.CollectorCatalog{
-			provider.NewRuntimeMetadata(string(provider.RuntimeNameContainerd), ""):                                 collectors,
-			provider.NewRuntimeMetadata(string(provider.RuntimeNameContainerd), string(provider.RuntimeFlavorKata)): collectors,
-			provider.NewRuntimeMetadata(string(provider.RuntimeNameCRIO), ""):                                       collectors,
-			provider.NewRuntimeMetadata(string(provider.RuntimeNameDocker), ""):                                     collectors,
-			provider.NewRuntimeMetadata(string(provider.RuntimeNameCRINonstandard), ""):                             collectors,
-		},
+		ID:         collectorID,
+		Collectors: catalog,
 	}
 }
 

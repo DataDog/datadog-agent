@@ -153,6 +153,7 @@ type ContainerRuntimeFlavor string
 const (
 	ContainerRuntimeFlavorDefault ContainerRuntimeFlavor = ""
 	ContainerRuntimeFlavorKata    ContainerRuntimeFlavor = "kata"
+	ContainerRuntimeFlavorGVisor  ContainerRuntimeFlavor = "gvisor"
 )
 
 // ContainerStatus is the status of the container
