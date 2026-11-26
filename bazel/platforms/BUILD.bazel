@@ -18,6 +18,11 @@ platform(
         "@llvm//constraints/kernel/linux:6.4",
         "@llvm//constraints/libc:gnu.2.17",  # RHEL/CentOS 7
     ],
+    # Part of every remote and disk cache key, local or remote: Linux hosts and RBE must agree on them to share entries.
+    exec_properties = {
+        "ISA": "x86-64",
+        "OSFamily": "Linux",
+    },
 )
 
 platform(
