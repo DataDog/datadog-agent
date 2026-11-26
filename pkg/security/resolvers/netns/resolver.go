@@ -330,6 +330,9 @@ func (nr *Resolver) SyncCache() bool {
 		nr.snapshotNetworkDevices(entry.netns)
 	}
 
+	// the check needs the host network namespace and its classifiers set up above
+	nr.warnAboutBlindHooks()
+
 	return len(newEntries) > 0
 }
 

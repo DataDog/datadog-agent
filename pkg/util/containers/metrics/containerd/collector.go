@@ -66,6 +66,12 @@ func newContainerdCollector(cache *provider.Cache) (provider.CollectorMetadata, 
 		pidCache: provider.NewCache(pidCacheGCInterval),
 	}
 
+	return newCollectorMetadata(collector, cache), nil
+}
+
+// newCollectorMetadata builds the collector catalog for containerd: the full
+// set of collectors for default containers, and stats only for sandboxed ones.
+func newCollectorMetadata(collector *containerdCollector, cache *provider.Cache) provider.CollectorMetadata {
 	collectors := &provider.Collectors{
 		Stats:             provider.MakeRef[provider.ContainerStatsGetter](collector, collectorPriority),
 		Network:           provider.MakeRef[provider.ContainerNetworkStatsGetter](collector, collectorPriority),
@@ -73,17 +79,23 @@ func newContainerdCollector(cache *provider.Cache) (provider.CollectorMetadata, 
 		ContainerIDForPID: provider.MakeRef[provider.ContainerIDForPIDRetriever](collector, collectorPriority),
 	}
 
-	kataCollectors := &provider.Collectors{
+	// Sandboxed containers only get stats from containerd: host-side PIDs and
+	// network namespaces do not map to the processes inside the sandbox.
+	sandboxedCollectors := provider.MakeCached(collectorID, cache, &provider.Collectors{
 		Stats: provider.MakeRef[provider.ContainerStatsGetter](collector, collectorPriority),
+	})
+
+	catalog := provider.CollectorCatalog{
+		provider.NewRuntimeMetadata(string(provider.RuntimeNameContainerd), ""): provider.MakeCached(collectorID, cache, collectors),
+	}
+	for _, flavor := range provider.SandboxedRuntimeFlavors {
+		catalog[provider.NewRuntimeMetadata(string(provider.RuntimeNameContainerd), string(flavor))] = sandboxedCollectors
 	}
 
 	return provider.CollectorMetadata{
-		ID: collectorID,
-		Collectors: provider.CollectorCatalog{
-			provider.NewRuntimeMetadata(string(provider.RuntimeNameContainerd), ""):                                 provider.MakeCached(collectorID, cache, collectors),
-			provider.NewRuntimeMetadata(string(provider.RuntimeNameContainerd), string(provider.RuntimeFlavorKata)): provider.MakeCached(collectorID, cache, kataCollectors),
-		},
-	}, nil
+		ID:         collectorID,
+		Collectors: catalog,
+	}
 }
 
 // GetContainerStats returns stats by container ID.
@@ -186,7 +198,7 @@ func (c *containerdCollector) getContainerdMetrics(containerNS string, container
 
 	metricTask, errTask := c.client.TaskMetrics(containerNS, container)
 	if errTask != nil {
-		return nil, fmt.Errorf("could not get metrics for container with ID %s: %s", containerID, err)
+		return nil, fmt.Errorf("could not get metrics for container with ID %s: %s", containerID, errTask)
 	}
 
 	metrics, err := typeurl.UnmarshalAny(&anypb.Any{

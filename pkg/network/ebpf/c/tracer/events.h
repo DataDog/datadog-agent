@@ -27,7 +27,7 @@ static __always_inline void store_tcp_close_args(__u64 pid_tgid, conn_tuple_t *t
     norm.pid = 0;
     norm.netns = 0;
     normalize_tuple(&norm);
-    args.has_skb_tup = get_skb_tuple(t, &norm, &args.skb_tup);
+    args.has_skb_tup = get_skb_tuple(t, &norm, &args.skb_tup, NULL);
     bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &args, BPF_ANY);
 }
 
@@ -42,7 +42,7 @@ static __always_inline void clean_protocol_classification(tcp_close_args_t *args
     conn_tuple_t skb_tup;
     if (args->has_skb_tup) {
         skb_tup = args->skb_tup;
-    } else if (nat_lookup_mode() == NAT_LOOKUP_CONNTRACK || !get_skb_tuple(&args->tup, &conn_tuple, &skb_tup)) {
+    } else if (nat_lookup_mode() == NAT_LOOKUP_CONNTRACK || !get_skb_tuple(&args->tup, &conn_tuple, &skb_tup, NULL)) {
         // retried because net_dev_queue may first have recorded the packets' tuple for the FIN or RST that
         // tcp_close itself sent
         return;
@@ -66,7 +66,7 @@ static __always_inline void clean_skb_tuple_protocol_classification(conn_tuple_t
     norm.netns = 0;
     normalize_tuple(&norm);
     conn_tuple_t skb_tup;
-    if (!get_skb_tuple(t, &norm, &skb_tup)) {
+    if (!get_skb_tuple(t, &norm, &skb_tup, NULL)) {
         return;
     }
     delete_protocol_stack(&skb_tup, NULL, FLAG_TCP_CLOSE_DELETION);

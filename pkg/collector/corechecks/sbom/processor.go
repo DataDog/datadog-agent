@@ -81,8 +81,10 @@ type processor struct {
 	hostUsage             *cyclonedx_v1_4.Bom // Latest runtime usage report of the host, merged into the host scans
 
 	// The first SBOM of a workload waits for its runtime usage when
-	// usageEnrichment is on, for usageGracePeriod at most.
+	// usageEnrichment is on, for usageGracePeriod at most, and while
+	// usageStream tells that usage can come.
 	usageEnrichment      bool
+	usageStream          *sbom.UsageStream    // Stream of usage reports, nil when usage can always come
 	heldImages           map[string]time.Time // Images whose first SBOM waits for usage, with the time it was first held
 	imagesWaited         map[string]struct{}  // Images whose SBOM went out in use, done waiting for usage
 	hostHeld             *sbom.ScanResult     // First host scan result, waiting for usage
@@ -105,6 +107,12 @@ func (p *processor) now() time.Time {
 		return time.Now()
 	}
 	return p.clock()
+}
+
+// usageAvailable reports whether runtime usage can still come at now, as the
+// stream of usage reports tells it.
+func (p *processor) usageAvailable(now time.Time) bool {
+	return p.usageStream == nil || p.usageStream.Available(now, usageGracePeriod)
 }
 
 func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workloadfilter.Component, sender sender.Sender, tagger tagger.Component, cfg config.Component, maxNbItem int, maxRetentionTime time.Duration, hostHeartbeatValidity time.Duration) (*processor, error) {
@@ -163,6 +171,7 @@ func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workload
 		hostCCRID:             sync.OnceValue(func() string { return fetchHostCCRID(cfg) }),
 		hostHeartbeatValidity: hostHeartbeatValidity,
 		usageEnrichment:       sbom.UsageEnrichmentEnabled(cfg),
+		usageStream:           sbom.Usage(),
 		heldImages:            make(map[string]time.Time),
 		imagesWaited:          make(map[string]struct{}),
 	}, nil
@@ -369,8 +378,8 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 
 // hostWaitsForUsage reports whether the host scan result waits for the runtime
 // usage of the host before it goes out, as the first successful one does until
-// system-probe reports the usage, for usageGracePeriod at most. A newer result
-// replaces the one held and keeps its deadline.
+// system-probe reports the usage, for usageGracePeriod at most and while usage
+// can come. A newer result replaces the one held and keeps its deadline.
 func (p *processor) hostWaitsForUsage(result sbom.ScanResult, now time.Time) bool {
 	if !p.usageEnrichment || result.Error != nil || p.hostUsage != nil || !p.hostLastFullSBOM.IsZero() {
 		return false
@@ -378,7 +387,8 @@ func (p *processor) hostWaitsForUsage(result sbom.ScanResult, now time.Time) boo
 
 	if p.hostHeld == nil {
 		p.hostHeldSince = now
-	} else if now.Sub(p.hostHeldSince) >= usageGracePeriod {
+	}
+	if now.Sub(p.hostHeldSince) >= usageGracePeriod || !p.usageAvailable(now) {
 		p.hostHeld = nil
 		return false
 	}
@@ -469,18 +479,25 @@ func (p *processor) processHostUsage(usage *cyclonedx_v1_4.Bom) {
 }
 
 // releaseExpiredHolds sends the SBOMs that waited usageGracePeriod for their
-// runtime usage as they are.
+// runtime usage as they are, and all the SBOMs waiting once usage is
+// unavailable.
 func (p *processor) releaseExpiredHolds(now time.Time) {
-	if p.hostHeld != nil && now.Sub(p.hostHeldSince) >= usageGracePeriod {
+	available := p.usageAvailable(now)
+	reason := "after waiting " + usageGracePeriod.String() + " for it"
+	if !available {
+		reason = "as system-probe serves none"
+	}
+
+	if p.hostHeld != nil && (!available || now.Sub(p.hostHeldSince) >= usageGracePeriod) {
 		held := p.hostHeld
 		p.hostHeld = nil
-		log.Infof("The host SBOM goes out without runtime usage after waiting %s for it", usageGracePeriod)
+		log.Infof("The host SBOM goes out without runtime usage %s", reason)
 		p.sendHostScanResult(*held)
 	}
 
 	var expired []string
 	for imgID, since := range p.heldImages {
-		if now.Sub(since) >= usageGracePeriod {
+		if !available || now.Sub(since) >= usageGracePeriod {
 			expired = append(expired, imgID)
 		}
 	}
@@ -501,7 +518,7 @@ func (p *processor) releaseExpiredHolds(now time.Time) {
 		if imageInUse(img, running) {
 			p.imagesWaited[imgID] = struct{}{}
 		}
-		log.Infof("The SBOM of image %s goes out without runtime usage after waiting %s for it", imgID, usageGracePeriod)
+		log.Infof("The SBOM of image %s goes out without runtime usage %s", imgID, reason)
 		p.processImageSBOM(img, running)
 	}
 }
@@ -732,11 +749,12 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata, r
 // imageWaitsForUsage reports whether the SBOM of the image imgID waits for the
 // runtime usage of the image before it goes out, as the first successful SBOM
 // of an image in use does until its usage merges, for usageGracePeriod at most,
-// counted from the first time it waited. Usage covers the OS packages alone, so
-// the SBOM waits when it lists one. The remote SBOM collector merges usage into
-// full SBOMs only, so an SBOM of the OS packages alone goes out at once.
+// counted from the first time it waited, and while usage can come. Usage covers
+// the OS packages alone, so the SBOM waits when it lists one. The remote SBOM
+// collector merges usage into full SBOMs only, so an SBOM of the OS packages
+// alone goes out at once.
 func (p *processor) imageWaitsForUsage(imgID string, s *workloadmeta.SBOM, inUse bool, now time.Time) bool {
-	if !p.usageEnrichment || !inUse || s.Status != workloadmeta.Success || s.OSFallback {
+	if !p.usageEnrichment || !inUse || s.Status != workloadmeta.Success || s.OSFallback || !p.usageAvailable(now) {
 		return false
 	}
 

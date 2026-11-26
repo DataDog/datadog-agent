@@ -109,12 +109,19 @@ def _compress_no_bazel(ctx, output_dir=COMPRESS_DIR):
 
 
 # Where the JSON schemas are published: the DataDog/schema repository, which
-# holds one folder per Agent version (agent/v7.85.1/datadog.schema.json) and a
-# copy of the latest release at the root of agent/ (agent/datadog.schema.json).
+# holds one folder per Agent version (datadog-agent/v7.85.1/datadog.schema.json)
+# and a copy of the latest release at the root of datadog-agent/
+# (datadog-agent/datadog.schema.json).
 # The `$id` of each published file must be its own URL, so that a pinned version
 # and the latest copy never claim the same identifier.
-_JSON_SCHEMA_ID_PREFIX = "https://raw.githubusercontent.com/DataDog/schema/main/agent/"
-_AGENT_VERSION_RE = re.compile(r"^v?(\d+\.\d+\.\d+)$")
+_JSON_SCHEMA_ID_PREFIX = "https://raw.githubusercontent.com/DataDog/schema/main/datadog-agent/"
+# Characters a version can't contain: it becomes a folder of the published URL
+# (`.../v<version>/datadog.schema.json`), and these would split it into several
+# path segments (`/`, and `\` for tools treating it as `/`), start a query
+# string or a fragment (`?`, `#`), or need escaping (`%`, whitespace). The
+# version itself is used as given: whatever `dda inv agent.version` prints
+# (7.87.1, 7.87.1-rc.2, 7.87.1.git.1.6db8b91, ...) is accepted.
+_URL_UNSAFE_VERSION_CHARS = re.compile(r"[/\\?#%\s]")
 
 
 def json_schema_file_name(config_name):
@@ -129,17 +136,20 @@ def json_schema_file_name(config_name):
 def json_schema_id(config_name, version=None):
     """Return the ``$id`` of the published JSON schema for ``config_name``.
 
-    With an Agent ``version`` (``7.85.1`` or ``v7.85.1``), the URL of that version's
-    file; without one, the URL of the latest copy. Only stable releases are
-    published, so pre-release versions (``7.85.0-rc.1``) are rejected.
+    With an Agent ``version`` (e.g. ``7.87.1``, or ``v7.87.1``: a leading ``v`` is
+    dropped since the folder adds its own), the URL of that version's file;
+    without one, the URL of the latest copy.
     """
     file_name = json_schema_file_name(config_name)
     if version is None:
         return f"{_JSON_SCHEMA_ID_PREFIX}{file_name}"
-    match = _AGENT_VERSION_RE.match(version)
-    if not match:
-        raise ValueError(f"invalid Agent version {version!r}: expected a stable release such as '7.85.1'")
-    return f"{_JSON_SCHEMA_ID_PREFIX}v{match.group(1)}/{file_name}"
+    folder = version.removeprefix("v")
+    if not folder or _URL_UNSAFE_VERSION_CHARS.search(folder):
+        raise ValueError(
+            f"invalid Agent version {version!r}: it becomes a folder of the published URL, so it can't be "
+            "empty or contain '/', '\\', '?', '#', '%' or whitespace"
+        )
+    return f"{_JSON_SCHEMA_ID_PREFIX}v{folder}/{file_name}"
 
 
 @task
@@ -153,7 +163,12 @@ def produce_embedded(ctx, input_path, output_path):
     produce_byproduct("embedded", input_path, output_path)
 
 
-@task(help={"version": "Agent version the schemas are published for (e.g. 7.85.1). Omit for the latest copy."})
+@task(
+    help={
+        "output_dir": "Directory to write the schemas into.",
+        "version": "Agent version the schemas are published for (e.g. 7.87.1 or 7.87.1-rc.2). Omit for the latest copy.",
+    }
+)
 def produce_jsonschema(ctx, output_dir, version=None):
     """
     Produce the pure JSON Schema byproducts for every Agent config file.
