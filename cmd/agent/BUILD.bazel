@@ -189,6 +189,7 @@ dd_agent_go_binary(
 # Instead, we just expose a different target.
 dd_agent_go_binary(
     name = "agent-heroku",
+    basename = "agent",
     embed = [":agent_lib"],
     exact_gotags = sorted(COMMON_TAGS | AGENT_HEROKU_TAGS),
     visibility = ["//visibility:public"],
