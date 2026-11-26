@@ -14,6 +14,7 @@ import (
 	kubecomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/cilium"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/kaischeduler"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/kueue"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/mokka"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
@@ -49,6 +50,9 @@ type RunParams struct {
 
 	// kaiSchedulerOptions, when non-nil, deploys the KAI Scheduler. See WithKAIScheduler.
 	kaiSchedulerOptions []kaischeduler.Option
+
+	// kueueOptions, when non-nil, deploys Kueue. See WithKueue.
+	kueueOptions []kueue.Option
 
 	// standaloneDdotFunc, when non-nil, deploys a standalone DDOT (Datadog
 	// Distribution of OpenTelemetry) agent DaemonSet using raw Kubernetes
@@ -254,6 +258,19 @@ func WithMokka(opts ...mokka.Option) RunOption {
 func WithKAIScheduler(opts ...kaischeduler.Option) RunOption {
 	return func(p *RunParams) error {
 		p.kaiSchedulerOptions = append([]kaischeduler.Option{}, opts...)
+		return nil
+	}
+}
+
+// WithKueue installs Kueue (and its queues, see kueue.WithLocalQueue) before the Agent, and enables
+// the Kueue integration of the Helm-deployed Agent (see kueue.AgentHelmValues). Combine it with
+// WithMokka to admit GPU workloads.
+//
+// The chart and images are pulled from registry.k8s.io, so the VM needs internet access (WithInternetAccess).
+// Use kueue.WithChartRepository (or E2E_GPU_CHART_MIRROR in the GPU suites) to pull the chart from a mirror.
+func WithKueue(opts ...kueue.Option) RunOption {
+	return func(p *RunParams) error {
+		p.kueueOptions = append([]kueue.Option{}, opts...)
 		return nil
 	}
 }
