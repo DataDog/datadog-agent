@@ -41,6 +41,7 @@ type Period struct {
 type NoFaultResult struct {
 	Mode                       string   `json:"mode"`
 	ScoringVersion             string   `json:"scoring_version"`
+	TimeMode                   string   `json:"time_mode"`
 	FalsePositives             int      `json:"false_positives"`
 	EvaluationDurationSeconds  float64  `json:"evaluation_duration_seconds"`
 	EvaluationWindow           *Window  `json:"evaluation_window"`
@@ -85,17 +86,21 @@ func HealthyWindow(episode HealthyEpisode) (float64, float64, error) {
 }
 
 // ScoreNoFaults counts unique High episode starts in the half-open healthy window.
-func ScoreNoFaults(periods []Period, episode HealthyEpisode) (*NoFaultResult, error) {
+func ScoreNoFaults(periods []Period, episode HealthyEpisode, timeMode string) (*NoFaultResult, error) {
 	start, end, err := HealthyWindow(episode)
 	if err != nil {
 		return nil, err
 	}
 	result := &NoFaultResult{
 		Mode:                      "no_faults",
-		ScoringVersion:            "high-severity-nofault-v1",
+		ScoringVersion:            "high-severity-nofault-v2",
+		TimeMode:                  timeMode,
 		EvaluationDurationSeconds: end - start,
 		EvaluationWindow:          episode.EvaluationWindow,
 		Episodes:                  []Period{},
+	}
+	if result.TimeMode == "" {
+		result.TimeMode = "historical"
 	}
 	seen := make(map[struct {
 		pattern string

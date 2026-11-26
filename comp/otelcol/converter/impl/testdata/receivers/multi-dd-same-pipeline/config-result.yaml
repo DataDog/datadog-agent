@@ -13,7 +13,7 @@ extensions:
     zpages/user-defined:
         endpoint: localhost:55679
 processors:
-    cumulativetodelta/dd-autoconfigured: null
+    cumulative_to_delta/dd-autoconfigured: null
     infraattributes/user-defined: null
 receivers:
     otlp: null
@@ -51,7 +51,7 @@ service:
                 - datadog/2
             processors:
                 - infraattributes/user-defined
-                - cumulativetodelta/dd-autoconfigured
+                - cumulative_to_delta/dd-autoconfigured
             receivers:
                 - nop
                 - prometheus/user-defined

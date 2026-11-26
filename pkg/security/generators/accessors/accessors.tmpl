@@ -371,7 +371,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 					return err
 				}
 			{{end}}
-			{{- if eq $Field.BasicType "string"}}
+			{{- if $Field.IsDict}}
+				rv, ok := value.({{$Field.OrigType}})
+				if !ok {
+					return &eval.ErrValueTypeMismatch{Field: "{{$Name}}"}
+				}
+				{{$FieldName}} = rv
+				return nil
+			{{- else if eq $Field.BasicType "string"}}
 				{{- if $Field.IsArray}}
 					return ev.setStringArrayFieldValue("{{$Name}}", &{{$FieldName}}, value)
 				{{else}}

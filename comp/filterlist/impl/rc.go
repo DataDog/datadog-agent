@@ -148,13 +148,13 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 	tagEntries := fl.buildTagFilterListConfig(tagFilterListUpdates)
 
 	if len(tagEntries) > 0 {
-		// Convert map to slice for config storage
-		// update the runtime config to be consistent
-		// in `agent config` calls.
+		// Update the runtime config to be consistent in `agent config`
+		// calls. Entries are reported as received; normalization only
+		// happens when compiling the matcher.
 		fl.config.Set("metric_tag_filterlist", tagEntries, model.SourceRC)
 
 		// apply this new blocklist to all the running workers
-		fl.setTagFilterList(loadTagFilterList(tagEntries, fl.log))
+		fl.setTagFilterList(compileTagFilterList(tagEntries, fl.log))
 	} else {
 		fl.config.UnsetForSource("metric_tag_filterlist", model.SourceRC)
 		fl.restoreTagFilterListFromConfig()
@@ -192,36 +192,22 @@ func (*FilterList) buildMetricPrefixListConfig(metricPrefixListUpdates []filtere
 	return prefixEntries
 }
 
-// buildTagFilterListConfig merges the tag filterlist entries received from RC into one entry per metric name.
-//
-// There is nothing stopping the tags for a given metric name being configured multiple times. Conflicts are handled
-// by the following rules:
-// - If the action is the same for both metrics, the list of tags is merged.
-// - If the action is different, always take the exclude list.
-func (fl *FilterList) buildTagFilterListConfig(tagFilterListUpdates []filteredTags) []MetricTagListEntry {
-	tagEntries := make(map[string]MetricTagListEntry)
-
+// buildTagFilterListConfig returns the metric_tag_filterlist entries received
+// from RC, one per entry and as received, in the shape of the local
+// configuration. Entries for the same metric are merged when the matcher is
+// compiled, by compileTagFilterList, exactly as for the local configuration.
+func (*FilterList) buildTagFilterListConfig(tagFilterListUpdates []filteredTags) []MetricTagListEntry {
+	var entries []MetricTagListEntry
 	for _, update := range tagFilterListUpdates {
 		for _, metric := range update.ByName.Metrics {
-			if currentEntry, ok := tagEntries[metric.Name]; ok {
-				// Metric has already been defined, merge it.
-				tagEntries[metric.Name] = fl.mergeMetricTagListEntry(metric, currentEntry)
-			} else {
-				tagEntries[metric.Name] = MetricTagListEntry{
-					MetricName: metric.Name,
-					Action:     tagEntryAction(metric),
-					Tags:       metric.Tags,
-				}
-			}
+			entries = append(entries, MetricTagListEntry{
+				MetricName: metric.Name,
+				Action:     tagEntryAction(metric),
+				Tags:       metric.Tags,
+			})
 		}
 	}
-
-	tagEntriesSlice := make([]MetricTagListEntry, 0, len(tagEntries))
-	for _, entry := range tagEntries {
-		tagEntriesSlice = append(tagEntriesSlice, entry)
-	}
-
-	return tagEntriesSlice
+	return entries
 }
 
 func tagEntryAction(metric tagEntry) string {
@@ -229,27 +215,4 @@ func tagEntryAction(metric tagEntry) string {
 		return "exclude"
 	}
 	return "include"
-}
-
-// mergeMetricTagListEntry merges the given metric entry with the current entry.
-func (fl *FilterList) mergeMetricTagListEntry(metric tagEntry, currentEntry MetricTagListEntry) MetricTagListEntry {
-	if currentEntry.Action == tagEntryAction(metric) {
-		// Both metrics define the same action so we can just merge the list.
-		currentEntry.Tags = append(currentEntry.Tags, metric.Tags...)
-		return currentEntry
-	}
-
-	// We always prefer the exclude tag.
-	fl.log.Debugf("tag filterlist configures conflicting tags for metric %v", metric.Name)
-	if currentEntry.Action == "include" {
-		// Overwrite the existing include config with this exclude one.
-		return MetricTagListEntry{
-			MetricName: metric.Name,
-			Action:     "exclude",
-			Tags:       metric.Tags,
-		}
-	}
-
-	// Ignore this include tag configuration.
-	return currentEntry
 }

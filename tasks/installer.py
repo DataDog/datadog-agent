@@ -136,11 +136,14 @@ def build_linux_script(ctx, flavor, version, bin_amd64, bin_arm64, output, packa
     install_script = install_script.replace('INSTALLER_ARM64_SHA256', bin_arm64_sha256)
     install_script = install_script.replace('PACKAGE_NAME', package)
 
-    if flavor in ("emr", "databricks", "dataproc"):
+    if flavor in ("emr", "databricks", "databricks-gpu", "dataproc"):
         install_script = install_script.replace(
             'DATADOG_AGENT_OPTIONAL_REMOVE_CMD',
             """
-if command -v dpkg >/dev/null && dpkg -s datadog-agent >/dev/null 2>&1; then
+# Keep the Agent already on the host when DD_NO_AGENT_INSTALL=true, since setup won't install one
+if [ "${DD_NO_AGENT_INSTALL:-}" = "true" ]; then
+  :
+elif command -v dpkg >/dev/null && dpkg -s datadog-agent >/dev/null 2>&1; then
   "${sudo_cmd[@]+"${sudo_cmd[@]}"}" datadog-agent purge >/dev/null 2>&1 || true
   "${sudo_cmd[@]+"${sudo_cmd[@]}"}" dpkg --purge datadog-agent >/dev/null 2>&1 || true
   DATADOG_AGENT_OPTIONAL_REMOVE_DEB_CMD

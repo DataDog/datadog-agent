@@ -815,6 +815,15 @@ properties:
         visibility: public
         description: Set to true to enable reverse DNS enrichment of private source
           and destination IP addresses in NetFlow records.
+      template_cache_max_size:
+        node_type: setting
+        type: integer
+        default: 10000
+        visibility: public
+        description: The maximum number of NetFlow v9 and IPFIX templates retained
+          per listener. When the limit is reached, the least recently used template
+          is evicted. The limit applies to each listener as a whole, not to each
+          exporter. Values less than or equal to 0 use the default.
       aggregator_buffer_size:
         node_type: setting
         type: integer
@@ -838,6 +847,46 @@ properties:
         node_type: setting
         type: integer
         default: 300
+      entropy:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: |-
+              Computes per-interface traffic entropy and sends it as `datadog.netflow.entropy.*` metrics.
+          interval:
+            node_type: setting
+            type: integer
+            default: 300
+            comment: |-
+              Length in seconds of each entropy window. Separate from aggregator_flush_interval.
+          min_records:
+            node_type: setting
+            type: integer
+            default: 10
+          min_bytes:
+            node_type: setting
+            type: integer
+            default: 0
+          max_exporters:
+            node_type: setting
+            type: integer
+            default: 1000
+          max_interfaces_per_exporter:
+            node_type: setting
+            type: integer
+            default: 2000
+          max_peers_per_interface:
+            node_type: setting
+            type: integer
+            default: 50000
+          max_total_entries:
+            node_type: setting
+            type: integer
+            default: 2000000
       forwarder:
         node_type: section
         type: object

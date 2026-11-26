@@ -451,7 +451,10 @@ func (p *parser) parsePrimary() ast.Node {
 // parseName parses a name: an identifier, the token of which is already
 // consumed, and the chain of the selectors and the subscripts over it.
 //
-//	Name → Ident { "." Ident | "[" Primary "]" }
+//	Name → Ident { "." Ident | "[" Operation(0) "]" }
+//
+// A subscript isn't a comparison or a logical operation: the recovery of the
+// logical levels only stops at a `)`, it would skip the `]`.
 func (p *parser) parseName(tok Token) ast.Node {
 	meta := ast.At(tok.Pos)
 	var node ast.Node = &ast.Ident{Meta: meta, Name: tok.Text}
@@ -468,7 +471,7 @@ func (p *parser) parseName(tok Token) ast.Node {
 		case LBracket:
 			open := p.tok
 			p.next()
-			index := p.parsePrimary()
+			index := p.parseOperation(0)
 			if index == nil {
 				// already reported
 				return nil
@@ -689,7 +692,7 @@ func (p *parser) parseArray() ast.Node {
 			tok := p.tok
 			p.next()
 			name := p.parseName(tok)
-			if name == nil {
+			if name == nil || len(p.errs) > 0 {
 				// already reported
 				p.skipArray()
 				return nil

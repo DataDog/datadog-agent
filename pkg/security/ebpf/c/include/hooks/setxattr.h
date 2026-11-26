@@ -17,6 +17,7 @@ static __always_inline int trace__sys_setxattr(void *ctx, const char *xattr_name
         .type = EVENT_SETXATTR,
         .policy = policy,
         .async = async,
+        .state = APPROVED,
         .xattr = {
             .name = xattr_name,
         }
@@ -47,6 +48,7 @@ static __always_inline int trace__sys_removexattr(void *ctx, const char *xattr_n
     struct syscall_cache_t syscall = {
         .type = EVENT_REMOVEXATTR,
         .policy = policy,
+        .state = APPROVED,
         .xattr = {
             .name = xattr_name,
         }
@@ -115,17 +117,11 @@ TAIL_CALL_FNC(dr_setxattr_callback, ctx_t *ctx) {
         return 0;
     }
 
-    if (syscall->resolver.ret == DENTRY_INVALID) {
-        goto pop_and_exit;
+    apply_dentry_resolution_outcome(syscall, syscall->type);
+    if (syscall->state == DISCARDED || syscall->resolver.ret < 0) {
+        pop_syscall(syscall->type);
     }
 
-    apply_dentry_resolution_outcome(syscall, EVENT_SETXATTR);
-    if (syscall->state != DISCARDED) {
-        return 0;
-    }
-
-pop_and_exit:
-    pop_syscall(EVENT_SETXATTR);
     return 0;
 }
 
@@ -152,6 +148,10 @@ static __always_inline int sys_xattr_ret_impl(void *ctx, int retval, u64 event_t
     }
 
     if (IS_UNHANDLED_ERROR(retval)) {
+        goto pop_and_exit;
+    }
+
+    if (syscall->state == DISCARDED || syscall->resolver.ret < 0 || (syscall->xattr.dentry && syscall->resolver.ret == 0)) {
         goto pop_and_exit;
     }
 

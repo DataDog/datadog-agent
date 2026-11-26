@@ -27,6 +27,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	pkgremoteflags "github.com/DataDog/datadog-agent/pkg/remoteflags"
@@ -89,6 +90,7 @@ type atel struct {
 const (
 	emitterTagName                               = "emitter"
 	defaultEmitter                               = "agent"
+	clcRunnerEmitter                             = "cluster-checks-runner"
 	defaultErrortrackingFlushIntervalSeconds     = 60
 	defaultErrortrackingBufferSize               = 2048
 	defaultErrortrackingStartupJitterSeconds     = 0
@@ -289,11 +291,7 @@ func NewComponent(deps Requires) Provides {
 		nil,
 		nil,
 	)
-	localEmitter := strings.ReplaceAll(flavor.GetFlavor(), "_", "-")
-	if localEmitter == "" {
-		localEmitter = defaultEmitter
-	}
-	a.localEmitter = localEmitter
+	a.localEmitter = localEmitterName(deps.Config)
 
 	a.flag = newRemoteFlagHandler(flagTroubleshooting, a.isHealthy)
 
@@ -314,6 +312,17 @@ func NewComponent(deps Requires) Provides {
 		Endpoint:   api.NewAgentEndpointProvider(a.writePayload, "/metadata/agent-telemetry", "GET"),
 		Subscriber: a.flag,
 	}
+}
+
+func localEmitterName(cfg config.Component) string {
+	agentFlavor := flavor.GetFlavor()
+	if agentFlavor == flavor.DefaultAgent && helper.IsCLCRunner(cfg) {
+		return clcRunnerEmitter
+	}
+	if agentFlavor == "" {
+		return defaultEmitter
+	}
+	return strings.ReplaceAll(agentFlavor, "_", "-")
 }
 
 func (a *atel) effectiveEmitter(labels []*dto.LabelPair) string {

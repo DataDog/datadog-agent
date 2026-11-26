@@ -8,6 +8,7 @@
 package modules
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -108,4 +109,75 @@ func TestGetAgentPIDs(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []uint32{1, 3}, pids)
+}
+
+func TestAgentsNextToSystemProbe(t *testing.T) {
+	cgroups := map[uint32]string{
+		10: "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podA.slice/cri-containerd-agent.scope",
+		11: "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podB.slice/cri-containerd-other-agent.scope",
+		12: "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podA.slice/cri-containerd-trace.scope",
+	}
+	cgroupOf := func(pid uint32) (string, error) {
+		if cgroup, ok := cgroups[pid]; ok {
+			return cgroup, nil
+		}
+		return "", errors.New("gone")
+	}
+	sysprobe := "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podA.slice/cri-containerd-sysprobe.scope"
+	pids := func(agents []agentCgroup) []uint32 {
+		var result []uint32
+		for _, agent := range agents {
+			result = append(result, agent.pid)
+		}
+		return result
+	}
+
+	// Only the agents of the system-probe pod; an agent whose cgroup cannot be read (13) is skipped, with a warning
+	// under its own key, so that it does not hide a later failure to configure that agent
+	t.Cleanup(func() {
+		cgroupPermissionWarnings.Delete("agent-cgroup-13")
+		cgroupPermissionWarnings.Delete("agent-cgroup-10")
+	})
+	agents := agentsNextToSystemProbe(sysprobe, []uint32{10, 11, 12, 13}, cgroupOf)
+	_, warned := cgroupPermissionWarnings.Load("agent-cgroup-13")
+	require.True(t, warned)
+	_, warned = cgroupPermissionWarnings.Load("agent-13")
+	require.False(t, warned)
+	require.Equal(t, []uint32{10, 12}, pids(agents))
+	require.Equal(t, cgroups[10], agents[0].cgroup)
+	// Host services
+	require.Equal(t, []uint32{20}, pids(agentsNextToSystemProbe("/system.slice/datadog-agent-sysprobe.service", []uint32{20},
+		func(uint32) (string, error) { return "/system.slice/datadog-agent.service", nil })))
+	// The agent of the system-probe pod is restarting: the other agents are not touched
+	require.Empty(t, agentsNextToSystemProbe(sysprobe, []uint32{11}, cgroupOf))
+
+	// A transient lookup failure is forgotten once the cgroup can be read again
+	warnCgroupPermissionsOnce("agent-cgroup-10", "failed")
+	agentsNextToSystemProbe(sysprobe, []uint32{10}, cgroupOf)
+	_, warned = cgroupPermissionWarnings.Load("agent-cgroup-10")
+	require.False(t, warned)
+}
+
+func TestForgetDepartedAgentWarnings(t *testing.T) {
+	t.Cleanup(func() {
+		cgroupPermissionWarnings.Range(func(key, _ any) bool { cgroupPermissionWarnings.Delete(key); return true })
+	})
+	warnCgroupPermissionsOnce("agent-1", "failed")
+	warnCgroupPermissionsOnce("agent-cgroup-1", "failed")
+	warnCgroupPermissionsOnce("agent-2", "failed")
+	warnCgroupPermissionsOnce("agent-cgroup-2", "failed")
+	warnCgroupPermissionsOnce("system-probe", "failed")
+
+	forgetDepartedAgentWarnings([]uint32{2, 3})
+
+	for _, key := range []string{"agent-2", "agent-cgroup-2"} {
+		_, kept := cgroupPermissionWarnings.Load(key)
+		require.True(t, kept, key)
+	}
+	for _, key := range []string{"agent-1", "agent-cgroup-1"} {
+		_, kept := cgroupPermissionWarnings.Load(key)
+		require.False(t, kept, "PID 1 is gone: %s", key)
+	}
+	_, kept := cgroupPermissionWarnings.Load("system-probe")
+	require.True(t, kept)
 }
