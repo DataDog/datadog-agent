@@ -1,6 +1,6 @@
 ---
 name: e2e-audit
-description: Judge whether Agent behavior belongs in a new-e2e, integration, or unit test
+description: Judge whether proposed or existing Agent behavior belongs in a new-e2e, integration, or unit test. Use when asked "does this need E2E?", "can this E2E suite move to an integration test?", or to review the test level of a suite. Not for writing tests (write-test, write-e2e).
 allowed-tools: Read, Glob, Grep, Bash
 argument-hint: "<behavior description> | <path-to-test-file-or-dir> [more paths...]"
 model: sonnet
@@ -10,6 +10,8 @@ Decide whether assertions about proposed or existing Agent behavior belong in
 a full `new-e2e` test, an integration test, or a unit test. Produce only
 verdicts, or the check that owns a question, with their rationale. Never edit,
 move, or delete tests.
+
+**Owning team:** `@DataDog/agent-devx`
 
 ## Criteria
 
@@ -37,7 +39,9 @@ it.
 4. Classify each assertion. If E2E is justified, name the real boundary that
    would be lost in a lower-level test.
 5. Give an overall verdict based on the assertion requiring the broadest real
-   boundary, counting binary-test candidates as E2E justified.
+   boundary, counting binary-test candidates as E2E justified. Assertions owned
+   by another check do not count; when every assertion is, give no overall
+   verdict and name those checks.
 
 If the description does not establish the relevant assertions or boundaries,
 ask for the missing information or return an explicitly uncertain verdict.
@@ -61,7 +65,9 @@ ask for the missing information or return an explicitly uncertain verdict.
    - If any assertion is E2E justified, binary-test candidates included, the
      suite remains E2E; name the assertion and boundary that determine this
      verdict.
-   - If none is, recommend an integration or unit test as appropriate.
+   - If none is, recommend an integration or unit test from the classified
+     assertions. When every question belongs to another check, give no suite
+     verdict and name those checks.
 6. Recommend duplicating suitable assertions at a lower level when that would
    provide faster PR feedback, more deterministic failures, or easier
    debugging, even if the suite initially remains E2E.
@@ -89,7 +95,8 @@ Use one of these verdicts:
 or no verdict, naming the check that owns the question.
 
 For proposed behavior, classify each expected assertion and return an overall
-verdict with a short reason. For existing tests, classify each material
+verdict with a short reason, or the owning checks when every question belongs
+to one. For existing tests, classify each material
 assertion and return one verdict per concrete suite, naming the assertion and
 boundary that determine it. State what the E2E test uniquely validates after
 accounting for lower-level coverage, or say that no material E2E-only boundary
@@ -136,5 +143,10 @@ applies the default when the field is absent.
 **Output:** **Should be a unit test** — This is isolated parsing and validation
 logic that does not require a real component graph, process, or external
 dependency.
+
+**Input:** Verify that the installed Agent package stays under its size limit.
+
+**Output:** No verdict — package size is owned by artifact verification (the
+static quality gates), not by a test category.
 
 Do not propose implementation changes unless the user asks for them.

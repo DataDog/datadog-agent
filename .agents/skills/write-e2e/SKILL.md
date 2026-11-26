@@ -44,7 +44,7 @@ Resolve the owning team and its `<area>` directory from `.github/CODEOWNERS`, th
 
 ## Step 1 — Gate the scope
 
-Invoke `e2e-audit` with the behavior. Continue to Step 2 only if the verdict is that E2E is justified; on any other verdict, report it, name the package where the test belongs instead, and stop. When the audit gives no verdict and names the check that owns the question, such as a size or static check, report that check and stop. Gating before Step 2 is deliberate — reading implementations for the literals a test would assert on is wasted if the behavior belongs in a unit test.
+Invoke `e2e-audit` with the behavior. When it is uncertain about an assertion, ask for the missing assertion or boundary it names and audit again. Then continue to Step 2 only with the assertions it classifies as E2E justified, binary-test candidates included. List the assertions it places lower under `Scope` as dropped, with their verdict and the package where their test belongs instead, and those it assigns to another check, such as a size or static check, with that check. When no assertion is E2E justified, report that `Scope` line and stop. Gating before Step 2 is deliberate — reading implementations for the literals a test would assert on is wasted if the behavior belongs in a unit test.
 
 Some areas own their own template and lifecycle rules through a directory-scoped skill: `ls test/new-e2e/tests/<area>/.claude/skills/*/SKILL.md`. If one exists, invoke it by its `name` and stop; directory-scoped skills are only offered when the working directory matches, so read the file directly when it is not in the skill list. Sibling skills named elsewhere in this file live under `.agents/skills/<name>/SKILL.md`.
 
@@ -238,7 +238,8 @@ Filled in, for a diff that added a `disk.free` metric:
 
 ```
 Scope        Covers disk.free reaching the intake. Dropped the config-parsing
-             change — e2e-audit called it a unit test. Verdict: E2E justified.
+             change — e2e-audit called it a unit test, in
+             pkg/collector/corechecks/system/disk/diskv2. Verdict: E2E justified.
 Files        test/new-e2e/tests/agent-runtimes/disk_free_test.go (new)
 Environment  environments.Host, AWS, Ubuntu2204 — host metric, no container
              or cluster behavior involved.
