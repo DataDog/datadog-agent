@@ -16,6 +16,9 @@ clusterAgent:
   # Use envDict, not env: Helm replaces clusterAgent.env wholesale across values files,
   # which drops fakeintake RC settings from the E2E framework (DD_REMOTE_CONFIGURATION_RC_DD_URL, …).
   envDict:
+    # An unavailable webhook must block admission: an uninjected pod could
+    # otherwise satisfy the negative policy checks without being processed.
+    DD_ADMISSION_CONTROLLER_FAILURE_POLICY: "Fail"
     # Disable gradual rollout so injected images keep their human-readable tag
     # instead of being resolved to a digest.
     DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_GRADUAL_ROLLOUT_ENABLED: "false"

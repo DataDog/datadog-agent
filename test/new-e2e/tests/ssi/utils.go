@@ -24,8 +24,8 @@ import (
 
 const DefaultAppName = "test-app"
 
-// apmInjectionAnnotationPrefix is the prefix the APM admission controller uses for the observability
-// annotations it adds to every pod it processes (whether the outcome is injected, skipped or error).
+// apmInjectionAnnotationPrefix is the prefix the APM admission controller uses for observability
+// annotations when an injection plan is selected (including blocked, skipped and error outcomes).
 const apmInjectionAnnotationPrefix = "internal.apm.datadoghq.com/"
 
 // datadogMutatingWebhookName is the default name of the MutatingWebhookConfiguration created by the
@@ -139,8 +139,8 @@ func WaitForMutatedPodInNamespace(t *testing.T, client kubeClient.Interface, nam
 	return pod
 }
 
-// hasAPMInjectionAnnotation reports whether the pod carries an APM admission controller annotation,
-// which is set on every pod the webhook processes regardless of the injection outcome.
+// hasAPMInjectionAnnotation reports whether the pod carries an APM admission controller annotation.
+// A pod outside all injection targets can be processed without receiving these annotations.
 func hasAPMInjectionAnnotation(pod *corev1.Pod) bool {
 	for key := range pod.Annotations {
 		if strings.HasPrefix(key, apmInjectionAnnotationPrefix) {
@@ -195,8 +195,9 @@ func hasInstallType(container, want string) func(*corev1.Pod) bool {
 	}
 }
 
-// noInjection is the deny-policy signal: MutatePod returns nil and writes no
-// APM annotations, so "webhook processed" cannot be used as a readiness check.
+// noInjection checks for an uninjected pod. Untargeted pods legitimately have no
+// APM annotations, so callers must separately rule out fail-open admission, as
+// the remote-config test fixture does with FailurePolicy=Fail.
 func noInjection(container string) func(*corev1.Pod) bool {
 	return func(pod *corev1.Pod) bool {
 		_, hasPreload := containerEnv(pod, container, "LD_PRELOAD")
