@@ -9,10 +9,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 
 	"github.com/DataDog/go-tuf/client"
-	"github.com/DataDog/go-tuf/data"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -80,79 +78,6 @@ func (v *verifiedFreshJoin) snapshotOrgUUID() (string, error) {
 	return *custom.OrgUUID, nil
 }
 
-// rootRoleKeyIDs returns the key IDs of the root role of a TUF root file:
-// the set of keys trusted to sign the next root version, so the identity of
-// the chain a root belongs to.
-func rootRoleKeyIDs(rootJSON json.RawMessage) (map[string]struct{}, error) {
-	var signed data.Signed
-	if err := json.Unmarshal(rootJSON, &signed); err != nil {
-		return nil, fmt.Errorf("could not parse the root file: %w", err)
-	}
-	var root data.Root
-	if err := json.Unmarshal(signed.Signed, &root); err != nil {
-		return nil, fmt.Errorf("could not parse the root file: %w", err)
-	}
-	role, ok := root.Roles["root"]
-	if !ok || len(role.KeyIDs) == 0 {
-		return nil, errors.New("the root file does not declare any root role key")
-	}
-	keyIDs := make(map[string]struct{}, len(role.KeyIDs))
-	for _, keyID := range role.KeyIDs {
-		keyIDs[keyID] = struct{}{}
-	}
-	return keyIDs, nil
-}
-
-// trustedChainChanged reports whether the root chains of a verified
-// fresh-join payload differ from the ones currently latched, for both the
-// config and the director repositories. Each DC signs with its own keys, so
-// a genuine DC switch always changes both key sets. A payload signed by the
-// same keys as the latched state is a replay of the current chain (for
-// example a rollback attempt) and must not be accepted through the recovery
-// path: see TryRecoverFromEmbeddedRoot.
-func (c *CoreAgentClient) trustedChainChanged(verified *verifiedFreshJoin) (bool, error) {
-	latchedConfigMetas, err := c.configLocalStore.GetMeta()
-	if err != nil {
-		return false, fmt.Errorf("could not read the latched config root: %w", err)
-	}
-	verifiedConfigMetas, err := verified.configMemoryStore.GetMeta()
-	if err != nil {
-		return false, fmt.Errorf("could not read the verified config root: %w", err)
-	}
-	latchedConfigKeyIDs, err := rootRoleKeyIDs(latchedConfigMetas[metaRoot])
-	if err != nil {
-		return false, fmt.Errorf("could not parse the latched config root: %w", err)
-	}
-	verifiedConfigKeyIDs, err := rootRoleKeyIDs(verifiedConfigMetas[metaRoot])
-	if err != nil {
-		return false, fmt.Errorf("could not parse the verified config root: %w", err)
-	}
-
-	latchedDirectorMetas, err := c.directorLocalStore.GetMeta()
-	if err != nil {
-		return false, fmt.Errorf("could not read the latched director root: %w", err)
-	}
-	verifiedDirectorMetas, err := verified.directorMemoryStore.GetMeta()
-	if err != nil {
-		return false, fmt.Errorf("could not read the verified director root: %w", err)
-	}
-	latchedDirectorKeyIDs, err := rootRoleKeyIDs(latchedDirectorMetas[metaRoot])
-	if err != nil {
-		return false, fmt.Errorf("could not parse the latched director root: %w", err)
-	}
-	verifiedDirectorKeyIDs, err := rootRoleKeyIDs(verifiedDirectorMetas[metaRoot])
-	if err != nil {
-		return false, fmt.Errorf("could not parse the verified director root: %w", err)
-	}
-
-	if maps.Equal(latchedConfigKeyIDs, verifiedConfigKeyIDs) {
-		return false, nil
-	}
-	if maps.Equal(latchedDirectorKeyIDs, verifiedDirectorKeyIDs) {
-		return false, nil
-	}
-	return true, nil
-}
 
 // verifyFromEmbeddedRoot verifies a fresh-join response starting from the
 // embedded root, in memory only: no DB state is read (beyond the embedded roots
@@ -327,21 +252,6 @@ func (c *CoreAgentClient) TryRecoverFromEmbeddedRoot(response *pbgo.LatestConfig
 	}
 	if snapshotOrgUUID != storedOrgUUID {
 		return fmt.Errorf("the fresh-join payload belongs to another org: snapshot org UUID %s, stored org UUID %s", snapshotOrgUUID, storedOrgUUID)
-	}
-
-	// The DB wipe resets every version counter, so it must only happen on an
-	// actual DC switch, where the counters legitimately restart (they are
-	// per-DC and independent). A payload signed by the same keys as the latched
-	// state is not a DC switch: it is a replay of the current chain (for
-	// example a rollback attempt), which the version checks of the normal
-	// update path already rejected. Accepting it here would disable TUF
-	// rollback protection, so only wipe when the trusted chain changed.
-	chainChanged, err := c.trustedChainChanged(verified)
-	if err != nil {
-		return err
-	}
-	if !chainChanged {
-		return errors.New("the fresh-join payload is signed by the same keys as the latched state: not a DC switch, keeping the TUF state and its rollback protection")
 	}
 
 	// The payload is proven valid from the embedded root and belongs to the
