@@ -16,6 +16,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
@@ -482,8 +483,6 @@ type AgentConfig struct {
 	PipeBufferSize         int
 	PipeSecurityDescriptor string
 
-	GUIPort string // the port of the Datadog Agent GUI (for control access)
-
 	// Writers
 	SynchronousFlushing     bool // Mode where traces are only submitted when FlushAsync is called, used for Serverless Extension
 	StatsWriter             *WriterConfig
@@ -657,7 +656,10 @@ type AgentConfig struct {
 	IPCTLSServerConfig *tls.Config `json:"-"`
 
 	MRFFailoverAPMDefault bool
-	MRFFailoverAPMRC      *bool // failover_apm set by remoteconfig. `nil` if not configured
+	// MRFFailoverAPMRC is failover_apm set by remote config, `nil` if not configured.
+	// Set it with SetMRFFailoverAPMRC: MRFFailoverAPM reads it on the request and
+	// send paths while remote config updates it.
+	MRFFailoverAPMRC *bool
 
 	// DebugV1Payloads enables debug logging for V1 payloads when they fail to decode
 	DebugV1Payloads bool
@@ -758,7 +760,6 @@ func New() *AgentConfig {
 		},
 		PipeBufferSize:         1_000_000,
 		PipeSecurityDescriptor: "D:AI(A;;GA;;;WD)",
-		GUIPort:                "5002",
 
 		StatsWriter:             new(WriterConfig),
 		TraceWriter:             new(WriterConfig),
@@ -938,12 +939,29 @@ func (c *AgentConfig) AllFeatures() []string {
 	return feats
 }
 
+// mrfFailoverAPMMu protects AgentConfig.MRFFailoverAPMRC. It is a package-level
+// lock, not a field, because AgentConfig is copied by value (for example to
+// publish a scrubbed copy of the config).
+var mrfFailoverAPMMu sync.RWMutex
+
 // MRFFailoverAPM determines whether APM data should be failed over to the secondary (MRF) DC.
 func (c *AgentConfig) MRFFailoverAPM() bool {
-	if c.MRFFailoverAPMRC != nil {
-		return *c.MRFFailoverAPMRC
+	mrfFailoverAPMMu.RLock()
+	rc := c.MRFFailoverAPMRC
+	mrfFailoverAPMMu.RUnlock()
+	if rc != nil {
+		return *rc
 	}
 	return c.MRFFailoverAPMDefault
+}
+
+// SetMRFFailoverAPMRC sets the failover_apm value received through remote config.
+// nil means that remote config does not set it. It is safe to call while
+// MRFFailoverAPM runs on other goroutines.
+func (c *AgentConfig) SetMRFFailoverAPMRC(v *bool) {
+	mrfFailoverAPMMu.Lock()
+	c.MRFFailoverAPMRC = v
+	mrfFailoverAPMMu.Unlock()
 }
 
 // ConfiguredPeerTags returns the set of peer tags that should be used

@@ -7,11 +7,22 @@
 
 package model
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 // CleanOverride registers a function to clean the overrides vars and func from the configuration at the end of a test.
 func CleanOverride(t *testing.T) {
 	t.Cleanup(func() {
 		overrideFuncs = make([]func(Config), 0)
+	})
+}
+
+// RestoreOverrideFuncs restores, at the end of the test, the override functions registered when it's called.
+func RestoreOverrideFuncs(t testing.TB) {
+	saved := slices.Clone(overrideFuncs)
+	t.Cleanup(func() {
+		overrideFuncs = saved
 	})
 }

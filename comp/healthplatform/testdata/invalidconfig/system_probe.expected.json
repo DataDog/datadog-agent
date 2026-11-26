@@ -1,0 +1,268 @@
+{
+  "emitted_at": "<timestamp>",
+  "event_type": "agent-health-issues",
+  "host": {
+    "agent_version": "<agent_version>",
+    "hostname": "<hostname>",
+    "resource_id": "<hostname>",
+    "resource_type": "host"
+  },
+  "issues": {
+    "invalid-system-probe-config:/system_probe_config/dest_excludes/https:~1~1qa:RAW_SYSPROBE_URL_PASSWORD_e2e@example.test": {
+      "category": "configuration",
+      "description": "`/system_probe_config/dest_excludes/https:~1~1qa:********@example.test` expects a YAML list, but received a YAML mapping.",
+      "detected_at": "<timestamp>",
+      "extra": {
+        "config_path": "/etc/datadog-agent/system-probe.yaml",
+        "error_count": 1,
+        "errors": {
+          "/system_probe_config/dest_excludes/https:~1~1qa:********@example.test": [
+            "`/system_probe_config/dest_excludes/https:~1~1qa:********@example.test` expects a YAML list, but received a YAML mapping. Set `/system_probe_config/dest_excludes/https:~1~1qa:********@example.test` to a YAML list."
+          ]
+        },
+        "impact": "The Datadog system-probe may apply defaults for incorrectly-typed fields and may not behave as configured.",
+        "violations": [
+          {
+            "actual_type": "object",
+            "default_status": "unknown",
+            "expected_types": [
+              "array"
+            ],
+            "path": "/system_probe_config/dest_excludes/https:~1~1qa:********@example.test"
+          }
+        ]
+      },
+      "id": "invalid-system-probe-config:/system_probe_config/dest_excludes/https:~1~1qa:RAW_SYSPROBE_URL_PASSWORD_e2e@example.test",
+      "issue_name": "Invalid System-Probe Config",
+      "issue_type": "invalid_system-probe_config",
+      "location": "system-probe",
+      "persisted_issue": {
+        "first_seen": "<timestamp>",
+        "last_seen": "<timestamp>",
+        "state": 4
+      },
+      "remediation": {
+        "steps": [
+          {
+            "order": 1,
+            "text": "Check this setting in `/etc/datadog-agent/system-probe.yaml` or environment variables."
+          },
+          {
+            "order": 2,
+            "text": "Set `/system_probe_config/dest_excludes/https:~1~1qa:********@example.test` to a YAML list."
+          },
+          {
+            "order": 3,
+            "text": "Restart the Datadog Agent."
+          },
+          {
+            "order": 4,
+            "text": "Run `datadog-agent diagnose` to confirm the configuration is now valid."
+          }
+        ],
+        "summary": "Correct this setting, then restart the Datadog Agent."
+      },
+      "severity": 2,
+      "source": "config",
+      "tags": [
+        "config",
+        "schema",
+        "system-probe"
+      ],
+      "title": "Incorrect type for `/system_probe_config/dest_excludes/https:~1~1qa:********@example.test`"
+    },
+    "invalid-system-probe-config:/system_probe_config/health_port": {
+      "category": "configuration",
+      "description": "`/system_probe_config/health_port` expects a whole number, but received a string.",
+      "detected_at": "<timestamp>",
+      "extra": {
+        "config_path": "/etc/datadog-agent/system-probe.yaml",
+        "error_count": 1,
+        "errors": {
+          "/system_probe_config/health_port": [
+            "`/system_probe_config/health_port` expects a whole number, but received a string. Set `/system_probe_config/health_port` to a whole number. The default value for this setting is `0`."
+          ]
+        },
+        "impact": "The Datadog system-probe may apply defaults for incorrectly-typed fields and may not behave as configured.",
+        "violations": [
+          {
+            "actual_type": "string",
+            "default_status": "known",
+            "default_value": 0,
+            "expected_types": [
+              "integer"
+            ],
+            "path": "/system_probe_config/health_port"
+          }
+        ]
+      },
+      "id": "invalid-system-probe-config:/system_probe_config/health_port",
+      "issue_name": "Invalid System-Probe Config",
+      "issue_type": "invalid_system-probe_config",
+      "location": "system-probe",
+      "persisted_issue": {
+        "first_seen": "<timestamp>",
+        "last_seen": "<timestamp>",
+        "state": 4
+      },
+      "remediation": {
+        "steps": [
+          {
+            "order": 1,
+            "text": "Check this setting in `/etc/datadog-agent/system-probe.yaml` or environment variables."
+          },
+          {
+            "order": 2,
+            "text": "Set `/system_probe_config/health_port` to a whole number. The default value for this setting is `0`."
+          },
+          {
+            "order": 3,
+            "text": "Restart the Datadog Agent."
+          },
+          {
+            "order": 4,
+            "text": "Run `datadog-agent diagnose` to confirm the configuration is now valid."
+          }
+        ],
+        "summary": "Correct this setting, then restart the Datadog Agent."
+      },
+      "severity": 2,
+      "source": "config",
+      "tags": [
+        "config",
+        "schema",
+        "system-probe"
+      ],
+      "title": "Incorrect type for `/system_probe_config/health_port`"
+    },
+    "invalid-system-probe-config:/system_probe_config/internal_profiling/api_key": {
+      "category": "configuration",
+      "description": "`/system_probe_config/internal_profiling/api_key` expects a string, but received a YAML list.",
+      "detected_at": "<timestamp>",
+      "extra": {
+        "config_path": "/etc/datadog-agent/system-probe.yaml",
+        "error_count": 1,
+        "errors": {
+          "/system_probe_config/internal_profiling/api_key": [
+            "`/system_probe_config/internal_profiling/api_key` expects a string, but received a YAML list. Set `/system_probe_config/internal_profiling/api_key` to a string. The default value for this setting is `\"\"` (an empty string)."
+          ]
+        },
+        "impact": "The Datadog system-probe may apply defaults for incorrectly-typed fields and may not behave as configured.",
+        "violations": [
+          {
+            "actual_type": "array",
+            "default_status": "known",
+            "default_value": "",
+            "expected_types": [
+              "string"
+            ],
+            "path": "/system_probe_config/internal_profiling/api_key"
+          }
+        ]
+      },
+      "id": "invalid-system-probe-config:/system_probe_config/internal_profiling/api_key",
+      "issue_name": "Invalid System-Probe Config",
+      "issue_type": "invalid_system-probe_config",
+      "location": "system-probe",
+      "persisted_issue": {
+        "first_seen": "<timestamp>",
+        "last_seen": "<timestamp>",
+        "state": 4
+      },
+      "remediation": {
+        "steps": [
+          {
+            "order": 1,
+            "text": "Check this setting in `/etc/datadog-agent/system-probe.yaml` or environment variables."
+          },
+          {
+            "order": 2,
+            "text": "Set `/system_probe_config/internal_profiling/api_key` to a string. The default value for this setting is `\"\"` (an empty string)."
+          },
+          {
+            "order": 3,
+            "text": "Restart the Datadog Agent."
+          },
+          {
+            "order": 4,
+            "text": "Run `datadog-agent diagnose` to confirm the configuration is now valid."
+          }
+        ],
+        "summary": "Correct this setting, then restart the Datadog Agent."
+      },
+      "severity": 2,
+      "source": "config",
+      "tags": [
+        "config",
+        "schema",
+        "system-probe"
+      ],
+      "title": "Incorrect type for `/system_probe_config/internal_profiling/api_key`"
+    },
+    "invalid-system-probe-config:/system_probe_config/source_excludes": {
+      "category": "configuration",
+      "description": "`/system_probe_config/source_excludes` expects a YAML mapping, but received a YAML list.",
+      "detected_at": "<timestamp>",
+      "extra": {
+        "config_path": "/etc/datadog-agent/system-probe.yaml",
+        "error_count": 1,
+        "errors": {
+          "/system_probe_config/source_excludes": [
+            "`/system_probe_config/source_excludes` expects a YAML mapping, but received a YAML list. Set `/system_probe_config/source_excludes` to a YAML mapping. The default value for this setting is `{}`."
+          ]
+        },
+        "impact": "The Datadog system-probe may apply defaults for incorrectly-typed fields and may not behave as configured.",
+        "violations": [
+          {
+            "actual_type": "array",
+            "default_status": "known",
+            "default_value": {},
+            "expected_types": [
+              "object"
+            ],
+            "path": "/system_probe_config/source_excludes"
+          }
+        ]
+      },
+      "id": "invalid-system-probe-config:/system_probe_config/source_excludes",
+      "issue_name": "Invalid System-Probe Config",
+      "issue_type": "invalid_system-probe_config",
+      "location": "system-probe",
+      "persisted_issue": {
+        "first_seen": "<timestamp>",
+        "last_seen": "<timestamp>",
+        "state": 4
+      },
+      "remediation": {
+        "steps": [
+          {
+            "order": 1,
+            "text": "Check this setting in `/etc/datadog-agent/system-probe.yaml` or environment variables."
+          },
+          {
+            "order": 2,
+            "text": "Set `/system_probe_config/source_excludes` to a YAML mapping. The default value for this setting is `{}`."
+          },
+          {
+            "order": 3,
+            "text": "Restart the Datadog Agent."
+          },
+          {
+            "order": 4,
+            "text": "Run `datadog-agent diagnose` to confirm the configuration is now valid."
+          }
+        ],
+        "summary": "Correct this setting, then restart the Datadog Agent."
+      },
+      "severity": 2,
+      "source": "config",
+      "tags": [
+        "config",
+        "schema",
+        "system-probe"
+      ],
+      "title": "Incorrect type for `/system_probe_config/source_excludes`"
+    }
+  },
+  "service": "agent"
+}

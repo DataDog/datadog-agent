@@ -9,6 +9,7 @@ permissions: {}
 jobs:
   push_bazel_cache:
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     permissions:
       contents: read
     steps:

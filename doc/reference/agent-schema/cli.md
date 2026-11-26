@@ -53,7 +53,7 @@ dda inv schema.template \
 | --- | --- | --- |
 | `--schema` | yes | Path to the enriched schema YAML file. |
 | `--build-type` | yes | One of: `datadog-agent`, `iot-agent`, `system-probe`, `dogstatsd`, `dca`, `dcacf`. |
-| `--os-target` | yes | One of: `windows`, `linux`, `darwin`. |
+| `--os-target` | yes | One of: `windows`, `linux`, `darwin`, `aix`. |
 | `--output` | yes | Path to write the rendered template. |
 
 Only nodes with `visibility: public` are rendered. The build type selects which template sections are included; the OS target controls which platform-specific defaults and `platform_only` settings are emitted.
@@ -88,6 +88,40 @@ dda inv -- schema.locate '*enabled'
 # Pattern (regex): every path under apm_config ending in "enabled", as JSON
 dda inv -- schema.locate 'apm_config\..*enabled' --json
 ```
+
+---
+
+## `schema.produce-jsonschema`
+
+Build the JSON Schemas published for external tools (IDEs, SchemaStore, CI validators): `datadog.schema.json` for `datadog.yaml` and `system-probe.schema.json` for `system-probe.yaml`.
+
+```bash
+dda inv schema.produce-jsonschema -o /tmp/agent-schemas -v 7.87.1-rc.2
+```
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `-o`, `--output-dir` | yes | Directory to write `datadog.schema.json` and `system-probe.schema.json` into. Created if missing. Can also be passed as the first argument. |
+| `-v`, `--version` | no | Agent version the schemas are published for, used as given in their `$id`: e.g. `7.87.1`, `7.87.1-rc.2`, or whatever `dda inv agent.version --url-safe` prints. A leading `v` is dropped. It becomes a folder of the published URL, so it can't contain `/`, `\`, `?`, `#`, `%` or whitespace. Omit it to build the copy published as the latest version. |
+
+The output keeps only standard JSON Schema keywords, so any conforming library can use it, plus `patternErrorMessage` on the format definitions: the error message VS Code shows instead of the regexp, ignored by other tools. It also replaces the Agent formats ([`format: duration`](keywords.md#format-duration), [`format: url`](keywords.md#format-url)) with a reference (`$ref`) to the regexp they stand for, defined once in the schema's `$defs`.
+
+The output declares no `default`, because IDEs copy declared defaults into the configuration when auto-completing:
+
+- Completing a section inserts all of its settings, non-public ones included, set to their default value.
+- These settings are then explicitly set in the user's configuration: if a later Agent version changes a default, the user keeps the old value.
+
+This is common for published schemas: most [SchemaStore](https://www.schemastore.org/) schemas declare few or no defaults.
+
+Instead, the default of each public setting is written at the end of its `description`, where IDEs show it on hover (see [`default`](keywords.md#default)).
+
+Each file's `$id` is the URL it is published at in the [DataDog/schema](https://github.com/DataDog/schema) repository, under the same file name, so the output can be copied there as-is:
+
+| `--version` | `$id` of `datadog.schema.json` |
+| --- | --- |
+| `7.87.1` | `https://raw.githubusercontent.com/DataDog/schema/main/datadog-agent/v7.87.1/datadog.schema.json` |
+| `7.87.1-rc.2` | `https://raw.githubusercontent.com/DataDog/schema/main/datadog-agent/v7.87.1-rc.2/datadog.schema.json` |
+| omitted | `https://raw.githubusercontent.com/DataDog/schema/main/datadog-agent/datadog.schema.json` |
 
 ---
 

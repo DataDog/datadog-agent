@@ -30,6 +30,26 @@ func ToProto(at *ActivityTree) []*adproto.ProcessActivityNode {
 	return out
 }
 
+// UnattributedActivityToProto encodes the unattributed activity of an activity tree to its protobuf representation
+func UnattributedActivityToProto(at *ActivityTree) *adproto.UnattributedActivity {
+	if at == nil || at.UnattributedActivity == nil {
+		return nil
+	}
+
+	// pan isn't returned to the pool: its activity nodes now belong to the output
+	pan := processActivityNodeToProto(at.UnattributedActivity, at.GetTagFromID)
+	return &adproto.UnattributedActivity{
+		NodeBase:        pan.NodeBase,
+		Files:           pan.Files,
+		DnsNames:        pan.DnsNames,
+		Sockets:         pan.Sockets,
+		ImdsEvents:      pan.ImdsEvents,
+		SyscallNodes:    pan.SyscallNodes,
+		NetworkDevices:  pan.NetworkDevices,
+		CapabilityNodes: pan.CapabilityNodes,
+	}
+}
+
 // MountsToProto encodes the workload's deduplicated mount table to its protobuf representation
 func MountsToProto(at *ActivityTree) []*adproto.MountNode {
 	if len(at.Mounts) == 0 {
@@ -522,7 +542,8 @@ func nodeBaseToProto(nb *NodeBase, tagIDToImageTag func(id uint64) string) *adpr
 	}
 
 	pnb := &adproto.NodeBase{
-		Seen: make(map[string]*adproto.ImageTagTimes, nb.SeenLen()),
+		Seen:            make(map[string]*adproto.ImageTagTimes, nb.SeenLen()),
+		LastAnomalySent: uint64(nb.lastAnomalySent),
 	}
 
 	nb.EachSeen(func(id uint64, firstSeen, lastSeen int64) {

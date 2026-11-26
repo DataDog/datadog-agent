@@ -55,9 +55,9 @@ func GetHostname(ctx context.Context) (string, error) {
 // kubelet API access, which RBAC meant for its k8sattributesprocessor doesn't
 // grant, and none of the Datadog-specific kubelet settings
 // (kubernetes_kubelet_host, kubelet_tls_verify), which the OpenTelemetry Helm
-// charts don't set. It falls back to the kubelet unless
-// otelcollector.standalone.use_kubelet_collector is false: a deployment set up
-// for the nodefilter collector lacks kubelet API access.
+// charts don't set. It falls back to the kubelet only when
+// otelcollector.standalone.use_kubelet_collector is true: a deployment set up
+// for the default nodefilter collector lacks kubelet API access.
 func getNodename(ctx context.Context) (string, error) {
 	cfg := pkgconfigsetup.Datadog()
 	if ddot.IsStandalone(cfg) {

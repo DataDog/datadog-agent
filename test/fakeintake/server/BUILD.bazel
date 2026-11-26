@@ -83,6 +83,7 @@ go_library(
 dd_agent_go_test(
     name = "server_test",
     srcs = [
+        "listener_test.go",
         "par_test.go",
         "rc_test.go",
         "redact_test.go",
@@ -147,48 +148,63 @@ dd_agent_go_test(
         "@org_golang_google_protobuf//proto",
     ] + select({
         "@rules_go//go/platform:aix": [
+            "//pkg/proto/pbgo/genresources",
             "@com_github_benbjohnson_clock//:clock",
         ],
         "@rules_go//go/platform:android": [
+            "//pkg/proto/pbgo/genresources",
             "@com_github_benbjohnson_clock//:clock",
         ],
         "@rules_go//go/platform:darwin": [
+            "//pkg/proto/pbgo/genresources",
             "@com_github_benbjohnson_clock//:clock",
         ],
         "@rules_go//go/platform:dragonfly": [
+            "//pkg/proto/pbgo/genresources",
             "@com_github_benbjohnson_clock//:clock",
         ],
         "@rules_go//go/platform:freebsd": [
+            "//pkg/proto/pbgo/genresources",
             "@com_github_benbjohnson_clock//:clock",
         ],
         "@rules_go//go/platform:illumos": [
+            "//pkg/proto/pbgo/genresources",
             "@com_github_benbjohnson_clock//:clock",
         ],
         "@rules_go//go/platform:ios": [
+            "//pkg/proto/pbgo/genresources",
             "@com_github_benbjohnson_clock//:clock",
         ],
         "@rules_go//go/platform:js": [
+            "//pkg/proto/pbgo/genresources",
             "@com_github_benbjohnson_clock//:clock",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/proto/pbgo/genresources",
             "@com_github_benbjohnson_clock//:clock",
         ],
         "@rules_go//go/platform:netbsd": [
+            "//pkg/proto/pbgo/genresources",
             "@com_github_benbjohnson_clock//:clock",
         ],
         "@rules_go//go/platform:openbsd": [
+            "//pkg/proto/pbgo/genresources",
             "@com_github_benbjohnson_clock//:clock",
         ],
         "@rules_go//go/platform:osx": [
+            "//pkg/proto/pbgo/genresources",
             "@com_github_benbjohnson_clock//:clock",
         ],
         "@rules_go//go/platform:plan9": [
+            "//pkg/proto/pbgo/genresources",
             "@com_github_benbjohnson_clock//:clock",
         ],
         "@rules_go//go/platform:qnx": [
+            "//pkg/proto/pbgo/genresources",
             "@com_github_benbjohnson_clock//:clock",
         ],
         "@rules_go//go/platform:solaris": [
+            "//pkg/proto/pbgo/genresources",
             "@com_github_benbjohnson_clock//:clock",
         ],
         "//conditions:default": [],

@@ -181,9 +181,12 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	ia.data.Set("config_proxy_http", scrub(ia.conf.GetString("proxy.http")))
 	ia.data.Set("config_proxy_https", scrub(ia.conf.GetString("proxy.https")))
 	ia.data.Set("feature_logs_enabled", ia.conf.GetBool("logs_enabled"))
+	ia.data.Set("feature_private_action_runner_enabled", ia.conf.GetBool("private_action_runner.enabled") && ia.conf.GetBool("private_action_runner.split_enabled"))
 	ia.data.Set("feature_imdsv2_enabled", ia.conf.GetBool("ec2_prefer_imdsv2"))
 	ia.data.Set("feature_remote_configuration_enabled", ia.conf.GetBool("remote_configuration.enabled"))
 	ia.data.Set("feature_remote_updates_enabled", ia.conf.GetBool("remote_updates"))
+	ia.data.Set("feature_infra_enabled", ia.conf.GetBool("enable_payloads.series"))
+	ia.data.Set("feature_autoscaling_cluster_enabled", ia.conf.GetBool("autoscaling.cluster.enabled"))
 	ia.data.Set("feature_container_images_enabled", ia.conf.GetBool("container_image.enabled"))
 	ia.data.Set("feature_network_path_remote_config_enabled", ia.conf.GetBool("network_path.remote_config.enabled"))
 	ia.data.Set("feature_network_path_connections_monitoring_enabled", ia.conf.GetBool("network_path.connections_monitoring.enabled"))
@@ -450,13 +453,8 @@ func (ia *inventoryagent) refreshMetadata() {
 }
 
 func (ia *inventoryagent) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
-	data, err := ia.GetAsJSON()
-	if err != nil {
-		httputils.SetJSONError(w, err, 500)
-		return
-	}
 	// Scrub by key name, as the flare does, so that sensitive fields such as the secret hashes are not exposed
-	scrubbed, err := scrubber.ScrubJSON(data)
+	scrubbed, err := ia.GetAsScrubbedJSON()
 	if err != nil {
 		httputils.SetJSONError(w, err, 500)
 		return

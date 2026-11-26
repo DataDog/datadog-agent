@@ -5,6 +5,8 @@
 
 package gcp
 
+import "github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+
 const (
 	agentSandboxEnv = "gcp/agent-sandbox"
 	agentQaEnv      = "gcp/agent-qa"
@@ -37,6 +39,13 @@ type ddInfraGKE struct {
 
 type ddInfraOpenShift struct {
 	nestedVirtualization bool
+}
+
+// DefaultProjectAndZone returns the GCP project and zone the VMs of the GCP environment of envNames
+// are created in.
+func DefaultProjectAndZone(envNames []string) (project, zone string) {
+	envDefault := getEnvironmentDefault(config.FindEnvironmentName(envNames, gcpNamerNamespace))
+	return envDefault.gcp.project, envDefault.gcp.zone
 }
 
 func getEnvironmentDefault(envName string) environmentDefault {

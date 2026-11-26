@@ -8,10 +8,14 @@
 package utils
 
 import (
+	"errors"
+	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -62,6 +66,7 @@ func IsProgramTraced(moduleName, programType string, pid int) bool {
 
 // WaitForProgramsToBeTraced waits for the program to be traced by the given programs type of the given module.
 func WaitForProgramsToBeTraced(t *testing.T, moduleName, programType string, pid int, traceManually TraceMethod) {
+	t.Helper()
 	// Wait for the program to be traced
 	end := time.Now().Add(time.Second * 5)
 	for time.Now().Before(end) {
@@ -78,17 +83,88 @@ func WaitForProgramsToBeTraced(t *testing.T, moduleName, programType string, pid
 	}
 	t.Logf("process %v is not traced by %v, trying to attach manually", pid, programType)
 
-	// Get attacher for the program type
-	attacher, ok := debugger.attachers[moduleName][programType]
-	require.True(t, ok, "attacher for %v not found", programType)
-	// Try to attach the PID. Any error other than ErrPathIsAlreadyRegistered is a failure.
-	if err := attacher.AttachPID(uint32(pid)); err != ErrPathIsAlreadyRegistered {
-		require.NoError(t, err)
-	}
+	require.NoError(t, attachManually(t, moduleName, programType, pid))
 	require.Eventuallyf(t, func() bool {
 		return IsProgramTraced(moduleName, programType, pid)
 	}, time.Second*5, time.Millisecond*100, "process %v is not traced by %v", pid, programType)
 }
+
+// attachManually attaches pid through the attacher registered for programType. It returns
+// AttachPID's error, except ErrPathIsAlreadyRegistered, which means the pid was already attached.
+func attachManually(t *testing.T, moduleName, programType string, pid int) error {
+	t.Helper()
+	attacher, ok := debugger.attachers[moduleName][programType]
+	require.True(t, ok, "attacher for %v not found", programType)
+	if err := attacher.AttachPID(uint32(pid)); err != nil && !errors.Is(err, ErrPathIsAlreadyRegistered) {
+		return err
+	}
+	return nil
+}
+
+// librariesTracedTimeout is how long WaitForLibrariesToBeTraced waits before, and again after,
+// the manual attach.
+const librariesTracedTimeout = 5 * time.Second
+
+// missingTracedLibraries returns the entries of libPrefixes for which pid is not yet traced
+// through a library whose file name starts with that prefix.
+func missingTracedLibraries(moduleName, programType string, pid int, libPrefixes []string) []string {
+	traced := GetTracedPrograms(moduleName, programType)
+	var missing []string
+	for _, prefix := range libPrefixes {
+		found := slices.ContainsFunc(traced, func(p TracedProgram) bool {
+			return slices.Contains(p.PIDs, uint32(pid)) && strings.HasPrefix(filepath.Base(p.FilePath), prefix)
+		})
+		if !found {
+			missing = append(missing, prefix)
+		}
+	}
+	return missing
+}
+
+// WaitForLibrariesToBeTraced waits until pid is traced through a library matching each of
+// libPrefixes (e.g. "libssl.so", "libcrypto.so"). Use it instead of WaitForProgramsToBeTraced
+// when the probes span several libraries: the attacher registers each library separately, as
+// its open event arrives, so a pid can be traced through one library before the others.
+//
+// If the libraries are not all traced within 5 seconds and traceManually is set, it attaches
+// the pid manually. AttachPID attaches every matching library in the pid's maps and skips the
+// ones that are already registered, so it fills in whichever library was missed. An AttachPID
+// error is only logged: it can come from an unrelated matching library, so the wait that
+// follows decides whether the listed libraries are traced.
+func WaitForLibrariesToBeTraced(t *testing.T, moduleName, programType string, pid int, libPrefixes []string, traceManually TraceMethod) {
+	t.Helper()
+	allTraced := func() bool {
+		return len(missingTracedLibraries(moduleName, programType, pid, libPrefixes)) == 0
+	}
+	// On timeout, EventuallyWithT reports the last tick's errors, i.e. the missing libraries.
+	requireAllTraced := func(msg string) {
+		t.Helper()
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			assert.Empty(c, missingTracedLibraries(moduleName, programType, pid, libPrefixes), "libraries not traced")
+		}, librariesTracedTimeout, 50*time.Millisecond, "process %v is not traced by %v%v", pid, programType, msg)
+	}
+
+	if !traceManually {
+		requireAllTraced("")
+		return
+	}
+	// The manual attach below handles a timeout here, so don't report it as a failure.
+	if assert.Eventually(discardT{}, allTraced, librariesTracedTimeout, 50*time.Millisecond) {
+		return
+	}
+	missing := missingTracedLibraries(moduleName, programType, pid, libPrefixes)
+	t.Logf("process %v is not traced by %v through %v, trying to attach manually", pid, programType, missing)
+
+	if err := attachManually(t, moduleName, programType, pid); err != nil {
+		t.Logf("manual attach of process %v returned an error: %v", pid, err)
+	}
+	requireAllTraced(" after manual attach")
+}
+
+// discardT is an assert.TestingT that drops failures, for a wait whose timeout the caller handles.
+type discardT struct{}
+
+func (discardT) Errorf(string, ...interface{}) {}
 
 // WaitForPathToBeBlocked waits for the path to be blocked from tracing in the
 // registry (due to failing activation).

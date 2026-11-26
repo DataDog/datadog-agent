@@ -456,7 +456,6 @@ type Status struct {
 			FargateOrchestrator     string      `json:"FargateOrchestrator"`
 			Features                struct {
 			} `json:"Features"`
-			GUIPort    string `json:"GUIPort"`
 			GitCommit  string `json:"GitCommit"`
 			GlobalTags struct {
 			} `json:"GlobalTags"`

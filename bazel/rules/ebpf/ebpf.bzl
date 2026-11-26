@@ -9,6 +9,7 @@ load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load("//bazel/rules/ebpf:cc_helpers.bzl", "collect_headers", "collect_include_dirs")
 
 _TOOLCHAIN_TYPE = "@@//bazel/toolchains/llvm_bpf:llvm_bpf_toolchain_type"
+_TOOLCHAIN = config_common.toolchain_type(_TOOLCHAIN_TYPE, mandatory = False)
 
 # Bazel 9.3 leaves --incompatible_auto_exec_groups off, so the toolchain type
 # is not itself an exec group. cfg = "exec" would follow the default platform.
@@ -72,9 +73,10 @@ def _resolve_target_arch(ctx):
     return ctx.attr._target_arch_flag[BuildSettingInfo].value
 
 def _ebpf_prog_impl(ctx):
-    tc = ctx.toolchains[_TOOLCHAIN_TYPE].llvm_bpf
-    if not tc.valid:
+    toolchain = ctx.toolchains[_TOOLCHAIN_TYPE]
+    if not toolchain:
         fail("LLVM BPF toolchain is not available")
+    clang_bpf = toolchain.llvm_bpf.clang_bpf
 
     src = ctx.file.src
     inc = collect_include_dirs(ctx.attr.deps)
@@ -156,7 +158,7 @@ def _ebpf_prog_impl(ctx):
     )
 
     wrapper_args = ctx.actions.args()
-    wrapper_args.add("--compiler", tc.clang_bpf)
+    wrapper_args.add("--compiler", clang_bpf)
     wrapper_args.add("--depfile", dep_file)
     wrapper_args.add("--unused-inputs-list", unused_inputs_file)
     wrapper_args.add_all(action_inputs, before_each = "--declared-input")
@@ -168,7 +170,7 @@ def _ebpf_prog_impl(ctx):
         inputs = action_inputs,
         outputs = [bc_file, dep_file, unused_inputs_file],
         executable = ctx.executable._clang_with_unused_inputs,
-        tools = [tc.clang_bpf],
+        tools = [clang_bpf],
         arguments = [wrapper_args, clang_args],
         mnemonic = "EbpfClang",
         resource_set = resource_set_for(cpu_cores = 1, mem_mb = 1024),
@@ -178,19 +180,19 @@ def _ebpf_prog_impl(ctx):
         unused_inputs_list = unused_inputs_file,
     )
 
-    # --- Step 2: .bc -> .o (llc) ---
+    # --- Step 2: .bc -> .o (reproduces `llc -march=bpf -filetype=obj` output verbatim) ---
     obj_file = ctx.actions.declare_file(ctx.label.name + ".o")
 
     llc_args = ctx.actions.args()
-    llc_args.add("-march=bpf")
-    llc_args.add("-filetype=obj")
+    llc_args.add_all(["-O2", "-Wno-override-module", "-Xclang", "-disable-llvm-optzns", "-c", "-fno-addrsig"])
     llc_args.add("-o", obj_file)
+    llc_args.add_all(["-target", "bpf", "-x", "ir"])
     llc_args.add(bc_file)
 
     ctx.actions.run(
         inputs = [bc_file],
         outputs = [obj_file],
-        executable = tc.llc_bpf,
+        executable = clang_bpf,
         arguments = [llc_args],
         mnemonic = "EbpfLlc",
         resource_set = resource_set_for(cpu_cores = 1, mem_mb = 1024),
@@ -202,8 +204,8 @@ def _ebpf_prog_impl(ctx):
 
 def _stripped_ebpf_impl(ctx):
     """Strip debug info, LBB symbols and .BTF.ext relocations from an eBPF object file."""
-    tc = ctx.toolchains[_TOOLCHAIN_TYPE].llvm_bpf
-    if not tc.valid:
+    toolchain = ctx.toolchains[_TOOLCHAIN_TYPE]
+    if not toolchain:
         fail("LLVM BPF toolchain is not available")
 
     src = ctx.file.src
@@ -214,7 +216,7 @@ def _stripped_ebpf_impl(ctx):
     ctx.actions.run(
         inputs = [src],
         outputs = [out],
-        executable = tc.llvm_strip,
+        executable = toolchain.llvm_bpf.llvm_strip,
         arguments = ["-g", "-w", "-N", "LBB*", "--remove-section=.rel.BTF.ext", "-o", out.path, src.path],
         mnemonic = "EbpfStrip",
         progress_message = "Stripping eBPF %{label}",
@@ -232,7 +234,7 @@ _stripped_ebpf = rule(
             doc = "The unstripped eBPF object file to strip.",
         ),
     },
-    toolchains = [_TOOLCHAIN_TYPE],
+    toolchains = [_TOOLCHAIN],
 )
 
 _ebpf_prog = rule(
@@ -287,10 +289,10 @@ _ebpf_prog = rule(
     },
     exec_groups = {
         _LLVM_BPF_EXEC_GROUP: exec_group(
-            toolchains = [_TOOLCHAIN_TYPE],
+            toolchains = [_TOOLCHAIN],
         ),
     },
-    toolchains = [_TOOLCHAIN_TYPE],
+    toolchains = [_TOOLCHAIN],
 )
 
 def _ebpf_prog_macro_impl(name, visibility, src, deps, core, debug, extra_flags, target_arch):

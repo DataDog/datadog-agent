@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/util/prometheus
 go 1.26.0
 
 require (
-	github.com/prometheus/common v0.73.1
+	github.com/prometheus/common v0.74.0
 	github.com/prometheus/prometheus v0.315.1
 	github.com/stretchr/testify v1.12.1
 )
@@ -11,10 +11,10 @@ require (
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.24.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.15.0 // indirect
-	github.com/aws/aws-sdk-go-v2 v1.47.8 // indirect
-	github.com/aws/aws-sdk-go-v2/config v1.33.17 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.20.17 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.51.9 // indirect
+	github.com/aws/aws-sdk-go-v2 v1.48.0 // indirect
+	github.com/aws/aws-sdk-go-v2/config v1.33.19 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.21.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.52.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/googleapis/gax-go/v2 v2.27.0 // indirect
@@ -29,10 +29,8 @@ require (
 	go.opentelemetry.io/otel/metric v1.47.1-0.20261102082644-9c507082cd98 // indirect
 	go.opentelemetry.io/otel/trace v1.47.1-0.20261102082644-9c507082cd98 // indirect
 	go.uber.org/atomic v1.12.0 // indirect
-	go.yaml.in/yaml/v2 v2.4.5 // indirect
 	go.yaml.in/yaml/v3 v3.0.6 // indirect
-	golang.org/x/net v0.62.0 // indirect
-	golang.org/x/oauth2 v0.38.0 // indirect
+	golang.org/x/crypto v0.59.0 // indirect
 	golang.org/x/sys v0.50.0 // indirect
 	golang.org/x/text v0.44.0 // indirect
 	google.golang.org/api v0.304.0 // indirect

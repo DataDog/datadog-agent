@@ -1,0 +1,40 @@
+---
+enhancements:
+  - |
+    SBOMs report the licenses that JAR files declare in their embedded
+    ``pom.xml``, and the versions of Go binaries built with ``-trimpath``,
+    which they read from the symbol table of the binary.
+  - |
+    The SBOMs of Bottlerocket hosts give package versions with their release,
+    such as ``1:1.7.25-1.1740525475.e3a5862c.br1`` for containerd.
+  - |
+    SBOMs report the vendor of each Java runtime, which they read from the
+    ``release`` file of its Java home, as the component supplier. They mark
+    the JDK packages of Adoptium, Azul, Corretto, BellSoft and Oracle as
+    third-party, and report the runtime and the jars these packages install
+    under ``/usr/lib/jvm``.
+fixes:
+  - |
+    Fixed SBOMs reporting the Java runtimes of JDK 21 and later, and every
+    arm64 Java runtime, without a version.
+  - |
+    Fixed SBOMs of distroless images reporting the files of their Debian
+    packages, such as ``/usr/bin/python3.11``, as packages of their own.
+  - |
+    Fixed SBOMs cutting the names of JAR files whose manifest continues the
+    name on a second line.
+  - |
+    Fixed SBOMs reporting the Go modules that a ``go.mod`` at Go 1.17 or later
+    lists only in its ``go.sum``.
+  - |
+    Fixed SBOMs reporting Go standard library versions with their
+    GOEXPERIMENT suffix, such as ``v1.26.10-X:loopvar`` for ``v1.26.10``.
+other:
+  - |
+    The PURLs in SBOMs follow the character encoding of the package URL
+    specification: a colon is written as is, where it was written ``%3A``,
+    and a space in a qualifier is written ``%20``, where it was written
+    ``+``. This changes the PURL of container images, such as
+    ``pkg:oci/golang@sha256:91eda977...``, the ``distro`` qualifier of
+    Amazon Linux 1 and 2 packages, such as ``distro=amazon-2%20%28Karoo%29``,
+    and the ``modularitylabel`` qualifier of modular RPM packages.

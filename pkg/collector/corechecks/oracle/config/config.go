@@ -26,8 +26,13 @@ import (
 )
 
 const (
-	defaultLoader       = "core"
-	defaultQueryTimeout = 20
+	defaultLoader                   = "core"
+	defaultQueryTimeout             = 20
+	defaultSchemaCollectionInterval = 600
+	defaultSchemaMaxViews           = 1000
+	defaultSchemaMaxTables          = 300
+	defaultSchemaMaxColumns         = 50
+	defaultSchemaMaxQueryDuration   = 60
 )
 
 // InitConfig is used to deserialize integration init config.
@@ -76,6 +81,35 @@ type SysMetricsConfig struct {
 type TablespacesConfig struct {
 	Enabled            bool  `yaml:"enabled"`
 	CollectionInterval int64 `yaml:"collection_interval"`
+}
+
+type SchemasConfig struct {
+	Enabled            bool     `yaml:"enabled"`
+	CollectionInterval int64    `yaml:"collection_interval"`
+	CollectViews       *bool    `yaml:"collect_views"`
+	MaxViews           int      `yaml:"max_views"`
+	MaxTables          int      `yaml:"max_tables"`
+	MaxColumns         int      `yaml:"max_columns"`
+	MaxQueryDuration   int      `yaml:"max_query_duration"`
+	IncludeSchemas     []string `yaml:"include_schemas"`
+	ExcludeSchemas     []string `yaml:"exclude_schemas"`
+	IncludeTables      []string `yaml:"include_tables"`
+	ExcludeTables      []string `yaml:"exclude_tables"`
+	IncludeDatabases   []string `yaml:"include_databases"`
+	ExcludeDatabases   []string `yaml:"exclude_databases"`
+}
+
+// collect_views defaults to true when omitted.
+func (c SchemasConfig) ViewsEnabled() bool {
+	return c.CollectViews == nil || *c.CollectViews
+}
+
+func (c SchemasConfig) MaxQueryDurationDuration() time.Duration {
+	return time.Duration(c.MaxQueryDuration) * time.Second
+}
+
+type DataObservabilityConfig struct {
+	Enabled bool `yaml:"enabled"`
 }
 
 //nolint:revive // TODO(DBM) Fix revive linter
@@ -154,11 +188,23 @@ type ConnectionConfig struct {
 	QueryTimeout int    `yaml:"query_timeout"`
 }
 
-func (c ConnectionConfig) QueryTimeoutString() string {
+// OCI represents call timeouts as uint32 milliseconds. Use the same limit for both drivers.
+const maxQueryTimeoutSeconds = (1<<32 - 1) / 1000
+
+func (c ConnectionConfig) timeoutSeconds() int64 {
 	if c.QueryTimeout <= 0 {
-		return strconv.Itoa(defaultQueryTimeout)
+		return defaultQueryTimeout
 	}
-	return strconv.Itoa(c.QueryTimeout)
+	return min(int64(c.QueryTimeout), maxQueryTimeoutSeconds)
+}
+
+func (c ConnectionConfig) QueryTimeoutString() string {
+	return strconv.FormatInt(c.timeoutSeconds(), 10)
+}
+
+// SocketTimeoutString returns the internal socket fallback, exactly twice Q.
+func (c ConnectionConfig) SocketTimeoutString() string {
+	return strconv.FormatInt(2*c.timeoutSeconds(), 10)
 }
 
 // InstanceConfig is used to deserialize integration instance config.
@@ -191,6 +237,8 @@ type InstanceConfig struct {
 	Asm                                asmConfig                `yaml:"asm"`
 	ResourceManager                    resourceManagerConfig    `yaml:"resource_manager"`
 	Locks                              locksConfig              `yaml:"locks"`
+	Schemas                            SchemasConfig            `yaml:"collect_schemas"`
+	DataObservability                  DataObservabilityConfig  `yaml:"data_observability"`
 	OnlyCustomQueries                  bool                     `yaml:"only_custom_queries"`
 	Service                            string                   `yaml:"service"`
 	Loader                             string                   `yaml:"loader"`
@@ -199,13 +247,10 @@ type InstanceConfig struct {
 // QueryTimeoutDuration returns query_timeout as time.Duration.
 // If it is less than or equal to 0, it returns the default query timeout.
 func (c *InstanceConfig) QueryTimeoutDuration() time.Duration {
-	if c.QueryTimeout <= 0 {
-		return defaultQueryTimeout * time.Second
-	}
-	return time.Duration(c.QueryTimeout) * time.Second
+	return time.Duration(c.timeoutSeconds()) * time.Second
 }
 
-// QueryTimeoutDuration returns query_timeout as string.
+// QueryTimeoutString returns query_timeout as string.
 // If it is less than or equal to 0, it returns the default query timeout.
 func (c *InstanceConfig) QueryTimeoutString() string {
 	return c.ConnectionConfig.QueryTimeoutString()
@@ -281,6 +326,12 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	instance.Tablespaces.CollectionInterval = 600
 
+	instance.Schemas.CollectionInterval = defaultSchemaCollectionInterval
+	instance.Schemas.MaxViews = defaultSchemaMaxViews
+	instance.Schemas.MaxTables = defaultSchemaMaxTables
+	instance.Schemas.MaxColumns = defaultSchemaMaxColumns
+	instance.Schemas.MaxQueryDuration = defaultSchemaMaxQueryDuration
+
 	instance.Loader = defaultLoader
 	initCfg.Loader = defaultLoader
 	// Defaults end
@@ -290,6 +341,22 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	}
 	if err := yaml.Unmarshal(rawInitConfig, &initCfg); err != nil {
 		return nil, err
+	}
+
+	if instance.Schemas.CollectionInterval <= 0 {
+		instance.Schemas.CollectionInterval = defaultSchemaCollectionInterval
+	}
+	if instance.Schemas.MaxTables <= 0 {
+		instance.Schemas.MaxTables = defaultSchemaMaxTables
+	}
+	if instance.Schemas.MaxViews <= 0 {
+		instance.Schemas.MaxViews = defaultSchemaMaxViews
+	}
+	if instance.Schemas.MaxColumns <= 0 {
+		instance.Schemas.MaxColumns = defaultSchemaMaxColumns
+	}
+	if instance.Schemas.MaxQueryDuration <= 0 {
+		instance.Schemas.MaxQueryDuration = defaultSchemaMaxQueryDuration
 	}
 
 	if err := validateCustomQueryCollectionIntervals("custom_queries", instance.CustomQueries); err != nil {

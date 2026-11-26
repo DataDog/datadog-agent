@@ -42,6 +42,8 @@ import (
 func (s *TracerSuite) TestNetDevQueueSKBConnTuple() {
 	t := s.T()
 	cfg := testConfig()
+	// sharing the eBPF conntracker's map leaves net_dev_queue unattached
+	cfg.ShareConntrackNATMap = false
 	skipEbpflessTodo(t, cfg)
 	if ebpftest.GetBuildMode() == ebpftest.SK {
 		t.Skip("net_dev_queue probe is not used by the SK tracer")
@@ -101,6 +103,37 @@ func testNetDevQueueSKBConnTuple(t *testing.T, cfg *config.Config, v6, tpBTFElig
 		require.NoError(t, err)
 		t.Cleanup(func() { conn.Close() })
 
+		assertSKBConnTuples(t, skbMap, conn, net.ParseIP("2.2.2.2"), net.ParseIP("1.1.1.1"))
+	})
+
+	t.Run("IPv4 TCP stale value", func(t *testing.T) {
+		port := startEchoServer(t, "1.1.1.1:0", "tcp4")
+		// learn the source address the kernel picks for the NAT address, then reserve a local port, so the
+		// socket's key is known before its first packet
+		probe, err := tracertestutil.DialTCP("tcp4", net.JoinHostPort("2.2.2.2", port))
+		require.NoError(t, err)
+		localIP := probe.LocalAddr().(*net.TCPAddr).IP
+		probe.Close()
+		ln, err := net.Listen("tcp4", net.JoinHostPort(localIP.String(), "0"))
+		require.NoError(t, err)
+		local := ln.Addr().(*net.TCPAddr)
+		require.NoError(t, ln.Close())
+
+		rport, err := strconv.Atoi(port)
+		require.NoError(t, err)
+		key := normalizedClassificationKey(local, &net.TCPAddr{IP: net.ParseIP("2.2.2.2"), Port: rport})
+		// a value left by an earlier connection on the same 4-tuple, with another destination
+		stale := tcpConnTuple(localIP, uint16(local.Port), net.ParseIP("3.3.3.3"), uint16(rport))
+		require.NoError(t, skbMap.Update(unsafe.Pointer(&key), unsafe.Pointer(&stale), ebpf.UpdateNoExist))
+		t.Cleanup(func() { _ = skbMap.Delete(unsafe.Pointer(&key)) })
+
+		d := net.Dialer{LocalAddr: local, Timeout: 5 * time.Second}
+		conn, err := d.Dial("tcp4", net.JoinHostPort("2.2.2.2", port))
+		require.NoError(t, err)
+		t.Cleanup(func() { conn.Close() })
+		require.NoError(t, tracertestutil.SetTestDeadline(conn))
+
+		// the socket's packets replace the stale value
 		assertSKBConnTuples(t, skbMap, conn, net.ParseIP("2.2.2.2"), net.ParseIP("1.1.1.1"))
 	})
 
@@ -275,8 +308,8 @@ func flipConnTuple(c netebpf.ConnTuple) netebpf.ConnTuple {
 	return c
 }
 
-// lookupSKBConnTuple finds the skb tuple for sockTup. Both key and value are normalized by port, and DNAT keeps
-// ports, so a flipped key always comes with a flipped value.
+// lookupSKBConnTuple finds the skb tuple for sockTup. The key is the socket tuple normalized, so it can be flipped,
+// but the value is the skb tuple as it left the socket, so it's returned as is either way.
 func lookupSKBConnTuple(t *testing.T, skbMap *ebpf.Map, sockTup netebpf.ConnTuple) (netebpf.ConnTuple, bool) {
 	var v netebpf.ConnTuple
 	if err := skbMap.Lookup(unsafe.Pointer(&sockTup), unsafe.Pointer(&v)); err == nil {
@@ -284,7 +317,7 @@ func lookupSKBConnTuple(t *testing.T, skbMap *ebpf.Map, sockTup netebpf.ConnTupl
 	}
 	flipped := flipConnTuple(sockTup)
 	if err := skbMap.Lookup(unsafe.Pointer(&flipped), unsafe.Pointer(&v)); err == nil {
-		return flipConnTuple(v), true
+		return v, true
 	}
 	t.Logf("no entry for %+v", sockTup)
 	return netebpf.ConnTuple{}, false

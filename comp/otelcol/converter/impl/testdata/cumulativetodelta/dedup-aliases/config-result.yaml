@@ -1,0 +1,28 @@
+processors:
+  cumulative_to_delta/custom:
+  cumulativetodelta/custom:
+  cumulativetodelta/dd-autoconfigured:
+  cumulative_to_delta/dd-autoconfigured:
+
+service:
+  pipelines:
+    metrics/new-named:
+      receivers: [otlp]
+      processors: [cumulative_to_delta/custom]
+      exporters: [datadog]
+    metrics/old-named:
+      receivers: [otlp]
+      processors: [cumulativetodelta/custom]
+      exporters: [datadog]
+    metrics/old-autoconfigured:
+      receivers: [otlp]
+      processors: [cumulativetodelta/dd-autoconfigured]
+      exporters: [datadog]
+    metrics/new-autoconfigured:
+      receivers: [otlp]
+      processors: [cumulative_to_delta/dd-autoconfigured]
+      exporters: [datadog]
+    metrics/none:
+      receivers: [otlp]
+      processors: [cumulative_to_delta/dd-autoconfigured]
+      exporters: [datadog]

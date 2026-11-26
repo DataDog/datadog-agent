@@ -55,6 +55,7 @@ const (
 	OffsetNameSuperblockSType           = "super_block_s_type_offset"
 	OffsetNameDentryDName               = "dentry_d_name_offset"
 	OffsetNameQstrName                  = "qstr_name_offset"
+	OffsetNameQstrLen                   = "qstr_len_offset"
 	OffsetNameDentryDParent             = "dentry_d_parent_offset"
 
 	// inode
@@ -171,7 +172,10 @@ const (
 	OffsetNameLinuxBinprmStructInterp   = "linux_binprm_interp_offset"
 
 	// module constants
-	OffsetNameModuleName = "module_name_offset"
+	OffsetNameModuleName      = "module_name_offset"
+	OffsetNameTaskStructFiles = "task_struct_files_offset"
+	OffsetNameFilesStructFdt  = "files_struct_fdt_offset"
+	OffsetNameFdtableStructFd = "fdtable_fd_offset"
 
 	OffsetNameKernfsOpenFileFile = "kernfs_open_file_file_offset"
 
@@ -195,4 +199,7 @@ var optionalConstants = map[string]bool{
 	OffsetNameCgroupNamespaceNs: true,
 	OffsetNameNsproxyTimeNs:     true,
 	OffsetNameTimeNamespaceNs:   true,
+	OffsetNameTaskStructFiles:   true,
+	OffsetNameFilesStructFdt:    true,
+	OffsetNameFdtableStructFd:   true,
 }

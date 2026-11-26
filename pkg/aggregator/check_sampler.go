@@ -12,7 +12,6 @@ import (
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
@@ -34,6 +33,8 @@ type CheckSampler struct {
 	id                     checkid.ID
 	series                 []*metrics.Serie
 	sketches               metrics.SketchSeriesList
+	mergeableSeries        []*metrics.Serie
+	mergeableSketches      []mergeableSketch
 	contextResolver        *countBasedContextResolver
 	metrics                metrics.CheckMetrics
 	pendingSketches        contextSketches
@@ -63,12 +64,13 @@ func newCheckSampler(
 	cache *tags.Store,
 	id checkid.ID,
 	tagger tagger.Component,
+	filteredIdentities *filteredIdentityTable,
 ) *CheckSampler {
 	return &CheckSampler{
 		id:                     id,
 		series:                 make([]*metrics.Serie, 0),
 		sketches:               make(metrics.SketchSeriesList, 0),
-		contextResolver:        newCountBasedContextResolver(expirationCount, cache, tagger, string(id)),
+		contextResolver:        newCountBasedContextResolver(expirationCount, cache, tagger, string(id), filteredIdentities),
 		metrics:                metrics.NewCheckMetrics(expireMetrics, statefulTimeout),
 		pendingSketches:        make(contextSketches),
 		sketchesPerTimestamp:   newSketchesPerTimestamp(sketchesAtCommit),
@@ -84,9 +86,10 @@ func (cs *CheckSampler) SetObserverHandle(h observer.Handle) {
 	cs.observerHandle = h
 }
 
-func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList filterlist.TagMatcher) {
+func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList metricname.TagMatcher) {
 	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
 	if cs.observerHandle != nil {
+		// The observer sees each source with its full tags, even when its output is filtered.
 		context, _ := cs.contextResolver.get(contextKey)
 		cs.observerHandle.ObserveMetric(resolvedMetricView{
 			sample: metricSample,
@@ -104,11 +107,13 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterL
 	}
 }
 
-func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) *metrics.SketchSeries {
+// newSketchSeries returns a context's sketch series with the given points, and the context, or nil if the context
+// isn't tracked.
+func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) (*metrics.SketchSeries, *Context) {
 	ctx, ok := cs.contextResolver.get(ck)
 	if !ok {
 		log.Errorf("Ignoring sketch on context key '%v': inconsistent context resolver state: the context is not tracked", ck)
-		return nil
+		return nil, nil
 	}
 	ss := &metrics.SketchSeries{
 		DistributionMetadata: metrics.DistributionMetadata{
@@ -121,10 +126,10 @@ func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Ske
 		Points: points,
 	}
 
-	return ss
+	return ss, ctx
 }
 
-func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList filterlist.TagMatcher) {
+func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList metricname.TagMatcher) {
 	if bucket.Value < 0 {
 		if !cs.logThrottling.ShouldThrottle() {
 			log.Warnf("Negative bucket value %d for metric %s discarding", bucket.Value, bucket.Name)
@@ -256,6 +261,11 @@ func (cs *CheckSampler) appendSeries(series []*metrics.Serie, errors map[ckey.Co
 		serie.NoIndex = context.noIndex
 		serie.SourceTypeName = checksSourceTypeName // this source type is required for metrics coming from the checks
 		serie.Source = context.source
+		if filtered := cs.contextResolver.resolver.filteredIdentityOf(context); filtered != nil {
+			serie.ContextKey, serie.Tags = filtered.key, filtered.Tags()
+			cs.mergeableSeries = append(cs.mergeableSeries, serie)
+			continue
+		}
 
 		cs.series = append(cs.series, serie)
 	}
@@ -274,13 +284,18 @@ func (cs *CheckSampler) commitSketches(timestamp float64, filterList *metricname
 		if sketch == nil {
 			continue
 		}
-		series := cs.newSketchSeries(ck, []metrics.SketchPoint{{Sketch: sketch, Ts: int64(timestamp)}})
+		series, ctx := cs.newSketchSeries(ck, []metrics.SketchPoint{{Sketch: sketch, Ts: int64(timestamp)}})
 		if series == nil {
 			continue
 		}
 		// Filter the metrics
 		if filterList != nil && filterList.Test(series.Name) {
 			tlmChecksFilteredMetrics.Inc()
+			continue
+		}
+		if filtered := cs.contextResolver.resolver.filteredIdentityOf(ctx); filtered != nil {
+			series.Tags = filtered.Tags()
+			cs.mergeableSketches = append(cs.mergeableSketches, mergeableSketch{key: filtered.key, sketch: series})
 			continue
 		}
 		cs.sketches = append(cs.sketches, series)
@@ -323,7 +338,7 @@ func (cs *CheckSampler) commitSketchesPerTimestamp(timestamp float64, filterList
 		pointsByCtx[ck] = append(pointsByCtx[ck], p)
 	})
 	for ck, points := range pointsByCtx {
-		series := cs.newSketchSeries(ck, points)
+		series, _ := cs.newSketchSeries(ck, points)
 		if series == nil {
 			continue
 		}
@@ -387,6 +402,13 @@ func (cs *CheckSampler) hasState(key ckey.ContextKey) bool {
 	return bucket || byBound || sketch || (cs.sketchesPerTimestamp != nil && cs.sketchesPerTimestamp.contains(key))
 }
 
+// flushMergeable returns the output committed since the last call that goes to the check output merger.
+func (cs *CheckSampler) flushMergeable() ([]*metrics.Serie, []mergeableSketch) {
+	series, sketches := cs.mergeableSeries, cs.mergeableSketches
+	cs.mergeableSeries, cs.mergeableSketches = nil, nil
+	return series, sketches
+}
+
 func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
 	// series
 	series := cs.series
@@ -400,10 +422,6 @@ func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
 	cs.updateMetrics()
 
 	return series, sketches
-}
-
-func (cs *CheckSampler) clearStripCache() {
-	cs.contextResolver.resolver.clearTagFilterCache()
 }
 
 func (cs *CheckSampler) release() {
@@ -441,4 +459,9 @@ func bucketBoundsFor(bucket *metrics.HistogramBucket) bucketBounds {
 		lower: bucket.LowerBound,
 		upper: bucket.UpperBound,
 	}
+}
+
+// refilter updates the identity every context filters to at output, after the rules changed.
+func (cs *CheckSampler) refilter(filterList metricname.TagMatcher) {
+	cs.contextResolver.resolver.refilter(filterList)
 }

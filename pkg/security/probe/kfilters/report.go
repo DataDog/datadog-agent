@@ -69,9 +69,9 @@ func (r *FilterReport) String() string {
 	return string(content)
 }
 
-func computeApprovers(config *config.Config, rs *rules.RuleSet, capabilities map[eval.EventType]rules.FieldCapabilities) (*FilterReport, []*rules.Rule, error) {
+func computeApprovers(config *config.Config, rs *rules.RuleSet) (*FilterReport, []*rules.Rule, error) {
 	// get the approvers and accept mode rules
-	approvers, stats, noDiscarderRules, err := rs.GetApprovers(capabilities)
+	approvers, stats, noDiscarderRules, err := rs.GetApprovers(models)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -97,7 +97,7 @@ func computeApprovers(config *config.Config, rs *rules.RuleSet, capabilities map
 			continue
 		}
 
-		if _, exists := allCapabilities[eventType]; !exists {
+		if _, exists := models[eventType]; !exists {
 			report.Mode = PolicyModeAccept
 			continue
 		}
@@ -106,15 +106,12 @@ func computeApprovers(config *config.Config, rs *rules.RuleSet, capabilities map
 			report.Approvers = values
 
 			// report approvers that are marked as approver only
-			for _, evtCapability := range capabilities[eventType] {
-				for field := range values {
-					if evtCapability.Field == field && evtCapability.FilterMode == rules.ApproverOnlyMode {
-						if !slices.Contains(report.ApproversOnly, evtCapability.Field) {
-							report.ApproversOnly = append(report.ApproversOnly, evtCapability.Field)
-						}
-					}
+			for field, fieldValues := range values {
+				if slices.ContainsFunc(fieldValues, func(value rules.FilterValue) bool { return value.Mode == rules.ApproverOnlyMode }) {
+					report.ApproversOnly = append(report.ApproversOnly, field)
 				}
 			}
+			slices.Sort(report.ApproversOnly)
 		} else {
 			report.Mode = PolicyModeAccept
 			if rule := stats.AcceptModeRules[eventType]; rule != nil {
@@ -138,11 +135,12 @@ func ruleListToMap(rules []*rules.Rule) map[eval.RuleID]bool {
 
 // ComputeFilters computes the approver and discarder and returns a FilterReport
 func ComputeFilters(config *config.Config, rs *rules.RuleSet) (*FilterReport, error) {
-	filterReport, noDiscarderRules, err := computeApprovers(config, rs, allCapabilities)
+	filterReport, noDiscarderRules, err := computeApprovers(config, rs)
 	if err != nil {
 		return nil, err
 	}
-	rs.WithExcludedRuleFromDiscarders(ruleListToMap(noDiscarderRules))
+	// the kernel checks the auid discarders before the approvers, the approver-only ones included
+	rs.WithExcludedRuleFromDiscarders(ruleListToMap(noDiscarderRules), "process.auid")
 
 	if filterReport.DiscardersReport, err = rs.GetDiscardersReport(); err != nil {
 		return nil, err
