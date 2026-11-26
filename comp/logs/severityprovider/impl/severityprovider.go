@@ -51,8 +51,6 @@ type component struct {
 	mu     sync.Mutex
 }
 
-const scopedSeverityProfilesEnabled = false
-
 const smartSeverityProfilesCooldownConfigKey = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.cooldown"
 
 // smartSeverityProfilesSubscriptionConfig returns the reader configuration for
@@ -67,10 +65,6 @@ func smartSeverityProfilesSubscriptionConfig(cfg config.Component) severityevent
 
 // NewComponent creates the severity provider component.
 func NewComponent(reqs Requires) (Provides, error) {
-	return newComponentWithScoped(reqs, scopedSeverityProfilesEnabled)
-}
-
-func newComponentWithScoped(reqs Requires, scopedEnabled bool) (Provides, error) {
 	comp := &component{}
 	var unsubscribe func()
 
@@ -86,7 +80,7 @@ func newComponentWithScoped(reqs Requires, scopedEnabled bool) (Provides, error)
 				return nil
 			}
 
-			if scopedEnabled {
+			if anomalydetectionconfig.AnomalyScorerScopedEnabled(reqs.Config) {
 				comp.mu.Lock()
 				comp.scoped.Store(&scopedState{})
 				comp.mu.Unlock()

@@ -11,11 +11,13 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -648,4 +650,89 @@ func TestScopedAnomalyScorerPerServiceGaugesLifecycle(t *testing.T) {
 	router.Reset()
 	require.False(t, hasServiceSeries(t, telComp, telemetryScopedScorerEWMA, "auth"))
 	require.False(t, hasServiceSeries(t, telComp, telemetryScopedScorerSeverity, "auth"))
+}
+
+func TestReadScopedAnomalyScorerConfig(t *testing.T) {
+	base := DefaultAnomalyScorerConfig()
+
+	// Schema defaults match Go fallback constants.
+	defaultCfg := configmock.New(t)
+	parsed, perServiceTelemetry := readScopedAnomalyScorerConfig(defaultCfg, scopedScorerConfigPrefix, base)
+	require.Equal(t, defaultScopedScorerMaxScopes, parsed.MaxScopes)
+	require.Equal(t, int64(defaultScopedScorerIdleEvictionSec), parsed.IdleEvictionSec)
+	require.False(t, perServiceTelemetry)
+	require.Equal(t, defaultScopedScorerMaxScopes, defaultCfg.GetInt(scopedScorerConfigPrefix+"max_scopes"))
+	require.Equal(t, time.Duration(defaultScopedScorerIdleEvictionSec)*time.Second, defaultCfg.GetDuration(scopedScorerConfigPrefix+"idle_eviction_ttl"))
+
+	// Valid custom values are respected.
+	customCfg := configmock.NewFromYAML(t, `
+anomaly_detection:
+  anomaly_scorer:
+    scoped:
+      enabled: true
+      max_scopes: 42
+      idle_eviction_ttl: 15m
+      per_service_telemetry: true
+`)
+	parsed, perServiceTelemetry = readScopedAnomalyScorerConfig(customCfg, scopedScorerConfigPrefix, base)
+	require.Equal(t, 42, parsed.MaxScopes)
+	require.Equal(t, int64(900), parsed.IdleEvictionSec)
+	require.True(t, perServiceTelemetry)
+
+	// Invalid values clamp back to safe defaults.
+	invalidCfg := configmock.NewFromYAML(t, `
+anomaly_detection:
+  anomaly_scorer:
+    scoped:
+      max_scopes: 0
+      idle_eviction_ttl: 500ms
+`)
+	parsed, perServiceTelemetry = readScopedAnomalyScorerConfig(invalidCfg, scopedScorerConfigPrefix, base)
+	require.Equal(t, defaultScopedScorerMaxScopes, parsed.MaxScopes)
+	require.Equal(t, int64(defaultScopedScorerIdleEvictionSec), parsed.IdleEvictionSec)
+	require.False(t, perServiceTelemetry)
+}
+
+func TestObserverNewComponentScopedScorerConfigGate(t *testing.T) {
+	t.Run("disabled by default", func(t *testing.T) {
+		cfg := configmock.NewFromYAML(t, `
+anomaly_detection:
+  anomaly_scorer:
+    dry_run:
+      enabled: true
+`)
+		provides, err := NewComponent(Requires{
+			Lifecycle: &testLifecycle{},
+			Config:    cfg,
+			Telemetry: telemetryimpl.NewMock(t),
+		})
+		require.NoError(t, err)
+		obs := provides.Comp.(*observerImpl)
+		require.Nil(t, obs.engine.scopedScorer)
+	})
+
+	t.Run("enabled wires scoped scorer and telemetry", func(t *testing.T) {
+		cfg := configmock.NewFromYAML(t, `
+anomaly_detection:
+  anomaly_scorer:
+    dry_run:
+      enabled: true
+    scoped:
+      enabled: true
+      max_scopes: 32
+      idle_eviction_ttl: 5m
+      per_service_telemetry: true
+`)
+		provides, err := NewComponent(Requires{
+			Lifecycle: &testLifecycle{},
+			Config:    cfg,
+			Telemetry: telemetryimpl.NewMock(t),
+		})
+		require.NoError(t, err)
+		obs := provides.Comp.(*observerImpl)
+		require.NotNil(t, obs.engine.scopedScorer)
+		require.Equal(t, 32, obs.engine.scopedScorer.cfg.MaxScopes)
+		require.Equal(t, int64(300), obs.engine.scopedScorer.cfg.IdleEvictionSec)
+		require.True(t, obs.engine.scopedScorer.cfg.Gauges.enabled())
+	})
 }

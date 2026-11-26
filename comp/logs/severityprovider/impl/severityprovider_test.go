@@ -175,17 +175,27 @@ func TestLifecycleRegistersAndUnsubscribesReader(t *testing.T) {
 func newScopedComponent(t *testing.T, enabled bool, cooldown time.Duration, observer option.Option[observerdef.Component]) (*component, *compdef.TestLifecycle) {
 	t.Helper()
 	lifecycle := compdef.NewTestLifecycle(t)
-	provides, err := newComponentWithScoped(Requires{
+	provides, err := NewComponent(Requires{
 		Lifecycle: lifecycle,
 		Config: config.NewMockWithOverrides(t, map[string]interface{}{
 			anomalydetectionconfig.SmartSeverityProfilesEnabledConfigKey: enabled,
+			anomalydetectionconfig.AnomalyScorerScopedEnabledConfigKey:   true,
 			smartSeverityProfilesCooldownConfigKey:                       cooldown,
 		}),
 		Observer: observer,
 		Log:      noopLogComponent{},
-	}, true)
+	})
 	require.NoError(t, err)
 	return provides.Comp.(*component), lifecycle
+}
+
+func TestNewComponentUsesGlobalWhenScopedDisabled(t *testing.T) {
+	obs := &fakeObserverComponent{}
+	comp, lifecycle := newComponent(t, true, 0, option.New[observerdef.Component](obs))
+	require.NoError(t, lifecycle.Start(context.Background()))
+	assert.NotNil(t, obs.dispatcher)
+	assert.Nil(t, obs.scopedListener)
+	assert.Nil(t, comp.scoped.Load())
 }
 
 func TestLifecycleReaderHonorsSmartSeverityProfilesCooldown(t *testing.T) {
