@@ -4,6 +4,7 @@
 // Copyright 2026-present Datadog, Inc.
 
 use crate::config::{ProcessConfig, RestartPolicy};
+use crate::config_gate::GateOutcome;
 use crate::env::expand_env_vars;
 use crate::handle::ProcessHandle;
 use crate::platform;
@@ -530,43 +531,117 @@ impl ManagedProcess {
         let mut reasons = Vec::new();
         if let Some(raw) = &self.config.condition_path_exists {
             let path = expand_env_vars(raw);
-            // A check that did not finish holds the process, like a missing path.
+            // A check that did not finish holds the process, like a missing path. It keeps the
+            // same label, so the stall shows up in the log and not in the reason.
             let owned = std::path::PathBuf::from(&path);
-            let exists = crate::stop::bounded(std::path::Path::new(&path), move || owned.exists())
-                .unwrap_or_else(|err| {
-                    debug!(
-                        "[{}] condition_path_exists {path} did not finish ({err}); holding",
-                        self.name
-                    );
-                    false
-                });
-            if !exists {
+            let checked = crate::stop::bounded(std::path::Path::new(&path), move || {
+                #[cfg(test)]
+                crate::stop::testing::park_if_stalled(&owned);
+                owned.try_exists()
+            });
+            // The bounded call's own errors (a refusal, a timeout, a stop, a reader that ended)
+            // always hold. A read error holds only when a hung or stale mount produces it, as it
+            // does for a gate file. Any other error (a permission error, for example) counts as
+            // missing.
+            let stall = match &checked {
+                Err(err) => Some(err),
+                Ok(Err(err)) if crate::config_gate::read_error_holds(err) => Some(err),
+                _ => None,
+            };
+            if let Some(err) = stall {
+                self.log_stalled_hold(
+                    "condition_path_exists",
+                    &path,
+                    err.kind(),
+                    &err.to_string(),
+                    log,
+                );
+                reasons.push(Self::SKIP_REASON_PATH_MISSING.to_string());
+            } else if !matches!(checked, Ok(Ok(true))) {
                 if log == HoldLog::Emit {
                     info!("[{}] condition_path_exists not met: {path}", self.name);
                 }
                 reasons.push(Self::SKIP_REASON_PATH_MISSING.to_string());
             }
         }
-        if !crate::config_gate::condition_config_any_met(&self.config.condition_config_any) {
-            if log == HoldLog::Emit {
-                info!(
-                    "[{}] condition_config_any not met: {}",
-                    self.name,
-                    crate::config_gate::condition_config_summary(&self.config.condition_config_any)
-                );
+        match crate::config_gate::condition_config_any_outcome(&self.config.condition_config_any) {
+            GateOutcome::Open => {}
+            GateOutcome::Closed => {
+                if log == HoldLog::Emit {
+                    info!(
+                        "[{}] condition_config_any not met: {}",
+                        self.name,
+                        crate::config_gate::condition_config_summary(
+                            &self.config.condition_config_any
+                        )
+                    );
+                }
+                reasons.push(Self::SKIP_REASON_CONFIG_GATE.to_string());
             }
-            reasons.push(Self::SKIP_REASON_CONFIG_GATE.to_string());
+            GateOutcome::Stalled(stall) => {
+                self.log_stalled_hold(
+                    "condition_config_any",
+                    &stall.path,
+                    stall.kind,
+                    &stall.detail,
+                    log,
+                );
+                reasons.push(Self::SKIP_REASON_CONFIG_GATE.to_string());
+            }
         }
-        if !crate::config_gate::condition_config_none_met(&self.config.condition_config_none) {
-            if log == HoldLog::Emit {
-                let vetoed = crate::config_gate::condition_config_summary(
-                    &self.config.condition_config_none,
-                );
-                info!("[{}] condition_config_none vetoed: {vetoed}", self.name);
+        match crate::config_gate::condition_config_none_outcome(&self.config.condition_config_none)
+        {
+            GateOutcome::Open => {}
+            GateOutcome::Closed => {
+                if log == HoldLog::Emit {
+                    let vetoed = crate::config_gate::condition_config_summary(
+                        &self.config.condition_config_none,
+                    );
+                    info!("[{}] condition_config_none vetoed: {vetoed}", self.name);
+                }
+                reasons.push(Self::SKIP_REASON_CONFIG_VETO.to_string());
             }
-            reasons.push(Self::SKIP_REASON_CONFIG_VETO.to_string());
+            GateOutcome::Stalled(stall) => {
+                self.log_stalled_hold(
+                    "condition_config_none",
+                    &stall.path,
+                    stall.kind,
+                    &stall.detail,
+                    log,
+                );
+                reasons.push(Self::SKIP_REASON_CONFIG_VETO.to_string());
+            }
         }
         reasons
+    }
+
+    /// Reports a hold caused by a file that did not answer, so it is not mistaken for a
+    /// condition the files closed. A stop that cut the read short is a normal shutdown, so it
+    /// stays at debug. Nothing retries a stalled hold in the background: a reload evaluates it
+    /// again, unless `stop::bounded` still refuses the path. An explicit start bypasses the
+    /// conditions.
+    fn log_stalled_hold(
+        &self,
+        condition: &str,
+        path: &str,
+        kind: std::io::ErrorKind,
+        detail: &str,
+        log: HoldLog,
+    ) {
+        if log != HoldLog::Emit {
+            return;
+        }
+        if kind == std::io::ErrorKind::Interrupted {
+            debug!(
+                "[{}] {condition} held, read of {path} interrupted ({detail})",
+                self.name
+            );
+        } else {
+            warn!(
+                "[{}] {condition} held: {path} did not answer ({detail}). Holding until a reload reads the path again. A reload that comes while `stop::bounded` still refuses the path keeps the hold without a new read. An explicit start bypasses the hold",
+                self.name
+            );
+        }
     }
 
     #[must_use]
@@ -1530,6 +1605,25 @@ pub mod tests {
         assert_eq!(
             proc.evaluate_start_pass(),
             vec![ManagedProcess::SKIP_REASON_PATH_MISSING]
+        );
+    }
+
+    /// A path check that does not finish holds like a missing path, on every platform.
+    #[test]
+    fn test_start_pass_declines_when_condition_path_check_stalls() {
+        let dir = tempfile::tempdir().unwrap();
+        let gate = dir.path().join("ready");
+        std::fs::write(&gate, b"").unwrap();
+        let _stalled = crate::stop::testing::stall(&gate);
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.condition_path_exists = Some(gate.to_string_lossy().into_owned());
+        let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
+
+        assert_eq!(
+            proc.evaluate_start_pass(),
+            vec![ManagedProcess::SKIP_REASON_PATH_MISSING],
+            "the path exists, so only the stall can hold it"
         );
     }
 

@@ -178,6 +178,8 @@ fn bounded_with<T: Send + 'static>(
         return Err(io::Error::new(io::ErrorKind::TimedOut, reason));
     }
 
+    #[cfg(test)]
+    testing::record_read(path);
     let (tx, rx) = mpsc::channel();
     let ticket = NEXT_TICKET.fetch_add(1, Ordering::SeqCst);
     thread::Builder::new()
@@ -254,27 +256,112 @@ pub(crate) mod testing {
     use super::*;
 
     static STALLED: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
+    static PARKED: Mutex<Vec<(PathBuf, thread::Thread)>> = Mutex::new(Vec::new());
+    static READS: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
 
-    /// Makes [`park_if_stalled`] block for `path` from now on.
-    pub(crate) fn stall(path: &Path) {
+    /// Holds reads of one path as stalled until dropped. Dropping it releases the blocked reads
+    /// and waits for their entries to leave `ABANDONED`, so a test leaves no reader behind.
+    #[must_use = "the stall holds only while the guard is alive"]
+    pub(crate) struct StallGuard(PathBuf);
+
+    /// Makes [`park_if_stalled`] block for `path` until the returned guard is dropped.
+    pub(crate) fn stall(path: &Path) -> StallGuard {
         STALLED
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(path.to_path_buf());
+        StallGuard(path.to_path_buf())
+    }
+
+    impl Drop for StallGuard {
+        fn drop(&mut self) {
+            {
+                let mut stalled = STALLED.lock().unwrap_or_else(PoisonError::into_inner);
+                if let Some(at) = stalled.iter().position(|p| *p == self.0) {
+                    stalled.remove(at);
+                }
+            }
+            // Wakes every registered reader of this path. A reader that is still stalled, because
+            // another guard holds the path, registers again and parks.
+            PARKED
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .retain(|(path, reader)| {
+                    if *path == self.0 {
+                        reader.unpark();
+                        false
+                    } else {
+                        true
+                    }
+                });
+            if is_stalled(&self.0) {
+                // The last guard for this path waits for the reads and reports any left behind.
+                return;
+            }
+            // Bounded, so a read that never returns cannot hang the test run.
+            let deadline = Instant::now() + Duration::from_secs(10);
+            while lock_abandoned().iter().any(|a| a.path == self.0) && Instant::now() < deadline {
+                thread::sleep(Duration::from_millis(5));
+            }
+            let leaked = lock_abandoned().iter().any(|a| a.path == self.0);
+            if leaked && !thread::panicking() {
+                panic!(
+                    "a stalled read of {} did not return within 10 s and is still blocked",
+                    self.0.display()
+                );
+            }
+        }
+    }
+
+    fn is_stalled(path: &Path) -> bool {
+        STALLED
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .iter()
+            .any(|p| p == path)
+    }
+
+    /// How many times a read of `path` has started, as counted by [`record_read`].
+    pub(crate) fn reads_of(path: &Path) -> usize {
+        READS
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .iter()
+            .filter(|p| p.as_path() == path)
+            .count()
+    }
+
+    /// Records that a read of `path` is about to start. Called by [`bounded_with`] on the caller's
+    /// thread, so the count does not depend on when the read thread is scheduled.
+    pub(crate) fn record_read(path: &Path) {
+        READS
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .push(path.to_path_buf());
     }
 
-    /// Parks the calling thread for good when `path` was passed to [`stall`].
+    /// Parks the calling thread while `path` is stalled. Called on the thread that performs the
+    /// read, before it.
     pub(crate) fn park_if_stalled(path: &Path) {
-        let stalled = STALLED
+        if !is_stalled(path) {
+            return;
+        }
+        let me = thread::current();
+        loop {
+            // Registered before the check, so a release that runs after the check still finds it.
+            PARKED
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push((path.to_path_buf(), me.clone()));
+            if !is_stalled(path) {
+                break;
+            }
+            thread::park();
+        }
+        PARKED
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .iter()
-            .any(|p| p == path);
-        if stalled {
-            loop {
-                thread::park();
-            }
-        }
+            .retain(|(_, reader)| reader.id() != me.id());
     }
 }
 
