@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
@@ -58,7 +59,6 @@ var datadogAgentPackage = hooks{
 
 	postStartConfigExperiment:   postStartConfigExperimentDatadogAgent,
 	preStopConfigExperiment:     preStopConfigExperimentDatadogAgent,
-	postStopConfigExperiment:    postStopConfigExperimentDatadogAgent,
 	postPromoteConfigExperiment: postPromoteConfigExperimentDatadogAgent,
 
 	preInstallExtension:  preInstallExtensionDatadogAgent,
@@ -68,7 +68,10 @@ var datadogAgentPackage = hooks{
 
 const (
 	watchdogStopEventName = "Global\\DatadogInstallerStop"
-	oldInstallerDir       = "C:\\ProgramData\\Datadog Installer"
+	// configExperimentRemovalTimeout bounds how long the services restart waits for
+	// remove-config-experiment to restore the stable config.
+	configExperimentRemovalTimeout = 2 * time.Minute
+	oldInstallerDir                = "C:\\ProgramData\\Datadog Installer"
 )
 
 // getExtensionStoragePath returns the path where extension lists should be stored.
@@ -930,12 +933,13 @@ func restoreStableConfigFromExperiment(ctx context.Context) error {
 	return nil
 }
 
-// preStopConfigExperimentDatadogAgent stops the watchdog and sets the fleet_policies_dir to stable.
+// preStopConfigExperimentDatadogAgent stops the watchdog, sets the fleet_policies_dir to stable,
+// and launches a new process to restart the Agent services in the background once the stable
+// config is restored.
 //
-// The services are restarted by postStopConfigExperimentDatadogAgent, once the stable config
-// has been restored. The experiment is applied in place, so restarting them here would race
-// with the restore and could leave the Agent running with the experiment config.
-func preStopConfigExperimentDatadogAgent(_ HookContext) error {
+// The process is launched before remove-config-experiment changes anything, so if the launch
+// fails the experiment is kept and the stop can be retried.
+func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
 	// set watchdog stop to make sure the watchdog stops
 	// don't care if it fails cause we will proceed with the stop anyway
 	// this will just stop a watchdog that is running
@@ -943,19 +947,32 @@ func preStopConfigExperimentDatadogAgent(_ HookContext) error {
 
 	// Set the registry key to point to the previous stable config
 	stablePath := filepath.Join(paths.ConfigsPath, "datadog-agent", "stable")
-	return setFleetPoliciesDir(stablePath)
+	err := setFleetPoliciesDir(stablePath)
+	if err != nil {
+		return err
+	}
+
+	return launchPackageCommandInBackground(ctx.Context, getenv(), "preStopConfigExperimentBackground")
 }
 
-// postStopConfigExperimentDatadogAgent launches a new process to restart the Agent services
-// in the background, so they pick up the restored stable config.
-func postStopConfigExperimentDatadogAgent(ctx HookContext) error {
-	return launchPackageCommandInBackground(ctx.Context, getenv(), "postStopConfigExperimentBackground")
-}
+// preStopConfigExperimentDatadogAgentBackground restarts the Agent services once
+// remove-config-experiment has restored the stable config.
+//
+// The experiment is applied in place, so restarting the services before the restore
+// could leave the Agent running with the experiment config.
+func preStopConfigExperimentDatadogAgentBackground(ctx context.Context) error {
+	dirs := &config.Directories{
+		StablePath:     paths.AgentConfigDir,
+		ExperimentPath: paths.AgentConfigDirExp,
+	}
+	err := dirs.WaitForExperimentRemoval(ctx, configExperimentRemovalTimeout, time.Second)
+	if err != nil {
+		// Restart anyway, so the services don't stay stopped if the restore failed.
+		log.Warnf("restarting Agent services before the config experiment was removed: %s", err)
+	}
 
-// postStopConfigExperimentDatadogAgentBackground restarts the Agent services.
-func postStopConfigExperimentDatadogAgentBackground(ctx context.Context) error {
 	// Start the agent service to pick up the stable config
-	err := windowssvc.NewWinServiceManager().RestartAgentServices(ctx)
+	err = windowssvc.NewWinServiceManager().RestartAgentServices(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to start agent service: %w", err)
 	}
@@ -1023,8 +1040,8 @@ func runDatadogAgentPackageCommand(ctx context.Context, command string) (err err
 		return postStopExperimentDatadogAgentBackground(ctx)
 	case "postStartConfigExperimentBackground":
 		return postStartConfigExperimentDatadogAgentBackground(ctx)
-	case "postStopConfigExperimentBackground":
-		return postStopConfigExperimentDatadogAgentBackground(ctx)
+	case "preStopConfigExperimentBackground":
+		return preStopConfigExperimentDatadogAgentBackground(ctx)
 	case "postPromoteConfigExperimentBackground":
 		return postPromoteConfigExperimentDatadogAgentBackground(ctx)
 	case "updateRegistryInstallSource":

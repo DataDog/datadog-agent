@@ -164,14 +164,6 @@ func (h *testHooks) PreStopConfigExperiment(ctx context.Context, pkg string) err
 	return nil
 }
 
-func (h *testHooks) PostStopConfigExperiment(ctx context.Context, pkg string) error {
-	if h.noop {
-		return nil
-	}
-	h.Called(ctx, pkg)
-	return nil
-}
-
 func (h *testHooks) PostPromoteConfigExperiment(ctx context.Context, pkg string) error {
 	if h.noop {
 		return nil
@@ -330,34 +322,6 @@ func TestUninstallExperiment(t *testing.T) {
 		assert.False(t, state.HasExperiment())
 		fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), r.StableFS())
 	})
-}
-
-func TestRemoveConfigExperiment(t *testing.T) {
-	s := fixtures.NewServer(t)
-	installer := newTestPackageManager(t, s, t.TempDir())
-	defer installer.db.Close()
-
-	err := installer.config.WriteExperiment(testCtx, config.Operations{
-		DeploymentID: "config-1",
-		FileOperations: []config.FileOperation{
-			{FileOperationType: config.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_to_console": false}`)},
-		},
-	})
-	assert.NoError(t, err)
-	state, err := installer.config.GetState()
-	assert.NoError(t, err)
-	assert.Equal(t, "config-1", state.ExperimentDeploymentID)
-
-	preStopConfigExperimentCall := installer.testHooks.On("PreStopConfigExperiment", testCtx, packageDatadogAgent).Return(nil)
-	installer.testHooks.On("PostStopConfigExperiment", testCtx, packageDatadogAgent).Return(nil).NotBefore(preStopConfigExperimentCall).Run(func(mock.Arguments) {
-		// The services are restarted by this hook, so the experiment must already be removed.
-		state, err := installer.config.GetState()
-		assert.NoError(t, err)
-		assert.Empty(t, state.ExperimentDeploymentID)
-	})
-	err = installer.RemoveConfigExperiment(testCtx, packageDatadogAgent)
-	assert.NoError(t, err)
-	installer.testHooks.AssertExpectations(t)
 }
 
 func TestInstallSkippedWhenAlreadyInstalled(t *testing.T) {

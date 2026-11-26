@@ -572,17 +572,11 @@ func (i *installerImpl) RemoveConfigExperiment(ctx context.Context, pkg string) 
 	if err != nil {
 		return fmt.Errorf("could not stop experiment: %w", err)
 	}
-	var errs []error
 	err = i.config.RemoveExperiment(ctx)
 	if err != nil {
-		errs = append(errs, fmt.Errorf("could not remove experiment: %w", err))
+		return fmt.Errorf("could not remove experiment: %w", err)
 	}
-	// Run even if the removal failed, so services stopped by the experiment are started again.
-	err = i.hooks.PostStopConfigExperiment(ctx, pkg)
-	if err != nil {
-		errs = append(errs, fmt.Errorf("could not stop experiment: %w", err))
-	}
-	return errors.Join(errs...)
+	return nil
 }
 
 // PromoteConfigExperiment promotes an experiment to stable.
