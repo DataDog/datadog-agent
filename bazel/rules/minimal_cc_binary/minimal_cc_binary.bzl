@@ -1,10 +1,10 @@
 """minimal_cc_binary: a cc_binary-like rule that injects no toolchain default flags.
 
 The stock `cc_binary` runs its link action through the C++ feature pipeline,
-which in this repo means the toolchain's `default_link_flags` feature quietly
-appends `-lm -ldl -lrt -pthread` to every link. That is fine for normal
-binaries but unacceptable for something like the LD_PRELOAD `nosys.so` shim,
-which must not force those shared libraries onto the loader.
+which adds the toolchain's default link flags and libraries (e.g. `-pthread`)
+to every link. That is fine for normal binaries but unacceptable for something
+like the LD_PRELOAD `nosys.so` shim, which must control exactly which shared
+libraries the loader sees.
 
 `minimal_cc_binary` still resolves the C toolchain (so cc toolchain selection,
 sandboxing, and the compiler binary itself all work), but it constructs the
@@ -22,9 +22,10 @@ referenced from `linkopts` — typically positionally, e.g.
 traceable to a line in the BUILD file.
 
 The rule intentionally omits everything the feature pipeline would normally
-add: `default_compile_flags`, `default_link_flags`, `unfiltered_compile_flags`,
-`redacted_dates`, sysroot handling, `-iquote` for the exec root, and the
-built-in `-isystem` entries. If you need any of those, use `cc_binary`.
+add: `default_compile_flags`, `default_link_flags`, `default_link_libs`,
+`unfiltered_compile_flags`, `redacted_dates`, sysroot handling, `-iquote` for
+the exec root, and the built-in `-isystem` entries. If you need any of those,
+use `cc_binary`.
 
 Example:
 
