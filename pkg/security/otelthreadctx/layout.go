@@ -502,7 +502,7 @@ func (p *Target) locateOTelTLS(bias uint64, tlsVar tls.Var) (Layout, error) {
 	}
 	defer mem.Close()
 
-	loc, err := tlsVar.Locate(remotememory.RemoteMemory{ReaderAt: mem}, libpf.Address(bias))
+	info, pending, err := tlsVar.Locate(remotememory.RemoteMemory{ReaderAt: mem}, libpf.Address(bias))
 	if err != nil {
 		// A failed read keeps its errno, which tells a vanished or forbidden
 		// target apart. Anything else is a slot the loader left unapplied or
@@ -513,9 +513,12 @@ func (p *Target) locateOTelTLS(bias uint64, tlsVar tls.Var) (Layout, error) {
 		return Layout{}, fmt.Errorf("%w: locate %v: %w", ErrMalformed, tlsVar, err)
 	}
 
-	if loc.ModuleID == 0 {
-		return Layout{tlsOffset: int64(loc.Offset)}, nil
+	// Static TLS comes back as a ready descriptor. Dynamic TLS comes back as a
+	// pending location, completed below with this process's DTV layout.
+	if pending == nil {
+		return Layout{tlsOffset: int64(info.Tls_offset)}, nil
 	}
+	loc := *pending
 	dtv, err := p.dtvInfo()
 	if err != nil {
 		return Layout{}, err
