@@ -6,8 +6,10 @@
 package observerimpl
 
 import (
+	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
@@ -186,6 +188,154 @@ func TestScopedAnomalyScorerUnsubscribeAndReset(t *testing.T) {
 
 	router.Reset()
 	assert.Zero(t, router.ActiveScopeCount())
+}
+
+func TestScopedAnomalyScorerIdleEviction(t *testing.T) {
+	var reasons []string
+	cfg := fastScopedScorerConfig()
+	cfg.IdleEvictionSec = 10
+	cfg.OnScopeEvicted = func(reason string) { reasons = append(reasons, reason) }
+	router := newScopedAnomalyScorer(cfg)
+
+	listener := &collectingScopedListener{}
+	_, err := router.SubscribeScopedSeverityEvents(severityeventsdef.SeverityEventsConfiguration{
+		CooldownSecs: 25,
+	}, listener)
+	require.NoError(t, err)
+
+	// Escalation-only subscriber must not block idle eviction.
+	escOnly := &collectingScopedListener{}
+	_, err = router.SubscribeScopedSeverityEvents(severityeventsdef.SeverityEventsConfiguration{
+		Filter: severityeventsdef.SeverityEventFilter{
+			Direction: severityeventsdef.SeverityEventEscalation,
+		},
+	}, escOnly)
+	require.NoError(t, err)
+
+	router.ProcessAnomaly(makeServiceMetricAnomaly("s1", 100, "service:checkout"))
+	router.ProcessAnomaly(makeServiceMetricAnomaly("s2", 100, "service:checkout"))
+	router.Advance(100)
+	require.Equal(t, 1, router.ActiveScopeCount())
+
+	// Raw score decays after window (105), but cooldown holds listener at High until 125.
+	router.Advance(120)
+	assert.Equal(t, 1, router.ActiveScopeCount())
+	assert.Empty(t, reasons)
+
+	// Cooldown clears at 125; idle TTL (10s) elapses at 135.
+	router.Advance(125)
+	assert.Equal(t, severityeventsdef.SeverityLow, lastScopedLevel(listener.eventsForService("checkout")))
+	router.Advance(134)
+	assert.Equal(t, 1, router.ActiveScopeCount())
+	router.Advance(135)
+	assert.Zero(t, router.ActiveScopeCount())
+	assert.Equal(t, []string{scopedEvictionReasonIdle}, reasons)
+
+	// Recreates cleanly on a later anomaly.
+	router.ProcessAnomaly(makeServiceMetricAnomaly("s1", 200, "service:checkout"))
+	router.ProcessAnomaly(makeServiceMetricAnomaly("s2", 200, "service:checkout"))
+	router.Advance(200)
+	assert.Equal(t, 1, router.ActiveScopeCount())
+	assert.Equal(t, severityeventsdef.SeverityHigh, lastScopedLevel(listener.eventsForService("checkout")))
+}
+
+func TestScopedAnomalyScorerLRUCapacityEvictionPrefersLowThenDeescalates(t *testing.T) {
+	var reasons []string
+	cfg := fastScopedScorerConfig()
+	cfg.Scorer.SaturationK = 10.0
+	cfg.MaxScopes = 2
+	cfg.IdleEvictionSec = 1000
+	cfg.OnScopeEvicted = func(reason string) { reasons = append(reasons, reason) }
+	router := newScopedAnomalyScorer(cfg)
+
+	listener := &collectingScopedListener{}
+	_, err := router.SubscribeScopedSeverityEvents(severityeventsdef.SeverityEventsConfiguration{
+		CooldownSecs: 30,
+	}, listener)
+	require.NoError(t, err)
+
+	// Escalation-only subscriber must not receive synthetic Low de-escalation on eviction.
+	escOnly := &collectingScopedListener{}
+	_, err = router.SubscribeScopedSeverityEvents(severityeventsdef.SeverityEventsConfiguration{
+		Filter: severityeventsdef.SeverityEventFilter{
+			Direction: severityeventsdef.SeverityEventEscalation,
+		},
+	}, escOnly)
+	require.NoError(t, err)
+
+	// Escalate svc-elevated at t=100 (older in LRU), then keep svc-low at Low at t=101 (newer in LRU).
+	for idx := range 6 {
+		router.ProcessAnomaly(makeServiceMetricAnomaly(fmt.Sprintf("e%d", idx), 100, "service:svc-elevated"))
+	}
+	router.Advance(100)
+	require.Equal(t, severityeventsdef.SeverityHigh, lastScopedLevel(listener.eventsForService("svc-elevated")))
+
+	router.ProcessAnomaly(makeServiceMetricAnomaly("l1", 101, "service:svc-low"))
+	router.Advance(106) // svc-low window is empty (Low); svc-elevated stays High due to 30s cooldown.
+
+	// Adding svc-new at MaxScopes=2 must evict svc-low (Pass 1) instead of older svc-elevated.
+	for idx := range 6 {
+		router.ProcessAnomaly(makeServiceMetricAnomaly(fmt.Sprintf("n%d", idx), 107, "service:svc-new"))
+	}
+	router.Advance(107)
+	assert.Equal(t, 2, router.ActiveScopeCount())
+	assert.Equal(t, []string{scopedEvictionReasonCapacity}, reasons)
+	assert.Equal(t, severityeventsdef.SeverityHigh, lastScopedLevel(listener.eventsForService("svc-elevated")))
+	assert.Equal(t, severityeventsdef.SeverityHigh, lastScopedLevel(listener.eventsForService("svc-new")))
+
+	// Now both scopes are elevated; adding svc-fourth forces Pass 2 eviction of svc-elevated with synthetic Low.
+	router.ProcessAnomaly(makeServiceMetricAnomaly("f1", 108, "service:svc-fourth"))
+	assert.Equal(t, 2, router.ActiveScopeCount())
+	assert.Equal(t, []string{scopedEvictionReasonCapacity, scopedEvictionReasonCapacity}, reasons)
+
+	elevatedEvents := listener.eventsForService("svc-elevated")
+	require.Len(t, elevatedEvents, 2)
+	assert.Equal(t, severityeventsdef.SeverityHigh, elevatedEvents[1].Event.FromLevel)
+	assert.Equal(t, severityeventsdef.SeverityLow, elevatedEvents[1].Event.ToLevel)
+	assert.Equal(t, severityeventsdef.SeverityEventDeescalation, elevatedEvents[1].Event.Direction)
+
+	escEvents := escOnly.eventsForService("svc-elevated")
+	require.Len(t, escEvents, 1)
+	assert.Equal(t, severityeventsdef.SeverityHigh, escEvents[0].Event.ToLevel)
+}
+
+func TestScopedAnomalyScorerConcurrentSubscribeRace(t *testing.T) {
+	cfg := fastScopedScorerConfig()
+	cfg.MaxScopes = 4
+	cfg.IdleEvictionSec = 3
+	router := newScopedAnomalyScorer(cfg)
+
+	stopCh := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for idx := 0; ; idx++ {
+			select {
+			case <-stopCh:
+				return
+			default:
+				listener := &collectingScopedListener{}
+				sub, err := router.SubscribeScopedSeverityEvents(severityeventsdef.SeverityEventsConfiguration{}, listener)
+				if err == nil {
+					sub.Unsubscribe()
+				}
+				_ = idx
+				time.Sleep(time.Microsecond)
+			}
+		}
+	}()
+
+	for ts := int64(100); ts < 160; ts++ {
+		svc := fmt.Sprintf("svc-%d", ts%8)
+		router.ProcessAnomaly(makeServiceMetricAnomaly("a1", ts, "service:"+svc))
+		router.ProcessAnomaly(makeServiceMetricAnomaly("a2", ts, "service:"+svc))
+		router.Advance(ts)
+		require.LessOrEqual(t, router.ActiveScopeCount(), cfg.MaxScopes)
+	}
+
+	close(stopCh)
+	wg.Wait()
 }
 
 func lastScopedLevel(events []severityeventsdef.ScopedSeverityEvent) severityeventsdef.SeverityLevel {

@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"container/list"
 	"errors"
 	"slices"
 	"strings"
@@ -20,7 +21,9 @@ import (
 const (
 	scopedAnomalyScorerName            = "scoped_anomaly_scorer"
 	defaultScopedScorerMaxScopes       = 128
-	defaultScopedScorerIdleEvictionSec = 600
+	defaultScopedScorerIdleEvictionSec = 3600
+	scopedEvictionReasonIdle           = "idle"
+	scopedEvictionReasonCapacity       = "capacity"
 )
 
 // ScopedAnomalyScorerConfig configures a service-scoped anomaly scorer router.
@@ -64,6 +67,8 @@ type scopedScorerEntry struct {
 	key         severityeventsdef.ScopeKey
 	scorer      *anomalyScorer
 	dispatchers []scopedChildDispatcher
+	idleSince   int64
+	lruElem     *list.Element
 }
 
 // scopedAnomalyScorer routes anomalies by service ScopeKey into lazy per-service scorers.
@@ -72,6 +77,7 @@ type scopedAnomalyScorer struct {
 
 	mu              sync.Mutex
 	entries         map[severityeventsdef.ScopeKey]*scopedScorerEntry
+	lru             *list.List
 	subs            []*scopedSubscription
 	lastAdvancedSec int64
 }
@@ -93,6 +99,7 @@ func newScopedAnomalyScorer(cfg ScopedAnomalyScorerConfig) *scopedAnomalyScorer 
 	return &scopedAnomalyScorer{
 		cfg:     cfg,
 		entries: make(map[severityeventsdef.ScopeKey]*scopedScorerEntry),
+		lru:     list.New(),
 	}
 }
 
@@ -130,13 +137,30 @@ func (router *scopedAnomalyScorer) ProcessAnomaly(anomaly observerdef.Anomaly) {
 		return
 	}
 
+	var evicted bool
+	var deescalations []pendingScopedDeescalation
+
 	router.mu.Lock()
 	entry, ok := router.entries[key]
-	if !ok {
+	if ok {
+		entry.idleSince = 0
+		router.lru.MoveToFront(entry.lruElem)
+	} else {
+		if len(router.entries) >= router.cfg.MaxScopes {
+			evictTime := max(anomaly.Timestamp, router.lastAdvancedSec)
+			deescalations = router.evictOneLRULocked(evictTime)
+			evicted = true
+		}
 		entry = router.createEntryLocked(key)
 	}
 	router.mu.Unlock()
 
+	if evicted {
+		deliverPendingDeescalations(deescalations)
+		if router.cfg.OnScopeEvicted != nil {
+			router.cfg.OnScopeEvicted(scopedEvictionReasonCapacity)
+		}
+	}
 	entry.scorer.ProcessAnomaly(anomaly)
 }
 
@@ -158,8 +182,102 @@ func (router *scopedAnomalyScorer) createEntryLocked(key severityeventsdef.Scope
 			adapter:    adapter,
 		})
 	}
+	entry.lruElem = router.lru.PushFront(entry)
 	router.entries[key] = entry
 	return entry
+}
+
+type pendingScopedDeescalation struct {
+	listener severityeventsdef.ScopedSeverityEventListener
+	event    severityeventsdef.ScopedSeverityEvent
+}
+
+func deliverPendingDeescalations(deescalations []pendingScopedDeescalation) {
+	for _, pending := range deescalations {
+		pending.listener.OnScopedSeverityTransition(pending.event)
+	}
+}
+
+func (router *scopedAnomalyScorer) evictOneLRULocked(evictSec int64) []pendingScopedDeescalation {
+	for elem := router.lru.Back(); elem != nil; elem = elem.Prev() {
+		candidate := elem.Value.(*scopedScorerEntry)
+		if router.entryIsIdle(candidate) {
+			router.lru.Remove(elem)
+			delete(router.entries, candidate.key)
+			return nil
+		}
+	}
+
+	elem := router.lru.Back()
+	if elem == nil {
+		return nil
+	}
+	victim := elem.Value.(*scopedScorerEntry)
+	router.lru.Remove(elem)
+	delete(router.entries, victim.key)
+
+	var deescalations []pendingScopedDeescalation
+	for _, child := range victim.dispatchers {
+		deliveredLevel := severityeventsdef.SeverityLevel(child.adapter.level.Load())
+		if deliveredLevel <= severityeventsdef.SeverityLow {
+			continue
+		}
+		evt := severityeventsdef.SeverityEvent{
+			Timestamp: evictSec,
+			FromLevel: deliveredLevel,
+			ToLevel:   severityeventsdef.SeverityLow,
+			Direction: severityeventsdef.SeverityEventDeescalation,
+		}
+		if severityeventsimpl.EventFilterMatches(child.sub.cfg.Filter, evt) {
+			deescalations = append(deescalations, pendingScopedDeescalation{
+				listener: child.sub.listener,
+				event: severityeventsdef.ScopedSeverityEvent{
+					ScopeKey: victim.key,
+					Event:    evt,
+				},
+			})
+		}
+	}
+	return deescalations
+}
+
+func (s *anomalyScorer) isIdleForEviction() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.score.initialized &&
+		s.score.level == severityeventsdef.SeverityLow &&
+		len(s.pending) == 0 &&
+		len(s.late) == 0 &&
+		len(s.windowMap) == 0
+}
+
+func (router *scopedAnomalyScorer) entryIsIdle(entry *scopedScorerEntry) bool {
+	if !entry.scorer.isIdleForEviction() {
+		return false
+	}
+	for _, child := range entry.dispatchers {
+		deliveredLevel := severityeventsdef.SeverityLevel(child.adapter.level.Load())
+		if deliveredLevel == severityeventsdef.SeverityLow {
+			continue
+		}
+		if filterAllowsLow(child.sub.cfg.Filter, deliveredLevel) {
+			return false
+		}
+	}
+	return true
+}
+
+func filterAllowsLow(filter severityeventsdef.SeverityEventFilter, fromLevel severityeventsdef.SeverityLevel) bool {
+	if filter.Direction == severityeventsdef.SeverityEventEscalation {
+		return false
+	}
+	if len(filter.ToLevels) > 0 && !slices.Contains(filter.ToLevels, severityeventsdef.SeverityLow) {
+		return false
+	}
+	if len(filter.FromLevels) > 0 && !slices.Contains(filter.FromLevels, fromLevel) {
+		return false
+	}
+	return true
 }
 
 // Advance implements observerdef.Correlator.
@@ -194,6 +312,34 @@ func (router *scopedAnomalyScorer) Advance(dataTime int64) {
 			}
 		}
 	}
+
+	idleEvicted := 0
+	router.mu.Lock()
+	for _, item := range snapshot {
+		entry := item.entry
+		if router.entries[entry.key] != entry {
+			continue
+		}
+		if router.entryIsIdle(entry) {
+			if entry.idleSince == 0 {
+				entry.idleSince = dataTime
+			}
+			if dataTime-entry.idleSince >= router.cfg.IdleEvictionSec {
+				router.lru.Remove(entry.lruElem)
+				delete(router.entries, entry.key)
+				idleEvicted++
+			}
+		} else {
+			entry.idleSince = 0
+		}
+	}
+	router.mu.Unlock()
+
+	if idleEvicted > 0 && router.cfg.OnScopeEvicted != nil {
+		for range idleEvicted {
+			router.cfg.OnScopeEvicted(scopedEvictionReasonIdle)
+		}
+	}
 }
 
 // ActiveCorrelations implements observerdef.Correlator.
@@ -210,6 +356,7 @@ func (router *scopedAnomalyScorer) PendingEvents() []observerdef.CorrelatorEvent
 func (router *scopedAnomalyScorer) Reset() {
 	router.mu.Lock()
 	router.entries = make(map[severityeventsdef.ScopeKey]*scopedScorerEntry)
+	router.lru = list.New()
 	router.lastAdvancedSec = 0
 	router.mu.Unlock()
 }
