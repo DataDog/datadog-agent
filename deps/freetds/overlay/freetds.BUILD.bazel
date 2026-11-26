@@ -5,14 +5,13 @@ load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@freetds_constants//:constants.bzl", "URL", "VERSION")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "pkg_attributes", "pkg_mklink")
 
 package(default_package_metadata = [":package_metadata", ":ship_source_offer"])
-
-VERSION = "1.1.36"
 
 # This is what the omnibus script did. It is slightly suspect, but
 # let's preserve behaviors for now.
@@ -27,7 +26,7 @@ package_metadata(
     purl = purl_for_generic(
         package = "freetds",
         version = VERSION,
-        download_url = "https://www.freetds.org/files/stable/freetds-{version}.tar.gz",
+        download_url = URL,
     ),
 )
 

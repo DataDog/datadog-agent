@@ -1,6 +1,19 @@
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
+constants_repo = use_repo_rule("//bazel/repo:constants_repo.bzl", "constants_repo")
+
 VERSION = "1.1.36"
+
+URL = "https://www.freetds.org/files/stable/freetds-{version}.tar.gz".format(version = VERSION)
+
+# Read by the overlay BUILD file for the package_metadata purl.
+constants_repo(
+    name = "freetds_constants",
+    items = {
+        "URL": URL,
+        "VERSION": VERSION,
+    },
+)
 
 http_archive(
     name = "freetds",
@@ -15,5 +28,5 @@ http_archive(
     ],
     sha256 = "1c306e658e10a325eefddfd662cec3a6d9065fe61c515f26d4f1fb6c4c62405d",
     strip_prefix = "freetds-{version}".format(version = VERSION),
-    url = "https://www.freetds.org/files/stable/freetds-{version}.tar.gz".format(version = VERSION),
+    url = URL,
 )

@@ -2,12 +2,27 @@
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
+constants_repo = use_repo_rule("//bazel/repo:constants_repo.bzl", "constants_repo")
+
+VERSION = "75.1.0"
+
+URL = "https://github.com/pypa/setuptools/archive/v{version}.tar.gz".format(version = VERSION)
+
+# Read by the overlay BUILD file for the package_metadata purl.
+constants_repo(
+    name = "setuptools_constants",
+    items = {
+        "URL": URL,
+        "VERSION": VERSION,
+    },
+)
+
 http_archive(
     name = "setuptools",
     files = {
         "BUILD.bazel": "//deps/setuptools:setuptools.BUILD.bazel",
     },
     sha256 = "514dc60688d3118c9883a3dd54a38b28128ea912c01ea325d6e204a93da3b524",
-    strip_prefix = "setuptools-75.1.0",
-    urls = ["https://github.com/pypa/setuptools/archive/v75.1.0.tar.gz"],
+    strip_prefix = "setuptools-{}".format(VERSION),
+    urls = [URL],
 )
