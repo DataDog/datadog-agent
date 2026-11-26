@@ -216,7 +216,7 @@ require (
 	github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d
 	github.com/DataDog/dd-trace-go/v2 v2.12.0
 	github.com/DataDog/ddtrivy v0.0.0-20261123103834-4e22de87b9e7
-	github.com/DataDog/ebpf-manager v0.8.8-0.20261123171909-80c0822b9ec4
+	github.com/DataDog/ebpf-manager v0.9.0
 	github.com/DataDog/go-acl v1.0.1
 	github.com/DataDog/go-sqllexer v0.2.7
 	github.com/DataDog/jsonapi v0.14.0
