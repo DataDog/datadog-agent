@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -183,6 +184,9 @@ func podRejectsExec(pod v1.Pod) bool {
 	return pod.Annotations[gkeAutopilotNoConnectAnnotation] == "true"
 }
 
+// containerLogsTimeout bounds each container log download, so a stalled stream cannot block Diagnose.
+const containerLogsTimeout = 30 * time.Second
+
 // downloadContainerLogs writes the logs of every container of the pod to <outputDir>/<pod>/<container>.log,
 // plus <container>.previous.log for restarted containers. Reading logs does not need exec.
 func (e *Kubernetes) downloadContainerLogs(ctx context.Context, pod v1.Pod, outputDir string) string {
@@ -213,6 +217,8 @@ func (e *Kubernetes) downloadContainerLogs(ctx context.Context, pod v1.Pod, outp
 }
 
 func (e *Kubernetes) writeContainerLogs(ctx context.Context, pod v1.Pod, container string, previous bool, path string) error {
+	ctx, cancel := context.WithTimeout(ctx, containerLogsTimeout)
+	defer cancel()
 	logs, err := e.KubernetesCluster.Client().CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &v1.PodLogOptions{Container: container, Previous: previous}).Stream(ctx)
 	if err != nil {
 		return err

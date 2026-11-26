@@ -174,7 +174,7 @@ func noInjection(container string) func(*corev1.Pod) bool {
 // (AgentPayload.IdxTracerPayloads). The convert-traces feature is enabled by
 // default, so real traffic now lands in IdxTracerPayloads, but checking both
 // keeps the helper correct regardless of the `disable-convert-traces` flag.
-func FindTracesForService(t *testing.T, intake *fakeintake.Client, serviceName string) int {
+func FindTracesForService(t require.TestingT, intake *fakeintake.Client, serviceName string) int {
 	serviceNameTag := "service:" + serviceName
 
 	// containerTagsMatch reports whether the given comma-separated container tags
@@ -214,8 +214,8 @@ func FindTracesForService(t *testing.T, intake *fakeintake.Client, serviceName s
 // the APM env of the app pod.
 func RequireTracesForService(t *testing.T, intake *fakeintake.Client, pod *corev1.Pod, serviceName string) {
 	t.Helper()
-	if assert.Eventually(t, func() bool {
-		return FindTracesForService(t, intake, serviceName) != 0
+	if assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.NotZero(c, FindTracesForService(c, intake, serviceName))
 	}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", serviceName) {
 		return
 	}
