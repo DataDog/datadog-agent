@@ -242,6 +242,11 @@ static __maybe_unused __always_inline int sk_buff_to_tcp_tuple(struct sk_buff *s
 }
 
 #ifdef COMPILE_CORE
+// sk_buff_to_tuple for a BTF-typed skb pointer.
+static __maybe_unused __always_inline int sk_buff_to_tuple_btf(struct sk_buff *skb, conn_tuple_t *tup) {
+    return __sk_buff_to_tuple(skb, tup, false, true);
+}
+
 // sk_buff_to_tcp_tuple for a BTF-typed skb pointer.
 static __maybe_unused __always_inline int sk_buff_to_tcp_tuple_btf(struct sk_buff *skb, conn_tuple_t *tup) {
     return __sk_buff_to_tuple(skb, tup, true, true);
