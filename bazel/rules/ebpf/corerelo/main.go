@@ -19,7 +19,9 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/cilium/ebpf/btf"
@@ -30,10 +32,33 @@ import (
 const (
 	btfExtMagic     = 0xeB9F
 	btfExtHeaderLen = 32
+	funcInfoRecLen  = 8
+	lineInfoRecLen  = 16
 	coreReloRecLen  = 16
 	// Offset of str_len in struct btf_header.
 	btfStrLenOff = 20
 )
+
+// btf.CORERelocation keeps its fields unexported, so they are parsed from its
+// String(). That format is not a stable API: anything unexpected is an error.
+var reloPattern = regexp.MustCompile(`^CORERelocation\(([a-z0-9_]+), .*\[([0-9:]+)\], local_id=([0-9]+)\)$`)
+
+// Names printed by cilium/ebpf for the kernel's enum bpf_core_relo_kind values.
+var reloKinds = map[string]uint32{
+	"byte_off":       0,
+	"byte_sz":        1,
+	"field_exists":   2,
+	"signed":         3,
+	"lshift_u64":     4,
+	"rshift_u64":     5,
+	"local_type_id":  6,
+	"target_type_id": 7,
+	"type_exists":    8,
+	"type_size":      9,
+	"enumval_exists": 10,
+	"enumval_value":  11,
+	"type_matches":   12,
+}
 
 // byteOrder is satisfied by binary.LittleEndian and binary.BigEndian.
 type byteOrder interface {
@@ -99,110 +124,61 @@ func readRelos(in string) ([]relo, byteOrder, error) {
 	if !ok {
 		return nil, nil, errors.New("unsupported ELF byte order")
 	}
-	rawBTF, err := sectionData(f, ".BTF")
-	if err != nil {
-		return nil, nil, err
-	}
-	rawExt, err := sectionData(f, ".BTF.ext")
-	if err != nil {
-		return nil, nil, err
-	}
-	// Raw .BTF skips the ELF symbol fixups of datasecs, which are never relocation roots.
-	spec, err := btf.LoadSpecFromReader(bytes.NewReader(rawBTF))
+	spec, ext, err := btf.LoadSpecAndExtInfosFromReader(bytes.NewReader(data))
 	if err != nil {
 		return nil, nil, fmt.Errorf("load BTF: %w", err)
 	}
-	strs, err := stringTable(rawBTF, order)
-	if err != nil {
-		return nil, nil, err
+	if ext == nil {
+		return nil, nil, errors.New("no .BTF.ext section")
 	}
-	relos, err := coreRelos(rawExt, strs, spec, order)
-	return relos, order, err
-}
 
-func sectionData(f *safeelf.File, name string) ([]byte, error) {
-	s := f.Section(name)
-	if s == nil {
-		return nil, fmt.Errorf("no %s section", name)
+	// bpftool evaluates relocations in .BTF.ext order, and that order can matter
+	// when a kernel has several candidates for a root type. cilium/ebpf sorts
+	// each section by instruction offset, which is how clang emits them, and
+	// sections are taken in ELF order. minimized_btfs_test checks the result.
+	var names []string
+	for _, s := range f.Sections {
+		if _, ok := ext.CORERelos[s.Name]; ok && !slices.Contains(names, s.Name) {
+			names = append(names, s.Name)
+		}
 	}
-	return s.Data()
-}
-
-func stringTable(raw []byte, order binary.ByteOrder) ([]byte, error) {
-	if len(raw) < 24 {
-		return nil, errors.New(".BTF header truncated")
-	}
-	hdrLen := order.Uint32(raw[4:])
-	strOff := order.Uint32(raw[16:])
-	strLen := order.Uint32(raw[20:])
-	start := uint64(hdrLen) + uint64(strOff)
-	if start+uint64(strLen) > uint64(len(raw)) {
-		return nil, errors.New(".BTF string table out of bounds")
-	}
-	return raw[start : start+uint64(strLen)], nil
-}
-
-func cString(strs []byte, off uint32) (string, error) {
-	if uint64(off) >= uint64(len(strs)) {
-		return "", fmt.Errorf("string offset %d out of bounds", off)
-	}
-	end := bytes.IndexByte(strs[off:], 0)
-	if end < 0 {
-		return "", fmt.Errorf("unterminated string at %d", off)
-	}
-	return string(strs[off : off+uint32(end)]), nil
-}
-
-func coreRelos(raw, strs []byte, spec *btf.Spec, order binary.ByteOrder) ([]relo, error) {
-	if len(raw) < 24 || order.Uint16(raw) != btfExtMagic {
-		return nil, errors.New("bad .BTF.ext header")
-	}
-	hdrLen := order.Uint32(raw[4:])
-	if hdrLen < btfExtHeaderLen {
-		return nil, nil
-	}
-	if uint64(len(raw)) < uint64(hdrLen) {
-		return nil, errors.New(".BTF.ext header truncated")
-	}
-	off, size := order.Uint32(raw[24:]), order.Uint32(raw[28:])
-	if size == 0 {
-		return nil, nil
-	}
-	start := uint64(hdrLen) + uint64(off)
-	if start+uint64(size) > uint64(len(raw)) || size < 4 {
-		return nil, errors.New("core_relo info out of bounds")
-	}
-	sec := raw[start : start+uint64(size)]
-	recLen := order.Uint32(sec)
-	if recLen < coreReloRecLen {
-		return nil, fmt.Errorf("core_relo record size %d too small", recLen)
+	for _, name := range slices.Sorted(maps.Keys(ext.CORERelos)) {
+		if !slices.Contains(names, name) {
+			names = append(names, name)
+		}
 	}
 
 	var relos []relo
-	for p := uint32(4); p < uint32(len(sec)); {
-		if 8 > uint32(len(sec))-p {
-			return nil, errors.New("core_relo section header truncated")
-		}
-		n := order.Uint32(sec[p+4:])
-		p += 8
-		for range n {
-			if recLen > uint32(len(sec))-p {
-				return nil, errors.New("core_relo record truncated")
-			}
-			typeID := btf.TypeID(order.Uint32(sec[p+4:]))
-			access, err := cString(strs, order.Uint32(sec[p+8:]))
+	for _, name := range names {
+		for _, r := range ext.CORERelos[name] {
+			rl, err := parseRelo(r.Relo, spec)
 			if err != nil {
-				return nil, err
+				return nil, nil, fmt.Errorf("section %s: %w", name, err)
 			}
-			typ, err := spec.TypeByID(typeID)
-			if err != nil {
-				return nil, fmt.Errorf("relocation type %d: %w", typeID, err)
-			}
-			relos = append(relos, relo{kind: order.Uint32(sec[p+12:]), typ: typ, access: access})
-			p += recLen
+			relos = append(relos, rl)
 		}
 	}
-	return relos, nil
+	return relos, order, nil
+}
+
+func parseRelo(r *btf.CORERelocation, spec *btf.Spec) (relo, error) {
+	m := reloPattern.FindStringSubmatch(r.String())
+	if m == nil {
+		return relo{}, fmt.Errorf("unexpected relocation format %q", r)
+	}
+	kind, ok := reloKinds[m[1]]
+	if !ok {
+		return relo{}, fmt.Errorf("unknown relocation kind %q", m[1])
+	}
+	id, err := strconv.ParseUint(m[3], 10, 32)
+	if err != nil {
+		return relo{}, fmt.Errorf("relocation type ID %q: %w", m[3], err)
+	}
+	typ, err := spec.TypeByID(btf.TypeID(id))
+	if err != nil {
+		return relo{}, fmt.Errorf("relocation type %d: %w", id, err)
+	}
+	return relo{kind: kind, typ: typ, access: m[2]}, nil
 }
 
 // typeKey identifies a local type by name and definition, so same-named types
@@ -275,6 +251,10 @@ func buildStub(relos []relo, order byteOrder) ([]byte, error) {
 		}
 		ids[i] = id
 	}
+	funcID, err := b.Add(&btf.Func{Name: "relocations", Type: &btf.FuncProto{Return: &btf.Void{}}})
+	if err != nil {
+		return nil, err
+	}
 	rawBTF, err := b.Marshal(nil, &btf.MarshalOptions{Order: order})
 	if err != nil {
 		return nil, fmt.Errorf("marshal BTF: %w", err)
@@ -292,36 +272,54 @@ func buildStub(relos []relo, order byteOrder) ([]byte, error) {
 		return off
 	}
 
-	var reloInfo []byte
-	if len(relos) > 0 {
-		reloInfo = order.AppendUint32(reloInfo, coreReloRecLen)
-		reloInfo = order.AppendUint32(reloInfo, addString("relocations"))
-		reloInfo = order.AppendUint32(reloInfo, uint32(len(relos)))
-		for i, r := range relos {
-			reloInfo = order.AppendUint32(reloInfo, uint32(i*8))
-			reloInfo = order.AppendUint32(reloInfo, uint32(ids[i]))
-			reloInfo = order.AppendUint32(reloInfo, addString(r.access))
-			reloInfo = order.AppendUint32(reloInfo, r.kind)
-		}
+	secName := addString("relocations")
+	// extInfo starts a func_info, line_info or core_relo block with one section.
+	extInfo := func(recLen uint32, n int) []byte {
+		b := order.AppendUint32(nil, recLen)
+		b = order.AppendUint32(b, secName)
+		return order.AppendUint32(b, uint32(n))
+	}
+	// cilium/ebpf fails on empty func_info or line_info, and libbpf on a block
+	// without records, so both get a placeholder record bpftool does not use.
+	funcInfo := order.AppendUint32(extInfo(funcInfoRecLen, 1), 0)
+	funcInfo = order.AppendUint32(funcInfo, uint32(funcID))
+	lineInfo := extInfo(lineInfoRecLen, 1)
+	for range 4 { // insn_off, file_name_off, line_off, line_col
+		lineInfo = order.AppendUint32(lineInfo, 0)
+	}
+	reloInfo := extInfo(coreReloRecLen, len(relos))
+	for i, r := range relos {
+		reloInfo = order.AppendUint32(reloInfo, uint32(i*8))
+		reloInfo = order.AppendUint32(reloInfo, uint32(ids[i]))
+		reloInfo = order.AppendUint32(reloInfo, addString(r.access))
+		reloInfo = order.AppendUint32(reloInfo, r.kind)
 	}
 
-	ext := make([]byte, 0, btfExtHeaderLen+len(reloInfo))
-	ext = order.AppendUint16(ext, btfExtMagic)
+	ext := order.AppendUint16(nil, btfExtMagic)
 	ext = append(ext, 1, 0)
 	ext = order.AppendUint32(ext, btfExtHeaderLen)
-	for range 4 { // func_info and line_info: empty
-		ext = order.AppendUint32(ext, 0)
+	off := uint32(0)
+	for _, blk := range [][]byte{funcInfo, lineInfo, reloInfo} {
+		ext = order.AppendUint32(ext, off)
+		ext = order.AppendUint32(ext, uint32(len(blk)))
+		off += uint32(len(blk))
 	}
-	ext = order.AppendUint32(ext, 0)
-	ext = order.AppendUint32(ext, uint32(len(reloInfo)))
-	ext = append(ext, reloInfo...)
+	ext = slices.Concat(ext, funcInfo, lineInfo, reloInfo)
 
-	return writeELF(order, []elfSection{{".BTF", rawBTF}, {".BTF.ext", ext}})
+	return writeELF(order, []elfSection{
+		{name: ".BTF", typ: shtProgbits, data: rawBTF},
+		{name: ".BTF.ext", typ: shtProgbits, data: ext},
+		// cilium/ebpf only loads BTF from an ELF with a symbol table; this one
+		// holds just the null symbol.
+		{name: ".symtab", typ: shtSymtab, entsize: symLen, data: make([]byte, symLen)},
+	})
 }
 
 type elfSection struct {
-	name string
-	data []byte
+	name    string
+	typ     uint32
+	entsize uint64
+	data    []byte
 }
 
 // Elf64_Ehdr and Elf64_Shdr, which pkg/util/safeelf does not expose for writing.
@@ -363,14 +361,17 @@ const (
 	elfTypeRel   = 1
 	elfMachBPF   = 247
 	shtProgbits  = 1
+	shtSymtab    = 2
 	shtStrtab    = 3
 	elfHeaderLen = 64
 	shdrLen      = 64
+	symLen       = 24
 )
 
 // writeELF writes a relocatable eBPF ELF with the given sections and a
-// section name table, which is all libbpf's btf__parse() needs.
+// section name table, which also serves as the string table of any symbol table.
 func writeELF(order byteOrder, secs []elfSection) ([]byte, error) {
+	shstrtabIdx := uint32(len(secs) + 1)
 	shstrtab := []byte{0}
 	nameOff := func(s string) uint32 {
 		off := uint32(len(shstrtab))
@@ -389,12 +390,19 @@ func writeELF(order byteOrder, secs []elfSection) ([]byte, error) {
 	shdrs := []elfSectionHeader{{}}
 	for _, s := range secs {
 		align()
+		var link, info uint32
+		if s.typ == shtSymtab {
+			link, info = shstrtabIdx, 1
+		}
 		shdrs = append(shdrs, elfSectionHeader{
 			Name:      nameOff(s.name),
-			Type:      shtProgbits,
+			Type:      s.typ,
 			Off:       off,
 			Size:      uint64(len(s.data)),
-			Addralign: 4,
+			Link:      link,
+			Info:      info,
+			Addralign: 8,
+			Entsize:   s.entsize,
 		})
 		body = append(body, s.data...)
 		off += uint64(len(s.data))

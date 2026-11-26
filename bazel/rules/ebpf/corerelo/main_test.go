@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -143,19 +144,27 @@ func TestRootsKeepTheirRelocationOrder(t *testing.T) {
 	require.Equal(t, []string{"0:1", "0:0", "0:1"}, accesses(got, got[1].typ))
 }
 
-func TestOversizedRecordLength(t *testing.T) {
-	le := binary.LittleEndian
-	// The record size wraps the uint32 cursor back inside the section.
-	sec := le.AppendUint32(nil, 0xfffffff8)
-	sec = le.AppendUint32(sec, 0) // sec_name_off
-	sec = le.AppendUint32(sec, 1) // num_info
-	sec = le.AppendUint32(sec, 0) // truncated record
-	raw := make([]byte, btfExtHeaderLen)
-	le.PutUint16(raw, btfExtMagic)
-	le.PutUint32(raw[4:], btfExtHeaderLen)
-	le.PutUint32(raw[28:], uint32(len(sec)))
-	_, err := coreRelos(append(raw, sec...), nil, nil, le)
-	require.ErrorContains(t, err, "core_relo record truncated")
+// Every relocation kind survives cilium/ebpf's String(), which readRelos parses.
+func TestAllKindsRoundTrip(t *testing.T) {
+	task := &btf.Struct{Name: "task", Size: 4, Members: []btf.Member{
+		{Name: "pid", Type: &btf.Int{Name: "u32", Size: 4}},
+	}}
+	var relos []relo
+	for _, kind := range slices.Sorted(maps.Values(reloKinds)) {
+		relos = append(relos, relo{kind: kind, typ: task, access: "0:0"})
+	}
+	raw, err := buildStub(relos, binary.LittleEndian)
+	require.NoError(t, err)
+	path := filepath.Join(t.TempDir(), "stub.o")
+	require.NoError(t, os.WriteFile(path, raw, 0o644))
+
+	got, _, err := readRelos(path)
+	require.NoError(t, err)
+	require.Len(t, got, len(relos))
+	for i, r := range got {
+		require.Equal(t, relos[i].kind, r.kind)
+		require.Equal(t, relos[i].access, r.access)
+	}
 }
 
 func accesses(relos []relo, typ btf.Type) []string {
