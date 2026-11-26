@@ -52,11 +52,9 @@ func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string) *t
 	assert.NoError(t, err)
 	hooks := &testHooks{}
 	userConfigsDir := t.TempDir()
-	configDirs := &config.Directories{
+	config := &config.Directories{
 		StablePath:     userConfigsDir,
 		ExperimentPath: t.TempDir(),
-		// Only macOS reads it; elsewhere it is unused.
-		StatePath: filepath.Join(t.TempDir(), "config-state.json"),
 	}
 	return &testPackageManager{
 		installerImpl: installerImpl{
@@ -65,7 +63,7 @@ func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string) *t
 			downloader:     oci.NewDownloader(&env.Env{}, s.Client()),
 			packages:       packages,
 			userConfigsDir: userConfigsDir,
-			config:         configDirs,
+			config:         config,
 			packagesDir:    rootPath,
 			hooks:          hooks,
 		},

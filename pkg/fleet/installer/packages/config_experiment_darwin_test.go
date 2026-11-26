@@ -58,11 +58,9 @@ func stubConfigExperimentDirs(t *testing.T) config.Directories {
 	dirs := config.Directories{
 		StablePath:     filepath.Join(root, "etc"),
 		ExperimentPath: filepath.Join(root, "etc-exp"),
-		StatePath:      filepath.Join(root, "state", config.StateFileName),
 	}
 	require.NoError(t, os.MkdirAll(dirs.StablePath, 0755))
-	require.NoError(t, os.Mkdir(filepath.Dir(dirs.StatePath), 0755))
-	require.NoError(t, os.WriteFile(dirs.StatePath, []byte(`{"stable_deployment_id":"stable-1"}`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(dirs.StablePath, ".deployment-id"), []byte("stable-1"), 0640))
 	require.NoError(t, os.Symlink(dirs.StablePath, dirs.ExperimentPath))
 
 	original := configExperimentDirs

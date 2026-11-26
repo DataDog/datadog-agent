@@ -128,7 +128,6 @@ func restExperimentConfig(ctx context.Context, layout dmgLayout) {
 	dirs := config.Directories{
 		StablePath:     layout.confDir(),
 		ExperimentPath: layout.expConfDir(),
-		StatePath:      filepath.Join(layout.packagesRunDir, config.StateFileName),
 	}
 	if err := dirs.RemoveExperiment(ctx); err != nil {
 		log.Warnf("could not rest %s on %s: %v", layout.expConfDir(), layout.confDir(), err)
