@@ -146,7 +146,7 @@ func (t *FooTracker) Record() {
 
 To start from a non-zero value, call `Store` in the constructor.
 
-Do not copy a struct holding an atomic once it is in use: pass a pointer to it instead. `go vet` reports such copies.
+Do not copy a struct holding an atomic once it is in use: pass a pointer to it instead. `go vet` reports such copies for every typed atomic except `atomic.Value`, so check copies of `atomic.Value` by hand.
 
 Do not use the functions of `sync/atomic` such as `atomic.AddInt64(&x, 1)` on plain integer variables in new code: this brings back both pitfalls above.
 
