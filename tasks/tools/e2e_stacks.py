@@ -13,15 +13,13 @@ def destroy_remote_stack_local(stack: str, ctx: Context | None = None):
     ctx = ctx or Context()
 
     res = tool.run_pulumi(
-        ctx,
         f"destroy --remove --yes --stack {stack}",
         project_dir=False,
-        warn=True,
-        hide=True,
+        capture_output=True,
+        capture_stderr=True,
+        ignore_errors=True,
     )
-    if res is None:
-        return 1, "", "pulumi destroy produced no result", stack
-    return res.exited, res.stdout, res.stderr, stack
+    return res.returncode, res.stdout, res.stderr, stack
 
 
 def destroy_remote_stack_api(

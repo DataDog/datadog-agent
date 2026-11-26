@@ -88,11 +88,11 @@ def create_kind(
     if interactive:
         tool.notify(ctx, "Your Kind environment is now created")
 
-    _show_connection_message(ctx, full_stack_name, interactive)
+    _show_connection_message(full_stack_name, interactive)
 
 
-def _show_connection_message(ctx: Context, full_stack_name: str, copy_to_clipboard: bool | None):
-    outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
+def _show_connection_message(full_stack_name: str, copy_to_clipboard: bool | None):
+    outputs = tool.get_stack_json_outputs(full_stack_name)
 
     import tempfile
 
@@ -127,7 +127,6 @@ def destroy_kind(
     Destroy an environment created by invoke aws.create-kind.
     """
     destroy(
-        ctx,
         scenario_name=scenario_name,
         config_path=config_path,
         stack=stack_name,

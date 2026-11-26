@@ -70,11 +70,11 @@ def create_docker(
     if interactive:
         tool.notify(ctx, "Your Docker environment is now created")
 
-    _show_connection_message(ctx, full_stack_name, interactive)
+    _show_connection_message(full_stack_name, interactive)
 
 
-def _show_connection_message(ctx: Context, full_stack_name: str, copy_to_clipboard: bool | None):
-    outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
+def _show_connection_message(full_stack_name: str, copy_to_clipboard: bool | None):
+    outputs = tool.get_stack_json_outputs(full_stack_name)
     remoteHost = tool.RemoteHost("aws-dockervm", outputs)
     host = remoteHost.address
     user = remoteHost.user
@@ -105,7 +105,6 @@ def destroy_docker(
     Destroy an environment created by invoke aws.create-docker.
     """
     destroy(
-        ctx,
         scenario_name=scenario_name,
         config_path=config_path,
         stack=stack_name,

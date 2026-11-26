@@ -78,11 +78,10 @@ Azure and GCP targets are not handled — only AWS credentials reach the contain
 
 ```bash
 test -f ~/.test_infra_config.yaml && echo CONFIG_OK || echo CONFIG_MISSING
-pulumi whoami >/dev/null 2>&1 && echo BACKEND_OK || echo BACKEND_MISSING
+bazel run @pulumi whoami >/dev/null 2>&1 && echo BACKEND_OK || echo BACKEND_MISSING
 ```
 
-`BACKEND_MISSING` → `PULUMI_SKIP_UPDATE_CHECK=true dda inv -- e2e.setup --no-interactive`. Do not install
-Pulumi; the image ships it, only its plugins and backend are missing. `CONFIG_MISSING` → stop; this env
+`BACKEND_MISSING` → `dda inv -- e2e.setup --no-interactive`. `CONFIG_MISSING` → stop; this env
 has no E2E identity, so have them recreate it with `devenv_e2e.py up` from the host. Never the
 interactive `dda inv -- e2e.setup` here — see `references/setup.md`.
 
@@ -98,7 +97,7 @@ E2E_STACK_NAME_SUFFIX=<you> dda inv -- new-e2e-tests.run --targets=<target> [--r
 
 ## Step 3C — `--host` escape hatch
 
-Check `~/.test_infra_config.yaml`, `pulumi whoami`, and a live AWS session — here the host's own counts —
+Check `~/.test_infra_config.yaml`, `bazel run @pulumi whoami`, and a live AWS session — here the host's own counts —
 then run `dda inv -- new-e2e-tests.run` directly. Faster on a configured Linux or macOS machine, and
 Pulumi state survives there. Not the default because an unconfigured or Windows host fails in ways the
 dev env does not.

@@ -5,7 +5,6 @@
 new-e2e-base-coverage:
   extends: .new_e2e_template
   needs:
-    - go_e2e_deps
     - agent_deb-x64-a7
   rules:
     - !reference [.except_light_pipeline]
@@ -18,7 +17,6 @@ new-e2e-base-coverage:
 new-e2e-base:
   extends: .new_e2e_template
   needs:
-    - go_e2e_deps
     - agent_deb-x64-a7
   rules:
     - !reference [.except_light_pipeline]

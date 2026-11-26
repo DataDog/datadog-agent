@@ -1,4 +1,3 @@
-from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.e2e_framework import tool
@@ -7,7 +6,6 @@ from .tool import error, get_stack_name, get_stack_name_prefix, info
 
 
 def destroy(
-    ctx: Context,
     *,
     scenario_name: str,
     config_path: str | None = None,
@@ -22,7 +20,7 @@ def destroy(
 
     full_stack_name = get_stack_name(stack, scenario_name)
 
-    short_stack_names, full_stack_names = _get_existing_stacks(tool.pulumi_stack_names(ctx, config_path=config_path))
+    short_stack_names, full_stack_names = _get_existing_stacks(tool.pulumi_stack_names(config_path=config_path))
     if len(short_stack_names) == 0:
         info("No stack to destroy")
         return
@@ -49,10 +47,9 @@ def destroy(
             error(f" {stack_name}")
     else:
         args = "destroy --remove --yes --skip-preview"
-        ret = tool.run_pulumi(ctx, args, stack=full_stack_name, config_path=config_path, pty=True, warn=True)
-        if ret is not None and ret.exited != 0:
+        if tool.run_pulumi(args, stack=full_stack_name, config_path=config_path, ignore_errors=True).returncode != 0:
             # run with refresh on first destroy attempt failure
-            tool.run_pulumi(ctx, f"{args} --refresh", stack=full_stack_name, config_path=config_path, pty=True)
+            tool.run_pulumi(f"{args} --refresh", stack=full_stack_name, config_path=config_path)
 
 
 def _get_existing_stacks(stack_names: list[str]) -> tuple[list[str], list[str]]:

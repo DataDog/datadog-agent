@@ -1,0 +1,11 @@
+---
+# `defs.yml` for child pipelines, with non-blank stubs of the main pipeline templates it refers to, as GitLab requires.
+include:
+  - local: .gitlab/build/bazel/defs.yml
+
+.cache_omnibus_ruby_deps:
+  cache: {}
+.sanitize_goproxy:
+  - "true"
+.windows_docker_default:
+  variables: {}

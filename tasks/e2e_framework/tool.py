@@ -7,14 +7,12 @@ import platform
 import shlex
 import shutil
 import subprocess
-import sys
 import tempfile
 from io import StringIO
 from typing import Any
 
 from invoke.context import Context
 from invoke.exceptions import Exit
-from invoke.runners import Result
 
 from tasks.libs.build.bazel import bazel
 
@@ -229,7 +227,6 @@ def pulumi_env(
     *,
     config_path: str | None = None,
     ci: bool = False,
-    skip_update_check: bool = True,
     overrides: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """
@@ -240,9 +237,6 @@ def pulumi_env(
     was never exported -- a Datadog workspace, for instance.
     """
     env: dict[str, str] = {}
-    if skip_update_check:
-        env["PULUMI_SKIP_UPDATE_CHECK"] = "true"
-
     # Membership rather than truthiness: an empty passphrase is a valid Pulumi setup.
     if "PULUMI_CONFIG_PASSPHRASE" not in os.environ and "PULUMI_CONFIG_PASSPHRASE_FILE" not in os.environ:
         passphrase = _local_pulumi_passphrase(config_path)
@@ -257,7 +251,6 @@ def pulumi_env(
 
 
 def run_pulumi(
-    ctx: Context,
     args: str,
     *,
     stack: str | None = None,
@@ -265,11 +258,10 @@ def run_pulumi(
     config_path: str | None = None,
     ci: bool = False,
     env: dict[str, str] | None = None,
-    skip_update_check: bool = True,
-    pty: bool = False,
-    hide: str | bool | None = None,
-    warn: bool = False,
-) -> Result | None:
+    capture_output: bool = False,
+    capture_stderr: bool = False,
+    ignore_errors: bool = False,
+) -> str | subprocess.CompletedProcess[str]:
     """
     Run a Pulumi command.
 
@@ -280,34 +272,28 @@ def run_pulumi(
     omits it (for commands that aren't project scoped, such as `login` or `version`), and
     a path uses that directory.
     """
-    cmd_parts = ["pulumi"]
+    cmd_args = []
     if project_dir is True:
-        dir_flag = get_pulumi_dir_flag()
-        if dir_flag:
-            cmd_parts.append(dir_flag)
+        cmd_args += get_pulumi_dir_flag()
     elif project_dir is not False:
-        cmd_parts.append(f"-C {shlex.quote(str(project_dir))}")
-    # Callers build args by interpolating optional flag groups, so it can come with
-    # leading or trailing blanks when a group is empty.
-    if args.strip():
-        cmd_parts.append(args.strip())
+        cmd_args += ["-C", str(project_dir)]
+    cmd_args += shlex.split(args)
     if stack is not None:
-        cmd_parts.append(f"-s {stack}")
+        cmd_args += ["-s", stack]
 
-    return ctx.run(
-        " ".join(cmd_parts),
-        env=pulumi_env(config_path=config_path, ci=ci, skip_update_check=skip_update_check, overrides=env),
-        # A pty is only ever useful for the commands whose progress the user watches, and
-        # invoke can't allocate one on Windows.
-        # It is also not useful when output is redirected to a file or a pipe.
-        pty=pty and not is_windows() and sys.stdout.isatty(),
-        hide=hide,
-        warn=warn,
+    return bazel(
+        "run",
+        "@pulumi",
+        "--",
+        *cmd_args,
+        env=pulumi_env(config_path=config_path, ci=ci, overrides=env),
+        capture_output=capture_output,
+        capture_stderr=capture_stderr,
+        ignore_errors=ignore_errors,
     )
 
 
 def pulumi_json(
-    ctx: Context,
     args: str,
     *,
     stack: str | None = None,
@@ -324,15 +310,22 @@ def pulumi_json(
     message stays visible when the command fails.
     """
     result = run_pulumi(
-        ctx, args, stack=stack, project_dir=project_dir, config_path=config_path, ci=ci, hide="stdout", warn=warn
+        args,
+        stack=stack,
+        project_dir=project_dir,
+        config_path=config_path,
+        ci=ci,
+        capture_output=True,
+        ignore_errors=True,
     )
-    if result is None or result.exited != 0:
-        return None
+    if result.returncode != 0:
+        if warn:
+            return None
+        raise SystemExit(result.returncode)
     return json.loads(result.stdout)
 
 
 def pulumi_stack_names(
-    ctx: Context,
     *,
     project: str | None = None,
     project_dir: bool | str = True,
@@ -344,13 +337,12 @@ def pulumi_stack_names(
     args = "stack ls --all --json"
     if project:
         args += f" --project {project}"
-    stacks = pulumi_json(ctx, args, project_dir=project_dir, config_path=config_path) or []
+    stacks = pulumi_json(args, project_dir=project_dir, config_path=config_path) or []
     return [stack["name"] for stack in stacks if "name" in stack]
 
 
-def get_stack_json_outputs(ctx: Context, full_stack_name: str, config_path: str | None = None, ci: bool = False) -> Any:
+def get_stack_json_outputs(full_stack_name: str, config_path: str | None = None, ci: bool = False) -> Any:
     return pulumi_json(
-        ctx,
         "stack output --json --show-secrets",
         stack=full_stack_name,
         config_path=config_path,
@@ -472,12 +464,12 @@ def copy_to_clipboard_if_supported(text: str, prompt: str | None = None) -> bool
 
 # ensure we run pulumi from a directory with a Pulumi.yaml file
 # defaults to the project root directory
-def get_pulumi_dir_flag():
+def get_pulumi_dir_flag() -> list[str]:
     root_path = get_pulumi_run_folder()
     current_path = os.getcwd()
     if not os.path.isfile(os.path.join(current_path, "Pulumi.yaml")):
-        return f"-C {shlex.quote(root_path)}"
-    return ""
+        return ["-C", root_path]
+    return []
 
 
 def _get_root_path() -> str:
@@ -489,10 +481,14 @@ def get_pulumi_run_folder() -> str:
     return os.path.join(_get_root_path(), "test", "e2e-framework", "run")
 
 
-def install_pulumi_plugins() -> None:
-    """Install the Pulumi plugins where Pulumi looks for them."""
-    pulumi_home = os.environ.get("PULUMI_HOME") or os.path.expanduser("~/.pulumi")
-    bazel("run", "@pulumi_plugins//:install", "--", f"--destdir={os.path.join(pulumi_home, 'plugins')}")
+def install_pulumi() -> None:
+    """Install the Pulumi CLI and plugins where Pulumi looks for them."""
+    bazel(
+        "run",
+        "@pulumi//:install",
+        "--",
+        f"--destdir={os.environ.get('PULUMI_HOME') or os.path.expanduser('~/.pulumi')}",
+    )
 
 
 class RemoteHost:
@@ -504,10 +500,8 @@ class RemoteHost:
         self.port: int | None = "port" in remoteHost and remoteHost["port"] or None
 
 
-def show_connection_message(
-    ctx: Context, remote_host_name: str, full_stack_name: str, copy_to_clipboard: bool | None = True
-):
-    outputs = get_stack_json_outputs(ctx, full_stack_name)
+def show_connection_message(remote_host_name: str, full_stack_name: str, copy_to_clipboard: bool | None = True):
+    outputs = get_stack_json_outputs(full_stack_name)
     remoteHost = RemoteHost(remote_host_name, outputs)
     address = remoteHost.address
     user = remoteHost.user
@@ -543,10 +537,10 @@ def clean_known_hosts(ctx: Context, host: str) -> None:
     ctx.run(f"ssh-keygen -R {host}", hide=True)
 
 
-def get_host(ctx: Context, remote_host_name: str, scenario_name: str, stack_name: str | None = None) -> RemoteHost:
+def get_host(remote_host_name: str, scenario_name: str, stack_name: str | None = None) -> RemoteHost:
     """
     Get the host of the VM.
     """
     full_stack_name = get_stack_name(stack_name, scenario_name)
-    outputs = get_stack_json_outputs(ctx, full_stack_name)
+    outputs = get_stack_json_outputs(full_stack_name)
     return RemoteHost(remote_host_name, outputs)

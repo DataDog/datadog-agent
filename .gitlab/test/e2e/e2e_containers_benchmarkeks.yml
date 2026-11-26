@@ -145,7 +145,6 @@ new-e2e-containers-benchmarkeks-init:
   extends: .new_e2e_template
   timeout: 1h 05m
   needs:
-    - go_e2e_deps
     - !reference [.needs_fakeintake_publish]
     # Not to create a cluster when there is no baseline (e.g. on a branch too old), and to start after it
     - new-e2e-containers-benchmarkeks-baseline

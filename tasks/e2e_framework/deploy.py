@@ -3,7 +3,6 @@ import sys
 from typing import Any
 
 import boto3
-from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
@@ -36,7 +35,6 @@ def get_pipeline_commit_sha(pipeline_id: str) -> str | None:
 
 
 def deploy(
-    ctx: Context,
     scenario_name: str,
     config_path: str | None = None,
     app_key_required: bool = False,
@@ -153,7 +151,6 @@ def deploy(
         flags["ddagent:appKey"] = config.get_app_key(cfg)
 
     return _deploy(
-        ctx,
         stack_name,
         flags,
         debug,
@@ -207,15 +204,14 @@ def check_s3_image_exists(_, pipeline_id: str, deploy_job: str):
 
 
 # creates a stack with the given stack_name if it doesn't already exists
-def _create_stack(ctx: Context, stack_name: str, log_flags: str, config_path: str | None):
-    if stack_name in tool.pulumi_stack_names(ctx, config_path=config_path):
+def _create_stack(stack_name: str, log_flags: str, config_path: str | None):
+    if stack_name in tool.pulumi_stack_names(config_path=config_path):
         return
 
-    tool.run_pulumi(ctx, f"{log_flags} stack init --no-select {stack_name}", config_path=config_path)
+    tool.run_pulumi(f"{log_flags} stack init --no-select {stack_name}", config_path=config_path)
 
 
 def _deploy(
-    ctx: Context,
     stack_name: str | None,
     flags: dict[str, Any],
     debug: bool | None,
@@ -249,16 +245,13 @@ def _deploy(
             up_flags += " --debug"
 
     log_flags = " ".join(log_flags_array)
-    _create_stack(ctx, stack_name, log_flags, config_path)
+    _create_stack(stack_name, log_flags, config_path)
     extra = f" {pulumi_extra_args}" if pulumi_extra_args else ""
 
     tool.run_pulumi(
-        ctx,
         f"{log_flags} up --yes{extra} {up_flags}",
         stack=stack_name,
         config_path=config_path,
         env=pulumi_env,
-        # disable pty when extra args are set (e.g. --non-interactive)
-        pty=not pulumi_extra_args,
     )
     return stack_name

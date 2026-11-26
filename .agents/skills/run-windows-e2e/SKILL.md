@@ -47,10 +47,9 @@ If the user gives a partial name or test function, search with Glob/Grep under `
 
 ```bash
 test -f ~/.test_infra_config.yaml && echo "EXISTS" || echo "MISSING"
-pulumi version 2>/dev/null || echo "MISSING"
 ```
 
-If either is missing, offer to run `dda inv e2e.setup` and wait for the user to
+If it is missing, offer to run `dda inv e2e.setup` and wait for the user to
 complete its interactive prompts. If prerequisites exist but `devMode` is not
 set, mention that `devMode: true` reuses VMs across runs (much faster for
 iterative development). Full detail in [`references/setup.md`](references/setup.md).

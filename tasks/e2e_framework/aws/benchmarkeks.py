@@ -137,7 +137,7 @@ def create_benchmarkeks(
     if interactive:
         tool.notify(ctx, "Your benchmark EKS cluster is now created")
 
-    show_eks_connection_message(ctx, full_stack_name, config_path, interactive)
+    show_eks_connection_message(full_stack_name, config_path, interactive)
 
 
 @task(help={"stack_name": doc.stack_name})
@@ -145,4 +145,4 @@ def destroy_benchmarkeks(ctx: Context, stack_name: str | None = None):
     """
     Destroy a benchmark EKS environment created with invoke aws.create-benchmarkeks.
     """
-    destroy(ctx, scenario_name=scenario_name, stack=stack_name)
+    destroy(scenario_name=scenario_name, stack=stack_name)

@@ -6,7 +6,6 @@ e2e_pre_test:
   stage: e2e_pre_test
   extends: .new_e2e_template
   needs:
-    - go_e2e_deps
     - go_tools_deps
     - agent_deb-x64-a7
     # PR pipelines run against v<sha> (publish_fakeintake); main uses the pinned

@@ -496,15 +496,7 @@ def _bazel_tidy(ctx, verbose: bool, timings=None):
         timings,
         lambda: bazel("run", "//tasks:write_agent_payload_version"),
     )
-    # 7. regenerate test/new-e2e/tests/test_binaries.bzl
-    from tasks.new_e2e_tests import write_test_binaries_bzl
-
-    _timed_step(
-        "write test binaries",
-        timings,
-        lambda: write_test_binaries_bzl(ctx),
-    )
-    # 8. **/BUILD.bazel + **/*.go -> bazel/go_tags/closure_tags.bzl
+    # 7. **/BUILD.bazel + **/*.go -> bazel/go_tags/closure_tags.bzl
     _timed_step("write tag manifest", timings, lambda: write_tag_manifest(ctx))
 
 
