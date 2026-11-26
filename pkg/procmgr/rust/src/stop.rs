@@ -360,13 +360,13 @@ mod tests {
         fn drop(&mut self) {
             // Retries ride out another test holding the table. A drop under the lock never sees
             // it free.
-            let free = (0..100).any(|_| {
+            let free = (0..500).any(|_| {
                 let held = matches!(
                     ABANDONED.try_lock(),
                     Err(std::sync::TryLockError::WouldBlock)
                 );
                 if held {
-                    thread::sleep(Duration::from_millis(2));
+                    thread::sleep(Duration::from_millis(10));
                 }
                 !held
             });
