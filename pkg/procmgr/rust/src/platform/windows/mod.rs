@@ -44,7 +44,9 @@ pub(crate) use runtime_user::runtime_user_for_pid;
 #[cfg(test)]
 pub(crate) use signaling_helper::Outcome as SignalOutcome;
 pub use signaling_helper::dispatch_internal_console_signal;
-pub(crate) use signaling_helper::{SignalingHelper, send_graceful_stop, wait_for_graceful_stop};
+pub(crate) use signaling_helper::{
+    Delivery, SignalingHelper, send_graceful_stop, wait_for_graceful_stop,
+};
 
 static SHUTDOWN_NOTIFY: OnceLock<Notify> = OnceLock::new();
 

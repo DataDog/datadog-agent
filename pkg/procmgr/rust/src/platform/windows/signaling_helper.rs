@@ -294,13 +294,28 @@ pub(crate) fn send_graceful_stop(
     launch_helper(target, job, LaunchOptions::default())
 }
 
-/// Resolve delivery in the daemon's waiting phase. This bounds only the helper
-/// operation; the caller retains its existing workload grace and force-kill waits.
+/// What the helper's report established within a stop's wait.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Delivery {
+    /// CTRL_BREAK was generated for the original target.
+    Generated,
+    /// The helper reported that no signal was generated: signaling failed, or the target had
+    /// already exited. A helper that errored or exited without a report also lands here, since
+    /// delivery is unknown. The caller gets the undelivered allowance, capped at the configured
+    /// timeout.
+    Failed,
+    /// No report arrived before the deadline. Whether the signal was generated is unknown, so the
+    /// caller keeps the configured grace and force-kills only when it runs out.
+    Unreported,
+}
+
+/// Resolve delivery in the daemon's waiting phase. The wait is part of the caller's stop grace,
+/// not an addition to it: it returns no later than `timeout` (capped at 2 s).
 pub(crate) async fn wait_for_graceful_stop(
     helper: &mut SignalingHelper,
     name: &str,
     timeout: Duration,
-) -> bool {
+) -> Delivery {
     let deadline = tokio::time::Instant::now() + timeout.min(Duration::from_secs(2));
     loop {
         let observation = helper.observe();
@@ -316,11 +331,11 @@ pub(crate) async fn wait_for_graceful_stop(
                         "[{name}] CTRL_BREAK event generated for original target {}",
                         report.target_pid
                     );
-                    true
+                    Delivery::Generated
                 }
                 Ok(report) if report.outcome == Outcome::AlreadyExited => {
                     log::info!("[{name}] original target already exited before signaling");
-                    false
+                    Delivery::Failed
                 }
                 Ok(report) => {
                     log::warn!(
@@ -328,18 +343,18 @@ pub(crate) async fn wait_for_graceful_stop(
                         report.stage,
                         report.error
                     );
-                    false
+                    Delivery::Failed
                 }
                 Err(error) => {
-                    log::warn!("[{name}] signaling failure or timeout: {error}");
-                    false
+                    log::warn!("[{name}] signaling helper failed: {error}");
+                    Delivery::Failed
                 }
             };
         }
         let now = tokio::time::Instant::now();
         if now >= deadline {
             log::warn!("[{name}] signaling helper report timed out");
-            return false;
+            return Delivery::Unreported;
         }
         tokio::time::sleep_until((now + Duration::from_millis(10)).min(deadline)).await;
     }
@@ -649,13 +664,21 @@ mod tests {
     async fn wait_stage_resolves_delivery_without_a_workload_deadline_policy() {
         for outcome in [Outcome::Generated, Outcome::AlreadyExited, Outcome::Failed] {
             let mut helper = SignalingHelper::test_report(outcome);
+            let expected = if outcome == Outcome::Generated {
+                Delivery::Generated
+            } else {
+                Delivery::Failed
+            };
             assert_eq!(
                 wait_for_graceful_stop(&mut helper, "delivery-test", Duration::from_secs(90)).await,
-                outcome == Outcome::Generated
+                expected
             );
         }
         let mut unreported = SignalingHelper::test_unreported();
-        assert!(!wait_for_graceful_stop(&mut unreported, "delivery-test", Duration::ZERO).await);
+        assert_eq!(
+            wait_for_graceful_stop(&mut unreported, "delivery-test", Duration::ZERO).await,
+            Delivery::Unreported
+        );
     }
 
     #[tokio::test]
@@ -670,7 +693,10 @@ mod tests {
             },
         )
         .unwrap();
-        assert!(!wait_for_graceful_stop(&mut helper, "hung-helper", Duration::ZERO).await);
+        assert_eq!(
+            wait_for_graceful_stop(&mut helper, "hung-helper", Duration::ZERO).await,
+            Delivery::Unreported
+        );
         let HelperBackend::Process(process) = &helper.backend else {
             panic!("expected native helper");
         };
