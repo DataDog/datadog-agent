@@ -4,9 +4,8 @@ load("@rules_go//go:def.bzl", "go_binary", "go_library")
 # gazelle:exclude testdata/c
 
 load("@bazel_lib//lib:expand_template.bzl", "expand_template")
-load("@bazel_skylib//lib:selects.bzl", "selects")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("//bazel/rules/ebpf:platform_install.bzl", "ebpf_pkg_install")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # Hand-written: rules_go respects //go:build ignore, so strip it before compiling.
@@ -226,17 +225,8 @@ filegroup(
 # Stages eBPF assets into the source tree, as `dda inv system-probe.object-files` does:
 #   bazel run //pkg/ebpf:install_object_files -- --destdir=$PWD
 config_setting(
-    name = "host_aarch64",
-    constraint_values = ["@platforms//cpu:aarch64"],
-    flag_values = {"//bazel/rules/ebpf:target_arch": ""},
-)
-
-selects.config_setting_group(
     name = "ebpf_aarch64",
-    match_any = [
-        ":host_aarch64",
-        "//bazel/rules/ebpf:target_arch_aarch64",
-    ],
+    constraint_values = ["@platforms//cpu:aarch64"],
 )
 
 # The arch directories must match get_ebpf_build_dir() in tasks/system_probe.py.
@@ -305,7 +295,7 @@ pkg_files(
     prefix = "pkg/ebpf/kernelbugs/c",
 )
 
-pkg_install(
+ebpf_pkg_install(
     name = "install_object_files",
     srcs = [
         ":install_co_re_objects",
@@ -356,7 +346,7 @@ pkg_files(
     },
 )
 
-pkg_install(
+ebpf_pkg_install(
     name = "install_object_files_baloum",
     srcs = [
         ":install_baloum_objects",
@@ -390,7 +380,7 @@ pkg_files(
     }),
 )
 
-pkg_install(
+ebpf_pkg_install(
     name = "install_debug_object_files",
     srcs = [
         ":install_co_re_debug_objects",

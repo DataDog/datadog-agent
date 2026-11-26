@@ -1274,6 +1274,12 @@ Runtime compilation integrity hash files (`pkg/ebpf/bytecode/runtime/*.go`) are
 `.gitignored` and generated during the build by `bazel_build_ebpf()`.  To update
 one locally: `bazel run //pkg/ebpf/bytecode:<name>_verify`.
 
+The eBPF target arch (x86_64 or aarch64) always comes from the target platform, never from a flag
+or the host. To stage objects for another arch, run `//pkg/ebpf:install_object_files_{arm64,x86_64}`
+(also `_baloum` and `install_debug_object_files`) instead of passing `--platforms` to the plain
+install: `--platforms` would build the installer for that arch too, which cannot run on this host.
+`ebpf_pkg_install` generates these variants.
+
 Key Bazel macros:
 - `ebpf_prog` / `ebpf_program_suite` (`bazel/rules/ebpf/ebpf.bzl`) — compile `.c` → `.o`
 - `cgo_godefs` (`bazel/rules/ebpf/cgo_godefs.bzl`) — `go tool cgo -godefs` + `write_source_file` verification

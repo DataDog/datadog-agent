@@ -314,8 +314,8 @@ register_toolchains(
 )
 
 ## Linux kernel headers for eBPF prebuilt compilation
-## Registers three repos: host auto-detect + explicit x86_64 + explicit aarch64
-## for cross-compilation via --//bazel/rules/ebpf:target_arch=<arch>.
+## Registers three repos: host auto-detect + explicit x86_64 + explicit aarch64,
+## the latter two selected by the eBPF rules from the target platform.
 linux_headers_ext = use_extension("//bazel/toolchains/linux_headers:hermetic_linux_headers.bzl", "linux_headers_extension")
 linux_headers_ext.configure(
     arch_sha256s = {
