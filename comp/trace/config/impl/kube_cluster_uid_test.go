@@ -61,4 +61,22 @@ func TestKubeClusterUIDResolver(t *testing.T) {
 		assert.Equal(t, "", r.get())
 		assert.Equal(t, int32(1), calls.Load())
 	})
+
+	t.Run("get after stop", func(t *testing.T) {
+		var calls atomic.Int32
+		r := newKubeClusterUIDResolver(func() (string, error) {
+			calls.Add(1)
+			return uid, nil
+		}, time.Millisecond, time.Millisecond)
+
+		r.stop()
+		select {
+		case <-r.done:
+		case <-time.After(5 * time.Second):
+			t.Fatal("stop did not close done")
+		}
+		assert.Equal(t, "", r.get())
+		assert.Equal(t, "", r.get())
+		assert.Equal(t, int32(0), calls.Load(), "get after stop does not start the resolution")
+	})
 }

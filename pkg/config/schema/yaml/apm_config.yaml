@@ -833,6 +833,8 @@ properties:
           check that the service exists.
           Only applies when the Agent runs in Kubernetes and knows the cluster ID, which comes from
           DD_ORCHESTRATOR_CLUSTER_ID or the Cluster Agent, and when `peer_tags_aggregation` is enabled.
+          The cluster UID is the cluster of the receiving Agent, so the tags are wrong for spans that tracers
+          in another cluster send to this Agent.
   features:
     node_type: setting
     type: array

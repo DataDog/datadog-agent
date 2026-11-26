@@ -49,9 +49,9 @@ type kubeClusterUIDResolver struct {
 	minRetry, maxRetry time.Duration
 
 	ctx    context.Context
-	stop   context.CancelFunc
-	done   chan struct{}
-	once   sync.Once
+	cancel context.CancelFunc
+	done   chan struct{} // closed when the resolution ended or, if it never started, on stop
+	once   sync.Once     // starts the resolution, or is consumed by stop so that it never starts
 	uid    atomic.Pointer[string]
 	logged bool // whether the first failure was logged, only accessed by resolve
 }
@@ -63,7 +63,7 @@ func newKubeClusterUIDResolver(getClusterID func() (string, error), minRetry, ma
 		minRetry:     minRetry,
 		maxRetry:     maxRetry,
 		ctx:          ctx,
-		stop:         cancel,
+		cancel:       cancel,
 		done:         make(chan struct{}),
 	}
 }
@@ -77,10 +77,20 @@ func (r *kubeClusterUIDResolver) get() string {
 	return ""
 }
 
+// stop ends the resolution. A later get does not start it. It does not wait
+// for an in-flight getClusterID call.
+func (r *kubeClusterUIDResolver) stop() {
+	r.cancel()
+	r.once.Do(func() { close(r.done) })
+}
+
 func (r *kubeClusterUIDResolver) resolve() {
 	defer close(r.done)
 	retry := r.minRetry
 	for {
+		if r.ctx.Err() != nil {
+			return
+		}
 		uid, err := r.getClusterID()
 		if err == nil && uid != "" {
 			log.Infof("Kubernetes cluster UID resolved to %s, adding the peer.k8s.* peer tags to trace stats", uid)
