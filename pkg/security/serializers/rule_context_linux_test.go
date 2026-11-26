@@ -106,6 +106,54 @@ func TestRuleContextEnvValuesEvaluated(t *testing.T) {
 	}
 }
 
+// The envp entries matched by a rule are serialized with a value only for the
+// keys of `envs_with_value`, an array operator reporting the whole array
+// included.
+func TestRuleContextEnvpValues(t *testing.T) {
+	scrubber, err := utils.NewScrubber(nil, nil)
+	require.NoError(t, err)
+	scrubber.WithEnvsWithValue([]string{"PATH"})
+
+	for _, expr := range []string{
+		`process.envp in [~"AWS_SECRET*"]`,
+		`process.envp == "AWS_SECRET_ACCESS_KEY=secret"`,
+		`process.envp[1] == "AWS_SECRET_ACCESS_KEY=secret"`,
+		`process.ancestors.envp in [~"AWS_SECRET*"]`,
+	} {
+		t.Run(expr, func(t *testing.T) {
+			envp := []string{"PATH=/bin", "AWS_SECRET_ACCESS_KEY=secret"}
+			event := model.NewFakeEvent()
+			event.ProcessContext.Process.Envp = envp
+			ancestor := &model.ProcessCacheEntry{}
+			ancestor.Process.Envp = envp
+			event.ProcessContext.Ancestor = ancestor
+
+			m := &model.Model{}
+			opts := (&eval.Opts{}).WithMacroStore(&eval.MacroStore{}).WithVariables(map[string]eval.SECLVariable{})
+			evalRule, err := eval.NewRule("id", expr, parser.NewParsingContext(false), opts)
+			require.NoError(t, err)
+			require.NoError(t, evalRule.GenEvaluator(m))
+
+			ctx := eval.NewContext(event)
+			require.True(t, evalRule.Eval(ctx))
+			event.RuleContext.MatchingSubExprs = ctx.GetMatchingSubExprs()
+
+			ruleContext := newRuleContext(event, &rules.Rule{Rule: evalRule}, scrubber)
+			require.NotEmpty(t, ruleContext.MatchingSubExprs)
+			for _, subExpr := range ruleContext.MatchingSubExprs {
+				if subExpr.Field == "" {
+					// the value the field is compared to, written in the rule
+					continue
+				}
+				assert.NotContains(t, subExpr.Value, "secret")
+				if strings.Contains(subExpr.Value, "PATH") {
+					assert.Contains(t, subExpr.Value, "PATH=/bin")
+				}
+			}
+		})
+	}
+}
+
 // The variables read from environment variables are serialized only when they
 // are all listed in `envs_with_value`, and none is evaluated per event.
 func TestVariablesEnvValues(t *testing.T) {

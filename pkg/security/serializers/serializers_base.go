@@ -547,6 +547,8 @@ func newRuleContext(e *model.Event, rule *rules.Rule, scrubber *utils.Scrubber) 
 		value := valuePos.Value
 		if strings.HasSuffix(valuePos.Field, ".env") {
 			value = maskEnvValue(value)
+		} else if strings.HasSuffix(valuePos.Field, ".envp") {
+			value = filterEnvpValue(value, scrubber)
 		}
 		switch value := value.(type) {
 		case []string:
@@ -576,6 +578,23 @@ func maskEnvValue(value interface{}) interface{} {
 		return masked
 	default:
 		return maskedValue
+	}
+}
+
+// filterEnvpValue filters the envp entries, KEY=value, of the environment of a
+// process on envs_with_value
+func filterEnvpValue(value interface{}, scrubber *utils.Scrubber) interface{} {
+	switch value := value.(type) {
+	case []string:
+		filtered := make([]string, len(value))
+		for i, entry := range value {
+			filtered[i] = scrubber.FilterEnv(entry)
+		}
+		return filtered
+	case string:
+		return scrubber.FilterEnv(value)
+	default:
+		return value
 	}
 }
 
