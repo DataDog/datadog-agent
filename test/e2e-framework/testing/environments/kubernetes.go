@@ -73,7 +73,8 @@ func (e *Kubernetes) DisableAgent() {
 	e.Agent = nil
 }
 
-// Diagnose generates a diagnose for the Kubernetes environment, creating a flare for each agent and cluster-agent pod.
+// Diagnose generates a diagnose for the Kubernetes environment, creating a flare for each node agent, cluster agent and
+// cluster checks runner pod.
 func (e *Kubernetes) Diagnose(outputDir string) (string, error) {
 	fmt.Println("Kubernetes Diagnose will be written to", outputDir)
 	diagnoseOutput := []string{"==== Kubernetes Diagnose ===="}
@@ -157,6 +158,32 @@ func (e *Kubernetes) Diagnose(outputDir string) (string, error) {
 			flarePath, err := e.generateAndDownloadAgentFlare("datadog-cluster-agent", pod, "cluster-agent", outputDir)
 			if err != nil {
 				diagnoseOutput = append(diagnoseOutput, fmt.Sprintf("Failed to generate and download cluster agent flare: %s\n", err.Error()))
+				continue
+			}
+			diagnoseOutput = append(diagnoseOutput, "Downloaded flare: "+flarePath)
+		}
+	}
+
+	diagnoseOutput = append(diagnoseOutput, "==== Cluster Checks Runner pods ====")
+	clusterChecksPods, err := e.KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", e.Agent.LinuxClusterChecks.LabelSelectors["app"]).String(),
+	})
+	if err != nil {
+		diagnoseOutput = append(diagnoseOutput, fmt.Sprintf("Failed to list cluster checks runner pods: %s\n", err.Error()))
+	} else {
+		if len(clusterChecksPods.Items) == 0 {
+			diagnoseOutput = append(diagnoseOutput, "No cluster checks runner pods found")
+		}
+
+		for _, pod := range clusterChecksPods.Items {
+			diagnoseOutput = append(diagnoseOutput, fmt.Sprintf("Pod %s:\n", pod.Name))
+			if podRejectsExec(pod) {
+				diagnoseOutput = append(diagnoseOutput, gkeAutopilotNoFlareMessage)
+				continue
+			}
+			flarePath, err := e.generateAndDownloadAgentFlare("agent", pod, "agent", outputDir)
+			if err != nil {
+				diagnoseOutput = append(diagnoseOutput, fmt.Sprintf("Failed to generate and download cluster checks runner flare: %s\n", err.Error()))
 				continue
 			}
 			diagnoseOutput = append(diagnoseOutput, "Downloaded flare: "+flarePath)

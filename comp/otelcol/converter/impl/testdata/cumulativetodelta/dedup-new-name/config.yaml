@@ -1,0 +1,12 @@
+# User already defines the processor under its current name (cumulative_to_delta),
+# so the converter must NOT inject its own deprecated-alias copy — this config is a no-op.
+processors:
+  cumulative_to_delta:
+  delta_to_rate:
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [cumulative_to_delta, delta_to_rate]
+      exporters: [datadog]

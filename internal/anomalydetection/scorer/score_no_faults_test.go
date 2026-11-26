@@ -44,7 +44,7 @@ func TestNoFaultReplayValidation(t *testing.T) {
 			if err := os.WriteFile(path, data, 0600); err != nil {
 				t.Fatal(err)
 			}
-			score, err := scoreNoFaults(path, root)
+			score, err := scoreNoFaults(path, root, "historical")
 			if !test.valid {
 				if err == nil {
 					t.Fatal("invalid replay received a score")

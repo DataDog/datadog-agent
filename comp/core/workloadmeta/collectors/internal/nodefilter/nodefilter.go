@@ -105,8 +105,8 @@ func GetFxOptions() fx.Option {
 
 // Enabled reports whether cfg selects the nodefilter collector, in which case
 // the kubelet collector steps aside for it: otel-agent running in DDOT
-// standalone mode selects it once opted in, by setting
-// otelcollector.standalone.use_kubelet_collector to false. Only that
+// standalone mode selects it unless opted in to the kubelet collector, by
+// setting otelcollector.standalone.use_kubelet_collector to true. Only that
 // configuration decides. A nodefilter that then can't
 // run, without its node-name env var or refused pods list/watch by the API
 // server, doesn't hand back to kubelet: a deployment set up for nodefilter
@@ -134,7 +134,7 @@ func Enabled(cfg config.Component) bool {
 // failing to start at info level.
 func localNodeName(cfg config.Component) (nodeName, fromEnvVar string, err error) {
 	if !Enabled(cfg) {
-		return "", "", pkgerrors.NewDisabled(componentName, "collector only applies to otel-agent running in DDOT standalone mode with otelcollector.standalone.use_kubelet_collector set to false")
+		return "", "", pkgerrors.NewDisabled(componentName, "collector only applies to otel-agent running in DDOT standalone mode with otelcollector.standalone.use_kubelet_collector not set to true")
 	}
 
 	if !env.IsFeaturePresent(env.Kubernetes) {

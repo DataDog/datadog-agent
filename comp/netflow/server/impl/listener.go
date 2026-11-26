@@ -24,7 +24,7 @@ type netflowListener struct {
 	flowCount *atomic.Int64
 }
 
-func startFlowListener(listenerConfig config.ListenerConfig, flowAgg *flowaggregator.FlowAggregator, logger log.Component) (*netflowListener, error) {
+func startFlowListener(listenerConfig config.ListenerConfig, templateCacheMaxSize int, flowAgg *flowaggregator.FlowAggregator, logger log.Component) (*netflowListener, error) {
 	listenerAtomicErr := atomic.NewString("")
 	listenerFlowCount := atomic.NewInt64(0)
 
@@ -41,6 +41,7 @@ func startFlowListener(listenerConfig config.ListenerConfig, flowAgg *flowaggreg
 		listenerConfig.Namespace,
 		listenerConfig.Mapping,
 		listenerConfig.EnableBiflowParsing,
+		templateCacheMaxSize,
 		appCache,
 		flowAgg.GetFlowInChan(),
 		logger,

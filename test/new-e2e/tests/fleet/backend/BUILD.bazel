@@ -12,6 +12,7 @@ go_library(
         "@com_github_cenkalti_backoff_v7//:backoff",
         "@com_github_google_go_containerregistry//pkg/crane",
         "@com_github_google_go_containerregistry//pkg/v1:pkg",
+        "@com_github_hashicorp_go_version//:go-version",
         "@com_github_stretchr_testify//require",
         "@org_golang_x_crypto//nacl/box",
         "@org_golang_x_mod//semver",

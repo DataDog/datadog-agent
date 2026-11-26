@@ -35,7 +35,7 @@ type baseMultiProcessingLibSuite struct {
 func (v *baseMultiProcessingLibSuite) getSuiteOptions(osInstance osVM.Descriptor) []e2e.SuiteOption {
 	var suiteOptions []e2e.SuiteOption
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
-		awshost.Provisioner(
+		awshost.ProvisionerNoFakeIntake(
 			awshost.WithRunOptions(
 				ec2.WithAgentOptions(
 					agentparams.WithIntegration("multi_pid_check.d", multiPidCheckYaml),

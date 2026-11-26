@@ -73,6 +73,8 @@ type Host struct {
 	osFamily             oscomp.Family
 	// as per the documentation of http.Transport: "Transports should be reused instead of created as needed."
 	httpTransport *http.Transport
+	// presents the host's IPC certificate to agent servers that ask for it
+	ipcCert *ipcCertProvider
 }
 
 // NewHost creates a new ssh client to connect to a remote host with
@@ -123,6 +125,7 @@ func NewHost(context Context, hostOutput remote.HostOutput) (*Host, error) {
 		osFamily:             hostOutput.OSFamily,
 	}
 
+	host.ipcCert = newIPCCertProvider(host.fetchIPCCert, host.context.Logf)
 	host.httpTransport = host.newHTTPTransport()
 
 	err = host.Reconnect()
@@ -653,8 +656,12 @@ func (h *Host) newHTTPTransport() *http.Transport {
 			}
 			return h.DialPort(uint16(portInt))
 		},
-		// skip verify like we do when reaching out to the agent
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		// skip verify like we do when reaching out to the agent; present the
+		// host's IPC certificate when agent servers ask for it
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify:   true,
+			GetClientCertificate: h.ipcCert.getCertificate,
+		},
 		// from http.DefaultTransport
 		Proxy:                 http.ProxyFromEnvironment,
 		ForceAttemptHTTP2:     true,

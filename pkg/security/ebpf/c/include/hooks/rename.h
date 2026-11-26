@@ -110,7 +110,9 @@ int hook_vfs_rename(ctx_t *ctx) {
         get_path_id(inode, syscall->rename.target_file.path_key.mount_id, 0, invalidate_type);
     }
 
-    approve_syscall(syscall, rename_approvers);
+    if (approve_syscall(syscall, rename_approvers) == DISCARDED) {
+        return 0;
+    }
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     syscall->resolver.dentry = syscall->rename.src_dentry;
@@ -139,6 +141,8 @@ static __always_inline int sys_rename_ret(void *ctx, int retval, enum TAIL_CALL_
         return 0;
     }
 
+    apply_dentry_resolution_outcome(syscall, EVENT_RENAME);
+
     u64 inode = get_dentry_ino(syscall->rename.src_dentry);
 
     // remove discarder inode from src dentry to handle ovl folder
@@ -162,7 +166,7 @@ static __always_inline int sys_rename_ret(void *ctx, int retval, enum TAIL_CALL_
         monitor_discarded(EVENT_RENAME);
     }
 
-    if (syscall->state != DISCARDED && is_event_enabled(EVENT_RENAME)) {
+    if (syscall->state != DISCARDED && syscall->resolver.ret > 0 && is_event_enabled(EVENT_RENAME)) {
         syscall->retval = retval;
 
         // target dentry is swapped with src in the case of a successful rename
@@ -227,6 +231,11 @@ static __always_inline int dr_rename_callback(void *ctx, enum TAIL_CALL_PROG_TYP
     s64 retval = syscall->retval;
 
     if (IS_UNHANDLED_ERROR(retval)) {
+        goto pop_and_exit;
+    }
+
+    apply_dentry_resolution_outcome(syscall, EVENT_RENAME);
+    if (syscall->state == DISCARDED || syscall->resolver.ret <= 0) {
         goto pop_and_exit;
     }
 

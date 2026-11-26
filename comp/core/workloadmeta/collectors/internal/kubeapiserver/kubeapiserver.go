@@ -356,7 +356,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 				// Not added to objectStores: the PodGroups RBAC may be missing
 				// with older Helm charts or Operators, and it must not block
 				// readiness.
-				reflector, _ := newKAIPodGroupStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
+				reflector, _ := newKAIPodGroupStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr, c.config)
 				go reflector.Run(ctx.Done())
 			}
 		}

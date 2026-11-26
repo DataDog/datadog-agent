@@ -1,0 +1,4 @@
+otel_standalone: true
+otelcollector:
+  converter:
+    features: []

@@ -871,7 +871,7 @@ func (s *testAgentUpgradeFromGASuite) createStableAgent() (*AgentVersionManager,
 	previousOCI, err := NewPackageConfig(
 		WithName(consts.AgentPackage),
 		WithVersion(previousVersion),
-		WithRegistry("install.datad0g.com.internal.dda-testing.com"),
+		WithRegistry("install.datad0g.com"),
 		WithDevEnvOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup OCI package for previous agent version")

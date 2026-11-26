@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    With runtime usage enrichment (``sbom.enrichment.usage.enabled``), the
+    first SBOM of an image or of the host waits for its runtime usage only
+    while system-probe can serve it. The SBOMs waiting go out at once when
+    system-probe answers without the usage service, or when the core agent
+    has failed to reach it for two minutes, instead of each new SBOM waiting
+    two minutes for usage that never comes.

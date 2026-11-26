@@ -106,10 +106,78 @@ def _test_parent_dirs_impl(env, target):
         "/opt/agent/sources/systemd",
     ])
 
+def _test_config_dirs(name):
+    util.helper_target(
+        pkg_files,
+        name = name + "_config",
+        srcs = ["dd_pkg_rpm.bzl"],
+        prefix = "/etc/datadog-agent/conf.d/check.d",
+    )
+    util.helper_target(
+        pkg_files,
+        name = name + "_outside",
+        srcs = ["dd_pkg_deb.bzl"],
+        prefix = "/etc/datadog-dogstatsd",
+    )
+    util.helper_target(
+        pkg_mkdirs,
+        name = name + "_declared",
+        dirs = ["/etc/datadog-agent"],
+    )
+    util.helper_target(
+        dd_pkg_owned_dirs,
+        name = name + "_subject",
+        srcs = [
+            name + "_config",
+            name + "_outside",
+            name + "_declared",
+        ],
+    )
+    analysis_test(
+        name = name,
+        impl = _test_config_dirs_impl,
+        target = name + "_subject",
+        config_settings = {str(Label("//:install_dir")): "/opt/agent"},
+    )
+
+def _test_config_dirs_impl(env, target):
+    env.expect.that_collection(target[PackageDirsInfo].dirs).contains_exactly([
+        "/etc/datadog-agent/conf.d",
+        "/etc/datadog-agent/conf.d/check.d",
+    ])
+
+def _test_nested_roots(name):
+    util.helper_target(
+        pkg_files,
+        name = name + "_config",
+        srcs = ["dd_pkg_rpm.bzl"],
+        prefix = "/etc/datadog-agent/conf.d/check.d",
+    )
+    util.helper_target(
+        dd_pkg_owned_dirs,
+        name = name + "_subject",
+        srcs = [name + "_config"],
+    )
+    analysis_test(
+        name = name,
+        impl = _test_nested_roots_impl,
+        target = name + "_subject",
+        config_settings = {str(Label("//:install_dir")): "/etc/datadog-agent/conf.d"},
+    )
+
+def _test_nested_roots_impl(env, target):
+    env.expect.that_collection(target[PackageDirsInfo].dirs).contains_exactly([
+        "/etc/datadog-agent",
+        "/etc/datadog-agent/conf.d",
+        "/etc/datadog-agent/conf.d/check.d",
+    ])
+
 def dd_pkg_owned_dirs_test_suite(name):
     test_suite(
         name = name,
         tests = [
+            _test_config_dirs,
+            _test_nested_roots,
             _test_parent_dirs,
         ],
     )

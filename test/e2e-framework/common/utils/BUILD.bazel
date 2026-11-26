@@ -7,6 +7,7 @@ go_library(
         "docker.go",
         "file.go",
         "hash.go",
+        "helm_oci.go",
         "json.go",
         "kubernetes.go",
         "log.go",
@@ -24,6 +25,7 @@ go_library(
         "//test/e2e-framework/common/config",
         "//test/e2e-framework/common/namer",
         "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/core/v1:core",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/helm/v3:helm",
         "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/meta/v1:meta",
         "@com_github_pulumi_pulumi_random_sdk_v4//go/random",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
@@ -35,6 +37,7 @@ dd_agent_go_test(
     name = "utils_test",
     srcs = [
         "docker_test.go",
+        "helm_oci_test.go",
         "kubernetes_test.go",
         "version_test.go",
         "yaml_test.go",
