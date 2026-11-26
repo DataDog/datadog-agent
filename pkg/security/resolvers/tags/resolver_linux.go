@@ -79,8 +79,11 @@ func (t *LinuxResolver) Start(ctx context.Context) error {
 	if err := t.cgroupResolver.RegisterListener(cgroup.CGroupDeleted, func(cgce *cgroupModel.CacheEntry) {
 		id := cgce.GetCGroupID()
 		if workload, ok := t.workloads[id]; ok {
-			t.NotifyListeners(WorkloadSelectorDeleted, workload)
 			delete(t.workloads, id)
+			remaining := t.cgroupResolver.GetCacheEntryContainerID(cgce.GetContainerID())
+			if cgce.IsContainerContextNull() || remaining == nil || remaining == cgce {
+				t.NotifyListeners(WorkloadSelectorDeleted, workload)
+			}
 		}
 	}); err != nil {
 		return err

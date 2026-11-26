@@ -69,7 +69,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
-	github.com/DataDog/go-sqllexer v0.2.6 // indirect
+	github.com/DataDog/go-sqllexer v0.2.7 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/sketches-go v1.4.8 // indirect
 	github.com/Microsoft/go-winio v0.6.4 // indirect
@@ -84,13 +84,13 @@ require (
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/gofrs/flock v0.13.2 // indirect
-	github.com/google/pprof v0.0.0-20261110164715-8bb1ee682bd8 // indirect
+	github.com/google/pprof v0.0.0-20261111200114-fac431ef4d26 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/go-version v1.9.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.20.4 // indirect
-	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
+	github.com/klauspost/cpuid/v2 v2.4.2 // indirect
 	github.com/linkdata/deadlock v0.5.5 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260802145828-341c2f0c90b5 // indirect
 	github.com/mattn/go-colorable v0.1.16 // indirect

@@ -179,11 +179,7 @@ func (i *InventoryPayload) FlareProvider() flaretypes.Provider {
 			// key-name-based) rather than the builder's default ScrubBytes, which applies
 			// regex replacers to raw text and corrupts JSON when a key name contains a
 			// pattern substring (e.g. "pass" in "cache_bypass_limit").
-			data, err := i.GetAsJSON()
-			if err != nil {
-				return err
-			}
-			scrubbed, err := scrubber.ScrubJSON(data)
+			scrubbed, err := i.GetAsScrubbedJSON()
 			if err != nil {
 				return err
 			}
@@ -328,4 +324,15 @@ func (i *InventoryPayload) GetAsJSON() ([]byte, error) {
 	defer i.m.Unlock()
 
 	return json.MarshalIndent(i.getPayload(), "", "  ")
+}
+
+// GetAsScrubbedJSON returns the payload as a JSON string, scrubbed by key name. Use it whenever the payload is
+// displayed outside of the intake (CLI, flare, API endpoint): fields such as the secret hashes under
+// 'enc_info.hash_secret_id' are only meant for the backend and are removed here.
+func (i *InventoryPayload) GetAsScrubbedJSON() ([]byte, error) {
+	data, err := i.GetAsJSON()
+	if err != nil {
+		return nil, err
+	}
+	return scrubber.ScrubJSON(data)
 }

@@ -50,7 +50,7 @@ require (
 require go.opentelemetry.io/collector/internal/telemetry v0.165.0 // indirect
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.216 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.217 // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.72.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.85.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.84.0-devel.0.20261030015547-4fcf7d423463 // indirect
@@ -132,7 +132,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/zstd v0.0.0-20261030015547-4fcf7d423463 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.67.0 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
-	github.com/DataDog/go-sqllexer v0.2.6 // indirect
+	github.com/DataDog/go-sqllexer v0.2.7 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.8 // indirect
@@ -153,7 +153,7 @@ require (
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
-	github.com/goccy/go-json v0.10.6 // indirect
+	github.com/goccy/go-json v0.12.0 // indirect
 	github.com/gofrs/flock v0.13.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
@@ -241,7 +241,7 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.5 // indirect
 	go.yaml.in/yaml/v3 v3.0.6 // indirect
-	golang.org/x/crypto v0.58.0 // indirect
+	golang.org/x/crypto v0.59.0 // indirect
 	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/oauth2 v0.38.0 // indirect
 	golang.org/x/sync v0.25.0 // indirect

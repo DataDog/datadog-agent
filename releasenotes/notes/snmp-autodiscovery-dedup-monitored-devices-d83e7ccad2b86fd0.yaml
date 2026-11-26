@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Fix SNMP autodiscovery with ``use_deduplication: true`` polling the same device
+    under several IPs. This happened to devices loaded from the autodiscovery cache
+    (for example a cache built before deduplication was enabled), and to devices
+    whose lowest IP answered only after a higher IP was already monitored. Duplicate
+    IPs are now unscheduled and removed from the cache once deduplication finds the
+    device under a lower IP.

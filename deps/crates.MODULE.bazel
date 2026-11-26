@@ -27,6 +27,10 @@ crate.annotation(
     crate = "winapi",
 )
 crate.annotation(
+    crate = "aws-lc-sys",
+    gen_build_script = "on",  # silence rules_rs' well-known annotation warning
+)
+crate.annotation(
     crate = "protoc-gen-prost",
     gen_binaries = ["protoc-gen-prost"],
 )
@@ -42,4 +46,12 @@ crate.annotation(
     crate = "tokio",
     rustc_flags = ["--cfg=tokio_unstable"],
 )
+crate.annotation(
+    crate = "zstd-sys",
+    gen_build_script = "off",  # do not compile the vendored copy
+    link_deps = ["@zstd//:libzstd"],  # and use the shared one instead
+)
+
+inject_repo(crate, "zstd")
+
 use_repo(crate, "crates")
