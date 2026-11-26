@@ -119,43 +119,42 @@ It's tempting to use an atomic to avoid complaints from the [race detector](../.
 The exception to this is tests, where atomics can be useful for sensing some value that you would like to assert on that is manipulated in another goroutine. Even here, be wary of race conditions, such as assuming that a background goroutine has executed before the test goroutine makes its assertions.
 ///
 
-Always ensure that you:
+When you do need an atomic, use the typed atomics from the standard library's [`sync/atomic`](https://pkg.go.dev/sync/atomic) package: `atomic.Bool`, `atomic.Int32`, `atomic.Int64`, `atomic.Uint32`, `atomic.Uint64`, `atomic.Uintptr`, `atomic.Pointer[T]`, and `atomic.Value`.
 
-1. Use [`go.uber.org/atomic`](https://pkg.go.dev/go.uber.org/atomic) instead of `sync/atomic`.
+/// details | Why?
+The typed atomics avoid the two pitfalls of atomic code:
 
-    /// details | Why?
-    There are two main issues with the standard library's `sync/atomic` package.
+1. **Alignment.** 64-bit atomic operations need 64-bit aligned memory, which Go does not guarantee for struct fields on 32-bit platforms. `atomic.Int64` and `atomic.Uint64` are always correctly aligned, wherever they are declared.
+1. **Mixed access.** It is very easy to access a raw integer variable using a mix of atomic and non-atomic operations. This mix may be enough to satisfy the race detector, but not sufficient to actually prevent undefined behavior. A typed atomic can only be accessed through its methods.
+///
 
-    1. It has an [alignment bug](https://pkg.go.dev/sync/atomic#pkg-note-BUG) requiring users to manually ensure alignment. This is frequently forgotten, and only causes issues on less-common platforms, leading to undetected bugs.
-    1. It is very easy to access a raw integer variable using a mix of atomic and non-atomic operations. This mix may be enough to satisfy the race detector, but not sufficient to actually prevent undefined behavior.
-    ///
-
-1. Declare atomic types using a pointer to ensure proper alignment.
+Declare them as plain values; no pointer is needed:
 
 ```go
-// global variable
-var maxFooCount = atomic.NewUint64(42)
-
-// in a struct
 type FooTracker struct {
-    maxCount *atomic.Uint64
+    maxCount atomic.Uint64
 }
 
 func NewFooTracker() *FooTracker {
-    return &FooTracker {
-        maxCount: atomic.NewUint64(42),
-    }
+    t := &FooTracker{}
+    t.maxCount.Store(42)
+    return t
 }
 ```
 
-Use the `atomic.Uint64` methods to perform atomic operations on the value. These include some conveniences not available in `sync/atomic`, such as `Inc`/`Dec` and `atomic.Bool`.
+Do not copy a struct holding an atomic once it is in use: pass a pointer to it instead. `go vet` reports such copies.
 
-If the additional pointer allocation poses an undue performance burden, do **both** of the following.
+Do not use the functions of `sync/atomic` such as `atomic.AddInt64(&x, 1)` on plain integer variables in new code: this brings back both pitfalls above.
 
-1. Include the value as the *first* element in the struct (to ensure alignment).
-1. Add a comment indicating that it must remain in that position and why a pointer was not suitable.
+### `go.uber.org/atomic`
 
-Pointers to atomic types marshal correctly to JSON as their enclosed value. Unmarshaling does the reverse, except that missing values are represented as `nil`, rather than an atomic type with zero value.
+A lot of existing code uses [`go.uber.org/atomic`](https://pkg.go.dev/go.uber.org/atomic), which predates the typed atomics of the standard library. Keep using it where you need what the standard library does not provide:
+
+- types such as `atomic.Duration`, `atomic.Float64`, `atomic.String`, `atomic.Time`, and `atomic.Error`, or conveniences such as `Inc`/`Dec`;
+- JSON marshaling: pointers to `go.uber.org/atomic` types marshal to their enclosed value, while the standard library types marshal to `{}`;
+- the <<<repo("pkg/util/atomicstats", "`atomicstats`")>>> package, which only reads `go.uber.org/atomic` values.
+
+Unlike the standard library types, `go.uber.org/atomic.Int64` and `Uint64` are not aligned automatically. Declare them using a pointer, for example `maxCount *atomic.Uint64` created with `atomic.NewUint64(42)`. If the additional pointer allocation poses an undue performance burden, include the value as the *first* element in the struct, with a comment saying that it must remain in that position and why a pointer was not suitable.
 
 Types such as `expvar.Int` are simple wrappers around an integer, and are accessed using `sync/atomic`. Go will properly align variables (whether global or local) but not struct fields, so any expvar types embedded in a struct must use a pointer.
 
