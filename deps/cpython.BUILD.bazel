@@ -319,7 +319,8 @@ pkg_install(
         "@platforms//os:windows": [
             ":all_files",
             # Build-time OpenSSL headers/import libs for Omnibus's FIPS Windows
-            # cryptography source build (removed by datadog-agent-finalize.rb).
+            # cryptography source build (headers under embedded3/include/openssl
+            # are removed by datadog-agent-finalize.rb).
             "@openssl//:windows_fips_build_files",
         ],
         "//conditions:default": [":runtime_deps"],

@@ -375,9 +375,11 @@ pkg_filegroup(
     visibility = ["//visibility:public"],
 )
 
-# Build-time-only OpenSSL files (headers and import libraries) for FIPS Windows,
-# installed by @cpython//:install for Omnibus's cryptography source build and
-# removed before final packaging by datadog-agent-finalize.rb.
+# Build-time OpenSSL files (headers and import libraries) for FIPS Windows,
+# installed by @cpython//:install for Omnibus's cryptography source build.
+# Headers under embedded3/include/openssl are deleted by datadog-agent-finalize.rb
+# and excluded by agent.rb before final packaging (import libraries under
+# embedded3/lib remain untouched in Omnibus and are omitted from :windows_pkg).
 pkg_filegroup(
     name = "windows_fips_build_files",
     srcs = select({
