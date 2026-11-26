@@ -182,16 +182,14 @@ static __always_inline int sys_rename_ret(void *ctx, int retval, enum TAIL_CALL_
                 syscall->rename.target_file.path_key.path_id = get_path_id(syscall->rename.target_file.path_key.ino, syscall->rename.target_file.path_key.mount_id, 2, PATH_ID_INVALIDATE_TYPE_LOCAL);
             }
         }
-        if (syscall->rename.target_file.path_key.ino) {
-            syscall->resolver.key = syscall->rename.target_file.path_key;
-            syscall->resolver.event_type = syscall->type;
-            syscall->resolver.flags = get_resolver_flags(syscall, 1);
-            syscall->resolver.callback = select_dr_key(prog_type, DR_RENAME_CALLBACK_KPROBE_KEY, DR_RENAME_CALLBACK_TRACEPOINT_KEY);
-            syscall->resolver.iteration = 0;
-            syscall->resolver.ret = 0;
+        syscall->resolver.key = syscall->rename.target_file.path_key;
+        syscall->resolver.event_type = syscall->type;
+        syscall->resolver.flags = get_resolver_flags(syscall, 1);
+        syscall->resolver.callback = select_dr_key(prog_type, DR_RENAME_CALLBACK_KPROBE_KEY, DR_RENAME_CALLBACK_TRACEPOINT_KEY);
+        syscall->resolver.iteration = 0;
+        syscall->resolver.ret = 0;
 
-            resolve_dentry(ctx, prog_type);
-        }
+        resolve_dentry(ctx, prog_type);
     }
 
 pop_and_exit:
