@@ -169,8 +169,8 @@ impl ProcessKiller {
 pub(crate) struct StopWait {
     name: String,
     handle: JoinHandle<()>,
-    /// When the stop began. The grace period counts from here, so time spent waiting for an
-    /// earlier process in the same shutdown does not add to this one.
+    /// When the stop was requested. The grace period counts from here, so any time between the
+    /// request and the start of this wait counts against the grace.
     started: Instant,
     /// How long to let the child exit on its own. `None` means it was never
     /// asked to, so there is nothing for a full `stop_timeout` to wait for.
@@ -258,8 +258,8 @@ pub struct ManagedProcess {
     /// from the helper's report.
     graceful_stop_failed: bool,
     /// When `mark_stop_requested` began this stop. `StopWait` measures the grace period from
-    /// here, so processes stopped together share one start and daemon shutdown waits for the
-    /// longest timeout, not the sum.
+    /// here. Each process starts its own grace when it is requested, and concurrent waits keep
+    /// those periods from summing, so daemon shutdown waits for the longest timeout, not the sum.
     stop_started: Option<Instant>,
     /// Set only where a respawn was skipped because a start condition was
     /// closed, and cleared in `spawn()`.
@@ -735,6 +735,7 @@ impl ManagedProcess {
         // below would otherwise read as a crash or a failure.
         if self.stop_requested {
             self.stop_requested = false;
+            self.stop_started = None;
             self.transition_to(ProcessState::Stopped);
         } else if status.success() {
             self.transition_to(ProcessState::Exited);

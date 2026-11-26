@@ -7,12 +7,25 @@ use crate::process::ManagedProcess;
 #[cfg(test)]
 use crate::process::test_exit_channel;
 
+/// Requests stops in `order`, then waits on all processes concurrently. `order` only sets the
+/// order in which signals are sent. Each wait enforces its own deadline, so a short timeout
+/// is force-killed on time even while an earlier process is still in its grace.
 pub async fn shutdown_ordered(processes: &mut [ManagedProcess], order: &[usize]) {
     for &idx in order {
         processes[idx].request_stop();
     }
+    // Wait on every process at once. Each wait enforces its own deadline, so a process with a
+    // short stop_timeout is force-killed on time even while a longer one is still in its grace.
+    let waits: Vec<_> = order
+        .iter()
+        .filter_map(|&idx| processes[idx].take_stop_wait())
+        .map(|wait| tokio::spawn(wait.run()))
+        .collect();
+    for wait in waits {
+        wait.await.expect("stop wait task panicked");
+    }
     for &idx in order {
-        processes[idx].wait_for_stop().await;
+        processes[idx].finish_stop();
     }
 }
 
@@ -159,6 +172,82 @@ mod tests {
             elapsed < Duration::from_millis(3500),
             "two 2 s stops ran one after another: shutdown took {elapsed:?}"
         );
+        // Immediate termination would pass the upper bound, so require the full grace.
+        assert!(
+            elapsed >= Duration::from_millis(1900),
+            "shutdown ended before the 2 s grace ran out: took {elapsed:?}"
+        );
+    }
+
+    /// A child with a short stop_timeout is force-killed at its own deadline, even while a
+    /// child with a longer timeout is still in its grace period.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_shutdown_short_timeout_killed_on_its_own_deadline() {
+        use std::os::unix::process::ExitStatusExt;
+        use std::time::Instant;
+
+        let dir = tempfile::tempdir().unwrap();
+        let mut procs = Vec::new();
+        let mut exits = Vec::new();
+        // The long-timeout child is listed first, so a sequential wait would block on it
+        // before the short child's deadline is checked.
+        for (name, stop_timeout) in [("slow-stop", 3), ("fast-stop", 1)] {
+            let ready = dir.path().join(format!("{name}.ready"));
+            let (cmd, args) = test_helpers::trap_term_sleep_ready(&ready);
+            let mut config = test_helpers::make_config(cmd, args);
+            config.stop_timeout = Some(stop_timeout);
+            let mut proc =
+                ManagedProcess::new_config(name.into(), test_helpers::test_uuid(), config);
+            let (tx, rx) = test_exit_channel();
+            proc.spawn(tx).unwrap();
+            test_helpers::wait_for_file(&ready, Duration::from_secs(10)).await;
+            procs.push(proc);
+            exits.push(rx);
+        }
+
+        // Record when each child's exit event arrives, which is when it actually exited, and how.
+        let exit_tasks: Vec<_> = exits
+            .into_iter()
+            .map(|mut rx| {
+                tokio::spawn(async move {
+                    let event = rx.recv().await.expect("exit event");
+                    (Instant::now(), event.status)
+                })
+            })
+            .collect();
+
+        let started = Instant::now();
+        shutdown_all(&mut procs).await;
+
+        for proc in &procs {
+            assert_eq!(proc.state(), ProcessState::Stopped);
+        }
+        let mut results = Vec::new();
+        for task in exit_tasks {
+            let (at, status) = task.await.unwrap();
+            results.push((at.saturating_duration_since(started), status));
+        }
+        let (slow_exit, slow_status) = &results[0];
+        let (fast_exit, fast_status) = &results[1];
+
+        // Each child was force-killed at its own deadline, not at the other's.
+        assert!(
+            *fast_exit >= Duration::from_millis(1000) && *fast_exit < Duration::from_millis(2000),
+            "fast-stop should be force-killed at its 1 s deadline: exited at {fast_exit:?}"
+        );
+        assert!(
+            *slow_exit >= Duration::from_millis(2500) && *slow_exit < Duration::from_millis(4500),
+            "slow-stop should be force-killed at its 3 s deadline: exited at {slow_exit:?}"
+        );
+        // Both ignored SIGTERM, so both ended by the SIGKILL escalation.
+        for status in [slow_status, fast_status] {
+            assert_eq!(
+                status.signal(),
+                Some(nix::sys::signal::Signal::SIGKILL as i32),
+                "child should have been killed by SIGKILL: {status:?}"
+            );
+        }
     }
 
     #[tokio::test]
