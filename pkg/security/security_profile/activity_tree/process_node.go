@@ -369,13 +369,19 @@ func (pi *ProcessInfo) matches(pathnameStr, argv0 string, argv []string, matchAr
 	return true
 }
 
-// InsertSyscalls inserts the syscall of the process in the dump
-func (pn *ProcessNode) InsertSyscalls(e *model.Event, imageTagID uint64, syscallMask map[int]int, stats *Stats, dryRun bool) bool {
+// InsertSyscalls inserts the syscalls of the process in the dump. The returned nodes are the
+// syscall nodes the event matched or created, in event order, including nodes that already
+// existed. A dry run returns no nodes and stops at the first syscall that is not already present.
+func (pn *ProcessNode) InsertSyscalls(e *model.Event, imageTagID uint64, syscallMask map[int]int, stats *Stats, dryRun bool) (bool, []*NodeBase) {
 	var hasNewSyscalls bool
+	var nodes []*NodeBase
 	for _, newSyscall := range e.Syscalls.Syscalls {
 		syscallID := int(newSyscall)
 		if existingSyscall, ok := pn.Syscalls[syscallID]; ok {
 			existingSyscall.AppendImageTagID(imageTagID, e.ResolveEventTime())
+			if !dryRun {
+				nodes = append(nodes, &existingSyscall.NodeBase)
+			}
 			continue
 		}
 
@@ -392,9 +398,10 @@ func (pn *ProcessNode) InsertSyscalls(e *model.Event, imageTagID uint64, syscall
 		syscallMask[syscallID] = syscallID
 		stats.SyscallNodes++
 		stats.SizeBytes += sn.size()
+		nodes = append(nodes, &sn.NodeBase)
 	}
 
-	return hasNewSyscalls
+	return hasNewSyscalls, nodes
 }
 
 // InsertFileEvent inserts the provided file event in the current node. Returns whether a new entry was
@@ -472,11 +479,12 @@ func (pn *ProcessNode) findDNSNode(DNSName string, DNSMatchMaxDepth int, DNSType
 	return false
 }
 
-// InsertDNSEvent inserts a DNS event in a process node
-func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTagID uint64, generationType NodeGenerationType, stats *Stats, DNSNames *utils.StringKeys, dryRun bool, dnsMatchMaxDepth int) bool {
+// InsertDNSEvent inserts a DNS event in a process node. The NodeBase is the DNS node the
+// question matched or created. A dry run returns a nil node.
+func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTagID uint64, generationType NodeGenerationType, stats *Stats, DNSNames *utils.StringKeys, dryRun bool, dnsMatchMaxDepth int) (bool, *NodeBase) {
 	if dryRun {
 		// Use DNSMatchMaxDepth only when searching for a node, not when trying to insert
-		return !pn.findDNSNode(evt.DNS.Question.Name, dnsMatchMaxDepth, evt.DNS.Question.Type)
+		return !pn.findDNSNode(evt.DNS.Question.Name, dnsMatchMaxDepth, evt.DNS.Question.Type), nil
 	}
 
 	DNSNames.Insert(evt.DNS.Question.Name)
@@ -497,14 +505,14 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTagID uint64, gener
 					dnsNode.mergeDNSResponse(i, evt.DNS.Response)
 					stats.SizeBytes += dnsNode.size() - sizeBefore
 				}
-				return false
+				return false, &dnsNode.NodeBase
 			}
 		}
 
 		sizeBefore := dnsNode.size()
 		dnsNode.Requests = append(dnsNode.Requests, newDNSRequestEntry(&evt.DNS))
 		stats.SizeBytes += dnsNode.size() - sizeBefore
-		return true
+		return true, &dnsNode.NodeBase
 	}
 
 	dnsNode = NewDNSNode(&evt.DNS, evt, evt.Rules, generationType, imageTagID)
@@ -514,7 +522,7 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTagID uint64, gener
 	pn.DNSNames[evt.DNS.Question.Name] = dnsNode
 	stats.DNSNodes++
 	stats.SizeBytes += dnsNode.size()
-	return true
+	return true, &dnsNode.NodeBase
 }
 
 // InsertIMDSEvent inserts an IMDS event in a process node
@@ -629,8 +637,12 @@ func (pn *ProcessNode) InsertConnectEvent(evt *model.Event, imageTagID uint64, g
 	return newNode, connectNodeBase
 }
 
-// InsertCapabilitiesUsageEvent inserts a capabilities usage event in a process node
-func (pn *ProcessNode) InsertCapabilitiesUsageEvent(evt *model.Event, imageTagID uint64, stats *Stats, dryRun bool) bool {
+// InsertCapabilitiesUsageEvent inserts a capabilities usage event in a process node.
+// The returned nodes are every capability the event touched, existing or newly created,
+// in capability-number order. A dry run returns no nodes and stops at the first capability
+// that is not already present.
+func (pn *ProcessNode) InsertCapabilitiesUsageEvent(evt *model.Event, imageTagID uint64, stats *Stats, dryRun bool) (bool, []*NodeBase) {
+	var nodes []*NodeBase
 	hasNewCapabilitiesUsage := false
 nextCapability:
 	for capability := uint64(0); capability <= unix.CAP_LAST_CAP; capability++ {
@@ -648,6 +660,9 @@ nextCapability:
 				existingCapabilityNode.AttemptedHostUserNS == attemptedHostUserNS &&
 				existingCapabilityNode.CapableHostUserNS == capableHostUserNS {
 				existingCapabilityNode.AppendImageTagID(imageTagID, evt.ResolveEventTime())
+				if !dryRun {
+					nodes = append(nodes, &existingCapabilityNode.NodeBase)
+				}
 				continue nextCapability
 			}
 		}
@@ -658,12 +673,13 @@ nextCapability:
 		}
 
 		capabilityNode := NewCapabilityNode(capability, capable, attemptedHostUserNS, capableHostUserNS, evt.ResolveEventTime(), imageTagID, Runtime)
+		nodes = append(nodes, &capabilityNode.NodeBase)
 		pn.Capabilities = append(pn.Capabilities, capabilityNode)
 		stats.CapabilityNodes++
 		stats.SizeBytes += capabilityNode.size()
 	}
 
-	return hasNewCapabilitiesUsage
+	return hasNewCapabilitiesUsage, nodes
 }
 
 func (pn *ProcessNode) applyImageTagOnLineageIfNeeded(imageTagID uint64) {
