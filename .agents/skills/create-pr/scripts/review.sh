@@ -5,10 +5,36 @@
 #   3. claude in a `dda env dev` developer environment, which authenticates through `ddtool`
 # If a review fails, the next reviewer is tried. Extra arguments are passed to `dda review`.
 #
+# `--self <claude|codex>` names the AI agent running /create-pr. Reviewers of that provider are
+# skipped, so the change gets a second opinion from another provider; when none is available the
+# agent reviews it with a subagent instead. Without `--self`, the agent is detected from the
+# environment (`CLAUDECODE`, `CODEX_*`).
+#
 # Exit codes: 0 a review completed, 1 every attempted review failed, 2 no reviewer is available.
 set -uo pipefail
 
 log() { echo "create-pr review: $*" >&2; }
+
+self=""
+if [[ "${1:-}" == "--self" ]]; then
+    self=${2:-}
+    shift 2 || shift
+elif [[ "${1:-}" == --self=* ]]; then
+    self=${1#--self=}
+    shift
+elif [[ -n "${CLAUDECODE:-}" ]]; then
+    self=claude
+elif [[ -n "${CODEX_THREAD_ID:-}${CODEX_SANDBOX:-}${CODEX_SANDBOX_NETWORK_DISABLED:-}" ]]; then
+    self=codex
+fi
+case "$self" in
+    "" | claude | codex) ;;
+    *)
+        log "unknown --self value '${self}', expected claude or codex"
+        exit 1
+        ;;
+esac
+[[ -n "$self" ]] && log "running as ${self}, so ${self} reviewers are skipped"
 
 if ! command -v dda >/dev/null; then
     log "dda is not installed, see https://datadoghq.dev/datadog-agent-dev/"
@@ -32,7 +58,9 @@ run_review() {
 }
 
 # 1. codex, which matches the reviewer used in CI
-if ! command -v codex >/dev/null; then
+if [[ "$self" == "codex" ]]; then
+    :
+elif ! command -v codex >/dev/null; then
     log "codex is not installed"
 elif ! codex login status >/dev/null 2>&1; then
     log "codex is installed but not logged in, run \`codex login\`"
@@ -41,7 +69,9 @@ else
 fi
 
 # 2. claude on the host
-if ! command -v claude >/dev/null; then
+if [[ "$self" == "claude" ]]; then
+    :
+elif ! command -v claude >/dev/null; then
     log "claude is not installed"
 elif ! claude auth status >/dev/null 2>&1; then
     log "claude is installed but not logged in, run \`claude auth login\`"
@@ -95,10 +125,17 @@ dev_env_review() {
     run_review "claude in developer environment ${env_id} (CI uses codex, so findings may differ)" \
         "${in_env[@]}" dda review --provider claude "$@"
 }
-dev_env_review "$@"
+if [[ "$self" != "claude" ]]; then
+    dev_env_review "$@"
+fi
 
 if [[ "$attempted" -eq 1 ]]; then
     exit 1
+fi
+
+if [[ -n "$self" ]]; then
+    log "no reviewer from another provider than ${self} is available (reasons above): review the change with a subagent"
+    exit 2
 fi
 
 log "ALERT: no AI reviewer is available, so no local review ran (reasons above). To enable it, either:"
