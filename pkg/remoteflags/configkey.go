@@ -43,6 +43,11 @@ type configKeyHandler struct {
 // The handler assumes it is the only writer of the Remote Config value for the
 // key: releasing removes whatever value that source holds for the key.
 //
+// The handler serializes its own calls but does not order them: it relies on the
+// client delivering callbacks for one flag in the order the values changed.
+// Without that ordering a delayed enable can run after a removal and turn the
+// key back on.
+//
 // After a recovery the key stays off until the flag value changes again: the
 // client does not notify a handler twice with the same value.
 //

@@ -6,10 +6,10 @@
 package remoteflags
 
 import (
+	"runtime"
 	"slices"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,11 +100,11 @@ func TestConfigKeyHandlerPrecedence(t *testing.T) {
 	}
 
 	// A local value must be left alone by every flag transition.
-	transitions := map[string]func(h FlagHandler){
-		"flag true":    func(h FlagHandler) { require.NoError(t, h.OnChange(true)) },
-		"flag false":   func(h FlagHandler) { require.NoError(t, h.OnChange(false)) },
-		"flag removed": func(h FlagHandler) { h.OnNoConfig() },
-		"recover":      func(h FlagHandler) { h.SafeRecover(assert.AnError, true) },
+	transitions := map[string]func(t *testing.T, h FlagHandler){
+		"flag true":    func(t *testing.T, h FlagHandler) { require.NoError(t, h.OnChange(true)) },
+		"flag false":   func(t *testing.T, h FlagHandler) { require.NoError(t, h.OnChange(false)) },
+		"flag removed": func(_ *testing.T, h FlagHandler) { h.OnNoConfig() },
+		"recover":      func(_ *testing.T, h FlagHandler) { h.SafeRecover(assert.AnError, true) },
 	}
 	for _, src := range localSources {
 		for _, localValue := range []bool{true, false} {
@@ -113,7 +113,7 @@ func TestConfigKeyHandlerPrecedence(t *testing.T) {
 					s := newLayeredSetter()
 					s.Set(testKey, localValue, src)
 					s.sets = nil
-					apply(NewConfigKeyHandler("f", s, testKey, nil))
+					apply(t, NewConfigKeyHandler("f", s, testKey, nil))
 					assert.Equal(t, localValue, s.effective(), "local value must keep winning")
 					assert.False(t, s.hasLayer(model.SourceRC), "no remote layer may be written over a local value")
 					assert.False(t, s.wroteFalse())
@@ -137,17 +137,17 @@ func TestConfigKeyHandlerPrecedence(t *testing.T) {
 		assert.True(t, s.effective())
 	})
 
-	releases := map[string]func(h FlagHandler){
-		"flag false":   func(h FlagHandler) { require.NoError(t, h.OnChange(false)) },
-		"flag removed": func(h FlagHandler) { h.OnNoConfig() },
-		"recover":      func(h FlagHandler) { h.SafeRecover(assert.AnError, true) },
+	releases := map[string]func(t *testing.T, h FlagHandler){
+		"flag false":   func(t *testing.T, h FlagHandler) { require.NoError(t, h.OnChange(false)) },
+		"flag removed": func(_ *testing.T, h FlagHandler) { h.OnNoConfig() },
+		"recover":      func(_ *testing.T, h FlagHandler) { h.SafeRecover(assert.AnError, true) },
 	}
 	for name, release := range releases {
 		t.Run("flag true then "+name+" gives the layer back", func(t *testing.T) {
 			s := newLayeredSetter()
 			h := NewConfigKeyHandler("f", s, testKey, nil)
 			require.NoError(t, h.OnChange(true))
-			release(h)
+			release(t, h)
 			assert.False(t, s.hasLayer(model.SourceRC))
 			assert.False(t, s.effective())
 			assert.False(t, s.wroteFalse(), "false must never be written")
@@ -252,6 +252,16 @@ func (g *gatedSetter) GetSource(key string) model.Source {
 	return src
 }
 
+// waitUntilQuiet yields the processor until goroutines that can still make
+// progress have had ample chance to run. testing/synctest cannot be used here
+// because a goroutine waiting on a sync.Mutex is not durably blocked, so
+// synctest.Wait would never return while the handler holds its lock.
+func waitUntilQuiet() {
+	for range 2000 {
+		runtime.Gosched()
+	}
+}
+
 func TestConfigKeyHandlerSerializesReadAndWrite(t *testing.T) {
 	s := &gatedSetter{
 		layeredSetter: newLayeredSetter(),
@@ -267,19 +277,24 @@ func TestConfigKeyHandlerSerializesReadAndWrite(t *testing.T) {
 	}()
 	<-s.reading // the enable has read the source and is paused before writing
 
+	releaseStarted := make(chan struct{})
 	releaseDone := make(chan struct{})
 	go func() {
 		defer close(releaseDone)
+		close(releaseStarted)
 		h.OnNoConfig()
 	}()
+	<-releaseStarted
+	waitUntilQuiet() // without the lock the release finishes during this window
 
 	select {
 	case <-releaseDone:
 		close(s.gate)
 		<-enableDone
 		t.Fatal("the release ran between the read and the write of the enable")
-	case <-time.After(50 * time.Millisecond):
+	default:
 	}
+
 	close(s.gate)
 	<-enableDone
 	<-releaseDone
