@@ -228,7 +228,7 @@ func nonSidecarInitContainerNames(pod *corev1.Pod) map[string]struct{} {
 	var names map[string]struct{}
 	for i := range pod.Spec.InitContainers {
 		cont := &pod.Spec.InitContainers[i]
-		if cont.RestartPolicy != nil && *cont.RestartPolicy == corev1.ContainerRestartPolicyAlways {
+		if isSidecarInitContainerSpec(cont) {
 			continue
 		}
 		if names == nil {
@@ -287,7 +287,7 @@ func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerR
 		cont.Resources.Requests = corev1.ResourceList{}
 	}
 	for resourceName, limit := range reco.Limits {
-		if limit.Cmp(removeLimitSentinel) == 0 {
+		if isRemoveLimit(limit) {
 			// Sentinel: applyVerticalConstraints signalled that this limit must be actively
 			// removed from the pod (e.g. CPURequestsRemoveLimitsMemoryRequestsAndLimits).
 			if _, exists := cont.Resources.Limits[resourceName]; exists {

@@ -127,7 +127,8 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 	}
 
 	// Non-sidecar init containers run only on new pods, so they need no action on running pods.
-	actionableResources, actionableID, err := actionableRecommendation(constrainedVertical.ContainerResources, constrainedVertical.ResourcesHash, findNonSidecarInitContainers(pods))
+	nonSidecarInit := findNonSidecarInitContainers(pods)
+	actionableResources, actionableID, err := actionableRecommendation(constrainedVertical.ContainerResources, constrainedVertical.ResourcesHash, nonSidecarInit)
 	if err != nil {
 		autoscalerInternal.SetConstrainedVerticalScaling(nil, nil)
 		autoscalerInternal.UpdateFromVerticalAction(nil, autoscaling.NewConditionError(autoscaling.ConditionReasonRecommendationError, err))
@@ -148,7 +149,7 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 	constrainedVertical.ResourcesHash = actionableID
 
 	// recommendationID is the constrained actionable hash; in burstable mode applyVerticalConstraints
-	// already stamped a CPU-limit zero sentinel on each container, so the hash naturally
+	// already stamped removeLimitSentinel on each container's CPU limit, so the hash naturally
 	// differs from non-burstable — no extra suffix required.
 	recommendationID := constrainedVertical.ResourcesHash
 
@@ -198,7 +199,7 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 		return autoscaling.NoRequeue, nil
 	}
 
-	return u.syncInternal(ctx, podAutoscaler, autoscalerInternal, target, targetGVK, recommendationID, pods, podsPerRecommendationID, podsPerDirectOwner, podsByResizeStatus)
+	return u.syncInternal(ctx, podAutoscaler, autoscalerInternal, target, targetGVK, recommendationID, pods, nonSidecarInit, podsPerRecommendationID, podsPerDirectOwner, podsByResizeStatus)
 }
 
 // syncInternal is the internal implementation of the vertical controller.
@@ -210,6 +211,7 @@ func (u *verticalController) syncInternal(
 	targetGVK schema.GroupVersionKind,
 	recommendationID string,
 	pods []*workloadmeta.KubernetesPod,
+	nonSidecarInit map[string]struct{},
 	podsPerRecommendationID map[string]int32,
 	podsPerDirectOwner map[string]int32,
 	podsByResizeStatus map[PodResizeStatus][]classifiedPod,
@@ -218,7 +220,7 @@ func (u *verticalController) syncInternal(
 	// Fall back to rollout if in-place scaling is not enabled via config, if
 	// TriggerRollout mode is explicitly set, or if the API server does not
 	// support in-place resize (pods/resize subresource unavailable).
-	if isRolloutRequired(autoscalerInternal, pods) || !u.isInPlaceResizeSupported() {
+	if isRolloutRequired(autoscalerInternal, pods, nonSidecarInit) || !u.isInPlaceResizeSupported() {
 		switch targetGVK.Kind {
 		case k8sutil.DeploymentKind:
 			return u.syncDeploymentKind(ctx, podAutoscaler, autoscalerInternal, target, targetGVK, recommendationID, pods, podsPerRecommendationID, podsPerDirectOwner)

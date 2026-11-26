@@ -731,7 +731,7 @@ func (f *verticalControllerFixture) runSyncInPlaceMode(t *testing.T, dpa *datado
 
 	return f.controller.syncInternal(
 		context.Background(), dpa, &ai, target, gvk, recommendationID,
-		pods, map[string]int32{}, map[string]int32{}, buildPodsByResizeStatus(pods, recommendationID),
+		pods, findNonSidecarInitContainers(pods), map[string]int32{}, map[string]int32{}, buildPodsByResizeStatus(pods, recommendationID),
 	)
 }
 
@@ -832,7 +832,7 @@ func TestSyncInternal_InPlace_Infeasible_TriggersRollout(t *testing.T) {
 
 	_, err := f.controller.syncInternal(
 		context.Background(), &datadoghq.DatadogPodAutoscaler{}, &ai, target, gvk, "r1",
-		pods, map[string]int32{}, map[string]int32{}, buildPodsByResizeStatus(pods, "r1"),
+		pods, findNonSidecarInitContainers(pods), map[string]int32{}, map[string]int32{}, buildPodsByResizeStatus(pods, "r1"),
 	)
 	assert.NoError(t, err)
 	assert.True(t, workloadPatched, "rollout must be triggered immediately on Infeasible")
@@ -880,7 +880,7 @@ func TestSyncInternal_InPlace_Infeasible_RolloutAlreadyTriggered_Skips(t *testin
 
 	result, err := f.controller.syncInternal(
 		context.Background(), &datadoghq.DatadogPodAutoscaler{}, &ai, target, gvk, "r1",
-		pods, map[string]int32{}, map[string]int32{}, buildPodsByResizeStatus(pods, "r1"),
+		pods, findNonSidecarInitContainers(pods), map[string]int32{}, map[string]int32{}, buildPodsByResizeStatus(pods, "r1"),
 	)
 	assert.NoError(t, err)
 	assert.False(t, workloadPatched, "rollout must not re-trigger when already triggered for the same recommendation")
@@ -1005,7 +1005,7 @@ func TestSyncInternal_InPlace_FallbackToRollout_WhenStuck(t *testing.T) {
 
 	result, err := f.controller.syncInternal(
 		context.Background(), dpa, &ai, target, gvk, "r1",
-		pods, map[string]int32{}, map[string]int32{}, buildPodsByResizeStatus(pods, "r1"),
+		pods, findNonSidecarInitContainers(pods), map[string]int32{}, map[string]int32{}, buildPodsByResizeStatus(pods, "r1"),
 	)
 	assert.NoError(t, err)
 	assert.True(t, workloadPatched, "rollout must be triggered when pod is stuck beyond RolloutFallbackDelay")
@@ -1077,7 +1077,7 @@ func TestSyncInternal_TriggerRolloutStrategy_UsesRolloutPath(t *testing.T) {
 
 	_, err := f.controller.syncInternal(
 		context.Background(), fakeAutoscaler, &ai, target, gvk, "r1",
-		pods, map[string]int32{"old": 1}, map[string]int32{"rs1": 1},
+		pods, findNonSidecarInitContainers(pods), map[string]int32{"old": 1}, map[string]int32{"rs1": 1},
 		buildPodsByResizeStatus(pods, "r1"),
 	)
 	assert.NoError(t, err)
@@ -1118,7 +1118,7 @@ func TestSyncInternal_ConfigDisabled_NoApplyPolicy_UsesRolloutPath(t *testing.T)
 
 	_, err := f.controller.syncInternal(
 		context.Background(), fakeAutoscaler, &ai, target, gvk, "r1",
-		pods, map[string]int32{"old": 1}, map[string]int32{"rs1": 1},
+		pods, findNonSidecarInitContainers(pods), map[string]int32{"old": 1}, map[string]int32{"rs1": 1},
 		buildPodsByResizeStatus(pods, "r1"),
 	)
 	assert.NoError(t, err)
@@ -1164,7 +1164,7 @@ func TestSyncInternal_ConfigDisabled_AutoStrategy_UsesRolloutPath(t *testing.T) 
 
 	_, err := f.controller.syncInternal(
 		context.Background(), fakeAutoscaler, &ai, target, gvk, "r1",
-		pods, map[string]int32{"old": 1}, map[string]int32{"rs1": 1},
+		pods, findNonSidecarInitContainers(pods), map[string]int32{"old": 1}, map[string]int32{"rs1": 1},
 		buildPodsByResizeStatus(pods, "r1"),
 	)
 	assert.NoError(t, err)
@@ -1203,7 +1203,7 @@ func TestSyncInternal_InPlaceEnabled_NoApplyPolicy_UsesInPlacePath(t *testing.T)
 
 	_, err := f.controller.syncInternal(
 		context.Background(), fakeAutoscaler, &ai, target, gvk, "r1",
-		pods, map[string]int32{"r1": 1}, map[string]int32{"rs1": 1},
+		pods, findNonSidecarInitContainers(pods), map[string]int32{"r1": 1}, map[string]int32{"rs1": 1},
 		buildPodsByResizeStatus(pods, "r1"),
 	)
 	assert.NoError(t, err)
@@ -1249,7 +1249,7 @@ func TestSyncInternal_InPlaceEnabled_AutoStrategy_UsesInPlacePath(t *testing.T) 
 
 	_, err := f.controller.syncInternal(
 		context.Background(), fakeAutoscaler, &ai, target, gvk, "r1",
-		pods, map[string]int32{"r1": 1}, map[string]int32{"rs1": 1},
+		pods, findNonSidecarInitContainers(pods), map[string]int32{"r1": 1}, map[string]int32{"rs1": 1},
 		buildPodsByResizeStatus(pods, "r1"),
 	)
 	assert.NoError(t, err)
@@ -1356,111 +1356,85 @@ func TestDeploymentSyncForcedResourcesBypassOngoingRollout(t *testing.T) {
 }
 
 func TestPatchInPlace_InitContainers(t *testing.T) {
-	t.Run("patches regular and sidecar init containers in one resize call and skips non-sidecar init", func(t *testing.T) {
-		f := newVerticalControllerFixture(t, time.Now())
+	sidecar := workloadmeta.OrchestratorContainer{Name: "sidecar", RestartPolicy: string(corev1.ContainerRestartPolicyAlways)}
+	setup := workloadmeta.OrchestratorContainer{Name: "setup"}
+	reco := func(name, cpu string) datadoghqcommon.DatadogPodAutoscalerContainerResources {
+		return datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			Name:     name,
+			Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse(cpu)},
+		}
+	}
 
-		var resizeBodies []string
-		var metadataPatches int
-		f.dynamicClient.PrependReactor("patch", "pods", func(a k8stesting.Action) (bool, runtime.Object, error) {
-			pa := a.(k8stesting.PatchAction)
-			if pa.GetSubresource() == "resize" {
-				resizeBodies = append(resizeBodies, string(pa.GetPatch()))
-			} else {
-				metadataPatches++
+	for _, tt := range []struct {
+		name           string
+		containers     []workloadmeta.OrchestratorContainer
+		initContainers []workloadmeta.OrchestratorContainer
+		resources      []datadoghqcommon.DatadogPodAutoscalerContainerResources
+		wantResize     bool
+		contains       []string
+		notContains    []string
+	}{
+		{
+			name:           "patches regular and sidecar init containers in one resize call and skips non-sidecar init",
+			containers:     []workloadmeta.OrchestratorContainer{{Name: "app"}},
+			initContainers: []workloadmeta.OrchestratorContainer{sidecar, setup},
+			resources:      []datadoghqcommon.DatadogPodAutoscalerContainerResources{reco("app", "500m"), reco("sidecar", "100m"), reco("setup", "200m")},
+			wantResize:     true,
+			contains:       []string{`"containers":[{"name":"app"`, `"initContainers":[{"name":"sidecar"`},
+			notContains:    []string{`"setup"`},
+		},
+		{
+			name:           "sidecar-only recommendation sends only spec.initContainers",
+			containers:     []workloadmeta.OrchestratorContainer{{Name: "app"}},
+			initContainers: []workloadmeta.OrchestratorContainer{sidecar},
+			resources:      []datadoghqcommon.DatadogPodAutoscalerContainerResources{reco("sidecar", "100m")},
+			wantResize:     true,
+			contains:       []string{`"initContainers":[{"name":"sidecar"`},
+			notContains:    []string{`"containers"`},
+		},
+		{
+			name:           "no matching containers skips pods/resize call and updates metadata only",
+			containers:     []workloadmeta.OrchestratorContainer{{Name: "other"}},
+			initContainers: []workloadmeta.OrchestratorContainer{setup},
+			resources:      []datadoghqcommon.DatadogPodAutoscalerContainerResources{reco("setup", "200m")},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newVerticalControllerFixture(t, time.Now())
+
+			var resizeBodies []string
+			var metadataPatches int
+			f.dynamicClient.PrependReactor("patch", "pods", func(a k8stesting.Action) (bool, runtime.Object, error) {
+				pa := a.(k8stesting.PatchAction)
+				if pa.GetSubresource() == "resize" {
+					resizeBodies = append(resizeBodies, string(pa.GetPatch()))
+				} else {
+					metadataPatches++
+				}
+				return true, &unstructured.Unstructured{}, nil
+			})
+
+			p := pod("p1", "old", kubernetes.ReplicaSetKind, "rs1")
+			p.Containers = tt.containers
+			p.InitContainers = tt.initContainers
+			sv := &model.VerticalScalingValues{ResourcesHash: "r1", ContainerResources: tt.resources}
+			ai := buildInPlacePAI("default", "ai", sv, "")
+
+			require.NoError(t, f.controller.patchInPlace(context.Background(), &ai, p, "r1"))
+			assert.Equal(t, 1, metadataPatches)
+			if !tt.wantResize {
+				assert.Empty(t, resizeBodies)
+				return
 			}
-			return true, &unstructured.Unstructured{}, nil
-		})
-
-		p := pod("p1", "old", kubernetes.ReplicaSetKind, "rs1")
-		p.Containers = []workloadmeta.OrchestratorContainer{{Name: "app"}}
-		p.InitContainers = []workloadmeta.OrchestratorContainer{
-			{Name: "sidecar", RestartPolicy: string(corev1.ContainerRestartPolicyAlways)},
-			{Name: "setup"},
-		}
-
-		sv := &model.VerticalScalingValues{
-			ResourcesHash: "r1",
-			ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
-				{Name: "app", Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("500m")}},
-				{Name: "sidecar", Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("100m")}},
-				{Name: "setup", Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("200m")}},
-			},
-		}
-		ai := buildInPlacePAI("default", "ai", sv, "")
-
-		err := f.controller.patchInPlace(context.Background(), &ai, p, "r1")
-		require.NoError(t, err)
-		require.Len(t, resizeBodies, 1)
-		assert.Equal(t, 1, metadataPatches)
-		assert.Contains(t, resizeBodies[0], `"containers":[{"name":"app"`)
-		assert.Contains(t, resizeBodies[0], `"initContainers":[{"name":"sidecar"`)
-		assert.NotContains(t, resizeBodies[0], `"setup"`)
-	})
-
-	t.Run("sidecar-only recommendation sends only spec.initContainers", func(t *testing.T) {
-		f := newVerticalControllerFixture(t, time.Now())
-
-		var resizeBodies []string
-		f.dynamicClient.PrependReactor("patch", "pods", func(a k8stesting.Action) (bool, runtime.Object, error) {
-			pa := a.(k8stesting.PatchAction)
-			if pa.GetSubresource() == "resize" {
-				resizeBodies = append(resizeBodies, string(pa.GetPatch()))
+			require.Len(t, resizeBodies, 1)
+			for _, want := range tt.contains {
+				assert.Contains(t, resizeBodies[0], want)
 			}
-			return true, &unstructured.Unstructured{}, nil
-		})
-
-		p := pod("p1", "old", kubernetes.ReplicaSetKind, "rs1")
-		p.Containers = []workloadmeta.OrchestratorContainer{{Name: "app"}}
-		p.InitContainers = []workloadmeta.OrchestratorContainer{
-			{Name: "sidecar", RestartPolicy: string(corev1.ContainerRestartPolicyAlways)},
-		}
-
-		sv := &model.VerticalScalingValues{
-			ResourcesHash: "r1",
-			ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
-				{Name: "sidecar", Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("100m")}},
-			},
-		}
-		ai := buildInPlacePAI("default", "ai", sv, "")
-
-		err := f.controller.patchInPlace(context.Background(), &ai, p, "r1")
-		require.NoError(t, err)
-		require.Len(t, resizeBodies, 1)
-		assert.Contains(t, resizeBodies[0], `"initContainers":[{"name":"sidecar"`)
-		assert.NotContains(t, resizeBodies[0], `"containers"`)
-	})
-
-	t.Run("no matching containers skips pods/resize call and updates metadata only", func(t *testing.T) {
-		f := newVerticalControllerFixture(t, time.Now())
-
-		var resizeCalls, metadataCalls int
-		f.dynamicClient.PrependReactor("patch", "pods", func(a k8stesting.Action) (bool, runtime.Object, error) {
-			pa := a.(k8stesting.PatchAction)
-			if pa.GetSubresource() == "resize" {
-				resizeCalls++
-			} else {
-				metadataCalls++
+			for _, unwanted := range tt.notContains {
+				assert.NotContains(t, resizeBodies[0], unwanted)
 			}
-			return true, &unstructured.Unstructured{}, nil
 		})
-
-		p := pod("p1", "old", kubernetes.ReplicaSetKind, "rs1")
-		p.Containers = []workloadmeta.OrchestratorContainer{{Name: "other"}}
-		p.InitContainers = []workloadmeta.OrchestratorContainer{{Name: "setup"}}
-
-		sv := &model.VerticalScalingValues{
-			ResourcesHash: "r1",
-			ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
-				{Name: "setup", Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("200m")}},
-			},
-		}
-		ai := buildInPlacePAI("default", "ai", sv, "")
-
-		err := f.controller.patchInPlace(context.Background(), &ai, p, "r1")
-		require.NoError(t, err)
-		assert.Equal(t, 0, resizeCalls)
-		assert.Equal(t, 1, metadataCalls)
-	})
+	}
 }
 
 func TestSync_NonSidecarInitContainersTakeNoAction(t *testing.T) {
