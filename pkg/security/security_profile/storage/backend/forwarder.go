@@ -19,6 +19,8 @@ import (
 	"net/http"
 	"net/textproto"
 	"net/url"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -40,6 +42,8 @@ const (
 	protobufFormat        = "protobuf"
 	defaultMaxRetries     = 3
 	defaultRetryBaseDelay = 200 * time.Millisecond
+	defaultMaxRetryDelay  = 5 * time.Second
+	defaultRequestTimeout = 30 * time.Second
 )
 
 // ActivityDumpRemoteBackend is a remote backend that forwards dumps to the backend
@@ -50,6 +54,7 @@ type ActivityDumpRemoteBackend struct {
 	client         *http.Client
 	maxRetries     int
 	retryBaseDelay time.Duration
+	sleep          func(time.Duration)
 }
 
 // NewActivityDumpRemoteBackend returns a new ActivityDumpRemoteBackend
@@ -64,6 +69,7 @@ func NewActivityDumpRemoteBackend() (*ActivityDumpRemoteBackend, error) {
 		tooLargeEntities: atomic.NewUint64(0),
 		client: &http.Client{
 			Transport: ddhttputil.CreateHTTPTransport(pkgconfigsetup.Datadog()),
+			Timeout:   defaultRequestTimeout,
 		},
 		endpoints:      endpoints,
 		maxRetries:     defaultMaxRetries,
@@ -145,12 +151,33 @@ func isRetryableTransportError(err error) bool {
 	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) && dnsErr.IsNotFound && !dnsErr.IsTemporary && !dnsErr.IsTimeout {
+		return false
+	}
 	var netErr net.Error
 	if errors.As(err, &netErr) {
 		return true
 	}
 	var errno syscall.Errno
 	return errors.As(err, &errno)
+}
+
+func retryDelayForResponse(resp *http.Response, baseDelay time.Duration, attempt int) time.Duration {
+	delay := baseDelay * (1 << attempt)
+	if resp != nil {
+		if raw := strings.TrimSpace(resp.Header.Get("Retry-After")); raw != "" {
+			if secs, err := strconv.Atoi(raw); err == nil && secs > 0 {
+				if retryAfter := time.Duration(secs) * time.Second; retryAfter > delay {
+					delay = retryAfter
+				}
+			}
+		}
+	}
+	if delay > defaultMaxRetryDelay {
+		delay = defaultMaxRetryDelay
+	}
+	return delay
 }
 
 // sendToEndpoint streams the multipart body straight into the HTTP request instead of
@@ -193,6 +220,10 @@ func (backend *ActivityDumpRemoteBackend) sendToEndpoint(url string, apiKey stri
 	if baseDelay <= 0 {
 		baseDelay = defaultRetryBaseDelay
 	}
+	sleepFn := backend.sleep
+	if sleepFn == nil {
+		sleepFn = time.Sleep
+	}
 
 	var lastErr error
 	for attempt := 0; attempt <= maxRetries; attempt++ {
@@ -218,7 +249,7 @@ func (backend *ActivityDumpRemoteBackend) sendToEndpoint(url string, apiKey stri
 			}
 			lastErr = err
 			if attempt < maxRetries {
-				time.Sleep(baseDelay * (1 << attempt))
+				sleepFn(retryDelayForResponse(nil, baseDelay, attempt))
 			}
 			continue
 		}
@@ -235,7 +266,7 @@ func (backend *ActivityDumpRemoteBackend) sendToEndpoint(url string, apiKey stri
 			return lastErr
 		}
 		if attempt < maxRetries {
-			time.Sleep(baseDelay * (1 << attempt))
+			sleepFn(retryDelayForResponse(resp, baseDelay, attempt))
 		}
 	}
 	return lastErr

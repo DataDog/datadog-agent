@@ -402,9 +402,46 @@ func TestSendToEndpointRetriesTransientFailures(t *testing.T) {
 		}
 	})
 
+	t.Run("429 honors Retry-After header capped at max delay", func(t *testing.T) {
+		attempts := atomic.NewInt64(0)
+		var sleeps []time.Duration
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			attempt := attempts.Inc()
+			_, _ = decodeGzipMultipart(t, r)
+			if attempt == 1 {
+				w.Header().Set("Retry-After", "2")
+				w.WriteHeader(http.StatusTooManyRequests)
+				return
+			}
+			if attempt == 2 {
+				w.Header().Set("Retry-After", "60")
+				w.WriteHeader(http.StatusTooManyRequests)
+				return
+			}
+			w.WriteHeader(http.StatusAccepted)
+		}))
+		defer srv.Close()
+
+		backend := &ActivityDumpRemoteBackend{
+			tooLargeEntities: atomic.NewUint64(0),
+			client:           srv.Client(),
+			maxRetries:       3,
+			retryBaseDelay:   100 * time.Millisecond,
+			sleep: func(d time.Duration) {
+				sleeps = append(sleeps, d)
+			},
+		}
+
+		require.NoError(t, backend.sendToEndpoint(srv.URL+"/api/v2/secdump", "api-key", header, dump))
+		assert.Equal(t, int64(3), attempts.Load())
+		assert.Equal(t, []time.Duration{2 * time.Second, defaultMaxRetryDelay}, sleeps)
+	})
+
 	t.Run("permanent transport errors fail on first attempt", func(t *testing.T) {
 		t.Run("untrusted TLS certificate", func(t *testing.T) {
 			attempts := atomic.NewInt64(0)
+			sleepCalls := atomic.NewInt64(0)
 
 			srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusAccepted)
@@ -422,27 +459,32 @@ func TestSendToEndpointRetriesTransientFailures(t *testing.T) {
 				client:           &http.Client{},
 				maxRetries:       3,
 				retryBaseDelay:   time.Second,
+				sleep: func(time.Duration) {
+					sleepCalls.Inc()
+				},
 			}
 
-			start := time.Now()
 			err := backend.sendToEndpoint(srv.URL+"/api/v2/secdump", "api-key", header, dump)
 			require.Error(t, err)
 			assert.Equal(t, int64(1), attempts.Load())
-			assert.Less(t, time.Since(start), time.Second)
+			assert.Zero(t, sleepCalls.Load())
 		})
 
 		t.Run("unsupported protocol scheme", func(t *testing.T) {
+			sleepCalls := atomic.NewInt64(0)
 			backend := &ActivityDumpRemoteBackend{
 				tooLargeEntities: atomic.NewUint64(0),
 				client:           &http.Client{},
 				maxRetries:       3,
 				retryBaseDelay:   time.Second,
+				sleep: func(time.Duration) {
+					sleepCalls.Inc()
+				},
 			}
 
-			start := time.Now()
 			err := backend.sendToEndpoint("ftp://127.0.0.1/api/v2/secdump", "api-key", header, dump)
 			require.ErrorContains(t, err, "unsupported protocol scheme")
-			assert.Less(t, time.Since(start), time.Second)
+			assert.Zero(t, sleepCalls.Load())
 		})
 	})
 }
