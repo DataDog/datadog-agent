@@ -427,10 +427,11 @@ func generateIR(
 		}
 	}
 
-	lineData, err := collectLineData(d, lineSearchRanges)
+	lineData, unitFiles, err := collectLineData(d, lineSearchRanges)
 	if err != nil {
 		return nil, err
 	}
+	resolveDeclFiles(processed.pendingSubprograms, unitFiles, lineData)
 
 	idToSub := make(map[ir.SubprogramID]*ir.Subprogram, len(materializedSubprograms))
 	for _, sp := range materializedSubprograms {
@@ -2714,9 +2715,10 @@ type lineData struct {
 func collectLineData(
 	dwarfData *dwarf.Data,
 	searchRanges []lineSearchRange,
-) (map[ir.PCRange]lineData, error) {
+) (map[ir.PCRange]lineData, map[*dwarf.Entry][]*dwarf.LineFile, error) {
+	unitFiles := make(map[*dwarf.Entry][]*dwarf.LineFile)
 	if len(searchRanges) == 0 {
-		return make(map[ir.PCRange]lineData), nil
+		return make(map[ir.PCRange]lineData), unitFiles, nil
 	}
 	slices.SortFunc(searchRanges, func(a, b lineSearchRange) int {
 		return cmp.Or(
@@ -2730,7 +2732,7 @@ func collectLineData(
 		if searchRanges[i-1].pcRange != searchRanges[j].pcRange {
 			if searchRanges[i-1].unit == searchRanges[j].unit &&
 				searchRanges[i-1].pcRange[1] > searchRanges[j].pcRange[0] {
-				return nil, fmt.Errorf("overlapping line search ranges in unit %#x: %#x and %#x",
+				return nil, nil, fmt.Errorf("overlapping line search ranges in unit %#x: %#x and %#x",
 					searchRanges[i-1].unit.Offset,
 					searchRanges[i-1].pcRange,
 					searchRanges[j].pcRange)
@@ -2749,13 +2751,69 @@ func collectLineData(
 			prevUnit = sp.unit
 			lr, err := dwarfData.LineReader(prevUnit)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get line reader: %w", err)
+				return nil, nil, fmt.Errorf("failed to get line reader: %w", err)
 			}
 			lineReader = lr
 		}
 		res[sp.pcRange] = collectLineDataForRange(lineReader, sp.pcRange)
+		if lineReader != nil {
+			unitFiles[sp.unit] = lineReader.Files()
+		}
 	}
-	return res, nil
+	return res, unitFiles, nil
+}
+
+// resolveDeclFiles sets declFile so a line probe can tell the method's own
+// rows from same-named files inlined into it.
+func resolveDeclFiles(
+	pending []*pendingSubprogram,
+	unitFiles map[*dwarf.Entry][]*dwarf.LineFile,
+	lineData map[ir.PCRange]lineData,
+) {
+	for _, p := range pending {
+		entry := p.subprogramEntry
+		if entry == nil {
+			entry = p.abstractEntry
+		}
+		if entry == nil || !slices.ContainsFunc(p.probesCfgs, isLineProbe) {
+			continue
+		}
+		if idx, ok, _ := maybeGetAttr[int64](entry, dwarf.AttrDeclFile); ok {
+			if f := lineFileAt(unitFiles[p.unit], idx); f != nil {
+				p.declFile = f.Name
+				continue
+			}
+		}
+		// Go records no DW_AT_decl_file on abstract DIEs, but an out-of-line
+		// body starts with a row at the declaration line in the method's file.
+		declLine, ok, _ := maybeGetAttr[int64](entry, dwarf.AttrDeclLine)
+		if ok && len(p.outOfLinePCRanges) > 0 {
+			body := p.outOfLinePCRanges[0]
+			rows := lineData[body].lines
+			if len(rows) > 0 && rows[0].pc == body[0] && int64(rows[0].line) == declLine && rows[0].file != nil {
+				p.declFile = rows[0].file.Name
+				continue
+			}
+		}
+		for _, inst := range p.inlined {
+			if f := lineFileAt(unitFiles[inst.unit], inst.callFile); inst.hasCallFile && f != nil {
+				p.callFile = f.Name
+				break
+			}
+		}
+	}
+}
+
+func lineFileAt(files []*dwarf.LineFile, idx int64) *dwarf.LineFile {
+	if idx < 0 || idx >= int64(len(files)) {
+		return nil
+	}
+	return files[idx]
+}
+
+func isLineProbe(cfg ir.ProbeDefinition) bool {
+	_, ok := cfg.GetWhere().(ir.LineWhere)
+	return ok
 }
 
 // createProbes instantiates probes for each pending sub-program and gathers any
@@ -2784,6 +2842,8 @@ func createProbes(
 	probesByID := make(map[string]*probeEntry)
 	var probeOrder []string
 	subprogramSeen := make(map[ir.SubprogramID]bool)
+	lineFiles := resolveLineProbeFiles(pending, idToSubprogram, lineData)
+	lineIssueReported := make(map[string]bool)
 
 	for _, p := range pending {
 		if !p.issue.IsNone() {
@@ -2795,8 +2855,19 @@ func createProbes(
 
 		sp := idToSubprogram[p.id]
 		for _, cfg := range p.probesCfgs {
+			var lineFile string
+			if target, ok := lineFiles[cfg.GetID()]; ok {
+				if !target.issue.IsNone() {
+					if !lineIssueReported[cfg.GetID()] {
+						lineIssueReported[cfg.GetID()] = true
+						issues = append(issues, ir.ProbeIssue{ProbeDefinition: cfg, Issue: target.issue})
+					}
+					continue
+				}
+				lineFile = target.file
+			}
 			inst, iss, err := newProbeInstance(
-				arch, cfg, sp, lineData, textSection, skipReturnEvents,
+				arch, cfg, sp, lineFile, lineData, textSection, skipReturnEvents,
 			)
 			if err != nil {
 				return nil, nil, nil, err
@@ -3001,6 +3072,12 @@ type pendingSubprogram struct {
 	// dictTypedefs records generic shape type parameter metadata. Empty
 	// for non-generic functions.
 	dictTypedefs []dictTypedef
+
+	abstractEntry *dwarf.Entry
+	declFile      string
+	// callFile is where a nested inlined call is made: the method's own file
+	// unless a //line directive remaps that region.
+	callFile string
 }
 
 func (v *rootVisitor) push(entry *dwarf.Entry) (childVisitor visitor, err error) {
@@ -3107,6 +3184,7 @@ func (v *unitChildVisitor) push(
 			if len(probesCfgs) > 0 {
 				abstractSubprogram := &abstractSubprogram{
 					unit:       v.unit,
+					entry:      entry,
 					probesCfgs: probesCfgs,
 					name:       name,
 					variables:  make(map[dwarf.Offset]*dwarf.Entry),
@@ -3479,6 +3557,7 @@ func (v *subprogramChildVisitor) pop(_ *dwarf.Entry, _ visitor) error { return n
 
 type abstractSubprogram struct {
 	unit       *dwarf.Entry
+	entry      *dwarf.Entry
 	probesCfgs []ir.ProbeDefinition
 	name       string
 	// Concrete out-of-line bodies can share an abstract DIE (Go 1.27).
@@ -3521,6 +3600,9 @@ type inlinedSubprogram struct {
 	outOfLinePCRanges []ir.PCRange
 	inlinedPCRanges   ir.InlinePCRanges
 	variables         []*dwarf.Entry
+	// callFile indexes unit's file table; see concreteSubprogramVariableCollector.
+	callFile    int64
+	hasCallFile bool
 }
 
 type inlinedSubroutineChildVisitor struct {
@@ -3614,6 +3696,8 @@ func convertAbstractSubprogramsToPending(
 			abstractOrigin:  ctx.abstractOrigin,
 			inlinedPCRanges: ranges,
 			variables:       ctx.variables,
+			callFile:        ctx.callFile,
+			hasCallFile:     ctx.hasCallFile,
 		})
 	}
 
@@ -3642,6 +3726,8 @@ func convertAbstractSubprogramsToPending(
 			abstractOrigin:    ctx.abstractOrigin,
 			outOfLinePCRanges: ctx.entryRanges,
 			variables:         ctx.variables,
+			callFile:          ctx.callFile,
+			hasCallFile:       ctx.hasCallFile,
 		}
 		abs.outOfLine = append(abs.outOfLine, outOfLine)
 	}
@@ -3673,6 +3759,7 @@ func convertAbstractSubprogramsToPending(
 				issue:             abs.issue,
 				id:                idAllocator.next(),
 				abstract:          true,
+				abstractEntry:     abs.entry,
 			})
 		}
 		if len(abs.outOfLine) == 0 {
@@ -3713,6 +3800,8 @@ type concreteSubprogramContext struct {
 	reader         *dwarf.Reader
 	rootRanges     [][2]uint64 // nil if entry is an out-of-line instance
 	variables      []*dwarf.Entry
+	callFile       int64
+	hasCallFile    bool
 }
 
 func cmpRange(a, b [2]uint64) int { return cmp.Compare(a[0], b[0]) }
@@ -3931,6 +4020,8 @@ func iterConcreteSubprograms(
 				entryRanges:    inlinedPCRanges,
 				variables:      variableVisitor.variableEntries,
 				unitEntry:      unitEntry,
+				callFile:       variableVisitor.callFile,
+				hasCallFile:    variableVisitor.hasCallFile,
 			}, nil) {
 				return
 			}
@@ -3943,6 +4034,10 @@ func iterConcreteSubprograms(
 type concreteSubprogramVariableCollector struct {
 	me              *dwarf.Entry
 	variableEntries []*dwarf.Entry
+	// callFile is DW_AT_call_file of a nested inlined call, which is in the
+	// instance's own source file.
+	callFile    int64
+	hasCallFile bool
 }
 
 func (v *concreteSubprogramVariableCollector) push(
@@ -3958,6 +4053,9 @@ func (v *concreteSubprogramVariableCollector) push(
 	case dwarf.TagLexDwarfBlock:
 		return v, nil
 	case dwarf.TagInlinedSubroutine:
+		if !v.hasCallFile {
+			v.callFile, v.hasCallFile, _ = maybeGetAttr[int64](entry, dwarf.AttrCallFile)
+		}
 		return nil, nil
 	case dwarf.TagTypedef:
 		return nil, nil
@@ -8268,6 +8366,7 @@ func newProbeInstance(
 	arch object.Architecture,
 	probeCfg ir.ProbeDefinition,
 	subprogram *ir.Subprogram,
+	lineFile string,
 	lineData map[ir.PCRange]lineData,
 	textSection *section,
 	skipReturnEvents bool,
@@ -8322,6 +8421,7 @@ func newProbeInstance(
 			subprogram.OutOfLinePCRanges,
 			false, /* inlined */
 			probeCfg.GetWhere(),
+			lineFile,
 			arch,
 			lineData,
 			textSection,
@@ -8338,6 +8438,7 @@ func newProbeInstance(
 			inlined.RootRanges,
 			true, /* inlined */
 			probeCfg.GetWhere(),
+			lineFile,
 			arch,
 			lineData,
 			textSection,
@@ -8390,6 +8491,7 @@ func pickInjectionPoint(
 	rootRanges []ir.PCRange,
 	inlined bool,
 	where ir.Where,
+	lineFile string,
 	arch object.Architecture,
 	lineData map[ir.PCRange]lineData,
 	textSection *section,
@@ -8521,7 +8623,7 @@ func pickInjectionPoint(
 				Message: fmt.Sprintf("invalid line number: %v", lineStr),
 			}, nil
 		}
-		injectionPC, issue, err := pickLineInjectionPC(line, sourceFile, ranges, rootRanges, lineData)
+		injectionPC, issue, err := pickLineInjectionPC(line, sourceFile, lineFile, ranges, rootRanges, lineData)
 		if !issue.IsNone() || err != nil {
 			return buf, nil, issue, err
 		}
@@ -8552,78 +8654,238 @@ func pickInjectionPoint(
 }
 
 func pickLineInjectionPC(
-	line int, sourceFile string, ranges []ir.PCRange, rootRanges []ir.PCRange, lineData map[ir.PCRange]lineData,
+	lineNum int, sourceFile, file string, ranges []ir.PCRange, rootRanges []ir.PCRange,
+	lineData map[ir.PCRange]lineData,
 ) (uint64, ir.Issue, error) {
-	wantFile := probeSourcePath(sourceFile)
-	if wantFile == "" {
-		return 0, ir.Issue{
-			Kind:    ir.IssueKindInvalidProbeDefinition,
-			Message: fmt.Sprintf("invalid source file: %q", sourceFile),
-		}, nil
-	}
-	nonStmtPc := uint64(0)
+	var stmtPc, nonStmtPc uint64
 	lineInFile, lineInOtherFile := false, false
-	rootIdx := 0
-	for _, r := range ranges {
-		for rootIdx < len(rootRanges) && rootRanges[rootIdx][1] < r[1] {
-			rootIdx++
+	err := forEachLineRow(lineNum, ranges, rootRanges, lineData, func(l line, pc uint64, usable bool) bool {
+		// Skip inlined rows from other files: snapshots report sourceFile.
+		if l.file == nil || lineFilePath(l.file.Name) != file {
+			lineInOtherFile = true
+			return true
 		}
-		if rootIdx >= len(rootRanges) || rootRanges[rootIdx][0] > r[0] {
-			return 0, ir.Issue{}, fmt.Errorf("no root range found for range: [0x%x, 0x%x)",
-				r[0], r[1])
+		lineInFile = true
+		if !usable {
+			return true
 		}
-		lines, ok := lineData[rootRanges[rootIdx]]
-		if !ok {
-			return 0, ir.Issue{}, fmt.Errorf("missing line data for range: [0x%x, 0x%x)",
-				r[0], r[1])
+		if l.isStatement && pc == l.pc {
+			// Prefer genuine statement boundaries over inherited state.
+			stmtPc = pc
+			return false
 		}
-		for i, l := range lines.lines {
-			if l.pc >= r[1] {
-				break
-			}
-			if l.endSequence || l.line != uint32(line) {
-				continue
-			}
-			// Skip inlined rows from other files: snapshots report sourceFile.
-			if !lineFileMatches(l.file, wantFile) {
-				lineInOtherFile = true
-				continue
-			}
-			lineInFile = true
-			pc := l.pc
-			if pc < r[0] {
-				// A row's line state lasts until the next row, which may be
-				// an end-of-sequence marker. Use the inline range start only
-				// when that state still covers it, never the predecessor PC.
-				if i+1 < len(lines.lines) && lines.lines[i+1].pc <= r[0] {
-					continue
-				}
-				pc = r[0]
-			}
-			if l.isStatement && pc == l.pc {
-				// Prefer genuine statement boundaries over inherited state.
-				return pc, ir.Issue{}, nil
-			}
-			if nonStmtPc == 0 {
-				nonStmtPc = pc
-			}
+		if nonStmtPc == 0 {
+			nonStmtPc = pc
 		}
+		return true
+	})
+	if err != nil {
+		return 0, ir.Issue{}, err
+	}
+	if stmtPc != 0 {
+		return stmtPc, ir.Issue{}, nil
 	}
 	if nonStmtPc == 0 && lineInOtherFile && !lineInFile {
 		return 0, ir.Issue{
 			Kind: ir.IssueKindInvalidProbeDefinition,
 			Message: fmt.Sprintf(
-				"no code for line %v of source file %q in the method", line, sourceFile,
+				"no code for line %v of source file %q in the method", lineNum, sourceFile,
 			),
 		}, nil
 	}
 	if nonStmtPc == 0 {
 		return 0, ir.Issue{
 			Kind:    ir.IssueKindInvalidProbeDefinition,
-			Message: fmt.Sprintf("no suitable injection point found for line: %v", line),
+			Message: fmt.Sprintf("no suitable injection point found for line: %v", lineNum),
 		}, nil
 	}
 	return nonStmtPc, ir.Issue{}, nil
+}
+
+// forEachLineRow passes usable=false for a row whose line state ends before
+// the range starts.
+func forEachLineRow(
+	lineNum int, ranges []ir.PCRange, rootRanges []ir.PCRange, lineData map[ir.PCRange]lineData,
+	fn func(l line, pc uint64, usable bool) bool,
+) error {
+	rootIdx := 0
+	for _, r := range ranges {
+		for rootIdx < len(rootRanges) && rootRanges[rootIdx][1] < r[1] {
+			rootIdx++
+		}
+		if rootIdx >= len(rootRanges) || rootRanges[rootIdx][0] > r[0] {
+			return fmt.Errorf("no root range found for range: [0x%x, 0x%x)",
+				r[0], r[1])
+		}
+		lines, ok := lineData[rootRanges[rootIdx]]
+		if !ok {
+			return fmt.Errorf("missing line data for range: [0x%x, 0x%x)",
+				r[0], r[1])
+		}
+		for i, l := range lines.lines {
+			if l.pc >= r[1] {
+				break
+			}
+			if l.endSequence || l.line != uint32(lineNum) {
+				continue
+			}
+			pc, usable := l.pc, true
+			if pc < r[0] {
+				// A row's line state lasts until the next row, which may be
+				// an end-of-sequence marker. Use the inline range start only
+				// when that state still covers it, never the predecessor PC.
+				usable = i+1 >= len(lines.lines) || lines.lines[i+1].pc > r[0]
+				pc = r[0]
+			}
+			if !fn(l, pc, usable) {
+				return nil
+			}
+		}
+	}
+	return nil
+}
+
+type lineProbeTarget struct {
+	file  string
+	issue ir.Issue
+}
+
+// resolveLineProbeFiles picks one file per line probe: a probe spans every
+// subprogram matching its method (generic shapes, bodies sharing an abstract
+// DIE), and all of them must place it in the same file. A declaring file that
+// sourceFile names takes precedence over matches found in rows, since a short
+// sourceFile also matches same-named files inlined into the method.
+func resolveLineProbeFiles(
+	pending []*pendingSubprogram,
+	idToSubprogram map[ir.SubprogramID]*ir.Subprogram,
+	lineData map[ir.PCRange]lineData,
+) map[string]lineProbeTarget {
+	targets := make(map[string]lineProbeTarget)
+	declFiles := make(map[string][]string)
+	rowFiles := make(map[string][]string)
+	unusableFiles := make(map[string]string)
+	type probeLine struct {
+		sourceFile string
+		lineNum    int
+	}
+	lines := make(map[string]probeLine)
+	for _, p := range pending {
+		if !p.issue.IsNone() {
+			continue
+		}
+		for _, cfg := range p.probesCfgs {
+			where, ok := cfg.GetWhere().(ir.LineWhere)
+			if !ok {
+				continue
+			}
+			_, sourceFile, lineStr := where.Line()
+			lineNum, err := strconv.Atoi(lineStr)
+			if err != nil {
+				continue
+			}
+			id := cfg.GetID()
+			if !targets[id].issue.IsNone() {
+				continue
+			}
+			lines[id] = probeLine{sourceFile, lineNum}
+			found, declared, unusable, issue := lineProbeFiles(
+				lineNum, sourceFile, p.declFile, p.callFile, idToSubprogram[p.id], lineData,
+			)
+			if !issue.IsNone() {
+				targets[id] = lineProbeTarget{issue: issue}
+				continue
+			}
+			targets[id] = lineProbeTarget{}
+			unusableFiles[id] = cmp.Or(unusableFiles[id], unusable)
+			files := rowFiles
+			if declared {
+				files = declFiles
+			}
+			for _, f := range found {
+				if !slices.Contains(files[id], f) {
+					files[id] = append(files[id], f)
+				}
+			}
+		}
+	}
+	for id, target := range targets {
+		if !target.issue.IsNone() {
+			continue
+		}
+		fs := declFiles[id]
+		if len(fs) == 0 {
+			fs = rowFiles[id]
+		}
+		switch len(fs) {
+		case 0:
+			// Lets pickLineInjectionPC report that no row covers the range.
+			target.file = unusableFiles[id]
+		case 1:
+			target.file = fs[0]
+		default:
+			slices.Sort(fs)
+			target.issue = ir.Issue{
+				Kind: ir.IssueKindInvalidProbeDefinition,
+				Message: fmt.Sprintf(
+					"source file %q matches more than one file with code at line %v: %q",
+					lines[id].sourceFile, lines[id].lineNum, fs,
+				),
+			}
+		}
+		targets[id] = target
+	}
+	return targets
+}
+
+// lineProbeFiles returns the files of sp a line probe on sourceFile may use,
+// whether that is sp's own file, and a matching file whose rows at the line
+// cover no PC.
+func lineProbeFiles(
+	lineNum int, sourceFile, declFile, callFile string, sp *ir.Subprogram, lineData map[ir.PCRange]lineData,
+) ([]string, bool, string, ir.Issue) {
+	wantFile := probeSourcePath(sourceFile)
+	if wantFile == "" {
+		return nil, false, "", ir.Issue{
+			Kind:    ir.IssueKindInvalidProbeDefinition,
+			Message: fmt.Sprintf("invalid source file: %q", sourceFile),
+		}
+	}
+	// A method's rows can name other files (//line directives), so a
+	// declaring file that sourceFile does not name only falls back to rows.
+	if declPath := lineFilePath(declFile); declFile != "" && sourcePathMatches(declPath, wantFile) {
+		return []string{declPath}, true, "", ir.Issue{}
+	}
+	var files []string
+	var unusableFile string
+	collect := func(ranges, rootRanges []ir.PCRange) {
+		// pickLineInjectionPC reports lookup errors for the ranges it reaches.
+		_ = forEachLineRow(lineNum, ranges, rootRanges, lineData, func(l line, _ uint64, usable bool) bool {
+			if !lineFileMatches(l.file, wantFile) {
+				return true
+			}
+			if f := lineFilePath(l.file.Name); !usable {
+				unusableFile = cmp.Or(unusableFile, f)
+			} else if !slices.Contains(files, f) {
+				files = append(files, f)
+			}
+			return callFile != "" || len(files) < 2
+		})
+	}
+	if sp.OutOfLinePCRanges != nil {
+		collect(sp.OutOfLinePCRanges, sp.OutOfLinePCRanges)
+	}
+	for _, inlined := range sp.InlinePCRanges {
+		if callFile == "" && len(files) > 1 {
+			break
+		}
+		collect(inlined.Ranges, inlined.RootRanges)
+	}
+	// A call site is weaker evidence than a declaration: it decides only
+	// among files with code at the line.
+	if callPath := lineFilePath(callFile); callFile != "" && slices.Contains(files, callPath) {
+		return []string{callPath}, true, unusableFile, ir.Issue{}
+	}
+	return files, false, unusableFile, ir.Issue{}
 }
 
 // probeSourcePath rejects ".." after a named component, since snapshots report sourceFile verbatim.
@@ -8656,7 +8918,14 @@ func lineFileMatches(file *dwarf.LineFile, want string) bool {
 	if file == nil || want == "" {
 		return false
 	}
-	got := strings.TrimPrefix(path.Clean(file.Name), "/")
+	return sourcePathMatches(lineFilePath(file.Name), want)
+}
+
+func lineFilePath(name string) string {
+	return strings.TrimPrefix(path.Clean(name), "/")
+}
+
+func sourcePathMatches(got, want string) bool {
 	return got == want ||
 		strings.HasSuffix(got, "/"+want) ||
 		strings.HasSuffix(want, "/"+got)

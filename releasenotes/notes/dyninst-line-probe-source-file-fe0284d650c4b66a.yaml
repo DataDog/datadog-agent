@@ -15,5 +15,8 @@ fixes:
     reported that file in its snapshots. Such probes are now reported as
     invalid. ``sourceFile`` matches when it or the file path recorded in the
     binary ends with all path components of the other, so a base name such
-    as ``main.go`` still matches. A ``sourceFile`` with a ``..`` component
-    after a named component is reported as invalid.
+    as ``main.go`` still matches. When ``sourceFile`` names the file that
+    declares the method, only that file is used. Otherwise, a
+    ``sourceFile`` that matches more than one file with code at that line,
+    none of them known to be the method's own, is reported as invalid. A ``sourceFile`` with a ``..`` component after a named
+    component is reported as invalid.

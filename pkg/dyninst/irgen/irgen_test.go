@@ -10,6 +10,7 @@ package irgen
 import (
 	"debug/dwarf"
 	"encoding/hex"
+	"maps"
 	"slices"
 	"testing"
 
@@ -17,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 )
 
 func TestCompileUnitFromNameCases(t *testing.T) {
@@ -141,11 +143,78 @@ func TestPickLineInjectionPC(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
 		sourceFile string
-		lines      []line
-		ranges     []ir.PCRange
-		want       uint64
-		message    string
+		// declFile defaults to mainFile; "-" means unknown.
+		declFile string
+		lines    []line
+		ranges   []ir.PCRange
+		want     uint64
+		message  string
 	}{
+		{
+			name:       "same-named inlined file before declaring file",
+			sourceFile: "main.go",
+			lines: []line{
+				{pc: 20, line: 9, isStatement: true, file: otherFile},
+				{pc: 25, line: 9, isStatement: true},
+			},
+			want: 25,
+		},
+		{
+			name:       "same-named inlined file only",
+			sourceFile: "main.go",
+			lines:      []line{{pc: 20, line: 9, isStatement: true, file: otherFile}},
+			message:    `no code for line 9 of source file "main.go" in the method`,
+		},
+		{
+			name:       "source file names another file of the method",
+			sourceFile: "other/main.go",
+			lines: []line{
+				{pc: 20, line: 9, isStatement: true, file: otherFile},
+				{pc: 25, line: 9, isStatement: true},
+			},
+			want: 20,
+		},
+		{
+			name:       "declaring file unknown, source file matches two files",
+			sourceFile: "main.go",
+			declFile:   "-",
+			lines: []line{
+				{pc: 20, line: 9, isStatement: true, file: otherFile},
+				{pc: 25, line: 9, isStatement: true},
+			},
+			message: `source file "main.go" matches more than one file with code at line 9: ` +
+				`["example.com/app/main.go" "example.com/app/other/main.go"]`,
+		},
+		{
+			name:       "declaring file unknown, only a superseded row in file",
+			sourceFile: "main.go",
+			declFile:   "-",
+			lines: []line{
+				{pc: 10, line: 9},
+				{pc: 15, line: 8},
+			},
+			message: "no suitable injection point found for line: 9",
+		},
+		{
+			name:       "declaring file unknown, superseded row in another file",
+			sourceFile: "main.go",
+			declFile:   "-",
+			lines: []line{
+				{pc: 10, line: 9, file: otherFile},
+				{pc: 15, line: 8},
+				{pc: 25, line: 9, isStatement: true},
+			},
+			want: 25,
+		},
+		{
+			name:     "declaring file unknown, row in another file",
+			declFile: "-",
+			lines: []line{
+				{pc: 20, line: 9, isStatement: true, file: otherFile},
+				{pc: 25, line: 9, isStatement: true},
+			},
+			want: 25,
+		},
 		{
 			name:    "row in another file",
 			lines:   []line{{pc: 20, line: 9, isStatement: true, file: otherFile}},
@@ -300,11 +369,25 @@ func TestPickLineInjectionPC(t *testing.T) {
 			if sourceFile == "" {
 				sourceFile = "app/main.go"
 			}
+			declFile := tc.declFile
+			switch declFile {
+			case "":
+				declFile = mainFile.Name
+			case "-":
+				declFile = ""
+			}
 			root := ir.PCRange{10, 60}
-			pc, issue, err := pickLineInjectionPC(9, sourceFile, ranges, []ir.PCRange{root}, map[ir.PCRange]lineData{
-				root: {lines: lines},
-			})
-			require.NoError(t, err)
+			rootRanges := []ir.PCRange{root}
+			data := map[ir.PCRange]lineData{root: {lines: lines}}
+			sp := &ir.Subprogram{InlinePCRanges: []ir.InlinePCRanges{{Ranges: ranges, RootRanges: rootRanges}}}
+			var pc uint64
+			target := resolveTestLineFile(sourceFile, []string{declFile}, []*ir.Subprogram{sp}, data)
+			issue := target.issue
+			if issue.IsNone() {
+				var err error
+				pc, issue, err = pickLineInjectionPC(9, sourceFile, target.file, ranges, rootRanges, data)
+				require.NoError(t, err)
+			}
 			if tc.want == 0 {
 				require.Equal(t, ir.IssueKindInvalidProbeDefinition, issue.Kind)
 				if tc.message != "" {
@@ -314,6 +397,192 @@ func TestPickLineInjectionPC(t *testing.T) {
 				require.True(t, issue.IsNone(), "%v", issue)
 			}
 			require.Equal(t, tc.want, pc)
+		})
+	}
+}
+
+func TestLineProbeFileAcrossInstances(t *testing.T) {
+	mainFile := &dwarf.LineFile{Name: "example.com/app/main.go"}
+	otherFile := &dwarf.LineFile{Name: "example.com/app/other/main.go"}
+	rootA, rootB := ir.PCRange{10, 60}, ir.PCRange{100, 160}
+	data := map[ir.PCRange]lineData{
+		rootA: {lines: []line{{pc: 20, line: 9, isStatement: true, file: otherFile}}},
+		rootB: {lines: []line{{pc: 120, line: 9, isStatement: true, file: mainFile}}},
+	}
+	instanceA := ir.InlinePCRanges{Ranges: []ir.PCRange{{20, 30}}, RootRanges: []ir.PCRange{rootA}}
+	instanceB := ir.InlinePCRanges{Ranges: []ir.PCRange{{120, 130}}, RootRanges: []ir.PCRange{rootB}}
+
+	t.Run("inlined instances of one subprogram", func(t *testing.T) {
+		sp := &ir.Subprogram{InlinePCRanges: []ir.InlinePCRanges{instanceA, instanceB}}
+		target := resolveTestLineFile("main.go", []string{""}, []*ir.Subprogram{sp}, data)
+		require.Contains(t, target.issue.Message, "matches more than one file")
+	})
+	t.Run("subprograms of one probe", func(t *testing.T) {
+		spA := &ir.Subprogram{InlinePCRanges: []ir.InlinePCRanges{instanceA}}
+		spB := &ir.Subprogram{InlinePCRanges: []ir.InlinePCRanges{instanceB}}
+		target := resolveTestLineFile("main.go", []string{"", ""}, []*ir.Subprogram{spA, spB}, data)
+		require.Contains(t, target.issue.Message, "matches more than one file")
+	})
+	t.Run("declaring file of one subprogram decides for the others", func(t *testing.T) {
+		spA := &ir.Subprogram{InlinePCRanges: []ir.InlinePCRanges{instanceA, instanceB}}
+		spB := &ir.Subprogram{InlinePCRanges: []ir.InlinePCRanges{instanceB}}
+		target := resolveTestLineFile("main.go", []string{"", mainFile.Name}, []*ir.Subprogram{spA, spB}, data)
+		require.True(t, target.issue.IsNone(), "%v", target.issue)
+		require.Equal(t, mainFile.Name, target.file)
+	})
+	t.Run("superseded row does not count toward ambiguity", func(t *testing.T) {
+		rootC := ir.PCRange{200, 260}
+		withSuperseded := maps.Clone(data)
+		withSuperseded[rootC] = lineData{lines: []line{{pc: 210, line: 9, file: mainFile}, {pc: 215, line: 8, file: mainFile}}}
+		spA := &ir.Subprogram{InlinePCRanges: []ir.InlinePCRanges{
+			{Ranges: []ir.PCRange{{220, 230}}, RootRanges: []ir.PCRange{rootC}},
+		}}
+		spB := &ir.Subprogram{InlinePCRanges: []ir.InlinePCRanges{instanceA}}
+		target := resolveTestLineFile("main.go", []string{"", ""}, []*ir.Subprogram{spA, spB}, withSuperseded)
+		require.True(t, target.issue.IsNone(), "%v", target.issue)
+		require.Equal(t, otherFile.Name, target.file)
+	})
+	t.Run("declaring file decides", func(t *testing.T) {
+		sp := &ir.Subprogram{InlinePCRanges: []ir.InlinePCRanges{instanceA, instanceB}}
+		target := resolveTestLineFile("main.go", []string{mainFile.Name}, []*ir.Subprogram{sp}, data)
+		require.True(t, target.issue.IsNone(), "%v", target.issue)
+		require.Equal(t, mainFile.Name, target.file)
+	})
+}
+
+func TestLineProbeCallFile(t *testing.T) {
+	mainFile := &dwarf.LineFile{Name: "example.com/app/main.go"}
+	otherFile := &dwarf.LineFile{Name: "example.com/app/other/main.go"}
+	root := ir.PCRange{10, 60}
+	sp := &ir.Subprogram{ID: 1, InlinePCRanges: []ir.InlinePCRanges{
+		{Ranges: []ir.PCRange{{20, 30}}, RootRanges: []ir.PCRange{root}},
+	}}
+	resolve := func(callFile string, rows []line) lineProbeTarget {
+		p := &pendingSubprogram{id: sp.ID, callFile: callFile, probesCfgs: []ir.ProbeDefinition{testLineProbe("main.go")}}
+		return resolveLineProbeFiles(
+			[]*pendingSubprogram{p}, map[ir.SubprogramID]*ir.Subprogram{sp.ID: sp},
+			map[ir.PCRange]lineData{root: {lines: rows}},
+		)["line_probe"]
+	}
+	both := []line{
+		{pc: 20, line: 9, isStatement: true, file: otherFile},
+		{pc: 25, line: 9, isStatement: true, file: mainFile},
+	}
+
+	target := resolve(mainFile.Name, both)
+	require.True(t, target.issue.IsNone(), "%v", target.issue)
+	require.Equal(t, mainFile.Name, target.file)
+
+	// A call file without code at the line, as under a //line directive,
+	// leaves the choice to the rows.
+	remapped := "example.com/app/gen/main.go"
+	target = resolve(remapped, []line{{pc: 25, line: 9, isStatement: true, file: mainFile}})
+	require.True(t, target.issue.IsNone(), "%v", target.issue)
+	require.Equal(t, mainFile.Name, target.file)
+
+	target = resolve(remapped, both)
+	require.Contains(t, target.issue.Message, "matches more than one file")
+}
+
+// resolveTestLineFile resolves a probe on line 9 of sourceFile across sps,
+// the i-th declared in declFiles[i].
+func resolveTestLineFile(
+	sourceFile string, declFiles []string, sps []*ir.Subprogram, data map[ir.PCRange]lineData,
+) lineProbeTarget {
+	cfg := testLineProbe(sourceFile)
+	idToSub := make(map[ir.SubprogramID]*ir.Subprogram, len(sps))
+	pending := make([]*pendingSubprogram, 0, len(sps))
+	for i, sp := range sps {
+		sp.ID = ir.SubprogramID(i + 1)
+		idToSub[sp.ID] = sp
+		pending = append(pending, &pendingSubprogram{
+			id: sp.ID, declFile: declFiles[i], probesCfgs: []ir.ProbeDefinition{cfg},
+		})
+	}
+	return resolveLineProbeFiles(pending, idToSub, data)["line_probe"]
+}
+
+func testLineProbe(sourceFile string) ir.ProbeDefinition {
+	return &rcjson.SnapshotProbe{LogProbeCommon: rcjson.LogProbeCommon{ProbeCommon: rcjson.ProbeCommon{
+		ID:    "line_probe",
+		Type:  rcjson.TypeLogProbe.String(),
+		Where: &rcjson.Where{MethodName: "main.f", SourceFile: sourceFile, Lines: []string{"9"}},
+	}}}
+}
+
+func TestResolveDeclFiles(t *testing.T) {
+	mainFile := &dwarf.LineFile{Name: "example.com/app/main.go"}
+	otherFile := &dwarf.LineFile{Name: "example.com/app/other/main.go"}
+	unit := &dwarf.Entry{Tag: dwarf.TagCompileUnit}
+	body := ir.PCRange{100, 200}
+	attr := func(a dwarf.Attr, v int64) *dwarf.Entry {
+		return &dwarf.Entry{Tag: dwarf.TagSubprogram, Field: []dwarf.Field{{Attr: a, Val: v, Class: dwarf.ClassConstant}}}
+	}
+	for _, tc := range []struct {
+		name     string
+		entry    *dwarf.Entry
+		rows     []line
+		inlined  []*inlinedSubprogram
+		want     string
+		wantCall string
+	}{
+		{name: "decl_file", entry: attr(dwarf.AttrDeclFile, 1), want: mainFile.Name},
+		{name: "decl_file out of range", entry: attr(dwarf.AttrDeclFile, 3)},
+		{
+			name: "decl_file out of range, body entry at decl_line",
+			entry: &dwarf.Entry{Tag: dwarf.TagSubprogram, Field: []dwarf.Field{
+				{Attr: dwarf.AttrDeclFile, Val: int64(3), Class: dwarf.ClassConstant},
+				{Attr: dwarf.AttrDeclLine, Val: int64(5), Class: dwarf.ClassConstant},
+			}},
+			rows: []line{{pc: 100, line: 5, file: mainFile}},
+			want: mainFile.Name,
+		},
+		{
+			name:  "body entry at decl_line",
+			entry: attr(dwarf.AttrDeclLine, 5),
+			rows:  []line{{pc: 100, line: 5, file: mainFile}, {pc: 110, line: 9, file: otherFile}},
+			want:  mainFile.Name,
+		},
+		{
+			name:  "body entry at another line",
+			entry: attr(dwarf.AttrDeclLine, 5),
+			rows:  []line{{pc: 100, line: 9, file: otherFile}},
+		},
+		{
+			name:  "no row at body entry",
+			entry: attr(dwarf.AttrDeclLine, 5),
+			rows:  []line{{pc: 104, line: 5, file: otherFile}},
+		},
+		{
+			name:     "call file of a nested inline",
+			entry:    attr(dwarf.AttrDeclLine, 5),
+			inlined:  []*inlinedSubprogram{{unit: unit}, {unit: unit, callFile: 1, hasCallFile: true}},
+			wantCall: mainFile.Name,
+		},
+		{
+			name:    "no nested inline",
+			entry:   attr(dwarf.AttrDeclLine, 5),
+			inlined: []*inlinedSubprogram{{unit: unit}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := &pendingSubprogram{
+				unit:              unit,
+				abstractEntry:     tc.entry,
+				outOfLinePCRanges: []ir.PCRange{body},
+				inlined:           tc.inlined,
+				probesCfgs:        []ir.ProbeDefinition{testLineProbe("main.go")},
+			}
+			if tc.inlined != nil {
+				p.outOfLinePCRanges = nil
+			}
+			resolveDeclFiles(
+				[]*pendingSubprogram{p},
+				map[*dwarf.Entry][]*dwarf.LineFile{unit: {nil, mainFile, otherFile}},
+				map[ir.PCRange]lineData{body: {lines: tc.rows}},
+			)
+			require.Equal(t, tc.want, p.declFile)
+			require.Equal(t, tc.wantCall, p.callFile)
 		})
 	}
 }
