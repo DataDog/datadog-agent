@@ -1,5 +1,4 @@
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
-load("//bazel/rules/minimal_cc_binary:minimal_cc_binary.bzl", "minimal_cc_binary")
 
 # A shared-library stub for libseccomp, used only at link time. Its SONAME is
 # set to `libseccomp.so.2`, which is what the linker records as the DT_NEEDED
@@ -24,18 +23,27 @@ cc_binary(
 # nosys.so is LD_PRELOAD'd into the agent, cluster-agent, and base-image
 # containers to force ENOSYS on syscalls (faccessat2, clone3) that older
 # Docker seccomp profiles block outright instead of reporting as
-# unimplemented. Using minimal_cc_binary keeps the resulting .so free of the
-# extra runtime libraries the toolchain would otherwise inject at link time
-# (see bazel/rules/minimal_cc_binary/minimal_cc_binary.bzl).
-minimal_cc_binary(
+# unimplemented.
+cc_binary(
     name = "nosys.so",
     srcs = ["nosys.c"],
     additional_linker_inputs = [
         "nosys.sym",
+        ":libseccomp.so.2",
     ],
     copts = [
         "-O2",
-        "-fPIC",
+        "-Wall",
+    ],
+    features = [
+        # -fstack-protector, -fno-omit-frame-pointer and warnings
+        "-default_compile_flags",
+        # -pthread and -z relro/now
+        "-default_link_flags",
+        # -lstdc++, -lm, -ldl and -lrt
+        "-default_link_libs",
+        # --build-id
+        "-extra_ldflags",
     ],
     linkopts = [
         "-Wl,--version-script=$(execpath nosys.sym)",
@@ -46,10 +54,8 @@ minimal_cc_binary(
     linkshared = True,
     target_compatible_with = ["@platforms//os:linux"],
     deps = [
-        ":libseccomp.so.2",
-        # This is only so we have a explict dependency on the headers. We
-        # do not acutally link against it.
-        "@libseccomp",
+        "@libseccomp//:headers",
+        "@linux_headers",
     ],
 )
 
