@@ -24,36 +24,23 @@ import (
 type Peering struct {
 	GPUPeers          []GPUPeer
 	UnresolvedNVLinks []UnresolvedNVLink
-	// Complete is false when a query failed or returned something that could not be
-	// interpreted, or when facts known from an earlier scan could not be re-confirmed. The
-	// arrays then hold the last known values: a failed query is unknown, not removal.
-	Complete bool
 }
 
-// nvlinkPort is what was last observed on one local NVLink port.
+// nvlinkPort is what NVML reports for one local NVLink port.
 type nvlinkPort struct {
+	link       int
 	remoteType string // gpu, switch, other or unknown, as in the contract
 	remoteBDF  string // normalized; a locator, never an identity
 	version    string
 }
 
-// gpuPeering holds one GPU's last scan: its ports, the P2P capabilities towards every peer
-// (including peers with only negative capabilities, which are not published but must be
-// remembered), and the result built from them.
-type gpuPeering struct {
-	ports  map[int]nvlinkPort
-	p2p    map[string]P2PCapabilities // by lowercase peer UUID, in query direction
-	result Peering
-}
-
-// PeeringScanner scans NVLink ports and pairwise P2P capabilities of the host's physical GPUs
-// and remembers the last scan, so that a failed query keeps the last known value. Peering is
-// static, so the scan is O(ports*GPUs + GPUs²) NVML calls that run at most once per interval,
-// or when the set of GPUs changes, never on every collection.
+// PeeringScanner scans NVLink ports and pairwise P2P capabilities of the host's physical GPUs.
+// Peering is static, so the scan is O(ports*GPUs + GPUs²) NVML calls that run at most once per
+// interval, or when the set of GPUs changes, never on every collection.
 type PeeringScanner struct {
 	interval time.Duration
 	lastScan time.Time
-	scanned  map[string]*gpuPeering // by lowercase UUID; one entry per GPU of the last scan
+	scanned  map[string]Peering // by lowercase UUID; one entry per GPU of the last scan
 }
 
 // NewPeeringScanner creates a scanner that rescans at most once per interval.
@@ -78,35 +65,21 @@ func (s *PeeringScanner) Scan(now time.Time, devices []safenvml.Device) map[stri
 	}
 
 	if !sameGPUs || now.Sub(s.lastScan) >= s.interval {
-		scanned := make(map[string]*gpuPeering, len(physical))
+		scanned := make(map[string]Peering, len(physical))
+		var failed []error
 		for _, device := range physical {
 			uuid := strings.ToLower(device.UUID)
-			scanned[uuid] = scanGPU(device, physical, byBDF, s.scanned[uuid])
+			ports, portErrs := scanPorts(device)
+			p2p, p2pErrs := scanP2P(device, physical)
+			scanned[uuid] = buildPeering(uuid, ports, p2p, byBDF)
+			failed = append(append(failed, portErrs...), p2pErrs...)
 		}
 		s.scanned, s.lastScan = scanned, now
-		s.logIncomplete()
-	}
-
-	result := make(map[string]Peering, len(s.scanned))
-	for uuid, gpu := range s.scanned {
-		result[uuid] = gpu.result
-	}
-	return result
-}
-
-// logIncomplete reports GPUs whose peering could not be fully re-read. Their published peers
-// and links are then the last known values, so an operator needs to know they may be stale.
-func (s *PeeringScanner) logIncomplete() {
-	var incomplete []string
-	for uuid, gpu := range s.scanned {
-		if !gpu.result.Complete {
-			incomplete = append(incomplete, uuid)
+		if len(failed) > 0 && peeringLogLimit.ShouldLog() {
+			log.Warnf("GPU NVLink/P2P peering scan: %d NVML queries failed, their fields are not published until the next scan; first error: %v", len(failed), failed[0])
 		}
 	}
-	if len(incomplete) > 0 && peeringLogLimit.ShouldLog() {
-		slices.Sort(incomplete)
-		log.Warnf("GPU NVLink/P2P peering scan was incomplete for %v: some NVML queries failed or returned an unknown status; the last known values are published for them", incomplete)
-	}
+	return maps.Clone(s.scanned)
 }
 
 var peeringLogLimit = log.NewLogLimit(10, 10*time.Minute)
@@ -121,79 +94,39 @@ func physicalDevices(devices []safenvml.Device) []*safenvml.PhysicalDevice {
 	return physical
 }
 
-// scanner state for one GPU scan
-type gpuScan struct {
-	previous *gpuPeering
-	complete bool
-}
-
-// unknown records a query that gave no usable answer: err is the query error, or nil when the
-// query succeeded but its answer could not be interpreted. A value known from the previous scan
-// is kept, and the scan is incomplete because that value could not be re-confirmed. Without a
-// previous value, an API that is simply not supported is a complete answer; anything else is
-// not.
-func (g *gpuScan) unknown(err error, haveKnown bool) {
-	if haveKnown || !safenvml.IsUnsupported(err) {
-		g.complete = false
+// failure keeps errors other than "not supported", which is a valid answer meaning unknown.
+func failure(errs []error, err error) []error {
+	if err != nil && !safenvml.IsUnsupported(err) {
+		return append(errs, err)
 	}
+	return errs
 }
 
-func scanGPU(device *safenvml.PhysicalDevice, all []*safenvml.PhysicalDevice, byBDF map[string]string, previous *gpuPeering) *gpuPeering {
-	if previous == nil {
-		previous = &gpuPeering{}
-	}
-	g := &gpuScan{previous: previous, complete: true}
-	gpu := &gpuPeering{ports: g.scanPorts(device), p2p: g.scanP2P(device, all)}
-	gpu.result = buildPeering(strings.ToLower(device.UUID), gpu, byBDF)
-	gpu.result.Complete = g.complete
-	return gpu
-}
-
-func (g *gpuScan) scanPorts(device *safenvml.PhysicalDevice) map[int]nvlinkPort {
-	ports := make(map[int]nvlinkPort)
+// scanPorts queries each local NVLink port. A port whose remote type cannot be read is not
+// reported; a remote address or version that cannot be read is left empty.
+func scanPorts(device *safenvml.PhysicalDevice) ([]nvlinkPort, []error) {
+	var ports []nvlinkPort
+	var errs []error
 	for link := range device.NVLinkLinkCount {
-		prev, havePrev := g.previous.ports[link]
 		deviceType, err := device.GetNvLinkRemoteDeviceType(link)
 		if err != nil {
-			g.unknown(err, havePrev)
-			if havePrev {
-				ports[link] = prev
-			}
+			errs = failure(errs, err)
 			continue
 		}
-		port := nvlinkPort{remoteType: nvlinkRemoteType(deviceType)}
-
+		port := nvlinkPort{link: link, remoteType: nvlinkRemoteType(deviceType)}
 		if info, err := device.GetNvLinkRemotePciInfo(link); err == nil {
 			port.remoteBDF = gpuutil.PCIInfoToBusID(info)
 		} else {
-			// Keep a previously observed address only if the port still reports the same
-			// kind of device; otherwise it is a different attachment.
-			keep := havePrev && prev.remoteBDF != "" && prev.remoteType == port.remoteType
-			g.unknown(err, keep)
-			if keep {
-				port.remoteBDF = prev.remoteBDF
-			}
+			errs = failure(errs, err)
 		}
-
 		if version, err := device.GetNvLinkVersion(link); err == nil {
 			port.version = safenvml.NVLinkVersionString(version)
 		} else {
-			keep := havePrev && prev.version != "" && prev.remoteType == port.remoteType
-			g.unknown(err, keep)
-			if keep {
-				port.version = prev.version
-			}
+			errs = failure(errs, err)
 		}
-		ports[link] = port
+		ports = append(ports, port)
 	}
-
-	// The cached link count could not be read this time, but ports were known before: keep
-	// them rather than reporting that the links vanished.
-	if device.NVLinkLinkCount == 0 && len(g.previous.ports) > 0 {
-		g.complete = false
-		maps.Copy(ports, g.previous.ports)
-	}
-	return ports
+	return ports, errs
 }
 
 var p2pQueries = []struct {
@@ -207,51 +140,38 @@ var p2pQueries = []struct {
 	{nvml.P2P_CAPS_INDEX_PCI, func(c *P2PCapabilities) **bool { return &c.PCI }},
 }
 
-func (g *gpuScan) scanP2P(device *safenvml.PhysicalDevice, all []*safenvml.PhysicalDevice) map[string]P2PCapabilities {
+// scanP2P queries the capabilities from device towards every other physical GPU, keyed by
+// lowercase peer UUID. A capability that cannot be read or interpreted is left unknown.
+func scanP2P(device *safenvml.PhysicalDevice, all []*safenvml.PhysicalDevice) (map[string]P2PCapabilities, []error) {
 	self := strings.ToLower(device.UUID)
 	result := make(map[string]P2PCapabilities)
-	current := make(map[string]struct{}, len(all))
+	var errs []error
 	for _, peer := range all {
 		peerUUID := strings.ToLower(peer.UUID)
-		current[peerUUID] = struct{}{}
 		if peerUUID == self {
 			continue
 		}
 		var caps P2PCapabilities
-		prev := g.previous.p2p[peerUUID]
 		for _, query := range p2pQueries {
-			known := *query.field(&prev)
 			status, err := device.GetP2PStatus(peer, query.index)
-			value := p2pStatusToBool(status)
-			if err != nil || value == nil {
-				// A nil error with a nil value means NVML answered but the status says nothing
-				// (unknown, or a value newer than this Agent): not a negative, and not a
-				// complete answer either.
-				g.unknown(err, known != nil)
-				value = known
+			if err != nil {
+				errs = failure(errs, err)
+				continue
 			}
-			*query.field(&caps) = value
+			*query.field(&caps) = p2pStatusToBool(status)
 		}
 		if !isZero(caps) {
 			result[peerUUID] = caps
 		}
 	}
-
-	// Facts about GPUs that are no longer enumerated are dropped with them, but the scan can
-	// no longer be called complete.
-	for peerUUID := range g.previous.p2p {
-		if _, ok := current[peerUUID]; !ok {
-			g.complete = false
-		}
-	}
-	return result
+	return result, errs
 }
 
 // buildPeering places every observed port in exactly one array: ports whose remote GPU
 // resolves by BDF to another GPU of this host become direct links of that peer, the rest are
 // unresolved. A peer is published only when directly attached or when at least one P2P
 // capability towards it is supported.
-func buildPeering(self string, gpu *gpuPeering, byBDF map[string]string) Peering {
+func buildPeering(self string, ports []nvlinkPort, p2p map[string]P2PCapabilities, byBDF map[string]string) Peering {
 	peers := make(map[string]*GPUPeer)
 	peer := func(uuid string) *GPUPeer {
 		if peers[uuid] == nil {
@@ -261,20 +181,19 @@ func buildPeering(self string, gpu *gpuPeering, byBDF map[string]string) Peering
 	}
 
 	var result Peering
-	for _, link := range slices.Sorted(maps.Keys(gpu.ports)) {
-		port := gpu.ports[link]
+	for _, port := range ports {
 		if peerUUID, ok := byBDF[port.remoteBDF]; ok && port.remoteType == nvlinkRemoteGPU && peerUUID != self {
 			p := peer(peerUUID)
 			p.DirectNVLinks = append(p.DirectNVLinks, DirectNVLink{
-				Port: int32(link), RemotePCIBusID: port.remoteBDF, Version: port.version,
+				Port: int32(port.link), RemotePCIBusID: port.remoteBDF, Version: port.version,
 			})
 			continue
 		}
 		result.UnresolvedNVLinks = append(result.UnresolvedNVLinks, UnresolvedNVLink{
-			Port: int32(link), RemoteType: port.remoteType, RemotePCIBusID: port.remoteBDF, Version: port.version,
+			Port: int32(port.link), RemoteType: port.remoteType, RemotePCIBusID: port.remoteBDF, Version: port.version,
 		})
 	}
-	for uuid, caps := range gpu.p2p {
+	for uuid, caps := range p2p {
 		if peers[uuid] == nil && !anyTrue(caps) {
 			continue
 		}

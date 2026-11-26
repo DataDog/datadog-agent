@@ -170,7 +170,6 @@ func TestPeeringHGXSwitchConnected(t *testing.T) {
 	require.Len(t, result, gpus)
 	for i := range gpus {
 		p := result[lower(i)]
-		require.True(t, p.Complete)
 		require.Len(t, p.UnresolvedNVLinks, links)
 		for link, port := range p.UnresolvedNVLinks {
 			require.Equal(t, UnresolvedNVLink{Port: int32(link), RemoteType: "switch", RemotePCIBusID: switchBDFString(link % 4), Version: "4.0"}, port)
@@ -210,7 +209,6 @@ func TestPeeringDirectNVLinks(t *testing.T) {
 		newFakeGPU(2, 0, &fakeLinkDevice{}),
 	)
 	p := result[lower(0)]
-	require.True(t, p.Complete)
 	require.Equal(t, []GPUPeer{
 		{UUID: lower(1), DirectNVLinks: []DirectNVLink{
 			{Port: 0, RemotePCIBusID: gpuBDFString(1), Version: "3.1"},
@@ -241,7 +239,6 @@ func TestPeeringPCIeOnly(t *testing.T) {
 		newFakeGPU(2, 0, &fakeLinkDevice{}),
 	)
 	p := result[lower(0)]
-	require.True(t, p.Complete)
 	require.Empty(t, p.UnresolvedNVLinks)
 	require.Equal(t, []GPUPeer{{UUID: lower(1), P2PCapabilities: &P2PCapabilities{PCI: ptr(true), NVLink: ptr(false)}}}, p.GPUPeers)
 }
@@ -252,7 +249,6 @@ func TestPeeringUnsupportedDriver(t *testing.T) {
 	all := devices(newFakeGPU(0, 4, &fakeLinkDevice{}), newFakeGPU(1, 4, &fakeLinkDevice{}))
 	peering := NewPeeringScanner(0).Scan(time.Unix(0, 0), all)
 	for _, p := range peering {
-		require.True(t, p.Complete)
 		require.Empty(t, p.GPUPeers)
 		require.Empty(t, p.UnresolvedNVLinks)
 	}
@@ -272,7 +268,6 @@ func TestPeeringUninterpretableStatusIsUnknown(t *testing.T) {
 		newFakeGPU(1, 0, &fakeLinkDevice{}),
 	)
 	require.Empty(t, result[lower(0)].GPUPeers, "an unknown status is not a capability")
-	require.False(t, result[lower(0)].Complete, "an answer that cannot be interpreted is not complete")
 }
 
 // TestPeeringAsymmetricP2P checks that A→B and B→A are kept apart: a pair can make one GPU a
@@ -290,87 +285,39 @@ func TestPeeringAsymmetricP2P(t *testing.T) {
 	require.Empty(t, result[lower(1)].GPUPeers, "B→A reports no supported capability and B is not attached to A")
 }
 
-// TestPeeringFailedQueryIsUnknownNotRemoval checks that a query that fails, becomes
-// unsupported or returns something uninterpretable keeps the last known value and flags the
-// scan as incomplete, and that a clean rescan recovers.
-func TestPeeringFailedQueryIsUnknownNotRemoval(t *testing.T) {
-	healthy := func() []safenvml.Device {
-		return devices(
-			newFakeGPU(0, 3, &fakeLinkDevice{
-				version: 5,
-				remotes: map[int]fakeRemote{0: gpuRemote(1), 1: switchRemote(0), 2: switchRemote(1)},
-				p2p:     map[string]map[nvml.GpuP2PCapsIndex]fakeP2P{gpuUUID(1): allP2P(nvml.P2P_STATUS_OK)},
-			}),
-			newFakeGPU(1, 0, &fakeLinkDevice{}),
-		)
-	}
+// TestPeeringFailedQueriesAreUnknown checks that each scan only publishes what NVML answered:
+// a failed query leaves its field out, and nothing is carried over from an earlier scan.
+func TestPeeringFailedQueriesAreUnknown(t *testing.T) {
 	scanner := NewPeeringScanner(0)
-	first := scanner.Scan(time.Unix(0, 0), healthy())[lower(0)]
-	require.True(t, first.Complete)
+	first := scanner.Scan(time.Unix(0, 0), devices(
+		newFakeGPU(0, 2, &fakeLinkDevice{
+			version: 5,
+			remotes: map[int]fakeRemote{0: gpuRemote(1), 1: switchRemote(0)},
+			p2p:     map[string]map[nvml.GpuP2PCapsIndex]fakeP2P{gpuUUID(1): allP2P(nvml.P2P_STATUS_OK)},
+		}),
+		newFakeGPU(1, 0, &fakeLinkDevice{}),
+	))[lower(0)]
+	require.Len(t, first.GPUPeers, 1)
 
-	gpuLost := safenvml.NewNvmlAPIErrorOrNil("GetNvLinkRemoteDeviceType", nvml.ERROR_GPU_IS_LOST)
-	transient := safenvml.NewNvmlAPIErrorOrNil("GetNvLinkVersion", nvml.ERROR_UNKNOWN)
-	failing := devices(
-		newFakeGPU(0, 3, &fakeLinkDevice{
+	failed := safenvml.NewNvmlAPIErrorOrNil("GetP2PStatus", nvml.ERROR_UNKNOWN)
+	second := scanner.Scan(time.Unix(1, 0), devices(
+		newFakeGPU(0, 2, &fakeLinkDevice{
 			version: 5,
 			remotes: map[int]fakeRemote{
-				0: {typeErr: gpuLost},                                                                          // the whole port: keep it
-				1: {deviceType: nvml.NVLINK_DEVICE_TYPE_SWITCH, pciErr: unsupported("GetNvLinkRemotePciInfo")}, // address stops being reported
-				2: {deviceType: nvml.NVLINK_DEVICE_TYPE_SWITCH, pci: nvml.PciInfo{Bus: 0x0c}, versionErr: transient},
+				0: {typeErr: safenvml.NewNvmlAPIErrorOrNil("GetNvLinkRemoteDeviceType", nvml.ERROR_GPU_IS_LOST)},
+				1: {deviceType: nvml.NVLINK_DEVICE_TYPE_SWITCH, pciErr: failed, versionErr: failed},
 			},
 			p2p: map[string]map[nvml.GpuP2PCapsIndex]fakeP2P{gpuUUID(1): {
-				nvml.P2P_CAPS_INDEX_READ:   {err: safenvml.NewNvmlAPIErrorOrNil("GetP2PStatus", nvml.ERROR_UNKNOWN)},
-				nvml.P2P_CAPS_INDEX_WRITE:  {status: nvml.P2P_STATUS_NOT_SUPPORTED}, // a real change is picked up
-				nvml.P2P_CAPS_INDEX_NVLINK: {status: nvml.P2P_STATUS_UNKNOWN},
-				// atomics and PCI: the API now reports NOT_SUPPORTED
+				nvml.P2P_CAPS_INDEX_READ:  {err: failed},
+				nvml.P2P_CAPS_INDEX_WRITE: {status: nvml.P2P_STATUS_OK},
 			}},
 		}),
 		newFakeGPU(1, 0, &fakeLinkDevice{}),
-	)
-	second := scanner.Scan(time.Unix(1, 0), failing)[lower(0)]
-	require.False(t, second.Complete)
-	require.Equal(t, first.GPUPeers[0].DirectNVLinks, second.GPUPeers[0].DirectNVLinks, "a lost port keeps its last observation")
-	require.Equal(t, first.UnresolvedNVLinks, second.UnresolvedNVLinks, "known addresses and versions are kept when they cannot be re-read")
-	require.Equal(t, &P2PCapabilities{Read: ptr(true), Write: ptr(false), Atomics: ptr(true), NVLink: ptr(true), PCI: ptr(true)},
-		second.GPUPeers[0].P2PCapabilities, "only the capability that was answered changes")
-
-	third := scanner.Scan(time.Unix(2, 0), healthy())[lower(0)]
-	require.True(t, third.Complete, "a clean rescan is complete again")
-	require.Equal(t, first, third)
-}
-
-// TestPeeringDoesNotCarryOverToADifferentAttachment: when a port now reports a different kind
-// of remote device, its old address and version describe another attachment and are dropped.
-func TestPeeringDoesNotCarryOverToADifferentAttachment(t *testing.T) {
-	scanner := NewPeeringScanner(0)
-	scanner.Scan(time.Unix(0, 0), devices(newFakeGPU(0, 1, &fakeLinkDevice{version: 6, remotes: map[int]fakeRemote{0: switchRemote(0)}})))
-	failing := fakeRemote{
-		deviceType: nvml.NVLINK_DEVICE_TYPE_GPU,
-		pciErr:     safenvml.NewNvmlAPIErrorOrNil("GetNvLinkRemotePciInfo", nvml.ERROR_UNKNOWN),
-		versionErr: safenvml.NewNvmlAPIErrorOrNil("GetNvLinkVersion", nvml.ERROR_UNKNOWN),
-	}
-	second := scanner.Scan(time.Unix(1, 0), devices(newFakeGPU(0, 1, &fakeLinkDevice{version: 6, remotes: map[int]fakeRemote{0: failing}})))[lower(0)]
-	require.False(t, second.Complete)
-	require.Equal(t, []UnresolvedNVLink{{Port: 0, RemoteType: "gpu"}}, second.UnresolvedNVLinks)
-}
-
-func TestPeeringKeepsPortsWhenLinkCountIsLost(t *testing.T) {
-	scanner := NewPeeringScanner(0)
-	first := scanner.Scan(time.Unix(0, 0), devices(newFakeGPU(0, 2, &fakeLinkDevice{remotes: map[int]fakeRemote{0: switchRemote(0), 1: switchRemote(1)}})))[lower(0)]
-	second := scanner.Scan(time.Unix(1, 0), devices(newFakeGPU(0, 0, &fakeLinkDevice{})))[lower(0)]
-	require.False(t, second.Complete)
-	require.Equal(t, first.UnresolvedNVLinks, second.UnresolvedNVLinks)
-}
-
-func TestPeeringDroppedPeerIsIncomplete(t *testing.T) {
-	scanner := NewPeeringScanner(0)
-	gpu0 := func() *safenvml.PhysicalDevice {
-		return newFakeGPU(0, 0, &fakeLinkDevice{p2p: map[string]map[nvml.GpuP2PCapsIndex]fakeP2P{gpuUUID(1): allP2P(nvml.P2P_STATUS_OK)}})
-	}
-	scanner.Scan(time.Unix(0, 0), devices(gpu0(), newFakeGPU(1, 0, &fakeLinkDevice{})))
-	second := scanner.Scan(time.Unix(1, 0), devices(gpu0()))[lower(0)]
-	require.False(t, second.Complete)
-	require.Empty(t, second.GPUPeers)
+	))[lower(0)]
+	require.Equal(t, []GPUPeer{{UUID: lower(1), P2PCapabilities: &P2PCapabilities{Write: ptr(true)}}}, second.GPUPeers,
+		"the port whose type could not be read is gone, and only the answered capability is published")
+	require.Equal(t, []UnresolvedNVLink{{Port: 1, RemoteType: "switch"}}, second.UnresolvedNVLinks,
+		"an address or version that could not be read is left out")
 }
 
 // TestPeeringScanCadence: peering is static, so it is rescanned once per interval or when the
@@ -405,7 +352,6 @@ func TestPeeringSkipsVirtualAndMIGDevices(t *testing.T) {
 	peering := NewPeeringScanner(0).Scan(time.Unix(0, 0), all)
 	require.Len(t, peering, 1)
 	require.Contains(t, peering, lower(0))
-	require.True(t, peering[lower(0)].Complete)
 }
 
 func TestSnapshotPeeringPayloadShape(t *testing.T) {
@@ -452,7 +398,6 @@ func TestPeeringThroughNVMLMock(t *testing.T) {
 
 	peering := NewPeeringScanner(0).Scan(time.Unix(0, 0), all)
 	p := peering[strings.ToLower(uuids[0])]
-	require.True(t, p.Complete)
 	require.Equal(t, []GPUPeer{{
 		UUID:            strings.ToLower(uuids[1]),
 		P2PCapabilities: &P2PCapabilities{Read: ptr(true), PCI: ptr(false)},
