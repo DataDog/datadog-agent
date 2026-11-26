@@ -9,6 +9,7 @@ package severityproviderimpl
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -55,6 +56,9 @@ type fakeObserverComponent struct {
 	unsubscribeCalled bool
 	config            severityeventsdef.SeverityEventsConfiguration
 	dispatcher        *severityeventsimpl.Dispatcher
+	scopedConfig      severityeventsdef.SeverityEventsConfiguration
+	scopedListener    severityeventsdef.ScopedSeverityEventListener
+	scopedInitial     []severityeventsdef.ScopedSeverityEvent
 }
 
 func (f *fakeObserverComponent) GetHandle(string) observerdef.Handle { return nil }
@@ -83,8 +87,20 @@ func (f *fakeObserverComponent) SubscribeSeverityEventsReader(cfg severityevents
 	return f.sub, nil
 }
 
-func (f *fakeObserverComponent) SubscribeScopedSeverityEvents(_ severityeventsdef.SeverityEventsConfiguration, _ severityeventsdef.ScopedSeverityEventListener) (severityeventsdef.ScopedSeverityEventsSubscription, error) {
-	return severityeventsdef.ScopedSeverityEventsSubscription{}, nil
+func (f *fakeObserverComponent) SubscribeScopedSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration, listener severityeventsdef.ScopedSeverityEventListener) (severityeventsdef.ScopedSeverityEventsSubscription, error) {
+	f.scopedConfig = cfg
+	if f.err != nil {
+		return severityeventsdef.ScopedSeverityEventsSubscription{}, f.err
+	}
+	f.scopedListener = listener
+	for _, evt := range f.scopedInitial {
+		listener.OnScopedSeverityTransition(evt)
+	}
+	return severityeventsdef.ScopedSeverityEventsSubscription{
+		Unsubscribe: func() {
+			f.unsubscribeCalled = true
+		},
+	}, nil
 }
 
 func (f *fakeObserverComponent) advance(sec int64, level severityeventsdef.SeverityLevel) {
@@ -156,6 +172,22 @@ func TestLifecycleRegistersAndUnsubscribesReader(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func newScopedComponent(t *testing.T, enabled bool, cooldown time.Duration, observer option.Option[observerdef.Component]) (*component, *compdef.TestLifecycle) {
+	t.Helper()
+	lifecycle := compdef.NewTestLifecycle(t)
+	provides, err := newComponentWithScoped(Requires{
+		Lifecycle: lifecycle,
+		Config: config.NewMockWithOverrides(t, map[string]interface{}{
+			anomalydetectionconfig.SmartSeverityProfilesEnabledConfigKey: enabled,
+			smartSeverityProfilesCooldownConfigKey:                       cooldown,
+		}),
+		Observer: observer,
+		Log:      noopLogComponent{},
+	}, true)
+	require.NoError(t, err)
+	return provides.Comp.(*component), lifecycle
+}
+
 func TestLifecycleReaderHonorsSmartSeverityProfilesCooldown(t *testing.T) {
 	observer := &fakeObserverComponent{}
 	comp, lifecycle := newComponent(t, true, 10*time.Second, option.New[observerdef.Component](observer))
@@ -178,4 +210,179 @@ func TestLifecycleReaderHonorsSmartSeverityProfilesCooldown(t *testing.T) {
 	level, ok = comp.Current()
 	require.True(t, ok)
 	assert.Equal(t, severityeventsdef.SeverityLow, level)
+}
+
+func TestScopedDisabledFallsBackToGlobal(t *testing.T) {
+	reader := &fakeReader{level: severityeventsdef.SeverityMedium}
+	observer := &fakeObserverComponent{
+		sub: severityeventsdef.SeverityEventsReaderSubscription{Reader: reader, Unsubscribe: func() {}},
+	}
+	comp, lifecycle := newComponent(t, true, 0, option.New[observerdef.Component](observer))
+	require.NoError(t, lifecycle.Start(context.Background()))
+
+	called := false
+	level, ok := comp.CurrentForScope(func() severityeventsdef.ScopeKey {
+		called = true
+		return severityeventsdef.ScopeKeyForService("checkout")
+	})
+	require.True(t, ok)
+	assert.Equal(t, severityeventsdef.SeverityMedium, level)
+	assert.False(t, called)
+}
+
+func TestScopedLifecycleBootstrapAndErrorCleanup(t *testing.T) {
+	checkout := severityeventsdef.ScopeKeyForService("checkout")
+	billing := severityeventsdef.ScopeKeyForService("billing")
+
+	obs := &fakeObserverComponent{
+		scopedInitial: []severityeventsdef.ScopedSeverityEvent{
+			{ScopeKey: checkout, Event: severityeventsdef.SeverityEvent{ToLevel: severityeventsdef.SeverityHigh}},
+		},
+	}
+	comp, lifecycle := newScopedComponent(t, true, 1500*time.Millisecond, option.New[observerdef.Component](obs))
+	require.NoError(t, lifecycle.Start(context.Background()))
+	assert.Equal(t, int64(2), obs.scopedConfig.CooldownSecs)
+
+	level, ok := comp.CurrentForScope(func() severityeventsdef.ScopeKey { return checkout })
+	require.True(t, ok)
+	assert.Equal(t, severityeventsdef.SeverityHigh, level)
+
+	level, ok = comp.CurrentForScope(func() severityeventsdef.ScopeKey { return billing })
+	require.True(t, ok)
+	assert.Equal(t, severityeventsdef.SeverityLow, level)
+
+	errObs := &fakeObserverComponent{err: assert.AnError}
+	errComp, errLifecycle := newScopedComponent(t, true, 0, option.New[observerdef.Component](errObs))
+	assert.ErrorIs(t, errLifecycle.Start(context.Background()), assert.AnError)
+	_, ok = errComp.CurrentForScope(func() severityeventsdef.ScopeKey { return checkout })
+	assert.False(t, ok)
+}
+
+func TestScopedTransitionsIsolationAndStop(t *testing.T) {
+	checkout := severityeventsdef.ScopeKeyForService("checkout")
+	billing := severityeventsdef.ScopeKeyForService("billing")
+	obs := &fakeObserverComponent{}
+	comp, lifecycle := newScopedComponent(t, true, 0, option.New[observerdef.Component](obs))
+	require.NoError(t, lifecycle.Start(context.Background()))
+
+	// Steady state skips getScope completely.
+	getScopeCalled := false
+	level, ok := comp.CurrentForScope(func() severityeventsdef.ScopeKey {
+		getScopeCalled = true
+		return checkout
+	})
+	require.True(t, ok)
+	assert.Equal(t, severityeventsdef.SeverityLow, level)
+	assert.False(t, getScopeCalled)
+
+	// Escalate checkout; billing and unscoped (key=0) stay Low.
+	obs.scopedListener.OnScopedSeverityTransition(severityeventsdef.ScopedSeverityEvent{
+		ScopeKey: checkout,
+		Event:    severityeventsdef.SeverityEvent{ToLevel: severityeventsdef.SeverityMedium},
+	})
+	level, ok = comp.CurrentForScope(func() severityeventsdef.ScopeKey { return checkout })
+	require.True(t, ok)
+	assert.Equal(t, severityeventsdef.SeverityMedium, level)
+
+	level, ok = comp.CurrentForScope(func() severityeventsdef.ScopeKey { return billing })
+	require.True(t, ok)
+	assert.Equal(t, severityeventsdef.SeverityLow, level)
+
+	level, ok = comp.CurrentForScope(func() severityeventsdef.ScopeKey { return 0 })
+	require.True(t, ok)
+	assert.Equal(t, severityeventsdef.SeverityLow, level)
+
+	// De-escalate checkout back to Low deletes the key and restores the fast path.
+	obs.scopedListener.OnScopedSeverityTransition(severityeventsdef.ScopedSeverityEvent{
+		ScopeKey: checkout,
+		Event:    severityeventsdef.SeverityEvent{ToLevel: severityeventsdef.SeverityLow},
+	})
+	getScopeCalled = false
+	level, ok = comp.CurrentForScope(func() severityeventsdef.ScopeKey {
+		getScopeCalled = true
+		return checkout
+	})
+	require.True(t, ok)
+	assert.Equal(t, severityeventsdef.SeverityLow, level)
+	assert.False(t, getScopeCalled)
+
+	// Stop unsubscribes, resets availability, and ignores late callbacks.
+	require.NoError(t, lifecycle.Stop(context.Background()))
+	assert.True(t, obs.unsubscribeCalled)
+	obs.scopedListener.OnScopedSeverityTransition(severityeventsdef.ScopedSeverityEvent{
+		ScopeKey: checkout,
+		Event:    severityeventsdef.SeverityEvent{ToLevel: severityeventsdef.SeverityHigh},
+	})
+	level, ok = comp.CurrentForScope(func() severityeventsdef.ScopeKey { return checkout })
+	assert.False(t, ok)
+	assert.Equal(t, severityeventsdef.SeverityLow, level)
+}
+
+func TestScopedConcurrentReadsAndWrites(t *testing.T) {
+	obs := &fakeObserverComponent{}
+	comp, lifecycle := newScopedComponent(t, true, 0, option.New[observerdef.Component](obs))
+	require.NoError(t, lifecycle.Start(context.Background()))
+	defer func() { require.NoError(t, lifecycle.Stop(context.Background())) }()
+
+	keys := []severityeventsdef.ScopeKey{
+		severityeventsdef.ScopeKeyForService("svc-a"),
+		severityeventsdef.ScopeKeyForService("svc-b"),
+		severityeventsdef.ScopeKeyForService("svc-c"),
+	}
+
+	var wg sync.WaitGroup
+	for readerIdx := range 4 {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			target := keys[idx%len(keys)]
+			for range 500 {
+				_, _ = comp.CurrentForScope(func() severityeventsdef.ScopeKey { return target })
+			}
+		}(readerIdx)
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for iter := range 200 {
+			lvl := severityeventsdef.SeverityLevel(iter % int(severityeventsdef.NumSeverityLevels))
+			obs.scopedListener.OnScopedSeverityTransition(severityeventsdef.ScopedSeverityEvent{
+				ScopeKey: keys[iter%len(keys)],
+				Event:    severityeventsdef.SeverityEvent{ToLevel: lvl},
+			})
+		}
+	}()
+	wg.Wait()
+}
+
+func BenchmarkCurrentForScopeSteadyState(b *testing.B) {
+	comp := &component{}
+	comp.scoped.Store(&scopedState{})
+	key := severityeventsdef.ScopeKeyForService("checkout")
+	getScope := func() severityeventsdef.ScopeKey { return key }
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		_, _ = comp.CurrentForScope(getScope)
+	}
+}
+
+func BenchmarkCurrentForScopeActive(b *testing.B) {
+	comp := &component{}
+	comp.scoped.Store(&scopedState{
+		elevated: map[severityeventsdef.ScopeKey]severityeventsdef.SeverityLevel{
+			severityeventsdef.ScopeKeyForService("svc-a"): severityeventsdef.SeverityMedium,
+			severityeventsdef.ScopeKeyForService("svc-b"): severityeventsdef.SeverityHigh,
+			severityeventsdef.ScopeKeyForService("svc-c"): severityeventsdef.SeverityHigh,
+		},
+	})
+	key := severityeventsdef.ScopeKeyForService("svc-b")
+	getScope := func() severityeventsdef.ScopeKey { return key }
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		_, _ = comp.CurrentForScope(getScope)
+	}
 }
