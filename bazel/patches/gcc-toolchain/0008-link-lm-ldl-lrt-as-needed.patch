@@ -1,0 +1,23 @@
+From: Datadog Agent Build <agent-build@datadoghq.com>
+Subject: [PATCH] link -lm -ldl -lrt only when needed
+
+The default_link_flags feature adds -lm -ldl -lrt to every link. On glibc
+older than 2.34 these libraries are separate, so every binary gets
+libm.so.6, libdl.so.2 and librt.so.1 as DT_NEEDED even when it uses none
+of their symbols. Wrap them in --as-needed.
+
+---
+--- a/toolchain/cc_toolchain_config.bzl
++++ b/toolchain/cc_toolchain_config.bzl
+@@ -123,9 +123,11 @@
+                         flags = [
+                             "-Wl,-z,relro,-z,now",
+                             "-pass-exit-codes",
++                            "-Wl,--push-state,-as-needed",
+                             "-lm",
+                             "-ldl",
+                             "-lrt",
++                            "-Wl,--pop-state",
+                             "-pthread",
+                         ],
+                     ),
