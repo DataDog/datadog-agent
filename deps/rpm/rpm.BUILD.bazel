@@ -169,7 +169,6 @@ cc_shared_library(
         "@zlib//:z_pkg",
         "@xz//:lzma_pkg",
         "@bzip2//:bz2_pkg",
-        "@zstd//:zstd_pkg",
     ],
     user_link_flags = select({
         "@platforms//os:linux": [

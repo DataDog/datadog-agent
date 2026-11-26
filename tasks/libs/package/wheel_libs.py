@@ -354,12 +354,57 @@ def _discover_wheel_libs(
     return candidates, unmatched
 
 
+def _verify_fips_openssl(
+    site_packages_dir: Path,
+    effective_rpath: str,
+    readelf: str = "readelf",
+) -> None:
+    """Verify FIPS invariants after deduplication: no bundled OpenSSL ELFs remain and
+    cryptography / psycopg_c resolve libssl.so.3 and libcrypto.so.3 from embedded/lib.
+    """
+    remaining_openssl: list[str] = []
+    for root, _, filenames in os.walk(site_packages_dir):
+        root_path = Path(root)
+        for filename in sorted(filenames):
+            if not (filename.startswith("libssl") or filename.startswith("libcrypto")):
+                continue
+            elf_path = root_path / filename
+            if is_elf_file(elf_path):
+                remaining_openssl.append(str(elf_path.relative_to(site_packages_dir)))
+    if remaining_openssl:
+        raise RuntimeError(
+            "Bundled OpenSSL ELF libraries remain under site-packages in FIPS mode: " + ", ".join(remaining_openssl)
+        )
+
+    expected_patterns = (
+        "cryptography/hazmat/bindings/_rust*.so",
+        "psycopg_c.libs/libpq*.so*",
+    )
+    errors: list[str] = []
+    for pattern in expected_patterns:
+        matches = sorted(p for p in site_packages_dir.glob(pattern) if is_elf_file(p))
+        if not matches:
+            errors.append(f"expected ELF matching {pattern!r} not found under {site_packages_dir}")
+            continue
+        for elf_path in matches:
+            dyn = read_dynamic_info(elf_path, readelf=readelf)
+            rel = elf_path.relative_to(site_packages_dir)
+            for required_soname in ("libssl.so.3", "libcrypto.so.3"):
+                if required_soname not in dyn.needed:
+                    errors.append(f"{rel} is missing DT_NEEDED {required_soname} (has {list(dyn.needed)})")
+            if effective_rpath not in dyn.rpaths:
+                errors.append(f"{rel} is missing RPATH {effective_rpath} (has {list(dyn.rpaths)})")
+    if errors:
+        raise RuntimeError("FIPS OpenSSL verification failed: " + "; ".join(errors))
+
+
 def deduplicate_wheel_libs(
     site_packages_dir: Path,
     embedded_lib_dir: Path,
     *,
     rpath_dir: str | None = None,
     require_dedup: set[str] | None = None,
+    verify_fips_openssl: bool = False,
     readelf: str = "readelf",
     patchelf: str = "patchelf",
     dry_run: bool = False,
@@ -379,6 +424,8 @@ def deduplicate_wheel_libs(
         result.skipped[mangled_name] = f"{target_soname} not present in {embedded_lib_dir}"
 
     if not candidates and not required:
+        if verify_fips_openssl and not dry_run:
+            _verify_fips_openssl(site_packages_dir, effective_rpath, readelf=readelf)
         return result
 
     # Scan all ELF files under site_packages_dir once for DT_NEEDED / DT_RPATH.
@@ -399,10 +446,19 @@ def deduplicate_wheel_libs(
             sym_cache[resolved] = read_symbol_info(resolved, readelf=readelf)
         return sym_cache[resolved]
 
+    # Skip candidates with no DT_NEEDED consumers anywhere in site-packages: a wheel may
+    # load an unreferenced bundled library directly by filename via dlopen or ctypes.
+    referenced_needed = {needed for dyn in all_elfs.values() for needed in dyn.needed}
+    active: dict[str, CandidateLib] = {}
+    for mangled_name, cand in candidates.items():
+        if mangled_name not in referenced_needed:
+            result.skipped[mangled_name] = "no DT_NEEDED consumers found (may be loaded dynamically via dlopen/ctypes)"
+        else:
+            active[mangled_name] = cand
+
     # Fixed-point ABI verification: if any candidate fails compatibility for a remaining
     # consumer, drop that candidate so it becomes a remaining ELF itself and re-verify
     # any candidates it transitively depends on.
-    active: dict[str, CandidateLib] = dict(candidates)
     while True:
         changed = False
         active_wheel_paths = {p for cand in active.values() for p in cand.wheel_paths}
@@ -453,6 +509,8 @@ def deduplicate_wheel_libs(
             )
 
     if not active:
+        if verify_fips_openssl and not dry_run:
+            _verify_fips_openssl(site_packages_dir, effective_rpath, readelf=readelf)
         return result
 
     active_wheel_paths = {p for cand in active.values() for p in cand.wheel_paths}
@@ -508,6 +566,9 @@ def deduplicate_wheel_libs(
                 f"Dangling DT_NEEDED references remain after wheel library deduplication: {', '.join(dangling)}"
             )
 
+        if verify_fips_openssl:
+            _verify_fips_openssl(site_packages_dir, effective_rpath, readelf=readelf)
+
     return result
 
 
@@ -537,6 +598,11 @@ def main(argv: list[str] | None = None) -> int:
         default="",
         help="Comma-separated library base names that must be deduplicated if present (e.g. libcrypto,libssl)",
     )
+    parser.add_argument(
+        "--verify-fips-openssl",
+        action="store_true",
+        help="Verify no bundled OpenSSL ELFs remain and cryptography/psycopg_c resolve OpenSSL from embedded/lib",
+    )
     parser.add_argument("--patchelf", default="patchelf", help="Path to patchelf binary")
     parser.add_argument("--readelf", default="readelf", help="Path to readelf binary")
     parser.add_argument("--dry-run", action="store_true", help="Analyze and verify without modifying files")
@@ -558,6 +624,7 @@ def main(argv: list[str] | None = None) -> int:
             embedded_lib_dir,
             rpath_dir=args.rpath_dir,
             require_dedup=required,
+            verify_fips_openssl=args.verify_fips_openssl,
             readelf=args.readelf,
             patchelf=args.patchelf,
             dry_run=args.dry_run,

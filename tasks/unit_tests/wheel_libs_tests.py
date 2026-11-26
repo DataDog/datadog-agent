@@ -247,15 +247,18 @@ class TestCompatibilityAndDeduplication(unittest.TestCase):
 
             def fake_run(cmd, **_kwargs):
                 patched_cmds.append(cmd)
-                # Update dyn_map to simulate patchelf rewriting DT_NEEDED for post-patch check
+                # Update dyn_map to simulate patchelf rewriting DT_NEEDED and RPATH for post-patch checks
                 target = Path(cmd[-1])
                 cur = dyn_map[target]
                 new_needed = list(cur.needed)
+                new_rpaths = cur.rpaths
                 for i, tok in enumerate(cmd):
                     if tok == "--replace-needed":
                         old_n, new_n = cmd[i + 1], cmd[i + 2]
                         new_needed = [new_n if x == old_n else x for x in new_needed]
-                dyn_map[target] = wheel_libs.ElfDynamicInfo(needed=tuple(new_needed), rpaths=cur.rpaths)
+                    elif tok == "--set-rpath":
+                        new_rpaths = tuple(cmd[i + 1].split(":"))
+                dyn_map[target] = wheel_libs.ElfDynamicInfo(needed=tuple(new_needed), rpaths=new_rpaths)
                 return mock.MagicMock(returncode=0)
 
             with (
@@ -269,6 +272,7 @@ class TestCompatibilityAndDeduplication(unittest.TestCase):
                     site_packages,
                     embedded_lib,
                     require_dedup={"libcrypto", "libssl"},
+                    verify_fips_openssl=True,
                 )
 
             self.assertEqual(
@@ -356,6 +360,54 @@ class TestCompatibilityAndDeduplication(unittest.TestCase):
                 with self.assertRaises(RuntimeError) as ctx:
                     wheel_libs.deduplicate_wheel_libs(site_packages, embedded_lib, require_dedup={"liba"})
                 self.assertIn("liba-11111111.so.1", str(ctx.exception))
+
+    def test_skips_unreferenced_dlopen_candidate(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            embedded_lib = root / "embedded" / "lib"
+            site_packages = embedded_lib / "python3.13" / "site-packages"
+
+            self._make_elf(embedded_lib / "libfoo.so.1")
+            wheel_foo = self._make_elf(site_packages / "pkg.libs" / "libfoo-deadbeef.so.1")
+            ext = self._make_elf(site_packages / "pkg" / "_ext.so")
+
+            dyn_map = {
+                ext: wheel_libs.ElfDynamicInfo(needed=(), rpaths=()),
+                wheel_foo: wheel_libs.ElfDynamicInfo(needed=(), rpaths=("$ORIGIN",)),
+            }
+            with mock.patch.object(
+                wheel_libs, "read_dynamic_info", side_effect=lambda p, readelf="readelf": dyn_map[p]
+            ):
+                res = wheel_libs.deduplicate_wheel_libs(site_packages, embedded_lib)
+
+            self.assertEqual(res.replaced, {})
+            self.assertIn("libfoo-deadbeef.so.1", res.skipped)
+            self.assertIn("dlopen/ctypes", res.skipped["libfoo-deadbeef.so.1"])
+            self.assertTrue(wheel_foo.exists())
+
+    def test_verify_fips_openssl_catches_unrecognized_openssl_or_missing_wheels(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            embedded_lib = root / "embedded" / "lib"
+            site_packages = embedded_lib / "python3.13" / "site-packages"
+
+            self._make_elf(embedded_lib / "libcrypto.so.3")
+            self._make_elf(embedded_lib / "libssl.so.3")
+            # Non-mangled bundled OpenSSL copy (e.g. layout/naming change) must fail FIPS verification
+            unmangled = self._make_elf(site_packages / "cryptography" / "libcrypto.so.3")
+            with self.assertRaises(RuntimeError) as ctx:
+                wheel_libs.deduplicate_wheel_libs(
+                    site_packages, embedded_lib, require_dedup={"libcrypto", "libssl"}, verify_fips_openssl=True
+                )
+            self.assertIn("Bundled OpenSSL ELF libraries remain", str(ctx.exception))
+
+            # Removing the unmangled copy still fails if expected cryptography/psycopg_c binaries are absent
+            unmangled.unlink()
+            with self.assertRaises(RuntimeError) as ctx:
+                wheel_libs.deduplicate_wheel_libs(
+                    site_packages, embedded_lib, require_dedup={"libcrypto", "libssl"}, verify_fips_openssl=True
+                )
+            self.assertIn("FIPS OpenSSL verification failed", str(ctx.exception))
 
 
 if __name__ == "__main__":

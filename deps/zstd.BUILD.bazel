@@ -100,7 +100,6 @@ cc_shared_library(
 
 dd_cc_packaged(
     name = "zstd_pkg",
-    dest_dir = "embedded/lib",
     input = ":zstd",
     version = _VERSION,
     visibility = ["//visibility:public"],
