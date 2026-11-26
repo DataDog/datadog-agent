@@ -3,4 +3,3 @@
 # Include file for jobs which clean up kitchen resources created for Agent kitchen tests.
 include:
   - .gitlab/kitchen_cleanup/cleanup.yml
-  - .gitlab/kitchen_cleanup/kitchen_cleanup.yml
