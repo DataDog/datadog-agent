@@ -1760,6 +1760,8 @@ go.etcd.io/etcd/client/pkg/v3 v3.7.0 h1:sW9njJzS3vXKcAJjjLQ4nk+avNUJ12Bcijcx8ehU
 go.etcd.io/etcd/client/pkg/v3 v3.7.0/go.mod h1:cnzZGIUzSfjEwLC6UBVsSXlEK1eepS/JUD7wE6PLRT0=
 go.etcd.io/etcd/client/v2 v2.305.35 h1:8K9hKikZcpQyq5+a6nYXPELborrKjQ1r4TXNgNeP/Bw=
 go.etcd.io/etcd/client/v2 v2.305.35/go.mod h1:tpf+ORRL6/iWpoyKAS5mj2ll/uHv70ul0kNF2cReqgI=
+go.etcd.io/etcd/client/v2 v2.305.36 h1:TBLGB1EeonId6lFL4BgmSH/TJ5euSjuDhu+VQu759W0=
+go.etcd.io/etcd/client/v2 v2.305.36/go.mod h1:Ag6DZKlaO1RKSGFJZtGevrwUw0VIIrSOsICcGFZDNH8=
 go.etcd.io/etcd/client/v3 v3.7.0 h1:5MHO37VbPB87VRPKUXEcicjeQWiTSjpPv3Ume8xPx20=
 go.etcd.io/etcd/client/v3 v3.7.0/go.mod h1:DJ382WuwjmbowjPDyaaQ0idWXy4dh91XRhe4FOrb9vM=
 go.etcd.io/etcd/pkg/v3 v3.7.0 h1:aUBHGzXnYL2m3AlZfKp0ZhHQLVZIKfu9QsIlYdr+mxc=
