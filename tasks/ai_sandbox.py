@@ -92,6 +92,7 @@ def run(
     from tasks.e2e_framework import tool as e2e_tool
 
     env_vars = e2e_tool.pulumi_env()
+    e2e_tool.install_pulumi()
 
     # Resolve paths to absolute so they are independent of the binary's working directory.
     local_output_dir = str(Path(local_output_dir).expanduser().absolute())

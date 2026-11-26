@@ -10,7 +10,7 @@ Follow the general E2E setup guide first:
 [doc/how-to/test/e2e/index.md](../../../../doc/how-to/test/e2e/index.md).
 It covers AWS `agent-sandbox` account access, `aws-vault` setup, the
 `PULUMI_CONFIG_PASSPHRASE` requirement, and required tooling (Go, Python,
-`dda`).
+`dda`, `bazelisk`).
 
 The Windows tests provision real AWS EC2 Windows instances and require the same
 AWS access as all other E2E tests. Without valid AWS credentials and
