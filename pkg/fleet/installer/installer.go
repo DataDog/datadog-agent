@@ -438,7 +438,7 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 	if pkg.Name == packageDatadogAgent && runtime.GOOS == "windows" {
 		i.db.Close()
 	}
-	err = i.hooks.PostStartExperiment(detachFromUnitStop(ctx, pkg.Name), pkg.Name)
+	err = i.hooks.PostStartExperiment(i.detachFromUnitStop(ctx, pkg.Name), pkg.Name)
 	if err != nil {
 		return fmt.Errorf("could not install experiment: %w", err)
 	}
@@ -460,7 +460,7 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 		return nil
 	}
 
-	ctx = detachFromUnitStop(ctx, pkg)
+	ctx = i.detachFromUnitStop(ctx, pkg)
 	if runtime.GOOS != "windows" && (pkg == packageDatadogInstaller || pkg == packageDatadogAgent) {
 		// Special case for the Linux installer since `preStopExperiment`
 		// will kill the current process, delete the experiment first.
@@ -520,7 +520,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
 
-	err = i.hooks.PostPromoteExperiment(detachFromUnitStop(ctx, pkg), pkg)
+	err = i.hooks.PostPromoteExperiment(i.detachFromUnitStop(ctx, pkg), pkg)
 	if err != nil {
 		return err
 	}
@@ -561,7 +561,7 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 		i.db.Close()
 	}
 
-	return i.hooks.PostStartConfigExperiment(detachFromUnitStop(ctx, pkg), pkg)
+	return i.hooks.PostStartConfigExperiment(i.detachFromUnitStop(ctx, pkg), pkg)
 }
 
 // RemoveConfigExperiment removes an experiment.
@@ -569,7 +569,7 @@ func (i *installerImpl) RemoveConfigExperiment(ctx context.Context, pkg string) 
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	ctx = detachFromUnitStop(ctx, pkg)
+	ctx = i.detachFromUnitStop(ctx, pkg)
 	err := i.hooks.PreStopConfigExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not stop experiment: %w", err)
@@ -590,11 +590,12 @@ func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string)
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
-	return i.hooks.PostPromoteConfigExperiment(detachFromUnitStop(ctx, pkg), pkg)
+	return i.hooks.PostPromoteConfigExperiment(i.detachFromUnitStop(ctx, pkg), pkg)
 }
 
-// detachFromUnitStop returns ctx without its cancellation when pkg's experiment
-// hooks start, stop or restart the systemd units that run this process.
+// detachFromUnitStop returns ctx without its cancellation when the daemon runs
+// pkg's experiment hooks, which start, stop or restart the systemd units that
+// run this process.
 //
 // The daemon runs installer commands from its own unit, so on Linux the unit
 // transition makes systemd send this process SIGTERM, and the signal handler
@@ -602,8 +603,9 @@ func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string)
 // handles it on its own, so a cancellation here would only turn the hook's
 // success into "context canceled", or keep the next hook from starting.
 // systemd still kills this process once the unit's stop timeout expires.
-func detachFromUnitStop(ctx context.Context, pkg string) context.Context {
-	if runtime.GOOS == "linux" && (pkg == packageDatadogAgent || pkg == packageDatadogInstaller) {
+// Commands run by hand are outside that unit and keep their cancellation.
+func (i *installerImpl) detachFromUnitStop(ctx context.Context, pkg string) context.Context {
+	if runtime.GOOS == "linux" && i.env.IsFromDaemon && (pkg == packageDatadogAgent || pkg == packageDatadogInstaller) {
 		return context.WithoutCancel(ctx)
 	}
 	return ctx
