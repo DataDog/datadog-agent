@@ -202,14 +202,6 @@ func inspectionResultToProbeData(result *bininspect.Result) (gotls.TlsOffsetsDat
 	if err != nil {
 		return gotls.TlsOffsetsData{}, fmt.Errorf("failed extracting write buffer location from inspection result: %w", err)
 	}
-	writeReturnBytes, err := getReturnBytes(result, bininspect.WriteGoTLSFunc)
-	if err != nil {
-		return gotls.TlsOffsetsData{}, fmt.Errorf("failed extracting read return bytes from inspection result: %w", err)
-	}
-	writeReturnError, err := getReturnError(result, bininspect.WriteGoTLSFunc)
-	if err != nil {
-		return gotls.TlsOffsetsData{}, fmt.Errorf("failed extracting read return error from inspection result: %w", err)
-	}
 
 	return gotls.TlsOffsetsData{
 		Goroutine_id: gotls.GoroutineIDMetadata{
@@ -234,8 +226,6 @@ func inspectionResultToProbeData(result *bininspect.Result) (gotls.TlsOffsetsDat
 		Read_return_bytes:  readReturnBytes,
 		Write_conn_pointer: writeConnPointer,
 		Write_buffer:       writeBufferLocation,
-		Write_return_bytes: writeReturnBytes,
-		Write_return_error: writeReturnError,
 		Close_conn_pointer: closeConnPointer,
 	}, nil
 }
@@ -341,44 +331,6 @@ func getReturnBytes(result *bininspect.Result, funcName string) (gotls.Location,
 			Exists:       boolToBinary(true),
 			In_register:  boolToBinary(false),
 			Stack_offset: endOfParametersOffset,
-		}, nil
-	default:
-		return gotls.Location{}, fmt.Errorf("unknown abi %q", result.ABI)
-	}
-}
-
-func getReturnError(result *bininspect.Result, funcName string) (gotls.Location, error) {
-	switch result.ABI {
-	case bininspect.GoABIRegister:
-		switch result.Arch {
-		case bininspect.GoArchX86_64:
-			return gotls.Location{
-				Exists:      boolToBinary(true),
-				In_register: boolToBinary(true),
-				X_register:  int64(3), // RBX
-			}, nil
-		case bininspect.GoArchARM64:
-			return gotls.Location{
-				Exists:      boolToBinary(true),
-				In_register: boolToBinary(true),
-				X_register:  int64(1),
-			}, nil
-		default:
-			return gotls.Location{}, bininspect.ErrUnsupportedArch
-		}
-	case bininspect.GoABIStack:
-		var integer int
-		var endOfParametersOffset int64
-		for _, param := range result.Functions[funcName].Parameters {
-			// This code assumes pointer alignment of each param
-			endOfParametersOffset += param.TotalSize
-		}
-		return gotls.Location{
-			Exists:      boolToBinary(true),
-			In_register: boolToBinary(false),
-			// Take the offset of the first return value (an int representing the amount of bytes that were
-			// read / written) and add the size of int to get the beginning of the next parameter (the error).
-			Stack_offset: endOfParametersOffset + int64(unsafe.Sizeof(integer)),
 		}, nil
 	default:
 		return gotls.Location{}, fmt.Errorf("unknown abi %q", result.ABI)
