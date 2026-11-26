@@ -43,14 +43,16 @@ type liveLaunchd struct {
 	exitOnStart map[string]int
 	// stuck makes a kickstart of a target leave it not running, as a job that never starts.
 	stuck map[string]bool
-	pids  map[string]int
-	calls [][]string
+	// failBootstrap makes the next bootstraps of a target fail, as many as its count.
+	failBootstrap map[string]int
+	pids          map[string]int
+	calls         [][]string
 }
 
 func stubLiveLaunchd(t *testing.T, loaded ...string) *liveLaunchd {
 	t.Helper()
 
-	l := &liveLaunchd{loaded: map[string]bool{}, idle: map[string]bool{}, exited: map[string]int{}, exitOnStart: map[string]int{}, stuck: map[string]bool{}, pids: map[string]int{}}
+	l := &liveLaunchd{loaded: map[string]bool{}, idle: map[string]bool{}, exited: map[string]int{}, exitOnStart: map[string]int{}, stuck: map[string]bool{}, failBootstrap: map[string]int{}, pids: map[string]int{}}
 	for _, label := range loaded {
 		l.loaded["system/"+label] = true
 	}
@@ -85,6 +87,10 @@ func stubLiveLaunchd(t *testing.T, loaded ...string) *liveLaunchd {
 				delete(l.exited, target)
 			case "bootstrap":
 				label := "system/" + strings.TrimSuffix(filepath.Base(target), ".plist")
+				if l.failBootstrap[label] > 0 {
+					l.failBootstrap[label]--
+					return []byte("Bootstrap failed: 5: Input/output error"), exitError(5)
+				}
 				l.loaded[label] = true
 				// A job with no RunAtLoad loads without running.
 				if strings.HasSuffix(label, "-exp") || label == "system/"+unitSupervisorJob {
@@ -234,6 +240,46 @@ func TestSupervisorFailsTheExperimentAsOnFailure(t *testing.T) {
 	assert.Equal(t, unitsTargetFailed, latest.target)
 	require.NoError(t, superviseUnits(context.Background()), "a relaunched supervisor has nothing to do")
 	assert.False(t, l.isRunning(agentJob+"-exp"), "the failed experiment must not start again")
+}
+
+// TestSupervisorRetriesAFailedRestore pins that a failed experiment whose stable jobs could not all
+// be restored is restored again on the next turn, rather than looked up as a running experiment.
+func TestSupervisorRetriesAFailedRestore(t *testing.T) {
+	l := supervisedHost(t)
+	r := request(t, unitsTargetExperiment)
+	l.mu.Lock()
+	l.pids["system/"+agentJob+"-exp"] = exitingProcess(t, 1)
+	// One whole restore fails on the stable installer daemon; the next one gets it back.
+	l.failBootstrap["system/"+installerJob] = configExperimentRestoreRetries
+	l.mu.Unlock()
+	runSupervisor(t)
+
+	waitForStatus(t, r, unitsPhaseFailed)
+	for _, label := range configExperimentJobs {
+		assert.True(t, l.isRunning(label), "%s should be back", label)
+		assert.False(t, l.isRunning(label+"-exp"), "%s should be stopped", label+"-exp")
+	}
+	latest, err := readUnitsRequest()
+	require.NoError(t, err)
+	assert.Equal(t, unitsTargetFailed, latest.target)
+}
+
+// TestSupervisorResumesARestoreAfterARelaunch pins that a supervisor relaunched while it was
+// restoring the stable jobs of a failed experiment finishes that restore.
+func TestSupervisorResumesARestoreAfterARelaunch(t *testing.T) {
+	l := supervisedHost(t)
+	r := request(t, unitsTargetExperiment)
+	require.NoError(t, configExperiment{jobs: configExperimentJobSet()}.Start(context.Background()))
+	writeUnitsStatus(r.nonce, unitsPhaseFailing, "the experiment Agent exited (status 1)")
+
+	require.NoError(t, superviseUnits(context.Background()))
+	for _, label := range configExperimentJobs {
+		assert.True(t, l.isRunning(label), "%s should be back", label)
+		assert.False(t, l.isRunning(label+"-exp"), "%s should be stopped", label+"-exp")
+	}
+	status, err := readUnitsStatus()
+	require.NoError(t, err)
+	assert.Equal(t, unitsStatus{nonce: r.nonce, phase: unitsPhaseFailed, message: "the experiment Agent exited (status 1)"}, status)
 }
 
 // exitingProcess starts a process that exits with code after a short while, for a job whose exit

@@ -62,6 +62,9 @@ const (
 	unitsPhaseAgents = "agents" // the Agent jobs are on the target; the installer daemon follows
 	unitsPhaseDone   = "done"   // every job, the installer daemon included, is on the target
 	unitsPhaseFailed = "failed" // the request could not be applied, or the experiment failed
+	// unitsPhaseFailing is an experiment that failed on the host, whose stable jobs are being
+	// restored: a retry or a relaunched supervisor resumes the restore from it.
+	unitsPhaseFailing = "failing"
 )
 
 var (
@@ -353,6 +356,9 @@ func targetUnchanged(request unitsRequest) func() (bool, error) {
 // runExperiment starts the experiment request asks for, picking up where a relaunched supervisor
 // left it, then supervises it until it ends.
 func runExperiment(ctx context.Context, request unitsRequest, status unitsStatus) error {
+	if status.nonce == request.nonce && status.phase == unitsPhaseFailing {
+		return failExperiment(ctx, request, status.message)
+	}
 	agents := configExperiment{jobs: agentJobSet()}
 	if status.nonce != request.nonce {
 		if err := experimentDeadline().Write(configExperimentDeadlineWindow); err != nil {
@@ -542,11 +548,13 @@ func failExperiment(ctx context.Context, request unitsRequest, reason string) er
 			log.Warnf("unit supervisor: could not release the installer lock: %v", err)
 		}
 	}()
+	// Before anything is stopped: from here on, a retry or a relaunched supervisor restores the
+	// stable jobs again, rather than looking for an experiment that is being taken down.
+	writeUnitsStatus(request.nonce, unitsPhaseFailing, reason)
 	restoreErr := configExperiment{jobs: configExperimentJobSet()}.restoreStable(context.WithoutCancel(ctx))
 	ensureProcmgr(ctx, false)
 	if restoreErr != nil {
-		// Left as it is, the target still asks for the experiment: superviseUnits retries, finds the
-		// experiment Agent gone and fails the experiment again.
+		// The status says failing: superviseUnits retries the restore after unitsRetryDelay.
 		return fmt.Errorf("unit supervisor: could not start the stable jobs: %w", restoreErr)
 	}
 	if err := experimentDeadline().Clear(); err != nil {

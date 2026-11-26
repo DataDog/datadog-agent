@@ -33,8 +33,8 @@ var startupPollTimeout = 5 * time.Second
 // It returns the running jobs' pids, each mapped to its label without the variant suffix. A job
 // still pending once startupPollTimeout is up is an error: it failed to start.
 //
-// A job that launchd recorded as having exited in a way that fails the experiment
-// (exitFailsExperiment) stops the wait at once and is returned in exited: that is a durable fact
+// A job that is not loaded, or that launchd recorded as having exited in a way that fails the
+// experiment (exitFailsExperiment), stops the wait at once and is returned in exited: that is a durable fact
 // recorded by launchd, not something more waiting would resolve. Any other job recorded as having
 // exited cleanly (LastExitStatus zero) is not: a job whose feature is off exits that way the
 // instant it is kickstarted, and this wait must tolerate it.
@@ -52,6 +52,11 @@ func resolveExperimentPids(ctx context.Context, jobs launchd.JobSet) (jobPIDs ma
 			if status.PID != 0 {
 				jobPIDs[status.PID] = label
 				continue
+			}
+			if !status.Loaded {
+				// Not in the domain, so it can no longer start: it is not pending. An experiment job
+				// that is missing fails the experiment, as one that exited would.
+				return nil, &statuses[i], nil
 			}
 			if status.HasExited && exitFailsExperiment(label, status.LastExitStatus == 0) {
 				return nil, &statuses[i], nil

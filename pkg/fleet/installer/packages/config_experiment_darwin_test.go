@@ -616,6 +616,32 @@ func stubLaunchdExited(t *testing.T, exitedLabel string, exitCode int) {
 	t.Cleanup(func() { launchdClient = original })
 }
 
+// TestResolveExperimentPidsReturnsAJobThatIsNotLoaded pins that an experiment job missing from the
+// domain is returned at once as exited, not waited on as one that is starting.
+func TestResolveExperimentPidsReturnsAJobThatIsNotLoaded(t *testing.T) {
+	stubJobDir(t)
+	original := launchdClient
+	launchdClient = func() *launchd.Client {
+		client := launchd.NewClient(launchd.System)
+		client.Runner = func(_ context.Context, _ string, args ...string) ([]byte, error) {
+			if args[len(args)-1] == "system/"+agentJob+"-exp" {
+				return []byte(notLoadedOutput), exitError(113)
+			}
+			return []byte("\tstate = running\n\tpid = 4242\n"), nil
+		}
+		return client
+	}
+	t.Cleanup(func() { launchdClient = original })
+
+	started := time.Now()
+	_, exited, err := resolveExperimentPids(context.Background(), launchd.JobSet{Labels: []string{agentJob}, Dir: launchdJobDir, Client: launchdClient()})
+	require.NoError(t, err)
+	require.NotNil(t, exited)
+	assert.Equal(t, agentJob+"-exp", exited.Label)
+	assert.False(t, exited.Loaded)
+	assert.Less(t, time.Since(started), startupPollTimeout, "a job that is not loaded is not waited on")
+}
+
 // TestResolveExperimentPidsFailsOnlyOnAFailedExit pins the pre-arm check: a clean exit launchd
 // recorded, as a job whose feature is off leaves, is tolerated, and a non-zero one is returned.
 func TestResolveExperimentPidsFailsOnlyOnAFailedExit(t *testing.T) {
