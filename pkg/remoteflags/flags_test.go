@@ -535,19 +535,21 @@ func TestHealthMonitor_RecoveryProbeStaysUnhealthy(t *testing.T) {
 	})
 }
 
-// orderHandler records its callbacks in order. Its first OnChange blocks until
-// release is closed, to simulate a delayed callback.
+// orderHandler records its callbacks in order. OnChange blocks until release
+// is closed when called with blockValue, to simulate a slow handler.
 type orderHandler struct {
-	name    FlagName
-	release chan struct{}
-	started chan struct{}
-	mu      sync.Mutex
-	events  []string
-	calls   int
+	name       FlagName
+	blockValue *FlagValue
+	release    chan struct{}
+	healthy    atomic.Bool
+	mu         sync.Mutex
+	events     []string
 }
 
-func newOrderHandler(flag FlagName) *orderHandler {
-	return &orderHandler{name: flag, release: make(chan struct{}), started: make(chan struct{})}
+func newOrderHandler(flag FlagName, blockValue FlagValue) *orderHandler {
+	h := &orderHandler{name: flag, blockValue: &blockValue, release: make(chan struct{})}
+	h.healthy.Store(true)
+	return h
 }
 
 func (h *orderHandler) record(e string) {
@@ -564,12 +566,7 @@ func (h *orderHandler) recorded() []string {
 
 func (h *orderHandler) FlagName() FlagName { return h.name }
 func (h *orderHandler) OnChange(v FlagValue) error {
-	h.mu.Lock()
-	h.calls++
-	first := h.calls == 1
-	h.mu.Unlock()
-	if first {
-		close(h.started)
+	if h.blockValue != nil && *h.blockValue == v {
 		<-h.release
 	}
 	h.record(fmt.Sprintf("change:%v", v))
@@ -577,36 +574,73 @@ func (h *orderHandler) OnChange(v FlagValue) error {
 }
 func (h *orderHandler) OnNoConfig()                      { h.record("noconfig") }
 func (h *orderHandler) SafeRecover(_ error, v FlagValue) { h.record(fmt.Sprintf("recover:%v", v)) }
-func (h *orderHandler) IsHealthy() bool                  { return true }
+func (h *orderHandler) IsHealthy() bool                  { return h.healthy.Load() }
 
 func TestOnUpdate_DelayedOnChangeDoesNotOverrideNoConfig(t *testing.T) {
-	client := NewClient()
-	defer client.Stop()
-	h := newOrderHandler("my_flag")
-	require.NoError(t, client.SubscribeWithHandler(h))
+	synctest.Test(t, func(t *testing.T) {
+		client := NewClient()
+		defer func() {
+			client.Stop()
+			synctest.Wait()
+		}()
+		h := newOrderHandler("my_flag", true)
+		require.NoError(t, client.SubscribeWithHandler(h))
 
-	sendUpdate(client, Flag{Name: "my_flag", Enabled: true})
-	waitChan(t, h.started)
-	sendUpdate(client) // the flag is removed while OnChange(true) is still running
-	close(h.release)
+		sendUpdate(client, Flag{Name: "my_flag", Enabled: true})
+		synctest.Wait()    // OnChange(true) is blocked
+		sendUpdate(client) // the flag is removed while OnChange(true) is still running
+		synctest.Wait()
+		close(h.release)
+		synctest.Wait()
 
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		assert.Equal(c, []string{"change:true", "noconfig"}, h.recorded())
-	}, time.Second, 10*time.Millisecond)
+		assert.Equal(t, []string{"change:true", "noconfig"}, h.recorded())
+	})
 }
 
 func TestOnUpdate_OnChangeCallbacksKeepUpdateOrder(t *testing.T) {
-	client := NewClient()
-	defer client.Stop()
-	h := newOrderHandler("my_flag")
-	require.NoError(t, client.SubscribeWithHandler(h))
+	synctest.Test(t, func(t *testing.T) {
+		client := NewClient()
+		defer func() {
+			client.Stop()
+			synctest.Wait()
+		}()
+		h := newOrderHandler("my_flag", true)
+		require.NoError(t, client.SubscribeWithHandler(h))
 
-	sendUpdate(client, Flag{Name: "my_flag", Enabled: true})
-	waitChan(t, h.started)
-	sendUpdate(client, Flag{Name: "my_flag", Enabled: false}) // sent while OnChange(true) is still running
-	close(h.release)
+		sendUpdate(client, Flag{Name: "my_flag", Enabled: true})
+		synctest.Wait() // OnChange(true) is blocked
+		sendUpdate(client, Flag{Name: "my_flag", Enabled: false})
+		synctest.Wait()
+		close(h.release)
+		synctest.Wait()
 
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		assert.Equal(c, []string{"change:true", "change:false"}, h.recorded())
-	}, time.Second, 10*time.Millisecond)
+		assert.Equal(t, []string{"change:true", "change:false"}, h.recorded())
+	})
+}
+
+func TestOnUpdate_RemovalCancelsHealthMonitorBehindSlowOnChange(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := NewClient().WithHealthCheckInterval(100 * time.Millisecond)
+		defer func() {
+			client.Stop()
+			synctest.Wait()
+		}()
+		h := newOrderHandler("my_flag", false)
+		require.NoError(t, client.SubscribeWithHandler(h))
+
+		sendUpdate(client, Flag{Name: "my_flag", Enabled: true, HealthCheckDurationSeconds: 10})
+		synctest.Wait() // OnChange(true) applied, health monitor running
+		sendUpdate(client, Flag{Name: "my_flag", Enabled: false})
+		synctest.Wait()    // OnChange(false) is blocked
+		sendUpdate(client) // the flag is removed while OnChange(false) is still running
+		h.healthy.Store(false)
+
+		// Health checks would fail during this time if the monitor of OnChange(true) were still running.
+		time.Sleep(time.Second)
+		synctest.Wait()
+		close(h.release)
+		synctest.Wait()
+
+		assert.Equal(t, []string{"change:true", "change:false", "noconfig"}, h.recorded())
+	})
 }

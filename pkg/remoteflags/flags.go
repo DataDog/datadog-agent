@@ -429,9 +429,16 @@ func (c *Client) notifyNoConfig(flag FlagName) {
 	}
 
 	for _, sub := range subs {
+		// Cancel the running health check now: the queued reset can wait behind a
+		// slow OnChange, and the monitor must not recover a flag that is gone.
+		if sub.cancelHealthCheck != nil {
+			sub.cancelHealthCheck()
+			sub.cancelHealthCheck = nil
+		}
 		s := sub
 		s.enqueue(func() {
-			// Cancel the health check started by an earlier OnChange, if any.
+			// Also cancel a health check started by an OnChange that was still
+			// running when the flag was removed.
 			c.mu.Lock()
 			if s.cancelHealthCheck != nil {
 				s.cancelHealthCheck()
