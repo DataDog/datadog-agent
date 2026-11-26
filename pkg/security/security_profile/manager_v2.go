@@ -1396,45 +1396,53 @@ func (m *ManagerV2) SendStats() error {
 		return err
 	}
 
-	// Profile count by image name. Enabled and disabled profiles both count.
-	var tags [][]string
+	// V2 tracks one profile per image name, shared by all its image tags.
+	// The gauge is 1 per profile, enabled or disabled.
+	type trackedProfile struct {
+		selector   cgroupModel.WorkloadSelector
+		prof       *profile.Profile
+		shortImage string
+	}
+
 	m.profilesLock.Lock()
-	profiles := make([]*profile.Profile, 0, len(m.profiles))
-	profileCounts := make(map[string]int)
+	tracked := make([]trackedProfile, 0, len(m.profiles))
 	for selector, prof := range m.profiles {
-		profiles = append(profiles, prof)
-		profileCounts[selector.Image]++
-		if prof.IsEnabled() {
-			continue
-		}
-		tags = append(tags, []string{"profile_image_name:" + selector.Image, "profile_image_tag:" + selector.Tag})
+		tracked = append(tracked, trackedProfile{selector: selector, prof: prof})
 	}
 	m.profilesLock.Unlock()
 
-	// Total profiles tracked on this host, enabled and disabled, broken down per image. A sum
-	// across series and hosts is the fleet-wide profile count. Disabled profiles are also broken
-	// out per image and tag by MetricSecurityProfileV2DisabledProfiles.
-	if len(profileCounts) == 0 {
+	if len(tracked) == 0 {
 		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileProfiles, 0, []string{}, 1.0); err != nil {
 			return err
 		}
 	}
-	for imageName, count := range profileCounts {
-		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileProfiles, float64(count), []string{"profile_image_name:" + imageName}, 1.0); err != nil {
+
+	// Read the short images outside profilesLock: ShortImage takes the profile lock.
+	// Disabled profiles are also broken out per image and tag.
+	for i := range tracked {
+		tp := &tracked[i]
+		tp.shortImage = tp.prof.ShortImage()
+		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileProfiles, 1, metrics.WithProfileShortImage([]string{
+			"profile_image_name:" + tp.selector.Image,
+		}, tp.shortImage), 1.0); err != nil {
 			return err
 		}
-	}
-
-	for _, tag := range tags {
-		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2DisabledProfiles, 1, tag, 1.0); err != nil {
+		if tp.prof.IsEnabled() {
+			continue
+		}
+		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2DisabledProfiles, 1, metrics.WithProfileShortImage([]string{
+			"profile_image_name:" + tp.selector.Image,
+			"profile_image_tag:" + tp.selector.Tag,
+		}, tp.shortImage), 1.0); err != nil {
 			return err
 		}
 	}
 
 	// Profile.SendStats takes the profile lock, so iterate outside profilesLock.
-	for _, prof := range profiles {
-		if err := prof.SendStats(m.statsdClient); err != nil {
-			seclog.Debugf("couldn't send metrics for [%s]: %v", prof.GetSelectorStr(), err)
+	for _, tp := range tracked {
+		extra := metrics.WithProfileShortImage(nil, tp.shortImage)
+		if err := tp.prof.SendStats(m.statsdClient, extra...); err != nil {
+			seclog.Debugf("couldn't send metrics for [%s]: %v", tp.prof.GetSelectorStr(), err)
 		}
 	}
 
@@ -1552,27 +1560,19 @@ func (m *ManagerV2) SendStats() error {
 	}
 
 	// Per-profile size (RAM and disk reported under the same metric, differentiated by storage tag).
-	// Snapshot the active-profiles map under the lock and then call ComputeHeapSize / statsd
-	// outside it — ComputeHeapSize takes the per-profile lock, and we don't want to hold
-	// profilesLock across that or across the statsd send.
-	type profileEntry struct {
-		selector cgroupModel.WorkloadSelector
-		profile  *profile.Profile
-	}
-	m.profilesLock.Lock()
-	ramEntries := make([]profileEntry, 0, len(m.profiles))
-	for selector, p := range m.profiles {
-		ramEntries = append(ramEntries, profileEntry{selector: selector, profile: p})
-	}
-	m.profilesLock.Unlock()
-
-	for _, entry := range ramEntries {
-		tags := []string{
-			"profile_image_name:" + entry.selector.Image,
-			"profile_image_tag:" + entry.selector.Tag,
-			"storage:ram",
+	// ComputeHeapSize takes the per-profile lock, so it is called outside profilesLock, on the
+	// snapshot taken above.
+	shortImageBySelector := m.localStorage.ShortImagesBySelector()
+	for _, tp := range tracked {
+		if tp.shortImage != "" {
+			shortImageBySelector[tp.selector] = tp.shortImage
 		}
-		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfileSize, float64(entry.profile.ComputeHeapSize()), tags, 1.0); err != nil {
+		tags := metrics.WithProfileShortImage([]string{
+			"profile_image_name:" + tp.selector.Image,
+			"profile_image_tag:" + tp.selector.Tag,
+			"storage:ram",
+		}, tp.shortImage)
+		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfileSize, float64(tp.prof.ComputeHeapSize()), tags, 1.0); err != nil {
 			return err
 		}
 	}
@@ -1583,11 +1583,11 @@ func (m *ManagerV2) SendStats() error {
 		if !selector.IsReady() {
 			continue
 		}
-		tags := []string{
+		tags := metrics.WithProfileShortImage([]string{
 			"profile_image_name:" + selector.Image,
 			"profile_image_tag:" + selector.Tag,
 			"storage:disk",
-		}
+		}, shortImageBySelector[selector])
 		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfileSize, float64(size), tags, 1.0); err != nil {
 			return err
 		}
