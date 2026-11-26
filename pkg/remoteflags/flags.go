@@ -57,6 +57,10 @@ type FlagValue bool
 //   - After a flag is enabled (value=true), IsHealthy is called periodically to monitor the component
 //   - If IsHealthy returns false for too many consecutive checks, SafeRecover is called
 //   - OnNoConfig is called when Remote Config sends configurations but the flag is absent
+//
+// OnChange, OnNoConfig, and the SafeRecover that follows a failed OnChange run
+// asynchronously from the Remote Config update, one at a time and in the order of
+// the updates. A handler therefore never sees a stale callback after a newer one.
 type FlagHandler interface {
 	// FlagName returns the name of the flag this handler listens to.
 	FlagName() FlagName
@@ -149,6 +153,43 @@ type subscription struct {
 	handler           FlagHandler
 	lastValue         atomic.Pointer[FlagValue] // nil means no value has been applied yet
 	cancelHealthCheck context.CancelFunc        // Cancel ongoing health check if any
+
+	// Handler callbacks run outside the client lock, in the order the client
+	// queued them: queue holds the pending callbacks, and draining is true while
+	// a goroutine is running them.
+	queueMu  sync.Mutex
+	queue    []func()
+	draining bool
+}
+
+// enqueue schedules fn to run after the callbacks already queued for this
+// subscription. It never blocks on the handler, so it is safe to call with the
+// client lock held.
+func (s *subscription) enqueue(fn func()) {
+	s.queueMu.Lock()
+	defer s.queueMu.Unlock()
+	s.queue = append(s.queue, fn)
+	if !s.draining {
+		s.draining = true
+		go s.drain()
+	}
+}
+
+// drain runs the queued callbacks one at a time until the queue is empty.
+func (s *subscription) drain() {
+	for {
+		s.queueMu.Lock()
+		if len(s.queue) == 0 {
+			s.draining = false
+			s.queueMu.Unlock()
+			return
+		}
+		fn := s.queue[0]
+		s.queue[0] = nil
+		s.queue = s.queue[1:]
+		s.queueMu.Unlock()
+		fn()
+	}
 }
 
 // Client is the Remote Flags client that manages flag subscriptions
@@ -331,17 +372,13 @@ func (c *Client) OnUpdate(updates map[string]state.RawConfig, applyStateCallback
 			// TODO(remy): should we call the no data callback forever if the flags never come back
 			// during this lifecycle of the agent?
 			c.notifyNoConfig(flagName)
-
-			// go through all subs of this flag name and remove their last value.
-			for _, sub := range c.subscriptions[flagName] {
-				sub.lastValue.Store(nil)
-			}
 		}
 	}
 }
 
 // notifyChange notifies all subscribers of a flag value change.
-// Must be called with lock held.
+// Must be called with lock held. The handlers are called asynchronously, in the
+// order of the notifications for each subscription (see subscription.enqueue).
 func (c *Client) notifyChange(flag Flag) {
 	flagName := FlagName(flag.Name)
 	subs, exists := c.subscriptions[flagName]
@@ -350,20 +387,22 @@ func (c *Client) notifyChange(flag Flag) {
 	}
 
 	for _, sub := range subs {
-		// only notify if the value actually changed from last known value
-		last := sub.lastValue.Load()
-		if last == nil || *last != flag.Enabled {
-			go func(s *subscription, f Flag) {
-				if err := s.handler.OnChange(f.Enabled); err != nil {
-					applyErr := fmt.Errorf("remote flag %s (enabled=%v): %w", f.Name, f.Enabled, err)
-					c.recoverFlag(s, f, applyErr)
-				} else {
-					successValue := f.Enabled
-					s.lastValue.Store(&successValue)
-					c.startHealthMonitor(s, f)
-				}
-			}(sub, flag)
-		}
+		s, f := sub, flag
+		s.enqueue(func() {
+			// only notify if the value actually changed from last known value
+			last := s.lastValue.Load()
+			if last != nil && *last == f.Enabled {
+				return
+			}
+			if err := s.handler.OnChange(f.Enabled); err != nil {
+				applyErr := fmt.Errorf("remote flag %s (enabled=%v): %w", f.Name, f.Enabled, err)
+				c.recoverFlag(s, f, applyErr)
+			} else {
+				successValue := f.Enabled
+				s.lastValue.Store(&successValue)
+				c.startHealthMonitor(s, f)
+			}
+		})
 	}
 }
 
@@ -379,7 +418,9 @@ func (c *Client) recoverFlag(sub *subscription, flag Flag, err error) {
 
 // notifyNoConfig notifies all subscribers that we properly established
 // a communication with Remote Config, but no configuration was present for this flag.
-// Must be called with lock held.
+// Must be called with lock held. Like notifyChange, the handlers are called
+// asynchronously, after the callbacks already queued for each subscription, so
+// that an earlier OnChange cannot overwrite the reset.
 // TODO(remy): should this one provide the last value received if any?
 func (c *Client) notifyNoConfig(flag FlagName) {
 	subs, exists := c.subscriptions[flag]
@@ -388,12 +429,18 @@ func (c *Client) notifyNoConfig(flag FlagName) {
 	}
 
 	for _, sub := range subs {
-		// Cancel ongoing health check if any
-		if sub.cancelHealthCheck != nil {
-			sub.cancelHealthCheck()
-			sub.cancelHealthCheck = nil
-		}
-		sub.handler.OnNoConfig()
+		s := sub
+		s.enqueue(func() {
+			// Cancel the health check started by an earlier OnChange, if any.
+			c.mu.Lock()
+			if s.cancelHealthCheck != nil {
+				s.cancelHealthCheck()
+				s.cancelHealthCheck = nil
+			}
+			c.mu.Unlock()
+			s.lastValue.Store(nil)
+			s.handler.OnNoConfig()
+		})
 	}
 }
 

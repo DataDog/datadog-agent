@@ -8,6 +8,8 @@ package remoteflags
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -531,4 +533,80 @@ func TestHealthMonitor_RecoveryProbeStaysUnhealthy(t *testing.T) {
 			// expected: recovery monitor gave up gracefully
 		}
 	})
+}
+
+// orderHandler records its callbacks in order. Its first OnChange blocks until
+// release is closed, to simulate a delayed callback.
+type orderHandler struct {
+	name    FlagName
+	release chan struct{}
+	started chan struct{}
+	mu      sync.Mutex
+	events  []string
+	calls   int
+}
+
+func newOrderHandler(flag FlagName) *orderHandler {
+	return &orderHandler{name: flag, release: make(chan struct{}), started: make(chan struct{})}
+}
+
+func (h *orderHandler) record(e string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.events = append(h.events, e)
+}
+
+func (h *orderHandler) recorded() []string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return slices.Clone(h.events)
+}
+
+func (h *orderHandler) FlagName() FlagName { return h.name }
+func (h *orderHandler) OnChange(v FlagValue) error {
+	h.mu.Lock()
+	h.calls++
+	first := h.calls == 1
+	h.mu.Unlock()
+	if first {
+		close(h.started)
+		<-h.release
+	}
+	h.record(fmt.Sprintf("change:%v", v))
+	return nil
+}
+func (h *orderHandler) OnNoConfig()                      { h.record("noconfig") }
+func (h *orderHandler) SafeRecover(_ error, v FlagValue) { h.record(fmt.Sprintf("recover:%v", v)) }
+func (h *orderHandler) IsHealthy() bool                  { return true }
+
+func TestOnUpdate_DelayedOnChangeDoesNotOverrideNoConfig(t *testing.T) {
+	client := NewClient()
+	defer client.Stop()
+	h := newOrderHandler("my_flag")
+	require.NoError(t, client.SubscribeWithHandler(h))
+
+	sendUpdate(client, Flag{Name: "my_flag", Enabled: true})
+	waitChan(t, h.started)
+	sendUpdate(client) // the flag is removed while OnChange(true) is still running
+	close(h.release)
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.Equal(c, []string{"change:true", "noconfig"}, h.recorded())
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestOnUpdate_OnChangeCallbacksKeepUpdateOrder(t *testing.T) {
+	client := NewClient()
+	defer client.Stop()
+	h := newOrderHandler("my_flag")
+	require.NoError(t, client.SubscribeWithHandler(h))
+
+	sendUpdate(client, Flag{Name: "my_flag", Enabled: true})
+	waitChan(t, h.started)
+	sendUpdate(client, Flag{Name: "my_flag", Enabled: false}) // sent while OnChange(true) is still running
+	close(h.release)
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.Equal(c, []string{"change:true", "change:false"}, h.recorded())
+	}, time.Second, 10*time.Millisecond)
 }
