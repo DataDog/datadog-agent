@@ -822,7 +822,22 @@ func (s *BaseSuite) AssertSuccessfulConfigStopExperiment() {
 	err := s.WaitForInstallerService("Running")
 	s.Require().NoError(err)
 
-	s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller().Status().
+	// The rollback restarts the services before it clears the experiment state,
+	// so the installer can be Running while the experiment is still being removed.
+	installerAsserts := s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller()
+	_, err = backoff.Retry(s.T().Context(), func() (any, error) {
+		experiment, err := installerAsserts.ExperimentConfig(consts.AgentPackage)
+		if err != nil {
+			return nil, err
+		}
+		if experiment != "" {
+			return nil, fmt.Errorf("config experiment %q is still set for package %s", experiment, consts.AgentPackage)
+		}
+		return nil, nil
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(10*time.Second)), backoff.WithMaxTries(18))
+	s.Require().NoError(err, "config experiment was not removed")
+
+	installerAsserts.Status().
 		HasConfigState(consts.AgentPackage).
 		WithExperimentConfigEqual("").
 		HasARunningDatadogAgentService()
