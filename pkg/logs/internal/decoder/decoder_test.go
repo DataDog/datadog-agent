@@ -13,6 +13,7 @@ import (
 
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	severityprovider "github.com/DataDog/datadog-agent/comp/logs/severityprovider/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/preprocessor"
@@ -1516,4 +1517,113 @@ func TestDecoderAutoMultilineTimestampBlankLine(t *testing.T) {
 		assert.Equal(t, "2024-03-28 13:45:31 INFO next", string(outs[1].GetContent()))
 		assert.False(t, outs[1].ParsingExtra.IsMultiLine)
 	})
+}
+
+func TestBuildSeverityProvider(t *testing.T) {
+	t.Cleanup(func() {
+		severityprovider.SetSeverityProvider(nil)
+		severityprovider.SetScopedSeverityProvider(nil)
+	})
+
+	checkout := severityeventsdef.ScopeKeyForService("checkout")
+	billing := severityeventsdef.ScopeKeyForService("billing")
+	severityprovider.SetScopedSeverityProvider(func(getScope func() severityeventsdef.ScopeKey) (severityeventsdef.SeverityLevel, bool) {
+		switch getScope() {
+		case checkout:
+			return severityeventsdef.SeverityHigh, true
+		case billing:
+			return severityeventsdef.SeverityMedium, true
+		default:
+			return severityeventsdef.SeverityLow, true
+		}
+	})
+
+	nilProvider := buildSeverityProvider(nil)
+	lvl, ok := nilProvider()
+	require.True(t, ok)
+	assert.Equal(t, severityeventsdef.SeverityLow, lvl)
+
+	emptySource := sources.NewReplaceableSource(sources.NewLogSource("empty", &config.LogsConfig{}))
+	lvl, ok = buildSeverityProvider(emptySource)()
+	require.True(t, ok)
+	assert.Equal(t, severityeventsdef.SeverityLow, lvl)
+
+	src := sources.NewReplaceableSource(sources.NewLogSource("app", &config.LogsConfig{Service: "checkout"}))
+	provider := buildSeverityProvider(src)
+	lvl, ok = provider()
+	require.True(t, ok)
+	assert.Equal(t, severityeventsdef.SeverityHigh, lvl)
+
+	src.Replace(sources.NewLogSource("app", &config.LogsConfig{Service: "billing"}))
+	lvl, ok = provider()
+	require.True(t, ok)
+	assert.Equal(t, severityeventsdef.SeverityMedium, lvl)
+}
+
+func TestBuildLineHandlerScopedSeverityIsolation(t *testing.T) {
+	t.Cleanup(func() {
+		severityprovider.SetSeverityProvider(nil)
+		severityprovider.SetScopedSeverityProvider(nil)
+	})
+
+	cfg := configmock.New(t)
+	cfg.Set("logs_config.experimental_adaptive_sampling.enabled", true, pkgconfigmodel.SourceAgentRuntime)
+	cfg.Set("logs_config.experimental_adaptive_sampling.max_patterns", 10, pkgconfigmodel.SourceAgentRuntime)
+	cfg.Set("logs_config.experimental_adaptive_sampling.burst_size", 1, pkgconfigmodel.SourceAgentRuntime)
+	cfg.Set("logs_config.experimental_adaptive_sampling.rate_limit", 0.001, pkgconfigmodel.SourceAgentRuntime)
+	cfg.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled", true, pkgconfigmodel.SourceAgentRuntime)
+	cfg.Set("logs_config.experimental_adaptive_sampling.smart_severity_profiles.high.pass_through", true, pkgconfigmodel.SourceAgentRuntime)
+
+	checkoutKey := severityeventsdef.ScopeKeyForService("checkout")
+	elevated := false
+	severityprovider.SetScopedSeverityProvider(func(getScope func() severityeventsdef.ScopeKey) (severityeventsdef.SeverityLevel, bool) {
+		if elevated && getScope() == checkoutKey {
+			return severityeventsdef.SeverityHigh, true
+		}
+		return severityeventsdef.SeverityLow, true
+	})
+
+	checkoutOut := make(chan *message.Message, 20)
+	billingOut := make(chan *message.Message, 20)
+	checkoutHandler := buildLineHandler(
+		sources.NewReplaceableSource(sources.NewLogSource("checkout", &config.LogsConfig{Service: "checkout"})),
+		nil, status.NewInfoRegistry(), checkoutOut, &DetectedPattern{}, preprocessor.NewTokenizer(0), 0, 0,
+	)
+	billingHandler := buildLineHandler(
+		sources.NewReplaceableSource(sources.NewLogSource("billing", &config.LogsConfig{Service: "billing"})),
+		nil, status.NewInfoRegistry(), billingOut, &DetectedPattern{}, preprocessor.NewTokenizer(0), 0, 0,
+	)
+
+	// Burn the initial BurstSize=1 credit for both services under Low severity.
+	checkoutHandler.process(NewInput([]byte("checkout request 1")))
+	billingHandler.process(NewInput([]byte("billing request 1")))
+	require.Len(t, checkoutOut, 1)
+	require.Len(t, billingOut, 1)
+
+	// Elevate checkout only: checkout passes through while billing remains rate-limited.
+	elevated = true
+	checkoutHandler.process(NewInput([]byte("checkout request 2")))
+	checkoutHandler.process(NewInput([]byte("checkout request 3")))
+	billingHandler.process(NewInput([]byte("billing request 2")))
+	billingHandler.process(NewInput([]byte("billing request 3")))
+	assert.Len(t, checkoutOut, 3)
+	assert.Len(t, billingOut, 1)
+}
+
+func BenchmarkBuildSeverityProvider(b *testing.B) {
+	b.Cleanup(func() {
+		severityprovider.SetSeverityProvider(nil)
+		severityprovider.SetScopedSeverityProvider(nil)
+	})
+	severityprovider.SetScopedSeverityProvider(func(_ func() severityeventsdef.ScopeKey) (severityeventsdef.SeverityLevel, bool) {
+		return severityeventsdef.SeverityLow, true
+	})
+	src := sources.NewReplaceableSource(sources.NewLogSource("app", &config.LogsConfig{Service: "checkout"}))
+	provider := buildSeverityProvider(src)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		_, _ = provider()
+	}
 }

@@ -425,6 +425,23 @@ func buildSourceTag(source *sources.ReplaceableSource) func() string {
 	}
 }
 
+// buildSeverityProvider returns a zero-alloc closure reading scoped severity for source.Config().Service.
+func buildSeverityProvider(source *sources.ReplaceableSource) func() (severityeventsdef.SeverityLevel, bool) {
+	getScope := func() severityeventsdef.ScopeKey {
+		if source == nil {
+			return 0
+		}
+		cfg := source.Config()
+		if cfg == nil {
+			return 0
+		}
+		return severityeventsdef.ScopeKeyForService(cfg.Service)
+	}
+	return func() (severityeventsdef.SeverityLevel, bool) {
+		return severityprovider.CurrentForScope(getScope)
+	}
+}
+
 type samplerMode int
 
 const (
@@ -571,10 +588,16 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 	case samplerAdaptiveSampling:
 		cfg := resolveAdaptiveSamplerConfig(sourceConfig.ExperimentalAdaptiveSampling, tok, adaptiveSamplingSourceDetails(source.UnderlyingSource()))
 		cfg.IsSourceDisabled = buildIsSourceDisabled(source)
+		if cfg.SmartSeverityProfilesEnabled {
+			cfg.SeverityProvider = buildSeverityProvider(source)
+		}
 		sampler = preprocessor.NewAdaptiveSampler(cfg, buildSourceTag(source), baseBytesEstimate)
 	case samplerNoisyLogDetection:
 		cfg := resolveNoisyLogDetectionConfig(sourceConfig.ExperimentalAdaptiveSampling, tok)
 		cfg.IsSourceDisabled = buildIsSourceDisabled(source)
+		if cfg.SmartSeverityProfilesEnabled {
+			cfg.SeverityProvider = buildSeverityProvider(source)
+		}
 		sampler = preprocessor.NewAdaptiveSampler(cfg, buildSourceTag(source), baseBytesEstimate)
 	default:
 		sampler = preprocessor.NewNoopSampler()
