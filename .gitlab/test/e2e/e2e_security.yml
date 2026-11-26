@@ -178,7 +178,16 @@ new-e2e-cspm:
 new-e2e-cspm-aks:
   extends: .new_e2e_template
   rules:
-    - !reference [.on_e2e_main_release_or_rc]
+    - !reference [.except_e2e_disabled]
+    - !reference [.on_e2e_infra_changes]
+    - changes:
+        paths:
+          - test/new-e2e/tests/cspm/aks_test.go
+          - test/new-e2e/tests/cspm/cspm_test.go
+          - test/new-e2e/tests/cspm/node_config_test.go
+        compare_to: $COMPARE_TO_BRANCH
+      when: on_success
+    - !reference [.on_e2e_default]
     - changes:
         paths:
           - cmd/security-agent/subcommands/compliance/**/*
@@ -186,9 +195,6 @@ new-e2e-cspm-aks:
           - pkg/compliance/k8sconfig/**/*
           - pkg/compliance/types/**/*
           - pkg/compliance/utils/**/*
-          - test/new-e2e/tests/cspm/aks_test.go
-          - test/new-e2e/tests/cspm/cspm_test.go
-          - test/new-e2e/tests/cspm/node_config_test.go
         compare_to: $COMPARE_TO_BRANCH
       when: on_success
     - !reference [.manual]

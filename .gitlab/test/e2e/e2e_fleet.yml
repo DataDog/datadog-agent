@@ -68,6 +68,7 @@ new-e2e-fleet-upgrade-history:
     # Keep main pushes manual before evaluating the path-based rules.
     - !reference [.on_main_manual]
     - !reference [.except_light_pipeline]
+    - !reference [.on_e2e_infra_changes]
     - changes:
         paths:
           - test/new-e2e/tests/fleet/**/*

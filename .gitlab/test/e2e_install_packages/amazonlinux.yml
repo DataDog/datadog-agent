@@ -43,7 +43,8 @@ new-e2e-agent-platform-step-by-step-amazonlinux-a7-x64:
     - .new-e2e_amazonlinux_a7_x86_64
     - .new-e2e_agent_a7
   rules:
-    !reference [.on_deploy]
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.on_deploy]
   variables:
     FLAVOR: datadog-agent
 
@@ -54,7 +55,8 @@ new-e2e-agent-platform-step-by-step-amazonlinux-a7-arm64:
     - .new-e2e_amazonlinux_a7_arm64
     - .new-e2e_agent_a7
   rules:
-    !reference [.on_deploy]
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.on_deploy]
   variables:
     FLAVOR: datadog-agent
 
