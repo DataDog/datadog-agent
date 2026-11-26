@@ -282,8 +282,8 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarsha
 }
 
 func (ic *inventorychecksImpl) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
-	// GetAsJSON already return scrubbed data
-	scrubbed, err := ic.GetAsJSON()
+	// Scrub by key name, as the flare does, so that sensitive fields such as the secret hashes are not exposed
+	scrubbed, err := ic.GetAsScrubbedJSON()
 	if err != nil {
 		httputils.SetJSONError(w, err, 500)
 		return
