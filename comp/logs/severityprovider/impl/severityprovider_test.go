@@ -83,6 +83,10 @@ func (f *fakeObserverComponent) SubscribeSeverityEventsReader(cfg severityevents
 	return f.sub, nil
 }
 
+func (f *fakeObserverComponent) SubscribeScopedSeverityEvents(_ severityeventsdef.SeverityEventsConfiguration, _ severityeventsdef.ScopedSeverityEventListener) (severityeventsdef.ScopedSeverityEventsSubscription, error) {
+	return severityeventsdef.ScopedSeverityEventsSubscription{}, nil
+}
+
 func (f *fakeObserverComponent) advance(sec int64, level severityeventsdef.SeverityLevel) {
 	f.dispatcher.Advance(sec, level)
 }

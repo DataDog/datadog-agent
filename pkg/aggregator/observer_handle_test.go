@@ -97,6 +97,10 @@ func (c *recordingComponent) SubscribeSeverityEventsReader(_ severityeventsdef.S
 	return severityeventsdef.SeverityEventsReaderSubscription{Unsubscribe: func() {}}, nil
 }
 
+func (c *recordingComponent) SubscribeScopedSeverityEvents(_ severityeventsdef.SeverityEventsConfiguration, _ severityeventsdef.ScopedSeverityEventListener) (severityeventsdef.ScopedSeverityEventsSubscription, error) {
+	return severityeventsdef.ScopedSeverityEventsSubscription{Unsubscribe: func() {}}, nil
+}
+
 // TestTimeSamplerObserverHandle verifies that ObserveMetric is called for each
 // sample fed to the TimeSampler when an observerHandle is wired.
 func TestTimeSamplerObserverHandle(t *testing.T) {

@@ -501,6 +501,10 @@ func (*disabledObserver) SubscribeSeverityEventsReader(_ severityeventsdef.Sever
 	return severityeventsdef.SeverityEventsReaderSubscription{}, errors.New("no active anomaly scorer")
 }
 
+func (*disabledObserver) SubscribeScopedSeverityEvents(_ severityeventsdef.SeverityEventsConfiguration, _ severityeventsdef.ScopedSeverityEventListener) (severityeventsdef.ScopedSeverityEventsSubscription, error) {
+	return severityeventsdef.ScopedSeverityEventsSubscription{}, errors.New("no active scoped anomaly scorer")
+}
+
 // NewComponent creates an observer.Component.
 func NewComponent(deps Requires) (Provides, error) {
 	cfg := deps.Config
@@ -1194,6 +1198,11 @@ func (o *observerImpl) SubscribeSeverityEventsReader(cfg severityeventsdef.Sever
 		return severityeventsdef.SeverityEventsReaderSubscription{}, errors.New("no active anomaly scorer")
 	}
 	return scorer.SubscribeSeverityEventsReader(cfg)
+}
+
+// SubscribeScopedSeverityEvents registers listener for per-scope severity transitions.
+func (o *observerImpl) SubscribeScopedSeverityEvents(_ severityeventsdef.SeverityEventsConfiguration, _ severityeventsdef.ScopedSeverityEventListener) (severityeventsdef.ScopedSeverityEventsSubscription, error) {
+	return severityeventsdef.ScopedSeverityEventsSubscription{}, errors.New("no active scoped anomaly scorer")
 }
 
 // --- DebugView implementation ---
