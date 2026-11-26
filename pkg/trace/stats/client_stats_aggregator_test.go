@@ -1346,6 +1346,9 @@ func TestAggregationPeerK8sScope(t *testing.T) {
 			KubeClusterUID:      func() string { return testClusterUID },
 			ContainerTags: func(cid string) ([]string, error) {
 				lookups++
+				if cid == "missing" {
+					return nil, nil
+				}
 				if cid != "cid" {
 					return nil, errors.New("unknown container")
 				}
@@ -1470,6 +1473,15 @@ func TestAggregationPeerK8sScope(t *testing.T) {
 		peerTags, lookups := aggregate(t, nil, p)
 		assert.Equal(t, []string{"peer.hostname:orders", uidTag, "peer.k8s.namespace:tagger-ns"}, peerTags)
 		assert.Equal(t, 1, lookups)
+	})
+	t.Run("failed or empty container tags lookup not repeated", func(t *testing.T) {
+		for _, cid := range []string{"other", "missing"} {
+			p := payloadFrom(cid, []string{"kube_namespace:payload-ns"}, "peer.hostname:orders")
+			p.Version = ""
+			peerTags, lookups := aggregate(t, nil, p)
+			assert.Equal(t, []string{"peer.hostname:orders", uidTag, "peer.k8s.namespace:payload-ns"}, peerTags, cid)
+			assert.Equal(t, 1, lookups, cid)
+		}
 	})
 	t.Run("bare service with unknown container", func(t *testing.T) {
 		peerTags, _ := aggregate(t, nil, payloadFrom("other", nil, "peer.hostname:orders"))

@@ -262,6 +262,17 @@ func KubeNamespaceFromTags(tags []string) string {
 	return ""
 }
 
+// KubeNamespaceFromTagString returns the kube_namespace tag value from comma-separated
+// container tags, such as the _dd.tags.container payload tag.
+func KubeNamespaceFromTagString(tags string) string {
+	for t := range strings.SplitSeq(tags, ",") {
+		if v, ok := strings.CutPrefix(strings.TrimSpace(t), kubeNamespaceTagPrefix); ok {
+			return v
+		}
+	}
+	return ""
+}
+
 // peerK8sClusterUIDTag caches the peer.k8s.cluster.uid tag built from the last
 // cluster UID, so building a peerK8sScope does not allocate per payload.
 type peerK8sClusterUIDTag struct {

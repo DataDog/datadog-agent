@@ -528,6 +528,10 @@ func (a *Agent) Process(p *api.Payload) {
 	}
 	if a.conf.PeerTagsK8sScope && a.conf.KubeClusterUID != nil {
 		statsInput.KubeNamespace = stats.KubeNamespaceFromTags(p.ContainerTags)
+		if statsInput.KubeNamespace == "" {
+			// e.g. OTLP payloads, whose container tags come from resource attributes
+			statsInput.KubeNamespace = stats.KubeNamespaceFromTagString(p.TracerPayload.Tags[tagContainersTags])
+		}
 	}
 
 	if a.TracerPayloadModifier != nil {
@@ -717,6 +721,11 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 	}
 	if a.conf.PeerTagsK8sScope && a.conf.KubeClusterUID != nil {
 		statsInput.KubeNamespace = stats.KubeNamespaceFromTags(p.ContainerTags)
+		if statsInput.KubeNamespace == "" {
+			if ctags, ok := p.TracerPayload.GetAttributeAsString(tagContainersTags); ok {
+				statsInput.KubeNamespace = stats.KubeNamespaceFromTagString(ctags)
+			}
+		}
 	}
 
 	if a.TracerPayloadModifierV1 != nil {

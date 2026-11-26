@@ -1443,6 +1443,56 @@ func TestConcentratorInputKubeNamespace(t *testing.T) {
 	}
 }
 
+func TestConcentratorInputKubeNamespaceFromPayloadTags(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		containerTags []string
+		payloadTags   string
+		expected      string
+	}{
+		{name: "payload tags only", payloadTags: "pod_name:orders-0,kube_namespace:shop", expected: "shop"},
+		{name: "container tags win", containerTags: []string{"kube_namespace:shop"}, payloadTags: "kube_namespace:other", expected: "shop"},
+		{name: "container tags without namespace", containerTags: []string{"pod_name:orders-0"}, payloadTags: "kube_namespace:shop", expected: "shop"},
+		{name: "no namespace", payloadTags: "pod_name:orders-0", expected: ""},
+		{name: "no tags", expected: ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := config.New()
+			cfg.Endpoints[0].APIKey = "test"
+			cfg.KubeClusterUID = func() string { return "" }
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+
+			tp := testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(testutil.RandomSpan()))
+			if tc.payloadTags != "" {
+				tp.Tags = map[string]string{tagContainersTags: tc.payloadTags}
+			}
+			agnt.Process(&api.Payload{
+				TracerPayload: tp,
+				Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
+				ContainerTags: tc.containerTags,
+			})
+			strs := idx.NewStringTable()
+			tpV1 := testutil.TracerPayloadV1WithChunk(spansToChunkV1(idx.NewInternalSpan(strs, &idx.Span{SpanID: 1, ServiceRef: strs.Add("a")})))
+			if tc.payloadTags != "" {
+				tpV1.SetStringAttribute(tagContainersTags, tc.payloadTags)
+			}
+			agnt.ProcessV1(&api.PayloadV1{
+				TracerPayload: tpV1,
+				Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
+				ContainerTags: tc.containerTags,
+			})
+
+			mco := agnt.Concentrator.(*mockConcentrator)
+			require.Len(t, mco.stats, 1)
+			assert.Equal(t, tc.expected, mco.stats[0].KubeNamespace)
+			require.Len(t, mco.statsV1, 1)
+			assert.Equal(t, tc.expected, mco.statsV1[0].KubeNamespace)
+		})
+	}
+}
+
 func TestConcentratorInputV1(t *testing.T) {
 	rootSpan := func(strs *idx.StringTable) *idx.InternalSpan {
 		return idx.NewInternalSpan(strs, &idx.Span{SpanID: 3, ServiceRef: strs.Add("a"), NameRef: strs.Add("name"), ResourceRef: strs.Add("resource"), Attributes: map[uint32]*idx.AnyValue{

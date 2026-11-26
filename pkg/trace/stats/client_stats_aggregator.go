@@ -196,8 +196,8 @@ func (a *ClientStatsAggregator) add(now time.Time, p *pb.ClientStatsPayload) {
 	}()
 
 	// populate container tags data on the payload
-	cTags := a.setVersionDataFromContainerTags(p)
-	a.addPeerK8sScope(p, cTags)
+	cTags, cTagsLooked := a.setVersionDataFromContainerTags(p)
+	a.addPeerK8sScope(p, cTags, cTagsLooked)
 	p.ProcessTagsHash = processTagsHash(p.ProcessTags)
 	// compute the PayloadAggregationKey, common for all buckets within the payload
 	payloadAggKey := newPayloadAggregationKey(p.Env, p.Hostname, p.Version, p.ContainerID, p.GitCommitSha, p.ImageTag, p.Lang, p.ProcessTagsHash, p.Service)
@@ -237,37 +237,39 @@ func (a *ClientStatsAggregator) flushPayloads(p []*pb.ClientStatsPayload) {
 	})
 }
 
-// setVersionDataFromContainerTags returns the container tags it resolved, if any.
-func (a *ClientStatsAggregator) setVersionDataFromContainerTags(p *pb.ClientStatsPayload) []string {
+// setVersionDataFromContainerTags returns the container tags it resolved, if any, and
+// whether it looked them up, so that a failed or empty lookup is not repeated.
+func (a *ClientStatsAggregator) setVersionDataFromContainerTags(p *pb.ClientStatsPayload) ([]string, bool) {
 	// No need to go any further if we already have the information in the payload.
 	if p.ImageTag != "" && p.GitCommitSha != "" && p.Version != "" {
-		return nil
+		return nil, false
 	}
-	if p.ContainerID != "" {
-		cTags, err := a.conf.ContainerTags(p.ContainerID)
-		if err != nil {
-			log.Errorf("Client stats aggregator is unable to resolve container ID (%s) to container tags: %v", p.ContainerID, err)
-		} else {
-			gitCommitSha, imageTag, appVersion := version.GetVersionDataFromContainerTags(cTags)
-			// Only override if the payload's original values were empty strings.
-			if p.ImageTag == "" {
-				p.ImageTag = imageTag
-			}
-			if p.GitCommitSha == "" {
-				p.GitCommitSha = gitCommitSha
-			}
-			if p.Version == "" {
-				p.Version = appVersion
-			}
-			return cTags
-		}
+	if p.ContainerID == "" {
+		return nil, false
 	}
-	return nil
+	cTags, err := a.conf.ContainerTags(p.ContainerID)
+	if err != nil {
+		log.Errorf("Client stats aggregator is unable to resolve container ID (%s) to container tags: %v", p.ContainerID, err)
+		return nil, true
+	}
+	gitCommitSha, imageTag, appVersion := version.GetVersionDataFromContainerTags(cTags)
+	// Only override if the payload's original values were empty strings.
+	if p.ImageTag == "" {
+		p.ImageTag = imageTag
+	}
+	if p.GitCommitSha == "" {
+		p.GitCommitSha = gitCommitSha
+	}
+	if p.Version == "" {
+		p.Version = appVersion
+	}
+	return cTags, true
 }
 
 // addPeerK8sScope adds the peer.k8s.* tags to the peer tags of the payload's grouped stats.
-// cTags are the container tags already resolved for the payload, if any.
-func (a *ClientStatsAggregator) addPeerK8sScope(p *pb.ClientStatsPayload, cTags []string) {
+// cTags are the container tags already resolved for the payload, if any, and cTagsLooked
+// whether they were looked up.
+func (a *ClientStatsAggregator) addPeerK8sScope(p *pb.ClientStatsPayload, cTags []string, cTagsLooked bool) {
 	clusterUIDTag := a.peerK8sClusterUIDTag.get(a.conf)
 	if clusterUIDTag == "" {
 		return
@@ -284,7 +286,7 @@ func (a *ClientStatsAggregator) addPeerK8sScope(p *pb.ClientStatsPayload, cTags 
 				continue
 			}
 			if !callerResolved && scope.needsCallerNamespace(gs.PeerTags) {
-				scope.callerNamespace = a.callerKubeNamespace(p, cTags)
+				scope.callerNamespace = a.callerKubeNamespace(p, cTags, cTagsLooked)
 				callerResolved = true
 			}
 			// the payload's slices are not ours to modify
@@ -295,9 +297,9 @@ func (a *ClientStatsAggregator) addPeerK8sScope(p *pb.ClientStatsPayload, cTags 
 
 // callerKubeNamespace returns the Kubernetes namespace of the container that sent p.
 // It prefers the container tags resolved by the Agent (cTags, or resolved here) over
-// the tags sent with the payload.
-func (a *ClientStatsAggregator) callerKubeNamespace(p *pb.ClientStatsPayload, cTags []string) string {
-	if cTags == nil && p.ContainerID != "" && a.conf.ContainerTags != nil {
+// the tags sent with the payload. It looks the container tags up only if cTagsLooked is false.
+func (a *ClientStatsAggregator) callerKubeNamespace(p *pb.ClientStatsPayload, cTags []string, cTagsLooked bool) string {
+	if !cTagsLooked && p.ContainerID != "" && a.conf.ContainerTags != nil {
 		var err error
 		if cTags, err = a.conf.ContainerTags(p.ContainerID); err != nil {
 			log.Debugf("Client stats aggregator is unable to resolve container ID (%s) to container tags: %v", p.ContainerID, err)

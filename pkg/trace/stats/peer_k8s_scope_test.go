@@ -261,6 +261,14 @@ func TestKubeNamespaceFromTags(t *testing.T) {
 	assert.Equal(t, "", KubeNamespaceFromTags(nil))
 }
 
+func TestKubeNamespaceFromTagString(t *testing.T) {
+	assert.Equal(t, "shop", KubeNamespaceFromTagString("image_tag:1,kube_namespace:shop,pod_name:orders-0"))
+	assert.Equal(t, "shop", KubeNamespaceFromTagString("kube_namespace:shop"))
+	assert.Equal(t, "shop", KubeNamespaceFromTagString("image_tag:1, kube_namespace:shop"))
+	assert.Equal(t, "", KubeNamespaceFromTagString("image_tag:1,kube_namespace_label:x"))
+	assert.Equal(t, "", KubeNamespaceFromTagString(""))
+}
+
 func TestPeerK8sClusterUIDTag(t *testing.T) {
 	uid := testClusterUID
 	conf := &config.AgentConfig{
