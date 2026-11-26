@@ -79,6 +79,7 @@ func computeRawsTable() map[string]uint64 {
 		OffsetNameVfsmountMntRoot:                 0,
 		OffsetNameDentryDName:                     32,
 		OffsetNameQstrName:                        8,
+		OffsetNameQstrLen:                         4,
 		OffsetNameDentryDParent:                   24,
 		OffsetNameVfsmountMntSb:                   8,
 		OffsetNameSockCommonStructSKCNum:          14,

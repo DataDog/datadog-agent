@@ -11,6 +11,7 @@ jobs:
   add_to_merge_queue:
     if: (github.event.pull_request.user.login == 'dependabot[bot]' || github.event.pull_request.user.login == 'renovate[bot]') && !startsWith(github.event.pull_request.head.ref, 'renovate/datadog-agent-dev-')
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     environment:
       name: dependabot
     permissions:

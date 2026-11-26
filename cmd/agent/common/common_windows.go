@@ -39,7 +39,7 @@ func CheckAndUpgradeConfig() error {
 	}
 	ddcfg := pkgconfigsetup.GlobalConfigBuilder()
 	ddcfg.AddConfigPath(defaultpaths.GetDefaultConfPath())
-	err := pkgconfigsetup.LoadDatadog(ddcfg, &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, &schemanoopimpl.SchemaNoop{})
+	err := pkgconfigsetup.LoadDatadog(ddcfg, &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, &schemanoopimpl.SchemaNoop{}, false)
 	if err == nil {
 		// was able to read config, check for api key
 		if ddcfg.GetString("api_key") != "" {

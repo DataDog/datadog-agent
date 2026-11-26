@@ -298,6 +298,7 @@ if windows_target?
     "#{install_dir}\\bin\\agent\\process-agent.exe",
     "#{install_dir}\\bin\\agent\\system-probe.exe",
     "#{install_dir}\\bin\\agent\\secret-generic-connector.exe",
+    "#{install_dir}\\bin\\agent\\ddtray.exe",
     "#{install_dir}\\datadog-installer.exe"
   ]
 
@@ -369,7 +370,6 @@ if windows_target?
     ].compact
 
     BINARIES_TO_SIGN = GO_BINARIES + PYTHON_BINARIES + OPENSSL_BINARIES + [
-      "#{install_dir}\\bin\\agent\\ddtray.exe",
       "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll",
       "#{install_dir}\\bin\\agent\\dd-compile-policy.exe",
       "#{install_dir}\\bin\\agent\\dd-procmgrd.exe",

@@ -10,67 +10,87 @@ package nvidia
 import (
 	"errors"
 	"fmt"
-	"slices"
 	"strconv"
 	"unsafe"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// nvlinkSample handles NVLink metrics collection logic
-func nvlinkSample(device ddnvml.Device) ([]Sample, uint64, error) {
+// nvlinkLinkStates returns whether each NVLink link of the device is active, by link index,
+// for the links whose state could be read. States other than enabled and disabled are left
+// out. It returns errUnsupportedDevice when the device has no NVLink.
+func nvlinkLinkStates(device ddnvml.Device) (map[int]bool, error) {
 	totalNVLinks := device.GetDeviceInfo().NVLinkLinkCount
 	if totalNVLinks <= 0 {
-		return nil, 0, errUnsupportedDevice
+		return nil, errUnsupportedDevice
 	}
 
-	// Collect NVLink states
 	var multiErr []error
-	active, inactive := 0, 0
-
-	// Iterate over all existing nvlinks for the device
+	states := make(map[int]bool, totalNVLinks)
 	for i := 0; i < totalNVLinks; i++ {
-		state, err := device.GetNvLinkState(i)
+		active, ok, err := nvlinkLinkState(device, i)
 		if err != nil {
-			multiErr = append(multiErr, fmt.Errorf("failed to get NVLink state for link %d: %w", i, err))
+			multiErr = append(multiErr, err)
+		} else if ok {
+			states[i] = active
+		}
+	}
+	return states, errors.Join(multiErr...)
+}
+
+// nvlinkLinkState returns whether an NVLink link is active. ok is false when its state is
+// neither enabled nor disabled.
+func nvlinkLinkState(device ddnvml.Device, link int) (active, ok bool, err error) {
+	state, err := device.GetNvLinkState(link)
+	if err != nil {
+		return false, false, fmt.Errorf("failed to get NVLink state for link %d: %w", link, err)
+	}
+	if state != nvml.FEATURE_ENABLED && state != nvml.FEATURE_DISABLED {
+		return false, false, nil
+	}
+	return state == nvml.FEATURE_ENABLED, true, nil
+}
+
+// nvlinkSample handles NVLink metrics collection logic
+func nvlinkSample(device ddnvml.Device) ([]Sample, uint64, error) {
+	states, err := nvlinkLinkStates(device)
+	if errors.Is(err, errUnsupportedDevice) {
+		return nil, 0, err
+	}
+
+	totalNVLinks := device.GetDeviceInfo().NVLinkLinkCount
+	active, inactive := 0, 0
+	var samples []Sample
+	for i := 0; i < totalNVLinks; i++ {
+		isActive, ok := states[i]
+		if !ok {
 			continue
 		}
-
-		// Count active and inactive links
-		if state == nvml.FEATURE_ENABLED {
+		if isActive {
 			active++
-		} else if state == nvml.FEATURE_DISABLED {
+		} else {
 			inactive++
 		}
+		samples = append(samples, &Metric{
+			baseSample: baseSample{tags: []string{nvlinkPortTag(i + 1)}},
+			Name:       "nvlink.link_up",
+			Value:      boolToFloat(isActive),
+			Type:       metrics.GaugeType,
+		})
 	}
 
-	// Return metrics
-	allSamples := []Sample{
-		&Metric{
-			Name:  "nvlink.count.total",
-			Value: float64(totalNVLinks),
-			Type:  metrics.GaugeType,
-		},
-		&Metric{
-			Name:  "nvlink.count.active",
-			Value: float64(active),
-			Type:  metrics.GaugeType,
-		},
-		&Metric{
-			Name:  "nvlink.count.inactive",
-			Value: float64(inactive),
-			Type:  metrics.GaugeType,
-		},
-	}
-
-	return allSamples, 0, errors.Join(multiErr...)
+	samples = append(samples,
+		&Metric{Name: "nvlink.count.total", Value: float64(totalNVLinks), Type: metrics.GaugeType},
+		&Metric{Name: "nvlink.count.active", Value: float64(active), Type: metrics.GaugeType},
+		&Metric{Name: "nvlink.count.inactive", Value: float64(inactive), Type: metrics.GaugeType},
+	)
+	return samples, 0, err
 }
 
 type processMemoryUsageData struct {
@@ -373,41 +393,6 @@ func needsRecoverySample(device ddnvml.Device) ([]Sample, uint64, error) {
 		Value:      boolToFloat(recoveryAction != nvml.GPU_RECOVERY_ACTION_NONE),
 		Type:       metrics.GaugeType,
 	}}, 0, nil
-}
-
-// gpuHealth reports whether the GPU is lost and whether it is unhealthy: the device plugin
-// marks it unhealthy or NVML asks for a recovery action. It returns errUnsupportedDevice when
-// neither source can ever exist on this device, and another error when one is not readable yet.
-func gpuHealth(device ddnvml.Device, deps *CollectorDependencies) (lost, unhealthy bool, err error) {
-	if _, err := device.GetIndex(); err != nil && ddnvml.IsGPULost(err) {
-		return true, false, nil
-	}
-	known := false
-	devicePlugins := deps != nil && deps.Workloadmeta != nil && env.IsFeaturePresent(env.KubernetesDevicePlugins)
-	if devicePlugins {
-		gpu, gpuErr := deps.Workloadmeta.GetGPU(device.GetDeviceInfo().UUID)
-		if gpuErr == nil {
-			known = true
-			unhealthy = !gpu.Healthy
-		} else {
-			err = gpuErr
-		}
-	}
-	action, actionErr := fieldValueForField(device, nvml.FI_DEV_GET_GPU_RECOVERY_ACTION, "FI_DEV_GET_GPU_RECOVERY_ACTION")
-	if actionErr == nil {
-		known = true
-		unhealthy = unhealthy || nvml.DeviceGpuRecoveryAction(action) != nvml.GPU_RECOVERY_ACTION_NONE
-	} else if err == nil {
-		err = actionErr
-	}
-	switch {
-	case known:
-		return false, unhealthy, nil
-	case !devicePlugins && ddnvml.IsAPIUnsupportedOnDevice(actionErr, device):
-		return false, false, errUnsupportedDevice
-	default:
-		return false, false, err
-	}
 }
 
 // fabricHealthIssues maps the 2-bit NVML fabric health mask fields to the
@@ -904,24 +889,6 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 			},
 		},
 		{
-			Name: "device_unhealthy_count",
-			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
-				if !env.IsFeaturePresent(env.KubernetesDevicePlugins) {
-					return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("GetUnhealthyDevices", nvml.ERROR_NOT_SUPPORTED)
-				}
-
-				gpu, err := deps.Workloadmeta.GetGPU(device.GetDeviceInfo().UUID)
-				if err != nil {
-					return nil, 0, err
-				}
-				var count float64
-				if !gpu.Healthy {
-					count = 1
-				}
-				return []Sample{&Metric{Name: "device.unhealthy", Value: count, Type: metrics.GaugeType}}, 0, nil
-			},
-		},
-		{
 			Name: "clock_throttle_reasons",
 			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 				reasons, err := device.GetCurrentClocksThrottleReasons()
@@ -1050,72 +1017,29 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 		}
 	}
 
+	// The sampling collector reports core.limit with the per-process utilization, which NVML does not support on
+	// MIG devices nor on GPUs in MIG mode, so report their static core count here. With the Low priority, the
+	// eBPF collector's value (with the process tags) still wins when it is enabled.
 	apis = append(apis, apiCallInfo{
-		Name: "device_unavailable",
+		Name: "mig_core_limit",
 		Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
-			if _, ok := device.(*ddnvml.PhysicalDevice); !ok {
+			cores := device.GetDeviceInfo().CoreCount
+			if slicingModeTag(device) == "none" || cores <= 0 {
 				return nil, 0, errUnsupportedDevice
 			}
-
-			value := 0.0
-			if _, err := device.GetIndex(); err != nil {
-				if !ddnvml.IsGPULost(err) {
-					return nil, 0, err
-				}
-				value = 1
-			}
 			return []Sample{&Metric{
-				baseSample: baseSample{tags: []string{"unavailable_reason:lost"}, noWorkloadTags: true},
-				Name:       "device.unavailable",
-				Value:      value,
+				baseSample: baseSample{priority: Low},
+				Name:       "core.limit",
+				Value:      float64(cores),
 				Type:       metrics.GaugeType,
 			}}, 0, nil
 		},
 	})
 
-	// Report the unhealthy and unschedulable reasons on physical devices. A GPU is unavailable
-	// for at most one reason: lost, then unhealthy, then unschedulable, so the lower ones report 0.
 	apis = append(apis, apiCallInfo{
-		Name: "device_unavailable_reasons",
+		Name: "device_unavailable",
 		Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
-			if _, ok := device.(*ddnvml.PhysicalDevice); !ok {
-				return nil, 0, errUnsupportedDevice
-			}
-			reportUnschedulable := deps != nil && deps.NodeUnschedulable != nil
-			lost, unhealthy, healthErr := gpuHealth(device, deps)
-			healthUnsupported := errors.Is(healthErr, errUnsupportedDevice)
-			if healthUnsupported && !reportUnschedulable {
-				return nil, 0, errUnsupportedDevice
-			}
-
-			var samples []Sample
-			if healthErr == nil {
-				samples = append(samples, &Metric{
-					baseSample: baseSample{tags: []string{"unavailable_reason:unhealthy"}, noWorkloadTags: true},
-					Name:       "device.unavailable",
-					Value:      boolToFloat(unhealthy && !lost),
-					Type:       metrics.GaugeType,
-				})
-			}
-			if reportUnschedulable {
-				// Unknown health does not hold back the node state.
-				for _, p := range deps.NodeUnschedulable.Points() {
-					value := p.Value
-					if lost || unhealthy {
-						value = 0
-					}
-					samples = append(samples, &Metric{
-						baseSample: baseSample{tags: slices.Clone(p.Tags), noWorkloadTags: true},
-						Name:       "device.unavailable",
-						Value:      value,
-						Type:       metrics.GaugeType,
-					})
-				}
-			}
-			if healthErr != nil && !healthUnsupported {
-				return samples, 0, healthErr
-			}
-			return samples, 0, nil
+			return deviceUnavailableSample(device, deps)
 		},
 	})
 

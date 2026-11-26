@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    APM: When ``apm_config.debugger_additional_endpoints`` or
+    ``apm_config.symdb_additional_endpoints`` is set, the Agent now finishes
+    sending Dynamic Instrumentation and Symbol Database data to the additional
+    endpoints when the tracing library closes its connection early. Before,
+    this data could be lost for the additional endpoints.

@@ -129,6 +129,7 @@ dd_agent_go_test(
     name = "rshell_test",
     srcs = [
         "helper_test.go",
+        "run_command_log_test.go",
         "run_command_test.go",
     ],
     embed = [":rshell"],

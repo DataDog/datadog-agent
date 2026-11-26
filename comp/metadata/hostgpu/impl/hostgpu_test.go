@@ -158,3 +158,24 @@ func TestFlareProviderFilename(t *testing.T) {
 	gh := getTestInventoryHost(t)
 	assert.Equal(t, flareFileName, gh.FlareFileName)
 }
+
+func TestLegacyHostMetadataEnabled(t *testing.T) {
+	for _, tc := range []struct {
+		name                                   string
+		legacy, inventories, metadata, enabled bool
+	}{
+		{"disabled by default", false, true, true, false},
+		{"enabled", true, true, true, true},
+		{"inventories disabled", true, false, true, false},
+		{"metadata disabled", true, true, false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			conf := configmock.New(t)
+			conf.SetInTest("gpu.legacy_host_metadata", tc.legacy)
+			conf.SetInTest("inventories_enabled", tc.inventories)
+			conf.SetInTest("enable_metadata_collection", tc.metadata)
+			p := NewComponent(Requires{WMeta: &wmsMock{}, Log: logmock.New(t), Config: conf, Serializer: serializermock.NewMetricSerializer(t), Hostname: hostnameimpl.NewHostnameService()})
+			assert.Equal(t, tc.enabled, p.Comp.(*gpuHost).Enabled)
+		})
+	}
+}

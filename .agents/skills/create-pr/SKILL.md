@@ -37,7 +37,7 @@ Create a pull request for the current branch following the Datadog Agent contrib
    - **0, review completed**: show the findings to the user, and say which reviewer ran when it wasn't `codex`, since CI uses `codex`. Findings don't block PR creation; fix them first only if the user asks.
    - **1, every attempted review failed**: tell the user, with the errors, and continue.
    - **2, no reviewer available**: never skip this silently. Show the user the alert and the reasons the script printed, then continue.
-6. **Describe the functional changes**: invoke the `/describe-functional-changes` skill on this branch, passing any motivation or context the user gave (if your harness can't invoke skills, read and follow `.agents/skills/describe-functional-changes/SKILL.md`). It returns a `**Functional changes**` block, usually a Before | After table (or a single "No functional change" line), that says what behaves differently, and for whom. Without it, reviewers have to read every changed line to understand what the PR actually does. It may also return notes, such as unverified claims or likely bugs: show them to the user with the draft in step 8. This step doesn't depend on the review, so do it while the review from step 5 runs.
+6. **Describe the functional changes**: invoke the `/describe-functional-changes` skill on this branch, passing any motivation or context the user gave (if your harness can't invoke skills, read and follow `.agents/skills/describe-functional-changes/SKILL.md`). It returns a collapsed "Functional changes" block, usually a Before | After table (or a single "No functional change" line), that says what behaves differently, and for whom. Without it, reviewers have to read every changed line to understand what the PR actually does. It may also return notes, such as unverified claims or likely bugs: show them to the user with the draft in step 8. This step doesn't depend on the review, so do it while the review from step 5 runs.
 7. **PR title**: Use [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/) format, prefixed with the general area of change. Examples:
    - `fix(e2e): Fix flaky diagnose test`
    - `feat(logs): Add new log pipeline`
@@ -115,13 +115,16 @@ The diagnose E2E test flaked because it hit fakeintake directly instead of
 through the redirect the agent config sets up. Route it through the same
 path the agent uses.
 
-**Functional changes**
+<details>
+<summary>Functional changes</summary>
 
 | Before | After |
 | --- | --- |
 | The diagnose E2E test reached fakeintake through its own connection, so its result didn't reflect the agent's connectivity | The test goes through the same redirect as the agent |
 
 Unchanged: the agent, and what the test asserts.
+
+</details>
 
 ### Motivation
 

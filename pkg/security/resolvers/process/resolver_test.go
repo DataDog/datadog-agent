@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -317,6 +318,39 @@ func TestForkExec(t *testing.T) {
 	assertChildrenConsistency(t, resolver)
 }
 
+func TestPid1Reexec(t *testing.T) {
+	resolver, err := newResolver()
+	if err != nil {
+		t.Fatal()
+	}
+
+	pid1 := newFakeForkEvent(0, 1, 123, resolver)
+	before := newFakeForkEvent(1, 3, 123, resolver)
+	reexec := newFakeExecEvent(0, 1, 456, resolver)
+	after := newFakeForkEvent(1, 4, 456, resolver)
+
+	// X(pid:1)
+	//    |
+	// X(pid:3)
+	resolver.AddForkEntry(pid1, model.CGroupContext{}, nil)
+	resolver.AddForkEntry(before, model.CGroupContext{}, nil)
+
+	// X(pid:1) -- Y(pid:1)
+	//    |           |
+	// X(pid:3)    Y(pid:4)
+	resolver.AddExecEntry(reexec, model.CGroupContext{})
+	resolver.AddForkEntry(after, model.CGroupContext{}, nil)
+	assert.Equal(t, pid1.ProcessCacheEntry, before.ProcessCacheEntry.Ancestor)
+	assert.Equal(t, reexec.ProcessCacheEntry, after.ProcessCacheEntry.Ancestor)
+	assertChildrenConsistency(t, resolver)
+
+	for _, entry := range []*model.ProcessCacheEntry{before.ProcessCacheEntry, after.ProcessCacheEntry} {
+		isValid, err := entry.HasValidLineage()
+		assert.True(t, isValid, "pid %d", entry.Pid)
+		assert.NoError(t, err, "pid %d", entry.Pid)
+	}
+}
+
 func TestResolveFromProcfs(t *testing.T) {
 	resolver, err := newResolver()
 	if err != nil {
@@ -386,19 +420,71 @@ func TestResolveFromKernelMapsUsesEventPPid(t *testing.T) {
 	assert.False(t, entry.IsParentMissing)
 }
 
+type testMountResolver struct {
+	mount.NoOpResolver
+	pidMntNs map[uint32]uint32
+}
+
+func (m *testMountResolver) SetPidMntNs(pid uint32, ns uint32) {
+	if m.pidMntNs != nil {
+		m.pidMntNs[pid] = ns
+	}
+}
+
+type testPathResolver struct {
+	path.NoOpResolver
+	resolveFullFilePath func(e *model.FileFields, pidCtx *model.PIDContext) (string, string, model.MountSource, model.MountOrigin, error)
+	resolveBasename     func(e *model.FileFields) string
+}
+
+func (r *testPathResolver) ResolveFullFilePath(e *model.FileFields, pidCtx *model.PIDContext) (string, string, model.MountSource, model.MountOrigin, error) {
+	if r.resolveFullFilePath != nil {
+		return r.resolveFullFilePath(e, pidCtx)
+	}
+	return r.NoOpResolver.ResolveFullFilePath(e, pidCtx)
+}
+
+func (r *testPathResolver) ResolveBasename(e *model.FileFields) string {
+	if r.resolveBasename != nil {
+		return r.resolveBasename(e)
+	}
+	return r.NoOpResolver.ResolveBasename(e)
+}
+
 func TestOrphanExec(t *testing.T) {
 	resolver, err := newResolver()
 	if err != nil {
 		t.Fatal()
 	}
+	mountRes := &testMountResolver{pidMntNs: make(map[uint32]uint32)}
+	resolver.mountResolver = mountRes
+	var mntNsObservedDuringResolve uint32
+	resolver.pathResolver = &testPathResolver{
+		resolveFullFilePath: func(e *model.FileFields, pidCtx *model.PIDContext) (string, string, model.MountSource, model.MountOrigin, error) {
+			mntNsObservedDuringResolve = mountRes.pidMntNs[pidCtx.Pid]
+			if e.Inode == 456 {
+				return "/usr/bin/execed", "", model.MountSourceMountID, model.MountOriginEvent, nil
+			}
+			return "/usr/bin/orphan", "", model.MountSourceMountID, model.MountOriginEvent, nil
+		},
+	}
 
 	parent := newFakeForkEvent(0, 3, 123, resolver)
+	parent.ProcessCacheEntry.FileEvent.MountID = 1
+	parent.ProcessCacheEntry.MntNS = 4026531840
 	child := newFakeForkEvent(3, 4, 123, resolver)
+	child.ProcessCacheEntry.FileEvent.MountID = 1
 	exec := newFakeExecEvent(3, 4, 456, resolver)
+	exec.ProcessCacheEntry.FileEvent.MountID = 1
 
 	// X(pid:3)
 	resolver.AddForkEntry(parent, model.CGroupContext{}, nil)
+	assert.Equal(t, uint32(4026531840), mntNsObservedDuringResolve)
 	assert.Equal(t, parent.ProcessCacheEntry, resolver.entryCache[parent.ProcessCacheEntry.Pid])
+	assert.True(t, parent.ProcessCacheEntry.FileEvent.IsPathnameStrResolved)
+	assert.True(t, parent.ProcessCacheEntry.FileEvent.IsBasenameStrResolved)
+	assert.Equal(t, "/usr/bin/orphan", parent.ProcessCacheEntry.FileEvent.PathnameStr)
+	assert.Equal(t, "orphan", parent.ProcessCacheEntry.FileEvent.BasenameStr)
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assertChildrenConsistency(t, resolver)
 
@@ -407,6 +493,8 @@ func TestOrphanExec(t *testing.T) {
 	// X(pid:4)
 	resolver.AddForkEntry(child, model.CGroupContext{}, nil)
 	assert.Equal(t, child.ProcessCacheEntry, resolver.entryCache[child.ProcessCacheEntry.Pid])
+	assert.Equal(t, "/usr/bin/orphan", child.ProcessCacheEntry.FileEvent.PathnameStr)
+	assert.Equal(t, "orphan", child.ProcessCacheEntry.FileEvent.BasenameStr)
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
 	assertChildrenConsistency(t, resolver)
@@ -426,6 +514,8 @@ func TestOrphanExec(t *testing.T) {
 	//  X(pid:4) --> Y(pid:4)
 	resolver.AddExecEntry(exec, model.CGroupContext{})
 	assert.Equal(t, exec.ProcessCacheEntry, resolver.entryCache[exec.ProcessCacheEntry.Pid])
+	assert.Equal(t, "/usr/bin/execed", exec.ProcessCacheEntry.FileEvent.PathnameStr)
+	assert.Equal(t, "execed", exec.ProcessCacheEntry.FileEvent.BasenameStr)
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.Equal(t, child.ProcessCacheEntry, exec.ProcessCacheEntry.Ancestor)
 	assert.Equal(t, parent.ProcessCacheEntry, exec.ProcessCacheEntry.Ancestor.Ancestor)
@@ -437,6 +527,50 @@ func TestOrphanExec(t *testing.T) {
 	resolver.DeleteEntry(exec.ProcessCacheEntry.Pid, time.Now())
 	assert.Zero(t, len(resolver.entryCache))
 	assertChildrenConsistency(t, resolver)
+
+	t.Run("failure-preserves-retry-and-basename", func(t *testing.T) {
+		failFullPath := true
+		resolver.pathResolver = &testPathResolver{
+			resolveFullFilePath: func(_ *model.FileFields, _ *model.PIDContext) (string, string, model.MountSource, model.MountOrigin, error) {
+				if failFullPath {
+					return "", "", model.MountSourceUnknown, model.MountOriginUnknown, errors.New("parent dentry missing")
+				}
+				return "/usr/bin/orphan-leaf", "", model.MountSourceMountID, model.MountOriginEvent, nil
+			},
+			resolveBasename: func(_ *model.FileFields) string {
+				return "orphan-leaf"
+			},
+		}
+
+		orphan := newFakeForkEvent(99, 10, 789, resolver)
+		orphan.ProcessCacheEntry.FileEvent.MountID = 1
+		resolver.AddForkEntry(orphan, model.CGroupContext{}, nil)
+		fe := &orphan.ProcessCacheEntry.FileEvent
+		assert.False(t, fe.IsPathnameStrResolved)
+		assert.False(t, fe.IsBasenameStrResolved)
+		assert.Empty(t, fe.PathnameStr)
+		assert.Empty(t, fe.BasenameStr)
+		assert.Nil(t, fe.PathResolutionError)
+
+		// Exercise the same !IsBasenameStrResolved && len(BasenameStr) == 0 guard used by EBPFFieldHandlers.ResolveFileBasename
+		if !fe.IsBasenameStrResolved && len(fe.BasenameStr) == 0 {
+			fe.SetBasenameStr(resolver.pathResolver.ResolveBasename(&fe.FileFields))
+		}
+		assert.True(t, fe.IsBasenameStrResolved)
+		assert.Equal(t, "orphan-leaf", fe.BasenameStr)
+		assert.False(t, fe.IsPathnameStrResolved)
+
+		// Exercise the same !IsPathnameStrResolved && len(PathnameStr) == 0 guard used by EBPFFieldHandlers.ResolveFilePath
+		failFullPath = false
+		if !fe.IsPathnameStrResolved && len(fe.PathnameStr) == 0 {
+			resolvedPath, err := resolver.setProcessPath(fe, orphan.ProcessCacheEntry)
+			require.NoError(t, err)
+			assert.Equal(t, "/usr/bin/orphan-leaf", resolvedPath)
+		}
+		assert.True(t, fe.IsPathnameStrResolved)
+		assert.Equal(t, "/usr/bin/orphan-leaf", fe.PathnameStr)
+		assert.Equal(t, "orphan-leaf", fe.BasenameStr)
+	})
 }
 
 func TestForkExecExec(t *testing.T) {
@@ -1556,6 +1690,8 @@ func TestAWSSecurityCredentialsScopedToProcess(t *testing.T) {
 	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
 
 	// the child receives credentials from an IMDS v2 response
+	child.IMDS.Type = model.IMDSResponseType
+	child.NetworkContext.NetworkDirection = uint32(model.Ingress)
 	child.IMDS.AWS.SecurityCredentials = model.AWSSecurityCredentials{
 		Code:        "Success",
 		Type:        "AWS-HMAC",
@@ -1577,9 +1713,9 @@ func TestAWSSecurityCredentialsScopedToProcess(t *testing.T) {
 	assert.Empty(t, parentCreds, "ancestors must not report the requesting process's credentials")
 }
 
-// TestAWSSecurityCredentialsSkipsPodIdentityAgent ensures the EKS Pod Identity
-// Agent's own process never gets attributed the credentials it serves.
-func TestAWSSecurityCredentialsSkipsPodIdentityAgent(t *testing.T) {
+// TestAWSSecurityCredentialsSkipsPodIdentityBroker ensures the EKS Pod Identity
+// Agent's own process never gets attributed the credentials it sends.
+func TestAWSSecurityCredentialsSkipsPodIdentityBroker(t *testing.T) {
 	resolver, err := newResolver()
 	if err != nil {
 		t.Fatal(err)
@@ -1590,6 +1726,8 @@ func TestAWSSecurityCredentialsSkipsPodIdentityAgent(t *testing.T) {
 	resolver.AddForkEntry(agent, model.CGroupContext{}, nil)
 
 	agent.IMDS.CredentialSource = uint32(model.CredentialSourceEKSPodIdentity)
+	agent.IMDS.Type = model.IMDSResponseType
+	agent.NetworkContext.NetworkDirection = uint32(model.Egress)
 	agent.IMDS.AWS.SecurityCredentials = model.AWSSecurityCredentials{
 		AccessKeyID: "AKIAIOSFODNN7EXAMPLE",
 		Expiration:  time.Now().Add(time.Hour),
@@ -1613,6 +1751,8 @@ func TestAWSSecurityCredentialsPodIdentityRequester(t *testing.T) {
 	resolver.AddForkEntry(proc, model.CGroupContext{}, nil)
 
 	proc.IMDS.CredentialSource = uint32(model.CredentialSourceEKSPodIdentity)
+	proc.IMDS.Type = model.IMDSResponseType
+	proc.NetworkContext.NetworkDirection = uint32(model.Ingress)
 	proc.IMDS.AWS.SecurityCredentials = model.AWSSecurityCredentials{
 		AccessKeyID: "AKIAIOSFODNN7EXAMPLE",
 		Expiration:  time.Now().Add(time.Hour),
@@ -1634,6 +1774,8 @@ func TestAWSSecurityCredentialsExpiration(t *testing.T) {
 	proc := newFakeForkEvent(0, 3, 123, resolver)
 	resolver.AddForkEntry(proc, model.CGroupContext{}, nil)
 
+	proc.IMDS.Type = model.IMDSResponseType
+	proc.NetworkContext.NetworkDirection = uint32(model.Ingress)
 	proc.IMDS.AWS.SecurityCredentials = model.AWSSecurityCredentials{
 		Code:        "Success",
 		Type:        "AWS-HMAC",
@@ -1644,6 +1786,88 @@ func TestAWSSecurityCredentialsExpiration(t *testing.T) {
 
 	creds := resolver.FetchAWSSecurityCredentials(proc, &proc.ProcessCacheEntry.Process)
 	assert.Empty(t, creds, "expired credentials should be pruned on fetch")
+}
+
+func TestAWSSecurityCredentialsAttribution(t *testing.T) {
+	sources := []struct {
+		name   string
+		source uint32
+	}{
+		{"imds", uint32(model.CredentialSourceIMDS)},
+		{"eks", uint32(model.CredentialSourceEKSPodIdentity)},
+		{"ecs", uint32(model.CredentialSourceECS)},
+	}
+	tests := []struct {
+		name      string
+		filename  string
+		eventType string
+		direction model.NetworkDirection
+		pid       uint32
+		emptyKey  bool
+		want      bool
+	}{
+		{name: "requester", filename: "my-app", eventType: model.IMDSResponseType, direction: model.Ingress, pid: 3, want: true},
+		{name: "requester named agent", filename: "agent", eventType: model.IMDSResponseType, direction: model.Ingress, pid: 3, want: true},
+		{name: "requester named eks agent", filename: "eks-pod-identity-agent", eventType: model.IMDSResponseType, direction: model.Ingress, pid: 3, want: true},
+		{name: "broker", filename: "agent", eventType: model.IMDSResponseType, direction: model.Egress, pid: 3},
+		{name: "unknown direction", filename: "my-app", eventType: model.IMDSResponseType, pid: 3},
+		{name: "request", filename: "my-app", eventType: model.IMDSRequestType, direction: model.Ingress, pid: 3},
+		{name: "unknown recipient", filename: "my-app", eventType: model.IMDSResponseType, direction: model.Ingress},
+		{name: "uncached recipient", filename: "my-app", eventType: model.IMDSResponseType, direction: model.Ingress, pid: 4},
+		{name: "empty key", filename: "my-app", eventType: model.IMDSResponseType, direction: model.Ingress, pid: 3, emptyKey: true},
+	}
+	for _, source := range sources {
+		for _, tc := range tests {
+			t.Run(source.name+"/"+tc.name, func(t *testing.T) {
+				resolver, err := newResolver()
+				require.NoError(t, err)
+				proc := newFakeForkEvent(0, 3, 123, resolver)
+				proc.ProcessCacheEntry.FileEvent.SetPathnameStr("/usr/bin/" + tc.filename)
+				require.NoError(t, resolver.AddForkEntry(proc, model.CGroupContext{}, nil))
+				proc.IMDS.CredentialSource = source.source
+				proc.IMDS.Type = tc.eventType
+				proc.NetworkContext.NetworkDirection = uint32(tc.direction)
+				if !tc.emptyKey {
+					proc.IMDS.AWS.SecurityCredentials.AccessKeyID = "ASIAIOSFODNN7EXAMPLE"
+				}
+				// Repeated observations must not duplicate a received key.
+				resolver.UpdateAWSSecurityCredentials(tc.pid, proc)
+				resolver.UpdateAWSSecurityCredentials(tc.pid, proc)
+				if tc.want {
+					require.Len(t, proc.ProcessCacheEntry.AWSSecurityCredentials, 1)
+					assert.Equal(t, proc.IMDS.AWS.SecurityCredentials.AccessKeyID, proc.ProcessCacheEntry.AWSSecurityCredentials[0].AccessKeyID)
+				} else {
+					assert.Empty(t, proc.ProcessCacheEntry.AWSSecurityCredentials)
+				}
+			})
+		}
+	}
+}
+
+func TestAWSSecurityCredentialsBrokerAndRequesters(t *testing.T) {
+	resolver, err := newResolver()
+	require.NoError(t, err)
+	broker := newFakeForkEvent(0, 3, 123, resolver)
+	first := newFakeForkEvent(0, 4, 124, resolver)
+	second := newFakeForkEvent(0, 5, 125, resolver)
+	for _, proc := range []*model.Event{broker, first, second} {
+		require.NoError(t, resolver.AddForkEntry(proc, model.CGroupContext{}, nil))
+		proc.IMDS.Type = model.IMDSResponseType
+		proc.IMDS.CredentialSource = uint32(model.CredentialSourceECS)
+	}
+	broker.NetworkContext.NetworkDirection = uint32(model.Egress)
+	for i, requester := range []*model.Event{first, second} {
+		key := fmt.Sprintf("ASIAREQUESTER%07d", i)
+		broker.IMDS.AWS.SecurityCredentials.AccessKeyID = key
+		resolver.UpdateAWSSecurityCredentials(broker.PIDContext.Pid, broker)
+		requester.IMDS.AWS.SecurityCredentials.AccessKeyID = key
+		requester.NetworkContext.NetworkDirection = uint32(model.Ingress)
+		resolver.UpdateAWSSecurityCredentials(requester.PIDContext.Pid, requester)
+	}
+	assert.Empty(t, broker.ProcessCacheEntry.AWSSecurityCredentials)
+	require.Len(t, first.ProcessCacheEntry.AWSSecurityCredentials, 1)
+	require.Len(t, second.ProcessCacheEntry.AWSSecurityCredentials, 1)
+	assert.NotEqual(t, first.ProcessCacheEntry.AWSSecurityCredentials[0].AccessKeyID, second.ProcessCacheEntry.AWSSecurityCredentials[0].AccessKeyID)
 }
 
 func TestUpdateProcessContextsReplacesPair(t *testing.T) {

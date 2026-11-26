@@ -18,6 +18,7 @@ go_library(
         "host_cache.go",
         "host_params.go",
         "host_ssh.go",
+        "ipc_certificate.go",
         "k8s.go",
         "powershell.go",
     ],
@@ -60,6 +61,7 @@ dd_agent_go_test(
     name = "client_test",
     srcs = [
         "coverage_test.go",
+        "ipc_certificate_test.go",
         "k8s_test.go",
     ],
     embed = [":client"],

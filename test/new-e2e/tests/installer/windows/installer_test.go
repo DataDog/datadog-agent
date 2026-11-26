@@ -196,9 +196,9 @@ func TestURL(t *testing.T) {
 			cfg: TestPackageConfig{
 				Name:     "datadog-agent",
 				Version:  "pipeline-12345",
-				Registry: "installtesting.datad0g.com.internal.dda-testing.com",
+				Registry: "installtesting.datad0g.com",
 			},
-			want: "oci://installtesting.datad0g.com.internal.dda-testing.com/datadog-agent:pipeline-12345",
+			want: "oci://installtesting.datad0g.com/datadog-agent:pipeline-12345",
 		},
 		{
 			name: "urloverride takes precedence",

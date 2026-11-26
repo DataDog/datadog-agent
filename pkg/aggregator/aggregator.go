@@ -287,6 +287,9 @@ type BufferedAggregator struct {
 
 	tagsStore              *tags.Store
 	checkSamplers          map[checkid.ID]*CheckSampler
+	filteredIdentities     *filteredIdentityTable
+	checkOutputMerger      *checkOutputMerger
+	tagFilterEnabled       bool
 	serviceChecks          servicecheck.ServiceChecks
 	events                 event.Events
 	manifests              []*senderOrchestratorManifest
@@ -320,8 +323,8 @@ type BufferedAggregator struct {
 	filterListChan  chan metricname.Matcher
 	flushFilterList metricname.Matcher
 
-	tagFilterListChan chan filterlist.TagMatcher
-	tagFilterList     filterlist.TagMatcher
+	tagFilterListChan chan metricname.TagMatcher
+	tagFilterList     metricname.TagMatcher
 }
 
 // FlushAndSerializeInParallel contains options for flushing metrics and serializing in parallel.
@@ -376,6 +379,9 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 
 		tagsStore:                   tagsStore,
 		checkSamplers:               make(map[checkid.ID]*CheckSampler),
+		filteredIdentities:          newFilteredIdentityTable(),
+		checkOutputMerger:           newCheckOutputMerger(),
+		tagFilterEnabled:            tagFilterEnabled(pkgconfigsetup.Datadog()),
 		flushInterval:               flushInterval,
 		serializer:                  s,
 		eventPlatformForwarder:      eventPlatformForwarder,
@@ -395,7 +401,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 
 		filterListChan:    make(chan metricname.Matcher),
 		flushFilterList:   filterList.GetMetricFilterList(),
-		tagFilterListChan: make(chan filterlist.TagMatcher),
+		tagFilterListChan: make(chan metricname.TagMatcher),
 		tagFilterList:     filterList.GetTagFilterList(),
 	}
 
@@ -570,12 +576,14 @@ func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.S
 	var series metrics.Series
 	var sketches metrics.SketchSeriesList
 	agg.getSeriesAndSketches(before, &series, &sketches)
+	agg.drainCheckOutputs(&series, &sketches)
 	return series, sketches
 }
 
 // getSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
 // The parameter `before` is used as an end interval while retrieving series and sketches
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
+// Check output that merges across sources goes to the check output merger instead.
 func (agg *BufferedAggregator) getSeriesAndSketches(
 	_ time.Time,
 	seriesSink metrics.SerieSink,
@@ -594,6 +602,10 @@ func (agg *BufferedAggregator) getSeriesAndSketches(
 		for _, sk := range sketches {
 			sketchesSink.Append(sk)
 		}
+
+		mergeableSeries, mergeableSketches := checkSampler.flushMergeable()
+		agg.checkOutputMerger.mergeSeries(mergeableSeries)
+		agg.checkOutputMerger.mergeSketches(mergeableSketches)
 
 		if checkSampler.deregistered {
 			checkSampler.release()
@@ -693,7 +705,27 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 
 func (agg *BufferedAggregator) flushSeriesAndSketches(trigger flushTrigger) {
 	agg.getSeriesAndSketches(trigger.time, trigger.seriesSink, trigger.sketchesSink)
+	if trigger.forceFlushAll || trigger.final {
+		agg.drainCheckOutputs(trigger.seriesSink, trigger.sketchesSink)
+	} else {
+		agg.flushCheckOutputs(trigger.time, trigger.seriesSink, trigger.sketchesSink)
+	}
 	agg.appendDefaultSeries(trigger.time, trigger.seriesSink)
+}
+
+// flushCheckOutputs sends the merged outputs of tag-filtered check metrics from timestamps before the flush, holding
+// the others for a later flush.
+func (agg *BufferedAggregator) flushCheckOutputs(now time.Time, seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
+	agg.checkOutputMerger.flush(now.Unix(), seriesSink, sketchesSink)
+}
+
+// drainCheckOutputs sends every merged output of tag-filtered check metrics, for when no flush follows.
+func (agg *BufferedAggregator) drainCheckOutputs(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
+	agg.checkOutputMerger.drain(seriesSink, sketchesSink)
 }
 
 // GetServiceChecks grabs all the service checks from the queue and clears the queue
@@ -942,13 +974,17 @@ func (agg *BufferedAggregator) run() {
 	}
 }
 
-// Set a new filterlist, ensuring we also clear the context resolver strip cache
-// for each check sampler.
-func (agg *BufferedAggregator) setFilterList(matcher filterlist.TagMatcher) {
-	for _, cs := range agg.checkSamplers {
-		cs.clearStripCache()
-	}
+// setFilterList applies new metric_tag_filterlist rules: check samplers refilter their contexts.
+func (agg *BufferedAggregator) setFilterList(matcher metricname.TagMatcher) {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
 	agg.tagFilterList = matcher
+	if !agg.tagFilterEnabled {
+		return
+	}
+	for _, cs := range agg.checkSamplers {
+		cs.refilter(matcher)
+	}
 }
 
 // tags returns the list of tags that should be added to the agent telemetry metrics
@@ -1088,6 +1124,7 @@ func (agg *BufferedAggregator) handleRegisterSampler(id checkid.ID) {
 		agg.tagsStore,
 		id,
 		agg.tagger,
+		agg.filteredIdentities,
 	)
 	if agg.observerHandle != nil {
 		cs.SetObserverHandle(agg.observerHandle)

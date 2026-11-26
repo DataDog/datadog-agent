@@ -448,8 +448,7 @@ func (pb *payloadsBuilderV3) writeSerie(serie *metrics.Serie) error {
 		return err
 	}
 
-	serie.PopulateDeviceField()
-	serie.PopulateResources()
+	serie.PopulateDeviceAndResources()
 
 	for {
 		pb.writeSerieToTxn(serie)
@@ -1086,12 +1085,15 @@ func (db *dictionaryBuilder) appendTagsSlice(tags []string) {
 }
 
 func (db *dictionaryBuilder) internTags1(prefixID int64, tags []string) int64 {
-	defer func() { db.tagsStringBuf = db.tagsStringBuf[:0] }()
-	db.tagsStringBuf = append(db.tagsStringBuf, tags...)
-	slices.Sort(db.tagsStringBuf)
+	sorted := tags
+	if !slices.IsSorted(tags) {
+		db.tagsStringBuf = append(db.tagsStringBuf[:0], tags...)
+		slices.Sort(db.tagsStringBuf)
+		sorted = db.tagsStringBuf
+	}
 
 	var hash1, hash2 uint64 = uint64(prefixID), 0
-	for _, s := range db.tagsStringBuf {
+	for _, s := range sorted {
 		hash1, hash2 = murmur3.SeedStringSum128(hash1, hash2, s)
 	}
 
@@ -1104,7 +1106,7 @@ func (db *dictionaryBuilder) internTags1(prefixID int64, tags []string) int64 {
 	if prefixID > 0 {
 		db.tagsBuffer = append(db.tagsBuffer, -prefixID)
 	}
-	db.appendTagsSlice(db.tagsStringBuf)
+	db.appendTagsSlice(sorted)
 	slices.Sort(db.tagsBuffer)
 	deltaEncode(db.tagsBuffer)
 

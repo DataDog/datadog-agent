@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    APM: Fix the default SQL obfuscator leaving part of some literals in the
+    obfuscated query. Oracle alternative quoted strings (``q'[...]'``),
+    binary and octal integers (``0b1010``, ``0o755``) and numbers with digit
+    separators (``1_500_000``) are now replaced with ``?`` as a whole.

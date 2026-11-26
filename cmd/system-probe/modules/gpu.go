@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -521,27 +522,118 @@ func configureCgroupPermissions(ctx context.Context, reapplyInterval time.Durati
 	}
 }
 
+// cgroupPermissionWarnings holds the cgroup permission failures already logged as warnings, so that a
+// persistent failure is not logged on every re-application
+var cgroupPermissionWarnings sync.Map
+
+// warnCgroupPermissionsOnce logs the failure as a warning the first time it happens for the key, and at debug
+// level afterwards.
+func warnCgroupPermissionsOnce(key string, format string, args ...interface{}) {
+	if _, warned := cgroupPermissionWarnings.LoadOrStore(key, struct{}{}); warned {
+		log.Debugf(format, args...)
+		return
+	}
+	log.Warnf(format, args...)
+}
+
+// forgetDepartedAgentWarnings drops the warning state of the agent processes that are gone, so that it does not
+// grow with each restart of a failing agent
+func forgetDepartedAgentWarnings(agentPIDs []uint32) {
+	current := make(map[string]struct{}, 2*len(agentPIDs))
+	for _, pid := range agentPIDs {
+		current[agentWarningKey(pid)] = struct{}{}
+		current[agentCgroupWarningKey(pid)] = struct{}{}
+	}
+	cgroupPermissionWarnings.Range(func(key, _ any) bool {
+		if k := key.(string); strings.HasPrefix(k, "agent-") {
+			if _, ok := current[k]; !ok {
+				cgroupPermissionWarnings.Delete(k)
+			}
+		}
+		return true
+	})
+}
+
+// agentWarningKey is the warning key of a failure to configure the cgroup of an agent process
+func agentWarningKey(pid uint32) string { return fmt.Sprintf("agent-%d", pid) }
+
+// agentCgroupWarningKey is the warning key of a failure to read the cgroup of an agent process
+func agentCgroupWarningKey(pid uint32) string { return fmt.Sprintf("agent-cgroup-%d", pid) }
+
+// agentCgroup is an agent process and its cgroup, as seen from the host
+type agentCgroup struct {
+	pid    uint32
+	cgroup string
+}
+
+// agentsNextToSystemProbe returns the agent processes whose cgroup is a sibling of the system-probe one: the agent
+// container of the same pod in Kubernetes, the agent service next to the system-probe service on a host. Other
+// agents on the node (e.g. another agent DaemonSet or cluster check runners) are left alone, and so are the agent
+// processes whose cgroup cannot be read, so that a lookup failure never targets another deployment.
+func agentsNextToSystemProbe(sysprobeCgroup string, agentPIDs []uint32, cgroupOf func(uint32) (string, error)) []agentCgroup {
+	parent := filepath.Dir(sysprobeCgroup)
+	var kept []agentCgroup
+	for _, pid := range agentPIDs {
+		cgroup, err := cgroupOf(pid)
+		if err != nil {
+			warnCgroupPermissionsOnce(agentCgroupWarningKey(pid), "Not configuring cgroup permissions for agent process with PID %d: cannot get its cgroup: %v. gpu-monitoring module might not work properly", pid, err)
+			continue
+		}
+		cgroupPermissionWarnings.Delete(agentCgroupWarningKey(pid))
+		switch {
+		case filepath.Dir(cgroup) != parent:
+			log.Debugf("Not configuring cgroup permissions for agent process with PID %d: its cgroup %s is not next to the system-probe one %s", pid, cgroup, sysprobeCgroup)
+		default:
+			kept = append(kept, agentCgroup{pid: pid, cgroup: cgroup})
+		}
+	}
+	if len(kept) == 0 {
+		// Usually the agent of this pod is restarting: skip this round rather than touching the other agents
+		log.Debugf("No agent process found next to the system-probe cgroup %s, not configuring any cgroup permissions this time", sysprobeCgroup)
+	}
+	return kept
+}
+
 // doConfigureCgroupPermissions configures the cgroup permissions to access NVIDIA
 // devices for the system-probe and agent processes.
 func doConfigureCgroupPermissions(root string) {
-	sysprobePID := uint32(os.Getpid())
+	sysprobePID := gpu.SelfHostPID()
 
-	log.Debugf("Configuring cgroup permissions for system-probe process with PID %d", sysprobePID)
-	if err := gpu.ConfigureDeviceCgroups(sysprobePID, root); err != nil {
-		log.Warnf("Failed to configure cgroup permissions for system-probe process: %v. gpu-monitoring module might not work properly", err)
+	// Resolved once: it is the cgroup to patch for system-probe, and it tells the agent of this pod apart from the
+	// other agents of the node
+	sysprobeCgroup, err := gpu.CgroupPathForProcess(sysprobePID, root)
+	if err != nil {
+		warnCgroupPermissionsOnce("system-probe-cgroup", "Failed to get the system-probe cgroup: %v. Cannot patch cgroup permissions, gpu-monitoring module might not work properly", err)
+		return
+	}
+	cgroupPermissionWarnings.Delete("system-probe-cgroup")
+
+	log.Debugf("Configuring cgroup permissions for system-probe process with PID %d, cgroup %s", sysprobePID, sysprobeCgroup)
+	if err := gpu.ConfigureCgroupDevices(sysprobeCgroup, root); err != nil {
+		warnCgroupPermissionsOnce("system-probe", "Failed to configure cgroup permissions for system-probe process: %v. gpu-monitoring module might not work properly", err)
+	} else {
+		cgroupPermissionWarnings.Delete("system-probe")
 	}
 
 	procRoot := filepath.Join(root, "proc")
 	agentPIDs, err := getAgentPIDs(procRoot)
 	if err != nil {
-		log.Warnf("Failed to get agent PIDs: %v. Cannot patch cgroup permissions, gpu-monitoring module might not work properly", err)
+		warnCgroupPermissionsOnce("agent-pids", "Failed to get agent PIDs: %v. Cannot patch cgroup permissions, gpu-monitoring module might not work properly", err)
 		return
 	}
+	cgroupPermissionWarnings.Delete("agent-pids")
 
-	for _, agentPID := range agentPIDs {
-		log.Debugf("Configuring cgroup permissions for agent process with PID %d", agentPID)
-		if err := gpu.ConfigureDeviceCgroups(agentPID, root); err != nil {
-			log.Warnf("Failed to configure cgroup permissions for agent process with PID %d: %v. gpu-monitoring module might not work properly", agentPID, err)
+	forgetDepartedAgentWarnings(agentPIDs)
+	agents := agentsNextToSystemProbe(sysprobeCgroup, agentPIDs, func(pid uint32) (string, error) {
+		return gpu.CgroupPathForProcess(pid, root)
+	})
+	for _, agent := range agents {
+		log.Debugf("Configuring cgroup permissions for agent process with PID %d, cgroup %s", agent.pid, agent.cgroup)
+		key := agentWarningKey(agent.pid)
+		if err := gpu.ConfigureCgroupDevices(agent.cgroup, root); err != nil {
+			warnCgroupPermissionsOnce(key, "Failed to configure cgroup permissions for agent process with PID %d: %v. gpu-monitoring module might not work properly", agent.pid, err)
+		} else {
+			cgroupPermissionWarnings.Delete(key)
 		}
 	}
 }

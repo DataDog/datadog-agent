@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -1067,7 +1068,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 				ts.TracesDropped.DecodingError.Add(tracen)
 			}
 		}
-		log.Errorf("Cannot decode %s traces payload: %v", v, err)
+		log.Errorf("Cannot decode %s traces payload (%s): %v", v, r.decodeErrorClient(req), err)
 		return
 	}
 	if n, ok := r.replyOK(req, v, w); ok {
@@ -1111,6 +1112,42 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		ContainerTags:          ctags,
 	}
 	sendPayload(r, r.out, payload)
+}
+
+// decodeErrorClientTagKeys are the container tags that decodeErrorClient
+// logs. They name the client app. The lang and tracer version are not logged:
+// they are already tags on the datadog.trace_agent.receiver.* metrics.
+var decodeErrorClientTagKeys = []string{
+	"service", "kube_namespace", "kube_deployment", "pod_name", "task_family", "ecs_service", "container_name", "short_image",
+}
+
+// decodeErrorClient describes the client that sent a traces payload that
+// could not be decoded, so that an operator can find the app from the log
+// line. The payload is not usable, so it uses only the request: the
+// Content-Length, the remote address, the container ID that the headers or
+// the connection give, and a few tags of that container. It runs only on the
+// decode error path; the container ID and tags lookups are the same that a
+// successful request does.
+func (r *HTTPReceiver) decodeErrorClient(req *http.Request) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "content_length:%d, remote_addr:%q", req.ContentLength, req.RemoteAddr)
+	var containerID string
+	if r.containerIDProvider != nil {
+		containerID = r.containerIDProvider.GetContainerID(req.Context(), req.Header)
+	}
+	fmt.Fprintf(&b, ", container_id:%q", containerID)
+	if containerID == "" || r.conf.ContainerTags == nil {
+		return b.String()
+	}
+	for _, tag := range getContainerTagsList(r.conf.ContainerTags, containerID) {
+		key, value, _ := strings.Cut(tag, ":")
+		if slices.Contains(decodeErrorClientTagKeys, key) {
+			// Quote the value: it can come from the client's environment
+			// (for example DD_SERVICE) and must not break the log line.
+			fmt.Fprintf(&b, ", %s:%q", key, value)
+		}
+	}
+	return b.String()
 }
 
 // handleTracesV1 knows how to handle a bunch of traces and converts them to the internal format if needed
@@ -1197,7 +1234,7 @@ func (r *HTTPReceiver) handleTracesV1(v Version, w http.ResponseWriter, req *htt
 				ts.TracesDropped.DecodingError.Add(tracen)
 			}
 		}
-		log.Errorf("Cannot decode %s traces payload: %v", v, err)
+		log.Errorf("Cannot decode %s traces payload (%s): %v", v, r.decodeErrorClient(req), err)
 		return
 	}
 	if n, ok := r.replyOK(req, v, w); ok {

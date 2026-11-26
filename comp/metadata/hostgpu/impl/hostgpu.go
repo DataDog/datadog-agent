@@ -112,6 +112,7 @@ func NewComponent(deps Requires) Provides {
 		data:     &hostGPUMetadata{},
 	}
 	gh.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, gh.getPayload, flareFileName)
+	gh.Enabled = gh.Enabled && deps.Config.GetBool("gpu.legacy_host_metadata")
 
 	return Provides{
 		Comp:          gh,

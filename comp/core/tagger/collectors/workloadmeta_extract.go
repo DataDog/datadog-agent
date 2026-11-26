@@ -1170,6 +1170,10 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	tagList.AddLow(tags.GPUSharingMode, sharingModeTagValue(gpu))
 	tagList.AddLow(tags.GPUMIGProfile, migProfileTagValue(gpu))
 	tagList.AddLow(tags.GPUPCIBusID, strings.ToLower(gpu.PCIBusID))
+	// AMD only for now: the NVML index isn't guaranteed stable across reboots.
+	if strings.EqualFold(gpu.Vendor, "amd") && gpu.Index >= 0 {
+		tagList.AddLow(tags.GPUIndex, strconv.Itoa(gpu.Index))
+	}
 	tagList.AddLow(tags.GPUNVLinkVersion, gpu.NVLinkVersion)
 	tagList.AddLow(tags.GPUNVLinkCapable, strconv.FormatBool(gpu.NVLinkVersion != "not_nvlink_capable" && gpu.NVLinkVersion != ""))
 	if gpu.FabricClusterUUID != "" {

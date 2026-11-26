@@ -350,3 +350,30 @@ func TestPARDiscoveryHugeHintAndStrictPayload(t *testing.T) {
 		require.Equal(t, phonehomedef.ReasonInvalidDiscoveryResponse, result.reason)
 	}
 }
+
+func TestPARDiscoveryUsesIndependentKey(t *testing.T) {
+	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "false")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/api/v2/validate", r.URL.Path)
+		require.Equal(t, "par-key", r.Header.Get("DD-API-KEY"))
+		_, _ = io.WriteString(w, grantedScopeJSON)
+	}))
+	defer server.Close()
+	cfg := configmock.New(t)
+	for key, value := range map[string]any{
+		"api_key": "agent-key", "site": "datadoghq.eu",
+		"private_action_runner.api_key": "par-key", "private_action_runner.site": "datadoghq.com",
+		"private_action_runner.par_dd_url": server.URL, "private_action_runner.enabled": true,
+		"remote_configuration.enabled": true,
+	} {
+		cfg.SetInTest(key, value)
+	}
+	rc := &statusService{rc: &pbgo.OrgStatusResponse{Enabled: true, Authorized: true}}
+	discovery := NewDiscovery(cfg, NewSource(cfg, rc))
+	require.NotNil(t, discovery)
+	discovery.clock = clock.NewMock()
+	discovery.next = discovery.clock.Now()
+	discovery.SetPARDiscoveryDemand(true)
+	discovery.step(context.Background())
+	require.True(t, discovery.GetPARScope().Granted(discovery.clock.Now()))
+}

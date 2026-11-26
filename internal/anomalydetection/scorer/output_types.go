@@ -33,14 +33,19 @@ type ObserverMetadata struct {
 
 // ObserverCorrelation is one correlation cluster.
 type ObserverCorrelation struct {
-	Pattern      string            `json:"pattern"`
-	PeriodStart  int64             `json:"period_start"`
-	PeriodEnd    int64             `json:"period_end"`
-	Title        string            `json:"title,omitempty"`
-	Message      string            `json:"message,omitempty"`
-	Tags         []string          `json:"tags,omitempty"`
-	MemberSeries []string          `json:"member_series,omitempty"`
-	Anomalies    []ObserverAnomaly `json:"anomalies,omitempty"`
+	Pattern     string `json:"pattern"`
+	PeriodStart int64  `json:"period_start"`
+	PeriodEnd   int64  `json:"period_end"`
+	// TriggerTimestamp is the delivered episode start; it matches period_start.
+	TriggerTimestamp int64 `json:"trigger_timestamp,omitempty"`
+	// HistoricalTimestamp is the corrected historical High crossing, when the
+	// episode was delivered after the threshold crossing.
+	HistoricalTimestamp int64             `json:"historical_timestamp,omitempty"`
+	Title               string            `json:"title,omitempty"`
+	Message             string            `json:"message,omitempty"`
+	Tags                []string          `json:"tags,omitempty"`
+	MemberSeries        []string          `json:"member_series,omitempty"`
+	Anomalies           []ObserverAnomaly `json:"anomalies,omitempty"`
 }
 
 // ObserverAnomaly is a single anomaly nested inside a correlation (verbose only).

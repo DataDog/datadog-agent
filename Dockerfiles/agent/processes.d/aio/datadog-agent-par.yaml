@@ -1,4 +1,4 @@
-# Monolith Private Action Runner. In split mode it exits on its own. FIPS keeps it, since split is unsupported there.
+# Monolith Private Action Runner. In split mode it exits on its own. In FIPS mode it is unsupported and exits cleanly.
 description: Datadog Private Action Runner
 command: /opt/datadog-agent/embedded/bin/privateactionrunner
 args:

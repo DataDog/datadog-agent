@@ -273,9 +273,110 @@ func (s *TracerSuite) TestTCPRetransmit() {
 		if !tr.config.EnableEbpfless {
 			assert.Equal(ct, os.Getpid(), int(conn.Pid))
 		}
+		// Every retransmitted segment is also a sent one, so a wrapped count shows up here. Compare
+		// against the kernel's live count, read after the fetch: SentPackets is a snapshot from the
+		// last send or receive, and RTOs after the last write still resend. tcpi_segs_out is 4.2+;
+		// prebuilt counts tcp_retransmit_skb's segs argument, which can exceed the segments sent.
+		if !tr.config.EnableEbpfless && ebpftest.GetBuildMode() != ebpftest.Prebuilt && kv >= kernel.VersionCode(4, 2, 0) {
+			info, err := offsetguess.TCPGetInfo(c)
+			require.NoError(ct, err)
+			assert.LessOrEqual(ct, conn.Monotonic.Retransmits, info.Segs_out, "retransmits above tcpi_segs_out")
+		}
 
 		assert.Equal(ct, addrPort(server.Address()), int(conn.DPort))
 	}, 3*time.Second, 100*time.Millisecond)
+}
+
+// TestTCPRetransmitManySockets retransmits on many sockets at once, so retransmissions run concurrently in
+// timer context on several CPUs, and checks the tracer's counts against the kernel's own. Per connection the
+// count must never exceed tcpi_total_retrans: the kernel counts every segment resent, including tail loss
+// probes, which don't go through tcp_retransmit_skb. In total it must come close, so a regression that drops
+// retransmits fails too. The loss stays on for a while after the writers stop, so RTOs fire on idle CPUs,
+// where the retransmit runs as pid_tgid 0 and is only told apart from other CPUs' calls by the CPU.
+func (s *TracerSuite) TestTCPRetransmitManySockets() {
+	t := s.T()
+	cfg := testConfig()
+	skipOnEbpflessNotSupported(t, cfg)
+	switch ebpftest.GetBuildMode() {
+	case ebpftest.SK:
+		t.Skip("SK counts retransmits from tcp_sock, which this doesn't exercise")
+	case ebpftest.Prebuilt:
+		// segs is the most the call may resend; it sends fewer when the skb holds fewer segments
+		t.Skip("prebuilt counts tcp_retransmit_skb's segs argument, which can exceed the segments resent")
+	}
+	if kv < kv470 {
+		t.Skip("before 4.7 the kernel's total_retrans counts tcp_retransmit_skb calls, not segments")
+	}
+	tr := setupTracer(t, cfg)
+
+	env := setupNetemTestEnv(t, func(c net.Conn) {
+		io.Copy(io.Discard, c) //nolint:errcheck
+	})
+	// a fresh netns loopback has a 64KiB MTU; lower it so each write is many segments in flight
+	env.setLoopbackMTU(t, 1500)
+
+	const numConns = 32
+	conns := make([]net.Conn, 0, numConns)
+	for i := 0; i < numConns; i++ {
+		c := env.dialInNs(t)
+		t.Cleanup(func() { c.Close() })
+		conns = append(conns, c)
+	}
+
+	env.addNetem(t, "delay", "10ms", "loss", "20%")
+	var wg sync.WaitGroup
+	stop := time.Now().Add(4 * time.Second)
+	for _, c := range conns {
+		wg.Add(1)
+		go func(c net.Conn) {
+			defer wg.Done()
+			payload := make([]byte, 16*1024)
+			for time.Now().Before(stop) {
+				c.SetWriteDeadline(time.Now().Add(time.Second))
+				if _, err := c.Write(payload); err != nil && !errors.Is(err, os.ErrDeadlineExceeded) {
+					return
+				}
+			}
+		}(c)
+	}
+	wg.Wait()
+	// The writers are idle now; what's still unacknowledged is resent from timers on idle CPUs
+	time.Sleep(2 * time.Second)
+	env.delNetem(t)
+
+	// Read the tracer's counts first and the kernel's after: the kernel keeps counting in between, so a
+	// correct count can't be above it, and the connections don't have to go idle first.
+	// A fetch only reports a connection whose stats changed since the last one, so keep the latest copy.
+	latest := make(map[string]*network.ConnectionStats, numConns)
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		active, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		for _, c := range conns {
+			if found, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), active); ok {
+				latest[c.LocalAddr().String()] = found
+			}
+		}
+		assert.Len(ct, latest, numConns, "connections found")
+	}, 10*time.Second, 200*time.Millisecond)
+
+	kernel := make(map[string]uint32, numConns)
+	for _, c := range conns {
+		info, err := offsetguess.TCPGetInfo(c)
+		require.NoError(t, err)
+		kernel[c.LocalAddr().String()] = info.Total_retrans
+	}
+
+	var ours, theirs uint64
+	for addr, conn := range latest {
+		ours += uint64(conn.Monotonic.Retransmits)
+		theirs += uint64(kernel[addr])
+		assert.LessOrEqual(t, conn.Monotonic.Retransmits, kernel[addr], "%s: retransmits above the kernel's count", addr)
+	}
+	t.Logf("retransmits: tracer %d, kernel %d", ours, theirs)
+	require.Positive(t, theirs, "no retransmissions happened")
+	// Tail loss probes are the only resends the tracer doesn't see, and they're a small share under steady
+	// loss; the kernel also keeps counting after the tracer's fetch
+	assert.GreaterOrEqual(t, float64(ours), 0.9*float64(theirs), "the tracer missed more than a tenth of the kernel's retransmits")
 }
 
 func (s *TracerSuite) TestTCPRetransmitSharedSocket() {
@@ -1526,6 +1627,25 @@ func setupUDPSockets(t *testing.T, udpnet, ip string) (*net.UDPConn, *net.UDPCon
 	return ln, c
 }
 
+// recvRaw does one recvfrom with flags on rc, letting the runtime poller wait
+// for data so that the connection's read deadline applies.
+func recvRaw(rc syscall.RawConn, buf []byte, flags int) (int, error) {
+	var n int
+	var rerr error
+	err := rc.Read(func(fd uintptr) bool {
+		for {
+			n, _, rerr = syscall.Recvfrom(int(fd), buf, flags)
+			if rerr != syscall.EINTR {
+				return rerr != syscall.EAGAIN
+			}
+		}
+	})
+	if err != nil {
+		return 0, err
+	}
+	return n, rerr
+}
+
 func (s *TracerSuite) TestUDPPeekCount() {
 	t := s.T()
 	t.Run("v4", func(t *testing.T) {
@@ -1548,43 +1668,65 @@ func testUDPPeekCount(t *testing.T, udpnet, ip string) {
 	_, err := c.Write(msg)
 	require.NoError(t, err)
 
+	require.NoError(t, tracertestutil.SetTestDeadline(ln))
 	rawConn, err := ln.SyscallConn()
 	require.NoError(t, err)
-	err = rawConn.Control(func(fd uintptr) {
-		buf := make([]byte, 1024)
-		var n int
-		var err error
-		done := make(chan struct{})
-
-		recv := func(flags int) {
-			for {
-				n, _, err = syscall.Recvfrom(int(fd), buf, flags)
-				if err == syscall.EINTR || err == syscall.EAGAIN {
-					continue
-				}
-				break
-			}
-		}
-		go func() {
-			defer close(done)
-			recv(syscall.MSG_PEEK)
-			if n == 0 || err != nil {
-				return
-			}
-			recv(0)
-		}()
-
-		select {
-		case <-done:
-			require.NoError(t, err)
-			require.NotZero(t, n)
-		case <-time.After(5 * time.Second):
-			require.Fail(t, "receive timed out")
-		}
-	})
+	buf := make([]byte, 1024)
+	n, err := recvRaw(rawConn, buf, syscall.MSG_PEEK)
 	require.NoError(t, err)
+	require.Equal(t, len(msg), n, "peek")
+	n, err = recvRaw(rawConn, buf, 0)
+	require.NoError(t, err)
+	require.Equal(t, len(msg), n, "receive")
 
 	requireUDPCounters(t, tr, c, len(msg), 1)
+}
+
+// TestTCPPeekCount checks that a MSG_PEEK receive on a TCP socket isn't
+// counted: peeking at the data and then reading it must count the bytes once.
+func (s *TracerSuite) TestTCPPeekCount() {
+	t := s.T()
+	cfg := testConfig()
+	tr := setupTracer(t, cfg)
+
+	msg := []byte("asdf")
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+		c.Write(msg)
+		// keep the connection open until the client closes it
+		io.Copy(io.Discard, c)
+		c.Close()
+	})
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
+
+	c, err := server.Dial()
+	require.NoError(t, err)
+	defer c.Close()
+	require.NoError(t, tracertestutil.SetTestDeadline(c))
+
+	rawConn, err := c.(*net.TCPConn).SyscallConn()
+	require.NoError(t, err)
+	// TCP may return fewer bytes than were sent, so the peek only needs to see
+	// part of the message; the read below then consumes all of it
+	n, err := recvRaw(rawConn, make([]byte, len(msg)), syscall.MSG_PEEK)
+	require.NoError(t, err)
+	require.NotZero(t, n, "peek")
+	_, err = io.ReadFull(c, make([]byte, len(msg)))
+	require.NoError(t, err)
+
+	// keep the last stats seen across polls, since a poll doesn't necessarily
+	// return a connection again once it has stopped changing
+	var outgoing *network.ConnectionStats
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		conns, cleanup := getConnections(collect, tr)
+		defer cleanup()
+		if conn, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), conns); conn != nil {
+			outgoing = conn
+		}
+		if assert.NotNil(collect, outgoing, "connection not found") {
+			assert.Equal(collect, len(msg), int(outgoing.Monotonic.RecvBytes), "recv bytes")
+		}
+	}, 4*time.Second, 100*time.Millisecond, "failed to find connection with expected recv bytes")
 }
 
 func (s *TracerSuite) TestUDPPacketSumming() {
@@ -2819,6 +2961,75 @@ func (s *TracerSuite) TestUnconnectedDualStackUDPReplyIPv4() {
 	}, 3*time.Second, 100*time.Millisecond)
 }
 
+// TestUnconnectedDualStackUDPSendSourceOverride covers an unconnected AF_INET6
+// UDP socket (IPV6_V6ONLY off) bound to an IPv4-mapped address that sends to an
+// IPv4-mapped peer with an IPV6_PKTINFO source override. The kernel sends it as
+// IPv4 from the override address, not the bound one, so the send must land on a
+// single IPv4 connection with the override as its source.
+func (s *TracerSuite) TestUnconnectedDualStackUDPSendSourceOverride() {
+	t := s.T()
+	if ebpftest.GetBuildMode() == ebpftest.SK {
+		t.Skip("SK tracer doesn't track unconnected dual-stack UDP sockets per flow yet")
+	}
+	cfg := testConfig()
+	tr := setupTracer(t, cfg)
+
+	server, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	require.NoError(t, err)
+	t.Cleanup(func() { server.Close() })
+	require.NoError(t, tracertestutil.SetTestDeadline(server))
+	serverPort := server.LocalAddr().(*net.UDPAddr).Port
+
+	mapped := func(a [4]byte) [16]byte { return netip.AddrFrom4(a).As16() }
+	bound := [4]byte{127, 0, 0, 1}
+	override := [4]byte{127, 0, 0, 2}
+
+	fd, err := unix.Socket(unix.AF_INET6, unix.SOCK_DGRAM, unix.IPPROTO_UDP)
+	require.NoError(t, err)
+	t.Cleanup(func() { unix.Close(fd) })
+	require.NoError(t, unix.SetsockoptInt(fd, unix.IPPROTO_IPV6, unix.IPV6_V6ONLY, 0))
+	require.NoError(t, unix.Bind(fd, &unix.SockaddrInet6{Addr: mapped(bound)}))
+	sa, err := unix.Getsockname(fd)
+	require.NoError(t, err)
+	clientPort := sa.(*unix.SockaddrInet6).Port
+
+	payload := []byte("dual-stack send")
+	oob := unix.PktInfo6(&unix.Inet6Pktinfo{Addr: mapped(override)})
+	to := &unix.SockaddrInet6{Port: serverPort, Addr: mapped(bound)}
+	require.NoError(t, unix.Sendmsg(fd, payload, oob, to, 0))
+
+	buf := make([]byte, 64)
+	n, from, err := server.ReadFromUDP(buf)
+	require.NoError(t, err)
+	require.Equal(t, len(payload), n)
+	require.Equal(t, "127.0.0.2", from.IP.String(), "the kernel didn't apply the source override")
+	require.Equal(t, clientPort, from.Port)
+
+	// A connection is only reported when it has new activity, so accumulate the
+	// client-side records across polls, keeping the latest copy of each.
+	client := map[network.StatCookie]network.ConnectionStats{}
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		connections, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		for _, c := range network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
+			return cs.Type == network.UDP && cs.SPort == uint16(clientPort) && cs.DPort == uint16(serverPort)
+		}) {
+			client[c.Cookie] = c
+		}
+		var v4 []network.ConnectionStats
+		for _, c := range client {
+			if !assert.Equal(ct, network.AFINET, c.Family, "client connection has the wrong family: %s", c) {
+				continue
+			}
+			v4 = append(v4, c)
+		}
+		require.Len(ct, v4, 1, "client connections: %v", client)
+		assert.Equal(ct, "127.0.0.2", v4[0].Source.String())
+		assert.Equal(ct, "127.0.0.1", v4[0].Dest.String())
+		assert.Equal(ct, uint64(len(payload)), v4[0].Monotonic.SentBytes, "sent bytes")
+	}, 3*time.Second, 100*time.Millisecond)
+}
+
 // TestUnconnectedDualStackDNSClient covers a DNS client that, like the musl
 // resolver when both IPv4 and IPv6 nameservers are configured, sends its
 // queries from one unconnected AF_INET6 UDP socket to the IPv4-mapped address
@@ -3734,6 +3945,7 @@ func (s *TracerSuite) TestNATFromEbpfConntracker() {
 		m, err := tr.ebpfTracer.GetMap(probes.ConnectionTupleToSocketSKBConnMap)
 		require.NoError(t, err)
 		assert.Equal(t, uint32(1), m.MaxEntries())
+		netlinktestutil.SetupSNAT(t)
 		testSNATOneSidedClassification(t, tr)
 	})
 
@@ -3744,41 +3956,97 @@ func (s *TracerSuite) TestNATFromEbpfConntracker() {
 		if tr.ebpfTracer.Type() == connection.TracerTypeSK {
 			t.Skip("the sk tracer doesn't classify with the net_dev_queue map")
 		}
-		require.Nil(t, sharedConntrackNATMap(cfg, tr.conntracker, hostBPFNATDataplane))
+		require.Nil(t, sharedConntrackNATMap(cfg, tr.conntracker, kprobe.ClassificationSupported(cfg), hostBPFNATDataplane))
 		m, err := tr.ebpfTracer.GetMap(probes.ConnectionTupleToSocketSKBConnMap)
 		require.NoError(t, err)
 		assert.Equal(t, cfg.MaxTrackedConnections, m.MaxEntries())
 		// net_dev_queue supplies the NAT'd tuples here
+		netlinktestutil.SetupSNAT(t)
 		testSNATOneSidedClassification(t, tr)
+		t.Run("equal ports cleanup", func(t *testing.T) { testNATSidesCleanup(t, tr, dialEqualPorts) })
+		t.Run("port-rewriting SNAT cleanup", func(t *testing.T) {
+			first, last := portRewriteRange(t)
+			netlinktestutil.SetupSNATPortRewrite(t, first, last)
+			testNATSidesCleanup(t, tr, dialRewrittenPort)
+		})
 	})
 }
 
 // testSNATOneSidedClassification checks that both ends of a SNAT'd connection are classified when only one of them
-// sends, so the other end's socket only sees classified traffic under the NAT'd tuple.
+// sends, so the other end's socket only sees classified traffic under the NAT'd tuple. The caller sets up the SNAT
+// (netlinktestutil.SetupSNAT).
 func testSNATOneSidedClassification(t *testing.T, tr *Tracer) {
-	netlinktestutil.SetupSNAT(t)
 	request := []byte("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
 	response := []byte("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
-	for _, serverSends := range []bool{false, true} {
-		t.Run(fmt.Sprintf("server sends %v", serverSends), func(t *testing.T) {
+	for _, tc := range []struct{ serverSends, equalPorts bool }{{false, false}, {true, false}, {false, true}, {true, true}} {
+		serverSends := tc.serverSends
+		name := fmt.Sprintf("server sends %v", serverSends)
+		if tc.equalPorts {
+			// the client's port is the server's: normalize_tuple must still give both directions one key
+			name += " equal ports"
+		}
+		t.Run(name, func(t *testing.T) {
+			// releases the handlers of every attempt's server, including those of rejected attempts if the
+			// subtest fails in the retry loop
 			done := make(chan struct{})
-			srv := tracertestutil.NewTCPServerOnAddress("127.0.0.1:0", func(c net.Conn) {
-				defer c.Close()
-				if serverSends {
-					_, _ = c.Write(response)
-				} else {
-					_, _ = io.ReadFull(c, make([]byte, len(request)))
-				}
-				<-done
-			})
-			require.NoError(t, srv.Run())
-			t.Cleanup(srv.Shutdown)
+			t.Cleanup(func() { close(done) })
+			var srv *tracertestutil.TCPServer
+			var c net.Conn
+			var err error
+			// With equal ports the client binds 6.6.6.6 to the server's port. The kernel only checked that
+			// port was free on 127.0.0.1, so it can already be in use on 6.6.6.6, and SNAT can still rewrite
+			// it, e.g. when a leftover conntrack entry holds 7.7.7.7 with that port. Either way, start over
+			// with a new server, and so a new port.
+			const maxAttempts = 10
+			for attempt := 1; ; attempt++ {
+				peers := make(chan net.Addr, 1)
+				srv = tracertestutil.NewTCPServerOnAddress("127.0.0.1:0", func(conn net.Conn) {
+					defer conn.Close()
+					peers <- conn.RemoteAddr()
+					if serverSends {
+						_, _ = conn.Write(response)
+					} else {
+						_, _ = io.ReadFull(conn, make([]byte, len(request)))
+					}
+					<-done
+				})
+				require.NoError(t, srv.Run())
+				t.Cleanup(srv.Shutdown)
 
-			d := net.Dialer{LocalAddr: &net.TCPAddr{IP: net.ParseIP("6.6.6.6")}, Timeout: 5 * time.Second}
-			c, err := d.Dial("tcp", srv.Address())
-			require.NoError(t, err)
+				local := &net.TCPAddr{IP: net.ParseIP("6.6.6.6")}
+				if tc.equalPorts {
+					_, port, perr := net.SplitHostPort(srv.Address())
+					require.NoError(t, perr)
+					local.Port, perr = strconv.Atoi(port)
+					require.NoError(t, perr)
+				}
+				d := net.Dialer{LocalAddr: local, Timeout: 5 * time.Second}
+				c, err = d.Dial("tcp", srv.Address())
+				if err == nil {
+					if !tc.equalPorts {
+						break
+					}
+					var peer net.Addr
+					select {
+					case peer = <-peers:
+					case <-time.After(5 * time.Second):
+						require.Fail(t, "server didn't accept the connection")
+					}
+					if peer.(*net.TCPAddr).Port == local.Port {
+						break
+					}
+					err = fmt.Errorf("SNAT rewrote the client's port %d to %v", local.Port, peer)
+					_ = c.Close()
+				} else {
+					require.True(t, tc.equalPorts && errors.Is(err, syscall.EADDRINUSE),
+						"dial failed after %d attempt(s): %v", attempt, err)
+				}
+				require.Less(t, attempt, maxAttempts, "no equal-port connection after %d attempts: %v", attempt, err)
+				t.Logf("attempt %d: %v, retrying with a new server", attempt, err)
+				srv.Shutdown()
+			}
 			defer c.Close()
-			defer close(done)
+			require.NoError(t, tracertestutil.SetTestDeadline(c))
 			if serverSends {
 				_, err = io.ReadFull(c, make([]byte, len(response)))
 			} else {
@@ -3786,19 +4054,31 @@ func testSNATOneSidedClassification(t *testing.T, tr *Tracer) {
 			}
 			require.NoError(t, err)
 
+			// After its one message the connection is idle, so each end is reported in one fetch only: the
+			// state skips an active connection whose stats haven't changed since the last fetch. The two ends
+			// can land in different fetches (the client's send can be reported before the server's goroutine
+			// reads it), and neither comes back afterwards. So keep the latest copy of each end seen across
+			// fetches.
+			var client, server *network.ConnectionStats
 			require.EventuallyWithT(t, func(collect *assert.CollectT) {
 				conns, cleanup := getConnections(collect, tr)
 				defer cleanup()
-				client, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-				if assert.NotNil(collect, client, "client connection not found") {
-					assert.True(collect, client.ProtocolStack.Contains(protocols.HTTP), "client not classified")
+				if conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns); ok {
+					cp := *conn
+					client = &cp
 				}
 				// the server's socket sees the SNAT'd source
-				server := network.FirstConnection(conns, func(cs network.ConnectionStats) bool {
+				if conn := network.FirstConnection(conns, func(cs network.ConnectionStats) bool {
 					return cs.Direction == network.INCOMING && fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == srv.Address() && cs.Dest.String() == "7.7.7.7"
-				})
-				if assert.NotNil(collect, server, "server connection not found") {
-					assert.True(collect, server.ProtocolStack.Contains(protocols.HTTP), "server not classified")
+				}); conn != nil {
+					cp := *conn
+					server = &cp
+				}
+				if assert.NotNil(collect, client, "client connection not found in any fetch") {
+					assert.True(collect, client.ProtocolStack.Contains(protocols.HTTP), "client not classified: %v", client)
+				}
+				if assert.NotNil(collect, server, "server connection not found in any fetch") {
+					assert.True(collect, server.ProtocolStack.Contains(protocols.HTTP), "server not classified: %v", server)
 				}
 			}, 5*time.Second, 100*time.Millisecond)
 		})
@@ -3815,7 +4095,10 @@ func requireConntrackNATMapShared(t *testing.T, cfg *config.Config, tr *Tracer) 
 	if !slices.ContainsFunc(ctks, func(c netlink.Conntracker) bool { _, ok := c.(*ebpfConntracker); return ok }) {
 		t.Skip("ebpf conntracker not loaded")
 	}
-	natMap := sharedConntrackNATMap(cfg, tr.conntracker, hostBPFNATDataplane)
+	if !kprobe.ClassificationSupported(cfg) {
+		t.Skip("protocol classification not supported, so the map isn't shared")
+	}
+	natMap := sharedConntrackNATMap(cfg, tr.conntracker, true, hostBPFNATDataplane)
 	require.NotNil(t, natMap, "ebpf conntracker map not shared")
 	m, err := tr.ebpfTracer.GetMap(probes.ConnectionTupleToSocketSKBConnMap)
 	require.NoError(t, err)
@@ -3947,6 +4230,153 @@ func (s *TracerSuite) TestNATClassificationCleanup() {
 			}, 3*time.Second, 100*time.Millisecond)
 		})
 	}
+
+	// the conntrack map supplies the NAT'd tuples here
+	t.Run("equal ports", func(t *testing.T) { testNATSidesCleanup(t, tr, dialEqualPorts) })
+	t.Run("port-rewriting SNAT", func(t *testing.T) {
+		first, last := portRewriteRange(t)
+		netlinktestutil.SetupSNATPortRewrite(t, first, last)
+		testNATSidesCleanup(t, tr, dialRewrittenPort)
+	})
+}
+
+// testNATSidesCleanup checks the sides that the two ends of a SNAT'd connection mark on the classification entries
+// they share, and that the entries outlive the first end's close. Each end looks up the entry under its own tuple and
+// under the NAT'd tuple, so each entry is shared by both ends. dial connects them in a way that makes comparing the
+// ends' source ports useless for telling them apart, so only the tuples' orientation does. The caller sets up the
+// SNAT (netlinktestutil.SetupSNAT).
+func testNATSidesCleanup(t *testing.T, tr *Tracer, dial func(t *testing.T) (client, server net.Conn)) {
+	protoMap, err := tr.GetMap(probes.ConnectionProtocolMap)
+	require.NoError(t, err)
+
+	client, server := dial(t)
+	require.Equal(t, "7.7.7.7", server.RemoteAddr().(*net.TCPAddr).IP.String(), "connection wasn't SNAT'd")
+
+	// unclassified entries for the ends to mark
+	now, err := ddebpf.NowNanoseconds()
+	require.NoError(t, err)
+	stack := netebpf.ProtocolStackWrapper{Updated: uint64(now)}
+	keys := map[string]netebpf.ConnTuple{
+		"client's tuple": normalizedClassificationKey(client.LocalAddr(), client.RemoteAddr()),
+		"server's tuple": normalizedClassificationKey(server.LocalAddr(), server.RemoteAddr()),
+	}
+	for _, k := range keys {
+		require.NoError(t, protoMap.Put(unsafe.Pointer(&k), unsafe.Pointer(&stack)))
+	}
+
+	// each end updates its stats, and so marks its side, when it sends and receives
+	require.NoError(t, tracertestutil.SetTestDeadline(client))
+	require.NoError(t, tracertestutil.SetTestDeadline(server))
+	buf := make([]byte, 1)
+	for _, c := range [][2]net.Conn{{client, server}, {server, client}} {
+		_, err = c[0].Write([]byte{'x'})
+		require.NoError(t, err)
+		_, err = io.ReadFull(c[1], buf)
+		require.NoError(t, err)
+	}
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		for name, k := range keys {
+			var got netebpf.ProtocolStackWrapper
+			if assert.NoError(collect, protoMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&got)), "connection_protocol under the %s", name) {
+				assert.Equal(collect, uint8(flagServerSide|flagClientSide), got.Stack.Flags&(flagServerSide|flagClientSide), "sides marked under the %s", name)
+			}
+		}
+	}, 3*time.Second, 100*time.Millisecond)
+
+	// The first end's close only clears the sides. The close event is sent before the tcp_close return hook cleans
+	// up, so wait for the cleared sides themselves: they show that the cleanup ran and deferred the deletion, where
+	// an entry that is merely still there could just be one the cleanup hasn't reached yet. Only the tracer marks
+	// the sides here, and neither end sends or receives again before the second close, so nothing marks them again.
+	require.NoError(t, client.Close())
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		for name, k := range keys {
+			var got netebpf.ProtocolStackWrapper
+			if assert.NoError(collect, protoMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&got)), "connection_protocol under the %s deleted by the first close", name) {
+				assert.Zero(collect, got.Stack.Flags&(flagServerSide|flagClientSide), "sides not cleared under the %s", name)
+			}
+		}
+	}, 3*time.Second, 100*time.Millisecond)
+
+	// the second end's close deletes them
+	require.NoError(t, server.Close())
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		for name, k := range keys {
+			var got netebpf.ProtocolStackWrapper
+			assert.ErrorIs(collect, protoMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&got)), ebpf.ErrKeyNotExist, "connection_protocol under the %s", name)
+		}
+	}, 3*time.Second, 100*time.Millisecond)
+}
+
+// dialSNAT connects a client bound to 6.6.6.6 to a new listener on 127.0.0.1. With equalPorts, the client binds the
+// listener's port, otherwise the kernel picks one. accept reports whether the connection is the one the test needs; if not, or if the port is
+// in use on 6.6.6.6, it starts over with a new listener, and so a new port, a bounded number of times.
+func dialSNAT(t *testing.T, equalPorts bool, accept func(client, server net.Conn) error) (client, server net.Conn) {
+	const maxAttempts = 10
+	for attempt := 1; ; attempt++ {
+		ln, err := net.Listen("tcp4", "127.0.0.1:0")
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = ln.Close() })
+		port := 0
+		if equalPorts {
+			port = ln.Addr().(*net.TCPAddr).Port
+		}
+		d := net.Dialer{LocalAddr: &net.TCPAddr{IP: net.ParseIP("6.6.6.6"), Port: port}, Timeout: 5 * time.Second}
+		// each cleanup closes its own attempt's conn, not a variable that a later attempt's failed dial leaves nil
+		c, err := d.Dial("tcp", ln.Addr().String())
+		if err == nil {
+			t.Cleanup(func() { _ = c.Close() })
+			s, aerr := ln.Accept()
+			require.NoError(t, aerr)
+			t.Cleanup(func() { _ = s.Close() })
+			if err = accept(c, s); err == nil {
+				_ = ln.Close()
+				return c, s
+			}
+			_ = c.Close()
+			_ = s.Close()
+		} else {
+			require.ErrorIs(t, err, syscall.EADDRINUSE, "dial failed after %d attempt(s)", attempt)
+		}
+		require.Less(t, attempt, maxAttempts, "no suitable connection after %d attempts: %v", attempt, err)
+		t.Logf("attempt %d: %v, retrying with a new listener", attempt, err)
+		_ = ln.Close()
+	}
+}
+
+// dialEqualPorts connects 6.6.6.6:P to 127.0.0.1:P, which SNAT makes 7.7.7.7:P to 127.0.0.1:P: both ends' source
+// port is P.
+func dialEqualPorts(t *testing.T) (client, server net.Conn) {
+	return dialSNAT(t, true, func(client, server net.Conn) error {
+		// SNAT can still rewrite the port, e.g. when a leftover conntrack entry holds 7.7.7.7 with it
+		if lport, rport := client.LocalAddr().(*net.TCPAddr).Port, server.RemoteAddr().(*net.TCPAddr).Port; lport != rport {
+			return fmt.Errorf("SNAT rewrote the client's port %d to %d", lport, rport)
+		}
+		return nil
+	})
+}
+
+// portRewriteRange returns the ports for SetupSNATPortRewrite: the top of the ephemeral range, above any port the
+// listeners are likely to get.
+func portRewriteRange(t *testing.T) (uint16, uint16) {
+	_, end := network.EphemeralRange()
+	require.Greater(t, end, uint16(1000), "ephemeral range unknown")
+	return end - 99, end
+}
+
+// dialRewrittenPort connects 6.6.6.6:A to 127.0.0.1:Q, which SNAT, set up with SetupSNATPortRewrite, makes
+// 7.7.7.7:B to 127.0.0.1:Q, with B > Q. normalize_tuple then keeps the client's NAT'd tuple as is, while the
+// client's own port A matches neither B nor Q.
+func dialRewrittenPort(t *testing.T) (client, server net.Conn) {
+	first, last := portRewriteRange(t)
+	return dialSNAT(t, false, func(client, server net.Conn) error {
+		a := client.LocalAddr().(*net.TCPAddr).Port
+		b := server.RemoteAddr().(*net.TCPAddr).Port
+		q := server.LocalAddr().(*net.TCPAddr).Port
+		if b == a || b < int(first) || b > int(last) || b <= q {
+			return fmt.Errorf("SNAT made the client's port %d %d, for listener port %d", a, b, q)
+		}
+		return nil
+	})
 }
 
 const (
@@ -3970,7 +4400,12 @@ func normalizedClassificationKey(local, remote net.Addr) netebpf.ConnTuple {
 	if ephemeral(k.Sport) && !ephemeral(k.Dport) {
 		return k
 	}
-	if (!ephemeral(k.Sport) && ephemeral(k.Dport)) || k.Dport > k.Sport {
+	flip := (!ephemeral(k.Sport) && ephemeral(k.Dport)) || k.Dport > k.Sport
+	if !flip && k.Sport == k.Dport {
+		// equal ports: normalize_tuple breaks the tie on the address
+		flip = k.Daddr_h > k.Saddr_h || (k.Daddr_h == k.Saddr_h && k.Daddr_l > k.Saddr_l)
+	}
+	if flip {
 		k.Saddr_h, k.Saddr_l, k.Daddr_h, k.Daddr_l = k.Daddr_h, k.Daddr_l, k.Saddr_h, k.Saddr_l
 		k.Sport, k.Dport = k.Dport, k.Sport
 	}

@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/stretchr/testify/require"
 )
 
@@ -43,7 +45,7 @@ type packageApmInjectMultilibSuite struct {
 
 func testApmInjectMultilib(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite {
 	return &packageApmInjectMultilibSuite{
-		packageBaseSuite: newPackageSuite("apm-inject-multilib", os, arch, method),
+		packageBaseSuite: newPackageSuite("apm-inject-multilib", os, arch, method, awshost.WithRunOptions(scenec2.WithoutFakeIntake())),
 	}
 }
 

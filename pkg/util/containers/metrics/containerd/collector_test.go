@@ -20,6 +20,7 @@ import (
 	"github.com/containerd/containerd/v2/core/containers"
 	"github.com/containerd/containerd/v2/pkg/oci"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type mockedContainer struct {
@@ -95,5 +96,23 @@ func containerdClient(metrics *types.Metric) *fake.MockedContainerdClient {
 		MockTaskPids: func(string, containerd.Container) ([]containerd.ProcessInfo, error) {
 			return nil, nil
 		},
+	}
+}
+
+func TestNewCollectorMetadata(t *testing.T) {
+	metadata := newCollectorMetadata(&containerdCollector{}, nil)
+
+	defaultCollectors := metadata.Collectors[provider.NewRuntimeMetadata(string(provider.RuntimeNameContainerd), "")]
+	require.NotNil(t, defaultCollectors)
+	assert.NotNil(t, defaultCollectors.Stats.Collector)
+	assert.NotNil(t, defaultCollectors.PIDs.Collector)
+
+	for _, flavor := range provider.SandboxedRuntimeFlavors {
+		collectors := metadata.Collectors[provider.NewRuntimeMetadata(string(provider.RuntimeNameContainerd), string(flavor))]
+		require.NotNil(t, collectors, "missing collectors for flavor %q", flavor)
+		assert.NotNil(t, collectors.Stats.Collector, flavor)
+		assert.Nil(t, collectors.PIDs.Collector, flavor)
+		assert.Nil(t, collectors.Network.Collector, flavor)
+		assert.Nil(t, collectors.ContainerIDForPID.Collector, flavor)
 	}
 }
