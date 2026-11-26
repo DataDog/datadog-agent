@@ -30,16 +30,9 @@ class Product:
     bazel_job: str
     omnibus_jobs: tuple[str, ...]
     formats: tuple[str, ...] = ('deb', 'rpm')
-    debug_package: bool = False
 
     def bazel_targets(self) -> list[str]:
-        targets = []
-        for package_format in self.formats:
-            target = f'{self.bazel_package}:{BAZEL_TARGETS[package_format]}'
-            targets.append(target)
-            if self.debug_package:
-                targets.append(f'{target}_dbg')
-        return targets
+        return [f'{self.bazel_package}:{BAZEL_TARGETS[package_format]}' for package_format in self.formats]
 
 
 PRODUCTS = {
@@ -48,7 +41,6 @@ PRODUCTS = {
         '//packages/agent/linux',
         bazel_job='bazel:package:linux-amd64',
         omnibus_jobs=('agent_deb-x64-a7', 'agent_rpm-x64-a7'),
-        debug_package=True,
     ),
     'iot': Product(
         'datadog-iot-agent',
