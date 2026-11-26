@@ -9,6 +9,7 @@ package statusimpl
 import (
 	"embed"
 	"io"
+	"slices"
 	"strings"
 
 	"go.uber.org/fx"
@@ -18,7 +19,6 @@ import (
 	phonehome "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -108,16 +108,14 @@ func (s statusProvider) populateStatus(stats map[string]interface{}) {
 		}
 		parStatus["URN"] = urn
 		parStatus["SelfEnroll"] = s.config.GetBool(par.SelfEnroll)
-		defaultActionsEnabled := s.config.GetBool(par.DefaultActionsEnabled)
-		parStatus["DefaultActionsEnabled"] = defaultActionsEnabled
-		allowlist := s.config.GetStringSlice(par.ActionsAllowlist)
-		if defaultActionsEnabled {
-			if flavor.GetFlavor() == flavor.ClusterAgent {
-				allowlist = append(allowlist, parconfig.DefaultClusterAgentActionFQNs...)
-			} else {
-				allowlist = append(allowlist, parconfig.DefaultActionFQNs...)
+		parStatus["DefaultActionsEnabled"] = s.config.GetBool(par.DefaultActionsEnabled)
+		var allowlist []string
+		for bundleID, actions := range parconfig.MakeActionsAllowlist(s.config) {
+			for action := range actions {
+				allowlist = append(allowlist, bundleID+"."+action)
 			}
 		}
+		slices.Sort(allowlist)
 		parStatus["ActionsAllowlist"] = strings.Join(allowlist, ", ")
 	}
 

@@ -8,6 +8,7 @@ package statusimpl
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -45,6 +46,8 @@ func TestStatusEnabled(t *testing.T) {
 		assert.Equal(t, "urn:datadog:action-runner:abcdef123456", parStats["URN"])
 		assert.Contains(t, parStats["ActionsAllowlist"], "com.datadoghq.http.request")
 		assert.Contains(t, parStats["ActionsAllowlist"], "com.datadoghq.kubernetes.core.getPod")
+		assert.Contains(t, parStats["ActionsAllowlist"], "com.datadoghq.kubernetes.core.testConnection")
+		assert.Contains(t, parStats["ActionsAllowlist"], "com.datadoghq.remoteaction.internal.prepareEncryption")
 	})
 
 	t.Run("Text", func(t *testing.T) {
@@ -70,6 +73,77 @@ func TestStatusEnabled(t *testing.T) {
 		assert.Contains(t, output, "Default Actions Enabled: true")
 		assert.Contains(t, output, "com.datadoghq.kubernetes.core.getPod")
 	})
+}
+
+func TestStatusActionsAllowlist(t *testing.T) {
+	for _, tc := range []struct {
+		name               string
+		allowlist          []string
+		kubeactionsEnabled bool
+		kubeactionsPAR     bool
+		expected           []string
+	}{
+		{
+			name:      "inherited actions and duplicates",
+			allowlist: []string{"com.datadoghq.script.runPredefinedScript", "com.datadoghq.http.request", "com.datadoghq.http.request"},
+			expected: []string{
+				"com.datadoghq.http.request",
+				"com.datadoghq.http.testConnection",
+				"com.datadoghq.script.enrichScript",
+				"com.datadoghq.script.runPredefinedScript",
+				"com.datadoghq.script.testConnection",
+			},
+		},
+		{
+			name:      "integration wildcard",
+			allowlist: []string{"com.datadoghq.kubernetes.*"},
+			expected:  []string{"com.datadoghq.kubernetes.*", "com.datadoghq.kubernetes.core.testConnection"},
+		},
+		{
+			name:               "kubeactions enabled",
+			kubeactionsEnabled: true,
+			kubeactionsPAR:     true,
+			expected: []string{
+				"com.datadoghq.kubernetes.core.testConnection",
+				"com.datadoghq.kubernetes.kubeactions.deletePod",
+				"com.datadoghq.kubernetes.kubeactions.getResource",
+				"com.datadoghq.kubernetes.kubeactions.patchDaemonset",
+				"com.datadoghq.kubernetes.kubeactions.patchDeployment",
+				"com.datadoghq.kubernetes.kubeactions.patchStatefulset",
+				"com.datadoghq.kubernetes.kubeactions.restartDeployment",
+				"com.datadoghq.kubernetes.kubeactions.rollbackDeployment",
+			},
+		},
+		{name: "kubeactions disabled", kubeactionsPAR: true},
+		{name: "kubeactions delivery disabled", kubeactionsEnabled: true},
+		{name: "empty allowlist"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := config.NewMock(t)
+			cfg.SetInTest("private_action_runner.enabled", true)
+			cfg.SetInTest("private_action_runner.default_actions_enabled", false)
+			cfg.SetInTest("private_action_runner.actions_allowlist", tc.allowlist)
+			cfg.SetInTest("kubeactions.enabled", tc.kubeactionsEnabled)
+			cfg.SetInTest("kubeactions.private_action_runner.enabled", tc.kubeactionsPAR)
+			provider := statusProvider{config: cfg}
+
+			stats := make(map[string]interface{})
+			require.NoError(t, provider.JSON(false, stats))
+			parStats, ok := stats["privateActionRunnerStatus"].(map[string]interface{})
+			require.True(t, ok)
+			expected := strings.Join(tc.expected, ", ")
+			assert.Equal(t, expected, parStats["ActionsAllowlist"])
+
+			if expected == "" {
+				expected = "(none)"
+			}
+			var text, html bytes.Buffer
+			require.NoError(t, provider.Text(false, &text))
+			require.NoError(t, provider.HTML(false, &html))
+			assert.Contains(t, text.String(), "Actions Allowlist: "+expected+"\n")
+			assert.Contains(t, html.String(), "Actions Allowlist: "+expected+"<br>")
+		})
+	}
 }
 
 func TestStatusDisabled(t *testing.T) {
