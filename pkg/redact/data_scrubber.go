@@ -172,7 +172,9 @@ func (ds *DataScrubber) scrubCommandTokens(cmdline []string, firstParam int) boo
 			// agent --password > /password/secret ==> agent > --password ******** /password/secret
 
 			if matchIndex >= 0 {
-				before := cmd[:matchIndex] // /etc/vaultd/ from /etc/vaultd/secret/haproxy-crt.pem
+				// Lowercasing can change UTF-8 byte lengths, so use the same
+				// string for matching and slicing the prefix.
+				before := lowerCmd[:matchIndex] // /etc/vaultd/ from /etc/vaultd/secret/haproxy-crt.pem
 				// skip paths /etc/vaultd/secrets/haproxy-crt.pem -> we don't want to match if one of the below chars are in before
 				if strings.ContainsAny(before, "/:=$") {
 					break

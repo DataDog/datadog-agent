@@ -70,24 +70,32 @@ func scrubMap(m map[string]interface{}, scrubber *DataScrubber, parentSensitive 
 // scrubUnstructuredCommand processes command and args together so that a
 // sensitive option also redacts its value in the next element or in args.
 func scrubUnstructuredCommand(m map[string]interface{}, scrubber *DataScrubber) {
-	command, hasCommand, commandErr := unstructured.NestedStringSlice(m, "command")
-	args, hasArgs, argsErr := unstructured.NestedStringSlice(m, "args")
-	if commandErr != nil {
-		command, hasCommand = nil, false
-	}
-	if argsErr != nil {
-		args, hasArgs = nil, false
-	}
-	command, args, changed := scrubber.scrubCommandArguments(command, args)
+	command, _ := m["command"].([]interface{})
+	args, _ := m["args"].([]interface{})
+	scrubbedCommand, scrubbedArgs, changed := scrubber.scrubCommandArguments(commandStringValues(command), commandStringValues(args))
 	if !changed {
 		return
 	}
-	if hasCommand {
-		_ = unstructured.SetNestedStringSlice(m, command, "command")
+	for i, value := range command {
+		if _, ok := value.(string); ok {
+			command[i] = scrubbedCommand[i]
+		}
 	}
-	if hasArgs {
-		_ = unstructured.SetNestedStringSlice(m, args, "args")
+	for i, value := range args {
+		if _, ok := value.(string); ok {
+			args[i] = scrubbedArgs[i]
+		}
 	}
+}
+
+// commandStringValues keeps non-string entries as empty slots, preserving
+// argument positions and the executable's index when scanning mixed arrays.
+func commandStringValues(values []interface{}) []string {
+	command := make([]string, len(values))
+	for i, value := range values {
+		command[i], _ = value.(string)
+	}
+	return command
 }
 
 // scrubCommandArguments preserves the original argument boundaries. A regex
@@ -108,21 +116,28 @@ func (ds *DataScrubber) scrubCommandArguments(cmd, args []string) ([]string, []s
 		if valueIndex < 0 {
 			continue
 		}
+		argIndex, offset := 0, 1
+		// Matches are ordered, so advance through the argument boundaries once
+		// per pattern. Keep the last overlapping argument for later matches
+		// that may fall within the same argument.
 		for _, match := range pattern.FindAllStringSubmatchIndex(rawCmdline, -1) {
 			start, end := match[2*valueIndex], match[2*valueIndex+1]
 			if start < 0 {
 				continue
 			}
-			offset := 1
-			for i, arg := range original {
-				argEnd := offset + len(arg)
+			for argIndex < len(original) {
+				argEnd := offset + len(original[argIndex])
 				overlapsValue := start < argEnd && end > offset
 				emptyValue := start == end && start >= offset && start <= argEnd
 				if overlapsValue || emptyValue {
-					cmdline[i] = redactedSecret
+					cmdline[argIndex] = redactedSecret
 					changed = true
 				}
+				if argEnd >= end {
+					break
+				}
 				offset = argEnd + 1
+				argIndex++
 			}
 		}
 	}

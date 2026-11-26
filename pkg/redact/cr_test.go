@@ -194,6 +194,22 @@ func TestScrubCRManifestCommands(t *testing.T) {
 			input:    map[string]interface{}{"args": []interface{}{"--custom_value=sensitive first second", "--message", "ordinary text"}},
 			expected: map[string]interface{}{"args": []interface{}{redactedSecret, "--message", "ordinary text"}},
 		},
+		"multiple custom regex values": {
+			input:    map[string]interface{}{"args": []interface{}{"--custom_first=one", "--message", "ordinary text", "--custom_second", "two words", "--custom_third=three"}},
+			expected: map[string]interface{}{"args": []interface{}{redactedSecret, "--message", "ordinary text", "--custom_second", redactedSecret, redactedSecret}},
+		},
+		"multiple custom regex patterns": {
+			input:    map[string]interface{}{"args": []interface{}{"--other_first=one", "--message", "ordinary text", "--custom_second=two"}},
+			expected: map[string]interface{}{"args": []interface{}{redactedSecret, "--message", "ordinary text", redactedSecret}},
+		},
+		"multiple custom regex values in one argument": {
+			input:    map[string]interface{}{"args": []interface{}{"--custom_first=one --custom_second=two", "--message", "ordinary text", "--custom_third=three"}},
+			expected: map[string]interface{}{"args": []interface{}{redactedSecret, "--message", "ordinary text", redactedSecret}},
+		},
+		"empty custom regex value": {
+			input:    map[string]interface{}{"args": []interface{}{"--custom_first=", "", "--message", "ordinary text", "--custom_second=two"}},
+			expected: map[string]interface{}{"args": []interface{}{redactedSecret, "", "--message", "ordinary text", redactedSecret}},
+		},
 		"entrypoint bare assignment": {
 			input:    map[string]interface{}{"args": []interface{}{"password=sensitive-value", "--port=8080"}},
 			expected: map[string]interface{}{"args": []interface{}{redactedSecret, "--port=8080"}},
@@ -205,6 +221,40 @@ func TestScrubCRManifestCommands(t *testing.T) {
 		"entrypoint separate value": {
 			input:    map[string]interface{}{"args": []interface{}{"--password", "sensitive-value", "--port", "8080"}},
 			expected: map[string]interface{}{"args": []interface{}{redactedSecret, redactedSecret, "--port", "8080"}},
+		},
+		"Unicode sensitive option": {
+			input:    map[string]interface{}{"args": []interface{}{"ȺȺȺȺȺȺȺȺȺpassword", "sensitive-value"}},
+			expected: map[string]interface{}{"args": []interface{}{redactedSecret, redactedSecret}},
+		},
+		"Unicode sensitive assignment": {
+			input:    map[string]interface{}{"args": []interface{}{"ȺȺȺȺȺȺȺȺȺpassword=sensitive-value"}},
+			expected: map[string]interface{}{"args": []interface{}{redactedSecret}},
+		},
+		"mixed args": {
+			input:    map[string]interface{}{"args": []interface{}{int64(1), "--password", "sensitive-value", true}},
+			expected: map[string]interface{}{"args": []interface{}{int64(1), redactedSecret, redactedSecret, true}},
+		},
+		"mixed args between option and value": {
+			input:    map[string]interface{}{"args": []interface{}{"--password", int64(1), "sensitive-value"}},
+			expected: map[string]interface{}{"args": []interface{}{redactedSecret, int64(1), redactedSecret}},
+		},
+		"mixed args with custom regex": {
+			input:    map[string]interface{}{"args": []interface{}{int64(1), "--custom_value", "sensitive-value"}},
+			expected: map[string]interface{}{"args": []interface{}{int64(1), "--custom_value", redactedSecret}},
+		},
+		"mixed command starting with non-string": {
+			input:    map[string]interface{}{"command": []interface{}{int64(1), "--password", "sensitive-value"}},
+			expected: map[string]interface{}{"command": []interface{}{int64(1), redactedSecret, redactedSecret}},
+		},
+		"mixed command and args": {
+			input: map[string]interface{}{
+				"command": []interface{}{"app", int64(1), "--password"},
+				"args":    []interface{}{false, "sensitive-value", "--port=8080"},
+			},
+			expected: map[string]interface{}{
+				"command": []interface{}{"app", int64(1), redactedSecret},
+				"args":    []interface{}{false, redactedSecret, "--port=8080"},
+			},
 		},
 		"command and args": {
 			input: map[string]interface{}{
@@ -245,12 +295,36 @@ func TestScrubCRManifestCommands(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			scrubber := NewDefaultDataScrubber()
 			scrubber.AddCustomSensitiveWords([]string{"private_value"})
-			scrubber.AddCustomSensitiveRegex([]string{"custom_*"})
+			scrubber.AddCustomSensitiveRegex([]string{"custom_*", "other_*"})
 			r := &unstructured.Unstructured{Object: map[string]interface{}{"spec": tt.input}}
 			ScrubCRManifest(r, scrubber)
 			assert.Equal(t, tt.expected, r.Object["spec"])
 			ScrubCRManifest(r, scrubber)
 			assert.Equal(t, tt.expected, r.Object["spec"], "scrubbing should be idempotent")
+		})
+	}
+}
+
+func BenchmarkScrubCommandArgumentsRegex(b *testing.B) {
+	for _, tc := range []struct {
+		name  string
+		count int
+	}{
+		{"10", 10},
+		{"100", 100},
+		{"1000", 1000},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			scrubber := NewDefaultDataScrubber()
+			scrubber.AddCustomSensitiveRegex([]string{"custom_*"})
+			args := make([]string, tc.count)
+			for i := range args {
+				args[i] = "--custom_value=sensitive-value"
+			}
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_, _, avoidOptimization = scrubber.scrubCommandArguments(nil, args)
+			}
 		})
 	}
 }
