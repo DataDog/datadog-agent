@@ -1688,7 +1688,10 @@ func newScorerWithTelemetry(cfg AnomalyScorerConfig) *anomalyScorer {
 	tel := noopsimpl.NewComponent()
 	severityGauge := tel.NewGauge("test", "scorer_severity", nil, "")
 	ewmaGauge := tel.NewGauge("test", "scorer_ewma", nil, "")
-	return newAnomalyScorerWithTelemetry(cfg, severityGauge, ewmaGauge, nil)
+	return newAnomalyScorerWithTelemetry(cfg, scorerGauges{
+		ewma:     ewmaGauge,
+		severity: severityGauge,
+	})
 }
 
 type finalizedGaugeRecorder struct {
@@ -1947,7 +1950,10 @@ func TestScorerWithTelemetry_GaugesAndLogs(t *testing.T) {
 	cfg := episodeTestCfg()
 	cfg.Logs = true
 	cfg.CorrelationEvents = false
-	s := newAnomalyScorerWithTelemetry(cfg, tel.scorerSeverity, tel.scorerEwma, nil)
+	s := newAnomalyScorerWithTelemetry(cfg, scorerGauges{
+		ewma:     tel.scorerGauges.ewma,
+		severity: tel.scorerGauges.severity,
+	})
 
 	// Drive EWMA past High threshold — must not panic even with Logs=true,
 	// and must expose the current level instead of a transition direction.
@@ -1962,7 +1968,7 @@ func TestScorerWithTelemetry_FinalizedEWMA(t *testing.T) {
 	cfg := episodeTestCfg()
 	cfg.ReorderingWindowSecs = 2
 	gauge := newFinalizedGaugeRecorder()
-	s := newAnomalyScorerWithTelemetry(cfg, nil, nil, gauge)
+	s := newAnomalyScorerWithTelemetry(cfg, scorerGauges{ewmaFinalized: gauge})
 
 	s.ProcessAnomaly(makeAnomaly("bocpd", 1000, nil))
 	s.Advance(1000)
@@ -1984,8 +1990,8 @@ func TestScorerWithTelemetry_FinalizedEWMAMatchesChronological(t *testing.T) {
 	cfg.ReorderingWindowSecs = 3
 	chronologicalGauge := newFinalizedGaugeRecorder()
 	lateGauge := newFinalizedGaugeRecorder()
-	chronological := newAnomalyScorerWithTelemetry(cfg, nil, nil, chronologicalGauge)
-	late := newAnomalyScorerWithTelemetry(cfg, nil, nil, lateGauge)
+	chronological := newAnomalyScorerWithTelemetry(cfg, scorerGauges{ewmaFinalized: chronologicalGauge})
+	late := newAnomalyScorerWithTelemetry(cfg, scorerGauges{ewmaFinalized: lateGauge})
 
 	for _, scorer := range []*anomalyScorer{chronological, late} {
 		scorer.ProcessAnomaly(makeAnomaly("bocpd", 1000, nil))
@@ -2007,7 +2013,7 @@ func TestScorerWithTelemetry_FinalizedEWMAMatchesChronological(t *testing.T) {
 func TestScorerWithTelemetry_FinalizedEWMADisabledWithoutReordering(t *testing.T) {
 	cfg := episodeTestCfg()
 	gauge := newFinalizedGaugeRecorder()
-	s := newAnomalyScorerWithTelemetry(cfg, nil, nil, gauge)
+	s := newAnomalyScorerWithTelemetry(cfg, scorerGauges{ewmaFinalized: gauge})
 
 	s.ProcessAnomaly(makeAnomaly("bocpd", 1000, nil))
 	s.Advance(1001)

@@ -136,9 +136,6 @@ type observerTelemetry struct {
 	processingTime       telemetry.Gauge
 	detectorEmissions    telemetry.Counter
 	scorerGauges         scorerGauges
-	scorerEwma           telemetry.Gauge
-	scorerEwmaFinalized  telemetry.Gauge
-	scorerSeverity       telemetry.Gauge
 	scopedActiveScopes   telemetry.Gauge
 	scopedEvictedScopes  telemetry.Counter
 	scopedAnomalies      telemetry.Counter
@@ -150,9 +147,6 @@ type observerTelemetry struct {
 }
 
 func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry {
-	globalGauges := newScorerGauges(
-		telemetryComp, telemetryScorerEWMA, telemetryScorerEWMAFinalized, telemetryScorerSeverity, "scorer",
-	)
 	return &observerTelemetry{
 		metricKindTransitions: telemetryComp.NewCounter("observer", telemetryMetricKindTransitions, []string{"from", "to"}, "Confirmed metric kind transitions"),
 		metricKindSeriesCount: telemetryComp.NewGauge("observer", telemetryMetricKindSeriesCount, []string{"kind"}, "Non-telemetry gauge series by committed kind"),
@@ -262,10 +256,9 @@ func newObserverTelemetry(telemetryComp telemetry.Component) *observerTelemetry 
 			[]string{"detector", "severity"},
 			"Deduplicated detector emissions by score severity before correlation and reporting",
 		),
-		scorerGauges:        globalGauges,
-		scorerEwma:          globalGauges.ewma,
-		scorerEwmaFinalized: globalGauges.ewmaFinalized,
-		scorerSeverity:      globalGauges.severity,
+		scorerGauges: newScorerGauges(
+			telemetryComp, telemetryScorerEWMA, telemetryScorerEWMAFinalized, telemetryScorerSeverity, "scorer",
+		),
 		scopedActiveScopes: telemetryComp.NewGauge(
 			"observer",
 			telemetryScopedScorerActiveScopes,

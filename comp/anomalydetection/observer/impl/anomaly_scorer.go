@@ -19,7 +19,6 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	severityeventsimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/impl"
-	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 )
 
 // ---------------------------------------------------------------------------
@@ -633,9 +632,8 @@ type anomalyScorer struct {
 	dispatchers []*severityeventsimpl.Dispatcher
 
 	// Internal watcher fields (gauges may be nil when replay only needs episodes).
-	ewmaGauge          telemetry.Gauge // may be nil; set on every Advance tick
-	ewmaFinalizedGauge telemetry.Gauge // may be nil; set on every Advance tick after warm-up
-	severityGauge      telemetry.Gauge // may be nil; set to the current severity on every Advance tick
+	gauges   scorerGauges // optional per-scorer EWMA/severity gauges
+	gaugeTag string       // tag value passed to gauges (scorer name or service)
 
 	// Episode tracking (guarded by mu; only active when correlationEvents is true).
 	// openEpisode is the currently open configured-threshold severity period.
@@ -716,20 +714,18 @@ func newAnomalyScorerBase(cfg AnomalyScorerConfig) *anomalyScorer {
 // Invalid EWMA parameter values are clamped to safe defaults.
 func NewAnomalyScorer(cfg AnomalyScorerConfig) StandaloneAnomalyScorer {
 	if cfg.CorrelationEvents {
-		return newAnomalyScorerWithTelemetry(cfg, nil, nil, nil)
+		return newAnomalyScorerWithTelemetry(cfg, scorerGauges{})
 	}
 	return newAnomalyScorerBase(cfg)
 }
 
 // newAnomalyScorerWithTelemetry creates a scorer with the watcher enabled.
-// Non-nil severityGauge and ewmaGauge values are written with the current
-// severity and EWMA on every advance tick. The watcher self-subscribes using
-// cfg.CooldownSecs.
-func newAnomalyScorerWithTelemetry(cfg AnomalyScorerConfig, severityGauge, ewmaGauge, ewmaFinalizedGauge telemetry.Gauge) *anomalyScorer {
+// Non-nil gauges in scorerGauges are updated with the current severity and EWMA
+// on every advance tick. The watcher self-subscribes using cfg.CooldownSecs.
+func newAnomalyScorerWithTelemetry(cfg AnomalyScorerConfig, gauges scorerGauges) *anomalyScorer {
 	s := newAnomalyScorerBase(cfg)
-	s.ewmaGauge = ewmaGauge
-	s.ewmaFinalizedGauge = ewmaFinalizedGauge
-	s.severityGauge = severityGauge
+	s.gauges = gauges
+	s.gaugeTag = s.Name()
 
 	// Self-subscribe as the internal watcher.
 	if _, err := s.SubscribeSeverityEvents(severityeventsdef.SeverityEventsConfiguration{
@@ -916,24 +912,6 @@ func (s *anomalyScorer) Advance(dataTime int64) {
 		return
 	}
 
-	// Push EWMA gauge for the last second of this advance tick.
-	if s.ewmaGauge != nil {
-		last := states[len(states)-1]
-		s.ewmaGauge.Set(last.ewma, s.Name())
-	}
-	if s.ewmaFinalizedGauge != nil && s.config.ReorderingWindowSecs > 0 && s.replay != nil {
-		last := states[len(states)-1]
-		finalizedSec := last.sec - s.config.ReorderingWindowSecs
-		checkpoint := s.replay.checkpoints[replaySlot(finalizedSec, len(s.replay.checkpoints))]
-		if checkpoint.present && checkpoint.second == finalizedSec && checkpoint.state.initialized {
-			s.ewmaFinalizedGauge.Set(checkpoint.state.ewma, s.Name())
-		}
-	}
-	if s.severityGauge != nil {
-		last := states[len(states)-1]
-		s.severityGauge.Set(float64(last.level), s.Name())
-	}
-
 	// Drive the dispatchers outside the scorer lock so listeners can safely call
 	// back into the scorer without deadlocking.
 	s.dispatchersMu.RLock()
@@ -985,8 +963,29 @@ func (s *anomalyScorer) advanceStates(dataTime int64) ([]secState, int64) {
 	if len(late) > 0 {
 		missedHigh = s.replayLateInputs(dataTime, replayStart, late, states)
 	}
+	var finalizedEWMA float64
+	var hasFinalized bool
+	if s.gauges.ewmaFinalized != nil && len(states) > 0 && s.config.ReorderingWindowSecs > 0 && s.replay != nil {
+		finalizedSec := states[len(states)-1].sec - s.config.ReorderingWindowSecs
+		checkpoint := s.replay.checkpoints[replaySlot(finalizedSec, len(s.replay.checkpoints))]
+		if checkpoint.present && checkpoint.second == finalizedSec && checkpoint.state.initialized {
+			finalizedEWMA = checkpoint.state.ewma
+			hasFinalized = true
+		}
+	}
 	s.mu.Unlock()
+
+	if len(states) > 0 && s.gauges.enabled() {
+		last := states[len(states)-1]
+		s.gauges.record(s.gaugeTag, last.ewma, last.level, finalizedEWMA, hasFinalized)
+	}
 	return states, missedHigh
+}
+
+func (s *anomalyScorer) clearGauges() {
+	if s.gauges.enabled() && s.gaugeTag != "" {
+		s.gauges.deleteAll(s.gaugeTag)
+	}
 }
 
 func (s *anomalyScorer) rawScoreSnapshot() (scoringState, int64) {
@@ -1063,8 +1062,8 @@ func (s *anomalyScorer) Reset() {
 	if s.history != nil {
 		s.history = &scorerHistory{}
 	}
-	if s.ewmaFinalizedGauge != nil && s.config.ReorderingWindowSecs > 0 {
-		s.ewmaFinalizedGauge.Delete(s.Name())
+	if s.gauges.ewmaFinalized != nil && s.config.ReorderingWindowSecs > 0 {
+		s.gauges.ewmaFinalized.Delete(s.gaugeTag)
 	}
 	s.mu.Unlock()
 
