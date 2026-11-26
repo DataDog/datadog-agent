@@ -803,8 +803,8 @@ type ITMetric struct {
 // and would be overwritten by the submitting agent's own image.
 const ProfileShortImageTag = "profile_short_image"
 
-// WithProfileShortImage appends the profile short image tag when shortName is known.
-// The returned slice does not alias tags.
+// WithProfileShortImage returns tags with profile_short_image appended when shortName is known,
+// without mutating tags' backing array.
 func WithProfileShortImage(tags []string, shortName string) []string {
 	if shortName == "" {
 		return tags
