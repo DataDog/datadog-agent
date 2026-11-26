@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -2214,6 +2215,9 @@ func TestAuidDiscarderWorkloadProfile(t *testing.T) {
 
 	tagger := NewFakeManualTagger()
 	opts := workloadProfileTestOpts(t.TempDir(), tagger)
+	// the sampler admits the opens against a global budget: without the unlimited rate, the open of the discarded auid
+	// can be refused by the sampler when the budget is exhausted, and the profile doesn't learn it
+	opts.eventSamplingOpenRateUnlimited = true
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(opts))
 	if err != nil {
 		t.Fatal(err)
