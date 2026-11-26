@@ -1,0 +1,199 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package common
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"testing"
+	"testing/synctest"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+func captureLogs(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&buf, log.DebugLvl)
+	require.NoError(t, err)
+	prev := log.Default()
+	t.Cleanup(func() { log.SetupLogger(prev, "debug") })
+	log.SetupLogger(logger, "debug")
+	return &buf
+}
+
+func TestQueryAccountIDTagSuccess(t *testing.T) {
+	logs := captureLogs(t)
+
+	var detectCalls, accountIDCalls int
+	detectors := []cloudProviderDetector{
+		{
+			name:          "AWS",
+			accountIDName: "account_id",
+			callback: func(context.Context) bool {
+				return false
+			},
+			accountIDCallback: func(context.Context) (string, error) {
+				t.Fatal("unexpected call to non-matching detector accountIDCallback")
+				return "", nil
+			},
+		},
+		{
+			name:          "GCP",
+			accountIDName: "project_id",
+			callback: func(context.Context) bool {
+				detectCalls++
+				return true
+			},
+			accountIDCallback: func(context.Context) (string, error) {
+				accountIDCalls++
+				return "my-gcp-project", nil
+			},
+		},
+	}
+
+	resolver := newAccountIDTagResolver(detectors, maxAccountIDAttempts, accountIDRetryBackoff)
+	assert.Equal(t, "project_id:my-gcp-project", resolver.queryAccountIDTag())
+	assert.Equal(t, "project_id:my-gcp-project", resolver.queryAccountIDTag())
+	assert.Equal(t, 1, detectCalls)
+	assert.Equal(t, 1, accountIDCalls)
+	assert.NotContains(t, logs.String(), "[ERROR]")
+	assert.NotContains(t, logs.String(), "[WARN]")
+}
+
+func TestQueryAccountIDTagNoCloudProvider(t *testing.T) {
+	logs := captureLogs(t)
+
+	synctest.Test(t, func(t *testing.T) {
+		var detectCalls int
+		detectors := []cloudProviderDetector{
+			{
+				name:          "AWS",
+				accountIDName: "account_id",
+				callback: func(context.Context) bool {
+					detectCalls++
+					return false
+				},
+				accountIDCallback: func(context.Context) (string, error) {
+					t.Fatal("unexpected call to accountIDCallback when provider is not detected")
+					return "", nil
+				},
+			},
+		}
+
+		resolver := newAccountIDTagResolver(detectors, maxAccountIDAttempts, accountIDRetryBackoff)
+		assert.Empty(t, resolver.queryAccountIDTag())
+
+		time.Sleep(accountIDRetryBackoff)
+		assert.Empty(t, resolver.queryAccountIDTag())
+		assert.Equal(t, 1, detectCalls)
+	})
+
+	output := logs.String()
+	assert.Contains(t, output, "[DEBUG] failed to query account id: no cloud provider detected")
+	assert.NotContains(t, output, "[ERROR]")
+	assert.NotContains(t, output, "[WARN]")
+}
+
+func TestQueryAccountIDTagTransientFailureThenSuccess(t *testing.T) {
+	logs := captureLogs(t)
+
+	synctest.Test(t, func(t *testing.T) {
+		var accountIDCalls int
+		detectors := []cloudProviderDetector{
+			{
+				name:          "AWS",
+				accountIDName: "account_id",
+				callback: func(context.Context) bool {
+					return true
+				},
+				accountIDCallback: func(context.Context) (string, error) {
+					accountIDCalls++
+					if accountIDCalls < 3 {
+						return "", errors.New("metadata timeout")
+					}
+					return "123456789012", nil
+				},
+			},
+		}
+
+		resolver := newAccountIDTagResolver(detectors, maxAccountIDAttempts, accountIDRetryBackoff)
+
+		assert.Empty(t, resolver.queryAccountIDTag())
+		assert.Equal(t, 1, accountIDCalls)
+
+		time.Sleep(accountIDRetryBackoff / 2)
+		assert.Empty(t, resolver.queryAccountIDTag())
+		assert.Equal(t, 1, accountIDCalls)
+
+		time.Sleep(accountIDRetryBackoff)
+		assert.Empty(t, resolver.queryAccountIDTag())
+		assert.Equal(t, 2, accountIDCalls)
+
+		time.Sleep(accountIDRetryBackoff)
+		assert.Equal(t, "account_id:123456789012", resolver.queryAccountIDTag())
+		assert.Equal(t, 3, accountIDCalls)
+
+		time.Sleep(accountIDRetryBackoff)
+		assert.Equal(t, "account_id:123456789012", resolver.queryAccountIDTag())
+		assert.Equal(t, 3, accountIDCalls)
+	})
+
+	output := logs.String()
+	assert.Contains(t, output, "[DEBUG] failed to query account id (attempt 1/3): could not detect cloud provider account ID: metadata timeout")
+	assert.Contains(t, output, "[DEBUG] failed to query account id (attempt 2/3): could not detect cloud provider account ID: metadata timeout")
+	assert.NotContains(t, output, "[ERROR]")
+	assert.NotContains(t, output, "[WARN]")
+}
+
+func TestQueryAccountIDTagRetryExhaustion(t *testing.T) {
+	logs := captureLogs(t)
+
+	synctest.Test(t, func(t *testing.T) {
+		var accountIDCalls int
+		detectors := []cloudProviderDetector{
+			{
+				name:          "Azure",
+				accountIDName: "subscription_id",
+				callback: func(context.Context) bool {
+					return true
+				},
+				accountIDCallback: func(context.Context) (string, error) {
+					accountIDCalls++
+					return "", errors.New("HTTP 503")
+				},
+			},
+		}
+
+		resolver := newAccountIDTagResolver(detectors, maxAccountIDAttempts, accountIDRetryBackoff)
+
+		assert.Empty(t, resolver.queryAccountIDTag())
+		assert.Equal(t, 1, accountIDCalls)
+
+		time.Sleep(accountIDRetryBackoff)
+		assert.Empty(t, resolver.queryAccountIDTag())
+		assert.Equal(t, 2, accountIDCalls)
+
+		time.Sleep(accountIDRetryBackoff)
+		assert.Empty(t, resolver.queryAccountIDTag())
+		assert.Equal(t, 3, accountIDCalls)
+
+		time.Sleep(accountIDRetryBackoff)
+		assert.Empty(t, resolver.queryAccountIDTag())
+		assert.Equal(t, 3, accountIDCalls)
+	})
+
+	output := logs.String()
+	assert.Contains(t, output, "[DEBUG] failed to query account id (attempt 1/3): could not detect cloud provider account ID: HTTP 503")
+	assert.Contains(t, output, "[DEBUG] failed to query account id (attempt 2/3): could not detect cloud provider account ID: HTTP 503")
+	assert.Contains(t, output, "[WARN] failed to query account id after 3 attempts: could not detect cloud provider account ID: HTTP 503")
+	assert.NotContains(t, output, "[ERROR]")
+}
