@@ -83,6 +83,29 @@ func TestApproverBasenameSuffix(t *testing.T) {
 		assert.Equal(t, []basenameApprover{{kind: leafBasenameSuffix, value: "php"}}, basenameKeys(t, approvers))
 	})
 
+	t.Run("extension", func(t *testing.T) {
+		// with or without the leading dot, like the rule comparison
+		approvers := openApprovers(t, `open.file.extension in [".yaml", "yml"] && open.flags & O_CREAT > 0`)
+
+		assert.NotContains(t, approvers, "open.flags")
+		assert.ElementsMatch(t, []basenameApprover{{kind: leafBasenameSuffix, value: "aml"}, {kind: leafBasenameSuffix, value: "yml"}}, basenameKeys(t, approvers))
+	})
+
+	t.Run("short-extension-falls-back-to-flags", func(t *testing.T) {
+		approvers := openApprovers(t, `open.file.extension == ".c" && open.flags & O_CREAT > 0`)
+
+		assert.NotContains(t, approvers, "open.file.extension")
+		assert.Contains(t, approvers, "open.flags")
+	})
+
+	// static_pod_manifest_created: its path leaf `*` is unusable, so it was on flags
+	t.Run("static_pod_manifest_created", func(t *testing.T) {
+		approvers := openApprovers(t, `open.flags & O_CREAT > 0 && open.file.path in [~"/etc/kubernetes/manifests/*"] && open.file.extension in [".yaml", ".yml"]`)
+
+		assert.NotContains(t, approvers, "open.flags")
+		assert.ElementsMatch(t, []basenameApprover{{kind: leafBasenameSuffix, value: "aml"}, {kind: leafBasenameSuffix, value: "yml"}}, basenameKeys(t, approvers))
+	})
+
 	t.Run("suffix-pattern", func(t *testing.T) {
 		assert.True(t, isSuffixPattern("*.php"))
 		assert.True(t, isSuffixPattern("*foo*.php"))
