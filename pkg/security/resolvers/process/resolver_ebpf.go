@@ -105,6 +105,15 @@ type EBPFResolver struct {
 	otelProcCtxPending map[uint32]time.Time
 	otelProcCtxLock    sync.Mutex
 
+	// otelUpdates buffers tracer metadata and thread-local attribute key updates
+	// resolved by resolveOTelProcessContextLoop so they are applied on the
+	// event-loop goroutine via ApplyPendingOTelUpdates, keeping ProcessCacheEntry
+	// single-writer and avoiding data races with event consumers, serializers,
+	// and DeepCopy.
+	otelUpdatesLock sync.Mutex
+	otelUpdates     []otelTracerUpdate
+	hasOTelUpdates  atomic.Bool
+
 	// stats
 	hitsStats                    map[string]*atomic.Int64
 	missStats                    *atomic.Int64
@@ -1554,9 +1563,14 @@ func (p *EBPFResolver) AddTracerMetadata(pid uint32, event *model.Event) error {
 
 // hasEntry reports whether pid has a process cache entry.
 func (p *EBPFResolver) hasEntry(pid uint32) bool {
+	return p.getEntry(pid) != nil
+}
+
+// getEntry returns pid's current process cache entry, or nil if absent.
+func (p *EBPFResolver) getEntry(pid uint32) *model.ProcessCacheEntry {
 	p.RLock()
 	defer p.RUnlock()
-	return p.entryCache[pid] != nil
+	return p.entryCache[pid]
 }
 
 // SnapshotTracer detects whether a process that started before the agent is
@@ -1647,11 +1661,13 @@ func (s *OTelProcessContextSnapshot) Resolve(pid uint32) {
 	if !p.config.SpanTrackingEnabled || p.otelTLSMap == nil {
 		return
 	}
-	if !p.hasEntry(pid) {
+	entry := p.getEntry(pid)
+	if entry == nil {
 		return
 	}
 
-	p.resolveAndUpdateOTelTLS(pid, s.target)
+	p.resolveAndUpdateOTelTLS(pid, entry, s.target)
+	p.ApplyPendingOTelUpdates()
 }
 
 // resolveOTelProcessContextLoop drains otelProcCtxQueue and resolves each pid's
@@ -1676,11 +1692,12 @@ func (p *EBPFResolver) resolveOTelProcessContextLoop(ctx context.Context) {
 			p.otelProcCtxLock.Unlock()
 			p.reportOTelProcCtxQueueLatency(queuedAt)
 
-			if !p.hasEntry(pid) {
+			entry := p.getEntry(pid)
+			if entry == nil {
 				p.countSpanCtx(spanCtxStepProcessCtx, spanCtxNoProcessEntry)
 				continue
 			}
-			p.resolveAndUpdateOTelTLS(pid, target)
+			p.resolveAndUpdateOTelTLS(pid, entry, target)
 		}
 	}
 }
@@ -1688,11 +1705,11 @@ func (p *EBPFResolver) resolveOTelProcessContextLoop(ctx context.Context) {
 // resolveAndUpdateOTelTLS resolves pid's OTel process context through target,
 // which it rebinds to pid: callers pass a target they own and reuse across
 // calls rather than one per resolution.
-func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, target *otelthreadctx.Target) {
+func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, entry *model.ProcessCacheEntry, target *otelthreadctx.Target) {
 	start := time.Now()
 	target.Reset(pid)
 
-	res, err := target.Resolve(otelTLSRegistry{resolver: p})
+	res, err := target.Resolve(otelTLSRegistry{resolver: p, entry: entry})
 	var stepErr *otelthreadctx.StepError
 	if err != nil && !errors.As(err, &stepErr) {
 		stepErr = &otelthreadctx.StepError{Step: otelthreadctx.StepLayout, Err: err}
@@ -1707,13 +1724,13 @@ func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, target *otelthreadctx
 	p.countSpanCtx(spanCtxStepProcessCtx, spanCtxOK)
 	seclog.Debugf("read the OTel process context of pid %d", pid)
 
-	p.applyOTelTracerMetadata(pid, res.ProcessContext)
+	p.enqueueOTelTracerMetadata(pid, entry, res.ProcessContext)
 
 	if stepErr != nil && stepErr.Step == otelthreadctx.StepAttributeKeys {
 		p.reportSpanCtx(spanCtxStepOTelTLS, pid, stepErr.Err)
 		return
 	}
-	p.attachOTelAttributeKeys(pid, res.AttributeKeys)
+	p.enqueueOTelAttributeKeys(pid, entry, res.AttributeKeys)
 
 	var layoutErr error
 	if stepErr != nil {
@@ -1725,9 +1742,21 @@ func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, target *otelthreadctx
 	}
 }
 
+// otelTracerUpdate carries a deferred Tracer update for a specific process
+// cache entry so mutations happen exclusively on the event-loop goroutine.
+type otelTracerUpdate struct {
+	pid           uint32
+	entry         *model.ProcessCacheEntry
+	tmeta         tracermetadatamodel.TracerMetadata
+	hasMetadata   bool
+	attributeKeys []string
+	hasAttrKeys   bool
+}
+
 // otelTLSRegistry stores layouts in the otel_tls map.
 type otelTLSRegistry struct {
 	resolver *EBPFResolver
+	entry    *model.ProcessCacheEntry
 }
 
 // Registered implements otelthreadctx.Registry.
@@ -1741,33 +1770,77 @@ func (r otelTLSRegistry) Registered(pid uint32) bool {
 
 // Register implements otelthreadctx.Registry.
 func (r otelTLSRegistry) Register(pid uint32, layout otelthreadctx.Layout, attributeKeys []string) error {
-	r.resolver.attachOTelAttributeKeys(pid, attributeKeys)
+	r.resolver.enqueueOTelAttributeKeys(pid, r.entry, attributeKeys)
 	if err := r.resolver.otelTLSMap.Put(pid, layout.Serialize()); err != nil {
 		return fmt.Errorf("%w: %w", errSpanCtxMapError, err)
 	}
 	return nil
 }
 
-// applyOTelTracerMetadata fills in the tracer metadata of tracers without a memfd (e.g. PHP).
-func (p *EBPFResolver) applyOTelTracerMetadata(pid uint32, procCtx otelprocessctx.ProcessContext) {
+func (p *EBPFResolver) enqueueOTelUpdate(u otelTracerUpdate) {
+	p.otelUpdatesLock.Lock()
+	p.otelUpdates = append(p.otelUpdates, u)
+	p.hasOTelUpdates.Store(true)
+	p.otelUpdatesLock.Unlock()
+}
+
+// enqueueOTelTracerMetadata queues tracer metadata for tracers without a memfd (e.g. PHP).
+func (p *EBPFResolver) enqueueOTelTracerMetadata(pid uint32, entry *model.ProcessCacheEntry, procCtx otelprocessctx.ProcessContext) {
 	tmeta := otelprocessctx.TracerMetadata(procCtx)
 	if tmeta.IsZero() {
 		return
 	}
 
-	p.Lock()
-	if entry := p.entryCache[pid]; entry != nil && entry.Tracer.MetadataSource != model.TracerMetadataSourceMemfd {
-		entry.Tracer.Metadata = tmeta
-		entry.Tracer.MetadataSource = model.TracerMetadataSourceOTelProcessContext
-	}
-	p.Unlock()
+	p.enqueueOTelUpdate(otelTracerUpdate{
+		pid:         pid,
+		entry:       entry,
+		tmeta:       tmeta,
+		hasMetadata: true,
+	})
 }
 
-// attachOTelAttributeKeys records the OTel attribute key names on pid.
-func (p *EBPFResolver) attachOTelAttributeKeys(pid uint32, attributeKeys []string) {
+// enqueueOTelAttributeKeys queues the OTel attribute key names for pid.
+func (p *EBPFResolver) enqueueOTelAttributeKeys(pid uint32, entry *model.ProcessCacheEntry, attributeKeys []string) {
+	p.enqueueOTelUpdate(otelTracerUpdate{
+		pid:           pid,
+		entry:         entry,
+		attributeKeys: attributeKeys,
+		hasAttrKeys:   true,
+	})
+}
+
+// ApplyPendingOTelUpdates applies deferred OTel tracer metadata and thread-local
+// attribute key updates to process cache entries. Must be called from the
+// event-loop goroutine (or synchronously during Snapshot) so ProcessCacheEntry
+// mutations stay single-writer.
+func (p *EBPFResolver) ApplyPendingOTelUpdates() {
+	if !p.hasOTelUpdates.Load() {
+		return
+	}
+
+	p.otelUpdatesLock.Lock()
+	updates := p.otelUpdates
+	p.otelUpdates = nil
+	p.hasOTelUpdates.Store(false)
+	p.otelUpdatesLock.Unlock()
+
+	if len(updates) == 0 {
+		return
+	}
+
 	p.Lock()
-	if entry := p.entryCache[pid]; entry != nil {
-		entry.Tracer.ThreadlocalAttributeKeys = attributeKeys
+	for _, u := range updates {
+		entry := p.entryCache[u.pid]
+		if entry == nil || entry != u.entry {
+			continue
+		}
+		if u.hasMetadata && entry.Tracer.MetadataSource != model.TracerMetadataSourceMemfd {
+			entry.Tracer.Metadata = u.tmeta
+			entry.Tracer.MetadataSource = model.TracerMetadataSourceOTelProcessContext
+		}
+		if u.hasAttrKeys {
+			entry.Tracer.ThreadlocalAttributeKeys = u.attributeKeys
+		}
 	}
 	p.Unlock()
 }

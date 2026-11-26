@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sync"
 	"testing"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	tracermetadatamodel "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
@@ -1932,5 +1934,143 @@ func TestUpdateProcessContextsReplacesPair(t *testing.T) {
 
 		assert.Equal(t, containerutils.CGroupID("/kubepods.slice/cri-containerd-abcdef.scope"), pce.Process.CGroup.CGroupID)
 		assert.Equal(t, containerutils.ContainerID("abcdef"), pce.Process.ContainerContext.ContainerID)
+	})
+}
+
+func TestApplyPendingOTelUpdates(t *testing.T) {
+	t.Run("applies-metadata-and-attribute-keys-on-drain", func(t *testing.T) {
+		resolver, err := newResolver()
+		require.NoError(t, err)
+
+		fork := newFakeForkEvent(1, 100, 123, resolver)
+		require.NoError(t, resolver.AddForkEntry(fork, model.CGroupContext{}, nil))
+		entry := resolver.getEntry(100)
+		require.NotNil(t, entry)
+
+		tmeta := tracermetadatamodel.TracerMetadata{
+			ServiceName:    "svc",
+			ServiceEnv:     "prod",
+			ServiceVersion: "1.0.0",
+			ProcessTags:    "foo:bar",
+		}
+		resolver.enqueueOTelUpdate(otelTracerUpdate{
+			pid:         100,
+			entry:       entry,
+			tmeta:       tmeta,
+			hasMetadata: true,
+		})
+		resolver.enqueueOTelAttributeKeys(100, entry, []string{"k1", "k2"})
+
+		// Enqueuing must not mutate the entry until ApplyPendingOTelUpdates runs.
+		assert.True(t, entry.Tracer.Metadata.IsZero())
+		assert.Empty(t, entry.Tracer.ThreadlocalAttributeKeys)
+
+		resolver.ApplyPendingOTelUpdates()
+
+		assert.Equal(t, tmeta, entry.Tracer.Metadata)
+		assert.Equal(t, model.TracerMetadataSourceOTelProcessContext, entry.Tracer.MetadataSource)
+		assert.Equal(t, []string{"k1", "k2"}, entry.Tracer.ThreadlocalAttributeKeys)
+	})
+
+	t.Run("memfd-metadata-takes-precedence", func(t *testing.T) {
+		resolver, err := newResolver()
+		require.NoError(t, err)
+
+		fork := newFakeForkEvent(1, 101, 124, resolver)
+		require.NoError(t, resolver.AddForkEntry(fork, model.CGroupContext{}, nil))
+		entry := resolver.getEntry(101)
+		require.NotNil(t, entry)
+
+		memfdMeta := tracermetadatamodel.TracerMetadata{ServiceName: "memfd-svc", ServiceEnv: "staging"}
+		resolver.applyTracerMetadata(101, memfdMeta)
+
+		resolver.enqueueOTelUpdate(otelTracerUpdate{
+			pid:         101,
+			entry:       entry,
+			tmeta:       tracermetadatamodel.TracerMetadata{ServiceName: "otel-svc", ServiceEnv: "prod"},
+			hasMetadata: true,
+		})
+		resolver.ApplyPendingOTelUpdates()
+
+		assert.Equal(t, memfdMeta, entry.Tracer.Metadata)
+		assert.Equal(t, model.TracerMetadataSourceMemfd, entry.Tracer.MetadataSource)
+	})
+
+	t.Run("ignores-stale-update-after-exec", func(t *testing.T) {
+		resolver, err := newResolver()
+		require.NoError(t, err)
+
+		fork := newFakeForkEvent(1, 102, 125, resolver)
+		require.NoError(t, resolver.AddForkEntry(fork, model.CGroupContext{}, nil))
+		oldEntry := resolver.getEntry(102)
+		require.NotNil(t, oldEntry)
+
+		// Queue an update captured against oldEntry before exec replaces entryCache[102].
+		resolver.enqueueOTelUpdate(otelTracerUpdate{
+			pid:           102,
+			entry:         oldEntry,
+			tmeta:         tracermetadatamodel.TracerMetadata{ServiceName: "old-svc", ServiceEnv: "prod"},
+			hasMetadata:   true,
+			attributeKeys: []string{"old-key"},
+			hasAttrKeys:   true,
+		})
+
+		execEv := newFakeExecEvent(1, 102, 126, resolver)
+		require.NoError(t, resolver.AddExecEntry(execEv, model.CGroupContext{}))
+		newEntry := resolver.getEntry(102)
+		require.NotNil(t, newEntry)
+		require.NotSame(t, oldEntry, newEntry)
+
+		resolver.ApplyPendingOTelUpdates()
+
+		assert.True(t, newEntry.Tracer.Metadata.IsZero())
+		assert.Equal(t, model.TracerMetadataSourceNone, newEntry.Tracer.MetadataSource)
+		assert.Empty(t, newEntry.Tracer.ThreadlocalAttributeKeys)
+	})
+
+	t.Run("no-data-race-between-background-enqueue-and-event-loop-reads", func(t *testing.T) {
+		resolver, err := newResolver()
+		require.NoError(t, err)
+
+		fork := newFakeForkEvent(1, 103, 127, resolver)
+		require.NoError(t, resolver.AddForkEntry(fork, model.CGroupContext{}, nil))
+		entry := resolver.getEntry(103)
+		require.NotNil(t, entry)
+
+		const iterations = 2000
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < iterations; i++ {
+				resolver.enqueueOTelUpdate(otelTracerUpdate{
+					pid:   103,
+					entry: entry,
+					tmeta: tracermetadatamodel.TracerMetadata{
+						ServiceName:    fmt.Sprintf("svc-%d", i),
+						ServiceEnv:     fmt.Sprintf("env-%d", i),
+						ServiceVersion: fmt.Sprintf("v%d", i),
+						ProcessTags:    fmt.Sprintf("k%d:v%d", i, i),
+					},
+					hasMetadata:   true,
+					attributeKeys: []string{fmt.Sprintf("attr-%d", i)},
+					hasAttrKeys:   true,
+				})
+			}
+		}()
+
+		for i := 0; i < iterations; i++ {
+			resolver.ApplyPendingOTelUpdates()
+			if tmeta := fork.GetProcessTracerMetadata(); !tmeta.IsZero() {
+				for k, v := range tmeta.Tags() {
+					_ = k + ":" + v
+				}
+			}
+			_ = fork.DeepCopy()
+		}
+
+		wg.Wait()
+		resolver.ApplyPendingOTelUpdates()
+		assert.Equal(t, fmt.Sprintf("env-%d", iterations-1), entry.Tracer.Metadata.ServiceEnv)
 	})
 }
