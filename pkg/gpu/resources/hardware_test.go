@@ -100,10 +100,14 @@ func TestNVLinkPeersOnRealHardware(t *testing.T) {
 	}
 
 	peering := NewPeeringScanner(0).Scan(time.Now(), devices)
+	complete := map[string]bool{}
+	for uuid, p := range peering {
+		complete[uuid] = p.Complete
+	}
 	dump, err := json.MarshalIndent(map[string]any{
-		"nvml_raw":           raw,
-		"resource_fields":    Snapshot(devices, peering),
-		"incomplete_peering": IncompletePeering(devices, peering),
+		"nvml_raw":         raw,
+		"resource_fields":  Snapshot(devices, peering),
+		"peering_complete": complete,
 	}, "", " ")
 	require.NoError(t, err)
 	t.Logf("HWDUMP-BEGIN\n%s\nHWDUMP-END", dump)

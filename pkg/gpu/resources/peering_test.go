@@ -405,13 +405,7 @@ func TestPeeringSkipsVirtualAndMIGDevices(t *testing.T) {
 	peering := NewPeeringScanner(0).Scan(time.Unix(0, 0), all)
 	require.Len(t, peering, 1)
 	require.Contains(t, peering, lower(0))
-	require.Empty(t, IncompletePeering(all, peering))
-}
-
-func TestIncompletePeering(t *testing.T) {
-	all := devices(newFakeGPU(0, 0, &fakeLinkDevice{}), newFakeGPU(1, 0, &fakeLinkDevice{}), newFakeGPU(2, 0, &fakeLinkDevice{}))
-	peering := map[string]Peering{lower(0): {Complete: true}, lower(1): {Complete: false}}
-	require.Equal(t, []string{lower(1), lower(2)}, IncompletePeering(all, peering), "missing and incomplete scans are both reported")
+	require.True(t, peering[lower(0)].Complete)
 }
 
 func TestSnapshotPeeringPayloadShape(t *testing.T) {

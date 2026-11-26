@@ -111,20 +111,6 @@ func (s *PeeringScanner) logIncomplete() {
 
 var peeringLogLimit = log.NewLogLimit(10, 10*time.Minute)
 
-// IncompletePeering returns the sorted UUIDs whose peering is incomplete or missing, for
-// lifecycle handling that must tell absence from unknown.
-func IncompletePeering(devices []safenvml.Device, peering map[string]Peering) []string {
-	var incomplete []string
-	for _, device := range physicalDevices(devices) {
-		uuid := strings.ToLower(device.UUID)
-		if p, ok := peering[uuid]; !ok || !p.Complete {
-			incomplete = append(incomplete, uuid)
-		}
-	}
-	slices.Sort(incomplete)
-	return incomplete
-}
-
 func physicalDevices(devices []safenvml.Device) []*safenvml.PhysicalDevice {
 	var physical []*safenvml.PhysicalDevice
 	for _, device := range devices {
