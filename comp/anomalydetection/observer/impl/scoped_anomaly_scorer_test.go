@@ -507,3 +507,49 @@ func lastScopedLevel(events []severityeventsdef.ScopedSeverityEvent) severityeve
 	}
 	return events[len(events)-1].Event.ToLevel
 }
+
+func TestObserverImplSubscribeScopedSeverityEventsThroughEngine(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	svcCheckout := storage.Add("check", "cpu", 1, 1, []string{"service:checkout"})
+	svcBilling := storage.Add("check", "cpu", 1, 1, []string{"service:billing"})
+
+	detector := &anomalyDetector{
+		name: "test",
+		anomalies: []observerdef.Anomaly{
+			{
+				Source: observerdef.SeriesDescriptor{
+					Namespace: "check",
+					Name:      "cpu",
+					Tags:      testCompositeTags([]string{"service:checkout"}),
+					Aggregate: observerdef.AggregateAverage,
+				},
+				SourceRef:    &observerdef.QueryHandle{Ref: svcCheckout.Ref, Aggregate: observerdef.AggregateAverage},
+				DetectorName: "test",
+				Timestamp:    100,
+			},
+		},
+	}
+
+	router := newScopedAnomalyScorer(fastScopedScorerConfig())
+	eng := mustNewEngine(engineConfig{
+		storage:      storage,
+		detectors:    []detectorRegistration{{detector: detector}},
+		scopedScorer: router,
+	})
+	obs := &observerImpl{engine: eng}
+
+	listener := &collectingScopedListener{}
+	sub, err := obs.SubscribeScopedSeverityEvents(severityeventsdef.SeverityEventsConfiguration{}, listener)
+	require.NoError(t, err)
+	t.Cleanup(sub.Unsubscribe)
+
+	eng.Advance(100)
+
+	require.Greater(t, lastScopedLevel(listener.eventsForService("checkout")), severityeventsdef.SeverityLow)
+	require.Empty(t, listener.eventsForService("billing"))
+	require.NotEqual(t, svcCheckout.Ref, svcBilling.Ref)
+
+	require.NoError(t, eng.ResetForReplay(nil, nil, nil, nil, StorageConfig{}, BaselineConfig{}))
+	_, err = obs.SubscribeScopedSeverityEvents(severityeventsdef.SeverityEventsConfiguration{}, listener)
+	require.EqualError(t, err, "no active scoped anomaly scorer")
+}

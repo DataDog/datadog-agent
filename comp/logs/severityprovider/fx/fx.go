@@ -22,6 +22,7 @@ func Module() fxutil.Module {
 		fxutil.ProvideComponentConstructor(severityproviderimpl.NewComponent),
 		fx.Invoke(func(provider severityprovider.Component) {
 			severityprovider.SetSeverityProvider(provider.Current)
+			severityprovider.SetScopedSeverityProvider(provider.CurrentForScope)
 		}),
 	)
 }

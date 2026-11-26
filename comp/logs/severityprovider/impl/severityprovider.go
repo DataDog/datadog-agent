@@ -10,6 +10,7 @@ package severityproviderimpl
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -40,9 +41,19 @@ type readerState struct {
 	reader severityeventsdef.Reader
 }
 
-type component struct {
-	reader atomic.Pointer[readerState]
+type scopedState struct {
+	elevated map[severityeventsdef.ScopeKey]severityeventsdef.SeverityLevel
 }
+
+type component struct {
+	reader  atomic.Pointer[readerState]
+	scoped  atomic.Pointer[scopedState]
+	mu      sync.Mutex
+	active  bool
+	staging map[severityeventsdef.ScopeKey]severityeventsdef.SeverityLevel
+}
+
+const scopedSeverityProfilesEnabled = false
 
 const smartSeverityProfilesCooldownConfigKey = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.cooldown"
 
@@ -58,6 +69,10 @@ func smartSeverityProfilesSubscriptionConfig(cfg config.Component) severityevent
 
 // NewComponent creates the severity provider component.
 func NewComponent(reqs Requires) (Provides, error) {
+	return newComponentWithScoped(reqs, scopedSeverityProfilesEnabled)
+}
+
+func newComponentWithScoped(reqs Requires, scopedEnabled bool) (Provides, error) {
 	comp := &component{}
 	var unsubscribe func()
 
@@ -70,6 +85,38 @@ func NewComponent(reqs Requires) (Provides, error) {
 			observer, ok := reqs.Observer.Get()
 			if !ok {
 				reqs.Log.Warnf("[severityprovider] disabled: anomaly-detection observer is not running")
+				return nil
+			}
+
+			if scopedEnabled {
+				comp.mu.Lock()
+				comp.active = true
+				comp.staging = make(map[severityeventsdef.ScopeKey]severityeventsdef.SeverityLevel)
+				comp.mu.Unlock()
+
+				subscription, err := observer.SubscribeScopedSeverityEvents(smartSeverityProfilesSubscriptionConfig(reqs.Config), comp)
+				if err != nil {
+					comp.mu.Lock()
+					comp.active = false
+					comp.staging = nil
+					comp.scoped.Store(nil)
+					comp.mu.Unlock()
+					return err
+				}
+
+				comp.mu.Lock()
+				if comp.active {
+					var initial map[severityeventsdef.ScopeKey]severityeventsdef.SeverityLevel
+					if len(comp.staging) > 0 {
+						initial = comp.staging
+					}
+					comp.staging = nil
+					comp.scoped.Store(&scopedState{elevated: initial})
+				}
+				comp.mu.Unlock()
+
+				unsubscribe = subscription.Unsubscribe
+				reqs.Log.Debugf("registered scoped smart adaptive-sampling severity listener")
 				return nil
 			}
 
@@ -88,6 +135,11 @@ func NewComponent(reqs Requires) (Provides, error) {
 				unsubscribe()
 				unsubscribe = nil
 			}
+			comp.mu.Lock()
+			comp.active = false
+			comp.staging = nil
+			comp.scoped.Store(nil)
+			comp.mu.Unlock()
 			comp.reader.Store(nil)
 			return nil
 		},
@@ -104,4 +156,84 @@ func (c *component) Current() (severityeventsdef.SeverityLevel, bool) {
 	return severityeventsdef.SeverityLow, false
 }
 
-var _ severityprovider.Component = (*component)(nil)
+// OnScopedSeverityTransition updates the elevated COW snapshot for evt.ScopeKey.
+func (c *component) OnScopedSeverityTransition(evt severityeventsdef.ScopedSeverityEvent) {
+	if evt.ScopeKey == 0 {
+		return
+	}
+	level := evt.Event.ToLevel
+	if level > severityeventsdef.SeverityHigh {
+		level = severityeventsdef.SeverityHigh
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if !c.active {
+		return
+	}
+
+	old := c.scoped.Load()
+	if old == nil {
+		if c.staging != nil {
+			if level <= severityeventsdef.SeverityLow {
+				delete(c.staging, evt.ScopeKey)
+			} else {
+				c.staging[evt.ScopeKey] = level
+			}
+		}
+		return
+	}
+
+	prevLevel, exists := old.elevated[evt.ScopeKey]
+	if level <= severityeventsdef.SeverityLow {
+		if !exists {
+			return
+		}
+		if len(old.elevated) == 1 {
+			c.scoped.Store(&scopedState{})
+			return
+		}
+		next := make(map[severityeventsdef.ScopeKey]severityeventsdef.SeverityLevel, len(old.elevated)-1)
+		for key, val := range old.elevated {
+			if key != evt.ScopeKey {
+				next[key] = val
+			}
+		}
+		c.scoped.Store(&scopedState{elevated: next})
+		return
+	} else if exists && prevLevel == level {
+		return
+	}
+
+	next := make(map[severityeventsdef.ScopeKey]severityeventsdef.SeverityLevel, len(old.elevated)+1)
+	for key, val := range old.elevated {
+		next[key] = val
+	}
+	next[evt.ScopeKey] = level
+	c.scoped.Store(&scopedState{elevated: next})
+}
+
+// CurrentForScope returns the severity level for getScope, falling back to Current when scoped mode is inactive.
+func (c *component) CurrentForScope(getScope func() severityeventsdef.ScopeKey) (severityeventsdef.SeverityLevel, bool) {
+	state := c.scoped.Load()
+	if state == nil {
+		return c.Current()
+	}
+	if len(state.elevated) == 0 || getScope == nil {
+		return severityeventsdef.SeverityLow, true
+	}
+	key := getScope()
+	if key == 0 {
+		return severityeventsdef.SeverityLow, true
+	}
+	if level, ok := state.elevated[key]; ok {
+		return level, true
+	}
+	return severityeventsdef.SeverityLow, true
+}
+
+var (
+	_ severityprovider.Component                    = (*component)(nil)
+	_ severityeventsdef.ScopedSeverityEventListener = (*component)(nil)
+)

@@ -32,4 +32,9 @@ type Component interface {
 	// whose GetSeverity() reflects the latest delivered level, plus the
 	// unsubscribe function that stops the underlying subscription.
 	SubscribeSeverityEventsReader(cfg severityeventsdef.SeverityEventsConfiguration) (severityeventsdef.SeverityEventsReaderSubscription, error)
+
+	// SubscribeScopedSeverityEvents registers listener for per-scope severity
+	// transitions, filtered and cooled down per cfg, and returns a subscription
+	// handle whose Unsubscribe stops delivery.
+	SubscribeScopedSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration, listener severityeventsdef.ScopedSeverityEventListener) (severityeventsdef.ScopedSeverityEventsSubscription, error)
 }

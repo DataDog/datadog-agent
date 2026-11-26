@@ -33,6 +33,9 @@ func TestNewComponentReturnsDisabledStubWhenOff(t *testing.T) {
 
 	_, ok := provides.Comp.(*disabledObserver)
 	require.Truef(t, ok, "expected *disabledObserver when anomaly detection is disabled by default, got %T", provides.Comp)
+
+	_, err = provides.Comp.SubscribeScopedSeverityEvents(severityeventsdef.SeverityEventsConfiguration{}, nil)
+	require.EqualError(t, err, "no active scoped anomaly scorer")
 }
 
 func TestNewComponentSmartSeverityProfilesForceEnableObserverAndScorer(t *testing.T) {
@@ -60,4 +63,7 @@ logs_config:
 	if sub.Unsubscribe != nil {
 		sub.Unsubscribe()
 	}
+
+	_, err = provides.Comp.SubscribeScopedSeverityEvents(severityeventsdef.SeverityEventsConfiguration{}, nil)
+	require.EqualError(t, err, "no active scoped anomaly scorer")
 }
