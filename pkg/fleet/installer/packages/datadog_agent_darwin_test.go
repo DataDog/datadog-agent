@@ -646,6 +646,32 @@ func TestPostInstallDMGCollapsesALeftoverExperiment(t *testing.T) {
 	assert.Less(t, lastExperimentBootout, firstStableBootstrap)
 }
 
+// TestPostInstallDMGDiscardsTheExperimentWhenTheSetUpFails pins that an install over a host that was
+// running a configuration experiment discards its configuration even when the rest of the set-up
+// fails: its deadline and supervisor are gone, so nothing else would ever end it.
+func TestPostInstallDMGDiscardsTheExperimentWhenTheSetUpFails(t *testing.T) {
+	stubLaunchd(t)
+	stubJobDir(t)
+	stubInstallerState(t)
+	layout := defaultDmgLayout
+	stubDeadlinePath(t)
+	originalStop := stopSurvivingHelpers
+	stopSurvivingHelpers = func(context.Context) error { return nil }
+	t.Cleanup(func() { stopSurvivingHelpers = originalStop })
+	require.NoError(t, os.MkdirAll(layout.expConfDir(), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(layout.expConfDir(), ".deployment-id"), []byte("experiment-1"), 0o640))
+	// A fresh configuration with no example to start from: setUpConfig fails.
+	require.NoError(t, os.Remove(filepath.Join(layout.confDir(), "datadog.yaml.example")))
+	ctx := testHookContext(t)
+	ctx.PackageType = PackageTypeDMG
+
+	require.Error(t, postInstallDMG(ctx))
+
+	target, err := os.Readlink(layout.expConfDir())
+	require.NoError(t, err, "the experiment configuration was not discarded")
+	assert.Equal(t, layout.confDir(), target)
+}
+
 // TestPostInstallDMGCreatesTheInstallerStateFirst pins that the installer's root-owned directories
 // are created before any job is loaded, so the installer daemon never starts without them.
 func TestPostInstallDMGCreatesTheInstallerStateFirst(t *testing.T) {

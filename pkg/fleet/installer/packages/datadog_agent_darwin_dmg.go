@@ -113,7 +113,6 @@ func setUpDMGInstall(ctx context.Context, layout dmgLayout) error {
 	if err := setUpConfig(ctx, layout, env); err != nil {
 		return err
 	}
-	restExperimentConfig(ctx, layout)
 	installNativeMessagingHosts(layout, env)
 	installLinks(layout)
 	return nil

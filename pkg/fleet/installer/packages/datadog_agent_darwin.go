@@ -285,6 +285,9 @@ func postInstallDatadogAgent(ctx HookContext) error {
 func postInstallDMG(ctx HookContext) error {
 	var errs []error
 	collapseConfigExperiment(ctx)
+	// Whatever the rest of the set-up does: the experiment's deadline and supervisor are gone, so
+	// its configuration must not stay recorded as deployed with nothing to run or end it.
+	restExperimentConfig(ctx, defaultDmgLayout)
 	env := readInstallEnv(defaultDmgLayout)
 	if err := setUpDMGInstall(ctx, defaultDmgLayout); err != nil {
 		errs = append(errs, err)
@@ -319,8 +322,8 @@ func postInstallDMG(ctx HookContext) error {
 // install, so running the post-install twice is harmless: it stops any helper an earlier version
 // left running, which would swap jobs back in under the install, and clears the deadline and the
 // unit supervisor's state, so nothing later takes the experiment the install discards for one still
-// running. unloadExperimentJobs then stops the unit supervisor and the experiment jobs, and
-// setUpDMGInstall discards the experiment configuration (restExperimentConfig).
+// running. postInstallDMG then discards the experiment configuration (restExperimentConfig), and
+// unloadExperimentJobs stops the unit supervisor and the experiment jobs.
 //
 // The .dmg's preinstall script already does this on an upgrade; this repeats it for a host it did
 // not run on or did not finish on. Every step is allowed to fail.
