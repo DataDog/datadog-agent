@@ -39,34 +39,26 @@ type Data struct {
 
 	// fullConfigEnabled decides whether full_configuration is emitted. Set at
 	// construction and never changed afterwards.
-	fullConfigEnabled FullConfigurationResolver
+	fullConfigEnabled FullConfigurationEnabledFunc
 }
 
-// FullConfigurationResolver reports whether the payload includes
+// FullConfigurationEnabledFunc reports whether the payload includes
 // full_configuration. It is called on every payload build and must be cheap and
 // safe for concurrent use.
-type FullConfigurationResolver func() bool
+type FullConfigurationEnabledFunc func() bool
 
-// Option configures a Data at construction.
-type Option func(*Data)
-
-// WithFullConfigurationResolver replaces the default decision for including
-// full_configuration, which reads the inventories_full_configuration_enabled
-// setting.
-func WithFullConfigurationResolver(resolver FullConfigurationResolver) Option {
-	return func(ia *Data) { ia.fullConfigEnabled = resolver }
+// FullConfigurationFromSetting returns the function that follows the
+// inventories_full_configuration_enabled setting.
+func FullConfigurationFromSetting(conf config.Component) FullConfigurationEnabledFunc {
+	return func() bool { return conf.GetBool("inventories_full_configuration_enabled") }
 }
 
 // NewData returns empty metadata for the resolved hostname. Init collects the
-// common fields.
-func NewData(conf config.Component, l log.Component, hostname hostnameinterface.Component, opts ...Option) *Data {
+// common fields. fullConfigEnabled decides whether the payload includes
+// full_configuration.
+func NewData(conf config.Component, l log.Component, hostname hostnameinterface.Component, fullConfigEnabled FullConfigurationEnabledFunc) *Data {
 	hname, _ := hostname.Get(context.Background())
-	ia := &Data{conf: conf, log: l, hostnameComp: hostname, hostname: hname, data: make(agentMetadata)}
-	ia.fullConfigEnabled = func() bool { return conf.GetBool("inventories_full_configuration_enabled") }
-	for _, opt := range opts {
-		opt(ia)
-	}
-	return ia
+	return &Data{conf: conf, log: l, hostnameComp: hostname, hostname: hname, data: make(agentMetadata), fullConfigEnabled: fullConfigEnabled}
 }
 
 // Init collects the common fields: install info, hostname source, version,

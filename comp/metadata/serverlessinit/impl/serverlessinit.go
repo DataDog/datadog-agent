@@ -230,7 +230,7 @@ func (c *serverlessinitComp) applyMetadata(data serverlessdef.CloudServiceMetada
 		c.submittedCurrentIdentity = false
 	}
 	if c.data == nil {
-		c.data = agentmetadata.NewData(c.conf, c.log, c.hostname)
+		c.data = agentmetadata.NewData(c.conf, c.log, c.hostname, agentmetadata.FullConfigurationFromSetting(c.conf))
 		c.data.Init()
 	}
 }

@@ -104,8 +104,7 @@ func NewComponent(deps Requires) Provides {
 	}
 	// The handler only calls ia.Refresh once a flag update arrives, after construction.
 	flag := newFullConfigFlagHandler(deps.Config, ia.Refresh)
-	ia.data = agentmetadata.NewData(deps.Config, deps.Log, deps.Hostname,
-		agentmetadata.WithFullConfigurationResolver(flag.fullConfigurationEnabled))
+	ia.data = agentmetadata.NewData(deps.Config, deps.Log, deps.Hostname, flag.fullConfigurationEnabled)
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
 
 	if ia.Enabled {

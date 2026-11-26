@@ -98,7 +98,7 @@ func (c *serverlessAASComp) getPayload() marshaler.TypedJSONMarshaler {
 		fields["report_reason"] = reportReasonPeriodic
 	}
 	if c.data == nil {
-		c.data = agentmetadata.NewData(c.conf, c.log, c.hostname)
+		c.data = agentmetadata.NewData(c.conf, c.log, c.hostname, agentmetadata.FullConfigurationFromSetting(c.conf))
 		c.data.Init()
 	}
 	return c.data.GetPayload(fields, c.uuid)
