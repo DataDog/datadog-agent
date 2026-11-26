@@ -911,10 +911,46 @@ func (s *anomalyScorer) recordAnomaly(a observerdef.Anomaly, scoringSecond int64
 // (inclusive). After releasing mu, the derived raw severity stream is fed to
 // the dispatcher, which may call listeners on resulting transitions.
 func (s *anomalyScorer) Advance(dataTime int64) {
+	states, missedHigh := s.advanceStates(dataTime)
+	if len(states) == 0 {
+		return
+	}
+
+	// Push EWMA gauge for the last second of this advance tick.
+	if s.ewmaGauge != nil {
+		last := states[len(states)-1]
+		s.ewmaGauge.Set(last.ewma, s.Name())
+	}
+	if s.ewmaFinalizedGauge != nil && s.config.ReorderingWindowSecs > 0 && s.replay != nil {
+		last := states[len(states)-1]
+		finalizedSec := last.sec - s.config.ReorderingWindowSecs
+		checkpoint := s.replay.checkpoints[replaySlot(finalizedSec, len(s.replay.checkpoints))]
+		if checkpoint.present && checkpoint.second == finalizedSec && checkpoint.state.initialized {
+			s.ewmaFinalizedGauge.Set(checkpoint.state.ewma, s.Name())
+		}
+	}
+	if s.severityGauge != nil {
+		last := states[len(states)-1]
+		s.severityGauge.Set(float64(last.level), s.Name())
+	}
+
+	// Drive the dispatchers outside the scorer lock so listeners can safely call
+	// back into the scorer without deadlocking.
+	s.dispatchersMu.RLock()
+	dispatchers := append([]*severityeventsimpl.Dispatcher(nil), s.dispatchers...)
+	s.dispatchersMu.RUnlock()
+	for _, st := range states {
+		for _, dispatcher := range dispatchers {
+			feedDispatcherState(dispatcher, dataTime, st, missedHigh)
+		}
+	}
+}
+
+func (s *anomalyScorer) advanceStates(dataTime int64) ([]secState, int64) {
 	s.mu.Lock()
 	if s.score.initialized && dataTime <= s.lastAdvancedSec {
 		s.mu.Unlock()
-		return
+		return nil, 0
 	}
 
 	start := s.lastAdvancedSec + 1
@@ -950,43 +986,25 @@ func (s *anomalyScorer) Advance(dataTime int64) {
 		missedHigh = s.replayLateInputs(dataTime, replayStart, late, states)
 	}
 	s.mu.Unlock()
+	return states, missedHigh
+}
 
-	// Push EWMA gauge for the last second of this advance tick.
-	if s.ewmaGauge != nil && len(states) > 0 {
-		last := states[len(states)-1]
-		s.ewmaGauge.Set(last.ewma, s.Name())
-	}
-	if s.ewmaFinalizedGauge != nil && s.config.ReorderingWindowSecs > 0 && s.replay != nil && len(states) > 0 {
-		last := states[len(states)-1]
-		finalizedSec := last.sec - s.config.ReorderingWindowSecs
-		checkpoint := s.replay.checkpoints[replaySlot(finalizedSec, len(s.replay.checkpoints))]
-		if checkpoint.present && checkpoint.second == finalizedSec && checkpoint.state.initialized {
-			s.ewmaFinalizedGauge.Set(checkpoint.state.ewma, s.Name())
-		}
-	}
-	if s.severityGauge != nil && len(states) > 0 {
-		last := states[len(states)-1]
-		s.severityGauge.Set(float64(last.level), s.Name())
-	}
+func (s *anomalyScorer) rawScoreSnapshot() (scoringState, int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.score, s.lastAdvancedSec
+}
 
-	// Drive the dispatchers outside the scorer lock so listeners can safely call
-	// back into the scorer without deadlocking.
-	s.dispatchersMu.RLock()
-	dispatchers := append([]*severityeventsimpl.Dispatcher(nil), s.dispatchers...)
-	s.dispatchersMu.RUnlock()
-	for _, st := range states {
-		for _, dispatcher := range dispatchers {
-			switch {
-			case st.sec == dataTime && missedHigh != 0:
-				dispatcher.DiscoverHigh(dataTime, missedHigh)
-			case st.highCrossing != 0:
-				dispatcher.DiscoverHigh(st.sec, st.highCrossing)
-			case st.level != severityeventsdef.SeverityHigh:
-				dispatcher.Advance(st.sec, st.level)
-			default:
-				// A continuous High cannot open or renew a hold.
-			}
-		}
+func feedDispatcherState(dispatcher *severityeventsimpl.Dispatcher, dataTime int64, st secState, missedHigh int64) {
+	switch {
+	case st.sec == dataTime && missedHigh != 0:
+		dispatcher.DiscoverHigh(dataTime, missedHigh)
+	case st.highCrossing != 0:
+		dispatcher.DiscoverHigh(st.sec, st.highCrossing)
+	case st.level != severityeventsdef.SeverityHigh:
+		dispatcher.Advance(st.sec, st.level)
+	default:
+		// A continuous High cannot open or renew a hold.
 	}
 }
 
@@ -1160,21 +1178,20 @@ func (s *anomalyScorer) advanceSecond(sec int64, recognizeHigh bool) secState {
 		s.replay.recordSecond(sec, inputs, next, recognizeHigh)
 	}
 	s.score = next
-	s.buckets = append(s.buckets, bucket)
-
-	// Default cap is WindowSecs; MaxBuckets overrides this when set to a positive value.
-	bucketCap := s.bucketCap()
-	if int64(len(s.buckets)) > bucketCap {
-		trimmed := make([]observerdef.AnomalyScoreBucket, bucketCap)
-		copy(trimmed, s.buckets[int64(len(s.buckets))-bucketCap:])
-		s.buckets = trimmed
+	if bucketCap := s.bucketCap(); bucketCap > 0 {
+		s.buckets = append(s.buckets, bucket)
+		if int64(len(s.buckets)) > bucketCap {
+			trimmed := make([]observerdef.AnomalyScoreBucket, bucketCap)
+			copy(trimmed, s.buckets[int64(len(s.buckets))-bucketCap:])
+			s.buckets = trimmed
+		}
 	}
 
 	return secState{sec: sec, ewma: next.ewma, level: next.level, highCrossing: highCrossing}
 }
 
 func (s *anomalyScorer) bucketCap() int64 {
-	if s.config.MaxBuckets > 0 {
+	if s.config.MaxBuckets != 0 {
 		return s.config.MaxBuckets
 	}
 	return s.config.WindowSecs
@@ -1410,11 +1427,15 @@ func (s *anomalyScorer) replayScoredSeconds(start int64, forward []secState) int
 		mergeScoringInputs(sec, h.journal[sec], s.windowMap)
 	}
 
-	debugStart := s.buckets[0].Second
-	if from := max(start, s.lastAdvancedSec-s.bucketCap()+1); from < debugStart {
-		// Startup backfill can add seconds before the first stored bucket.
-		s.buckets = append(make([]observerdef.AnomalyScoreBucket, debugStart-from), s.buckets...)
-		debugStart = from
+	retainBuckets := s.bucketCap() > 0 && len(s.buckets) > 0
+	var debugStart int64
+	if retainBuckets {
+		debugStart = s.buckets[0].Second
+		if from := max(start, s.lastAdvancedSec-s.bucketCap()+1); from < debugStart {
+			// Startup backfill can add seconds before the first stored bucket.
+			s.buckets = append(make([]observerdef.AnomalyScoreBucket, debugStart-from), s.buckets...)
+			debugStart = from
+		}
 	}
 	var firstMissed, highStart int64
 	knownHigh := previous.level == severityeventsdef.SeverityHigh
@@ -1446,7 +1467,7 @@ func (s *anomalyScorer) replayScoredSeconds(start int64, forward []secState) int
 			highStart = 0
 		}
 		h.saveCheckpoint(sec, next, true)
-		if sec >= debugStart {
+		if retainBuckets && sec >= debugStart {
 			s.buckets[sec-debugStart] = bucket
 		}
 		previous = next

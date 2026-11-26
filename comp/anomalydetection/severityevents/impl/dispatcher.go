@@ -7,7 +7,11 @@
 // severityevents contract.
 package severityeventsimpl
 
-import severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
+import (
+	"sync/atomic"
+
+	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
+)
 
 // Dispatcher owns one listener plus one fixed filter/cooldown state machine.
 type Dispatcher struct {
@@ -15,7 +19,7 @@ type Dispatcher struct {
 	filter       severityeventsdef.SeverityEventFilter
 	cooldownSecs int64
 
-	level   severityeventsdef.SeverityLevel
+	level   atomic.Int32
 	lastSec int64
 
 	cooldownStartedAt int64
@@ -24,19 +28,25 @@ type Dispatcher struct {
 // NewDispatcher creates a dispatcher delivering to listener, filtered/cooled
 // down per cfg.
 func NewDispatcher(cfg severityeventsdef.SeverityEventsConfiguration, listener severityeventsdef.SeverityEventListener) *Dispatcher {
-	return &Dispatcher{
+	d := &Dispatcher{
 		listener:     listener,
 		filter:       cfg.Filter,
 		cooldownSecs: cfg.CooldownSecs,
-		level:        severityeventsdef.SeverityLow,
 	}
+	d.level.Store(int32(severityeventsdef.SeverityLow))
+	return d
+}
+
+// Level returns the dispatcher's current internal severity level.
+func (d *Dispatcher) Level() severityeventsdef.SeverityLevel {
+	return severityeventsdef.SeverityLevel(d.level.Load())
 }
 
 // DeliverInitial seeds the dispatcher from the current level and may deliver a
 // synthetic snapshot event.
 func (d *Dispatcher) DeliverInitial(sec int64, level severityeventsdef.SeverityLevel) {
 	level = clampSeverityLevel(level)
-	d.level = level
+	d.level.Store(int32(level))
 	d.lastSec = sec
 	if level == severityeventsdef.SeverityLow {
 		return
@@ -48,7 +58,7 @@ func (d *Dispatcher) DeliverInitial(sec int64, level severityeventsdef.SeverityL
 		ToLevel:   level,
 		Direction: severityeventsdef.SeverityEventEscalation,
 	}
-	if eventFilterMatches(d.filter, evt) {
+	if EventFilterMatches(d.filter, evt) {
 		d.cooldownStartedAt = sec
 		d.listener.OnSeverityTransition(evt)
 	}
@@ -57,12 +67,13 @@ func (d *Dispatcher) DeliverInitial(sec int64, level severityeventsdef.SeverityL
 // Advance feeds one raw severity level into the dispatcher state machine.
 func (d *Dispatcher) Advance(sec int64, level severityeventsdef.SeverityLevel) {
 	next := clampSeverityLevel(level)
-	if next == d.level {
+	current := d.Level()
+	if next == current {
 		d.lastSec = sec
 		return
 	}
 
-	if next < d.level && d.cooldownSecs > 0 && sec-d.cooldownStartedAt < d.cooldownSecs {
+	if next < current && d.cooldownSecs > 0 && sec-d.cooldownStartedAt < d.cooldownSecs {
 		d.lastSec = sec
 		return
 	}
@@ -72,7 +83,7 @@ func (d *Dispatcher) Advance(sec int64, level severityeventsdef.SeverityLevel) {
 // DiscoverHigh starts or renews this subscriber's hold for a distinct raw High.
 // crossingSec describes the evidence; only triggerSec affects the cooldown.
 func (d *Dispatcher) DiscoverHigh(triggerSec, crossingSec int64) {
-	if d.level == severityeventsdef.SeverityHigh {
+	if d.Level() == severityeventsdef.SeverityHigh {
 		d.lastSec = triggerSec
 		d.cooldownStartedAt = triggerSec
 		return
@@ -81,25 +92,26 @@ func (d *Dispatcher) DiscoverHigh(triggerSec, crossingSec int64) {
 }
 
 func (d *Dispatcher) transition(sec int64, next severityeventsdef.SeverityLevel, historicalSec int64) {
+	current := d.Level()
 	evt := severityeventsdef.SeverityEvent{
 		Timestamp:           sec,
 		HistoricalTimestamp: historicalSec,
-		FromLevel:           d.level,
+		FromLevel:           current,
 		ToLevel:             next,
-		Direction:           eventDirection(d.level, next),
+		Direction:           eventDirection(current, next),
 	}
-	d.level = next
+	d.level.Store(int32(next))
 	d.lastSec = sec
 	d.cooldownStartedAt = sec
 
-	if eventFilterMatches(d.filter, evt) {
+	if EventFilterMatches(d.filter, evt) {
 		d.listener.OnSeverityTransition(evt)
 	}
 }
 
 // Reset clears delivery state and known level.
 func (d *Dispatcher) Reset() {
-	d.level = severityeventsdef.SeverityLow
+	d.level.Store(int32(severityeventsdef.SeverityLow))
 	d.lastSec = 0
 	d.cooldownStartedAt = 0
 }
@@ -111,7 +123,8 @@ func eventDirection(from, to severityeventsdef.SeverityLevel) severityeventsdef.
 	return severityeventsdef.SeverityEventDeescalation
 }
 
-func eventFilterMatches(f severityeventsdef.SeverityEventFilter, evt severityeventsdef.SeverityEvent) bool {
+// EventFilterMatches reports whether evt matches filter.
+func EventFilterMatches(f severityeventsdef.SeverityEventFilter, evt severityeventsdef.SeverityEvent) bool {
 	if len(f.FromLevels) > 0 {
 		found := false
 		for _, l := range f.FromLevels {
