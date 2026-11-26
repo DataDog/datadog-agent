@@ -1,3 +1,4 @@
+load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@py_agent_integrations_tool_requirements//:requirements.bzl", "requirement")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_attributes", "pkg_filegroup", "pkg_files")
@@ -23,6 +24,12 @@ py_binary(
     deps = [
         requirement("hatchling"),
     ],
+)
+
+py_binary(
+    name = "list_installed_files_tool",
+    srcs = ["list_installed_files.py"],
+    main = "list_installed_files.py",
 )
 
 embedded_dir = select({
@@ -94,6 +101,33 @@ pkg_files(
     prefix = embedded_dir + "/" + entrypoints_dirname,
     renames = {
         ":integrations_bin": REMOVE_BASE_DIRECTORY,
+    },
+    tags = ["manual"],
+    visibility = ["//packages:__subpackages__"],
+)
+
+run_binary(
+    name = "installed_by_pkg",
+    srcs = [":integrations_runtime"],
+    outs = ["installed_by_pkg.txt"],
+    args = [
+        "--runtime-dir=$(execpath :integrations_runtime)",
+        "--output=$(execpath installed_by_pkg.txt)",
+    ] + select({
+        "@platforms//os:windows": ["--prefix=./embedded3"],
+        "//conditions:default": ["--prefix=./embedded"],
+    }),
+    tags = ["manual"],
+    tool = ":list_installed_files_tool",
+)
+
+pkg_files(
+    name = "installed_by_pkg_file",
+    srcs = [":installed_by_pkg"],
+    attributes = pkg_attributes(mode = "0644"),
+    prefix = embedded_dir,
+    renames = {
+        ":installed_by_pkg": ".installed_by_pkg.txt",
     },
     tags = ["manual"],
     visibility = ["//packages:__subpackages__"],
