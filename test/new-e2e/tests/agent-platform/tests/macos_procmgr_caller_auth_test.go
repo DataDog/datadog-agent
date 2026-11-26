@@ -24,8 +24,7 @@ const (
 	macosCallerAuthAgentEntry  = "e2e-caller-auth-agent"
 	macosCallerAuthStartEntry  = "e2e-caller-auth-start"
 	macosCallerAuthReloadEntry = "e2e-caller-auth-reload"
-	// SSH commands have no deadline, so each dd-procmgr call runs under a perl alarm. The alarm is set
-	// inside sudo so it reaches dd-procmgr itself, and a failed exec exits with an error.
+	// SSH has no deadline. Perl runs inside sudo so SIGALRM reaches dd-procmgr.
 	macosBoundedPerl        = "perl -e 'alarm shift; exec @ARGV or die \"exec: $!\\n\"' "
 	macosProcmgrRPCTimeout  = "30"
 	macosProcmgrHealTimeout = "15"
@@ -59,8 +58,7 @@ func assertMacosProcmgrRequiresRoot(t *testing.T, client *common.MacOSTestClient
 	t.Helper()
 	_, err := client.Execute(command)
 	require.Error(t, err, command)
-	// The Rust tests pin this message to PermissionDenied. The CLI prints the status description with it,
-	// so a different status carrying the same message does not pass.
+	// Check the message and the CLI's PermissionDenied description: the message alone could come from another status.
 	assert.Contains(t, err.Error(), "operation requires root")
 	assert.Contains(t, err.Error(), "does not have permission to execute the specified operation")
 	return err.Error()
@@ -85,12 +83,11 @@ func macosProcmgrListNames(t *testing.T, client *common.MacOSTestClient, command
 	return names, true
 }
 
-// macosSleepPattern matches the child of a run by its command line, not by pid, which can be reused.
+// macosSleepPattern matches by command line, since a PID may be reused after a daemon crash.
 func macosSleepPattern(sleepArg string) string {
 	return "^/bin/sleep " + sleepArg + "$"
 }
 
-// macosBoundedProcmgrCommand returns a command that runs dd-procmgr as root and sends it SIGALRM after the given seconds.
 func macosBoundedProcmgrCommand(seconds, args string) string {
 	return "sudo " + macosBoundedPerl + seconds + " " + macosProcmgrCLI + " " + args
 }
@@ -113,7 +110,6 @@ func waitMacosSleepGone(client *common.MacOSTestClient, sleepArg string, timeout
 
 func killMacosSleep(t *testing.T, client *common.MacOSTestClient, sleepArg string) (string, error) {
 	t.Helper()
-	// pkill returns before the process exits.
 	if _, err := client.Execute("sudo pkill -f '" + macosSleepPattern(sleepArg) + "'"); err != nil {
 		t.Logf("pkill /bin/sleep %s: %v", sleepArg, err)
 	}
@@ -127,15 +123,13 @@ func killMacosSleep(t *testing.T, client *common.MacOSTestClient, sleepArg strin
 	return left, err
 }
 
-// healMacosCallerAuthLeftovers undoes an earlier failed attempt so the pristine-catalog precondition
-// can pass. The marker is the only trace of a child that outlived a crashed daemon, so a marker means restart
-// first and reap after the restarted daemon answers. Without a marker, restart only when one of this test's
-// entries is listed, since a restart drops runtime entries.
+// healMacosCallerAuthLeftovers undoes an earlier failed attempt. A marker means a child may outlive a crashed
+// daemon, so restart first, then reap. Without one, restart only if this test's entries are listed. Failures fail
+// the test, so the body never overwrites an unreaped marker.
 func healMacosCallerAuthLeftovers(t *testing.T, client *common.MacOSTestClient) {
 	t.Helper()
 	out, err := client.Execute("sudo sh -c 'if [ -e " + macosCallerAuthSleepMarker + " ]; then cat " + macosCallerAuthSleepMarker + "; fi'")
 	if err != nil {
-		// Going on would overwrite a marker that was never read.
 		t.Errorf("heal: failed to read %s: %v", macosCallerAuthSleepMarker, err)
 		return
 	}
@@ -143,17 +137,14 @@ func healMacosCallerAuthLeftovers(t *testing.T, client *common.MacOSTestClient) 
 	if _, err := client.Execute("sudo rm -f " + macosProcessesDir + "/" + macosCallerAuthReloadEntry + ".yaml"); err != nil {
 		t.Logf("heal: failed to remove %s: %v", macosCallerAuthReloadEntry, err)
 	}
-	// A start queued in a stalled daemon can still launch its child, so restart before reaping. The restart drops
-	// runtime entries, and the marker stays until the restarted daemon answers and the child is gone.
+	// A queued start can still launch its child, so restart before reaping.
 	if previous != "" {
 		if _, err := client.Execute("sudo launchctl kickstart -k system/com.datadoghq.procmgr"); err != nil {
 			t.Errorf("heal: failed to restart dd-procmgrd before reaping %s: %v", previous, err)
 			return
 		}
 	}
-	// A daemon that is still starting must not skip the healing below. A marker means the old daemon may keep
-	// answering with this test's entries until it exits, so poll until the listing is clean. Bound each attempt
-	// because a daemon that accepts the connection and never answers would otherwise hang the loop.
+	// Poll until dd-procmgrd answers, and with a marker until its listing is clean. Each attempt is bounded.
 	var list []struct {
 		Name string `json:"name"`
 	}
@@ -176,7 +167,6 @@ func healMacosCallerAuthLeftovers(t *testing.T, client *common.MacOSTestClient) 
 		}
 	}
 	if err != nil {
-		// Fail here, so this run never overwrites a marker that still records a child.
 		t.Errorf("heal: failed to list dd-procmgr processes: %v\n%s", err, out)
 		return
 	}
@@ -232,8 +222,7 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 			}
 		}()
 		if bodyFailed {
-			// Bounded because a stop can take up to about 100s (90s graceful plus the force-kill wait), and an
-			// unanswered RPC would hang cleanup.
+			// Bounded: a stop can take about 100s, and an unanswered RPC would hang cleanup.
 			if _, err := client.Execute(macosBoundedProcmgrCommand(macosProcmgrStopTimeout, "stop "+macosCallerAuthEntry)); err != nil {
 				t.Logf("cleanup: failed to stop %s: %v", macosCallerAuthEntry, err)
 			}
@@ -261,7 +250,7 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 		} else if !bodyFailed && initialErr != nil {
 			t.Errorf("cleanup: failed to check for /bin/sleep %s before killing it: %v", sleepArg, initialErr)
 		}
-		// Before the restart, which loads processes.d.
+		// Remove before the restart so processes.d does not reload the test entry.
 		if _, err := client.Execute("sudo rm -f " + macosProcessesDir + "/" + macosCallerAuthReloadEntry + ".yaml"); err != nil {
 			t.Logf("cleanup: failed to remove %s: %v", macosCallerAuthReloadEntry, err)
 		}
@@ -269,8 +258,7 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 		if restartErr != nil {
 			t.Errorf("cleanup: failed to restart dd-procmgrd: %v", restartErr)
 		}
-		// A start queued in a stalled daemon can launch after the first probe. This deferred check runs even if
-		// assertMacosProcmgrAnswers aborts, and the marker goes only once the restart is verified.
+		// Defer so a queued start is still reaped if assertMacosProcmgrAnswers aborts. Clear the marker only after a verified restart.
 		restarted := false
 		defer func() {
 			left, err := waitMacosSleepGone(client, sleepArg, 0)
@@ -339,8 +327,7 @@ func (m *macosInstallSuite) TestZXProcmgrRootOnlyMutations() {
 		assert.NoError(t, err, "dd-procmgr %s as _dd-agent", args)
 	}
 
-	// A regression must not launch a second system-probe next to the legacy LaunchDaemon, which
-	// cleanup cannot tell apart.
+	// A regression must not launch a second system-probe beside the legacy LaunchDaemon, which cleanup cannot tell apart.
 	_, err = client.Execute(macosBoundedProcmgrCommand(macosProcmgrRPCTimeout, "create --name "+macosCallerAuthStartEntry+" --command /bin/sleep --args "+sleepArg+" --no-auto-start --restart-policy never"))
 	require.NoError(t, err)
 	deniedTarget := macosProcmgrDescribe(t, client, macosCallerAuthStartEntry)
