@@ -1562,9 +1562,11 @@ func (m *ManagerV2) SendStats() error {
 	// Per-profile size (RAM and disk reported under the same metric, differentiated by storage tag).
 	// ComputeHeapSize takes the per-profile lock, so it is called outside profilesLock, on the
 	// snapshot taken above.
-	shortImageBySelector := make(map[cgroupModel.WorkloadSelector]string, len(tracked))
+	shortImageBySelector := m.localStorage.ShortImagesBySelector()
 	for _, tp := range tracked {
-		shortImageBySelector[tp.selector] = tp.shortImage
+		if tp.shortImage != "" {
+			shortImageBySelector[tp.selector] = tp.shortImage
+		}
 		tags := metrics.WithProfileShortImage([]string{
 			"profile_image_name:" + tp.selector.Image,
 			"profile_image_tag:" + tp.selector.Tag,

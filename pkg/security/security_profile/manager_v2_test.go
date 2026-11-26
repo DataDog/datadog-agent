@@ -251,6 +251,27 @@ func TestManagerV2_SendStats_reportsProfileCount(t *testing.T) {
 		assert.Contains(t, gotSize, "profile_image_name:gcr.io/org/worker,profile_image_tag:*,storage:ram")
 	})
 
+	t.Run("disk series of an untracked profile uses the stored short image", func(t *testing.T) {
+		m, recorder := newManager()
+
+		selector := cgroupModel.WorkloadSelector{Image: "gcr.io/org/app", Tag: "*"}
+		prof := profile.New(profile.WithWorkloadSelector(selector))
+		prof.Metadata = mtdt.Metadata{Name: "disk-only"}
+		prof.PrepareNewVersion("v1", []string{"image_name:gcr.io/org/app", "short_image:app"}, 1, 0)
+		encoded, err := prof.Encode(config.Profile)
+		require.NoError(t, err)
+		require.NoError(t, m.localStorage.Persist(config.StorageRequest{Format: config.Profile}, prof, encoded))
+
+		require.NoError(t, m.SendStats())
+
+		assert.Equal(t, [][]string{{
+			"profile_image_name:gcr.io/org/app",
+			"profile_image_tag:*",
+			"storage:disk",
+			"profile_short_image:app",
+		}}, recorder.tags[metrics.MetricSecurityProfileV2ProfileSize])
+	})
+
 	t.Run("reports zero when no profile is tracked", func(t *testing.T) {
 		m, recorder := newManager()
 

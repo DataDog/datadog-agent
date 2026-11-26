@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 func securityContextToProto(sc *securitycontext.SecurityContext) *adprotov1.SecurityContext {
@@ -462,6 +463,16 @@ func protoToSecurityProfile(output *Profile, input *adprotov1.SecurityProfile) {
 	activity_tree.ProtoDecodeActivityTree(output.ActivityTree, input.Tree)
 	activity_tree.ProtoDecodeMounts(output.ActivityTree, input.Mounts)
 	activity_tree.ProtoDecodeUnattributedActivity(output.ActivityTree, input.UnattributedActivity)
+}
+
+// ShortImageFromProto returns the first short_image found in the version contexts of a protobuf profile
+func ShortImageFromProto(input *adprotov1.SecurityProfile) string {
+	for _, ctx := range input.GetProfileContexts() {
+		if shortImage := utils.GetTagValue("short_image", ctx.GetTags()); shortImage != "" {
+			return shortImage
+		}
+	}
+	return ""
 }
 
 // LoadProtoFromFile loads proto profile from file
