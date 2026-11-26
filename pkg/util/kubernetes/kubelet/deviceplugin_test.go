@@ -149,7 +149,10 @@ func TestCachedDevicePluginClient(t *testing.T) {
 		require.Len(t, devices, 1)
 		assert.Equal(t, "device1", devices[0].ID)
 
-		// Second call within timeout should return cached result
+		// Second call within timeout should return cached result. Let some virtual
+		// time elapse so that a call reaching the underlying client would stamp a
+		// different time than the first one.
+		time.Sleep(cacheTimeout / 2)
 		lastRefreshTime := mockClient.lastRefreshTime
 		lastListDevicesTime := mockClient.lastListDevicesTime
 		mockClient.devices = append(mockClient.devices, &devicepluginv1beta1.Device{ID: "device2", Health: devicepluginv1beta1.Healthy})
@@ -163,8 +166,8 @@ func TestCachedDevicePluginClient(t *testing.T) {
 		assert.Equal(t, lastRefreshTime, mockClient.lastRefreshTime)
 
 		// After timeout, should hit the underlying client again
-		// The cache expires strictly after the timeout.
-		time.Sleep(cacheTimeout + time.Nanosecond)
+		// The cache expires strictly after the timeout (counted from the first call).
+		time.Sleep(cacheTimeout/2 + time.Nanosecond)
 		lastRefreshTime = mockClient.lastRefreshTime
 		lastListDevicesTime = mockClient.lastListDevicesTime
 
