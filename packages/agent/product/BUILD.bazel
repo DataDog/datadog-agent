@@ -13,6 +13,7 @@ load(
     "pkg_mkdirs",
 )
 load("//bazel/rules/dd_packaging:agent_binary.bzl", "agent_binary_for_package")
+load("//bazel/rules/dd_strip:dd_strip.bzl", "dd_strip_symbols")
 load("//packages/rules:agent_path.bzl", "ETC_DIR_SELECTOR", "etc_dir")
 
 _USE_RELATIVE_RPATHS = select({
@@ -109,7 +110,10 @@ pkg_filegroup(
         "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
         "//packages/agent/python-scripts:all_files",
-    ],
+    ] + select({
+        "@platforms//os:windows": [":systray_binary"],
+        "//conditions:default": [],
+    }),
 )
 
 # Temporary during migration, to call from omnibus build after we have built the agent with dda.
@@ -333,12 +337,22 @@ pkg_files(
     prefix = "embedded/share/system-probe/ebpf/runtime",
 )
 
+dd_strip_symbols(
+    name = "clang_bpf_stripped",
+    src = select({
+        "//:linux_x86_64": "@llvm_bpf_amd64//:clang-bpf",
+        "//:linux_arm64": "@llvm_bpf_arm64//:clang-bpf",
+    }),
+    tags = ["manual"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
 # clang-bpf only. llvm-strip stays a toolchain file.
 pkg_files(
     name = "system_probe_llvm_bpf",
     srcs = select({
-        "//:linux_x86_64": ["@llvm_bpf_amd64//:clang-bpf"],
-        "//:linux_arm64": ["@llvm_bpf_arm64//:clang-bpf"],
+        "//:linux_x86_64": [":clang_bpf_stripped"],
+        "//:linux_arm64": [":clang_bpf_stripped"],
         "//conditions:default": [],
     }),
     attributes = pkg_attributes(mode = "744"),

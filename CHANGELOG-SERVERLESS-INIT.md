@@ -8,6 +8,11 @@
      it, and the PR is merged after the release.
      See the "Releasing Serverless-Init" runbook in Confluence (SLS space). -->
 
+## 1.12.1
+[Agent Tag](https://github.com/DataDog/datadog-agent/releases/tag/serverless-init-1.12.1)
+
+* When metadata collection is enabled (`DD_SERVERLESS_INIT_METADATA_ENABLED`), metadata payloads are now sent with jitter. After the first payload, or one triggered by a refresh, the next one comes after a random delay between `inventories_min_interval` and `inventories_max_interval`; later payloads come up to 20% earlier than `inventories_max_interval`. Agents that start or are reconfigured at the same time no longer send their payloads in lockstep. Payloads are never further apart than `inventories_max_interval`. [#59583](https://github.com/DataDog/datadog-agent/pull/59583)
+
 ## 1.12.0
 [Agent Tag](https://github.com/DataDog/datadog-agent/releases/tag/serverless-init-1.12.0)
 

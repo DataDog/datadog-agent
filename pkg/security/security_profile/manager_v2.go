@@ -10,6 +10,7 @@ package securityprofile
 
 import (
 	"bytes"
+	"container/heap"
 	"container/list"
 	"context"
 	"errors"
@@ -102,11 +103,20 @@ const (
 )
 
 // insertionErrorKey identifies an event error or an unexpected activity-tree insertion failure by
-// event type and a bounded error-type label.
+// event type, a bounded error-type label and the outcome of the event.
 type insertionErrorKey struct {
 	eventType model.EventType
 	errorType string
+	outcome   string
 }
+
+// Outcomes of an event counted as an insertion error
+const (
+	insertionErrorKept    = "kept"
+	insertionErrorDropped = "dropped"
+)
+
+var insertionErrorOutcomes = []string{insertionErrorKept, insertionErrorDropped}
 
 // perEventTypeMetrics holds the precomputed statsd tags and the counters for a
 // (source, event_type) pair.
@@ -144,6 +154,9 @@ type ManagerV2 struct {
 	afterProfileLookup   func()
 	pendingEventsReady   atomic.Bool
 	nopWakeupPending     atomic.Bool
+	// beforeAnomalyClaim lets tests interleave a merge between the insertion of an event and the claim
+	// of its anomaly emission. Nil outside tests.
+	beforeAnomalyClaim func()
 
 	hostname string
 
@@ -206,6 +219,64 @@ type ManagerV2 struct {
 	// excludedCgroupsMap holds host/systemd cgroup inodes the v2 syscall sampler must skip.
 	// The sampler samples every cgroup by default; userspace is the sole writer of exclusions.
 	excludedCgroupsMap *ebpf.Map
+
+	// sampleMaps are the kernel sample maps of the enabled samplers, by event type.
+	sampleMaps map[model.EventType]*ebpf.Map
+
+	// cooldownExpiries are the nodes whose anomaly event cooldown is running, ordered by
+	// expiration time in cooldownExpiryHeap. When a cooldown expires, the sample cookies
+	// of the node are removed from the kernel sample maps.
+	cooldownExpiries     map[*activity_tree.NodeBase]*cooldownExpiry
+	cooldownExpiryHeap   cooldownExpiryHeap
+	cooldownExpiriesLock sync.Mutex
+}
+
+// sampleMapNames are the kernel sample maps, by the event type they sample.
+var sampleMapNames = map[model.EventType]string{
+	model.FileOpenEventType: "open_samples",
+	model.BindEventType:     "bind_samples",
+	model.ConnectEventType:  "connect_samples",
+}
+
+// sampleEntry mirrors struct sample_entry_t, the value of the kernel sample maps.
+type sampleEntry struct {
+	Cookie        uint64
+	LastRefreshNs uint64
+}
+
+// cooldownExpiry is a node whose anomaly event cooldown is running.
+type cooldownExpiry struct {
+	node      *activity_tree.NodeBase
+	eventType model.EventType
+	expiresAt time.Time
+	index     int
+}
+
+// cooldownExpiryHeap is a min-heap of cooldownExpiry ordered by expiresAt.
+type cooldownExpiryHeap []*cooldownExpiry
+
+func (h cooldownExpiryHeap) Len() int           { return len(h) }
+func (h cooldownExpiryHeap) Less(i, j int) bool { return h[i].expiresAt.Before(h[j].expiresAt) }
+func (h cooldownExpiryHeap) Swap(i, j int) {
+	h[i], h[j] = h[j], h[i]
+	h[i].index = i
+	h[j].index = j
+}
+
+func (h *cooldownExpiryHeap) Push(x any) {
+	expiry := x.(*cooldownExpiry)
+	expiry.index = len(*h)
+	*h = append(*h, expiry)
+}
+
+func (h *cooldownExpiryHeap) Pop() any {
+	old := *h
+	n := len(old)
+	expiry := old[n-1]
+	old[n-1] = nil
+	expiry.index = -1
+	*h = old[:n-1]
+	return expiry
 }
 
 func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpfManager *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), triggerNopEvent func() error, hostname string, startTime time.Time, filterStore workloadfilter.Component) (*ManagerV2, error) {
@@ -213,6 +284,14 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpfM
 	if ebpfManager != nil {
 		var err error
 		excludedCgroupsMap, err = managerhelper.Map(ebpfManager, "excluded_cgroups")
+		if err != nil {
+			return nil, err
+		}
+	}
+	var sampleMaps map[model.EventType]*ebpf.Map
+	if cfg.RuntimeSecurity.AnomalyDetectionEventCooldown > 0 {
+		var err error
+		sampleMaps, err = enabledSampleMaps(cfg, ebpfManager)
 		if err != nil {
 			return nil, err
 		}
@@ -304,6 +383,8 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpfM
 		containerFilters:            containerFilter,
 		imageExcluder:               imgExcluder,
 		excludedCgroupsMap:          excludedCgroupsMap,
+		sampleMaps:                  sampleMaps,
+		cooldownExpiries:            make(map[*activity_tree.NodeBase]*cooldownExpiry),
 	}
 
 	m.initMetricsMap()
@@ -312,11 +393,32 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpfM
 	return m, nil
 }
 
+// enabledSampleMaps returns the kernel sample maps of the enabled samplers, by event type.
+func enabledSampleMaps(cfg *config.Config, ebpfManager *ebpfmanager.Manager) (map[model.EventType]*ebpf.Map, error) {
+	sampleMaps := make(map[model.EventType]*ebpf.Map, len(sampleMapNames))
+	if ebpfManager == nil {
+		return sampleMaps, nil
+	}
+	for eventType, mapName := range sampleMapNames {
+		if !cfg.RuntimeSecurity.EventSamplingEnabledFor(eventType) {
+			continue
+		}
+		sampleMap, err := managerhelper.Map(ebpfManager, mapName)
+		if err != nil {
+			return nil, err
+		}
+		sampleMaps[eventType] = sampleMap
+	}
+	return sampleMaps, nil
+}
+
 // initMetricsMap initializes the event filtering metrics map with all combinations of event types, states, and results
 func (m *ManagerV2) initMetricsMap() {
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
 		for _, errorType := range activity_tree.InsertionErrorTypes {
-			m.insertionErrors[insertionErrorKey{eventType: i, errorType: errorType}] = atomic.NewUint64(0)
+			for _, outcome := range insertionErrorOutcomes {
+				m.insertionErrors[insertionErrorKey{eventType: i, errorType: errorType, outcome: outcome}] = atomic.NewUint64(0)
+			}
 		}
 		for _, state := range model.AllEventFilteringProfileState {
 			for _, result := range allEventFilteringResults {
@@ -400,6 +502,7 @@ func (m *ManagerV2) Start(ctx context.Context) {
 	nodeEvictionTickerChan := m.setupNodeEvictionTicker()
 	profileCleanupTickerChan := m.setupProfileCleanupTicker()
 	stalePurgeTickerChan := m.setupStalePurgeTicker()
+	cooldownExpiryTickerChan := m.setupCooldownExpiryTicker()
 
 	// Register listener for cgroup deletions to track active cgroups
 	if err := m.resolvers.CGroupResolver.RegisterListener(cgroup.CGroupDeleted, m.onCGroupDeleted); err != nil {
@@ -445,6 +548,8 @@ func (m *ManagerV2) Start(ctx context.Context) {
 			m.cleanupPendingProfiles()
 		case <-stalePurgeTickerChan:
 			m.purgeStalePendingEvents(time.Now())
+		case now := <-cooldownExpiryTickerChan:
+			m.expireCooldowns(now)
 		}
 	}
 }
@@ -487,6 +592,18 @@ func (m *ManagerV2) setupStalePurgeTicker() <-chan time.Time {
 	return time.NewTicker(10 * time.Second).C
 }
 
+// setupCooldownExpiryTicker creates the ticker channel for the expiration of the anomaly event cooldowns.
+// Only the nodes fed by a kernel sampler hold sample cookies, so it doesn't run without one.
+func (m *ManagerV2) setupCooldownExpiryTicker() <-chan time.Time {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled || m.config.RuntimeSecurity.AnomalyDetectionEventCooldown <= 0 || len(m.sampleMaps) == 0 {
+		return make(chan time.Time)
+	}
+
+	// Releasing cookies walks sampleCookieMap and the kernel sample maps, so the expirations are
+	// batched: a node is released up to this period after its cooldown has expired.
+	return time.NewTicker(10 * time.Second).C
+}
+
 // onCGroupCreated excludes host/systemd cgroups from the v2 syscall sampler and un-excludes
 // container cgroups (defensive against cgroup inode reuse).
 func (m *ManagerV2) onCGroupCreated(cgce *cgroupModel.CacheEntry) {
@@ -523,10 +640,24 @@ func (m *ManagerV2) onCGroupDeleted(cgce *cgroupModel.CacheEntry) {
 	delete(m.resolvedCgroups, cgroupID)
 	m.resolvedCgroupsLock.Unlock()
 
+	var replacement *cgroupModel.CacheEntry
+	if !cgce.IsContainerContextNull() && m.resolvers != nil && m.resolvers.CGroupResolver != nil {
+		if entry := m.resolvers.CGroupResolver.GetCacheEntryContainerID(cgce.GetContainerID()); entry != nil && entry != cgce && !entry.IsDeleted() {
+			replacement = entry
+		}
+	}
+
 	// Find and unlink this workload from its profile
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 	for selector, prof := range m.profiles {
+		if replacement != nil {
+			if m.replaceContainerWorkloadCGroup(prof, cgce, replacement) {
+				prof.RemoveBaseMountNamespace(cgce.GetCGroupInode())
+				break
+			}
+			continue
+		}
 		if removed, remainingInstances := m.unlinkWorkloadFromProfile(prof, cgce); removed {
 			prof.RemoveBaseMountNamespace(cgce.GetCGroupInode())
 			if remainingInstances == 0 {
@@ -762,8 +893,8 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 		return
 	}
 
-	if event.Error != nil {
-		m.incrementInsertionError(eventType, event.Error)
+	if event.Error != nil && !activity_tree.IsInsertableEventError(event.Error) {
+		m.incrementInsertionError(eventType, event.Error, insertionErrorDropped)
 		return
 	}
 
@@ -1002,10 +1133,210 @@ func (m *ManagerV2) shouldSendAnomalyDetection(p *profile.Profile, now time.Time
 	return now.Sub(p.Metadata.Start) >= m.config.RuntimeSecurity.SecurityProfileV2ProfileReportingDelayDuration
 }
 
+// HasCooldownExpired reports whether an anomaly was already sent for one of these activity nodes,
+// and that send is more than AnomalyDetectionEventCooldown old.
+// Callers must not hold p's lock.
+func (m *ManagerV2) HasCooldownExpired(p *profile.Profile, nodes []*activity_tree.NodeBase, now time.Time) bool {
+	cooldown := m.config.RuntimeSecurity.AnomalyDetectionEventCooldown
+	// A zero cooldown disables re-emission. An activity that was learned without an anomaly being
+	// sent stays quiet.
+	if cooldown == 0 || p == nil || len(nodes) == 0 {
+		return false
+	}
+
+	p.Lock()
+	defer p.Unlock()
+	return m.hasCooldownExpired(liveNodes(nodes), now)
+}
+
+// hasCooldownExpired is HasCooldownExpired for live nodes. Callers must hold the lock of their profile.
+func (m *ManagerV2) hasCooldownExpired(nodes []*activity_tree.NodeBase, now time.Time) bool {
+	cooldown := m.config.RuntimeSecurity.AnomalyDetectionEventCooldown
+	for _, node := range nodes {
+		lastSent, ok := node.GetLastAnomalySent()
+		if ok && now.Sub(lastSent) > cooldown {
+			return true
+		}
+	}
+	return false
+}
+
+// liveNodes returns the nodes of the tree that hold the observations of these nodes, which a merge may
+// have folded since they were returned by an insertion. Callers must hold the lock of their profile.
+func liveNodes(nodes []*activity_tree.NodeBase) []*activity_tree.NodeBase {
+	live := make([]*activity_tree.NodeBase, 0, len(nodes))
+	for _, node := range nodes {
+		if node = node.Live(); !slices.Contains(live, node) {
+			live = append(live, node)
+		}
+	}
+	return live
+}
+
+// claimAnomalyEmission starts the event cooldown of the activity nodes of an event about to be sent as an
+// anomaly. It re-evaluates the eligibility of a known activity under the profile lock, on the nodes that
+// hold it now: a merge may have folded the inserted nodes, and a concurrent emission may have claimed them.
+// Returns whether the anomaly should be sent.
+func (m *ManagerV2) claimAnomalyEmission(p *profile.Profile, eventType model.EventType, inserted bool, nodes []*activity_tree.NodeBase, now time.Time) bool {
+	if len(nodes) == 0 {
+		return true
+	}
+
+	p.Lock()
+	defer p.Unlock()
+	live := liveNodes(nodes)
+	if !inserted && !m.hasCooldownExpired(live, now) {
+		return false
+	}
+	for _, node := range live {
+		node.RecordAnomalySent(now)
+	}
+	m.scheduleCooldownExpiry(eventType, live, now)
+	return true
+}
+
+// sampleCookieFromEvent returns the kernel sample cookie carried by this event, or 0 when
+// the event did not come from the sampler.
+func sampleCookieFromEvent(event *model.Event) uint64 {
+	switch event.GetEventType() {
+	case model.FileOpenEventType:
+		return event.Open.SampleCookie
+	case model.BindEventType:
+		return event.Bind.SampleCookie
+	case model.ConnectEventType:
+		return event.Connect.SampleCookie
+	default:
+		return 0
+	}
+}
+
+// scheduleCooldownExpiry tracks the nodes of an event of this type whose anomaly event cooldown is
+// running, so that their sample cookies are removed when it expires. Nodes that never sent an
+// anomaly aren't tracked: the kernel keeps their sample keys, and they stay quiet.
+// Callers must hold the lock of the profile of these nodes.
+func (m *ManagerV2) scheduleCooldownExpiry(eventType model.EventType, nodes []*activity_tree.NodeBase, now time.Time) {
+	cooldown := m.config.RuntimeSecurity.AnomalyDetectionEventCooldown
+	// Only event types that are affected by kernel sampling have cookies to be deleted
+	if cooldown <= 0 {
+		return
+	}
+	if _, ok := m.sampleMaps[eventType]; !ok {
+		return
+	}
+
+	m.cooldownExpiriesLock.Lock()
+	defer m.cooldownExpiriesLock.Unlock()
+	if m.cooldownExpiries == nil {
+		m.cooldownExpiries = make(map[*activity_tree.NodeBase]*cooldownExpiry)
+	}
+	for _, node := range nodes {
+		lastSent, ok := node.GetLastAnomalySent()
+		if !ok {
+			continue
+		}
+		// A cooldown that already expired without a new anomaly restarts from now, so the kernel sample
+		// keys of a node that doesn't emit (anomaly detection disabled for example) aren't released in a loop.
+		expiresAt := lastSent.Add(cooldown)
+		if expiresAt.Before(now) {
+			expiresAt = now.Add(cooldown)
+		}
+		if expiry, ok := m.cooldownExpiries[node]; ok {
+			expiry.eventType = eventType
+			expiry.expiresAt = expiresAt
+			heap.Fix(&m.cooldownExpiryHeap, expiry.index)
+		} else {
+			expiry := &cooldownExpiry{node: node, eventType: eventType, expiresAt: expiresAt}
+			m.cooldownExpiries[node] = expiry
+			heap.Push(&m.cooldownExpiryHeap, expiry)
+		}
+	}
+}
+
+// expireCooldowns removes the sample cookies of the nodes whose anomaly event cooldown has expired,
+// from sampleCookieMap and from the kernel sample maps. The kernel then mints a new cookie and sends
+// a full event on the next occurrence of each of these sample keys.
+func (m *ManagerV2) expireCooldowns(now time.Time) {
+	m.cooldownExpiriesLock.Lock()
+	var expired map[*activity_tree.NodeBase]model.EventType
+	for len(m.cooldownExpiryHeap) > 0 && now.After(m.cooldownExpiryHeap[0].expiresAt) {
+		expiry := heap.Pop(&m.cooldownExpiryHeap).(*cooldownExpiry)
+		delete(m.cooldownExpiries, expiry.node)
+		if expired == nil {
+			expired = make(map[*activity_tree.NodeBase]model.EventType)
+		}
+		expired[expiry.node] = expiry.eventType
+	}
+	m.cooldownExpiriesLock.Unlock()
+
+	if len(expired) == 0 {
+		return
+	}
+
+	// A node gets one cookie per kernel sample key, a bind node one per process for example
+	cookies := make(map[model.EventType]map[uint64]struct{})
+	for _, cookie := range m.sampleCookieMap.Keys() {
+		entry, ok := m.sampleCookieMap.Peek(cookie)
+		if !ok {
+			continue
+		}
+		eventType, ok := expired[entry.eventNodeBase]
+		if !ok {
+			// should be the default path, when this cookie has not it's cooldown expired yet
+			continue
+		}
+		m.sampleCookieMap.Remove(cookie)
+		if cookies[eventType] == nil {
+			cookies[eventType] = make(map[uint64]struct{})
+		}
+		cookies[eventType][cookie] = struct{}{}
+	}
+
+	for eventType, eventCookies := range cookies {
+		if err := deleteKernelSamples(m.sampleMaps[eventType], eventCookies); err != nil {
+			seclog.Warnf("couldn't remove the %s sample cookies of the expired anomaly cooldowns: %v", eventType, err)
+		}
+	}
+}
+
+// deleteKernelSamples deletes the entries of a kernel sample map that hold one of these cookies.
+// The map is keyed by the sample key, which userspace doesn't know, so the entries are found by cookie.
+func deleteKernelSamples(sampleMap *ebpf.Map, cookies map[uint64]struct{}) error {
+	if sampleMap == nil || len(cookies) == 0 {
+		return nil
+	}
+
+	var (
+		key   []byte
+		entry sampleEntry // mimic the C structure sample_entry_t
+		keys  [][]byte
+	)
+	it := sampleMap.Iterate()
+	for it.Next(&key, &entry) {
+		if _, ok := cookies[entry.Cookie]; ok {
+			keys = append(keys, key)
+		}
+	}
+
+	// The cookies are already gone from sampleCookieMap, so the keys found before an aborted
+	// iteration are deleted anyway: they wouldn't be released again.
+	errs := []error{it.Err()}
+	for _, key := range keys {
+		if err := sampleMap.Delete(key); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
 // onEventTagsResolved is called when an event has its tags resolved and is ready to be inserted into a profile
 func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
-	profile, inserted := m.insertEventIntoProfile(event)
-	if !inserted || profile == nil || !m.shouldSendAnomalyDetection(profile, event.ResolveEventTime()) {
+	profile, inserted, activityNodes := m.insertEventIntoProfile(event)
+	now := event.ResolveEventTime()
+	if profile == nil || !m.shouldSendAnomalyDetection(profile, now) {
+		return
+	}
+	// A new activity is always eligible, a known one once the cooldown of its node has expired.
+	if !inserted && !m.HasCooldownExpired(profile, activityNodes, now) {
 		return
 	}
 
@@ -1035,6 +1366,12 @@ func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 	event.SecurityProfileContext.ProfileAlreadySent = profile.HasAlreadyBeenSent()
 
 	if m.config.RuntimeSecurity.AnomalyDetectionEnabled {
+		if m.beforeAnomalyClaim != nil {
+			m.beforeAnomalyClaim()
+		}
+		if !m.claimAnomalyEmission(profile, event.GetEventType(), inserted, activityNodes, now) {
+			return
+		}
 		// Flag as an anomaly so the serializer emits the sampled syscall (mirrors the V1 path).
 		event.AddToFlags(model.EventFlagsAnomalyDetectionEvent)
 		m.sendAnomalyDetection(event)
@@ -1185,7 +1522,7 @@ func (m *ManagerV2) SendStats() error {
 	// Event errors and unexpected activity-tree insertion failures
 	for key, count := range m.insertionErrors {
 		if value := count.Swap(0); value > 0 {
-			tags := []string{"event_type:" + key.eventType.String(), "error_type:" + key.errorType}
+			tags := []string{"event_type:" + key.eventType.String(), "error_type:" + key.errorType, "outcome:" + key.outcome}
 			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2InsertionErrors, int64(value), tags, 1.0); err != nil {
 				return err
 			}
@@ -1259,16 +1596,17 @@ func (m *ManagerV2) SendStats() error {
 }
 
 // insertEventIntoProfile gets or creates a profile for the workload and inserts the event into its ActivityTree.
-// Returns the profile and whether the event was actually inserted (new data added).
-func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile, bool) {
+// Returns the profile, whether the event was actually inserted (new data added), and the activity
+// nodes the anomaly event cooldown is tracked on.
+func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile, bool, []*activity_tree.NodeBase) {
 	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
-		return nil, false
+		return nil, false, nil
 	}
 
 	// Build selector from event tags
 	selector, err := m.buildWorkloadSelector(event)
 	if err != nil {
-		return nil, false
+		return nil, false, nil
 	}
 
 	workload := m.getOrCreateWorkload(event, selector, getWorkloadIDFromEvent(event))
@@ -1276,14 +1614,14 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	// Get or create the profile for this workload
 	secprof, err := m.getOrCreateProfile(selector, event, workload)
 	if err != nil {
-		return nil, false
+		return nil, false, nil
 	}
 	if m.afterProfileLookup != nil {
 		m.afterProfileLookup()
 	}
 	if !secprof.IsEnabled() {
 		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
-		return nil, false
+		return nil, false, nil
 	}
 
 	// Use the current event's tag, not the profile's: a profile is shared across an image's tags.
@@ -1306,33 +1644,42 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		secprof.Disable()
 		seclog.Infof("Activity dump of %s was stopped because it reached the maximum allowed size of %d.", secprof.GetSelectorStr(), int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()))
 		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
-		return nil, false
+		return nil, false, nil
 	}
 
-	// Same lock as FinalizePatterns, so eventNodeBase can't be folded before its cookie exists.
+	// Same lock as FinalizePatterns, so an activity node can't be folded before its cookie exists.
 	secprof.Lock()
-	inserted, processNode, eventNodeBase, err := secprof.InsertLocked(event, true, imageTag, activity_tree.Runtime, m.resolvers)
+	inserted, processNode, activityNodes, err := secprof.InsertLocked(event, true, imageTag, activity_tree.Runtime, m.resolvers)
 	if err == nil {
 		m.retargetSampleCookies(secprof, secprof.ActivityTree.Stats.TakeMovedNodes())
-		m.registerSampleCookie(event, secprof, processNode, eventNodeBase, imageTag)
+		m.registerSampleCookie(event, secprof, processNode, activityNodes, imageTag)
+		if sampleCookieFromEvent(event) != 0 {
+			// A node in cooldown can get a new cookie from a new sample key, or from a restart that emptied
+			// the kernel maps: it has to be released when the cooldown expires too.
+			m.scheduleCooldownExpiry(event.GetEventType(), activityNodes, event.ResolveEventTime())
+		}
 	}
 	secprof.Unlock()
 	if err != nil {
 		switch {
 		case !activity_tree.IsExpectedFilterError(err):
-			m.incrementInsertionError(event.GetEventType(), err)
+			m.incrementInsertionError(event.GetEventType(), err, insertionErrorDropped)
 			seclog.Debugf("couldn't insert event into profile: %v", err)
 		case event.Error != nil:
-			m.incrementInsertionError(profileEventType(event), event.Error)
+			m.incrementInsertionError(profileEventType(event), event.Error, insertionErrorDropped)
 		}
-		return nil, false
+		return nil, false, nil
+	}
+	if event.Error != nil {
+		m.incrementInsertionError(event.GetEventType(), event.Error, insertionErrorKept)
 	}
 
-	return secprof, inserted
+	return secprof, inserted, activityNodes
 }
 
 // registerSampleCookie maps the event's sample cookie to its nodes. Callers must hold prof's lock.
-func (m *ManagerV2) registerSampleCookie(event *model.Event, prof *profile.Profile, processNode *activity_tree.ProcessNode, eventNodeBase *activity_tree.NodeBase, imageTag string) {
+// File, bind and connect each contribute one activity node, which is where the cookie is stored.
+func (m *ManagerV2) registerSampleCookie(event *model.Event, prof *profile.Profile, processNode *activity_tree.ProcessNode, activityNodes []*activity_tree.NodeBase, imageTag string) {
 	if processNode == nil {
 		return
 	}
@@ -1347,6 +1694,10 @@ func (m *ManagerV2) registerSampleCookie(event *model.Event, prof *profile.Profi
 	}
 	if sampleCookie == 0 {
 		return
+	}
+	var eventNodeBase *activity_tree.NodeBase
+	if len(activityNodes) > 0 {
+		eventNodeBase = activityNodes[0]
 	}
 	m.sampleCookieMap.Add(sampleCookie, sampleCookieEntry{
 		profile:       prof,
@@ -1385,7 +1736,15 @@ func getWorkloadIDFromEvent(event *model.Event) containerutils.WorkloadID {
 // getOrCreateWorkload creates a workload object from an event for tracking in profile Instances
 func (m *ManagerV2) getOrCreateWorkload(event *model.Event, selector cgroupModel.WorkloadSelector, workloadID containerutils.WorkloadID) *tags.Workload {
 	cacheEntry := m.getCacheEntryForWorkload(workloadID)
-	if cacheEntry == nil {
+	if cacheEntry == nil && m.resolvers != nil && m.resolvers.CGroupResolver != nil {
+		if inode := event.ProcessContext.Process.CGroup.CGroupPathKey.Inode; inode != 0 {
+			if candidate := m.resolvers.CGroupResolver.GetCacheEntryByInode(inode); cacheEntryMatchesWorkloadID(candidate, workloadID) {
+				cacheEntry = candidate
+			}
+		}
+	}
+
+	if !cacheEntryMatchesWorkloadID(cacheEntry, workloadID) {
 		return nil
 	}
 
@@ -1413,6 +1772,20 @@ func (m *ManagerV2) getCacheEntryForWorkload(workloadID containerutils.WorkloadI
 		return nil
 	}
 	return cacheEntry
+}
+
+func cacheEntryMatchesWorkloadID(cacheEntry *cgroupModel.CacheEntry, workloadID containerutils.WorkloadID) bool {
+	if cacheEntry == nil || cacheEntry.IsDeleted() {
+		return false
+	}
+	switch id := workloadID.(type) {
+	case containerutils.ContainerID:
+		return id != "" && cacheEntry.GetContainerID() == id
+	case containerutils.CGroupID:
+		return id != "" && cacheEntry.GetCGroupID() == id
+	default:
+		return false
+	}
 }
 
 func (m *ManagerV2) isWorkloadActive(workloadID containerutils.WorkloadID) bool {
@@ -1547,6 +1920,26 @@ func (m *ManagerV2) seedMountNamespace(secprof *profile.Profile, cgroupInode uin
 		seeded = true
 	}
 	return seeded
+}
+
+func (m *ManagerV2) replaceContainerWorkloadCGroup(prof *profile.Profile, deleted, replacement *cgroupModel.CacheEntry) bool {
+	prof.InstancesLock.Lock()
+	defer prof.InstancesLock.Unlock()
+
+	containerID := deleted.GetContainerID()
+	if containerID == "" {
+		return false
+	}
+
+	for _, w := range prof.Instances {
+		if w.GetWorkloadID() == containerID {
+			if w.GCroupCacheEntry == deleted {
+				w.GCroupCacheEntry = replacement
+			}
+			return true
+		}
+	}
+	return false
 }
 
 // unlinkWorkloadFromProfile removes a workload from a profile's Instances
@@ -1828,9 +2221,9 @@ func (m *ManagerV2) incrementEventFilteringStat(eventType model.EventType, state
 }
 
 // incrementInsertionError records an event error or an unexpected activity-tree insertion failure
-// for the given event type, categorizing err into a bounded error-type label.
-func (m *ManagerV2) incrementInsertionError(eventType model.EventType, err error) {
-	key := insertionErrorKey{eventType: eventType, errorType: activity_tree.InsertionErrorType(err)}
+// for the given event type and outcome, categorizing err into a bounded error-type label.
+func (m *ManagerV2) incrementInsertionError(eventType model.EventType, err error, outcome string) {
+	key := insertionErrorKey{eventType: eventType, errorType: activity_tree.InsertionErrorType(err), outcome: outcome}
 	if entry, ok := m.insertionErrors[key]; ok {
 		entry.Inc()
 	}
@@ -1899,13 +2292,12 @@ func (m *ManagerV2) getNodesForSingleWorkload(workloadID containerutils.Workload
 	pr := m.resolvers.ProcessResolver
 	tagsResolver := m.resolvers.TagsResolver
 
-	var cacheEntry *cgroupModel.CacheEntry
+	var pids []uint32
 	var imageName, imageTag string
 
 	switch id := workloadID.(type) {
 	case containerutils.ContainerID:
-		cacheEntry = cgr.GetCacheEntryContainerID(id)
-		if cacheEntry == nil {
+		if cgr.GetCacheEntryContainerID(id) == nil {
 			return result
 		}
 		tags, err := tagsResolver.ResolveWithErr(id)
@@ -1914,13 +2306,14 @@ func (m *ManagerV2) getNodesForSingleWorkload(workloadID containerutils.Workload
 		}
 		imageName = utils.GetTagValue("image_name", tags)
 		imageTag = utils.GetTagValue("image_tag", tags)
+		pids = cgr.GetContainerPIDs(id)
 
 	case containerutils.CGroupID:
 		// Skip systemd cgroups if containersOnly is true
 		if containersOnly {
 			return result
 		}
-		cacheEntry = cgr.GetCacheEntryByCgroupID(id)
+		cacheEntry := cgr.GetCacheEntryByCgroupID(id)
 		if cacheEntry == nil {
 			return result
 		}
@@ -1930,6 +2323,7 @@ func (m *ManagerV2) getNodesForSingleWorkload(workloadID containerutils.Workload
 		}
 		imageName = utils.GetTagValue("service", tags)
 		imageTag = utils.GetTagValue("version", tags)
+		pids = cacheEntry.GetPIDs()
 
 	default:
 		return result
@@ -1939,8 +2333,7 @@ func (m *ManagerV2) getNodesForSingleWorkload(workloadID containerutils.Workload
 		imageTag = "latest"
 	}
 
-	// Get PIDs and resolve filepaths
-	pids := cacheEntry.GetPIDs()
+	// Resolve filepaths for PIDs
 	key := activity_tree.ImageProcessKey{
 		ImageName: imageName,
 		ImageTag:  imageTag,
@@ -2089,6 +2482,7 @@ func (m *ManagerV2) retargetSampleCookies(prof *profile.Profile, moved map[*acti
 	if len(moved) == 0 {
 		return
 	}
+	m.retargetCooldownExpiries(moved)
 	for _, key := range m.sampleCookieMap.Keys() {
 		entry, ok := m.sampleCookieMap.Peek(key)
 		if !ok || entry.profile != prof || entry.eventNodeBase == nil {
@@ -2098,6 +2492,27 @@ func (m *ManagerV2) retargetSampleCookies(prof *profile.Profile, moved map[*acti
 			entry.eventNodeBase = to
 			m.sampleCookieMap.Add(key, entry)
 		}
+	}
+}
+
+// retargetCooldownExpiries moves the cooldown expiries of the folded nodes to the nodes that absorbed them,
+// which now hold their sample cookies. The expiry is computed again from the merged lastAnomalySent.
+// Callers must hold the lock of the profile of the nodes.
+func (m *ManagerV2) retargetCooldownExpiries(moved map[*activity_tree.NodeBase]*activity_tree.NodeBase) {
+	m.cooldownExpiriesLock.Lock()
+	retargeted := make(map[*activity_tree.NodeBase]model.EventType)
+	for from, to := range moved {
+		if expiry, ok := m.cooldownExpiries[from]; ok {
+			heap.Remove(&m.cooldownExpiryHeap, expiry.index)
+			delete(m.cooldownExpiries, from)
+			retargeted[to] = expiry.eventType
+		}
+	}
+	m.cooldownExpiriesLock.Unlock()
+
+	now := time.Now()
+	for node, eventType := range retargeted {
+		m.scheduleCooldownExpiry(eventType, []*activity_tree.NodeBase{node}, now)
 	}
 }
 

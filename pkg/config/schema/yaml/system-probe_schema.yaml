@@ -1466,7 +1466,12 @@ properties:
       cgroup_reapply_infinitely:
         node_type: setting
         type: boolean
-        default: false
+        default: true
+        description: |-
+          When gpu_monitoring.configure_cgroup_perms is enabled, re-apply the GPU device
+          permissions of the Agent every gpu_monitoring.cgroup_reapply_interval, so that they
+          are restored after the Agent container restarts or systemd reloads its configuration.
+          When false, they are applied at startup and once more after cgroup_reapply_interval.
       cgroup_reapply_interval:
         node_type: setting
         type: string

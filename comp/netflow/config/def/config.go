@@ -26,6 +26,7 @@ type NetflowConfig struct {
 	AggregatorPortRollupThreshold int              `mapstructure:"aggregator_port_rollup_threshold"`
 	AggregatorPortRollupDisabled  bool             `mapstructure:"aggregator_port_rollup_disabled"`
 	AggregatorMaxFlowsPerPeriod   int              `mapstructure:"aggregator_max_flows_per_flush_interval"`
+	TemplateCacheMaxSize          int              `mapstructure:"template_cache_max_size"`
 
 	// AggregatorRollupTrackerRefreshInterval is useful to speed up testing to avoid wait for 1h default
 	AggregatorRollupTrackerRefreshInterval uint `mapstructure:"aggregator_rollup_tracker_refresh_interval"`
@@ -34,6 +35,20 @@ type NetflowConfig struct {
 	PrometheusListenerEnabled bool   `mapstructure:"prometheus_listener_enabled"`
 
 	ReverseDNSEnrichmentEnabled bool `mapstructure:"reverse_dns_enrichment_enabled"`
+
+	Entropy EntropyConfig `mapstructure:"entropy"`
+}
+
+// EntropyConfig contains configuration for the per-interface entropy computation.
+type EntropyConfig struct {
+	Enabled                  bool   `mapstructure:"enabled"`
+	Interval                 int    `mapstructure:"interval"`
+	MinRecords               uint64 `mapstructure:"min_records"`
+	MinBytes                 uint64 `mapstructure:"min_bytes"`
+	MaxExporters             int    `mapstructure:"max_exporters"`
+	MaxInterfacesPerExporter int    `mapstructure:"max_interfaces_per_exporter"`
+	MaxPeersPerInterface     int    `mapstructure:"max_peers_per_interface"`
+	MaxTotalEntries          int    `mapstructure:"max_total_entries"`
 }
 
 // ListenerConfig contains configuration for a single flow listener
@@ -115,6 +130,9 @@ func (mainConfig *NetflowConfig) SetDefaults(namespace string, logger log.Compon
 
 	if mainConfig.StopTimeout == 0 {
 		mainConfig.StopTimeout = common.DefaultStopTimeout
+	}
+	if mainConfig.TemplateCacheMaxSize <= 0 {
+		mainConfig.TemplateCacheMaxSize = common.DefaultTemplateCacheMaxSize
 	}
 	if mainConfig.AggregatorFlushInterval == 0 {
 		mainConfig.AggregatorFlushInterval = common.DefaultAggregatorFlushInterval

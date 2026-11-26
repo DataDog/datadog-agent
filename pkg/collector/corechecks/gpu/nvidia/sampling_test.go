@@ -187,6 +187,12 @@ func TestCollectProcessUtilization_Error(t *testing.T) {
 			}
 
 			require.Len(t, processMetrics, tt.expectedCount)
+			for _, sample := range processMetrics {
+				if metric, ok := sample.(*Metric); ok && metric.Name == "core.limit" {
+					// above the static core.limit of MIG devices (Low), below the eBPF value (Medium)
+					require.Equal(t, MediumLow, metric.priority)
+				}
+			}
 		})
 	}
 }

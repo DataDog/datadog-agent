@@ -15,6 +15,7 @@ type parserFunc func(api.Payload) (interface{}, error)
 var parserMap = map[string]parserFunc{
 	"/api/v2/agentdiscovery":          getAgentDiscoveryPayloadProtobuf,
 	"/api/v2/sdsresult":               getSDSResultPayloadProtobuf,
+	"/api/v2/genresources":            getGenResourcesPayloadProtobuf,
 	"/api/v2/logs":                    getLogPayLoadJSON,
 	"/api/v2/series":                  getMetricPayLoadJSON,
 	"/api/v1/series":                  getV1MetricPayLoadJSON,
@@ -32,6 +33,10 @@ func getAgentDiscoveryPayloadProtobuf(payload api.Payload) (interface{}, error) 
 
 func getSDSResultPayloadProtobuf(payload api.Payload) (interface{}, error) {
 	return aggregator.ParseSDSResult(payload)
+}
+
+func getGenResourcesPayloadProtobuf(payload api.Payload) (interface{}, error) {
+	return aggregator.ParseGenResources(payload)
 }
 
 func getLogPayLoadJSON(payload api.Payload) (interface{}, error) {

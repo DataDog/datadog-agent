@@ -162,6 +162,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/kubernetesapiserver"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/schedulerevents"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 
@@ -995,5 +996,6 @@ func registerChecks(wlm workloadmeta.Component, tagger tagger.Component, cfg con
 	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory(tagger, nil)) // wmeta is not used in KSM when running from cluster-agent, so we can pass nil here
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
 	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory(wlm, cfg, tagger))
+	corecheckLoader.RegisterCheck(schedulerevents.CheckName, schedulerevents.Factory(wlm, tagger, cfg))
 	corecheckLoader.RegisterCheck(agentprofiling.CheckName, agentprofiling.Factory(clusterAgentFlare.NewCreator(cfg, statusComponent, diagnoseComp, ipc), cfg))
 }

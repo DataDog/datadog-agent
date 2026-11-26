@@ -177,8 +177,8 @@
       },
       {
         "matchManagers": ["gomod"],
-        "matchDepNames": ["github.com/pulumi/pulumi-azure-native-sdk{,/**}"],
-        "groupName": "pulumi-azure-native-sdk"
+        "matchDepNames": ["github.com/pulumi/**"],
+        "groupName": "pulumi"
       },
       {
         "matchManagers": ["gomod"],
