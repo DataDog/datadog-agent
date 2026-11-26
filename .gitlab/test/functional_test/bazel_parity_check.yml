@@ -12,10 +12,12 @@ bazel_parity_check:
   needs:
     - agent_deb-x64-a7
     - agent_rpm-x64-a7
+    - agent_heroku_deb-x64-a7
     - bazel:package:linux-amd64
     - iot_agent_deb-x64
     - iot_agent_rpm-x64
     - bazel:package:iot:linux-amd64
+    - bazel:package:heroku:linux-amd64
   script:
     - |
       if [ "$CI_COMMIT_BRANCH" = main ] || [ "$BAZEL_PARITY_SUBMIT" = true ]; then

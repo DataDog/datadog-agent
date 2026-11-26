@@ -75,3 +75,9 @@ bazel:package:iot:suse-amd64:
     BAZEL_PACKAGE_DIR: bazel-packages/suse
     BAZEL_PACKAGE_FLAGS: "--//packages/agent:flavor=iot --//packages/agent:host_distribution=suse"
     BAZEL_PACKAGE_TARGETS: "//packages/iot:rpm"
+
+bazel:package:heroku:linux-amd64:
+  extends: [.bazel:runner:linux-amd64, .bazel:package]
+  variables:
+    BAZEL_PACKAGE_FLAGS: "--//:install_stripped_binaries"
+    BAZEL_PACKAGE_TARGETS: "//packages/heroku:debian"
