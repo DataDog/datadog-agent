@@ -15,6 +15,7 @@ GPU e2e tests are located in `test/new-e2e/tests/gpu/` and verify GPU monitoring
 - `TestGPUK8sSuiteUbuntu2204`: Tests GPU monitoring in Kubernetes on Ubuntu 22.04
 - `TestGPUMokkaK8sSuite`: Tests GPU monitoring in Kubernetes on a CPU-only kind cluster, with two NVIDIA T4 GPUs simulated by Mokka (see [Mokka (simulated GPUs)](#mokka-simulated-gpus))
 - `TestGPUMokkaKAISuite`: Tests the KAI Scheduler integration (`job_scheduler*` and `kai_*` tags on container and allocated-GPU metrics; needs an Agent with #60168) on the same Mokka setup, with KAI installed by `kindvm.WithKAIScheduler`
+- `TestGPUMokkaKueueSuite`: Tests the Kueue integration (`job_scheduler*` and `kueue_*` tags on container and allocated-GPU metrics; needs an Agent with #60168) on the same Mokka setup, with Kueue installed by `kindvm.WithKueue`
 
 ## Key Components
 
@@ -23,7 +24,8 @@ GPU e2e tests are located in `test/new-e2e/tests/gpu/` and verify GPU monitoring
 - `provisioner.go`: Infrastructure provisioning logic
 - `capabilities.go`: Environment-specific capabilities (host vs k8s)
 - `mokka_provisioner.go`, `mokka_test.go`: Mokka suite (simulated GPUs)
-- `mokka_kai_test.go`: KAI Scheduler suite on Mokka
+- `mokka_kai_test.go`, `mokka_kueue_test.go`: KAI Scheduler and Kueue suites on Mokka
+- `mokka_scheduler_helpers_test.go`: Shared helpers to run a one-GPU Job through a batch scheduler and check its tags
 
 ### Test Cases
 
@@ -37,6 +39,7 @@ GPU e2e tests are located in `test/new-e2e/tests/gpu/` and verify GPU monitoring
 8. **TestGPUResourcesPublished**: Checks that each physical GPU from the host’s nvidia-smi inventory produces a gpu_device event in fakeintake with the expected source, Agent hostname, TTL, model, driver, and PCI bus ID.
 9. **TestZZAgentDidNotRestart**: Ensures agent didn't restart during tests
 10. **TestMockGPUAllocationTags** (Mokka suite only): A pod requesting one GPU gets its tags on the metrics of exactly one GPU
+11. **TestKAIJobTags** (KAI suite only) and **TestKueueJobTags** (Kueue suite only): A one-GPU Job submitted through the scheduler gets the scheduler tags (`tags.Scheduler`, `tags.SchedulerQueue`, and the scheduler-specific queue tags) on `container.memory.usage` and on the `gpu.core.limit` of the allocated GPU only. `assertSchedulerTags` also checks that `tags.SchedulerWorkload` and the scheduler workload tag (`kai_pod_group` or `kueue_workload`) name the same workload. For Kueue, `tags.SchedulerQueue` is the ClusterQueue, not the LocalQueue. Tag names come from `comp/core/tagger/tags`, so the suites follow the Agent.
 
 ## Provisioning
 

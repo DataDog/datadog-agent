@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/argorollouts"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/cilium"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/kaischeduler"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/kueue"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/mokka"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/vpa"
 	resAws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
@@ -78,9 +79,9 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 	if len(params.preAgentWorkloadAppFuncs) > 0 && params.standaloneDdotFunc != nil {
 		return errors.New("pre-agent workloads are not supported with a standalone OTel Agent")
 	}
-	if len(params.mokkaInstallations) > 0 && params.deployOperator {
-		// The Agent values Mokka needs (mokka.AgentHelmValues) are only applied to the Helm-deployed Agent.
-		return errors.New("WithMokka is only supported with the Helm-deployed Agent, not with WithDeployOperator")
+	if params.deployOperator && (len(params.mokkaInstallations) > 0 || params.kaiSchedulerOptions != nil || params.kueueOptions != nil) {
+		// The Agent values these need (mokka/kaischeduler/kueue.AgentHelmValues) are only applied to the Helm-deployed Agent.
+		return errors.New("WithMokka, WithKAIScheduler and WithKueue are only supported with the Helm-deployed Agent, not with WithDeployOperator")
 	}
 
 	var err error
@@ -188,7 +189,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 		dependsOnArgoRollout = utils.PulumiDependsOn(argoHelm)
 	}
 
-	preAgentWorkloads := make([]pulumi.Resource, 0, len(params.preAgentWorkloadAppFuncs)+len(params.mokkaInstallations)+1)
+	preAgentWorkloads := make([]pulumi.Resource, 0, len(params.preAgentWorkloadAppFuncs)+len(params.mokkaInstallations)+2)
 	// Mokka must be running before the Agent starts: its NRI plugin only injects the mock GPU
 	// driver into containers created after it, so it is handled like a pre-Agent workload.
 	mokkaNames := make(map[string]struct{}, len(params.mokkaInstallations))
@@ -219,6 +220,18 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 			return err
 		}
 		preAgentWorkloads = append(preAgentWorkloads, kaiComp)
+	}
+	// The Cluster Agent watches Kueue objects, whose CRDs come with the Kueue chart.
+	if params.kueueOptions != nil {
+		kueueParams, err := kueue.NewParams(params.kueueOptions...)
+		if err != nil {
+			return err
+		}
+		kueueComp, err := kueue.NewInstallation(&awsEnv, kueueParams, kubeProvider)
+		if err != nil {
+			return err
+		}
+		preAgentWorkloads = append(preAgentWorkloads, kueueComp)
 	}
 	for _, appFunc := range params.preAgentWorkloadAppFuncs {
 		workload, err := appFunc(&awsEnv, kubeProvider)
@@ -262,6 +275,9 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 			if semver.MustParse(agent.HelmVersion).LessThan(semver.MustParse(kaischeduler.MinDatadogChartVersion)) {
 				newOpts = append(newOpts, kubernetesagentparams.WithHelmChartVersion(kaischeduler.MinDatadogChartVersion))
 			}
+		}
+		if params.kueueOptions != nil {
+			newOpts = append(newOpts, kubernetesagentparams.WithHelmValues(kueue.AgentHelmValues()))
 		}
 		params.agentOptions = append(newOpts, params.agentOptions...)
 		agent, err := helm.NewKubernetesAgent(&awsEnv, "kind", kubeProvider, params.agentOptions...)

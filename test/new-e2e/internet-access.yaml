@@ -239,7 +239,7 @@ entries:
 - file: test/new-e2e/tests/gpu/mokka_provisioner.go
   function: gpuMokkaK8sProvisioner
   status: debt
-  reason: Installs the Mokka chart and images (ghcr.io) and the NVIDIA device plugin (nvcr.io) on the Kind cluster; mirror them internally before removing this exception.
+  reason: Installs the Mokka chart and images (ghcr.io), the NVIDIA device plugin (nvcr.io), and for the scheduler suites the KAI Scheduler (ghcr.io) and Kueue (registry.k8s.io) charts and images on the Kind cluster; mirror them internally before removing this exception.
 - file: test/new-e2e/tests/containers/kindvm_test.go
   function: TestKindSuite
   status: debt
