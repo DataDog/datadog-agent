@@ -1655,6 +1655,10 @@ func (p *EBPFProbe) regularUnmarshalEvent(bu BinaryUnmarshaler, eventType model.
 
 // handleEvent processes raw eBPF events received from the kernel, unmarshaling and dispatching them appropriately.
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
+	// Apply completed async OTel process context resolutions before handling or
+	// replaying events so ProcessCacheEntry.Tracer stays single-writer.
+	p.Resolvers.ProcessResolver.ApplyPendingOTelUpdates()
+
 	// handle play snapshot
 	if p.replayEventsState.Swap(false) {
 		// do not notify consumers as we are replaying the process cache entries after a ruleset reload
