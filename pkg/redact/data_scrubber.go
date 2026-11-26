@@ -113,9 +113,7 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmd, args []string) ([]string, []stri
 		return cmd, args, false
 	}
 
-	changed := false
 	regexChanged := false
-	var wordReplacesIndexes []int
 
 	separator := "cmd_separator"
 	cmdline := append(cmd, separator)
@@ -146,15 +144,64 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmd, args []string) ([]string, []stri
 		newCmdline = append(newCmdline[:cmIndex], newCmdline[cmIndex+1:]...)
 	}
 
-	// The first command token is the executable, so scrubbing starts after it.
-	// When command is empty, every token belongs to args and must be checked.
 	firstParam := 0
 	if cmIndex > 0 {
 		firstParam = 1
 	}
-	// preprocess, without the preprocessing we would need to strip until whitespaces.
-	for index := firstParam; index < len(newCmdline); index++ {
-		cmd := newCmdline[index]
+	changed := ds.scrubCommandTokens(newCmdline, firstParam)
+	if !(changed || regexChanged) {
+		return cmd, args, false
+	}
+	return newCmdline[:cmIndex], newCmdline[cmIndex:], true
+}
+
+// scrubCommandArguments preserves the original argument boundaries. A regex
+// match masks the whole argument containing the value, including any spaces.
+func (ds *DataScrubber) scrubCommandArguments(cmd, args []string) ([]string, []string, bool) {
+	original := make([]string, 0, len(cmd)+len(args))
+	original = append(original, cmd...)
+	original = append(original, args...)
+	cmdline := append([]string(nil), original...)
+	rawCmdline := " " + strings.Join(original, " ")
+	firstParam := 0
+	if len(cmd) > 0 {
+		firstParam = 1
+	}
+	changed := ds.scrubCommandTokens(cmdline, firstParam)
+	for _, pattern := range ds.RegexSensitivePatterns {
+		valueIndex := pattern.SubexpIndex("value")
+		if valueIndex < 0 {
+			continue
+		}
+		for _, match := range pattern.FindAllStringSubmatchIndex(rawCmdline, -1) {
+			start, end := match[2*valueIndex], match[2*valueIndex+1]
+			if start < 0 {
+				continue
+			}
+			offset := 1
+			for i, arg := range original {
+				argEnd := offset + len(arg)
+				overlapsValue := start < argEnd && end > offset
+				emptyValue := start == end && start >= offset && start <= argEnd
+				if overlapsValue || emptyValue {
+					cmdline[i] = redactedSecret
+					changed = true
+				}
+				offset = argEnd + 1
+			}
+		}
+	}
+	return cmdline[:len(cmd)], cmdline[len(cmd):], changed
+}
+
+func (ds *DataScrubber) scrubCommandTokens(cmdline []string, firstParam int) bool {
+	changed := false
+	var wordReplacesIndexes []int
+	// firstParam skips the executable when command is present. Scan every
+	// remaining token, including values that may themselves be sensitive options.
+	// Apply value replacements afterwards so those options remain recognizable.
+	for index := firstParam; index < len(cmdline); index++ {
+		cmd := cmdline[index]
 		lowerCmd := strings.ToLower(cmd)
 		for _, pattern := range ds.LiteralSensitivePatterns {
 			// if we found a word from the list,
@@ -180,15 +227,14 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmd, args []string) ([]string, []stri
 				if v >= 0 {
 					// password:1234  password=1234 ==> password=****** || password:******
 					// password::::====1234 ==> password:******
-					newCmdline[index] = cmd[:v+1] + redactedSecret
+					cmdline[index] = cmd[:v+1] + redactedSecret
 					// replace from v to end of string with ********
 					break
 				} else { //nolint:revive // TODO(CAPP) Fix revive linter
 					// password 1234 password ******
 					nextReplacementIndex := index + 1
-					if nextReplacementIndex < len(newCmdline) {
+					if nextReplacementIndex < len(cmdline) {
 						wordReplacesIndexes = append(wordReplacesIndexes, nextReplacementIndex)
-						index++
 					}
 					break
 				}
@@ -198,20 +244,15 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmd, args []string) ([]string, []stri
 
 	for _, index := range wordReplacesIndexes {
 		// we only want to replace words, hence we jump to the next index and try to scrub that instead
-		for index < len(newCmdline) && newCmdline[index] == "" {
+		for index < len(cmdline) && cmdline[index] == "" {
 			index++
 		}
-		if index < len(newCmdline) {
-			newCmdline[index] = redactedSecret
+		if index < len(cmdline) {
+			cmdline[index] = redactedSecret
 		}
 	}
 
-	// if nothing changed, just return the input
-	if !(changed || regexChanged) {
-		return cmd, args, false
-	}
-
-	return newCmdline[:cmIndex], newCmdline[cmIndex:], changed || regexChanged
+	return changed
 }
 
 // AddCustomSensitiveWords adds custom sensitive words on the DataScrubber object

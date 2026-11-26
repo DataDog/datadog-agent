@@ -78,7 +78,7 @@ func scrubUnstructuredCommand(m map[string]interface{}, scrubber *DataScrubber) 
 	if argsErr != nil {
 		args, hasArgs = nil, false
 	}
-	command, args, changed := scrubber.ScrubSimpleCommand(command, args)
+	command, args, changed := scrubber.scrubCommandArguments(command, args)
 	if !changed {
 		return
 	}

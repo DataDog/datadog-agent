@@ -174,6 +174,26 @@ func TestScrubCRManifestCommands(t *testing.T) {
 			input:    map[string]interface{}{"args": []interface{}{"--password=sensitive-value", "--port=8080"}},
 			expected: map[string]interface{}{"args": []interface{}{redactedSecret, "--port=8080"}},
 		},
+		"assignment containing spaces": {
+			input:    map[string]interface{}{"args": []interface{}{"--password=sensitive first second", "--message", "ordinary text"}},
+			expected: map[string]interface{}{"args": []interface{}{redactedSecret, "--message", "ordinary text"}},
+		},
+		"separate value containing spaces": {
+			input:    map[string]interface{}{"args": []interface{}{"--password", "sensitive first second", "--message", "ordinary text"}},
+			expected: map[string]interface{}{"args": []interface{}{redactedSecret, redactedSecret, "--message", "ordinary text"}},
+		},
+		"adjacent sensitive options": {
+			input:    map[string]interface{}{"args": []interface{}{"password", "--password", "sensitive-value"}},
+			expected: map[string]interface{}{"args": []interface{}{redactedSecret, redactedSecret, redactedSecret}},
+		},
+		"custom regex value containing spaces": {
+			input:    map[string]interface{}{"args": []interface{}{"--custom_value", "sensitive first second", "--message", "ordinary text"}},
+			expected: map[string]interface{}{"args": []interface{}{"--custom_value", redactedSecret, "--message", "ordinary text"}},
+		},
+		"custom regex assignment containing spaces": {
+			input:    map[string]interface{}{"args": []interface{}{"--custom_value=sensitive first second", "--message", "ordinary text"}},
+			expected: map[string]interface{}{"args": []interface{}{redactedSecret, "--message", "ordinary text"}},
+		},
 		"entrypoint bare assignment": {
 			input:    map[string]interface{}{"args": []interface{}{"password=sensitive-value", "--port=8080"}},
 			expected: map[string]interface{}{"args": []interface{}{redactedSecret, "--port=8080"}},

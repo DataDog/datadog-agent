@@ -734,18 +734,18 @@ func getScrubCases() map[string]struct {
 		},
 		"sensitive arg no command": {
 			input: v1.Container{
-				Args: []string{"password", "sensitive-value", "--password", "afztyerbzio1234"},
+				Args: []string{"password", "--password", "sensitive-value"},
 			},
 			expected: v1.Container{
-				Args: []string{"password", redactedSecret, "--password", "********"},
+				Args: []string{"password", redactedSecret, redactedSecret},
 			},
 		},
 		"sensitive arg joined": {
 			input: v1.Container{
-				Args: []string{"pwd sensitive-value pwd afztyerbzio1234 --password 1234"},
+				Args: []string{"pwd pwd sensitive-value --password sensitive-value"},
 			},
 			expected: v1.Container{
-				Args: []string{"pwd", redactedSecret, "pwd", "********", "--password", "********"},
+				Args: []string{"pwd", redactedSecret, redactedSecret, "--password", redactedSecret},
 			},
 		},
 		"sensitive container": {
