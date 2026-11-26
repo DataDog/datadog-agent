@@ -137,11 +137,18 @@ impl Drop for MappedStdioHandle {
     }
 }
 
-/// Carries the open result off the helper thread. `HANDLE` is not `Send` on its own.
+/// Carries an open result, or a handle to close, to another thread. `HANDLE` is not `Send` on
+/// its own.
 struct OpenOutcome(Result<MappedStdioHandle>);
 
 // SAFETY: the handle is owned solely by this value.
 unsafe impl Send for OpenOutcome {}
+
+/// Closes `handle` on a short detached thread. Closing the last handle to a remote file can
+/// block, and the caller is a failed spawn, which holds the process table write lock.
+pub(super) fn discard_off_thread(handle: MappedStdioHandle) {
+    crate::stop::drop_detached(OpenOutcome(Ok(handle)));
+}
 
 /// Takes the credential by value, so the open can drop it before it blocks.
 type OpenFn = fn(&str, &str, SpawnCredential) -> Result<MappedStdioHandle>;
@@ -419,5 +426,41 @@ mod tests {
         let handle = map_stdio_setting("test-proc", &bad_path, STD_OUTPUT_HANDLE, &credential)
             .expect("map_stdio_setting should fall back instead of failing spawn");
         assert!(!handle.raw().is_null());
+    }
+
+    #[test]
+    fn a_discarded_handle_is_closed() {
+        let dir = tempfile::tempdir().unwrap();
+        let path_w = wide::null_terminated(dir.path().join("discard.log").to_str().unwrap());
+        // Share mode 0: a second open succeeds only once the first handle is closed.
+        let open_exclusive = || unsafe {
+            CreateFileW(
+                path_w.as_ptr(),
+                FILE_GENERIC_WRITE,
+                0,
+                ptr::null(),
+                OPEN_ALWAYS,
+                FILE_ATTRIBUTE_NORMAL,
+                ptr::null_mut(),
+            )
+        };
+        let handle = open_exclusive();
+        assert_ne!(handle, INVALID_HANDLE_VALUE);
+        assert_eq!(open_exclusive(), INVALID_HANDLE_VALUE, "still held");
+
+        discard_off_thread(MappedStdioHandle(handle));
+
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        loop {
+            let reopened = open_exclusive();
+            if reopened != INVALID_HANDLE_VALUE {
+                unsafe {
+                    CloseHandle(reopened);
+                }
+                break;
+            }
+            assert!(std::time::Instant::now() < deadline, "handle never closed");
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
     }
 }

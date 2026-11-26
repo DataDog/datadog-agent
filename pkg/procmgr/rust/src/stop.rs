@@ -244,14 +244,19 @@ fn bounded_with<T: Send + 'static>(
     }
 }
 
-/// A ready result, unless a stop was requested, which discards it on a short detached thread:
-/// dropping it can block, as closing a Windows handle for a remote file does, and the caller is
-/// shutting down. If the thread cannot start, the result drops inline.
+/// Drops `value` on a short detached thread, for a value whose drop can block, as closing a
+/// Windows handle for a remote file does. If the thread cannot start, the value drops inline.
+pub(crate) fn drop_detached<T: Send + 'static>(value: T) {
+    let _ = thread::Builder::new()
+        .name("fs-discard".to_string())
+        .spawn(move || drop(value));
+}
+
+/// A ready result, unless a stop was requested, which discards it off this thread: the caller
+/// is shutting down.
 fn stopped_or<T: Send + 'static>(result: T, stop: &AtomicBool) -> io::Result<T> {
     if stop.load(Ordering::SeqCst) {
-        let _ = thread::Builder::new()
-            .name("fs-discard".to_string())
-            .spawn(move || drop(result));
+        drop_detached(result);
         return Err(io::Error::new(
             io::ErrorKind::Interrupted,
             "stop requested, discarding the result",
@@ -399,15 +404,25 @@ mod tests {
         });
     }
 
+    /// Reports the name of the thread it drops on.
+    struct ThreadProbe(mpsc::Sender<Option<String>>);
+
+    impl Drop for ThreadProbe {
+        fn drop(&mut self) {
+            let _ = self.0.send(thread::current().name().map(str::to_owned));
+        }
+    }
+
+    #[test]
+    fn a_value_dropped_detached_drops_on_its_own_thread() {
+        let (tx, rx) = mpsc::channel();
+        drop_detached(ThreadProbe(tx));
+        let dropped_on = rx.recv_timeout(Duration::from_secs(10)).unwrap();
+        assert_eq!(dropped_on.as_deref(), Some("fs-discard"));
+    }
+
     #[test]
     fn a_result_discarded_for_a_stop_drops_on_a_detached_thread() {
-        struct ThreadProbe(mpsc::Sender<Option<String>>);
-        impl Drop for ThreadProbe {
-            fn drop(&mut self) {
-                let _ = self.0.send(thread::current().name().map(str::to_owned));
-            }
-        }
-
         let (tx, rx) = mpsc::channel();
         let err = stopped_or(ThreadProbe(tx), &AtomicBool::new(true))
             .err()
