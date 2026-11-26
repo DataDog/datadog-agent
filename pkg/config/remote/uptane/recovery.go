@@ -78,7 +78,6 @@ func (v *verifiedFreshJoin) snapshotOrgUUID() (string, error) {
 	return *custom.OrgUUID, nil
 }
 
-
 // verifyFromEmbeddedRoot verifies a fresh-join response starting from the
 // embedded root, in memory only: no DB state is read (beyond the embedded roots
 // themselves) or written. It is the exact verification a brand new agent runs on
