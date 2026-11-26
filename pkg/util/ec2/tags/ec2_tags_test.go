@@ -14,18 +14,20 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	awsquery "github.com/DataDog/datadog-agent/pkg/util/aws/query"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
 )
@@ -358,12 +360,12 @@ func TestFetchEc2TagsFromAPIFallback(t *testing.T) {
 		setupTestIMDS(t)
 
 		callCount := 0
-		createEC2ClientFunc = func(ctx context.Context, region string, creds aws.CredentialsProvider) (*ec2.Client, error) {
+		createEC2ClientFunc = func(ctx context.Context, region string, creds aws.CredentialsProvider) (*awsquery.Client, error) {
 			callCount++
 			return createEC2Client(ctx, region, creds)
 		}
 
-		getTagsWithClientFunc = func(_ context.Context, _ *ec2.Client, _ *ec2internal.EC2Identity) ([]string, error) {
+		getTagsWithClientFunc = func(_ context.Context, _ *awsquery.Client, _ *ec2internal.EC2Identity) ([]string, error) {
 			return []string{"Name:test"}, nil
 		}
 
@@ -377,7 +379,7 @@ func TestFetchEc2TagsFromAPIFallback(t *testing.T) {
 		setupTestIMDS(t)
 
 		callCount := 0
-		createEC2ClientFunc = func(ctx context.Context, region string, creds aws.CredentialsProvider) (*ec2.Client, error) {
+		createEC2ClientFunc = func(ctx context.Context, region string, creds aws.CredentialsProvider) (*awsquery.Client, error) {
 			callCount++
 			if callCount == 1 {
 				return nil, errors.New("mock no credentials available")
@@ -385,7 +387,7 @@ func TestFetchEc2TagsFromAPIFallback(t *testing.T) {
 			return createEC2Client(ctx, region, creds)
 		}
 
-		getTagsWithClientFunc = func(_ context.Context, _ *ec2.Client, _ *ec2internal.EC2Identity) ([]string, error) {
+		getTagsWithClientFunc = func(_ context.Context, _ *awsquery.Client, _ *ec2internal.EC2Identity) ([]string, error) {
 			return []string{"Name:test"}, nil
 		}
 
@@ -393,5 +395,204 @@ func TestFetchEc2TagsFromAPIFallback(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []string{"Name:test"}, tags)
 		assert.Equal(t, 2, callCount, "should try twice: default credentials fail, then fallback succeeds")
+	})
+}
+
+func TestGetTagsWithClient(t *testing.T) {
+	conf := configmock.New(t)
+	conf.SetInTest("ec2_metadata_timeout", 2000)
+	conf.SetInTest("exclude_ec2_tags", []string{"ExcludedTag"})
+
+	t.Run("single page with SigV4 signing and tag exclusion", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, http.MethodPost, r.Method)
+			assert.True(t, strings.HasPrefix(r.Header.Get("Authorization"), "AWS4-HMAC-SHA256 "))
+			assert.NotEmpty(t, r.Header.Get("X-Amz-Date"))
+			assert.Equal(t, "test-token", r.Header.Get("X-Amz-Security-Token"))
+
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			q, err := url.ParseQuery(string(body))
+			require.NoError(t, err)
+			assert.Equal(t, "DescribeTags", q.Get("Action"))
+			assert.Equal(t, "2016-11-15", q.Get("Version"))
+			assert.Equal(t, "resource-id", q.Get("Filter.1.Name"))
+			assert.Equal(t, "i-0123456789abcdef0", q.Get("Filter.1.Value.1"))
+
+			w.Header().Set("Content-Type", "text/xml")
+			_, _ = io.WriteString(w, `<?xml version="1.0" encoding="UTF-8"?>
+<DescribeTagsResponse xmlns="http://ec2.amazonaws.com/doc/2016-11-15/">
+  <requestId>req-1</requestId>
+  <tagSet>
+    <item>
+      <resourceId>i-0123456789abcdef0</resourceId>
+      <resourceType>instance</resourceType>
+      <key>Name</key>
+      <value>web-01</value>
+    </item>
+    <item>
+      <resourceId>i-0123456789abcdef0</resourceId>
+      <resourceType>instance</resourceType>
+      <key>ExcludedTag</key>
+      <value>secret</value>
+    </item>
+    <item>
+      <resourceId>i-0123456789abcdef0</resourceId>
+      <resourceType>instance</resourceType>
+      <key>EmptyVal</key>
+      <value></value>
+    </item>
+  </tagSet>
+</DescribeTagsResponse>`)
+		}))
+		defer ts.Close()
+
+		client, err := awsquery.NewClient(aws.Config{
+			Region:       "us-east-1",
+			BaseEndpoint: aws.String(ts.URL),
+			Credentials:  credentials.NewStaticCredentialsProvider("AKIAEXAMPLE", "SECRETEXAMPLE", "test-token"),
+			HTTPClient:   ts.Client(),
+		}, ec2ServiceName, ec2SDKID, ec2APIVersion)
+		require.NoError(t, err)
+
+		tags, err := getTagsWithClient(context.Background(), client, &ec2internal.EC2Identity{
+			Region:     "us-east-1",
+			InstanceID: "i-0123456789abcdef0",
+		})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"Name:web-01", "EmptyVal:"}, tags)
+	})
+
+	t.Run("paginates across NextToken pages", func(t *testing.T) {
+		pageCalls := 0
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			pageCalls++
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			q, err := url.ParseQuery(string(body))
+			require.NoError(t, err)
+
+			w.Header().Set("Content-Type", "text/xml")
+			switch q.Get("NextToken") {
+			case "":
+				_, _ = io.WriteString(w, `<DescribeTagsResponse>
+  <tagSet>
+    <item><key>env</key><value>prod</value></item>
+  </tagSet>
+  <nextToken>page-2-token</nextToken>
+</DescribeTagsResponse>`)
+			case "page-2-token":
+				_, _ = io.WriteString(w, `<DescribeTagsResponse>
+  <tagSet>
+    <item><key>service</key><value>api</value></item>
+  </tagSet>
+</DescribeTagsResponse>`)
+			default:
+				t.Fatalf("unexpected NextToken %q", q.Get("NextToken"))
+			}
+		}))
+		defer ts.Close()
+
+		client, err := awsquery.NewClient(aws.Config{
+			Region:       "us-west-2",
+			BaseEndpoint: aws.String(ts.URL),
+			Credentials:  credentials.NewStaticCredentialsProvider("AKIAEXAMPLE", "SECRETEXAMPLE", ""),
+			HTTPClient:   ts.Client(),
+		}, ec2ServiceName, ec2SDKID, ec2APIVersion)
+		require.NoError(t, err)
+
+		tags, err := getTagsWithClient(context.Background(), client, &ec2internal.EC2Identity{
+			Region:     "us-west-2",
+			InstanceID: "i-page-test",
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 2, pageCalls)
+		assert.Equal(t, []string{"env:prod", "service:api"}, tags)
+	})
+
+	t.Run("parses EC2 XML API error response", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = io.WriteString(w, `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Errors>
+    <Error>
+      <Code>UnauthorizedOperation</Code>
+      <Message>You are not authorized to perform this operation.</Message>
+    </Error>
+  </Errors>
+  <RequestID>req-denied</RequestID>
+</Response>`)
+		}))
+		defer ts.Close()
+
+		client, err := awsquery.NewClient(aws.Config{
+			Region:       "us-east-1",
+			BaseEndpoint: aws.String(ts.URL),
+			Credentials:  credentials.NewStaticCredentialsProvider("AKIAEXAMPLE", "SECRETEXAMPLE", ""),
+			HTTPClient:   ts.Client(),
+		}, ec2ServiceName, ec2SDKID, ec2APIVersion)
+		require.NoError(t, err)
+
+		_, err = getTagsWithClient(context.Background(), client, &ec2internal.EC2Identity{
+			Region:     "us-east-1",
+			InstanceID: "i-denied",
+		})
+		require.Error(t, err)
+		var apiErr *awsquery.APIError
+		require.True(t, errors.As(err, &apiErr))
+		assert.Equal(t, "UnauthorizedOperation", apiErr.Code)
+		assert.Equal(t, "You are not authorized to perform this operation.", apiErr.Message)
+		assert.Equal(t, "req-denied", apiErr.RequestID)
+	})
+
+	t.Run("end-to-end fetchEc2TagsFromAPI via AWS_ENDPOINT_URL_EC2", func(t *testing.T) {
+		setupTestIMDS(t)
+
+		ec2Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Contains(t, r.Header.Get("Authorization"), "Credential=AKIAENVTEST/")
+			w.Header().Set("Content-Type", "text/xml")
+			_, _ = io.WriteString(w, `<DescribeTagsResponse><tagSet><item><key>role</key><value>worker</value></item></tagSet></DescribeTagsResponse>`)
+		}))
+		defer ec2Server.Close()
+
+		t.Setenv("AWS_ACCESS_KEY_ID", "AKIAENVTEST")
+		t.Setenv("AWS_SECRET_ACCESS_KEY", "SECRETENVTEST")
+		t.Setenv("AWS_ENDPOINT_URL_EC2", ec2Server.URL)
+		t.Setenv("AWS_USE_FIPS_ENDPOINT", "")
+		t.Setenv("AWS_USE_DUALSTACK_ENDPOINT", "")
+
+		tags, err := fetchEc2TagsFromAPI(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, []string{"role:worker"}, tags)
+	})
+
+	t.Run("honors ec2_metadata_timeout", func(t *testing.T) {
+		conf.SetInTest("ec2_metadata_timeout", 50)
+		defer conf.SetInTest("ec2_metadata_timeout", 2000)
+
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			select {
+			case <-r.Context().Done():
+			case <-time.After(2 * time.Second):
+				w.WriteHeader(http.StatusOK)
+			}
+		}))
+		defer ts.Close()
+
+		client, err := awsquery.NewClient(aws.Config{
+			Region:       "us-east-1",
+			BaseEndpoint: aws.String(ts.URL),
+			Credentials:  credentials.NewStaticCredentialsProvider("AKIAEXAMPLE", "SECRETEXAMPLE", ""),
+			HTTPClient:   ts.Client(),
+		}, ec2ServiceName, ec2SDKID, ec2APIVersion)
+		require.NoError(t, err)
+
+		_, err = getTagsWithClient(context.Background(), client, &ec2internal.EC2Identity{
+			Region:     "us-east-1",
+			InstanceID: "i-slow",
+		})
+		require.Error(t, err)
+		assert.ErrorIs(t, err, context.DeadlineExceeded)
 	})
 }

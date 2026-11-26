@@ -1,0 +1,10 @@
+--- a/internal/endpoints/awsrulesfn/BUILD.bazel
++++ b/internal/endpoints/awsrulesfn/BUILD.bazel
+@@ -1,5 +1,7 @@
+ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+ 
++exports_files(["partitions.go"])
++
+ go_library(
+     name = "awsrulesfn",
+     srcs = [
