@@ -37,6 +37,7 @@ dd_agent_go_binary(
 
 dd_agent_go_binary(
     name = "trace-agent-heroku",
+    basename = "trace-agent",
     embed = [":trace-agent_lib"],
     exact_gotags = sorted(COMMON_TAGS | TRACE_AGENT_HEROKU_TAGS),
     visibility = ["//visibility:public"],
