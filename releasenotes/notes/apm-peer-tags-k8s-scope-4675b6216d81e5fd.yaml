@@ -18,6 +18,7 @@ enhancements:
     no tags. The peer hostname is the highest precedence non-empty source of ``peer.hostname`` on the span
     (for example ``peer.hostname``, ``server.address`` or ``out.host``). This applies to stats computed by
     the Agent and by tracers. The cluster UID comes from ``DD_ORCHESTRATOR_CLUSTER_ID`` or the Cluster
-    Agent; until it is known, no tags are added. To opt out, set ``apm_config.peer_tags_k8s_scope.enabled``
+    Agent; until it is known, no tags are added. The cluster UID is the cluster of the receiving Agent, so
+    the tags are wrong for spans that tracers in another cluster send to this Agent. To opt out, set ``apm_config.peer_tags_k8s_scope.enabled``
     (``DD_APM_PEER_TAGS_K8S_SCOPE_ENABLED``) to ``false``. Disabling ``apm_config.peer_tags_aggregation``
     also disables these tags.
