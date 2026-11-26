@@ -32,7 +32,9 @@ if "$READELF" -S "$DEBUG/test_binary.dbg" | grep "\.debug_info" > /dev/null; the
 else
     bad "DWARF ELF .dbg twin lost its .debug_info"
 fi
-if "$READELF" -S "$STRIPPED/test_binary" | grep "\.debug_info" > /dev/null; then
+if ! sections=$("$READELF" -S "$STRIPPED/test_binary"); then
+    bad "could not inspect stripped ELF"
+elif grep -q '\.debug_info' <<< "$sections"; then
     bad "stripped ELF still carries .debug_info"
 else
     ok "stripped ELF no longer carries .debug_info"
