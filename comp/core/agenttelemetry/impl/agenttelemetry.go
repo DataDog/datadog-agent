@@ -94,9 +94,6 @@ type atel struct {
 	// flag gates profiles carrying a `remote_flag`; nil means every gated profile is off.
 	flag *remoteFlagHandler
 
-	// errortrackingFlag turns errortracking on and off at runtime.
-	errortrackingFlag *errortrackingFlagHandler
-
 	// flushFailures counts consecutive flushSession failures, the health signal for remote flags.
 	flushFailures *atomic.Uint32
 }
@@ -212,8 +209,9 @@ func createAtel(
 		Transport: httputils.CreateHTTPTransport(cfgComp),
 	}
 
-	// Errortracking starts on when the configuration enables it; the remote
-	// flag switches it later (see setErrortracking). The gate
+	// Errortracking starts on when the configuration enables it. Later changes
+	// of the setting, including the remote flag, switch it (see
+	// followErrortrackingKey). The gate
 	// composes with IsAgentTelemetryEnabled so gov/FIPS sites (parent
 	// agent_telemetry is excluded for them) automatically opt out.
 	errortrackingEnabled := utils.IsErrorTrackingEnabled(cfgComp)
@@ -303,10 +301,10 @@ func NewComponent(deps Requires) Provides {
 	a.flag = newRemoteFlagHandler(flagTroubleshooting, a.isHealthy)
 	// A disabled component has no configuration or queue: it subscribes only
 	// the profile flag, so the errortracking flag can never switch anything on.
-	subscriber := remoteFlagSubscriber{a.flag}
+	handlers := []pkgremoteflags.FlagHandler{a.flag}
 	if a.enabled {
-		a.errortrackingFlag = a.newErrortrackingFlag()
-		subscriber = append(subscriber, a.errortrackingFlag)
+		handlers = append(handlers, a.newErrortrackingFlag())
+		a.followErrortrackingKey()
 	}
 
 	// Register synchronously, not on start, so errors logged while the
@@ -330,7 +328,7 @@ func NewComponent(deps Requires) Provides {
 	return Provides{
 		Comp:       a,
 		Endpoint:   api.NewAgentEndpointProvider(a.writePayload, "/metadata/agent-telemetry", "GET"),
-		Subscriber: subscriber,
+		Subscriber: pkgremoteflags.Subscribers(handlers...),
 	}
 }
 
@@ -959,7 +957,15 @@ func unpublishErrortracking() {
 // The release of the queue runs in the background so that the flag handlers
 // that call this are never held up by a slow intake; stop waits for it.
 func (a *atel) setErrortracking(on bool) bool {
+	return a.setErrortrackingFrom(func() bool { return on })
+}
+
+// setErrortrackingFrom is setErrortracking with the target state read under
+// errortrackingMu, so concurrent configuration changes apply the latest value
+// in order.
+func (a *atel) setErrortrackingFrom(wanted func() bool) bool {
 	a.errortrackingMu.Lock()
+	on := wanted()
 	if !a.enabled || a.stopped || (a.errLogsCh.Load() != nil) == on {
 		a.errortrackingMu.Unlock()
 		return false
