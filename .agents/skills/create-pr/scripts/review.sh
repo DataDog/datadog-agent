@@ -5,7 +5,7 @@
 #   3. claude in a `dda env dev` developer environment, which authenticates through `ddtool`
 # If a review fails, the next reviewer is tried. Extra arguments are passed to `dda review`.
 #
-# `--self <claude|codex>` names the AI agent running /create-pr. Reviewers of that provider are
+# `--self <claude|codex>`, anywhere in the arguments, names the AI agent running /create-pr. Reviewers of that provider are
 # skipped, so the change gets a second opinion from another provider; when none is available the
 # agent reviews it with a subagent instead. Without `--self` (or with an empty value), the agent is
 # detected from the environment: `CLAUDECODE` for Claude Code, `CODEX_*` for Codex. When both are
@@ -17,14 +17,26 @@ set -uo pipefail
 
 log() { echo "create-pr review: $*" >&2; }
 
+# Pull `--self` out of the arguments wherever it appears; pass the rest to `dda review`
 self=""
-if [[ "${1:-}" == "--self" ]]; then
-    self=${2:-}
-    shift 2 || shift
-elif [[ "${1:-}" == --self=* ]]; then
-    self=${1#--self=}
-    shift
-fi
+args=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --self)
+            self=${2:-}
+            shift $(($# > 1 ? 2 : 1))
+            ;;
+        --self=*)
+            self=${1#--self=}
+            shift
+            ;;
+        *)
+            args+=("$1")
+            shift
+            ;;
+    esac
+done
+set -- ${args[@]+"${args[@]}"}
 if [[ -z "$self" ]]; then
     in_claude=${CLAUDECODE:+1}
     in_codex=${CODEX_THREAD_ID:+1}${CODEX_SANDBOX:+1}${CODEX_SANDBOX_NETWORK_DISABLED:+1}
