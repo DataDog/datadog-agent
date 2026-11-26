@@ -6,6 +6,9 @@ clusterChecksRunner:
 clusterAgent:
   admissionController:
     configMode: "hostip"
+    # An unavailable webhook must block admission: an uninjected pod could
+    # otherwise satisfy the negative policy checks without being processed.
+    failurePolicy: "Fail"
     # Temporary RC gate on the published chart (clusterAgent-remoteConfiguration-enabled
     # does not yet treat onDemand as a trigger). Drop once
     # https://github.com/DataDog/helm-charts/pull/2868 is released.
