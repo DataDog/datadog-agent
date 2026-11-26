@@ -263,10 +263,11 @@ func (c *Client) SubscribeWithHandler(handler FlagHandler) error {
 
 	c.subscriptions[flag] = append(c.subscriptions[flag], sub)
 
-	// If we already have cached a value for this flag,
-	// invoke the callback immediately via notifyChange
+	// If we already have cached a value for this flag, deliver it to the new
+	// subscription only: queuing it for the existing ones too would mark their
+	// in-flight OnChange as superseded and skip its health monitor.
 	if enabled, exists := c.currentValues[flag]; exists {
-		c.notifyChange(Flag{Name: string(flag), Enabled: enabled})
+		c.enqueue(sub, event{flag: Flag{Name: string(flag), Enabled: enabled}})
 	}
 
 	return nil

@@ -677,6 +677,33 @@ func TestOnUpdate_SupersededEnableStartsNoHealthMonitor(t *testing.T) {
 	})
 }
 
+func TestSubscribe_LateSubscriberKeepsHealthMonitorOfExistingOne(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := NewClient().WithHealthCheckInterval(100 * time.Millisecond)
+		defer func() {
+			client.Stop()
+			synctest.Wait()
+		}()
+		a := newOrderHandler("my_flag", true)
+		require.NoError(t, client.SubscribeWithHandler(a))
+
+		sendUpdate(client, Flag{Name: "my_flag", Enabled: true, HealthCheckDurationSeconds: 10})
+		synctest.Wait() // OnChange(true) of a is blocked
+		b := newOrderHandler("my_flag")
+		require.NoError(t, client.SubscribeWithHandler(b)) // replays the cached value
+		a.release(true)
+		synctest.Wait()
+		a.healthy.Store(false)
+
+		// The health monitor of a must run and recover it.
+		time.Sleep(time.Second)
+		synctest.Wait()
+
+		assert.Equal(t, []string{"change:true", "recover:true"}, a.recorded())
+		assert.Equal(t, []string{"change:true"}, b.recorded())
+	})
+}
+
 func TestStop_DropsPendingCallbacks(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		client := NewClient()
