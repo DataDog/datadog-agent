@@ -29,7 +29,7 @@ func TestNVLinkFieldsCollectorQueriesAllConfiguredPorts(t *testing.T) {
 				}
 				testutil.ApplyMockFieldValue(&fv[i], testutil.DefaultFieldValues[fv[i].FieldId])
 			}
-			if fv[0].FieldId != nvml.FI_DEV_NVLINK_LINK_COUNT {
+			if fv[0].FieldId != nvml.FI_DEV_NVLINK_LINK_COUNT && fv[0].FieldId != nvml.FI_DEV_C2C_LINK_COUNT {
 				requests = append(requests, append([]nvml.FieldValue(nil), fv...))
 			}
 			return nvml.SUCCESS
@@ -78,7 +78,7 @@ func TestNVLinkFieldsCollectorQueriesForcedScopeForEachPort(t *testing.T) {
 				}
 				testutil.ApplyMockFieldValue(&fv[i], testutil.DefaultFieldValues[fv[i].FieldId])
 			}
-			if fv[0].FieldId != nvml.FI_DEV_NVLINK_LINK_COUNT {
+			if fv[0].FieldId != nvml.FI_DEV_NVLINK_LINK_COUNT && fv[0].FieldId != nvml.FI_DEV_C2C_LINK_COUNT {
 				requests = append(requests, append([]nvml.FieldValue(nil), fv...))
 			}
 			return nvml.SUCCESS

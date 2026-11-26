@@ -739,6 +739,7 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/comp/netflow/config/fx": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/netflow/config/impl": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/netflow/config/mock": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
+    "github.com/DataDog/datadog-agent/comp/netflow/entropy": ["cel", "clusterchecks", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/netflow/flowaggregator": ["cel", "clusterchecks", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/netflow/goflowlib": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/netflow/goflowlib/additionalfields": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],

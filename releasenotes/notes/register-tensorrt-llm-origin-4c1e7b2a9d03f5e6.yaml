@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Register the tensorrt_llm metric origin for Agent-side serialization.
