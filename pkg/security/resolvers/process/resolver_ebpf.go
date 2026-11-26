@@ -1730,7 +1730,11 @@ func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, entry *model.ProcessC
 		p.reportSpanCtx(spanCtxStepOTelTLS, pid, stepErr.Err)
 		return
 	}
-	p.enqueueOTelAttributeKeys(pid, entry, res.AttributeKeys)
+	// When LayoutResolved is true, otelTLSRegistry.Register already enqueued
+	// attributeKeys before inserting the layout into otelTLSMap.
+	if !res.LayoutResolved {
+		p.enqueueOTelAttributeKeys(pid, entry, res.AttributeKeys)
+	}
 
 	var layoutErr error
 	if stepErr != nil {
@@ -1809,6 +1813,25 @@ func (p *EBPFResolver) enqueueOTelAttributeKeys(pid uint32, entry *model.Process
 	})
 }
 
+// findEntryInExecChain returns target if it is head or one of head's same-PID
+// exec ancestors, or nil if target is not part of head's exec chain (e.g. PID
+// reuse after exit).
+func findEntryInExecChain(head, target *model.ProcessCacheEntry) *model.ProcessCacheEntry {
+	if head == nil || target == nil {
+		return nil
+	}
+	pid := head.Pid
+	for iterations, pc := 0, head; pc != nil && pc.Pid == pid; iterations, pc = iterations+1, pc.Ancestor {
+		if pc == target {
+			return pc
+		}
+		if iterations >= tryReparentMaxIterations {
+			break
+		}
+	}
+	return nil
+}
+
 // ApplyPendingOTelUpdates applies deferred OTel tracer metadata and thread-local
 // attribute key updates to process cache entries. Must be called from the
 // event-loop goroutine (or synchronously during Snapshot) so ProcessCacheEntry
@@ -1830,8 +1853,8 @@ func (p *EBPFResolver) ApplyPendingOTelUpdates() {
 
 	p.Lock()
 	for _, u := range updates {
-		entry := p.entryCache[u.pid]
-		if entry == nil || entry != u.entry {
+		entry := findEntryInExecChain(p.entryCache[u.pid], u.entry)
+		if entry == nil {
 			continue
 		}
 		if u.hasMetadata && entry.Tracer.MetadataSource != model.TracerMetadataSourceMemfd {

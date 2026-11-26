@@ -1996,7 +1996,7 @@ func TestApplyPendingOTelUpdates(t *testing.T) {
 		assert.Equal(t, model.TracerMetadataSourceMemfd, entry.Tracer.MetadataSource)
 	})
 
-	t.Run("ignores-stale-update-after-exec", func(t *testing.T) {
+	t.Run("preserves-update-on-exec-ancestor-without-polluting-new-entry", func(t *testing.T) {
 		resolver, err := newResolver()
 		require.NoError(t, err)
 
@@ -2006,10 +2006,11 @@ func TestApplyPendingOTelUpdates(t *testing.T) {
 		require.NotNil(t, oldEntry)
 
 		// Queue an update captured against oldEntry before exec replaces entryCache[102].
+		oldMeta := tracermetadatamodel.TracerMetadata{ServiceName: "old-svc", ServiceEnv: "prod"}
 		resolver.enqueueOTelUpdate(otelTracerUpdate{
 			pid:           102,
 			entry:         oldEntry,
-			tmeta:         tracermetadatamodel.TracerMetadata{ServiceName: "old-svc", ServiceEnv: "prod"},
+			tmeta:         oldMeta,
 			hasMetadata:   true,
 			attributeKeys: []string{"old-key"},
 			hasAttrKeys:   true,
@@ -2020,12 +2021,52 @@ func TestApplyPendingOTelUpdates(t *testing.T) {
 		newEntry := resolver.getEntry(102)
 		require.NotNil(t, newEntry)
 		require.NotSame(t, oldEntry, newEntry)
+		require.Same(t, oldEntry, newEntry.Ancestor)
 
 		resolver.ApplyPendingOTelUpdates()
 
+		// The new exec entry must not inherit the pre-exec binary's metadata or keys directly,
+		// while the original exec ancestor keeps them so otelAttributeKeyNames can walk ancestors.
 		assert.True(t, newEntry.Tracer.Metadata.IsZero())
 		assert.Equal(t, model.TracerMetadataSourceNone, newEntry.Tracer.MetadataSource)
 		assert.Empty(t, newEntry.Tracer.ThreadlocalAttributeKeys)
+		assert.Equal(t, oldMeta, oldEntry.Tracer.Metadata)
+		assert.Equal(t, model.TracerMetadataSourceOTelProcessContext, oldEntry.Tracer.MetadataSource)
+		assert.Equal(t, []string{"old-key"}, oldEntry.Tracer.ThreadlocalAttributeKeys)
+	})
+
+	t.Run("ignores-stale-update-after-pid-reuse", func(t *testing.T) {
+		resolver, err := newResolver()
+		require.NoError(t, err)
+
+		fork := newFakeForkEvent(1, 104, 128, resolver)
+		require.NoError(t, resolver.AddForkEntry(fork, model.CGroupContext{}, nil))
+		oldEntry := resolver.getEntry(104)
+		require.NotNil(t, oldEntry)
+
+		resolver.enqueueOTelUpdate(otelTracerUpdate{
+			pid:           104,
+			entry:         oldEntry,
+			tmeta:         tracermetadatamodel.TracerMetadata{ServiceName: "old-svc", ServiceEnv: "prod"},
+			hasMetadata:   true,
+			attributeKeys: []string{"old-key"},
+			hasAttrKeys:   true,
+		})
+
+		// Simulate exit + PID reuse by a new unrelated process.
+		resolver.DeleteEntry(104, time.Now())
+		reusedFork := newFakeForkEvent(1, 104, 129, resolver)
+		require.NoError(t, resolver.AddForkEntry(reusedFork, model.CGroupContext{}, nil))
+		reusedEntry := resolver.getEntry(104)
+		require.NotNil(t, reusedEntry)
+		require.NotSame(t, oldEntry, reusedEntry)
+
+		resolver.ApplyPendingOTelUpdates()
+
+		assert.True(t, reusedEntry.Tracer.Metadata.IsZero())
+		assert.Empty(t, reusedEntry.Tracer.ThreadlocalAttributeKeys)
+		assert.True(t, oldEntry.Tracer.Metadata.IsZero())
+		assert.Empty(t, oldEntry.Tracer.ThreadlocalAttributeKeys)
 	})
 
 	t.Run("no-data-race-between-background-enqueue-and-event-loop-reads", func(t *testing.T) {
