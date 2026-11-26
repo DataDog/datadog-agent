@@ -119,8 +119,14 @@ func (fh *EBPFFieldHandlers) ResolveFileBasename(_ *model.Event, f *model.FileEv
 	if !f.IsBasenameStrResolved && len(f.BasenameStr) == 0 {
 		if f.PathnameStr != "" {
 			f.SetBasenameStr(path.Base(f.PathnameStr))
-		} else {
-			f.SetBasenameStr(fh.resolvers.PathResolver.ResolveBasename(&f.FileFields))
+		} else if f.PathKey.IsNull() {
+			f.SetBasenameStr("")
+		} else if fh.resolvers != nil && fh.resolvers.PathResolver != nil {
+			if basename := fh.resolvers.PathResolver.ResolveBasename(&f.FileFields); basename != "" {
+				f.SetBasenameStr(basename)
+			} else if dentryPath, err := fh.resolvers.PathResolver.ResolveDentryFilePath(&f.FileFields); err == nil && dentryPath != "" && dentryPath != "/" {
+				f.SetBasenameStr(path.Base(dentryPath))
+			}
 		}
 	}
 	return f.BasenameStr
