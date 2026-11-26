@@ -46,7 +46,19 @@ func processContainerNetworkStats(containerID string, stats interface{}) (*provi
 }
 
 func fillStatsFromSpec(outContainerStats *provider.ContainerStats, spec *oci.Spec) {
-	if spec == nil || spec.Linux == nil || outContainerStats.CPU == nil {
+	if spec == nil || spec.Linux == nil {
+		return
+	}
+
+	// Some runtimes (e.g. gVisor's runsc shim) don't report a memory limit in
+	// their metrics: use the one from the spec.
+	if outContainerStats.Memory != nil && outContainerStats.Memory.Limit == nil &&
+		spec.Linux.Resources != nil && spec.Linux.Resources.Memory != nil &&
+		spec.Linux.Resources.Memory.Limit != nil && *spec.Linux.Resources.Memory.Limit > 0 {
+		outContainerStats.Memory.Limit = pointer.Ptr(float64(*spec.Linux.Resources.Memory.Limit))
+	}
+
+	if outContainerStats.CPU == nil {
 		return
 	}
 

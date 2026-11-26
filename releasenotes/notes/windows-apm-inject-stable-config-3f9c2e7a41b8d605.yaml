@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    On Windows, installing the APM injector now writes the APM product
+    settings passed to the install script, such as ``DD_PROFILING_ENABLED``
+    and ``DD_DATA_STREAMS_ENABLED``, to ``application_monitoring.yaml``,
+    like on Linux.

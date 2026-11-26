@@ -6,6 +6,7 @@
 package ndmconnectivitycheckimpl
 
 import (
+	"runtime"
 	"testing"
 	"time"
 
@@ -41,7 +42,7 @@ func TestToProbeOptionsMapsPing(t *testing.T) {
 		PingOptions: &connectivity.PingOptions{Count: 3, IntervalMs: 200, TimeoutMs: 1500},
 	}
 
-	opts, err := toProbeOptions(req, pingprobe.Capability{Available: true, UseRawSocket: true})
+	opts, err := toProbeOptions(req)
 
 	require.NoError(t, err)
 	require.NotNil(t, opts.Ping)
@@ -49,26 +50,7 @@ func TestToProbeOptionsMapsPing(t *testing.T) {
 	assert.Equal(t, 3, opts.Ping.Count)
 	assert.Equal(t, 200*time.Millisecond, opts.Ping.Interval)
 	assert.Equal(t, 1500*time.Millisecond, opts.Ping.Timeout)
-	assert.True(t, opts.Ping.UseRawSocket)
-}
-
-func TestResolveRawSocketHonorsTheRequestOnLinux(t *testing.T) {
-	useRawSocket := true
-
-	assert.True(t, resolveRawSocket("linux", false, &useRawSocket))
-}
-
-func TestResolveRawSocketKeepsTheDetectedTypeWhereThePlatformForcesIt(t *testing.T) {
-	udp := false
-	raw := true
-
-	assert.True(t, resolveRawSocket("windows", true, &udp), "windows has no UDP pinger")
-	assert.False(t, resolveRawSocket("darwin", false, &raw), "macOS has no raw pinger")
-}
-
-func TestResolveRawSocketKeepsTheDetectedTypeWithoutAnOverride(t *testing.T) {
-	assert.True(t, resolveRawSocket("linux", true, nil))
-	assert.False(t, resolveRawSocket("linux", false, nil))
+	assert.Equal(t, pingprobe.DefaultRawSocket(runtime.GOOS), opts.Ping.UseRawSocket)
 }
 
 func TestToProbeOptionsMapsSNMP(t *testing.T) {
@@ -78,7 +60,7 @@ func TestToProbeOptionsMapsSNMP(t *testing.T) {
 		Credentials: []connectivity.SNMPCredential{{ID: "cred-1", Version: "2c", Community: "public"}},
 	}
 
-	opts, err := toProbeOptions(req, pingprobe.Capability{Available: true})
+	opts, err := toProbeOptions(req)
 
 	require.NoError(t, err)
 	assert.Nil(t, opts.Ping)
@@ -96,7 +78,7 @@ func TestToProbeOptionsSkipsSNMPWithNoCredential(t *testing.T) {
 		SNMPOptions: &connectivity.SNMPOptions{Port: 161},
 	}
 
-	opts, err := toProbeOptions(req, pingprobe.Capability{Available: true})
+	opts, err := toProbeOptions(req)
 
 	require.NoError(t, err)
 	assert.Nil(t, opts.SNMP)
@@ -125,7 +107,7 @@ func TestToProbeOptionsRejectsWhatTheEndpointAnswersWith400(t *testing.T) {
 
 	for name, req := range tests {
 		t.Run(name, func(t *testing.T) {
-			_, err := toProbeOptions(req, pingprobe.Capability{Available: true})
+			_, err := toProbeOptions(req)
 
 			require.Error(t, err)
 			assert.ErrorIs(t, err, connectivity.ErrInvalidRequest)

@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
-	"github.com/DataDog/datadog-agent/pkg/util/ddot"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 )
 
@@ -33,12 +32,6 @@ func GetName(ctx context.Context) (string, error) {
 	}
 
 	if helper.IsCLCRunner(pkgconfigsetup.Datadog()) {
-		return "", nil
-	}
-
-	// Neither can an agent configured without kubelet access reach the
-	// kubelet, which the node name below comes from.
-	if ddot.KubeletDisabled(pkgconfigsetup.Datadog()) {
 		return "", nil
 	}
 

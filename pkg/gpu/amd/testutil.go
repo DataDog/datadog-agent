@@ -8,9 +8,11 @@
 package amd
 
 import (
+	"encoding/binary"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"testing"
 
@@ -196,4 +198,90 @@ func (f *FakeSysfs) SetKFDRenderMinor(node, minor int) {
 func (f *FakeSysfs) AddPartitionRenderNode(xcp string, minor int) {
 	f.t.Helper()
 	require.NoError(f.t, os.MkdirAll(filepath.Join(f.Root, "devices", "platform", xcp, "drm", "renderD"+strconv.Itoa(minor)), 0o755))
+}
+
+// testAttr is an attribute of a synthetic gpu_metrics table.
+type testAttr struct {
+	id     gpuMetricsAttrID
+	typ    gpuMetricsType
+	unit   gpuMetricsUnit
+	values []uint64
+}
+
+func encodeAttr(a testAttr) uint64 {
+	return uint64(a.unit)<<24 | uint64(a.typ)<<20 | uint64(a.id)<<10 | uint64(len(a.values))
+}
+
+// buildGPUMetrics builds a gpu_metrics table with the given version and
+// attributes, with a consistent structure_size and attr_count.
+func buildGPUMetrics(format, content uint8, attrs ...testAttr) []byte {
+	b := make([]byte, gpuMetricsHeaderSize)
+	b[2], b[3] = format, content
+	binary.LittleEndian.PutUint32(b[4:], uint32(len(attrs)))
+	for _, a := range attrs {
+		b = binary.LittleEndian.AppendUint64(b, encodeAttr(a))
+		for _, v := range a.values {
+			switch a.typ.size() {
+			case 1:
+				b = append(b, byte(v))
+			case 2:
+				b = binary.LittleEndian.AppendUint16(b, uint16(v))
+			case 4:
+				b = binary.LittleEndian.AppendUint32(b, uint32(v))
+			default:
+				b = binary.LittleEndian.AppendUint64(b, v)
+			}
+		}
+	}
+	binary.LittleEndian.PutUint16(b[0:], uint16(len(b)))
+	return b
+}
+
+// GPUMetricsTable builds a gpu_metrics 1.9 table holding the given fields, by
+// name (e.g. "ppt_residency_acc"), with the encoding Linux 7.0 gives them and
+// as many instances as values.
+func GPUMetricsTable(t testing.TB, fields map[string][]uint64) []byte {
+	return gpuMetricsTableFor(t, kernel70, fields)
+}
+
+// GPUMetricsTableLinux73 is GPUMetricsTable with the encoding of Linux 7.3 and
+// SMU 15.0.8: U64 residency and activity accumulators, and activity without a
+// unit. Each field has as many instances as values.
+func GPUMetricsTableLinux73(t testing.TB, fields map[string][]uint64) []byte {
+	return gpuMetricsTableFor(t, kernel73, fields)
+}
+
+func gpuMetricsTableFor(t testing.TB, kernel gpuMetricsKernel, fields map[string][]uint64) []byte {
+	t.Helper()
+	ids := make(map[string]gpuMetricsAttrID, len(gpuMetricsSignatures))
+	for id, sig := range gpuMetricsSignatures {
+		ids[sig.name] = id
+	}
+	attrs := make([]testAttr, 0, len(fields))
+	for name, values := range fields {
+		id, ok := ids[name]
+		require.True(t, ok, "unknown gpu_metrics field %s", name)
+		e := gpuMetricsSignatures[id].encodings[kernel]
+		attrs = append(attrs, testAttr{id: id, typ: e.typ, unit: e.unit, values: values})
+	}
+	slices.SortFunc(attrs, func(a, b testAttr) int { return int(a.id) - int(b.id) })
+	return buildGPUMetrics(1, 9, attrs...)
+}
+
+// GPUMetricsTableWithUnit rewrites the unit of a field, by name, in a table
+// built by GPUMetricsTable.
+func GPUMetricsTableWithUnit(t testing.TB, table []byte, field string, unit uint8) []byte {
+	t.Helper()
+	out := slices.Clone(table)
+	offset := gpuMetricsHeaderSize
+	for range binary.LittleEndian.Uint32(out[4:8]) {
+		encoding := binary.LittleEndian.Uint64(out[offset:])
+		if gpuMetricsSignatures[gpuMetricsAttrID(encoding>>10&0x3ff)].name == field {
+			binary.LittleEndian.PutUint64(out[offset:], encoding&^(0xff<<24)|uint64(unit)<<24)
+			return out
+		}
+		offset += gpuMetricsEncodingSize + int(encoding&0x3ff)*gpuMetricsType(encoding>>20&0xf).size()
+	}
+	require.Fail(t, "no gpu_metrics field "+field)
+	return nil
 }

@@ -121,8 +121,7 @@ func NewClient(domain Domain) *Client {
 const (
 	// defaultBootoutSettleTimeout must be longer than the ExitTimeOut of the jobs the installer
 	// manages (10 seconds): launchd waits that long for a job to stop before it kills it, so a
-	// shorter wait would report a slow-stopping job as stuck. It matches the 30 seconds the .dmg
-	// postinstall script's fallback waits for the same thing.
+	// shorter wait would report a slow-stopping job as stuck.
 	defaultBootoutSettleTimeout      = 30 * time.Second
 	defaultBootoutSettlePollInterval = 100 * time.Millisecond
 )

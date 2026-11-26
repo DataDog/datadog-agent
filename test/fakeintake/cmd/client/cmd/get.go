@@ -28,6 +28,7 @@ func NewGetCommand(cl **client.Client) (cmd *cobra.Command) {
 		NewGetContainersCommand(cl),
 		NewGetEventCommand(cl),
 		NewGetFlareCommand(cl),
+		NewGetGenResourcesCommand(cl),
 		NewGetLogServiceCommand(cl),
 		NewGetMetadataCommand(cl),
 		NewGetMetricCommand(cl),

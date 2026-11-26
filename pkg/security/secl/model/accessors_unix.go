@@ -106,21 +106,6 @@ func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 	return nil
 }
 func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int) (eval.Evaluator, error) {
-	// Handle array index access (e.g., field[0])
-	// This is processed here before the switch to support all array fields
-	baseField, arrayIndex, isArrayAccess, err := eval.ExtractArrayIndexAccess(field)
-	if err != nil {
-		return nil, err
-	}
-	if isArrayAccess {
-		// Get the base field evaluator (returns the full array)
-		arrayEvaluator, err := (&Model{}).GetEvaluator(baseField, regID, offset)
-		if err != nil {
-			return nil, err
-		}
-		// Wrap it to return only the specific index
-		return eval.WrapEvaluatorWithArrayIndex(arrayEvaluator, arrayIndex, baseField)
-	}
 	switch field {
 	case "accept.addr.family":
 		return &eval.IntEvaluator{
@@ -2525,6 +2510,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "exec.env":
+		return &eval.StringMapEvaluator{
+			EvalFnc: func(ctx *eval.Context) map[string]string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessEnv(ev, ev.Exec.Process)
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "exec.envp":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -4203,6 +4199,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exit.env":
+		return &eval.StringMapEvaluator{
+			EvalFnc: func(ctx *eval.Context) map[string]string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessEnv(ev, ev.Exit.Process)
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "exit.envp":
@@ -9324,6 +9331,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "process.ancestors.env":
+		return &eval.StringMapArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []map[string]string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveProcessEnv(ev, &element.ProcessContext.Process)
+					return []map[string]string{result}
+				}
+				if result, ok := ctx.StringMapCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) map[string]string {
+					return ev.FieldHandlers.ResolveProcessEnv(ev, &current.ProcessContext.Process)
+				})
+				ctx.StringMapCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: 100 * eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "process.ancestors.envp":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -12544,6 +12578,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "process.env":
+		return &eval.StringMapEvaluator{
+			EvalFnc: func(ctx *eval.Context) map[string]string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessEnv(ev, &ev.BaseEvent.ProcessContext.Process)
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "process.envp":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -13906,6 +13951,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.env":
+		return &eval.StringMapEvaluator{
+			EvalFnc: func(ctx *eval.Context) map[string]string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return nil
+				}
+				return ev.FieldHandlers.ResolveProcessEnv(ev, ev.BaseEvent.ProcessContext.Parent)
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "process.parent.envp":
@@ -16328,6 +16387,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.env":
+		return &eval.StringMapArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []map[string]string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveProcessEnv(ev, &element.ProcessContext.Process)
+					return []map[string]string{result}
+				}
+				if result, ok := ctx.StringMapCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) map[string]string {
+					return ev.FieldHandlers.ResolveProcessEnv(ev, &current.ProcessContext.Process)
+				})
+				ctx.StringMapCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.envp":
@@ -19550,6 +19636,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.env":
+		return &eval.StringMapEvaluator{
+			EvalFnc: func(ctx *eval.Context) map[string]string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessEnv(ev, &ev.PTrace.Tracee.Process)
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.envp":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -20912,6 +21009,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.env":
+		return &eval.StringMapEvaluator{
+			EvalFnc: func(ctx *eval.Context) map[string]string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return nil
+				}
+				return ev.FieldHandlers.ResolveProcessEnv(ev, ev.PTrace.Tracee.Parent)
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.envp":
@@ -24984,6 +25095,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.ancestors.env":
+		return &eval.StringMapArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []map[string]string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveProcessEnv(ev, &element.ProcessContext.Process)
+					return []map[string]string{result}
+				}
+				if result, ok := ctx.StringMapCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) map[string]string {
+					return ev.FieldHandlers.ResolveProcessEnv(ev, &current.ProcessContext.Process)
+				})
+				ctx.StringMapCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: 100 * eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.ancestors.envp":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -28204,6 +28342,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.env":
+		return &eval.StringMapEvaluator{
+			EvalFnc: func(ctx *eval.Context) map[string]string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessEnv(ev, &ev.Setrlimit.Target.Process)
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.envp":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -29566,6 +29715,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.env":
+		return &eval.StringMapEvaluator{
+			EvalFnc: func(ctx *eval.Context) map[string]string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return nil
+				}
+				return ev.FieldHandlers.ResolveProcessEnv(ev, ev.Setrlimit.Target.Parent)
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.parent.envp":
@@ -32510,6 +32673,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.env":
+		return &eval.StringMapArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []map[string]string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveProcessEnv(ev, &element.ProcessContext.Process)
+					return []map[string]string{result}
+				}
+				if result, ok := ctx.StringMapCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) map[string]string {
+					return ev.FieldHandlers.ResolveProcessEnv(ev, &current.ProcessContext.Process)
+				})
+				ctx.StringMapCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: 100 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.envp":
@@ -35732,6 +35922,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.env":
+		return &eval.StringMapEvaluator{
+			EvalFnc: func(ctx *eval.Context) map[string]string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessEnv(ev, &ev.Signal.Target.Process)
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.envp":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -37094,6 +37295,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.env":
+		return &eval.StringMapEvaluator{
+			EvalFnc: func(ctx *eval.Context) map[string]string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return nil
+				}
+				return ev.FieldHandlers.ResolveProcessEnv(ev, ev.Signal.Target.Parent)
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.parent.envp":
@@ -40187,6 +40402,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.created_at",
 		"exec.egid",
 		"exec.egroup",
+		"exec.env",
 		"exec.envp",
 		"exec.envs",
 		"exec.envs_truncated",
@@ -40321,6 +40537,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.created_at",
 		"exit.egid",
 		"exit.egroup",
+		"exit.env",
 		"exit.envp",
 		"exit.envs",
 		"exit.envs_truncated",
@@ -40710,6 +40927,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.created_at",
 		"process.ancestors.egid",
 		"process.ancestors.egroup",
+		"process.ancestors.env",
 		"process.ancestors.envp",
 		"process.ancestors.envs",
 		"process.ancestors.envs_truncated",
@@ -40834,6 +41052,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.created_at",
 		"process.egid",
 		"process.egroup",
+		"process.env",
 		"process.envp",
 		"process.envs",
 		"process.envs_truncated",
@@ -40935,6 +41154,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.created_at",
 		"process.parent.egid",
 		"process.parent.egroup",
+		"process.parent.env",
 		"process.parent.envp",
 		"process.parent.envs",
 		"process.parent.envs_truncated",
@@ -41076,6 +41296,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.created_at",
 		"ptrace.tracee.ancestors.egid",
 		"ptrace.tracee.ancestors.egroup",
+		"ptrace.tracee.ancestors.env",
 		"ptrace.tracee.ancestors.envp",
 		"ptrace.tracee.ancestors.envs",
 		"ptrace.tracee.ancestors.envs_truncated",
@@ -41200,6 +41421,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.created_at",
 		"ptrace.tracee.egid",
 		"ptrace.tracee.egroup",
+		"ptrace.tracee.env",
 		"ptrace.tracee.envp",
 		"ptrace.tracee.envs",
 		"ptrace.tracee.envs_truncated",
@@ -41301,6 +41523,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.created_at",
 		"ptrace.tracee.parent.egid",
 		"ptrace.tracee.parent.egroup",
+		"ptrace.tracee.parent.env",
 		"ptrace.tracee.parent.envp",
 		"ptrace.tracee.parent.envs",
 		"ptrace.tracee.parent.envs_truncated",
@@ -41590,6 +41813,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.ancestors.created_at",
 		"setrlimit.target.ancestors.egid",
 		"setrlimit.target.ancestors.egroup",
+		"setrlimit.target.ancestors.env",
 		"setrlimit.target.ancestors.envp",
 		"setrlimit.target.ancestors.envs",
 		"setrlimit.target.ancestors.envs_truncated",
@@ -41714,6 +41938,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.created_at",
 		"setrlimit.target.egid",
 		"setrlimit.target.egroup",
+		"setrlimit.target.env",
 		"setrlimit.target.envp",
 		"setrlimit.target.envs",
 		"setrlimit.target.envs_truncated",
@@ -41815,6 +42040,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.parent.created_at",
 		"setrlimit.target.parent.egid",
 		"setrlimit.target.parent.egroup",
+		"setrlimit.target.parent.env",
 		"setrlimit.target.parent.envp",
 		"setrlimit.target.parent.envs",
 		"setrlimit.target.parent.envs_truncated",
@@ -42003,6 +42229,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.created_at",
 		"signal.target.ancestors.egid",
 		"signal.target.ancestors.egroup",
+		"signal.target.ancestors.env",
 		"signal.target.ancestors.envp",
 		"signal.target.ancestors.envs",
 		"signal.target.ancestors.envs_truncated",
@@ -42127,6 +42354,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.created_at",
 		"signal.target.egid",
 		"signal.target.egroup",
+		"signal.target.env",
 		"signal.target.envp",
 		"signal.target.envs",
 		"signal.target.envs_truncated",
@@ -42228,6 +42456,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.created_at",
 		"signal.target.parent.egid",
 		"signal.target.parent.egroup",
+		"signal.target.parent.env",
 		"signal.target.parent.envp",
 		"signal.target.parent.envs",
 		"signal.target.parent.envs_truncated",
@@ -42889,6 +43118,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exec", reflect.Int, "int", false, nil
 	case "exec.egroup":
 		return "exec", reflect.String, "string", false, nil
+	case "exec.env":
+		return "exec", reflect.Map, "map[string]string", false, nil
 	case "exec.envp":
 		return "exec", reflect.String, "string", true, nil
 	case "exec.envs":
@@ -43157,6 +43388,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exit", reflect.Int, "int", false, nil
 	case "exit.egroup":
 		return "exit", reflect.String, "string", false, nil
+	case "exit.env":
+		return "exit", reflect.Map, "map[string]string", false, nil
 	case "exit.envp":
 		return "exit", reflect.String, "string", true, nil
 	case "exit.envs":
@@ -43935,6 +44168,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.egroup":
 		return "", reflect.String, "string", false, nil
+	case "process.ancestors.env":
+		return "", reflect.Map, "map[string]string", false, nil
 	case "process.ancestors.envp":
 		return "", reflect.String, "string", true, nil
 	case "process.ancestors.envs":
@@ -44183,6 +44418,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", false, nil
 	case "process.egroup":
 		return "", reflect.String, "string", false, nil
+	case "process.env":
+		return "", reflect.Map, "map[string]string", false, nil
 	case "process.envp":
 		return "", reflect.String, "string", true, nil
 	case "process.envs":
@@ -44385,6 +44622,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", false, nil
 	case "process.parent.egroup":
 		return "", reflect.String, "string", false, nil
+	case "process.parent.env":
+		return "", reflect.Map, "map[string]string", false, nil
 	case "process.parent.envp":
 		return "", reflect.String, "string", true, nil
 	case "process.parent.envs":
@@ -44667,6 +44906,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.egroup":
 		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.ancestors.env":
+		return "ptrace", reflect.Map, "map[string]string", false, nil
 	case "ptrace.tracee.ancestors.envp":
 		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.ancestors.envs":
@@ -44915,6 +45156,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.egroup":
 		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.env":
+		return "ptrace", reflect.Map, "map[string]string", false, nil
 	case "ptrace.tracee.envp":
 		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.envs":
@@ -45117,6 +45360,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.egroup":
 		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.parent.env":
+		return "ptrace", reflect.Map, "map[string]string", false, nil
 	case "ptrace.tracee.parent.envp":
 		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.parent.envs":
@@ -45695,6 +45940,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.egroup":
 		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.ancestors.env":
+		return "setrlimit", reflect.Map, "map[string]string", false, nil
 	case "setrlimit.target.ancestors.envp":
 		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.ancestors.envs":
@@ -45943,6 +46190,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.egroup":
 		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.env":
+		return "setrlimit", reflect.Map, "map[string]string", false, nil
 	case "setrlimit.target.envp":
 		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.envs":
@@ -46145,6 +46394,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.egroup":
 		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.parent.env":
+		return "setrlimit", reflect.Map, "map[string]string", false, nil
 	case "setrlimit.target.parent.envp":
 		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.parent.envs":
@@ -46521,6 +46772,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.egroup":
 		return "signal", reflect.String, "string", false, nil
+	case "signal.target.ancestors.env":
+		return "signal", reflect.Map, "map[string]string", false, nil
 	case "signal.target.ancestors.envp":
 		return "signal", reflect.String, "string", true, nil
 	case "signal.target.ancestors.envs":
@@ -46769,6 +47022,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.egroup":
 		return "signal", reflect.String, "string", false, nil
+	case "signal.target.env":
+		return "signal", reflect.Map, "map[string]string", false, nil
 	case "signal.target.envp":
 		return "signal", reflect.String, "string", true, nil
 	case "signal.target.envs":
@@ -46971,6 +47226,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.egroup":
 		return "signal", reflect.String, "string", false, nil
+	case "signal.target.parent.env":
+		return "signal", reflect.Map, "map[string]string", false, nil
 	case "signal.target.parent.envp":
 		return "signal", reflect.String, "string", true, nil
 	case "signal.target.parent.envs":
@@ -47906,6 +48163,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("exec.egid", &ev.Exec.Process.Credentials.EGID, value)
 	case "exec.egroup":
 		return ev.setStringFieldValue("exec.egroup", &ev.Exec.Process.Credentials.EGroup, value)
+	case "exec.env":
+		rv, ok := value.(map[string]string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.env"}
+		}
+		ev.Exec.Process.Env = rv
+		return nil
 	case "exec.envp":
 		return ev.setStringArrayFieldValue("exec.envp", &ev.Exec.Process.Envp, value)
 	case "exec.envs":
@@ -48295,6 +48559,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("exit.egid", &ev.Exit.Process.Credentials.EGID, value)
 	case "exit.egroup":
 		return ev.setStringFieldValue("exit.egroup", &ev.Exit.Process.Credentials.EGroup, value)
+	case "exit.env":
+		rv, ok := value.(map[string]string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exit.env"}
+		}
+		ev.Exit.Process.Env = rv
+		return nil
 	case "exit.envp":
 		return ev.setStringArrayFieldValue("exit.envp", &ev.Exit.Process.Envp, value)
 	case "exit.envs":
@@ -49254,6 +49525,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("process.ancestors.egid", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGID, value)
 	case "process.ancestors.egroup":
 		return ev.setStringFieldValue("process.ancestors.egroup", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGroup, value)
+	case "process.ancestors.env":
+		rv, ok := value.(map[string]string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "process.ancestors.env"}
+		}
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Env = rv
+		return nil
 	case "process.ancestors.envp":
 		return ev.setStringArrayFieldValue("process.ancestors.envp", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Envp, value)
 	case "process.ancestors.envs":
@@ -49623,6 +49901,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("process.egid", &ev.BaseEvent.ProcessContext.Process.Credentials.EGID, value)
 	case "process.egroup":
 		return ev.setStringFieldValue("process.egroup", &ev.BaseEvent.ProcessContext.Process.Credentials.EGroup, value)
+	case "process.env":
+		rv, ok := value.(map[string]string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "process.env"}
+		}
+		ev.BaseEvent.ProcessContext.Process.Env = rv
+		return nil
 	case "process.envp":
 		return ev.setStringArrayFieldValue("process.envp", &ev.BaseEvent.ProcessContext.Process.Envp, value)
 	case "process.envs":
@@ -49935,6 +50220,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("process.parent.egid", &ev.BaseEvent.ProcessContext.Parent.Credentials.EGID, value)
 	case "process.parent.egroup":
 		return ev.setStringFieldValue("process.parent.egroup", &ev.BaseEvent.ProcessContext.Parent.Credentials.EGroup, value)
+	case "process.parent.env":
+		rv, ok := value.(map[string]string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "process.parent.env"}
+		}
+		ev.BaseEvent.ProcessContext.Parent.Env = rv
+		return nil
 	case "process.parent.envp":
 		return ev.setStringArrayFieldValue("process.parent.envp", &ev.BaseEvent.ProcessContext.Parent.Envp, value)
 	case "process.parent.envs":
@@ -50337,6 +50629,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("ptrace.tracee.ancestors.egid", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EGID, value)
 	case "ptrace.tracee.ancestors.egroup":
 		return ev.setStringFieldValue("ptrace.tracee.ancestors.egroup", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EGroup, value)
+	case "ptrace.tracee.ancestors.env":
+		rv, ok := value.(map[string]string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.ancestors.env"}
+		}
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Env = rv
+		return nil
 	case "ptrace.tracee.ancestors.envp":
 		return ev.setStringArrayFieldValue("ptrace.tracee.ancestors.envp", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Envp, value)
 	case "ptrace.tracee.ancestors.envs":
@@ -50706,6 +51005,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("ptrace.tracee.egid", &ev.PTrace.Tracee.Process.Credentials.EGID, value)
 	case "ptrace.tracee.egroup":
 		return ev.setStringFieldValue("ptrace.tracee.egroup", &ev.PTrace.Tracee.Process.Credentials.EGroup, value)
+	case "ptrace.tracee.env":
+		rv, ok := value.(map[string]string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.env"}
+		}
+		ev.PTrace.Tracee.Process.Env = rv
+		return nil
 	case "ptrace.tracee.envp":
 		return ev.setStringArrayFieldValue("ptrace.tracee.envp", &ev.PTrace.Tracee.Process.Envp, value)
 	case "ptrace.tracee.envs":
@@ -51018,6 +51324,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("ptrace.tracee.parent.egid", &ev.PTrace.Tracee.Parent.Credentials.EGID, value)
 	case "ptrace.tracee.parent.egroup":
 		return ev.setStringFieldValue("ptrace.tracee.parent.egroup", &ev.PTrace.Tracee.Parent.Credentials.EGroup, value)
+	case "ptrace.tracee.parent.env":
+		rv, ok := value.(map[string]string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.parent.env"}
+		}
+		ev.PTrace.Tracee.Parent.Env = rv
+		return nil
 	case "ptrace.tracee.parent.envp":
 		return ev.setStringArrayFieldValue("ptrace.tracee.parent.envp", &ev.PTrace.Tracee.Parent.Envp, value)
 	case "ptrace.tracee.parent.envs":
@@ -51878,6 +52191,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setStringFieldValue("setrlimit.target.ancestors.egroup", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Credentials.EGroup, value)
+	case "setrlimit.target.ancestors.env":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(map[string]string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.env"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Env = rv
+		return nil
 	case "setrlimit.target.ancestors.envp":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -52901,6 +53227,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
 		return ev.setStringFieldValue("setrlimit.target.egroup", &ev.Setrlimit.Target.Process.Credentials.EGroup, value)
+	case "setrlimit.target.env":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(map[string]string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.env"}
+		}
+		ev.Setrlimit.Target.Process.Env = rv
+		return nil
 	case "setrlimit.target.envp":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -53597,6 +53933,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
 		return ev.setStringFieldValue("setrlimit.target.parent.egroup", &ev.Setrlimit.Target.Parent.Credentials.EGroup, value)
+	case "setrlimit.target.parent.env":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(map[string]string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.env"}
+		}
+		ev.Setrlimit.Target.Parent.Env = rv
+		return nil
 	case "setrlimit.target.parent.envp":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -54880,6 +55229,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setStringFieldValue("signal.target.ancestors.egroup", &ev.Signal.Target.Ancestor.ProcessContext.Process.Credentials.EGroup, value)
+	case "signal.target.ancestors.env":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(map[string]string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.ancestors.env"}
+		}
+		ev.Signal.Target.Ancestor.ProcessContext.Process.Env = rv
+		return nil
 	case "signal.target.ancestors.envp":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -55903,6 +56265,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target = &ProcessContext{}
 		}
 		return ev.setStringFieldValue("signal.target.egroup", &ev.Signal.Target.Process.Credentials.EGroup, value)
+	case "signal.target.env":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		rv, ok := value.(map[string]string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.env"}
+		}
+		ev.Signal.Target.Process.Env = rv
+		return nil
 	case "signal.target.envp":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -56599,6 +56971,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Parent = &Process{}
 		}
 		return ev.setStringFieldValue("signal.target.parent.egroup", &ev.Signal.Target.Parent.Credentials.EGroup, value)
+	case "signal.target.parent.env":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		rv, ok := value.(map[string]string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.parent.env"}
+		}
+		ev.Signal.Target.Parent.Env = rv
+		return nil
 	case "signal.target.parent.envp":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}

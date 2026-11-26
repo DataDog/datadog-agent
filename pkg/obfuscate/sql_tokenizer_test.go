@@ -102,3 +102,95 @@ func testTokenizeNumber(t *testing.T, input string) {
 		t.Errorf("the value [%s] was incorrectly parsed to [%s]", input, string(buf))
 	}
 }
+
+func TestTokenizePrefixedAndSeparatedNumbers(t *testing.T) {
+	inputs := []string{
+		// binary and prefixed octal literals (MySQL, PostgreSQL 16+)
+		"0b1010",
+		"0B1",
+		"0o755",
+		"0O7",
+		"-0b1010",
+		"-0o17",
+		"-0x1F",
+		// digit separators (PostgreSQL 16+)
+		"1_500_000",
+		"-1_000",
+		"0xFF_FF",
+		"0x_ff",
+		"0b1010_1010",
+		"0B_10",
+		"0o7_55",
+		"0O_7",
+		"012_3",
+		"0_987",
+		"07_9",
+		"0_8",
+		"0_9.5",
+		"09_9",
+		"1_000.50",
+		"1.5_0",
+		"1e1_0",
+		"1_000.50e-1_2",
+		".5_0",
+	}
+	for _, input := range inputs {
+		testTokenizeNumber(t, input)
+	}
+}
+
+func TestTokenizeLiteralBoundaries(t *testing.T) {
+	type token struct {
+		kind TokenKind
+		buf  string
+	}
+	for _, tt := range []struct {
+		in   string
+		want []token
+	}{
+		// A prefix only counts when a digit of its base follows it.
+		{"0b", []token{{Number, "0"}, {ID, "b"}}},
+		{"0b2", []token{{Number, "0"}, {ID, "b2"}}},
+		{"0b_", []token{{Number, "0"}, {ID, "b_"}}},
+		{"0bad", []token{{Number, "0"}, {ID, "bad"}}},
+		{"0o8", []token{{Number, "0"}, {ID, "o8"}}},
+		{"0o", []token{{Number, "0"}, {ID, "o"}}},
+		{"0b1abc", []token{{Number, "0b1"}, {ID, "abc"}}},
+		// A separator counts only when a digit follows it.
+		{"1_000_", []token{{Number, "1_000"}, {ID, "_"}}},
+		{"1__000", []token{{Number, "1"}, {ID, "__000"}}},
+		{"1_users", []token{{Number, "1"}, {ID, "_users"}}},
+		{"0x_g", []token{{Number, "0x"}, {ID, "_g"}}},
+		// identifiers containing the same characters are untouched
+		{"ab0b1", []token{{ID, "ab0b1"}}},
+		{"t1_2", []token{{ID, "t1_2"}}},
+		// Oracle alternative quoting
+		{"q'[it's]'", []token{{String, "q'[it's]'"}}},
+		{"Q'{a 'b'}'", []token{{String, "Q'{a 'b'}'"}}},
+		{"nq'(x)'", []token{{String, "nq'(x)'"}}},
+		{"NQ'<x>'", []token{{String, "NQ'<x>'"}}},
+		{"q'!it's!'", []token{{String, "q'!it's!'"}}},
+		{"q'[]'", []token{{String, "q'[]'"}}},
+		{"q'[a]b]'", []token{{String, "q'[a]b]'"}}},
+		// only q and nq prefixes open an alternative quoted string
+		{"faq'x'", []token{{ID, "faq"}, {String, "x"}}},
+		{"N'x'", []token{{ID, "N"}, {String, "x"}}},
+		{"q 'x'", []token{{ID, "q"}, {String, "x"}}},
+		// whitespace is not a valid delimiter, so q' x' is an ordinary string
+		{"q' x'", []token{{ID, "q"}, {String, " x"}}},
+	} {
+		t.Run(tt.in, func(t *testing.T) {
+			tok := NewSQLTokenizer(tt.in, false, nil)
+			var got []token
+			for {
+				kind, buf := tok.Scan()
+				if kind == EndChar || kind == LexError {
+					break
+				}
+				got = append(got, token{kind, string(buf)})
+			}
+			assert.NoError(t, tok.Err())
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}

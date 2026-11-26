@@ -12,7 +12,9 @@ import (
 	"github.com/shirou/gopsutil/v4/cpu"
 )
 
-// NumCPU returns the count of CPUs in the CPU affinity mask of the pid 1 process
+// NumCPU returns the count of online CPUs, as listed in /proc/cpuinfo.
+// Per-CPU eBPF maps hold one value per possible CPU, so use
+// ebpf.PossibleCPU to size the slices passed to their Lookup and Put.
 func NumCPU() (int, error) {
 	cpuInfos, err := cpu.Info()
 	if err != nil {

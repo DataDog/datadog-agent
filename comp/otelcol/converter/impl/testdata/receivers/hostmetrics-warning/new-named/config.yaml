@@ -1,0 +1,14 @@
+receivers:
+    host_metrics/production:
+        collection_interval: 10s
+        scrapers:
+            memory:
+
+exporters:
+    datadog:
+
+service:
+    pipelines:
+        metrics:
+            receivers: [host_metrics/production]
+            exporters: [datadog]

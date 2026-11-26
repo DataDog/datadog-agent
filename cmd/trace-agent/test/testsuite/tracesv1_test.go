@@ -43,17 +43,42 @@ func TestTracesV1(t *testing.T) {
 			MinSpans: 3,
 			Keep:     true,
 		}, &testutil.SpanConfig{NumSpanEvents: 1})
+		// The first chunk overrides the payload env/version; the second inherits them.
+		p.Chunks[0].SetEnv("Chunk-Env")
+		p.Chunks[0].SetAppVersion("chunk-version")
 
 		if err := r.PostV1(p); err != nil {
 			t.Fatal(err)
 		}
 
+		p.Chunks[0].SetEnv("chunk-env") // forwarded normalized
 		waitForTrace(t, &r, func(v *pb.AgentPayload) {
 			if v.Env != "my-env" {
 				t.Fatalf("Expected env my-env, got: %q", v.Env)
 			}
 			payloadsEqualV1(t, p, v)
+			for _, c := range v.IdxTracerPayloads[0].Chunks {
+				if bytes.Equal(c.TraceID, p.Chunks[1].TraceID) {
+					assert.False(t, idxHasAttr(v.IdxTracerPayloads[0].Strings, c.Attributes, "env"))
+				}
+			}
 		})
+
+		// Agent-computed stats are grouped by each chunk's effective env and version.
+		want := map[string]bool{"chunk-env/chunk-version": true, "my-env/": true}
+		timeout := time.After(30 * time.Second)
+		for len(want) > 0 {
+			select {
+			case out := <-r.Out():
+				if v, ok := out.(*pb.StatsPayload); ok {
+					for _, cs := range v.Stats {
+						delete(want, cs.Env+"/"+cs.Version)
+					}
+				}
+			case <-timeout:
+				t.Fatalf("missing stats for env/version %v, log was:\n%s", want, r.AgentLog())
+			}
+		}
 	})
 
 	t.Run("reject", func(t *testing.T) {

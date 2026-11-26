@@ -7,7 +7,7 @@ exporters:
         key: abcde12345
 
 processors:
-    cumulativetodelta/dd-autoconfigured:
+    cumulative_to_delta/dd-autoconfigured:
     k8sattributes:
     infraattributes/user-defined:
     infraattributes/dd-autoconfigured:
@@ -32,7 +32,7 @@ service:
             exporters: [datadog]
         metrics:
             receivers: [nop]
-            processors: [k8sattributes, infraattributes/user-defined, cumulativetodelta/dd-autoconfigured]
+            processors: [k8sattributes, infraattributes/user-defined, cumulative_to_delta/dd-autoconfigured]
             exporters: [datadog]
         logs:
             receivers: [nop]

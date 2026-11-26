@@ -9,14 +9,19 @@
 package securityprofile
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/cilium/ebpf"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,11 +32,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -95,7 +102,7 @@ func TestManagerV2_persistProfile_persistsDisabledState(t *testing.T) {
 		require.False(t, p.IsEnabled())
 		require.True(t, p.ActivityTree.IsEmpty())
 
-		m.persistProfile(p)
+		require.NoError(t, m.persistProfile(p))
 
 		assert.False(t, p.HasAlreadyBeenSent(), "persisting a disabled profile must not open the send-gated learning window")
 		filePath := filepath.Join(dir, "disabled."+config.Profile.String())
@@ -115,7 +122,7 @@ func TestManagerV2_persistProfile_persistsDisabledState(t *testing.T) {
 		p := newTestProfileWithNodes("enabled", 8)
 		require.True(t, p.IsEnabled())
 
-		m.persistProfile(p)
+		require.NoError(t, m.persistProfile(p))
 
 		reloaded := profile.New(profile.WithWorkloadSelector(selector))
 		ok, err := m.localStorage.Load(&selector, reloaded)
@@ -161,6 +168,59 @@ func TestManagerV2_evictUnusedNodes_skipsDisabledProfile(t *testing.T) {
 	m.evictUnusedNodes()
 
 	assert.False(t, p.IsEnabled(), "eviction must not re-enable a disabled profile")
+}
+
+// TestManagerV2_SendStats_reportsProfileCount verifies the profile-count gauge follows the V2
+// manager: enabled and disabled profiles both count, and an empty manager reports zero.
+func TestManagerV2_SendStats_reportsProfileCount(t *testing.T) {
+	newManager := func() (*ManagerV2, *gaugeRecorder) {
+		m, _ := newTestManagerV2WithLocalStorage(t)
+		recorder := &gaugeRecorder{values: map[string][]float64{}, tags: map[string][][]string{}}
+		m.statsdClient = recorder
+		m.profiles = make(map[cgroupModel.WorkloadSelector]*profile.Profile)
+		m.queueSize = atomic.NewUint64(0)
+		m.pendingProfiles = atomic.NewUint64(0)
+		m.sampleRefreshReceived = atomic.NewUint64(0)
+		m.sampleRefreshHits = atomic.NewUint64(0)
+		m.sampleRefreshMisses = atomic.NewUint64(0)
+		m.tagResolutionEventsDropped = atomic.NewUint64(0)
+		m.tagResolutionCgroupsExpired = atomic.NewUint64(0)
+		m.tagResolutionCappedCgroup = atomic.NewUint64(0)
+		m.tagResolutionCappedTotal = atomic.NewUint64(0)
+		m.cleanupProfilesRemoved = atomic.NewUint64(0)
+		m.evictionRuns = atomic.NewUint64(0)
+		m.evictionNodesEvicted = atomic.NewUint64(0)
+		return m, recorder
+	}
+
+	t.Run("counts enabled and disabled profiles per image", func(t *testing.T) {
+		m, recorder := newManager()
+		enabled := profile.New(profile.WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "gcr.io/org/app", Tag: "*"}))
+		disabled := profile.New(profile.WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "gcr.io/org/worker", Tag: "*"}))
+		disabled.Disable()
+		m.profiles[cgroupModel.WorkloadSelector{Image: "gcr.io/org/app", Tag: "*"}] = enabled
+		m.profiles[cgroupModel.WorkloadSelector{Image: "gcr.io/org/worker", Tag: "*"}] = disabled
+
+		require.NoError(t, m.SendStats())
+
+		got := map[string]float64{}
+		for i, tags := range recorder.tags[metrics.MetricSecurityProfileProfiles] {
+			got[strings.Join(tags, ",")] = recorder.values[metrics.MetricSecurityProfileProfiles][i]
+		}
+		assert.Equal(t, map[string]float64{
+			"profile_image_name:gcr.io/org/app":    1,
+			"profile_image_name:gcr.io/org/worker": 1,
+		}, got)
+	})
+
+	t.Run("reports zero when no profile is tracked", func(t *testing.T) {
+		m, recorder := newManager()
+
+		require.NoError(t, m.SendStats())
+
+		assert.Equal(t, []float64{0}, recorder.values[metrics.MetricSecurityProfileProfiles])
+		assert.Equal(t, [][]string{{}}, recorder.tags[metrics.MetricSecurityProfileProfiles])
+	})
 }
 
 func TestManagerV2_shouldSendAnomalyDetection(t *testing.T) {
@@ -476,6 +536,19 @@ func (fh *monotonicFieldHandlers) ResolveEventTime(ev *model.Event, _ *model.Bas
 	return ev.Timestamp
 }
 
+// gaugeRecorder records the values and tags sent through Gauge.
+type gaugeRecorder struct {
+	statsd.NoOpClient
+	values map[string][]float64
+	tags   map[string][][]string
+}
+
+func (r *gaugeRecorder) Gauge(name string, value float64, tags []string, _ float64) error {
+	r.values[name] = append(r.values[name], value)
+	r.tags[name] = append(r.tags[name], tags)
+	return nil
+}
+
 // distributionRecorder records the values sent through Distribution.
 type distributionRecorder struct {
 	statsd.NoOpClient
@@ -593,15 +666,17 @@ func newInsertionTestManagerV2(t *testing.T) (*ManagerV2, *[]*model.Event) {
 	m := &ManagerV2{
 		config: &config.Config{
 			RuntimeSecurity: &config.RuntimeSecurityConfig{
-				SecurityProfileEnabled:                          true,
-				SecurityProfileV2Enabled:                        true,
-				SecurityProfileMaxImageTags:                     20,
-				AnomalyDetectionEnabled:                         true,
-				SecurityProfileV2EventTypes:                     []model.EventType{model.ExecEventType, model.FileOpenEventType, model.DNSEventType, model.BindEventType, model.ConnectEventType},
-				SecurityProfileV2MaxDumpSize:                    func() int { return maxSize },
-				SecurityProfileV2ProfileReportingDelayTimeBased: true,
-				SecurityProfileDNSMatchMaxDepth:                 3,
-				SecurityProfileCleanupDelay:                     time.Minute,
+				SecurityProfileEnabled:                                  true,
+				SecurityProfileV2Enabled:                                true,
+				SecurityProfileMaxImageTags:                             20,
+				AnomalyDetectionEnabled:                                 true,
+				SecurityProfileV2EventTypes:                             []model.EventType{model.ExecEventType, model.FileOpenEventType, model.DNSEventType, model.BindEventType, model.ConnectEventType},
+				SecurityProfileV2MaxDumpSize:                            func() int { return maxSize },
+				SecurityProfileV2ProfileReportingDelayTimeBased:         true,
+				SecurityProfileDNSMatchMaxDepth:                         3,
+				SecurityProfileCleanupDelay:                             time.Minute,
+				SecurityProfileV2TagResolutionMaxPendingEvents:          100,
+				SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup: 100,
 			},
 		},
 		statsdClient: &statsd.NoOpClient{},
@@ -611,19 +686,25 @@ func newInsertionTestManagerV2(t *testing.T) (*ManagerV2, *[]*model.Event) {
 			TimeResolver:   timeResolver,
 			HashResolver:   &hash.Resolver{},
 		},
-		kernelVersion:          &kernel.Version{},
-		pathsReducer:           activity_tree.NewPathsReducer(),
-		profiles:               make(map[cgroupModel.WorkloadSelector]*profile.Profile),
-		localStorage:           localStorage,
-		eventFiltering:         make(map[eventFilteringEntry]*atomic.Uint64),
-		insertionErrors:        make(map[insertionErrorKey]*atomic.Uint64),
-		pendingProfileRemovals: make(map[cgroupModel.WorkloadSelector]time.Time),
-		sampleCookieMap:        cookieMap,
-		sampleRefreshReceived:  atomic.NewUint64(0),
-		sampleRefreshHits:      atomic.NewUint64(0),
-		sampleRefreshMisses:    atomic.NewUint64(0),
-		cleanupProfilesRemoved: atomic.NewUint64(0),
-		imageExcluder:          imgExcluder,
+		kernelVersion:             &kernel.Version{},
+		pathsReducer:              activity_tree.NewPathsReducer(),
+		profiles:                  make(map[cgroupModel.WorkloadSelector]*profile.Profile),
+		profilePendingEvents:      make(map[containerutils.CGroupID]*pendingProfile),
+		queueSize:                 atomic.NewUint64(0),
+		pendingProfiles:           atomic.NewUint64(0),
+		tagResolutionCappedCgroup: atomic.NewUint64(0),
+		tagResolutionCappedTotal:  atomic.NewUint64(0),
+		resolvedCgroups:           make(map[containerutils.CGroupID]struct{}),
+		localStorage:              localStorage,
+		eventFiltering:            make(map[eventFilteringEntry]*atomic.Uint64),
+		insertionErrors:           make(map[insertionErrorKey]*atomic.Uint64),
+		pendingProfileRemovals:    make(map[cgroupModel.WorkloadSelector]time.Time),
+		sampleCookieMap:           cookieMap,
+		sampleRefreshReceived:     atomic.NewUint64(0),
+		sampleRefreshHits:         atomic.NewUint64(0),
+		sampleRefreshMisses:       atomic.NewUint64(0),
+		cleanupProfilesRemoved:    atomic.NewUint64(0),
+		imageExcluder:             imgExcluder,
 		sendAnomalyDetection: func(event *model.Event) {
 			anomalies = append(anomalies, event)
 		},
@@ -645,6 +726,8 @@ func newTestEventV2(eventType model.EventType, imageTag string, variant string) 
 	entry := model.NewPlaceholderProcessCacheEntry(42, 42, false)
 	entry.ContainerContext.ContainerID = containerutils.ContainerID(testContainerID)
 	entry.ContainerContext.Tags = []string{"image_name:" + testImageName, "image_tag:" + imageTag}
+	entry.CGroup.CGroupID = containerutils.CGroupID("/docker/" + testContainerID)
+	entry.CGroup.CGroupPathKey = model.PathKey{Inode: 4242, MountID: 1}
 	entry.FileEvent.PathnameStr = "/usr/bin/proc"
 	entry.FileEvent.BasenameStr = "proc"
 	// a file with an inode but without mount ID would be seen as fileless
@@ -731,7 +814,7 @@ func TestManagerV2_insertEventIntoProfile(t *testing.T) {
 		t.Run(eventType.String(), func(t *testing.T) {
 			m, _ := newInsertionTestManagerV2(t)
 
-			p, inserted := m.insertEventIntoProfile(newTestEventV2(eventType, "v1", "known"))
+			p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(eventType, "v1", "known"))
 			require.NotNil(t, p)
 			assert.True(t, inserted, "a first activity should create a new entry")
 			assert.Equal(t, testSelector, *p.GetWorkloadSelector(), "the profile should be shared by all the tags of the image")
@@ -741,7 +824,7 @@ func TestManagerV2_insertEventIntoProfile(t *testing.T) {
 			assert.True(t, ok, "the node should be tagged with v1")
 
 			// the same activity under another tag of the image only adds the tag to the existing entry
-			p2, inserted := m.insertEventIntoProfile(newTestEventV2(eventType, "v2", "known"))
+			p2, inserted, _ := m.insertEventIntoProfile(newTestEventV2(eventType, "v2", "known"))
 			require.Same(t, p, p2)
 			assert.False(t, inserted, "a known activity under another tag shouldn't create a new entry")
 			assert.ElementsMatch(t, []string{"v1", "v2"}, p.GetVersions())
@@ -750,7 +833,7 @@ func TestManagerV2_insertEventIntoProfile(t *testing.T) {
 			_, _, ok = node.GetSeenTimes(p.ActivityTree.GetImageTagID("v2"))
 			assert.True(t, ok, "the existing node should be tagged with v2")
 
-			_, inserted = m.insertEventIntoProfile(newTestEventV2(eventType, "v2", "new"))
+			_, inserted, _ = m.insertEventIntoProfile(newTestEventV2(eventType, "v2", "new"))
 			assert.True(t, inserted, "a new activity should create a new entry")
 			assert.NotNil(t, findTestEventNode(p, eventType, "new"))
 		})
@@ -766,7 +849,7 @@ func TestManagerV2_insertEventIntoProfile_maxImageTags(t *testing.T) {
 
 			for i := 0; i < wantLimit+5; i++ {
 				tag := fmt.Sprintf("v%d", i)
-				p, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, tag, "known"))
+				p, _, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, tag, "known"))
 				require.NotNil(t, p)
 				assert.Len(t, p.GetVersions(), min(i+1, wantLimit))
 				assert.Contains(t, p.GetVersions(), tag, "the current version must not be evicted")
@@ -781,9 +864,9 @@ func TestManagerV2_insertEventIntoProfile_evictsLeastRecentlySeenVersion(t *test
 			m, _ := newInsertionTestManagerV2(t)
 			m.config.RuntimeSecurity.SecurityProfileMaxImageTags = 2
 
-			p, _ := m.insertEventIntoProfile(newTestEventV2(eventType, "v1", "known"))
+			p, _, _ := m.insertEventIntoProfile(newTestEventV2(eventType, "v1", "known"))
 			require.NotNil(t, p)
-			_, inserted := m.insertEventIntoProfile(newTestEventV2(eventType, "v2", "new"))
+			_, inserted, _ := m.insertEventIntoProfile(newTestEventV2(eventType, "v2", "new"))
 			require.True(t, inserted)
 
 			v1, ok := p.GetVersionContext("v1")
@@ -797,15 +880,16 @@ func TestManagerV2_insertEventIntoProfile_evictsLeastRecentlySeenVersion(t *test
 
 			event := newTestEventV2(eventType, "v1", "known")
 			event.ProcessContext.Process.ContainerContext.Tags = append(event.ProcessContext.Process.ContainerContext.Tags, "service:another-container")
-			_, inserted = m.insertEventIntoProfile(event)
+			_, inserted, _ = m.insertEventIntoProfile(event)
 			require.False(t, inserted)
 			assert.Greater(t, v1.LastSeenNano, uint64(2), "known activities must refresh the version's last seen time")
 			assert.Equal(t, uint64(1), v1.FirstSeenNano)
-			assert.Equal(t, originalTags, v1.Tags, "refreshing a version must keep the tags of its first workload")
+			assert.Equal(t, append(originalTags, "service:another-container"), v1.Tags, "refreshing a version must add the tags it doesn't hold yet")
 
-			_, inserted = m.insertEventIntoProfile(newTestEventV2(eventType, "v3", "known"))
+			_, inserted, _ = m.insertEventIntoProfile(newTestEventV2(eventType, "v3", "known"))
 			assert.False(t, inserted, "activities shared with a retained version must stay learned")
 			assert.ElementsMatch(t, []string{"v1", "v3"}, p.GetVersions())
+			assert.ElementsMatch(t, []string{"image_name:" + testImageName, "image_tag:v1", "service:another-container", "image_tag:v3"}, p.GetDumpTags(), "only the tags of the retained versions must be sent with the profile")
 			assert.Zero(t, p.ActivityTree.GetImageTagID("v2"))
 			assert.Nil(t, findTestEventNode(p, eventType, "new"), "activities exclusive to the evicted version must be removed")
 
@@ -821,7 +905,7 @@ func TestManagerV2_versionEviction_freesSpaceBeforeSizeCheck(t *testing.T) {
 	m, _ := newInsertionTestManagerV2(t)
 	m.config.RuntimeSecurity.SecurityProfileMaxImageTags = 1
 
-	p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+	p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 	require.NotNil(t, p)
 	require.True(t, inserted)
 	maxSize := int(p.ComputeHeapSize())
@@ -829,7 +913,7 @@ func TestManagerV2_versionEviction_freesSpaceBeforeSizeCheck(t *testing.T) {
 	m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize = func() int { return maxSize }
 
 	for i := 2; i < 25; i++ {
-		p, inserted = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, fmt.Sprintf("v%d", i), "known"))
+		p, inserted, _ = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, fmt.Sprintf("v%d", i), "known"))
 		require.NotNil(t, p, "evicting the previous version must free room for the next one")
 		require.True(t, inserted)
 		assert.Len(t, p.GetVersions(), 1)
@@ -841,7 +925,7 @@ func TestManagerV2_insertEventIntoProfile_limitsPersistedVersions(t *testing.T) 
 	m, _ := newInsertionTestManagerV2(t)
 	var p *profile.Profile
 	for i, tag := range []string{"v1", "v2", "v3"} {
-		p, _ = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, tag, "known"))
+		p, _, _ = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, tag, "known"))
 		require.NotNil(t, p)
 		ctx, ok := p.GetVersionContext(tag)
 		require.True(t, ok)
@@ -855,7 +939,7 @@ func TestManagerV2_insertEventIntoProfile_limitsPersistedVersions(t *testing.T) 
 	m.config.RuntimeSecurity.SecurityProfileMaxImageTags = 2
 
 	// The incoming tag already exists in the saved profile: it still needs trimming.
-	reloaded, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+	reloaded, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 	require.NotNil(t, reloaded)
 	require.NotSame(t, p, reloaded)
 	assert.False(t, inserted)
@@ -876,7 +960,7 @@ func TestManagerV2_versionEviction_sampleRefresh(t *testing.T) {
 	for i, tag := range []string{"v1", "v2"} {
 		event := newTestEventV2(model.FileOpenEventType, tag, "known")
 		event.Open.SampleCookie = uint64(i + 1)
-		p, _ := m.insertEventIntoProfile(event)
+		p, _, _ := m.insertEventIntoProfile(event)
 		require.NotNil(t, p)
 		ctx, ok := p.GetVersionContext(tag)
 		require.True(t, ok)
@@ -896,13 +980,13 @@ func TestManagerV2_versionEviction_sampleRefresh(t *testing.T) {
 	require.True(t, ok)
 	assert.Greater(t, v1.LastSeenNano, uint64(2), "sample refreshes must count as version activity")
 
-	_, _ = m.insertEventIntoProfile(newTestEventV2(model.FileOpenEventType, "v3", "known"))
+	_, _, _ = m.insertEventIntoProfile(newTestEventV2(model.FileOpenEventType, "v3", "known"))
 	assert.ElementsMatch(t, []string{"v1", "v3"}, p.GetVersions())
 	assert.True(t, m.sampleCookieMap.Contains(1), "cookies of retained versions must stay cached")
 	assert.False(t, m.sampleCookieMap.Contains(2), "cookies of an evicted version must be purged even when their node is shared")
 	assert.True(t, m.sampleCookieMap.Contains(3), "cookies belonging to another profile must not be purged")
 
-	_, _ = m.insertEventIntoProfile(newTestEventV2(model.FileOpenEventType, "v2", "known"))
+	_, _, _ = m.insertEventIntoProfile(newTestEventV2(model.FileOpenEventType, "v2", "known"))
 	assert.False(t, m.sampleCookieMap.Contains(2), "a returning version must not revive old cookies")
 	m.HandleSampleRefresh(2)
 	assert.Equal(t, uint64(1), m.sampleRefreshMisses.Load())
@@ -953,8 +1037,181 @@ func TestManagerV2_onEventTagsResolved(t *testing.T) {
 				require.NotNil(t, p)
 				assert.NotNil(t, findTestEventNode(p, eventType, "known"), "the activity should still be learned")
 			})
+
+			t.Run("a known activity is sent again once the event cooldown has elapsed", func(t *testing.T) {
+				m, anomalies := newInsertionTestManagerV2(t)
+				m.config.RuntimeSecurity.AnomalyDetectionEventCooldown = time.Hour
+
+				start := time.Now()
+				first := newTestEventV2(eventType, "v1", "known")
+				first.Timestamp = start
+				m.onEventTagsResolved(first)
+				require.Len(t, *anomalies, 1)
+
+				p := m.profiles[testSelector]
+				require.NotNil(t, p)
+				node := findTestEventNode(p, eventType, "known")
+				require.NotNil(t, node)
+				lastSent, ok := node.GetLastAnomalySent()
+				require.True(t, ok, "sending an anomaly should record lastAnomalySent")
+				assert.True(t, lastSent.Equal(start))
+
+				again := newTestEventV2(eventType, "v1", "known")
+				again.Timestamp = start.Add(30 * time.Minute)
+				m.onEventTagsResolved(again)
+				assert.Len(t, *anomalies, 1, "an activity re-seen within the event cooldown shouldn't trigger an anomaly")
+				lastSent, ok = node.GetLastAnomalySent()
+				require.True(t, ok)
+				assert.True(t, lastSent.Equal(start), "a suppressed occurrence shouldn't move lastAnomalySent")
+
+				otherTag := newTestEventV2(eventType, "v2", "known")
+				otherTag.Timestamp = start.Add(30 * time.Minute)
+				m.onEventTagsResolved(otherTag)
+				assert.Len(t, *anomalies, 1, "the event cooldown belongs to the activity node and is shared by every tag of the image")
+
+				later := newTestEventV2(eventType, "v1", "known")
+				later.Timestamp = start.Add(2 * time.Hour)
+				m.onEventTagsResolved(later)
+				assert.Len(t, *anomalies, 2, "an activity re-seen after the event cooldown should trigger an anomaly")
+				lastSent, ok = node.GetLastAnomalySent()
+				require.True(t, ok)
+				assert.True(t, lastSent.Equal(later.Timestamp))
+			})
 		})
 	}
+}
+
+// TestManagerV2_eventCooldownSurvivesReload persists a profile to local storage and reloads it in another manager,
+// as after a restart. The reloaded activity keeps its emission history: an alerted one is held until the event
+// cooldown elapses and is then sent once, an activity learned without an anomaly stays quiet.
+func TestManagerV2_eventCooldownSurvivesReload(t *testing.T) {
+	for _, eventType := range testEventTypesV2 {
+		t.Run(eventType.String(), func(t *testing.T) {
+			dir := t.TempDir()
+			newManager := func() (*ManagerV2, *[]*model.Event) {
+				m, anomalies := newInsertionTestManagerV2(t)
+				m.config.RuntimeSecurity.AnomalyDetectionEventCooldown = time.Hour
+				localStorage, err := storage.NewDirectory(dir, 100)
+				require.NoError(t, err)
+				m.localStorage = localStorage
+				m.configuredStorageRequests = perFormatStorageRequests([]config.StorageRequest{
+					config.NewStorageRequest(config.LocalStorage, config.Profile, false, dir),
+				})
+				return m, anomalies
+			}
+			at := func(variant string, timestamp time.Time) *model.Event {
+				event := newTestEventV2(eventType, "v1", variant)
+				event.Timestamp = timestamp
+				return event
+			}
+
+			start := time.Now()
+			before, sent := newManager()
+			before.onEventTagsResolved(at("known", start))
+			require.Len(t, *sent, 1)
+			_, inserted, _ := before.insertEventIntoProfile(at("new", start))
+			require.True(t, inserted, "the activity learned without an anomaly should be inserted")
+			before.persistProfile(before.profiles[testSelector])
+
+			after, anomalies := newManager()
+			after.onEventTagsResolved(at("known", start.Add(30*time.Minute)))
+			p := after.profiles[testSelector]
+			require.NotNil(t, p)
+			require.NotNil(t, findTestEventNode(p, eventType, "new"), "the profile should be reloaded from local storage")
+			lastSent, ok := findTestEventNode(p, eventType, "known").GetLastAnomalySent()
+			require.True(t, ok, "the reloaded activity should keep its last anomaly sent")
+			assert.True(t, lastSent.Equal(start))
+			_, ok = findTestEventNode(p, eventType, "new").GetLastAnomalySent()
+			assert.False(t, ok, "the activity learned without an anomaly should reload without one")
+			assert.Empty(t, *anomalies, "a reloaded activity re-seen within the event cooldown shouldn't trigger an anomaly")
+
+			after.onEventTagsResolved(at("known", start.Add(2*time.Hour)))
+			after.onEventTagsResolved(at("known", start.Add(2*time.Hour+time.Minute)))
+			assert.Len(t, *anomalies, 1, "a reloaded activity re-seen after the event cooldown should trigger exactly one anomaly")
+
+			after.onEventTagsResolved(at("new", start.Add(30*time.Minute)))
+			after.onEventTagsResolved(at("new", start.Add(2*time.Hour)))
+			assert.Len(t, *anomalies, 1, "a reloaded activity learned without an anomaly should stay quiet")
+		})
+	}
+}
+
+// TestManagerV2_eventCooldownFollowsMerges folds the node of an emitting event into the node of an activity
+// learned without an anomaly, between the insertion of the event and the start of its cooldown, as a
+// concurrent persistence would. The cooldown must run on the surviving node, which holds the sample cookies.
+func TestManagerV2_eventCooldownFollowsMerges(t *testing.T) {
+	const cooldown = time.Hour
+	m, anomalies := newInsertionTestManagerV2(t)
+	rs := m.config.RuntimeSecurity
+	rs.AnomalyDetectionEventCooldown = cooldown
+	patterns := activity_tree.DefaultPathPatternConfig()
+	rs.SecurityProfileV2PathPatternsEnabled = true
+	rs.SecurityProfileV2PathPatternsMaxChildren = patterns.MaxChildren
+	rs.SecurityProfileV2PathPatternsMinGroupSizeOnInsert = patterns.MinGroupSizeOnInsert
+	rs.SecurityProfileV2PathPatternsMinGroupSize = patterns.MinGroupSize
+	rs.SecurityProfileV2PathPatternsMinDateGroupSize = patterns.MinDateGroupSize
+	m.sampleMaps = map[model.EventType]*ebpf.Map{model.FileOpenEventType: nil}
+
+	start := time.Now()
+	nextCookie := uint64(0)
+	open := func(dir string, timestamp time.Time) *model.Event {
+		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		event.Open.File.PathnameStr = "/tmp/" + dir + "/file"
+		event.Open.File.BasenameStr = "file"
+		event.Timestamp = timestamp
+		nextCookie++
+		event.Open.SampleCookie = nextCookie
+		return event
+	}
+
+	for _, dir := range []string{"sess-aaa", "sess-bbb"} {
+		_, inserted, _ := m.insertEventIntoProfile(open(dir, start))
+		require.True(t, inserted)
+	}
+	p := m.profiles[testSelector]
+	require.NotNil(t, p)
+	tmp := p.ActivityTree.ProcessNodes[0].Files["tmp"]
+	require.NotNil(t, tmp)
+
+	reached, release := make(chan struct{}), make(chan struct{})
+	m.beforeAnomalyClaim = func() {
+		close(reached)
+		<-release
+	}
+	done := make(chan struct{})
+	racing := open("sess-ccc", start)
+	go func() {
+		defer close(done)
+		m.onEventTagsResolved(racing)
+	}()
+	<-reached
+	folded := &tmp.Children["sess-ccc"].Children["file"].NodeBase
+	m.persistProfile(p)
+	m.beforeAnomalyClaim = nil
+	close(release)
+	<-done
+
+	require.Len(t, *anomalies, 1, "a new activity folded before its claim should still trigger an anomaly")
+	pattern, ok := tmp.Children["sess-<alpha>"]
+	require.True(t, ok, "the persistence should fold the sibling directories into a pattern")
+	survivor := &pattern.Children["file"].NodeBase
+	require.NotSame(t, folded, survivor, "the node of the racing event should have been folded")
+	lastSent, ok := survivor.GetLastAnomalySent()
+	require.True(t, ok, "the cooldown should be recorded on the surviving node")
+	assert.True(t, lastSent.Equal(start))
+	assert.Contains(t, m.cooldownExpiries, survivor, "the cooldown expiry should be scheduled on the surviving node")
+	assert.NotContains(t, m.cooldownExpiries, folded)
+
+	m.onEventTagsResolved(open("sess-ccc", start.Add(30*time.Minute)))
+	assert.Len(t, *anomalies, 1, "the merged activity re-seen within the event cooldown shouldn't trigger an anomaly")
+
+	m.expireCooldowns(start.Add(cooldown + time.Minute))
+	assert.False(t, m.sampleCookieMap.Contains(racing.Open.SampleCookie), "the expiry should release the retargeted cookie of the racing event")
+	assert.NotContains(t, m.cooldownExpiries, survivor)
+
+	m.onEventTagsResolved(open("sess-ccc", start.Add(2*time.Hour)))
+	m.onEventTagsResolved(open("sess-aaa", start.Add(2*time.Hour+time.Minute)))
+	assert.Len(t, *anomalies, 2, "the merged activity re-seen after the event cooldown should trigger exactly one anomaly")
 }
 
 func TestManagerV2_insertEventIntoProfile_maxSize(t *testing.T) {
@@ -963,11 +1220,11 @@ func TestManagerV2_insertEventIntoProfile_maxSize(t *testing.T) {
 		m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize = func() int { return 1 }
 
 		// the size is checked before the insertion: an empty profile is below any max size
-		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 		require.NotNil(t, p)
 		require.True(t, inserted)
 
-		p, inserted = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "new"))
+		p, inserted, _ = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "new"))
 		assert.Nil(t, p)
 		assert.False(t, inserted)
 
@@ -985,7 +1242,7 @@ func TestManagerV2_insertEventIntoProfile_maxSize(t *testing.T) {
 	t.Run("a profile below the max size keeps learning", func(t *testing.T) {
 		m, _ := newInsertionTestManagerV2(t)
 
-		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 		require.NotNil(t, p)
 		assert.True(t, inserted)
 		assert.True(t, p.IsEnabled())
@@ -1037,15 +1294,79 @@ func TestManagerV2_cleanupPendingProfiles(t *testing.T) {
 		m, _ := newInsertionTestManagerV2(t)
 		m.config.RuntimeSecurity.SecurityProfileCleanupDelay = cleanupDelay
 
-		_, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		_, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 		require.True(t, inserted)
 		m.pendingProfileRemovals[testSelector] = time.Now().Add(-2 * cleanupDelay)
 
-		_, _ = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		_, _, _ = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 		assert.NotContains(t, m.pendingProfileRemovals, testSelector)
 
 		m.cleanupPendingProfiles()
 		assert.Contains(t, m.profiles, testSelector)
+	})
+
+	t.Run("cleanup after profile lookup does not detach revived profile", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		m.config.RuntimeSecurity.SecurityProfileCleanupDelay = cleanupDelay
+		dir := t.TempDir()
+		localStorage, err := storage.NewDirectory(dir, 100)
+		require.NoError(t, err)
+		m.localStorage = localStorage
+		m.configuredStorageRequests = perFormatStorageRequests([]config.StorageRequest{
+			config.NewStorageRequest(config.LocalStorage, config.Profile, false, dir),
+		})
+
+		p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		require.True(t, inserted)
+		require.NotNil(t, p)
+
+		cgce := m.resolvers.CGroupResolver.GetCacheEntryContainerID(containerutils.ContainerID(testContainerID))
+		require.NotNil(t, cgce)
+		m.onCGroupDeleted(cgce)
+		require.Empty(t, p.Instances)
+		m.pendingProfileRemovals[testSelector] = time.Now().Add(-2 * cleanupDelay)
+
+		lookupDone := make(chan struct{})
+		resumeInsertion := make(chan struct{})
+		m.afterProfileLookup = func() {
+			close(lookupDone)
+			<-resumeInsertion
+		}
+
+		var resumedProfile *profile.Profile
+		var resumedInserted bool
+		insertDone := make(chan struct{})
+		go func() {
+			defer close(insertDone)
+			resumedProfile, resumedInserted, _ = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "new"))
+		}()
+
+		select {
+		case <-lookupDone:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for profile lookup")
+		}
+		m.cleanupPendingProfiles()
+		close(resumeInsertion)
+		select {
+		case <-insertDone:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for profile insertion")
+		}
+
+		require.True(t, resumedInserted)
+		assert.Same(t, p, resumedProfile)
+		assert.Same(t, p, m.profiles[testSelector])
+		assert.NotContains(t, m.pendingProfileRemovals, testSelector)
+		assert.Len(t, p.Instances, 1)
+		assert.NotNil(t, findTestEventNode(m.profiles[testSelector], model.ExecEventType, "new"))
+
+		m.persistAllProfiles()
+		reloaded := profile.New(profile.WithWorkloadSelector(testSelector))
+		ok, err := m.localStorage.Load(&testSelector, reloaded)
+		require.NoError(t, err)
+		require.True(t, ok)
+		assert.NotNil(t, findTestEventNode(reloaded, model.ExecEventType, "new"))
 	})
 }
 
@@ -1058,7 +1379,7 @@ func TestManagerV2_onCGroupDeleted(t *testing.T) {
 	m, _ := newInsertionTestManagerV2(t)
 	m.config.RuntimeSecurity.SecurityProfileCleanupDelay = cleanupDelay
 
-	p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+	p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
 	require.True(t, inserted)
 	require.Len(t, p.Instances, 1, "the workload of the event should be linked to the profile")
 
@@ -1073,6 +1394,62 @@ func TestManagerV2_onCGroupDeleted(t *testing.T) {
 	m.pendingProfileRemovals[testSelector] = queuedAt.Add(-2 * cleanupDelay)
 	m.cleanupPendingProfiles()
 	assert.NotContains(t, m.profiles, testSelector, "the profile should be removed once the cleanup delay is over")
+
+	t.Run("multi-cgroup container stays linked when a child cgroup is deleted", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		rootCGroupID := containerutils.CGroupID("/docker/" + testContainerID)
+		childCGroup := model.CGroupContext{
+			CGroupID:      containerutils.CGroupID("/docker/" + testContainerID + "/init.scope"),
+			CGroupPathKey: model.PathKey{Inode: 4243, MountID: 1},
+		}
+		m.resolvedCgroups = map[containerutils.CGroupID]struct{}{
+			rootCGroupID:         {},
+			childCGroup.CGroupID: {},
+		}
+		require.NoError(t, m.resolvers.CGroupResolver.RegisterListener(cgroup.CGroupDeleted, m.onCGroupDeleted))
+		require.NotNil(t, m.resolvers.CGroupResolver.Add(childCGroup))
+
+		p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		require.True(t, inserted)
+		require.Len(t, p.Instances, 1)
+
+		m.resolvers.CGroupResolver.Delete(childCGroup.CGroupPathKey.Inode)
+		assert.Len(t, p.Instances, 1)
+		assert.NotContains(t, m.resolvedCgroups, childCGroup.CGroupID)
+		assert.Contains(t, m.resolvedCgroups, rootCGroupID)
+		assert.NotContains(t, m.pendingProfileRemovals, testSelector)
+
+		nextEvent := newTestEventV2(model.DNSEventType, "v1", "new")
+		nextEvent.ProcessCacheEntry.Pid = 99
+		nextEvent.ProcessCacheEntry.FileEvent.Inode = 99
+		nextEvent.ProcessCacheEntry.CGroup.CGroupPathKey.Inode = 4242
+		_, inserted, _ = m.insertEventIntoProfile(nextEvent)
+		assert.True(t, inserted)
+		assert.Zero(t, m.insertionErrors[insertionErrorKey{eventType: model.DNSEventType, errorType: activity_tree.InsertionErrorProcessNodeNotCreated, outcome: insertionErrorDropped}].Load())
+
+		m.resolvers.CGroupResolver.Delete(4242)
+		assert.Empty(t, p.Instances)
+		assert.Empty(t, m.resolvedCgroups)
+		assert.Contains(t, m.pendingProfileRemovals, testSelector)
+	})
+
+	t.Run("inode fallback rejects deleted or mismatched cgroup entries", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+
+		otherCGroup := model.CGroupContext{
+			CGroupID:      "/docker/fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+			CGroupPathKey: model.PathKey{Inode: 9999, MountID: 1},
+		}
+		require.NotNil(t, m.resolvers.CGroupResolver.Add(otherCGroup))
+		m.resolvers.CGroupResolver.Delete(4242)
+
+		event := newTestEventV2(model.ExecEventType, "v1", "known")
+		event.ProcessContext.Process.CGroup.CGroupPathKey.Inode = 4242
+		assert.Nil(t, m.getOrCreateWorkload(event, testSelector, containerutils.ContainerID(testContainerID)))
+
+		event.ProcessContext.Process.CGroup.CGroupPathKey.Inode = otherCGroup.CGroupPathKey.Inode
+		assert.Nil(t, m.getOrCreateWorkload(event, testSelector, containerutils.ContainerID(testContainerID)))
+	})
 }
 
 // TestManagerV2_ProcessEventWithoutCWS verifies that without CWS, whatever the profile flags,
@@ -1173,6 +1550,176 @@ func TestManagerV2_ProcessEvent_capsPendingEventsTotal(t *testing.T) {
 	assert.Zero(t, m.tagResolutionCappedCgroup.Load())
 }
 
+func TestManagerV2_eventsWithError(t *testing.T) {
+	brokenLineage := &model.ErrProcessBrokenLineage{Err: errors.New("missing parent")}
+	countOf := func(m *ManagerV2, eventType model.EventType, errorType string, outcome string) uint64 {
+		return m.insertionErrors[insertionErrorKey{eventType: eventType, errorType: errorType, outcome: outcome}].Load()
+	}
+	total := func(m *ManagerV2) uint64 {
+		var total uint64
+		for _, count := range m.insertionErrors {
+			total += count.Load()
+		}
+		return total
+	}
+	// breakLineage makes the lineage of the event stop at its parent, which is the container shim on a host cgroup
+	// unless insideContainer is set
+	breakLineage := func(event *model.Event, insideContainer bool) {
+		event.ProcessCacheEntry.Ancestor.Pid = 41
+		if insideContainer {
+			event.ProcessCacheEntry.Ancestor.ContainerContext.ContainerID = testContainerID
+		} else {
+			event.ProcessCacheEntry.Ancestor.CGroup.CGroupID = "/system.slice/containerd.service"
+			event.ProcessCacheEntry.Ancestor.CGroup.CGroupPathKey = model.PathKey{Inode: 4141, MountID: 1}
+		}
+		event.Error = brokenLineage
+	}
+
+	t.Run("dropped before insertion", func(t *testing.T) {
+		m := newTagResolutionTestManagerV2(t, 10, 10)
+		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		event.Error = model.ErrNoProcessContext
+
+		m.ProcessEvent(event)
+
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorNoProcessContext, insertionErrorDropped))
+		assert.EqualValues(t, 1, total(m))
+		assert.Empty(t, m.profiles)
+		assert.Empty(t, m.resolvedCgroups)
+		assert.Empty(t, m.profilePendingEvents)
+	})
+
+	t.Run("broken lineage goes through", func(t *testing.T) {
+		m := newTagResolutionTestManagerV2(t, 10, 10)
+		event := newUntaggedTestEventV2(0)
+		event.Error = brokenLineage
+
+		m.ProcessEvent(event)
+
+		require.Contains(t, m.profilePendingEvents, untaggedTestCGroupID(0))
+		assert.Equal(t, 1, m.profilePendingEvents[untaggedTestCGroupID(0)].events.Len())
+		assert.Zero(t, total(m))
+	})
+
+	for _, tt := range []struct {
+		name  string
+		setup func(*model.Event)
+	}{
+		{"host process", func(e *model.Event) { e.ProcessContext.Process.ContainerContext.ContainerID = "" }},
+		{"untraced event type", func(e *model.Event) { e.Type = uint32(model.FileChmodEventType) }},
+		{"full DNS response with another error", func(e *model.Event) { e.Type = uint32(model.FullDNSResponseEventType) }},
+	} {
+		t.Run("not counted: "+tt.name, func(t *testing.T) {
+			m := newTagResolutionTestManagerV2(t, 10, 10)
+			event := newTestEventV2(model.FileOpenEventType, "v1", "known")
+			event.Error = model.ErrNoProcessContext
+			tt.setup(event)
+
+			m.ProcessEvent(event)
+
+			assert.Zero(t, total(m))
+		})
+	}
+
+	t.Run("undecoded full DNS response counted as dns", func(t *testing.T) {
+		m := newTagResolutionTestManagerV2(t, 10, 10)
+		event := newTestEventV2(model.FullDNSResponseEventType, "v1", "known")
+		event.Error = model.ErrFailedDNSPacketDecoding
+
+		m.ProcessEvent(event)
+
+		assert.EqualValues(t, 1, countOf(m, model.DNSEventType, activity_tree.InsertionErrorDNSDecoding, insertionErrorDropped))
+		assert.EqualValues(t, 1, total(m))
+	})
+
+	t.Run("dropped during insertion", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		event.Error = &path.ErrPathResolution{Err: errors.New("dentry not found")}
+
+		_, inserted, _ := m.insertEventIntoProfile(event)
+
+		assert.False(t, inserted)
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorPathResolution, insertionErrorDropped))
+		assert.EqualValues(t, 1, total(m))
+	})
+
+	t.Run("broken lineage outside of the container is kept", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		breakLineage(event, false)
+
+		p, inserted, _ := m.insertEventIntoProfile(event)
+
+		require.NotNil(t, p)
+		assert.True(t, inserted)
+		assert.NotNil(t, findTestEventNode(p, model.FileOpenEventType, "known"))
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorBrokenLineage, insertionErrorKept))
+		assert.Zero(t, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorBrokenLineage, insertionErrorDropped))
+	})
+
+	t.Run("broken lineage inside of the container is dropped", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		breakLineage(event, true)
+
+		_, inserted, _ := m.insertEventIntoProfile(event)
+
+		assert.False(t, inserted)
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorBrokenLineage, insertionErrorDropped))
+		assert.Zero(t, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorBrokenLineage, insertionErrorKept))
+		assert.EqualValues(t, 1, total(m))
+	})
+
+	t.Run("insertion failure unrelated to the error of the event", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.ExecEventType, "v1", "known")
+		event.Error = &path.ErrPathResolution{Err: errors.New("dentry not found")}
+		event.ProcessCacheEntry.Ancestor = nil
+
+		_, inserted, _ := m.insertEventIntoProfile(event)
+
+		assert.False(t, inserted)
+		assert.EqualValues(t, 1, countOf(m, model.ExecEventType, activity_tree.InsertionErrorBrokenLineage, insertionErrorDropped))
+		assert.EqualValues(t, 1, total(m))
+	})
+
+	t.Run("undecoded full DNS response failing insertion counted as dns", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.FullDNSResponseEventType, "v1", "known")
+		event.Error = model.ErrFailedDNSPacketDecoding
+
+		_, inserted, _ := m.insertEventIntoProfile(event)
+
+		assert.False(t, inserted)
+		assert.EqualValues(t, 1, countOf(m, model.DNSEventType, activity_tree.InsertionErrorDNSDecoding, insertionErrorDropped))
+		assert.EqualValues(t, 1, total(m))
+	})
+
+	t.Run("broken lineage inside of the container is kept for a known process", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		execTime := time.Now()
+		known := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		known.ProcessCacheEntry.Cookie = 42
+		known.ProcessCacheEntry.ExecTime = execTime
+		_, inserted, _ := m.insertEventIntoProfile(known)
+		require.True(t, inserted)
+
+		event := newTestEventV2(model.FileOpenEventType, "v1", "new")
+		event.ProcessCacheEntry.Cookie = 42
+		event.ProcessCacheEntry.ExecTime = execTime
+		breakLineage(event, true)
+
+		p, inserted, _ := m.insertEventIntoProfile(event)
+
+		require.NotNil(t, p)
+		assert.True(t, inserted)
+		assert.NotNil(t, findTestEventNode(p, model.FileOpenEventType, "new"))
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorBrokenLineage, insertionErrorKept))
+		assert.Zero(t, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorBrokenLineage, insertionErrorDropped))
+	})
+}
+
 func TestManagerV2_seedMountsForWorkload(t *testing.T) {
 	t.Run("skips seeding when mount event type is disabled", func(t *testing.T) {
 		const baseNs = uint32(4026531840)
@@ -1193,7 +1740,7 @@ func TestManagerV2_seedMountsForWorkload(t *testing.T) {
 		ev := newTestEventV2(model.FileOpenEventType, "v1", "known")
 		ev.ProcessCacheEntry.Process.MntNS = baseNs
 
-		p, inserted := m.insertEventIntoProfile(ev)
+		p, inserted, _ := m.insertEventIntoProfile(ev)
 		require.NotNil(t, p)
 		require.True(t, inserted)
 		assert.Empty(t, p.ActivityTree.Mounts)
@@ -1238,7 +1785,7 @@ func TestManagerV2_seedMountsForWorkload(t *testing.T) {
 		ev.ProcessCacheEntry = childEntry
 		ev.ProcessContext = &childEntry.ProcessContext
 
-		p, inserted := m.insertEventIntoProfile(ev)
+		p, inserted, _ := m.insertEventIntoProfile(ev)
 		require.NotNil(t, p)
 		require.True(t, inserted)
 
@@ -1295,7 +1842,7 @@ func TestManagerV2_seedMountsForWorkload(t *testing.T) {
 		ev.ProcessCacheEntry = childEntry
 		ev.ProcessContext = &childEntry.ProcessContext
 
-		p, inserted := m.insertEventIntoProfile(ev)
+		p, inserted, _ := m.insertEventIntoProfile(ev)
 		require.NotNil(t, p)
 		require.True(t, inserted)
 
@@ -1346,7 +1893,7 @@ func TestManagerV2_seedMountsForWorkload(t *testing.T) {
 		evDead.ProcessCacheEntry = deadChild
 		evDead.ProcessContext = &deadChild.ProcessContext
 
-		p, inserted := m.insertEventIntoProfile(evDead)
+		p, inserted, _ := m.insertEventIntoProfile(evDead)
 		require.NotNil(t, p)
 		require.True(t, inserted)
 
@@ -1372,7 +1919,7 @@ func TestManagerV2_seedMountsForWorkload(t *testing.T) {
 		evMount.ProcessCacheEntry = liveChild
 		evMount.ProcessContext = &liveChild.ProcessContext
 
-		p, inserted = m.insertEventIntoProfile(evMount)
+		p, inserted, _ = m.insertEventIntoProfile(evMount)
 		require.NotNil(t, p)
 		assert.True(t, inserted, "live mount event must not be pre-inserted as Snapshot during seeding")
 
@@ -1441,11 +1988,10 @@ func TestManagerV2_seedMountsForWorkload_maxSize(t *testing.T) {
 
 		selector, err := m.buildWorkloadSelector(ev)
 		require.NoError(t, err)
-		p, err := m.getOrCreateProfile(selector, ev)
-		require.NoError(t, err)
 		workload := m.getOrCreateWorkload(ev, selector, getWorkloadIDFromEvent(ev))
 		require.NotNil(t, workload)
-		m.linkWorkloadToProfile(p, workload)
+		p, err := m.getOrCreateProfile(selector, ev, workload)
+		require.NoError(t, err)
 		return m, p, workload, ev
 	}
 
@@ -1464,7 +2010,7 @@ func TestManagerV2_seedMountsForWorkload_maxSize(t *testing.T) {
 		assert.Less(t, len(p.ActivityTree.Mounts), mountCount, "seeding should stop once the profile reaches the max size")
 		assert.GreaterOrEqual(t, p.ComputeHeapSize(), int64(maxSize))
 
-		got, inserted := m.insertEventIntoProfile(ev)
+		got, inserted, _ := m.insertEventIntoProfile(ev)
 		assert.Nil(t, got)
 		assert.False(t, inserted)
 		assert.False(t, p.IsEnabled())
@@ -1483,11 +2029,468 @@ func TestManagerV2_seedMountsForWorkload_maxSize(t *testing.T) {
 			assert.True(t, mn.InBaseNamespace, "no foreign namespace mount should be seeded past the max size: %s", mn.MountPoint)
 		}
 
-		got, inserted := m.insertEventIntoProfile(ev)
+		got, inserted, _ := m.insertEventIntoProfile(ev)
 		assert.Nil(t, got)
 		assert.False(t, inserted)
 		assert.False(t, p.IsEnabled())
 		assert.True(t, p.ActivityTree.IsEmpty(), "a disabled profile drops its activity tree")
 		assert.Zero(t, p.ComputeHeapSize())
+	})
+}
+
+type subscribableFakeTagger struct {
+	tags map[types.EntityID][]string
+	ch   chan []types.EntityEvent
+}
+
+type fakeSubscription struct {
+	ch chan []types.EntityEvent
+}
+
+func (s *fakeSubscription) EventsChan() chan []types.EntityEvent { return s.ch }
+func (s *fakeSubscription) ID() string                           { return "test" }
+func (s *fakeSubscription) Unsubscribe()                         {}
+
+func (f *subscribableFakeTagger) Tag(id types.EntityID, _ types.TagCardinality) ([]string, error) {
+	return f.tags[id], nil
+}
+
+func (f *subscribableFakeTagger) GlobalTags(types.TagCardinality) ([]string, error) {
+	return nil, nil
+}
+
+func (f *subscribableFakeTagger) Subscribe(_ string, _ *types.Filter) (types.Subscription, error) {
+	return &fakeSubscription{ch: f.ch}, nil
+}
+
+func TestManagerV2_SubscriptionDrainsShortLivedContainerPendingEvents(t *testing.T) {
+	m, anomalies := newInsertionTestManagerV2(t)
+	m.config.RuntimeSecurity.RuntimeEnabled = true
+
+	tagger := &subscribableFakeTagger{
+		tags: make(map[types.EntityID][]string),
+		ch:   make(chan []types.EntityEvent, 4),
+	}
+	m.resolvers.TagsResolver = tags.NewResolver(0, tagger, m.resolvers.CGroupResolver, nil)
+
+	nopTriggered := make(chan struct{}, 4)
+	var failFirstNop atomic.Bool
+	failFirstNop.Store(true)
+	m.triggerNopEvent = func() error {
+		nopTriggered <- struct{}{}
+		if failFirstNop.CompareAndSwap(true, false) {
+			return assert.AnError
+		}
+		return nil
+	}
+
+	ctx := t.Context()
+	require.NoError(t, m.resolvers.TagsResolver.SubscribeContainerTags(ctx, "security-profile-v2", m.onTagsUpdated))
+
+	ev := newTestEventV2(model.ExecEventType, "v1", "known")
+	ev.ProcessContext.Process.ContainerContext.Tags = nil
+	m.ProcessEvent(ev)
+
+	require.Equal(t, uint64(1), m.queueSize.Load())
+	require.Equal(t, uint64(1), m.pendingProfiles.Load())
+	assert.Empty(t, m.profiles)
+
+	containerEntityID := types.NewEntityID(types.ContainerID, testContainerID)
+	imageEntityID := types.NewEntityID(types.ContainerImageMetadata, "sha256:testimage")
+
+	tagger.tags[containerEntityID] = []string{"image_name:" + testImageName, "image_id:sha256:testimage"}
+	tagger.ch <- []types.EntityEvent{{
+		EventType: types.EventTypeAdded,
+		Entity:    types.Entity{ID: containerEntityID},
+	}}
+
+	waitForNop := func() {
+		t.Helper()
+		select {
+		case <-nopTriggered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for nop wakeup")
+		}
+	}
+
+	waitForNop()
+	tagger.ch <- []types.EntityEvent{{
+		EventType: types.EventTypeModified,
+		Entity:    types.Entity{ID: containerEntityID},
+	}}
+	waitForNop()
+	m.DrainPendingEvents()
+	require.Equal(t, uint64(1), m.queueSize.Load(), "events must remain queued until image_tag is available")
+
+	m.nopWakeupPending.Store(true)
+	m.DrainPendingEvents()
+	assert.False(t, m.nopWakeupPending.Load())
+
+	cgce := m.resolvers.CGroupResolver.GetCacheEntryContainerID(containerutils.ContainerID(testContainerID))
+	require.NotNil(t, cgce)
+	m.resolvers.CGroupResolver.Delete(cgce.GetCGroupInode())
+	m.onCGroupDeleted(cgce)
+
+	tagger.tags[imageEntityID] = []string{"image_tag:v1"}
+	tagger.ch <- []types.EntityEvent{{
+		EventType: types.EventTypeAdded,
+		Entity:    types.Entity{ID: imageEntityID},
+	}}
+
+	waitForNop()
+	m.DrainPendingEvents()
+
+	require.Equal(t, uint64(0), m.queueSize.Load())
+	require.Equal(t, uint64(0), m.pendingProfiles.Load())
+	assert.Empty(t, m.resolvedCgroups)
+
+	p := m.profiles[testSelector]
+	require.NotNil(t, p)
+	assert.Empty(t, p.Instances)
+	assert.Contains(t, m.pendingProfileRemovals, testSelector)
+	assert.NotNil(t, findTestEventNode(p, model.ExecEventType, "known"))
+	require.Len(t, *anomalies, 1)
+	assert.Equal(t, p.Metadata.Name, (*anomalies)[0].SecurityProfileContext.Name)
+	assert.Contains(t, (*anomalies)[0].SecurityProfileContext.Tags, "image_tag:v1")
+}
+
+type lateFirstLookupTagger struct {
+	calls int
+	tags  []string
+}
+
+func (f *lateFirstLookupTagger) Tag(types.EntityID, types.TagCardinality) ([]string, error) {
+	f.calls++
+	if f.calls == 1 {
+		return nil, nil
+	}
+	return f.tags, nil
+}
+
+func (f *lateFirstLookupTagger) GlobalTags(types.TagCardinality) ([]string, error) {
+	return nil, nil
+}
+
+func TestManagerV2_ProcessEventDrainsWhenTagsResolveDuringInitialQueue(t *testing.T) {
+	m, _ := newInsertionTestManagerV2(t)
+	m.config.RuntimeSecurity.RuntimeEnabled = true
+
+	tagger := &lateFirstLookupTagger{
+		tags: []string{"image_name:" + testImageName, "image_tag:v1"},
+	}
+	m.resolvers.TagsResolver = tags.NewResolver(0, tagger, m.resolvers.CGroupResolver, nil)
+
+	ev := newTestEventV2(model.ExecEventType, "v1", "known")
+	ev.ProcessContext.Process.ContainerContext.Tags = nil
+	m.ProcessEvent(ev)
+
+	assert.Equal(t, uint64(0), m.queueSize.Load())
+	assert.Equal(t, uint64(0), m.pendingProfiles.Load())
+	assert.Contains(t, m.resolvedCgroups, ev.ProcessContext.Process.CGroup.CGroupID)
+	p := m.profiles[testSelector]
+	require.NotNil(t, p)
+	assert.NotNil(t, findTestEventNode(p, model.ExecEventType, "known"))
+}
+
+type fakeActivityDumpHandler struct {
+	err       error
+	persisted int
+}
+
+func (f *fakeActivityDumpHandler) HandleActivityDump(_ string, _ string, _ []byte, _ []byte) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.persisted++
+	return nil
+}
+
+func TestManagerV2_ActivityDumpCLI(t *testing.T) {
+	t.Run("list and stop by container ID, cgroup ID, and name", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		dir := t.TempDir()
+		localStorage, err := storage.NewDirectory(dir, 100)
+		require.NoError(t, err)
+		m.localStorage = localStorage
+		m.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout = 30 * time.Minute
+		m.configuredStorageRequests = perFormatStorageRequests([]config.StorageRequest{
+			config.NewStorageRequest(config.LocalStorage, config.Profile, false, dir),
+			config.NewStorageRequest(config.LocalStorage, config.JSON, false, dir),
+		})
+
+		secondContainerID := "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+		secondCGroupID := "/docker/" + secondContainerID
+		secondEntry := m.resolvers.CGroupResolver.Add(model.CGroupContext{
+			CGroupID:      containerutils.CGroupID(secondCGroupID),
+			CGroupPathKey: model.PathKey{Inode: 4243, MountID: 1},
+		})
+		require.NotNil(t, secondEntry)
+
+		p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		require.True(t, inserted)
+		require.NotNil(t, p)
+
+		secondEvent := newTestEventV2(model.ExecEventType, "v1", "new")
+		secondEvent.ProcessCacheEntry.ContainerContext.ContainerID = containerutils.ContainerID(secondContainerID)
+		_, inserted, _ = m.insertEventIntoProfile(secondEvent)
+		require.True(t, inserted)
+
+		listMsg, err := m.ListActivityDumps(&api.ActivityDumpListParams{})
+		require.NoError(t, err)
+		require.Len(t, listMsg.GetDumps(), 1)
+		assert.Equal(t, p.Metadata.Name, listMsg.GetDumps()[0].GetMetadata().GetName())
+		assert.Equal(t, secondContainerID, listMsg.GetDumps()[0].GetMetadata().GetContainerID())
+
+		for _, stopParams := range []*api.ActivityDumpStopParams{
+			{ContainerID: testContainerID},
+			{ContainerID: secondContainerID},
+			{CGroupID: "/docker/" + testContainerID},
+			{CGroupID: secondCGroupID},
+			{Name: p.Metadata.Name},
+		} {
+			stopMsg, err := m.StopActivityDump(stopParams)
+			require.NoError(t, err)
+			assert.Empty(t, stopMsg.GetError())
+		}
+		assert.False(t, p.HasAlreadyBeenSent(), "on-demand stop flush must not open the anomaly reporting window")
+
+		m.onCGroupDeleted(secondEntry)
+		listMsg, err = m.ListActivityDumps(&api.ActivityDumpListParams{})
+		require.NoError(t, err)
+		require.Len(t, listMsg.GetDumps(), 1)
+		assert.Equal(t, testContainerID, listMsg.GetDumps()[0].GetMetadata().GetContainerID())
+
+		_, err = m.StopActivityDump(&api.ActivityDumpStopParams{ContainerID: secondContainerID})
+		require.Error(t, err, "exited container must not match while another container of the image is active")
+
+		firstEntry := m.resolvers.CGroupResolver.GetCacheEntryContainerID(containerutils.ContainerID(testContainerID))
+		require.NotNil(t, firstEntry)
+		m.onCGroupDeleted(firstEntry)
+		stopMsg, err := m.StopActivityDump(&api.ActivityDumpStopParams{ContainerID: testContainerID})
+		require.NoError(t, err, "last exited container must still match during the cleanup grace window")
+		assert.Empty(t, stopMsg.GetError())
+
+		profilePath := filepath.Join(dir, p.Metadata.Name+"."+config.Profile.String())
+		jsonPath := filepath.Join(dir, p.Metadata.Name+"."+config.JSON.String())
+		_, err = os.Stat(profilePath)
+		require.NoError(t, err)
+		_, err = os.Stat(jsonPath)
+		require.NoError(t, err)
+	})
+
+	t.Run("validation, disabled manager, and partial storage errors", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		require.True(t, inserted)
+		require.NotNil(t, p)
+
+		stopMsg, err := m.StopActivityDump(&api.ActivityDumpStopParams{})
+		require.Error(t, err)
+		assert.Contains(t, stopMsg.GetError(), "you must specify one selector")
+
+		stopMsg, err = m.StopActivityDump(&api.ActivityDumpStopParams{ContainerID: "missing"})
+		require.Error(t, err)
+		assert.Contains(t, stopMsg.GetError(), "missing")
+
+		brokenDir := filepath.Join(t.TempDir(), "profiles")
+		localStorage, err := storage.NewDirectory(brokenDir, 100)
+		require.NoError(t, err)
+		require.NoError(t, os.Remove(brokenDir))
+		require.NoError(t, os.WriteFile(brokenDir, []byte("not-a-dir"), 0600))
+
+		remoteHandler := &fakeActivityDumpHandler{err: errors.New("remote down")}
+		remoteStorage, err := storage.NewActivityDumpRemoteStorageForwarder(remoteHandler)
+		require.NoError(t, err)
+
+		m.localStorage = localStorage
+		m.remoteStorage = remoteStorage
+		m.configuredStorageRequests = perFormatStorageRequests([]config.StorageRequest{
+			config.NewStorageRequest(config.LocalStorage, config.JSON, false, brokenDir),
+			config.NewStorageRequest(config.RemoteStorage, config.Profile, true, ""),
+		})
+
+		require.Error(t, m.persistProfile(p))
+		assert.False(t, p.HasAlreadyBeenSent(), "profile must not be marked sent when all storage backends fail")
+
+		remoteHandler.err = nil
+		stopMsg, err = m.StopActivityDump(&api.ActivityDumpStopParams{Name: p.Metadata.Name})
+		require.Error(t, err)
+		assert.NotEmpty(t, stopMsg.GetError())
+		assert.Equal(t, 1, remoteHandler.persisted, "remote storage must still be attempted when local storage fails")
+		assert.False(t, p.HasAlreadyBeenSent(), "on-demand stop must not mark profile as sent")
+
+		require.Error(t, m.persistProfile(p))
+		assert.Equal(t, 2, remoteHandler.persisted)
+		assert.True(t, p.HasAlreadyBeenSent(), "periodic persist marks profile sent when at least one backend succeeds")
+
+		m.config.RuntimeSecurity.SecurityProfileV2Enabled = false
+		_, err = m.ListActivityDumps(&api.ActivityDumpListParams{})
+		assert.ErrorIs(t, err, ErrSecurityProfileManagerDisabled)
+		_, err = m.StopActivityDump(&api.ActivityDumpStopParams{Name: p.Metadata.Name})
+		assert.ErrorIs(t, err, ErrSecurityProfileManagerDisabled)
+	})
+
+	t.Run("shutdown flushes local storage without remote upload", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		m.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout = 30 * time.Minute
+		dir := t.TempDir()
+		localStorage, err := storage.NewDirectory(dir, 100)
+		require.NoError(t, err)
+		remoteHandler := &fakeActivityDumpHandler{}
+		remoteStorage, err := storage.NewActivityDumpRemoteStorageForwarder(remoteHandler)
+		require.NoError(t, err)
+
+		m.localStorage = localStorage
+		m.remoteStorage = remoteStorage
+		m.configuredStorageRequests = perFormatStorageRequests([]config.StorageRequest{
+			config.NewStorageRequest(config.LocalStorage, config.Profile, false, dir),
+			config.NewStorageRequest(config.RemoteStorage, config.Profile, true, ""),
+		})
+
+		p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		require.True(t, inserted)
+		require.NotNil(t, p)
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		m.Start(ctx)
+
+		_, err = os.Stat(filepath.Join(dir, p.Metadata.Name+"."+config.Profile.String()))
+		require.NoError(t, err)
+		assert.Equal(t, 0, remoteHandler.persisted)
+		assert.False(t, p.HasAlreadyBeenSent())
+	})
+
+	t.Run("concurrent insert, list, and stop", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		dir := t.TempDir()
+		localStorage, err := storage.NewDirectory(dir, 100)
+		require.NoError(t, err)
+		m.localStorage = localStorage
+		m.configuredStorageRequests = perFormatStorageRequests([]config.StorageRequest{
+			config.NewStorageRequest(config.LocalStorage, config.Profile, false, dir),
+		})
+
+		secondContainerID := "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+		require.NotNil(t, m.resolvers.CGroupResolver.Add(model.CGroupContext{
+			CGroupID:      containerutils.CGroupID("/docker/" + secondContainerID),
+			CGroupPathKey: model.PathKey{Inode: 4244, MountID: 1},
+		}))
+
+		p, inserted, _ := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		require.True(t, inserted)
+		require.NotNil(t, p)
+
+		var wg sync.WaitGroup
+		wg.Add(3)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 20; i++ {
+				ev := newTestEventV2(model.ExecEventType, "v1", "known")
+				if i%2 == 1 {
+					ev.ProcessCacheEntry.ContainerContext.ContainerID = containerutils.ContainerID(secondContainerID)
+				}
+				m.insertEventIntoProfile(ev)
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 20; i++ {
+				_, err := m.ListActivityDumps(&api.ActivityDumpListParams{})
+				assert.NoError(t, err)
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 10; i++ {
+				_, err := m.StopActivityDump(&api.ActivityDumpStopParams{ContainerID: testContainerID})
+				assert.NoError(t, err)
+			}
+		}()
+		wg.Wait()
+	})
+}
+func TestManagerV2_cooldownExpiryHeap(t *testing.T) {
+	const cooldown = time.Minute
+	t0 := time.Now()
+
+	newManager := func(t *testing.T) (*ManagerV2, *lru.Cache[uint64, sampleCookieEntry]) {
+		t.Helper()
+		m, cookieMap := newTestManagerV2(t)
+		m.config = &config.Config{
+			RuntimeSecurity: &config.RuntimeSecurityConfig{
+				AnomalyDetectionEventCooldown: cooldown,
+			},
+		}
+		m.sampleMaps = map[model.EventType]*ebpf.Map{
+			model.FileOpenEventType: nil,
+		}
+		m.cooldownExpiries = make(map[*activity_tree.NodeBase]*cooldownExpiry)
+		return m, cookieMap
+	}
+
+	newNode := func(sentAt time.Time, cookie uint64, cookieMap *lru.Cache[uint64, sampleCookieEntry]) *activity_tree.NodeBase {
+		nb := activity_tree.NewNodeBase()
+		nb.RecordAnomalySent(sentAt)
+		cookieMap.Add(cookie, sampleCookieEntry{eventNodeBase: &nb})
+		return &nb
+	}
+
+	t.Run("pops expired nodes in order and updates rescheduled nodes", func(t *testing.T) {
+		m, cookieMap := newManager(t)
+		n1 := newNode(t0.Add(10*time.Second), 1, cookieMap)
+		n2 := newNode(t0, 2, cookieMap)
+		n3 := newNode(t0.Add(20*time.Second), 3, cookieMap)
+
+		m.scheduleCooldownExpiry(model.FileOpenEventType, []*activity_tree.NodeBase{n1, n2, n3}, t0)
+		require.Len(t, m.cooldownExpiryHeap, 3)
+
+		// Reschedule n2 after n3
+		n2.RecordAnomalySent(t0.Add(30 * time.Second))
+		m.scheduleCooldownExpiry(model.FileOpenEventType, []*activity_tree.NodeBase{n2}, t0.Add(30*time.Second))
+		require.Len(t, m.cooldownExpiryHeap, 3)
+		assert.Same(t, n1, m.cooldownExpiryHeap[0].node)
+
+		// Before any expiry: nothing is popped
+		m.expireCooldowns(t0.Add(cooldown + 5*time.Second))
+		assert.Len(t, m.cooldownExpiryHeap, 3)
+		assert.True(t, cookieMap.Contains(1))
+
+		// n1 expires first
+		m.expireCooldowns(t0.Add(cooldown + 15*time.Second))
+		assert.Len(t, m.cooldownExpiryHeap, 2)
+		assert.False(t, cookieMap.Contains(1))
+		assert.True(t, cookieMap.Contains(2))
+		assert.True(t, cookieMap.Contains(3))
+
+		// n3 expires before the rescheduled n2
+		m.expireCooldowns(t0.Add(cooldown + 25*time.Second))
+		assert.Len(t, m.cooldownExpiryHeap, 1)
+		assert.False(t, cookieMap.Contains(3))
+		assert.True(t, cookieMap.Contains(2))
+
+		// Rescheduled n2 expires last
+		m.expireCooldowns(t0.Add(cooldown + 35*time.Second))
+		assert.Empty(t, m.cooldownExpiryHeap)
+		assert.Empty(t, m.cooldownExpiries)
+		assert.False(t, cookieMap.Contains(2))
+	})
+
+	t.Run("retargets folded nodes in the heap", func(t *testing.T) {
+		m, cookieMap := newManager(t)
+		prof := profile.New()
+		from := newNode(t0, 1, cookieMap)
+		to := activity_tree.NewNodeBase()
+		to.RecordAnomalySent(t0.Add(20 * time.Second))
+		other := newNode(t0.Add(10*time.Second), 2, cookieMap)
+		cookieMap.Add(1, sampleCookieEntry{profile: prof, eventNodeBase: from})
+
+		m.scheduleCooldownExpiry(model.FileOpenEventType, []*activity_tree.NodeBase{from, other}, t0)
+		m.retargetSampleCookies(prof, map[*activity_tree.NodeBase]*activity_tree.NodeBase{from: &to})
+
+		assert.NotContains(t, m.cooldownExpiries, from)
+		assert.Contains(t, m.cooldownExpiries, &to)
+		require.Len(t, m.cooldownExpiryHeap, 2)
+		assert.Same(t, other, m.cooldownExpiryHeap[0].node)
 	})
 }

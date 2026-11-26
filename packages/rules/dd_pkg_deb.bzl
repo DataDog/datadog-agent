@@ -12,14 +12,9 @@ load("//bazel/tools/tar_checksums:tar_md5sums.bzl", "tar_md5sums")
 load("//packages/rules:description.bzl", "deb_description")
 load("//packages/rules:package_naming.bzl", "package_name_variables")
 
-# kwargs is mandatory for macros, even if you don't use it.
-# buildifier: disable=unused-variable
-def _dd_pkg_deb_impl(name, visibility, architecture, conflicts, depends, description, homepage, license, maintainer, out, package_file_name, postinst, postrm, preinst, prerm, priority, product_name, recommends, section, srcs, version, **kwargs):
-    variables_name = "%s_vars_" % name
-    package_name_variables(
-        name = variables_name,
-        product_name = product_name,
-    )
+def _deb_package(name, srcs, variables, tags, **kwargs):
+    if "no-cache" in (tags or []):
+        fail("%s: dd_pkg_deb already sets the no-cache tag" % name)
 
     data_tar = "%s_data_tar" % name
     pkg_tar(
@@ -27,7 +22,7 @@ def _dd_pkg_deb_impl(name, visibility, architecture, conflicts, depends, descrip
         srcs = srcs,
         out = "%s_data.tar" % name,
         owner = "0.0",
-        tags = ["manual"],
+        tags = ["manual", "no-cache"],
         visibility = ["//visibility:private"],
     )
 
@@ -39,7 +34,7 @@ def _dd_pkg_deb_impl(name, visibility, architecture, conflicts, depends, descrip
         # TODO: account for pipeline injected compression level.
         # https://datadoghq.atlassian.net/browse/ABLD-364
         level = get_compression_level(),
-        tags = ["manual"],
+        tags = ["manual", "no-cache"],
         visibility = ["//visibility:private"],
     )
 
@@ -50,46 +45,94 @@ def _dd_pkg_deb_impl(name, visibility, architecture, conflicts, depends, descrip
         src = ":" + data_tar,
         installed_size = size_out,
         md5sums = sums_out,
+        tags = ["no-cache"],
     )
 
     pkg_deb_impl(
         name = name,
-        architecture = architecture or "{arch_deb}",
-        conflicts = conflicts,
         data = ":" + data,
-        depends = depends,
+        installed_size_file = ":" + size_out,
+        md5sums = ":" + sums_out,
+        package_variables = ":" + variables,
+        tags = (tags or []) + ["no-cache"],
+        **kwargs
+    )
+
+_DBG_UNSET_ATTRS = {
+    "postinst": None,
+    "postrm": None,
+    "preinst": None,
+    "prerm": None,
+}
+
+def _dd_pkg_deb_impl(name, visibility, architecture, debug_symbols, description, homepage, license, maintainer, package_file_name, priority, product_name, section, srcs, version, **kwargs):
+    variables_name = "%s_vars_" % name
+    package_name_variables(
+        name = variables_name,
+        product_name = product_name,
+        tags = ["no-cache"],
+    )
+
+    common = dict(
+        architecture = architecture or "{arch_deb}",
         description = deb_description(description),
         homepage = homepage or "http://www.datadoghq.com",
-        installed_size_file = ":" + size_out,
         license = license or "Apache License Version 2.0",
         maintainer = maintainer or "Datadog Packages <package@datadoghq.com>",
-        md5sums = ":" + sums_out,
-        out = out,
-        package = "{product_name}",
-        package_file_name = package_file_name,
-        package_variables = ":" + variables_name,
-        postinst = postinst,
-        postrm = postrm,
-        preinst = preinst,
-        prerm = prerm,
         priority = priority or "extra",
-        recommends = recommends,
         section = section or "utils",
+        vendor = "Datadog <package@datadoghq.com>",
         version = version,
         visibility = visibility,
     )
 
+    _deb_package(
+        name = name,
+        srcs = srcs,
+        variables = variables_name,
+        package = "{product_name}",
+        package_file_name = package_file_name,
+        **(common | kwargs)
+    )
+
+    if not debug_symbols:
+        return
+
+    if not package_file_name.startswith("{product_name}"):
+        fail("debug_symbols requires package_file_name to start with {product_name}, got: " + package_file_name)
+
+    _deb_package(
+        name = "%s_dbg" % name,
+        srcs = [debug_symbols],
+        variables = variables_name,
+        package = "{product_name}-dbg",
+        package_file_name = "{product_name}-dbg" + package_file_name.removeprefix("{product_name}"),
+        **(common | kwargs | _DBG_UNSET_ATTRS | dict(
+            depends = ["{product_name} (= %s)" % version],
+            out = "%s_dbg.deb" % name,
+        ))
+    )
+
 dd_pkg_deb = macro(
-    doc = "Build a debian package",
+    doc = """Build a debian package.
+
+With debug_symbols, also build <name>_dbg: a {product_name}-dbg package holding
+debug_symbols, typically a get_debug_symbols target.
+""",
     inherit_attrs = pkg_deb_impl,
     implementation = _dd_pkg_deb_impl,
     attrs = {
         "data": None,
+        "debug_symbols": attr.label(
+            doc = "Debug symbols to put in a <name>_dbg package.",
+            configurable = False,
+        ),
         "description": attr.string(configurable = False),
         "installed_size": None,
         "installed_size_file": None,
         "md5sums": None,
         "package": None,
+        "package_file_name": attr.string(configurable = False),
         "package_variables": None,
         "product_name": attr.string(
             doc = "Unflavored product name. The flavor is added to it to form the package name.",
@@ -99,5 +142,7 @@ dd_pkg_deb = macro(
             doc = "Files to install, compressed with xz into the package's data archive.",
             mandatory = True,
         ),
+        "vendor": None,
+        "version": attr.string(configurable = False),
     },
 )

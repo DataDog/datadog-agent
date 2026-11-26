@@ -52,6 +52,11 @@ func generate(outputDir string) error {
 			return err
 		}
 	}
+	for _, lay := range darwinProcmgrEmbeddedLayouts {
+		if err := lay.writeFilesToSubdir(outputDir); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -149,6 +154,7 @@ func jobSetLaunchd(data launchdTemplateData) map[string][]byte {
 		"com.datadoghq.agent.plist":      mustRenderLaunchdJob("com.datadoghq.agent.plist", data),
 		"com.datadoghq.sysprobe.plist":   mustRenderLaunchdJob("com.datadoghq.sysprobe.plist", data),
 		"com.datadoghq.data-plane.plist": mustRenderLaunchdJob("com.datadoghq.data-plane.plist", data),
+		"com.datadoghq.installer.plist":  mustRenderLaunchdJob("com.datadoghq.installer.plist", data),
 	}
 }
 
@@ -338,3 +344,21 @@ var (
 		{subdir: "darwin", units: jobSetLaunchd(dataLaunchd)},
 	}
 )
+
+// darwinProcmgrCodegenData renders the macOS entries with their final paths.
+var darwinProcmgrCodegenData = installerTemplateData{
+	InstallDir: "/opt/datadog-agent",
+	EtcDir:     "/opt/datadog-agent/etc",
+	Stable:     true,
+}
+
+func darwinProcmgrYAMLSet() map[string][]byte {
+	return map[string][]byte{
+		"datadog-agent-sysprobe.yaml": mustRenderYAMLConfig("datadog-agent-sysprobe-darwin.yaml", darwinProcmgrCodegenData),
+	}
+}
+
+// A sibling of darwin/, not a child: launchdJobs embeds darwin/ and expects only job definitions.
+var darwinProcmgrEmbeddedLayouts = []embeddedLayout{
+	{subdir: "darwin-pm/processes.d", units: darwinProcmgrYAMLSet()},
+}

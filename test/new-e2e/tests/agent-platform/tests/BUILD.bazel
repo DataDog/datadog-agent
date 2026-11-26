@@ -18,6 +18,7 @@ dd_agent_go_test(
     tags = ["manual"],
     deps = [
         "//cmd/agent/macos",
+        "//pkg/fleet/installer/packages/embedded",
         "//pkg/util/testutil/flake",
         "//test/e2e-framework/components/os",
         "//test/e2e-framework/scenarios/aws/ec2",

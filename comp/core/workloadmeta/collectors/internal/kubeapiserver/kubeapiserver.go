@@ -66,8 +66,11 @@ func podsRequiredAtStartup(cfg config.Reader) bool {
 	metadataAsTags := configutils.GetMetadataAsTags(cfg)
 	return cfg.GetBool("cluster_agent.collect_kubernetes_tags") ||
 		cfg.GetBool("autoscaling.cluster.spot.enabled") ||
-		// The kube metadata stream sends each node the KAI PodGroups of its pods.
+		// The kube metadata stream sends each node the KAI PodGroups and Kueue
+		// Workloads of its pods, and the autoscalers of its workloads.
 		shouldHaveKAIMetadata(cfg) ||
+		shouldScopeKueueWorkloadsPerNode(cfg) ||
+		shouldHaveAutoscalerStores(cfg) ||
 		len(metadataAsTags.GetPodLabelsAsTags()) > 0 ||
 		len(metadataAsTags.GetPodAnnotationsAsTags()) > 0
 }
@@ -353,7 +356,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 				// Not added to objectStores: the PodGroups RBAC may be missing
 				// with older Helm charts or Operators, and it must not block
 				// readiness.
-				reflector, _ := newKAIPodGroupStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
+				reflector, _ := newKAIPodGroupStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr, c.config)
 				go reflector.Run(ctx.Done())
 			}
 		}

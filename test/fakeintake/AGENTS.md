@@ -39,6 +39,7 @@ test/fakeintake/
 | `/api/v1/connections` | ConnectionsAggregator | `GetConnections()` |
 | `/api/v1/container` | ContainerAggregator | `GetContainers()` |
 | `/api/v2/agentdiscovery` | AgentDiscoveryAggregator | `GetAgentDiscoveryPayloads()` |
+| `/api/v2/genresources` | GenResourcesAggregator | `GetGenResources()` / `FilterGenResources()` |
 | `/api/v2/sdsresult` | SDSResultAggregator | `GetSDSResults()` |
 | `/api/v2/contimage` | ContainerImageAggregator | `GetContainerImageNames()` / `FilterContainerImages()` |
 | `/api/v2/contlcycle` | ContainerLifecycleAggregator | `GetContainerLifecycleEvents()` |
@@ -85,6 +86,15 @@ fakeintake.FlushServerAndResetAggregators()
 // Debug: list all received metric names
 names, _ := fakeintake.GetMetricNames()
 ```
+
+## In-process use in a `testing/synctest` bubble
+
+A test can run fakeintake in-process with `server.NewServer`. In a `testing/synctest` bubble, network I/O
+keeps the bubble from becoming idle, so serve and query fakeintake over an in-memory listener instead:
+`server.WithListener(listener, url)` makes the server accept connections from `listener`, with `url` the HTTP
+origin its clients reach it at, and `client.WithHTTPTransport(transport)` sends every client request,
+control requests included, with a transport dialing that listener. See
+`client/in_memory_listener_test.go`.
 
 ## Private Action Runner
 
@@ -209,6 +219,9 @@ $FAKEINTAKECTL --url http://127.0.0.1:8080 get metric names
 $FAKEINTAKECTL --url http://127.0.0.1:8080 get sketch names
 $FAKEINTAKECTL --url http://127.0.0.1:8080 get histogram names
 $FAKEINTAKECTL --url http://127.0.0.1:8080 route-stats
+
+# Inspect generic resource events:
+$FAKEINTAKECTL --url http://127.0.0.1:8080 get genresources
 
 # Reset state between assertions:
 $FAKEINTAKECTL --url http://127.0.0.1:8080 flush

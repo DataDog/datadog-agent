@@ -16,6 +16,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
@@ -49,6 +50,16 @@ type Endpoint struct {
 
 	// IsMRF determines whether this is a Multi-Region Failover endpoint.
 	IsMRF bool `mapstructure:"-" json:"-"`
+
+	// HasPendingDelegatedAuth marks an endpoint whose only configured keys are DELA[...]
+	// directives still waiting for the delegatedauth component to write back a resolved
+	// API key. APIKey is empty for such endpoints; writers hold payloads for them until
+	// the key arrives.
+	HasPendingDelegatedAuth bool `mapstructure:"-" json:"-"`
+
+	// APIKeyConfigIndex identifies this key's slot in the additional-endpoint host's
+	// key list. Nil for endpoints that do not subscribe to that setting.
+	APIKeyConfigIndex *int `mapstructure:"-" json:"-"`
 }
 
 // TelemetryEndpointPrefix specifies the prefix of the telemetry endpoint URL.
@@ -399,6 +410,12 @@ type AgentConfig struct {
 	// configuration file, if present.
 	Endpoints []*Endpoint
 
+	// OnAdditionalEndpointsUpdate, when set, subscribes cb to runtime changes of the
+	// apm_config.additional_endpoints setting (e.g. delegated-auth key writeback), delivering
+	// the host and its current API keys in config order. Keys are trimmed and pending
+	// DELA[...] slots are empty. Nil means runtime updates are unavailable.
+	OnAdditionalEndpointsUpdate func(cb func(host string, apiKeys []string)) `json:"-"`
+
 	// SkipMainEndpoint makes the trace and stats writers skip the main endpoint
 	// (Endpoints[0], derived from api_key and apm_config.apm_dd_url) and send
 	// only to the endpoints configured through apm_config.additional_endpoints
@@ -459,8 +476,6 @@ type AgentConfig struct {
 	WindowsPipeName        string
 	PipeBufferSize         int
 	PipeSecurityDescriptor string
-
-	GUIPort string // the port of the Datadog Agent GUI (for control access)
 
 	// Writers
 	SynchronousFlushing     bool // Mode where traces are only submitted when FlushAsync is called, used for Serverless Extension
@@ -635,7 +650,10 @@ type AgentConfig struct {
 	IPCTLSServerConfig *tls.Config `json:"-"`
 
 	MRFFailoverAPMDefault bool
-	MRFFailoverAPMRC      *bool // failover_apm set by remoteconfig. `nil` if not configured
+	// MRFFailoverAPMRC is failover_apm set by remote config, `nil` if not configured.
+	// Set it with SetMRFFailoverAPMRC: MRFFailoverAPM reads it on the request and
+	// send paths while remote config updates it.
+	MRFFailoverAPMRC *bool
 
 	// DebugV1Payloads enables debug logging for V1 payloads when they fail to decode
 	DebugV1Payloads bool
@@ -736,7 +754,6 @@ func New() *AgentConfig {
 		},
 		PipeBufferSize:         1_000_000,
 		PipeSecurityDescriptor: "D:AI(A;;GA;;;WD)",
-		GUIPort:                "5002",
 
 		StatsWriter:             new(WriterConfig),
 		TraceWriter:             new(WriterConfig),
@@ -859,7 +876,8 @@ func (c *AgentConfig) WriterEndpoints() []*Endpoint {
 // would receive traces and stats, taking SkipMainEndpoint into account.
 func (c *AgentConfig) HasWriterDestination() bool {
 	for _, e := range c.WriterEndpoints() {
-		if e != nil && !e.IsMRF && e.Host != "" && e.APIKey != "" {
+		// A pending delegated-auth endpoint counts: a key is on its way.
+		if e != nil && !e.IsMRF && e.Host != "" && (e.APIKey != "" || e.HasPendingDelegatedAuth) {
 			return true
 		}
 	}
@@ -914,12 +932,29 @@ func (c *AgentConfig) AllFeatures() []string {
 	return feats
 }
 
+// mrfFailoverAPMMu protects AgentConfig.MRFFailoverAPMRC. It is a package-level
+// lock, not a field, because AgentConfig is copied by value (for example to
+// publish a scrubbed copy of the config).
+var mrfFailoverAPMMu sync.RWMutex
+
 // MRFFailoverAPM determines whether APM data should be failed over to the secondary (MRF) DC.
 func (c *AgentConfig) MRFFailoverAPM() bool {
-	if c.MRFFailoverAPMRC != nil {
-		return *c.MRFFailoverAPMRC
+	mrfFailoverAPMMu.RLock()
+	rc := c.MRFFailoverAPMRC
+	mrfFailoverAPMMu.RUnlock()
+	if rc != nil {
+		return *rc
 	}
 	return c.MRFFailoverAPMDefault
+}
+
+// SetMRFFailoverAPMRC sets the failover_apm value received through remote config.
+// nil means that remote config does not set it. It is safe to call while
+// MRFFailoverAPM runs on other goroutines.
+func (c *AgentConfig) SetMRFFailoverAPMRC(v *bool) {
+	mrfFailoverAPMMu.Lock()
+	c.MRFFailoverAPMRC = v
+	mrfFailoverAPMMu.Unlock()
 }
 
 // ConfiguredPeerTags returns the set of peer tags that should be used

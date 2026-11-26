@@ -5,8 +5,15 @@
 #   1. list-active-branches — find release branches with automated backport-PR labels
 #   2. assess               — Claude reads the merged diff + candidate branches, decides if/where to
 #                              backport (sandboxed: no repo write access, no id-token)
-#   3. apply-labels         — validates Claude's output, applies backport/<branch> label(s) with a
-#                              dd-octo-sts token so backport-pr.yml's `labeled` trigger fires
+#   3. ask-owner            — validates Claude's output, then `dda inv github.ask-backport-owner` DMs
+#                              the PR owner on Slack with one button per candidate branch and listens
+#                              (Socket Mode, no public endpoint) for up to 2h. Nothing is applied
+#                              unless the owner clicks *Apply selection*
+#   4. apply-labels         — applies the confirmed backport/<branch> labels with a dd-octo-sts token
+#                              so backport-pr.yml's `labeled` trigger fires
+#
+# To try the Slack flow locally (same message, no label applied):
+#   dda inv github.ask-backport-owner --pr-id <n> --branches 7.85.x,7.86.x --ttl 600
 #
 # `gh label list --search` does unanchored fuzzy text search, not a prefix/regex filter (e.g.
 # `--search "backport/7"` also matches `backport/6.53.x`), so active branches are resolved here by
@@ -31,8 +38,10 @@ jobs:
     name: List active release branches
     if: github.event.pull_request.merged && github.event.pull_request.head.repo.full_name == github.repository && !contains(github.event.pull_request.user.login, '[bot]') && !contains(join(github.event.pull_request.labels.*.name, ','), 'backport/')
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
+      issues: read # listLabelsForRepo; anonymous access only works on public repos
     outputs:
       branches: ${{ steps.list.outputs.branches }}
     steps:
@@ -63,7 +72,7 @@ jobs:
     needs: list-active-branches
     if: needs.list-active-branches.outputs.branches != '[]'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     permissions:
       contents: read
       actions: read
@@ -95,7 +104,7 @@ jobs:
           git diff "${MERGE_COMMIT_SHA}^1" "${MERGE_COMMIT_SHA}" > pr.diff
 
       - name: Assess backport need
-        uses: anthropics/claude-code-action@4845bacbb38b3c4b15d948f035349786f678e068 # v1.0.267
+        uses: anthropics/claude-code-action@e5812cd75691ca7bbfc57c0ecf4441db3a1ab7dd # v1.0.281
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -162,13 +171,27 @@ jobs:
           path: claude.txt
           retention-days: 1
 
-  apply-labels:
-    name: Apply backport labels
+
+  ask-owner:
+    name: Ask PR owner about backport via Slack
     needs: [list-active-branches, assess]
     if: always() && needs.assess.result == 'success'
     runs-on: ubuntu-latest
+    # Covers the 2h button TTL plus overhead; the Slack listener is the long pole.
+    timeout-minutes: 135
+    # No environment here: environment branch rules are matched against GITHUB_REF, which is
+    # refs/pull/<n>/merge on pull_request events, so a main-only environment would refuse this job.
+    # Both Slack tokens are repo-level secrets of the same Slack app:
+    #   SLACK_DATADOG_AGENT_BOT_TOKEN  bot scopes chat:write, im:write, users:read.email
+    #   SLACK_BACKPORT_APP_TOKEN       app-level token with connections:write (Socket Mode)
     permissions:
-      id-token: write # for dd-octo-sts
+      contents: read
+      pull-requests: read # resolve the PR owner's email from their commits
+    outputs:
+      outcome: ${{ steps.slack.outputs.outcome }}
+      branches: ${{ steps.slack.outputs.branches }}
+      confidence: ${{ steps.validate.outputs.confidence }}
+      explanation: ${{ steps.validate.outputs.explanation }}
     steps:
       - name: Download analysis output
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -199,7 +222,7 @@ jobs:
 
             # Keep only branches that are both well-formed and in the active set — never trust
             # the model to name a branch outside what list-active-branches already vetted.
-            IFS=',' read -ra ACTIVE_ARR <<< "$(echo "$ACTIVE_BRANCHES" | tr -d '[]"')"
+            IFS=',' read -ra ACTIVE_ARR <<< "$(echo "$ACTIVE_BRANCHES" | tr -d '[]\"')"
             IFS=',' read -ra CANDIDATE_ARR <<< "$BRANCHES"
             valid=()
             for b in "${CANDIDATE_ARR[@]}"; do
@@ -226,29 +249,77 @@ jobs:
       - name: Fail on unsafe Claude output
         if: steps.validate.outputs.safe != 'true'
         run: |
-          echo "Claude output failed safety check — aborting label application."
+          echo "Claude output failed safety check — aborting."
           exit 1
 
-      - name: Get GitHub token
+      - name: Checkout repository
         if: steps.validate.outputs.needed == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          sparse-checkout: |
+            .gitlab-ci.yml
+            .github/CODEOWNERS
+            .github/actions
+            tasks
+          persist-credentials: false
+
+      - name: Install dda
+        if: steps.validate.outputs.needed == 'true'
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
+
+      - name: Ask the PR owner via Slack buttons
+        id: slack
+        if: steps.validate.outputs.needed == 'true'
+        env:
+          SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+          SLACK_BACKPORT_APP_TOKEN: ${{ secrets.SLACK_BACKPORT_APP_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BRANCHES: ${{ steps.validate.outputs.branches }}
+          EXPLANATION: ${{ steps.validate.outputs.explanation }}
+          CONFIDENCE: ${{ steps.validate.outputs.confidence }}
+        run: |
+          dda inv -- -e github.ask-backport-owner --pr-id="${PR_NUMBER}" --branches="${BRANCHES}" \
+            --explanation="${EXPLANATION}" --confidence="${CONFIDENCE}" --ttl=7200
+
+  # Separate from ask-owner on purpose: a job that uses an environment gets an OIDC subject of
+  # repo:<repo>:environment:<name>, which the pull_request-scoped dd-octo-sts policy would reject.
+  # This job is also the only one holding a token able to write to the repository.
+  apply-labels:
+    name: Apply backport labels
+    needs: ask-owner
+    if: needs.ask-owner.outputs.outcome == 'add'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      id-token: write # for dd-octo-sts
+    steps:
+      - name: Get GitHub token
         uses: DataDog/dd-octo-sts-action@c85802a58e202b7e764b5441e4378c76043c8108 # v1.0.5
         id: octo-sts
         with:
-          scope: DataDog/datadog-agent
+          scope: ${{ github.repository }}
           policy: self.assess-backport.label-pr
 
       - name: Apply backport labels
-        if: steps.validate.outputs.needed == 'true'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          BRANCHES: ${{ steps.validate.outputs.branches }}
-          CONFIDENCE: ${{ steps.validate.outputs.confidence }}
-          EXPLANATION: ${{ steps.validate.outputs.explanation }}
+          BRANCHES: ${{ needs.ask-owner.outputs.branches }}
+          CONFIDENCE: ${{ needs.ask-owner.outputs.confidence }}
+          EXPLANATION: ${{ needs.ask-owner.outputs.explanation }}
         with:
           github-token: ${{ steps.octo-sts.outputs.token }}
           script: |
-            const branches = process.env.BRANCHES.split(',').filter(Boolean);
+            // Never trust more than well-formed release branches, whatever the previous job returned.
+            const branches = process.env.BRANCHES.split(',').filter(b => /^\d+\.\d+\.x$/.test(b));
+            if (branches.length === 0) {
+              core.info('No branch to label.');
+              return;
+            }
             const labels = branches.map(b => `backport/${b}`);
 
             await github.rest.issues.addLabels({
@@ -263,7 +334,7 @@ jobs:
               repo: context.repo.repo,
               issue_number: Number(process.env.PR_NUMBER),
               body: [
-                `🤖 Backport assessment: applied ${labels.map(l => `\`${l}\``).join(', ')} `
+                `🤖 Backport assessment: the PR owner confirmed ${labels.map(l => `\`${l}\``).join(', ')} `
                   + `(confidence: ${process.env.CONFIDENCE}).`,
                 '',
                 process.env.EXPLANATION,

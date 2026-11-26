@@ -7,8 +7,9 @@
 package converterimpl
 
 var (
-	// cumulativetodelta
-	cumulativeToDeltaName         = "cumulativetodelta"
+	// cumulative_to_delta, injected under its current name rather than the
+	// deprecated cumulativetodelta alias, which the collector warns about.
+	cumulativeToDeltaName         = "cumulative_to_delta"
 	cumulativeToDeltaEnhancedName = cumulativeToDeltaName + "/" + ddAutoconfiguredSuffix
 	// cumulativeToDeltaConfig is left nil so the processor uses its default config,
 	// which converts ALL cumulative metric types (sum + histogram + exponentialhistogram)

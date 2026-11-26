@@ -8,6 +8,7 @@ load(
     "pkg_files",
     "pkg_mkdirs",
 )
+load("//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("//compliance:package_licenses.bzl", "package_licenses")
 load("//packages/rules:agent_path.bzl", "etc_dir")
 load("//packages/rules:dd_pkg_deb.bzl", "dd_pkg_deb")
@@ -37,10 +38,21 @@ pkg_files(
     renames = {"//cmd/iot-agent": "agent"},
 )
 
+dd_collect_dependencies(
+    name = "_collected_libs",
+    srcs = ["//cmd/iot-agent"],
+)
+
+pkg_filegroup(
+    name = "collected_libs",
+    srcs = [":_collected_libs"],
+)
+
 # Everything that lands under /opt/datadog-agent.
 pkg_filegroup(
     name = "all_files",
     srcs = [
+        ":collected_libs",
         ":dirs",
         ":iot_agent_binary",
     ],
@@ -63,7 +75,7 @@ pkg_filegroup(
     prefix = "$(install_dir)",
 )
 
-# iot_files, example_config, and system_dirs already carry their own
+# iot_files, example_config, and log_dir already carry their own
 # absolute-style prefix (etc/datadog-agent, var/log/datadog), so they must
 # stay outside of the install dir prefix applied above.
 pkg_filegroup(
@@ -71,8 +83,8 @@ pkg_filegroup(
     srcs = [
         ":everything",
         ":example_config",
-        ":system_dirs",
         "//cmd/agent/dist/conf.d:iot_files",
+        "//packages:log_dir",
     ],
 )
 
@@ -210,11 +222,4 @@ pkg_install(
         ":example_config",
         "//cmd/agent/dist/conf.d:iot_files",
     ],
-)
-
-# System directories required by the iot-agent but outside the install prefix.
-pkg_mkdirs(
-    name = "system_dirs",
-    attributes = pkg_attributes(mode = "0775"),
-    dirs = ["var/log/datadog"],
 )

@@ -9,7 +9,7 @@ package module
 
 /*
 #cgo CFLAGS:  -I${SRCDIR}/rust/include
-#cgo LDFLAGS: -L${SRCDIR}/rust -L${SRCDIR}/rust/target/release -ldd_discovery
+#cgo LDFLAGS: ${SRCDIR}/rust/libdd_discovery.a
 
 #include "dd_discovery.h"
 

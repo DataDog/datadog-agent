@@ -8,6 +8,7 @@ package kindvm
 import (
 	_ "embed"
 	"errors"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
@@ -33,6 +34,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/argorollouts"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/cilium"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/mokka"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/vpa"
 	resAws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -74,6 +76,10 @@ func Run(ctx *pulumi.Context) error {
 func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.KubernetesOutputs, params *RunParams) error {
 	if len(params.preAgentWorkloadAppFuncs) > 0 && params.standaloneDdotFunc != nil {
 		return errors.New("pre-agent workloads are not supported with a standalone OTel Agent")
+	}
+	if len(params.mokkaInstallations) > 0 && params.deployOperator {
+		// The Agent values Mokka needs (mokka.AgentHelmValues) are only applied to the Helm-deployed Agent.
+		return errors.New("WithMokka is only supported with the Helm-deployed Agent, not with WithDeployOperator")
 	}
 
 	var err error
@@ -181,7 +187,26 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 		dependsOnArgoRollout = utils.PulumiDependsOn(argoHelm)
 	}
 
-	preAgentWorkloads := make([]pulumi.Resource, 0, len(params.preAgentWorkloadAppFuncs))
+	preAgentWorkloads := make([]pulumi.Resource, 0, len(params.preAgentWorkloadAppFuncs)+len(params.mokkaInstallations))
+	// Mokka must be running before the Agent starts: its NRI plugin only injects the mock GPU
+	// driver into containers created after it, so it is handled like a pre-Agent workload.
+	mokkaNames := make(map[string]struct{}, len(params.mokkaInstallations))
+	for _, mokkaOpts := range params.mokkaInstallations {
+		mokkaParams, err := mokka.NewParams(mokkaOpts...)
+		if err != nil {
+			return err
+		}
+		// Fail here with the cause, instead of a Pulumi duplicate URN error from the second install.
+		if _, duplicate := mokkaNames[mokkaParams.Name]; duplicate {
+			return fmt.Errorf("several WithMokka installations are named %q: give each one its own mokka.WithName", mokkaParams.Name)
+		}
+		mokkaNames[mokkaParams.Name] = struct{}{}
+		mokkaComp, err := mokka.NewInstallation(&awsEnv, mokkaParams, kubeProvider)
+		if err != nil {
+			return err
+		}
+		preAgentWorkloads = append(preAgentWorkloads, mokkaComp)
+	}
 	for _, appFunc := range params.preAgentWorkloadAppFuncs {
 		workload, err := appFunc(&awsEnv, kubeProvider)
 		if err != nil {
@@ -210,7 +235,13 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 		newOpts := []kubernetesagentparams.Option{
 			kubernetesagentparams.WithHelmValues(agentHelmValues),
 			kubernetesagentparams.WithClusterName(kindCluster.ClusterName),
-			kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}),
+			// Use the cluster name for the stackid tag instead of ctx.Stack(): the cluster name is
+			// truncated when the stack name is long, and the tests match the tag against it.
+			kubernetesagentparams.WithStackIDTag(kindCluster.ClusterName),
+		}
+		if len(params.mokkaInstallations) > 0 {
+			// Before the test options, so that a suite can still override these values.
+			newOpts = append(newOpts, kubernetesagentparams.WithHelmValues(mokka.AgentHelmValues()))
 		}
 		params.agentOptions = append(newOpts, params.agentOptions...)
 		agent, err := helm.NewKubernetesAgent(&awsEnv, "kind", kubeProvider, params.agentOptions...)

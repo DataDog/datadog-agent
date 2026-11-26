@@ -23,6 +23,10 @@
 
 #include "protocols/tls/tls-certs.h"
 
+#ifdef COMPILE_RUNTIME
+#include <net/tcp.h> // struct tcp_skb_cb
+#endif
+
 SEC("socket/classifier_entry")
 int socket__classifier_entry(struct __sk_buff *skb) {
     protocol_classifier_entrypoint(skb);
@@ -213,12 +217,15 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
 
     // connection timeouts will have 0 pids as they are cleaned up by an idle process.
-    // resets can also have kernel pids are they are triggered by receiving an RST packet from the server
-    // get the pid from the ongoing failure map in this case, as it should have been set in connect(). else bail
+    // resets can also have kernel pids as they are triggered by receiving an RST packet from the peer
+    // get the pid from tcp_ongoing_connect_pid instead, which tcp_connect (client side) or
+    // inet_csk_accept (server side) set. else bail
     pid_ts_t *failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp_conn);
     if (failed_conn_pid) {
-        bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
+        // read the pid before deleting: preallocated elements are reused without an RCU grace
+        // period, so this narrows (but doesn't close) the race with a concurrent delete
         t.pid = GET_USER_MODE_PID(failed_conn_pid->pid_tgid);
+        bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
     } else {
         increment_telemetry_count(tcp_done_missing_pid);
         return 0;
@@ -228,6 +235,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
         return 0;
     }
 
+    clean_skb_tuple_protocol_classification(&t);
     if (cleanup_conn(ctx, &t, sk) == 0) {
         increment_telemetry_count(tcp_done_connection_flush);
     }
@@ -250,7 +258,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
     // If protocol classification is disabled, then we don't have kretprobe__tcp_close_clean_protocols hook
     // so, there is no one to use the map and clean it.
     if (is_protocol_classification_supported()) {
-        bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &t, BPF_ANY);
+        store_tcp_close_args(pid_tgid, &t);
     }
 
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
@@ -267,13 +275,37 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
     return 0;
 }
 
+// tcp_disconnect zeroes the destination port and source address, so tcp_close
+// can no longer read the tuple. Flush the connection here instead. When called
+// from tcp_close (SO_LINGER 0) the entries are already gone, so nothing is emitted.
+// A still-present tcp_ongoing_connect_pid entry means tcp_close hasn't reported
+// a failure yet, e.g. shutdown() cancelling a SYN_SENT connect.
+SEC("kprobe/tcp_disconnect")
+int BPF_BYPASSABLE_KPROBE(kprobe__tcp_disconnect, struct sock *sk) {
+    conn_tuple_t t = {};
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+    skp_conn.tup.pid = 0;
+    if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn) == 0) {
+        handle_tcp_failure(sk, &t);
+    }
+
+    if (cleanup_conn(ctx, &t, sk) == 0) {
+        increment_telemetry_count(tcp_close_connection_flush);
+    }
+    return 0;
+}
+
 SEC("kretprobe/tcp_close")
 int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_close_clean_protocols) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
-    conn_tuple_t *tup_ptr = (conn_tuple_t *)bpf_map_lookup_elem(&tcp_close_args, &pid_tgid);
-    if (tup_ptr) {
-        clean_protocol_classification(tup_ptr);
+    tcp_close_args_t *args = bpf_map_lookup_elem(&tcp_close_args, &pid_tgid);
+    if (args) {
+        clean_protocol_classification(args);
         bpf_map_delete_elem(&tcp_close_args, &pid_tgid);
     }
 
@@ -342,6 +374,9 @@ static __always_inline int handle_ip6_skb(struct sock *sk, size_t size, struct f
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
+        // The failed read may have set CONN_V6 from the socket's family, and
+        // CONN_V4 is 0 so OR-ing it in below can't clear that bit. Reset it.
+        t.metadata = CONN_TYPE_UDP;
 #ifdef COMPILE_PREBUILT
         if (!are_fl6_offsets_known()) {
             log_debug("ERR: src/dst addr not set, fl6 offsets are not known");
@@ -533,6 +568,12 @@ static __always_inline int handle_ip_skb(struct sock *sk, size_t size, struct fl
     u64 pid_tgid = bpf_get_current_pid_tgid();
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
+        // An AF_INET6 socket sending to an IPv4-mapped address goes through
+        // udp_sendmsg, so the failed read may have set CONN_V6 and the high
+        // address bits. The flow is IPv4: reset them.
+        t.metadata = CONN_TYPE_UDP | CONN_V4;
+        t.saddr_h = 0;
+        t.daddr_h = 0;
 #ifdef COMPILE_PREBUILT
         if (!are_fl4_offsets_known()) {
             log_debug("ERR: src/dst addr not set src:%llu,dst:%llu. fl4 offsets are not known", t.saddr_l, t.daddr_l);
@@ -637,12 +678,17 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__ip_make_skb, void *rc) {
 #define handle_udp_recvmsg(sk, msg, flags, udp_sock_map)                                                 \
     do {                                                                                                 \
         log_debug("kprobe/udp_recvmsg: flags: %x", flags);                                               \
+        u64 pid_tgid = bpf_get_current_pid_tgid();                                                       \
         if (flags & MSG_PEEK) {                                                                          \
+            /* The receive probes treat a missing entry as a peek. Before 4.13 the kernel */             \
+            /* passes a non-negative length to the skb free function even for a peek, so the */          \
+            /* entry is the only way to tell. Delete any entry a missed kretprobe left behind */         \
+            /* for this thread, or the peek would be counted as a receive. */                            \
+            bpf_map_delete_elem(&udp_sock_map, &pid_tgid);                                               \
             return 0;                                                                                    \
         }                                                                                                \
                                                                                                          \
         /* keep track of non-peeking calls, since skb_free_datagram_locked doesn't have that argument */ \
-        u64 pid_tgid = bpf_get_current_pid_tgid();                                                       \
         udp_recv_sock_t t = { .sk = sk, .msg = msg };                                                    \
         bpf_map_update_with_telemetry(udp_sock_map, &pid_tgid, &t, BPF_ANY);                             \
         return 0;                                                                                        \
@@ -825,45 +871,56 @@ int BPF_BYPASSABLE_KPROBE(kprobe__skb_consume_udp, struct sock *sk, struct sk_bu
     return handle_skb_consume_udp(sk, skb, len);
 }
 
+// pending_retransmit_key keys a tcp_retransmit_skb call by pid_tgid, and by CPU only when pid_tgid is 0.
+// Retransmits from timers on idle CPUs all run as pid_tgid 0, so without the CPU one call's return can pick
+// up another CPU's entry. A task's call can migrate CPUs before it returns, so its key uses the thread id
+// instead. No constant default: clang hoists one above the bypass stub, which then can't be injected.
+static __always_inline pending_retransmit_key_t pending_retransmit_key() {
+    pending_retransmit_key_t key = {};
+    key.pid_tgid = bpf_get_current_pid_tgid();
+    key.cpu = key.pid_tgid ? (u32)key.pid_tgid : bpf_get_smp_processor_id();
+    return key;
+}
+
 #ifdef COMPILE_PREBUILT
 
 SEC("kprobe/tcp_retransmit_skb")
 int BPF_BYPASSABLE_KPROBE(kprobe__tcp_retransmit_skb, struct sock *sk) {
     int segs = (int)PT_REGS_PARM3(ctx);
     log_debug("kprobe/tcp_retransmit: segs: %d", segs);
-    u64 pid_tgid = bpf_get_current_pid_tgid();
+    pending_retransmit_key_t key = pending_retransmit_key();
     tcp_retransmit_skb_args_t args = {};
     args.sk = sk;
     args.segs = segs;
-    bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &pid_tgid, &args, BPF_ANY);
+    bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &key, &args, BPF_ANY);
     return 0;
 }
 
 SEC("kprobe/tcp_retransmit_skb")
 int BPF_BYPASSABLE_KPROBE(kprobe__tcp_retransmit_skb_pre_4_7_0, struct sock *sk) {
     log_debug("kprobe/tcp_retransmit");
-    u64 pid_tgid = bpf_get_current_pid_tgid();
+    pending_retransmit_key_t key = pending_retransmit_key();
     tcp_retransmit_skb_args_t args = {};
     args.sk = sk;
     args.segs = 1;
-    bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &pid_tgid, &args, BPF_ANY);
+    bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &key, &args, BPF_ANY);
     return 0;
 }
 
 SEC("kretprobe/tcp_retransmit_skb")
 int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_retransmit_skb, int ret) {
-    __u64 pid_tgid = bpf_get_current_pid_tgid();
-    if (ret < 0) {
-        bpf_map_delete_elem(&pending_tcp_retransmit_skb, &pid_tgid);
+    pending_retransmit_key_t key = pending_retransmit_key();
+    if (ret != 0) {
+        bpf_map_delete_elem(&pending_tcp_retransmit_skb, &key);
         return 0;
     }
-    tcp_retransmit_skb_args_t *args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &pid_tgid);
+    tcp_retransmit_skb_args_t *args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &key);
     if (args == NULL) {
         return 0;
     }
     struct sock *sk = args->sk;
     int segs = args->segs;
-    bpf_map_delete_elem(&pending_tcp_retransmit_skb, &pid_tgid);
+    bpf_map_delete_elem(&pending_tcp_retransmit_skb, &key);
     log_debug("kretprobe/tcp_retransmit: segs: %d", segs);
     return handle_retransmit(sk, segs);
 }
@@ -872,35 +929,62 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_retransmit_skb, int ret) {
 
 #if defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
 
+// tcp_skb_pcount(): kernels before 3.18 keep the segment count in skb_shinfo(skb)->gso_segs,
+// not in tcp_skb_cb
+static __always_inline u16 skb_shinfo_gso_segs(struct sk_buff *skb) {
+    u16 segs = 0;
+    unsigned char *head = NULL;
+    u32 end = 0; // sk_buff_data_t is an offset from head on 64-bit kernels
+    BPF_CORE_READ_INTO(&head, skb, head);
+    BPF_CORE_READ_INTO(&end, skb, end);
+    BPF_CORE_READ_INTO(&segs, (struct skb_shared_info *)(head + end), gso_segs);
+    return segs;
+}
+
+static __always_inline u16 tcp_skb_segs(struct sk_buff *skb) {
+    u16 segs = 0;
+#ifdef COMPILE_CORE
+    if (!bpf_core_field_exists(struct tcp_skb_cb, tcp_gso_segs)) {
+        return skb_shinfo_gso_segs(skb);
+    }
+    BPF_CORE_READ_INTO(&segs, (struct tcp_skb_cb *)&skb->cb[0], tcp_gso_segs);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
+    BPF_CORE_READ_INTO(&segs, (struct tcp_skb_cb *)&skb->cb[0], tcp_gso_segs);
+#else
+    segs = skb_shinfo_gso_segs(skb);
+#endif
+    return segs;
+}
+
 SEC("kprobe/tcp_retransmit_skb")
-int BPF_BYPASSABLE_KPROBE(kprobe__tcp_retransmit_skb, struct sock *sk) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
+int BPF_BYPASSABLE_KPROBE(kprobe__tcp_retransmit_skb, struct sock *sk, struct sk_buff *skb) {
+    pending_retransmit_key_t key = pending_retransmit_key();
     tcp_retransmit_skb_args_t args = {};
     args.sk = sk;
-    args.segs = 0;
-    BPF_CORE_READ_INTO(&args.retrans_out_pre, tcp_sk(sk), retrans_out);
-    bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &pid_tgid, &args, BPF_ANY);
+    args.skb = skb;
+    bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &key, &args, BPF_ANY);
     return 0;
 }
 
 SEC("kretprobe/tcp_retransmit_skb")
 int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_retransmit_skb, int rc) {
     log_debug("kretprobe/tcp_retransmit");
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    if (rc < 0) {
-        bpf_map_delete_elem(&pending_tcp_retransmit_skb, &pid_tgid);
+    pending_retransmit_key_t key = pending_retransmit_key();
+    if (rc != 0) {
+        bpf_map_delete_elem(&pending_tcp_retransmit_skb, &key);
         return 0;
     }
-    tcp_retransmit_skb_args_t *args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &pid_tgid);
+    tcp_retransmit_skb_args_t *args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &key);
     if (args == NULL) {
         return 0;
     }
     struct sock *sk = args->sk;
-    u32 retrans_out_pre = args->retrans_out_pre;
-    bpf_map_delete_elem(&pending_tcp_retransmit_skb, &pid_tgid);
-    u32 retrans_out = 0;
-    BPF_CORE_READ_INTO(&retrans_out, tcp_sk(sk), retrans_out);
-    return handle_retransmit(sk, retrans_out - retrans_out_pre);
+    struct sk_buff *skb = args->skb;
+    bpf_map_delete_elem(&pending_tcp_retransmit_skb, &key);
+    // count the segments the call resent, as the fentry tracer does, not the change in
+    // retrans_out: that's a gauge, not a total, so the change between the two probes can be
+    // negative and wrap the count
+    return handle_retransmit(sk, tcp_skb_segs(skb));
 }
 
 // These kprobes fire from kernel timer/softirq context. The shared helpers
@@ -1092,15 +1176,22 @@ static __always_inline struct sock *sk_buff_sk(struct sk_buff *skb) {
     return sk;
 }
 
-static __always_inline int handle_net_dev_queue(struct sk_buff* skb) {
-    struct sock *sk = sk_buff_sk(skb);
+#ifdef COMPILE_CORE
+static __always_inline struct sock *sk_buff_sk_btf(struct sk_buff *skb) {
+    return skb->sk;
+}
+#endif
+
+// With btf set, skb must be a BTF-typed pointer (tp_btf argument).
+static __always_inline int handle_net_dev_queue(struct sk_buff* skb, const bool btf) {
+    struct sock *sk = BTF_OR_PROBE_READ(btf, sk_buff_sk, skb);
     if (!sk) {
         return 0;
     }
 
     conn_tuple_t skb_tup;
     bpf_memset(&skb_tup, 0, sizeof(conn_tuple_t));
-    if (sk_buff_to_tcp_tuple(skb, &skb_tup) <= 0) {
+    if (BTF_OR_PROBE_READ(btf, sk_buff_to_tcp_tuple, skb, &skb_tup) <= 0) {
         return 0;
     }
 
@@ -1110,29 +1201,48 @@ static __always_inline int handle_net_dev_queue(struct sk_buff* skb) {
 
     conn_tuple_t sock_tup;
     // netns and pid stay zero: the map is keyed without them.
-    if (!read_conn_tuple_no_netns(&sock_tup, sk, 0, CONN_TYPE_TCP)) {
+    if (!BTF_OR_PROBE_READ(btf, read_conn_tuple_no_netns, &sock_tup, sk, 0, CONN_TYPE_TCP)) {
         return 0;
     }
 
     if (!is_equal(&skb_tup, &sock_tup)) {
-        normalize_tuple(&skb_tup);
+        // the key is normalized, but the value keeps the packet's orientation, with the socket's end as the
+        // source: get_skb_tuple normalizes it and uses the orientation to tell the ends apart when the ports are
+        // equal.
+        // Look up first and write only when the entry is missing or differs, so the last value wins (a stale value,
+        // e.g. from a reused 4-tuple, doesn't stick) without a write on every egress packet: the lookup doesn't take
+        // the bucket lock that an update takes.
         normalize_tuple(&sock_tup);
-        // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
-        // and do not provide any useful signal since the key is expected to be present sometimes.
-        bpf_map_update_with_telemetry(conn_tuple_to_socket_skb_conn_tuple, &sock_tup, &skb_tup, BPF_NOEXIST, -EEXIST);
+        conn_tuple_t *cur = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &sock_tup);
+        if (!cur || !is_equal(cur, &skb_tup)) {
+            bpf_map_update_with_telemetry(conn_tuple_to_socket_skb_conn_tuple, &sock_tup, &skb_tup, BPF_ANY);
+        }
     }
 
     return 0;
 }
 
-SEC("raw_tracepoint/net/net_dev_queue")
-int BPF_PROG(raw_tracepoint__net__net_dev_queue, struct sk_buff *skb) {
-    CHECK_BPF_PROGRAM_BYPASSED()
+#ifdef COMPILE_CORE
+// Typed arguments let the verifier turn the skb and sock field reads into BPF_PROBE_MEM loads.
+SEC("tp_btf/net_dev_queue")
+int BPF_BYPASSABLE_PROG(tp_btf__net__net_dev_queue, struct sk_buff *skb) {
     if (!skb) {
         return 0;
     }
 
-    return handle_net_dev_queue(skb);
+    return handle_net_dev_queue(skb, true);
+}
+#endif
+
+// BPF_BYPASSABLE_PROG runs the bypass check before skb is loaded from ctx,
+// so the injected bypass instructions cannot clobber it.
+SEC("raw_tracepoint/net/net_dev_queue")
+int BPF_BYPASSABLE_PROG(raw_tracepoint__net__net_dev_queue, struct sk_buff *skb) {
+    if (!skb) {
+        return 0;
+    }
+
+    return handle_net_dev_queue(skb, false);
 }
 
 SEC("tracepoint/net/net_dev_queue")
@@ -1143,7 +1253,7 @@ int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
         return 0;
     }
 
-    return handle_net_dev_queue(skb);
+    return handle_net_dev_queue(skb, false);
 }
 
 // Kprobe fallback for kernels < 4.15 that don't support multiple tracepoint attachments
@@ -1169,7 +1279,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__dev_queue_xmit_nit, struct sk_buff *skb) {
         return 0;
     }
 
-    return handle_net_dev_queue(skb);
+    return handle_net_dev_queue(skb, false);
 }
 
 char _license[] SEC("license") = "GPL";

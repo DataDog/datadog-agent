@@ -56,6 +56,8 @@ COMMON_DEFINES = [
     "_GNU_SOURCE",
 ]
 
+COMMON_COPTS = ["-O2"]
+
 cc_library(
     name = "headers",
     hdrs = glob(["include/rpm/*.h"]),
@@ -99,6 +101,7 @@ cc_library(
 cc_library(
     name = "rpmpgp_legacy",
     srcs = ["@libpgpr//:rpm_intree_srcs"],
+    copts = COMMON_COPTS,
     implementation_deps = [
         ":config_h",
         ":headers",
@@ -137,6 +140,7 @@ cc_library(
         "rpmio/rpmvercmp.c",
         "rpmio/url.c",
     ],
+    copts = COMMON_COPTS,
     implementation_deps = [
         ":config_h",
         ":private_headers",
@@ -229,6 +233,7 @@ cc_library(
         "lib/transaction.c",
         "lib/verify.c",
     ],
+    copts = COMMON_COPTS,
     implementation_deps = [
         ":config_h",
         ":private_headers",
