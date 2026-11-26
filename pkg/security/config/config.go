@@ -466,7 +466,7 @@ type RuntimeSecurityConfig struct {
 
 	// description: EventSamplingDynamicEnabled defines if event sampling should adapt based on ring buffer pressure
 	// visibility: private
-	// default_value: false
+	// default_value: true
 	EventSamplingDynamicEnabled bool
 
 	// description: SecurityProfileEnabled defines if the Security Profile manager should be enabled
