@@ -12,20 +12,44 @@ The GPU package monitors CUDA applications by intercepting kernel launches, memo
 
 ```
 pkg/gpu/
-├── probe.go           # Main entry point, sets up eBPF uprobes
-├── consumer.go        # Reads events from eBPF ringbuffer
-├── stream.go          # StreamHandler processes events per CUDA stream
-├── stream_collection.go # Manages all stream handlers
-├── stats.go           # statsGenerator creates metrics from stream data
-├── aggregator.go      # Aggregates data from multiple streams per process
-├── context.go         # systemContext holds GPU device info, caches
-├── cuda/              # CUDA binary parsing (fatbin, cubin, symbols)
+├── probe/             # Kernel side, run by system-probe (eBPF): everything here triggers KMT in CI
+│   ├── probe.go           # Main entry point, sets up eBPF uprobes
+│   ├── consumer.go        # Reads events from eBPF ringbuffer
+│   ├── stream.go          # StreamHandler processes events per CUDA stream
+│   ├── stream_collection.go # Manages all stream handlers
+│   ├── stats.go           # statsGenerator creates metrics from stream data
+│   ├── aggregator.go      # Aggregates data from multiple streams per process
+│   ├── context.go         # systemContext holds GPU device info, caches
+│   ├── cuda/              # CUDA binary parsing (fatbin, cubin, symbols)
+│   ├── ebpf/              # eBPF program and types
+│   ├── testdata/          # CUDA sample programs and recorded event streams
+│   └── testutil/          # Probe test helpers: sample runners, recorded events, event-viewer
 ├── safenvml/          # Safe wrapper around NVML library
 ├── resources/         # GPU resource models and publication
-├── ebpf/              # eBPF program and types
 ├── containers/        # Container detection for GPU workloads
+├── testutil/          # NVML mocks and user-space test helpers
 └── config/            # Configuration
 ```
+
+### KMT (kernel matrix testing) and the `bpf` build tag
+
+- **What triggers KMT:** `pkg/gpu/probe/**` plus the `pkg/gpu` packages in the
+  dependency closure of the probe tests (`.system_probe_change_paths` in
+  `.gitlab-ci.yml`, which has the query to regenerate the list). Put any new package
+  the probe needs, and any test helper that needs eBPF, under `probe/`; keep NVML
+  and core-agent code out of it.
+- **What KMT runs:** only the `pkg/gpu/probe` package (`TEST_PACKAGES_LIST` in
+  `tasks/system_probe.py`), built with the `bpf` tag. Bazel never runs
+  `bpf`-tagged tests, so a `bpf`-tagged test runs only in KMT.
+- **Tag code by what it needs:** only files that use `bpf`-only symbols (eBPF
+  manager, uprobes, ring buffers: `probe.go`, `consumer.go`, `compile.go`,
+  `support_linux.go`) carry `bpf`. Stream, stats, aggregation, context and driver
+  event code is `linux && nvml`.
+- **Tag tests by what they need:** a test that doesn't need eBPF gets `!bpf` (for
+  example `//go:build linux && nvml && !bpf`). KMT builds with `bpf`, so it skips
+  the test, and the regular unit tests (Bazel `*_test_nvml` variants) run it. Keep
+  `bpf` only on tests that load or attach eBPF programs, or that use `bpf`-only
+  code. `TestMain` lives in `main_test.go` so both builds have it.
 
 ## Data Flow
 
@@ -33,7 +57,7 @@ pkg/gpu/
 1. Probe (probe.go)
    └── Sets up eBPF uprobes on CUDA library functions (cudaLaunchKernel, cudaMalloc, etc.)
 
-2. eBPF Program (ebpf/c/runtime/gpu.c)
+2. eBPF Program (probe/ebpf/c/runtime/gpu.c)
    └── Intercepts calls, sends events via ringbuffer
 
 3. Consumer (consumer.go)
@@ -208,7 +232,7 @@ require.Equal(t, stats.get, stats.put)  // Balanced get/put
 - Caches: visible devices per process, selected device per thread
 - `cudaKernelCache` for parsed CUDA binary info
 
-### CUDA Parsing (`cuda/`)
+### CUDA Parsing (`probe/cuda/`)
 - Parses fatbin/cubin embedded in CUDA binaries
 - Extracts kernel metadata (size, shared memory, etc.)
 - `KernelCache` loads kernel info asynchronously in background

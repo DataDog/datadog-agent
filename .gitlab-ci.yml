@@ -964,7 +964,15 @@ workflow:
   - pkg/security/**/*
   - pkg/util/kernel/**/*
   - pkg/dyninst/**/*
-  - pkg/gpu/**/*
+  # GPU monitoring: pkg/gpu/probe (eBPF probe, its eBPF programs, CUDA parsing, test helpers) and every pkg/gpu
+  # package in the dependency closure of its tests, test-only deps included. Regenerate the list with:
+  #   bazel query 'deps(kind(go_test, //pkg/gpu/probe/...)) intersect //pkg/gpu/...'
+  # The rest of pkg/gpu can't affect the code those tests run.
+  - pkg/gpu/probe/**/*
+  - pkg/gpu/safenvml/**/*
+  - pkg/gpu/config/**/*
+  - pkg/gpu/containers/**/*
+  - pkg/gpu/testutil/**/*
   - .gitlab/test/kernel_matrix_testing/system_probe.yml
   - .gitlab/test/kernel_matrix_testing/common.yml
   - .gitlab/build/source_test/ebpf.yml

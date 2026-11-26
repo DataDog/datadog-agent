@@ -52,7 +52,7 @@ TEST_PACKAGES_LIST = [
     "./pkg/discovery/module/...",
     "./pkg/process/monitor/...",
     "./pkg/dyninst/...",
-    "./pkg/gpu/...",
+    "./pkg/gpu/probe",
     "./pkg/logs/launchers/file/",
     "./pkg/privileged-logs/test/...",
     "./pkg/system-probe/config/...",
@@ -1481,7 +1481,7 @@ def build_usm_debugger(
 
 @task
 def build_gpu_event_viewer(ctx):
-    build_dir = Path("pkg/gpu/testutil/event-viewer")
+    build_dir = Path("pkg/gpu/probe/testutil/event-viewer")
 
     tags = get_default_build_tags("system-probe")
     if "test" not in tags:
