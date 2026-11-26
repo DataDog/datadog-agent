@@ -1396,11 +1396,8 @@ func (m *ManagerV2) SendStats() error {
 		return err
 	}
 
-	// V2 tracks one profile per image name: buildWorkloadSelector always uses the tag "*".
-	// Every image tag of that image shares the profile and its cached short image, so the
-	// gauge is 1 per tracked profile rather than a count grouped by image. Enabled and
-	// disabled profiles both count. An empty manager reports zero. A sum across series and
-	// hosts is the fleet-wide profile count.
+	// V2 tracks one profile per image name, shared by all its image tags.
+	// The gauge is 1 per profile, enabled or disabled.
 	type trackedProfile struct {
 		selector   cgroupModel.WorkloadSelector
 		prof       *profile.Profile
