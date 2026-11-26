@@ -95,7 +95,10 @@ def _get_debug_symbols_impl(ctx):
 
     pfi = PackageFilesInfo(
         dest_src_map = dest_src_map,
-        attributes = {"mode": "0644"},
+        attributes = {
+            "mode": "0644",
+            "rpm_own_tree_dirs": True,
+        },
     )
 
     return [
