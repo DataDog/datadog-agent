@@ -11,14 +11,17 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/stretchr/testify/assert"
@@ -420,6 +423,7 @@ func TestClientDoErrorParsing(t *testing.T) {
 				BaseEndpoint: aws.String(ts.URL),
 				Credentials:  credentials.NewStaticCredentialsProvider("AKID", "SECRET", ""),
 				HTTPClient:   ts.Client(),
+				Retryer:      func() aws.Retryer { return aws.NopRetryer{} },
 			}, tt.service, strings.ToUpper(tt.service), "2016-11-15")
 			require.NoError(t, err)
 
@@ -485,5 +489,271 @@ func TestClientDoFailures(t *testing.T) {
 		err = client.Do(context.Background(), "DescribeTags", nil, &out)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to parse XML response")
+	})
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
+}
+
+func TestClientDoRetries(t *testing.T) {
+	t.Run("retries transient 5xx and succeeds with fresh body and signature", func(t *testing.T) {
+		var attempts atomic.Int32
+		var seenDates []string
+
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			n := attempts.Add(1)
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			assert.Contains(t, string(body), "Action=DescribeTags")
+			seenDates = append(seenDates, r.Header.Get("X-Amz-Date"))
+
+			if n < 3 {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_, _ = io.WriteString(w, `<Response><Errors><Error><Code>ServiceUnavailable</Code><Message>try again</Message></Error></Errors><RequestID>req-503</RequestID></Response>`)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			_, _ = io.WriteString(w, `<DescribeTagsResponse><tagSet><item><key>ok</key><value>yes</value></item></tagSet></DescribeTagsResponse>`)
+		}))
+		defer ts.Close()
+
+		client, err := NewClient(aws.Config{
+			Region:       "us-east-1",
+			BaseEndpoint: aws.String(ts.URL),
+			Credentials:  credentials.NewStaticCredentialsProvider("AKID", "SECRET", ""),
+			HTTPClient:   ts.Client(),
+		}, "ec2", "EC2", "2016-11-15")
+		require.NoError(t, err)
+
+		baseTime := time.Date(2026, 3, 15, 12, 0, 0, 0, time.UTC)
+		client.nowFunc = func() time.Time {
+			return baseTime.Add(time.Duration(attempts.Load()) * time.Second)
+		}
+		var slept []time.Duration
+		client.sleepFunc = func(_ context.Context, d time.Duration) error {
+			slept = append(slept, d)
+			return nil
+		}
+
+		var resp struct {
+			Tags []struct {
+				Key   string `xml:"key"`
+				Value string `xml:"value"`
+			} `xml:"tagSet>item"`
+		}
+		err = client.Do(context.Background(), "DescribeTags", nil, &resp)
+		require.NoError(t, err)
+		assert.Equal(t, int32(3), attempts.Load())
+		assert.Len(t, slept, 2)
+		require.Len(t, seenDates, 3)
+		assert.NotEqual(t, seenDates[0], seenDates[1])
+		require.Len(t, resp.Tags, 1)
+		assert.Equal(t, "yes", resp.Tags[0].Value)
+	})
+
+	t.Run("retries EC2 throttling error codes and HTTP 429", func(t *testing.T) {
+		for _, tc := range []struct {
+			name   string
+			status int
+			body   string
+		}{
+			{
+				name:   "RequestLimitExceeded",
+				status: http.StatusServiceUnavailable,
+				body:   `<Response><Errors><Error><Code>RequestLimitExceeded</Code><Message>Request limit exceeded.</Message></Error></Errors></Response>`,
+			},
+			{
+				name:   "EC2ThrottledException on 400",
+				status: http.StatusBadRequest,
+				body:   `<Response><Errors><Error><Code>EC2ThrottledException</Code><Message>Rate exceeded</Message></Error></Errors></Response>`,
+			},
+			{
+				name:   "HTTP 429 unmodeled",
+				status: http.StatusTooManyRequests,
+				body:   `<Response><Errors><Error><Code>TooManyRequests</Code><Message>Slow down</Message></Error></Errors></Response>`,
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				var attempts atomic.Int32
+				ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					if attempts.Add(1) == 1 {
+						w.WriteHeader(tc.status)
+						_, _ = io.WriteString(w, tc.body)
+						return
+					}
+					w.WriteHeader(http.StatusOK)
+					_, _ = io.WriteString(w, `<DescribeTagsResponse/>`)
+				}))
+				defer ts.Close()
+
+				client, err := NewClient(aws.Config{
+					Region:       "us-east-1",
+					BaseEndpoint: aws.String(ts.URL),
+					Credentials:  credentials.NewStaticCredentialsProvider("AKID", "SECRET", ""),
+					HTTPClient:   ts.Client(),
+				}, "ec2", "EC2", "2016-11-15")
+				require.NoError(t, err)
+				client.sleepFunc = func(_ context.Context, _ time.Duration) error { return nil }
+
+				err = client.Do(context.Background(), "DescribeTags", nil, nil)
+				require.NoError(t, err)
+				assert.Equal(t, int32(2), attempts.Load())
+			})
+		}
+	})
+
+	t.Run("retries transient transport error", func(t *testing.T) {
+		var attempts atomic.Int32
+		httpClient := &http.Client{
+			Transport: roundTripFunc(func(_ *http.Request) (*http.Response, error) {
+				if attempts.Add(1) == 1 {
+					return nil, &url.Error{
+						Op:  "Post",
+						URL: "https://ec2.us-east-1.amazonaws.com",
+						Err: &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")},
+					}
+				}
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     http.Header{},
+					Body:       io.NopCloser(strings.NewReader(`<DescribeTagsResponse/>`)),
+				}, nil
+			}),
+		}
+
+		client, err := NewClient(aws.Config{
+			Region:      "us-east-1",
+			Credentials: credentials.NewStaticCredentialsProvider("AKID", "SECRET", ""),
+			HTTPClient:  httpClient,
+		}, "ec2", "EC2", "2016-11-15")
+		require.NoError(t, err)
+		client.sleepFunc = func(_ context.Context, _ time.Duration) error { return nil }
+
+		err = client.Do(context.Background(), "DescribeTags", nil, nil)
+		require.NoError(t, err)
+		assert.Equal(t, int32(2), attempts.Load())
+	})
+
+	t.Run("does not retry non-retryable 4xx client errors", func(t *testing.T) {
+		var attempts atomic.Int32
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			attempts.Add(1)
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = io.WriteString(w, `<Response><Errors><Error><Code>UnauthorizedOperation</Code><Message>denied</Message></Error></Errors></Response>`)
+		}))
+		defer ts.Close()
+
+		client, err := NewClient(aws.Config{
+			Region:       "us-east-1",
+			BaseEndpoint: aws.String(ts.URL),
+			Credentials:  credentials.NewStaticCredentialsProvider("AKID", "SECRET", ""),
+			HTTPClient:   ts.Client(),
+		}, "ec2", "EC2", "2016-11-15")
+		require.NoError(t, err)
+		client.sleepFunc = func(_ context.Context, _ time.Duration) error {
+			t.Fatal("sleep should not be called for non-retryable error")
+			return nil
+		}
+
+		err = client.Do(context.Background(), "DescribeTags", nil, nil)
+		require.Error(t, err)
+		assert.Equal(t, int32(1), attempts.Load())
+		var apiErr *APIError
+		require.True(t, errors.As(err, &apiErr))
+		assert.Equal(t, "UnauthorizedOperation", apiErr.Code)
+	})
+
+	t.Run("respects RetryMaxAttempts and returns MaxAttemptsError wrapping APIError", func(t *testing.T) {
+		var attempts atomic.Int32
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			attempts.Add(1)
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = io.WriteString(w, `<Response><Errors><Error><Code>InternalError</Code><Message>boom</Message></Error></Errors></Response>`)
+		}))
+		defer ts.Close()
+
+		client, err := NewClient(aws.Config{
+			Region:           "us-east-1",
+			BaseEndpoint:     aws.String(ts.URL),
+			Credentials:      credentials.NewStaticCredentialsProvider("AKID", "SECRET", ""),
+			HTTPClient:       ts.Client(),
+			RetryMaxAttempts: 2,
+		}, "ec2", "EC2", "2016-11-15")
+		require.NoError(t, err)
+		client.sleepFunc = func(_ context.Context, _ time.Duration) error { return nil }
+
+		err = client.Do(context.Background(), "DescribeTags", nil, nil)
+		require.Error(t, err)
+		assert.Equal(t, int32(2), attempts.Load())
+
+		var maxErr *retry.MaxAttemptsError
+		require.True(t, errors.As(err, &maxErr))
+		assert.Equal(t, 2, maxErr.Attempt)
+
+		var apiErr *APIError
+		require.True(t, errors.As(err, &apiErr))
+		assert.Equal(t, http.StatusInternalServerError, apiErr.StatusCode)
+	})
+
+	t.Run("stops retrying when context deadline expires during backoff", func(t *testing.T) {
+		var attempts atomic.Int32
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			attempts.Add(1)
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = io.WriteString(w, `<Response><Errors><Error><Code>ServiceUnavailable</Code><Message>busy</Message></Error></Errors></Response>`)
+		}))
+		defer ts.Close()
+
+		client, err := NewClient(aws.Config{
+			Region:           "us-east-1",
+			BaseEndpoint:     aws.String(ts.URL),
+			Credentials:      credentials.NewStaticCredentialsProvider("AKID", "SECRET", ""),
+			HTTPClient:       ts.Client(),
+			RetryMaxAttempts: 5,
+			Retryer: func() aws.Retryer {
+				return retry.NewStandard(func(o *retry.StandardOptions) {
+					o.MaxAttempts = 5
+					o.Backoff = retry.BackoffDelayerFunc(func(_ int, _ error) (time.Duration, error) {
+						return 10 * time.Second, nil
+					})
+				})
+			},
+		}, "ec2", "EC2", "2016-11-15")
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+		defer cancel()
+
+		err = client.Do(ctx, "DescribeTags", nil, nil)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, context.DeadlineExceeded)
+		assert.Equal(t, int32(1), attempts.Load())
+	})
+
+	t.Run("honors AWS_MAX_ATTEMPTS and AWS_RETRY_MODE from LoadDefaultConfig", func(t *testing.T) {
+		t.Setenv("AWS_MAX_ATTEMPTS", "4")
+		t.Setenv("AWS_RETRY_MODE", "adaptive")
+		t.Setenv("AWS_ENDPOINT_URL", "")
+		t.Setenv("AWS_ENDPOINT_URL_EC2", "")
+
+		cfg, err := config.LoadDefaultConfig(context.Background(), config.WithRegion("us-east-1"))
+		require.NoError(t, err)
+
+		client, err := NewClient(cfg, "ec2", "EC2", "2016-11-15")
+		require.NoError(t, err)
+		assert.Equal(t, 4, client.retryer.MaxAttempts())
+		_, isAdaptive := client.retryer.(*retry.AdaptiveMode)
+		assert.True(t, isAdaptive)
+	})
+
+	t.Run("honors X-Amz-Retry-After header clamped to backoff + 5s", func(t *testing.T) {
+		assert.Equal(t, 500*time.Millisecond, adjustRetryAfter(500*time.Millisecond, ""))
+		assert.Equal(t, 500*time.Millisecond, adjustRetryAfter(500*time.Millisecond, "not-a-number"))
+		assert.Equal(t, 500*time.Millisecond, adjustRetryAfter(500*time.Millisecond, "100"))
+		assert.Equal(t, 2*time.Second, adjustRetryAfter(500*time.Millisecond, "2000"))
+		assert.Equal(t, 5500*time.Millisecond, adjustRetryAfter(500*time.Millisecond, "60000"))
 	})
 }

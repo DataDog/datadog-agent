@@ -20,11 +20,13 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 )
 
@@ -35,6 +37,10 @@ const (
 
 	// maxErrorSnippetBytes caps raw non-XML error bodies included in error messages.
 	maxErrorSnippetBytes = 512
+
+	// maxRetryAfterExtension caps how far X-Amz-Retry-After can extend a computed
+	// backoff delay, matching aws-sdk-go-v2's retry middleware.
+	maxRetryAfterExtension = 5 * time.Second
 )
 
 // Client sends SigV4-signed AWS Query XML / EC2 Query XML requests.
@@ -45,8 +51,10 @@ type Client struct {
 	endpoint     string
 	credentials  aws.CredentialsProvider
 	httpClient   aws.HTTPClient
+	retryer      aws.RetryerV2
 	signer       *v4.Signer
 	nowFunc      func() time.Time
+	sleepFunc    func(context.Context, time.Duration) error
 	maxBodyBytes int64
 }
 
@@ -58,6 +66,21 @@ type APIError struct {
 	Code       string
 	Message    string
 	RequestID  string
+}
+
+// HTTPStatusCode returns the HTTP status code for aws/retry status-code classification.
+func (e *APIError) HTTPStatusCode() int {
+	return e.StatusCode
+}
+
+// ErrorCode returns the AWS error code for aws/retry error-code and throttle classification.
+func (e *APIError) ErrorCode() string {
+	return e.Code
+}
+
+// ErrorMessage returns the AWS error message.
+func (e *APIError) ErrorMessage() string {
+	return e.Message
 }
 
 // Error implements the error interface.
@@ -122,8 +145,10 @@ func NewClient(cfg aws.Config, service, sdkID, apiVersion string) (*Client, erro
 		endpoint:     endpoint,
 		credentials:  cfg.Credentials,
 		httpClient:   httpClient,
+		retryer:      resolveRetryer(cfg),
 		signer:       v4.NewSigner(),
 		nowFunc:      time.Now,
+		sleepFunc:    sleepWithContext,
 		maxBodyBytes: defaultMaxBodyBytes,
 	}, nil
 }
@@ -139,18 +164,11 @@ func (c *Client) Region() string {
 }
 
 // Do executes a SigV4-signed POST request for the given AWS Query action and unmarshals
-// the XML response into out (when non-nil).
+// the XML response into out (when non-nil), honoring the configured AWS retry policy
+// within ctx's deadline.
 func (c *Client) Do(ctx context.Context, action string, params url.Values, out any) error {
 	if c.credentials == nil {
 		return fmt.Errorf("AWS %s %s: missing credentials provider", c.service, action)
-	}
-
-	creds, err := c.credentials.Retrieve(ctx)
-	if err != nil {
-		return fmt.Errorf("AWS %s %s: failed to retrieve credentials: %w", c.service, action, err)
-	}
-	if creds.AccessKeyID == "" || creds.SecretAccessKey == "" {
-		return fmt.Errorf("AWS %s %s: empty AWS credentials", c.service, action)
 	}
 
 	form := make(url.Values, len(params)+2)
@@ -164,9 +182,82 @@ func (c *Client) Do(ctx context.Context, action string, params url.Values, out a
 	sum := sha256.Sum256(bodyBytes)
 	payloadHash := hex.EncodeToString(sum[:])
 
+	retryer := c.retryer
+	if retryer == nil {
+		retryer = retry.NewStandard()
+	}
+	sleepFn := c.sleepFunc
+	if sleepFn == nil {
+		sleepFn = sleepWithContext
+	}
+
+	maxAttempts := retryer.MaxAttempts()
+	releaseRetryToken := nopRelease
+
+	for attempt := 1; ; attempt++ {
+		if err := ctx.Err(); err != nil {
+			_ = releaseRetryToken(err)
+			return fmt.Errorf("AWS %s %s: %w", c.service, action, err)
+		}
+
+		releaseAttemptToken, err := retryer.GetAttemptToken(ctx)
+		if err != nil {
+			_ = releaseRetryToken(err)
+			return fmt.Errorf("AWS %s %s: failed to get retry attempt token: %w", c.service, action, err)
+		}
+
+		retryAfterHeader, attemptErr := c.doAttempt(ctx, action, bodyBytes, payloadHash, out)
+
+		_ = releaseRetryToken(attemptErr)
+		_ = releaseAttemptToken(attemptErr)
+
+		if attemptErr == nil {
+			return nil
+		}
+
+		if ctx.Err() != nil || !retryer.IsErrorRetryable(attemptErr) {
+			return attemptErr
+		}
+
+		if maxAttempts > 0 && attempt >= maxAttempts {
+			return &retry.MaxAttemptsError{
+				Attempt: attempt,
+				Err:     attemptErr,
+			}
+		}
+
+		var tokenErr error
+		releaseRetryToken, tokenErr = retryer.GetRetryToken(ctx, attemptErr)
+		if tokenErr != nil {
+			return errors.Join(attemptErr, tokenErr)
+		}
+
+		delay, delayErr := retryer.RetryDelay(attempt, attemptErr)
+		if delayErr != nil {
+			_ = releaseRetryToken(delayErr)
+			return fmt.Errorf("AWS %s %s: failed to compute retry delay: %w", c.service, action, delayErr)
+		}
+		delay = adjustRetryAfter(delay, retryAfterHeader)
+
+		if sleepErr := sleepFn(ctx, delay); sleepErr != nil {
+			_ = releaseRetryToken(sleepErr)
+			return fmt.Errorf("AWS %s %s: %w", c.service, action, sleepErr)
+		}
+	}
+}
+
+func (c *Client) doAttempt(ctx context.Context, action string, bodyBytes []byte, payloadHash string, out any) (string, error) {
+	creds, err := c.credentials.Retrieve(ctx)
+	if err != nil {
+		return "", fmt.Errorf("AWS %s %s: failed to retrieve credentials: %w", c.service, action, err)
+	}
+	if creds.AccessKeyID == "" || creds.SecretAccessKey == "" {
+		return "", fmt.Errorf("AWS %s %s: empty AWS credentials", c.service, action)
+	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, bytes.NewReader(bodyBytes))
 	if err != nil {
-		return fmt.Errorf("AWS %s %s: failed to create request: %w", c.service, action, err)
+		return "", fmt.Errorf("AWS %s %s: failed to create request: %w", c.service, action, err)
 	}
 	if req.URL.Path == "" {
 		req.URL.Path = "/"
@@ -175,14 +266,16 @@ func (c *Client) Do(ctx context.Context, action string, params url.Values, out a
 	req.ContentLength = int64(len(bodyBytes))
 
 	if err := c.signer.SignHTTP(ctx, creds, req, payloadHash, c.service, c.region, c.nowFunc().UTC()); err != nil {
-		return fmt.Errorf("AWS %s %s: failed to sign request: %w", c.service, action, err)
+		return "", fmt.Errorf("AWS %s %s: failed to sign request: %w", c.service, action, err)
 	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("AWS %s %s: request failed: %w", c.service, action, err)
+		return "", fmt.Errorf("AWS %s %s: request failed: %w", c.service, action, err)
 	}
 	defer resp.Body.Close()
+
+	retryAfterHeader := resp.Header.Get("X-Amz-Retry-After")
 
 	maxBytes := c.maxBodyBytes
 	if maxBytes <= 0 {
@@ -190,22 +283,110 @@ func (c *Client) Do(ctx context.Context, action string, params url.Values, out a
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
 	if err != nil {
-		return fmt.Errorf("AWS %s %s: failed to read response body: %w", c.service, action, err)
+		if errors.Is(err, io.ErrUnexpectedEOF) {
+			return retryAfterHeader, fmt.Errorf("AWS %s %s: failed to read response body: %w", c.service, action, &retryableReadError{err: err})
+		}
+		return retryAfterHeader, fmt.Errorf("AWS %s %s: failed to read response body: %w", c.service, action, err)
 	}
 	if int64(len(body)) > maxBytes {
-		return fmt.Errorf("AWS %s %s: response body exceeded maximum size of %d bytes", c.service, action, maxBytes)
+		return retryAfterHeader, fmt.Errorf("AWS %s %s: response body exceeded maximum size of %d bytes", c.service, action, maxBytes)
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return parseAPIError(c.service, action, resp.StatusCode, body)
+		return retryAfterHeader, parseAPIError(c.service, action, resp.StatusCode, body)
 	}
 
 	if out != nil {
 		if err := xml.Unmarshal(body, out); err != nil {
-			return fmt.Errorf("AWS %s %s: failed to parse XML response: %w", c.service, action, err)
+			return retryAfterHeader, fmt.Errorf("AWS %s %s: failed to parse XML response: %w", c.service, action, err)
 		}
 	}
-	return nil
+	return retryAfterHeader, nil
+}
+
+type retryableReadError struct {
+	err error
+}
+
+func (e *retryableReadError) Error() string         { return e.err.Error() }
+func (e *retryableReadError) Unwrap() error         { return e.err }
+func (e *retryableReadError) ConnectionError() bool { return true }
+
+type retryerV2Adapter struct {
+	aws.Retryer
+}
+
+func (a retryerV2Adapter) GetAttemptToken(context.Context) (func(error) error, error) {
+	return a.GetInitialToken(), nil
+}
+
+func nopRelease(error) error { return nil }
+
+func resolveRetryer(cfg aws.Config) aws.RetryerV2 {
+	var r aws.Retryer
+	if cfg.Retryer != nil {
+		r = cfg.Retryer()
+	}
+	if r == nil {
+		mode := cfg.RetryMode
+		if mode == "" {
+			mode = aws.RetryModeStandard
+		}
+		var standardOpts []func(*retry.StandardOptions)
+		if cfg.RetryMaxAttempts != 0 {
+			standardOpts = append(standardOpts, func(so *retry.StandardOptions) {
+				so.MaxAttempts = cfg.RetryMaxAttempts
+			})
+		}
+		switch mode {
+		case aws.RetryModeAdaptive:
+			var adaptiveOpts []func(*retry.AdaptiveModeOptions)
+			if len(standardOpts) != 0 {
+				adaptiveOpts = append(adaptiveOpts, func(ao *retry.AdaptiveModeOptions) {
+					ao.StandardOptions = append(ao.StandardOptions, standardOpts...)
+				})
+			}
+			r = retry.NewAdaptiveMode(adaptiveOpts...)
+		default:
+			r = retry.NewStandard(standardOpts...)
+		}
+	}
+	if v2, ok := r.(aws.RetryerV2); ok {
+		return v2
+	}
+	return retryerV2Adapter{Retryer: r}
+}
+
+func adjustRetryAfter(backoff time.Duration, headerVal string) time.Duration {
+	if headerVal == "" {
+		return backoff
+	}
+	ms, err := strconv.ParseInt(headerVal, 10, 64)
+	if err != nil || ms < 0 {
+		return backoff
+	}
+	retryAfter := time.Duration(ms) * time.Millisecond
+	if retryAfter < backoff {
+		return backoff
+	}
+	if maxDuration := backoff + maxRetryAfterExtension; retryAfter > maxDuration {
+		return maxDuration
+	}
+	return retryAfter
+}
+
+func sleepWithContext(ctx context.Context, d time.Duration) error {
+	if d <= 0 {
+		return ctx.Err()
+	}
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 type partition struct {
