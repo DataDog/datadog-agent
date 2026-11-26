@@ -104,4 +104,9 @@ func (c *component) Current() (severityeventsdef.SeverityLevel, bool) {
 	return severityeventsdef.SeverityLow, false
 }
 
+// CurrentForScope returns the severity level for getScope, delegating to Current for now.
+func (c *component) CurrentForScope(_ func() severityeventsdef.ScopeKey) (severityeventsdef.SeverityLevel, bool) {
+	return c.Current()
+}
+
 var _ severityprovider.Component = (*component)(nil)

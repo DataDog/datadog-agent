@@ -14,10 +14,18 @@ import severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection
 // tree — is what lets both sides reach it.
 var provider func() (severityeventsdef.SeverityLevel, bool)
 
+// scopedProvider is set once at startup by fx wiring for per-scope severity lookups.
+var scopedProvider func(getScope func() severityeventsdef.ScopeKey) (severityeventsdef.SeverityLevel, bool)
+
 // SetSeverityProvider registers the function used to read the current anomaly-detection
 // severity level. Called once at startup, typically with a Component's own Current method.
 func SetSeverityProvider(fn func() (severityeventsdef.SeverityLevel, bool)) {
 	provider = fn
+}
+
+// SetScopedSeverityProvider registers the function used for per-scope severity lookups.
+func SetScopedSeverityProvider(fn func(getScope func() severityeventsdef.ScopeKey) (severityeventsdef.SeverityLevel, bool)) {
+	scopedProvider = fn
 }
 
 // Current returns the current anomaly-detection severity level via the registered provider,
@@ -27,4 +35,12 @@ func Current() (severityeventsdef.SeverityLevel, bool) {
 		return severityeventsdef.SeverityLow, false
 	}
 	return provider()
+}
+
+// CurrentForScope returns the severity level for getScope, falling back to Current when unset.
+func CurrentForScope(getScope func() severityeventsdef.ScopeKey) (severityeventsdef.SeverityLevel, bool) {
+	if scopedProvider == nil {
+		return Current()
+	}
+	return scopedProvider(getScope)
 }

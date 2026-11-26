@@ -17,13 +17,31 @@ import (
 
 // Component is a configurable severity provider mock.
 type Component struct {
-	Level     severityeventsdef.SeverityLevel
-	Available bool
+	Level        severityeventsdef.SeverityLevel
+	Available    bool
+	ScopedLevels map[severityeventsdef.ScopeKey]severityeventsdef.SeverityLevel
 }
 
 // Current returns the configured severity level.
 func (c *Component) Current() (severityeventsdef.SeverityLevel, bool) {
 	return c.Level, c.Available
+}
+
+// CurrentForScope returns the configured severity level for getScope.
+func (c *Component) CurrentForScope(getScope func() severityeventsdef.ScopeKey) (severityeventsdef.SeverityLevel, bool) {
+	if c.ScopedLevels == nil {
+		return c.Current()
+	}
+	if !c.Available {
+		return severityeventsdef.SeverityLow, false
+	}
+	if getScope == nil {
+		return severityeventsdef.SeverityLow, true
+	}
+	if level, ok := c.ScopedLevels[getScope()]; ok {
+		return level, true
+	}
+	return severityeventsdef.SeverityLow, true
 }
 
 // Provides defines the mock component output.

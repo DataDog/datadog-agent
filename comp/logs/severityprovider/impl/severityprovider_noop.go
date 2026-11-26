@@ -30,4 +30,9 @@ func (component) Current() (severityeventsdef.SeverityLevel, bool) {
 	return severityeventsdef.SeverityLow, false
 }
 
+// CurrentForScope reports that severity profiles are unavailable in this build.
+func (component) CurrentForScope(_ func() severityeventsdef.ScopeKey) (severityeventsdef.SeverityLevel, bool) {
+	return severityeventsdef.SeverityLow, false
+}
+
 var _ severityprovider.Component = component{}

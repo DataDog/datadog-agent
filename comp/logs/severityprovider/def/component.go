@@ -14,4 +14,7 @@ import severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection
 type Component interface {
 	// Current returns the current severity level, if available.
 	Current() (severityeventsdef.SeverityLevel, bool)
+
+	// CurrentForScope returns the severity level for getScope, if available.
+	CurrentForScope(getScope func() severityeventsdef.ScopeKey) (severityeventsdef.SeverityLevel, bool)
 }
