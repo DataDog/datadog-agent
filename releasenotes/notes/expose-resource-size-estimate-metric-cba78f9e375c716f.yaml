@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Expose a new metric ``kube_apiserver.resource_size_estimate_bytes``, tagged by ``resource`` (and ``group``
+    for non-core API groups), that reports the estimated total size of the objects of each resource type held
+    in the Kubernetes API server's underlying storage. Its ``resource`` tag matches the one on
+    ``kube_apiserver.storage_objects``. The metric is only reported on Kubernetes versions that expose
+    ``apiserver_resource_size_estimate_bytes``.

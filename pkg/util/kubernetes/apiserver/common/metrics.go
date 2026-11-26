@@ -25,15 +25,17 @@ import (
 // the whole response.
 const maxMetricLineSize = 100 * 1024
 
-// FetchAPIServerMetricFamily queries the API server's /metrics endpoint once (no retry) and
-// returns the first parsed metric family present in the response, in the order specified by
-// metricNames. It returns nil if none of the requested families are present.
+// FetchAPIServerMetricFamilies queries the API server's /metrics endpoint once (no retry) and
+// returns the parsed metric families among metricNames that are present in the response. Use
+// FindMetricFamily to pick a family out of the result.
 //
 // The API server's /metrics endpoint can return a very large payload (tens of MiB), most of
 // which is irrelevant to the metric families we care about. To avoid buffering the whole
 // response in memory, the response body is streamed and scanned line by line, keeping only
 // the lines belonging to the requested metric families before handing them to the parser.
-func FetchAPIServerMetricFamily(ctx context.Context, discoveryClient discovery.DiscoveryInterface, metricNames ...string) (*prometheus.MetricFamily, error) {
+// Callers needing several families should request them all in a single call rather than
+// scraping the endpoint once per family.
+func FetchAPIServerMetricFamilies(ctx context.Context, discoveryClient discovery.DiscoveryInterface, metricNames ...string) ([]prometheus.MetricFamily, error) {
 	body, err := discoveryClient.RESTClient().Get().AbsPath(apiServerMetricsPath).Stream(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query /metrics endpoint: %w", err)
@@ -50,7 +52,7 @@ func FetchAPIServerMetricFamily(ctx context.Context, discoveryClient discovery.D
 		return nil, fmt.Errorf("failed to parse /metrics endpoint: %w", err)
 	}
 
-	return findMetricFamily(families, metricNames...), nil
+	return families, nil
 }
 
 // filterMetricLines scans r line by line and returns only the lines that are relevant to
@@ -108,7 +110,9 @@ func matchesAny(name string, metricNames []string) bool {
 	return slices.Contains(metricNames, name)
 }
 
-func findMetricFamily(families []prometheus.MetricFamily, metricNames ...string) *prometheus.MetricFamily {
+// FindMetricFamily returns the first family of families whose name is in metricNames, trying
+// metricNames in order (so later names act as fallbacks). It returns nil if none is present.
+func FindMetricFamily(families []prometheus.MetricFamily, metricNames ...string) *prometheus.MetricFamily {
 	for _, metricName := range metricNames {
 		for i := range families {
 			if families[i].Name == metricName {

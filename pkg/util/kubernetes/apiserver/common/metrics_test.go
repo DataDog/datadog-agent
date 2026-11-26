@@ -24,9 +24,9 @@ func TestFindMetricFamily(t *testing.T) {
 		{Name: "etcd_object_counts"},
 	}
 
-	assert.Same(t, &families[0], findMetricFamily(families, "apiserver_storage_objects", "etcd_object_counts"))
-	assert.Same(t, &families[1], findMetricFamily(families, "missing", "etcd_object_counts"))
-	assert.Nil(t, findMetricFamily(families, "missing"))
+	assert.Same(t, &families[0], FindMetricFamily(families, "apiserver_storage_objects", "etcd_object_counts"))
+	assert.Same(t, &families[1], FindMetricFamily(families, "missing", "etcd_object_counts"))
+	assert.Nil(t, FindMetricFamily(families, "missing"))
 }
 
 // TestFilterMetricLines streams a snapshot of a real /metrics response (testdata) through
@@ -41,7 +41,7 @@ func TestFilterMetricLines(t *testing.T) {
 	require.NoError(t, err)
 	defer file.Close()
 
-	filtered, err := filterMetricLines(file, []string{"apiserver_storage_objects", "etcd_object_counts"})
+	filtered, err := filterMetricLines(file, []string{"apiserver_storage_objects", "etcd_object_counts", "apiserver_resource_size_estimate_bytes"})
 	require.NoError(t, err)
 
 	// Streaming must actually shrink the payload: only a handful of the snapshot's lines
@@ -51,22 +51,32 @@ func TestFilterMetricLines(t *testing.T) {
 	families, err := prometheus.ParseMetrics(filtered)
 	require.NoError(t, err)
 
-	storageObjects := findMetricFamily(families, "apiserver_storage_objects")
+	storageObjects := FindMetricFamily(families, "apiserver_storage_objects")
 	require.NotNil(t, storageObjects)
 	assert.Equal(t, "GAUGE", storageObjects.Type)
 	assert.Len(t, storageObjects.Samples, 11)
 
-	legacyObjectCounts := findMetricFamily(families, "etcd_object_counts")
+	legacyObjectCounts := FindMetricFamily(families, "etcd_object_counts")
 	require.NotNil(t, legacyObjectCounts)
 	assert.Equal(t, "GAUGE", legacyObjectCounts.Type)
 	assert.Len(t, legacyObjectCounts.Samples, 7)
+
+	sizeEstimate := FindMetricFamily(families, "apiserver_resource_size_estimate_bytes")
+	require.NotNil(t, sizeEstimate)
+	assert.Equal(t, "GAUGE", sizeEstimate.Type)
+	assert.Len(t, sizeEstimate.Samples, 4)
 
 	// None of the unrelated families from the snapshot should have survived filtering.
 	for _, unrelated := range []string{
 		"apiserver_request_total",
 		"apiserver_request_duration_seconds",
 	} {
-		assert.Nil(t, findMetricFamily(families, unrelated), "unrelated family %q should have been filtered out", unrelated)
+		assert.Nil(t, FindMetricFamily(families, unrelated), "unrelated family %q should have been filtered out", unrelated)
 		assert.False(t, bytes.Contains(filtered, []byte(unrelated)), "filtered output should not contain %q", unrelated)
 	}
+
+	// apiserver_resource_objects shares the apiserver_resource_ prefix with the size estimate and
+	// must not leak through. Only check the parsed families: its name legitimately appears in the
+	// kept HELP text of apiserver_storage_objects.
+	assert.Nil(t, FindMetricFamily(families, "apiserver_resource_objects"))
 }
