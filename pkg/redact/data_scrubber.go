@@ -90,6 +90,11 @@ func (ds *DataScrubber) ContainsSensitiveWord(s string) bool {
 	return false
 }
 
+func isSensitiveEnvVarName(name string, scrubber *DataScrubber) bool {
+	lowerName := strings.ToLower(name)
+	return scrubber.ContainsSensitiveWord(name) || lowerName == "token" || strings.HasSuffix(lowerName, "_token")
+}
+
 // ScrubAnnotationValue obfuscate sensitive information from an annotation
 // value.
 func (ds *DataScrubber) ScrubAnnotationValue(annotationValue string) string {
@@ -141,9 +146,14 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmd, args []string) ([]string, []stri
 		newCmdline = append(newCmdline[:cmIndex], newCmdline[cmIndex+1:]...)
 	}
 
+	// The first command token is the executable, so scrubbing starts after it.
+	// When command is empty, every token belongs to args and must be checked.
+	firstParam := 0
+	if cmIndex > 0 {
+		firstParam = 1
+	}
 	// preprocess, without the preprocessing we would need to strip until whitespaces.
-	// the first index can be skipped because it should be the program name.
-	for index := 1; index < len(newCmdline); index++ {
+	for index := firstParam; index < len(newCmdline); index++ {
 		cmd := newCmdline[index]
 		lowerCmd := strings.ToLower(cmd)
 		for _, pattern := range ds.LiteralSensitivePatterns {

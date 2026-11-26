@@ -80,7 +80,7 @@ func scrubContainerProbe(probe *v1.Probe, scrubber *DataScrubber) {
 func scrubContainer(c *v1.Container, scrubber *DataScrubber) {
 	// scrub env vars
 	for e := 0; e < len(c.Env); e++ {
-		if scrubber.ContainsSensitiveWord(c.Env[e].Name) {
+		if isSensitiveEnvVarName(c.Env[e].Name, scrubber) {
 			// It's possible the env var is set using a ValueFrom field, in which case we don't want to scrub the value field
 			if c.Env[e].Value != "" {
 				c.Env[e].Value = redactedSecret

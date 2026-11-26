@@ -112,6 +112,10 @@ func TestScrubEnv(t *testing.T) {
 	scrubber := NewDefaultDataScrubber()
 	env := []interface{}{
 		map[string]interface{}{
+			"name":  "TOKEN",
+			"value": "sensitive-value",
+		},
+		map[string]interface{}{
 			"name":  "name",
 			"value": "cat",
 		},
@@ -135,6 +139,10 @@ func TestScrubEnv(t *testing.T) {
 	scrubEnv(env, scrubber, false)
 	assert.Equal(t, []interface{}{
 		map[string]interface{}{
+			"name":  "TOKEN",
+			"value": redactedSecret,
+		},
+		map[string]interface{}{
 			"name":  "name",
 			"value": "cat",
 		},
@@ -155,6 +163,76 @@ func TestScrubEnv(t *testing.T) {
 			"value": "/var/run/datadog/token",
 		},
 	}, env)
+}
+
+func TestScrubCRManifestCommands(t *testing.T) {
+	tests := map[string]struct {
+		input    map[string]interface{}
+		expected map[string]interface{}
+	}{
+		"entrypoint assignment": {
+			input:    map[string]interface{}{"args": []interface{}{"--password=sensitive-value", "--port=8080"}},
+			expected: map[string]interface{}{"args": []interface{}{redactedSecret, "--port=8080"}},
+		},
+		"entrypoint bare assignment": {
+			input:    map[string]interface{}{"args": []interface{}{"password=sensitive-value", "--port=8080"}},
+			expected: map[string]interface{}{"args": []interface{}{redactedSecret, "--port=8080"}},
+		},
+		"entrypoint bare separate value": {
+			input:    map[string]interface{}{"args": []interface{}{"password", "sensitive-value", "--port=8080"}},
+			expected: map[string]interface{}{"args": []interface{}{redactedSecret, redactedSecret, "--port=8080"}},
+		},
+		"entrypoint separate value": {
+			input:    map[string]interface{}{"args": []interface{}{"--password", "sensitive-value", "--port", "8080"}},
+			expected: map[string]interface{}{"args": []interface{}{redactedSecret, redactedSecret, "--port", "8080"}},
+		},
+		"command and args": {
+			input: map[string]interface{}{
+				"command": []interface{}{"app", "--password"},
+				"args":    []interface{}{"sensitive-value", "--port=8080"},
+			},
+			expected: map[string]interface{}{
+				"command": []interface{}{"app", redactedSecret},
+				"args":    []interface{}{redactedSecret, "--port=8080"},
+			},
+		},
+		"exec command": {
+			input:    map[string]interface{}{"command": []interface{}{"app", "--password", "sensitive-value"}},
+			expected: map[string]interface{}{"command": []interface{}{"app", redactedSecret, redactedSecret}},
+		},
+		"custom sensitive word": {
+			input:    map[string]interface{}{"args": []interface{}{"--private_value", "sensitive-value"}},
+			expected: map[string]interface{}{"args": []interface{}{redactedSecret, redactedSecret}},
+		},
+		"custom sensitive regex": {
+			input:    map[string]interface{}{"args": []interface{}{"--custom_value", "sensitive-value"}},
+			expected: map[string]interface{}{"args": []interface{}{"--custom_value", redactedSecret}},
+		},
+		"sensitive parent": {
+			input:    map[string]interface{}{"credentials": map[string]interface{}{"args": []interface{}{"app", "sensitive-value"}}},
+			expected: map[string]interface{}{"credentials": map[string]interface{}{"args": []interface{}{redactedSecret, redactedSecret}}},
+		},
+		"non-command fields": {
+			input:    map[string]interface{}{"command": "app", "args": []interface{}{int64(1), "--password=sensitive-value"}},
+			expected: map[string]interface{}{"command": "app", "args": []interface{}{int64(1), redactedSecret}},
+		},
+		"string command with args": {
+			input:    map[string]interface{}{"command": "app", "args": []interface{}{"--password", "sensitive-value"}},
+			expected: map[string]interface{}{"command": "app", "args": []interface{}{redactedSecret, redactedSecret}},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			scrubber := NewDefaultDataScrubber()
+			scrubber.AddCustomSensitiveWords([]string{"private_value"})
+			scrubber.AddCustomSensitiveRegex([]string{"custom_*"})
+			r := &unstructured.Unstructured{Object: map[string]interface{}{"spec": tt.input}}
+			ScrubCRManifest(r, scrubber)
+			assert.Equal(t, tt.expected, r.Object["spec"])
+			ScrubCRManifest(r, scrubber)
+			assert.Equal(t, tt.expected, r.Object["spec"], "scrubbing should be idempotent")
+		})
+	}
 }
 
 func TestScrubEnvMap(t *testing.T) {

@@ -34,6 +34,8 @@ func ScrubCRManifest(r *unstructured.Unstructured, scrubber *DataScrubber) {
 
 // scrubMap recursively scrubs sensitive values in a map
 func scrubMap(m map[string]interface{}, scrubber *DataScrubber, parentSensitive bool) {
+	scrubUnstructuredCommand(m, scrubber)
+
 	for k, v := range m {
 		lowerK := strings.ToLower(k)
 		isSensitiveKey := scrubber.ContainsSensitiveWord(lowerK)
@@ -62,6 +64,29 @@ func scrubMap(m map[string]interface{}, scrubber *DataScrubber, parentSensitive 
 		case []interface{}:
 			scrubSlice(val, scrubber, shouldRedact)
 		}
+	}
+}
+
+// scrubUnstructuredCommand processes command and args together so that a
+// sensitive option also redacts its value in the next element or in args.
+func scrubUnstructuredCommand(m map[string]interface{}, scrubber *DataScrubber) {
+	command, hasCommand, commandErr := unstructured.NestedStringSlice(m, "command")
+	args, hasArgs, argsErr := unstructured.NestedStringSlice(m, "args")
+	if commandErr != nil {
+		command, hasCommand = nil, false
+	}
+	if argsErr != nil {
+		args, hasArgs = nil, false
+	}
+	command, args, changed := scrubber.ScrubSimpleCommand(command, args)
+	if !changed {
+		return
+	}
+	if hasCommand {
+		_ = unstructured.SetNestedStringSlice(m, command, "command")
+	}
+	if hasArgs {
+		_ = unstructured.SetNestedStringSlice(m, args, "args")
 	}
 }
 
@@ -103,9 +128,4 @@ func scrubEnvMap(env map[string]interface{}, scrubber *DataScrubber, parentSensi
 			env[name] = redactedSecret
 		}
 	}
-}
-
-func isSensitiveEnvVarName(name string, scrubber *DataScrubber) bool {
-	lowerName := strings.ToLower(name)
-	return scrubber.ContainsSensitiveWord(name) || lowerName == "token" || strings.HasSuffix(lowerName, "_token")
 }
