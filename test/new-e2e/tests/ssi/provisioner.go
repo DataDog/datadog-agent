@@ -216,7 +216,6 @@ func eksProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[envir
 //   - priorityClassCreate: ensure the agent gets scheduled on Autopilot.
 const autopilotHelmValues = `
 datadog:
-  logLevel: debug
   apm:
     portEnabled: true
   kubelet:
