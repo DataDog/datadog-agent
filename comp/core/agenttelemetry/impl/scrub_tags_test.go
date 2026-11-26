@@ -252,3 +252,54 @@ func TestScrubKeepingTags_KeyShapes(t *testing.T) {
 		assert.NoError(t, err)
 	})
 }
+
+func TestSendPayloadNestedTagsLabel_StillMaskedByKeyBasedScrubbing(t *testing.T) {
+	runScrubChild(t, "TestSendPayloadNestedTagsLabelScrubHelper")
+}
+
+// A metric label that is itself named "tags" lives inside the tags field, so
+// it must still be masked by key-based scrubbing while the field survives.
+func TestSendPayloadNestedTagsLabelScrubHelper(t *testing.T) {
+	enterScrubChild(t, "TestSendPayloadNestedTagsLabelScrubHelper")
+
+	cl := &captureClient{}
+	s := newTestSender(t, cl)
+	payload := Payload{
+		APIVersion:  "v2",
+		RequestType: "agent-metrics",
+		Host:        HostPayload{Hostname: "x"},
+		Payload: AgentMetricsPayload{
+			Message: "test",
+			Metrics: map[string]interface{}{
+				"foo.bar": MetricPayload{
+					Value: 1,
+					Type:  "counter",
+					Tags:  map[string]interface{}{"env": "test", "tags": "label-secret-value"},
+				},
+			},
+		},
+	}
+	require.NoError(t, s.sendPayload(context.Background(), payload, "agent-metrics"))
+
+	_, bodies := cl.snapshot()
+	require.Len(t, bodies, 1)
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(bodies[0], &got), "body: %s", bodies[0])
+	metric := got["payload"].(map[string]interface{})["metrics"].(map[string]interface{})["foo.bar"].(map[string]interface{})
+	tags, ok := metric["tags"].(map[string]interface{})
+	require.True(t, ok, "the tags field must stay a JSON object, got %#v", metric["tags"])
+	assert.Equal(t, "test", tags["env"])
+	assert.Equal(t, "********", tags["tags"], "a label named tags must still be masked: %s", bodies[0])
+	assert.NotContains(t, string(bodies[0]), "label-secret-value")
+}
+
+func TestScrubKeepingTags_NestedTagsLabelKeepsItsName(t *testing.T) {
+	out, err := scrubKeepingTags([]byte(`{"tags":{"tags":"v","env":"e"},"other":{"tags":"x"}}`))
+	require.NoError(t, err)
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(out, &got), string(out))
+	inner, ok := got["tags"].(map[string]any)
+	require.True(t, ok, string(out))
+	assert.Equal(t, "v", inner["tags"], string(out))
+	assert.NotContains(t, string(out), "shielded")
+}
