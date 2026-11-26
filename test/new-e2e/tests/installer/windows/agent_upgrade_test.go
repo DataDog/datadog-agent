@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/cenkalti/backoff/v7"
+	"github.com/stretchr/testify/assert"
 )
 
 type testAgentUpgradeSuite struct {
@@ -566,12 +567,14 @@ func (s *testAgentUpgradeSuite) TestUpgradeWithHostNameChange() {
 	s.Require().NoError(err, "should increase SCM ServicesPipeTimeout")
 	// Restore the original value so later boots of this host, such as a same-host retry, use it.
 	// The running SCM keeps the raised value until the next boot; no other test depends on the default.
-	s.T().Cleanup(func() {
+	// Capture this test's T: testify restores the suite's parent T before cleanups run.
+	t := s.T()
+	t.Cleanup(func() {
 		if originalPipeTimeout == "" {
-			s.Assert().NoError(windowscommon.DeleteRegistryValue(host, scmControlKey, "ServicesPipeTimeout"))
+			assert.NoError(t, windowscommon.DeleteRegistryValue(host, scmControlKey, "ServicesPipeTimeout"))
 			return
 		}
-		s.Assert().NoError(windowscommon.SetTypedRegistryValue(host, scmControlKey, "ServicesPipeTimeout", originalPipeTimeout, "DWORD"))
+		assert.NoError(t, windowscommon.SetTypedRegistryValue(host, scmControlKey, "ServicesPipeTimeout", originalPipeTimeout, "DWORD"))
 	})
 
 	// Act
