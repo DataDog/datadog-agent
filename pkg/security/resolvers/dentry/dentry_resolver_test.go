@@ -297,8 +297,8 @@ func TestHardLinkBypassesLeafCache(t *testing.T) {
 	const highPathID = uint32(0x00010000)
 
 	leafKey := model.PathKey{Inode: 500, MountID: mountID, PathID: highPathID | 0x0003}
-	parentKey := model.PathKey{Inode: 100, MountID: mountID, PathID: highPathID | 0x0003}
-	rootKey := model.PathKey{Inode: 1, MountID: mountID, PathID: highPathID | 0x0003}
+	parentKey := model.PathKey{Inode: 100, MountID: mountID, PathID: highPathID}
+	rootKey := model.PathKey{Inode: 1, MountID: mountID, PathID: highPathID}
 
 	// Preload stale alias A in the userspace cache under the same key.
 	dr.cacheInode(leafKey, PathEntry{Parent: parentKey, Name: "alias-a"})

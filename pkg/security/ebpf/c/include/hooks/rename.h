@@ -170,7 +170,7 @@ static __always_inline int sys_rename_ret(void *ctx, int retval, enum TAIL_CALL_
         monitor_discarded(EVENT_RENAME);
     }
 
-    if (syscall->state != DISCARDED && syscall->resolver.ret > 0 && is_event_enabled(EVENT_RENAME)) {
+    if (syscall->state != DISCARDED && (!syscall->rename.target_file.path_key.ino || syscall->resolver.ret > 0) && is_event_enabled(EVENT_RENAME)) {
         syscall->retval = retval;
 
         // target dentry is swapped with src in the case of a successful rename
@@ -183,6 +183,10 @@ static __always_inline int sys_rename_ret(void *ctx, int retval, enum TAIL_CALL_
                 // does not collide with the unmoved source's cached path_key.
                 syscall->rename.target_file.path_key.path_id = get_path_id(syscall->rename.target_file.path_key.ino, syscall->rename.target_file.path_key.mount_id, 2, PATH_ID_INVALIDATE_TYPE_LOCAL);
             }
+        }
+        if (!syscall->rename.target_file.path_key.ino) {
+            syscall->rename.src_file.path_key.mount_id = 0;
+            syscall->rename.target_file.path_key.mount_id = 0;
         }
         syscall->resolver.key = syscall->rename.target_file.path_key;
         syscall->resolver.event_type = syscall->type;
@@ -244,7 +248,7 @@ static __always_inline int dr_rename_callback(void *ctx, enum TAIL_CALL_PROG_TYP
     }
 
     apply_dentry_resolution_outcome(syscall, EVENT_RENAME);
-    if (syscall->state == DISCARDED || syscall->resolver.ret <= 0) {
+    if (syscall->state == DISCARDED || (syscall->rename.target_file.path_key.ino && syscall->resolver.ret <= 0)) {
         goto pop_and_exit;
     }
 
