@@ -11,14 +11,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	bberrors "go.etcd.io/bbolt/errors"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/db"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -191,30 +191,54 @@ func waitForInstallerCommand(ctx context.Context, stillWanted func() (bool, erro
 	return true, nil
 }
 
-// errInstallerLock wraps every failure to take the installer's lock other than a timeout.
+// errInstallerLock wraps every failure to take the installer's lock.
 var errInstallerLock = errors.New("could not take the installer lock")
 
-// installerLockPoll bounds each wait for the installer's lock, so a waiter whose reason to wait
-// went away notices. A var so tests can shorten it.
+// installerLockPoll is how often a waiter for the installer's lock checks that it still has a
+// reason to wait. A var so tests can shorten it.
 var installerLockPoll = time.Minute
 
+// installerLockRetry is how often waitForInstallerLock tries the lock again, as bbolt does.
+const installerLockRetry = 50 * time.Millisecond
+
 // waitForInstallerLock takes the installer's lock, waiting for any installer command that holds
-// it. Between waits it asks stillWanted, and gives up without the lock, returning a nil lock and
-// no error, once that reports false.
-func waitForInstallerLock(ctx context.Context, stillWanted func() (bool, error)) (*db.PackagesDB, error) {
+// it, and checks stillWanted every installerLockPoll while it waits. It returns nil, with no error,
+// once stillWanted reports false.
+//
+// The lock is the exclusive flock bbolt holds on packages.db for as long as an installer command has
+// the database open. It is taken directly, without opening the database, so a corrupt database or
+// a full disk does not keep the stable jobs from being restored. Closing the returned file releases
+// it.
+func waitForInstallerLock(ctx context.Context, stillWanted func() (bool, error)) (*os.File, error) {
+	f, err := os.OpenFile(configExperimentLockPath, os.O_RDONLY|os.O_CREATE, 0o644)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", errInstallerLock, err)
+	}
+	nextCheck := time.Now().Add(installerLockPoll)
 	for {
-		lock, err := db.New(ctx, configExperimentLockPath, db.WithTimeout(installerLockPoll))
+		err := unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB)
 		if err == nil {
-			return lock, nil
+			return f, nil
 		}
-		if !errors.Is(err, bberrors.ErrTimeout) {
+		if !errors.Is(err, unix.EWOULDBLOCK) {
+			f.Close()
 			return nil, fmt.Errorf("%w: %w", errInstallerLock, err)
 		}
-		wanted, err := stillWanted()
-		if err != nil || !wanted {
-			return nil, err
+		if time.Now().After(nextCheck) {
+			wanted, err := stillWanted()
+			if err != nil || !wanted {
+				f.Close()
+				return nil, err
+			}
+			log.Infof("still waiting for a running installer command")
+			nextCheck = time.Now().Add(installerLockPoll)
 		}
-		log.Infof("still waiting for a running installer command")
+		select {
+		case <-ctx.Done():
+			f.Close()
+			return nil, ctx.Err()
+		case <-time.After(installerLockRetry):
+		}
 	}
 }
 

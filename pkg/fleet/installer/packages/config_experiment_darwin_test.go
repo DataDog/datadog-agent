@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/db"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
 )
@@ -570,6 +571,71 @@ func stubConfigExperimentLock(t *testing.T) string {
 	configExperimentLockPath = path
 	t.Cleanup(func() { configExperimentLockPath = original })
 	return path
+}
+
+// TestWaitForInstallerLockSurvivesACorruptDatabase pins that the lock does not depend on the
+// database it guards: a failed experiment's stable jobs are restored even when packages.db cannot
+// be read.
+func TestWaitForInstallerLockSurvivesACorruptDatabase(t *testing.T) {
+	path := stubConfigExperimentLock(t)
+	require.NoError(t, os.WriteFile(path, []byte("not a bbolt database"), 0o644))
+
+	lock, err := waitForInstallerLock(context.Background(), func() (bool, error) { return true, nil })
+	require.NoError(t, err)
+	require.NotNil(t, lock)
+	require.NoError(t, lock.Close())
+}
+
+// TestWaitForInstallerLockWaitsForAnInstallerCommand pins that the lock is the one an installer
+// command holds through bbolt: it is taken only once the command's database is closed, and the
+// waiter checks meanwhile that it still has a reason to wait.
+func TestWaitForInstallerLockWaitsForAnInstallerCommand(t *testing.T) {
+	path := stubConfigExperimentLock(t)
+	original := installerLockPoll
+	installerLockPoll = 20 * time.Millisecond
+	t.Cleanup(func() { installerLockPoll = original })
+	command, err := db.New(context.Background(), path)
+	require.NoError(t, err)
+
+	checked := make(chan struct{}, 1)
+	got := make(chan error, 1)
+	go func() {
+		lock, err := waitForInstallerLock(context.Background(), func() (bool, error) {
+			select {
+			case checked <- struct{}{}:
+			default:
+			}
+			return true, nil
+		})
+		if err == nil {
+			err = lock.Close()
+		}
+		got <- err
+	}()
+	select {
+	case <-checked:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the waiter should check it is still wanted while the command runs")
+	}
+	select {
+	case err := <-got:
+		t.Fatalf("the lock was taken while the command held it: %v", err)
+	default:
+	}
+	require.NoError(t, command.Close())
+	select {
+	case err := <-got:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("the lock should be taken once the command exits")
+	}
+
+	// And the other way round: a command waits while the lock is held.
+	lock, err := waitForInstallerLock(context.Background(), func() (bool, error) { return true, nil })
+	require.NoError(t, err)
+	_, err = db.New(context.Background(), path, db.WithTimeout(100*time.Millisecond))
+	assert.Error(t, err, "an installer command must not open the database while the lock is held")
+	require.NoError(t, lock.Close())
 }
 
 // TestInstallerSwapsOutwaitTheDaemonsExitTimeOut pins that a bootout of the installer daemon waits
