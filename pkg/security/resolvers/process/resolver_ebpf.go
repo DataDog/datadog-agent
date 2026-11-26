@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -719,7 +720,11 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 		}
 
 		// log the error and insert anyway the entry with the pathnameStr. This will avoid later broken lineage detection.
-		seclog.Errorf("snapshot failed for %d: couldn't retrieve file info of `%s`(%s): %s ", proc.Pid, procExecPath, pathnameStr, err)
+		if errors.Is(err, syscall.ESRCH) {
+			seclog.Debugf("snapshot failed for %d: couldn't retrieve file info of `%s`(%s): %s ", proc.Pid, procExecPath, pathnameStr, err)
+		} else {
+			seclog.Errorf("snapshot failed for %d: couldn't retrieve file info of `%s`(%s): %s ", proc.Pid, procExecPath, pathnameStr, err)
+		}
 
 		// try to collect more information about the mount point
 		if seclog.DefaultLogger.IsDebugging() && p.mountResolver != nil {
