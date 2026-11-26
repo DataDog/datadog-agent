@@ -7,10 +7,12 @@
 #
 # `--self <claude|codex>` names the AI agent running /create-pr. Reviewers of that provider are
 # skipped, so the change gets a second opinion from another provider; when none is available the
-# agent reviews it with a subagent instead. Without `--self`, the agent is detected from the
-# environment (`CLAUDECODE`, `CODEX_*`).
+# agent reviews it with a subagent instead. Without `--self` (or with an empty value), the agent is
+# detected from the environment: `CLAUDECODE` for Claude Code, `CODEX_*` for Codex. When both are
+# set, e.g. Codex started from a Claude Code shell, the agent is unknown and no reviewer is skipped.
 #
-# Exit codes: 0 a review completed, 1 every attempted review failed, 2 no reviewer is available.
+# Exit codes: 0 a review completed, 1 every attempted review failed, 2 no reviewer is available,
+# 3 invalid arguments.
 set -uo pipefail
 
 log() { echo "create-pr review: $*" >&2; }
@@ -22,16 +24,23 @@ if [[ "${1:-}" == "--self" ]]; then
 elif [[ "${1:-}" == --self=* ]]; then
     self=${1#--self=}
     shift
-elif [[ -n "${CLAUDECODE:-}" ]]; then
-    self=claude
-elif [[ -n "${CODEX_THREAD_ID:-}${CODEX_SANDBOX:-}${CODEX_SANDBOX_NETWORK_DISABLED:-}" ]]; then
-    self=codex
+fi
+if [[ -z "$self" ]]; then
+    in_claude=${CLAUDECODE:+1}
+    in_codex=${CODEX_THREAD_ID:+1}${CODEX_SANDBOX:+1}${CODEX_SANDBOX_NETWORK_DISABLED:+1}
+    if [[ -n "$in_claude" && -n "$in_codex" ]]; then
+        log "both Claude Code and Codex variables are set, pass --self to skip your own provider"
+    elif [[ -n "$in_claude" ]]; then
+        self=claude
+    elif [[ -n "$in_codex" ]]; then
+        self=codex
+    fi
 fi
 case "$self" in
     "" | claude | codex) ;;
     *)
         log "unknown --self value '${self}', expected claude or codex"
-        exit 1
+        exit 3
         ;;
 esac
 [[ -n "$self" ]] && log "running as ${self}, so ${self} reviewers are skipped"
