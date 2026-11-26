@@ -16,6 +16,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aws"
 	awsaws "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -43,7 +44,7 @@ func TestDBMAuroraListener(t *testing.T) {
 			numDiscoveryIntervals: 0,
 			rdsClientConfigurer: func(k *aws.MockRdsClient) {
 				k.EXPECT().GetAuroraClustersFromTags(contextWithTimeout(1*time.Second), []string{defaultADTag}).DoAndReturn(
-					func(ctx context.Context, _ []string) ([]aws.DBCluster, error) {
+					func(ctx context.Context, _ []string) ([]types.DBCluster, error) {
 						<-ctx.Done()
 						return nil, ctx.Err()
 					}).AnyTimes()
@@ -63,15 +64,15 @@ func TestDBMAuroraListener(t *testing.T) {
 			numDiscoveryIntervals: 0,
 			rdsClientConfigurer: func(k *aws.MockRdsClient) {
 				gomock.InOrder(
-					k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]aws.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, nil).AnyTimes(),
-					k.EXPECT().GetAuroraClusterEndpoints(contextWithTimeout(1*time.Second), []aws.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, aws.Config{
+					k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]types.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, nil).AnyTimes(),
+					k.EXPECT().GetAuroraClusterEndpoints(contextWithTimeout(1*time.Second), []types.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, aws.Config{
 						DiscoveryInterval: 1,
 						QueryTimeout:      1,
 						Region:            "us-east-1",
 						Tags:              []string{defaultADTag},
 						DbmTag:            defaultDbmTag,
 					}).DoAndReturn(
-						func(ctx context.Context, _ []aws.DBCluster, _ aws.Config) ([]aws.Instance, error) {
+						func(ctx context.Context, _ []types.DBCluster, _ aws.Config) ([]aws.Instance, error) {
 							<-ctx.Done()
 							return nil, ctx.Err()
 						}).AnyTimes(),
@@ -107,8 +108,8 @@ func TestDBMAuroraListener(t *testing.T) {
 			numDiscoveryIntervals: 0,
 			rdsClientConfigurer: func(k *aws.MockRdsClient) {
 				gomock.InOrder(
-					k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]aws.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, nil).AnyTimes(),
-					k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []aws.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, aws.Config{
+					k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]types.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, nil).AnyTimes(),
+					k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []types.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, aws.Config{
 						DiscoveryInterval: 1,
 						Region:            "us-east-1",
 						Tags:              []string{defaultADTag},
@@ -129,8 +130,8 @@ func TestDBMAuroraListener(t *testing.T) {
 			},
 			numDiscoveryIntervals: 1,
 			rdsClientConfigurer: func(k *aws.MockRdsClient) {
-				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]aws.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, nil).AnyTimes()
-				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []aws.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, aws.Config{
+				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]types.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, nil).AnyTimes()
+				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []types.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, aws.Config{
 					DiscoveryInterval: 1,
 					Region:            "us-east-1",
 					Tags:              []string{defaultADTag},
@@ -178,8 +179,8 @@ func TestDBMAuroraListener(t *testing.T) {
 			},
 			numDiscoveryIntervals: 1,
 			rdsClientConfigurer: func(k *aws.MockRdsClient) {
-				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]aws.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, nil).AnyTimes()
-				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []aws.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, aws.Config{
+				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]types.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, nil).AnyTimes()
+				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []types.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, aws.Config{
 					DiscoveryInterval: 1,
 					Region:            "us-east-1",
 					Tags:              []string{defaultADTag},
@@ -229,8 +230,8 @@ func TestDBMAuroraListener(t *testing.T) {
 			},
 			numDiscoveryIntervals: 1,
 			rdsClientConfigurer: func(k *aws.MockRdsClient) {
-				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]aws.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, nil).AnyTimes()
-				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []aws.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, aws.Config{
+				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]types.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, nil).AnyTimes()
+				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []types.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, aws.Config{
 					DiscoveryInterval: 1,
 					Region:            "us-east-1",
 					Tags:              []string{defaultADTag},
@@ -335,8 +336,8 @@ func TestDBMAuroraListener(t *testing.T) {
 				},
 			},
 			rdsClientConfigurer: func(k *aws.MockRdsClient) {
-				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]aws.DBCluster{}, nil).AnyTimes()
-				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []aws.DBCluster{}, gomock.Any()).Return(nil, nil).AnyTimes()
+				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]types.DBCluster{}, nil).AnyTimes()
+				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []types.DBCluster{}, gomock.Any()).Return(nil, nil).AnyTimes()
 			},
 			expectedServices: []*DBMAuroraService{},
 			expectedDelServices: []*DBMAuroraService{
@@ -387,8 +388,8 @@ func TestDBMAuroraListener(t *testing.T) {
 				},
 			},
 			rdsClientConfigurer: func(k *aws.MockRdsClient) {
-				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]aws.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, nil).AnyTimes()
-				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []aws.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, aws.Config{
+				k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultADTag}).Return([]types.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, nil).AnyTimes()
+				k.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), []types.DBCluster{{DBClusterIdentifier: awsaws.String("my-cluster-1")}}, aws.Config{
 					DiscoveryInterval: 1,
 					Region:            "us-east-1",
 					Tags:              []string{defaultADTag},

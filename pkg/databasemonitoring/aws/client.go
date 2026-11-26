@@ -13,22 +13,24 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	awsrds "github.com/aws/aws-sdk-go-v2/service/rds"
+	"github.com/aws/aws-sdk-go-v2/service/rds/types"
 )
 
 //go:generate go run go.uber.org/mock/mockgen -source=$GOFILE -package=$GOPACKAGE -destination=rdsclient_mockgen.go -build_constraint "ec2 && test"
 
 // RdsClient is the interface for describing cluster and instance endpoints
 type RdsClient interface {
-	GetAuroraClusterEndpoints(ctx context.Context, clusters []DBCluster, config Config) ([]Instance, error)
-	GetAuroraClustersFromTags(ctx context.Context, tags []string) ([]DBCluster, error)
+	GetAuroraClusterEndpoints(ctx context.Context, clusters []types.DBCluster, config Config) ([]Instance, error)
+	GetAuroraClustersFromTags(ctx context.Context, tags []string) ([]types.DBCluster, error)
 	GetRdsInstancesFromTags(ctx context.Context, config Config) ([]Instance, error)
 }
 
 // rdsService defines the interface for describing cluster instances. It exists here to facilitate testing
-// while *rdsQueryClient is the implementation for production code.
+// but the *rds.Client will be the implementation for production code.
 type rdsService interface {
-	DescribeDBInstances(ctx context.Context, params *DescribeDBInstancesInput) (*DescribeDBInstancesOutput, error)
-	DescribeDBClusters(ctx context.Context, params *DescribeDBClustersInput) (*DescribeDBClustersOutput, error)
+	DescribeDBInstances(ctx context.Context, params *awsrds.DescribeDBInstancesInput, optFns ...func(*awsrds.Options)) (*awsrds.DescribeDBInstancesOutput, error)
+	DescribeDBClusters(ctx context.Context, params *awsrds.DescribeDBClustersInput, optFns ...func(*awsrds.Options)) (*awsrds.DescribeDBClustersOutput, error)
 }
 
 // Client is a wrapper around the AWS RDS client
@@ -59,9 +61,6 @@ func NewRdsClient(region string) (*Client, string, error) {
 		return nil, region, err
 	}
 
-	svc, err := newRDSQueryClient(cfg)
-	if err != nil {
-		return nil, region, err
-	}
+	svc := awsrds.NewFromConfig(cfg)
 	return &Client{client: svc}, region, nil
 }

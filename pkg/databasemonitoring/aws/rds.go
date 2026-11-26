@@ -13,6 +13,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
+	"github.com/aws/aws-sdk-go-v2/service/rds/types"
 )
 
 const (
@@ -26,9 +28,9 @@ func (c *Client) GetRdsInstancesFromTags(ctx context.Context, config Config) ([]
 	var marker *string
 	var err error
 	for {
-		dbInstances, err := c.client.DescribeDBInstances(ctx, &DescribeDBInstancesInput{
+		dbInstances, err := c.client.DescribeDBInstances(ctx, &rds.DescribeDBInstancesInput{
 			Marker: marker,
-			Filters: []Filter{
+			Filters: []types.Filter{
 				{
 					Name: aws.String("engine"),
 					Values: []string{
@@ -55,7 +57,7 @@ func (c *Client) GetRdsInstancesFromTags(ctx context.Context, config Config) ([]
 			}
 		}
 		marker = dbInstances.Marker
-		if marker == nil || *marker == "" {
+		if marker == nil {
 			break
 		}
 	}

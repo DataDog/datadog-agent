@@ -10,6 +10,8 @@ import (
 	context "context"
 	reflect "reflect"
 
+	rds "github.com/aws/aws-sdk-go-v2/service/rds"
+	types "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -37,7 +39,7 @@ func (m *MockRdsClient) EXPECT() *MockRdsClientMockRecorder {
 }
 
 // GetAuroraClusterEndpoints mocks base method.
-func (m *MockRdsClient) GetAuroraClusterEndpoints(ctx context.Context, clusters []DBCluster, config Config) ([]Instance, error) {
+func (m *MockRdsClient) GetAuroraClusterEndpoints(ctx context.Context, clusters []types.DBCluster, config Config) ([]Instance, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAuroraClusterEndpoints", ctx, clusters, config)
 	ret0, _ := ret[0].([]Instance)
@@ -52,10 +54,10 @@ func (mr *MockRdsClientMockRecorder) GetAuroraClusterEndpoints(ctx, clusters, co
 }
 
 // GetAuroraClustersFromTags mocks base method.
-func (m *MockRdsClient) GetAuroraClustersFromTags(ctx context.Context, tags []string) ([]DBCluster, error) {
+func (m *MockRdsClient) GetAuroraClustersFromTags(ctx context.Context, tags []string) ([]types.DBCluster, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAuroraClustersFromTags", ctx, tags)
-	ret0, _ := ret[0].([]DBCluster)
+	ret0, _ := ret[0].([]types.DBCluster)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -105,31 +107,41 @@ func (m *MockrdsService) EXPECT() *MockrdsServiceMockRecorder {
 }
 
 // DescribeDBClusters mocks base method.
-func (m *MockrdsService) DescribeDBClusters(ctx context.Context, params *DescribeDBClustersInput) (*DescribeDBClustersOutput, error) {
+func (m *MockrdsService) DescribeDBClusters(ctx context.Context, params *rds.DescribeDBClustersInput, optFns ...func(*rds.Options)) (*rds.DescribeDBClustersOutput, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DescribeDBClusters", ctx, params)
-	ret0, _ := ret[0].(*DescribeDBClustersOutput)
+	varargs := []interface{}{ctx, params}
+	for _, a := range optFns {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "DescribeDBClusters", varargs...)
+	ret0, _ := ret[0].(*rds.DescribeDBClustersOutput)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DescribeDBClusters indicates an expected call of DescribeDBClusters.
-func (mr *MockrdsServiceMockRecorder) DescribeDBClusters(ctx, params interface{}) *gomock.Call {
+func (mr *MockrdsServiceMockRecorder) DescribeDBClusters(ctx, params interface{}, optFns ...interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeDBClusters", reflect.TypeOf((*MockrdsService)(nil).DescribeDBClusters), ctx, params)
+	varargs := append([]interface{}{ctx, params}, optFns...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeDBClusters", reflect.TypeOf((*MockrdsService)(nil).DescribeDBClusters), varargs...)
 }
 
 // DescribeDBInstances mocks base method.
-func (m *MockrdsService) DescribeDBInstances(ctx context.Context, params *DescribeDBInstancesInput) (*DescribeDBInstancesOutput, error) {
+func (m *MockrdsService) DescribeDBInstances(ctx context.Context, params *rds.DescribeDBInstancesInput, optFns ...func(*rds.Options)) (*rds.DescribeDBInstancesOutput, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DescribeDBInstances", ctx, params)
-	ret0, _ := ret[0].(*DescribeDBInstancesOutput)
+	varargs := []interface{}{ctx, params}
+	for _, a := range optFns {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "DescribeDBInstances", varargs...)
+	ret0, _ := ret[0].(*rds.DescribeDBInstancesOutput)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DescribeDBInstances indicates an expected call of DescribeDBInstances.
-func (mr *MockrdsServiceMockRecorder) DescribeDBInstances(ctx, params interface{}) *gomock.Call {
+func (mr *MockrdsServiceMockRecorder) DescribeDBInstances(ctx, params interface{}, optFns ...interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeDBInstances", reflect.TypeOf((*MockrdsService)(nil).DescribeDBInstances), ctx, params)
+	varargs := append([]interface{}{ctx, params}, optFns...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeDBInstances", reflect.TypeOf((*MockrdsService)(nil).DescribeDBInstances), varargs...)
 }

@@ -12,10 +12,13 @@ import (
 	"fmt"
 	"hash/fnv"
 	"strconv"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
+	"github.com/aws/aws-sdk-go-v2/service/rds/types"
+
+	"strings"
 )
 
 const (
@@ -25,47 +28,41 @@ const (
 
 // GetAuroraClusterEndpoints queries an AWS account for the endpoints of an Aurora cluster
 // requires the dbClusterIdentifier for the cluster
-func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, clusters []DBCluster, config Config) ([]Instance, error) {
+func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, clusters []types.DBCluster, config Config) ([]Instance, error) {
 	log.Debugf("aurora: getting endpoints for %d clusters", len(clusters))
 	if len(clusters) == 0 {
 		return nil, nil
 	}
 	instances := make([]Instance, 0, len(clusters))
 	for _, cluster := range clusters {
-		var marker *string
-		for {
-			clusterInstances, err := c.client.DescribeDBInstances(ctx,
-				&DescribeDBInstancesInput{
-					Marker: marker,
-					Filters: []Filter{
-						{
-							Name:   aws.String("db-cluster-id"),
-							Values: []string{*cluster.DBClusterIdentifier},
-						},
+		// TODO: Seth Samuel: This method is not paginated, so if there are more than 100 instances in a cluster, we will only get the first 100
+		// We should add pagination support to this method at some point
+		clusterInstances, err := c.client.DescribeDBInstances(ctx,
+			&rds.DescribeDBInstancesInput{
+				Filters: []types.Filter{
+					{
+						Name:   aws.String("db-cluster-id"),
+						Values: []string{*cluster.DBClusterIdentifier},
 					},
-				})
-			if err != nil {
-				return nil, fmt.Errorf("aurora: error running GetAuroraClusterEndpoints %v", err)
-			}
-			log.Debugf("aurora: found %d instances in cluster %s", len(clusterInstances.DBInstances), *cluster.DBClusterIdentifier)
-			for _, db := range clusterInstances.DBInstances {
-				if db.Endpoint != nil && db.DBClusterIdentifier != nil {
-					if db.Endpoint.Address == nil || db.DBInstanceStatus == nil || strings.ToLower(*db.DBInstanceStatus) != "available" {
-						log.Debugf("aurora: skipping instance %v in cluster %s", db, *cluster.DBClusterIdentifier)
-						continue
-					}
-					instance, err := makeInstance(db, &cluster, config)
-					log.Debugf("aurora: created instance %v", instance)
-					if err != nil || instance == nil {
-						log.Errorf("aurora:error creating instance from DBInstance: %v", err)
-						continue
-					}
-					instances = append(instances, *instance)
+				},
+			})
+		if err != nil {
+			return nil, fmt.Errorf("aurora: error running GetAuroraClusterEndpoints %v", err)
+		}
+		log.Debugf("aurora: found %d instances in cluster %s", len(clusterInstances.DBInstances), *cluster.DBClusterIdentifier)
+		for _, db := range clusterInstances.DBInstances {
+			if db.Endpoint != nil && db.DBClusterIdentifier != nil {
+				if db.Endpoint.Address == nil || db.DBInstanceStatus == nil || strings.ToLower(*db.DBInstanceStatus) != "available" {
+					log.Debugf("aurora: skipping instance %v in cluster %s", db, *cluster.DBClusterIdentifier)
+					continue
 				}
-			}
-			marker = clusterInstances.Marker
-			if marker == nil || *marker == "" {
-				break
+				instance, err := makeInstance(db, &cluster, config)
+				log.Debugf("aurora: created instance %v", instance)
+				if err != nil || instance == nil {
+					log.Errorf("aurora:error creating instance from DBInstance: %v", err)
+					continue
+				}
+				instances = append(instances, *instance)
 			}
 		}
 	}
@@ -77,14 +74,14 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, clusters []DBClu
 // that are brought up during an auto-scaling event. That means the only way to reliably filter for the list
 // of database instances is to first query for the cluster ids. This also means the customer
 // will only have to set a single tag on their cluster.
-func (c *Client) GetAuroraClustersFromTags(ctx context.Context, tags []string) ([]DBCluster, error) {
-	clusters := make([]DBCluster, 0)
+func (c *Client) GetAuroraClustersFromTags(ctx context.Context, tags []string) ([]types.DBCluster, error) {
+	clusters := make([]types.DBCluster, 0)
 	var marker *string
 	var err error
 	for {
-		clusterDescriptions, err := c.client.DescribeDBClusters(ctx, &DescribeDBClustersInput{
+		clusterDescriptions, err := c.client.DescribeDBClusters(ctx, &rds.DescribeDBClustersInput{
 			Marker: marker,
-			Filters: []Filter{
+			Filters: []types.Filter{
 				{
 					Name: aws.String("engine"),
 					Values: []string{
@@ -106,7 +103,7 @@ func (c *Client) GetAuroraClustersFromTags(ctx context.Context, tags []string) (
 			}
 		}
 		marker = clusterDescriptions.Marker
-		if marker == nil || *marker == "" {
+		if marker == nil {
 			break
 		}
 	}
@@ -114,7 +111,7 @@ func (c *Client) GetAuroraClustersFromTags(ctx context.Context, tags []string) (
 	return clusters, err
 }
 
-func containsTags(clusterTags []Tag, providedTags []string) bool {
+func containsTags(clusterTags []types.Tag, providedTags []string) bool {
 	pTagMap := make(map[string]struct{}, len(providedTags))
 	for _, tag := range providedTags {
 		pTagMap[strings.ToLower(tag)] = struct{}{}

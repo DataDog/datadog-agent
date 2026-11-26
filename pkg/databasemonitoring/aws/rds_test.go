@@ -13,6 +13,8 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
+	"github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -28,17 +30,17 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 		{
 			name: "not tag filter returns all results from API",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBInstances(gomock.Any(), &DescribeDBInstancesInput{
-					Filters: []Filter{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), &rds.DescribeDBInstancesInput{
+					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
 							Values: []string{mysqlEngine, postgresEngine, auroraMysqlEngine, auroraPostgresqlEngine},
 						},
 					},
-				}).Return(&DescribeDBInstancesOutput{
-					DBInstances: []DBInstance{
+				}).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
 						{
-							Endpoint: &Endpoint{
+							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint"),
 								Port:    aws.Int32(5432),
 							},
@@ -47,7 +49,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("postgres"),
-							TagList:                          []Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
+							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
 						},
 					},
 				}, nil).Times(1)
@@ -66,8 +68,8 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 		{
 			name: "single tag filter returns error from API",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBInstances(gomock.Any(), &DescribeDBInstancesInput{
-					Filters: []Filter{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), &rds.DescribeDBInstancesInput{
+					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
 							Values: []string{mysqlEngine, postgresEngine, auroraMysqlEngine, auroraPostgresqlEngine},
@@ -81,14 +83,14 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 		{
 			name: "single tag filter returns no results from API",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBInstances(gomock.Any(), &DescribeDBInstancesInput{
-					Filters: []Filter{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), &rds.DescribeDBInstancesInput{
+					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
 							Values: []string{mysqlEngine, postgresEngine, auroraMysqlEngine, auroraPostgresqlEngine},
 						},
 					},
-				}).Return(&DescribeDBInstancesOutput{}, nil).Times(1)
+				}).Return(&rds.DescribeDBInstancesOutput{}, nil).Times(1)
 			},
 			tags:              []string{"test:tag"},
 			expectedInstances: []Instance{},
@@ -96,17 +98,17 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 		{
 			name: "single tag filter returns single result from API with matching tag",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBInstances(gomock.Any(), &DescribeDBInstancesInput{
-					Filters: []Filter{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), &rds.DescribeDBInstancesInput{
+					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
 							Values: []string{mysqlEngine, postgresEngine, auroraMysqlEngine, auroraPostgresqlEngine},
 						},
 					},
-				}).Return(&DescribeDBInstancesOutput{
-					DBInstances: []DBInstance{
+				}).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
 						{
-							Endpoint: &Endpoint{
+							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint"),
 								Port:    aws.Int32(5432),
 							},
@@ -115,7 +117,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("postgres"),
-							TagList:                          []Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
+							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
 						},
 					},
 				}, nil).Times(1)
@@ -134,17 +136,17 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 		{
 			name: "single tag filter returns single result from API with matching tag with global DB view",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBInstances(gomock.Any(), &DescribeDBInstancesInput{
-					Filters: []Filter{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), &rds.DescribeDBInstancesInput{
+					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
 							Values: []string{mysqlEngine, postgresEngine, auroraMysqlEngine, auroraPostgresqlEngine},
 						},
 					},
-				}).Return(&DescribeDBInstancesOutput{
-					DBInstances: []DBInstance{
+				}).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
 						{
-							Endpoint: &Endpoint{
+							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint"),
 								Port:    aws.Int32(5432),
 							},
@@ -153,7 +155,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("postgres"),
-							TagList: []Tag{
+							TagList: []types.Tag{
 								{Key: aws.String("test"), Value: aws.String("tag")},
 								{Key: aws.String("datadoghq.com/global_view_db"), Value: aws.String("custom")},
 								{Key: aws.String("datadoghq.com/dbm"), Value: aws.String("true")},
@@ -177,17 +179,17 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 		{
 			name: "single tag filter returns single result from API with non-matching tag",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBInstances(gomock.Any(), &DescribeDBInstancesInput{
-					Filters: []Filter{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), &rds.DescribeDBInstancesInput{
+					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
 							Values: []string{mysqlEngine, postgresEngine, auroraMysqlEngine, auroraPostgresqlEngine},
 						},
 					},
-				}).Return(&DescribeDBInstancesOutput{
-					DBInstances: []DBInstance{
+				}).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
 						{
-							Endpoint: &Endpoint{
+							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint"),
 								Port:    aws.Int32(5432),
 							},
@@ -196,7 +198,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("postgres"),
-							TagList:                          []Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
+							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
 						},
 					},
 				}, nil).Times(1)
@@ -207,17 +209,17 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 		{
 			name: "single tag filter returns multiple results from API with matching tag",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBInstances(gomock.Any(), &DescribeDBInstancesInput{
-					Filters: []Filter{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), &rds.DescribeDBInstancesInput{
+					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
 							Values: []string{mysqlEngine, postgresEngine, auroraMysqlEngine, auroraPostgresqlEngine},
 						},
 					},
-				}).Return(&DescribeDBInstancesOutput{
-					DBInstances: []DBInstance{
+				}).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
 						{
-							Endpoint: &Endpoint{
+							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint"),
 								Port:    aws.Int32(5432),
 							},
@@ -226,10 +228,10 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("postgres"),
-							TagList:                          []Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
+							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
 						},
 						{
-							Endpoint: &Endpoint{
+							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint-2"),
 								Port:    aws.Int32(5432),
 							},
@@ -238,7 +240,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("postgres"),
-							TagList:                          []Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
+							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
 						},
 					},
 				}, nil).Times(1)
@@ -267,17 +269,17 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 		{
 			name: "single tag filter returns multiple results from API, one instance doesn't match tag",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBInstances(gomock.Any(), &DescribeDBInstancesInput{
-					Filters: []Filter{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), &rds.DescribeDBInstancesInput{
+					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
 							Values: []string{mysqlEngine, postgresEngine, auroraMysqlEngine, auroraPostgresqlEngine},
 						},
 					},
-				}).Return(&DescribeDBInstancesOutput{
-					DBInstances: []DBInstance{
+				}).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
 						{
-							Endpoint: &Endpoint{
+							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint"),
 								Port:    aws.Int32(5432),
 							},
@@ -286,10 +288,10 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("postgres"),
-							TagList:                          []Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
+							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
 						},
 						{
-							Endpoint: &Endpoint{
+							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint-2"),
 								Port:    aws.Int32(5432),
 							},
@@ -298,7 +300,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("postgres"),
-							TagList:                          []Tag{{Key: aws.String("test"), Value: aws.String("tag2")}},
+							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag2")}},
 						},
 					},
 				}, nil).Times(1)
@@ -318,17 +320,17 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 		{
 			name: "single tag filter returns multiple results from API, one instance has no tags",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBInstances(gomock.Any(), &DescribeDBInstancesInput{
-					Filters: []Filter{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), &rds.DescribeDBInstancesInput{
+					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
 							Values: []string{mysqlEngine, postgresEngine, auroraMysqlEngine, auroraPostgresqlEngine},
 						},
 					},
-				}).Return(&DescribeDBInstancesOutput{
-					DBInstances: []DBInstance{
+				}).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
 						{
-							Endpoint: &Endpoint{
+							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint"),
 								Port:    aws.Int32(5432),
 							},
@@ -337,10 +339,10 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("postgres"),
-							TagList:                          []Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
+							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
 						},
 						{
-							Endpoint: &Endpoint{
+							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint-2"),
 								Port:    aws.Int32(5432),
 							},
@@ -349,7 +351,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("postgres"),
-							TagList:                          []Tag{},
+							TagList:                          []types.Tag{},
 						},
 					},
 				}, nil).Times(1)
@@ -369,17 +371,17 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 		{
 			name: "multiple tag filter returns multiple results from API all matching",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBInstances(gomock.Any(), &DescribeDBInstancesInput{
-					Filters: []Filter{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), &rds.DescribeDBInstancesInput{
+					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
 							Values: []string{mysqlEngine, postgresEngine, auroraMysqlEngine, auroraPostgresqlEngine},
 						},
 					},
-				}).Return(&DescribeDBInstancesOutput{
-					DBInstances: []DBInstance{
+				}).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
 						{
-							Endpoint: &Endpoint{
+							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint"),
 								Port:    aws.Int32(5432),
 							},
@@ -388,14 +390,14 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("postgres"),
-							TagList: []Tag{
+							TagList: []types.Tag{
 								{Key: aws.String("test"), Value: aws.String("tag")},
 								{Key: aws.String("test"), Value: aws.String("tag2")},
 								{Key: aws.String("test"), Value: aws.String("tag3")},
 							},
 						},
 						{
-							Endpoint: &Endpoint{
+							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint-2"),
 								Port:    aws.Int32(5432),
 							},
@@ -404,7 +406,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("aurora-postgresql"),
-							TagList: []Tag{
+							TagList: []types.Tag{
 								{Key: aws.String("test"), Value: aws.String("tag")},
 								{Key: aws.String("test"), Value: aws.String("tag2")},
 								{Key: aws.String("test"), Value: aws.String("tag4")},
@@ -438,18 +440,18 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 		{
 			name: "multiple pages returns instances from all pages",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBInstances(gomock.Any(), &DescribeDBInstancesInput{
-					Filters: []Filter{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), &rds.DescribeDBInstancesInput{
+					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
 							Values: []string{mysqlEngine, postgresEngine, auroraMysqlEngine, auroraPostgresqlEngine},
 						},
 					},
-				}).Return(&DescribeDBInstancesOutput{
+				}).Return(&rds.DescribeDBInstancesOutput{
 					Marker: aws.String("next"),
-					DBInstances: []DBInstance{
+					DBInstances: []types.DBInstance{
 						{
-							Endpoint: &Endpoint{
+							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint"),
 								Port:    aws.Int32(5432),
 							},
@@ -458,22 +460,22 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("aurora-postgresql"),
-							TagList:                          []Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
+							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
 						},
 					},
 				}, nil).Times(1)
-				k.EXPECT().DescribeDBInstances(gomock.Any(), &DescribeDBInstancesInput{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), &rds.DescribeDBInstancesInput{
 					Marker: aws.String("next"),
-					Filters: []Filter{
+					Filters: []types.Filter{
 						{
 							Name:   aws.String("engine"),
 							Values: []string{mysqlEngine, postgresEngine, auroraMysqlEngine, auroraPostgresqlEngine},
 						},
 					},
-				}).Return(&DescribeDBInstancesOutput{
-					DBInstances: []DBInstance{
+				}).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
 						{
-							Endpoint: &Endpoint{
+							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint-2"),
 								Port:    aws.Int32(5432),
 							},
@@ -482,7 +484,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("postgres"),
-							TagList:                          []Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
+							TagList:                          []types.Tag{{Key: aws.String("test"), Value: aws.String("tag")}},
 						},
 					},
 				}, nil).Times(1)

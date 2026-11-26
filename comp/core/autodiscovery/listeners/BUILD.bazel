@@ -153,6 +153,7 @@ dd_agent_go_test(
         "//pkg/util/fxutil",
         "//pkg/util/testutil",
         "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_service_rds//types",
         "@com_github_go_viper_mapstructure_v2//:mapstructure",
         "@com_github_google_go_cmp//cmp",
         "@com_github_google_go_cmp//cmp/cmpopts",
