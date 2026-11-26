@@ -2429,6 +2429,66 @@ func TestRulesetLoadedEventUnserializableSetValues(t *testing.T) {
 	assert.Equal(t, "map[1:a]", rule.Actions[1].Set.Value)
 }
 
+func TestExtractMonitoredFilesAndFolders(t *testing.T) {
+	testCases := []struct {
+		name       string
+		expression string
+		expected   []string
+	}{
+		{
+			name:       "equal",
+			expression: `open.file.path == "/etc/passwd"`,
+			expected:   []string{"/etc/passwd"},
+		},
+		{
+			name:       "disjunction with another field",
+			expression: `open.file.path == "/etc/passwd" || process.uid == 0`,
+			expected:   []string{"/etc/passwd"},
+		},
+		{
+			name:       "negated",
+			expression: `!(open.file.path == "/etc/passwd") && process.uid == 0`,
+		},
+		{
+			name:       "not equal",
+			expression: `open.file.path != "/etc/passwd"`,
+		},
+		{
+			name:       "in",
+			expression: `open.file.name in ["passwd", "shadow"]`,
+			expected:   []string{"passwd", "shadow"},
+		},
+		{
+			name:       "not in",
+			expression: `open.file.name not in ["passwd", "shadow"]`,
+		},
+		{
+			name:       "macro",
+			expression: `open.file.path in sensitive_files`,
+			expected:   []string{"/etc/shadow"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			policy := &testPolicy{
+				info: rules.PolicyInfo{Name: "Policy A", Source: "test"},
+				def: rules.PolicyDef{
+					Macros: []*rules.MacroDefinition{{ID: "sensitive_files", Values: []string{"/etc/shadow"}}},
+					Rules:  []*rules.RuleDefinition{{ID: "rule_a", Expression: tc.expression}},
+				},
+			}
+
+			ruleOpts, evalOpts := rules.NewBothOpts(map[eval.EventType]bool{"*": true})
+			rs := rules.NewRuleSet(&model.Model{}, func() eval.Event { return &model.Event{} }, ruleOpts, evalOpts)
+			_, errs := rs.LoadPolicies(rules.NewPolicyLoader(newTestPolicyProvider(policy)), rules.PolicyLoaderOpts{})
+			require.Nil(t, errs.ErrorOrNil())
+
+			assert.ElementsMatch(t, tc.expected, extractMonitoredFilesAndFolders(rs))
+		})
+	}
+}
+
 type testPolicyProvider struct {
 	policies []*testPolicy
 }
