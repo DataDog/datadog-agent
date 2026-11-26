@@ -50,31 +50,16 @@
 //! Platform differences are carried in [`HostOs`] rather than `cfg`, so every
 //! platform's rules can be tested on one runner.
 //!
-//! # A file that does not answer
+//! # Files that do not answer
 //!
-//! Each file is read under `stop::bounded`. A file that stalls, is cut short by a stop, or is
-//! refused holds the gate: an any-of is unmet and a none-of vetoes, instead of reading the file
-//! as absent. A refusal is `stop::bounded` declining to start a read, because an earlier read of
-//! the same path is still blocked or the per-path or total cap of blocked reads is reached. It is
-//! not an OS permission error.
-//!
-//! Only files the evaluation consults count, fleet policy files included. Terms are consulted
-//! left to right and an any-of stops at the first enabled one, so `[enabled, stalled]` is met
-//! without reading the second file, while `[stalled, enabled]` holds. Once a file has stalled,
-//! the rest of that evaluation reads nothing more, since the result is already decided.
-//!
-//! Errors from the read itself fall back to env and defaults, matching Go `ReadInConfig`, with
-//! two kinds of exception that hold: a read that reports `TimedOut` or `Interrupted`, and, on
-//! unix, `EIO` and `ESTALE`, which is how a hung or stale network mount fails. `NotFound`, a
-//! permission error, a file that is not valid UTF-8 and a YAML parse error keep the fallback.
-//!
-//! A reload re-evaluates a stalled hold. A reload that comes while the earlier read is still
-//! blocked is refused without a new read, so the hold lasts until `stop::bounded` accepts a new
-//! read of that path. An explicit start bypasses the gate conditions. Nothing retries in the
-//! background.
-//! `condition_path_exists` reads without a cache, while `condition_config_any` and
-//! `condition_config_none` each keep their own, so one process can wait out the deadline once per
-//! condition.
+//! Each file is read under `stop::bounded`. A file holds the gate when its read times out, is
+//! cut short by a stop, or is refused by `stop::bounded` because earlier reads are still blocked:
+//! one of the path given up on less than 60 s ago, two of the path, or 32 in total. A read error
+//! that `read_error_holds` accepts holds too (for example `EIO` and `ESTALE` on unix). An any-of
+//! is then unmet and a none-of vetoes. Only consulted files count: terms are read left to right,
+//! and a gate reads nothing more after a stall. Other read errors fall back to env and defaults,
+//! as Go `ReadInConfig` does. A reload re-evaluates the hold, and an explicit start bypasses
+//! the conditions.
 
 mod env_bindings;
 mod system_probe;
@@ -322,11 +307,11 @@ pub(crate) fn gated_key_names() -> Vec<&'static str> {
 /// How a gate evaluation ended.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GateOutcome {
-    /// The gate is met: the any-of is satisfied, or no none-of key is enabled.
+    /// The gate is met.
     Open,
-    /// The gate is closed by what the files say.
+    /// The evaluation finished and the gate is not met.
     Closed,
-    /// A consulted file did not answer, so the gate holds whatever the other files say.
+    /// A consulted file did not answer, so the gate holds.
     Stalled(Stall),
 }
 
@@ -341,19 +326,13 @@ impl GateOutcome {
 /// The first consulted file that did not answer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Stall {
-    /// The file that did not answer.
     pub path: String,
-    /// What `stop::bounded` or the read reported.
     pub kind: std::io::ErrorKind,
-    /// The error text.
     pub detail: String,
 }
 
 /// Returns true when `conditions` is empty or any `(path, key)` pair is enabled.
-///
-/// A consulted file that stalls, is refused or is cut short by a stop makes it false, whatever
-/// the other files say (see the module docs). Use [`condition_config_any_outcome`] to tell
-/// that apart from a gate the files close.
+/// A stalled file makes this return false; [`condition_config_any_outcome`] reports it.
 pub fn condition_config_any_met(conditions: &[ConditionConfigFile]) -> bool {
     evaluate(conditions, HostOs::CURRENT)
 }
@@ -370,8 +349,7 @@ pub fn condition_config_any_outcome(conditions: &[ConditionConfigFile]) -> GateO
 /// enabling the entry would defeat it. Scoping the veto to the entry is the point, since
 /// the same key may be read by another entry that has to keep running.
 ///
-/// A consulted file that stalls, is refused or is cut short by a stop vetoes, so this is false.
-/// Use [`condition_config_none_outcome`] to tell that apart from a key that vetoes.
+/// A stalled file vetoes here; [`condition_config_none_outcome`] reports it.
 pub fn condition_config_none_met(conditions: &[ConditionConfigFile]) -> bool {
     evaluate_none(conditions, HostOs::CURRENT)
 }
@@ -397,7 +375,6 @@ fn evaluate_outcome(conditions: &[ConditionConfigFile], os: HostOs) -> GateOutco
     let mut yaml = YamlCache::default();
     let mut met = false;
     for file in conditions {
-        // A stall already decides the gate, so no later term is consulted.
         if yaml.has_stalled() {
             break;
         }
@@ -433,7 +410,6 @@ fn evaluate_none_outcome(conditions: &[ConditionConfigFile], os: HostOs) -> Gate
     let mut yaml = YamlCache::default();
     let mut vetoed = false;
     for file in conditions {
-        // A stall already decides the gate, so no later term is consulted.
         if yaml.has_stalled() {
             break;
         }
@@ -612,16 +588,10 @@ fn transform_time_bool(yaml: &mut YamlCache, base_path: &str, key: &str) -> Opti
     yaml.bool_at(base_path, key)
 }
 
-/// Lazily loaded YAML files, keyed by path.
-///
-/// Every accessor is infallible. A file that is missing, unreadable for a reason other than
-/// a stall, or malformed is treated as setting nothing, matching the Agent, which still
-/// initializes its config from env vars and schema defaults when `ReadInConfig` fails
-/// (`pkg/config/nodetreemodel/read_config_file.go`).
-///
-/// A file that does not answer is the exception: the first one is recorded in `stall`, reads as
-/// setting nothing, and the gate holds (see [`YamlCache::into_first_stall`]). After that no
-/// further file is read, since the result is already decided.
+/// Lazily loaded YAML files, keyed by path. A missing, unreadable or malformed file sets
+/// nothing, as Go `ReadInConfig` does (see `pkg/config/nodetreemodel/read_config_file.go`).
+/// The first file that does not answer is recorded in `stall`, and no further file is read
+/// after that.
 #[derive(Default)]
 pub(super) struct YamlCache {
     files: HashMap<String, Value>,
@@ -632,7 +602,6 @@ impl YamlCache {
     fn root(&mut self, path: &str) -> &Value {
         if !self.files.contains_key(path) {
             let value = if self.stall.is_some() {
-                // The gate already holds, so another read could only add another stall.
                 Value::Null
             } else {
                 let (value, stall) = read_config_file(path);
@@ -644,12 +613,10 @@ impl YamlCache {
         &self.files[path]
     }
 
-    /// Whether a file has already stalled, so the evaluation is decided and reads nothing more.
     fn has_stalled(&self) -> bool {
         self.stall.is_some()
     }
 
-    /// The first file that did not answer, if any. Only files the evaluation consulted count.
     fn into_first_stall(self) -> Option<Stall> {
         self.stall
     }
@@ -804,9 +771,8 @@ fn path_to_string(path: PathBuf) -> String {
     path.to_string_lossy().into_owned()
 }
 
-/// Whether a read error means the file did not answer, which holds the gate. Every other error
-/// falls back to env and defaults, as Go `ReadInConfig` does. On unix, `EIO` and `ESTALE` count,
-/// since a hung or stale network mount fails that way before the call deadline.
+/// Whether a read error means the file did not answer. On unix, `EIO` and `ESTALE` count, as a
+/// hung or stale network mount reports them.
 pub(crate) fn read_error_holds(err: &std::io::Error) -> bool {
     if matches!(
         err.kind(),
@@ -821,16 +787,13 @@ pub(crate) fn read_error_holds(err: &std::io::Error) -> bool {
     false
 }
 
-/// Reads a gated file. The second value is set when the file did not answer, which holds the
-/// gate. The caller reports the hold, once per decision, so this logs it at debug only.
+/// Reads a gated file. The second value is set when the file did not answer.
 fn read_config_file(path: &str) -> (Value, Option<Stall>) {
     let stall = |err: &std::io::Error| Stall {
         path: path.to_owned(),
         kind: err.kind(),
         detail: err.to_string(),
     };
-    // An error from the bounded call itself holds the process. Only a read error is a file the
-    // gate can fall back from.
     let owned = PathBuf::from(path);
     let read = match crate::stop::bounded(Path::new(path), move || {
         #[cfg(test)]
@@ -921,7 +884,6 @@ mod tests {
         }
     }
 
-    /// The stall hook stands in for a hung mount on every platform, a FIFO being unix only.
     #[test]
     fn a_stalled_file_holds_any_of_and_none_of_on_every_platform() {
         let _env = test_env_guard();
@@ -930,7 +892,6 @@ mod tests {
         std::fs::write(&stalled, "apm_config:\n  enabled: true\n").unwrap();
         let _stalled = crate::stop::testing::stall(&stalled);
 
-        // Defaults opposite to the expected result.
         let any = [term(&stalled, "apm_config.enabled")];
         let none = [term(&stalled, "system_probe_config.external")];
         assert!(!condition_config_any_met(&any), "any-of must hold");
@@ -954,7 +915,6 @@ mod tests {
         );
     }
 
-    /// A stalled fleet policy holds even when the base file would decide.
     #[test]
     fn a_stalled_fleet_policy_holds_on_every_platform() {
         let _env = test_env_guard();
@@ -981,7 +941,6 @@ mod tests {
         );
     }
 
-    /// Once a file has stalled, the evaluation reads nothing more.
     #[test]
     fn nothing_is_read_after_a_file_has_stalled() {
         let _env = test_env_guard();
@@ -1006,7 +965,6 @@ mod tests {
         let stall = yaml.into_first_stall().expect("the stall is recorded");
         assert_eq!(stall.path, stalled.to_str().unwrap());
 
-        // End to end: the stalled term decides the gate, and the term after it is never read.
         let enabling = dir.path().join("enabling.yaml");
         std::fs::write(&enabling, "data_plane:\n  enabled: true\n").unwrap();
         let outcome = condition_config_any_outcome(&[
@@ -1030,7 +988,6 @@ mod tests {
         );
     }
 
-    /// Only the errors a hung or stale mount produces hold. The rest fall back to defaults.
     #[test]
     fn read_errors_hold_only_for_a_file_that_does_not_answer() {
         use std::io::{Error, ErrorKind};
@@ -1055,7 +1012,6 @@ mod tests {
         }
     }
 
-    /// A term that decides the gate before a stalled file is reached never reads it.
     #[test]
     fn a_term_that_decides_the_gate_does_not_read_a_later_stalled_file() {
         let _env = test_env_guard();

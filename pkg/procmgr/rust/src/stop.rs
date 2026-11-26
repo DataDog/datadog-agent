@@ -259,8 +259,9 @@ pub(crate) mod testing {
     static PARKED: Mutex<Vec<(PathBuf, thread::Thread)>> = Mutex::new(Vec::new());
     static READS: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
 
-    /// Holds reads of one path as stalled until dropped. Dropping it releases the blocked reads
-    /// and waits for their entries to leave `ABANDONED`, so a test leaves no reader behind.
+    /// Holds reads of one path as stalled until dropped, then releases the blocked readers.
+    /// The last guard for a path waits up to 10 s for abandoned readers of the path to leave
+    /// `ABANDONED` and panics if any remain.
     #[must_use = "the stall holds only while the guard is alive"]
     pub(crate) struct StallGuard(PathBuf);
 
@@ -281,8 +282,6 @@ pub(crate) mod testing {
                     stalled.remove(at);
                 }
             }
-            // Wakes every registered reader of this path. A reader that is still stalled, because
-            // another guard holds the path, registers again and parks.
             PARKED
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
@@ -295,10 +294,8 @@ pub(crate) mod testing {
                     }
                 });
             if is_stalled(&self.0) {
-                // The last guard for this path waits for the reads and reports any left behind.
                 return;
             }
-            // Bounded, so a read that never returns cannot hang the test run.
             let deadline = Instant::now() + Duration::from_secs(10);
             while lock_abandoned().iter().any(|a| a.path == self.0) && Instant::now() < deadline {
                 thread::sleep(Duration::from_millis(5));
@@ -321,7 +318,7 @@ pub(crate) mod testing {
             .any(|p| p == path)
     }
 
-    /// How many times a read of `path` has started, as counted by [`record_read`].
+    /// Number of reads of `path` recorded by [`record_read`].
     pub(crate) fn reads_of(path: &Path) -> usize {
         READS
             .lock()
@@ -331,8 +328,7 @@ pub(crate) mod testing {
             .count()
     }
 
-    /// Records that a read of `path` is about to start. Called by [`bounded_with`] on the caller's
-    /// thread, so the count does not depend on when the read thread is scheduled.
+    /// Records a read of `path`, on the caller's thread, before the read thread starts.
     pub(crate) fn record_read(path: &Path) {
         READS
             .lock()
@@ -340,15 +336,15 @@ pub(crate) mod testing {
             .push(path.to_path_buf());
     }
 
-    /// Parks the calling thread while `path` is stalled. Called on the thread that performs the
-    /// read, before it.
+    /// Parks the calling thread while `path` is stalled.
     pub(crate) fn park_if_stalled(path: &Path) {
         if !is_stalled(path) {
             return;
         }
         let me = thread::current();
         loop {
-            // Registered before the check, so a release that runs after the check still finds it.
+            // Register before re-checking `is_stalled`, so a release between the check and the
+            // park still finds this thread.
             PARKED
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)

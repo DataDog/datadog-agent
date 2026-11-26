@@ -877,8 +877,7 @@ impl ProcessManager {
     /// Evaluates each selected process's start gate and spawns it unless a hold applies. Returns
     /// `None` if `shutdown` resolves first or the process-wide stop flag is set. It is polled
     /// before each process and again after the gate read, and after each spawn. Gate reads and
-    /// path checks run under `stop::bounded`, so they give up at the call deadline or on a
-    /// process-wide stop, and the process is held.
+    /// path checks run under `stop::bounded`.
     async fn run_start_pass<F: Future<Output = ()>>(
         &self,
         procs: &mut [ManagedProcess],
@@ -922,11 +921,9 @@ impl ProcessManager {
         Some(decided)
     }
 
-    /// Start pass for create and reload. It does not watch for a stop, so a stop request
-    /// that arrives during it does not end the pass. Its filesystem calls stay bounded, each
-    /// giving up at the call deadline or on a process-wide stop. A gate read or path check that
-    /// gives up holds the process, and a file open that gives up fails the spawn. The spawn
-    /// itself runs to completion.
+    /// Start pass for create and reload. A stop request does not end it. Its gate reads and path
+    /// checks stay bounded, and one that gives up holds the process. Spawning itself runs to
+    /// completion.
     async fn run_start_pass_uninterrupted(
         &self,
         procs: &mut [ManagedProcess],

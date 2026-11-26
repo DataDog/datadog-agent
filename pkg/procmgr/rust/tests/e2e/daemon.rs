@@ -202,11 +202,9 @@ fn spawned_pid(daemon: &DaemonHandle, name: &str) -> u32 {
         .expect("pid is a number")
 }
 
-/// A SIGTERM during startup must end the daemon cleanly and start nothing after the gate. The FIFO
-/// gate holds startup open, and the stop must interrupt the blocked gate read, so the test
-/// releases it only after the daemon has exited. A process started before the gate must be
-/// stopped during teardown. This covers the signal-during-startup path only. The window before
-/// the runtime exists (the early handler) needs a PID 1 or exec-based test.
+/// A SIGTERM during startup ends the daemon cleanly and starts nothing after the blocked gate.
+/// A process started before the gate is stopped during teardown. The window before the runtime
+/// exists needs a PID 1 or exec-based test.
 #[cfg(unix)]
 #[test]
 fn test_cli_daemon_shutdown_during_startup_exits_cleanly() {
@@ -234,17 +232,16 @@ fn test_cli_daemon_shutdown_during_startup_exits_cleanly() {
                 test_helpers::true_cmd().0
             ),
         );
-    // The writer holds the gate FIFO open until released. Dropping it early would leave a daemon
-    // that has not opened the FIFO yet blocked forever.
+    // A helper thread opens the FIFO for writing. The blocking open returns once the daemon
+    // opens it for reading, and the daemon's gate read then blocks while the writer is open.
+    // Dropping it early would leave a daemon that has not opened yet blocked forever.
     let (opened_tx, opened_rx) = std::sync::mpsc::channel::<()>();
-    // The writer never writes: it is released only after the daemon has exited, so the gate read
-    // has to be ended by the stop and not by an answer.
+    // The writer is released only after the daemon exits, so the stop ends the gate read.
     let mut gate_writer = FifoWriter::spawn(gate.clone(), opened_tx, |_writer| {});
     // Declared before the daemon, so on a panic the daemon is stopped before the child.
     let mut kill_earlier = KillGroupOnDrop(None);
     let socket = env.env_root().join("daemon.sock");
     let mut daemon = DaemonHandle::start(env.config_dir(), &socket);
-    // The writer stays open, so the gate read stays blocked until the stop interrupts it.
     opened_rx
         .recv_timeout(Duration::from_secs(10))
         .unwrap_or_else(|e| {
@@ -268,8 +265,6 @@ fn test_cli_daemon_shutdown_during_startup_exits_cleanly() {
     );
 
     daemon.send_signal(Signal::SIGTERM);
-    // Wait until the watcher logs the signal. The gate read stays blocked, so the stop itself
-    // must end it.
     assert!(
         daemon.wait_for_log("received SIGTERM", Duration::from_secs(10)),
         "daemon did not record the stop request\n{}",
@@ -278,7 +273,6 @@ fn test_cli_daemon_shutdown_during_startup_exits_cleanly() {
     let status = daemon
         .wait_for_exit(Duration::from_secs(10))
         .expect("daemon did not exit after SIGTERM while the gate read was blocked");
-    // Release the writer only now, so it cannot open the gate for the blocked read.
     gate_writer.finish();
     // Disarm the group guard only once the child is confirmed gone, so a failed assertion below
     // cannot signal a group whose PID may have been reused.
@@ -303,9 +297,6 @@ fn test_cli_daemon_shutdown_during_startup_exits_cleanly() {
         "stop signal should be logged once\n{}",
         daemon.captured_logs().join("\n")
     );
-    // The SIGTERM interrupted the blocked gate read, which holds "gated", and the stop ended the
-    // start pass before "later". The case of a gate that opens and then meets the stop is covered
-    // by `test_start_until_checks_stop_before_gate_and_after_spawn` in the manager unit tests.
     assert_eq!(
         daemon.count_log_matches("[gated] spawned"),
         0,

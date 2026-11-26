@@ -531,18 +531,14 @@ impl ManagedProcess {
         let mut reasons = Vec::new();
         if let Some(raw) = &self.config.condition_path_exists {
             let path = expand_env_vars(raw);
-            // A check that did not finish holds the process, like a missing path. It keeps the
-            // same label, so the stall shows up in the log and not in the reason.
             let owned = std::path::PathBuf::from(&path);
             let checked = crate::stop::bounded(std::path::Path::new(&path), move || {
                 #[cfg(test)]
                 crate::stop::testing::park_if_stalled(&owned);
                 owned.try_exists()
             });
-            // The bounded call's own errors (a refusal, a timeout, a stop, a reader that ended)
-            // always hold. A read error holds only when a hung or stale mount produces it, as it
-            // does for a gate file. Any other error (a permission error, for example) counts as
-            // missing.
+            // Bounded-call errors and errors that `read_error_holds` accepts are a stall, logged
+            // when `log` is `HoldLog::Emit`. Any other error counts as missing.
             let stall = match &checked {
                 Err(err) => Some(err),
                 Ok(Err(err)) if crate::config_gate::read_error_holds(err) => Some(err),
@@ -615,11 +611,8 @@ impl ManagedProcess {
         reasons
     }
 
-    /// Reports a hold caused by a file that did not answer, so it is not mistaken for a
-    /// condition the files closed. A stop that cut the read short is a normal shutdown, so it
-    /// stays at debug. Nothing retries a stalled hold in the background: a reload evaluates it
-    /// again, unless `stop::bounded` still refuses the path. An explicit start bypasses the
-    /// conditions.
+    /// Logs a hold caused by a file that did not answer, when `log` is `HoldLog::Emit`. A stop
+    /// that cut the read short logs at debug.
     fn log_stalled_hold(
         &self,
         condition: &str,
@@ -1608,7 +1601,6 @@ pub mod tests {
         );
     }
 
-    /// A path check that does not finish holds like a missing path, on every platform.
     #[test]
     fn test_start_pass_declines_when_condition_path_check_stalls() {
         let dir = tempfile::tempdir().unwrap();
