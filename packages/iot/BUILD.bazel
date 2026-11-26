@@ -188,11 +188,14 @@ dd_pkg_rpm(
 #   mkdir "#{install_dir}/run/"
 #
 # The binary and example config are still copied into install_dir by hand in the
-# rb file (see the "Next steps" comment there), so this stays scoped to :dirs
-# until that transitional step is dropped.
+# rb file (see the "Next steps" comment there), so this only installs :dirs and
+# :license_files until that transitional step is dropped.
 pkg_install(
     name = "install",
-    srcs = [":dirs"],
+    srcs = [
+        ":dirs",
+        ":license_files",
+    ],
     destdir_flag = "//:install_dir",
 )
 
