@@ -116,6 +116,29 @@ func TestSetUpConfigOnAFreshInstall(t *testing.T) {
 	assert.Equal(t, os.FileMode(0o660), info.Mode().Perm())
 }
 
+// TestSetUpConfigKeepsALinkedChecksD pins that a checks.d linked out of etc, where an install keeps
+// its custom checks elsewhere, is kept as it is rather than failing the install, and that nothing
+// is written through it.
+func TestSetUpConfigKeepsALinkedChecksD(t *testing.T) {
+	layout := stubDmgLayout(t)
+	conf, saved := layout.confDir(), layout.savedConfDir()
+	outside := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(outside, "custom.py"), []byte("outside custom\n"), 0o644))
+	require.NoError(t, os.Symlink(outside, filepath.Join(conf, "checks.d")))
+	require.NoError(t, os.MkdirAll(filepath.Join(saved, "checks.d"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(saved, "checks.d", "custom.py"), []byte("saved custom\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(saved, "datadog.yaml"), []byte("api_key: saved\n"), 0o644))
+
+	require.NoError(t, setUpConfig(t.Context(), layout, installEnv{}))
+
+	target, err := os.Readlink(filepath.Join(conf, "checks.d"))
+	require.NoError(t, err)
+	assert.Equal(t, outside, target, "checks.d should still be the same link")
+	content, err := os.ReadFile(filepath.Join(outside, "custom.py"))
+	require.NoError(t, err)
+	assert.Equal(t, "outside custom\n", string(content), "nothing should be written through the link")
+}
+
 // TestSetUpConfigRestoresTheSavedConfiguration pins the upgrade: what the preinstall script saved
 // comes back, conf.d over the shipped files and checks.d without replacing anything.
 func TestSetUpConfigRestoresTheSavedConfiguration(t *testing.T) {

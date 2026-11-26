@@ -373,7 +373,14 @@ func setUpConfig(ctx context.Context, layout dmgLayout, env installEnv) error {
 		return err
 	}
 	defer conf.Close()
-	if err := conf.MkdirAll("checks.d", 0o755); err != nil {
+	// checks.d is created only when absent. One that is already there is kept as it is, a link
+	// included: an install that keeps its custom checks elsewhere links checks.d out of etc, which
+	// conf.MkdirAll would refuse as escaping the root.
+	if _, err := conf.Lstat("checks.d"); errors.Is(err, fs.ErrNotExist) {
+		if err := conf.Mkdir("checks.d", 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
+			return err
+		}
+	} else if err != nil {
 		return err
 	}
 	saved := layout.savedConfDir()
