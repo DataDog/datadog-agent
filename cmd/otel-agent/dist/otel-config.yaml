@@ -24,8 +24,8 @@ exporters:
 processors:
   infraattributes:
     cardinality: 2
-  # cumulativetodelta is intentionally NOT listed here: the DDOT converter
-  # auto-injects cumulativetodelta/dd-autoconfigured into datadog metrics pipelines
+  # cumulative_to_delta is intentionally NOT listed here: the DDOT converter
+  # auto-injects cumulative_to_delta/dd-autoconfigured into datadog metrics pipelines
   # (OTAGENT-1128), gated by otelcollector.converter.features. Listing it explicitly
   # would keep it running even when the feature is removed, defeating the kill-switch.
 connectors:

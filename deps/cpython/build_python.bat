@@ -58,6 +58,7 @@ echo "/p:TclVersion=%TCL_VERSION%" >> %response_file%
 :: Without DisableRegistryUse, the VC props fall back to registry lookups and a
 :: host Visual Studio silently wins over everything set below.
 echo "/p:DisableRegistryUse=true" >> %response_file%
+echo "/p:VcpkgEnabled=false" >> %response_file%
 :: The VC props expect these roots to keep their trailing separator, and MSBuild reads
 :: \" in a response file as an escaped quote, so the final backslash has to be doubled.
 echo "/p:VCTargetsPath=%VCTARGETS_PATH%\" >> %response_file%

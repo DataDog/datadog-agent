@@ -2389,7 +2389,11 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 			return false
 		}
 
+		pathKey := event.CgroupTracing.CGroupContext.CGroupPathKey
 		event.CgroupTracing.CGroupContext = cacheEntry.GetCGroupContext()
+		if pathKey.Inode != 0 {
+			event.CgroupTracing.CGroupContext.CGroupPathKey = pathKey
+		}
 		event.CgroupTracing.ContainerContext = cacheEntry.GetContainerContext()
 
 		if p.profileManager != nil {

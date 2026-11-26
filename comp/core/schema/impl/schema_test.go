@@ -36,6 +36,21 @@ properties:
     type: string
     pattern: "^https://"
     default: ""
+  additional_endpoints:
+    type: object
+    additionalProperties:
+      type: string
+    default: {}
+  logs_config:
+    type: object
+    properties:
+      enabled:
+        type: boolean
+        default: false
+  dd_url:
+    type: string
+    pattern: "^(https://)?([^@]+@)?[a-z.]+$"
+    default: ""
 `
 	testSchema        *jsonschema.Schema
 	schemaCompileOnce sync.Once
@@ -227,6 +242,16 @@ func TestValidateConfigScrubsMessages(t *testing.T) {
 	assert.Equal(t, "at '/proxy_url': 'http://user:********@proxy.test' does not match pattern '^https://'", violations[0].Message)
 }
 
+func TestValidateConfigKeepsPatternOfScrubbedMessages(t *testing.T) {
+	// the pattern looks like URL credentials: only the value is scrubbed
+	v := newTestValidator(t)
+	cfg := fakeReader{schemaID: model.CoreSchema, settings: map[string]interface{}{"dd_url": "https://user:PRIVATE_PASSWORD@intake.test:123456"}}
+	violations, err := v.ValidateConfig(cfg)
+	require.NoError(t, err)
+	require.Len(t, violations, 1)
+	assert.Equal(t, "at '/dd_url': 'https://user:********@intake.test:123456' does not match pattern '^(https://)?([^@]+@)?[a-z.]+$'", violations[0].Message)
+}
+
 func TestValidateConfigSkipsSecretPlaceholders(t *testing.T) {
 	// the configuration is validated before secrets are resolved: a placeholder isn't the actual value
 	for _, tc := range []struct {
@@ -245,6 +270,73 @@ func TestValidateConfigSkipsSecretPlaceholders(t *testing.T) {
 			violations, err := v.ValidateConfig(fakeReader{schemaID: model.CoreSchema, settings: tc.settings})
 			require.NoError(t, err)
 			assert.Len(t, violations, tc.want)
+		})
+	}
+}
+
+func TestValidateYAMLReportsNull(t *testing.T) {
+	// without a configuration there is no way to tell which nulls are ignored, so they are all reported
+	v := newTestValidator(t)
+	for _, tc := range []struct {
+		name     string
+		yaml     string
+		wantPath []string
+	}{
+		{"null setting", "api_key:\n", []string{"/api_key"}},
+		{"null section", "logs_config: ~\n", []string{"/logs_config"}},
+		{"null list item", "tags: [a, ~]\n", []string{"/tags/1"}},
+		{"null map setting entry", "additional_endpoints:\n  https://a.test: ~\n", []string{"/additional_endpoints/https:~1~1a.test"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			violations, err := v.ValidateYAML([]byte(tc.yaml), model.CoreSchema)
+			require.NoError(t, err)
+			var paths []string
+			for _, violation := range violations {
+				paths = append(paths, violation.Path)
+			}
+			assert.Equal(t, tc.wantPath, paths)
+		})
+	}
+}
+
+func TestValidateConfigSkipsNull(t *testing.T) {
+	// the configuration ignores a null setting or section and keeps the default instead, but keeps a null within the
+	// value of a setting
+	for _, tc := range []struct {
+		name     string
+		cfg      fakeReader
+		wantPath []string
+	}{
+		{"null setting", fakeReader{settings: map[string]interface{}{"api_key": nil}}, nil},
+		{"null list setting", fakeReader{settings: map[string]interface{}{"tags": nil}}, nil},
+		{
+			"null section",
+			fakeReader{settings: map[string]interface{}{"logs_config": nil}, notSettings: map[string]bool{"logs_config": true}},
+			nil,
+		},
+		{
+			"null setting in a section",
+			fakeReader{settings: map[string]interface{}{"logs_config": map[string]interface{}{"enabled": nil}}, notSettings: map[string]bool{"logs_config": true}},
+			nil,
+		},
+		{"null list item", fakeReader{settings: map[string]interface{}{"tags": []interface{}{"a", nil}}}, []string{"/tags/1"}},
+		{
+			"null map setting entry",
+			fakeReader{settings: map[string]interface{}{"additional_endpoints": map[string]interface{}{"https://a.test": nil}}},
+			[]string{"/additional_endpoints/https:~1~1a.test"},
+		},
+		{"null next to a violation", fakeReader{settings: map[string]interface{}{"api_key": nil, "tags": "not a list"}}, []string{"/tags"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			v := newTestValidator(t)
+			tc.cfg.schemaID = model.CoreSchema
+			violations, err := v.ValidateConfig(tc.cfg)
+			require.NoError(t, err)
+			var paths []string
+			for _, violation := range violations {
+				paths = append(paths, violation.Path)
+			}
+			assert.Equal(t, tc.wantPath, paths)
 		})
 	}
 }

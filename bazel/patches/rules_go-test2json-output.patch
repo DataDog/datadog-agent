@@ -1,0 +1,69 @@
+diff --git a/go/tools/bzltestutil/wrap.go b/go/tools/bzltestutil/wrap.go
+index e2079fc0..58adb7cd 100644
+--- a/go/tools/bzltestutil/wrap.go
++++ b/go/tools/bzltestutil/wrap.go
+@@ -17,6 +17,7 @@ package bzltestutil
+ import (
+ 	"bufio"
+ 	"bytes"
++	"errors"
+ 	"fmt"
+ 	"io"
+ 	"io/ioutil"
+@@ -65,6 +66,19 @@ func shouldAddTestV() bool {
+ 	return false
+ }
+
++// shouldWriteJSON indicates if the test wrapper should write the test2json
++// output to TEST_UNDECLARED_OUTPUTS_DIR.
++func shouldWriteJSON() bool {
++	if wrapEnv, ok := os.LookupEnv("GO_TEST_WRAP_JSON"); ok {
++		wrap, err := strconv.ParseBool(wrapEnv)
++		if err != nil {
++			log.Fatalf("invalid value for GO_TEST_WRAP_JSON: %q", wrapEnv)
++		}
++		return wrap
++	}
++	return false
++}
++
+ // streamMerger intelligently merges an input stdout and stderr stream and dumps
+ // the output to the writer `inner`. Additional synchronization is applied to
+ // ensure that one line at a time is written to the inner writer.
+@@ -165,18 +179,30 @@ func Wrap(pkg string) error {
+ 		jsonConverter.Write([]byte("\n"))
+ 	}
+ 	jsonConverter.Close()
++	var werrs []error
++	if dir, ok := os.LookupEnv("TEST_UNDECLARED_OUTPUTS_DIR"); ok && shouldWriteJSON() {
++		werrs = append(werrs, writeJSONReport(jsonBuffer.Bytes(), dir))
++	}
+ 	if out, ok := os.LookupEnv("XML_OUTPUT_FILE"); ok {
+-		werr := writeReport(jsonBuffer, pkg, out)
+-		if werr != nil {
+-			if err != nil {
+-				return fmt.Errorf("error while generating testreport: %s, (error wrapping test execution: %s)", werr, err)
+-			}
+-			return fmt.Errorf("error while generating testreport: %s", werr)
++		werrs = append(werrs, writeReport(jsonBuffer, pkg, out))
++	}
++	if werr := errors.Join(werrs...); werr != nil {
++		if err != nil {
++			return fmt.Errorf("error while generating testreport: %s, (error wrapping test execution: %s)", werr, err)
+ 		}
++		return fmt.Errorf("error while generating testreport: %s", werr)
+ 	}
+ 	return err
+ }
+
++// writeJSONReport writes the test2json output to test2json.json in dir.
++func writeJSONReport(json []byte, dir string) error {
++	if err := os.WriteFile(filepath.Join(dir, "test2json.json"), json, 0664); err != nil {
++		return fmt.Errorf("error writing test json: %s", err)
++	}
++	return nil
++}
++
+ func writeReport(jsonBuffer bytes.Buffer, pkg string, path string) error {
+ 	xml, cerr := json2xml(&jsonBuffer, pkg)
+ 	if cerr != nil {

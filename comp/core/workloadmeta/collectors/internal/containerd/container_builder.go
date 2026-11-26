@@ -28,8 +28,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// kataRuntimePrefix is the prefix used by Kata Containers runtime
-const kataRuntimePrefix = "io.containerd.kata"
+const (
+	// kataRuntimePrefix is the prefix used by Kata Containers runtime
+	kataRuntimePrefix = "io.containerd.kata"
+	// gVisorRuntimePrefix is the prefix used by the gVisor (runsc) runtime
+	gVisorRuntimePrefix = "io.containerd.runsc"
+)
 
 // buildWorkloadMetaContainer generates a workloadmeta.Container from a containerd.Container
 func buildWorkloadMetaContainer(namespace string, container containerd.Container, containerdClient cutil.ContainerdItf, store workloadmeta.Component) (workloadmeta.Container, error) {
@@ -195,8 +199,11 @@ func extractStatus(status containerd.ProcessStatus) workloadmeta.ContainerStatus
 
 // extractRuntimeFlavor extracts the runtime from a runtime string.
 func extractRuntimeFlavor(runtime string) workloadmeta.ContainerRuntimeFlavor {
-	if strings.HasPrefix(runtime, kataRuntimePrefix) {
+	switch {
+	case strings.HasPrefix(runtime, kataRuntimePrefix):
 		return workloadmeta.ContainerRuntimeFlavorKata
+	case strings.HasPrefix(runtime, gVisorRuntimePrefix):
+		return workloadmeta.ContainerRuntimeFlavorGVisor
 	}
 	return workloadmeta.ContainerRuntimeFlavorDefault
 }

@@ -18,6 +18,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -686,18 +687,75 @@ func TestInsertSyscalls_AccumulatingMask(t *testing.T) {
 	syscallMask := make(map[int]int)
 	const tagID = uint64(1)
 
-	assert.True(t, pn.InsertSyscalls(newSyscallsEvent(1, 2), tagID, syscallMask, stats, false),
-		"the first delivery introduces new syscalls")
+	newEntry, nodes := pn.InsertSyscalls(newSyscallsEvent(1, 2), tagID, syscallMask, stats, false)
+	assert.True(t, newEntry, "the first delivery introduces new syscalls")
+	require.Len(t, nodes, 2)
+	assert.Same(t, &pn.Syscalls[1].NodeBase, nodes[0])
+	assert.Same(t, &pn.Syscalls[2].NodeBase, nodes[1])
 	assert.Len(t, pn.Syscalls, 2)
 
-	assert.False(t, pn.InsertSyscalls(newSyscallsEvent(1, 2), tagID, syscallMask, stats, false),
-		"re-delivering the same mask must not report new syscalls")
+	newEntry, nodes = pn.InsertSyscalls(newSyscallsEvent(1, 2), tagID, syscallMask, stats, false)
+	assert.False(t, newEntry, "re-delivering the same mask must not report new syscalls")
+	require.Len(t, nodes, 2, "an existing syscall is returned with the event")
+	assert.Same(t, &pn.Syscalls[1].NodeBase, nodes[0])
+	assert.Same(t, &pn.Syscalls[2].NodeBase, nodes[1])
 	assert.Len(t, pn.Syscalls, 2, "re-delivery must not duplicate nodes")
 
-	assert.True(t, pn.InsertSyscalls(newSyscallsEvent(1, 2, 3), tagID, syscallMask, stats, false),
-		"a grown mask reports the newly discovered syscall")
+	newEntry, nodes = pn.InsertSyscalls(newSyscallsEvent(1, 2, 3), tagID, syscallMask, stats, false)
+	assert.True(t, newEntry, "a grown mask reports the newly discovered syscall")
+	require.Len(t, nodes, 3)
+	assert.Same(t, &pn.Syscalls[1].NodeBase, nodes[0])
+	assert.Same(t, &pn.Syscalls[2].NodeBase, nodes[1])
+	assert.Same(t, &pn.Syscalls[3].NodeBase, nodes[2])
 	assert.Len(t, pn.Syscalls, 3, "only the genuinely new syscall is added")
 	assert.Equal(t, map[int]int{1: 1, 2: 2, 3: 3}, syscallMask)
+
+	newEntry, nodes = pn.InsertSyscalls(newSyscallsEvent(4), tagID, syscallMask, stats, true)
+	assert.True(t, newEntry, "a dry run still reports a syscall that is not in the tree")
+	assert.Nil(t, nodes, "a dry run does not return syscall nodes")
+	assert.NotContains(t, pn.Syscalls, 4)
+}
+
+func TestInsertCapabilitiesUsageEvent_ReturnsTouchedNodes(t *testing.T) {
+	pn := &ProcessNode{NodeBase: NewNodeBase()}
+	stats := NewActivityTreeNodeStats()
+	const tagID = uint64(1)
+
+	event := &model.Event{BaseEvent: model.BaseEvent{FieldHandlers: &model.FakeFieldHandlers{}}}
+	event.CapabilitiesUsage.Attempted = (1 << unix.CAP_SYS_CHROOT) | (1 << unix.CAP_SYS_ADMIN)
+	event.CapabilitiesUsage.Used = 1 << unix.CAP_SYS_CHROOT
+	event.CapabilitiesUsage.AttemptedHostUserNS = 1 << unix.CAP_SYS_ADMIN
+
+	newEntry, nodes := pn.InsertCapabilitiesUsageEvent(event, tagID, stats, false)
+	assert.True(t, newEntry)
+	require.Len(t, nodes, 2)
+	assert.Same(t, &pn.Capabilities[0].NodeBase, nodes[0])
+	assert.Same(t, &pn.Capabilities[1].NodeBase, nodes[1])
+	assert.Equal(t, uint64(unix.CAP_SYS_CHROOT), pn.Capabilities[0].Capability)
+	assert.Equal(t, uint64(unix.CAP_SYS_ADMIN), pn.Capabilities[1].Capability)
+
+	newEntry, nodes = pn.InsertCapabilitiesUsageEvent(event, tagID, stats, false)
+	assert.False(t, newEntry, "re-delivering the same capabilities must not report new nodes")
+	require.Len(t, nodes, 2, "existing capability nodes are returned with the event")
+	assert.Same(t, &pn.Capabilities[0].NodeBase, nodes[0])
+	assert.Same(t, &pn.Capabilities[1].NodeBase, nodes[1])
+
+	// CAP_NET_BIND_SERVICE is numbered below the two existing capabilities, so it is
+	// visited first and the returned slice follows capability-number order.
+	event.CapabilitiesUsage.Attempted |= 1 << unix.CAP_NET_BIND_SERVICE
+	newEntry, nodes = pn.InsertCapabilitiesUsageEvent(event, tagID, stats, false)
+	assert.True(t, newEntry)
+	require.Len(t, nodes, 3)
+	assert.Same(t, &pn.Capabilities[2].NodeBase, nodes[0])
+	assert.Same(t, &pn.Capabilities[0].NodeBase, nodes[1])
+	assert.Same(t, &pn.Capabilities[1].NodeBase, nodes[2])
+	assert.Equal(t, uint64(unix.CAP_NET_BIND_SERVICE), pn.Capabilities[2].Capability)
+
+	event.CapabilitiesUsage.Attempted = 1 << unix.CAP_NET_RAW
+	newEntry, nodes = pn.InsertCapabilitiesUsageEvent(event, tagID, stats, true)
+	assert.True(t, newEntry, "a dry run still reports a capability that is not in the tree")
+	assert.Nil(t, nodes, "a dry run does not return capability nodes")
+	assert.Len(t, pn.Capabilities, 3)
 }
 
 func TestSyscallsByImageTagID(t *testing.T) {
@@ -800,27 +858,316 @@ func TestProcessInfoMatches(t *testing.T) {
 func TestInsertionErrorType(t *testing.T) {
 	cause := errors.New("cause")
 	tests := []struct {
-		name string
-		err  error
-		want string
+		name       string
+		err        error
+		want       string
+		insertable bool
 	}{
-		{"broken lineage", &model.ErrProcessBrokenLineage{Err: cause}, InsertionErrorBrokenLineage},
-		{"broken lineage in the tree", ErrBrokenLineage, InsertionErrorBrokenLineage},
-		{"no process context", model.ErrNoProcessContext, InsertionErrorNoProcessContext},
-		{"path resolution", &path.ErrPathResolution{Err: cause}, InsertionErrorPathResolution},
-		{"wrapped path resolution", fmt.Errorf("wrapped: %w", &path.ErrPathResolution{Err: cause}), InsertionErrorPathResolution},
-		{"path resolution not critical", &path.ErrPathResolutionNotCritical{Err: cause}, InsertionErrorPathResolutionNotCritical},
-		{"path resolution wrapping a non critical one", &path.ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path: %w", &path.ErrPathResolutionNotCritical{Err: cause})}, InsertionErrorPathResolution},
-		{"dns decoding", model.ErrFailedDNSPacketDecoding, InsertionErrorDNSDecoding},
-		{"invalid generation type", fmt.Errorf("%w: %v", ErrInvalidGenerationType, 42), InsertionErrorInvalidGenerationType},
-		{"process node not created", ErrProcessNodeNotCreated, InsertionErrorProcessNodeNotCreated},
-		{"other", cause, InsertionErrorOther},
+		{"broken lineage", &model.ErrProcessBrokenLineage{Err: cause}, InsertionErrorBrokenLineage, true},
+		{"broken lineage in the tree", ErrBrokenLineage, InsertionErrorBrokenLineage, false},
+		{"no process context", model.ErrNoProcessContext, InsertionErrorNoProcessContext, false},
+		{"path resolution", &path.ErrPathResolution{Err: cause}, InsertionErrorPathResolution, false},
+		{"wrapped path resolution", fmt.Errorf("wrapped: %w", &path.ErrPathResolution{Err: cause}), InsertionErrorPathResolution, false},
+		{"path resolution not critical", &path.ErrPathResolutionNotCritical{Err: cause}, InsertionErrorPathResolutionNotCritical, false},
+		{"path resolution wrapping a non critical one", &path.ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path: %w", &path.ErrPathResolutionNotCritical{Err: cause})}, InsertionErrorPathResolution, false},
+		{"dns decoding", model.ErrFailedDNSPacketDecoding, InsertionErrorDNSDecoding, false},
+		{"invalid generation type", fmt.Errorf("%w: %v", ErrInvalidGenerationType, 42), InsertionErrorInvalidGenerationType, false},
+		{"process node not created", ErrProcessNodeNotCreated, InsertionErrorProcessNodeNotCreated, false},
+		{"other", cause, InsertionErrorOther, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := InsertionErrorType(tt.err)
 			assert.Equal(t, tt.want, got)
 			assert.Contains(t, InsertionErrorTypes, got)
+			assert.Equal(t, tt.insertable, IsInsertableEventError(tt.err))
 		})
 	}
+}
+
+// newCookieTestShim returns the container shim, outside of the container, that starts the lineage of the test entries
+func newCookieTestShim() *model.ProcessCacheEntry {
+	shim := model.NewPlaceholderProcessCacheEntry(1, 1, false)
+	shim.FileEvent.PathnameStr = "/usr/bin/containerd-shim-runc-v2"
+	shim.FileEvent.Inode = 1
+	return shim
+}
+
+// newCookieTestEntry returns a process of the container, whose cookie and exec time derive from its pid
+func newCookieTestEntry(pid uint32, pathname string, ancestor *model.ProcessCacheEntry) *model.ProcessCacheEntry {
+	entry := model.NewPlaceholderProcessCacheEntry(pid, pid, false)
+	entry.ContainerContext.ContainerID = "123"
+	entry.FileEvent.PathnameStr = pathname
+	entry.FileEvent.Inode = uint64(pid)
+	entry.FileEvent.MountID = 1
+	entry.Cookie = uint64(pid)
+	entry.ExecTime = time.Unix(int64(pid), 0)
+	if ancestor != nil {
+		entry.Ancestor = ancestor
+		entry.Parent = &ancestor.Process
+	}
+	return entry
+}
+
+func TestActivityTree_BrokenLineageCookies(t *testing.T) {
+	tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "test")
+
+	// the lineage of these entries breaks at /bin/foo, inside of the container
+	brokenParent := newCookieTestEntry(10, "/bin/foo", nil)
+	brokenChild := newCookieTestEntry(11, "/bin/bar", brokenParent)
+	brokenSibling := newCookieTestEntry(12, "/bin/baz", brokenParent)
+
+	_, _, err := tree.CreateProcessNode(brokenChild, "tag", Runtime, false, nil)
+	require.ErrorIs(t, err, ErrBrokenLineage)
+
+	node, newNode, err := tree.CreateProcessNode(newCookieTestEntry(11, "/bin/bar", newCookieTestEntry(10, "/bin/foo", newCookieTestShim())), "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	require.True(t, newNode)
+
+	found, newNode, err := tree.CreateProcessNode(brokenChild, "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	assert.False(t, newNode)
+	assert.Same(t, node, found)
+
+	otherTagID := tree.GetOrInsertImageTag("other")
+	found, _, err = tree.CreateProcessNode(brokenChild, "other", Runtime, true, nil)
+	require.NoError(t, err)
+	assert.Same(t, node, found)
+	assert.False(t, node.HasImageTag(otherTagID))
+
+	sibling, newNode, err := tree.CreateProcessNode(brokenSibling, "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	assert.True(t, newNode)
+	require.Len(t, tree.ProcessNodes, 1)
+	assert.Same(t, tree.ProcessNodes[0], sibling.Parent)
+
+	require.Positive(t, tree.EvictUnusedNodes(time.Now(), nil, ""))
+	_, _, err = tree.CreateProcessNode(brokenChild, "tag", Runtime, false, nil)
+	assert.ErrorIs(t, err, ErrBrokenLineage)
+}
+
+func TestActivityTree_BrokenLineageCookiesAfterRebase(t *testing.T) {
+	tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "test")
+	parent := newCookieTestEntry(10, "/bin/foo", newCookieTestShim())
+
+	_, _, err := tree.CreateProcessNode(newCookieTestEntry(12, "/bin/baz", parent), "tag", Runtime, false, nil)
+	require.NoError(t, err)
+
+	// /bin/baz turns out to be executed by /bin/bar, which is inserted above it
+	execed := newCookieTestEntry(13, "/bin/baz", newCookieTestEntry(11, "/bin/bar", parent))
+	execed.IsExecExec = true
+	_, _, err = tree.CreateProcessNode(execed, "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	require.Len(t, tree.ProcessNodes, 1)
+	require.Len(t, tree.ProcessNodes[0].Children, 1)
+	rebased := tree.ProcessNodes[0].Children[0]
+	require.Equal(t, "/bin/bar", rebased.Process.FileEvent.PathnameStr)
+
+	// the lineage of this entry breaks at /bin/bar, inside of the container
+	node, newNode, err := tree.CreateProcessNode(newCookieTestEntry(14, "/bin/qux", newCookieTestEntry(11, "/bin/bar", nil)), "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	assert.True(t, newNode)
+	assert.Same(t, rebased, node.Parent)
+}
+
+func TestActivityTree_BrokenLineageCookiesAfterRebaseMerge(t *testing.T) {
+	tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "test")
+	parent := newCookieTestEntry(10, "/bin/foo", newCookieTestShim())
+	bar := newCookieTestEntry(11, "/bin/bar", parent)
+
+	_, _, err := tree.CreateProcessNode(bar, "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	execed := newCookieTestEntry(12, "/bin/qux", newCookieTestEntry(12, "/bin/baz", parent))
+	execed.IsExecExec = true
+	_, _, err = tree.CreateProcessNode(execed, "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	require.Len(t, tree.ProcessNodes[0].Children, 2)
+	merged := tree.ProcessNodes[0].Children[1]
+	require.Equal(t, "/bin/baz", merged.Process.FileEvent.PathnameStr)
+
+	// /bin/baz turns out to be a child of /bin/bar: the existing /bin/baz node is moved below it
+	execed = newCookieTestEntry(14, "/bin/qux", newCookieTestEntry(13, "/bin/baz", bar))
+	execed.IsExecExec = true
+	_, _, err = tree.CreateProcessNode(execed, "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	require.Len(t, tree.ProcessNodes[0].Children, 1)
+	require.Len(t, tree.ProcessNodes[0].Children[0].Children, 1)
+	require.Same(t, merged, tree.ProcessNodes[0].Children[0].Children[0])
+
+	// the lineage of this entry breaks at /bin/baz, inside of the container
+	node, newNode, err := tree.CreateProcessNode(newCookieTestEntry(15, "/bin/quux", newCookieTestEntry(13, "/bin/baz", nil)), "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	assert.True(t, newNode)
+	assert.Same(t, merged, node.Parent)
+}
+
+func TestActivityTree_BrokenLineageCookiesSameBinary(t *testing.T) {
+	tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "test")
+	node, _, err := tree.CreateProcessNode(newCookieTestEntry(10, "/bin/foo", newCookieTestShim()), "tag", Runtime, false, nil)
+	require.NoError(t, err)
+
+	// /bin/foo executes itself again, and the lineage breaks at its previous execution
+	reexec := newCookieTestEntry(10, "/bin/foo", newCookieTestEntry(10, "/bin/foo", nil))
+	reexec.Cookie = 100
+	reexec.ExecTime = time.Unix(100, 0)
+
+	found, newNode, err := tree.CreateProcessNode(reexec, "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	assert.False(t, newNode)
+	assert.Same(t, node, found)
+
+	child, newNode, err := tree.CreateProcessNode(newCookieTestEntry(11, "/bin/bar", reexec), "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	assert.True(t, newNode)
+	assert.Same(t, node, child.Parent)
+}
+
+func TestActivityTree_BrokenLineageCookiesAfterEviction(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		evict func(t *testing.T, tree *ActivityTree)
+	}{
+		{"unused nodes", func(t *testing.T, tree *ActivityTree) {
+			inProcessCache := map[ImageProcessKey]bool{{ImageTag: "v1", Filepath: "/bin/foo"}: true}
+			require.Positive(t, tree.EvictUnusedNodes(time.Now(), inProcessCache, ""))
+		}},
+		{"image tag", func(_ *testing.T, tree *ActivityTree) {
+			tree.EvictImageTag("v2")
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "test")
+			kept, _, err := tree.CreateProcessNode(newCookieTestEntry(10, "/bin/foo", newCookieTestShim()), "v1", Runtime, false, nil)
+			require.NoError(t, err)
+			_, _, err = tree.CreateProcessNode(newCookieTestEntry(20, "/bin/baz", newCookieTestShim()), "v2", Runtime, false, nil)
+			require.NoError(t, err)
+
+			tt.evict(t, tree)
+			require.Len(t, tree.ProcessNodes, 1)
+			require.Same(t, kept, tree.ProcessNodes[0])
+
+			// the lineage of these entries breaks at their parent, inside of the container
+			child, _, err := tree.CreateProcessNode(newCookieTestEntry(11, "/bin/bar", newCookieTestEntry(10, "/bin/foo", nil)), "v1", Runtime, false, nil)
+			require.NoError(t, err)
+			assert.Same(t, kept, child.Parent)
+			_, _, err = tree.CreateProcessNode(newCookieTestEntry(21, "/bin/qux", newCookieTestEntry(20, "/bin/baz", nil)), "v2", Runtime, false, nil)
+			assert.ErrorIs(t, err, ErrBrokenLineage)
+		})
+	}
+}
+
+func TestInsertReturnsActivityNodes(t *testing.T) {
+	tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "security_profile")
+	event := newExecTestEventWithAncestors([]model.Process{
+		{
+			ContainerContext: model.ContainerContext{ContainerID: "123"},
+			FileEvent: model.FileEvent{
+				PathnameStr: "/bin/app",
+				FileFields:  model.FileFields{PathKey: model.PathKey{Inode: 1}},
+			},
+		},
+	})
+
+	inserted, proc, nodes, err := tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	require.True(t, inserted)
+	require.NotNil(t, proc)
+	require.Equal(t, []*NodeBase{&proc.NodeBase}, nodes)
+
+	inserted, proc2, nodes, err := tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.False(t, inserted)
+	require.Same(t, proc, proc2)
+	require.Equal(t, []*NodeBase{&proc.NodeBase}, nodes)
+
+	event.Type = uint32(model.FileOpenEventType)
+	event.Open.File = model.FileEvent{IsPathnameStrResolved: true, PathnameStr: "/tmp/foo"}
+	inserted, proc2, nodes, err = tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.True(t, inserted)
+	require.Same(t, proc, proc2)
+	require.Len(t, nodes, 1)
+	leaf := proc.Files["tmp"].Children["foo"]
+	require.NotNil(t, leaf)
+	assert.Same(t, &leaf.NodeBase, nodes[0])
+
+	inserted, _, again, err := tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.False(t, inserted)
+	require.Equal(t, nodes, again)
+
+	event.Type = uint32(model.DNSEventType)
+	event.DNS.Question.Name = "example.com"
+	event.DNS.Question.Type = 1
+	inserted, _, nodes, err = tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.True(t, inserted)
+	dnsNode := proc.DNSNames["example.com"]
+	require.NotNil(t, dnsNode)
+	require.Equal(t, []*NodeBase{&dnsNode.NodeBase}, nodes)
+
+	inserted, _, again, err = tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.False(t, inserted)
+	require.Equal(t, nodes, again)
+
+	event.Type = uint32(model.BindEventType)
+	event.Bind.AddrFamily = unix.AF_INET
+	event.Bind.Addr.Port = 80
+	inserted, _, nodes, err = tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.True(t, inserted)
+	require.Len(t, proc.Sockets, 1)
+	require.Len(t, proc.Sockets[0].Bind, 1)
+	require.Equal(t, []*NodeBase{&proc.Sockets[0].Bind[0].NodeBase}, nodes)
+
+	event.Type = uint32(model.SyscallsEventType)
+	event.Syscalls.Syscalls = []model.Syscall{1, 2}
+	inserted, _, nodes, err = tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.True(t, inserted)
+	require.Equal(t, []*NodeBase{&proc.Syscalls[1].NodeBase, &proc.Syscalls[2].NodeBase}, nodes)
+
+	inserted, _, again, err = tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.False(t, inserted)
+	require.Equal(t, nodes, again)
+
+	event.Type = uint32(model.CapabilitiesEventType)
+	event.CapabilitiesUsage.Attempted = (1 << unix.CAP_SYS_CHROOT) | (1 << unix.CAP_SYS_ADMIN)
+	event.CapabilitiesUsage.Used = 1 << unix.CAP_SYS_CHROOT
+	inserted, _, nodes, err = tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.True(t, inserted)
+	require.Len(t, nodes, 2)
+
+	inserted, _, again, err = tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.False(t, inserted)
+	require.Equal(t, nodes, again)
+	assert.Same(t, &proc.Capabilities[0].NodeBase, again[0])
+	assert.Same(t, &proc.Capabilities[1].NodeBase, again[1])
+
+	event.Type = uint32(model.FileMountEventType)
+	event.Mount.Mount.Path = "/data"
+	event.Mount.Mount.RootStr = "/"
+	event.Mount.Mount.FSType = "ext4"
+	inserted, _, nodes, err = tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.True(t, inserted)
+	require.Len(t, tree.Mounts, 1)
+	require.Equal(t, []*NodeBase{&tree.Mounts[0].NodeBase}, nodes)
+
+	inserted, _, again, err = tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.False(t, inserted)
+	require.Equal(t, nodes, again)
+
+	event.Mount.Mount.MountFlags = 1
+	inserted, _, nodes, err = tree.Insert(event, true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.True(t, inserted)
+	require.Len(t, nodes, 1)
+	require.Len(t, tree.Mounts, 2)
+	assert.Same(t, &tree.Mounts[1].NodeBase, nodes[0])
 }

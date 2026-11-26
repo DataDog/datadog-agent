@@ -444,3 +444,51 @@ func (s *CIDRArrayEvaluator) IsStatic() bool {
 func (s *CIDRArrayEvaluator) OriginField() Field {
 	return ""
 }
+
+// StringMapEvaluator returns a dictionary of strings: `process.env`. A
+// dictionary is only evaluated at a key, `process.env["PATH"]`.
+type StringMapEvaluator struct {
+	EvalFnc func(ctx *Context) map[string]string
+	Field   Field
+	Weight  int
+	Offset  int // position in the expression
+}
+
+// Eval returns the result of the evaluation
+func (s *StringMapEvaluator) Eval(ctx *Context) interface{} {
+	return s.EvalFnc(ctx)
+}
+
+// GetField returns field name used by this evaluator
+func (s *StringMapEvaluator) GetField() string {
+	return s.Field
+}
+
+// IsStatic returns whether the evaluator is a scalar
+func (s *StringMapEvaluator) IsStatic() bool {
+	return false
+}
+
+// StringMapArrayEvaluator returns an array of dictionaries of strings, one per
+// element of an iterated field: `process.ancestors.env`
+type StringMapArrayEvaluator struct {
+	EvalFnc func(ctx *Context) []map[string]string
+	Field   Field
+	Weight  int
+	Offset  int // position in the expression
+}
+
+// Eval returns the result of the evaluation
+func (s *StringMapArrayEvaluator) Eval(ctx *Context) interface{} {
+	return s.EvalFnc(ctx)
+}
+
+// GetField returns field name used by this evaluator
+func (s *StringMapArrayEvaluator) GetField() string {
+	return s.Field
+}
+
+// IsStatic returns whether the evaluator is a scalar
+func (s *StringMapArrayEvaluator) IsStatic() bool {
+	return false
+}

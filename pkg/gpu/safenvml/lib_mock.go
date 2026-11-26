@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+
+	"github.com/DataDog/datadog-agent/pkg/util/pci"
 )
 
 // allSymbols is a pre-initialized map containing all NVML API functions
@@ -34,12 +36,13 @@ func init() {
 // defaultMockCapabilities excludes APIs the generated mock cannot implement.
 func defaultMockCapabilities() map[string]struct{} {
 	capabilities := maps.Clone(allSymbols)
-	// The generated NVML mock cannot construct GpuFabricInfoHandler or
-	// GpuInstanceProfileInfoByIdHandler, which are required to invoke the
+	// The generated NVML mock cannot construct GpuFabricInfoHandler,
+	// C2cModeInfoHandler or GpuInstanceProfileInfoByIdHandler, which are required to invoke the
 	// versioned APIs, and the default mock leaves the GPU-instance handle
 	// methods unset. Remove those symbols from the default capability set so
 	// the wrappers degrade gracefully instead of calling unset mock funcs.
 	delete(capabilities, toNativeName("GetGpuFabricInfoV"))
+	delete(capabilities, toNativeName("GetC2cModeInfoV"))
 	delete(capabilities, toNativeName("GetGpuInstanceById"))
 	delete(capabilities, toNativeName("GetGpuInstanceProfileInfoByIdV"))
 	delete(capabilities, "nvmlGpuInstanceGetInfo")
@@ -72,6 +75,16 @@ func WithPartialMockNVML(tb testing.TB, lib nvml.Interface, capabilities map[str
 	singleton.capabilities = capabilities
 
 	tb.Cleanup(resetSingleton)
+	// Never read the test host's PCI devices.
+	WithMockPCISysfs(tb, tb.TempDir())
+}
+
+// WithMockPCISysfs makes devices constructed afterwards read PCI facts from the
+// given sysfs mount points instead of the host's.
+func WithMockPCISysfs(tb testing.TB, sysRoots ...string) {
+	previous := newPCISysfs
+	newPCISysfs = func() *pci.Sysfs { return pci.NewSysfs(sysRoots...) }
+	tb.Cleanup(func() { newPCISysfs = previous })
 }
 
 // WithMockNvmlNewFunc overrides the function to create a new NVML library instance.
@@ -84,4 +97,5 @@ func WithMockNvmlNewFunc(tb testing.TB, f func(opts ...nvml.LibraryOption) nvml.
 		nvmlNewFunc = oldNvmlNewFunc
 		resetSingleton()
 	})
+	WithMockPCISysfs(tb, tb.TempDir())
 }

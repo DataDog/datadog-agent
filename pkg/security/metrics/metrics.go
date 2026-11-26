@@ -491,7 +491,7 @@ var (
 	// MetricNamespaceResolverError is the name of the metric used to report the count of errors hit by the
 	// NamespaceResolver, mostly while attaching TC classifiers to network devices.
 	// Tags: error_type ('link_not_found', 'no_such_device', 'filter_not_found', 'classifier_exists',
-	// 'queue_full', 'netlink_socket', 'link_list', 'unknown')
+	// 'queue_full', 'netlink_socket', 'link_list', 'filter_list', 'tcx_query', 'unknown')
 	MetricNamespaceResolverError = newRuntimeMetric(".namespace_resolver.error")
 
 	// Policies
@@ -606,8 +606,9 @@ var (
 
 	// MetricSecurityProfileV2InsertionErrors is the name of the metric used to report events that carry
 	// an error and activity-tree insertion failures that are not routine filtering rejections
-	// (i.e. unexpected errors). Such events are dropped.
-	// Tags: event_type, error_type
+	// (i.e. unexpected errors), whether the profile manager kept the event in a profile or dropped it.
+	// An event whose error doesn't prevent its insertion is only counted once it reaches the activity tree
+	// Tags: event_type, error_type, outcome (kept or dropped)
 	MetricSecurityProfileV2InsertionErrors = newRuntimeMetric(".security_profile_v2.insertion_errors")
 
 	// Tag Resolution metrics

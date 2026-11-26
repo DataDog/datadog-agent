@@ -26,6 +26,7 @@ go_library(
         "//comp/def",
         "//comp/logs/agent/config",
         "//pkg/config/env",
+        "//pkg/config/helper",
         "//pkg/config/utils",
         "//pkg/fleet/installer/telemetry",
         "//pkg/remoteflags",

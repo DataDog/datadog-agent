@@ -22,10 +22,14 @@ import (
 //   - `process.ancestors[A].file.name` is the field `process.ancestors.file.name`
 //     iterated over `process.ancestors` with the variable `A`;
 //   - `process.argv[0]` is the Index 0 of the field `process.argv`, the
-//     subscript kept as an operation on the field.
+//     subscript kept as an operation on the field;
+//   - `process.env["PATH"]` is the Index "PATH" of the field `process.env`, a
+//     key in a dictionary, kept as well.
 //
-// A name has at most one subscript: an iterator variable, an identifier, or an
-// integer index ending the name.
+// The subscript ending a name, unless an identifier, is an index or a key, any
+// operand, its names resolved as fields: `process.env[process.file.name]`. The
+// name it subscripts has at most one other subscript, an iterator variable, an
+// identifier.
 func ResolveFields(legacy map[string]string) Pass {
 	return func(node ast.Node) (ast.Node, error) {
 		// one resolver per tree, its error is the one of the tree
@@ -54,6 +58,13 @@ func (r *fieldResolver) edit(node ast.Node) ast.Node {
 		// macro being resolved before it is inserted
 		if !isName(node) {
 			break
+		}
+		if index, ok := node.(*ast.Index); ok {
+			if _, ok := index.Subscript.(*ast.Ident); !ok {
+				// an index or a key, not an iterator variable: its name and
+				// its subscript are edited below
+				break
+			}
 		}
 		field, err := r.resolve(node)
 		if err != nil {
@@ -84,8 +95,7 @@ func isName(node ast.Node) bool {
 	}
 }
 
-// resolve returns the reference to the field a name refers to, or the Index of
-// that reference for an index in an array.
+// resolve returns the reference to the field a name refers to.
 func (r *fieldResolver) resolve(name ast.Node) (ast.Node, error) {
 	var (
 		dotted string
@@ -129,17 +139,10 @@ func (r *fieldResolver) resolve(name ast.Node) (ast.Node, error) {
 		return field, nil
 	}
 
-	switch index := subscript.Subscript.(type) {
-	case *ast.Ident:
-		field.Iter = &ast.Iteration{Iterator: prefix, Register: index.Name}
-		return field, nil
-	case *ast.Literal:
-		if index.Value.Kind() == ast.Int && prefix == dotted {
-			return &ast.Index{Meta: field.Meta, Base: field, Subscript: index}, nil
-		}
-	}
-	if prefix != dotted {
+	index, ok := subscript.Subscript.(*ast.Ident)
+	if !ok {
 		return nil, fmt.Errorf("`%s`: cannot index the iterator `%s` with `%s`, use an iterator variable instead", ast.Sprint(name), prefix, ast.Sprint(subscript.Subscript))
 	}
-	return nil, fmt.Errorf("`%s`: a subscript is an iterator variable or an integer index", ast.Sprint(name))
+	field.Iter = &ast.Iteration{Iterator: prefix, Register: index.Name}
+	return field, nil
 }

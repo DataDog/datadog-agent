@@ -18,7 +18,7 @@ type Dispatcher struct {
 	level   severityeventsdef.SeverityLevel
 	lastSec int64
 
-	lastStateEntryTs int64
+	cooldownStartedAt int64
 }
 
 // NewDispatcher creates a dispatcher delivering to listener, filtered/cooled
@@ -49,33 +49,62 @@ func (d *Dispatcher) DeliverInitial(sec int64, level severityeventsdef.SeverityL
 		Direction: severityeventsdef.SeverityEventEscalation,
 	}
 	if eventFilterMatches(d.filter, evt) {
-		d.lastStateEntryTs = sec
+		d.cooldownStartedAt = sec
 		d.listener.OnSeverityTransition(evt)
 	}
 }
 
 // Advance feeds one raw severity level into the dispatcher state machine.
 func (d *Dispatcher) Advance(sec int64, level severityeventsdef.SeverityLevel) {
-	next := clampSeverityLevel(level)
+	d.AdvanceWithDiscovery(sec, level, severityeventsdef.SeverityLow, 0)
+}
+
+// AdvanceWithDiscovery combines raw severity with an optional discovered
+// period. The stronger level wins. A matching discovery renews the hold.
+// Medium cannot override High during its cooldown.
+func (d *Dispatcher) AdvanceWithDiscovery(
+	sec int64,
+	rawLevel severityeventsdef.SeverityLevel,
+	discoveryLevel severityeventsdef.SeverityLevel,
+	crossingSec int64,
+) {
+	raw := clampSeverityLevel(rawLevel)
+	discovery := clampSeverityLevel(discoveryLevel)
+	next := max(raw, discovery)
+	hasDiscovery := discovery != severityeventsdef.SeverityLow && next == discovery
+	historicalSec := int64(0)
+	if hasDiscovery {
+		historicalSec = crossingSec
+	}
+
 	if next == d.level {
+		if hasDiscovery && next > severityeventsdef.SeverityLow {
+			d.lastSec = sec
+			d.cooldownStartedAt = sec
+			return
+		}
 		d.lastSec = sec
 		return
 	}
 
-	if next < d.level && d.cooldownSecs > 0 && sec-d.lastStateEntryTs < d.cooldownSecs {
+	if next < d.level && d.cooldownSecs > 0 && sec-d.cooldownStartedAt < d.cooldownSecs {
 		d.lastSec = sec
 		return
 	}
+	d.transition(sec, next, historicalSec)
+}
 
+func (d *Dispatcher) transition(sec int64, next severityeventsdef.SeverityLevel, historicalSec int64) {
 	evt := severityeventsdef.SeverityEvent{
-		Timestamp: sec,
-		FromLevel: d.level,
-		ToLevel:   next,
-		Direction: eventDirection(d.level, next),
+		Timestamp:           sec,
+		HistoricalTimestamp: historicalSec,
+		FromLevel:           d.level,
+		ToLevel:             next,
+		Direction:           eventDirection(d.level, next),
 	}
 	d.level = next
 	d.lastSec = sec
-	d.lastStateEntryTs = sec
+	d.cooldownStartedAt = sec
 
 	if eventFilterMatches(d.filter, evt) {
 		d.listener.OnSeverityTransition(evt)
@@ -86,7 +115,7 @@ func (d *Dispatcher) Advance(sec int64, level severityeventsdef.SeverityLevel) {
 func (d *Dispatcher) Reset() {
 	d.level = severityeventsdef.SeverityLow
 	d.lastSec = 0
-	d.lastStateEntryTs = 0
+	d.cooldownStartedAt = 0
 }
 
 func eventDirection(from, to severityeventsdef.SeverityLevel) severityeventsdef.SeverityEventDirection {
