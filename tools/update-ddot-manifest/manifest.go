@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -16,14 +17,11 @@ import (
 // distVersionKey is the synthetic change label used for the dist.version field.
 const distVersionKey = "dist.version"
 
-// Module path prefixes used to classify components. Core and contrib are
-// bumped from the compatibility table; datadog modules are known-but-untouched;
-// anything else is treated as a custom component.
-const (
-	corePrefix    = "go.opentelemetry.io/collector"
-	contribPrefix = "github.com/open-telemetry/opentelemetry-collector-contrib"
-	datadogPrefix = "github.com/DataDog/"
-)
+// datadogPrefix marks first-party modules: they are known-but-untouched (never
+// reported as custom). Components to bump are identified by the components table,
+// not by a prefix; anything neither in that table nor under datadogPrefix is a
+// custom component.
+const datadogPrefix = "github.com/DataDog/"
 
 // componentCategories are the manifest top-level keys whose entries carry a
 // "gomod: <module> <version>" scalar.
@@ -107,7 +105,7 @@ func updateManifest(data []byte, v ddotVersion) ([]byte, *updateResult, error) {
 			}
 			module, curVer := fields[0], fields[1]
 
-			newVer, known := newVersionFor(module, curVer, v)
+			newVer, known := newVersionFor(module, v)
 			if !known {
 				if !strings.HasPrefix(module, datadogPrefix) {
 					res.custom = append(res.custom, module)
@@ -177,20 +175,63 @@ func applyChanges(data []byte, changes []change) ([]byte, error) {
 }
 
 // newVersionFor returns the target version for a component and whether it is a
-// known (core/contrib) component that should be bumped. Datadog and custom
-// modules return known=false and are left untouched by the caller.
+// known component that should be bumped. Modules absent from the components
+// catalog (Datadog and third-party) return known=false and are left untouched by
+// the caller.
 //
-// The core/contrib split follows the current version stream: a component
-// already on v1.x is stable and moves to CoreStableVersion; everything else
-// (v0.x core beta and all contrib) moves to ContribVersion.
-func newVersionFor(module, curVer string, v ddotVersion) (string, bool) {
-	if !strings.HasPrefix(module, corePrefix) && !strings.HasPrefix(module, contribPrefix) {
+// The target is picked from the four version numbers of the release by the
+// component's stream (core/contrib) and its stability at that release: the stable
+// (v1.x) version when the module has a FirstStable and the release's stable
+// version is at least that, the unstable (v0.x) version otherwise — including
+// when a release older than FirstStable is requested.
+func newVersionFor(module string, v ddotVersion) (string, bool) {
+	c, ok := components[module]
+	if !ok {
 		return "", false
 	}
-	if strings.HasPrefix(curVer, "v1.") {
-		return v.CoreStableVersion, true
+
+	var stableVer, unstableVer string
+	switch c.Stream {
+	case streamCore:
+		stableVer, unstableVer = v.CoreStableVersion, v.CoreUnstableVersion
+	case streamContrib:
+		stableVer, unstableVer = v.ContribStableVersion, v.ContribUnstableVersion
+	default:
+		return "", false
 	}
-	return v.ContribVersion, true
+
+	if c.FirstStable != "" && semverGTE(stableVer, c.FirstStable) {
+		return stableVer, true
+	}
+	return unstableVer, true
+}
+
+// semverGTE reports whether version a is greater than or equal to version b.
+// Both are collector version tags of the form "vMAJOR.MINOR.PATCH" (e.g.
+// "v1.65.0"). The comparison is numeric, field by field — a lexical string
+// compare would wrongly rank "v1.9.0" above "v1.10.0".
+//
+// Inputs come from the hardcoded tables and are expected to be well formed; any
+// missing or non-numeric field parses as 0 rather than failing.
+func semverGTE(a, b string) bool {
+	va, vb := parseSemver(a), parseSemver(b)
+	for i := range va {
+		if va[i] != vb[i] {
+			return va[i] > vb[i]
+		}
+	}
+	return true // all fields equal -> a == b, which satisfies >=
+}
+
+// parseSemver splits a "vMAJOR.MINOR.PATCH" tag into its three numeric fields.
+// A leading "v" is optional; missing or non-numeric fields default to 0.
+func parseSemver(v string) [3]int {
+	v = strings.TrimPrefix(v, "v")
+	var out [3]int
+	for i, field := range strings.SplitN(v, ".", 3) {
+		out[i], _ = strconv.Atoi(field)
+	}
+	return out
 }
 
 // lineColToOffset converts a 1-indexed (line, col) position from a yaml.Node

@@ -4,18 +4,21 @@
 OpenTelemetry) OCB manifest (`comp/otelcol/collector-contrib/impl/manifest.yaml`) to match a target
 Datadog Agent release.
 
-It resolves versions from a **static compatibility table** (`DDOT_VERSIONS` in `versions.go`) — no
+It resolves versions from **static, hardcoded tables** (`versions.go` and `components.go`) — no
 network access — so a given Agent version always produces the same result. **Custom components**
-(modules outside the OpenTelemetry core/contrib and Datadog module prefixes) are detected and
+(modules not listed in the components catalog and outside the Datadog module prefix) are detected and
 reported, but left untouched: their compatibility with a new release can only be verified by their
 maintainer.
 
 ## Why not just search-and-replace the version?
 
-The manifest pins two distinct version streams: OTel core modules that reached 1.0 are on `v1.x`
-(e.g. `go.opentelemetry.io/collector/confmap/provider/envprovider v1.65.0`), while core beta modules
-and all contrib modules are on `v0.x` (e.g. `.../receiver/otlpreceiver v0.159.0`). The tool applies
-`CoreStableVersion` to components currently on `v1.x` and `ContribVersion` to the rest.
+Each component falls into one of four cells for a given release — {core, contrib} × {stable (`v1.x`),
+unstable (`v0.x`)} — and the four version numbers can coincide, so the correct value cannot be
+guessed from the version already written in the manifest. Instead, `components.go` records each
+module's stream (`core`/`contrib`) and its **first stable version** (from the upstream release
+history). For the requested release the tool writes the stable version when the module has reached
+stability by then, and the unstable version otherwise (e.g. when an older release, from before the
+module stabilized, is requested).
 
 ## Build
 
@@ -52,7 +55,13 @@ The tool only rewrites `manifest.yaml`. Regenerating `go.mod` / `components.go` 
 manifest is a separate step handled by `dda inv collector.generate`. Updating the rest of the repo's
 pinned OTel versions remains the job of `tasks/collector.py`.
 
-## Maintaining the compatibility table
+## Maintaining the hardcoded tables
 
-Each DDOT release adds a row to `ddotVersions` in `versions.go` with its OCB version, core-stable
-version and contrib version. The table is seeded from the otelcol-byoc toolkit's `DDOT_VERSIONS`.
+Two in-repo, network-free tables drive the tool:
+
+- `ddotVersions` (`versions.go`): one row per DDOT release with its OCB version and the four stream
+  versions (core stable/unstable, contrib stable/unstable). Add a row for every release.
+- `components` (`components.go`): one row per core/contrib module with its stream and first stable
+  version, derived from the module's upstream OTel release history (empty = never stable). Keep it in
+  sync as modules graduate to `v1.x`, and extend it to cover any core/contrib module the manifest may
+  reference.

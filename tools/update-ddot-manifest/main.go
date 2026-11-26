@@ -79,8 +79,10 @@ func run(agentVersion, manifestPath, outputPath string, dryRun bool) error {
 
 // reportChanges prints the target versions and every version rewrite applied.
 func reportChanges(w io.Writer, agentVersion string, v ddotVersion, res *updateResult) {
-	fmt.Fprintf(w, "DDOT manifest update for Agent %s (OCB %s, core-stable %s, contrib %s)\n",
-		agentVersion, v.OCBVersion, v.CoreStableVersion, v.ContribVersion)
+	fmt.Fprintf(w, "DDOT manifest update for Agent %s (OCB %s; core %s/%s, contrib %s/%s [stable/unstable])\n",
+		agentVersion, v.OCBVersion,
+		v.CoreStableVersion, v.CoreUnstableVersion,
+		v.ContribStableVersion, v.ContribUnstableVersion)
 	if len(res.changed) == 0 {
 		fmt.Fprintln(w, "  no version changes")
 		return

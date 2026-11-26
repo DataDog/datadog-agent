@@ -30,10 +30,12 @@ replaces:
 `
 
 var testVersion = ddotVersion{
-	AgentVersion:      "9.9.9",
-	OCBVersion:        "0.158.0",
-	CoreStableVersion: "v1.64.0",
-	ContribVersion:    "v0.158.0",
+	AgentVersion:           "9.9.9",
+	OCBVersion:             "0.158.0",
+	CoreStableVersion:      "v1.64.0",
+	CoreUnstableVersion:    "v0.158.0",
+	ContribStableVersion:   "v1.64.0",
+	ContribUnstableVersion: "v0.158.0",
 }
 
 // gomods parses a manifest and returns a module->version map for all components.
@@ -77,8 +79,8 @@ func TestUpdateManifest(t *testing.T) {
 
 	got := gomods(t, out)
 	want := map[string]string{
-		"go.opentelemetry.io/collector/exporter/debugexporter":                                  "v0.158.0", // core beta -> contrib stream
-		"go.opentelemetry.io/collector/confmap/provider/envprovider":                            "v1.64.0",  // core stable -> v1.x stream
+		"go.opentelemetry.io/collector/exporter/debugexporter":                                  "v0.158.0", // core, no FirstStable -> core-unstable
+		"go.opentelemetry.io/collector/confmap/provider/envprovider":                            "v1.64.0",  // core, stable reached -> core-stable
 		"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver": "v0.158.0", // contrib
 		"github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl":                   "v0.100.0", // datadog, untouched
 		"github.com/acme/customreceiver":                                                        "v1.2.3",   // custom, untouched
@@ -141,6 +143,49 @@ exporters:
 	got := gomods(t, out)
 	if got["dist.version"] != "0.158.0" {
 		t.Errorf("dist.version: got %q, want %q", got["dist.version"], "0.158.0")
+	}
+}
+
+// TestNewVersionForStreams exercises the four release cells plus the
+// "release older than FirstStable" case, using synthetic modules registered in
+// the components catalog so the test is independent of the seeded data.
+func TestNewVersionForStreams(t *testing.T) {
+	v := ddotVersion{
+		CoreStableVersion:      "v1.64.0",
+		CoreUnstableVersion:    "v0.158.0",
+		ContribStableVersion:   "v1.30.0",
+		ContribUnstableVersion: "v0.158.0",
+	}
+	synthetic := map[string]component{
+		"test/core-stable-reached": {Stream: streamCore, FirstStable: "v1.50.0"},
+		"test/core-stable-notyet":  {Stream: streamCore, FirstStable: "v1.90.0"},
+		"test/core-beta":           {Stream: streamCore},
+		"test/contrib-stable":      {Stream: streamContrib, FirstStable: "v1.20.0"},
+		"test/contrib-beta":        {Stream: streamContrib},
+	}
+	for name, c := range synthetic {
+		components[name] = c
+		defer delete(components, name)
+	}
+
+	cases := []struct {
+		module    string
+		wantVer   string
+		wantKnown bool
+	}{
+		{"test/core-stable-reached", "v1.64.0", true}, // 1.64 >= 1.50 -> stable
+		{"test/core-stable-notyet", "v0.158.0", true}, // 1.64 < 1.90 -> unstable (older than FirstStable)
+		{"test/core-beta", "v0.158.0", true},          // no FirstStable -> unstable
+		{"test/contrib-stable", "v1.30.0", true},      // 1.30 >= 1.20 -> stable
+		{"test/contrib-beta", "v0.158.0", true},       // no FirstStable -> unstable
+		{"github.com/acme/unknown", "", false},        // not in catalog -> untouched
+	}
+	for _, tc := range cases {
+		gotVer, gotKnown := newVersionFor(tc.module, v)
+		if gotVer != tc.wantVer || gotKnown != tc.wantKnown {
+			t.Errorf("newVersionFor(%q): got (%q, %v), want (%q, %v)",
+				tc.module, gotVer, gotKnown, tc.wantVer, tc.wantKnown)
+		}
 	}
 }
 
