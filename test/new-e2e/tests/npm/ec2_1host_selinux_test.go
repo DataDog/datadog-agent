@@ -17,6 +17,7 @@ import (
 
 type ec2VMSELinuxSuite struct {
 	e2e.BaseSuite[hostHttpbinEnv]
+	npmToolsSource string // set by the provisioner, see pullNPMToolsImage
 }
 
 // TestEC2VMSuite will validate running the agent on a single EC2 VM
@@ -25,7 +26,7 @@ func TestEC2VMSELinuxSuite(t *testing.T) {
 	s := &ec2VMSELinuxSuite{}
 
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
-		provisioners.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(ec2.WithEC2InstanceOptions(
+		provisioners.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(&s.npmToolsSource, ec2.WithEC2InstanceOptions(
 			// RHEL9 with SELinux, Docker and network utilities pre-baked (ami-builder: redhat.x86_64."9-selinux-npm").
 			ec2.WithOS(compos.RedHat9SELinuxNPM),
 			ec2.WithInstanceType("t3.medium"))), nil)),
@@ -60,7 +61,7 @@ func (v *ec2VMSELinuxSuite) SetupSuite() {
 	v.Env().RemoteHost.Reconnect()
 
 	// prefetch docker image locally
-	pullNPMToolsImage(v.Env().RemoteHost)
+	pullNPMToolsImage(v.Env().RemoteHost, v.npmToolsSource)
 }
 
 // TestFakeIntakeNPM_HostRequests Validate the agent can communicate with the (fake) backend and send connections every 30 seconds

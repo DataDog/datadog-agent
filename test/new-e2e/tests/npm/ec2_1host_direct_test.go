@@ -19,6 +19,7 @@ import (
 
 type ec2VMDirectSuite struct {
 	e2e.BaseSuite[hostHttpbinEnv]
+	npmToolsSource string // set by the provisioner, see pullNPMToolsImage
 }
 
 // TestEC2VMSuite will validate running the agent on a single EC2 VM
@@ -28,7 +29,7 @@ func TestEC2VMDirectSuite(t *testing.T) {
 
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner(
 		"hostHttpbin",
-		hostDockerHttpbinEnvProvisioner(ec2.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPMDirect))),
+		hostDockerHttpbinEnvProvisioner(&s.npmToolsSource, ec2.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPMDirect))),
 		nil,
 	))}
 
@@ -47,7 +48,7 @@ func (v *ec2VMDirectSuite) SetupSuite() {
 	v.Env().RemoteHost.Reconnect()
 
 	// prefetch docker image locally
-	pullNPMToolsImage(v.Env().RemoteHost)
+	pullNPMToolsImage(v.Env().RemoteHost, v.npmToolsSource)
 }
 
 // BeforeTest will be called before each test

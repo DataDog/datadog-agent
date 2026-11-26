@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -29,14 +30,18 @@ type dockerHostNginxEnv struct {
 
 type ec2VMContainerizedSuite struct {
 	e2e.BaseSuite[dockerHostNginxEnv]
+	npmToolsSource string // set by the provisioner, see pullNPMToolsImage
 }
 
-func dockerHostHttpbinEnvProvisioner() provisioners.PulumiEnvRunFunc[dockerHostNginxEnv] {
+// dockerHostHttpbinEnvProvisioner provisions the environment and stores in npmToolsSource the
+// apps-npm-tools image the suite pulls.
+func dockerHostHttpbinEnvProvisioner(npmToolsSource *string) provisioners.PulumiEnvRunFunc[dockerHostNginxEnv] {
 	return func(ctx *pulumi.Context, env *dockerHostNginxEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
 			return err
 		}
+		*npmToolsSource = apps.Image(&awsEnv, "apps-npm-tools")
 
 		opts := []ec2docker.Option{
 			ec2docker.WithAgentOptions(systemProbeConfigNPMEnv()...),
@@ -76,7 +81,7 @@ func TestEC2VMContainerizedSuite(t *testing.T) {
 	t.Parallel()
 	s := &ec2VMContainerizedSuite{}
 
-	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner("dockerHostHttpbin", dockerHostHttpbinEnvProvisioner(), nil))}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner("dockerHostHttpbin", dockerHostHttpbinEnvProvisioner(&s.npmToolsSource), nil))}
 
 	// Source of our kitchen CI images test/kitchen/platforms.json
 	// Other VM image can be used, our kitchen CI images test/kitchen/platforms.json
@@ -91,7 +96,7 @@ func (v *ec2VMContainerizedSuite) SetupSuite() {
 	defer v.CleanupOnSetupFailure()
 
 	// prefetch docker image locally
-	pullNPMToolsImage(v.Env().RemoteHost)
+	pullNPMToolsImage(v.Env().RemoteHost, v.npmToolsSource)
 }
 
 // BeforeTest will be called before each test
