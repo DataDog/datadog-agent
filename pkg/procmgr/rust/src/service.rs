@@ -46,8 +46,8 @@ const SERVICE_NAME: &str = "dd-procmgr-service";
 /// considering the stop stalled. Set generously so that
 /// `ProcessManager::shutdown` can gracefully stop + force-kill every
 /// child without SCM intervening. The actual shutdown budget is driven
-/// by each child's `stop_timeout` (default 90s) + `FORCE_KILL_TIMEOUT`
-/// (10s).
+/// by the longest child `stop_timeout` (default 90s) + `FORCE_KILL_TIMEOUT`
+/// (10s), since children stop concurrently.
 ///
 /// NOTE: some Windows tools ignore this hint entirely (see WINA-180).
 /// Do not rely on it for correctness — the shutdown logic must be
