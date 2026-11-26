@@ -79,7 +79,6 @@ func TestSchedulerTriggerSweepsThroughAnUnexpiredCursor(t *testing.T) {
 	})
 
 	s := newScheduler(sw, logmock.New(t), schedulerOptions{
-		Workers:      10,
 		MaxAddresses: 65536,
 		Defaults:     rangeDefaults{Namespace: "default", IntervalSec: 3600, MaxAddresses: 65536},
 		Credentials:  store,
@@ -117,7 +116,6 @@ func TestSchedulerTriggerRescansTheChunksAResumeWouldSkip(t *testing.T) {
 	})
 
 	s := newScheduler(sw, logmock.New(t), schedulerOptions{
-		Workers:      10,
 		MaxAddresses: 65536,
 		Defaults:     rangeDefaults{Namespace: "default", IntervalSec: 3600, MaxAddresses: 65536},
 		Credentials:  store,
