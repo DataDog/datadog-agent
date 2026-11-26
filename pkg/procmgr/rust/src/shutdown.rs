@@ -7,15 +7,12 @@ use crate::process::ManagedProcess;
 #[cfg(test)]
 use crate::process::test_exit_channel;
 
-/// Requests stops in `order`, then waits on all processes concurrently. `order` only sets the
-/// order in which signals are sent. Each wait enforces its own deadline, so a short timeout
-/// is force-killed on time even while an earlier process is still in its grace.
+/// Signals in `order`, then waits on all processes concurrently. Each wait keeps its own
+/// deadline, so `order` only sets when signals go out.
 pub async fn shutdown_ordered(processes: &mut [ManagedProcess], order: &[usize]) {
     for &idx in order {
         processes[idx].request_stop();
     }
-    // Wait on every process at once. Each wait enforces its own deadline, so a process with a
-    // short stop_timeout is force-killed on time even while a longer one is still in its grace.
     let waits: Vec<_> = order
         .iter()
         .filter_map(|&idx| processes[idx].take_stop_wait())
@@ -140,8 +137,7 @@ mod tests {
         assert_eq!(procs[0].state(), ProcessState::Stopped);
     }
 
-    /// Two children that ignore SIGTERM share one shutdown. Each waits out its own 2 s grace
-    /// from the moment it was asked to stop, so the total is about one grace, not two.
+    /// Two SIGTERM-ignoring children share one grace period, so shutdown takes about one grace.
     #[cfg(unix)]
     #[tokio::test]
     async fn test_shutdown_stubborn_children_share_one_grace() {
@@ -172,15 +168,13 @@ mod tests {
             elapsed < Duration::from_millis(3500),
             "two 2 s stops ran one after another: shutdown took {elapsed:?}"
         );
-        // Immediate termination would pass the upper bound, so require the full grace.
         assert!(
             elapsed >= Duration::from_millis(1900),
             "shutdown ended before the 2 s grace ran out: took {elapsed:?}"
         );
     }
 
-    /// A child with a short stop_timeout is force-killed at its own deadline, even while a
-    /// child with a longer timeout is still in its grace period.
+    /// A short-timeout child is force-killed on its own deadline, not the longer child's.
     #[cfg(unix)]
     #[tokio::test]
     async fn test_shutdown_short_timeout_killed_on_its_own_deadline() {
@@ -206,7 +200,7 @@ mod tests {
             exits.push(rx);
         }
 
-        // Record when each child's exit event arrives, which is when it actually exited, and how.
+        // Record when each child actually exits, and how.
         let exit_tasks: Vec<_> = exits
             .into_iter()
             .map(|mut rx| {
@@ -231,7 +225,6 @@ mod tests {
         let (slow_exit, slow_status) = &results[0];
         let (fast_exit, fast_status) = &results[1];
 
-        // Each child was force-killed at its own deadline, not at the other's.
         assert!(
             *fast_exit >= Duration::from_millis(1000) && *fast_exit < Duration::from_millis(2000),
             "fast-stop should be force-killed at its 1 s deadline: exited at {fast_exit:?}"
@@ -240,7 +233,6 @@ mod tests {
             *slow_exit >= Duration::from_millis(2500) && *slow_exit < Duration::from_millis(4500),
             "slow-stop should be force-killed at its 3 s deadline: exited at {slow_exit:?}"
         );
-        // Both ignored SIGTERM, so both ended by the SIGKILL escalation.
         for status in [slow_status, fast_status] {
             assert_eq!(
                 status.signal(),

@@ -832,7 +832,6 @@ impl ProcessManager {
         let ordered = self.startup_order.read().await.clone();
         // Reverse dependency order for processes in the graph, then append
         // cycle-excluded indices so a running omittee is still stopped.
-        // This order only sets when signals are sent. The waits run concurrently.
         let mut order: Vec<usize> = ordered.iter().copied().rev().collect();
         let in_order: HashSet<usize> = ordered.into_iter().collect();
         for idx in 0..n {

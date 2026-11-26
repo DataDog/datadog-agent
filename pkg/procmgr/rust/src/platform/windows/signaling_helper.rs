@@ -299,18 +299,14 @@ pub(crate) fn send_graceful_stop(
 pub(crate) enum Delivery {
     /// CTRL_BREAK was generated for the original target.
     Generated,
-    /// The helper reported that no signal was generated: signaling failed, or the target had
-    /// already exited. A helper that errored or exited without a report also lands here, since
-    /// delivery is unknown. The caller gets the undelivered allowance, capped at the configured
-    /// timeout.
+    /// No signal was generated: signaling failed, or the target had already exited. Also used
+    /// when the helper errored or exited without a report, since delivery is unknown.
     Failed,
-    /// No report arrived before the deadline. Whether the signal was generated is unknown, so the
-    /// caller keeps the configured grace and force-kills only when it runs out.
+    /// No report before the deadline. Whether the signal was generated is unknown.
     Unreported,
 }
 
-/// Resolve delivery in the daemon's waiting phase. The wait is part of the caller's stop grace,
-/// not an addition to it: it returns no later than `timeout` (capped at 2 s).
+/// Waits for the helper's report, returning no later than `timeout` (capped at 2 s).
 pub(crate) async fn wait_for_graceful_stop(
     helper: &mut SignalingHelper,
     name: &str,

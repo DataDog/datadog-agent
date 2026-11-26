@@ -169,8 +169,7 @@ impl ProcessKiller {
 pub(crate) struct StopWait {
     name: String,
     handle: JoinHandle<()>,
-    /// When the stop was requested. The grace period counts from here, so any time between the
-    /// request and the start of this wait counts against the grace.
+    /// When the stop was requested. The grace counts from here.
     started: Instant,
     /// How long to let the child exit on its own. `None` means it was never
     /// asked to, so there is nothing for a full `stop_timeout` to wait for.
@@ -196,17 +195,14 @@ impl StopWait {
         // On Linux, request_stop() already knows whether SIGTERM was sent.
         // On Windows, creating the helper does not establish that CTRL_BREAK
         // was generated; we must read the helper's report to find out.
-        // The configured grace, or the short allowance when the stop never reached the child.
-        // `delivered` is false only when the stop is known to have failed, and it picks the log.
-        // An unreported helper keeps it true, because the configured grace was waited out.
+        // `delivered` is false only when the stop is known to have failed. It picks the log.
         let (grace, delivered) = match timeout {
             Some(stop) => (stop, true),
             None => (ManagedProcess::UNDELIVERED_STOP_GRACE, false),
         };
         #[cfg(windows)]
         let (grace, delivered) = if let Some(mut helper) = helper {
-            // The report may not outlast the grace period. Bound it by what is left of that
-            // grace, so a report still pending after the grace has run out adds no time.
+            // Wait only for the grace that is left.
             let remaining = grace.saturating_sub(started.elapsed());
             let delivery = tokio::select! {
                 // If both branches are ready, prefer the completed watcher:
@@ -216,13 +212,11 @@ impl StopWait {
                 delivery = platform::wait_for_graceful_stop(&mut helper, &name, remaining) => delivery,
             };
             match delivery {
-                // Generated keeps the configured grace. Unreported may still have reached the
-                // child, so it also keeps the configured grace, which bounds the wait.
+                // Unreported may still have reached the child, so it keeps the full grace.
                 platform::Delivery::Generated | platform::Delivery::Unreported => {
                     (grace, delivered)
                 }
-                // A confirmed failure gets the short allowance, never more than the configured
-                // timeout: a 1 s stop_timeout must not stretch to 2 s.
+                // Capped at the configured timeout, so a 1 s stop_timeout is not stretched to 2 s.
                 platform::Delivery::Failed => {
                     (grace.min(ManagedProcess::UNDELIVERED_STOP_GRACE), false)
                 }
@@ -231,8 +225,7 @@ impl StopWait {
             (grace, delivered)
         };
 
-        // Even when signaling fails, the watcher gets up to 2 seconds to finish
-        // before force termination. The configured grace caps that when it is shorter.
+        // After a failed signal, the watcher gets up to 2 s, within the grace.
         if time::timeout(grace.saturating_sub(started.elapsed()), &mut handle)
             .await
             .is_ok()
@@ -271,9 +264,7 @@ pub struct ManagedProcess {
     /// records native creation failure; `StopWait` resolves actual delivery
     /// from the helper's report.
     graceful_stop_failed: bool,
-    /// When `mark_stop_requested` began this stop. `StopWait` measures the grace period from
-    /// here. Each process starts its own grace when it is requested, and concurrent waits keep
-    /// those periods from summing, so daemon shutdown waits for the longest timeout, not the sum.
+    /// When `mark_stop_requested` began this stop. `StopWait` measures its grace from here.
     stop_started: Option<Instant>,
     /// Set only where a respawn was skipped because a start condition was
     /// closed, and cleared in `spawn()`.
@@ -1195,7 +1186,6 @@ pub mod tests {
         use std::sync::{Arc, atomic::Ordering};
         let job = platform::JobObject::new().unwrap();
         let faults = Arc::clone(&job.faults);
-        // The grace period counts from the shared stop start, which `injected_stop` records.
         let grace = Duration::from_millis(200);
         let started = Instant::now();
         let stop = injected_stop(job, platform::SignalOutcome::Generated, grace);
@@ -1205,8 +1195,7 @@ pub mod tests {
             elapsed >= grace,
             "force-killed before the grace: {elapsed:?}"
         );
-        // A generated report keeps the configured grace. The upper bound rules out the 2 s
-        // undelivered fallback.
+        // The upper bound rules out the 2 s undelivered fallback.
         assert!(
             elapsed < grace + Duration::from_millis(500),
             "generated report extended the grace: {elapsed:?}"
@@ -1222,7 +1211,7 @@ pub mod tests {
         let faults = Arc::clone(&job.faults);
         let grace = Duration::from_secs(2);
         let mut stop = injected_stop(job, platform::SignalOutcome::Generated, grace);
-        // Time between the stop request and the start of this wait counts against the grace.
+        // Pretend the stop was requested 2.5 s ago, so the grace has mostly run out.
         stop.started = Instant::now()
             .checked_sub(Duration::from_millis(2500))
             .expect("host uptime exceeds the backdated stop start");
@@ -1247,7 +1236,6 @@ pub mod tests {
             .expect("host uptime exceeds the backdated stop start");
         let stop_started = stop.started;
         stop.run().await;
-        // The force-kill must land at the configured grace, not a full helper poll later.
         let forced_at = stop_started.elapsed();
         assert!(
             forced_at >= grace,
@@ -1292,7 +1280,7 @@ pub mod tests {
             platform::SignalOutcome::Failed,
             platform::SignalOutcome::AlreadyExited,
         ] {
-            // A configured timeout longer than the allowance gets the 2 s undelivered allowance.
+            // The 2 s allowance caps a 30 s timeout.
             let job = platform::JobObject::new().unwrap();
             let faults = Arc::clone(&job.faults);
             let started = Instant::now();
@@ -1306,7 +1294,7 @@ pub mod tests {
             );
             assert_eq!(faults.terminate_calls.load(Ordering::SeqCst), 1);
 
-            // A shorter configured timeout is not stretched to the allowance.
+            // A 500 ms timeout is not stretched.
             let job = platform::JobObject::new().unwrap();
             let faults = Arc::clone(&job.faults);
             let started = Instant::now();
