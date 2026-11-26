@@ -19,4 +19,13 @@ const (
 	// agentConfigFileMode is the mode of every configuration file, the one the
 	// installer's .dmg set-up (secureConfig) gives the whole configuration tree.
 	agentConfigFileMode = 0660
+
+	// configDirRights and configFileRights are the access the .dmg set-up (secureConfig) gives the
+	// Agent's account on the configuration's directories and files, through an access control
+	// entry.
+	configDirRights  = "allow read,write,readattr,writeattr,readextattr,writeextattr,readsecurity,list,search,add_file,add_subdirectory,file_inherit,directory_inherit"
+	configFileRights = "allow read,write,readattr,writeattr,readextattr,writeextattr,readsecurity"
+	// AgentConfigDirACE and AgentConfigFileACE are those entries for the Agent's account.
+	AgentConfigDirACE  = "user:" + AgentUser + " " + configDirRights
+	AgentConfigFileACE = "user:" + AgentUser + " " + configFileRights
 )

@@ -13,7 +13,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -343,17 +345,23 @@ func TestWriteExperimentCopiesANameWithAControlCharacter(t *testing.T) {
 
 // TestWriteExperimentRecopiesAFileTheTreeOwnerDoesNotOwn needs root: only root can own a file
 // inside a tree another account owns. Such a file is read again from the stable tree through a
-// handle, so its copy holds what that file holds.
+// handle, so its copy holds what that file holds, and the tree's owner keeps its access to it.
 func TestWriteExperimentRecopiesAFileTheTreeOwnerDoesNotOwn(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Skip("needs root to create entries with another owner")
 	}
+	nobody, err := user.Lookup("nobody")
+	require.NoError(t, err)
+	uid, err := strconv.Atoi(nobody.Uid)
+	require.NoError(t, err)
+	gid, err := strconv.Atoi(nobody.Gid)
+	require.NoError(t, err)
 	dirs := newTestDirectories(t)
 	require.NoError(t, filepath.Walk(dirs.StablePath, func(path string, _ os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		return os.Lchown(path, -2, -2)
+		return os.Lchown(path, uid, gid)
 	}))
 	foreign := filepath.Join(dirs.StablePath, "conf.d", "foreign.yaml")
 	require.NoError(t, os.WriteFile(foreign, []byte("root: only\n"), 0600))
@@ -364,6 +372,15 @@ func TestWriteExperimentRecopiesAFileTheTreeOwnerDoesNotOwn(t *testing.T) {
 	content, err := os.ReadFile(filepath.Join(dirs.ExperimentPath, "conf.d", "foreign.yaml"))
 	require.NoError(t, err)
 	assert.Equal(t, "root: only\n", string(content))
+	// The tree's owner keeps access to it, as it has in the stable tree through an inherited entry.
+	assert.Contains(t, readACL(t, filepath.Join(dirs.ExperimentPath, "conf.d", "foreign.yaml")), "user:"+nobody.Username+" allow read,write")
+}
+
+// TestAgentConfigACEsAreTheDmgOnes pins the entries an entry the tree's owner does not own is
+// given: the ones the .dmg set-up gives the whole tree.
+func TestAgentConfigACEsAreTheDmgOnes(t *testing.T) {
+	assert.Equal(t, "user:_dd-agent allow read,write,readattr,writeattr,readextattr,writeextattr,readsecurity,list,search,add_file,add_subdirectory,file_inherit,directory_inherit", AgentConfigDirACE)
+	assert.Equal(t, "user:_dd-agent allow read,write,readattr,writeattr,readextattr,writeextattr,readsecurity", AgentConfigFileACE)
 }
 
 func TestSetFileOwnershipAndPermissionsRefusesALink(t *testing.T) {

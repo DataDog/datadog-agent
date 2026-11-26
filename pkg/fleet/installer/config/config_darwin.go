@@ -14,12 +14,16 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
+	"os/user"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
+	pkguser "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -45,6 +49,8 @@ const (
 	incomingPrefix = ".datadog-config-incoming"
 	// maxDeploymentIDSize bounds how much of a deployment ID file is read.
 	maxDeploymentIDSize = 256
+	// aclBatchSize bounds how many paths one chmod is given.
+	aclBatchSize = 200
 )
 
 // stageExperiment builds the experiment in a scratch directory only root can reach, and publishes
@@ -62,7 +68,7 @@ func (d *Directories) stageExperiment(ctx context.Context, fill func(dir string)
 	if err := copyDirectory(ctx, d.StablePath, dir); err != nil {
 		return fmt.Errorf("could not copy %s: %w", d.StablePath, err)
 	}
-	if err := checkCopy(d.StablePath, dir); err != nil {
+	if err := checkCopy(ctx, d.StablePath, dir); err != nil {
 		return err
 	}
 	// The stable deployment ID came along with the copy: only fill writes the experiment's.
@@ -95,8 +101,11 @@ func (d *Directories) stageExperiment(ctx context.Context, fill func(dir string)
 //     handle that does not follow a link, and must match its owner and mode, so it holds only what
 //     a file of that owner at that path holds;
 //   - file flags cp carried over (uchg, uappnd and the like) are cleared: a flagged file could not
-//     be patched, and a flagged copy could not be removed by a stop.
-func checkCopy(source, copied string) error {
+//     be patched, and a flagged copy could not be removed by a stop;
+//   - an entry the tree's owner does not own is given the owner's access control entry, the one
+//     the .dmg set-up gives it. In the stable tree such an entry is readable by the owner through
+//     an entry inherited from its directory, and cp does not copy inherited entries.
+func checkCopy(ctx context.Context, source, copied string) error {
 	src, err := os.OpenRoot(source)
 	if err != nil {
 		return fmt.Errorf("could not open %s: %w", source, err)
@@ -110,7 +119,8 @@ func checkCopy(source, copied string) error {
 	if !ok {
 		return fmt.Errorf("could not read the ownership of %s", copied)
 	}
-	return filepath.WalkDir(copied, func(path string, entry fs.DirEntry, err error) error {
+	var foreignDirs, foreignFiles []string
+	err = filepath.WalkDir(copied, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -124,12 +134,19 @@ func checkCopy(source, copied string) error {
 		if err := clearFlags(path); err != nil {
 			return err
 		}
-		if !entry.Type().IsRegular() {
-			return nil
-		}
 		info, err := entry.Info()
 		if err != nil {
 			return err
+		}
+		if uid, _, ok := ownership(info); ok && uid != treeOwner {
+			if entry.IsDir() {
+				foreignDirs = append(foreignDirs, path)
+			} else if entry.Type().IsRegular() {
+				foreignFiles = append(foreignFiles, path)
+			}
+		}
+		if !entry.Type().IsRegular() {
+			return nil
 		}
 		f, err := src.OpenFile(rel, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 		if err != nil {
@@ -149,6 +166,30 @@ func checkCopy(source, copied string) error {
 		}
 		return nil
 	})
+	if err != nil || len(foreignDirs)+len(foreignFiles) == 0 {
+		return err
+	}
+	owner, err := user.LookupId(strconv.Itoa(treeOwner))
+	if err != nil {
+		return fmt.Errorf("could not look up the owner of %s: %w", source, err)
+	}
+	if err := grantACE(ctx, "user:"+owner.Username+" "+configDirRights, foreignDirs); err != nil {
+		return err
+	}
+	return grantACE(ctx, "user:"+owner.Username+" "+configFileRights, foreignFiles)
+}
+
+// grantACE adds an access control entry to paths, which are all in the scratch directory only root
+// can reach.
+func grantACE(ctx context.Context, ace string, paths []string) error {
+	for start := 0; start < len(paths); start += aclBatchSize {
+		batch := paths[start:min(start+aclBatchSize, len(paths))]
+		cmd := exec.CommandContext(ctx, "/bin/chmod", append([]string{"+a", ace}, batch...)...)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("could not give %d configuration entries their access control entry: %w: %s", len(batch), err, strings.TrimSpace(string(output)))
+		}
+	}
+	return nil
 }
 
 // recopy replaces the copy at path with the content of the open source file, once their owner and
@@ -319,12 +360,12 @@ func setFileOwnershipAndPermissions(ctx context.Context, root *os.Root, path str
 	if err := f.Chmod(agentConfigFileMode); err != nil {
 		return fmt.Errorf("error setting file permissions for %s: %w", path, err)
 	}
-	uid, err := user.GetUserID(ctx, AgentUser)
+	uid, err := pkguser.GetUserID(ctx, AgentUser)
 	if err != nil {
 		log.Warnf("error setting file ownership for %s: %v", path, err)
 		return nil
 	}
-	gid, err := user.GetGroupID(ctx, AgentGroup)
+	gid, err := pkguser.GetGroupID(ctx, AgentGroup)
 	if err != nil {
 		log.Warnf("error setting file ownership for %s: %v", path, err)
 		return nil

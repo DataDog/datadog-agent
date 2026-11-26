@@ -46,8 +46,8 @@ const (
 	// install says otherwise.
 	defaultChromeExtensionID = "gkmbhgbippkmmmidcikijiblbagbjgjj"
 
-	confDirACL  = "user:_dd-agent allow read,write,readattr,writeattr,readextattr,writeextattr,readsecurity,list,search,add_file,add_subdirectory,file_inherit,directory_inherit"
-	confFileACL = "user:_dd-agent allow read,write,readattr,writeattr,readextattr,writeextattr,readsecurity"
+	confDirACL  = config.AgentConfigDirACE
+	confFileACL = config.AgentConfigFileACE
 	ipcDirACL   = "user:_dd-agent allow read,write,readattr,readextattr,readsecurity,list,search,file_inherit,directory_inherit"
 )
 
