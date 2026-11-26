@@ -248,7 +248,10 @@ def build_sysprobe_binary(
             raise NotImplementedError("--enable-bazel does not support Windows yet (no PDB output).")
 
         bazel_args = [f"--//:install_dir={install_path}"] if install_path else []
-        build_binary_with_bazel(BAZEL_TARGET, args=bazel_args, bin_path=binary, fips_backend=fips_backend)
+        # abspath so a bare filename (e.g. --binary=system-probe) has a directory to create.
+        build_binary_with_bazel(
+            BAZEL_TARGET, args=bazel_args, bin_path=os.path.abspath(binary), fips_backend=fips_backend
+        )
         return
 
     ldflags, gcflags, env = get_build_flags(
