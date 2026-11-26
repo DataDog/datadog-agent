@@ -528,6 +528,12 @@ fn load_configs_with(dir: &Path, strict: bool) -> Result<LoadedCatalog> {
         match parsed {
             Ok(config) => processes.push(ProcessDefinition { name, config }),
             Err(e) if strict && is_stalled_read(&e) => return Err(e),
+            Err(e) if strict && entry_vanished(&e, &path) => {
+                return Err(e.context(format!(
+                    "{} was removed or replaced while the reload read it",
+                    path.display()
+                )));
+            }
             Err(e) => {
                 let error = truncate_config_error(&format!("{e:#}"), STORED_CONFIG_ERROR_MAX_CHARS);
                 warn!("[{name}] skipping config: {error}");
@@ -577,9 +583,32 @@ fn is_stalled_read(err: &anyhow::Error) -> bool {
             .is_some_and(clears_on_its_own)
 }
 
+/// Whether a strict reload must refuse an entry whose read found nothing. `read_dir` listed the
+/// entry before the read, so a save that replaces it can leave it missing or as a regular file
+/// for a moment. Treating that as an invalid entry would stop a running process for one reload.
+/// A dangling link is still an invalid entry, so a link that `symlink_metadata` still reports
+/// keeps that outcome. The check runs through `bounded` like every other filesystem call, and a
+/// check that fails or times out refuses the reload too.
+fn entry_vanished(err: &anyhow::Error, path: &Path) -> bool {
+    let not_found = err
+        .downcast_ref::<std::io::Error>()
+        .is_some_and(|err| err.kind() == std::io::ErrorKind::NotFound);
+    if !not_found {
+        return false;
+    }
+    let owned = path.to_path_buf();
+    match crate::stop::bounded(path, move || std::fs::symlink_metadata(owned)) {
+        Ok(Ok(meta)) => !meta.file_type().is_symlink(),
+        Ok(Err(_)) | Err(_) => true,
+    }
+}
+
 fn clears_on_its_own(err: &std::io::Error) -> bool {
-    use std::io::ErrorKind::{ResourceBusy, StaleNetworkFileHandle, TimedOut};
-    if matches!(err.kind(), TimedOut | StaleNetworkFileHandle | ResourceBusy) {
+    use std::io::ErrorKind::{ResourceBusy, StaleNetworkFileHandle, TimedOut, WouldBlock};
+    if matches!(
+        err.kind(),
+        TimedOut | StaleNetworkFileHandle | ResourceBusy | WouldBlock
+    ) {
         return true;
     }
     // ERROR_SHARING_VIOLATION and ERROR_LOCK_VIOLATION.
@@ -693,15 +722,16 @@ mod tests {
     #[test]
     fn only_a_read_that_did_not_finish_fails_a_reload() {
         let kind = std::io::Error::from;
-        let would_block = || kind(std::io::ErrorKind::WouldBlock);
-        let unfinished = anyhow::Error::new(UnfinishedRead(would_block())).context("reading x");
+        let permanent = || kind(std::io::ErrorKind::Other);
+        let unfinished = anyhow::Error::new(UnfinishedRead(permanent())).context("reading x");
         assert!(is_stalled_read(&unfinished));
-        let failed = anyhow::Error::new(would_block()).context("reading x");
+        let failed = anyhow::Error::new(permanent()).context("reading x");
         assert!(!is_stalled_read(&failed));
         for stalled in [
             std::io::ErrorKind::TimedOut,
             std::io::ErrorKind::StaleNetworkFileHandle,
             std::io::ErrorKind::ResourceBusy,
+            std::io::ErrorKind::WouldBlock,
         ] {
             let err = anyhow::Error::new(kind(stalled)).context("reading x");
             assert!(is_stalled_read(&err), "{stalled:?} from the read can clear");
@@ -869,6 +899,45 @@ mod tests {
         assert_eq!(catalog.processes.len(), 1);
         assert_eq!(catalog.invalid.len(), 1);
         assert_eq!(catalog.invalid[0].name, "broken");
+    }
+
+    /// A read that finds nothing refuses a reload unless the entry is still a link, which stays an
+    /// invalid entry. Only NotFound takes this path.
+    #[cfg(unix)]
+    #[test]
+    fn a_read_that_finds_nothing_refuses_a_reload_unless_the_entry_is_a_link() {
+        let dir = tempfile::tempdir().unwrap();
+        let not_found = || {
+            anyhow::Error::new(std::io::Error::from(std::io::ErrorKind::NotFound))
+                .context("reading x")
+        };
+
+        let removed = dir.path().join("removed.yaml");
+        assert!(
+            entry_vanished(&not_found(), &removed),
+            "an entry that was removed must refuse the reload"
+        );
+
+        let replaced = dir.path().join("replaced.yaml");
+        fs::write(&replaced, "command: /bin/true\n").unwrap();
+        assert!(
+            entry_vanished(&not_found(), &replaced),
+            "a regular file that replaced the entry must refuse the reload"
+        );
+
+        let link = dir.path().join("broken.yaml");
+        std::os::unix::fs::symlink(dir.path().join("gone"), &link).unwrap();
+        assert!(
+            !entry_vanished(&not_found(), &link),
+            "a dangling link must stay an invalid entry"
+        );
+
+        let denied = anyhow::Error::new(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
+            .context("reading x");
+        assert!(
+            !entry_vanished(&denied, &removed),
+            "only a NotFound read is checked for a vanished entry"
+        );
     }
 
     #[cfg(unix)]

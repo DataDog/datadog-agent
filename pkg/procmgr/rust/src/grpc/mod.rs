@@ -122,7 +122,7 @@ mod tests {
                         }
                     }
                     Some(event) = exit_rx.recv() => {
-                        let restart_tx = mpsc::channel::<String>(256).0;
+                        let restart_tx = mpsc::channel::<(String, u64)>(256).0;
                         mgr_loop.handle_exit(event, &restart_tx).await;
                     }
                     else => break,
