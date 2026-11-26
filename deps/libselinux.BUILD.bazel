@@ -81,6 +81,8 @@ cc_shared_library(
     user_link_flags = [
         "-Wl,-soname=libselinux.so",
         "-Wl,--version-script=$(execpath src/libselinux.map)",
+        # libselinux.map lists matchpathcon_filespec_add64, which 64-bit builds do not define.
+        "-Wl,--undefined-version",
     ],
     visibility = ["//visibility:public"],
     deps = [

@@ -104,6 +104,8 @@ cc_shared_library(
     ],
     user_link_flags = [
         "-Wl,--version-script=$(execpath exports)",
+        # exports lists getxattr & co, which syscalls.c only defines as .symver aliases.
+        "-Wl,--undefined-version",
     ],
     visibility = ["//visibility:public"],
     deps = [":libattr"],

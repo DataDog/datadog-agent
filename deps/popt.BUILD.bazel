@@ -83,6 +83,8 @@ cc_shared_library(
     user_link_flags = [
         "-Wl,--no-undefined",
         "-Wl,--version-script=$(execpath src/libpopt.vers)",
+        # libpopt.vers lists _init and _fini, which lld does not define.
+        "-Wl,--undefined-version",
     ],
     visibility = ["//visibility:public"],
     deps = [
