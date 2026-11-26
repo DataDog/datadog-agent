@@ -236,13 +236,13 @@ require (
 	github.com/aquasecurity/trivy v0.76.2
 	github.com/aquasecurity/trivy-db v0.0.0-20261012084708-cbebf2ecd6df
 	github.com/aws/aws-sdk-go-v2 v1.48.0
-	github.com/aws/aws-sdk-go-v2/config v1.33.19
-	github.com/aws/aws-sdk-go-v2/credentials v1.21.1
+	github.com/aws/aws-sdk-go-v2/config v1.33.21
+	github.com/aws/aws-sdk-go-v2/credentials v1.21.3
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.349.0
-	github.com/aws/aws-sdk-go-v2/service/rds v1.132.2
+	github.com/aws/aws-sdk-go-v2/service/rds v1.134.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.51.0
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.83.0
-	github.com/aws/aws-sdk-go-v2/service/sts v1.52.0
+	github.com/aws/aws-sdk-go-v2/service/sts v1.53.0
 	github.com/aws/karpenter-provider-aws v1.14.0
 	github.com/aymerick/raymond v2.0.2+incompatible
 	github.com/bazelbuild/rules_go v0.65.0
@@ -598,7 +598,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/kafka v1.63.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/lightsail v1.64.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.49.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/signin v1.13.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/signin v1.14.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.39.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.44.5 // indirect
 	github.com/aws/smithy-go v1.28.9 // indirect
