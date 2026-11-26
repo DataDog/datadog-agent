@@ -3332,7 +3332,7 @@ func TestActionSetVariableValidation(t *testing.T) {
 	// an action isn't evaluated over the elements of an iterator, so an iterator
 	// variable is rejected wherever it is in its source, a macro included
 	for name, set := range map[string]*SetDefinition{
-		"field":           {Name: "var1", Field: `process.ancestors[A].file.name`},
+		"field":           {Name: "var1", Field: `process.ancestors[A].file.name`, Append: true},
 		"field-subscript": {Name: "var1", Field: `process.argv[process.ancestors[A].uid[0]]`},
 		"field-macro":     {Name: "var1", Field: `process.argv[first_ancestor_uid + 0]`},
 		"expression":      {Name: "var1", Expression: `"%{process.ancestors[A].file.name}"`, DefaultValue: ""},
@@ -3356,6 +3356,170 @@ func TestActionSetVariableValidation(t *testing.T) {
 				t.Errorf("expected the iterator variable to be rejected, got %v", err)
 			}
 		})
+	}
+}
+
+// A variable read from a dictionary, the environment variables of a process,
+// records the keys it reads, for the serializer to check them against
+// envs_with_value, or that one of them is evaluated per event.
+func TestActionSetVariableEnvKeys(t *testing.T) {
+	testPolicy := &PolicyDef{Rules: []*RuleDefinition{{
+		ID:         "test_rule",
+		Expression: `open.file.path == "/tmp/test"`,
+		Actions: []*ActionDefinition{
+			{Set: &SetDefinition{Name: "key", Value: "PATH"}},
+			{Set: &SetDefinition{Name: "from_field", Field: `process.env["TOKEN"]`}},
+			{Set: &SetDefinition{Name: "from_expression", Expression: `process.env["TOKEN"]`, DefaultValue: ""}},
+			{Set: &SetDefinition{Name: "from_scope", Field: `process.env["TOKEN"]`, Scope: "process"}},
+			{Set: &SetDefinition{Name: "from_evaluated_key", Field: `process.env[${key}]`}},
+			{Set: &SetDefinition{Name: "from_nested_key", Field: `process.env[process.env["PATH"]]`}},
+			{Set: &SetDefinition{Name: "from_key_test", Expression: `"TOKEN" in process.env`, DefaultValue: false}},
+			{Set: &SetDefinition{Name: "from_path", Field: `open.file.path`}},
+		},
+	}}}
+
+	tmpDir := t.TempDir()
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rs := newRuleSet()
+	if _, err := rs.LoadPolicies(NewPolicyLoader(provider), PolicyLoaderOpts{}); err != nil {
+		t.Fatal(err)
+	}
+
+	for name, expected := range map[string]struct {
+		keys      []string
+		evaluated bool
+	}{
+		"from_field":         {[]string{"TOKEN"}, false},
+		"from_expression":    {[]string{"TOKEN"}, false},
+		"process.from_scope": {[]string{"TOKEN"}, false},
+		"from_evaluated_key": {nil, true},
+		"from_nested_key":    {[]string{"PATH"}, true},
+		"from_key_test":      {nil, false},
+		"from_path":          {nil, false},
+	} {
+		variable := rs.evalOpts.VariableStore.Get(name)
+		if variable == nil {
+			t.Fatalf("variable %s not found", name)
+		}
+		opts := variable.GetVariableOpts()
+		if !slices.Equal(opts.EnvKeys, expected.keys) || opts.EnvKeyEvaluated != expected.evaluated {
+			t.Errorf("variable %s: expected env keys %v and evaluated %v, got %v and %v", name, expected.keys, expected.evaluated, opts.EnvKeys, opts.EnvKeyEvaluated)
+		}
+		if opts.Private {
+			t.Errorf("variable %s: expected not to be private", name)
+		}
+	}
+}
+
+// A variable read from another variable gets its env marks, whatever order the
+// rules are loaded in, cycles included. A rule that fails to load doesn't mark
+// the variables it shares with other rules.
+func TestActionSetVariableEnvKeysThroughVariables(t *testing.T) {
+	set := func(id, path string, sets ...*SetDefinition) *RuleDefinition {
+		rule := &RuleDefinition{ID: id, Expression: `open.file.path == "` + path + `"`}
+		for _, set := range sets {
+			rule.Actions = append(rule.Actions, &ActionDefinition{Set: set})
+		}
+		return rule
+	}
+	testPolicy := &PolicyDef{Rules: []*RuleDefinition{
+		set("copies", "/tmp/copies",
+			&SetDefinition{Name: "tok_copy", Expression: `${tok}`, DefaultValue: ""},
+			&SetDefinition{Name: "tok_chain", Expression: `"x_${tok_copy}"`, DefaultValue: ""},
+		),
+		set("source", "/tmp/source", &SetDefinition{Name: "tok", Field: `process.env["AWS_SECRET_ACCESS_KEY"]`}),
+		set("cycle", "/tmp/cycle",
+			&SetDefinition{Name: "cycle_a", Expression: `${cycle_b}`, DefaultValue: ""},
+			&SetDefinition{Name: "cycle_b", Expression: `${cycle_a}`, DefaultValue: ""},
+			&SetDefinition{Name: "cycle_b", Field: `process.env["TOKEN"]`},
+		),
+		// an exec field in an open rule: the rule fails to load
+		set("rejected", "/tmp/rejected", &SetDefinition{Name: "shared", Field: `exec.env["TOKEN"]`}),
+		set("loaded", "/tmp/loaded", &SetDefinition{Name: "shared", Field: `open.file.path`}),
+	}}
+
+	tmpDir := t.TempDir()
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rs := newRuleSet()
+	_, loadErr := rs.LoadPolicies(NewPolicyLoader(provider), PolicyLoaderOpts{})
+	if loadErr.ErrorOrNil() == nil || !strings.Contains(loadErr.Error(), "rejected") || rs.GetRuleByID("loaded") == nil {
+		t.Fatalf("expected only the rejected rule to fail to load, got %v", loadErr)
+	}
+
+	for name, keys := range map[string][]string{
+		"tok":       {"AWS_SECRET_ACCESS_KEY"},
+		"tok_copy":  {"AWS_SECRET_ACCESS_KEY"},
+		"tok_chain": {"AWS_SECRET_ACCESS_KEY"},
+		"cycle_a":   {"TOKEN"},
+		"cycle_b":   {"TOKEN"},
+		"shared":    nil,
+	} {
+		variable := rs.evalOpts.VariableStore.Get(name)
+		if variable == nil {
+			t.Fatalf("variable %s not found", name)
+		}
+		if opts := variable.GetVariableOpts(); !slices.Equal(opts.EnvKeys, keys) {
+			t.Errorf("variable %s: expected env keys %v, got %v", name, keys, opts.EnvKeys)
+		}
+	}
+}
+
+// The subscript of a set field can read a variable declared by a rule loaded
+// after it: the variables are declared before any field is compiled.
+func TestActionSetVariableSubscriptVariable(t *testing.T) {
+	testPolicy := &PolicyDef{Rules: []*RuleDefinition{{
+		ID:         "set_value",
+		Expression: `open.file.path == "/tmp/value"`,
+		Actions:    []*ActionDefinition{{Set: &SetDefinition{Name: "value", Field: `process.env[${key}]`}}},
+	}, {
+		ID:         "set_key",
+		Expression: `open.file.path == "/tmp/key"`,
+		Actions:    []*ActionDefinition{{Set: &SetDefinition{Name: "key", Value: "LD_PRELOAD"}}},
+	}, {
+		ID:         "check",
+		Expression: `open.file.path == "/tmp/check" && ${value} == "x.so"`,
+	}}}
+
+	tmpDir := t.TempDir()
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rs := newRuleSet()
+	if _, err := rs.LoadPolicies(NewPolicyLoader(provider), PolicyLoaderOpts{}); err != nil {
+		t.Fatal(err)
+	}
+
+	newEvent := func(path string) *model.Event {
+		event := model.NewFakeEvent()
+		event.Type = uint32(model.FileOpenEventType)
+		event.ProcessCacheEntry = &model.ProcessCacheEntry{}
+		event.SetFieldValue("open.file.path", path)
+		event.ProcessContext.Process.Env = map[string]string{"LD_PRELOAD": "x.so"}
+		return event
+	}
+	for _, path := range []string{"/tmp/key", "/tmp/value"} {
+		if !rs.Evaluate(newEvent(path)) {
+			t.Fatalf("expected the rule of %s to match", path)
+		}
+	}
+	if !rs.Evaluate(newEvent("/tmp/check")) {
+		t.Error("expected the value to be read at the key of the variable")
 	}
 }
 

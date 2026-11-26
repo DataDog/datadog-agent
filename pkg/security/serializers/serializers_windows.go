@@ -175,7 +175,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 	return psSerializer
 }
 
-func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule *rules.Rule) *ProcessContextSerializer {
+func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule *rules.Rule, scrubber *utils.Scrubber) *ProcessContextSerializer {
 	if pc == nil || pc.Pid == 0 || e == nil {
 		return nil
 	}
@@ -184,7 +184,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule 
 		ProcessSerializer: newProcessSerializer(&pc.Process, e),
 	}
 
-	ps.Variables = newVariablesContext(e, rule, "process.")
+	ps.Variables = newVariablesContext(e, rule, "process.", scrubber)
 
 	ctx := eval.NewContext(e)
 
@@ -201,7 +201,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule 
 
 		// evaluate variables scoped to this ancestor
 		e.ProcessCacheEntry = pce
-		s.Variables = newVariablesContext(e, rule, "process.")
+		s.Variables = newVariablesContext(e, rule, "process.", scrubber)
 		e.ProcessCacheEntry = originalPCE
 
 		ps.Ancestors = append(ps.Ancestors, s)
