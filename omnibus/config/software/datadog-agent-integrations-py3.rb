@@ -3,6 +3,7 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-present Datadog, Inc.
 
+require 'shellwords'
 require './lib/ostools.rb'
 
 name 'datadog-agent-integrations-py3'
@@ -91,6 +92,21 @@ build do
            resolved.any? { |_, path| File.dirname(File.expand_path(path)) != agent_lib_dir }
           raise "expected #{so} to load OpenSSL from #{agent_lib_dir}, ldd reports:\n#{output}"
         end
+      end
+
+      # Load them all in the Agent's Python, as integrations do at runtime, and check that the only OpenSSL mapped in
+      # the process is the Agent's. Unlike `ldd`, loading with RTLD_NOW also resolves every symbol they use.
+      unless openssl_users.empty?
+        load_check = <<~PYTHON
+          import ctypes, os, sys
+          for path in sys.argv[2:]:
+              ctypes.CDLL(path, mode=os.RTLD_NOW)
+          with open("/proc/self/maps") as maps:
+              loaded = {line.split()[-1] for line in maps if "libssl" in line or "libcrypto" in line}
+          foreign = sorted(path for path in loaded if os.path.dirname(path) != sys.argv[1])
+          sys.exit(f"OpenSSL loaded from outside {sys.argv[1]}: {foreign}" if foreign else 0)
+        PYTHON
+        shellout! Shellwords.join([python, "-I", "-S", "-c", load_check, agent_lib_dir, *openssl_users])
       end
 
       # In FIPS builds these must use the Agent's OpenSSL, so they can't come with their own, even statically linked
