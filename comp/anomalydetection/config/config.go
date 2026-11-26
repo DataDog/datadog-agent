@@ -13,6 +13,7 @@ const (
 	AnomalyDetectionRecordingEnabledConfigKey = "anomaly_detection.recording.enabled"
 	AnomalyDetectionRecordingOnlyConfigKey    = "anomaly_detection.recording.only"
 	AnomalyScorerDryRunEnabledConfigKey       = "anomaly_detection.anomaly_scorer.dry_run.enabled"
+	AnomalyScorerScopedEnabledConfigKey       = "anomaly_detection.anomaly_scorer.scoped.enabled"
 	ReportingEventsEnabledConfigKey           = "anomaly_detection.reporting.events.enabled"
 	SmartSeverityProfilesEnabledConfigKey     = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled"
 )
@@ -31,6 +32,11 @@ func ReportingEventsEnabled(cfg pkgconfigmodel.Reader) bool {
 // mode for telemetry without output side effects.
 func AnomalyScorerDryRunEnabled(cfg pkgconfigmodel.Reader) bool {
 	return cfg.GetBool(AnomalyScorerDryRunEnabledConfigKey)
+}
+
+// AnomalyScorerScopedEnabled returns whether service-scoped anomaly scoring is enabled.
+func AnomalyScorerScopedEnabled(cfg pkgconfigmodel.Reader) bool {
+	return cfg.GetBool(AnomalyScorerScopedEnabledConfigKey)
 }
 
 // RecordingEnabled returns whether anomaly-detection raw signal recording is enabled.

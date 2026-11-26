@@ -5470,6 +5470,39 @@ properties:
             node_type: setting
             type: number
             default: 5
+          scoped:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+                description: >
+                  Enables service-scoped anomaly scoring and scoped adaptive
+                  log sampling severity lookups.
+              idle_eviction_ttl:
+                node_type: setting
+                type: string
+                default: 1h
+                format: duration
+                description: >
+                  How long an idle service-scoped anomaly scorer stays alive
+                  after returning to low severity before being evicted.
+              max_scopes:
+                node_type: setting
+                type: integer
+                default: 128
+                description: >
+                  Maximum number of active service-scoped anomaly scorers
+                  retained before least-recently-used eviction.
+              per_service_telemetry:
+                node_type: setting
+                type: boolean
+                default: false
+                description: >
+                  Enables per-service EWMA and severity telemetry gauges on the
+                  scoped anomaly scorer.
           window:
             node_type: setting
             type: string

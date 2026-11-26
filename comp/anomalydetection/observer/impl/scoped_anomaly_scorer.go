@@ -12,7 +12,9 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	severityeventsimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/impl"
@@ -20,6 +22,7 @@ import (
 
 const (
 	scopedAnomalyScorerName            = "scoped_anomaly_scorer"
+	scopedScorerConfigPrefix           = "anomaly_detection.anomaly_scorer.scoped."
 	defaultScopedScorerMaxScopes       = 128
 	defaultScopedScorerIdleEvictionSec = 3600
 	scopedEvictionReasonIdle           = "idle"
@@ -38,6 +41,33 @@ type ScopedAnomalyScorerConfig struct {
 	OnScopeEvicted func(reason string)
 	// Gauges configures optional per-service EWMA/severity gauges on child scorers.
 	Gauges scorerGauges
+}
+
+// readScopedAnomalyScorerConfig reads scoped scorer settings from the agent config.
+// prefix is the key prefix, e.g. "anomaly_detection.anomaly_scorer.scoped.".
+func readScopedAnomalyScorerConfig(r ConfigReader, prefix string, scorerCfg AnomalyScorerConfig) (ScopedAnomalyScorerConfig, bool) {
+	cfg := ScopedAnomalyScorerConfig{
+		Scorer:          scorerCfg,
+		MaxScopes:       defaultScopedScorerMaxScopes,
+		IdleEvictionSec: defaultScopedScorerIdleEvictionSec,
+	}
+
+	key := prefix + "max_scopes"
+	if maxScopes := r.GetInt(key); maxScopes > 0 {
+		cfg.MaxScopes = maxScopes
+	} else {
+		logging.Warnf("scoped anomaly scorer: %s must be > 0, got %d — using default %d", key, maxScopes, defaultScopedScorerMaxScopes)
+	}
+
+	key = prefix + "idle_eviction_ttl"
+	if ttl := r.GetDuration(key); ttl >= time.Second {
+		cfg.IdleEvictionSec = int64(ttl.Seconds())
+	} else {
+		logging.Warnf("scoped anomaly scorer: %s must be >= 1s, got %s — using default %ds", key, ttl, defaultScopedScorerIdleEvictionSec)
+	}
+
+	perServiceTelemetry := r.GetBool(prefix + "per_service_telemetry")
+	return cfg, perServiceTelemetry
 }
 
 type scopedSubscription struct {

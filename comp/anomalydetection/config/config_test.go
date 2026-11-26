@@ -175,3 +175,40 @@ anomaly_detection:
 		})
 	}
 }
+
+func TestAnomalyScorerScopedEnabled(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		yaml string
+		want bool
+	}{
+		{name: "disabled by default", yaml: "", want: false},
+		{
+			name: "explicit true",
+			yaml: "anomaly_detection:\n  anomaly_scorer:\n    scoped:\n      enabled: true\n",
+			want: true,
+		},
+		{
+			name: "explicit false",
+			yaml: "anomaly_detection:\n  anomaly_scorer:\n    scoped:\n      enabled: false\n",
+			want: false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := compconfig.NewMockFromYAML(t, tt.yaml)
+			assert.Equal(t, tt.want, AnomalyScorerScopedEnabled(cfg))
+		})
+	}
+
+	t.Run("scoped enabled alone does not require observer or scorer", func(t *testing.T) {
+		cfg := compconfig.NewMockFromYAML(t, "anomaly_detection:\n  anomaly_scorer:\n    scoped:\n      enabled: true\n")
+		assert.False(t, ObserverRequired(cfg))
+		assert.False(t, ScorerRequired(cfg))
+	})
+
+	t.Run("env override", func(t *testing.T) {
+		t.Setenv("DD_ANOMALY_DETECTION_ANOMALY_SCORER_SCOPED_ENABLED", "true")
+		cfg := compconfig.NewMockFromYAML(t, "anomaly_detection:\n  anomaly_scorer:\n    scoped:\n      enabled: false\n")
+		assert.True(t, AnomalyScorerScopedEnabled(cfg))
+	})
+}

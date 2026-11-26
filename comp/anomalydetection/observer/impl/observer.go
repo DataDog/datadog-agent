@@ -486,11 +486,6 @@ func logCountBucketConfigFromAgent(cfg config.Component) LogCountBucketConfig {
 	return config
 }
 
-const (
-	scopedAnomalyScorerEnabled                    = false
-	scopedAnomalyScorerPerServiceTelemetryEnabled = false
-)
-
 // disabledObserver is the zero-overhead stub returned when config is absent.
 // It allocates nothing and starts no goroutines.
 type disabledObserver struct{}
@@ -556,15 +551,15 @@ func NewComponent(deps Requires) (Provides, error) {
 		scorer = newAnomalyScorerWithTelemetry(rawScorer.config, obsTelemetry.scorerGauges)
 		logging.Infof("anomaly scorer registered (logs=%v, correlation_events=%v, cooldown=%ds)",
 			scorer.config.Logs, scorer.config.CorrelationEvents, scorer.config.CooldownSecs)
-		if scopedAnomalyScorerEnabled {
-			scopedCfg := ScopedAnomalyScorerConfig{
-				Scorer:         rawScorer.config,
-				OnScopeEvicted: obsTelemetry.recordScopedScorerEvicted,
-			}
-			if scopedAnomalyScorerPerServiceTelemetryEnabled {
+		if anomalydetectionconfig.AnomalyScorerScopedEnabled(cfg) {
+			scopedCfg, perServiceTelemetry := readScopedAnomalyScorerConfig(cfg, scopedScorerConfigPrefix, rawScorer.config)
+			scopedCfg.OnScopeEvicted = obsTelemetry.recordScopedScorerEvicted
+			if perServiceTelemetry {
 				scopedCfg.Gauges = obsTelemetry.scopedScorerGauges
 			}
 			scopedScorer = newScopedAnomalyScorer(scopedCfg)
+			logging.Infof("scoped anomaly scorer registered (max_scopes=%d, idle_eviction_ttl=%ds, per_service_telemetry=%v)",
+				scopedCfg.MaxScopes, scopedCfg.IdleEvictionSec, perServiceTelemetry)
 		}
 	}
 
