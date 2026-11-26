@@ -37,34 +37,36 @@ type Data struct {
 	data         agentMetadata
 	mu           sync.Mutex
 
-	// fullConfigEnabled decides whether full_configuration is emitted. Guarded by mu.
-	fullConfigEnabled func() bool
+	// fullConfigEnabled decides whether full_configuration is emitted. Set at
+	// construction and never changed afterwards.
+	fullConfigEnabled FullConfigurationResolver
+}
+
+// FullConfigurationResolver reports whether the payload includes
+// full_configuration. It is called on every payload build and must be cheap and
+// safe for concurrent use.
+type FullConfigurationResolver func() bool
+
+// Option configures a Data at construction.
+type Option func(*Data)
+
+// WithFullConfigurationResolver replaces the default decision for including
+// full_configuration, which reads the inventories_full_configuration_enabled
+// setting.
+func WithFullConfigurationResolver(resolver FullConfigurationResolver) Option {
+	return func(ia *Data) { ia.fullConfigEnabled = resolver }
 }
 
 // NewData returns empty metadata for the resolved hostname. Init collects the
 // common fields.
-func NewData(conf config.Component, l log.Component, hostname hostnameinterface.Component) *Data {
+func NewData(conf config.Component, l log.Component, hostname hostnameinterface.Component, opts ...Option) *Data {
 	hname, _ := hostname.Get(context.Background())
-	return &Data{conf: conf, log: l, hostnameComp: hostname, hostname: hname, data: make(agentMetadata)}
-}
-
-// SetFullConfigurationEnabled overrides how the payload decides whether to include
-// full_configuration. By default it reads the inventories_full_configuration_enabled
-// setting. The resolver is called on every payload build and must be cheap and thread-safe.
-func (ia *Data) SetFullConfigurationEnabled(resolver func() bool) {
-	ia.mu.Lock()
-	defer ia.mu.Unlock()
-	ia.fullConfigEnabled = resolver
-}
-
-func (ia *Data) isFullConfigurationEnabled() bool {
-	ia.mu.Lock()
-	resolver := ia.fullConfigEnabled
-	ia.mu.Unlock()
-	if resolver == nil {
-		return ia.conf.GetBool("inventories_full_configuration_enabled")
+	ia := &Data{conf: conf, log: l, hostnameComp: hostname, hostname: hname, data: make(agentMetadata)}
+	ia.fullConfigEnabled = func() bool { return conf.GetBool("inventories_full_configuration_enabled") }
+	for _, opt := range opts {
+		opt(ia)
 	}
-	return resolver()
+	return ia
 }
 
 // Init collects the common fields: install info, hostname source, version,
@@ -179,7 +181,7 @@ func (ia *Data) getConfigs(data agentMetadata) {
 				}
 			}
 		}
-		if ia.isFullConfigurationEnabled() {
+		if ia.fullConfigEnabled() {
 			if yaml, err := ia.marshalAndScrub(flareScrubber, ia.conf.AllSettingsWithoutSecrets()); err == nil {
 				data["full_configuration"] = yaml
 			}

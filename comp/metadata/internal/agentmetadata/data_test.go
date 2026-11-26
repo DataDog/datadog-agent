@@ -221,9 +221,12 @@ func TestDataGetConfigsFullConfigurationSetting(t *testing.T) {
 		"cli_configuration",
 		"source_local_configuration",
 	}
-	build := func(t *testing.T, overrides map[string]any) *Data {
+	build := func(t *testing.T, overrides map[string]any, opts ...Option) *Data {
 		hostname, _ := hostnamemock.NewMock("data-hostname")
-		return NewData(config.NewMockWithOverrides(t, overrides), logmock.New(t), hostname)
+		return NewData(config.NewMockWithOverrides(t, overrides), logmock.New(t), hostname, opts...)
+	}
+	resolver := func(enabled bool) Option {
+		return WithFullConfigurationResolver(func() bool { return enabled })
 	}
 
 	t.Run("setting on by default", func(t *testing.T) {
@@ -247,22 +250,23 @@ func TestDataGetConfigsFullConfigurationSetting(t *testing.T) {
 	})
 
 	t.Run("resolver overrides setting", func(t *testing.T) {
-		d := build(t, map[string]any{"inventories_configuration_enabled": true})
-		d.SetFullConfigurationEnabled(func() bool { return false })
+		d := build(t, map[string]any{"inventories_configuration_enabled": true}, resolver(false))
 		data := make(map[string]interface{})
 		d.getConfigs(data)
 		assert.NotContains(t, data, "full_configuration")
 		assert.Contains(t, data, "provided_configuration")
 
-		d.SetFullConfigurationEnabled(func() bool { return true })
+		d = build(t, map[string]any{
+			"inventories_configuration_enabled":      true,
+			"inventories_full_configuration_enabled": false,
+		}, resolver(true))
 		data = make(map[string]interface{})
 		d.getConfigs(data)
 		assert.Contains(t, data, "full_configuration")
 	})
 
 	t.Run("configuration disabled", func(t *testing.T) {
-		d := build(t, map[string]any{"inventories_configuration_enabled": false})
-		d.SetFullConfigurationEnabled(func() bool { return true })
+		d := build(t, map[string]any{"inventories_configuration_enabled": false}, resolver(true))
 		data := make(map[string]interface{})
 		d.getConfigs(data)
 		assert.Empty(t, data)
