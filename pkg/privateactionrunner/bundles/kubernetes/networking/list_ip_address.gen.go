@@ -54,8 +54,8 @@ func (h *ListIPAddressHandler) Run(
 		return nil, err
 	}
 
-	return &ListIPAddressOutputs{
+	return support.ScrubResourceOutput(&ListIPAddressOutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
-	}, nil
+	})
 }

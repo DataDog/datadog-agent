@@ -65,9 +65,9 @@ func (h *UpdateReplicationControllerHandler) Run(
 		return nil, err
 	}
 
-	return &UpdateReplicationControllerOutputs{
+	return support.ScrubResourceOutput(&UpdateReplicationControllerOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

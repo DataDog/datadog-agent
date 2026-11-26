@@ -73,9 +73,9 @@ func (h *PatchCronJobHandler) Run(
 		return nil, err
 	}
 
-	return &PatchCronJobOutputs{
+	return support.ScrubResourceOutput(&PatchCronJobOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

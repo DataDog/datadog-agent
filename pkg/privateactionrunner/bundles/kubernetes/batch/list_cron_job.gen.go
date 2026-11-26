@@ -55,8 +55,8 @@ func (h *ListCronJobHandler) Run(
 		return nil, err
 	}
 
-	return &ListCronJobOutputs{
+	return support.ScrubResourceOutput(&ListCronJobOutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
-	}, nil
+	})
 }

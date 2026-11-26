@@ -66,10 +66,10 @@ func (h *UpdateConfigMapHandler) Run(
 		return nil, err
 	}
 
-	return &UpdateConfigMapOutputs{
+	return support.ScrubResourceOutput(&UpdateConfigMapOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Immutable:  response.Immutable,
 		Data:       response.Data,
 		BinaryData: response.BinaryData,
-	}, nil
+	})
 }

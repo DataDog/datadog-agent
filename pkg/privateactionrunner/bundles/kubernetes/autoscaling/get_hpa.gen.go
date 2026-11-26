@@ -64,9 +64,9 @@ func (h *GetHorizontalPodAutoscalerHandler) Run(
 		return nil, err
 	}
 
-	return &GetHorizontalPodAutoscalerOutputs{
+	return support.ScrubResourceOutput(&GetHorizontalPodAutoscalerOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

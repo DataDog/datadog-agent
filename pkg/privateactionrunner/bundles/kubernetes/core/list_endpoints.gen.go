@@ -55,8 +55,8 @@ func (h *ListEndpointsHandler) Run(
 		return nil, err
 	}
 
-	return &ListEndpointsOutputs{
+	return support.ScrubResourceOutput(&ListEndpointsOutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
-	}, nil
+	})
 }

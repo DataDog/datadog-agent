@@ -72,8 +72,8 @@ func (h *PatchPodTemplateHandler) Run(
 		return nil, err
 	}
 
-	return &PatchPodTemplateOutputs{
+	return support.ScrubResourceOutput(&PatchPodTemplateOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Template:   response.Template,
-	}, nil
+	})
 }

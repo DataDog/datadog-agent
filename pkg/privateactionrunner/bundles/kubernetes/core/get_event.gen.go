@@ -76,7 +76,7 @@ func (h *GetEventHandler) Run(
 		return nil, err
 	}
 
-	return &GetEventOutputs{
+	return support.ScrubResourceOutput(&GetEventOutputs{
 		ObjectMeta:          response.ObjectMeta,
 		InvolvedObject:      response.InvolvedObject,
 		Reason:              response.Reason,
@@ -92,5 +92,5 @@ func (h *GetEventHandler) Run(
 		Related:             response.Related,
 		ReportingController: response.ReportingController,
 		ReportingInstance:   response.ReportingInstance,
-	}, nil
+	})
 }

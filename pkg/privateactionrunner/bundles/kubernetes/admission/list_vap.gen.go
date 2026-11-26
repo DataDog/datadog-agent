@@ -54,8 +54,8 @@ func (h *ListValidatingAdmissionPolicyHandler) Run(
 		return nil, err
 	}
 
-	return &ListValidatingAdmissionPolicyOutputs{
+	return support.ScrubResourceOutput(&ListValidatingAdmissionPolicyOutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
-	}, nil
+	})
 }

@@ -55,8 +55,8 @@ func (h *ListEventHandler) Run(
 		return nil, err
 	}
 
-	return &ListEventOutputs{
+	return support.ScrubResourceOutput(&ListEventOutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
-	}, nil
+	})
 }

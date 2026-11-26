@@ -73,9 +73,9 @@ func (h *PatchControllerRevisionHandler) Run(
 		return nil, err
 	}
 
-	return &PatchControllerRevisionOutputs{
+	return support.ScrubResourceOutput(&PatchControllerRevisionOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Data:       response.Data,
 		Revision:   response.Revision,
-	}, nil
+	})
 }

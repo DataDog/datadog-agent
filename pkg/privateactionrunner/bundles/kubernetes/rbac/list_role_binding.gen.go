@@ -60,8 +60,8 @@ func (h *ListRoleBindingHandler) Run(
 		return nil, err
 	}
 
-	return &ListRoleBindingOutputs{
+	return support.ScrubResourceOutput(&ListRoleBindingOutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
-	}, nil
+	})
 }

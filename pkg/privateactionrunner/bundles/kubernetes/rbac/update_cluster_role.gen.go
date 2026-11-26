@@ -61,9 +61,9 @@ func (h *UpdateClusterRoleHandler) Run(
 		return nil, err
 	}
 
-	return &UpdateClusterRoleOutputs{
+	return support.ScrubResourceOutput(&UpdateClusterRoleOutputs{
 		ObjectMeta:      response.ObjectMeta,
 		Rules:           response.Rules,
 		AggregationRule: response.AggregationRule,
-	}, nil
+	})
 }

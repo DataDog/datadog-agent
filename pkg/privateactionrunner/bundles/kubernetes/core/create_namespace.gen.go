@@ -61,9 +61,9 @@ func (h *CreateNamespaceHandler) Run(
 		return nil, err
 	}
 
-	return &CreateNamespaceOutputs{
+	return support.ScrubResourceOutput(&CreateNamespaceOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

@@ -73,10 +73,10 @@ func (h *PatchConfigMapHandler) Run(
 		return nil, err
 	}
 
-	return &PatchConfigMapOutputs{
+	return support.ScrubResourceOutput(&PatchConfigMapOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Immutable:  response.Immutable,
 		Data:       response.Data,
 		BinaryData: response.BinaryData,
-	}, nil
+	})
 }

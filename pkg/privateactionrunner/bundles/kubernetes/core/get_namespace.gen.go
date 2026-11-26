@@ -60,9 +60,9 @@ func (h *GetNamespaceHandler) Run(
 		return nil, err
 	}
 
-	return &GetNamespaceOutputs{
+	return support.ScrubResourceOutput(&GetNamespaceOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

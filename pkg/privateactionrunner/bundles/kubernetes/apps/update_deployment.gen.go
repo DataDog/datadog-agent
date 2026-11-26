@@ -65,9 +65,9 @@ func (h *UpdateDeploymentHandler) Run(
 		return nil, err
 	}
 
-	return &UpdateDeploymentOutputs{
+	return support.ScrubResourceOutput(&UpdateDeploymentOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

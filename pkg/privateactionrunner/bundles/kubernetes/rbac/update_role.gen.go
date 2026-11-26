@@ -64,8 +64,8 @@ func (h *UpdateRoleHandler) Run(
 		return nil, err
 	}
 
-	return &UpdateRoleOutputs{
+	return support.ScrubResourceOutput(&UpdateRoleOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Rules:      response.Rules,
-	}, nil
+	})
 }

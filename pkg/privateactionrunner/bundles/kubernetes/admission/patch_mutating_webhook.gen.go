@@ -68,8 +68,8 @@ func (h *PatchMutatingWebhookConfigurationHandler) Run(
 		return nil, err
 	}
 
-	return &PatchMutatingWebhookConfigurationOutputs{
+	return support.ScrubResourceOutput(&PatchMutatingWebhookConfigurationOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Webhooks:   response.Webhooks,
-	}, nil
+	})
 }

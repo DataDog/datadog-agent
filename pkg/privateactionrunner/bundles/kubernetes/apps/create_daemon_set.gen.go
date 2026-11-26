@@ -65,9 +65,9 @@ func (h *CreateDaemonSetHandler) Run(
 		return nil, err
 	}
 
-	return &CreateDaemonSetOutputs{
+	return support.ScrubResourceOutput(&CreateDaemonSetOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

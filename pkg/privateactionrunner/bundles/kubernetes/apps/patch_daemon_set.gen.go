@@ -73,9 +73,9 @@ func (h *PatchDaemonSetHandler) Run(
 		return nil, err
 	}
 
-	return &PatchDaemonSetOutputs{
+	return support.ScrubResourceOutput(&PatchDaemonSetOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

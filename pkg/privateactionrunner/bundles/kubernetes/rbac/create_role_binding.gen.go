@@ -65,9 +65,9 @@ func (h *CreateRoleBindingHandler) Run(
 		return nil, err
 	}
 
-	return &CreateRoleBindingOutputs{
+	return support.ScrubResourceOutput(&CreateRoleBindingOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Subjects:   response.Subjects,
 		RoleRef:    response.RoleRef,
-	}, nil
+	})
 }

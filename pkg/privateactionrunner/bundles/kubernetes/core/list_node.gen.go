@@ -54,8 +54,8 @@ func (h *ListNodeHandler) Run(
 		return nil, err
 	}
 
-	return &ListNodeOutputs{
+	return support.ScrubResourceOutput(&ListNodeOutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
-	}, nil
+	})
 }

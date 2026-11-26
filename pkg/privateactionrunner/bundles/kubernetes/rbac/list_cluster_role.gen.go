@@ -54,8 +54,8 @@ func (h *ListClusterRoleHandler) Run(
 		return nil, err
 	}
 
-	return &ListClusterRoleOutputs{
+	return support.ScrubResourceOutput(&ListClusterRoleOutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
-	}, nil
+	})
 }

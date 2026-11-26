@@ -55,8 +55,8 @@ func (h *ListServiceAccountHandler) Run(
 		return nil, err
 	}
 
-	return &ListServiceAccountOutputs{
+	return support.ScrubResourceOutput(&ListServiceAccountOutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
-	}, nil
+	})
 }

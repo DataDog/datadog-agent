@@ -59,8 +59,8 @@ func (h *GetValidatingAdmissionPolicyBindingHandler) Run(
 		return nil, err
 	}
 
-	return &GetValidatingAdmissionPolicyBindingOutputs{
+	return support.ScrubResourceOutput(&GetValidatingAdmissionPolicyBindingOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
-	}, nil
+	})
 }

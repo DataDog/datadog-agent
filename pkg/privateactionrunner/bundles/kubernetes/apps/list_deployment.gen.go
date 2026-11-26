@@ -55,8 +55,8 @@ func (h *ListDeploymentHandler) Run(
 		return nil, err
 	}
 
-	return &ListDeploymentOutputs{
+	return support.ScrubResourceOutput(&ListDeploymentOutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
-	}, nil
+	})
 }

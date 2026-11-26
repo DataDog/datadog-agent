@@ -55,8 +55,8 @@ func (h *ListPodHandler) Run(
 		return nil, err
 	}
 
-	return &ListPodOutputs{
+	return support.ScrubResourceOutput(&ListPodOutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
-	}, nil
+	})
 }

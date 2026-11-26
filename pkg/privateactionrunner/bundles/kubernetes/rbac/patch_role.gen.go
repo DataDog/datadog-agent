@@ -72,8 +72,8 @@ func (h *PatchRoleHandler) Run(
 		return nil, err
 	}
 
-	return &PatchRoleOutputs{
+	return support.ScrubResourceOutput(&PatchRoleOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Rules:      response.Rules,
-	}, nil
+	})
 }

@@ -64,9 +64,9 @@ func (h *GetStatefulSetHandler) Run(
 		return nil, err
 	}
 
-	return &GetStatefulSetOutputs{
+	return support.ScrubResourceOutput(&GetStatefulSetOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

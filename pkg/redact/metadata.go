@@ -32,3 +32,17 @@ func GetSensitiveAnnotationsAndLabels() []string {
 	defer sensitiveAnnotationsAndLabelsMutex.Unlock()
 	return sensitiveAnnotationsAndLabels
 }
+
+// RemoveSensitiveAnnotationsAndLabels redacts sensitive annotations and labels like the whole
+// "kubectl.kubernetes.io/last-applied-configuration" annotation value. As it
+// may contain duplicate information and secrets.
+func RemoveSensitiveAnnotationsAndLabels(annotations map[string]string, labels map[string]string) {
+	for _, v := range GetSensitiveAnnotationsAndLabels() {
+		if _, found := annotations[v]; found {
+			annotations[v] = redactedAnnotationValue
+		}
+		if _, found := labels[v]; found {
+			labels[v] = redactedAnnotationValue
+		}
+	}
+}

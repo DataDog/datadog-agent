@@ -74,10 +74,10 @@ func (h *PatchEndpointSliceHandler) Run(
 		return nil, err
 	}
 
-	return &PatchEndpointSliceOutputs{
+	return support.ScrubResourceOutput(&PatchEndpointSliceOutputs{
 		ObjectMeta:  response.ObjectMeta,
 		AddressType: response.AddressType,
 		Endpoints:   response.Endpoints,
 		Ports:       response.Ports,
-	}, nil
+	})
 }

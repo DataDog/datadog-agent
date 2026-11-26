@@ -65,9 +65,9 @@ func (h *CreatePodHandler) Run(
 		return nil, err
 	}
 
-	return &CreatePodOutputs{
+	return support.ScrubResourceOutput(&CreatePodOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

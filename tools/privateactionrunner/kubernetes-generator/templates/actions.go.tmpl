@@ -97,7 +97,10 @@ func (h *{{ .Name | title }}Handler) Run(
 		return nil, err
 	}
 
-	return &{{ .Name | title }}Outputs{
+	{{ if list "Delete" "DeleteCollection" | mustHas .SDKMethod -}}
+	return &{{ .Name | title }}Outputs{}, nil
+	{{ else -}}
+	return support.ScrubResourceOutput(&{{ .Name | title }}Outputs{
 	{{ if .SDKMethod | eq "List" -}}
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
@@ -106,5 +109,6 @@ func (h *{{ .Name | title }}Handler) Run(
 		{{ .Name }} : response.{{ .Name }},
 		{{end -}}
 	{{ end -}}
-	}, nil
+	})
+	{{ end -}}
 }

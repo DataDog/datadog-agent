@@ -65,10 +65,10 @@ func (h *GetEndpointSliceHandler) Run(
 		return nil, err
 	}
 
-	return &GetEndpointSliceOutputs{
+	return support.ScrubResourceOutput(&GetEndpointSliceOutputs{
 		ObjectMeta:  response.ObjectMeta,
 		AddressType: response.AddressType,
 		Endpoints:   response.Endpoints,
 		Ports:       response.Ports,
-	}, nil
+	})
 }

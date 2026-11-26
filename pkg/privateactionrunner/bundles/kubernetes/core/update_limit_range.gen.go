@@ -64,8 +64,8 @@ func (h *UpdateLimitRangeHandler) Run(
 		return nil, err
 	}
 
-	return &UpdateLimitRangeOutputs{
+	return support.ScrubResourceOutput(&UpdateLimitRangeOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
-	}, nil
+	})
 }

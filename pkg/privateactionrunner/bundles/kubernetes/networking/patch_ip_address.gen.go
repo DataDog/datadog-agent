@@ -68,8 +68,8 @@ func (h *PatchIPAddressHandler) Run(
 		return nil, err
 	}
 
-	return &PatchIPAddressOutputs{
+	return support.ScrubResourceOutput(&PatchIPAddressOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
-	}, nil
+	})
 }

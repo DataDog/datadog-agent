@@ -69,9 +69,9 @@ func (h *PatchClusterRoleHandler) Run(
 		return nil, err
 	}
 
-	return &PatchClusterRoleOutputs{
+	return support.ScrubResourceOutput(&PatchClusterRoleOutputs{
 		ObjectMeta:      response.ObjectMeta,
 		Rules:           response.Rules,
 		AggregationRule: response.AggregationRule,
-	}, nil
+	})
 }

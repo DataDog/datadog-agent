@@ -54,8 +54,8 @@ func (h *ListServiceCIDRHandler) Run(
 		return nil, err
 	}
 
-	return &ListServiceCIDROutputs{
+	return support.ScrubResourceOutput(&ListServiceCIDROutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
-	}, nil
+	})
 }

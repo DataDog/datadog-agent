@@ -72,8 +72,8 @@ func (h *PatchLimitRangeHandler) Run(
 		return nil, err
 	}
 
-	return &PatchLimitRangeOutputs{
+	return support.ScrubResourceOutput(&PatchLimitRangeOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
-	}, nil
+	})
 }

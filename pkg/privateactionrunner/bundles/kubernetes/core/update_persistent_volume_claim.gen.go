@@ -65,9 +65,9 @@ func (h *UpdatePersistentVolumeClaimHandler) Run(
 		return nil, err
 	}
 
-	return &UpdatePersistentVolumeClaimOutputs{
+	return support.ScrubResourceOutput(&UpdatePersistentVolumeClaimOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

@@ -64,9 +64,9 @@ func (h *GetControllerRevisionHandler) Run(
 		return nil, err
 	}
 
-	return &GetControllerRevisionOutputs{
+	return support.ScrubResourceOutput(&GetControllerRevisionOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Data:       response.Data,
 		Revision:   response.Revision,
-	}, nil
+	})
 }

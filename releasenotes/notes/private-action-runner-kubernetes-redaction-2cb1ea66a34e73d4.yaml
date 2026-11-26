@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Redact sensitive environment variables, command arguments, and resource fields
+    in responses from generated Private Action Runner Kubernetes actions before
+    returning them to Datadog.

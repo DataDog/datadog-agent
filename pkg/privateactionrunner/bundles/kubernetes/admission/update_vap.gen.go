@@ -61,9 +61,9 @@ func (h *UpdateValidatingAdmissionPolicyHandler) Run(
 		return nil, err
 	}
 
-	return &UpdateValidatingAdmissionPolicyOutputs{
+	return support.ScrubResourceOutput(&UpdateValidatingAdmissionPolicyOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

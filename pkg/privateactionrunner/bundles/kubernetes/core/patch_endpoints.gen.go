@@ -72,8 +72,8 @@ func (h *PatchEndpointsHandler) Run(
 		return nil, err
 	}
 
-	return &PatchEndpointsOutputs{
+	return support.ScrubResourceOutput(&PatchEndpointsOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Subsets:    response.Subsets,
-	}, nil
+	})
 }

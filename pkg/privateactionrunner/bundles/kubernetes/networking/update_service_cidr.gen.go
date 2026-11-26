@@ -61,9 +61,9 @@ func (h *UpdateServiceCIDRHandler) Run(
 		return nil, err
 	}
 
-	return &UpdateServiceCIDROutputs{
+	return support.ScrubResourceOutput(&UpdateServiceCIDROutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

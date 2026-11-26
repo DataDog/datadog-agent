@@ -60,8 +60,8 @@ func (h *UpdateIngressClassHandler) Run(
 		return nil, err
 	}
 
-	return &UpdateIngressClassOutputs{
+	return support.ScrubResourceOutput(&UpdateIngressClassOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
-	}, nil
+	})
 }

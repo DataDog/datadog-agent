@@ -60,8 +60,8 @@ func (h *ListRoleHandler) Run(
 		return nil, err
 	}
 
-	return &ListRoleOutputs{
+	return support.ScrubResourceOutput(&ListRoleOutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
-	}, nil
+	})
 }

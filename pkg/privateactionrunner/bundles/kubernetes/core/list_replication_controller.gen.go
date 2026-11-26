@@ -55,8 +55,8 @@ func (h *ListReplicationControllerHandler) Run(
 		return nil, err
 	}
 
-	return &ListReplicationControllerOutputs{
+	return support.ScrubResourceOutput(&ListReplicationControllerOutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
-	}, nil
+	})
 }

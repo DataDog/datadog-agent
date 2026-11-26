@@ -7,6 +7,7 @@ dd_agent_go_test(
         "hpa_actions_test.go",
         "list_actions_test.go",
         "rbac_actions_test.go",
+        "redaction_test.go",
         "required_inputs_test.go",
     ],
     deps = [

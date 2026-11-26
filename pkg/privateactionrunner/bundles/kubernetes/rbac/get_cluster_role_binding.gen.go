@@ -60,9 +60,9 @@ func (h *GetClusterRoleBindingHandler) Run(
 		return nil, err
 	}
 
-	return &GetClusterRoleBindingOutputs{
+	return support.ScrubResourceOutput(&GetClusterRoleBindingOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Subjects:   response.Subjects,
 		RoleRef:    response.RoleRef,
-	}, nil
+	})
 }

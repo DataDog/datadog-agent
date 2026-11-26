@@ -60,8 +60,8 @@ func (h *CreateValidatingWebhookConfigurationHandler) Run(
 		return nil, err
 	}
 
-	return &CreateValidatingWebhookConfigurationOutputs{
+	return support.ScrubResourceOutput(&CreateValidatingWebhookConfigurationOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Webhooks:   response.Webhooks,
-	}, nil
+	})
 }

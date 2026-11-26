@@ -73,9 +73,9 @@ func (h *PatchJobHandler) Run(
 		return nil, err
 	}
 
-	return &PatchJobOutputs{
+	return support.ScrubResourceOutput(&PatchJobOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

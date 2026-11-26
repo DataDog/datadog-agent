@@ -55,8 +55,8 @@ func (h *ListDaemonSetHandler) Run(
 		return nil, err
 	}
 
-	return &ListDaemonSetOutputs{
+	return support.ScrubResourceOutput(&ListDaemonSetOutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
-	}, nil
+	})
 }

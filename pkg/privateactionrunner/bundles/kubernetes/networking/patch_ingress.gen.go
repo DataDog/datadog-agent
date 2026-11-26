@@ -73,9 +73,9 @@ func (h *PatchIngressHandler) Run(
 		return nil, err
 	}
 
-	return &PatchIngressOutputs{
+	return support.ScrubResourceOutput(&PatchIngressOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

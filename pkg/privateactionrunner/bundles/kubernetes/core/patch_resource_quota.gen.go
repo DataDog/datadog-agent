@@ -73,9 +73,9 @@ func (h *PatchResourceQuotaHandler) Run(
 		return nil, err
 	}
 
-	return &PatchResourceQuotaOutputs{
+	return support.ScrubResourceOutput(&PatchResourceQuotaOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

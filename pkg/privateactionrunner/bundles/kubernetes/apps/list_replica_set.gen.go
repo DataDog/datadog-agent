@@ -55,8 +55,8 @@ func (h *ListReplicaSetHandler) Run(
 		return nil, err
 	}
 
-	return &ListReplicaSetOutputs{
+	return support.ScrubResourceOutput(&ListReplicaSetOutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
-	}, nil
+	})
 }

@@ -55,8 +55,8 @@ func (h *ListEndpointSliceHandler) Run(
 		return nil, err
 	}
 
-	return &ListEndpointSliceOutputs{
+	return support.ScrubResourceOutput(&ListEndpointSliceOutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
-	}, nil
+	})
 }

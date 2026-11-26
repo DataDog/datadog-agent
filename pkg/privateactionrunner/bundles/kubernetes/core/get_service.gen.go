@@ -64,9 +64,9 @@ func (h *GetServiceHandler) Run(
 		return nil, err
 	}
 
-	return &GetServiceOutputs{
+	return support.ScrubResourceOutput(&GetServiceOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

@@ -55,8 +55,8 @@ func (h *ListPersistentVolumeClaimHandler) Run(
 		return nil, err
 	}
 
-	return &ListPersistentVolumeClaimOutputs{
+	return support.ScrubResourceOutput(&ListPersistentVolumeClaimOutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
-	}, nil
+	})
 }

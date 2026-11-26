@@ -73,9 +73,9 @@ func (h *PatchRoleBindingHandler) Run(
 		return nil, err
 	}
 
-	return &PatchRoleBindingOutputs{
+	return support.ScrubResourceOutput(&PatchRoleBindingOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Subjects:   response.Subjects,
 		RoleRef:    response.RoleRef,
-	}, nil
+	})
 }

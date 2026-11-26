@@ -55,8 +55,8 @@ func (h *ListConfigMapHandler) Run(
 		return nil, err
 	}
 
-	return &ListConfigMapOutputs{
+	return support.ScrubResourceOutput(&ListConfigMapOutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
-	}, nil
+	})
 }

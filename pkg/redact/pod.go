@@ -13,20 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// RemoveSensitiveAnnotationsAndLabels redacts sensitive annotations and labels like the whole
-// "kubectl.kubernetes.io/last-applied-configuration" annotation value. As it
-// may contain duplicate information and secrets.
-func RemoveSensitiveAnnotationsAndLabels(annotations map[string]string, labels map[string]string) {
-	for _, v := range GetSensitiveAnnotationsAndLabels() {
-		if _, found := annotations[v]; found {
-			annotations[v] = redactedAnnotationValue
-		}
-		if _, found := labels[v]; found {
-			labels[v] = redactedAnnotationValue
-		}
-	}
-}
-
 // ScrubPodTemplateSpec scrubs a pod template.
 func ScrubPodTemplateSpec(template *v1.PodTemplateSpec, scrubber *DataScrubber) {
 	ScrubObjectMeta(&template.ObjectMeta, scrubber)

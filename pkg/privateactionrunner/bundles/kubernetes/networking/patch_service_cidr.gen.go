@@ -69,9 +69,9 @@ func (h *PatchServiceCIDRHandler) Run(
 		return nil, err
 	}
 
-	return &PatchServiceCIDROutputs{
+	return support.ScrubResourceOutput(&PatchServiceCIDROutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

@@ -85,7 +85,7 @@ func (h *PatchEventHandler) Run(
 		return nil, err
 	}
 
-	return &PatchEventOutputs{
+	return support.ScrubResourceOutput(&PatchEventOutputs{
 		ObjectMeta:          response.ObjectMeta,
 		InvolvedObject:      response.InvolvedObject,
 		Reason:              response.Reason,
@@ -101,5 +101,5 @@ func (h *PatchEventHandler) Run(
 		Related:             response.Related,
 		ReportingController: response.ReportingController,
 		ReportingInstance:   response.ReportingInstance,
-	}, nil
+	})
 }

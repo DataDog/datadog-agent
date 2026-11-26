@@ -63,8 +63,8 @@ func (h *GetLimitRangeHandler) Run(
 		return nil, err
 	}
 
-	return &GetLimitRangeOutputs{
+	return support.ScrubResourceOutput(&GetLimitRangeOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
-	}, nil
+	})
 }

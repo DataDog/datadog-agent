@@ -59,8 +59,8 @@ func (h *GetIPAddressHandler) Run(
 		return nil, err
 	}
 
-	return &GetIPAddressOutputs{
+	return support.ScrubResourceOutput(&GetIPAddressOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
-	}, nil
+	})
 }

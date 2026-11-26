@@ -74,10 +74,10 @@ func (h *PatchServiceAccountHandler) Run(
 		return nil, err
 	}
 
-	return &PatchServiceAccountOutputs{
+	return support.ScrubResourceOutput(&PatchServiceAccountOutputs{
 		ObjectMeta:                   response.ObjectMeta,
 		Secrets:                      response.Secrets,
 		ImagePullSecrets:             response.ImagePullSecrets,
 		AutomountServiceAccountToken: response.AutomountServiceAccountToken,
-	}, nil
+	})
 }

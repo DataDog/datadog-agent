@@ -55,8 +55,8 @@ func (h *ListPodTemplateHandler) Run(
 		return nil, err
 	}
 
-	return &ListPodTemplateOutputs{
+	return support.ScrubResourceOutput(&ListPodTemplateOutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
-	}, nil
+	})
 }

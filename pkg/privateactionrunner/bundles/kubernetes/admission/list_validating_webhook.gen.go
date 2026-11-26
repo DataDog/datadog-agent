@@ -54,8 +54,8 @@ func (h *ListValidatingWebhookConfigurationHandler) Run(
 		return nil, err
 	}
 
-	return &ListValidatingWebhookConfigurationOutputs{
+	return support.ScrubResourceOutput(&ListValidatingWebhookConfigurationOutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
-	}, nil
+	})
 }

@@ -64,8 +64,8 @@ func (h *UpdateNetworkPolicyHandler) Run(
 		return nil, err
 	}
 
-	return &UpdateNetworkPolicyOutputs{
+	return support.ScrubResourceOutput(&UpdateNetworkPolicyOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
-	}, nil
+	})
 }

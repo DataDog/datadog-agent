@@ -61,9 +61,9 @@ func (h *UpdateClusterRoleBindingHandler) Run(
 		return nil, err
 	}
 
-	return &UpdateClusterRoleBindingOutputs{
+	return support.ScrubResourceOutput(&UpdateClusterRoleBindingOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Subjects:   response.Subjects,
 		RoleRef:    response.RoleRef,
-	}, nil
+	})
 }

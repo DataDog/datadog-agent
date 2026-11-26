@@ -65,9 +65,9 @@ func (h *CreateResourceQuotaHandler) Run(
 		return nil, err
 	}
 
-	return &CreateResourceQuotaOutputs{
+	return support.ScrubResourceOutput(&CreateResourceQuotaOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

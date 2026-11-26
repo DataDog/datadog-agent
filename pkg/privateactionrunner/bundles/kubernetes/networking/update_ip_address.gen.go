@@ -60,8 +60,8 @@ func (h *UpdateIPAddressHandler) Run(
 		return nil, err
 	}
 
-	return &UpdateIPAddressOutputs{
+	return support.ScrubResourceOutput(&UpdateIPAddressOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
-	}, nil
+	})
 }

@@ -55,8 +55,8 @@ func (h *ListNetworkPolicyHandler) Run(
 		return nil, err
 	}
 
-	return &ListNetworkPolicyOutputs{
+	return support.ScrubResourceOutput(&ListNetworkPolicyOutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
-	}, nil
+	})
 }

@@ -72,8 +72,8 @@ func (h *PatchNetworkPolicyHandler) Run(
 		return nil, err
 	}
 
-	return &PatchNetworkPolicyOutputs{
+	return support.ScrubResourceOutput(&PatchNetworkPolicyOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
-	}, nil
+	})
 }

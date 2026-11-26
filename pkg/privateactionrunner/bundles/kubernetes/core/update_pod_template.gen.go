@@ -64,8 +64,8 @@ func (h *UpdatePodTemplateHandler) Run(
 		return nil, err
 	}
 
-	return &UpdatePodTemplateOutputs{
+	return support.ScrubResourceOutput(&UpdatePodTemplateOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Template:   response.Template,
-	}, nil
+	})
 }

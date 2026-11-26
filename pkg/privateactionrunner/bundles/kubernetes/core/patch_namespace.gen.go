@@ -69,9 +69,9 @@ func (h *PatchNamespaceHandler) Run(
 		return nil, err
 	}
 
-	return &PatchNamespaceOutputs{
+	return support.ScrubResourceOutput(&PatchNamespaceOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

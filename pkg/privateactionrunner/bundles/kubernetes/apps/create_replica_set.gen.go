@@ -65,9 +65,9 @@ func (h *CreateReplicaSetHandler) Run(
 		return nil, err
 	}
 
-	return &CreateReplicaSetOutputs{
+	return support.ScrubResourceOutput(&CreateReplicaSetOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

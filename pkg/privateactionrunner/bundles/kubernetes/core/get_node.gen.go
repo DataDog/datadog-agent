@@ -60,9 +60,9 @@ func (h *GetNodeHandler) Run(
 		return nil, err
 	}
 
-	return &GetNodeOutputs{
+	return support.ScrubResourceOutput(&GetNodeOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

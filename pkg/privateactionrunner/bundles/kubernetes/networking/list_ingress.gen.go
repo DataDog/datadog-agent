@@ -55,8 +55,8 @@ func (h *ListIngressHandler) Run(
 		return nil, err
 	}
 
-	return &ListIngressOutputs{
+	return support.ScrubResourceOutput(&ListIngressOutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
-	}, nil
+	})
 }

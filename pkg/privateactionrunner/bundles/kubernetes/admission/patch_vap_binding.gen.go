@@ -68,8 +68,8 @@ func (h *PatchValidatingAdmissionPolicyBindingHandler) Run(
 		return nil, err
 	}
 
-	return &PatchValidatingAdmissionPolicyBindingOutputs{
+	return support.ScrubResourceOutput(&PatchValidatingAdmissionPolicyBindingOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
-	}, nil
+	})
 }

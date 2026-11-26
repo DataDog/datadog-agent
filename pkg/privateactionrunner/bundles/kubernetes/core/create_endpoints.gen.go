@@ -64,8 +64,8 @@ func (h *CreateEndpointsHandler) Run(
 		return nil, err
 	}
 
-	return &CreateEndpointsOutputs{
+	return support.ScrubResourceOutput(&CreateEndpointsOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Subsets:    response.Subsets,
-	}, nil
+	})
 }

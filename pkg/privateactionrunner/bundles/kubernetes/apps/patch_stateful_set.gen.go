@@ -73,9 +73,9 @@ func (h *PatchStatefulSetHandler) Run(
 		return nil, err
 	}
 
-	return &PatchStatefulSetOutputs{
+	return support.ScrubResourceOutput(&PatchStatefulSetOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

@@ -61,9 +61,9 @@ func (h *UpdateNodeHandler) Run(
 		return nil, err
 	}
 
-	return &UpdateNodeOutputs{
+	return support.ScrubResourceOutput(&UpdateNodeOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

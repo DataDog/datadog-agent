@@ -54,8 +54,8 @@ func (h *ListNamespaceHandler) Run(
 		return nil, err
 	}
 
-	return &ListNamespaceOutputs{
+	return support.ScrubResourceOutput(&ListNamespaceOutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
-	}, nil
+	})
 }

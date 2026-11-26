@@ -69,9 +69,9 @@ func (h *PatchNodeHandler) Run(
 		return nil, err
 	}
 
-	return &PatchNodeOutputs{
+	return support.ScrubResourceOutput(&PatchNodeOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

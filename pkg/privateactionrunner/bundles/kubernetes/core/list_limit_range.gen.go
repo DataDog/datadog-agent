@@ -55,8 +55,8 @@ func (h *ListLimitRangeHandler) Run(
 		return nil, err
 	}
 
-	return &ListLimitRangeOutputs{
+	return support.ScrubResourceOutput(&ListLimitRangeOutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
-	}, nil
+	})
 }

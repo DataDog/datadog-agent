@@ -65,9 +65,9 @@ func (h *CreateCronJobHandler) Run(
 		return nil, err
 	}
 
-	return &CreateCronJobOutputs{
+	return support.ScrubResourceOutput(&CreateCronJobOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	}, nil
+	})
 }

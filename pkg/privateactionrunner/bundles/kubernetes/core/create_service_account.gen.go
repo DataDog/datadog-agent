@@ -66,10 +66,10 @@ func (h *CreateServiceAccountHandler) Run(
 		return nil, err
 	}
 
-	return &CreateServiceAccountOutputs{
+	return support.ScrubResourceOutput(&CreateServiceAccountOutputs{
 		ObjectMeta:                   response.ObjectMeta,
 		Secrets:                      response.Secrets,
 		ImagePullSecrets:             response.ImagePullSecrets,
 		AutomountServiceAccountToken: response.AutomountServiceAccountToken,
-	}, nil
+	})
 }
