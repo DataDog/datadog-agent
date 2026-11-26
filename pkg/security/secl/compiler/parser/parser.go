@@ -712,9 +712,11 @@ func (p *parser) parseArray() ast.Node {
 				return nil
 			}
 			// printed recursively, before parse checks the depth of the tree
-			if node, ok := ast.TooDeep(name, ast.MaxDepth); ok {
-				p.errorTooDeep(node)
-				panic(bailout{})
+			if _, ok := name.(*ast.Ident); !ok {
+				if node, ok := ast.TooDeep(name, ast.MaxDepth); ok {
+					p.errorTooDeep(node)
+					panic(bailout{})
+				}
 			}
 			idents = append(idents, ast.Sprint(name))
 		} else if member, ok := p.parseMember().(*ast.Literal); ok {

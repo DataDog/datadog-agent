@@ -58,9 +58,11 @@ const MaxDepth = 10000
 // being at depth 1, and whether there is one. It doesn't recurse, it walks trees
 // too deep to be walked recursively.
 func TooDeep(n Node, maxDepth int) (Node, bool) {
+	// next is the index of the next part of an interpolation to visit
 	type entry struct {
 		node  Node
 		depth int
+		next  int
 	}
 	var (
 		stack      []entry
@@ -68,12 +70,14 @@ func TooDeep(n Node, maxDepth int) (Node, bool) {
 	)
 	push := func(x Node) bool {
 		if x != nil {
-			stack = append(stack, entry{x, childDepth})
+			stack = append(stack, entry{x, childDepth, 0})
 		}
 		return false
 	}
 	childDepth = 1
 	push(n)
+	// keep the stack proportional to the depth: an array or an interpolation
+	// can have as many members or parts as the policy has room for
 	for len(stack) > 0 {
 		top := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
@@ -81,7 +85,20 @@ func TooDeep(n Node, maxDepth int) (Node, bool) {
 			return top.node, true
 		}
 		childDepth = top.depth + 1
-		DoChildren(top.node, push)
+		switch node := top.node.(type) {
+		case *Array:
+			// its members are leaves
+			if len(node.Members) > 0 && childDepth > maxDepth {
+				return node.Members[0], true
+			}
+		case *Interpolation:
+			if top.next < len(node.Parts) {
+				stack = append(stack, entry{node, top.depth, top.next + 1})
+				push(node.Parts[top.next])
+			}
+		default:
+			DoChildren(top.node, push)
+		}
 	}
 	return nil, false
 }
