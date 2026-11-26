@@ -126,6 +126,61 @@ func TestObserverTelemetry_ScopedScorerMetrics(t *testing.T) {
 	}
 }
 
+func TestEnginePublishScopedScorerTelemetry(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	tel := newObserverTelemetry(telComp)
+
+	// No-op when scopedScorer or telemetry is nil.
+	plainEngine := mustNewEngine(engineConfig{storage: newDetectorTestStorage()})
+	plainEngine.publishScopedScorerTelemetry(nil)
+	plainEngine.publishScopedScorerTelemetry(tel)
+	before, err := telComp.Gather(telemetry.NoFilter)
+	require.NoError(t, err)
+	for _, family := range before {
+		assert.NotEqual(t, "observer__"+telemetryScopedScorerActiveScopes, family.GetName())
+		assert.NotEqual(t, "observer__"+telemetryScopedScorerAnomalies, family.GetName())
+	}
+
+	cfg := fastScopedScorerConfig()
+	cfg.MaxScopes = 1
+	cfg.IdleEvictionSec = 1
+	cfg.Scorer.WindowSecs = 1
+	cfg.Scorer.ReorderingWindowSecs = 0
+	cfg.OnScopeEvicted = tel.recordScopedScorerEvicted
+	router := newScopedAnomalyScorer(cfg)
+
+	eng := mustNewEngine(engineConfig{
+		storage:      newDetectorTestStorage(),
+		scopedScorer: router,
+	})
+
+	router.ProcessAnomaly(makeServiceMetricAnomaly("cpu", 100, "service:checkout"))
+	router.ProcessAnomaly(makeServiceMetricAnomaly("cpu", 100))
+	eng.publishScopedScorerTelemetry(tel)
+
+	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryScopedScorerActiveScopes, nil).GetGauge().GetValue())
+	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryScopedScorerAnomalies, map[string]string{"status": "scoped"}).GetCounter().GetValue())
+	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryScopedScorerAnomalies, map[string]string{"status": "unscoped"}).GetCounter().GetValue())
+
+	// Idle drain must not emit extra anomaly samples.
+	afterFirst, err := telComp.Gather(telemetry.NoFilter)
+	require.NoError(t, err)
+	eng.publishScopedScorerTelemetry(tel)
+	afterIdle, err := telComp.Gather(telemetry.NoFilter)
+	require.NoError(t, err)
+	require.Len(t, afterIdle, len(afterFirst))
+
+	// Trigger capacity eviction and idle eviction via OnScopeEvicted.
+	router.ProcessAnomaly(makeServiceMetricAnomaly("cpu", 101, "service:billing"))
+	for sec := int64(101); sec <= 125; sec++ {
+		router.Advance(sec)
+	}
+	eng.publishScopedScorerTelemetry(tel)
+	assert.Equal(t, 0.0, observerMetric(t, telComp, telemetryScopedScorerActiveScopes, nil).GetGauge().GetValue())
+	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryScopedScorerEvictedScopes, map[string]string{"reason": "capacity"}).GetCounter().GetValue())
+	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryScopedScorerEvictedScopes, map[string]string{"reason": "idle"}).GetCounter().GetValue())
+}
+
 func TestLogExtractorsPublishIndependentPatternCounts(t *testing.T) {
 	telComp := telemetryimpl.NewMock(t)
 	tel := newObserverTelemetry(telComp)

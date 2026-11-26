@@ -1689,3 +1689,20 @@ func (e *engine) publishMetricKindTelemetry(t *observerTelemetry) {
 		}
 	}
 }
+
+// publishScopedScorerTelemetry pulls low-cardinality scoped scorer metrics on the dispatch loop.
+func (e *engine) publishScopedScorerTelemetry(t *observerTelemetry) {
+	if t == nil {
+		return
+	}
+	e.mu.RLock()
+	scopedScorer := e.scopedScorer
+	e.mu.RUnlock()
+	if scopedScorer == nil {
+		return
+	}
+	t.setScopedScorerActiveScopes(scopedScorer.ActiveScopeCount())
+	scoped, unscoped := scopedScorer.drainAnomalyCounts()
+	t.recordScopedScorerAnomalies("scoped", scoped)
+	t.recordScopedScorerAnomalies("unscoped", unscoped)
+}

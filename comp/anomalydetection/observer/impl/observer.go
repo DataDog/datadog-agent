@@ -486,7 +486,10 @@ func logCountBucketConfigFromAgent(cfg config.Component) LogCountBucketConfig {
 	return config
 }
 
-const scopedAnomalyScorerEnabled = false
+const (
+	scopedAnomalyScorerEnabled                    = false
+	scopedAnomalyScorerPerServiceTelemetryEnabled = false
+)
 
 // disabledObserver is the zero-overhead stub returned when config is absent.
 // It allocates nothing and starts no goroutines.
@@ -554,7 +557,14 @@ func NewComponent(deps Requires) (Provides, error) {
 		logging.Infof("anomaly scorer registered (logs=%v, correlation_events=%v, cooldown=%ds)",
 			scorer.config.Logs, scorer.config.CorrelationEvents, scorer.config.CooldownSecs)
 		if scopedAnomalyScorerEnabled {
-			scopedScorer = newScopedAnomalyScorer(ScopedAnomalyScorerConfig{Scorer: rawScorer.config})
+			scopedCfg := ScopedAnomalyScorerConfig{
+				Scorer:         rawScorer.config,
+				OnScopeEvicted: obsTelemetry.recordScopedScorerEvicted,
+			}
+			if scopedAnomalyScorerPerServiceTelemetryEnabled {
+				scopedCfg.Gauges = obsTelemetry.scopedScorerGauges
+			}
+			scopedScorer = newScopedAnomalyScorer(scopedCfg)
 		}
 	}
 
@@ -838,6 +848,8 @@ func (o *observerImpl) run() {
 	defer ticker.Stop()
 	o.engine.publishMetricKindTelemetry(o.telemetry)
 	defer o.engine.publishMetricKindTelemetry(o.telemetry)
+	o.engine.publishScopedScorerTelemetry(o.telemetry)
+	defer o.engine.publishScopedScorerTelemetry(o.telemetry)
 	for metricsCh != nil || logsCh != nil {
 		var obs observation
 		var ok bool
@@ -856,6 +868,7 @@ func (o *observerImpl) run() {
 			o.engine.flushFilteredMetrics()
 			o.publishSeriesFreshness()
 			o.engine.publishMetricKindTelemetry(o.telemetry)
+			o.engine.publishScopedScorerTelemetry(o.telemetry)
 			continue
 		}
 		if obs.flush != nil {
