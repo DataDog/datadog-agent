@@ -174,6 +174,9 @@ type engine struct {
 	// only for ScoreState() introspection without a type assertion at read time.
 	scorer *anomalyScorer
 
+	// scopedScorer is the optional per-service scorer router (also in correlators).
+	scopedScorer *scopedAnomalyScorer
+
 	// scheduler decides when the engine should advance analysis.
 	scheduler schedulerPolicy
 
@@ -292,6 +295,8 @@ type engineConfig struct {
 	// scorer is the optional unified anomaly scorer. When non-nil, it is also
 	// appended to correlators so it participates in the normal correlator loop.
 	scorer *anomalyScorer
+	// scopedScorer is the optional per-service scorer router appended to correlators.
+	scopedScorer *scopedAnomalyScorer
 	// scheduler is the scheduling policy. If nil, defaults to currentBehaviorPolicy.
 	scheduler schedulerPolicy
 
@@ -331,6 +336,9 @@ func newEngine(cfg engineConfig) (*engine, error) {
 	if cfg.scorer != nil {
 		correlators = append(correlators, cfg.scorer)
 	}
+	if cfg.scopedScorer != nil {
+		correlators = append(correlators, cfg.scopedScorer)
+	}
 
 	e := &engine{
 		storage:         cfg.storage,
@@ -339,6 +347,7 @@ func newEngine(cfg engineConfig) (*engine, error) {
 		correlators:     correlators,
 		logKeyGenerator: NewSliceKeyGenerator(),
 		scorer:          cfg.scorer,
+		scopedScorer:    cfg.scopedScorer,
 		scheduler:       sched,
 		metricFilter:    cfg.metricFilter,
 
@@ -1439,6 +1448,7 @@ func (e *engine) ResetForReplay(detectors []detectorRegistration, correlators []
 	e.SetCorrelators(allCorrelators)
 	e.mu.Lock()
 	e.scorer = scorer
+	e.scopedScorer = nil
 	e.mu.Unlock()
 	if err := e.SetExtractors(extractors); err != nil {
 		return err

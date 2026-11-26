@@ -486,6 +486,8 @@ func logCountBucketConfigFromAgent(cfg config.Component) LogCountBucketConfig {
 	return config
 }
 
+const scopedAnomalyScorerEnabled = false
+
 // disabledObserver is the zero-overhead stub returned when config is absent.
 // It allocates nothing and starts no goroutines.
 type disabledObserver struct{}
@@ -546,10 +548,14 @@ func NewComponent(deps Requires) (Provides, error) {
 	// enabled so the live observer gets full telemetry. Replay enables the same
 	// watcher with nil gauges when settings are reset below.
 	var scorer *anomalyScorer
+	var scopedScorer *scopedAnomalyScorer
 	if rawScorer != nil {
 		scorer = newAnomalyScorerWithTelemetry(rawScorer.config, obsTelemetry.scorerSeverity, obsTelemetry.scorerEwma, obsTelemetry.scorerEwmaFinalized)
 		logging.Infof("anomaly scorer registered (logs=%v, correlation_events=%v, cooldown=%ds)",
 			scorer.config.Logs, scorer.config.CorrelationEvents, scorer.config.CooldownSecs)
+		if scopedAnomalyScorerEnabled {
+			scopedScorer = newScopedAnomalyScorer(ScopedAnomalyScorerConfig{Scorer: rawScorer.config})
+		}
 	}
 
 	eng, err := newEngine(engineConfig{
@@ -559,6 +565,7 @@ func NewComponent(deps Requires) (Provides, error) {
 		correlators:     correlators,
 		metricFilter:    compiledMetricFilter,
 		scorer:          scorer,
+		scopedScorer:    scopedScorer,
 		scheduler:       &currentBehaviorPolicy{},
 		baseline:        settings.Baseline,
 		logCountBuckets: logCountBucketConfigFromAgent(cfg),
@@ -1201,8 +1208,14 @@ func (o *observerImpl) SubscribeSeverityEventsReader(cfg severityeventsdef.Sever
 }
 
 // SubscribeScopedSeverityEvents registers listener for per-scope severity transitions.
-func (o *observerImpl) SubscribeScopedSeverityEvents(_ severityeventsdef.SeverityEventsConfiguration, _ severityeventsdef.ScopedSeverityEventListener) (severityeventsdef.ScopedSeverityEventsSubscription, error) {
-	return severityeventsdef.ScopedSeverityEventsSubscription{}, errors.New("no active scoped anomaly scorer")
+func (o *observerImpl) SubscribeScopedSeverityEvents(cfg severityeventsdef.SeverityEventsConfiguration, listener severityeventsdef.ScopedSeverityEventListener) (severityeventsdef.ScopedSeverityEventsSubscription, error) {
+	o.engine.mu.RLock()
+	scopedScorer := o.engine.scopedScorer
+	o.engine.mu.RUnlock()
+	if scopedScorer == nil {
+		return severityeventsdef.ScopedSeverityEventsSubscription{}, errors.New("no active scoped anomaly scorer")
+	}
+	return scopedScorer.SubscribeScopedSeverityEvents(cfg, listener)
 }
 
 // --- DebugView implementation ---
