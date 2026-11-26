@@ -69,6 +69,8 @@ Deploy or update the OpenTelemetry Collector Helm release with the provided valu
 
 The example below uses the Kubernetes NetworkPolicy values file. If your cluster uses Cilium, replace `helm/network-policy-values.yaml` with `helm/cilium-network-policy-values.yaml` before running it.
 
+If your existing network policy already allows the traffic the Collector needs, skip the example policy by ending the command at `--values helm/collector-config-values.yaml`.
+
 ```shell
 helm upgrade --install <RELEASE_NAME> open-telemetry/opentelemetry-collector \
   --namespace <NAMESPACE> \
