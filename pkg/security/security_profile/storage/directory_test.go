@@ -224,12 +224,23 @@ func TestNewDirectoryRemovesInvalidProfileFiles(t *testing.T) {
 	validPath := filepath.Join(testDir, "valid.profile")
 	require.NoError(t, os.WriteFile(validPath, validBuf.Bytes(), 0400))
 
+	var unreadablePath string
+	if os.Geteuid() != 0 {
+		unreadablePath = filepath.Join(testDir, "unreadable.profile")
+		require.NoError(t, os.WriteFile(unreadablePath, validBuf.Bytes(), 0000))
+	}
+
 	d, err := NewDirectory(testDir, 10)
 	require.NoError(t, err)
 
 	for _, invalidPath := range []string{corruptedPath, noMetadataPath, noSelectorPath} {
 		_, err := os.Stat(invalidPath)
 		assert.ErrorIsf(t, err, os.ErrNotExist, "invalid profile file %s should be removed", invalidPath)
+	}
+
+	if unreadablePath != "" {
+		_, err = os.Stat(unreadablePath)
+		require.NoError(t, err, "unreadable profile file must not be removed")
 	}
 
 	_, err = os.Stat(validPath)

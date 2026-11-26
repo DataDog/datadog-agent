@@ -459,6 +459,8 @@ func protoToSecurityProfile(output *Profile, input *adprotov1.SecurityProfile) {
 	activity_tree.ProtoDecodeMounts(output.ActivityTree, input.Mounts)
 }
 
+var ErrDecodeProtobufProfile = errors.New("couldn't decode protobuf profile")
+
 // LoadProtoFromFile loads proto profile from file
 func LoadProtoFromFile(filepath string) (*adprotov1.SecurityProfile, error) {
 	raw, err := os.ReadFile(filepath)
@@ -468,7 +470,7 @@ func LoadProtoFromFile(filepath string) (*adprotov1.SecurityProfile, error) {
 
 	pp := &adprotov1.SecurityProfile{}
 	if err = pp.UnmarshalVT(raw); err != nil {
-		return nil, fmt.Errorf("couldn't decode protobuf profile: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrDecodeProtobufProfile, err)
 	}
 
 	return pp, nil

@@ -186,7 +186,9 @@ func NewDirectory(directoryPath string, maxProfiles int) (*Directory, error) {
 		pProto, err := profile.LoadProtoFromFile(file.path)
 		if err != nil {
 			seclog.Warnf("failed to load profile from file [%s]: %s", file.path, err)
-			_ = os.Remove(file.path)
+			if errors.Is(err, profile.ErrDecodeProtobufProfile) {
+				_ = os.Remove(file.path)
+			}
 			continue
 		}
 		if pProto.Metadata == nil {
