@@ -1,0 +1,7 @@
+---
+upgrade:
+  - |
+    GPU Monitoring: the ``kai_fraction`` value of the ``gpu_sharing_mode`` tag,
+    added in 7.86.0 for GPUs shared by KAI Scheduler fractional workloads, is
+    renamed to ``kai-fraction``. Update dashboards and monitors that filter on
+    ``gpu_sharing_mode:kai_fraction``.
