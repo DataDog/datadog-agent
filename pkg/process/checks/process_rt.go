@@ -65,7 +65,7 @@ func (p *ProcessCheck) runRealtime(groupID int32) (RunResult, error) {
 	}
 
 	pidToGPUTags := p.gpuSubscriber.GetGPUTags()
-	chunkedStats := fmtProcessStats(p.maxBatchSize, procs, p.realtimeLastProcs, pidToCid, pidToGPUTags, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, start)
+	chunkedStats := fmtProcessStats(p.maxBatchSize, procs, p.realtimeLastProcs, pidToCid, pidToGPUTags, p.submitAllZombies, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, start)
 	groupSize := len(chunkedStats)
 	chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
 
@@ -97,6 +97,7 @@ func fmtProcessStats(
 	procs, lastProcs map[int32]*procutil.Stats,
 	pidToCid map[int]string,
 	pidToGPUTags map[int32][]string,
+	submitAllZombies bool,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
 	now time.Time,
@@ -112,9 +113,8 @@ func fmtProcessStats(
 		if fp == nil {
 			continue
 		}
-		// Submit zombie processes individually only if they use a GPU.
 		if fp.IsZombie() {
-			if _, usesGPU := pidToGPUTags[pid]; !usesGPU {
+			if _, usesGPU := pidToGPUTags[pid]; !submitsZombieIndividually(usesGPU, submitAllZombies) {
 				continue
 			}
 		}

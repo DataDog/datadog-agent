@@ -8,12 +8,13 @@ package localkubernetes
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
@@ -171,6 +172,10 @@ func WithKindWorkerNodes(nodes ...kubeComp.KindWorkerNode) ProvisionerOption {
 // This is required when using locally-built images that are not available in any registry;
 // pair it with imagePullPolicy: Never in Helm values.
 // The image must be present in the local Docker daemon before running the test.
+// The Agent and Cluster Agent images given with --agent-image and --cluster-agent-image don't
+// need it: the provisioner loads local builds of them itself (see kindImagesToLoad).
+// An image rebuilt under the same tag isn't loaded again into an existing cluster: use a new tag
+// for each build.
 func WithKindLoadImage(image string) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.imagesToLoad = append(params.imagesToLoad, image)
@@ -244,22 +249,40 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		}
 	}
 
+	// deployHelmAgent decides whether the Datadog Helm chart is installed. It's always
+	// installed when the caller didn't request a standalone DDOT agent (preserving the
+	// pre-existing default). When a standalone DDOT agent is requested, the Helm chart is
+	// only installed on top of it if the caller explicitly opted in via WithAgentOptions
+	// (or WithoutAgent) - otherwise standaloneDdotFunc alone continues to mean
+	// "standalone DDOT agent only", matching prior behavior.
+	deployHelmAgent := params.agentOptions != nil && (params.standaloneDdotFunc == nil || params.agentOptionsSet)
+
+	// Only load the configured images when the Helm chart is deployed: it's the only deployment
+	// that waits for the load commands. The standalone DDOT agent also runs the --agent-image
+	// image, but it doesn't wait for them, so it could start before the image is loaded. In a
+	// DDOT-only suite the image isn't loaded and the cluster pulls it from its registry.
+	var configuredImages []string
+	if deployHelmAgent {
+		configuredImages = []string{localEnv.AgentFullImagePath(), localEnv.ClusterAgentFullImagePath()}
+	}
+
 	// Load images into kind cluster before agent deployment.
 	// Creates a Pulumi local.Command resource for each image that depends on the cluster being up.
 	// The agent deployment will depend on these commands to ensure images are loaded first.
 	var imageLoadOptions []kubernetesagentparams.Option
-	if len(params.imagesToLoad) > 0 {
+	imagesToLoad := kindImagesToLoad(params.imagesToLoad, configuredImages, localImageExists)
+	if len(imagesToLoad) > 0 {
 		localRunner := command.NewLocalRunner(&localEnv, command.LocalRunnerArgs{
 			OSCommand: command.NewUnixOSCommand(),
 		})
 		var imageLoadDeps []pulumi.Resource
-		for i, img := range params.imagesToLoad {
+		for i, img := range imagesToLoad {
 			img := img // capture for closure
 			loadCmd, loadErr := localRunner.Command(
 				fmt.Sprintf("kind-load-image-%d", i),
 				&command.Args{
-					Create: kindCluster.ClusterName.ApplyT(func(name string) string {
-						return fmt.Sprintf("kind load docker-image %s --name %s", img, name)
+					Create: kindCluster.ClusterName.ApplyT(func(clusterName string) string {
+						return fmt.Sprintf("kind load docker-image %s --name %s", img, clusterName)
 					}).(pulumi.StringOutput),
 					// Trigger re-run when the cluster is recreated. KubeConfig changes on
 					// every new cluster (new TLS certs), so this ensures the image is
@@ -296,14 +319,6 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 	} else {
 		env.FakeIntake = nil
 	}
-
-	// deployHelmAgent decides whether the Datadog Helm chart is installed. It's always
-	// installed when the caller didn't request a standalone DDOT agent (preserving the
-	// pre-existing default). When a standalone DDOT agent is requested, the Helm chart is
-	// only installed on top of it if the caller explicitly opted in via WithAgentOptions
-	// (or WithoutAgent) - otherwise standaloneDdotFunc alone continues to mean
-	// "standalone DDOT agent only", matching prior behavior.
-	deployHelmAgent := params.agentOptions != nil && (params.standaloneDdotFunc == nil || params.agentOptionsSet)
 
 	if deployHelmAgent {
 		kindClusterName := ctx.Stack()
@@ -359,4 +374,54 @@ agents:
 	}
 
 	return nil
+}
+
+// kindImagesToLoad returns the images to load into the kind cluster, each one once:
+//   - requested: the images given with WithKindLoadImage. They're always included, so that a
+//     missing image makes `kind load` fail instead of the pods failing to pull it later.
+//   - configured: the Agent and Cluster Agent images given with --agent-image and
+//     --cluster-agent-image. They're only included when they don't name a registry and exist in
+//     the local Docker daemon, like a local build such as agent:dev. Otherwise, the cluster pulls
+//     them from their registry, like a released image. `kind load` can fail on images pulled
+//     into Docker from a registry: Docker may keep only the local platform of a multi-platform
+//     image, and kind imports all platforms.
+//
+// localImageExists is a parameter so that tests can fake the Docker lookup.
+func kindImagesToLoad(requested, configured []string, localImageExists func(image string) bool) []string {
+	var images []string
+	seen := make(map[string]bool)
+
+	for _, image := range requested {
+		if seen[image] {
+			continue
+		}
+		seen[image] = true
+		images = append(images, image)
+	}
+
+	for _, image := range configured {
+		if image == "" || seen[image] || namesRegistry(image) || !localImageExists(image) {
+			continue
+		}
+		seen[image] = true
+		images = append(images, image)
+	}
+
+	return images
+}
+
+// namesRegistry reports whether image starts with a registry host, like gcr.io/datadoghq/agent
+// or localhost:5000/agent. It follows Docker's rule: the part before the first "/" is a registry
+// when it contains a "." or a ":", or is "localhost".
+func namesRegistry(image string) bool {
+	first, _, found := strings.Cut(image, "/")
+	if !found {
+		return false
+	}
+	return strings.ContainsAny(first, ".:") || first == "localhost"
+}
+
+// localImageExists reports whether image exists in the local Docker daemon.
+func localImageExists(image string) bool {
+	return exec.Command("docker", "image", "inspect", image).Run() == nil
 }

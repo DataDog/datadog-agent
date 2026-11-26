@@ -1,7 +1,9 @@
 # Every Gateway exporter type (incl. deprecated aliases and named instances) gets
-# cumulativetodelta; debug-only and user-c2d pipelines are left alone.
+# cumulative_to_delta; debug-only and user-c2d pipelines (processor declared under
+# its deprecated or current name) are left alone.
 processors:
   cumulativetodelta/custom:
+  cumulative_to_delta/custom:
 service:
   pipelines:
     metrics/otlp:
@@ -16,6 +18,9 @@ service:
     metrics/loadbalancing:
       receivers: [otlp]
       exporters: [loadbalancing]
+    metrics/load_balancing:
+      receivers: [otlp]
+      exporters: [load_balancing]
     metrics/debug:
       receivers: [otlp]
       exporters: [debug]
@@ -23,3 +28,7 @@ service:
       receivers: [otlp]
       processors: [cumulativetodelta/custom]
       exporters: [otlphttp]
+    metrics/user-c2d-new:
+      receivers: [otlp]
+      processors: [cumulative_to_delta/custom]
+      exporters: [otlp_http]

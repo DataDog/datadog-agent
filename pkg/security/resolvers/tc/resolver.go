@@ -84,6 +84,46 @@ func (tcr *Resolver) SendTCProgramsStats(statsdClient statsd.ClientInterface) {
 	}
 }
 
+// AttachMode returns the way the classifiers are attached to their hooks
+func (tcr *Resolver) AttachMode() AttachMode {
+	return AttachModeLegacy
+}
+
+// FilterPriority returns the priority of the filters of the classifiers
+func (tcr *Resolver) FilterPriority() uint16 {
+	// the eBPF manager falls back to its default priority when none is provided
+	if tcr.config.NetworkClassifierPriority == 0 {
+		return manager.DefaultTCFilterPriority
+	}
+	return tcr.config.NetworkClassifierPriority
+}
+
+// Directions returns the directions of the hooks the classifiers are attached to
+func (tcr *Resolver) Directions() []manager.TrafficType {
+	var directions []manager.TrafficType
+	for _, tcProbe := range probes.GetTCProbes(tcr.config.NetworkIngressEnabled, tcr.config.NetworkRawPacketEnabled) {
+		if !slices.Contains(directions, tcProbe.NetworkDirection) {
+			directions = append(directions, tcProbe.NetworkDirection)
+		}
+	}
+	return directions
+}
+
+// ProgramIDs returns the IDs of the classifiers attached in the provided network namespace
+func (tcr *Resolver) ProgramIDs(netns uint32) map[uint32]struct{} {
+	tcr.RLock()
+	defer tcr.RUnlock()
+
+	ids := make(map[uint32]struct{})
+	for key, entry := range tcr.programs {
+		// 0 is an unknown ID, which would also match every filter whose ID the kernel doesn't report
+		if key.NetNS == netns && entry.programID != 0 {
+			ids[entry.programID] = struct{}{}
+		}
+	}
+	return ids
+}
+
 // FreezePrograms returns the selector of the TC programs that are running, and keeps TC programs from being added or
 // removed until the returned function is called. Probes activated in between can't fail on a program that is gone, nor
 // detach one they weren't asked to keep.

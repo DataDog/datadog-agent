@@ -50,6 +50,12 @@ PRODUCTS = {
         omnibus_jobs=('agent_deb-x64-a7', 'agent_rpm-x64-a7'),
         debug_package=True,
     ),
+    'iot': Product(
+        'datadog-iot-agent',
+        '//packages/iot',
+        bazel_job='bazel:package:iot:linux-amd64',
+        omnibus_jobs=('iot_agent_deb-x64', 'iot_agent_rpm-x64'),
+    ),
 }
 ARCHITECTURES = {'amd64': {'deb': 'amd64', 'rpm': 'x86_64'}}
 FORMATS = {'deb': read_deb_metadata, 'rpm': read_rpm_metadata}
@@ -362,11 +368,3 @@ def check(ctx, omnibus_dir, bazel_dir, readelf):
     failed = [package for package in report['packages'] if 'error' in package]
     if failed:
         raise Exit(f'{len(failed)} packages could not be compared', code=1)
-
-
-@task(help={'product': f'Registered product to print the targets of: {", ".join(PRODUCTS)}'})
-def targets(_, product):
-    """Print a product's Bazel package targets to build for the parity check, debug packages included."""
-    if product not in PRODUCTS:
-        raise Exit(f'Unknown product {product}, expected one of: {", ".join(PRODUCTS)}', code=1)
-    print(' '.join(PRODUCTS[product].bazel_targets()))
