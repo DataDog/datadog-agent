@@ -144,6 +144,31 @@ func TestDirectory(t *testing.T) {
 	})
 }
 
+func TestDirectoryShortImagesBySelector(t *testing.T) {
+	dir := t.TempDir()
+	request := config.StorageRequest{Type: config.LocalStorage, Format: config.Profile}
+
+	d, err := NewDirectory(dir, 10)
+	require.NoError(t, err)
+
+	withShortImage := newProfileWithSelector("with", "image1", "*")
+	withShortImage.profile.PrepareNewVersion("v1", []string{"short_image:app"}, 4, 1)
+	withoutShortImage := newProfileWithSelector("without", "image2", "*")
+
+	for _, p := range []*profileWithSelector{withShortImage, withoutShortImage} {
+		b, err := p.profile.Encode(request.Format)
+		require.NoError(t, err)
+		require.NoError(t, d.Persist(request, p.profile, b))
+	}
+
+	expected := map[cgroupModel.WorkloadSelector]string{withShortImage.selector: "app"}
+	assert.Equal(t, expected, d.ShortImagesBySelector())
+
+	reloaded, err := NewDirectory(dir, 10)
+	require.NoError(t, err)
+	assert.Equal(t, expected, reloaded.ShortImagesBySelector())
+}
+
 func TestClearLocalProfilesOnStart(t *testing.T) {
 	write := func(t *testing.T, dir, name, contents string) string {
 		t.Helper()

@@ -97,6 +97,9 @@ type Profile struct {
 	tags             []string
 
 	versionContexts map[string]*VersionContext
+	// shortImage is the first workload short_image learned from version-context tags.
+	// It does not change for the life of the profile, so later tags are not scanned again.
+	shortImage string
 
 	eventTypes []model.EventType
 
@@ -610,12 +613,12 @@ func (p *Profile) GetWorkloadSelector() *cgroupModel.WorkloadSelector {
 	return &p.selector
 }
 
-// SendStats sends stats for this profile's activity tree
-func (p *Profile) SendStats(statsdClient statsd.ClientInterface) error {
+// SendStats sends stats for this profile's activity tree. extraTags are added to the per-profile v2 metrics.
+func (p *Profile) SendStats(statsdClient statsd.ClientInterface, extraTags ...string) error {
 	p.Lock()
 	defer p.Unlock()
 
-	return p.ActivityTree.SendStats(statsdClient)
+	return p.ActivityTree.SendStats(statsdClient, extraTags...)
 }
 
 // AddSnapshotAncestors adds the given process branch to the profile, calling the callback for each process cache entry which resulted in a new node insertion
@@ -728,6 +731,24 @@ func (p *Profile) GetVersionContextTags(imageTag string) ([]string, bool) {
 	return ctx.Tags, true
 }
 
+// ShortImage returns the cached workload short_image, or empty if none was learned.
+// It is not part of the profile selector.
+func (p *Profile) ShortImage() string {
+	p.Lock()
+	defer p.Unlock()
+	return p.shortImage
+}
+
+// learnShortImage keeps the first short_image found in tags. The caller must hold p.Lock.
+func (p *Profile) learnShortImage(tags []string) {
+	if p.shortImage != "" {
+		return
+	}
+	if shortImage := utils.GetTagValue("short_image", tags); shortImage != "" {
+		p.shortImage = shortImage
+	}
+}
+
 // UpdateVersionContextLastSeen refreshes an existing version's last seen timestamp.
 // It returns false if the version has already been evicted.
 func (p *Profile) UpdateVersionContextLastSeen(imageTag string, nowTimestamp uint64) bool {
@@ -816,6 +837,7 @@ func (p *Profile) PrepareNewVersion(imageTag string, tags []string, maxImageTags
 		p.versionContexts[imageTag] = ctx
 	}
 	ctx.AddTags(tags)
+	p.learnShortImage(tags)
 	ctx.LastSeenNano = nowTimestamp
 
 	// Also trim profiles loaded from disk with more versions than the current limit.
@@ -832,6 +854,9 @@ func (p *Profile) AddVersionContext(version string, ctx *VersionContext) {
 	defer p.Unlock()
 
 	p.versionContexts[version] = ctx
+	if ctx != nil {
+		p.learnShortImage(ctx.Tags)
+	}
 }
 
 func (p *Profile) evictProfileVersion(retainedImageTag string) string {

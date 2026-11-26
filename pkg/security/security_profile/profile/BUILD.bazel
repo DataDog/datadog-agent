@@ -123,6 +123,7 @@ dd_agent_go_test(
         "disable_test.go",
         "protobuf_security_context_test.go",
         "protobuf_test.go",
+        "short_image_test.go",
     ],
     embed = [":profile"],
     deps = select({
