@@ -388,24 +388,30 @@ func (c *Client) enqueue(sub *subscription, ev event) {
 }
 
 // drain delivers the queued events of sub one at a time until its queue is
-// empty. Once the client is stopped, it drops the events not delivered yet.
+// empty. The handler runs without queueMu, so enqueue never waits for it.
 func (c *Client) drain(sub *subscription) {
-	for {
-		sub.queueMu.Lock()
-		if c.ctx.Err() != nil {
-			sub.queue = nil
-		}
-		if len(sub.queue) == 0 {
-			sub.draining = false
-			sub.queueMu.Unlock()
-			return
-		}
-		ev := sub.queue[0]
-		sub.queue[0] = event{}
-		sub.queue = sub.queue[1:]
-		sub.queueMu.Unlock()
+	for ev, ok := c.next(sub); ok; ev, ok = c.next(sub) {
 		c.deliver(sub, ev)
 	}
+}
+
+// next pops the next event of sub. When there is none, it marks the drainer
+// done and reports false. Once the client is stopped, it drops the events not
+// delivered yet.
+func (c *Client) next(sub *subscription) (event, bool) {
+	sub.queueMu.Lock()
+	defer sub.queueMu.Unlock()
+	if c.ctx.Err() != nil {
+		sub.queue = nil
+	}
+	if len(sub.queue) == 0 {
+		sub.draining = false
+		return event{}, false
+	}
+	ev := sub.queue[0]
+	sub.queue[0] = event{}
+	sub.queue = sub.queue[1:]
+	return ev, true
 }
 
 // deliver calls the handler of sub for ev. It runs without the client lock,
