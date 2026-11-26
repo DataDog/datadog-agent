@@ -7,9 +7,10 @@ package observerimpl
 
 import (
 	"fmt"
+	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
-	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
@@ -299,29 +300,157 @@ func TestScopedAnomalyScorerLRUCapacityEvictionPrefersLowThenDeescalates(t *test
 	assert.Equal(t, severityeventsdef.SeverityHigh, escEvents[0].Event.ToLevel)
 }
 
+type callbackScopedListener struct {
+	fn func(evt severityeventsdef.ScopedSeverityEvent)
+}
+
+func (listener *callbackScopedListener) OnScopedSeverityTransition(evt severityeventsdef.ScopedSeverityEvent) {
+	listener.fn(evt)
+}
+
+func TestScopedAnomalyScorerFilteredSubscribersIdleEviction(t *testing.T) {
+	cfg := fastScopedScorerConfig()
+	cfg.IdleEvictionSec = 5
+	router := newScopedAnomalyScorer(cfg)
+
+	deescOnly := &collectingScopedListener{}
+	_, err := router.SubscribeScopedSeverityEvents(severityeventsdef.SeverityEventsConfiguration{
+		CooldownSecs: 20,
+		Filter: severityeventsdef.SeverityEventFilter{
+			Direction: severityeventsdef.SeverityEventDeescalation,
+		},
+	}, deescOnly)
+	require.NoError(t, err)
+
+	// Matches Low->High only, missing High->Medium and Medium->Low transitions.
+	skipMedium := &collectingScopedListener{}
+	_, err = router.SubscribeScopedSeverityEvents(severityeventsdef.SeverityEventsConfiguration{
+		Filter: severityeventsdef.SeverityEventFilter{
+			FromLevels: []severityeventsdef.SeverityLevel{severityeventsdef.SeverityLow, severityeventsdef.SeverityHigh},
+			ToLevels:   []severityeventsdef.SeverityLevel{severityeventsdef.SeverityHigh, severityeventsdef.SeverityLow},
+		},
+	}, skipMedium)
+	require.NoError(t, err)
+
+	router.ProcessAnomaly(makeServiceMetricAnomaly("s1", 100, "service:checkout"))
+	router.ProcessAnomaly(makeServiceMetricAnomaly("s2", 100, "service:checkout"))
+	router.Advance(100)
+
+	// Cooldown holds deescOnly's dispatcher at High even though its filter dropped Low->High.
+	router.Advance(115)
+	assert.Equal(t, 1, router.ActiveScopeCount())
+	assert.Empty(t, deescOnly.eventsForService("checkout"))
+
+	// At 120 cooldown expires and deescOnly receives High->Low; skipMedium reaches Low internally too.
+	router.Advance(120)
+	deescEvents := deescOnly.eventsForService("checkout")
+	require.Len(t, deescEvents, 1)
+	assert.Equal(t, severityeventsdef.SeverityLow, deescEvents[0].Event.ToLevel)
+
+	router.Advance(125)
+	assert.Zero(t, router.ActiveScopeCount())
+}
+
+func TestScopedAnomalyScorerIgnoredLateAnomalyDoesNotEvictOrTouchLRU(t *testing.T) {
+	var evicted int
+	cfg := fastScopedScorerConfig()
+	cfg.MaxScopes = 1
+	cfg.IdleEvictionSec = 5
+	cfg.Scorer.LateAnomalyBehavior = lateAnomalyIgnore
+	cfg.OnScopeEvicted = func(string) { evicted++ }
+	router := newScopedAnomalyScorer(cfg)
+
+	router.ProcessAnomaly(makeServiceMetricAnomaly("s1", 100, "service:svc-a"))
+	router.Advance(100)
+	router.Advance(106) // svc-a becomes idle at 106 (lastAdvancedSec=106)
+
+	// Ignored late anomaly for svc-b must not evict svc-a.
+	router.ProcessAnomaly(makeServiceMetricAnomaly("late-b", 105, "service:svc-b"))
+	assert.Equal(t, 1, router.ActiveScopeCount())
+	assert.Zero(t, evicted)
+
+	// Ignored late anomaly for svc-a must not reset idleSince.
+	router.ProcessAnomaly(makeServiceMetricAnomaly("late-a", 105, "service:svc-a"))
+	router.Advance(111)
+	assert.Zero(t, router.ActiveScopeCount())
+	assert.Equal(t, 1, evicted)
+}
+
+func TestScopedAnomalyScorerReorderingWindowReplay(t *testing.T) {
+	cfg := fastScopedScorerConfig()
+	cfg.Scorer.ReorderingWindowSecs = 5
+	cfg.Scorer.LateAnomalyBehavior = lateAnomalyIgnore
+	router := newScopedAnomalyScorer(cfg)
+
+	listener := &collectingScopedListener{}
+	_, err := router.SubscribeScopedSeverityEvents(severityeventsdef.SeverityEventsConfiguration{}, listener)
+	require.NoError(t, err)
+
+	router.Advance(100)
+	router.Advance(103)
+	router.ProcessAnomaly(makeServiceMetricAnomaly("s1", 101, "service:checkout"))
+	router.ProcessAnomaly(makeServiceMetricAnomaly("s2", 101, "service:checkout"))
+	router.Advance(104)
+
+	events := listener.eventsForService("checkout")
+	require.Len(t, events, 1)
+	assert.Equal(t, severityeventsdef.SeverityHigh, events[0].Event.ToLevel)
+	assert.Equal(t, int64(101), events[0].Event.HistoricalTimestamp)
+}
+
+func TestScopedAnomalyScorerReentrantUnsubscribe(t *testing.T) {
+	router := newScopedAnomalyScorer(fastScopedScorerConfig())
+
+	var sub severityeventsdef.ScopedSeverityEventsSubscription
+	var calls int
+	var err error
+	sub, err = router.SubscribeScopedSeverityEvents(severityeventsdef.SeverityEventsConfiguration{}, &callbackScopedListener{
+		fn: func(severityeventsdef.ScopedSeverityEvent) {
+			calls++
+			sub.Unsubscribe()
+		},
+	})
+	require.NoError(t, err)
+
+	router.ProcessAnomaly(makeServiceMetricAnomaly("s1", 100, "service:checkout"))
+	router.ProcessAnomaly(makeServiceMetricAnomaly("s2", 100, "service:checkout"))
+	router.Advance(100)
+	router.Advance(110)
+
+	assert.Equal(t, 1, calls)
+}
+
 func TestScopedAnomalyScorerConcurrentSubscribeRace(t *testing.T) {
 	cfg := fastScopedScorerConfig()
 	cfg.MaxScopes = 4
 	cfg.IdleEvictionSec = 3
 	router := newScopedAnomalyScorer(cfg)
 
+	var activeCallbacks atomic.Int32
+	var concurrentViolation atomic.Bool
+	sharedListener := &callbackScopedListener{
+		fn: func(severityeventsdef.ScopedSeverityEvent) {
+			if activeCallbacks.Add(1) > 1 {
+				concurrentViolation.Store(true)
+			}
+			activeCallbacks.Add(-1)
+		},
+	}
+
 	stopCh := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		for idx := 0; ; idx++ {
+		for {
 			select {
 			case <-stopCh:
 				return
 			default:
-				listener := &collectingScopedListener{}
-				sub, err := router.SubscribeScopedSeverityEvents(severityeventsdef.SeverityEventsConfiguration{}, listener)
-				if err == nil {
-					sub.Unsubscribe()
-				}
-				_ = idx
-				time.Sleep(time.Microsecond)
+				sub, err := router.SubscribeScopedSeverityEvents(severityeventsdef.SeverityEventsConfiguration{}, sharedListener)
+				assert.NoError(t, err)
+				sub.Unsubscribe()
+				runtime.Gosched()
 			}
 		}
 	}()
@@ -336,6 +465,40 @@ func TestScopedAnomalyScorerConcurrentSubscribeRace(t *testing.T) {
 
 	close(stopCh)
 	wg.Wait()
+	assert.False(t, concurrentViolation.Load(), "listener invoked concurrently")
+}
+
+func BenchmarkScopedAnomalyScorerProcessAnomaly(b *testing.B) {
+	router := newScopedAnomalyScorer(fastScopedScorerConfig())
+	_, _ = router.SubscribeScopedSeverityEvents(severityeventsdef.SeverityEventsConfiguration{}, &callbackScopedListener{
+		fn: func(severityeventsdef.ScopedSeverityEvent) {},
+	})
+	anomalies := make([]observerdef.Anomaly, 128)
+	for idx := range anomalies {
+		anomalies[idx] = makeServiceMetricAnomaly("m", 100, fmt.Sprintf("service:svc-%d", idx))
+	}
+
+	b.ResetTimer()
+	for idx := 0; idx < b.N; idx++ {
+		router.ProcessAnomaly(anomalies[idx%len(anomalies)])
+	}
+}
+
+func BenchmarkScopedAnomalyScorerAdvance128Scopes(b *testing.B) {
+	cfg := fastScopedScorerConfig()
+	cfg.IdleEvictionSec = 1 << 30
+	router := newScopedAnomalyScorer(cfg)
+	_, _ = router.SubscribeScopedSeverityEvents(severityeventsdef.SeverityEventsConfiguration{}, &callbackScopedListener{
+		fn: func(severityeventsdef.ScopedSeverityEvent) {},
+	})
+	for idx := range 128 {
+		router.ProcessAnomaly(makeServiceMetricAnomaly("m", 100, fmt.Sprintf("service:svc-%d", idx)))
+	}
+
+	b.ResetTimer()
+	for idx := 0; idx < b.N; idx++ {
+		router.Advance(int64(100 + idx))
+	}
 }
 
 func lastScopedLevel(events []severityeventsdef.ScopedSeverityEvent) severityeventsdef.SeverityLevel {

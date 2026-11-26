@@ -1178,21 +1178,20 @@ func (s *anomalyScorer) advanceSecond(sec int64, recognizeHigh bool) secState {
 		s.replay.recordSecond(sec, inputs, next, recognizeHigh)
 	}
 	s.score = next
-	s.buckets = append(s.buckets, bucket)
-
-	// Default cap is WindowSecs; MaxBuckets overrides this when set to a positive value.
-	bucketCap := s.bucketCap()
-	if int64(len(s.buckets)) > bucketCap {
-		trimmed := make([]observerdef.AnomalyScoreBucket, bucketCap)
-		copy(trimmed, s.buckets[int64(len(s.buckets))-bucketCap:])
-		s.buckets = trimmed
+	if bucketCap := s.bucketCap(); bucketCap > 0 {
+		s.buckets = append(s.buckets, bucket)
+		if int64(len(s.buckets)) > bucketCap {
+			trimmed := make([]observerdef.AnomalyScoreBucket, bucketCap)
+			copy(trimmed, s.buckets[int64(len(s.buckets))-bucketCap:])
+			s.buckets = trimmed
+		}
 	}
 
 	return secState{sec: sec, ewma: next.ewma, level: next.level, highCrossing: highCrossing}
 }
 
 func (s *anomalyScorer) bucketCap() int64 {
-	if s.config.MaxBuckets > 0 {
+	if s.config.MaxBuckets != 0 {
 		return s.config.MaxBuckets
 	}
 	return s.config.WindowSecs
@@ -1428,11 +1427,15 @@ func (s *anomalyScorer) replayScoredSeconds(start int64, forward []secState) int
 		mergeScoringInputs(sec, h.journal[sec], s.windowMap)
 	}
 
-	debugStart := s.buckets[0].Second
-	if from := max(start, s.lastAdvancedSec-s.bucketCap()+1); from < debugStart {
-		// Startup backfill can add seconds before the first stored bucket.
-		s.buckets = append(make([]observerdef.AnomalyScoreBucket, debugStart-from), s.buckets...)
-		debugStart = from
+	retainBuckets := s.bucketCap() > 0 && len(s.buckets) > 0
+	var debugStart int64
+	if retainBuckets {
+		debugStart = s.buckets[0].Second
+		if from := max(start, s.lastAdvancedSec-s.bucketCap()+1); from < debugStart {
+			// Startup backfill can add seconds before the first stored bucket.
+			s.buckets = append(make([]observerdef.AnomalyScoreBucket, debugStart-from), s.buckets...)
+			debugStart = from
+		}
 	}
 	var firstMissed, highStart int64
 	knownHigh := previous.level == severityeventsdef.SeverityHigh
@@ -1464,7 +1467,7 @@ func (s *anomalyScorer) replayScoredSeconds(start int64, forward []secState) int
 			highStart = 0
 		}
 		h.saveCheckpoint(sec, next, true)
-		if sec >= debugStart {
+		if retainBuckets && sec >= debugStart {
 			s.buckets[sec-debugStart] = bucket
 		}
 		previous = next

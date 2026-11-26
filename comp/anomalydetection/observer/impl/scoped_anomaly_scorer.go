@@ -39,24 +39,24 @@ type ScopedAnomalyScorerConfig struct {
 }
 
 type scopedSubscription struct {
-	cfg      severityeventsdef.SeverityEventsConfiguration
-	listener severityeventsdef.ScopedSeverityEventListener
+	mu           sync.Mutex
+	unsubscribed atomic.Bool
+	cfg          severityeventsdef.SeverityEventsConfiguration
+	listener     severityeventsdef.ScopedSeverityEventListener
 }
 
 type scopedChildDispatcher struct {
-	sub        *scopedSubscription
-	dispatcher *severityeventsimpl.Dispatcher
-	adapter    *scopedListenerAdapter
+	sub                *scopedSubscription
+	dispatcher         *severityeventsimpl.Dispatcher
+	deescalatedOnEvict atomic.Bool
 }
 
 type scopedListenerAdapter struct {
 	key      severityeventsdef.ScopeKey
 	listener severityeventsdef.ScopedSeverityEventListener
-	level    atomic.Int32
 }
 
 func (adapter *scopedListenerAdapter) OnSeverityTransition(evt severityeventsdef.SeverityEvent) {
-	adapter.level.Store(int32(evt.ToLevel))
 	adapter.listener.OnScopedSeverityTransition(severityeventsdef.ScopedSeverityEvent{
 		ScopeKey: adapter.key,
 		Event:    evt,
@@ -66,7 +66,7 @@ func (adapter *scopedListenerAdapter) OnSeverityTransition(evt severityeventsdef
 type scopedScorerEntry struct {
 	key         severityeventsdef.ScopeKey
 	scorer      *anomalyScorer
-	dispatchers []scopedChildDispatcher
+	dispatchers []*scopedChildDispatcher
 	idleSince   int64
 	lruElem     *list.Element
 }
@@ -90,6 +90,8 @@ var (
 func newScopedAnomalyScorer(cfg ScopedAnomalyScorerConfig) *scopedAnomalyScorer {
 	cfg.Scorer.CorrelationEvents = false
 	cfg.Scorer.Logs = false
+	cfg.Scorer.MaxBuckets = -1
+	cfg.Scorer = newAnomalyScorerBase(cfg.Scorer).config
 	if cfg.MaxScopes <= 0 {
 		cfg.MaxScopes = defaultScopedScorerMaxScopes
 	}
@@ -141,6 +143,13 @@ func (router *scopedAnomalyScorer) ProcessAnomaly(anomaly observerdef.Anomaly) {
 	var deescalations []pendingScopedDeescalation
 
 	router.mu.Lock()
+	if router.lastAdvancedSec > 0 && router.cfg.Scorer.LateAnomalyBehavior == lateAnomalyIgnore {
+		cutoff := router.lastAdvancedSec - router.cfg.Scorer.ReorderingWindowSecs
+		if anomaly.Timestamp <= cutoff {
+			router.mu.Unlock()
+			return
+		}
+	}
 	entry, ok := router.entries[key]
 	if ok {
 		entry.idleSince = 0
@@ -172,14 +181,13 @@ func (router *scopedAnomalyScorer) createEntryLocked(key severityeventsdef.Scope
 	entry := &scopedScorerEntry{
 		key:         key,
 		scorer:      child,
-		dispatchers: make([]scopedChildDispatcher, 0, len(router.subs)),
+		dispatchers: make([]*scopedChildDispatcher, 0, len(router.subs)),
 	}
 	for _, sub := range router.subs {
 		adapter := &scopedListenerAdapter{key: key, listener: sub.listener}
-		entry.dispatchers = append(entry.dispatchers, scopedChildDispatcher{
+		entry.dispatchers = append(entry.dispatchers, &scopedChildDispatcher{
 			sub:        sub,
 			dispatcher: severityeventsimpl.NewDispatcher(sub.cfg, adapter),
-			adapter:    adapter,
 		})
 	}
 	entry.lruElem = router.lru.PushFront(entry)
@@ -188,14 +196,39 @@ func (router *scopedAnomalyScorer) createEntryLocked(key severityeventsdef.Scope
 }
 
 type pendingScopedDeescalation struct {
+	sub      *scopedSubscription
 	listener severityeventsdef.ScopedSeverityEventListener
 	event    severityeventsdef.ScopedSeverityEvent
 }
 
 func deliverPendingDeescalations(deescalations []pendingScopedDeescalation) {
 	for _, pending := range deescalations {
-		pending.listener.OnScopedSeverityTransition(pending.event)
+		pending.sub.mu.Lock()
+		if !pending.sub.unsubscribed.Load() {
+			pending.listener.OnScopedSeverityTransition(pending.event)
+		}
+		pending.sub.mu.Unlock()
 	}
+}
+
+func appendDispatcherCOW(existing []*scopedChildDispatcher, child *scopedChildDispatcher) []*scopedChildDispatcher {
+	next := make([]*scopedChildDispatcher, len(existing)+1)
+	copy(next, existing)
+	next[len(existing)] = child
+	return next
+}
+
+func removeSubDispatcherCOW(existing []*scopedChildDispatcher, sub *scopedSubscription) ([]*scopedChildDispatcher, bool) {
+	for idx, child := range existing {
+		if child.sub != sub {
+			continue
+		}
+		next := make([]*scopedChildDispatcher, 0, len(existing)-1)
+		next = append(next, existing[:idx]...)
+		next = append(next, existing[idx+1:]...)
+		return next, true
+	}
+	return existing, false
 }
 
 func (router *scopedAnomalyScorer) evictOneLRULocked(evictSec int64) []pendingScopedDeescalation {
@@ -218,8 +251,11 @@ func (router *scopedAnomalyScorer) evictOneLRULocked(evictSec int64) []pendingSc
 
 	var deescalations []pendingScopedDeescalation
 	for _, child := range victim.dispatchers {
-		deliveredLevel := severityeventsdef.SeverityLevel(child.adapter.level.Load())
+		deliveredLevel := child.dispatcher.Level()
 		if deliveredLevel <= severityeventsdef.SeverityLow {
+			continue
+		}
+		if !child.deescalatedOnEvict.CompareAndSwap(false, true) {
 			continue
 		}
 		evt := severityeventsdef.SeverityEvent{
@@ -230,6 +266,7 @@ func (router *scopedAnomalyScorer) evictOneLRULocked(evictSec int64) []pendingSc
 		}
 		if severityeventsimpl.EventFilterMatches(child.sub.cfg.Filter, evt) {
 			deescalations = append(deescalations, pendingScopedDeescalation{
+				sub:      child.sub,
 				listener: child.sub.listener,
 				event: severityeventsdef.ScopedSeverityEvent{
 					ScopeKey: victim.key,
@@ -256,26 +293,9 @@ func (router *scopedAnomalyScorer) entryIsIdle(entry *scopedScorerEntry) bool {
 		return false
 	}
 	for _, child := range entry.dispatchers {
-		deliveredLevel := severityeventsdef.SeverityLevel(child.adapter.level.Load())
-		if deliveredLevel == severityeventsdef.SeverityLow {
-			continue
-		}
-		if filterAllowsLow(child.sub.cfg.Filter, deliveredLevel) {
+		if child.dispatcher.Level() > severityeventsdef.SeverityLow {
 			return false
 		}
-	}
-	return true
-}
-
-func filterAllowsLow(filter severityeventsdef.SeverityEventFilter, fromLevel severityeventsdef.SeverityLevel) bool {
-	if filter.Direction == severityeventsdef.SeverityEventEscalation {
-		return false
-	}
-	if len(filter.ToLevels) > 0 && !slices.Contains(filter.ToLevels, severityeventsdef.SeverityLow) {
-		return false
-	}
-	if len(filter.FromLevels) > 0 && !slices.Contains(filter.FromLevels, fromLevel) {
-		return false
 	}
 	return true
 }
@@ -284,7 +304,9 @@ func filterAllowsLow(filter severityeventsdef.SeverityEventFilter, fromLevel sev
 func (router *scopedAnomalyScorer) Advance(dataTime int64) {
 	type advanceEntry struct {
 		entry       *scopedScorerEntry
-		dispatchers []scopedChildDispatcher
+		states      []secState
+		missedHigh  int64
+		dispatchers []*scopedChildDispatcher
 	}
 
 	router.mu.Lock()
@@ -297,19 +319,35 @@ func (router *scopedAnomalyScorer) Advance(dataTime int64) {
 	}
 	snapshot := make([]advanceEntry, 0, len(router.entries))
 	for _, entry := range router.entries {
-		snapshot = append(snapshot, advanceEntry{
-			entry:       entry,
-			dispatchers: entry.dispatchers,
-		})
+		snapshot = append(snapshot, advanceEntry{entry: entry})
+	}
+	router.mu.Unlock()
+
+	for idx := range snapshot {
+		snapshot[idx].states, snapshot[idx].missedHigh = snapshot[idx].entry.scorer.advanceStates(dataTime)
+	}
+
+	router.mu.Lock()
+	for idx := range snapshot {
+		entry := snapshot[idx].entry
+		if router.entries[entry.key] == entry {
+			snapshot[idx].dispatchers = entry.dispatchers
+		}
 	}
 	router.mu.Unlock()
 
 	for _, item := range snapshot {
-		states, missedHigh := item.entry.scorer.advanceStates(dataTime)
-		for _, st := range states {
-			for _, child := range item.dispatchers {
-				feedDispatcherState(child.dispatcher, dataTime, st, missedHigh)
+		if len(item.states) == 0 || len(item.dispatchers) == 0 {
+			continue
+		}
+		for _, child := range item.dispatchers {
+			child.sub.mu.Lock()
+			if !child.sub.unsubscribed.Load() {
+				for _, st := range item.states {
+					feedDispatcherState(child.dispatcher, dataTime, st, item.missedHigh)
+				}
 			}
+			child.sub.mu.Unlock()
 		}
 	}
 
@@ -370,81 +408,80 @@ func (router *scopedAnomalyScorer) SubscribeScopedSeverityEvents(
 		return severityeventsdef.ScopedSeverityEventsSubscription{}, errors.New("nil scoped severity event listener")
 	}
 
-	router.mu.Lock()
 	sub := &scopedSubscription{
 		cfg:      cfg,
 		listener: listener,
 	}
-	router.subs = append(router.subs, sub)
-	snapshot := make([]*scopedScorerEntry, 0, len(router.entries))
-	for _, entry := range router.entries {
-		snapshot = append(snapshot, entry)
-	}
-	lastSec := router.lastAdvancedSec
-	router.mu.Unlock()
+	sub.mu.Lock()
+	defer sub.mu.Unlock()
 
-	type pendingChildSub struct {
-		entry *scopedScorerEntry
-		child scopedChildDispatcher
+	type initialSeed struct {
+		entry    *scopedScorerEntry
+		child    *scopedChildDispatcher
+		score    scoringState
+		entrySec int64
 	}
-	attached := make([]pendingChildSub, 0, len(snapshot))
-	for _, entry := range snapshot {
-		score, entryLastSec := entry.scorer.rawScoreSnapshot()
-		adapter := &scopedListenerAdapter{key: entry.key, listener: listener}
-		dispatcher := severityeventsimpl.NewDispatcher(cfg, adapter)
-		if score.initialized {
-			dispatcher.DeliverInitial(entryLastSec, score.level)
-		}
-		attached = append(attached, pendingChildSub{
-			entry: entry,
-			child: scopedChildDispatcher{
-				sub:        sub,
-				dispatcher: dispatcher,
-				adapter:    adapter,
-			},
-		})
-	}
-
-	var staleDeescalations []severityeventsdef.ScopedSeverityEvent
 
 	router.mu.Lock()
-	subActive := slices.Contains(router.subs, sub)
-	for _, pending := range attached {
-		if subActive && router.entries[pending.entry.key] == pending.entry {
-			next := make([]scopedChildDispatcher, len(pending.entry.dispatchers)+1)
-			copy(next, pending.entry.dispatchers)
-			next[len(pending.entry.dispatchers)] = pending.child
-			pending.entry.dispatchers = next
-			continue
+	router.subs = append(router.subs, sub)
+	seeds := make([]initialSeed, 0, len(router.entries))
+	for _, entry := range router.entries {
+		score, entryLastSec := entry.scorer.rawScoreSnapshot()
+		adapter := &scopedListenerAdapter{key: entry.key, listener: listener}
+		child := &scopedChildDispatcher{
+			sub:        sub,
+			dispatcher: severityeventsimpl.NewDispatcher(cfg, adapter),
 		}
-		if subActive {
-			deliveredLevel := severityeventsdef.SeverityLevel(pending.child.adapter.level.Load())
-			if deliveredLevel > severityeventsdef.SeverityLow {
-				evt := severityeventsdef.SeverityEvent{
-					Timestamp: max(lastSec, router.lastAdvancedSec),
-					FromLevel: deliveredLevel,
-					ToLevel:   severityeventsdef.SeverityLow,
-					Direction: severityeventsdef.SeverityEventDeescalation,
-				}
-				if severityeventsimpl.EventFilterMatches(cfg.Filter, evt) {
-					staleDeescalations = append(staleDeescalations, severityeventsdef.ScopedSeverityEvent{
-						ScopeKey: pending.entry.key,
-						Event:    evt,
-					})
-				}
-			}
-		}
+		entry.dispatchers = appendDispatcherCOW(entry.dispatchers, child)
+		seeds = append(seeds, initialSeed{
+			entry:    entry,
+			child:    child,
+			score:    score,
+			entrySec: entryLastSec,
+		})
 	}
 	router.mu.Unlock()
 
-	for _, evt := range staleDeescalations {
-		listener.OnScopedSeverityTransition(evt)
+	for _, seed := range seeds {
+		if sub.unsubscribed.Load() {
+			break
+		}
+		if !seed.score.initialized {
+			continue
+		}
+		seed.child.dispatcher.DeliverInitial(seed.entrySec, seed.score.level)
+		if seed.score.level <= severityeventsdef.SeverityLow || sub.unsubscribed.Load() {
+			continue
+		}
+		router.mu.Lock()
+		stillActive := router.entries[seed.entry.key] == seed.entry
+		router.mu.Unlock()
+		if stillActive {
+			continue
+		}
+		deliveredLevel := seed.child.dispatcher.Level()
+		if deliveredLevel <= severityeventsdef.SeverityLow || !seed.child.deescalatedOnEvict.CompareAndSwap(false, true) {
+			continue
+		}
+		evt := severityeventsdef.SeverityEvent{
+			Timestamp: seed.entrySec,
+			FromLevel: deliveredLevel,
+			ToLevel:   severityeventsdef.SeverityLow,
+			Direction: severityeventsdef.SeverityEventDeescalation,
+		}
+		if severityeventsimpl.EventFilterMatches(cfg.Filter, evt) {
+			listener.OnScopedSeverityTransition(severityeventsdef.ScopedSeverityEvent{
+				ScopeKey: seed.entry.key,
+				Event:    evt,
+			})
+		}
 	}
 
 	var unsubOnce sync.Once
 	return severityeventsdef.ScopedSeverityEventsSubscription{
 		Unsubscribe: func() {
 			unsubOnce.Do(func() {
+				sub.unsubscribed.Store(true)
 				router.unsubscribe(sub)
 			})
 		},
@@ -460,16 +497,7 @@ func (router *scopedAnomalyScorer) unsubscribe(sub *scopedSubscription) {
 	}
 	router.subs = slices.Delete(router.subs, subIdx, subIdx+1)
 	for _, entry := range router.entries {
-		for idx, child := range entry.dispatchers {
-			if child.sub != sub {
-				continue
-			}
-			next := make([]scopedChildDispatcher, 0, len(entry.dispatchers)-1)
-			next = append(next, entry.dispatchers[:idx]...)
-			next = append(next, entry.dispatchers[idx+1:]...)
-			entry.dispatchers = next
-			break
-		}
+		entry.dispatchers, _ = removeSubDispatcherCOW(entry.dispatchers, sub)
 	}
 	router.mu.Unlock()
 }
