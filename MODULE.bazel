@@ -308,10 +308,7 @@ llvm_bpf_ext.configure(
 )
 use_repo(llvm_bpf_ext, "llvm_bpf_amd64", "llvm_bpf_arm64")
 
-register_toolchains(
-    "@llvm_bpf_amd64//:toolchain",
-    "@llvm_bpf_arm64//:toolchain",
-)
+register_toolchains("//bazel/toolchains/llvm_bpf:all")
 
 ## Linux kernel headers for eBPF prebuilt compilation
 ## Registers three repos: host auto-detect + explicit x86_64 + explicit aarch64
