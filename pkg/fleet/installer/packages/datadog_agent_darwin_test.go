@@ -155,7 +155,22 @@ func stubInstallerState(t *testing.T) string {
 		packagesRoot, ensureInstallerDataDir, agentUserExists = originalRoot, originalEnsure, originalUserExists
 	})
 	stubDmgLayout(t)
+	stubExperimentState(t)
 	return root
+}
+
+// stubExperimentState points a configuration experiment's state (its deadline, the unit
+// supervisor's target and status, and the deployed configuration) at temporary paths, and stops
+// no real helper process, so a hook test never acts on the host's own experiment.
+func stubExperimentState(t *testing.T) {
+	t.Helper()
+
+	stubDeadlinePath(t)
+	stubUnitsState(t)
+	stubConfigExperimentDirs(t)
+	original := stopSurvivingHelpers
+	stopSurvivingHelpers = func(context.Context) error { return nil }
+	t.Cleanup(func() { stopSurvivingHelpers = original })
 }
 
 // stubDmgLayout points the .dmg install steps at a temporary install, with the example
@@ -531,6 +546,7 @@ func TestPreRemoveIsIdempotent(t *testing.T) {
 		for _, upgrade := range []bool{true, false} {
 			calls := stubLaunchd(t)
 			dir := stubJobDir(t)
+			stubExperimentState(t)
 			ctx := testHookContext(t)
 			ctx.PackageType = packageType
 			ctx.Upgrade = upgrade
@@ -904,6 +920,7 @@ func TestGarbageCollectionKeepsTheInstallRoot(t *testing.T) {
 func TestUninstallRemovesTheInstall(t *testing.T) {
 	stubLaunchd(t)
 	stubJobDir(t)
+	stubExperimentState(t)
 	commands := stubUninstall(t)
 	current, err := user.Current()
 	require.NoError(t, err)
