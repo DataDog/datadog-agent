@@ -47,98 +47,83 @@ build do
   # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
   command "#{python} -B -m pip check"
 
-  # Remove openssl copies from libraries that depend on it, and patch as necessary.
-  # The OpenSSL setup with FIPS is more delicate than in the regular Agent because it makes it harder
-  # to control FIPS initialization; this has surfaced as problems with `cryptography` specifically, and
-  # later with `psycopg` (for the postgres integration).
-  # TODO(agent-build) This is intended as a temporary kludge while we make a decision on how to handle the multiplicity
-  # of openssl copies in a more general way while keeping risk low.
-  # On Linux, integrations-core now builds these wheels without their own OpenSSL copy: they load the Agent's
-  # `embedded/lib` OpenSSL through their RPATH, so the Linux blocks below only check that they do. They can be
-  # removed once the pinned integrations-core dependency wheels are all built that way.
-  if fips_mode?
-    if linux_target?
-      # Raises unless every OpenSSL library that `so` loads, directly or through its dependencies, is the Agent's
-      # own copy in `embedded/lib`. Call it with `instance_exec` from inside a `block`: `shellout!` is only
-      # available on the builder that runs blocks, not in the context where this lambda is defined.
+  # Integration dependency wheels from integrations-core bundle their own copy of OpenSSL: auditwheel grafts it under a
+  # hashed name such as `<package>.libs/libssl-5fe3ef2a.so.3`. On Linux, point every library that loads
+  # one of these copies at the Agent's OpenSSL in `embedded/lib` instead, and delete the copies. A single OpenSSL per
+  # process is required for FIPS (a second copy can't load the FIPS provider the Agent's copy has already loaded, so
+  # its TLS has no ciphers), and it avoids shipping a duplicate OpenSSL.
+  if linux_target?
+    block "Use the Agent's OpenSSL in integration dependencies" do
       agent_lib_dir = "#{install_dir}/embedded/lib"
-      verify_agent_openssl = lambda do |so|
-        resolved = shellout!("ldd #{so}").stdout.scan(/^\s*(lib(?:ssl|crypto)\S*) => (\S+)/)
-        unexpected = resolved.reject { |_, path| File.dirname(File.expand_path(path)) == agent_lib_dir }
-        if resolved.empty? || !unexpected.empty?
-          raise "expected #{so} to load OpenSSL from #{agent_lib_dir}, got: #{resolved.map { |dep| dep.join(' => ') }}"
+      bundled_openssl = Dir.glob("#{site_packages_path}/**/lib{ssl,crypto}-*.so.3", File::FNM_DOTMATCH)
+      agent_soname = bundled_openssl.to_h do |path|
+        [File.basename(path), File.basename(path).sub(/-\h+(?=\.so\.3\z)/, "")]
+      end
+
+      # Only ELF files mentioning libssl or libcrypto can depend on them; this avoids running patchelf on all of them
+      candidates = Dir.glob("#{site_packages_path}/**/*", File::FNM_DOTMATCH).select do |path|
+        next false if !File.file?(path) || File.symlink?(path) || bundled_openssl.include?(path)
+
+        content = File.binread(path)
+        content.start_with?("\x7FELF".b) && (content.include?("libssl") || content.include?("libcrypto"))
+      end
+
+      openssl_users = candidates.select do |so|
+        needed = shellout!("patchelf --print-needed #{so}").stdout.split
+        bundled = needed.select { |lib| agent_soname.key?(lib) }
+        unless bundled.empty?
+          shellout! "patchelf #{bundled.map { |lib| "--replace-needed #{lib} #{agent_soname[lib]}" }.join(" ")} #{so}"
+          shellout! "patchelf --add-rpath #{agent_lib_dir} #{so}"
+        end
+        needed.any? { |lib| lib.match?(/\Alib(ssl|crypto)[-.]/) }
+      end
+      FileUtils.rm(bundled_openssl)
+
+      # Check against the Agent's actual OpenSSL that every library loading OpenSSL, directly or through its
+      # dependencies, now gets the Agent's copy and finds every symbol version it needs. A wheel built against a newer
+      # OpenSSL than the Agent ships fails here instead of at runtime.
+      openssl_users.each do |so|
+        ldd = shellout("ldd #{so}")
+        output = ldd.stdout + ldd.stderr
+        resolved = output.scan(/^\s*(lib(?:ssl|crypto)\S*) => (\S+)/)
+        missing_versions = output.lines.grep(/lib(?:ssl|crypto)[^:]*: version .* not found/)
+        if resolved.empty? || !missing_versions.empty? ||
+           resolved.any? { |_, path| File.dirname(File.expand_path(path)) != agent_lib_dir }
+          raise "expected #{so} to load OpenSSL from #{agent_lib_dir}, ldd reports:\n#{output}"
         end
       end
 
-      block "Patch cryptography's openssl linking" do
-        # We delete the libraries shipped with the wheel and replace references to those names
-        # in the binary that references it using patchelf
-        cryptography_folder = "#{site_packages_path}/cryptography"
-        so_to_patch = "#{cryptography_folder}/hazmat/bindings/_rust.abi3.so"
-        libssl_matches = Dir.glob("#{cryptography_folder}.libs/libssl-*.so.3")
-        libcrypto_matches = Dir.glob("#{cryptography_folder}.libs/libcrypto-*.so.3")
-        if libssl_matches.empty? && libcrypto_matches.empty?
-          instance_exec(so_to_patch, &verify_agent_openssl)
-          next
-        end
-        raise "expected exactly one match for 'libssl-*.so.3' but got: #{libssl_matches}" if libssl_matches.size != 1
-        raise "expected exactly one match for 'libcrypto-*.so.3' but got: #{libcrypto_matches}" if libcrypto_matches.size != 1
-        libssl_match = libssl_matches.fetch(0)
-        libcrypto_match = libcrypto_matches.fetch(0)
-        shellout! "patchelf --replace-needed #{File.basename(libssl_match)} libssl.so.3 #{so_to_patch}"
-        shellout! "patchelf --replace-needed #{File.basename(libcrypto_match)} libcrypto.so.3 #{so_to_patch}"
-        shellout! "patchelf --add-rpath #{install_dir}/embedded/lib #{so_to_patch}"
-        FileUtils.rm([libssl_match, libcrypto_match])
-      end
-
-      block "Patch psycopg's openssl linking" do
-        # Same for psycopg
-        psycopg_folder = "#{site_packages_path}/psycopg_c"
-        libssl_matches = Dir.glob("#{psycopg_folder}.libs/libssl-*.so.3")
-        libcrypto_matches = Dir.glob("#{psycopg_folder}.libs/libcrypto-*.so.3")
-
-        # Files that might refer to the OpenSSL libraries and that need patching.
-        # Note that if we miss any file that would need patching, the Omnibus health check will have our back
-        sos_to_patch = [
-          Dir.glob("#{psycopg_folder}/_psycopg.cpython-*-linux-gnu.so").fetch(0),
-          Dir.glob("#{psycopg_folder}/pq.cpython-*-linux-gnu.so").fetch(0),
-          Dir.glob("#{psycopg_folder}.libs/libpq-*.so*").fetch(0),
+      # In FIPS builds these must use the Agent's OpenSSL, so they can't come with their own, even statically linked
+      if fips_mode?
+        fips_critical = [
+          "#{site_packages_path}/cryptography/hazmat/bindings/_rust.abi3.so",
+          *Dir.glob("#{site_packages_path}/psycopg_c.libs/libpq-*.so*"),
         ]
-        if libssl_matches.empty? && libcrypto_matches.empty?
-          sos_to_patch.each { |so| instance_exec(so, &verify_agent_openssl) }
-          next
-        end
-        raise "expected exactly one match for 'libssl-*.so.3' but got: #{libssl_matches}" if libssl_matches.size != 1
-        raise "expected exactly one match for 'libcrypto-*.so.3' but got: #{libcrypto_matches}" if libcrypto_matches.size != 1
-        libssl_match = libssl_matches.fetch(0)
-        libcrypto_match = libcrypto_matches.fetch(0)
-        sos_to_patch.each do |so_to_patch|
-          shellout! "patchelf --replace-needed #{File.basename(libssl_match)} libssl.so.3 #{so_to_patch}"
-          shellout! "patchelf --replace-needed #{File.basename(libcrypto_match)} libcrypto.so.3 #{so_to_patch}"
-          shellout! "patchelf --add-rpath #{install_dir}/embedded/lib #{so_to_patch}"
-        end
-        FileUtils.rm([libssl_match, libcrypto_match])
+        missing = fips_critical - openssl_users
+        raise "expected #{missing} to load OpenSSL from #{agent_lib_dir}" unless missing.empty?
       end
-    elsif windows_target?
-      # Build the cryptography library in this case so that it gets linked to Agent's OpenSSL
-      lib_folder = File.join(install_dir, "embedded3", "lib")
-      include_folder = File.join(install_dir, "embedded3", "include")
+    end
+  end
 
-      block "Build cryptography library against Agent's OpenSSL" do
-        cryptography_requirement = (shellout! "#{python} -B -m pip list --format=freeze").stdout[/cryptography==.*?$/]
+  if fips_mode? && windows_target?
+    # Build the cryptography library in this case so that it gets linked to Agent's OpenSSL
+    lib_folder = File.join(install_dir, "embedded3", "lib")
+    include_folder = File.join(install_dir, "embedded3", "include")
 
-        shellout! "#{python} -B -m pip install --no-compile --force-reinstall --no-deps --no-binary cryptography #{cryptography_requirement}",
-                env: {
-                  "OPENSSL_LIB_DIR" => lib_folder,
-                  "OPENSSL_INCLUDE_DIR" => include_folder,
-                }
-      end
-      # Python extensions on windows require this to find their DLL dependencies,
-      # we abuse the `.pth` loading system to inject it
-      block "Inject dll path for Python extensions" do
-        File.open(File.join(install_dir, "embedded3", "lib", "site-packages", "add-dll-directory.pth"), "w") do |f|
-          f.puts 'import os; os.add_dll_directory(os.path.abspath(os.path.join(__file__, "..", "..", "DLLS")))'
-        end
+    block "Build cryptography library against Agent's OpenSSL" do
+      cryptography_requirement = (shellout! "#{python} -B -m pip list --format=freeze").stdout[/cryptography==.*?$/]
+
+      shellout! "#{python} -B -m pip install --no-compile --force-reinstall --no-deps --no-binary cryptography #{cryptography_requirement}",
+              env: {
+                "OPENSSL_LIB_DIR" => lib_folder,
+                "OPENSSL_INCLUDE_DIR" => include_folder,
+              }
+    end
+    # Python extensions on windows require this to find their DLL dependencies,
+    # we abuse the `.pth` loading system to inject it
+    block "Inject dll path for Python extensions" do
+      File.open(File.join(install_dir, "embedded3", "lib", "site-packages", "add-dll-directory.pth"), "w") do |f|
+        f.puts 'import os; os.add_dll_directory(os.path.abspath(os.path.join(__file__, "..", "..", "DLLS")))'
       end
     end
   end
