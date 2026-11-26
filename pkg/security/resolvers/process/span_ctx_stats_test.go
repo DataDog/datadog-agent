@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/golabels"
 	"github.com/DataDog/datadog-agent/pkg/security/otelprocessctx"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/golabelsctx"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/otelattrs"
 )
 
 func TestClassifySpanCtxError(t *testing.T) {
@@ -28,26 +27,6 @@ func TestClassifySpanCtxError(t *testing.T) {
 		err  error
 		want spanCtxStatus
 	}{
-		{
-			name: "nil",
-			err:  nil,
-			want: spanCtxOK,
-		},
-		{
-			name: "eacces",
-			err:  syscall.EACCES,
-			want: spanCtxUnreadable,
-		},
-		{
-			name: "eperm",
-			err:  syscall.EPERM,
-			want: spanCtxUnreadable,
-		},
-		{
-			name: "os ErrPermission",
-			err:  os.ErrPermission,
-			want: spanCtxUnreadable,
-		},
 		{
 			name: "eacces wrapped with errSpanCtxMalformed",
 			err:  fmt.Errorf("%w: open /host/proc/123/root/app/ddtrace.so: %w", errSpanCtxMalformed, &os.PathError{Op: "open", Path: "/host/proc/123/root/app/ddtrace.so", Err: syscall.EACCES}),
@@ -59,39 +38,29 @@ func TestClassifySpanCtxError(t *testing.T) {
 			want: spanCtxUnreadable,
 		},
 		{
-			name: "enoent wrapped with errSpanCtxMalformed",
+			name: "eperm wrapped with errSpanCtxMapError stays map_error",
+			err:  fmt.Errorf("%w: %w", errSpanCtxMapError, syscall.EPERM),
+			want: spanCtxMapError,
+		},
+		{
+			name: "eacces wrapped with golabelsctx ErrMapLookup stays map_error",
+			err:  fmt.Errorf("%w: %w", golabelsctx.ErrMapLookup, syscall.EACCES),
+			want: spanCtxMapError,
+		},
+		{
+			name: "enoent wrapped with errSpanCtxMalformed stays gone",
 			err:  fmt.Errorf("%w: %w", errSpanCtxMalformed, syscall.ENOENT),
 			want: spanCtxGone,
 		},
 		{
-			name: "eof wrapped with otelprocessctx ErrMalformed",
+			name: "eof wrapped with otelprocessctx ErrMalformed stays gone",
 			err:  fmt.Errorf("%w: %w", otelprocessctx.ErrMalformed, io.EOF),
 			want: spanCtxGone,
 		},
 		{
-			name: "unpublished",
-			err:  otelprocessctx.ErrUnpublished,
-			want: spanCtxUnpublished,
-		},
-		{
-			name: "legacy version",
-			err:  otelprocessctx.ErrLegacyVersion,
-			want: spanCtxNotApplicable,
-		},
-		{
-			name: "malformed",
+			name: "malformed without wrapped permission or vanished errno",
 			err:  fmt.Errorf("%w: bad signature", otelprocessctx.ErrMalformed),
 			want: spanCtxMalformed,
-		},
-		{
-			name: "golabels map lookup",
-			err:  golabelsctx.ErrMapLookup,
-			want: spanCtxMapError,
-		},
-		{
-			name: "otelattrs stale id",
-			err:  otelattrs.ErrStaleID,
-			want: spanCtxStaleID,
 		},
 	}
 

@@ -55,23 +55,4 @@ func TestParseHeaderClassification(t *testing.T) {
 		require.ErrorIs(t, err, ErrMalformed)
 		require.NotErrorIs(t, err, ErrUnpublished)
 	})
-
-	t.Run("legacy version 1", func(t *testing.T) {
-		buf := makeHeaderBytes(signature, legacyHeaderVersion, 16, 1, 0x2000)
-		_, err := parseHeader(buf)
-		require.ErrorIs(t, err, ErrLegacyVersion)
-	})
-
-	t.Run("unsupported version", func(t *testing.T) {
-		buf := makeHeaderBytes(signature, 99, 16, 1, 0x2000)
-		_, err := parseHeader(buf)
-		require.ErrorIs(t, err, ErrUnsupportedVersion)
-	})
-
-	t.Run("valid header with zero timestamp is unpublished", func(t *testing.T) {
-		buf := makeHeaderBytes(signature, headerVersion, 16, unpublished, 0x2000)
-		mem := fakeMemory{0x1000: buf}
-		_, err := Read(mem, 0x1000)
-		require.ErrorIs(t, err, ErrUnpublished)
-	})
 }

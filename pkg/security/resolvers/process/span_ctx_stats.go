@@ -149,16 +149,18 @@ func classifySpanCtxError(err error) spanCtxStatus {
 		return spanCtxOK
 	case errors.Is(err, errSpanCtxGone), isVanishedTargetError(err):
 		return spanCtxGone
-	case isUnreadableTargetError(err):
-		return spanCtxUnreadable
 	case errors.Is(err, errSpanCtxNotApplicable), errors.Is(err, otelprocessctx.ErrLegacyVersion):
 		return spanCtxNotApplicable
 	case errors.Is(err, errSpanCtxUnsupported), errors.Is(err, golabels.ErrUnsupported):
 		return spanCtxUnsupported
-	case errors.Is(err, errSpanCtxMalformed), errors.Is(err, golabels.ErrMalformed):
-		return spanCtxMalformed
 	case errors.Is(err, errSpanCtxMapError):
 		return spanCtxMapError
+	case errors.Is(err, golabelsctx.ErrMapLookup), errors.Is(err, otelattrs.ErrMapLookup):
+		return spanCtxMapError
+	case isUnreadableTargetError(err):
+		return spanCtxUnreadable
+	case errors.Is(err, errSpanCtxMalformed), errors.Is(err, golabels.ErrMalformed):
+		return spanCtxMalformed
 	case errors.Is(err, otelprocessctx.ErrUnpublished):
 		return spanCtxUnpublished
 	case errors.Is(err, otelprocessctx.ErrTorn):
@@ -167,8 +169,6 @@ func classifySpanCtxError(err error) spanCtxStatus {
 		return spanCtxUnsupported
 	case errors.Is(err, otelprocessctx.ErrMalformed):
 		return spanCtxMalformed
-	case errors.Is(err, golabelsctx.ErrMapLookup), errors.Is(err, otelattrs.ErrMapLookup):
-		return spanCtxMapError
 	case errors.Is(err, golabelsctx.ErrStaleID), errors.Is(err, otelattrs.ErrStaleID):
 		return spanCtxStaleID
 	case errors.Is(err, otelattrs.ErrMalformed):
