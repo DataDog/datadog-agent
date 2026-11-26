@@ -1469,6 +1469,7 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, 
 	if err != nil {
 		return nil, false, err
 	}
+	rs.SetDiscarders(filterReport.DiscardersReport)
 
 	// remove old approvers
 	p.approverLock.Lock()

@@ -29,17 +29,14 @@ type RuleActionPerformedCb func(r *Rule, action *ActionDefinition)
 
 // Opts defines rules set options
 type Opts struct {
-	SupportedDiscarders        map[eval.Field][]eval.Field
-	SupportedMultiDiscarders   []*MultiDiscarder
-	ExcludedRuleFromDiscarders map[eval.RuleID]bool
-	// ExcludedRuleDiscarderFields are the fields of the discarders the excluded rules still take part in
-	ExcludedRuleDiscarderFields []eval.Field
-	ReservedRuleIDs             []RuleID
-	EventTypeEnabled            map[eval.EventType]bool
-	StateScopes                 map[Scope]VariableProviderFactory
-	Logger                      log.Logger
-	ruleActionPerformedCb       RuleActionPerformedCb
-	RuleCacheEnabled            bool
+	SupportedDiscarders      map[eval.Field][]eval.Field
+	SupportedMultiDiscarders []*MultiDiscarder
+	ReservedRuleIDs          []RuleID
+	EventTypeEnabled         map[eval.EventType]bool
+	StateScopes              map[Scope]VariableProviderFactory
+	Logger                   log.Logger
+	ruleActionPerformedCb    RuleActionPerformedCb
+	RuleCacheEnabled         bool
 }
 
 // WithSupportedDiscarders set supported discarders: the field a discarder is
@@ -52,12 +49,6 @@ func (o *Opts) WithSupportedDiscarders(discarders map[eval.Field][]eval.Field) *
 // WithSupportedMultiDiscarder set supported multi discarders
 func (o *Opts) WithSupportedMultiDiscarder(discarders []*MultiDiscarder) *Opts {
 	o.SupportedMultiDiscarders = discarders
-	return o
-}
-
-// WithExcludedRuleFromDiscarders set excluded rule from discarders
-func (o *Opts) WithExcludedRuleFromDiscarders(excludedRuleFromDiscarders map[eval.RuleID]bool) *Opts {
-	o.ExcludedRuleFromDiscarders = excludedRuleFromDiscarders
 	return o
 }
 

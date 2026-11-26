@@ -573,39 +573,36 @@ func applyDNSDefaultDropMaskFromRules(manager *manager.Manager, rs *rules.RuleSe
 		return setDNSDiscarderMask(manager, ^uint16(0))
 	}
 
-	var allowMask uint16
-
-	for code := 0; code < 16; code++ {
+	var ctxs [16]*eval.Context
+	for code := range ctxs {
 		ev := rs.NewFakeEvent()
 		_ = ev.SetFieldValue("dns.response.code", code)
+		ctxs[code] = eval.NewContext(ev)
+	}
 
-		ctx := eval.NewContext(ev)
-
-		isDiscarder := true
-		for _, r := range bucket.GetRules() {
-			needsFullResponse := ruleNeedsFullDNSResponse(r)
-
-			ok, err := r.PartialEval(ctx, "dns.response.code")
-			if err != nil {
-				var nf *eval.ErrFieldNotFound
-				if errors.As(err, &nf) {
-					if needsFullResponse {
-						isDiscarder = false
-						break
-					}
-					continue
-				}
-				isDiscarder = false
-				break
+	// a code is allowed when a rule can match it
+	var allowMask uint16
+	for _, r := range bucket.GetRules() {
+		if !r.UsesAnyField([]eval.Field{"dns.response.code"}) {
+			if ruleNeedsFullDNSResponse(r) {
+				allowMask = ^uint16(0)
 			}
-			if ok {
-				isDiscarder = false
-				break
-			}
+			continue
 		}
 
-		if !isDiscarder {
-			allowMask |= 1 << uint(code)
+		partial, value, err := r.CompilePartial([]eval.Field{"dns.response.code"})
+		if err != nil || (partial == nil && value) {
+			allowMask = ^uint16(0)
+			continue
+		}
+		if partial == nil {
+			continue
+		}
+
+		for code, ctx := range ctxs {
+			if partial(ctx) {
+				allowMask |= 1 << uint(code)
+			}
 		}
 	}
 

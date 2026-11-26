@@ -3131,6 +3131,7 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, boo
 	if err != nil {
 		return nil, false, err
 	}
+	rs.SetDiscarders(filterReport.DiscardersReport)
 
 	if p.config.Probe.EnableDiscarders {
 		if err := applyDNSDefaultDropMaskFromRules(p.Manager.Get(), rs); err != nil {

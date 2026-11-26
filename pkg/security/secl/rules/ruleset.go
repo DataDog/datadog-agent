@@ -9,6 +9,7 @@ package rules
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"net"
 	"reflect"
 	"slices"
@@ -87,6 +88,12 @@ type DiscarderInvalidReport struct {
 type DiscardersReport struct {
 	Supported []eval.Field             `json:"supported"`
 	Invalid   []DiscarderInvalidReport `json:"invalid"`
+
+	// discarders are the discarders that can be found for each event type, and
+	// multiDiscarders the ones of the entries of the supported multi discarders,
+	// nil for an entry without rules, see RuleSet.SetDiscarders.
+	discarders      map[eval.EventType][]*discarder
+	multiDiscarders [][]*discarder
 }
 
 // RuleSetListener describes the methods implemented by an object used to be
@@ -125,6 +132,10 @@ type RuleSet struct {
 	// their value from, the env marks of which are merged once all the rules are
 	// added, see propagateEnvKeys
 	variableReads map[string][]string
+
+	// discarders are the discarders of a report, set by SetDiscarders
+	discarders      map[eval.EventType][]*discarder
+	multiDiscarders [][]*discarder
 }
 
 // ListRuleIDs returns the list of RuleIDs from the ruleset
@@ -401,40 +412,70 @@ func (rs *RuleSet) AddRules(pRules []*PolicyRule) *multierror.Error {
 	return result
 }
 
-// GetDiscardersReport returns a discarders state report
-func (rs *RuleSet) GetDiscardersReport() (*DiscardersReport, error) {
+// PrepareDiscarders compiles the discarders of the rule set and returns their
+// report, which SetDiscarders applies. The excluded rules take no part in the
+// discarders, but in the ones of excludedFields.
+func (rs *RuleSet) PrepareDiscarders(excluded map[eval.RuleID]bool, excludedFields ...eval.Field) (*DiscardersReport, error) {
+	supported := slices.Sorted(maps.Keys(rs.opts.SupportedDiscarders))
+
+	prepared := make(map[eval.EventType]map[eval.Field]*discarder, len(rs.eventRuleBuckets))
+	discarders := make(map[eval.EventType][]*discarder)
+	for eventType, bucket := range rs.eventRuleBuckets {
+		prepared[eventType] = make(map[eval.Field]*discarder, len(supported))
+		for _, field := range supported {
+			d := rs.newDiscarder(bucket.rules, field, rs.opts.SupportedDiscarders[field], excluded, excludedFields)
+			prepared[eventType][field] = d
+			if d.isPossible() {
+				discarders[eventType] = append(discarders[eventType], d)
+			}
+		}
+	}
+
+	multiDiscarders := make([][]*discarder, len(rs.opts.SupportedMultiDiscarders))
+	for i, mdisc := range rs.opts.SupportedMultiDiscarders {
+		multiDiscarders[i] = make([]*discarder, len(mdisc.Entries))
+		for j, entry := range mdisc.Entries {
+			bucket := rs.eventRuleBuckets[entry.EventType.String()]
+			if bucket == nil || len(bucket.rules) == 0 {
+				continue
+			}
+			multiDiscarders[i][j] = rs.newDiscarder(bucket.rules, entry.Field, []eval.Field{entry.Field}, excluded, excludedFields)
+		}
+	}
+
 	var report DiscardersReport
-
 	event := rs.NewFakeEvent()
-	ctx := eval.NewContext(event)
-
-	errFieldNotFound := &eval.ErrFieldNotFound{}
-
-	for field, fields := range rs.opts.SupportedDiscarders {
+	for _, field := range supported {
 		eventType, _, _, _, err := event.GetFieldMetadata(field)
 		if err != nil {
 			return nil, err
 		}
-
-		bucket := rs.GetRuleBucket(eventType)
-		if bucket == nil {
+		d, exists := prepared[eventType][field]
+		if !exists {
 			continue
 		}
 
-		_, rule, err := rs.IsDiscarder(ctx, fields, bucket.GetRules())
-		if err != nil {
-			if errors.As(err, &errFieldNotFound) {
-				report.Invalid = append(report.Invalid, DiscarderInvalidReport{
-					RuleID: rule.ID,
-					Field:  field,
-				})
-			}
+		if d.blocker != nil {
+			report.Invalid = append(report.Invalid, DiscarderInvalidReport{
+				RuleID: d.blocker.ID,
+				Field:  field,
+			})
 		} else {
 			report.Supported = append(report.Supported, field)
 		}
 	}
 
+	report.discarders = discarders
+	report.multiDiscarders = multiDiscarders
+
 	return &report, nil
+}
+
+// SetDiscarders sets the discarders the rule set evaluates to the ones of a
+// report of PrepareDiscarders. It is called before the rule set is used.
+func (rs *RuleSet) SetDiscarders(report *DiscardersReport) {
+	rs.discarders = report.discarders
+	rs.multiDiscarders = report.multiDiscarders
 }
 
 func appendRuleLoadError(errs *multierror.Error, rule *PolicyRule, err error) *multierror.Error {
@@ -672,13 +713,6 @@ func GetRuleEventType(rule *eval.Rule) (eval.EventType, error) {
 	}
 
 	return eventType, nil
-}
-
-// WithExcludedRuleFromDiscarders set excluded rule from discarders, but from the
-// discarders of some fields
-func (rs *RuleSet) WithExcludedRuleFromDiscarders(excludedRuleFromDiscarders map[eval.RuleID]bool, discarderFields ...eval.Field) {
-	rs.opts.ExcludedRuleFromDiscarders = excludedRuleFromDiscarders
-	rs.opts.ExcludedRuleDiscarderFields = discarderFields
 }
 
 // AddRule creates the rule evaluator and adds it to the bucket of its events
@@ -1153,26 +1187,63 @@ func (rs *RuleSet) GetFieldValues(field eval.Field) []eval.FieldValue {
 	return values
 }
 
-// IsDiscarder partially evaluates an Event against a set of fields
-func (rs *RuleSet) IsDiscarder(ctx *eval.Context, fields []eval.Field, rules []*Rule) (bool, *Rule, error) {
-	var isDiscarder bool
+// discarder is a discarder of an event type: its field, with the fields it
+// discards together, is a discarder of an event when no rule can match it
+type discarder struct {
+	field eval.Field
+	// partials are the partials of the rules over the fields that depend on the
+	// event, rules the number of rules taking part in the discarder
+	partials []eval.BoolEvalFnc
+	rules    int
+	// blocker is the rule preventing the discarder, whatever the event
+	blocker *Rule
+}
+
+// newDiscarder compiles the discarder of a field for the rules of an event type
+func (rs *RuleSet) newDiscarder(rules []*Rule, field eval.Field, fields []eval.Field, excluded map[eval.RuleID]bool, excludedFields []eval.Field) *discarder {
+	d := &discarder{field: field}
+	keepsExcluded := slices.ContainsFunc(fields, func(field eval.Field) bool { return slices.Contains(excludedFields, field) })
 
 	for _, rule := range rules {
-		// ignore rule that can't generate discarders
-		if _, exists := rs.opts.ExcludedRuleFromDiscarders[rule.ID]; exists && !slices.ContainsFunc(fields, func(field eval.Field) bool {
-			return slices.Contains(rs.opts.ExcludedRuleDiscarderFields, field)
-		}) {
+		if _, exists := excluded[rule.ID]; exists && !keepsExcluded {
 			continue
 		}
 
-		isTrue, err := rule.PartialEval(ctx, fields...)
-		if err != nil || isTrue {
-			return false, rule, err
+		partial, value, err := rule.CompilePartial(fields)
+		if err != nil {
+			rs.logger.Errorf("no discarder for `%s`: %s", field, err)
+			d.blocker = rule
+			return d
 		}
-
-		isDiscarder = true
+		if partial == nil && value {
+			d.blocker = rule
+			return d
+		}
+		if partial != nil {
+			d.partials = append(d.partials, partial)
+		}
+		d.rules++
 	}
-	return isDiscarder, nil, nil
+
+	return d
+}
+
+// isPossible returns whether the discarder can be found for an event
+func (d *discarder) isPossible() bool {
+	return d.blocker == nil && d.rules > 0
+}
+
+// isDiscarder returns whether the discarder is found for the event of the context
+func (d *discarder) isDiscarder(ctx *eval.Context) bool {
+	if !d.isPossible() {
+		return false
+	}
+	for _, partial := range d.partials {
+		if partial(ctx) {
+			return false
+		}
+	}
+	return true
 }
 
 func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) error {
@@ -1368,22 +1439,19 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 				mdiscsToCheck = append(mdiscsToCheck, check)
 			}
 		}
+	}
 
-		fields, exists := rs.opts.SupportedDiscarders[field]
-		if !exists {
-			continue
-		}
-
-		if isDiscarder, _, _ := rs.IsDiscarder(ctx, fields, bucket.rules); isDiscarder {
-			rs.NotifyDiscarderFound(event, field, eventType)
+	for _, d := range rs.discarders[eventType] {
+		if d.isDiscarder(ctx) {
+			rs.NotifyDiscarderFound(event, d.field, eventType)
 		}
 	}
 
 	for _, check := range mdiscsToCheck {
 		isMultiDiscarder := true
-		for _, entry := range check.mdisc.Entries {
-			bucket := rs.eventRuleBuckets[entry.EventType.String()]
-			if bucket == nil || len(bucket.rules) == 0 {
+		for j, entry := range check.mdisc.Entries {
+			d := rs.multiDiscarders[check.index][j]
+			if d == nil {
 				continue
 			}
 
@@ -1394,7 +1462,7 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 				break
 			}
 
-			if isDiscarder, _, _ := rs.IsDiscarder(dctx, []eval.Field{entry.Field}, bucket.rules); !isDiscarder {
+			if !d.isDiscarder(dctx) {
 				isMultiDiscarder = false
 				break
 			}
@@ -1407,11 +1475,15 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 }
 
 func (rs *RuleSet) getValidMultiDiscarder(field string) *multiDiscarderCheck {
-	for _, mdisc := range rs.opts.SupportedMultiDiscarders {
+	if rs.multiDiscarders == nil {
+		return nil
+	}
+	for i, mdisc := range rs.opts.SupportedMultiDiscarders {
 		for _, entry := range mdisc.Entries {
 			if entry.Field == field {
 				return &multiDiscarderCheck{
 					mdisc: mdisc,
+					index: i,
 				}
 			}
 		}
@@ -1422,6 +1494,7 @@ func (rs *RuleSet) getValidMultiDiscarder(field string) *multiDiscarderCheck {
 
 type multiDiscarderCheck struct {
 	mdisc *MultiDiscarder
+	index int
 	value string
 }
 
