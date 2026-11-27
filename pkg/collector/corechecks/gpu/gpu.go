@@ -13,6 +13,8 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -83,6 +85,7 @@ type Check struct {
 	deviceCache         ddnvml.DeviceCache               // deviceCache is a cache of GPU devices
 	spCache             *nvidia.SystemProbeCache         // spCache holds system-probe GPU process metrics
 	prmCache            *nvidia.PRMCache                 // prmCache holds system-probe privileged NVLink metrics
+	migGrEngineActive   func(string) (float64, error)    // migGrEngineActive reads MIG GPM GRAPHICS_UTIL from system-probe
 	gpuConfig           *gpuconfig.Config                // gpuConfig is shared with the system-probe GPU module
 	deviceEvtGatherer   *nvidia.DeviceEventsGatherer     // deviceEvtGatherer asynchronously listens for device events and gathers them
 	stateChanges        *nvidia.StateChangesGatherer     // stateChanges reads the watched values every second and keeps the events of their changes
@@ -269,12 +272,16 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 
 	c.spCache = nil
 	c.prmCache = nil
+	c.migGrEngineActive = nil
 	c.driverEventsEnabled = false
 	c.sysprobeData = newSysprobeDataTracker()
 	var driverEventsSource nvidia.DriverEventsSource
 	if c.gpuConfig.Enabled {
-		if c.gpuConfig.EnableEBPFProbes || c.gpuConfig.PRMEndpointEnabled || c.gpuConfig.DriverEventsEnabled {
+		if c.gpuConfig.EnableEBPFProbes || c.gpuConfig.PRMEndpointEnabled || c.gpuConfig.DriverEventsEnabled || c.gpuConfig.MigGrEndpointEnabled {
 			client := nvidia.NewSystemProbeClient()
+			if c.gpuConfig.MigGrEndpointEnabled {
+				c.migGrEngineActive = newMigGrEngineActiveReader(client)
+			}
 			if c.gpuConfig.EnableEBPFProbes {
 				log.Info("GPU monitoring probe is enabled in system-probe, creating ebpf collectors for all devices")
 				c.spCache = nvidia.NewSystemProbeCache(client)
@@ -333,6 +340,7 @@ func (c *Check) ensureInitCollectors() error {
 		StateChangesGatherer: c.stateChanges,
 		SystemProbeCache:     c.spCache,
 		PRMCache:             c.prmCache,
+		MigGrEngineActive:    c.migGrEngineActive,
 		NodeUnschedulable:    c.nodeUnschedulable,
 		Telemetry:            c.telemetry.collectorTelemetry,
 		Workloadmeta:         c.wmeta,
@@ -1159,5 +1167,54 @@ func (c *Check) updateDeviceCountTelemetry(devices []ddnvml.Device) {
 		}
 		tags := append([]string{string(mode)}, nvidia.DeviceTelemetryTags(device)...)
 		c.telemetry.metrics.deviceCount.Inc(tags...)
+	}
+}
+
+// migGrRequestTimeout bounds each /mig-gr request, so that a slow system-probe delays a check run by little
+const migGrRequestTimeout = time.Second
+
+// migGrBackoff is how long the check stops asking system-probe for MIG gr_engine_active after a failed request
+const migGrBackoff = time.Minute
+
+// newMigGrEngineActiveReader returns a reader of MIG GPM GRAPHICS_UTIL from system-probe.
+func newMigGrEngineActiveReader(client *sysprobeclient.CheckClient) func(string) (float64, error) {
+	return newMigGrReader(func(uuid string) (float64, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), migGrRequestTimeout)
+		defer cancel()
+		return sysprobeclient.GetEndpointWithContext[float64](ctx, client, "/mig-gr?uuid="+url.QueryEscape(uuid), sysconfigtypes.GPUMonitoringModule)
+	}, time.Now)
+}
+
+// newMigGrReader wraps get with a backoff, so that a failing system-probe is not called for each device on each run.
+// The warm-up answer (503) is expected and never pauses. An error about one device (404, 500) pauses that device only;
+// any other error (system-probe unreachable or not started, timeout, endpoint disabled) pauses every device.
+func newMigGrReader(get func(uuid string) (float64, error), now func() time.Time) func(string) (float64, error) {
+	var mu sync.Mutex
+	var pausedAll time.Time
+	pausedDevice := make(map[string]time.Time)
+	return func(uuid string) (float64, error) {
+		mu.Lock()
+		t := now()
+		paused := t.Before(pausedAll) || t.Before(pausedDevice[uuid])
+		mu.Unlock()
+		if paused {
+			return 0, errors.New("system-probe MIG gr_engine_active paused after a failed request")
+		}
+		value, err := get(uuid)
+		if err == nil {
+			return value, nil
+		}
+		var statusErr *sysprobeclient.StatusCodeError
+		isStatus := errors.As(err, &statusErr)
+		mu.Lock()
+		defer mu.Unlock()
+		switch {
+		case isStatus && statusErr.StatusCode == http.StatusServiceUnavailable:
+		case isStatus && (statusErr.StatusCode == http.StatusNotFound || statusErr.StatusCode == http.StatusInternalServerError):
+			pausedDevice[uuid] = now().Add(migGrBackoff)
+		default:
+			pausedAll = now().Add(migGrBackoff)
+		}
+		return value, err
 	}
 }

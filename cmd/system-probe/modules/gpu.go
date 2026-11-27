@@ -21,6 +21,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -132,6 +134,7 @@ var GPUMonitoring = &module.Factory{
 			context:       ctx,
 			deviceCache:   deviceCache,
 			leaseDone:     make(chan struct{}),
+			migGrSamples:  map[string]migGrSample{},
 		}
 		// The release monitor lives on the module (not the probe) and runs
 		// in every mode: PRM requests, driver events and the eBPF probe all
@@ -161,6 +164,44 @@ type GPUMonitoringModule struct {
 	nvmlLease gpu.NvmlReleaseLease
 	leaseDone chan struct{}
 	leaseWG   sync.WaitGroup
+
+	// migGrSamples holds the previous GPM sample per MIG device UUID for /mig-gr
+	migGrMu          sync.Mutex
+	migGrSamples     map[string]migGrSample
+	migGrLastRefresh time.Time
+}
+
+type migGrSample struct {
+	sample nvml.GpmSample
+	at     time.Time
+}
+
+const (
+	// migGrMinWindow keeps a close second request (e.g. a manual check) from replacing the baseline with a tiny window
+	migGrMinWindow = time.Second
+	// migGrMaxAge treats an older baseline (agent restart, long outage) as missing rather than averaging over the gap.
+	// It is well above the usual check intervals, so that a longer min_collection_interval still gets values.
+	migGrMaxAge = 10 * time.Minute
+	// migGrRefreshInterval limits the device cache refreshes triggered by unknown UUIDs
+	migGrRefreshInterval = 30 * time.Second
+)
+
+// dropMigGrSamples forgets the stored samples, freeing them when NVML is still usable (before a release, at close).
+func (t *GPUMonitoringModule) dropMigGrSamples(free bool) {
+	t.migGrMu.Lock()
+	defer t.migGrMu.Unlock()
+	if len(t.migGrSamples) == 0 {
+		// Nothing to free: don't initialize NVML just as it is being released
+		return
+	}
+	if free {
+		if lib, err := ddnvml.GetSafeNvmlLib(); err == nil {
+			for _, s := range t.migGrSamples {
+				_ = lib.GpmSampleFree(s.sample)
+			}
+		}
+	}
+	clear(t.migGrSamples)
 }
 
 type driverEventSubscriber interface {
@@ -225,6 +266,8 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 		t.prmHandler.HandlePRMMetrics(w, req)
 	}))
 
+	httpMux.HandleFunc("/mig-gr", t.migGrHandler)
+
 	httpMux.HandleFunc("/debug/traced-programs", usm.GetTracedProgramsEndpoint(gpuconfigconsts.GpuModuleName))
 	httpMux.HandleFunc("/debug/blocked-processes", usm.GetBlockedPathIDEndpoint(gpuconfigconsts.GpuModuleName))
 	httpMux.HandleFunc("/debug/clear-blocked", usm.GetClearBlockedEndpoint(gpuconfigconsts.GpuModuleName))
@@ -276,6 +319,7 @@ func (t *GPUMonitoringModule) startNvmlReleaseMonitor() {
 // they would be discarded. The pre-reset mapping is kept instead (best-effort
 // attribution for the events in flight) and invalidated at reacquire time.
 func (t *GPUMonitoringModule) releaseNVMLForLease() {
+	t.dropMigGrSamples(true)
 	if t.Probe != nil {
 		t.Probe.ReleaseForNvmlLease()
 		return
@@ -293,6 +337,8 @@ func (t *GPUMonitoringModule) releaseNVMLForLease() {
 // changed) device layout. The cache refresh loop re-populates the
 // driver-events-only cache; eBPF mode re-enumerates lazily on next use.
 func (t *GPUMonitoringModule) reacquireNVMLForLease() {
+	// samples stored between the release and here belong to the previous NVML session: drop them without freeing
+	t.dropMigGrSamples(false)
 	if t.Probe != nil {
 		t.Probe.ReacquireForNvmlLease()
 		return
@@ -325,6 +371,92 @@ func (t *GPUMonitoringModule) nvmlReleaseHandler(w http.ResponseWriter, r *http.
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("{}"))
+}
+
+// migGrHandler serves GET /mig-gr?uuid=<MIG device UUID>: the GPM GRAPHICS_UTIL of a
+// MIG device between this request and the previous one for the same UUID. On MIG,
+// GPM reads need CAP_SYS_ADMIN (or the MIG config capability), which system-probe
+// may hold but the core agent does not. Without a usable previous sample (first
+// request, too close, too old) it stores one and answers 503.
+func (t *GPUMonitoringModule) migGrHandler(w http.ResponseWriter, req *http.Request) {
+	if t.cfg == nil || !t.cfg.MigGrEndpointEnabled {
+		http.Error(w, "GPU MIG gr_engine_active endpoint is disabled", http.StatusNotImplemented)
+		return
+	}
+	uuid := req.URL.Query().Get("uuid")
+	if req.Method != http.MethodGet || uuid == "" {
+		http.Error(w, "expected GET with a uuid parameter", http.StatusBadRequest)
+		return
+	}
+	// Queue on the module lock before holding NVML, and skip requests whose caller gave up meanwhile
+	t.migGrMu.Lock()
+	defer t.migGrMu.Unlock()
+	if req.Context().Err() != nil {
+		return
+	}
+	if err := ddnvml.BeginNVMLUse(); err != nil {
+		http.Error(w, fmt.Sprintf("NVML unavailable (release window active): %v", err), http.StatusServiceUnavailable)
+		return
+	}
+	defer ddnvml.EndNVMLUse()
+
+	dev, err := t.deviceCache.GetByUUID(uuid)
+	if err != nil && time.Since(t.migGrLastRefresh) >= migGrRefreshInterval {
+		t.migGrLastRefresh = time.Now()
+		if refreshErr := t.deviceCache.Refresh(); refreshErr != nil {
+			http.Error(w, fmt.Sprintf("cannot list GPU devices: %v", refreshErr), http.StatusServiceUnavailable)
+			return
+		}
+		dev, err = t.deviceCache.GetByUUID(uuid)
+	}
+	mig, ok := dev.(*ddnvml.MIGDevice)
+	if err != nil || !ok || mig.Parent == nil {
+		http.Error(w, fmt.Sprintf("MIG device %q not found", uuid), http.StatusNotFound)
+		return
+	}
+	lib, err := ddnvml.GetSafeNvmlLib()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+
+	now := time.Now()
+	prev, hasPrev := t.migGrSamples[uuid]
+	if hasPrev && now.Sub(prev.at) < migGrMinWindow {
+		http.Error(w, "previous GPM sample too recent", http.StatusServiceUnavailable)
+		return
+	}
+	sample, err := lib.GpmSampleAlloc()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if hasPrev {
+		delete(t.migGrSamples, uuid)
+		defer func() { _ = lib.GpmSampleFree(prev.sample) }()
+	}
+	if err := mig.Parent.GpmMigSampleGet(mig.MIGInstanceID, sample); err != nil {
+		_ = lib.GpmSampleFree(sample)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	t.migGrSamples[uuid] = migGrSample{sample: sample, at: now}
+	if !hasPrev || now.Sub(prev.at) > migGrMaxAge {
+		http.Error(w, "GPM baseline stored, no value yet", http.StatusServiceUnavailable)
+		return
+	}
+
+	get := &nvml.GpmMetricsGetType{NumMetrics: 1, Version: nvml.GPM_METRICS_GET_VERSION, Sample1: prev.sample, Sample2: sample}
+	get.Metrics[0] = nvml.GpmMetric{MetricId: uint32(nvml.GPM_METRIC_GRAPHICS_UTIL), NvmlReturn: uint32(nvml.ERROR_UNKNOWN)}
+	if err := lib.GpmMetricsGet(get); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if ret := nvml.Return(get.Metrics[0].NvmlReturn); ret != nvml.SUCCESS {
+		http.Error(w, nvml.ErrorString(ret), http.StatusInternalServerError)
+		return
+	}
+	utils.WriteAsJSON(req, w, get.Metrics[0].Value, utils.CompactOutput)
 }
 
 // GetStats returns the debug stats for the GPU monitoring module
@@ -387,6 +519,7 @@ func (t *GPUMonitoringModule) Close() {
 		close(t.leaseDone)
 		t.leaseWG.Wait()
 	}
+	t.dropMigGrSamples(true)
 	t.contextCancel()
 	if t.driverEventSubscriber != nil {
 		t.driverEventSubscriber.Stop()

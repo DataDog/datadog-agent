@@ -87,6 +87,8 @@ type CollectorDependencies struct {
 	SystemProbeCache *SystemProbeCache
 	// PRMCache is a cache of privileged PRM metrics obtained from system-probe
 	PRMCache *PRMCache
+	// MigGrEngineActive (optional) returns the GPM GRAPHICS_UTIL of a MIG device as read by system-probe
+	MigGrEngineActive func(uuid string) (float64, error)
 	// NodeUnschedulable is an (optional) cache of the node unschedulable state, refreshed by the check
 	NodeUnschedulable *nodeunschedulable.Cache
 	// Telemetry is the telemetry component to use for collecting metrics

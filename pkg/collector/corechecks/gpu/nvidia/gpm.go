@@ -32,6 +32,7 @@ type gpmCollector struct {
 	emitLegacySMActive       bool
 	emitGrEngineSMActive     bool
 	grEngineSMActivePriority MetricPriority
+	migGrEngineActive        func(uuid string) (float64, error) // only for MIG devices, see CollectorDependencies
 }
 
 type gpmMetric struct {
@@ -110,6 +111,9 @@ func newGPMCollectorWithMetrics(device ddnvml.Device, metricsToCollect map[nvml.
 	if isMig {
 		collector.parentPhysicalDevice = migDevice.Parent
 		collector.migInstanceID = migDevice.MIGInstanceID
+		if deps != nil {
+			collector.migGrEngineActive = deps.MigGrEngineActive
+		}
 	}
 
 	collector.lib, err = ddnvml.GetSafeNvmlLib()
@@ -304,10 +308,24 @@ func (c *gpmCollector) Collect() ([]Sample, error) {
 			continue
 		}
 
+		value := metric.Value
+		// On MIG, the local GRAPHICS_UTIL reads 0 without CAP_SYS_ADMIN: when it reads 0, use the system-probe value.
+		// A non-zero local value is correct and kept, so a system-probe without the capability cannot override it.
+		// system-probe is asked on every run, even when the local value is used, so that its window stays the
+		// check interval rather than covering the whole time since the local value last read 0.
+		if c.migGrEngineActive != nil && nvml.GpmMetricId(metric.MetricId) == nvml.GPM_METRIC_GRAPHICS_UTIL {
+			remote, err := c.migGrEngineActive(c.device.GetDeviceInfo().UUID)
+			if err != nil {
+				log.Debugf("using local GPM GRAPHICS_UTIL for MIG device %s: %v", c.device.GetDeviceInfo().UUID, err)
+			} else if value == 0 {
+				value = remote
+			}
+		}
+
 		samples = append(samples, &Metric{
 			baseSample: baseSample{priority: High}, // All GPM metrics have priority over other collectors
 			Name:       metricData.name,
-			Value:      metric.Value,
+			Value:      value,
 			Type:       metricData.metricType,
 		})
 		if c.emitLegacySMActive && nvml.GpmMetricId(metric.MetricId) == nvml.GPM_METRIC_SM_UTIL {
@@ -322,7 +340,7 @@ func (c *gpmCollector) Collect() ([]Sample, error) {
 			samples = append(samples, &Metric{
 				baseSample: baseSample{priority: c.grEngineSMActivePriority},
 				Name:       "sm_active",
-				Value:      metric.Value,
+				Value:      value,
 				Type:       metricData.metricType,
 			})
 		}

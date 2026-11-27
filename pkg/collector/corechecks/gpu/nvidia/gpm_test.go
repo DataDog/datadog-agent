@@ -327,3 +327,74 @@ func TestGPMCollectorSMActiveSources(t *testing.T) {
 		})
 	}
 }
+
+func TestGPMCollectorMIGUsesSystemProbeGrEngineActive(t *testing.T) {
+	mockLib := nvmltestutil.SetupMockNVML(t,
+		testutil.WithGpmSupport(true),
+		testutil.WithGpmMetricValues(map[nvml.GpmMetricId]testutil.MockGpmMetricValue{
+			nvml.GPM_METRIC_GRAPHICS_UTIL: {Value: 0, Return: nvml.SUCCESS},
+		}),
+	)
+	migDevice := &ddnvml.MIGDevice{
+		DeviceInfo:    ddnvml.DeviceInfo{UUID: "MIG-test"},
+		Parent:        nvmltestutil.PhysicalDevice(t, mockLib, 0),
+		MIGInstanceID: 1,
+	}
+
+	for _, tc := range []struct {
+		name     string
+		spErr    error
+		expected float64
+	}{
+		{name: "system-probe value", expected: 73},
+		{name: "fallback on error", spErr: assert.AnError, expected: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			collector, err := newGPMCollectorWithMetrics(migDevice, map[nvml.GpmMetricId]gpmMetric{
+				nvml.GPM_METRIC_GRAPHICS_UTIL: {name: "gr_engine_active", metricType: metrics.GaugeType},
+			}, &CollectorDependencies{MigGrEngineActive: func(uuid string) (float64, error) {
+				assert.Equal(t, "MIG-test", uuid)
+				return 73, tc.spErr
+			}})
+			require.NoError(t, err)
+
+			samples, err := collector.Collect()
+			require.NoError(t, err)
+			got := requireMetrics(t, samples)
+			require.Len(t, got, 2) // gr_engine_active and its sm_active alias
+			for _, metric := range got {
+				assert.Equal(t, tc.expected, metric.Value, metric.Name)
+			}
+		})
+	}
+}
+
+func TestGPMCollectorMIGKeepsNonZeroLocalGrEngineActive(t *testing.T) {
+	mockLib := nvmltestutil.SetupMockNVML(t,
+		testutil.WithGpmSupport(true),
+		testutil.WithGpmMetricValues(map[nvml.GpmMetricId]testutil.MockGpmMetricValue{
+			nvml.GPM_METRIC_GRAPHICS_UTIL: {Value: 40, Return: nvml.SUCCESS},
+		}),
+	)
+	migDevice := &ddnvml.MIGDevice{
+		DeviceInfo:    ddnvml.DeviceInfo{UUID: "MIG-test"},
+		Parent:        nvmltestutil.PhysicalDevice(t, mockLib, 0),
+		MIGInstanceID: 1,
+	}
+	calls := 0
+	collector, err := newGPMCollectorWithMetrics(migDevice, map[nvml.GpmMetricId]gpmMetric{
+		nvml.GPM_METRIC_GRAPHICS_UTIL: {name: "gr_engine_active", metricType: metrics.GaugeType},
+	}, &CollectorDependencies{MigGrEngineActive: func(string) (float64, error) {
+		calls++
+		return 0, nil // e.g. a system-probe without the capability
+	}})
+	require.NoError(t, err)
+
+	samples, err := collector.Collect()
+	require.NoError(t, err)
+	for _, metric := range requireMetrics(t, samples) {
+		assert.Equal(t, 40.0, metric.Value, metric.Name)
+	}
+	// system-probe is still asked, so that its window follows the check interval
+	assert.Equal(t, 1, calls)
+}
