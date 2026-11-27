@@ -1,0 +1,7 @@
+api_key: "00000000000000000000000000000000"
+hostname: binary-test-host
+log_to_console: true
+use_dogstatsd: false
+cloud_provider_metadata: []
+remote_configuration:
+  enabled: false
