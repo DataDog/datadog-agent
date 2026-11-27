@@ -119,14 +119,17 @@ func TestTryRecoverFromEmbeddedRootDCSwitchAccepted(t *testing.T) {
 	assertClientLatchedToDC(t, client, dcB2)
 }
 
-// TestTryRecoverFromEmbeddedRootSameChainReplayRejected covers the rollback
-// protection. A replay of older, still unexpired metadata from the current DC
-// verifies from the embedded root (the current chain anchors there too) and
-// belongs to the same org, but it is signed by the same keys as the latched
-// state: it is not a DC switch. The recovery must reject it: wiping the DB
-// would reset the version counters and let the rolled back versions in,
-// disabling TUF rollback protection.
-func TestTryRecoverFromEmbeddedRootSameChainReplayRejected(t *testing.T) {
+// TestTryRecoverFromEmbeddedRootAcceptsSameChainPayload covers the recovery
+// of a fresh-join payload signed by the same keys as the latched state.
+// Production DCs share the root signing keys of both repositories, so the
+// old root-key comparison refused every real DC switch and left agents
+// polling TUF failures forever. The recovery no longer discriminates on
+// keys: any payload that verifies from the embedded root and passes the org
+// UUID checks is accepted, including a replay of the current chain (the
+// normal update path's version checks no longer protect against that once
+// the DB is wiped; accepted tradeoff, real DC switches were otherwise
+// permanently locked out).
+func TestTryRecoverFromEmbeddedRootAcceptsSameChainPayload(t *testing.T) {
 	configTargets, directorTargets, targetFiles := dcTestTargets()
 	embedded, _, dcB := newDCTestTopology(configTargets, directorTargets, targetFiles)
 
@@ -146,16 +149,18 @@ func TestTryRecoverFromEmbeddedRootSameChainReplayRejected(t *testing.T) {
 	err = client.Update(dcB.toUpdateNoRoots())
 	assert.Error(t, err)
 
-	// The recovery must reject the same-chain payload and leave the latched
-	// state untouched.
+	// The recovery accepts the same-chain payload and latches the client to
+	// its (older) state.
 	err = client.TryRecoverFromEmbeddedRoot(dcB.toUpdate())
-	require.Error(t, err)
-	assertClientLatchedToDC(t, client, dcB2)
+	require.NoError(t, err)
+	assertClientLatchedToDC(t, client, dcB)
 
-	// The rollback is still rejected by the normal update path afterwards.
-	err = client.Update(dcB.toUpdateNoRoots())
-	assert.Error(t, err)
-	assertClientLatchedToDC(t, client, dcB2)
+	// A later incremental update of the same DC keeps working on the
+	// rebuilt state.
+	dcB3 := dcB.incrementalChange(configTargets, directorTargets, targetFiles, nil, dcB.directorSnapshotVersion+2)
+	err = client.Update(dcB3.toUpdate())
+	require.NoError(t, err)
+	assertClientLatchedToDC(t, client, dcB3)
 }
 
 // TestTryRecoverFromEmbeddedRootRequiresFreshJoinResponse asserts the recovery

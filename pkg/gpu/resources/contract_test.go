@@ -47,6 +47,7 @@ func TestPublishedDeviceMatchesREDAPLSchema(t *testing.T) {
 	clique := uint32(math.MaxUint32)
 	zeroClique := uint32(0)
 	numa, slot, tray, module := 0, uint8(0), uint8(255), uint8(7)
+	yes, no := true, false
 	for _, tc := range []struct {
 		name   string
 		device Device
@@ -71,6 +72,12 @@ func TestPublishedDeviceMatchesREDAPLSchema(t *testing.T) {
 				Protocol: "nvlink_c2c", PCIeMaxGeneration: 6, PCIeGPUMaxGeneration: 6, PCIeMaxWidth: 16,
 				PCIeMaxBandwidthBytesPerSecond: 121000000000, C2CLinkCount: 10, C2CMaxBandwidthMbps: 357696,
 			},
+			GPUPeers: []GPUPeer{{
+				UUID:            "gpu-00000000-0000-0000-0000-000000000002",
+				P2PCapabilities: &P2PCapabilities{Read: &yes, Write: &no, Atomics: &yes, NVLink: &yes, PCI: &no},
+				DirectNVLinks:   []DirectNVLink{{Port: 0, RemotePCIBusID: "0000:19:00.0", Version: "3.1"}},
+			}},
+			UnresolvedNVLinks: []UnresolvedNVLink{{Port: math.MaxInt32, RemoteType: "switch", RemotePCIBusID: "0000:80:00.0", Version: "4.0"}},
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -146,6 +153,9 @@ func requireValueMatches(t *testing.T, source, name string, property contractPro
 		var nested map[string]json.RawMessage
 		require.NoError(t, json.Unmarshal(value, &nested), name)
 		requireMatchesContract(t, source, property.Properties, nested)
+	case "boolean":
+		var flag bool
+		require.NoError(t, json.Unmarshal(value, &flag), name)
 	default:
 		t.Fatalf("add contract coverage for emitted %s of type %s", name, property.Type)
 	}

@@ -16,7 +16,6 @@ go_library(
         "//comp/privateactionrunner/phonehome/def",
         "//pkg/privateactionrunner",
         "//pkg/privateactionrunner/adapters/config",
-        "//pkg/util/flavor",
         "//pkg/util/fxutil",
         "@org_uber_go_fx//:fx",
     ],

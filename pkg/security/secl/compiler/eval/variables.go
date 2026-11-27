@@ -979,9 +979,15 @@ type VariableOpts struct {
 	// from: the variable is serialized only when they are all listed in
 	// envs_with_value
 	EnvKeys []string `json:"-"`
-	// EnvKeyEvaluated is whether the value is read from an environment variable
-	// whose name is evaluated per event: the variable is never serialized
+	// EnvKeyEvaluated is whether the value is read from the environment of a
+	// process without a key to filter it on: an environment variable whose name
+	// is evaluated per event, or a part of an envp entry. The variable is never
+	// serialized
 	EnvKeyEvaluated bool `json:"-"`
+	// EnvFiltered is whether the values are envp entries, KEY=value, copied as
+	// is: each one is serialized with its value only when KEY is listed in
+	// envs_with_value
+	EnvFiltered bool `json:"-"`
 }
 
 // NewVariables returns a new set of global variables

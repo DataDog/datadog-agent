@@ -62,8 +62,6 @@ require (
 	google.golang.org/protobuf v1.36.12
 )
 
-require go.opentelemetry.io/collector/internal/telemetry v0.165.0 // indirect
-
 require (
 	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.85.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.85.0 // indirect
@@ -189,6 +187,7 @@ require (
 	go.opentelemetry.io/collector/extension/extensionmiddleware v0.165.0 // indirect
 	go.opentelemetry.io/collector/extension/xextension v0.165.0 // indirect
 	go.opentelemetry.io/collector/internal/componentalias v0.166.0 // indirect
+	go.opentelemetry.io/collector/internal/telemetry v0.165.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.166.0 // indirect
 	go.opentelemetry.io/collector/pdata/xpdata v0.165.0 // indirect
 	go.opentelemetry.io/collector/pipeline v1.72.0 // indirect

@@ -104,7 +104,7 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		Version:                            version.AgentVersion,
 		MetricsClient:                      metricsClient,
 		AgentHTTPClient:                    agentHTTPClient,
-		ActionsAllowlist:                   makeActionsAllowlist(config),
+		ActionsAllowlist:                   MakeActionsAllowlist(config),
 		Allowlist:                          config.GetStringSlice(par.HTTPAllowlist),
 		DomainAllowlist:                    domainAllowlist(config),
 		AllowIMDSEndpoint:                  config.GetBool(par.HTTPAllowIMDSEndpoint),
@@ -169,7 +169,8 @@ func domainAllowlist(config config.Component) []string {
 	return patterns
 }
 
-func makeActionsAllowlist(config config.Component) ActionsAllowlist {
+// MakeActionsAllowlist resolves configured, default, subsystem, and inherited actions.
+func MakeActionsAllowlist(config config.Component) ActionsAllowlist {
 	actionFqns := config.GetStringSlice(par.ActionsAllowlist)
 
 	if config.GetBool(par.DefaultActionsEnabled) {
@@ -178,6 +179,10 @@ func makeActionsAllowlist(config config.Component) ActionsAllowlist {
 		} else {
 			actionFqns = append(actionFqns, DefaultActionFQNs...)
 		}
+	}
+
+	if config.GetBool(par.KubernetesRemediationsEnabled) {
+		actionFqns = append(actionFqns, KubernetesRemediationActionFQNs...)
 	}
 
 	// When the kubeactions subsystem is enabled and its Private Action Runner

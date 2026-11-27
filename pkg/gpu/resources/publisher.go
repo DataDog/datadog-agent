@@ -64,6 +64,11 @@ func NewPublisher(options Options) (*Publisher, error) {
 	return &Publisher{options: options, last: make(map[string]published)}, nil
 }
 
+// RefreshInterval returns how often unchanged resources are republished.
+func (p *Publisher) RefreshInterval() time.Duration {
+	return p.options.RefreshInterval
+}
+
 // Publish submits changed or refresh-due devices. Each event carries the full
 // device as currently reported, so fields no longer reported are dropped.
 // Submission does not acknowledge delivery.

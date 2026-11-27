@@ -26,8 +26,6 @@ require (
 	google.golang.org/protobuf v1.36.12
 )
 
-require go.opentelemetry.io/collector/pipeline/xpipeline v0.165.0 // indirect
-
 require (
 	cloud.google.com/go/auth v0.24.1-0.20261001053825-dbc26066f70a // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.3.0 // indirect
@@ -163,6 +161,7 @@ require (
 	go.opentelemetry.io/collector/pdata/pprofile v0.166.0 // indirect
 	go.opentelemetry.io/collector/pdata/testdata v0.166.0 // indirect
 	go.opentelemetry.io/collector/pipeline v1.72.0 // indirect
+	go.opentelemetry.io/collector/pipeline/xpipeline v0.165.0 // indirect
 	go.opentelemetry.io/collector/processor v1.71.0 // indirect
 	go.opentelemetry.io/collector/processor/processorhelper v0.165.0 // indirect
 	go.opentelemetry.io/collector/processor/processorhelper/xprocessorhelper v0.165.0 // indirect

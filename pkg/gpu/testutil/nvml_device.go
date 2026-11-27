@@ -39,6 +39,9 @@ type deviceOptions struct {
 	scopedFieldValues       map[uint32]map[uint32]MockFieldValue
 	nvlinkStates            []nvml.EnableState
 	nvlinkStateErrors       map[int]nvml.Return
+	nvlinkRemotes           map[int]NVLinkRemote
+	p2pStatuses             map[string]map[nvml.GpuP2PCapsIndex]MockP2PStatus
+	pciInfo                 *nvml.PciInfo
 	migChildUUIDs           map[int]string
 	gridFeatures            *nvml.GridLicensableFeatures
 	gridFeaturesReturn      *nvml.Return
@@ -361,6 +364,9 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 			return 16, nvml.SUCCESS
 		},
 		GetPciInfoFunc: func() (nvml.PciInfo, nvml.Return) {
+			if opts.pciInfo != nil {
+				return *opts.pciInfo, nvml.SUCCESS
+			}
 			return DefaultPCIBusIDFields, nvml.SUCCESS
 		},
 		GetRemappedRowsFunc: func() (int, int, bool, bool, nvml.Return) {
@@ -415,6 +421,34 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return uint32(opts.nvlinkGeneration), nvml.SUCCESS
+		},
+		GetNvLinkRemoteDeviceTypeFunc: func(link int) (nvml.IntNvLinkDeviceType, nvml.Return) {
+			remote, ok := opts.nvlinkRemotes[link]
+			if isMIGChildOrVGPUUnsupported || !opts.nvlinkSupported() || !ok {
+				return 0, nvml.ERROR_NOT_SUPPORTED
+			}
+			return remote.Type, remote.TypeReturn
+		},
+		GetNvLinkRemotePciInfoFunc: func(link int) (nvml.PciInfo, nvml.Return) {
+			remote, ok := opts.nvlinkRemotes[link]
+			if isMIGChildOrVGPUUnsupported || !opts.nvlinkSupported() || !ok {
+				return nvml.PciInfo{}, nvml.ERROR_NOT_SUPPORTED
+			}
+			return remote.PCI, remote.PCIReturn
+		},
+		GetP2PStatusFunc: func(peer nvml.Device, index nvml.GpuP2PCapsIndex) (nvml.GpuP2PStatus, nvml.Return) {
+			if isMIGChildOrVGPUUnsupported {
+				return 0, nvml.ERROR_NOT_SUPPORTED
+			}
+			peerUUID, ret := peer.GetUUID()
+			if ret != nvml.SUCCESS {
+				return 0, ret
+			}
+			status, ok := opts.p2pStatuses[peerUUID][index]
+			if !ok {
+				return 0, nvml.ERROR_NOT_SUPPORTED
+			}
+			return status.Status, status.Return
 		},
 		GetNvLinkUtilizationCounterFunc: func(_, _ int) (uint64, uint64, nvml.Return) {
 			if isMIGChildOrVGPUUnsupported || !opts.nvlinkSupported() || opts.nvlinkLinkCount == 0 {
