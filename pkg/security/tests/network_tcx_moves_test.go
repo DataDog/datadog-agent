@@ -29,6 +29,7 @@ import (
 	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -94,6 +95,7 @@ func testTCXDeviceMoves(t *testing.T) {
 	t.Run("docker_veth_pair", m.testDockerVethPair)
 	t.Run("failing_device", m.testFailingDevice)
 	t.Run("netns_destruction", m.testNetNSDestruction)
+	t.Run("netkit_namespace_kept", m.testNetkitNamespaceKept)
 }
 
 // run runs ip with args, and deletes the device named by cleanup at the end of the test
@@ -403,4 +405,48 @@ func (m *tcxMoves) testNetNSDestruction(t *testing.T) {
 
 	_, err = os.Stat(nsPath.GetPath())
 	assert.True(t, os.IsNotExist(err), "the namespace is still mounted: %v", err)
+}
+
+// testNetkitNamespaceKept checks that a namespace whose only device is the end of an L3 netkit pair, which has no MAC
+// address, keeps the classifiers of that end. As with Cilium, the end moves without any event, so the flush that finds
+// the namespace lonely attaches it.
+func (m *tcxMoves) testNetkitNamespaceKept(t *testing.T) {
+	checkKernelCompatibility(t, "kernels without netkit", func(kv *kernel.Version) bool {
+		return kv.Code < kernel.Kernel6_7
+	})
+
+	nsID, nsPath := m.newNetNS(t, "wpnetkit")
+
+	pair := &netlink.Netkit{LinkAttrs: netlink.LinkAttrs{Name: "wpnk0"}, Mode: netlink.NETKIT_MODE_L3}
+	pair.SetPeerAttrs(&netlink.LinkAttrs{Name: "wpnk1"})
+	if err := netlink.LinkAdd(pair); err != nil {
+		if errors.Is(err, unix.EOPNOTSUPP) {
+			t.Skip("the kernel was built without netkit")
+		}
+		t.Fatalf("couldn't create the netkit pair: %v", err)
+	}
+	t.Cleanup(func() { _ = netlink.LinkDel(pair) })
+	m.run(t, "", "link", "set", "wpnk1", "netns", "wpnetkit")
+	ifIndex := m.ifIndex(t, nsPath, "wpnk1")
+
+	m.flush()
+	time.Sleep(secnetns.LonelyNamespaceTimeout() + time.Second)
+	m.flush()
+
+	programs := m.programs(nsID, ifIndex)
+	if len(programs) == 0 {
+		t.Fatalf("wpnk1 holds no classifier\n%s", m.describe(nsID, ifIndex))
+	}
+
+	m.flush()
+	assert.ElementsMatch(t, programs, m.programs(nsID, ifIndex), "programs of wpnk1")
+
+	dump, err := dumpNetworkNamespaces(m.probe, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	i := slices.IndexFunc(dump, func(ns secnetns.NetworkNamespaceDump) bool { return ns.NsID == nsID })
+	if assert.GreaterOrEqual(t, i, 0, "namespace %d isn't tracked", nsID) {
+		assert.True(t, dump[i].LonelyTimeout.IsZero(), "namespace %d is lonely", nsID)
+	}
 }

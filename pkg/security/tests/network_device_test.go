@@ -158,6 +158,45 @@ func testNetDevice(t *testing.T) {
 	}
 }
 
+var _ = declare(TestNetkitNamespace, testOpts{networkIngressEnabled: true})
+
+// TestNetkitNamespace runs the netkit scenario of the TCX device moves with legacy tc filters
+func TestNetkitNamespace(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
+		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
+	})
+
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping netkit test in docker")
+	}
+
+	// dummy rule to force the activation of netdev-related probes
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `dns.question.type == A`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		t.Fatal("not supported")
+	}
+	hostNetNS, err := getCurrentNetns()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m := &tcxMoves{test: test, probe: p, ip: which(t, "ip"), hostNetNS: hostNetNS}
+	m.testNetkitNamespaceKept(t)
+}
+
 var _ = declare(TestNetNSMountRegistration, testOpts{networkIngressEnabled: true})
 
 func TestNetNSMountRegistration(t *testing.T) {

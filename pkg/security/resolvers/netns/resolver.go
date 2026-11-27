@@ -257,8 +257,7 @@ func (nr *Resolver) snapshotNetworkDevices(netns *NetworkNamespace) int {
 		}
 
 		if err = nr.tcResolver.SetupNewTCClassifierWithNetNSHandle(device, handle, nr.manager); err == nil {
-			// ignore interfaces that are lazily deleted
-			if !nr.IsLazyDeletionInterface(device.Name) && attrs.HardwareAddr.String() != "" {
+			if nr.keepsNetworkNamespace(link) {
 				attachedDeviceCountNoLazyDeletion++
 			}
 		} else {
@@ -278,6 +277,17 @@ func (nr *Resolver) IsLazyDeletionInterface(name string) bool {
 		}
 	}
 	return false
+}
+
+// keepsNetworkNamespace returns true for the devices that keep their network namespace from being flushed, the ones
+// deleted along with their container
+func (nr *Resolver) keepsNetworkNamespace(device netlink.Link) bool {
+	attrs := device.Attrs()
+	if attrs == nil || nr.IsLazyDeletionInterface(attrs.Name) {
+		return false
+	}
+	// the fallback tunnels the kernel adds to each namespace have no MAC address, nor do L3 netkit devices
+	return len(attrs.HardwareAddr) > 0 || device.Type() == "netkit"
 }
 
 // SyncCache snapshots /proc to populate the namespace cache. This method returns true if it updated the namespace cache.
@@ -390,7 +400,7 @@ func (nr *Resolver) Stop() {
 }
 
 func (nr *Resolver) manualFlushNamespaces() {
-	probesCount := nr.tcResolver.FlushInactiveProbes(nr.manager, nr.IsLazyDeletionInterface)
+	probesCount := nr.tcResolver.FlushInactiveProbes(nr.manager, nr.keepsNetworkNamespace)
 
 	// There is a possible race condition if we lose all network device creations but do notice the new network
 	// namespace: we will create a handle that will never be flushed by `nr.probe.flushInactiveNamespaces()`.
