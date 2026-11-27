@@ -372,7 +372,11 @@ def get_build_flags(
         extra_cgo_flags += f" -I{rtloader_headers}"
     if include_python and rtloader_common_headers:
         extra_cgo_flags += f" -I{rtloader_common_headers}"
-    env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + extra_cgo_flags
+    # Go's default is -O2 -g, and only when CGO_CFLAGS is unset. Setting the
+    # variable drops both. -O2 stays first so a later -O from the environment
+    # still wins; -g stays off.
+    inherited = os.environ.get('CGO_CFLAGS', '').strip()
+    env['CGO_CFLAGS'] = ' '.join(flag for flag in ('-O2', inherited, extra_cgo_flags.strip()) if flag)
 
     if sys.platform == 'linux' and target_platform == "win32":
         # fake the minimum windows version
