@@ -32,16 +32,25 @@ func openArchive(path string) (*os.File, error) {
 
 // extendedLengthPath adds the \\?\ prefix to a path too long for CreateFile, as os.Open does.
 func extendedLengthPath(path string) string {
-	// CreateFile accepts paths shorter than MAX_PATH minus room for an 8.3 name (260 - 12).
-	if len(path) < 248 || strings.HasPrefix(path, `\\?\`) || strings.HasPrefix(path, `\\.\`) {
+	if hasDevicePrefix(path) {
 		return path
 	}
 	full, err := filepath.Abs(path)
-	if err != nil {
+	// CreateFile accepts full paths shorter than MAX_PATH minus room for an 8.3 name (260 - 12).
+	if err != nil || len(full) < 248 {
 		return path
 	}
 	if strings.HasPrefix(full, `\\`) {
 		return `\\?\UNC\` + full[2:]
 	}
 	return `\\?\` + full
+}
+
+// hasDevicePrefix reports whether path starts with \??\, or with \\?\ or \\.\ in either separator style; none takes the prefix.
+func hasDevicePrefix(path string) bool {
+	if strings.HasPrefix(path, `\??\`) {
+		return true
+	}
+	return len(path) >= 4 && os.IsPathSeparator(path[0]) && os.IsPathSeparator(path[1]) &&
+		(path[2] == '?' || path[2] == '.') && os.IsPathSeparator(path[3])
 }

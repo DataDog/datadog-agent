@@ -300,6 +300,17 @@ func (rt *lateCloseTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	}, nil
 }
 
+func assertUploadOver(t *testing.T, rt *lateCloseTransport) {
+	t.Helper()
+	body, ok := rt.body.(*flareBody)
+	require.True(t, ok, "the request body should be the flare body")
+	select {
+	case <-body.done:
+	default:
+		assert.Fail(t, "the upload should be over when the call returns")
+	}
+}
+
 func TestReadAndPostFlareFileClosesArchiveWhenTransportClosesBodyLate(t *testing.T) {
 	testCases := []struct {
 		name         string
@@ -325,6 +336,7 @@ func TestReadAndPostFlareFileClosesArchiveWhenTransportClosesBodyLate(t *testing
 				resp.Body.Close()
 			}
 
+			assertUploadOver(t, rt)
 			assertArchiveClosed(t, archivePath)
 			rt.body.Close()
 		})

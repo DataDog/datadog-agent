@@ -508,6 +508,10 @@ func TestAgentTaskFlareArchiveRemovedWhenCaseIDIsNotAValidURLPath(t *testing.T) 
 	t.Setenv("TMPDIR", tmpDir)
 	t.Setenv("TMP", tmpDir)
 	t.Setenv("TEMP", tmpDir)
+	if filepath.Clean(os.TempDir()) != filepath.Clean(tmpDir) {
+		// GetTempPath2 ignores TMP and TEMP for processes running as SYSTEM.
+		t.Skipf("os.TempDir() is %q, not the overridden %q", os.TempDir(), tmpDir)
+	}
 
 	origSendTo := sendToFunc
 	t.Cleanup(func() { sendToFunc = origSendTo })

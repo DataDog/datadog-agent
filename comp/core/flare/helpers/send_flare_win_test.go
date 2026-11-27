@@ -22,24 +22,6 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-func assertArchiveClosed(t *testing.T, path string) {
-	t.Helper()
-	p, err := windows.UTF16PtrFromString(extendedLengthPath(path))
-	require.NoError(t, err)
-	// An open with no sharing fails while any other handle on the file is open; retry briefly in case a scanner holds one.
-	var h windows.Handle
-	for range 20 {
-		h, err = windows.CreateFile(p, windows.GENERIC_READ, 0, nil, windows.OPEN_EXISTING, windows.FILE_ATTRIBUTE_NORMAL, 0)
-		if err != windows.ERROR_SHARING_VIOLATION {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	if assert.NoError(t, err, "the archive should be closed once the upload is over") {
-		windows.CloseHandle(h) //nolint:errcheck
-	}
-}
-
 func TestExtendedLengthPath(t *testing.T) {
 	long := `C:\` + strings.Repeat(`d\`, 130) + "flare.zip"
 	assert.Equal(t, `C:\Temp\flare.zip`, extendedLengthPath(`C:\Temp\flare.zip`))
@@ -48,6 +30,20 @@ func TestExtendedLengthPath(t *testing.T) {
 	assert.Equal(t, `\\?\`+long, extendedLengthPath(strings.ReplaceAll(long, `\`, "/")))
 	unc := `\\server\share\` + strings.Repeat(`d\`, 130) + "flare.zip"
 	assert.Equal(t, `\\?\UNC\`+unc[2:], extendedLengthPath(unc))
+	device := `//./C:/` + strings.Repeat(`d/`, 130) + "flare.zip"
+	assert.Equal(t, device, extendedLengthPath(device))
+	assert.Equal(t, `\??\`+long, extendedLengthPath(`\??\`+long))
+}
+
+func TestExtendedLengthPathResolvesRelativePath(t *testing.T) {
+	dir := t.TempDir()
+	if len(dir) > 200 {
+		t.Skipf("temp dir %q leaves no room for a relative path that is short on its own", dir)
+	}
+	t.Chdir(dir)
+	// Short on its own, but at least 248 characters once joined with the working directory.
+	rel := strings.Repeat("a", 248-len(dir))
+	assert.Equal(t, `\\?\`+filepath.Join(dir, rel), extendedLengthPath(rel))
 }
 
 func TestReadAndPostFlareFileUploadsArchiveBeyondMaxPath(t *testing.T) {
@@ -61,6 +57,7 @@ func TestReadAndPostFlareFileUploadsArchiveBeyondMaxPath(t *testing.T) {
 	resp, err := readAndPostFlareFile(archivePath, "12345", "test@example.com", "hostname", "http://flare.invalid/support/flare/12345", FlareSource{}, &http.Client{Transport: rt}, "test-api-key")
 	require.NoError(t, err)
 	resp.Body.Close()
+	assertUploadOver(t, rt)
 	rt.body.Close()
 	assertArchiveClosed(t, archivePath)
 }
@@ -77,7 +74,7 @@ func TestOpenArchiveSupportsReadDeadline(t *testing.T) {
 
 func TestFlareReaderEndsBlockedArchiveReadAtDeadline(t *testing.T) {
 	// A pipe whose server never writes blocks the archive read, as an unresponsive filesystem would.
-	name := `\\.\pipe\datadog-flare-test-` + strconv.Itoa(os.Getpid())
+	name := `\\.\pipe\datadog-flare-test-` + strconv.Itoa(os.Getpid()) + "-" + strconv.FormatInt(time.Now().UnixNano(), 10)
 	namep, err := windows.UTF16PtrFromString(name)
 	require.NoError(t, err)
 	server, err := windows.CreateNamedPipe(namep, windows.PIPE_ACCESS_OUTBOUND, windows.PIPE_TYPE_BYTE|windows.PIPE_WAIT, 1, 4096, 4096, 0, nil)
@@ -85,7 +82,15 @@ func TestFlareReaderEndsBlockedArchiveReadAtDeadline(t *testing.T) {
 	defer windows.CloseHandle(server) //nolint:errcheck
 
 	body := getFlareReader("boundary", name, "12345", "", "hostname", FlareSource{}, time.Now().Add(100*time.Millisecond))
-	defer body.release()
+	defer func() {
+		body.release()
+		// release stops waiting at the deadline; wait for the upload goroutine to close its pipe handle too.
+		select {
+		case <-body.done:
+		case <-time.After(5 * time.Second):
+			assert.Fail(t, "the upload goroutine should close the archive")
+		}
+	}()
 	require.NoError(t, readPastFormFileHeader(body))
 
 	readErr := make(chan error, 1)

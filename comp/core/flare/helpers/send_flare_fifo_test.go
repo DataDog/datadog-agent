@@ -76,9 +76,33 @@ func TestReadAndPostFlareFileReturnsWhenArchiveOpenBlocks(t *testing.T) {
 				assert.Fail(t, "readAndPostFlareFile should return while the archive open is blocked")
 			}
 
-			// Let the upload goroutine finish its open, if it is in it.
-			if writer, openErr := os.OpenFile(archivePath, os.O_WRONLY|syscall.O_NONBLOCK, 0); openErr == nil {
-				writer.Close()
+			// The upload goroutine opens the archive once the transport has read the form header, so a blocking
+			// writer open returns once that goroutine is in its open, however late it gets there.
+			type openResult struct {
+				writer *os.File
+				err    error
+			}
+			opened := make(chan openResult, 1)
+			go func() {
+				writer, openErr := os.OpenFile(archivePath, os.O_WRONLY, 0)
+				opened <- openResult{writer, openErr}
+			}()
+			select {
+			case res := <-opened:
+				require.NoError(t, res.err)
+				res.writer.Close()
+			case <-time.After(5 * time.Second):
+				// A reader of our own ends the blocked writer open. Unlink the FIFO before closing the writer so a
+				// later open by the upload goroutine fails instead of waiting for another writer.
+				if reader, readerErr := os.OpenFile(archivePath, os.O_RDONLY|syscall.O_NONBLOCK, 0); readerErr == nil {
+					res := <-opened
+					os.Remove(archivePath)
+					if res.err == nil {
+						res.writer.Close()
+					}
+					reader.Close()
+				}
+				require.FailNow(t, "the upload goroutine should open the archive")
 			}
 			if !returned {
 				select {
