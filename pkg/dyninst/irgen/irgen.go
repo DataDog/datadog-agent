@@ -8783,8 +8783,9 @@ func lineProbeNoCodeIssue(cfg ir.ProbeDefinition) ir.Issue {
 	return noLineCodeIssue(lineNum, sourceFile)
 }
 
-// forEachLineRow passes usable=false for a row whose line state ends before
-// the range starts; fromRange skips all such rows but the last.
+// forEachLineRow passes usable=false for a row whose line state covers no
+// instruction in the range; fromRange skips all rows before the range but the
+// last.
 func forEachLineRow(
 	ranges []ir.PCRange, rootRanges []ir.PCRange, lineData map[ir.PCRange]lineData, fromRange bool,
 	fn func(l line, pc uint64, usable bool) bool,
@@ -8815,14 +8816,11 @@ func forEachLineRow(
 			if l.endSequence {
 				continue
 			}
-			pc, usable := l.pc, true
-			if pc < r[0] {
-				// A row's line state lasts until the next row, which may be
-				// an end-of-sequence marker. Use the inline range start only
-				// when that state still covers it, never the predecessor PC.
-				usable = i+1 >= len(lines.lines) || lines.lines[i+1].pc > r[0]
-				pc = r[0]
-			}
+			// A row's line state lasts until the next row, which may be an
+			// end-of-sequence marker. Use a row, or the inline range start for
+			// a predecessor row, only when that state covers the PC.
+			pc := max(l.pc, r[0])
+			usable := i+1 >= len(lines.lines) || lines.lines[i+1].pc > pc
 			if !fn(l, pc, usable) {
 				return nil
 			}
@@ -8945,8 +8943,8 @@ func resolveLineProbeFiles(
 	return targets
 }
 
-// rankLineProbeFiles ranks caller line state inherited at a range start apart, as a fallback when no row in a
-// range matches at the line. It also returns a matching file whose rows at the line cover no PC, for the error message.
+// rankLineProbeFiles ranks caller line state inherited at a range start apart, as a fallback when no row of the
+// method's own code matches at the line. It also returns a matching file whose rows at the line cover no PC, for the error message.
 func rankLineProbeFiles(
 	lineNum int, sourceFile, wantFile string, p *pendingSubprogram, sp *ir.Subprogram,
 	lineData map[ir.PCRange]lineData, ranks, inheritedRanks map[string]int,
@@ -9003,7 +9001,6 @@ func rankLineProbeFiles(
 					addTo(inheritedRanks, f, sf.score, lineFileInCallee)
 				}
 			case p.calleeRangesUnknown || pcInRanges(p.calleeRanges, pc):
-				rowMatched = rowMatched || atLine
 				origin := lineFileOfCallee
 				if atLine {
 					origin = lineFileInCallee
