@@ -10,6 +10,7 @@ package cgroup
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"sync"
@@ -75,6 +76,7 @@ type Resolver struct {
 	deletedCgroups  atomic.Int64
 	fallbackSucceed atomic.Int64
 	fallbackFailed  atomic.Int64
+	statFailed      atomic.Int64
 	remainingPids   atomic.Int64
 }
 
@@ -504,6 +506,9 @@ func (cr *Resolver) resolveFromFallback(pid uint32) *cgroupModel.CacheEntry {
 
 	seclog.Debugf("failed to add pid %d, error on fallback to resolve its cgroup", pid)
 	cr.fallbackFailed.Inc()
+	if errors.Is(err, utils.ErrStatCGroupPath) {
+		cr.statFailed.Inc()
+	}
 
 	return nil
 }
@@ -756,6 +761,11 @@ func (cr *Resolver) SendStats() error {
 	}
 	if count := cr.fallbackFailed.Swap(0); count > 0 {
 		if err := cr.statsdClient.Count(metrics.MetricCGroupResolverFallbackFailed, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send cgroup_resolver metric: %w", err)
+		}
+	}
+	if count := cr.statFailed.Swap(0); count > 0 {
+		if err := cr.statsdClient.Count(metrics.MetricCGroupResolverStatFailed, count, []string{}, 1.0); err != nil {
 			return fmt.Errorf("failed to send cgroup_resolver metric: %w", err)
 		}
 	}

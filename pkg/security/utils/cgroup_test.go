@@ -15,6 +15,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	cgutil "github.com/DataDog/datadog-agent/pkg/security/utils/cgroup"
@@ -342,6 +344,57 @@ func TestCGroupFS(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, expectedFullCgroupPath, cgroupPath)
 		})
+
+		t.Run("find-cgroup-context-stat-error", func(t *testing.T) {
+			cfsStatErr := *cfs
+			cfsStatErr.statPath = func(string, *CGroupContext) error {
+				return unix.ENOENT
+			}
+
+			containerID, cgroupContext, _, err := cfsStatErr.FindCGroupContext(600894, 600894)
+			require.ErrorIs(t, err, ErrStatCGroupPath)
+			require.ErrorIs(t, err, unix.ENOENT)
+			assert.Empty(t, containerID)
+			assert.Empty(t, cgroupContext.CGroupID)
+		})
+
+		t.Run("find-cgroup-context-stat-fallback-mountpoint", func(t *testing.T) {
+			const pid = uint32(700001)
+			expectedCgroupPath := "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podf099a5b1_192b_4df6_b6d2_aa0b366fc2f1.slice/cri-containerd-b82e1003daa43c88a8f2ee5369e1a6905db37e28d29d61e189d176aea52b2b17.scope"
+
+			procTaskDir := filepath.Join(hostProc, "700001/task/700001")
+			require.NoError(t, os.MkdirAll(procTaskDir, 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(procTaskDir, "cgroup"), []byte("0::"+expectedCgroupPath+"\n"), 0o644))
+
+			firstMount := filepath.Join(tempDir, "sys/fs/cgroup-first")
+			secondMount := filepath.Join(tempDir, "sys/fs/cgroup-second")
+			firstCgroupPath := filepath.Join(firstMount, expectedCgroupPath)
+			secondCgroupPath := filepath.Join(secondMount, expectedCgroupPath)
+
+			require.NoError(t, os.MkdirAll(firstCgroupPath, 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(firstCgroupPath, "cgroup.procs"), []byte("700001\n"), 0o644))
+			require.NoError(t, os.MkdirAll(secondCgroupPath, 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(secondCgroupPath, "cgroup.procs"), []byte("700001\n"), 0o644))
+
+			cfsFallback := *cfs
+			cfsFallback.cGroupMountPoints = []string{firstMount, secondMount}
+			cfsFallback.statPath = func(path string, ctx *CGroupContext) error {
+				if path == firstCgroupPath {
+					return unix.ENOENT
+				}
+				ctx.CGroupFileMountID = 42
+				ctx.CGroupFileInode = 12345
+				return nil
+			}
+
+			containerID, cgroupContext, cgroupPath, err := cfsFallback.FindCGroupContext(pid, pid)
+			require.NoError(t, err)
+			assert.Equal(t, containerutils.ContainerID("b82e1003daa43c88a8f2ee5369e1a6905db37e28d29d61e189d176aea52b2b17"), containerID)
+			assert.Equal(t, containerutils.CGroupID(expectedCgroupPath), cgroupContext.CGroupID)
+			assert.Equal(t, uint32(42), cgroupContext.CGroupFileMountID)
+			assert.Equal(t, uint64(12345), cgroupContext.CGroupFileInode)
+			assert.Equal(t, secondCgroupPath, cgroupPath)
+		})
 	})
 
 	t.Run("cgroupv1", func(t *testing.T) {
@@ -380,6 +433,44 @@ func TestCGroupFS(t *testing.T) {
 			assert.Equal(t, containerutils.ContainerID("d308fe417b11e128c3b42d910f3b3df6f778439edba9ab600e62dfeb5631a46f"), containerID)
 			assert.NoError(t, err)
 			assert.Equal(t, expectedFullCgroupPath, cgroupPath)
+		})
+
+		t.Run("find-cgroup-context-stat-error", func(t *testing.T) {
+			cfsStatErr := *cfs
+			cfsStatErr.statPath = func(string, *CGroupContext) error {
+				return unix.ENOENT
+			}
+
+			containerID, cgroupContext, _, err := cfsStatErr.FindCGroupContext(18865, 18865)
+			require.ErrorIs(t, err, ErrStatCGroupPath)
+			require.ErrorIs(t, err, unix.ENOENT)
+			assert.Empty(t, containerID)
+			assert.Empty(t, cgroupContext.CGroupID)
+		})
+
+		t.Run("find-cgroup-context-stat-error-hybrid-v1", func(t *testing.T) {
+			const pid = uint32(700002)
+			expectedCgroupPath := "/systemd/docker/d308fe417b11e128c3b42d910f3b3df6f778439edba9ab600e62dfeb5631a46f"
+
+			procTaskDir := filepath.Join(hostProc, "700002/task/700002")
+			require.NoError(t, os.MkdirAll(procTaskDir, 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(procTaskDir, "cgroup"), []byte("1:name=systemd:/docker/d308fe417b11e128c3b42d910f3b3df6f778439edba9ab600e62dfeb5631a46f\n0::/\n"), 0o644))
+
+			cgroupDir := filepath.Join(tempDir, "sys/fs/cgroup", expectedCgroupPath)
+			require.NoError(t, os.MkdirAll(cgroupDir, 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(cgroupDir, "cgroup.procs"), []byte("700002\n"), 0o644))
+
+			cfsHybrid := *cfs
+			cfsHybrid.rootCGroupPath = ""
+			cfsHybrid.statPath = func(string, *CGroupContext) error {
+				return unix.ENOENT
+			}
+
+			containerID, cgroupContext, _, err := cfsHybrid.FindCGroupContext(pid, pid)
+			require.ErrorIs(t, err, ErrStatCGroupPath)
+			require.ErrorIs(t, err, unix.ENOENT)
+			assert.Empty(t, containerID)
+			assert.Empty(t, cgroupContext.CGroupID)
 		})
 	})
 }

@@ -9,13 +9,17 @@ package cgroup
 
 import (
 	"errors"
+	"fmt"
+	"os"
 	"strconv"
 	"testing"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -282,6 +286,53 @@ func TestResolvePidCgroupFallback_CompleteFailure(t *testing.T) {
 
 	cacheEntry := resolver.resolveFromFallback(1234)
 	assert.Nil(t, cacheEntry)
+
+	mockFS.AssertExpectations(t)
+}
+
+type countRecorder struct {
+	statsd.NoOpClient
+	counts map[string]int64
+}
+
+func (r *countRecorder) Count(name string, value int64, _ []string, _ float64) error {
+	r.counts[name] += value
+	return nil
+}
+
+func TestResolvePidCgroupFallback_StatFailedMetric(t *testing.T) {
+	mockFS := &MockCGroupFS{}
+	recorder := &countRecorder{counts: make(map[string]int64)}
+	resolver, err := NewResolver(recorder, mockFS, nil)
+	require.NoError(t, err)
+
+	mockFS.On("FindCGroupContext", uint32(1234), uint32(1234)).Return(
+		containerutils.ContainerID(""),
+		utils.CGroupContext{},
+		"",
+		fmt.Errorf("%w: %w", utils.ErrStatCGroupPath, os.ErrNotExist),
+	).Once()
+
+	mockFS.On("FindCGroupContext", uint32(5678), uint32(5678)).Return(
+		containerutils.ContainerID(""),
+		utils.CGroupContext{},
+		"",
+		os.ErrNotExist,
+	).Once()
+
+	assert.Nil(t, resolver.resolveFromFallback(1234))
+	assert.Equal(t, int64(1), resolver.fallbackFailed.Load())
+	assert.Equal(t, int64(1), resolver.statFailed.Load())
+
+	assert.Nil(t, resolver.resolveFromFallback(5678))
+	assert.Equal(t, int64(2), resolver.fallbackFailed.Load())
+	assert.Equal(t, int64(1), resolver.statFailed.Load())
+
+	require.NoError(t, resolver.SendStats())
+	assert.Equal(t, int64(2), recorder.counts[metrics.MetricCGroupResolverFallbackFailed])
+	assert.Equal(t, int64(1), recorder.counts[metrics.MetricCGroupResolverStatFailed])
+	assert.Zero(t, resolver.fallbackFailed.Load())
+	assert.Zero(t, resolver.statFailed.Load())
 
 	mockFS.AssertExpectations(t)
 }
