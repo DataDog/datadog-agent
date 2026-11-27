@@ -343,20 +343,6 @@ func TestReadAndPostFlareFileClosesArchiveWhenTransportClosesBodyLate(t *testing
 	}
 }
 
-// readPastFormFileHeader reads the multipart body until the archive's form part starts.
-func readPastFormFileHeader(r io.Reader) error {
-	var sent bytes.Buffer
-	buf := make([]byte, 512)
-	for !bytes.Contains(sent.Bytes(), []byte("application/octet-stream\r\n\r\n")) {
-		n, err := r.Read(buf)
-		sent.Write(buf[:n])
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // removeDuringUploadTransport removes the archive while the upload still has it open.
 type removeDuringUploadTransport struct {
 	path      string

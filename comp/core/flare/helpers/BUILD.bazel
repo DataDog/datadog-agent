@@ -46,6 +46,7 @@ dd_agent_go_test(
         "perm_info_nix_test.go",
         "perm_info_win_test.go",
         "send_flare_fifo_test.go",
+        "send_flare_form_test.go",
         "send_flare_nix_test.go",
         "send_flare_other_test.go",
         "send_flare_test.go",
