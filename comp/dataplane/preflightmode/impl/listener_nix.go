@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 )
 
 // maxUnixSocketPath bounds the socket path length. sockaddr_un.sun_path is 108 bytes on
@@ -35,8 +36,9 @@ func newListener(workDir string) listener {
 // reported as a clear failure instead of surfacing as an opaque bind error from ADP.
 func (l listener) validate() error {
 	if len(l.socketPath) > maxUnixSocketPath {
-		return fmt.Errorf("the socket path is %d bytes, which exceeds the %d byte limit: %s",
-			len(l.socketPath), maxUnixSocketPath, l.socketPath)
+		// Wraps ENAMETOOLONG so that the spawn failure is classified as name_too_long.
+		return fmt.Errorf("the socket path is %d bytes, which exceeds the %d byte limit: %s: %w",
+			len(l.socketPath), maxUnixSocketPath, l.socketPath, syscall.ENAMETOOLONG)
 	}
 	return nil
 }

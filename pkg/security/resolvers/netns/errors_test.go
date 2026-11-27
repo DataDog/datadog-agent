@@ -37,6 +37,22 @@ func linkNotFoundErr(t *testing.T) error {
 	return err
 }
 
+// attachErr rebuilds the error chain that the eBPF manager returns when attaching a cloned TC probe fails.
+func attachErr(cause error) error {
+	pip := manager.ProbeIdentificationPair{UID: "security_classifier_egress_2_4026532420", EBPFFuncName: "classifier_egress"}
+	return multierror.Append(nil, cloneErr(
+		fmt.Errorf("failed to attach new probe %v: %w", pip,
+			fmt.Errorf("couldn't start probe %v: %w", pip, cause)))).ErrorOrNil()
+}
+
+func tcxAttachErr(cause error) error {
+	return fmt.Errorf("%w to %s[%d]: %w", manager.ErrTCXAttach, "eth0", 2, fmt.Errorf("attach tcx link: %w", cause))
+}
+
+func setnsErr(cause error) error {
+	return fmt.Errorf("%w: couldn't enter the namespace: %w", manager.ErrNetnsSwitch, cause)
+}
+
 func TestClassifyTCClassifierError(t *testing.T) {
 	pip := manager.ProbeIdentificationPair{UID: "security_classifier_egress_2_4026532420", EBPFFuncName: "classifier_egress"}
 
@@ -89,6 +105,51 @@ func TestClassifyTCClassifierError(t *testing.T) {
 			name:     "unknown",
 			err:      multierror.Append(nil, cloneErr(errors.New("something else"))).ErrorOrNil(),
 			expected: errorClassUnknown,
+		},
+		{
+			name: "link not found before a tcx attach",
+			err: attachErr(fmt.Errorf("couldn't resolve interface with IfIndex %d in namespace %d: %w", 1658, 4026536040,
+				linkNotFoundErr(t))),
+			expected: errorClassLinkNotFound,
+		},
+		{
+			name:     "missing device on tcx attach",
+			err:      attachErr(tcxAttachErr(unix.ENODEV)),
+			expected: errorClassNoSuchDevice,
+		},
+		{
+			name:     "tcx hook full",
+			err:      attachErr(tcxAttachErr(unix.ERANGE)),
+			expected: errorClassTCXAttach,
+		},
+		{
+			name:     "tcx attach denied",
+			err:      attachErr(tcxAttachErr(unix.EPERM)),
+			expected: errorClassTCXAttach,
+		},
+		{
+			name:     "setns denied",
+			err:      attachErr(setnsErr(unix.EPERM)),
+			expected: errorClassSetns,
+		},
+		{
+			name: "stale namespace handle",
+			err: attachErr(fmt.Errorf("%w: handle %d refers to inode %d instead of namespace %d",
+				manager.ErrNetnsSwitch, 12, 4026531840, 4026532420)),
+			expected: errorClassSetns,
+		},
+		{
+			name:     "namespace not restored after a tcx attach failure",
+			err:      attachErr(errors.Join(tcxAttachErr(unix.EPERM), fmt.Errorf("%w: couldn't restore the original namespace: %w", manager.ErrNetnsSwitch, unix.EINVAL))),
+			expected: errorClassSetns,
+		},
+		{
+			name: "tcx attach failure next to an existing classifier",
+			err: multierror.Append(nil,
+				cloneErr(fmt.Errorf("couldn't add probe %v: %w", pip, manager.ErrIdentificationPairInUse)),
+				attachErr(tcxAttachErr(unix.ERANGE)),
+			).ErrorOrNil(),
+			expected: errorClassTCXAttach,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {

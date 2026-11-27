@@ -336,8 +336,8 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenServiceDies() {
 		HasARunningDatadogAgentService().RuntimeConfig("--all").
 		WithValueEqual("log_to_console", false)
 
-	// Stop the agent service to trigger watchdog rollback
-	windowscommon.StopService(s.Env().RemoteHost, consts.ServiceName)
+	// Stop the Installer service to trigger watchdog rollback
+	s.Require().NoError(windowscommon.StopService(s.Env().RemoteHost, consts.ServiceName))
 
 	// Assert
 	s.AssertSuccessfulConfigStopExperiment()

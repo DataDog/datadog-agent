@@ -106,6 +106,8 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestProcessBusybox",
 			"TestRename/io_uring",
 			"TestRenameReuseInode",
+			"TestRenameReuseInodeForDir",
+			"TestRenameFolderFailed",
 			"TestUnlink/io_uring",
 			"TestRmdir/unlinkat-io_uring",
 			"TestHardLinkExecsWithERPC",

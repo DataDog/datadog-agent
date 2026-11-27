@@ -11,6 +11,9 @@ bazel run //tools/privateactionrunner/kubernetes-generator -- --check
 
 Edit `tools/privateactionrunner/kubernetes-generator/config.yaml` to select
 resources and API versions. Edit the templates to change generated handlers.
+Generated files include a notice and the command to regenerate them.
+Long resource names use `hpa`, `vap`, and `webhook` in filenames to stay
+within the Windows checkout path limit. Public action names remain unchanged.
 Handwritten `New…Handler` constructors are registered alongside generated actions.
 Generation replaces and removes `*.gen.go` files only in selected bundles;
 `--check` reports stale files without modifying them. Use `--out=/tmp/kubernetes-actions`

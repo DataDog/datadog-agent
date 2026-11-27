@@ -9,11 +9,14 @@
 package tests
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -21,6 +24,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -383,5 +388,267 @@ func TestUnloadModule(t *testing.T) {
 
 			test.validateUnloadModuleSchema(t, event)
 		}, "test_unload_module")
+	})
+}
+
+var _ = declare(TestFinitModuleEarlyExitERPC, testOpts{disableMapDentryResolution: true})
+
+func TestFinitModuleEarlyExit(t *testing.T) {
+	runFinitModuleEarlyExitTest(t)
+}
+
+func TestFinitModuleEarlyExitERPC(t *testing.T) {
+	runFinitModuleEarlyExitTest(t)
+}
+
+func runFinitModuleEarlyExitTest(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if ebpfLessEnabled {
+		t.Skip("not supported on ebpfless")
+	}
+
+	tmpDir := t.TempDir()
+	if err := os.Chmod(tmpDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	enoexecPath := filepath.Join(tmpDir, "fake-enoexec-mod.ko")
+	if err := os.WriteFile(enoexecPath, []byte("invalid-module-content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	enoexecInode := getInode(t, enoexecPath)
+
+	epermPath := filepath.Join(tmpDir, "fake-eperm-mod.ko.zst")
+	if err := os.WriteFile(epermPath, []byte("invalid-module-content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chown(epermPath, 98, 99); err != nil {
+		t.Fatal(err)
+	}
+	epermInode := getInode(t, epermPath)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_finit_module_enoexec",
+			Expression: fmt.Sprintf(`load_module.name == "fake_enoexec_mod" && load_module.file.name == "fake-enoexec-mod.ko" && load_module.file.path == "%s" && load_module.loaded_from_memory == false && load_module.retval == -%d`, enoexecPath, int(unix.ENOEXEC)),
+		},
+		{
+			ID:         "test_finit_module_eperm",
+			Expression: fmt.Sprintf(`load_module.name == "fake_eperm_mod" && load_module.file.name == "fake-eperm-mod.ko.zst" && load_module.file.path == "%s" && load_module.file.uid == 98 && load_module.file.gid == 99 && load_module.loaded_from_memory == false && load_module.retval == -%d`, epermPath, int(unix.EPERM)),
+		},
+		{
+			ID:         "test_finit_module_eperm_close",
+			Expression: fmt.Sprintf(`load_module.args == "eperm_close" && load_module.loaded_from_memory == false && load_module.retval == -%d`, int(unix.EPERM)),
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	t.Run("finit_module_enoexec", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			f, err := os.Open(enoexecPath)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+
+			err = unix.FinitModule(int(f.Fd()), "", 0)
+			if !errors.Is(err, unix.ENOEXEC) {
+				return fmt.Errorf("expected ENOEXEC, got: %w", err)
+			}
+			return nil
+		}, func(event *model.Event, r *rules.Rule) {
+			assert.Equal(t, "test_finit_module_enoexec", r.ID, "wrong rule triggered")
+			assertFieldEqual(t, event, "load_module.name", "fake_enoexec_mod")
+			assertFieldEqual(t, event, "load_module.file.name", "fake-enoexec-mod.ko")
+			assertFieldEqual(t, event, "load_module.file.path", enoexecPath)
+			assertFieldEqual(t, event, "load_module.file.inode", int(enoexecInode))
+			assertFieldEqual(t, event, "load_module.loaded_from_memory", false)
+		}, "test_finit_module_enoexec")
+	})
+
+	t.Run("finit_module_fd_replacement", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			dirFile, err := os.Open(tmpDir)
+			if err != nil {
+				return err
+			}
+			defer dirFile.Close()
+			dirFD := int(dirFile.Fd())
+
+			modFile, err := os.Open(enoexecPath)
+			if err != nil {
+				return err
+			}
+			defer modFile.Close()
+			modFD := int(modFile.Fd())
+
+			slotFD, err := unix.Dup(dirFD)
+			if err != nil {
+				return err
+			}
+			defer unix.Close(slotFD)
+
+			done := make(chan struct{})
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for {
+					select {
+					case <-done:
+						return
+					default:
+						_ = unix.Dup2(dirFD, slotFD)
+						_ = unix.Dup2(modFD, slotFD)
+					}
+				}
+			}()
+			defer func() {
+				close(done)
+				wg.Wait()
+			}()
+
+			for i := 0; i < 64; i++ {
+				_ = unix.Dup2(modFD, slotFD)
+				if err := unix.FinitModule(slotFD, "", 0); errors.Is(err, unix.ENOEXEC) {
+					return nil
+				}
+			}
+			return errors.New("expected at least one ENOEXEC finit_module call")
+		}, func(event *model.Event, r *rules.Rule) {
+			assert.Equal(t, "test_finit_module_enoexec", r.ID, "wrong rule triggered")
+			assertFieldEqual(t, event, "load_module.name", "fake_enoexec_mod")
+			assertFieldEqual(t, event, "load_module.file.name", "fake-enoexec-mod.ko")
+			assertFieldEqual(t, event, "load_module.file.path", enoexecPath)
+			assertFieldEqual(t, event, "load_module.file.inode", int(enoexecInode))
+		}, "test_finit_module_enoexec")
+	})
+
+	t.Run("finit_module_eperm", func(t *testing.T) {
+		p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+		if !ok {
+			t.Skip("not supported on non-ebpf probe")
+		}
+		status := p.GetConstantFetcherStatus()
+		if !status.IsPresent(constantfetch.OffsetNameTaskStructFiles) ||
+			!status.IsPresent(constantfetch.OffsetNameFilesStructFdt) ||
+			!status.IsPresent(constantfetch.OffsetNameFdtableStructFd) {
+			t.Skip("skipping finit_module EPERM test: task/files/fdtable offsets not resolved by active probe")
+		}
+
+		test.WaitSignalFromRule(t, func() error {
+			f, err := os.Open(epermPath)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			rawFD := int(f.Fd())
+
+			errCh := make(chan error, 1)
+			go func(fd int) {
+				// Leave the OS thread locked when the goroutine returns so the Go runtime
+				// terminates the thread instead of returning a uid=1 thread to the pool.
+				runtime.LockOSThread()
+				if _, _, errno := unix.Syscall(unix.SYS_SETRESUID, 1, 1, 1); errno != 0 {
+					errCh <- errno
+					return
+				}
+
+				callErr := unix.FinitModule(fd, "", 0)
+				if !errors.Is(callErr, unix.EPERM) {
+					errCh <- fmt.Errorf("expected EPERM, got: %w", callErr)
+					return
+				}
+				errCh <- nil
+			}(rawFD)
+
+			return <-errCh
+		}, func(event *model.Event, r *rules.Rule) {
+			assert.Equal(t, "test_finit_module_eperm", r.ID, "wrong rule triggered")
+			assertFieldEqual(t, event, "load_module.name", "fake_eperm_mod")
+			assertFieldEqual(t, event, "load_module.file.name", "fake-eperm-mod.ko.zst")
+			assertFieldEqual(t, event, "load_module.file.path", epermPath)
+			assertFieldEqual(t, event, "load_module.file.inode", int(epermInode))
+			assertFieldEqual(t, event, "load_module.file.uid", 98)
+			assertFieldEqual(t, event, "load_module.file.gid", 99)
+			assertFieldEqual(t, event, "load_module.loaded_from_memory", false)
+		}, "test_finit_module_eperm")
+
+		test.WaitSignalFromRule(t, func() error {
+			slotFD, err := unix.Open(epermPath, unix.O_RDONLY, 0)
+			if err != nil {
+				return err
+			}
+			defer func() {
+				_ = unix.Close(slotFD)
+			}()
+
+			done := make(chan struct{})
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for {
+					select {
+					case <-done:
+						return
+					default:
+						tmpFD, openErr := unix.Open(epermPath, unix.O_RDONLY, 0)
+						if openErr == nil {
+							_ = unix.Dup2(tmpFD, slotFD)
+							_ = unix.Close(tmpFD)
+							_ = unix.Close(slotFD)
+						}
+					}
+				}
+			}()
+			defer func() {
+				close(done)
+				wg.Wait()
+			}()
+
+			errCh := make(chan error, 1)
+			go func(fd int) {
+				runtime.LockOSThread()
+				if _, _, errno := unix.Syscall(unix.SYS_SETRESUID, 1, 1, 1); errno != 0 {
+					errCh <- errno
+					return
+				}
+
+				callErr := unix.FinitModule(fd, "eperm_close", 0)
+				if !errors.Is(callErr, unix.EPERM) {
+					errCh <- fmt.Errorf("expected EPERM, got: %w", callErr)
+					return
+				}
+				errCh <- nil
+			}(slotFD)
+
+			return <-errCh
+		}, func(event *model.Event, r *rules.Rule) {
+			assert.Equal(t, "test_finit_module_eperm_close", r.ID, "wrong rule triggered")
+			inodeVal, err := event.GetFieldValue("load_module.file.inode")
+			assert.NoError(t, err)
+			if inodeVal.(int) == 0 {
+				assertFieldEqual(t, event, "load_module.name", "")
+				assertFieldEqual(t, event, "load_module.file.name", "")
+				assertFieldEqual(t, event, "load_module.file.path", "")
+				assertFieldEqual(t, event, "load_module.file.uid", 0)
+				assertFieldEqual(t, event, "load_module.file.gid", 0)
+			} else {
+				assertFieldEqual(t, event, "load_module.name", "fake_eperm_mod")
+				assertFieldEqual(t, event, "load_module.file.name", "fake-eperm-mod.ko.zst")
+				assertFieldEqual(t, event, "load_module.file.path", epermPath)
+				assertFieldEqual(t, event, "load_module.file.inode", int(epermInode))
+				assertFieldEqual(t, event, "load_module.file.uid", 98)
+				assertFieldEqual(t, event, "load_module.file.gid", 99)
+			}
+			assertFieldEqual(t, event, "load_module.loaded_from_memory", false)
+		}, "test_finit_module_eperm_close")
 	})
 }

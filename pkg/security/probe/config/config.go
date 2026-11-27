@@ -135,6 +135,16 @@ type Config struct {
 	// NetworkTCXEnabled defines if CWS should attach its TC classifiers with TCX, on kernels that support it.
 	NetworkTCXEnabled bool
 
+	// NetworkTCXSettleDelay is how long a new device that may be moved to another network namespace is left alone
+	// before its TCX links are attached
+	NetworkTCXSettleDelay time.Duration
+
+	// NetworkTCXConfigured is true when network.tcx.enabled is set by the user rather than by its default.
+	NetworkTCXConfigured bool
+
+	// NetworkTCFilterSettings lists the settings set by the user that only apply to legacy tc filters.
+	NetworkTCFilterSettings []string
+
 	// NetworkFlowMonitorEnabled defines if the network flow monitor should be enabled.
 	NetworkFlowMonitorEnabled bool
 
@@ -231,6 +241,9 @@ func NewConfig() (*Config, error) {
 		NetworkClassifierHandle:               uint16(getInt("network.classifier_handle")),
 		RawNetworkClassifierHandle:            uint16(getInt("network.raw_classifier_handle")),
 		NetworkTCXEnabled:                     getBool("network.tcx.enabled"),
+		NetworkTCXSettleDelay:                 getDuration("network.tcx.settle_delay"),
+		NetworkTCXConfigured:                  isConfigured("network.tcx.enabled"),
+		NetworkTCFilterSettings:               configuredSettings("network.classifier_priority", "network.classifier_handle", "network.raw_classifier_handle"),
 		NetworkFlowMonitorPeriod:              getDuration("network.flow_monitor.period"),
 		NetworkFlowMonitorEnabled:             getBool("network.flow_monitor.enabled"),
 		NetworkFlowMonitorSKStorageEnabled:    getBool("network.flow_monitor.sk_storage.enabled"),
@@ -350,6 +363,18 @@ func getAllKeys(key string) (string, string) {
 func isConfigured(key string) bool {
 	deprecatedKey, newKey := getAllKeys(key)
 	return pkgconfigsetup.SystemProbe().IsConfigured(deprecatedKey) || pkgconfigsetup.SystemProbe().IsConfigured(newKey)
+}
+
+// configuredSettings returns the full names of the provided settings that are set by the user
+func configuredSettings(keys ...string) []string {
+	var configured []string
+	for _, key := range keys {
+		if isConfigured(key) {
+			_, newKey := getAllKeys(key)
+			configured = append(configured, newKey)
+		}
+	}
+	return configured
 }
 
 func getBool(key string) bool {

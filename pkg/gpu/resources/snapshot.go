@@ -13,11 +13,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
-// Snapshot builds resource fields from cached physical device attributes.
-func Snapshot(devices []safenvml.Device) []Device {
+// Snapshot builds resource fields from cached physical device attributes and the latest
+// PeeringScanner result, keyed by lowercase UUID.
+func Snapshot(devices []safenvml.Device, peering map[string]Peering) []Device {
 	result := make([]Device, 0, len(devices))
 	for _, device := range devices {
 		if _, physical := device.(*safenvml.PhysicalDevice); !physical {
@@ -49,7 +51,65 @@ func Snapshot(devices []safenvml.Device) []Device {
 			d.FabricCliqueID = &clique
 			d.NVLinkPartition = fmt.Sprintf("%s:%d", info.FabricClusterUUID, clique)
 		}
+		fillPlacement(&d, info)
+		p := peering[d.UUID]
+		d.GPUPeers, d.UnresolvedNVLinks = p.GPUPeers, p.UnresolvedNVLinks
 		result = append(result, d)
 	}
 	return result
+}
+
+// fillPlacement copies the cached PCI, NUMA, placement and host-link facts.
+func fillPlacement(d *Device, info *safenvml.DeviceInfo) {
+	d.BoardPartNumber = info.BoardPartNumber
+	d.BAR1TotalBytes = info.BAR1TotalBytes
+	d.NVLinkLinkCount = info.NVLinkLinkCount
+	if info.PCIDeviceID != 0 {
+		d.PCIDeviceID = fmt.Sprintf("%08x", info.PCIDeviceID)
+	}
+	if info.PCISubsystemID != 0 {
+		d.PCISubsystemID = fmt.Sprintf("%08x", info.PCISubsystemID)
+	}
+	if info.PCIePath != nil {
+		// A known empty path (GPU on the root complex) is published as [].
+		path := append([]string{}, info.PCIePath...)
+		d.PCIePath = &path
+	}
+	d.NUMANode = info.NUMANode
+	// Like the matching metric tags, placement is only known with an
+	// identified chassis: without one, NVML reports zero or 255 placeholders.
+	if d.ChassisSerial != "" {
+		d.SlotNumber, d.TrayIndex, d.ModuleID = pointer.Ptr(info.SlotNumber), pointer.Ptr(info.TrayIndex), pointer.Ptr(info.ModuleID)
+		d.Platform = &Platform{HostID: info.HostID}
+	}
+	d.HostLink = hostLink(info.HostLink)
+}
+
+func hostLink(info safenvml.HostLinkInfo) *HostLink {
+	link := HostLink{
+		PCIeMaxGeneration:    info.PCIeMaxGeneration,
+		PCIeGPUMaxGeneration: info.PCIeGPUMaxGeneration,
+		PCIeMaxWidth:         info.PCIeMaxWidth,
+	}
+	if info.PCIeMaxGeneration > 0 && info.PCIeMaxWidth > 0 {
+		// Same computation as the gpu.pci.link.speed.max metric.
+		if bandwidth, err := gpuutil.PCIeLinkBytesPerSecond(info.PCIeMaxGeneration, info.PCIeMaxWidth); err == nil {
+			link.PCIeMaxBandwidthBytesPerSecond = int64(bandwidth)
+		}
+	}
+	switch {
+	case info.C2CEnabled != nil && *info.C2CEnabled:
+		link.Protocol = "nvlink_c2c"
+		link.C2CLinkCount = info.C2CLinkCount
+		// NVML reports megabytes per second; the schema uses megabits.
+		link.C2CMaxBandwidthMbps = int64(info.C2CMaxBandwidthMBps) * 8
+	case info.C2CEnabled != nil || link != (HostLink{}):
+		// PCIe unless C2C is reported enabled, as long as something is known
+		// about the link (an unknown C2C state doesn't rule PCIe out).
+		link.Protocol = "pcie"
+	}
+	if link == (HostLink{}) {
+		return nil
+	}
+	return &link
 }

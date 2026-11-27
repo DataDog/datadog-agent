@@ -818,6 +818,20 @@ func BuildOpenShiftHelmValues() HelmValues {
 		},
 		"agents": pulumi.Map{
 			"enabled": pulumi.Bool(true),
+			// On OpenShift, the Node Agent also monitors the ~100 containers of the cluster
+			// operators, scans their images for SBOMs and tags with a high cardinality, so its
+			// memory usage routinely reaches the 700Mi limit of the default values, and some of its
+			// restarts were OOM kills. `agent check` commands, e.g. those of the containers suite,
+			// also run a second Agent process in the same memory cgroup. Only the limit is raised.
+			"containers": pulumi.Map{
+				"agent": pulumi.Map{
+					"resources": pulumi.StringMapMap{
+						"limits": pulumi.StringMap{
+							"memory": pulumi.String("1Gi"),
+						},
+					},
+				},
+			},
 			"tolerations": pulumi.MapArray{
 				// Deploy Agents on master nodes
 				pulumi.Map{

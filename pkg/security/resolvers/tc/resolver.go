@@ -20,6 +20,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/hashicorp/go-multierror"
 	"github.com/vishvananda/netlink"
+	"go.uber.org/atomic"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
@@ -54,6 +55,7 @@ type programEntry struct {
 	programID  uint32
 	probe      *manager.Probe
 	deviceName string
+	attachMode manager.TCAttachMode
 }
 
 // Resolver defines a TC resolver
@@ -63,15 +65,28 @@ type Resolver struct {
 	// taken after the locks of the network namespace resolver, and before the RWMutex.
 	probesLock sync.Mutex
 	config     *config.Config
+	attachMode manager.TCAttachMode
 	programs   map[ProgramKey]programEntry
+	staleLinks atomic.Int64
 }
 
-// NewResolver returns a TC resolver
+// NewResolver returns a TC resolver, whose attach mode is read once from a config already checked against the kernel
 func NewResolver(config *config.Config) *Resolver {
-	return &Resolver{
-		config:   config,
-		programs: make(map[ProgramKey]programEntry),
+	attachMode := manager.TCAttachModeLegacy
+	if config.NetworkTCXEnabled {
+		attachMode = manager.TCAttachModeTCX
 	}
+
+	return &Resolver{
+		config:     config,
+		attachMode: attachMode,
+		programs:   make(map[ProgramKey]programEntry),
+	}
+}
+
+// AttachMode returns how the classifiers are attached to their devices
+func (tcr *Resolver) AttachMode() manager.TCAttachMode {
+	return tcr.attachMode
 }
 
 // SendTCProgramsStats sends TC programs stats
@@ -79,9 +94,50 @@ func (tcr *Resolver) SendTCProgramsStats(statsdClient statsd.ClientInterface) {
 	tcr.RLock()
 	defer tcr.RUnlock()
 
-	if val := float64(len(tcr.programs)); val > 0 {
-		_ = statsdClient.Gauge(metrics.MetricTCProgram, val, []string{}, 1.0)
+	counts := make(map[manager.TCAttachMode]int)
+	for _, entry := range tcr.programs {
+		counts[entry.attachMode]++
 	}
+
+	for mode, count := range counts {
+		_ = statsdClient.Gauge(metrics.MetricTCProgram, float64(count), []string{"attach_mode:" + mode.String()}, 1.0)
+	}
+	tcr.sendStaleLinksStats(statsdClient)
+}
+
+// FilterPriority returns the priority of the filters of the classifiers
+func (tcr *Resolver) FilterPriority() uint16 {
+	// the eBPF manager falls back to its default priority when none is provided
+	if tcr.config.NetworkClassifierPriority == 0 {
+		return manager.DefaultTCFilterPriority
+	}
+	return tcr.config.NetworkClassifierPriority
+}
+
+// Directions returns the directions of the hooks the classifiers are attached to
+func (tcr *Resolver) Directions() []manager.TrafficType {
+	var directions []manager.TrafficType
+	for _, tcProbe := range probes.GetTCProbes(tcr.config.NetworkIngressEnabled, tcr.config.NetworkRawPacketEnabled) {
+		if !slices.Contains(directions, tcProbe.NetworkDirection) {
+			directions = append(directions, tcProbe.NetworkDirection)
+		}
+	}
+	return directions
+}
+
+// ProgramIDs returns the IDs of the classifiers attached in the provided network namespace
+func (tcr *Resolver) ProgramIDs(netns uint32) map[uint32]struct{} {
+	tcr.RLock()
+	defer tcr.RUnlock()
+
+	ids := make(map[uint32]struct{})
+	for key, entry := range tcr.programs {
+		// 0 is an unknown ID, which would also match every filter whose ID the kernel doesn't report
+		if key.NetNS == netns && entry.programID != 0 {
+			ids[entry.programID] = struct{}{}
+		}
+	}
+	return ids
 }
 
 // FreezePrograms returns the selector of the TC programs that are running, and keeps TC programs from being added or
@@ -143,13 +199,7 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 		newProbe.IfIndexNetns = uint64(netnsHandle.Fd())
 		newProbe.IfIndexNetnsID = device.NetNS
 		newProbe.KeepProgramSpec = false
-		newProbe.TCFilterPrio = tcr.config.NetworkClassifierPriority
-
-		if slices.Contains(probes.RawPacketTCProgram, tcProbe.EBPFFuncName) {
-			newProbe.TCFilterHandle = netlink.MakeHandle(0, tcr.config.RawNetworkClassifierHandle)
-		} else {
-			newProbe.TCFilterHandle = netlink.MakeHandle(0, tcr.config.NetworkClassifierHandle)
-		}
+		tcr.setAttachPoint(newProbe)
 
 		netnsEditor := []manager.ConstantEditor{
 			{
@@ -170,6 +220,7 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 				programID:  newProbe.ID(),
 				probe:      newProbe,
 				deviceName: device.Name,
+				attachMode: newProbe.TCAttachMode,
 			}
 
 			tcr.programs[progKey] = entry
@@ -179,6 +230,23 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 		}
 	}
 	return combinedErr.ErrorOrNil()
+}
+
+// setAttachPoint sets where a clone is attached on its device
+func (tcr *Resolver) setAttachPoint(probe *manager.Probe) {
+	probe.TCAttachMode = tcr.attachMode
+	if tcr.attachMode == manager.TCAttachModeTCX {
+		// as with legacy filters sharing a priority, the clone attached last runs first: raw packet, in both modes
+		probe.TCXAnchor = manager.TCXAnchorHead
+		return
+	}
+
+	probe.TCFilterPrio = tcr.config.NetworkClassifierPriority
+	if slices.Contains(probes.RawPacketTCProgram, probe.EBPFFuncName) {
+		probe.TCFilterHandle = netlink.MakeHandle(0, tcr.config.RawNetworkClassifierHandle)
+	} else {
+		probe.TCFilterHandle = netlink.MakeHandle(0, tcr.config.NetworkClassifierHandle)
+	}
 }
 
 // AddProgramNameMappings registers the TC programs in the eBPF telemetry again, after the mappings of the module were
@@ -242,7 +310,7 @@ func (tcr *Resolver) FlushInactiveProbes(m *manager.Manager, isLazy func(string)
 	var linkName string
 	for tcKey, entry := range tcr.programs {
 		if !entry.probe.IsTCFilterActive() {
-			tcr.detachHook(tcKey, entry, m)
+			tcr.detachInactiveHook(tcKey, entry, m)
 		} else {
 			link, err := entry.probe.ResolveLink()
 			if err == nil {

@@ -108,6 +108,7 @@ dd_agent_go_test(
     embed = [":process"],
     deps = select({
         "@rules_go//go/platform:android": [
+            "//pkg/discovery/tracermetadata/model",
             "//pkg/security/metrics",
             "//pkg/security/probe/config",
             "//pkg/security/resolvers/cgroup",
@@ -125,6 +126,7 @@ dd_agent_go_test(
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/discovery/tracermetadata/model",
             "//pkg/security/metrics",
             "//pkg/security/probe/config",
             "//pkg/security/resolvers/cgroup",
