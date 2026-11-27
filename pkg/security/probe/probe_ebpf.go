@@ -138,7 +138,10 @@ type EBPFProbe struct {
 	eventPool       *ddsync.TypedPool[model.Event]
 	variableStore   *eval.VariableStore
 	variableStoreMu sync.RWMutex
-	numCPU          int
+	// numCPU is the online CPU count, used to size maps
+	numCPU int
+	// numPossibleCPUs is the per-CPU value count of per-CPU maps
+	numPossibleCPUs int
 	pid             uint32
 
 	ctx       context.Context
@@ -180,6 +183,7 @@ type EBPFProbe struct {
 	useRingBuffers        bool
 	useMmapableMaps       bool
 	useSyscallTaskStorage bool
+	tcxUnsupported        bool
 	cgroup2MountPath      string
 
 	// On demand1
@@ -323,6 +327,21 @@ func (p *EBPFProbe) GetUseFentry() bool {
 	return p.useFentry
 }
 
+// GetUseTCX returns true if the TC classifiers are attached with TCX links
+func (p *EBPFProbe) GetUseTCX() bool {
+	return p.config.Probe.NetworkTCXEnabled
+}
+
+// selectTCAttachMode keeps TCX on, for every device of every namespace, only if the kernel supports it: probing needs TCX on
+func selectTCAttachMode(cfg *pconfig.Config, hasTCX func() bool) (tcxUnsupported bool) {
+	cfg.NetworkTCXEnabled = cfg.NetworkTCXEnabled && cfg.NetworkEnabled
+	if cfg.NetworkTCXEnabled && !hasTCX() {
+		cfg.NetworkTCXEnabled = false
+		return true
+	}
+	return false
+}
+
 var fentrySupportCache struct {
 	sync.Mutex
 	previousErr error
@@ -442,6 +461,19 @@ func (p *EBPFProbe) sanityChecks() error {
 		p.config.Probe.NetworkFlowMonitorEnabled = false
 	}
 
+	p.tcxUnsupported = selectTCAttachMode(p.config.Probe, p.kernelVersion.HasTCX)
+	if p.tcxUnsupported {
+		// VerifyEnvironment warns when TCX is requested explicitly
+		seclog.Infof("TCX isn't supported on this kernel, the network classifiers of CWS are attached as legacy tc filters")
+	}
+
+	if p.config.Probe.NetworkTCXEnabled {
+		seclog.Infof("the network classifiers of CWS are attached with TCX links")
+		if settings := p.config.Probe.NetworkTCFilterSettings; len(settings) > 0 {
+			seclog.Warnf("%s only apply to legacy tc filters, they're ignored with TCX links", strings.Join(settings, ", "))
+		}
+	}
+
 	if p.config.Probe.NetworkSkLookupPidResolutionEnabled && !p.config.Probe.NetworkEnabled {
 		p.config.Probe.NetworkSkLookupPidResolutionEnabled = false
 	}
@@ -556,6 +588,11 @@ func (p *EBPFProbe) VerifyEnvironment() *multierror.Error {
 		}
 	}
 
+	// once TCX is the default, kernels without it shouldn't all warn
+	if p.tcxUnsupported && p.config.Probe.NetworkTCXConfigured {
+		err = multierror.Append(err, errors.New("event_monitoring_config.network.tcx.enabled is set but this kernel doesn't support TCX, the network classifiers are attached as legacy tc filters"))
+	}
+
 	return err
 }
 
@@ -668,7 +705,7 @@ func (p *EBPFProbe) Init() error {
 	}
 
 	if p.config.RuntimeSecurity.SecurityProfileV2Enabled {
-		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Manager.Get(), p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetection, p.hostname, p.probe.startTime, p.opts.FilterStore)
+		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Manager.Get(), p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetection, p.triggerNopEvent, p.hostname, p.probe.startTime, p.opts.FilterStore)
 		if err != nil {
 			return err
 		}
@@ -790,7 +827,7 @@ func (p *EBPFProbe) enableRawPacket(enable bool) error {
 		return errors.New("unable to find `raw_packet_enabled` map")
 	}
 
-	enabledData := make([]uint32, p.numCPU)
+	enabledData := make([]uint32, p.numPossibleCPUs)
 	if enable {
 		for i := range enabledData {
 			enabledData[i] = 1
@@ -1038,7 +1075,7 @@ func (p *EBPFProbe) getDropActionRuleIDs() map[uint32]string {
 }
 
 func (p *EBPFProbe) clearDroppedPacketsMap(droppedPacketsMap *lib.Map) {
-	zero := make([]uint32, p.numCPU)
+	zero := make([]uint32, p.numPossibleCPUs)
 	for i := uint32(0); i < rawpacket.MaxDropActionFilters; i++ {
 		_ = droppedPacketsMap.Put(i, zero)
 	}
@@ -1242,7 +1279,7 @@ func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
 
 	p.probe.DispatchCustomEvent(
 		rule,
-		events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtorWithRule(event, rule), tags...),
+		events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtorWithRule(event, rule), tags...).WithWorkloadID(event.GetWorkloadID()),
 	)
 }
 
@@ -1336,7 +1373,7 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 			// Process event after evaluation because some monitors need the DentryResolver to have been called first.
 			p.profileManager.ProcessEvent(event)
 		}
-	} else if event.Error == nil {
+	} else {
 		p.profileManager.ProcessEvent(event)
 	}
 
@@ -1518,9 +1555,32 @@ func (p *EBPFProbe) newRelatedCGroupWriteEvent(pce *model.ProcessCacheEntry) *mo
 	return relatedEvent
 }
 
+// newContainerPlaceholder returns the placeholder of a process that couldn't be resolved, in the container of the
+// cgroup reported by the kernel. Returns nil if that cgroup isn't the one of a known container.
+func (p *EBPFProbe) newContainerPlaceholder(pidContext model.PIDContext, cgroupContext model.CGroupContext) *model.ProcessCacheEntry {
+	// without bpf_get_current_cgroup_id(), the cgroup reported by the kernel can be stale
+	if !p.kernelTracksCGroupID || cgroupContext.CGroupPathKey.Inode == 0 {
+		return nil
+	}
+	cgroupEntry := p.Resolvers.CGroupResolver.GetCacheEntryByInode(cgroupContext.CGroupPathKey.Inode)
+	if cgroupEntry == nil || cgroupEntry.IsContainerContextNull() {
+		return nil
+	}
+	entry := model.NewPlaceholderProcessCacheEntry(pidContext.Pid, pidContext.Tid, false)
+	entry.PIDContext = pidContext
+	entry.CGroup = cgroupEntry.GetCGroupContext()
+	entry.ContainerContext = cgroupEntry.GetContainerContext()
+	return entry
+}
+
 // setProcessContext set the process context, should return false if the event shouldn't be dispatched
 func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Event, cgroupContext model.CGroupContext) bool {
 	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event, p.onNewPCE)
+	if !isResolved && !event.PIDContext.IsKworker {
+		if placeholder := p.newContainerPlaceholder(event.PIDContext, cgroupContext); placeholder != nil {
+			entry = placeholder
+		}
+	}
 	event.ProcessCacheEntry = entry
 	if event.ProcessCacheEntry == nil {
 		panic("should always return a process cache entry")
@@ -1629,6 +1689,10 @@ func (p *EBPFProbe) regularUnmarshalEvent(bu BinaryUnmarshaler, eventType model.
 
 // handleEvent processes raw eBPF events received from the kernel, unmarshaling and dispatching them appropriately.
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
+	// Apply completed async OTel process context resolutions before handling or
+	// replaying events so ProcessCacheEntry.Tracer stays single-writer.
+	p.Resolvers.ProcessResolver.ApplyPendingOTelUpdates()
+
 	// handle play snapshot
 	if p.replayEventsState.Swap(false) {
 		// do not notify consumers as we are replaying the process cache entries after a ruleset reload
@@ -1977,6 +2041,8 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			// no need to trigger a dentry resolver, not backed by any file
 			event.LoadModule.File.SetPathnameStr("")
 			event.LoadModule.File.SetBasenameStr("")
+		} else if event.LoadModule.Name == "" {
+			event.LoadModule.Name = utils.ModuleNameFromFilename(p.fieldHandlers.ResolveFileBasename(event, &event.LoadModule.File))
 		}
 	case model.UnloadModuleEventType:
 		if !p.regularUnmarshalEvent(&event.UnloadModule, eventType, offset, dataLen, data) {
@@ -1997,7 +2063,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 
 		request := netns.TcClassifierRequest{
-			RequestType: netns.TcNewDeviceRequestType,
+			RequestType: netns.TcRegisteredDeviceRequestType,
 			Device:      event.NetDevice.Device,
 		}
 
@@ -2040,9 +2106,8 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			}
 		}
 
-		// remember who sent the request, so that the response can be attributed to it. Security
-		// profiles only cover containers.
-		if event.Error == nil && !event.ProcessContext.Process.ContainerContext.IsNull() && p.dnsRequests != nil {
+		// remember who sent the request, so that the response can be attributed to it
+		if p.dnsRequests != nil && needsDNSRequestTracking(event) {
 			p.dnsRequests.RecordRequest(event.DNS.ID, event.DNS.Question.Name, event.DNS.Question.Type, event.ProcessCacheEntry, time.Now())
 		}
 
@@ -2080,9 +2145,8 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 					}
 				}
 
-				// a rule needing the response sends it here instead of the short path. A response already
-				// attributed to a container reaches the profile with its own process context.
-				if event.ProcessContext.Process.ContainerContext.IsNull() {
+				// a rule needing the response sends it here instead of the short path
+				if needsDNSResponseCorrelation(event) {
 					p.correlateDNSResponseForActivityDump(p.dnsLayer, ips, cnames)
 				}
 			}
@@ -2327,6 +2391,9 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 		}
 		return false
 	case model.NopEventType:
+		if p.profileManager != nil {
+			p.profileManager.DrainPendingEvents()
+		}
 		// nop event, do not dispatch further. Most likely triggered by a ruleset reload
 		seclog.Debugf("nop event received, skipping further event handling")
 		return false
@@ -2362,7 +2429,11 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 			return false
 		}
 
+		pathKey := event.CgroupTracing.CGroupContext.CGroupPathKey
 		event.CgroupTracing.CGroupContext = cacheEntry.GetCGroupContext()
+		if pathKey.Inode != 0 {
+			event.CgroupTracing.CGroupContext.CGroupPathKey = pathKey
+		}
 		event.CgroupTracing.ContainerContext = cacheEntry.GetContainerContext()
 
 		if p.profileManager != nil {
@@ -2573,18 +2644,9 @@ func (b *filterPolicyBlock) apply(m *manager.Manager) error {
 
 // setApprovers applies approvers and removes the unused ones
 func (p *EBPFProbe) setApprovers(eventType eval.EventType, approvers rules.Approvers) error {
-	kfiltersGetter, exists := kfilters.KFilterGetters[eventType]
-	if !exists {
-		return nil
-	}
-
-	newKFilters, fieldHandled, err := kfiltersGetter(approvers)
+	newKFilters, err := kfilters.NewKFilters(eventType, approvers)
 	if err != nil {
 		return err
-	}
-
-	if len(approvers) != len(fieldHandled) {
-		return fmt.Errorf("all the approvers should be handled : %v vs %v", approvers, fieldHandled)
 	}
 
 	type tag struct {
@@ -2755,8 +2817,6 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 		activatedProbes = append(activatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: probes.SecurityAgentUID, EBPFFuncName: "sys_exit"}})
 	}
 
-	activatedProbes = append(activatedProbes, p.Resolvers.TCResolver.SelectTCProbes())
-
 	// on-demand probes
 	if p.config.RuntimeSecurity.OnDemandEnabled {
 		p.onDemandManager.updateProbes()
@@ -2808,11 +2868,35 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 		return fmt.Errorf("failed to set enabled events: %w", err)
 	}
 
-	if err = p.Manager.Get().UpdateActivatedProbes(activatedProbes); err != nil {
+	// step 1, TC programs frozen: BestEffort skips the validators, as a failed one would stop the manager, which waits
+	// for event handlers that can be blocked on the frozen TC programs (deadlock)
+	running, unfreeze := p.Resolvers.TCResolver.FreezePrograms()
+	err = p.Manager.Get().UpdateActivatedProbes([]manager.ProbesSelector{&manager.BestEffort{Selectors: append(slices.Clone(activatedProbes), running)}})
+	unfreeze()
+	if err != nil {
+		return err
+	}
+	// step 2, TC programs unfrozen: run the validators skipped in step 1, which can now safely stop the manager
+	if err = validateProbes(p.Manager.Get(), activatedProbes); err != nil {
 		return err
 	}
 
 	p.updateEBPFCheckMapping()
+	return nil
+}
+
+// validateProbes runs the validators of the provided selectors, and stops the manager if one fails
+func validateProbes(m *manager.Manager, selectors []manager.ProbesSelector) error {
+	var validationErrs error
+	for _, selector := range selectors {
+		if err := selector.RunValidator(m); err != nil {
+			validationErrs = errors.Join(validationErrs, err)
+		}
+	}
+	if validationErrs != nil {
+		_ = m.Stop(manager.CleanInternal)
+		return fmt.Errorf("probes activation validation failed: %w", validationErrs)
+	}
 	return nil
 }
 
@@ -2978,13 +3062,9 @@ func (p *EBPFProbe) startSysCtlSnapshotLoop() {
 	}
 }
 
-// FlushNetworkNamespace removes all references and stops all TC programs in the provided network namespace. This method
-// flushes the network namespace in the network namespace resolver as well.
+// FlushNetworkNamespace removes all references and stops all TC programs in the provided network namespace
 func (p *EBPFProbe) FlushNetworkNamespace(namespace *netns.NetworkNamespace) {
 	p.Resolvers.NamespaceResolver.FlushNetworkNamespace(namespace)
-
-	// cleanup internal structures
-	p.Resolvers.TCResolver.FlushNetworkNamespaceID(namespace.ID(), p.Manager.Get())
 }
 
 func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
@@ -3842,6 +3922,11 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		return nil, fmt.Errorf("failed to parse CPU count: %w", err)
 	}
 
+	p.numPossibleCPUs, err = lib.PossibleCPU()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse possible CPU count: %w", err)
+	}
+
 	p.constantOffsets, err = p.getOffsetConstants()
 	if err != nil {
 		seclog.Warnf("constant fetcher failed: %v", err)
@@ -4389,6 +4474,9 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 
 	// module
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameModuleName, "struct module", "name")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructFiles, "struct task_struct", "files")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameFilesStructFdt, "struct files_struct", "fdt")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameFdtableStructFd, "struct fdtable", "fd")
 
 	// cgroup
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameKernfsOpenFileFile, "struct kernfs_open_file", "file")

@@ -12,12 +12,16 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
+	"sync"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
+	"github.com/DataDog/datadog-agent/pkg/gpu/amd/sysfsroot"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/pci"
 )
 
 // migProfileRegexp matches the MIG profile embedded in a MIG device name and
@@ -58,6 +62,10 @@ type SafeDevice interface {
 	GetAttributes() (nvml.DeviceAttributes, error)
 	// GetBAR1MemoryInfo returns BAR1 memory information of the device
 	GetBAR1MemoryInfo() (nvml.BAR1Memory, error)
+	// GetBoardPartNumber returns the board part number of the device
+	GetBoardPartNumber() (string, error)
+	// GetC2cModeInfo returns whether the device reaches its host over NVLink-C2C
+	GetC2cModeInfo() (nvml.C2cModeInfo_v1, error)
 	// GetClockInfo returns the current clock speed for the given clock type
 	GetClockInfo(clockType nvml.ClockType) (uint32, error)
 	// GetComputeRunningProcesses returns the list of compute processes running on the device
@@ -108,9 +116,6 @@ type SafeDevice interface {
 	GetPlatformInfo() (nvml.PlatformInfo, error)
 	// GetSerial returns the board serial number of the device
 	GetSerial() (string, error)
-	// GetNumaNodeId returns the NUMA node closest to the device
-	//nolint:revive // Maintaining consistency with go-nvml API naming
-	GetNumaNodeId() (int, error)
 
 	// GetMinorNumber returns the device's minor number, which is the N in the
 	// /dev/nvidiaN device node. This is distinct from the enumeration index
@@ -136,6 +141,13 @@ type SafeDevice interface {
 	GetNvLinkState(link int) (nvml.EnableState, error)
 	// GetNvLinkVersion returns the version of the specified NVLink.
 	GetNvLinkVersion(link int) (int, error)
+	// GetNvLinkRemoteDeviceType returns the type of device at the remote end of a local NVLink port.
+	GetNvLinkRemoteDeviceType(link int) (nvml.IntNvLinkDeviceType, error)
+	// GetNvLinkRemotePciInfo returns the PCI information of the device at the remote end of a local NVLink port.
+	GetNvLinkRemotePciInfo(link int) (nvml.PciInfo, error)
+	// GetP2PStatus returns the status of a peer-to-peer capability from this device (as the
+	// source) to the given peer device. The direction of the query is significant.
+	GetP2PStatus(peer SafeDevice, capability nvml.GpuP2PCapsIndex) (nvml.GpuP2PStatus, error)
 	// GetNvLinkErrorCounter returns the specified NVLink error counter for a link.
 	GetNvLinkErrorCounter(link int, counter nvml.NvLinkErrorCounter) (uint64, error)
 	// GetNumGpuCores returns the number of GPU cores in the device
@@ -148,8 +160,10 @@ type SafeDevice interface {
 	GetPcieThroughput(counter nvml.PcieUtilCounter) (uint32, error)
 	// GetCurrPcieLinkGeneration returns the current PCIe generation
 	GetCurrPcieLinkGeneration() (int, error)
-	// GetMaxPcieLinkGeneration returns the max PCIe generation
+	// GetMaxPcieLinkGeneration returns the max PCIe generation supported by the device and the system together
 	GetMaxPcieLinkGeneration() (int, error)
+	// GetGpuMaxPcieLinkGeneration returns the max PCIe generation supported by the device itself
+	GetGpuMaxPcieLinkGeneration() (int, error)
 	// GetCurrPcieLinkWidth returns the current PCIe link width
 	GetCurrPcieLinkWidth() (int, error)
 	// GetMaxPcieLinkWidth returns the max PCIe link width
@@ -231,8 +245,25 @@ type DeviceInfo struct {
 	SlotNumber             uint8
 	TrayIndex              uint8
 	ModuleID               uint8
+	// HostID is the NVML node index within the slot containing the GPU.
+	HostID uint8
 	// PCIBusID is the normalized PCI BDF from the last successful enumeration.
 	PCIBusID string
+	// PCIDeviceID and PCISubsystemID combine the PCI device ID (high 16 bits)
+	// and vendor ID (low 16 bits). Zero when unknown.
+	PCIDeviceID    uint32
+	PCISubsystemID uint32
+	// BoardPartNumber is empty when unknown.
+	BoardPartNumber string
+	// BAR1TotalBytes is the BAR1 aperture size. Zero when unknown.
+	BAR1TotalBytes uint64
+	// NUMANode is the host NUMA node closest to the device. Nil when unknown.
+	NUMANode *int
+	// PCIePath lists the upstream bridges from the device toward its root
+	// port, excluding the device. Nil when unknown.
+	PCIePath []string
+	// HostLink holds the maximum capabilities of the GPU-to-host link.
+	HostLink HostLinkInfo
 
 	// NVLinkLinkCount is the number of NVLink links available on the device.
 	NVLinkLinkCount int
@@ -377,13 +408,25 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 		// using the instance profiles will give us the total capacity available
 		// to MIG instances, without reporting cores that can never be used when
 		// MIG is enabled.
-		profileInfo, err := device.SafeDevice.GetGpuInstanceProfileInfo(0)
+		//
+		// The smallest profile does not give that capacity on its own: on an
+		// H200, 7 x 1g.18gb instances have 112 SMs and 112 GiB, while one
+		// 7g.141gb instance has 132 SMs and 140 GiB and a 1g.35gb instance
+		// has 26 SMs. Take the largest capacity any profile provides, so that
+		// no MIG device reports more memory or cores than the GPU hosting it.
+		profiles, err := device.migInstanceProfiles()
 		if err != nil {
-			return nil, fmt.Errorf("error getting MIG device profile info: %w", err)
+			return nil, err
+		}
+		var multiprocessors, memoryMB uint64
+		for _, info := range profiles {
+			profileMultiprocessors, profileMemoryMB := migProfileCapacity(info)
+			multiprocessors = max(multiprocessors, profileMultiprocessors)
+			memoryMB = max(memoryMB, profileMemoryMB)
 		}
 
-		device.Memory = uint64(profileInfo.MemorySizeMB) * 1024 * 1024 * uint64(profileInfo.InstanceCount)
-		device.CoreCount = int(profileInfo.MultiprocessorCount) * int(profileInfo.InstanceCount) * coresPerMultiprocessor(device.Architecture)
+		device.Memory = memoryMB * 1024 * 1024
+		device.CoreCount = int(multiprocessors) * coresPerMultiprocessor(device.Architecture)
 	} else {
 		cores, err := device.SafeDevice.GetNumGpuCores()
 		if err != nil {
@@ -402,6 +445,54 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 	}
 
 	return device, nil
+}
+
+// lastMIGInstanceProfiles holds the last complete list of GPU instance profiles of each GPU, by GPU UUID, used when
+// an optional profile cannot be queried. The profiles of a GPU do not change while it is in MIG mode.
+var lastMIGInstanceProfiles sync.Map
+
+// migInstanceProfiles returns the GPU instance profiles that the GPU supports, by profile index
+// (nvml.GPU_INSTANCE_PROFILE_*). The first profile is required. The others are skipped when the GPU does not
+// support them; on any other error, the last complete list of the GPU is used, so that a transient failure neither
+// reports a smaller capacity nor drops the GPU, and the profile is skipped if there is none.
+func (d *PhysicalDevice) migInstanceProfiles() (map[int]nvml.GpuInstanceProfileInfo, error) {
+	profiles := make(map[int]nvml.GpuInstanceProfileInfo)
+	complete := true
+	for profile := 0; profile < nvml.GPU_INSTANCE_PROFILE_COUNT; profile++ {
+		info, err := d.SafeDevice.GetGpuInstanceProfileInfo(profile)
+		switch {
+		case err == nil:
+			profiles[profile] = info
+		case profile == nvml.GPU_INSTANCE_PROFILE_1_SLICE:
+			return nil, fmt.Errorf("error getting MIG device profile info: %w", err)
+		case isUnsupportedMIGProfile(err):
+			// profile not supported by this GPU
+		default:
+			complete = false
+			if last, ok := lastMIGInstanceProfiles.Load(d.UUID); ok {
+				singleton.logDeviceWarning(d.UUID, "cannot get the info of MIG profile %d, using the last known profiles: %v", profile, err)
+				return last.(map[int]nvml.GpuInstanceProfileInfo), nil
+			}
+			singleton.logDeviceWarning(d.UUID, "cannot get the info of MIG profile %d, skipping it: %v", profile, err)
+		}
+	}
+	if complete && d.UUID != "" {
+		lastMIGInstanceProfiles.Store(d.UUID, profiles)
+	}
+	return profiles, nil
+}
+
+// isUnsupportedMIGProfile returns true for the errors NVML returns for a GPU instance profile the GPU does not have.
+func isUnsupportedMIGProfile(err error) bool {
+	var nvmlErr *NvmlAPIError
+	return IsUnsupported(err) || IsInvalidArgument(err) ||
+		(errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_NOT_FOUND))
+}
+
+// migProfileCapacity returns the multiprocessors and the memory, in MiB, of all the instances of a GPU instance
+// profile that fit in the GPU.
+func migProfileCapacity(info nvml.GpuInstanceProfileInfo) (multiprocessors uint64, memoryMB uint64) {
+	return uint64(info.MultiprocessorCount) * uint64(info.InstanceCount), info.MemorySizeMB * uint64(info.InstanceCount)
 }
 
 func (d *PhysicalDevice) fillMigChildren() error {
@@ -566,10 +657,12 @@ func (d *DeviceInfo) fillPhysicalDeviceData(dev SafeDevice) error {
 		}
 	} else {
 		d.PCIBusID = gpuutil.PCIInfoToBusID(pciInfo)
+		d.PCIDeviceID, d.PCISubsystemID = pciInfo.PciDeviceId, pciInfo.PciSubSystemId
 	}
 
 	d.fillNVLinkDataFromNVML(dev)
 	d.fillStaticAttributes(dev)
+	d.fillPCIAttributes(dev)
 
 	return nil
 }
@@ -588,7 +681,7 @@ func (d *DeviceInfo) fillStaticAttributes(dev SafeDevice) {
 	if platform, err := dev.GetPlatformInfo(); err == nil {
 		d.FabricGUID = gpuutil.PlatformFabricGUID(platform)
 		d.ChassisSerial = gpuutil.PlatformChassisSerial(platform)
-		d.SlotNumber, d.TrayIndex, d.ModuleID = platform.SlotNumber, platform.TrayIndex, platform.ModuleId
+		d.SlotNumber, d.TrayIndex, d.ModuleID, d.HostID = platform.SlotNumber, platform.TrayIndex, platform.ModuleId, platform.HostId
 	} else if !IsUnsupported(err) {
 		singleton.logDeviceWarning(d.UUID, "cannot get platform info: %v", err)
 	}
@@ -629,9 +722,9 @@ func (d *DeviceInfo) fillNVLinkDataFromNVML(dev SafeDevice) {
 		}
 
 		if d.NVLinkVersion == "" {
-			d.NVLinkVersion = nvlinkVersionString(version)
-		} else if d.NVLinkVersion != nvlinkVersionString(version) {
-			singleton.logDeviceWarning(d.UUID, "NVLink version %s for link %d differs from version %s reported by another link", nvlinkVersionString(version), link, d.NVLinkVersion)
+			d.NVLinkVersion = NVLinkVersionString(version)
+		} else if d.NVLinkVersion != NVLinkVersionString(version) {
+			singleton.logDeviceWarning(d.UUID, "NVLink version %s for link %d differs from version %s reported by another link", NVLinkVersionString(version), link, d.NVLinkVersion)
 		}
 	}
 }
@@ -655,7 +748,8 @@ func nvmlFieldValueToInt(fv nvml.FieldValue) (int, error) {
 	}
 }
 
-func nvlinkVersionString(version int) string {
+// NVLinkVersionString maps the NVML NVLink version enum to the protocol version (e.g. 6 -> "4.0").
+func NVLinkVersionString(version int) string {
 	switch version {
 	case 1:
 		return "1.0"
@@ -684,4 +778,174 @@ func coresPerMultiprocessor(arch nvml.DeviceArchitecture) int {
 		return 64
 	}
 	return 128
+}
+
+// HostLinkInfo holds the maximum capabilities of a GPU-to-host link. Zero and
+// nil values are unknown. Negotiated (current) values are metrics, not cached.
+type HostLinkInfo struct {
+	// C2CEnabled is true when the GPU reaches its host over NVLink-C2C (the mode
+	// query says so, or, without that query, the link count is above zero), and
+	// false when NVML reports that it does not or that the device has no C2C.
+	C2CEnabled *bool
+	// C2CLinkCount is the number of NVLink-C2C links, only set when C2C is enabled.
+	C2CLinkCount int
+	// C2CMaxBandwidthMBps is the highest per-link C2C bandwidth reported by
+	// NVML, in megabytes per second. Only set when C2C is enabled.
+	C2CMaxBandwidthMBps uint64
+	// PCIeMaxGeneration is supported by the GPU and the system together.
+	PCIeMaxGeneration int
+	// PCIeGPUMaxGeneration is supported by the GPU itself.
+	PCIeGPUMaxGeneration int
+	// PCIeMaxWidth is the maximum lane count, not the current width.
+	PCIeMaxWidth int
+}
+
+func (d *DeviceInfo) queryHostLink(dev SafeDevice) HostLinkInfo {
+	var link HostLinkInfo
+	queries := []struct {
+		name   string
+		get    func() (int, error)
+		target *int
+	}{
+		{"max PCIe link generation", dev.GetMaxPcieLinkGeneration, &link.PCIeMaxGeneration},
+		{"GPU max PCIe link generation", dev.GetGpuMaxPcieLinkGeneration, &link.PCIeGPUMaxGeneration},
+		{"max PCIe link width", dev.GetMaxPcieLinkWidth, &link.PCIeMaxWidth},
+	}
+	for _, query := range queries {
+		if value, err := query.get(); err == nil && value > 0 {
+			*query.target = value
+		} else if err != nil && !IsUnsupported(err) {
+			singleton.logDeviceWarning(d.UUID, "cannot get %s: %v", query.name, err)
+		}
+	}
+
+	mode, err := dev.GetC2cModeInfo()
+	var nvmlErr *NvmlAPIError
+	switch {
+	case err == nil:
+		enabled := mode.IsC2cEnabled != 0
+		link.C2CEnabled = &enabled
+	case errors.As(err, &nvmlErr) && nvmlErr.NvmlErrorCode == nvml.ERROR_NOT_SUPPORTED:
+		// The device has no C2C. A missing symbol (old driver) stays unknown
+		// unless the link count shows C2C.
+		disabled := false
+		link.C2CEnabled = &disabled
+	case !IsUnsupported(err):
+		singleton.logDeviceWarning(d.UUID, "cannot get C2C mode: %v", err)
+	}
+	if link.C2CEnabled != nil && !*link.C2CEnabled {
+		return link
+	}
+	// C2C is enabled or unknown. Drivers without the mode query still report the link count.
+	count := d.queryC2CLinkCount(dev)
+	if link.C2CEnabled == nil && count > 0 {
+		enabled := true
+		link.C2CEnabled = &enabled
+	}
+	if link.C2CEnabled != nil {
+		link.C2CLinkCount, link.C2CMaxBandwidthMBps = count, d.queryC2CBandwidth(dev, count)
+	}
+	return link
+}
+
+// maxC2CLinks bounds the link count read from the driver. Real devices have
+// around ten links; a larger value is treated as garbage.
+const maxC2CLinks = 64
+
+// queryC2CLinkCount returns the number of C2C links, zero when unknown or none.
+func (d *DeviceInfo) queryC2CLinkCount(dev SafeDevice) int {
+	countField := []nvml.FieldValue{{FieldId: nvml.FI_DEV_C2C_LINK_COUNT}}
+	if err := dev.GetFieldValues(countField); err != nil {
+		if !IsUnsupported(err) {
+			singleton.logDeviceWarning(d.UUID, "cannot get C2C link count: %v", err)
+		}
+		return 0
+	}
+	switch ret := nvml.Return(countField[0].NvmlReturn); ret {
+	case nvml.SUCCESS:
+	case nvml.ERROR_NOT_SUPPORTED:
+		return 0
+	default:
+		singleton.logDeviceWarning(d.UUID, "cannot get C2C link count: %v", ret)
+		return 0
+	}
+	count, err := nvmlFieldValueToInt(countField[0])
+	if err != nil || count <= 0 {
+		return 0
+	}
+	if count > maxC2CLinks {
+		singleton.logDeviceWarning(d.UUID, "ignoring implausible C2C link count %d", count)
+		return 0
+	}
+	return count
+}
+
+// queryC2CBandwidth returns the highest per-link maximum bandwidth of the
+// given number of C2C links, zero when unknown.
+func (d *DeviceInfo) queryC2CBandwidth(dev SafeDevice, count int) uint64 {
+	if count <= 0 {
+		return 0
+	}
+	bandwidthFields := make([]nvml.FieldValue, count)
+	for link := range bandwidthFields {
+		bandwidthFields[link] = nvml.FieldValue{FieldId: nvml.FI_DEV_C2C_LINK_GET_MAX_BW, ScopeId: uint32(link)}
+	}
+	if err := dev.GetFieldValues(bandwidthFields); err != nil {
+		singleton.logDeviceWarning(d.UUID, "cannot get C2C link bandwidth: %v", err)
+		return 0
+	}
+	bandwidths := make([]uint64, 0, count)
+	for _, field := range bandwidthFields {
+		if nvml.Return(field.NvmlReturn) != nvml.SUCCESS {
+			continue
+		}
+		if value, err := nvmlFieldValueToInt(field); err == nil && value > 0 {
+			bandwidths = append(bandwidths, uint64(value))
+		}
+	}
+	if len(bandwidths) == 0 {
+		return 0
+	}
+	return slices.Max(bandwidths)
+}
+
+// newPCISysfs returns the sysfs reader for PCI facts, rooted where the GPU
+// checks find the device tree. The host sysfs is often only partly mounted in
+// containers, but the PCI device tree isn't namespaced, so the container's own
+// /sys is tried next. Replaced in tests.
+var newPCISysfs = func() *pci.Sysfs {
+	return pci.NewSysfs(sysfsroot.DeviceSysFSRoot(), "/sys")
+}
+
+// fillPCIAttributes caches static board, PCI, NUMA and host-link facts. They are
+// queried once per device construction, never per metric collection.
+// Unsupported or failed queries leave the values unknown.
+func (d *DeviceInfo) fillPCIAttributes(dev SafeDevice) {
+	if partNumber, err := dev.GetBoardPartNumber(); err == nil {
+		d.BoardPartNumber = strings.TrimSpace(partNumber)
+	} else if !IsUnsupported(err) {
+		singleton.logDeviceWarning(d.UUID, "cannot get board part number: %v", err)
+	}
+	if bar1, err := dev.GetBAR1MemoryInfo(); err == nil {
+		d.BAR1TotalBytes = bar1.Bar1Total
+	} else if !IsUnsupported(err) {
+		singleton.logDeviceWarning(d.UUID, "cannot get BAR1 memory info: %v", err)
+	}
+	d.HostLink = d.queryHostLink(dev)
+
+	if d.PCIBusID == "" {
+		return
+	}
+	sysfs := newPCISysfs()
+	// Host NUMA locality comes from sysfs only. nvmlDeviceGetNumaNodeId is
+	// documented for platforms where GPUs are NUMA nodes, so it can report
+	// the GPU's own memory node instead of the host node closest to it.
+	if node, ok := sysfs.NUMANode(d.PCIBusID); ok {
+		d.NUMANode = &node
+	}
+	if path, err := sysfs.UpstreamBridges(d.PCIBusID); err == nil {
+		d.PCIePath = path
+	} else if logLimiter.ShouldLog() {
+		log.Debugf("cannot read PCIe path of GPU %s at %s: %v", d.UUID, d.PCIBusID, err)
+	}
 }

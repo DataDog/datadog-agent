@@ -346,8 +346,8 @@ agent_telemetry:
 		atel = createAtel(cfg, log, makeTelMock(t), &senderMock{}, &runnerMock{})
 	})
 	require.NotNil(t, atel)
-	require.NotNil(t, atel.errLogsCh)
-	assert.Equal(t, defaultErrortrackingBufferSize, cap(atel.errLogsCh))
+	require.NotNil(t, testQueue(atel))
+	assert.Equal(t, defaultErrortrackingBufferSize, cap(testQueue(atel)))
 }
 
 func TestCreateAtel_NegativeErrortrackingValuesFallbackToSafeDefaults(t *testing.T) {
@@ -393,8 +393,8 @@ agent_telemetry:
     shutdown_drain_timeout_seconds: 0
 `, &senderMock{}, nil, runner)
 
-	require.NotNil(t, atel.errLogsCh)
-	assert.Equal(t, 0, cap(atel.errLogsCh))
+	require.NotNil(t, testQueue(atel))
+	assert.Equal(t, 0, cap(testQueue(atel)))
 	assert.Equal(t, time.Duration(0), atel.errLogsFlushInterval)
 	assert.Equal(t, time.Duration(0), atel.errLogsStartupJitter)
 	assert.Equal(t, time.Duration(0), atel.shutdownDrainTimeout)
@@ -886,18 +886,23 @@ func TestNoTagSpecifiedAggregationHistogram(t *testing.T) {
 }
 
 func TestMandatoryEmitterLocalFlavor(t *testing.T) {
+	const clcRunnerYAML = "clc_runner_enabled: true\nconfig_providers:\n  - name: clusterchecks\n"
 	for _, testCase := range []struct {
 		name   string
 		flavor string
+		extra  string
 		want   string
 	}{
 		{name: "normalizes underscores", flavor: "trace_agent", want: "trace-agent"},
 		{name: "falls back for empty flavor", flavor: "", want: "agent"},
+		{name: "cluster check runner", flavor: "agent", extra: clcRunnerYAML, want: "cluster-checks-runner"},
+		{name: "clc_runner_enabled without clusterchecks provider", flavor: "agent", extra: "clc_runner_enabled: true\n", want: "agent"},
+		{name: "clc config ignored for other flavors", flavor: "trace_agent", extra: clcRunnerYAML, want: "trace-agent"},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			flavor.SetTestFlavor(t, testCase.flavor)
 			provides := NewComponent(Requires{
-				Config: configmock.NewFromYAML(t, "agent_telemetry:\n  enabled: false"),
+				Config: configmock.NewFromYAML(t, "agent_telemetry:\n  enabled: false\n"+testCase.extra),
 				Log:    makeLogMock(t),
 			})
 			a := provides.Comp.(*atel)
@@ -3125,6 +3130,30 @@ func TestDefaultProfilesExportHealthPlatformMetrics(t *testing.T) {
 	}
 }
 
+func TestDefaultProfilesExportAppsecInjectorWatchedChangesReasons(t *testing.T) {
+	tel := makeTelMock(t)
+	counter := tel.NewCounter("appsec_injector", "watched_changes", []string{"proxy_type", "operation", "success", "reason"}, "")
+	counter.Inc("envoy-gateway", "added", "false", "Forbidden")
+	counter.Add(2, "envoy-gateway", "added", "false", "Invalid")
+
+	sender := &senderMock{}
+	runner := newRunnerMock()
+	a := getTestAtel(t, tel, getCommonYAMLConfig(true, ""), sender, nil, runner)
+	require.True(t, a.enabled)
+	a.start()
+	runner.(*runnerMock).run()
+
+	require.Len(t, sender.sentMetrics, 1)
+	require.Equal(t, "appsec_injector.watched_changes", sender.sentMetrics[0].name)
+	byReason := map[string]float64{}
+	for _, metric := range sender.sentMetrics[0].metrics {
+		labels := metricLabels(metric)
+		assert.Equal(t, map[string]string{"proxy_type": "envoy-gateway", "operation": "added", "success": "false", "reason": labels["reason"], "emitter": "agent"}, labels)
+		byReason[labels["reason"]] = metric.GetCounter().GetValue()
+	}
+	assert.Equal(t, map[string]float64{"Forbidden": 1, "Invalid": 2}, byReason)
+}
+
 func TestInstrumentationControllerMetricsInClusterAgentProfile(t *testing.T) {
 	cfg, err := parseConfig(configmock.NewFromYAML(t, defaultProfiles))
 	require.NoError(t, err)
@@ -3199,7 +3228,7 @@ func TestDataPlanePreflightModeProfile(t *testing.T) {
 
 	wantTags := map[string][]string{
 		"data_plane.preflight_mode_result":           {"result"},
-		"data_plane.preflight_mode_finding":          {"finding", "source_file", "source_line"},
+		"data_plane.preflight_mode_finding":          {"finding", "source_file", "source_line", "spawn_stage", "spawn_error"},
 		"data_plane.preflight_mode_duration_seconds": nil,
 	}
 
@@ -3600,6 +3629,7 @@ agent_telemetry:
 
 // NewComponent must export the subscriber so the remoteflags component can
 // pick it up through the fx group, including when agent telemetry is disabled.
+// A disabled component subscribes only the profile flag.
 func TestRemoteFlagSubscriberIsProvided(t *testing.T) {
 	for _, enabled := range []bool{true, false} {
 		provides := NewComponent(Requires{
@@ -3610,8 +3640,14 @@ func TestRemoteFlagSubscriberIsProvided(t *testing.T) {
 
 		require.NotNil(t, provides.Subscriber)
 		handlers := provides.Subscriber.Handlers()
-		require.Len(t, handlers, 1)
+		require.NotEmpty(t, handlers)
 		assert.Equal(t, pkgremoteflags.FlagName(flagTroubleshooting), handlers[0].FlagName())
+		if !enabled {
+			require.Len(t, handlers, 1)
+			continue
+		}
+		require.Len(t, handlers, 2)
+		assert.Equal(t, pkgremoteflags.FlagName(flagErrortracking), handlers[1].FlagName())
 	}
 }
 

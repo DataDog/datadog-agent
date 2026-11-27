@@ -32,11 +32,12 @@ import (
 )
 
 // setField is the field a set action reads its value from: a field,
-// `open.file.path`, or an index in an array field, `process.argv[0]`.
+// `open.file.path`, an index in an array field, `process.argv[0]`, or a key in a
+// dictionary field, `process.env["PATH"]`.
 type setField struct {
-	// name is the name of the field, without its index
+	// name is the name of the field, without its index or its key
 	name string
-	// indexed is whether the value is an index in the field
+	// indexed is whether the value is at an index or a key in the field
 	indexed bool
 }
 
@@ -52,15 +53,22 @@ func (rs *RuleSet) parseSetField(field string) (*setField, error) {
 
 	switch n := node.(type) {
 	case *ast.FieldRef:
-		if n.Iter == nil {
-			return &setField{name: n.Name}, nil
-		}
+		return &setField{name: n.Name}, nil
 	case *ast.Index:
-		if ref, ok := n.Base.(*ast.FieldRef); ok && ref.Iter == nil {
+		if ref, ok := n.Base.(*ast.FieldRef); ok {
 			return &setField{name: ref.Name, indexed: true}, nil
 		}
 	}
-	return nil, fmt.Errorf("invalid field '%s': not a field or an index in an array field", field)
+	return nil, fmt.Errorf("invalid field '%s': not a field, an index in an array field or a key in a dictionary field", field)
+}
+
+// isArrayEvaluator returns whether an evaluator returns an array of values
+func isArrayEvaluator(evaluator eval.Evaluator) bool {
+	switch evaluator.(type) {
+	case *eval.StringArrayEvaluator, *eval.IntArrayEvaluator, *eval.BoolArrayEvaluator, *eval.CIDRArrayEvaluator:
+		return true
+	}
+	return false
 }
 
 // Rule presents a rule in a ruleset
@@ -112,6 +120,11 @@ type RuleSet struct {
 
 	// event collector, used for tests
 	eventCollector EventCollector
+
+	// variableReads are the variables the set actions of each variable read
+	// their value from, the env marks of which are merged once all the rules are
+	// added, see propagateEnvKeys
+	variableReads map[string][]string
 }
 
 // ListRuleIDs returns the list of RuleIDs from the ruleset
@@ -479,9 +492,30 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 						continue
 					}
 
-					if _, kind, goType, isArray, err = rs.eventCtor().GetFieldMetadata(field.name); err != nil {
+					if _, kind, goType, _, err = rs.eventCtor().GetFieldMetadata(field.name); err != nil {
 						errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("failed to get field '%s': %w", field.name, err))
 						continue
+					}
+
+					// whether the value is an array is told by the evaluator of the field:
+					// an iterated field is one, the metadata of its field says otherwise.
+					// Only the field is compiled, its subscript can read a variable
+					// declared by a rule not loaded yet. An index or a key is a single
+					// value, but a key in an iterated dictionary, one per element.
+					evaluator, err := rs.model.GetEvaluator(field.name, "", 0)
+					if err != nil {
+						errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("failed to get field '%s': %w", field.name, err))
+						continue
+					}
+					if field.indexed {
+						_, isArray = evaluator.(*eval.StringMapArrayEvaluator)
+					} else {
+						isArray = isArrayEvaluator(evaluator)
+					}
+
+					// the values of a dictionary are strings
+					if field.indexed && kind == reflect.Map {
+						kind, goType = reflect.String, "string"
 					}
 				}
 
@@ -493,7 +527,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 						continue
 					}
 
-					if isArray && !field.indexed {
+					if isArray {
 						errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("'capture' is not supported on array field '%s' for variable '%s'", actionDef.Set.Field, actionDef.Set.Name))
 						continue
 					}
@@ -534,7 +568,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					}
 				} else if field != nil {
 					// an index in an array is a single value
-					if isArray && !field.indexed && !actionDef.Set.Append {
+					if isArray && !actionDef.Set.Append {
 						errs = appendActionLoadError(errs, rule, actionDef, fmt.Errorf("field '%s' is an array and can only be used with 'append: yes' in set action for variable '%s'", actionDef.Set.Field, actionDef.Set.Name))
 						continue
 					}
@@ -640,9 +674,11 @@ func GetRuleEventType(rule *eval.Rule) (eval.EventType, error) {
 	return eventType, nil
 }
 
-// WithExcludedRuleFromDiscarders set excluded rule from discarders
-func (rs *RuleSet) WithExcludedRuleFromDiscarders(excludedRuleFromDiscarders map[eval.RuleID]bool) {
+// WithExcludedRuleFromDiscarders set excluded rule from discarders, but from the
+// discarders of some fields
+func (rs *RuleSet) WithExcludedRuleFromDiscarders(excludedRuleFromDiscarders map[eval.RuleID]bool, discarderFields ...eval.Field) {
 	rs.opts.ExcludedRuleFromDiscarders = excludedRuleFromDiscarders
+	rs.opts.ExcludedRuleDiscarderFields = discarderFields
 }
 
 // AddRule creates the rule evaluator and adds it to the bucket of its events
@@ -683,6 +719,10 @@ func (rs *RuleSet) AddRule(pRule *PolicyRule) (model.EventCategory, error) {
 }
 
 func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, tags []string) (model.EventCategory, error) {
+	// the sources of the set actions, recorded once the rule is added: a rule
+	// that fails to load doesn't mark the variables it shares with other rules
+	var sources []setSource
+
 	evalRule, err := eval.NewRule(exRule.id, exRule.expr, rs.parsingContext, rs.evalOpts, tags...)
 	if err != nil {
 		return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: &ErrRuleSyntax{Err: err}}
@@ -739,7 +779,7 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 
 		case action.Def.Set != nil:
 			if scopeField := action.Def.Set.ScopeField; scopeField != "" {
-				evaluator, _, err := rs.compileActionValue(scopeField)
+				evaluator, _, _, err := rs.compileActionValue(scopeField)
 				if err != nil {
 					return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: &ErrScopeField{Expression: scopeField, Err: err}}
 				}
@@ -763,7 +803,7 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 					return model.UnknownCategory, actionErr(fmt.Errorf("failed to compile action expression: %w", err))
 				}
 
-				evaluator, exprEventType, err := rs.compileActionValue(source)
+				evaluator, tree, exprEventType, err := rs.compileActionValue(source)
 				if err != nil {
 					return model.UnknownCategory, actionErr(fmt.Errorf("failed to compile action expression: %w", err))
 				}
@@ -778,6 +818,7 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 				}
 
 				rs.fieldEvaluators[source] = evaluator
+				sources = append(sources, rs.newSetSource(action.Def.Set, tree))
 			}
 
 		case action.Def.Hash != nil:
@@ -797,6 +838,10 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 		return model.UnknownCategory, err
 	}
 
+	for _, source := range sources {
+		rs.recordSetSource(source)
+	}
+
 	// Merge the fields of the new rule with the existing list of fields of the ruleset
 	rs.AddFields(rule.GetEvaluator().GetFields())
 
@@ -805,18 +850,173 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 
 // compileActionValue compiles the field or the expression an action reads a
 // value from, and returns the event type of its fields.
-func (rs *RuleSet) compileActionValue(expr string) (eval.Evaluator, eval.EventType, error) {
+func (rs *RuleSet) compileActionValue(expr string) (eval.Evaluator, ast.Node, eval.EventType, error) {
 	node, err := rs.parsingContext.BuildExpression(expr)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
 	state := eval.NewState(rs.model)
-	evaluator, _, err := eval.Compile(node, rs.evalOpts, state)
+	evaluator, tree, _, err := eval.Compile(node, rs.evalOpts, state)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
+	}
+
+	// an action isn't evaluated over the elements of an iterator, an iterator
+	// variable would read the element of another evaluation. The tree is the one
+	// compiled, a macro holding one included.
+	if ast.Any(tree, func(n ast.Node) bool {
+		ref, ok := n.(*ast.FieldRef)
+		return ok && ref.Iter != nil
+	}) {
+		return nil, nil, "", errors.New("iterator variables aren't supported in an action")
 	}
 	eventType, err := eval.EventTypeFromState(rs.model, state)
-	return evaluator.(eval.Evaluator), eventType, err
+	return evaluator.(eval.Evaluator), tree, eventType, err
+}
+
+// envKeys returns the keys a compiled tree reads dictionary fields at, the
+// environment variables of a process, and whether one of them is evaluated per
+// event. Testing a key, `"PATH" in process.env`, reads no value.
+func (rs *RuleSet) envKeys(tree ast.Node) (keys []string, evaluated bool) {
+	ast.Any(tree, func(n ast.Node) bool {
+		index, ok := n.(*ast.Index)
+		if !ok {
+			return false
+		}
+		ref, ok := index.Base.(*ast.FieldRef)
+		if !ok {
+			return false
+		}
+		if _, kind, _, _, err := rs.eventCtor().GetFieldMetadata(ref.Name); err != nil || kind != reflect.Map {
+			return false
+		}
+		if key, ok := index.Subscript.(*ast.Literal); ok && key.Value.Kind() == ast.String {
+			keys = append(keys, ast.StringVal(key.Value))
+		} else {
+			evaluated = true
+		}
+		return false
+	})
+	return keys, evaluated
+}
+
+// setSource is what the source of a set action reads: the keys of the
+// environment variables of a process, whether one of them is evaluated per
+// event, whether it copies envp entries as is, and the variables
+type setSource struct {
+	variable  string
+	envKeys   []string
+	evaluated bool
+	filtered  bool
+	variables []string
+}
+
+// newSetSource returns what the compiled source of a set action reads
+func (rs *RuleSet) newSetSource(set *SetDefinition, tree ast.Node) setSource {
+	source := setSource{variable: set.Name}
+	if set.Scope != "" {
+		source.variable = string(set.Scope) + "." + set.Name
+	}
+	source.envKeys, source.evaluated = rs.envKeys(tree)
+	// envp entries copied as is can be filtered on their keys, a part of one
+	// or a value computed out of one can't
+	if isEnvpEntries(tree) && set.Capture == "" {
+		source.filtered = true
+	} else if ast.Any(tree, isEnvpField) {
+		source.evaluated = true
+	}
+	ast.Any(tree, func(n ast.Node) bool {
+		if ref, ok := n.(*ast.VariableRef); ok {
+			source.variables = append(source.variables, rs.variableName(ref.Name))
+		}
+		return false
+	})
+	return source
+}
+
+// isEnvpField returns whether a node reads the environment of a process as
+// KEY=value entries: `exec.envp`, `process.ancestors.envp`
+func isEnvpField(n ast.Node) bool {
+	ref, ok := n.(*ast.FieldRef)
+	return ok && strings.HasSuffix(ref.Name, ".envp")
+}
+
+// isEnvpEntries returns whether a tree is an envp field or one of its entries:
+// `exec.envp`, `exec.envp[0]`
+func isEnvpEntries(tree ast.Node) bool {
+	if index, ok := tree.(*ast.Index); ok {
+		tree = index.Base
+	}
+	return isEnvpField(tree)
+}
+
+// variableName returns the name of the variable a reference refers to, its
+// length included: `${tok.length}` refers to `tok`
+func (rs *RuleSet) variableName(ref string) string {
+	if rs.evalOpts.VariableStore.Get(ref) == nil {
+		if name, ok := strings.CutSuffix(ref, ".length"); ok {
+			return name
+		}
+	}
+	return ref
+}
+
+// recordSetSource records what the source of a set action reads: the env
+// marks in the options of its variable, for the serializer to check them
+// against envs_with_value, and the variables it reads, for propagateEnvKeys
+func (rs *RuleSet) recordSetSource(source setSource) {
+	if len(source.variables) > 0 {
+		rs.variableReads[source.variable] = append(rs.variableReads[source.variable], source.variables...)
+	}
+	if variable := rs.evalOpts.VariableStore.Get(source.variable); variable != nil {
+		opts := variable.GetVariableOpts()
+		if mergeEnvMarks(&opts, source.envKeys, source.evaluated, source.filtered) {
+			variable.SetVariableOpts(opts)
+		}
+	}
+}
+
+// mergeEnvMarks merges env marks into the options of a variable, and returns
+// whether they changed
+func mergeEnvMarks(opts *eval.VariableOpts, keys []string, evaluated, filtered bool) bool {
+	changed := (evaluated && !opts.EnvKeyEvaluated) || (filtered && !opts.EnvFiltered)
+	opts.EnvKeyEvaluated = opts.EnvKeyEvaluated || evaluated
+	opts.EnvFiltered = opts.EnvFiltered || filtered
+	for _, key := range keys {
+		if !slices.Contains(opts.EnvKeys, key) {
+			opts.EnvKeys = append(opts.EnvKeys, key)
+			changed = true
+		}
+	}
+	return changed
+}
+
+// propagateEnvKeys merges into each variable the env marks of the variables its
+// set actions read, once all the rules are added: a variable read from a hidden
+// one is hidden, whatever order the rules are added in, cycles included. A value
+// read from envp entries is no longer a list of entries to filter: it is hidden
+func (rs *RuleSet) propagateEnvKeys() {
+	for changed := true; changed; {
+		changed = false
+		for name, reads := range rs.variableReads {
+			variable := rs.evalOpts.VariableStore.Get(name)
+			if variable == nil {
+				continue
+			}
+			opts := variable.GetVariableOpts()
+			updated := false
+			for _, read := range reads {
+				if source := rs.evalOpts.VariableStore.Get(read); source != nil {
+					sourceOpts := source.GetVariableOpts()
+					updated = mergeEnvMarks(&opts, sourceOpts.EnvKeys, sourceOpts.EnvKeyEvaluated || sourceOpts.EnvFiltered, false) || updated
+				}
+			}
+			if updated {
+				variable.SetVariableOpts(opts)
+				changed = true
+			}
+		}
+	}
 }
 
 // checkTypeCompatibility validates that the evaluator's return type is compatible with the default value type.
@@ -924,8 +1124,8 @@ func (rs *RuleSet) GetBucket(eventType eval.EventType) *RuleBucket {
 	return nil
 }
 
-// GetApprovers returns all approvers
-func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) (map[eval.EventType]Approvers, *ApproverStats, []*Rule, error) {
+// GetApprovers returns the approvers of the event types having an approver model
+func (rs *RuleSet) GetApprovers(models map[eval.EventType]ApproverModel) (map[eval.EventType]Approvers, *ApproverStats, []*Rule, error) {
 	var (
 		approvers        = make(map[eval.EventType]Approvers)
 		noDiscarderRules []*Rule
@@ -933,12 +1133,12 @@ func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) 
 	)
 
 	for _, eventType := range rs.GetEventTypes() {
-		caps, exists := fieldCaps[eventType]
+		model, exists := models[eventType]
 		if !exists {
 			continue
 		}
 
-		evtApprovers, evtStats, evtNoDiscarderRules, err := rs.GetEventTypeApprovers(eventType, caps)
+		evtApprovers, evtStats, evtNoDiscarderRules, err := rs.GetEventTypeApprovers(eventType, model)
 		stats.Merge(evtStats)
 
 		if err != nil || len(evtApprovers) == 0 {
@@ -952,15 +1152,15 @@ func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) 
 	return approvers, stats, noDiscarderRules, nil
 }
 
-// GetEventTypeApprovers returns approvers for the given event type and the fields
-func (rs *RuleSet) GetEventTypeApprovers(eventType eval.EventType, fieldCaps FieldCapabilities) (Approvers, *ApproverStats, []*Rule, error) {
+// GetEventTypeApprovers returns the approvers of an event type
+func (rs *RuleSet) GetEventTypeApprovers(eventType eval.EventType, model ApproverModel) (Approvers, *ApproverStats, []*Rule, error) {
 	bucket, exists := rs.eventRuleBuckets[eventType]
 	if !exists {
 		return nil, nil, nil, ErrNoEventTypeBucket{EventType: eventType}
 	}
 
 	// all the rules needs to be of the same type
-	return getApprovers(bucket.rules, rs.NewFakeEvent(), fieldCaps)
+	return getApprovers(bucket.rules, model)
 }
 
 // GetFieldValues returns all the values of the given field
@@ -985,7 +1185,9 @@ func (rs *RuleSet) IsDiscarder(ctx *eval.Context, fields []eval.Field, rules []*
 
 	for _, rule := range rules {
 		// ignore rule that can't generate discarders
-		if _, exists := rs.opts.ExcludedRuleFromDiscarders[rule.ID]; exists {
+		if _, exists := rs.opts.ExcludedRuleFromDiscarders[rule.ID]; exists && !slices.ContainsFunc(fields, func(field eval.Field) bool {
+			return slices.Contains(rs.opts.ExcludedRuleDiscarderFields, field)
+		}) {
 			continue
 		}
 
@@ -1357,6 +1559,8 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) ([]
 		errs = multierror.Append(errs, err)
 	}
 
+	rs.propagateEnvKeys()
+
 	return filteredRules, errs
 }
 
@@ -1428,6 +1632,7 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 		logger:           logger,
 		pool:             eval.NewContextPool(),
 		fieldEvaluators:  make(map[string]eval.Evaluator),
+		variableReads:    make(map[string][]string),
 		scopedVariables:  make(map[Scope]VariableProvider),
 		globalVariables:  eval.NewVariables(),
 		parsingContext:   parser.NewParsingContext(opts.RuleCacheEnabled),

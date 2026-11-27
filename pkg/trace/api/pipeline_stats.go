@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -26,9 +27,9 @@ const (
 )
 
 // pipelineStatsEndpoint returns the pipeline intake url and the corresponding API key.
-func pipelineStatsEndpoints(cfg *config.AgentConfig) (urls []*url.URL, apiKeys []string, err error) {
+func pipelineStatsEndpoints(cfg *config.AgentConfig) (urls []*url.URL, apiKeys []string, mrf []bool, err error) {
 	if e := cfg.Endpoints; len(e) == 0 || e[0].Host == "" || e[0].APIKey == "" {
-		return nil, nil, errors.New("config was not properly validated")
+		return nil, nil, nil, errors.New("config was not properly validated")
 	}
 	for _, e := range cfg.Endpoints {
 		if e.HasPendingDelegatedAuth {
@@ -40,18 +41,19 @@ func pipelineStatsEndpoints(cfg *config.AgentConfig) (urls []*url.URL, apiKeys [
 		log.Debugf("[pipeline_stats] Intake URL %s", urlStr)
 		url, err := url.Parse(urlStr)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error parsing pipeline stats intake URL %q: %v", urlStr, err)
+			return nil, nil, nil, fmt.Errorf("error parsing pipeline stats intake URL %q: %v", urlStr, err)
 		}
 		urls = append(urls, url)
 		apiKeys = append(apiKeys, e.APIKey)
+		mrf = append(mrf, e.IsMRF)
 	}
-	return urls, apiKeys, nil
+	return urls, apiKeys, mrf, nil
 }
 
 // pipelineStatsProxyHandler returns a new HTTP handler which will proxy requests to the pipeline stats intake.
 func (r *HTTPReceiver) pipelineStatsProxyHandler() http.Handler {
 	log.Debug("[pipeline_stats] Creating proxy handler")
-	urls, apiKeys, err := pipelineStatsEndpoints(r.conf)
+	urls, apiKeys, mrf, err := pipelineStatsEndpoints(r.conf)
 	if err != nil {
 		log.Errorf("[pipeline_stats] Failed to start pipeline stats proxy handler: %v", err)
 		return pipelineStatsErrorHandler(err)
@@ -61,7 +63,7 @@ func (r *HTTPReceiver) pipelineStatsProxyHandler() http.Handler {
 		tag := "orchestrator:fargate_" + strings.ToLower(string(orch))
 		tags = tags + "," + tag
 	}
-	return newPipelineStatsProxy(r.conf, urls, apiKeys, tags, r.statsd)
+	return newPipelineStatsProxy(r.conf, urls, apiKeys, mrf, tags, r.statsd)
 }
 
 func pipelineStatsErrorHandler(err error) http.Handler {
@@ -73,7 +75,7 @@ func pipelineStatsErrorHandler(err error) http.Handler {
 
 // newPipelineStatsProxy creates an http.ReverseProxy which forwards requests to the pipeline stats intake.
 // The tags will be added as a header to all proxied requests.
-func newPipelineStatsProxy(conf *config.AgentConfig, urls []*url.URL, apiKeys []string, tags string, statsd statsd.ClientInterface) *httputil.ReverseProxy {
+func newPipelineStatsProxy(conf *config.AgentConfig, urls []*url.URL, apiKeys []string, mrf []bool, tags string, statsd statsd.ClientInterface) *httputil.ReverseProxy {
 	log.Debug("[pipeline_stats] Creating reverse proxy")
 	cidProvider := NewContainerIDProviderFromConfig(conf)
 	rewrite := func(req *httputil.ProxyRequest) {
@@ -93,7 +95,7 @@ func newPipelineStatsProxy(conf *config.AgentConfig, urls []*url.URL, apiKeys []
 	return &httputil.ReverseProxy{
 		Rewrite:   rewrite,
 		ErrorLog:  stdlog.New(logger, "pipeline_stats.Proxy: ", 0),
-		Transport: &multiDataStreamsTransport{rt: conf.NewHTTPTransport(), targets: urls, keys: apiKeys, maxRequestBytes: conf.MaxRequestBytes},
+		Transport: &multiDataStreamsTransport{rt: conf.NewHTTPTransport(), targets: urls, keys: apiKeys, mrf: mrf, failoverAPM: conf.MRFFailoverAPM, maxRequestBytes: conf.MaxRequestBytes},
 	}
 }
 
@@ -107,7 +109,24 @@ type multiDataStreamsTransport struct {
 	rt              http.RoundTripper
 	targets         []*url.URL
 	keys            []string
+	mrf             []bool
+	failoverAPM     func() bool
 	maxRequestBytes int64
+}
+
+func (m *multiDataStreamsTransport) activeTargets() ([]*url.URL, []string) {
+	if !slices.Contains(m.mrf, true) || m.failoverAPM() {
+		return m.targets, m.keys
+	}
+	targets := make([]*url.URL, 0, len(m.targets))
+	keys := make([]string, 0, len(m.keys))
+	for i, u := range m.targets {
+		if !m.mrf[i] {
+			targets = append(targets, u)
+			keys = append(keys, m.keys[i])
+		}
+	}
+	return targets, keys
 }
 
 func (m *multiDataStreamsTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
@@ -116,13 +135,17 @@ func (m *multiDataStreamsTransport) RoundTrip(req *http.Request) (rresp *http.Re
 		r.URL = u
 		r.Header.Set("DD-API-KEY", apiKey)
 	}
+	targets, keys := m.activeTargets()
+	// Take the direct path only when a single endpoint is configured. When MRF
+	// filtering leaves one target, still go through replayableBody so the
+	// MaxRequestBytes limit does not change when failover toggles.
 	if len(m.targets) == 1 {
-		setTarget(req, m.targets[0], m.keys[0])
+		setTarget(req, targets[0], keys[0])
 		rresp, rerr = m.rt.RoundTrip(req)
 		if rerr != nil {
 			log.Errorf("[pipeline_stats] RoundTrip failed: %v", rerr)
 		} else {
-			log.Debugf("[pipeline_stats] Returned status: %s, from host: %s, path: %s", rresp.Status, m.targets[0].Host, m.targets[0].Path)
+			log.Debugf("[pipeline_stats] Returned status: %s, from host: %s, path: %s", rresp.Status, targets[0].Host, targets[0].Path)
 		}
 
 		return rresp, rerr
@@ -131,10 +154,10 @@ func (m *multiDataStreamsTransport) RoundTrip(req *http.Request) (rresp *http.Re
 	if err != nil {
 		return nil, err
 	}
-	for i, u := range m.targets {
+	for i, u := range targets {
 		newreq := req.Clone(req.Context())
 		newreq.Body = body()
-		setTarget(newreq, u, m.keys[i])
+		setTarget(newreq, u, keys[i])
 		if i == 0 {
 			// given the way we construct the list of targets the main endpoint
 			// will be the first one called, we return its response and error
@@ -142,7 +165,7 @@ func (m *multiDataStreamsTransport) RoundTrip(req *http.Request) (rresp *http.Re
 			if rerr != nil {
 				log.Errorf("[pipeline_stats] RoundTrip failed: %v", rerr)
 			} else {
-				log.Debugf("[pipeline_stats] Returned status: %s, from host: %s, path: %s", rresp.Status, m.targets[0].Host, m.targets[0].Path)
+				log.Debugf("[pipeline_stats] Returned status: %s, from host: %s, path: %s", rresp.Status, targets[0].Host, targets[0].Path)
 			}
 			continue
 		}
@@ -152,7 +175,7 @@ func (m *multiDataStreamsTransport) RoundTrip(req *http.Request) (rresp *http.Re
 			io.Copy(io.Discard, resp.Body) //nolint:errcheck
 			resp.Body.Close()
 		} else {
-			log.Error(err)
+			log.Errorf("[pipeline_stats] RoundTrip to additional endpoint %s failed: %v", u.Host, err)
 		}
 	}
 	return rresp, rerr

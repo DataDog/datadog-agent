@@ -171,8 +171,9 @@ func runFakeDataPlane() int {
 	adpLog(os.Stdout, "INFO", "agent_data_plane::cli::run",
 		fmt.Sprintf("Agent Data Plane starting... (mode %s)", mode))
 	// The real binary always emits this because preflight mode sets standalone_mode. Every
-	// mode emits it so the expected-warning filter is exercised on every run.
-	adpLog(os.Stderr, "WARN", "agent_data_plane::internal::env",
+	// mode emits it so the expected-warning filter is exercised on every run. The target is the
+	// one ADP 1.8.0 and later log it under.
+	adpLog(os.Stderr, "WARN", "datadog_agent_runtime::env",
 		"Running in standalone mode. Origin detection/enrichment and other features dependent upon the Datadog Agent will not be available.")
 
 	switch mode {
@@ -432,6 +433,29 @@ func (h *harness) findingLocations(t *testing.T, f finding) []sourceLocation {
 		})
 	}
 	return locations
+}
+
+// spawnFailure returns the spawn stage and error class spawn_failed was reported with.
+func (h *harness) spawnFailure(t *testing.T) spawnFailure {
+	t.Helper()
+	return spawnFailureFrom(t, h.tlm)
+}
+
+// spawnFailureFrom returns the spawn stage and error class spawn_failed was reported with.
+func spawnFailureFrom(t *testing.T, tlm telemetry.Mock) spawnFailure {
+	t.Helper()
+	metrics, err := tlm.GetCountMetric(telemetrySubsystem, metricFinding)
+	require.NoError(t, err)
+	for _, m := range metrics {
+		if m.Tags()[labelFinding] == string(findingSpawnFailed) {
+			return spawnFailure{
+				stage: spawnStage(m.Tags()[labelSpawnStage]),
+				class: spawnErrorClass(m.Tags()[labelSpawnError]),
+			}
+		}
+	}
+	require.Fail(t, "spawn_failed was not reported")
+	return spawnFailure{}
 }
 
 // result returns the single reported result label.
@@ -849,6 +873,7 @@ func TestPreflightModeReportsUnusableBinary(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, metrics, 1)
 	assert.Equal(t, string(findingSpawnFailed), metrics[0].Tags()[labelResult])
+	assert.Equal(t, spawnFailure{spawnStageBinary, spawnErrorNotExecutable}, spawnFailureFrom(t, tlm))
 }
 
 // TestPreflightModeUnbindableSocketPath covers a run_path long enough that the socket cannot be
@@ -866,6 +891,25 @@ func TestPreflightModeUnbindableSocketPath(t *testing.T) {
 	h.runToCompletion(t)
 
 	assert.Equal(t, string(findingSpawnFailed), h.result(t))
+	assert.Equal(t, spawnFailure{spawnStageSocketPath, spawnErrorNameTooLong}, h.spawnFailure(t))
+	assert.Empty(t, h.captured(), "the process must not have been started at all")
+}
+
+// TestPreflightModeUncreatableWorkDir covers a run_path the Agent cannot create the working
+// directory under, as on a read-only filesystem, and checks the error class is reported.
+func TestPreflightModeUncreatableWorkDir(t *testing.T) {
+	// A regular file where run_path should be a directory: creating anything under it fails
+	// with ENOTDIR whatever user the test runs as, which a read-only mode would not.
+	runPath := filepath.Join(shortTempDir(t), "run")
+	require.NoError(t, os.WriteFile(runPath, nil, 0600))
+
+	h := newHarness(t, modeNormal, func(cfg pkgconfigmodel.Config) {
+		cfg.Set("run_path", runPath, pkgconfigmodel.SourceAgentRuntime)
+	})
+	h.runToCompletion(t)
+
+	assert.Equal(t, string(findingSpawnFailed), h.result(t))
+	assert.Equal(t, spawnFailure{spawnStageWorkDir, spawnErrorOther}, h.spawnFailure(t))
 	assert.Empty(t, h.captured(), "the process must not have been started at all")
 }
 
@@ -909,6 +953,7 @@ func TestPreflightModeAbortsWhenWorkDirCannotBeSecured(t *testing.T) {
 	h.runToCompletion(t)
 
 	assert.Equal(t, string(findingSpawnFailed), h.result(t))
+	assert.Equal(t, spawnFailure{spawnStageWorkDirPermissions, spawnErrorOther}, h.spawnFailure(t))
 	assert.Empty(t, h.captured(), "the process must not have been started at all")
 
 	// Nothing may be left behind, least of all a config we could not protect.

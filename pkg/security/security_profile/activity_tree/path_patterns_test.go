@@ -977,12 +977,14 @@ func TestFinalizePatterns_RecordsMovedNodes(t *testing.T) {
 	require.NotNil(t, pattern)
 	want := &pattern.Children["file"].NodeBase
 	for _, leaf := range leaves {
+		assert.Same(t, want, leaf.Live(), "a folded node should lead to the node that absorbed it")
 		if to, ok := moved[leaf]; ok {
 			leaf = to
 		}
 		assert.Same(t, want, leaf)
 	}
 	assert.Empty(t, at.Stats.TakeMovedNodes())
+	assert.Same(t, want, want.Live())
 }
 
 func TestInsertFileEvent_NewFileUnderPatternGetsPatternPath(t *testing.T) {

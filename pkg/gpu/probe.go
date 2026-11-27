@@ -184,7 +184,7 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	allowRC := ebpfCfg.EnableRuntimeCompiler && ebpfCfg.AllowRuntimeCompiledFallback
 	//try CO-RE first
 	if ebpfCfg.EnableCORE {
-		err = p.initCOREGPU(ebpfCfg)
+		err = p.initCOREGPU()
 		if err != nil {
 			if allowRC {
 				log.Warnf("error loading CO-RE %s, falling back to runtime compiled: %v", sysconfigtypes.GPUMonitoringModule, err)
@@ -301,20 +301,11 @@ func (p *Probe) initRCGPU(ebpfCfg *ddebpf.Config) error {
 	return p.setupManager(buf, manager.Options{})
 }
 
-func (p *Probe) initCOREGPU(ebpfCfg *ddebpf.Config) error {
-	asset := getAssetName("gpu", ebpfCfg.BPFDebug)
-	err := ddebpf.LoadCOREAsset(asset, func(ar bytecode.AssetReader, o manager.Options) error {
+func (p *Probe) initCOREGPU() error {
+	err := ddebpf.LoadCOREAsset("gpu.o", func(ar bytecode.AssetReader, o manager.Options) error {
 		return p.setupManager(ar, o)
 	})
 	return err
-}
-
-func getAssetName(module string, debug bool) string {
-	if debug {
-		return module + "-debug.o"
-	}
-
-	return module + ".o"
 }
 
 func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {

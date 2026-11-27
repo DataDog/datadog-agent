@@ -9,6 +9,7 @@
 package rules
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -242,6 +243,76 @@ func TestRuleMerge(t *testing.T) {
 		if rule == nil {
 			t.Fatal("expected test_rule_bar to be loaded")
 		}
+	})
+}
+
+func TestRuleMergeOverrideTags(t *testing.T) {
+	tagsOverride := OverrideOptions{Fields: []OverrideField{OverrideTagsField}}
+
+	tests := []struct {
+		name     string
+		rules    []*RuleDefinition
+		expected map[string]string
+	}{
+		{
+			name: "base without tags",
+			rules: []*RuleDefinition{
+				{ID: "test_rule", Expression: `open.file.path == "/tmp/test"`},
+				{ID: "test_rule", Expression: `open.file.path == "/tmp/test"`, Combine: OverridePolicy, OverrideOptions: tagsOverride, Tags: map[string]string{"a": "1"}},
+			},
+			expected: map[string]string{"a": "1"},
+		},
+		{
+			name: "base with tags",
+			rules: []*RuleDefinition{
+				{ID: "test_rule", Expression: `open.file.path == "/tmp/test"`, Tags: map[string]string{"a": "1", "b": "2"}},
+				{ID: "test_rule", Expression: `open.file.path == "/tmp/test"`, Combine: OverridePolicy, OverrideOptions: tagsOverride, Tags: map[string]string{"b": "3", "c": "4"}},
+			},
+			expected: map[string]string{"a": "1", "b": "3", "c": "4"},
+		},
+		{
+			name: "empty override then override with tags",
+			rules: []*RuleDefinition{
+				{ID: "test_rule", Expression: `open.file.path == "/tmp/test"`},
+				{ID: "test_rule", Expression: `open.file.path == "/tmp/test"`, Combine: OverridePolicy, OverrideOptions: tagsOverride},
+				{ID: "test_rule", Expression: `open.file.path == "/tmp/test"`, Combine: OverridePolicy, OverrideOptions: tagsOverride, Tags: map[string]string{"a": "1"}},
+			},
+			expected: map[string]string{"a": "1"},
+		},
+		{
+			name: "empty override",
+			rules: []*RuleDefinition{
+				{ID: "test_rule", Expression: `open.file.path == "/tmp/test"`},
+				{ID: "test_rule", Expression: `open.file.path == "/tmp/test"`, Combine: OverridePolicy, OverrideOptions: tagsOverride},
+			},
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rs, errs := loadPolicy(t, &PolicyDef{Rules: tt.rules}, PolicyLoaderOpts{})
+			require.NoError(t, errs.ErrorOrNil())
+
+			rule := rs.GetRuleByID("test_rule")
+			require.NotNil(t, rule)
+			assert.Equal(t, tt.expected, rule.Def.Tags)
+		})
+	}
+
+	t.Run("policy attribution", func(t *testing.T) {
+		newRule := func(policy string, def *RuleDefinition) *PolicyRule {
+			return &PolicyRule{Def: def, Policy: PolicyInfo{Name: policy, InternalType: DefaultPolicyType}}
+		}
+
+		base := newRule("base", &RuleDefinition{ID: "test_rule"})
+		base.MergeWith(newRule("empty", &RuleDefinition{ID: "test_rule", Combine: OverridePolicy, OverrideOptions: tagsOverride}))
+		assert.Nil(t, base.Def.Tags)
+		assert.Equal(t, "base", base.Policy.Name)
+
+		base.MergeWith(newRule("tags", &RuleDefinition{ID: "test_rule", Combine: OverridePolicy, OverrideOptions: tagsOverride, Tags: map[string]string{"a": "1"}}))
+		assert.Equal(t, map[string]string{"a": "1"}, base.Def.Tags)
+		assert.Equal(t, "tags", base.Policy.Name)
 	})
 }
 
@@ -1833,6 +1904,103 @@ func TestActionSetVariableExpression(t *testing.T) {
 	}}, value)
 }
 
+// loadJSONPolicy loads a policy unmarshaled from JSON, without the YAML round trip of loadPolicy
+func loadJSONPolicy(t *testing.T, jsonPolicy string) (*RuleSet, *multierror.Error) {
+	var policyDef PolicyDef
+	require.NoError(t, json.Unmarshal([]byte(jsonPolicy), &policyDef))
+
+	provider := dummyDirProvider{
+		dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+			policy, err := LoadPolicyFromDefinition(&PolicyInfo{Name: "test.policy"}, &policyDef, nil, nil)
+			if err != nil {
+				return nil, multierror.Append(nil, err)
+			}
+			return []*Policy{policy}, nil
+		},
+	}
+
+	rs := newRuleSet()
+	_, errs := rs.LoadPolicies(NewPolicyLoader(provider), PolicyLoaderOpts{})
+
+	return rs, errs
+}
+
+func TestActionSetVariableJSONNumbers(t *testing.T) {
+	t.Run("integers", func(t *testing.T) {
+		rs, errs := loadJSONPolicy(t, `{
+			"rules": [{
+				"id": "test_rule",
+				"expression": "open.file.path == \"/tmp/test\"",
+				"actions": [
+					{"set": {"name": "var_int", "value": 123}},
+					{"set": {"name": "var_big_int", "value": 9007199254740993}},
+					{"set": {"name": "var_ints", "value": [1, 2], "append": true}},
+					{"set": {"name": "var_scoped", "scope": "process", "default_value": -1, "value": 456}},
+					{"set": {"name": "var_pid", "scope": "process", "default_value": -1, "expression": "process.pid"}}
+				]
+			}]
+		}`)
+		require.NoError(t, errs.ErrorOrNil())
+
+		pce := &model.ProcessCacheEntry{
+			ProcessContext: model.ProcessContext{
+				Process: model.Process{
+					PIDContext: model.PIDContext{
+						Pid: 42,
+					},
+				},
+			},
+		}
+		event := fakeOpenEvent("/tmp/test", pce)
+		event.ProcessContext = &pce.ProcessContext
+		require.True(t, rs.Evaluate(event))
+
+		intVar, ok := rs.evalOpts.VariableStore.Get("var_int").(eval.Variable)
+		require.True(t, ok)
+		value, set := intVar.GetValue()
+		assert.True(t, set)
+		assert.Equal(t, 123, value)
+
+		// above 2^53, a float64 would have rounded the value to 9007199254740992
+		bigIntVar, ok := rs.evalOpts.VariableStore.Get("var_big_int").(eval.Variable)
+		require.True(t, ok)
+		value, set = bigIntVar.GetValue()
+		assert.True(t, set)
+		assert.Equal(t, 9007199254740993, value)
+
+		intArrayVar, ok := rs.evalOpts.VariableStore.Get("var_ints").(eval.Variable)
+		require.True(t, ok)
+		value, set = intArrayVar.GetValue()
+		assert.True(t, set)
+		assert.ElementsMatch(t, []int{1, 2}, value)
+
+		ctx := eval.NewContext(event)
+		for name, expected := range map[string]interface{}{
+			"process.var_scoped": 456,
+			"process.var_pid":    42,
+		} {
+			variable, ok := rs.evalOpts.VariableStore.Get(name).(eval.ScopedVariable)
+			require.True(t, ok, name)
+			value, set := variable.GetValue(ctx, false)
+			assert.True(t, set, name)
+			assert.Equal(t, expected, value, name)
+		}
+	})
+
+	t.Run("not an integer", func(t *testing.T) {
+		_, errs := loadJSONPolicy(t, `{
+			"rules": [{
+				"id": "test_rule",
+				"expression": "open.file.path == \"/tmp/test\"",
+				"actions": [
+					{"set": {"name": "var_float", "value": 1.5}}
+				]
+			}]
+		}`)
+		assert.ErrorContains(t, errs.ErrorOrNil(), "invalid type 'float64' for variable 'var_float'")
+	})
+}
+
 func TestActionSetVariableCapture(t *testing.T) {
 	capturePolicy := func(name string, field string, capture string, isAppend bool) *PolicyDef {
 		return &PolicyDef{
@@ -3160,6 +3328,449 @@ func TestActionSetVariableValidation(t *testing.T) {
 			t.Log(err)
 		}
 	})
+
+	// an action isn't evaluated over the elements of an iterator, so an iterator
+	// variable is rejected wherever it is in its source, a macro included
+	for name, set := range map[string]*SetDefinition{
+		"field":           {Name: "var1", Field: `process.ancestors[A].file.name`, Append: true},
+		"field-subscript": {Name: "var1", Field: `process.argv[process.ancestors[A].uid[0]]`},
+		"field-macro":     {Name: "var1", Field: `process.argv[first_ancestor_uid + 0]`},
+		"expression":      {Name: "var1", Expression: `"%{process.ancestors[A].file.name}"`, DefaultValue: ""},
+		"scope-field":     {Name: "var1", Value: 1, Scope: "process", ScopeField: `process.ancestors[A].pid`},
+	} {
+		t.Run("iterator-variable/"+name, func(t *testing.T) {
+			testPolicy := &PolicyDef{
+				Macros: []*MacroDefinition{{
+					ID:         "first_ancestor_uid",
+					Expression: `process.ancestors[A].uid[0]`,
+				}},
+				Rules: []*RuleDefinition{{
+					ID:         "test_rule",
+					Expression: `open.file.path == "/tmp/test"`,
+					Actions:    []*ActionDefinition{{Set: set}},
+				}},
+			}
+
+			_, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
+			if err == nil || !strings.Contains(err.Error(), "iterator variables aren't supported in an action") {
+				t.Errorf("expected the iterator variable to be rejected, got %v", err)
+			}
+		})
+	}
+}
+
+// A variable read from a dictionary, the environment variables of a process,
+// records the keys it reads, for the serializer to check them against
+// envs_with_value, or that one of them is evaluated per event.
+func TestActionSetVariableEnvKeys(t *testing.T) {
+	testPolicy := &PolicyDef{Rules: []*RuleDefinition{{
+		ID:         "test_rule",
+		Expression: `open.file.path == "/tmp/test"`,
+		Actions: []*ActionDefinition{
+			{Set: &SetDefinition{Name: "key", Value: "PATH"}},
+			{Set: &SetDefinition{Name: "from_field", Field: `process.env["TOKEN"]`}},
+			{Set: &SetDefinition{Name: "from_expression", Expression: `process.env["TOKEN"]`, DefaultValue: ""}},
+			{Set: &SetDefinition{Name: "from_scope", Field: `process.env["TOKEN"]`, Scope: "process"}},
+			{Set: &SetDefinition{Name: "from_evaluated_key", Field: `process.env[${key}]`}},
+			{Set: &SetDefinition{Name: "from_nested_key", Field: `process.env[process.env["PATH"]]`}},
+			{Set: &SetDefinition{Name: "from_key_test", Expression: `"TOKEN" in process.env`, DefaultValue: false}},
+			{Set: &SetDefinition{Name: "from_path", Field: `open.file.path`}},
+		},
+	}}}
+
+	tmpDir := t.TempDir()
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rs := newRuleSet()
+	if _, err := rs.LoadPolicies(NewPolicyLoader(provider), PolicyLoaderOpts{}); err != nil {
+		t.Fatal(err)
+	}
+
+	for name, expected := range map[string]struct {
+		keys      []string
+		evaluated bool
+	}{
+		"from_field":         {[]string{"TOKEN"}, false},
+		"from_expression":    {[]string{"TOKEN"}, false},
+		"process.from_scope": {[]string{"TOKEN"}, false},
+		"from_evaluated_key": {nil, true},
+		"from_nested_key":    {[]string{"PATH"}, true},
+		"from_key_test":      {nil, false},
+		"from_path":          {nil, false},
+	} {
+		variable := rs.evalOpts.VariableStore.Get(name)
+		if variable == nil {
+			t.Fatalf("variable %s not found", name)
+		}
+		opts := variable.GetVariableOpts()
+		if !slices.Equal(opts.EnvKeys, expected.keys) || opts.EnvKeyEvaluated != expected.evaluated {
+			t.Errorf("variable %s: expected env keys %v and evaluated %v, got %v and %v", name, expected.keys, expected.evaluated, opts.EnvKeys, opts.EnvKeyEvaluated)
+		}
+		if opts.Private {
+			t.Errorf("variable %s: expected not to be private", name)
+		}
+	}
+}
+
+// A variable read from another variable gets its env marks, whatever order the
+// rules are loaded in, cycles included. A rule that fails to load doesn't mark
+// the variables it shares with other rules.
+func TestActionSetVariableEnvKeysThroughVariables(t *testing.T) {
+	set := func(id, path string, sets ...*SetDefinition) *RuleDefinition {
+		rule := &RuleDefinition{ID: id, Expression: `open.file.path == "` + path + `"`}
+		for _, set := range sets {
+			rule.Actions = append(rule.Actions, &ActionDefinition{Set: set})
+		}
+		return rule
+	}
+	testPolicy := &PolicyDef{Rules: []*RuleDefinition{
+		set("copies", "/tmp/copies",
+			&SetDefinition{Name: "tok_copy", Expression: `${tok}`, DefaultValue: ""},
+			&SetDefinition{Name: "tok_chain", Expression: `"x_${tok_copy}"`, DefaultValue: ""},
+		),
+		set("source", "/tmp/source", &SetDefinition{Name: "tok", Field: `process.env["AWS_SECRET_ACCESS_KEY"]`}),
+		set("cycle", "/tmp/cycle",
+			&SetDefinition{Name: "cycle_a", Expression: `${cycle_b}`, DefaultValue: ""},
+			&SetDefinition{Name: "cycle_b", Expression: `${cycle_a}`, DefaultValue: ""},
+			&SetDefinition{Name: "cycle_b", Field: `process.env["TOKEN"]`},
+		),
+		// an exec field in an open rule: the rule fails to load
+		set("rejected", "/tmp/rejected", &SetDefinition{Name: "shared", Field: `exec.env["TOKEN"]`}),
+		set("loaded", "/tmp/loaded", &SetDefinition{Name: "shared", Field: `open.file.path`}),
+	}}
+
+	tmpDir := t.TempDir()
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rs := newRuleSet()
+	_, loadErr := rs.LoadPolicies(NewPolicyLoader(provider), PolicyLoaderOpts{})
+	if loadErr.ErrorOrNil() == nil || !strings.Contains(loadErr.Error(), "rejected") || rs.GetRuleByID("loaded") == nil {
+		t.Fatalf("expected only the rejected rule to fail to load, got %v", loadErr)
+	}
+
+	for name, keys := range map[string][]string{
+		"tok":       {"AWS_SECRET_ACCESS_KEY"},
+		"tok_copy":  {"AWS_SECRET_ACCESS_KEY"},
+		"tok_chain": {"AWS_SECRET_ACCESS_KEY"},
+		"cycle_a":   {"TOKEN"},
+		"cycle_b":   {"TOKEN"},
+		"shared":    nil,
+	} {
+		variable := rs.evalOpts.VariableStore.Get(name)
+		if variable == nil {
+			t.Fatalf("variable %s not found", name)
+		}
+		if opts := variable.GetVariableOpts(); !slices.Equal(opts.EnvKeys, keys) {
+			t.Errorf("variable %s: expected env keys %v, got %v", name, keys, opts.EnvKeys)
+		}
+	}
+}
+
+// envpMark is how a variable read from the environment of a process is
+// serialized
+type envpMark int
+
+const (
+	// envpAsIs is serialized as is
+	envpAsIs envpMark = iota
+	// envpFiltered is serialized entry by entry, with a value only for the keys
+	// of envs_with_value
+	envpFiltered
+	// envpHidden is never serialized
+	envpHidden
+)
+
+func setEnvpRule(id string, sets ...*SetDefinition) *RuleDefinition {
+	rule := &RuleDefinition{ID: id, Expression: `exec.file.path == "/usr/bin/` + id + `"`}
+	for _, set := range sets {
+		rule.Actions = append(rule.Actions, &ActionDefinition{Set: set})
+	}
+	return rule
+}
+
+func assertEnvpMarks(t *testing.T, rs *RuleSet, expected map[string]envpMark) {
+	t.Helper()
+	for name, mark := range expected {
+		variable := rs.evalOpts.VariableStore.Get(name)
+		require.NotNil(t, variable, "variable %s not found", name)
+		opts := variable.GetVariableOpts()
+		assert.False(t, opts.Private, "variable %s: expected not to be private", name)
+		switch mark {
+		case envpAsIs:
+			assert.False(t, opts.EnvKeyEvaluated || opts.EnvFiltered, "variable %s: expected no env mark", name)
+		case envpFiltered:
+			assert.True(t, opts.EnvFiltered && !opts.EnvKeyEvaluated, "variable %s: expected to be filtered", name)
+		case envpHidden:
+			assert.True(t, opts.EnvKeyEvaluated, "variable %s: expected to be hidden", name)
+		}
+	}
+}
+
+// The envp entries copied as is are filtered on their keys, a part of one or a
+// value computed out of one is hidden.
+func TestActionSetVariableEnvpField(t *testing.T) {
+	t.Run("field", func(t *testing.T) {
+		rs, errs := loadPolicy(t, &PolicyDef{Rules: []*RuleDefinition{
+			setEnvpRule("field",
+				&SetDefinition{Name: "envp", Field: "exec.envp", Append: true},
+				&SetDefinition{Name: "parent_envp", Field: "process.parent.envp", Append: true},
+				&SetDefinition{Name: "ancestors_envp", Field: "process.ancestors.envp", Append: true},
+				&SetDefinition{Name: "first_env", Field: "exec.envp[0]"},
+				&SetDefinition{Name: "scoped_envp", Field: "exec.envp", Append: true, Scope: ScopeProcess},
+				&SetDefinition{Name: "lang", Field: "exec.envp[0]", Capture: "^LANG=(.+)$"},
+				&SetDefinition{Name: "envs", Field: "exec.envs", Append: true},
+				&SetDefinition{Name: "path", Field: "exec.file.path"},
+			),
+		}}, PolicyLoaderOpts{})
+		require.NoError(t, errs.ErrorOrNil())
+
+		assertEnvpMarks(t, rs, map[string]envpMark{
+			"envp":                envpFiltered,
+			"parent_envp":         envpFiltered,
+			"ancestors_envp":      envpFiltered,
+			"first_env":           envpFiltered,
+			"process.scoped_envp": envpFiltered,
+			"lang":                envpHidden,
+			"envs":                envpAsIs,
+			"path":                envpAsIs,
+		})
+	})
+
+	t.Run("expression", func(t *testing.T) {
+		rs, errs := loadPolicy(t, &PolicyDef{
+			Macros: []*MacroDefinition{
+				{ID: "envp_macro", Expression: `"%{exec.envp}"`},
+				{ID: "nested_envp_macro", Expression: `envp_macro`},
+			},
+			Rules: []*RuleDefinition{
+				setEnvpRule("expression",
+					&SetDefinition{Name: "envp", Expression: `exec.envp`, DefaultValue: []string{""}, Append: true},
+					&SetDefinition{Name: "envp_ref", Expression: `"%{exec.envp}"`, DefaultValue: ""},
+					&SetDefinition{Name: "envp_macro", Expression: `nested_envp_macro`, DefaultValue: ""},
+					&SetDefinition{Name: "path", Expression: `"%{exec.file.path}"`, DefaultValue: ""},
+				),
+			},
+		}, PolicyLoaderOpts{})
+		require.NoError(t, errs.ErrorOrNil())
+
+		assertEnvpMarks(t, rs, map[string]envpMark{
+			"envp":       envpFiltered,
+			"envp_ref":   envpHidden,
+			"envp_macro": envpHidden,
+			"path":       envpAsIs,
+		})
+	})
+
+	t.Run("propagation", func(t *testing.T) {
+		// the variables read from envp ones are added before them
+		rs, errs := loadPolicy(t, &PolicyDef{Rules: []*RuleDefinition{
+			setEnvpRule("derived",
+				&SetDefinition{Name: "derived", Expression: `"display:${display}"`, DefaultValue: ""},
+				&SetDefinition{Name: "derived_twice", Expression: `"${derived}"`, DefaultValue: ""},
+				&SetDefinition{Name: "copied_from_filtered", Expression: `${first_env}`, DefaultValue: ""},
+				&SetDefinition{Name: "derived_from_filtered", Expression: `"${first_env}"`, DefaultValue: ""},
+				&SetDefinition{Name: "length_of_filtered", Expression: `${first_env.length}`, DefaultValue: 0},
+				&SetDefinition{Name: "unrelated", Expression: `"${path}"`, DefaultValue: ""},
+			),
+			setEnvpRule("source",
+				&SetDefinition{Name: "display", Field: "exec.envp[0]", Capture: "^DISPLAY=(.+)$"},
+				&SetDefinition{Name: "first_env", Field: "exec.envp[0]"},
+				&SetDefinition{Name: "path", Field: "exec.file.path"},
+			),
+		}}, PolicyLoaderOpts{})
+		require.NoError(t, errs.ErrorOrNil())
+
+		assertEnvpMarks(t, rs, map[string]envpMark{
+			"display":               envpHidden,
+			"derived":               envpHidden,
+			"derived_twice":         envpHidden,
+			"first_env":             envpFiltered,
+			"copied_from_filtered":  envpHidden,
+			"derived_from_filtered": envpHidden,
+			"length_of_filtered":    envpHidden,
+			"path":                  envpAsIs,
+			"unrelated":             envpAsIs,
+		})
+	})
+
+	t.Run("most-restrictive", func(t *testing.T) {
+		// a variable set by several rules gets the marks of all of them
+		rs, errs := loadPolicy(t, &PolicyDef{Rules: []*RuleDefinition{
+			setEnvpRule("filtered", &SetDefinition{Name: "env", Field: "exec.envp[0]"}),
+			setEnvpRule("captured", &SetDefinition{Name: "env", Field: "exec.envp[0]", Capture: "^LANG=(.+)$"}),
+			setEnvpRule("constant", &SetDefinition{Name: "mixed", Value: "FOO=bar"}),
+			setEnvpRule("mixed", &SetDefinition{Name: "mixed", Field: "exec.envp[0]"}),
+		}}, PolicyLoaderOpts{})
+		require.NoError(t, errs.ErrorOrNil())
+
+		assertEnvpMarks(t, rs, map[string]envpMark{
+			"env":   envpHidden,
+			"mixed": envpFiltered,
+		})
+	})
+
+	t.Run("rejected", func(t *testing.T) {
+		// a rule that fails to load doesn't mark the variables it shares with
+		// valid rules, from a failing action or from a valid one before it
+		rs, errs := loadPolicy(t, &PolicyDef{Rules: []*RuleDefinition{
+			setEnvpRule("valid",
+				&SetDefinition{Name: "shared", Field: "exec.file.path"},
+				&SetDefinition{Name: "before_failing", Field: "exec.file.path"},
+			),
+			// an exec field in an open rule
+			{ID: "rejected_field", Expression: `open.file.path == "/tmp/test"`, Actions: []*ActionDefinition{
+				{Set: &SetDefinition{Name: "shared", Field: "exec.envp[0]"}},
+			}},
+			setEnvpRule("rejected_action",
+				&SetDefinition{Name: "before_failing", Field: "exec.envp[0]"},
+				&SetDefinition{Name: "failing", Field: "open.file.path"},
+			),
+		}}, PolicyLoaderOpts{})
+		require.Error(t, errs.ErrorOrNil())
+		// rejected when their actions are compiled
+		assert.Contains(t, errs.Error(), "is not compatible with 'open' rules")
+		assert.Contains(t, errs.Error(), "is not compatible with 'exec' rules")
+		assert.Contains(t, errs.Error(), "rejected_field")
+		assert.Contains(t, errs.Error(), "rejected_action")
+		require.NotNil(t, rs.GetRuleByID("valid"))
+
+		assertEnvpMarks(t, rs, map[string]envpMark{
+			"shared":         envpAsIs,
+			"before_failing": envpAsIs,
+		})
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		// a hidden variable can still be read by other rules
+		rs, errs := loadPolicy(t, &PolicyDef{Rules: []*RuleDefinition{
+			setEnvpRule("source", &SetDefinition{Name: "display", Field: "exec.envp[0]", Capture: "^DISPLAY=(.+)$", Scope: ScopeProcess}),
+			{ID: "chained", Expression: `open.file.path == "/tmp/test" && ${process.display} == ":0"`},
+		}}, PolicyLoaderOpts{})
+		require.NoError(t, errs.ErrorOrNil())
+
+		assert.NotNil(t, rs.GetRuleByID("chained"))
+		assertEnvpMarks(t, rs, map[string]envpMark{"process.display": envpHidden})
+	})
+}
+
+// The subscript of a set field can read a variable declared by a rule loaded
+// after it: the variables are declared before any field is compiled.
+func TestActionSetVariableSubscriptVariable(t *testing.T) {
+	testPolicy := &PolicyDef{Rules: []*RuleDefinition{{
+		ID:         "set_value",
+		Expression: `open.file.path == "/tmp/value"`,
+		Actions:    []*ActionDefinition{{Set: &SetDefinition{Name: "value", Field: `process.env[${key}]`}}},
+	}, {
+		ID:         "set_key",
+		Expression: `open.file.path == "/tmp/key"`,
+		Actions:    []*ActionDefinition{{Set: &SetDefinition{Name: "key", Value: "LD_PRELOAD"}}},
+	}, {
+		ID:         "check",
+		Expression: `open.file.path == "/tmp/check" && ${value} == "x.so"`,
+	}}}
+
+	tmpDir := t.TempDir()
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rs := newRuleSet()
+	if _, err := rs.LoadPolicies(NewPolicyLoader(provider), PolicyLoaderOpts{}); err != nil {
+		t.Fatal(err)
+	}
+
+	newEvent := func(path string) *model.Event {
+		event := model.NewFakeEvent()
+		event.Type = uint32(model.FileOpenEventType)
+		event.ProcessCacheEntry = &model.ProcessCacheEntry{}
+		event.SetFieldValue("open.file.path", path)
+		event.ProcessContext.Process.Env = map[string]string{"LD_PRELOAD": "x.so"}
+		return event
+	}
+	for _, path := range []string{"/tmp/key", "/tmp/value"} {
+		if !rs.Evaluate(newEvent(path)) {
+			t.Fatalf("expected the rule of %s to match", path)
+		}
+	}
+	if !rs.Evaluate(newEvent("/tmp/check")) {
+		t.Error("expected the value to be read at the key of the variable")
+	}
+}
+
+// An iterated field is an array of values, one per element, even if its field
+// isn't one: it can only be appended to a variable.
+func TestActionSetVariableIteratedField(t *testing.T) {
+	setRule := func(set *SetDefinition) *PolicyDef {
+		return &PolicyDef{Rules: []*RuleDefinition{{
+			ID:         "test_rule",
+			Expression: `open.file.path == "/tmp/test"`,
+			Actions:    []*ActionDefinition{{Set: set}},
+		}, {
+			ID:         "test_rule2",
+			Expression: `open.file.path == "/tmp/test2" && "bash" in ${ancestors}`,
+		}}}
+	}
+
+	for name, test := range map[string]struct {
+		set *SetDefinition
+		err string
+	}{
+		"without-append": {&SetDefinition{Name: "ancestors", Field: "process.ancestors.file.name"}, "can only be used with 'append: yes'"},
+		"capture":        {&SetDefinition{Name: "ancestors", Field: "process.ancestors.file.name", Capture: "(b.*)"}, "'capture' is not supported on array field"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := loadPolicy(t, setRule(test.set), PolicyLoaderOpts{})
+			if err == nil || !strings.Contains(err.Error(), test.err) {
+				t.Errorf("expected an error containing %q, got %v", test.err, err)
+			}
+		})
+	}
+
+	t.Run("append", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		if err := savePolicy(filepath.Join(tmpDir, "test.policy"), setRule(&SetDefinition{Name: "ancestors", Field: "process.ancestors.file.name", Append: true})); err != nil {
+			t.Fatal(err)
+		}
+		provider, err := NewPoliciesDirProvider(tmpDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rs := newRuleSet()
+		if _, err := rs.LoadPolicies(NewPolicyLoader(provider), PolicyLoaderOpts{}); err != nil {
+			t.Fatal(err)
+		}
+
+		newEvent := func(path string) *model.Event {
+			event := model.NewFakeEvent()
+			event.Type = uint32(model.FileOpenEventType)
+			event.ProcessCacheEntry = &model.ProcessCacheEntry{}
+			event.SetFieldValue("open.file.path", path)
+			parent := &model.ProcessCacheEntry{}
+			parent.Process.FileEvent.BasenameStr = "bash"
+			event.ProcessContext.Ancestor = parent
+			return event
+		}
+
+		if !rs.Evaluate(newEvent("/tmp/test")) {
+			t.Fatal("expected test_rule to match")
+		}
+		if !rs.Evaluate(newEvent("/tmp/test2")) {
+			t.Error("expected the name of the ancestor to be appended to the variable")
+		}
+	})
 }
 
 func TestActionSetVariableArrayIndex(t *testing.T) {
@@ -3849,3 +4460,230 @@ rules:
           signal: SIGKILL
           scope: process
 `
+
+func TestOverrideSetActionConflictingPrivateFlag(t *testing.T) {
+	loader := &PolicyLoader{
+		Providers: []PolicyProvider{
+			dummyRCProvider{
+				dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+					return testPoliciesToPolicies([]*testPolicyDef{
+						{
+							name:       DefaultPolicyName,
+							source:     PolicyProviderTypeRC,
+							policyType: DefaultPolicyType,
+							def: PolicyDef{
+								Rules: []*RuleDefinition{
+									{
+										ID:         "imds_v1_usage",
+										Expression: `open.file.path == "/tmp/test"`,
+										Disabled:   true,
+										Actions: []*ActionDefinition{
+											{
+												Set: &SetDefinition{
+													Name:         "imds_v1_usage_services",
+													Field:        "process.file.path",
+													DefaultValue: "",
+													Append:       true,
+													Private:      true,
+												},
+											},
+											{
+												Set: &SetDefinition{
+													Name:    "scoped_var",
+													Field:   "process.file.path",
+													Scope:   "process",
+													Append:  true,
+													Private: true,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						{
+							name:       "custom.policy",
+							source:     PolicyProviderTypeRC,
+							policyType: CustomPolicyType,
+							def: PolicyDef{
+								Rules: []*RuleDefinition{
+									{
+										ID:         "imds_v1_usage",
+										Expression: `open.file.path == "/tmp/test"`,
+										Combine:    OverridePolicy,
+										OverrideOptions: OverrideOptions{
+											Fields: []OverrideField{OverrideActionFields},
+										},
+										Actions: []*ActionDefinition{
+											{
+												Set: &SetDefinition{
+													Name:         "imds_v1_usage_services",
+													Field:        "process.file.path",
+													DefaultValue: "",
+													Append:       true,
+													Private:      false,
+												},
+											},
+											{
+												Set: &SetDefinition{
+													Name:         "imds_v1_usage_services",
+													Field:        "process.parent.file.path",
+													DefaultValue: "",
+													Append:       true,
+													Private:      false,
+												},
+											},
+											{
+												Set: &SetDefinition{
+													Name:    "scoped_var",
+													Field:   "process.file.path",
+													Scope:   "process",
+													Append:  true,
+													Private: false,
+												},
+											},
+											{
+												Set: &SetDefinition{
+													Name:    "scoped_var",
+													Field:   "process.parent.file.path",
+													Scope:   "process",
+													Append:  true,
+													Private: false,
+												},
+											},
+											{
+												Set: &SetDefinition{
+													Name:   "scoped_var",
+													Field:  "process.file.path",
+													Scope:  "container",
+													Append: true,
+												},
+											},
+										},
+									},
+									{
+										ID: "correlate_imds_v1_usage",
+										Expression: `open.file.path == "/tmp/check" && ` +
+											`"/usr/bin/child" in ${imds_v1_usage_services} && ` +
+											`"/usr/bin/parent" in ${imds_v1_usage_services} && ` +
+											`"/usr/bin/child" in ${process.scoped_var} && ` +
+											`"/usr/bin/parent" in ${process.scoped_var}`,
+									},
+								},
+							},
+						},
+					})
+				},
+			},
+		},
+	}
+
+	rs := newRuleSet()
+	_, errs := rs.LoadPolicies(loader, PolicyLoaderOpts{})
+	require.NoError(t, errs.ErrorOrNil())
+
+	rule := rs.GetRuleByID("imds_v1_usage")
+	require.NotNil(t, rule)
+	require.Len(t, rule.Def.Actions, 5)
+	require.Len(t, rule.Actions, 5)
+	assert.Equal(t, "process.file.path", rule.Def.Actions[0].Set.Field)
+	assert.True(t, rule.Def.Actions[0].Set.Private)
+	assert.Equal(t, "process.file.path", rule.Def.Actions[1].Set.Field)
+	assert.True(t, rule.Def.Actions[1].Set.Private)
+	assert.Equal(t, "process.parent.file.path", rule.Def.Actions[2].Set.Field)
+	assert.True(t, rule.Def.Actions[2].Set.Private)
+	assert.Equal(t, "process.parent.file.path", rule.Def.Actions[3].Set.Field)
+	assert.True(t, rule.Def.Actions[3].Set.Private)
+	assert.Equal(t, Scope("container"), rule.Def.Actions[4].Set.Scope)
+	assert.False(t, rule.Def.Actions[4].Set.Private)
+
+	globalVar := rs.GetVariableStore().Get("imds_v1_usage_services")
+	require.NotNil(t, globalVar)
+	assert.True(t, globalVar.GetVariableOpts().Private)
+
+	processVar := rs.GetVariableStore().Get("process.scoped_var")
+	require.NotNil(t, processVar)
+	assert.True(t, processVar.GetVariableOpts().Private)
+
+	containerVar := rs.GetVariableStore().Get("container.scoped_var")
+	require.NotNil(t, containerVar)
+	assert.False(t, containerVar.GetVariableOpts().Private)
+
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.FileOpenEventType)
+	event.ProcessCacheEntry = &model.ProcessCacheEntry{}
+	require.NoError(t, event.SetFieldValue("open.file.path", "/tmp/test"))
+	require.NoError(t, event.SetFieldValue("process.file.path", "/usr/bin/child"))
+	require.NoError(t, event.SetFieldValue("process.parent.file.path", "/usr/bin/parent"))
+	assert.True(t, rs.Evaluate(event))
+
+	require.NoError(t, event.SetFieldValue("open.file.path", "/tmp/check"))
+	assert.True(t, rs.Evaluate(event))
+
+	// Intra-override conflicting Private flags on a variable not present in the base rule must be rejected.
+	conflictLoader := &PolicyLoader{
+		Providers: []PolicyProvider{
+			dummyRCProvider{
+				dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+					return testPoliciesToPolicies([]*testPolicyDef{
+						{
+							name:       DefaultPolicyName,
+							source:     PolicyProviderTypeRC,
+							policyType: DefaultPolicyType,
+							def: PolicyDef{
+								Rules: []*RuleDefinition{
+									{
+										ID:         "base_without_set",
+										Expression: `open.file.path == "/tmp/test"`,
+									},
+								},
+							},
+						},
+						{
+							name:       "custom.policy",
+							source:     PolicyProviderTypeRC,
+							policyType: CustomPolicyType,
+							def: PolicyDef{
+								Rules: []*RuleDefinition{
+									{
+										ID:         "base_without_set",
+										Expression: `open.file.path == "/tmp/test"`,
+										Combine:    OverridePolicy,
+										OverrideOptions: OverrideOptions{
+											Fields: []OverrideField{OverrideActionFields},
+										},
+										Actions: []*ActionDefinition{
+											{
+												Set: &SetDefinition{
+													Name:         "override_only_var",
+													Field:        "process.file.path",
+													DefaultValue: "",
+													Append:       true,
+													Private:      false,
+												},
+											},
+											{
+												Set: &SetDefinition{
+													Name:         "override_only_var",
+													Field:        "process.parent.file.path",
+													DefaultValue: "",
+													Append:       true,
+													Private:      true,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					})
+				},
+			},
+		},
+	}
+
+	conflictRS := newRuleSet()
+	_, conflictErrs := conflictRS.LoadPolicies(conflictLoader, PolicyLoaderOpts{})
+	require.Error(t, conflictErrs.ErrorOrNil())
+	assert.ErrorContains(t, conflictErrs.ErrorOrNil(), "conflicting private flag for variable 'override_only_var'")
+}

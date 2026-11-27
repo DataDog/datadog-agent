@@ -114,6 +114,11 @@ func (agent *agentCommandRunner) Diagnose(commandArgs ...agentclient.AgentArgsOp
 	return agent.executeCommand("diagnose", commandArgs...)
 }
 
+// DiagnoseWithError runs diagnose command and returns its output or an error
+func (agent *agentCommandRunner) DiagnoseWithError(commandArgs ...agentclient.AgentArgsOption) (string, error) {
+	return agent.executeCommandWithError("diagnose", commandArgs...)
+}
+
 // Flare runs flare command and returns the output. You should use the FakeIntake client to fetch the flare archive
 func (agent *agentCommandRunner) Flare(commandArgs ...agentclient.AgentArgsOption) string {
 	return agent.executeCommand("flare", commandArgs...)

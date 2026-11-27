@@ -75,6 +75,10 @@ type Resolver struct {
 	ctx                 context.Context
 	cancel              context.CancelFunc
 	wg                  sync.WaitGroup
+
+	// settler and hostSnapshotRequests are only set with TCX links, which follow moved devices
+	settler              *deviceSettler
+	hostSnapshotRequests chan struct{}
 }
 
 // NewResolver returns a new instance of Resolver
@@ -92,6 +96,10 @@ func NewResolver(config *config.Config, manager *manager.Manager, statsdClient s
 
 		errorCounters: newErrorCounters(),
 	}
+	if nr.usesTCX() {
+		nr.settler = newDeviceSettler(config.NetworkTCXSettleDelay)
+		nr.hostSnapshotRequests = make(chan struct{}, 1)
+	}
 
 	lru, err := simplelru.NewLRU(1024, func(_ uint32, value *NetworkNamespace) {
 		value.Lock()
@@ -101,7 +109,6 @@ func NewResolver(config *config.Config, manager *manager.Manager, statsdClient s
 		// must only release the resources and never mutate the LRU (doing so would
 		// re-enter this callback and deadlock on value's lock)
 		nr.flushNetworkNamespaceResources(value)
-		tcResolver.FlushNetworkNamespaceID(value.nsID, manager)
 	})
 	if err != nil {
 		return nil, err
@@ -331,6 +338,9 @@ func (nr *Resolver) SyncCache() bool {
 		nr.snapshotNetworkDevices(entry.netns)
 	}
 
+	// the check needs the host network namespace and its classifiers set up above
+	nr.warnAboutBlindHooks()
+
 	return len(newEntries) > 0
 }
 
@@ -388,6 +398,8 @@ func (nr *Resolver) manualFlushNamespaces() {
 	// device. Defer a snapshot process for each of those namespaces, and delete them if the snapshot yields
 	// no new device.
 	nr.preventNetworkNamespaceDrift(probesCount)
+
+	nr.requestHostSnapshot()
 }
 
 func (nr *Resolver) flushNamespaces(ctx context.Context) {
@@ -405,7 +417,6 @@ func (nr *Resolver) flushNamespaces(ctx context.Context) {
 }
 
 // FlushNetworkNamespace flushes the cached entries for the provided network namespace.
-// (WARNING: you probably want to use probe.FlushNetworkNamespace instead)
 func (nr *Resolver) FlushNetworkNamespace(netns *NetworkNamespace) {
 	nr.Lock()
 	defer nr.Unlock()
@@ -451,7 +462,7 @@ func (nr *Resolver) flushNetworkNamespaceResources(netns *NetworkNamespace) {
 	}
 
 	// remove all references to this network namespace from the manager
-	_ = nr.manager.CleanupNetworkNamespace(netns.nsID)
+	nr.tcResolver.CleanupNetworkNamespace(netns.nsID, nr.manager)
 }
 
 // preventNetworkNamespaceDrift ensures that we do not keep network namespace handles indefinitely
@@ -495,7 +506,6 @@ func (nr *Resolver) preventNetworkNamespaceDrift(probesCount map[uint32]int) {
 			deviceCountNoLoopbackNoDummy := nr.snapshotNetworkDevices(netns)
 			if deviceCountNoLoopbackNoDummy == 0 {
 				nr.flushNetworkNamespace(netns)
-				nr.tcResolver.FlushNetworkNamespaceID(netns.nsID, nr.manager)
 			}
 		}
 	}
@@ -567,8 +577,9 @@ func newTmpFile(prefix string) (*os.File, error) {
 
 // NetworkDeviceDump is used to dump a network namespace
 type NetworkDeviceDump struct {
-	IfName  string
-	IfIndex int
+	IfName   string
+	IfIndex  int
+	Programs []tc.ProgramDump `json:",omitempty"`
 }
 
 // NetworkNamespaceDump is used to dump a network namespce
@@ -598,9 +609,13 @@ func (nr *Resolver) dump(params *api.DumpNetworkNamespaceParams) []NetworkNamesp
 
 		netnsDump := NetworkNamespaceDump{
 			NsID:          netns.nsID,
-			HandleFD:      int(netns.handle.Fd()),
-			HandlePath:    netns.handle.Name(),
+			HandleFD:      -1,
 			LonelyTimeout: netns.lonelyTimeout,
+		}
+		// namespaces holding queued devices may have no handle yet
+		if netns.hasValidHandle() {
+			netnsDump.HandleFD = int(netns.handle.Fd())
+			netnsDump.HandlePath = netns.handle.Name()
 		}
 
 		for _, dev := range netns.networkDevicesQueue {
@@ -621,10 +636,12 @@ func (nr *Resolver) dump(params *api.DumpNetworkNamespaceParams) []NetworkNamesp
 			if err == nil {
 				links, err = listLinks(ntl.Sock)
 				if err == nil {
+					programs := nr.tcResolver.DumpNetworkNamespacePrograms(netns.nsID, handle, ntl)
 					for _, link := range links {
 						netnsDump.Devices = append(netnsDump.Devices, NetworkDeviceDump{
-							IfName:  link.Attrs().Name,
-							IfIndex: link.Attrs().Index,
+							IfName:   link.Attrs().Name,
+							IfIndex:  link.Attrs().Index,
+							Programs: programs[uint32(link.Attrs().Index)],
 						})
 					}
 				}

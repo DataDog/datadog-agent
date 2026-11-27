@@ -764,7 +764,8 @@ func (v *ssiSuite) TestRemoteConfig() {
 
 	fi := v.Env().FakeIntake.Client()
 	// RestartUntil re-admits pods until the expected outcome appears so we do not race
-	// the cluster-agent RC client.
+	// the cluster-agent RC clients. Each replica applies updates independently, so wait
+	// for every workload's expected admission state even after another workload converges.
 
 	// Host-only RC cannot match K8s admission facts. A matching policy is published first so
 	// the annotated pod leaves the helm baseline; replacing that same RC document with the
@@ -789,8 +790,7 @@ func (v *ssiSuite) TestRemoteConfig() {
 		podValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedConfigAnnotation})
 		podValidator.RequireAnnotations(v.T(), map[string]string{testutils.InjectionSourceAnnotation: "annotation"})
 
-		RestartPod(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
-		unannotated := FindPodInNamespace(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
+		unannotated := RestartUntil(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp, noInjection(rcUnannotatedPodApp))
 		unannotatedValidator := testutils.NewPodValidator(unannotated, testutils.InjectionModeAuto)
 		unannotatedValidator.RequireNoInjection(v.T())
 		unannotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedConfigAnnotation})
@@ -816,8 +816,7 @@ func (v *ssiSuite) TestRemoteConfig() {
 		podValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedConfigAnnotation})
 		podValidator.RequireAnnotations(v.T(), map[string]string{testutils.InjectionSourceAnnotation: "annotation"})
 
-		RestartPod(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
-		unannotated := WaitForMutatedPodInNamespace(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
+		unannotated := RestartUntil(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp, hasInstallType(rcUnannotatedPodApp, "k8s_single_step"))
 		unannotatedValidator := testutils.NewPodValidator(unannotated, testutils.InjectionModeAuto)
 		unannotatedValidator.RequireInjection(v.T(), []string{rcUnannotatedPodApp})
 		unannotatedValidator.RequireInstallType(v.T(), "k8s_single_step", []string{rcUnannotatedPodApp})
@@ -849,8 +848,7 @@ func (v *ssiSuite) TestRemoteConfig() {
 		annotatedValidator.RequireMissingEnvs(v.T(), []string{"DD_TRACE_ENABLED"}, []string{rcAnnotatedPodApp})
 		annotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedConfigAnnotation})
 
-		RestartPod(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
-		unannotated := FindPodInNamespace(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
+		unannotated := RestartUntil(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp, noInjection(rcUnannotatedPodApp))
 		unannotatedValidator := testutils.NewPodValidator(unannotated, testutils.InjectionModeAuto)
 		unannotatedValidator.RequireNoInjection(v.T())
 		unannotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedConfigAnnotation})
@@ -882,8 +880,7 @@ func (v *ssiSuite) TestRemoteConfig() {
 		unannotatedValidator.RequireInjectionStatus(v.T(), testutils.InjectionStatusBlocked)
 		unannotatedValidator.RequireAppliedConfigName(v.T(), rcLastWinsOtherDenyPolicyName)
 
-		RestartPod(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp)
-		annotated := WaitForMutatedPodInNamespace(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp)
+		annotated := RestartUntil(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp, hasInstallType(rcAnnotatedPodApp, "k8s_lib_injection"))
 		annotatedValidator := testutils.NewPodValidator(annotated, testutils.InjectionModeAuto)
 		annotatedValidator.RequireInjection(v.T(), []string{rcAnnotatedPodApp})
 		annotatedValidator.RequireInstallType(v.T(), "k8s_lib_injection", []string{rcAnnotatedPodApp})

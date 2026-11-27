@@ -78,11 +78,11 @@ func (h *Handler) WithBouncerLoader(loadBouncer func() *Bouncer) *Handler {
 // parent multi-handler so non-error formatting work is not wasted.
 //
 // The "is a Submitter currently registered?" check is also the runtime
-// gate for the agent_telemetry.errortracking.enabled config knob.
-// installErrortrackingHandler (cmd/agent/subcommands/run) only calls
-// pkg/util/log/setup.RegisterErrortrackingSubmitter when the gate is
-// true — when the feature is off, the slot stays nil and Enabled
-// returns false here, taking the steady-state path with no allocation.
+// gate for errortracking: the agenttelemetry component registers its
+// Submitter via pkg/util/log/setup.RegisterErrortrackingSubmitter while the
+// feature is on (local configuration or remote flag) and clears it when the
+// feature is off. With the slot nil, Enabled returns false here, taking the
+// steady-state path with no allocation.
 func (h *Handler) Enabled(_ context.Context, level slog.Level) bool {
 	if level < slog.LevelError {
 		return false

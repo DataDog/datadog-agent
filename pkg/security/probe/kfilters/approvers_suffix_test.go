@@ -25,7 +25,7 @@ func openApprovers(t *testing.T, exprs ...string) rules.Approvers {
 	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 	rules.AddTestRuleExpr(t, rs, exprs...)
 
-	approvers, _, _, err := rs.GetEventTypeApprovers("open", allCapabilities["open"])
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", models["open"])
 	require.NoError(t, err)
 	return approvers
 }
@@ -34,7 +34,7 @@ func openApprovers(t *testing.T, exprs ...string) rules.Approvers {
 func basenameKeys(t *testing.T, approvers rules.Approvers) []basenameApprover {
 	t.Helper()
 
-	kfilters, _, err := KFilterGetters["open"](approvers)
+	kfilters, err := NewKFilters("open", approvers)
 	require.NoError(t, err)
 
 	var keys []basenameApprover

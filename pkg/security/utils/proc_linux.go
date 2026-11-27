@@ -563,6 +563,17 @@ func ScanKernelModulePaths() map[string]string {
 	return scanKernelModulePathsIn(filepath.Join("/lib/modules", release))
 }
 
+// ModuleNameFromFilename returns the normalized kernel module name from a module file basename.
+func ModuleNameFromFilename(filename string) string {
+	for _, suffix := range []string{".ko.zst", ".ko.xz", ".ko.gz", ".ko"} {
+		if strings.HasSuffix(filename, suffix) {
+			name := strings.TrimSuffix(filename, suffix)
+			return strings.ReplaceAll(name, "-", "_")
+		}
+	}
+	return ""
+}
+
 // scanKernelModulePathsIn is the testable core of ScanKernelModulePaths.
 func scanKernelModulePathsIn(root string) map[string]string {
 	if _, err := os.Stat(root); err != nil {
@@ -584,26 +595,10 @@ func scanKernelModulePathsIn(root string) map[string]string {
 			return nil
 		}
 
-		// Recognised module file extensions, matching what the kernel build
-		// system produces via MODULES_COMPRESS (xz, zstd, gzip) plus the
-		// uncompressed default. Longest suffixes must come first so that
-		// e.g. ".ko.zst" is matched before ".ko".
-		name := d.Name()
-		var trimmed bool
-		for _, suffix := range []string{".ko.zst", ".ko.xz", ".ko.gz", ".ko"} {
-			if strings.HasSuffix(name, suffix) {
-				name = strings.TrimSuffix(name, suffix)
-				trimmed = true
-				break
-			}
-		}
-		if !trimmed {
+		name := ModuleNameFromFilename(d.Name())
+		if name == "" {
 			return nil
 		}
-		// Normalise to the /proc/modules form (underscores). The kernel
-		// transparently accepts both dashes and underscores in module file
-		// names but reports the normalised name through /proc/modules.
-		name = strings.ReplaceAll(name, "-", "_")
 
 		resolved := p
 		if r, err := filepath.EvalSymlinks(p); err == nil {

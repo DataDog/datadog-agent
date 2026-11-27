@@ -44,6 +44,10 @@ func TestProcessDefaultConfig(t *testing.T) {
 			defaultValue: false,
 		},
 		{
+			key:          "process_config.enable_all_zombie_processes",
+			defaultValue: false,
+		},
+		{
 			key:          "process_config.process_discovery.enabled",
 			defaultValue: true,
 		},
@@ -275,6 +279,18 @@ func TestEnvVarOverride(t *testing.T) {
 		{
 			key:      "process_config.ignore_zombie_processes",
 			env:      "DD_PROCESS_AGENT_IGNORE_ZOMBIE_PROCESSES",
+			value:    "true",
+			expected: true,
+		},
+		{
+			key:      "process_config.enable_all_zombie_processes",
+			env:      "DD_PROCESS_CONFIG_ENABLE_ALL_ZOMBIE_PROCESSES",
+			value:    "true",
+			expected: true,
+		},
+		{
+			key:      "process_config.enable_all_zombie_processes",
+			env:      "DD_PROCESS_AGENT_ENABLE_ALL_ZOMBIE_PROCESSES",
 			value:    "true",
 			expected: true,
 		},

@@ -41,6 +41,38 @@ func TestResolveIdents(t *testing.T) {
 	require.Equal(t, original, ast.Sprint(rule), "the parsed tree is left unchanged")
 }
 
+// The root of a name is a field, the identifiers inside its subscripts are
+// resolved, but a lone identifier in a subscript, an iterator variable.
+func TestResolveIdentsSubscripts(t *testing.T) {
+	lookup := func(name string) (ast.Node, bool) {
+		if name == "A" || name == "process" {
+			// a constant named as an iterator variable, or as the root of a name
+			return &ast.Literal{Value: ast.MakeInt(1)}, true
+		}
+		return testLookup(name)
+	}
+
+	for expr, expected := range map[string]string{
+		`process.argv[O_CREAT + 1] == "a"`:             `(== process.argv[(+ 64 1)] "a")`,
+		`process.ancestors[A].argv[O_CREAT] == "a"`:    `(== process.ancestors[A].argv[O_CREAT] "a")`,
+		`process.argv[A] == "a"`:                       `(== process.argv[A] "a")`,
+		`process.env[process.argv[O_EXCL - 1]] == "a"`: `(== process.env[process.argv[(- 128 1)]] "a")`,
+		`"%{process.argv[O_CREAT - 1]}" == "a"`:        `(== "%{process.argv[(- 64 1)]}" "a")`,
+		`"%{O_CREAT}" == "a"`:                          `(== "%{O_CREAT}" "a")`,
+	} {
+		t.Run(expr, func(t *testing.T) {
+			rule, err := parser.ParseRule(expr)
+			require.NoError(t, err)
+			original := ast.Sprint(rule)
+
+			resolved, err := Run(rule, ResolveIdents(lookup))
+			require.NoError(t, err)
+			require.Equal(t, expected, ast.Sprint(resolved))
+			require.Equal(t, original, ast.Sprint(rule), "the parsed tree is left unchanged")
+		})
+	}
+}
+
 func TestResolveIdentsErrors(t *testing.T) {
 	for expr, expected := range map[string]string{
 		`open.flags in [NAMES, O_CREAT]`: "`NAMES` can't be a member of an array, it isn't a literal",

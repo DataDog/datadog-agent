@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    gpu: ``gpu.pci.link.{width,speed}.degraded`` no longer report a degraded PCIe link
+    on GPUs attached to their host CPU over NVLink-C2C (Grace Hopper, Grace Blackwell),
+    where PCIe is a sideband that the driver negotiates down by design.

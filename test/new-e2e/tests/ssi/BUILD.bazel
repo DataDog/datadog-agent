@@ -34,10 +34,12 @@ go_library(
         "@com_github_stretchr_testify//require",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/util/wait",
         "@io_k8s_client_go//kubernetes",
     ],
 )
 
+# gazelle:exclude utils_test.go
 dd_agent_go_test(
     name = "ssi_test",
     srcs = ["ssi_test.go"],
@@ -96,5 +98,19 @@ dd_agent_go_test(
         "@io_k8s_apimachinery//pkg/runtime/schema",
         "@io_k8s_client_go//dynamic",
         "@io_k8s_client_go//kubernetes",
+    ],
+)
+
+dd_agent_go_test(
+    name = "utils_test",
+    srcs = ["utils_test.go"],
+    embed = [":ssi"],
+    deps = [
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_client_go//kubernetes/fake",
+        "@io_k8s_client_go//testing",
     ],
 )

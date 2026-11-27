@@ -3,6 +3,7 @@ $id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/sch
 title: System Probe configuration schema
 description: The schema to validate the system-probe.yaml configuration for the DataDog
   Agent
+type: object
 properties:
   system_probe_config:
     node_type: section
@@ -1096,6 +1097,31 @@ properties:
                 env_vars:
                 - DD_EVENT_MONITORING_CONFIG_NETWORK_SK_LOOKUP_PID_RESOLUTION_ENABLED
                 - DD_RUNTIME_SECURITY_CONFIG_NETWORK_SK_LOOKUP_PID_RESOLUTION_ENABLED
+          tcx:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
+                env_vars:
+                - DD_EVENT_MONITORING_CONFIG_NETWORK_TCX_ENABLED
+                - DD_RUNTIME_SECURITY_CONFIG_NETWORK_TCX_ENABLED
+                description: |-
+                  Set to true to attach the network classifiers with TCX on kernels that support it.
+                  Ignored on other kernels, where the classifiers are attached as legacy tc filters.
+                  With TCX, the classifier priority and handle settings are ignored.
+              settle_delay:
+                node_type: setting
+                type: string
+                default: 5s
+                env_vars:
+                - DD_EVENT_MONITORING_CONFIG_NETWORK_TCX_SETTLE_DELAY
+                - DD_RUNTIME_SECURITY_CONFIG_NETWORK_TCX_SETTLE_DELAY
+                comment: |-
+                  With TCX, how long a new device of a kind that container runtimes move into another network namespace
+                  is left alone before its classifiers are attached, since TCX links follow moved devices.
       basename_approvers_size:
         node_type: setting
         type: integer
@@ -1451,7 +1477,12 @@ properties:
       cgroup_reapply_infinitely:
         node_type: setting
         type: boolean
-        default: false
+        default: true
+        description: |-
+          When gpu_monitoring.configure_cgroup_perms is enabled, re-apply the GPU device
+          permissions of the Agent every gpu_monitoring.cgroup_reapply_interval, so that they
+          are restored after the Agent container restarts or systemd reloads its configuration.
+          When false, they are applied at startup and once more after cgroup_reapply_interval.
       cgroup_reapply_interval:
         node_type: setting
         type: string

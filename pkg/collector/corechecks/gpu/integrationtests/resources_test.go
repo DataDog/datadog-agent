@@ -61,6 +61,8 @@ func TestGPUResources(t *testing.T) {
 	env.SetFeatures(t, env.NVML)
 	// Mock the global config first: the first config mock replaces it, which would drop the settings below.
 	configmock.New(t)
+	// CI runners have no usable OS hostname, and publication is skipped without one.
+	setConfigInTest(t, "hostname", "gpu-resources-test-host")
 	setConfigInTest(t, "gpu.resources.enabled", true)
 	setConfigInTest(t, "gpu.resources.ttl", resourcesTestTTL)
 

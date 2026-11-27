@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    APM: When Multi-Region Failover is set up but not active, the Agent no
+    longer sends Data Streams Monitoring pipeline stats to the failover data
+    center. Traces and APM stats already work this way. Errors from additional
+    pipeline stats endpoints now name the endpoint that failed.
+  - |
+    APM: Fixes a rare crash of the trace-agent when Remote Configuration turns
+    Multi-Region Failover for APM on or off while the Agent is sending data.

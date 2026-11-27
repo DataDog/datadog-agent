@@ -13,6 +13,7 @@ import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
@@ -29,6 +30,8 @@ type Context struct {
 	metricTags *tags.Entry
 	noIndex    bool
 	source     metrics.MetricSource
+
+	filteredIdentityRef uint32
 }
 
 // resolvedMetricView exposes the final metric identity to the anomaly-detection
@@ -102,6 +105,8 @@ type contextResolver struct {
 	// tagFilterEnabled controls whether metric_tag_filterlist tag stripping is applied.
 	// True when data_plane.enabled is true, or metric_tag_filterlist_adp_only is false.
 	tagFilterEnabled bool
+	// filteredIdentities is set for check samplers, which keep the full tags of contexts and filter only their output.
+	filteredIdentities *filteredIdentityTable
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
@@ -109,24 +114,35 @@ func (cr *contextResolver) generateContextKey(metricSampleContext metrics.Metric
 	return cr.keyGenerator.GenerateWithTags2(metricSampleContext.GetName(), metricSampleContext.GetHost(), cr.taggerBuffer, cr.metricBuffer)
 }
 
-func newContextResolver(tagger tagger.Component, cache *tags.Store, id string) *contextResolver {
+// tagFilterEnabled returns whether metric_tag_filterlist rules apply: when data_plane.enabled is true, or
+// metric_tag_filterlist_adp_only is false.
+func tagFilterEnabled(cfg model.Reader) bool {
+	return cfg.GetBool("data_plane.enabled") || !cfg.GetBool("metric_tag_filterlist_adp_only")
+}
+
+// newContextResolver returns a resolver. filteredIdentities is set for check samplers, which keep the full tags of
+// contexts and filter only their output.
+func newContextResolver(tagger tagger.Component, cache *tags.Store, id string, filteredIdentities *filteredIdentityTable) *contextResolver {
 	cfg := pkgconfigsetup.Datadog()
-	adpEnabled := cfg.GetBool("data_plane.enabled")
-	adpOnly := cfg.GetBool("metric_tag_filterlist_adp_only")
+	var filterCache *tagFilterCache
+	if filteredIdentities == nil {
+		filterCache = newTagFilterCache(cfg.GetInt("aggregator_tag_filter_cache_capacity"))
+	}
 	return &contextResolver{
-		id:               id,
-		contextsByKey:    make(map[ckey.ContextKey]resolverEntry),
-		seendByMtype:     make([]bool, metrics.NumMetricTypes),
-		countsByMtype:    make([]uint64, metrics.NumMetricTypes),
-		bytesByMtype:     make([]uint64, metrics.NumMetricTypes),
-		dataBytesByMtype: make([]uint64, metrics.NumMetricTypes),
-		tagsCache:        cache,
-		tagger:           tagger,
-		keyGenerator:     ckey.NewKeyGenerator(),
-		taggerBuffer:     tagset.NewHashingTagsAccumulator(),
-		metricBuffer:     tagset.NewHashingTagsAccumulator(),
-		tagFilterCache:   newTagFilterCache(cfg.GetInt("aggregator_tag_filter_cache_capacity")),
-		tagFilterEnabled: adpEnabled || !adpOnly,
+		id:                 id,
+		contextsByKey:      make(map[ckey.ContextKey]resolverEntry),
+		seendByMtype:       make([]bool, metrics.NumMetricTypes),
+		countsByMtype:      make([]uint64, metrics.NumMetricTypes),
+		bytesByMtype:       make([]uint64, metrics.NumMetricTypes),
+		dataBytesByMtype:   make([]uint64, metrics.NumMetricTypes),
+		tagsCache:          cache,
+		tagger:             tagger,
+		keyGenerator:       ckey.NewKeyGenerator(),
+		taggerBuffer:       tagset.NewHashingTagsAccumulator(),
+		metricBuffer:       tagset.NewHashingTagsAccumulator(),
+		tagFilterCache:     filterCache,
+		tagFilterEnabled:   tagFilterEnabled(cfg),
+		filteredIdentities: filteredIdentities,
 	}
 }
 
@@ -139,15 +155,16 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 
 	contextKey, taggerKey, metricKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates (and doesn't mind the order)
 
-	if cr.tagFilterEnabled && shouldAggregateTags(metricSampleContext) {
+	if cr.filteredIdentities == nil && cr.tagFilterEnabled && shouldAggregateTags(metricSampleContext) {
 		if tagList, filter := filterList.ShouldStripTags(metricSampleContext.GetName()); filter {
 			contextKey, taggerKey, metricKey = cr.filterTags(metricSampleContext, tagList, contextKey)
 		}
 	}
 
+	var context *Context
 	if entry, ok := cr.contextsByKey[contextKey]; !ok {
 		mtype := metricSampleContext.GetMetricType()
-		context := &Context{
+		context = &Context{
 			Name:       metricSampleContext.GetName(),
 			taggerTags: cr.tagsCache.Insert(taggerKey, cr.taggerBuffer),
 			metricTags: cr.tagsCache.Insert(metricKey, cr.metricBuffer),
@@ -156,6 +173,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 			noIndex:    metricSampleContext.IsNoIndex(),
 			source:     metricSampleContext.GetSource(),
 		}
+		cr.trackOutput(context, filterList)
 		cr.contextsByKey[contextKey] = resolverEntry{
 			lastSeen: timestamp,
 			context:  context,
@@ -166,21 +184,25 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 		cr.bytesByMtype[mtype] += uint64(context.SizeInBytes())
 		cr.dataBytesByMtype[mtype] += uint64(context.DataSizeInBytes())
 	} else {
+		context = entry.context
 		// We can't assign to a field of a struct contained in map
 		cr.contextsByKey[contextKey] = resolverEntry{
 			lastSeen: timestamp,
-			context:  entry.context,
+			context:  context,
 		}
+	}
+
+	if filtered := cr.filteredIdentityOf(context); filtered != nil {
+		removed := len(context.taggerTags.Tags()) + len(context.metricTags.Tags()) -
+			len(filtered.taggerTags.Tags()) - len(filtered.metricTags.Tags())
+		tlmFilteredTags.Add(float64(removed))
 	}
 
 	return contextKey
 }
 
 // shouldAggregateTags returns true if the tag for the given metric should be considered
-// for aggregation. Distribution, and Counter (dogstatsd counts).
-// We don't support Count metrics from checks, it would be complicated to enable this for
-// MonotonicCounts - which is commonly used in checks, so to avoid confusion we don't
-// support counts in checks at all for now.
+// for aggregation in a time sampler: Distribution, and Counter (dogstatsd counts).
 func shouldAggregateTags(metricSampleContext metrics.MetricSampleContext) bool {
 	mtype := metricSampleContext.GetMetricType()
 	return mtype == metrics.DistributionType ||
@@ -236,12 +258,15 @@ func (cr *contextResolver) remove(expiredContextKey ckey.ContextKey) {
 	context := cr.contextsByKey[expiredContextKey].context
 	delete(cr.contextsByKey, expiredContextKey)
 
-	cr.tagFilterCache.delete(expiredContextKey)
+	if cr.tagFilterCache != nil {
+		cr.tagFilterCache.delete(expiredContextKey)
+	}
 
 	if context != nil {
 		cr.countsByMtype[context.mtype]--
 		cr.bytesByMtype[context.mtype] -= uint64(context.SizeInBytes())
 		cr.dataBytesByMtype[context.mtype] -= uint64(context.DataSizeInBytes())
+		cr.releaseFiltered(context)
 		context.release()
 	}
 }
@@ -265,13 +290,16 @@ func (cr *contextResolver) updateMetrics(countsByMTypeGauge telemetry.Gauge, byt
 
 func (cr *contextResolver) release() {
 	for _, c := range cr.contextsByKey {
+		cr.releaseFiltered(c.context)
 		c.context.release()
 	}
 	cr.clearTagFilterCache()
 }
 
 func (cr *contextResolver) clearTagFilterCache() {
-	cr.tagFilterCache.clear()
+	if cr.tagFilterCache != nil {
+		cr.tagFilterCache.clear()
+	}
 }
 
 func (cr *contextResolver) sendOriginTelemetry(timestamp float64, series metrics.SerieSink, hostname string, constTags []string) {
@@ -314,7 +342,7 @@ type timestampContextResolver struct {
 
 func newTimestampContextResolver(tagger tagger.Component, cache *tags.Store, id string, contextExpireTime, counterExpireTime int64) *timestampContextResolver {
 	return &timestampContextResolver{
-		resolver: newContextResolver(tagger, cache, id),
+		resolver: newContextResolver(tagger, cache, id, nil),
 
 		contextExpireTime: contextExpireTime,
 		counterExpireTime: counterExpireTime,
@@ -372,9 +400,11 @@ type countBasedContextResolver struct {
 	expireCountInterval int64
 }
 
-func newCountBasedContextResolver(expireCountInterval int, cache *tags.Store, tagger tagger.Component, id string) *countBasedContextResolver {
+// newCountBasedContextResolver returns a resolver that records in filteredIdentities, if it's set, the identities
+// contexts filter to at output, instead of tracking filtered contexts.
+func newCountBasedContextResolver(expireCountInterval int, cache *tags.Store, tagger tagger.Component, id string, filteredIdentities *filteredIdentityTable) *countBasedContextResolver {
 	return &countBasedContextResolver{
-		resolver:            newContextResolver(tagger, cache, id),
+		resolver:            newContextResolver(tagger, cache, id, filteredIdentities),
 		expireCount:         0,
 		expireCountInterval: int64(expireCountInterval),
 	}

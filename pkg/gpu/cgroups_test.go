@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/opencontainers/runtime-spec/specs-go"
@@ -629,4 +630,119 @@ func BenchmarkGetAbsoluteCgroupForProcess(b *testing.B) {
 	}
 
 	b.ReportMetric(float64(len(cgroups)), "dirs/op")
+}
+
+func TestMissingDeviceAllowLines(t *testing.T) {
+	scope := []string{"[Unit]", "Description=x", "", "[Scope]", "Delegate=yes", "DeviceAllow=char-pts rwm", "", "[Install]", "DeviceAllow=char-nvidia rwm"}
+	// None present in [Scope] (the one in [Install] does not count)
+	require.Equal(t, nvidiaSystemdDeviceAllow, missingDeviceAllowLines(scope, "[Scope]", nvidiaSystemdDeviceAllow))
+
+	withOne := append([]string{}, scope[:5]...)
+	withOne = append(withOne, "DeviceAllow=char-nvidia rwm")
+	withOne = append(withOne, scope[5:]...)
+	require.Equal(t, "DeviceAllow=char-195 rwm\n", missingDeviceAllowLines(withOne, "[Scope]", nvidiaSystemdDeviceAllow))
+
+	withBoth := append([]string{}, scope[:5]...)
+	withBoth = append(withBoth, "  DeviceAllow=char-195 rwm", "DeviceAllow=char-nvidia rwm")
+	withBoth = append(withBoth, scope[5:]...)
+	require.Empty(t, missingDeviceAllowLines(withBoth, "[Scope]", nvidiaSystemdDeviceAllow))
+}
+
+func TestConfigureSystemDAllowIsIdempotent(t *testing.T) {
+	root := t.TempDir()
+	containerID := "cri-containerd-0123.scope"
+	dir := filepath.Join(root, systemdTransientConfigPath, containerID+".d")
+	require.NoError(t, os.MkdirAll(dir, 0755))
+	path := filepath.Join(dir, systemdDeviceAllowFile)
+	require.NoError(t, os.WriteFile(path, []byte("[Scope]\nDeviceAllow=char-pts rwm\n"), 0644))
+
+	require.NoError(t, configureSystemDAllow(root, containerID))
+	first, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, "[Scope]\nDeviceAllow=char-pts rwm\nDeviceAllow=char-nvidia rwm\nDeviceAllow=char-195 rwm\n\n", string(first))
+
+	// Re-applying the permissions, as done every cgroup_reapply_interval, does not grow the file
+	for i := 0; i < 3; i++ {
+		require.NoError(t, configureSystemDAllow(root, containerID))
+	}
+	again, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, string(first), string(again))
+}
+
+func TestMissingDeviceAllowLinesResetAndSpacing(t *testing.T) {
+	// systemd writes the drop-in with a reset first
+	systemdFormat := []string{"# This is a drop-in unit file extension, created via \"systemctl set-property\"", "# or an equivalent operation. Do not edit.", "[Scope]", "DeviceAllow=", "DeviceAllow=char-pts rwm"}
+	require.Equal(t, nvidiaSystemdDeviceAllow, missingDeviceAllowLines(systemdFormat, "[Scope]", nvidiaSystemdDeviceAllow))
+
+	// Rules before a reset are not in effect
+	reset := []string{"[Scope]", "DeviceAllow=char-nvidia rwm", "DeviceAllow=char-195 rwm", "DeviceAllow =", "DeviceAllow=char-pts rwm"}
+	require.Equal(t, nvidiaSystemdDeviceAllow, missingDeviceAllowLines(reset, "[Scope]", nvidiaSystemdDeviceAllow))
+
+	// Spacing around "=" and between values does not matter
+	spaced := []string{"[Scope]", "DeviceAllow = char-nvidia   rwm", "DeviceAllow=char-195 rwm"}
+	require.Empty(t, missingDeviceAllowLines(spaced, "[Scope]", nvidiaSystemdDeviceAllow))
+}
+
+func TestConfigureSystemDAllowRestoresPartialAndResetRules(t *testing.T) {
+	root := t.TempDir()
+	containerID := "cri-containerd-0456.scope"
+	dir := filepath.Join(root, systemdTransientConfigPath, containerID+".d")
+	require.NoError(t, os.MkdirAll(dir, 0755))
+	path := filepath.Join(dir, systemdDeviceAllowFile)
+
+	// One of the two rules, then a systemd rewrite that reset them
+	require.NoError(t, os.WriteFile(path, []byte("[Scope]\nDeviceAllow=char-nvidia rwm\nDeviceAllow=\nDeviceAllow=char-pts rwm\n"), 0644))
+	require.NoError(t, configureSystemDAllow(root, containerID))
+	content, err := os.ReadFile(path)
+	require.NoError(t, err)
+	lines := strings.Split(string(content), "\n")
+	require.Empty(t, missingDeviceAllowLines(lines, "[Scope]", nvidiaSystemdDeviceAllow), string(content))
+
+	// Applying again does not change the file
+	require.NoError(t, configureSystemDAllow(root, containerID))
+	again, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, string(content), string(again))
+}
+
+func TestConfigureSystemDAllowAfterSpacedReset(t *testing.T) {
+	root := t.TempDir()
+	containerID := "cri-containerd-0789.scope"
+	dir := filepath.Join(root, systemdTransientConfigPath, containerID+".d")
+	require.NoError(t, os.MkdirAll(dir, 0755))
+	path := filepath.Join(dir, systemdDeviceAllowFile)
+	require.NoError(t, os.WriteFile(path, []byte("[Scope]\nDeviceAllow=char-pts rwm\nDeviceAllow =\nDeviceAllow = char-x rwm\n"), 0644))
+
+	require.NoError(t, configureSystemDAllow(root, containerID))
+	content, err := os.ReadFile(path)
+	require.NoError(t, err)
+	// Inserted after the last rule, so after the reset
+	require.Equal(t, "[Scope]\nDeviceAllow=char-pts rwm\nDeviceAllow =\nDeviceAllow = char-x rwm\nDeviceAllow=char-nvidia rwm\nDeviceAllow=char-195 rwm\n\n", string(content))
+
+	require.NoError(t, configureSystemDAllow(root, containerID))
+	again, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, string(content), string(again))
+}
+
+func TestConfigureSystemDAllowWithSeveralScopeSections(t *testing.T) {
+	root := t.TempDir()
+	containerID := "cri-containerd-0abc.scope"
+	dir := filepath.Join(root, systemdTransientConfigPath, containerID+".d")
+	require.NoError(t, os.MkdirAll(dir, 0755))
+	path := filepath.Join(dir, systemdDeviceAllowFile)
+	require.NoError(t, os.WriteFile(path, []byte("[Scope]\nDeviceAllow=char-pts rwm\n[Unit]\nDescription=x\n[Scope]\nDeviceAllow=\nDeviceAllow=char-x rwm\n"), 0644))
+
+	require.NoError(t, configureSystemDAllow(root, containerID))
+	content, err := os.ReadFile(path)
+	require.NoError(t, err)
+	// Added to the last [Scope] section, after its reset
+	require.Equal(t, "[Scope]\nDeviceAllow=char-pts rwm\n[Unit]\nDescription=x\n[Scope]\nDeviceAllow=\nDeviceAllow=char-x rwm\nDeviceAllow=char-nvidia rwm\nDeviceAllow=char-195 rwm\n\n", string(content))
+	require.Empty(t, missingDeviceAllowLines(strings.Split(string(content), "\n"), "[Scope]", nvidiaSystemdDeviceAllow))
+
+	require.NoError(t, configureSystemDAllow(root, containerID))
+	again, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, string(content), string(again))
 }

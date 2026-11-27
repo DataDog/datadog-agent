@@ -1,0 +1,36 @@
+properties:
+  valid_url:
+    node_type: setting
+    type: string
+    default: ''
+    format: url
+  valid_duration:
+    node_type: setting
+    type: string
+    default: 15s
+    format: duration
+  unknown_format:
+    node_type: setting
+    type: string
+    default: ''
+    format: uri
+  format_on_integer:
+    node_type: setting
+    type: integer
+    default: 0
+    format: duration
+  nested_unknown_format:
+    node_type: setting
+    type: array
+    default: []
+    items:
+      type: string
+      format: hostname
+  # 'format' as instance data is a config value, not a keyword: must not be reported.
+  format_in_default:
+    node_type: setting
+    type: object
+    default:
+      format: uri
+    additionalProperties:
+      type: string

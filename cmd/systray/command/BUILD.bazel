@@ -6,6 +6,10 @@ go_library(
     srcs = ["command.go"],
     importpath = "github.com/DataDog/datadog-agent/cmd/systray/command",
     visibility = ["//visibility:public"],
+    x_defs = select({
+        "//cmd/systray:console_subsystem": {"subsystem": "console"},
+        "//conditions:default": {},
+    }),
     deps = select({
         "@rules_go//go/platform:windows": [
             "//comp/core",

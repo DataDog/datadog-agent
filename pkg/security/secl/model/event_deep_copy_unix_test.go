@@ -82,7 +82,10 @@ func newDeepCopyTestEvent(depth int) *Event {
 	return e
 }
 
-var timeType = reflect.TypeOf(time.Time{})
+var (
+	timeType  = reflect.TypeFor[time.Time]()
+	errorType = reflect.TypeFor[error]()
+)
 
 // filler sets every exported field reachable from a value to a distinct non-zero value, allocating
 // every pointer, slice and map, without sharing anything.
@@ -101,8 +104,12 @@ func isInterfaceContainer(t reflect.Type) bool {
 }
 
 func (f *filler) fill(v reflect.Value) {
-	if v.Type() == timeType {
+	switch v.Type() {
+	case timeType:
 		v.Set(reflect.ValueOf(time.Unix(int64(f.next()), 0)))
+		return
+	case errorType:
+		v.Set(reflect.ValueOf(fmt.Errorf("error %d", f.next())))
 		return
 	}
 	switch v.Kind() {
@@ -282,9 +289,16 @@ func (c *copyChecker) record(path string, o, cp uintptr) bool {
 }
 
 func (c *copyChecker) walk(path string, orig, cpy reflect.Value) {
-	if orig.Type() == timeType {
+	switch orig.Type() {
+	case timeType:
 		if !orig.Interface().(time.Time).Equal(cpy.Interface().(time.Time)) {
 			c.t.Errorf("%s: %v in the original, %v in the copy", path, orig, cpy)
+		}
+		return
+	case errorType:
+		// the copy shares the errors of the original
+		if o, cp := orig.Interface(), cpy.Interface(); o != cp {
+			c.t.Errorf("%s: %v in the original, %v in the copy", path, o, cp)
 		}
 		return
 	}

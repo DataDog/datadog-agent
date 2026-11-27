@@ -359,6 +359,7 @@ const (
 	MetricSourceCrossplane
 	MetricSourceLlmD
 	MetricSourceDynamo
+	MetricSourceTensorrtLlm
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
 	MetricSourceOpenTelemetryCollectorDockerstatsReceiver
@@ -1200,6 +1201,8 @@ func (ms MetricSource) String() string {
 		return "llm_d"
 	case MetricSourceDynamo:
 		return "dynamo"
+	case MetricSourceTensorrtLlm:
+		return "tensorrt_llm"
 	default:
 		return "<unknown>"
 	}
@@ -1928,6 +1931,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceLlmD
 	case "dynamo":
 		return MetricSourceDynamo
+	case "tensorrt_llm":
+		return MetricSourceTensorrtLlm
 	default:
 		return MetricSourceUnknown
 	}
