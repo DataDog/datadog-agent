@@ -307,3 +307,14 @@ class TestGetBuildFlags(unittest.TestCase):
         _, _, env = get_build_flags(mock.Mock())
 
         self.assertEqual({k: env.get(k) for k in ("CGO_ENABLED", "GOARCH")}, {"CGO_ENABLED": "1", "GOARCH": "arm"})
+
+    @mock.patch("tasks.libs.common.utils.get_version_ldflags", return_value="")
+    def test_cgo_cflags_keep_o2_and_let_a_later_opt_level_win(self, _get_version_ldflags):
+        with mock.patch.dict(os.environ, {"CGO_CFLAGS": "-O0 -I/from/env"}):
+            _, _, env = get_build_flags(mock.Mock())
+
+        cflags = env["CGO_CFLAGS"].split()
+        self.assertEqual(cflags[0], "-O2")
+        self.assertLess(cflags.index("-O2"), cflags.index("-O0"))
+        self.assertIn("-Werror", cflags)
+        self.assertIn("-I/from/env", cflags)
