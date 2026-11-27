@@ -1,58 +1,59 @@
 ---
 name: create-pr
-description: Create a pull request for the current branch with proper labels and description. Any agent opening a PR in this repo (via `gh pr create` or otherwise), whether invoked directly as /create-pr or as part of a larger task, MUST follow this skill's process rather than improvising.
-allowed-tools: Bash, Read, Glob, Agent
+description: Open a pull request (draft by default) for the current branch, with the right labels, a local review by a different AI provider, and a description reviewers can follow. Use it whenever you open a PR in this repo, via /create-pr or `gh pr create`, including as one step of a larger task ("open a PR", "create a pull request", "make a PR", "push this and open a draft"), since CI and reviewers expect the labels, review and description it produces.
+allowed-tools: Bash, Read, Glob, Agent, TaskStop, Skill
 argument-hint: "[--real] [additional labels...]"
 model: sonnet
 ---
 
 Create a pull request for the current branch following the Datadog Agent contributing guidelines.
 
-**This is the canonical process for opening PRs in this repo.** `disable-model-invocation: true` only means the harness won't auto-invoke this skill as a tool call — it does not mean the process below is optional. Whenever you (or another agent/skill working in this repo) are about to run `gh pr create` for any reason — not just when the user explicitly types `/create-pr` — read and follow the steps below instead of assembling a title/body/labels ad hoc.
+**This is the canonical process for opening PRs in this repo.** Whenever you (or another agent or skill working in this repo) are about to run `gh pr create`, not only when the user types `/create-pr`, follow the steps below instead of assembling a title, body and labels ad hoc: an improvised PR misses the labels CI checks and the description reviewers rely on.
 
 **Ownership:** maintained by `@DataDog/agent-devx`.
 
-**Prerequisites:** the `gh` CLI must be installed and authenticated (`gh auth status`) with access to `DataDog/datadog-agent`, and `origin` must point at that repo (or a fork with push access) so `git push` and `gh pr create` succeed.
+**Prerequisites:** the `gh` CLI must be installed and authenticated (`gh auth status`) with access to `DataDog/datadog-agent`, and `origin` must point at that repo (or a fork with push access) so `git push` and `gh pr create` succeed. The local review (step 5) needs [`dda`](https://datadoghq.dev/datadog-agent-dev/) and Python 3.9+, plus `codex` or `claude` logged in on the host, or docker for a developer environment. Without them, a subagent reviews instead.
 
 ## Instructions
 
-1. **Check the current branch**.
-   - If the current branch is `main` (or the default branch):
-     - Check for uncommitted or staged changes (`git status`). If there are changes, create a new feature branch from the default branch (`git checkout -b <branch-name>`), stage the changes, commit, and push.
-     - If there are no changes at all, stop and inform the user there is nothing to open a PR for.
-   - If the current branch is a feature branch that already has an open PR (`gh pr list --head <branch> --state open`), check whether the uncommitted/staged changes and unpushed commits are actually related to that PR's existing work. If they are a distinct, unrelated change, don't pile them onto the existing PR/branch — create a new feature branch from the default branch (`git checkout main && git pull && git checkout -b <branch-name>`), then cherry-pick/move the relevant changes onto it, commit, and push, so the unrelated change gets its own PR. If genuinely unsure whether the changes are related, ask the user.
+1. **Check the current branch**. Below, `main` stands for the repository default branch.
+   - **On `main`**:
+     - With uncommitted or staged changes (`git status`): create a feature branch (`git checkout -b <branch-name>`), stage the changes, commit, and push.
+     - With no changes at all: stop and tell the user there is nothing to open a PR for.
+   - **On a feature branch with an open PR** (`gh pr list --head <branch> --state open`): check whether the uncommitted changes and unpushed commits belong to that PR's work.
+     - Related: continue on this branch.
+     - Unrelated: give them their own PR rather than piling them onto this one. Create a branch from an up-to-date `main` (`git checkout main && git pull && git checkout -b <branch-name>`), move the changes onto it, commit, and push.
+     - Unsure: ask the user.
 2. **Get the commits** on this branch compared to `main` using `git log main..HEAD`
 3. **Get the diff** using `git diff main...HEAD` (three dots: only this branch's changes, even after `main` moves on) to understand all changes
 4. **Read the PR template** from `.github/PULL_REQUEST_TEMPLATE.md`
-5. **Local code review**: get a review from another reviewer than yourself. The review script runs `dda review`, which builds the same prompt as the PR `Code review` workflow (`.github/workflows/code-review.yml`) from the `codereview_guideline.md` files relevant to the diff, against the repository default branch. It skips reviewers of your own provider, so pass yours:
+5. **Local code review**: get a review from another reviewer than yourself, so it isn't anchored on the reasoning that produced the change. The review script runs `dda review`, which builds the same prompt as the PR `Code review` workflow (`.github/workflows/code-review.yml`) from the `codereview_guideline.md` files relevant to the diff. It skips reviewers of your own provider, so pass yours:
    ```bash
-   .agents/skills/create-pr/scripts/review.sh --self claude   # you are Claude Code: codex reviews
-   .agents/skills/create-pr/scripts/review.sh --self codex    # you are Codex CLI: claude reviews
-   .agents/skills/create-pr/scripts/review.sh                 # any other agent: codex, then claude
+   .agents/skills/create-pr/scripts/review.py --self claude   # you are Claude Code: codex reviews
+   .agents/skills/create-pr/scripts/review.py --self codex    # you are Codex CLI: claude reviews
+   .agents/skills/create-pr/scripts/review.py                 # any other agent: codex, then claude
    ```
-   [references/local-review.md](references/local-review.md) lists the reviewers in the order the script tries them, and how it detects your provider without `--self`.
-
-   An LLM review takes several minutes. Don't give it a short timeout and don't let it get killed mid-run: launch it asynchronously (e.g. `run_in_background: true` in Claude Code) and poll until it finishes, or give it a timeout of at least 10 minutes. Allow 20 minutes when it starts a developer environment, since the first start pulls a large image. If it still hasn't finished by then, stop the script (e.g. `TaskStop` in Claude Code) so it can't post findings later, tell the user, and do a subagent review rather than stalling PR creation indefinitely. Outcomes, by exit code:
-   - **0, review completed**: show the findings to the user, and say which reviewer ran when it wasn't `codex`, since CI uses `codex`. Findings don't block PR creation; fix them first only if the user asks.
-   - **1, every attempted review failed**: tell the user, with the errors, then do a subagent review.
-   - **2, no reviewer available**: never skip this silently. Show the user the reasons the script printed, then do a subagent review.
-   - **3, invalid arguments**: no review ran. Fix the `--self` value (`claude` or `codex`, lowercase) and run the script again.
-
-   **Subagent review** (exit 1 or 2, or a timeout): start a subagent with a fresh context, in the background so step 6 can run meanwhile, using the prompt template in [references/local-review.md](references/local-review.md). Wait for its result before you present the draft in step 8, and report one of three outcomes: its findings, "no findings", or that it failed. Say the review came from a subagent of your own provider, not from `codex` as in CI. If your harness can't start subagents, tell the user that no independent review ran.
+   A review takes several minutes, and starting a developer environment for the first time pulls a large image. Run it in the background (e.g. `run_in_background: true` in Claude Code) with a timeout of 20 minutes, so it isn't killed mid-run, and do step 6 meanwhile. The review goes to stdout, and the reasons a reviewer was skipped to stderr.
+   - **Exit 0**: show the findings to the user with the draft in step 8, and say which reviewer ran when it wasn't `codex`, since CI uses `codex`. Findings don't block PR creation; fix them first only if the user asks.
+   - **Any other exit, or no result after 20 minutes**: follow "When the review doesn't complete" in [references/local-review.md](references/local-review.md). It usually ends in a review by a subagent, so the PR still gets one before it opens.
 6. **Describe the functional changes**: invoke the `/describe-functional-changes` skill on this branch, passing any motivation or context the user gave (if your harness can't invoke skills, read and follow `.agents/skills/describe-functional-changes/SKILL.md`). It returns a collapsed "Functional changes" block, usually a Before | After table (or a single "No functional change" line), that says what behaves differently, and for whom. Without it, reviewers have to read every changed line to understand what the PR actually does. It may also return notes, such as unverified claims or likely bugs: show them to the user with the draft in step 8. This step doesn't depend on the review, so do it while the review from step 5 runs.
 7. **PR title**: Use [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/) format, prefixed with the general area of change. Examples:
    - `fix(e2e): Fix flaky diagnose test`
    - `feat(logs): Add new log pipeline`
    - `refactor(config): Simplify endpoint resolution`
-8. **Draft a concise PR description** from the commits and diff. See "PR Description Guidelines" below — keep the draft short and plain, like a human wrote it in two minutes, not AI-generated prose. Present the draft body (What does this PR do? / Motivation, at minimum) directly in your reply so the user can review it — but don't block on confirmation: since PRs open as drafts by default (step 13), the user can review and edit the description directly from the GitHub UI, which is usually faster than relaying corrections through the agent. If the user has given corrections or missing context during the session (e.g. the real motivation, an issue link, a tradeoff worth mentioning), fold it in. The one exception is a non-draft PR (`--real`): a PR marked ready for review implies its description is final, so get explicit confirmation on the draft before opening it.
+8. **Draft a concise PR description** from the commits and diff, following "PR Description Guidelines" below: short and plain, like a human wrote it in two minutes.
+   - Present the draft body (What does this PR do? / Motivation, at minimum) in your reply, with the review findings from step 5 and the notes from step 6.
+   - Fold in corrections or context the user gave during the session (the real motivation, an issue link, a tradeoff worth mentioning).
+   - Don't block on confirmation for a draft PR: the user can edit the description in the GitHub UI, which is faster than relaying corrections through you.
+   - For a non-draft PR (`--real`), get explicit confirmation first: a PR marked ready for review implies its description is final.
 9. **Check for a needed backport** (see "Backport Detection" below) and note the matching `backport/<branch>` label(s) if applicable.
 10. **Labels**: Choose appropriate labels (plus any additional labels passed as $ARGUMENTS):
    - If the PR only changes tests, docs, CI config, or developer tooling (no Agent binary code changes), use `changelog/no-changelog` and `qa/no-code-change`
-   - If the PR changes Agent binary code and QA was done, use `qa/done`
+   - If the PR changes Agent binary code: `qa/done` when QA was done before merge, or `qa/rc-required` when it can only be validated on the release candidate. If you don't know which, ask the user.
    - A reno release note is only expected for **customer-facing changes** — not for every PR that touches Agent binary code. See "Release Notes" below for what qualifies; if the change isn't customer-facing, use `changelog/no-changelog`
    - Add any `backport/<branch-name>` labels identified in step 9, or if the user explicitly asks for a specific backport
 11. **PR body**: Fill in the PR template sections:
-   - **What does this PR do?**: A clear description of what is changed, based on the user's concise description from step 8. Must be readable independently, tying back to the changed code. Start with a sentence or two on what the code change is, then add the functional changes block from step 6.
+   - **What does this PR do?**: The description from step 8. Must be readable independently, tying back to the changed code. Start with a sentence or two on what the code change is, then add the functional changes block from step 6.
    - **Motivation**: A reason why the change is made. Point to an issue if applicable. Include drawbacks or tradeoffs if any.
    - **Describe how you validated your changes**: How you validated the change (tests added/run, benchmarks, manual testing). Only needed when testing included work not covered by test suites.
    - **Additional Notes**: Any extra context, links to predecessor PRs if part of a chain, notes that make code understanding easier. **Only include this section if there is genuinely useful context to add** — omit it entirely rather than filling it with filler.
@@ -72,7 +73,7 @@ The PR description should incorporate everything reviewers and future maintainer
 - If there are drawbacks or tradeoffs, raise them
 
 **Avoid AI slop.** Reviewers can tell when a PR description was auto-generated from a diff — padded, generic, restating the code instead of explaining intent. To avoid this:
-- Draft the description yourself (step 8) and show it to the user, but don't gate the PR on their sign-off — for draft PRs they can edit the description in the GitHub UI faster than explaining what to fix. Don't outsource the writing to the user either.
+- Draft the description yourself (step 8) rather than asking the user to write it.
 - Keep it short. A few sentences beat a bulleted essay. Don't restate every changed file — the diff already shows that.
 - Say what the change does, not only how. The technical summary says how the code changes; the functional changes block (step 6) says what that changes for Agent users, developers, or CI. Keep both, and don't repeat in one what the other already says.
 - Don't pad sections with filler when there's nothing to say (e.g. an empty-but-present "Additional Notes" section, or a "Describe how you validated" filled with "N/A" — omit instead).
@@ -80,7 +81,7 @@ The PR description should incorporate everything reviewers and future maintainer
 
 ## Release Notes
 
-Only **customer-facing changes** need a reno release note — something a Datadog customer could notice in the shipped agent. Most PRs, including most that touch Agent binary code, don't need one. When unsure whether a change is customer-facing, mention it to the user rather than defaulting either way.
+Only **customer-facing changes** need a reno release note — something a Datadog customer could notice in the shipped agent. Most PRs, including most that touch Agent binary code, don't need one. When unsure whether a change is customer-facing, mention it to the user rather than defaulting either way. When a note is needed, invoke `/create-release-note` to write it; this section only decides whether one is needed.
 
 **Needs a release note:**
 - New customer-facing functionality (e.g. "Add support for collecting X on Y")
@@ -149,5 +150,16 @@ Note there is no "Additional Notes" section here — it was omitted because ther
 
 ## Output
 
-If you are not following the PR status (step 14): Return the PR URL when done.
-Otherwise, defer to `/follow-pr`.
+When the PR is open, end with a short report, then ask about following CI (step 14). If the user wants to follow it, defer to `/follow-pr`.
+
+```markdown
+Opened draft PR <URL>: `<title>`
+- Labels: `changelog/no-changelog`, `qa/no-code-change`
+- Local review (codex): 2 findings, not fixed:
+  - `pkg/foo/bar.go:42`: <defect> — <failure scenario>
+  - …
+- Functional changes notes: <unverified claims or likely bugs from step 6, if any>
+- Backport: <proposed `backport/<version>.x` label awaiting your confirmation, if any>
+```
+
+Say "no findings" when the review found nothing, and name the reviewer: codex, claude, or a subagent. When no review ran, say why. Leave out lines that don't apply. The PR is done when it is open with these labels and description, and the user has seen every review finding and note.
