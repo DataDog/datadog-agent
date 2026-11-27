@@ -277,8 +277,6 @@ github.com/aws/aws-sdk-go-v2/service/lightsail v1.64.0 h1:b9XJhCPBgr39pobi+nYLpr
 github.com/aws/aws-sdk-go-v2/service/lightsail v1.64.0/go.mod h1:KgoVDjK6UfFu/YzH686vZ9FPv5H0w4G8tuqmQyZ8/hU=
 github.com/aws/aws-sdk-go-v2/service/pricing v1.42.9 h1:hLpi//1WEfD4ja8w9iNNE+ZWL25A6XAROw0wq2lwP3E=
 github.com/aws/aws-sdk-go-v2/service/pricing v1.42.9/go.mod h1:fX2p8/1nehWSKdUTLWSp/gPCxOUSCaBk2r2wjDoyxf4=
-github.com/aws/aws-sdk-go-v2/service/rds v1.132.2 h1:oqJBWlAAvYiydGnIvO9FNxO1adJc+NT0vwlA2LlTN8o=
-github.com/aws/aws-sdk-go-v2/service/rds v1.132.2/go.mod h1:vykivXsEYPmJhBRHw6Is3k4H53bxkFN8OC3SwC62R6M=
 github.com/aws/aws-sdk-go-v2/service/rds v1.134.0 h1:pskHc/97kkJJQRvgLwjYv6F9jiziWp7iNfaNU0BwjNc=
 github.com/aws/aws-sdk-go-v2/service/rds v1.134.0/go.mod h1:tKK8p0dQkndvUKVVr7N69A5YTsADPf69hkXsfWCmEfI=
 github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.51.0 h1:caWOS7HN0IKMRSuxxcScg39MxIg4/DgFQbW6xNjQN1I=
