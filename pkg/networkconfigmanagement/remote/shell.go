@@ -22,9 +22,18 @@ import (
 // its own goroutine, so output is always drained even when nobody is reading;
 // this keeps the channel's flow-control window open and lets ReadUntil honor
 // its context.
+//
+// Only writeLoop touches stdin. The ssh library does not allow closing a
+// channel's input while a write to it is in progress, and a Send abandoned on
+// ctx can leave its write running, so writes and the final close are
+// serialized on that one goroutine.
 type sshShell struct {
 	session *ssh.Session
 	stdin   io.WriteCloser
+
+	writes    chan writeReq // to writeLoop; unbuffered
+	inputDone chan struct{} // closed once input is closed
+	inputOnce sync.Once
 
 	mu     sync.Mutex
 	buf    []byte
@@ -37,6 +46,15 @@ type sshShell struct {
 }
 
 var _ Shell = (*sshShell)(nil)
+
+var errInputClosed = errors.New("shell input is closed")
+
+// writeReq asks writeLoop to write data; the result is sent on done, which
+// must be buffered so writeLoop never waits on an abandoned Send.
+type writeReq struct {
+	data string
+	done chan error
+}
 
 // StartShell opens an interactive shell with a PTY on the device. If ctx ends
 // before setup completes, any session already opened is closed and the ctx
@@ -104,16 +122,19 @@ func startShell(session *ssh.Session) (*sshShell, error) {
 		return nil, err
 	}
 	sh := &sshShell{
-		session: session,
-		stdin:   stdin,
-		notify:  make(chan struct{}, 1),
-		done:    make(chan struct{}),
+		session:   session,
+		stdin:     stdin,
+		writes:    make(chan writeReq),
+		inputDone: make(chan struct{}),
+		notify:    make(chan struct{}, 1),
+		done:      make(chan struct{}),
 	}
 	session.Stdout = sh
 	session.Stderr = sh
 	if err := session.Shell(); err != nil {
 		return nil, err
 	}
+	go sh.writeLoop()
 	go func() {
 		// Wait returns only after the library has finished copying output
 		// into sh, so nothing written before done closes is lost.
@@ -139,19 +160,64 @@ func (s *sshShell) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// writeLoop performs every write to stdin, in order, and closes stdin once
+// input is closed or the session has exited. A write already accepted
+// finishes before the close, so the device sees EOF after the data sent
+// before it.
+func (s *sshShell) writeLoop() {
+	defer func() { _ = s.stdin.Close() }()
+	for {
+		select {
+		case req := <-s.writes:
+			_, err := io.WriteString(s.stdin, req.data)
+			req.done <- err
+		case <-s.inputDone:
+			return
+		case <-s.done:
+			return
+		}
+	}
+}
+
+// closeInput stops accepting writes and has writeLoop close stdin. It never
+// waits for a write in progress.
+func (s *sshShell) closeInput() {
+	s.inputOnce.Do(func() { close(s.inputDone) })
+}
+
 // Send writes data to the shell's stdin. If ctx ends before the write
-// completes, the session is closed to unblock it.
+// completes, the session is closed to unblock it. It fails once input is
+// closed or the session has exited.
 func (s *sshShell) Send(ctx context.Context, data string) error {
-	errCh := make(chan error, 1)
-	go func() {
-		_, err := io.WriteString(s.stdin, data)
-		errCh <- err
-	}()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	// Checked before the handoff below, where select would pick at random
+	// between a closed input and a writeLoop still ready to accept.
 	select {
-	case err := <-errCh:
+	case <-s.inputDone:
+		return errInputClosed
+	case <-s.done:
+		return s.closedErr
+	default:
+	}
+	req := writeReq{data: data, done: make(chan error, 1)}
+	select {
+	case s.writes <- req:
+	case <-s.inputDone:
+		return errInputClosed
+	case <-s.done:
+		return s.closedErr
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	select {
+	case err := <-req.done:
 		return err
 	case <-ctx.Done():
-		_ = s.Close()
+		// Closing the session is safe during a write, and unblocks one that
+		// is waiting on the device.
+		_ = s.session.Close()
 		return ctx.Err()
 	}
 }
@@ -189,16 +255,18 @@ func (s *sshShell) ReadUntil(ctx context.Context, match func(buf []byte) int) ([
 	}
 }
 
-// CloseWrite closes the shell's stdin, sending EOF to the device.
+// CloseWrite closes the shell's stdin, sending EOF to the device after any
+// write in progress. It does not wait for that write.
 func (s *sshShell) CloseWrite() error {
-	return s.stdin.Close()
+	s.closeInput()
+	return nil
 }
 
 // Close closes the shell's session. It is safe to call more than once.
 func (s *sshShell) Close() error {
 	var err error
 	s.closeOnce.Do(func() {
-		_ = s.stdin.Close()
+		s.closeInput()
 		err = s.session.Close()
 		if errors.Is(err, io.EOF) {
 			err = nil

@@ -1512,6 +1512,7 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc": ["bpf", "clusterchecks", "docker", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "npm", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc/grpc_external_server": ["bpf", "clusterchecks", "docker", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "npm", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/pkg/network/usm/utils": ["bpf", "clusterchecks", "docker", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "npm", "requirefips", "serverless", "test"],
+    "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/cli": ["test"],
     "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config": ["cel", "clusterchecks", "grpcnotrace", "test"],
     "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile": ["test"],
     "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote": ["cel", "clusterchecks", "grpcnotrace", "test"],
