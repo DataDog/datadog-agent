@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -53,6 +54,38 @@ func TestGetActivePIDs(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.ElementsMatch(t, expect, actual)
+}
+
+// TestGetActivePIDsConcurrent checks that one probe can list PIDs from several goroutines at once.
+func TestGetActivePIDsConcurrent(t *testing.T) {
+	// Enough entries that one Readdirnames needs several refills of the 8KiB dirent buffer.
+	const numPIDs = 5000
+	procRoot := t.TempDir()
+	for pid := 1; pid <= numPIDs; pid++ {
+		require.NoError(t, os.WriteFile(filepath.Join(procRoot, strconv.Itoa(pid)), nil, 0o644))
+	}
+	probe := getProbe(WithProcFSRoot(procRoot))
+	defer probe.Close()
+
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Go(func() {
+			for range 100 {
+				pids, err := probe.getActivePIDs()
+				if err != nil || len(pids) != numPIDs {
+					t.Errorf("getActivePIDs: got %d pids, err %v; want %d", len(pids), err, numPIDs)
+					return
+				}
+			}
+		})
+	}
+	wg.Wait()
+}
+
+func TestCloseTwice(t *testing.T) {
+	probe := getProbe()
+	probe.Close()
+	assert.NotPanics(t, probe.Close)
 }
 
 func TestTrimAndSplitBytes(t *testing.T) {

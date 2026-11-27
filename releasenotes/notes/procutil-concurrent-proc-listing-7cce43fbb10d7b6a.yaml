@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix a possible Agent crash on Linux when ``/proc`` was listed concurrently.
