@@ -53,6 +53,8 @@ _platform_pkg_files = rule(
 def ebpf_pkg_install(name, srcs, **kwargs):
     """Declares a pkg_install of `srcs`, plus `name`_<cpu> installs of it for each supported target CPU.
 
+    The per-CPU installs are manual, so wildcard builds skip them; they are staged on request only.
+
     Args:
       name: name of the native install, and prefix of the per-CPU ones.
       srcs: pkg_files targets to install.
@@ -70,5 +72,6 @@ def ebpf_pkg_install(name, srcs, **kwargs):
         pkg_install(
             name = "{}_{}".format(name, cpu),
             srcs = [":{}_{}_payload".format(name, cpu)],
+            tags = ["manual"],
             **kwargs
         )
