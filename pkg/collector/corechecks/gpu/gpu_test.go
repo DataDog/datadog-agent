@@ -2843,4 +2843,21 @@ func TestMigGrReaderBackoff(t *testing.T) {
 	v, err = read("c")
 	require.NoError(t, err)
 	require.Equal(t, 42.0, v)
+
+	// A request too close to the previous one (429) or an NVML release window (425) does not pause; system-probe
+	// failing (503) pauses every device
+	errs["d"] = &sysprobeclient.StatusCodeError{StatusCode: http.StatusTooManyRequests}
+	_, err = read("d")
+	require.Error(t, err)
+	errs["d"] = &sysprobeclient.StatusCodeError{StatusCode: http.StatusTooEarly}
+	_, err = read("d")
+	require.Error(t, err)
+	require.Equal(t, 2, calls["d"], "not paused")
+	errs["d"] = &sysprobeclient.StatusCodeError{StatusCode: http.StatusServiceUnavailable}
+	_, err = read("d")
+	require.Error(t, err)
+	callsC := calls["c"]
+	_, err = read("c")
+	require.Error(t, err)
+	require.Equal(t, callsC, calls["c"], "paused")
 }

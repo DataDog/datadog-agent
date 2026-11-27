@@ -280,6 +280,13 @@ func (c *gpmCollector) Name() CollectorName {
 }
 
 func (c *gpmCollector) Collect() ([]Sample, error) {
+	// Ask system-probe first, on every run whatever happens to the local GPM read, so that its window stays one
+	// check interval
+	remoteGraphicsUtil, remoteErr := 0.0, errors.New("system-probe not used")
+	if c.migGrEngineActive != nil {
+		remoteGraphicsUtil, remoteErr = c.migGrEngineActive(c.device.GetDeviceInfo().UUID)
+	}
+
 	err := c.collectSample()
 	if err != nil {
 		return nil, fmt.Errorf("failed to collect GPM sample: %w", err)
@@ -315,10 +322,10 @@ func (c *gpmCollector) Collect() ([]Sample, error) {
 		value := metric.Value
 		// Without the MIG config capability the local GRAPHICS_UTIL is 0: use the value read by system-probe
 		if c.migGrEngineActive != nil && nvml.GpmMetricId(metric.MetricId) == nvml.GPM_METRIC_GRAPHICS_UTIL {
-			if remote, err := c.migGrEngineActive(c.device.GetDeviceInfo().UUID); err == nil {
-				value = remote
+			if remoteErr == nil {
+				value = remoteGraphicsUtil
 			} else {
-				log.Debugf("using local GPM GRAPHICS_UTIL for MIG device %s: %v", c.device.GetDeviceInfo().UUID, err)
+				log.Debugf("using local GPM GRAPHICS_UTIL for MIG device %s: %v", c.device.GetDeviceInfo().UUID, remoteErr)
 			}
 		}
 

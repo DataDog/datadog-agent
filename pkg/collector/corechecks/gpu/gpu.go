@@ -1198,8 +1198,10 @@ func newMigGrEngineActiveReader(client *sysprobeclient.CheckClient) func(string)
 var errMigGrRebaselined = errors.New("system-probe MIG gr_engine_active value discarded: its baseline may predate this check interval")
 
 // newMigGrReader wraps get with a backoff, so that a failing system-probe is not called for each device on each run.
-// The warm-up answer (202, baseline stored) and the transient 503 are expected and never pause. An error about one device (404, 500) pauses that device only;
-// any other error (system-probe unreachable or not started, timeout, endpoint disabled) pauses every device. After a
+// The warm-up answer (202, baseline stored), a request too close to the previous one (429) and an NVML release window
+// in system-probe (425, during a GPU reset or MIG reconfiguration) are expected and never pause. An error about one device (404, 500) pauses that device only;
+// any other error (system-probe unreachable or not started, timeout, NVML unavailable there (503), endpoint disabled)
+// pauses every device. After a
 // failure, or when system-probe answers a value without this reader having seen it store the baseline (left by an
 // earlier Agent process or a manual check), the value is discarded, since it can cover more than the check interval.
 func newMigGrReader(get func(uuid string) (float64, error), now func() time.Time) func(string) (float64, error) {
@@ -1207,7 +1209,7 @@ func newMigGrReader(get func(uuid string) (float64, error), now func() time.Time
 	var pausedAll, failedAll time.Time
 	pausedDevice := make(map[string]time.Time)
 	failedDevice := make(map[string]time.Time)
-	// baselined is when system-probe last stored a sample of the device: with a value or with the warm-up 503
+	// baselined is when system-probe last stored a sample of the device: with a value or with the warm-up 202
 	baselined := make(map[string]time.Time)
 	return func(uuid string) (float64, error) {
 		mu.Lock()
@@ -1237,7 +1239,7 @@ func newMigGrReader(get func(uuid string) (float64, error), now func() time.Time
 		switch {
 		case isStatus && statusErr.StatusCode == http.StatusAccepted:
 			baselined[uuid] = newBaseline
-		case isStatus && statusErr.StatusCode == http.StatusServiceUnavailable:
+		case isStatus && (statusErr.StatusCode == http.StatusTooManyRequests || statusErr.StatusCode == http.StatusTooEarly):
 		case isStatus && (statusErr.StatusCode == http.StatusNotFound || statusErr.StatusCode == http.StatusInternalServerError):
 			pausedDevice[uuid] = t.Add(migGrBackoff)
 			failedDevice[uuid] = t

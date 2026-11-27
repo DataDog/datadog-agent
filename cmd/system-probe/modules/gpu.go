@@ -186,6 +186,11 @@ const (
 	migGrRefreshInterval = 30 * time.Second
 	// migGrBaselineStoredStatus answers a request that stored a new baseline and has no value yet
 	migGrBaselineStoredStatus = http.StatusAccepted
+	// migGrTooRecentStatus answers a request less than migGrMinWindow after the previous one, which keeps the baseline.
+	// 503 is left for system-probe failures (NVML library unavailable, device listing failed)
+	migGrTooRecentStatus = http.StatusTooManyRequests
+	// migGrReleaseWindowStatus answers while NVML is released for a GPU reset or MIG reconfiguration, which ends shortly
+	migGrReleaseWindowStatus = http.StatusTooEarly
 )
 
 // dropMigGrSamples forgets the stored samples, freeing them when NVML is still usable (before a release, at close).
@@ -380,7 +385,7 @@ func (t *GPUMonitoringModule) nvmlReleaseHandler(w http.ResponseWriter, r *http.
 // GPM reads need CAP_SYS_ADMIN (or the MIG config capability), which system-probe
 // may hold but the core agent does not. Without a usable previous sample (first
 // request, too old) it stores one and answers 202; for a request too close to the
-// previous one it keeps the baseline and answers 503.
+// previous one it keeps the baseline and answers 429.
 func (t *GPUMonitoringModule) migGrHandler(w http.ResponseWriter, req *http.Request) {
 	if t.cfg == nil || !t.cfg.MigGrEndpointEnabled {
 		http.Error(w, "GPU MIG gr_engine_active endpoint is disabled", http.StatusNotImplemented)
@@ -398,7 +403,8 @@ func (t *GPUMonitoringModule) migGrHandler(w http.ResponseWriter, req *http.Requ
 		return
 	}
 	if err := ddnvml.BeginNVMLUse(); err != nil {
-		http.Error(w, fmt.Sprintf("NVML unavailable (release window active): %v", err), http.StatusServiceUnavailable)
+		// A GPU reset or MIG reconfiguration in progress, which ends shortly: not a failure to back off from
+		http.Error(w, fmt.Sprintf("NVML unavailable (release window active): %v", err), migGrReleaseWindowStatus)
 		return
 	}
 	defer ddnvml.EndNVMLUse()
@@ -433,7 +439,7 @@ func (t *GPUMonitoringModule) migGrHandler(w http.ResponseWriter, req *http.Requ
 	}
 	prev, hasPrev := t.migGrSamples[uuid]
 	if hasPrev && now.Sub(prev.at) < migGrMinWindow {
-		http.Error(w, "previous GPM sample too recent", http.StatusServiceUnavailable)
+		http.Error(w, "previous GPM sample too recent", migGrTooRecentStatus)
 		return
 	}
 	sample, err := lib.GpmSampleAlloc()
@@ -452,7 +458,7 @@ func (t *GPUMonitoringModule) migGrHandler(w http.ResponseWriter, req *http.Requ
 	}
 	t.migGrSamples[uuid] = migGrSample{sample: sample, at: now}
 	if !hasPrev || now.Sub(prev.at) > migGrMaxAge {
-		// Its own status, so that the Agent can tell a new baseline from the other 503 answers
+		// Its own status, so that the Agent can tell a new baseline from the other non-OK answers
 		http.Error(w, "GPM baseline stored, no value yet", migGrBaselineStoredStatus)
 		return
 	}

@@ -378,6 +378,54 @@ func TestGPMCollectorMIGUsesSystemProbeGrEngineActive(t *testing.T) {
 	}
 }
 
+func TestGPMCollectorMIGAsksSystemProbeWhenLocalGPMFails(t *testing.T) {
+	withMIGGraphicsUtilNeedsSystemProbe(t, true)
+	failLocal := false
+	mockLib := nvmltestutil.SetupMockNVML(t,
+		testutil.WithGpmSupport(true),
+		testutil.WithGpmMetricValues(map[nvml.GpmMetricId]testutil.MockGpmMetricValue{
+			nvml.GPM_METRIC_GRAPHICS_UTIL: {Value: 0, Return: nvml.SUCCESS},
+		}),
+		testutil.WithDeviceOptions(0, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+			original := device.GpmMigSampleGetFunc
+			device.GpmMigSampleGetFunc = func(id int, sample nvml.GpmSample) nvml.Return {
+				if failLocal {
+					return nvml.ERROR_UNKNOWN
+				}
+				return original(id, sample)
+			}
+		})),
+	)
+	migDevice := &ddnvml.MIGDevice{
+		DeviceInfo:    ddnvml.DeviceInfo{UUID: "MIG-test"},
+		Parent:        nvmltestutil.PhysicalDevice(t, mockLib, 0),
+		MIGInstanceID: 1,
+	}
+	calls := 0
+	collector, err := newGPMCollectorWithMetrics(migDevice, map[nvml.GpmMetricId]gpmMetric{
+		nvml.GPM_METRIC_GRAPHICS_UTIL: {name: "gr_engine_active", metricType: metrics.GaugeType},
+	}, &CollectorDependencies{MigGrEngineActive: func(string) (float64, error) {
+		calls++
+		return 73, nil
+	}})
+	require.NoError(t, err)
+
+	// system-probe is asked even when the local GPM read fails, so that its window stays one check interval
+	failLocal = true
+	_, err = collector.Collect()
+	require.Error(t, err)
+	assert.Equal(t, 1, calls)
+
+	// The next run uses its own system-probe value
+	failLocal = false
+	samples, err := collector.Collect()
+	require.NoError(t, err)
+	assert.Equal(t, 2, calls)
+	for _, metric := range requireMetrics(t, samples) {
+		assert.Equal(t, 73.0, metric.Value, metric.Name)
+	}
+}
+
 func TestGPMCollectorMIGWithCapabilityDoesNotAskSystemProbe(t *testing.T) {
 	withMIGGraphicsUtilNeedsSystemProbe(t, false)
 	mockLib := nvmltestutil.SetupMockNVML(t,

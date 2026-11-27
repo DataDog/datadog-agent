@@ -231,7 +231,7 @@ func TestGPUModuleMigGrEndpoint(t *testing.T) {
 	// The first request stores a baseline, a close second one keeps it
 	assert.Equal(t, migGrBaselineStoredStatus, get(router, "?uuid="+uuid).Code)
 	baseline := m.migGrSamples[uuid]
-	assert.Equal(t, http.StatusServiceUnavailable, get(router, "?uuid="+uuid).Code)
+	assert.Equal(t, migGrTooRecentStatus, get(router, "?uuid="+uuid).Code)
 	assert.Equal(t, baseline, m.migGrSamples[uuid])
 
 	// A request one check interval later returns the value
