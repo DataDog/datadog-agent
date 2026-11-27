@@ -111,9 +111,6 @@ func newGPMCollectorWithMetrics(device ddnvml.Device, metricsToCollect map[nvml.
 	if isMig {
 		collector.parentPhysicalDevice = migDevice.Parent
 		collector.migInstanceID = migDevice.MIGInstanceID
-		if deps != nil {
-			collector.migGrEngineActive = deps.MigGrEngineActive
-		}
 	}
 
 	collector.lib, err = ddnvml.GetSafeNvmlLib()
@@ -153,6 +150,13 @@ func newGPMCollectorWithMetrics(device ddnvml.Device, metricsToCollect map[nvml.
 
 	if len(collector.metricsToCollect) == 0 {
 		return nil, errUnsupportedDevice
+	}
+
+	// Use system-probe only when this Agent cannot read GRAPHICS_UTIL itself: without the MIG config capability or
+	// CAP_SYS_ADMIN, NVML returns 0 for it on MIG devices. With it (e.g. toolkit CDI mode), nothing changes.
+	if _, collectsGraphicsUtil := collector.metricsToCollect[nvml.GPM_METRIC_GRAPHICS_UTIL]; isMig && collectsGraphicsUtil &&
+		deps != nil && deps.MigGrEngineActive != nil && migGraphicsUtilNeedsSystemProbe(migDevice) {
+		collector.migGrEngineActive = deps.MigGrEngineActive
 	}
 
 	return collector, nil
@@ -309,16 +313,12 @@ func (c *gpmCollector) Collect() ([]Sample, error) {
 		}
 
 		value := metric.Value
-		// On MIG, the local GRAPHICS_UTIL reads 0 without CAP_SYS_ADMIN: when it reads 0, use the system-probe value.
-		// A non-zero local value is correct and kept, so a system-probe without the capability cannot override it.
-		// system-probe is asked on every run, even when the local value is used, so that its window stays the
-		// check interval rather than covering the whole time since the local value last read 0.
+		// Without the MIG config capability the local GRAPHICS_UTIL is 0: use the value read by system-probe
 		if c.migGrEngineActive != nil && nvml.GpmMetricId(metric.MetricId) == nvml.GPM_METRIC_GRAPHICS_UTIL {
-			remote, err := c.migGrEngineActive(c.device.GetDeviceInfo().UUID)
-			if err != nil {
-				log.Debugf("using local GPM GRAPHICS_UTIL for MIG device %s: %v", c.device.GetDeviceInfo().UUID, err)
-			} else if value == 0 {
+			if remote, err := c.migGrEngineActive(c.device.GetDeviceInfo().UUID); err == nil {
 				value = remote
+			} else {
+				log.Debugf("using local GPM GRAPHICS_UTIL for MIG device %s: %v", c.device.GetDeviceInfo().UUID, err)
 			}
 		}
 
@@ -347,4 +347,18 @@ func (c *gpmCollector) Collect() ([]Sample, error) {
 	}
 
 	return samples, errors.Join(errs...)
+}
+
+// migGraphicsUtilNeedsSystemProbe returns true unless this Agent holds the MIG config capability or CAP_SYS_ADMIN, which
+// its GPM GRAPHICS_UTIL of MIG devices needs: looking up the device's GPU instance succeeds (or finds it gone) only with
+// them, and fails with NO_PERMISSION without. Any other error also uses system-probe, whose failures fall back to the
+// local value anyway. It is a variable so that tests can replace it.
+var migGraphicsUtilNeedsSystemProbe = func(device *ddnvml.MIGDevice) bool {
+	err := device.Parent.CheckGpuInstanceAccess(device.MIGInstanceID)
+	var nvmlErr *ddnvml.NvmlAPIError
+	if err == nil || (errors.As(err, &nvmlErr) && nvmlErr.NvmlErrorCode == nvml.ERROR_NOT_FOUND) {
+		return false
+	}
+	log.Infof("reading gr_engine_active of MIG device %s through system-probe: this Agent cannot read it without the MIG config capability (%v)", device.UUID, err)
+	return true
 }

@@ -4,7 +4,9 @@ features:
     GPU Monitoring: on NVIDIA MIG devices, ``gpu.gr_engine_active``, and ``gpu.sm_active``
     which reports the same value, can now be read through system-probe. Reading this value on
     MIG requires CAP_SYS_ADMIN or the MIG configuration capability, which the core Agent does
-    not have, so it reads 0. When system-probe runs with GPU monitoring and CAP_SYS_ADMIN (for
-    example with ``datadog.gpuMonitoring.privilegedMode`` in the Helm chart) and the Agent's own
-    value is 0, the Agent now reports the value that system-probe reads. Set
+    not have in every deployment: without it, the value reads 0. When the Agent lacks this capability
+    (for example with the NVIDIA container toolkit in legacy mode) and system-probe runs with GPU
+    monitoring and CAP_SYS_ADMIN (for example with ``datadog.gpuMonitoring.privilegedMode`` in
+    the Helm chart), the Agent now reports the value that system-probe reads. Agents that hold
+    the capability, for example with the toolkit in CDI mode, are unchanged. Set
     ``gpu_monitoring.mig_gr_endpoint_enabled`` to ``false`` to turn this off.

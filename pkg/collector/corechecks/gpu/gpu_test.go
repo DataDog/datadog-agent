@@ -2785,8 +2785,8 @@ func TestMigGrReaderBackoff(t *testing.T) {
 		return 42, errs[uuid]
 	}, func() time.Time { return now })
 
-	// The warm-up 503 never pauses
-	errs["a"] = &sysprobeclient.StatusCodeError{StatusCode: http.StatusServiceUnavailable}
+	// The warm-up answer (baseline stored) never pauses
+	errs["a"] = &sysprobeclient.StatusCodeError{StatusCode: http.StatusAccepted}
 	_, err := read("a")
 	require.Error(t, err)
 	errs["a"] = nil
@@ -2823,7 +2823,24 @@ func TestMigGrReaderBackoff(t *testing.T) {
 	v, err = read("a")
 	require.NoError(t, err)
 	require.Equal(t, 42.0, v)
-	// A device without a previous value has nothing to discard
+	// A value without having seen system-probe store its baseline is discarded: that baseline may be old
+	_, err = read("b")
+	require.ErrorIs(t, err, errMigGrRebaselined)
 	_, err = read("b")
 	require.NoError(t, err)
+
+	// A device that only got the warm-up answer has a baseline in system-probe: discard its first value after a failure
+	errs["c"] = &sysprobeclient.StatusCodeError{StatusCode: http.StatusAccepted}
+	_, err = read("c")
+	require.Error(t, err)
+	errs["c"] = sysprobeclient.ErrNotStartedYet
+	_, err = read("c")
+	require.Error(t, err)
+	now = now.Add(migGrBackoff)
+	errs["c"] = nil
+	_, err = read("c")
+	require.ErrorIs(t, err, errMigGrRebaselined)
+	v, err = read("c")
+	require.NoError(t, err)
+	require.Equal(t, 42.0, v)
 }

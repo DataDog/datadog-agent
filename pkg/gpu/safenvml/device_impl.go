@@ -195,6 +195,15 @@ func (d *safeDeviceImpl) GetMIGInstanceProfileName(gpuInstanceID int) (string, e
 	})
 }
 
+// CheckGpuInstanceAccess looks up a GPU instance, which needs the MIG config capability or CAP_SYS_ADMIN
+func (d *safeDeviceImpl) CheckGpuInstanceAccess(gpuInstanceID int) error {
+	if err := d.lib.lookup(toNativeName("GetGpuInstanceById")); err != nil {
+		return err
+	}
+	_, ret := d.nvmlDevice.GetGpuInstanceById(gpuInstanceID)
+	return NewNvmlAPIErrorOrNil("GetGpuInstanceById", ret)
+}
+
 // getMIGInstanceProfileName isolates the versioned NVML call, whose concrete
 // handler cannot be mocked, so the lookup chain can be tested without hardware.
 func (d *safeDeviceImpl) getMIGInstanceProfileName(gpuInstanceID int, getProfileInfo func(int) (nvml.GpuInstanceProfileInfo_v2, nvml.Return)) (string, error) {

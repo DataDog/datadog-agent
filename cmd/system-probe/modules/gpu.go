@@ -184,6 +184,8 @@ const (
 	migGrMaxAge = 10 * time.Minute
 	// migGrRefreshInterval limits the device cache refreshes triggered by unknown UUIDs
 	migGrRefreshInterval = 30 * time.Second
+	// migGrBaselineStoredStatus answers a request that stored a new baseline and has no value yet
+	migGrBaselineStoredStatus = http.StatusAccepted
 )
 
 // dropMigGrSamples forgets the stored samples, freeing them when NVML is still usable (before a release, at close).
@@ -377,7 +379,8 @@ func (t *GPUMonitoringModule) nvmlReleaseHandler(w http.ResponseWriter, r *http.
 // MIG device between this request and the previous one for the same UUID. On MIG,
 // GPM reads need CAP_SYS_ADMIN (or the MIG config capability), which system-probe
 // may hold but the core agent does not. Without a usable previous sample (first
-// request, too close, too old) it stores one and answers 503.
+// request, too old) it stores one and answers 202; for a request too close to the
+// previous one it keeps the baseline and answers 503.
 func (t *GPUMonitoringModule) migGrHandler(w http.ResponseWriter, req *http.Request) {
 	if t.cfg == nil || !t.cfg.MigGrEndpointEnabled {
 		http.Error(w, "GPU MIG gr_engine_active endpoint is disabled", http.StatusNotImplemented)
@@ -449,7 +452,8 @@ func (t *GPUMonitoringModule) migGrHandler(w http.ResponseWriter, req *http.Requ
 	}
 	t.migGrSamples[uuid] = migGrSample{sample: sample, at: now}
 	if !hasPrev || now.Sub(prev.at) > migGrMaxAge {
-		http.Error(w, "GPM baseline stored, no value yet", http.StatusServiceUnavailable)
+		// Its own status, so that the Agent can tell a new baseline from the other 503 answers
+		http.Error(w, "GPM baseline stored, no value yet", migGrBaselineStoredStatus)
 		return
 	}
 

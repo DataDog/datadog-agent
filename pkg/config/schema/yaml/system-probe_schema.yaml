@@ -1527,8 +1527,8 @@ properties:
         visibility: public
         description: |-
           Read gpu.gr_engine_active (and its gpu.sm_active alias) of NVIDIA MIG devices
-          through system-probe, which needs CAP_SYS_ADMIN, when the core Agent's own value
-          reads 0 because it lacks the MIG config capability.
+          through system-probe, which needs CAP_SYS_ADMIN, when the core Agent lacks the
+          MIG config capability needed to read it.
       nvml_lib_path:
         node_type: setting
         type: string

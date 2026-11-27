@@ -229,7 +229,7 @@ func TestGPUModuleMigGrEndpoint(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, get(router, "?uuid=MIG-unknown").Code)
 
 	// The first request stores a baseline, a close second one keeps it
-	assert.Equal(t, http.StatusServiceUnavailable, get(router, "?uuid="+uuid).Code)
+	assert.Equal(t, migGrBaselineStoredStatus, get(router, "?uuid="+uuid).Code)
 	baseline := m.migGrSamples[uuid]
 	assert.Equal(t, http.StatusServiceUnavailable, get(router, "?uuid="+uuid).Code)
 	assert.Equal(t, baseline, m.migGrSamples[uuid])
@@ -242,7 +242,7 @@ func TestGPUModuleMigGrEndpoint(t *testing.T) {
 
 	// A baseline older than migGrMaxAge is replaced instead of averaging over the gap
 	age(m, migGrMaxAge+time.Minute)
-	assert.Equal(t, http.StatusServiceUnavailable, get(router, "?uuid="+uuid).Code)
+	assert.Equal(t, migGrBaselineStoredStatus, get(router, "?uuid="+uuid).Code)
 
 	// Samples of MIG devices nobody asks about anymore (e.g. removed by a reconfiguration) are freed
 	lib, err := ddnvml.GetSafeNvmlLib()

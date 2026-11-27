@@ -328,7 +328,16 @@ func TestGPMCollectorSMActiveSources(t *testing.T) {
 	}
 }
 
+// withMIGGraphicsUtilNeedsSystemProbe makes the MIG GPM collectors of the test see the Agent as lacking (or holding) the
+// MIG config capability.
+func withMIGGraphicsUtilNeedsSystemProbe(t *testing.T, needed bool) {
+	original := migGraphicsUtilNeedsSystemProbe
+	migGraphicsUtilNeedsSystemProbe = func(*ddnvml.MIGDevice) bool { return needed }
+	t.Cleanup(func() { migGraphicsUtilNeedsSystemProbe = original })
+}
+
 func TestGPMCollectorMIGUsesSystemProbeGrEngineActive(t *testing.T) {
+	withMIGGraphicsUtilNeedsSystemProbe(t, true)
 	mockLib := nvmltestutil.SetupMockNVML(t,
 		testutil.WithGpmSupport(true),
 		testutil.WithGpmMetricValues(map[nvml.GpmMetricId]testutil.MockGpmMetricValue{
@@ -369,11 +378,12 @@ func TestGPMCollectorMIGUsesSystemProbeGrEngineActive(t *testing.T) {
 	}
 }
 
-func TestGPMCollectorMIGKeepsNonZeroLocalGrEngineActive(t *testing.T) {
+func TestGPMCollectorMIGWithCapabilityDoesNotAskSystemProbe(t *testing.T) {
+	withMIGGraphicsUtilNeedsSystemProbe(t, false)
 	mockLib := nvmltestutil.SetupMockNVML(t,
 		testutil.WithGpmSupport(true),
 		testutil.WithGpmMetricValues(map[nvml.GpmMetricId]testutil.MockGpmMetricValue{
-			nvml.GPM_METRIC_GRAPHICS_UTIL: {Value: 40, Return: nvml.SUCCESS},
+			nvml.GPM_METRIC_GRAPHICS_UTIL: {Value: 0, Return: nvml.SUCCESS},
 		}),
 	)
 	migDevice := &ddnvml.MIGDevice{
@@ -386,15 +396,15 @@ func TestGPMCollectorMIGKeepsNonZeroLocalGrEngineActive(t *testing.T) {
 		nvml.GPM_METRIC_GRAPHICS_UTIL: {name: "gr_engine_active", metricType: metrics.GaugeType},
 	}, &CollectorDependencies{MigGrEngineActive: func(string) (float64, error) {
 		calls++
-		return 0, nil // e.g. a system-probe without the capability
+		return 73, nil
 	}})
 	require.NoError(t, err)
 
+	// The Agent reads the value itself (e.g. toolkit CDI mode): an idle 0 is reported as is, system-probe is not asked
 	samples, err := collector.Collect()
 	require.NoError(t, err)
 	for _, metric := range requireMetrics(t, samples) {
-		assert.Equal(t, 40.0, metric.Value, metric.Name)
+		assert.Equal(t, 0.0, metric.Value, metric.Name)
 	}
-	// system-probe is still asked, so that its window follows the check interval
-	assert.Equal(t, 1, calls)
+	assert.Zero(t, calls)
 }

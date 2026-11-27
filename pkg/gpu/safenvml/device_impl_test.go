@@ -704,3 +704,23 @@ func TestMIGInstanceProfilesOnOptionalProfileError(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, profiles, 2)
 }
+
+func TestCheckGpuInstanceAccess(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		ret  nvml.Return
+		deny bool
+	}{
+		{name: "capability held", ret: nvml.SUCCESS},
+		{name: "instance gone, capability held", ret: nvml.ERROR_NOT_FOUND},
+		{name: "no capability", ret: nvml.ERROR_NO_PERMISSION, deny: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			device := &nvmlmock.Device{
+				GetGpuInstanceByIdFunc: func(int) (nvml.GpuInstance, nvml.Return) { return nil, tc.ret },
+			}
+			err := (&safeDeviceImpl{nvmlDevice: device, lib: &safeNvml{capabilities: maps.Clone(allSymbols)}}).CheckGpuInstanceAccess(1)
+			require.Equal(t, tc.deny, IsNoPermission(err), "%v", err)
+		})
+	}
+}

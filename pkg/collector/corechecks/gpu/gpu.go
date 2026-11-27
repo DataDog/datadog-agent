@@ -1176,33 +1176,39 @@ const migGrRequestTimeout = time.Second
 // migGrBackoff is how long the check stops asking system-probe for MIG gr_engine_active after a failed request
 const migGrBackoff = time.Minute
 
-// newMigGrEngineActiveReader returns a reader of MIG GPM GRAPHICS_UTIL from system-probe. Requests are sent one at a
-// time, so that with parallel collectors the timeout only covers the request itself, not the queue in system-probe.
+// newMigGrEngineActiveReader returns a reader of MIG GPM GRAPHICS_UTIL from system-probe. Calls run one at a time, so
+// that with parallel collectors the timeout only covers the request itself, not the queue in system-probe, and a queued
+// call sees a pause recorded by the call before it instead of sending its own request.
 func newMigGrEngineActiveReader(client *sysprobeclient.CheckClient) func(string) (float64, error) {
-	var reqMu sync.Mutex
-	return newMigGrReader(func(uuid string) (float64, error) {
-		reqMu.Lock()
-		defer reqMu.Unlock()
+	read := newMigGrReader(func(uuid string) (float64, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), migGrRequestTimeout)
 		defer cancel()
 		return sysprobeclient.GetEndpointWithContext[float64](ctx, client, "/mig-gr?uuid="+url.QueryEscape(uuid), sysconfigtypes.GPUMonitoringModule)
 	}, time.Now)
+	var mu sync.Mutex
+	return func(uuid string) (float64, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		return read(uuid)
+	}
 }
 
 // errMigGrRebaselined is returned for the first value after a failure: system-probe kept its baseline meanwhile, so
 // that value can cover the missed runs rather than the check interval.
-var errMigGrRebaselined = errors.New("system-probe MIG gr_engine_active value discarded after a failure, baseline re-established")
+var errMigGrRebaselined = errors.New("system-probe MIG gr_engine_active value discarded: its baseline may predate this check interval")
 
 // newMigGrReader wraps get with a backoff, so that a failing system-probe is not called for each device on each run.
-// The warm-up answer (503) is expected and never pauses. An error about one device (404, 500) pauses that device only;
+// The warm-up answer (202, baseline stored) and the transient 503 are expected and never pause. An error about one device (404, 500) pauses that device only;
 // any other error (system-probe unreachable or not started, timeout, endpoint disabled) pauses every device. After a
-// failure, the first value of a device is discarded, since it can cover the time since the failure.
+// failure, or when system-probe answers a value without this reader having seen it store the baseline (left by an
+// earlier Agent process or a manual check), the value is discarded, since it can cover more than the check interval.
 func newMigGrReader(get func(uuid string) (float64, error), now func() time.Time) func(string) (float64, error) {
 	var mu sync.Mutex
 	var pausedAll, failedAll time.Time
 	pausedDevice := make(map[string]time.Time)
 	failedDevice := make(map[string]time.Time)
-	lastValue := make(map[string]time.Time)
+	// baselined is when system-probe last stored a sample of the device: with a value or with the warm-up 503
+	baselined := make(map[string]time.Time)
 	return func(uuid string) (float64, error) {
 		mu.Lock()
 		t := now()
@@ -1215,11 +1221,13 @@ func newMigGrReader(get func(uuid string) (float64, error), now func() time.Time
 		mu.Lock()
 		defer mu.Unlock()
 		t = now()
+		failed := maxTime(failedAll, failedDevice[uuid])
+		// Strictly after any failure recorded so far, so that the value after this new baseline is used
+		newBaseline := maxTime(t, failed.Add(time.Nanosecond))
 		if err == nil {
-			last, seen := lastValue[uuid]
-			// strictly after any failure recorded so far, so the next value is used
-			lastValue[uuid] = maxTime(t, maxTime(failedAll, failedDevice[uuid]).Add(time.Nanosecond))
-			if failed := maxTime(failedAll, failedDevice[uuid]); seen && !failed.IsZero() && !last.After(failed) {
+			last, seen := baselined[uuid]
+			baselined[uuid] = newBaseline
+			if !seen || (!failed.IsZero() && !last.After(failed)) {
 				return 0, errMigGrRebaselined
 			}
 			return value, nil
@@ -1227,6 +1235,8 @@ func newMigGrReader(get func(uuid string) (float64, error), now func() time.Time
 		var statusErr *sysprobeclient.StatusCodeError
 		isStatus := errors.As(err, &statusErr)
 		switch {
+		case isStatus && statusErr.StatusCode == http.StatusAccepted:
+			baselined[uuid] = newBaseline
 		case isStatus && statusErr.StatusCode == http.StatusServiceUnavailable:
 		case isStatus && (statusErr.StatusCode == http.StatusNotFound || statusErr.StatusCode == http.StatusInternalServerError):
 			pausedDevice[uuid] = t.Add(migGrBackoff)
