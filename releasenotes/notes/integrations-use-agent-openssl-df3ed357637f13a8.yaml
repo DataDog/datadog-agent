@@ -6,11 +6,17 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-fixes:
+enhancements:
   - |
     On Linux, Python integrations now use the Agent's OpenSSL instead of the
     copies bundled with some of their dependencies (``confluent-kafka``,
-    ``aerospike``, ``cryptography`` and ``psycopg``). This fixes TLS
-    connections from the Kafka consumer, Kafka actions and Aerospike
-    integrations on the FIPS Agent, which failed with "library has no
-    ciphers", and makes the Linux packages about 7 MiB smaller.
+    ``aerospike``, ``cryptography`` and ``psycopg``). This makes the Linux
+    packages about 7 MiB smaller.
+fixes:
+  - |
+    On the Linux FIPS Agent, the Kafka consumer and Aerospike integrations no
+    longer fail to set up TLS with "library has no ciphers": they now use the
+    Agent's FIPS-configured OpenSSL. This doesn't make them FIPS verified; see
+    `FIPS Verified Agent Integrations
+    <https://docs.datadoghq.com/integrations/guide/fips-integrations/>`_ for
+    the integrations that are.
