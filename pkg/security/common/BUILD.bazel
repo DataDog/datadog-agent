@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "common",
@@ -21,5 +22,17 @@ go_library(
         "//pkg/util/cloudproviders/gce",
         "//pkg/util/ec2",
         "//pkg/util/log",
+        "@com_github_cenkalti_backoff_v7//:backoff",
+    ],
+)
+
+dd_agent_go_test(
+    name = "common_test",
+    srcs = ["account_id_test.go"],
+    embed = [":common"],
+    deps = [
+        "//pkg/util/log",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -1,0 +1,33 @@
+From d3d6bc18906a8b543b61ddeebdab72eb79076e68 Mon Sep 17 00:00:00 2001
+From: Joseph Gette <joseph.gette@datadoghq.com>
+Date: Thu, 26 Nov 2026 13:34:36 +0000
+Subject: [PATCH] Keep sandbox paths out of debug info
+
+Bazel sandboxes compile each action in its own directory, and gcc writes the working directory into debug info, so objects differ between runs. Map the working directory, and the rules_foreign_cc build and dependency roots, to stable paths.
+---
+ toolchain/wrapper.sh.tpl | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/toolchain/wrapper.sh.tpl b/toolchain/wrapper.sh.tpl
+index d9097b5..73fee2d 100644
+--- a/toolchain/wrapper.sh.tpl
++++ b/toolchain/wrapper.sh.tpl
+@@ -55,4 +55,15 @@ if [[ "__binary__" == *gcov && -n "${COVERAGE_DIR:-}" ]]; then
+     exec > /dev/null
+ fi
+ 
++# Each sandboxed action compiles in its own directory, and gcc writes it into
++# debug info. Map it away; gcc applies the last matching map. rules_foreign_cc
++# builds compile under BUILD_TMPDIR, with headers under EXT_BUILD_DEPS.
++if [[ "__binary__" == *gcc || "__binary__" == *g++ || "__binary__" == *gfortran ]]; then
++    prefix_maps=()
++    if [[ -n "${EXT_BUILD_ROOT:-}" ]]; then prefix_maps+=("-fdebug-prefix-map=${EXT_BUILD_ROOT}=."); fi
++    if [[ -n "${EXT_BUILD_DEPS:-}" ]]; then prefix_maps+=("-fdebug-prefix-map=${EXT_BUILD_DEPS}=deps"); fi
++    for dir in "$(pwd -P)" "${PWD}"; do prefix_maps+=("-fdebug-prefix-map=${dir}=."); done
++    args=("${prefix_maps[@]}" "${args[@]}")
++fi
++
+ exec "${EXECROOT}/__binary__" "${args[@]}"
+-- 
+2.56.1
+

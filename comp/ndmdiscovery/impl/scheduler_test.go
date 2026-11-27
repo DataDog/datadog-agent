@@ -357,6 +357,27 @@ func TestSchedulerDoesNotOverlapCyclesForOneRange(t *testing.T) {
 	assert.Equal(t, int32(1), scanner.maxInFlight.Load(), "one range never has two cycles in flight")
 }
 
+func TestSchedulerKeepsAnUnchangedRangeRunning(t *testing.T) {
+	s, _, _ := newTestScheduler(t, answerAll(), 10)
+	s.start(context.Background())
+	defer s.stop()
+
+	scheduled := func() *scheduledRange {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return s.ranges["ad-1"]
+	}
+
+	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/26")))
+	first := scheduled()
+
+	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/26")))
+	assert.Same(t, first, scheduled(), "an unchanged range keeps its running cycle")
+
+	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.1.0/26")))
+	assert.NotSame(t, first, scheduled(), "a changed range is replaced")
+}
+
 func TestSchedulerRemoveDuringACycleDrainsOnStop(t *testing.T) {
 	scanner := newBlockingScanner()
 	s, _, _ := newTestScheduler(t, &scanner.recordingScanner, 10)

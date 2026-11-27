@@ -13,6 +13,8 @@ import (
 	"time"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -79,7 +81,7 @@ const (
 )
 
 func testUpgradeScenario(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite {
-	baseSuite := newPackageSuite("upgrade_scenario", os, arch, method)
+	baseSuite := newPackageSuite("upgrade_scenario", os, arch, method, awshost.WithRunOptions(scenec2.WithoutFakeIntake()))
 	return &upgradeScenarioSuite{
 		packageBaseSuite: &baseSuite,
 	}

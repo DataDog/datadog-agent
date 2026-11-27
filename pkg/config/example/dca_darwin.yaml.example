@@ -1803,6 +1803,14 @@ api_key:
 #
 #   default_actions_enabled: true
 
+#   # @param kubernetes_remediations_enabled - boolean - optional - default: false
+#   # @env DD_PRIVATE_ACTION_RUNNER_KUBERNETES_REMEDIATIONS_ENABLED - boolean - optional - default: false
+#   # Add a predefined set of Kubernetes remediation actions to the runner's
+#   # effective allowlist independently of default_actions_enabled.
+#   # Requires the corresponding Kubernetes RBAC permissions.
+#
+#   kubernetes_remediations_enabled: false
+
 #   # @param credentials - custom object - optional
 #   # Named credentials available to Private Action Runner tasks.
 #

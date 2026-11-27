@@ -158,6 +158,10 @@ func (s *scheduler) set(cfg rangeConfig) error {
 	}
 	var replaced context.CancelFunc
 	if existing, ok := s.ranges[cfg.AutodiscoveryID]; ok {
+		if existing.cfg.equal(cfg) {
+			s.mu.Unlock()
+			return nil
+		}
 		replaced = existing.cancel
 	}
 	rangeCtx, rangeCancel := context.WithCancel(s.ctx)

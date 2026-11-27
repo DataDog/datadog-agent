@@ -132,7 +132,7 @@ func (at *ActivityTree) demoteBaseMountNamespace(nsID uint32) {
 		nonBaseKey := mountNodeKey{mountPoint: mn.MountPoint, filesystem: mn.Filesystem, mountFlags: mn.MountFlags, inBaseNamespace: false}
 		if existing, ok := at.mountIndex[nonBaseKey]; ok {
 			before := existing.size()
-			existing.mergeSeen(&mn.NodeBase)
+			existing.absorb(&mn.NodeBase)
 			at.Stats.SizeBytes += (existing.size() - before) - mn.size()
 			continue
 		}
@@ -207,6 +207,13 @@ func (at *ActivityTree) isBaseMountNamespace(cgroupInode uint64, nsID uint32) bo
 }
 
 func (at *ActivityTree) InsertMount(cgroupInode uint64, nsID uint32, mountPoint, mountRoot, filesystem string, mountFlags uint32, imageTagID uint64, generationType NodeGenerationType, timestamp time.Time, dryRun bool) bool {
+	inserted, _ := at.insertMount(cgroupInode, nsID, mountPoint, mountRoot, filesystem, mountFlags, imageTagID, generationType, timestamp, dryRun)
+	return inserted
+}
+
+// insertMount inserts or refreshes one mount and returns the node it found or created.
+// A dry run that would insert a new mount returns a nil node.
+func (at *ActivityTree) insertMount(cgroupInode uint64, nsID uint32, mountPoint, mountRoot, filesystem string, mountFlags uint32, imageTagID uint64, generationType NodeGenerationType, timestamp time.Time, dryRun bool) (bool, *MountNode) {
 	isBase := at.isBaseMountNamespace(cgroupInode, nsID)
 
 	key := mountNodeKey{mountPoint: mountPoint, filesystem: filesystem, mountFlags: mountFlags, inBaseNamespace: isBase}
@@ -220,11 +227,11 @@ func (at *ActivityTree) InsertMount(cgroupInode uint64, nsID uint32, mountPoint,
 			mn.AppendImageTagID(imageTagID, timestamp)
 			at.Stats.SizeBytes += mn.size() - before
 		}
-		return false
+		return false, mn
 	}
 
 	if dryRun {
-		return true
+		return true, nil
 	}
 
 	node := NewMountNode(mountPoint, mountRoot, filesystem, mountFlags, generationType, imageTagID, timestamp)
@@ -234,10 +241,23 @@ func (at *ActivityTree) InsertMount(cgroupInode uint64, nsID uint32, mountPoint,
 	}
 	at.indexMount(key, node)
 	at.Stats.SizeBytes += node.size()
-	return true
+	return true, node
 }
 
-func (at *ActivityTree) insertMountEvent(event *model.Event, imageTagID uint64, generationType NodeGenerationType, res *resolvers.EBPFResolvers, dryRun bool) bool {
+// insertMountEvent inserts a mount event and returns the mount node it found or created.
+// The mount point is resolved once, here.
+func (at *ActivityTree) insertMountEvent(event *model.Event, imageTagID uint64, generationType NodeGenerationType, res *resolvers.EBPFResolvers, dryRun bool) (bool, *NodeBase) {
+	m := &event.Mount.Mount
+	cgroupInode, mountPoint := mountEventLocation(event, res)
+	inserted, mn := at.insertMount(cgroupInode, m.NamespaceInode, mountPoint, m.RootStr, m.FSType, m.MountFlags, imageTagID, generationType, event.ResolveEventTime(), dryRun)
+	if mn == nil {
+		return inserted, nil
+	}
+	return inserted, &mn.NodeBase
+}
+
+// mountEventLocation returns the cgroup inode of the workload of a mount event, and its resolved mount point
+func mountEventLocation(event *model.Event, res *resolvers.EBPFResolvers) (uint64, string) {
 	m := &event.Mount.Mount
 
 	var cgroupInode uint64
@@ -256,6 +276,5 @@ func (at *ActivityTree) insertMountEvent(event *model.Event, imageTagID uint64, 
 			mountPoint = resolved
 		}
 	}
-
-	return at.InsertMount(cgroupInode, m.NamespaceInode, mountPoint, m.RootStr, m.FSType, m.MountFlags, imageTagID, generationType, event.ResolveEventTime(), dryRun)
+	return cgroupInode, mountPoint
 }

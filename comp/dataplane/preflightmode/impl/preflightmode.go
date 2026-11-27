@@ -90,10 +90,10 @@ func findDataPlane(path string) (string, error) {
 	case err != nil:
 		return "", fmt.Errorf("could not stat %s: %w", path, err)
 	case !fi.Mode().IsRegular():
-		return "", fmt.Errorf("%s is not a regular file", path)
+		return "", fmt.Errorf("%s: %w", path, errNotRegularFile)
 	// Windows decides executability from the extension, not a mode bit.
 	case runtime.GOOS != "windows" && fi.Mode().Perm()&0111 == 0:
-		return "", fmt.Errorf("%s is not executable", path)
+		return "", fmt.Errorf("%s: %w", path, errNotExecutable)
 	}
 	return path, nil
 }
@@ -161,7 +161,9 @@ func NewComponent(reqs Requires) Provides {
 		// The binary is there but unusable, which is a genuine packaging or permissions
 		// problem worth knowing about.
 		reqs.Log.Warnf("Agent Data Plane preflight mode cannot run the installed binary: %v", err)
-		reporter.report(&outcome{findings: []finding{findingSpawnFailed}})
+		o := &outcome{}
+		o.addSpawnFailure(atStage(spawnStageBinary, err))
+		reporter.report(o)
 		return inert
 	}
 
@@ -276,28 +278,28 @@ func (d *preflightModeComponent) prepare(ctx context.Context) (*exec.Cmd, listen
 		d.log.Warnf("Could not clear a stale %s: %v", workDir, err)
 	}
 	if err := os.MkdirAll(workDir, 0700); err != nil {
-		return nil, listener{}, fmt.Errorf("could not create %s: %w", workDir, err)
+		return nil, listener{}, atStage(spawnStageWorkDir, fmt.Errorf("could not create %s: %w", workDir, err))
 	}
 	// Lock the directory down before anything sensitive goes into it, so the generated config
 	// is never on disk with weaker permissions than it ends up with. See secureWorkDir.
 	if err := secureWorkDir(workDir); err != nil {
-		return nil, listener{}, err
+		return nil, listener{}, atStage(spawnStageWorkDirPermissions, err)
 	}
 
 	l := newListener(workDir)
 	if err := l.validate(); err != nil {
-		return nil, l, fmt.Errorf("unusable DogStatsD endpoint under %s: %w", workDir, err)
+		return nil, l, atStage(spawnStageSocketPath, fmt.Errorf("unusable DogStatsD endpoint under %s: %w", workDir, err))
 	}
 
 	// See buildPreflightConfig for why this must be resolved here rather than read from config.
 	hostname, err := d.hostname.Get(ctx)
 	if err != nil {
-		return nil, l, fmt.Errorf("could not resolve the Agent's hostname: %w", err)
+		return nil, l, atStage(spawnStageHostname, fmt.Errorf("could not resolve the Agent's hostname: %w", err))
 	}
 
 	cfgPath, err := writePreflightConfig(d.config, l, workDir, hostname)
 	if err != nil {
-		return nil, l, err
+		return nil, l, atStage(spawnStageConfig, err)
 	}
 
 	cmd := exec.Command(d.binPath, "--config", cfgPath, "run")
@@ -347,7 +349,7 @@ func (d *preflightModeComponent) run(ctx context.Context) {
 	cmd, l, err := d.prepare(ctx)
 	if err != nil {
 		d.log.Warnf("Agent Data Plane preflight mode could not prepare a run: %v", err)
-		o.add(findingSpawnFailed)
+		o.addSpawnFailure(err)
 		return
 	}
 
@@ -359,7 +361,7 @@ func (d *preflightModeComponent) run(ctx context.Context) {
 		window, d.binPath, l.describe())
 	if err := cmd.Start(); err != nil {
 		d.log.Warnf("Agent Data Plane preflight mode could not start %s: %v", d.binPath, err)
-		o.add(findingSpawnFailed)
+		o.addSpawnFailure(atStage(spawnStageStart, err))
 		return
 	}
 

@@ -1,24 +1,20 @@
 import unittest
 from unittest import mock
 
-from invoke.runners import Result
-
 from tasks.e2e_framework import destroy, tool
 
 
-def _run_mock(stdout: str = "", exited: int = 0):
-    """A context whose `run` records its call and returns a canned Result."""
-    ctx = mock.MagicMock()
-    ctx.run.return_value = Result(stdout=stdout, exited=exited)
-    return ctx
+def _bazel_mock(test: unittest.TestCase, return_value=None):
+    """Make `bazel` record its call and return a canned result."""
+    patcher = mock.patch.object(tool, "bazel", return_value=return_value)
+    test.addCleanup(patcher.stop)
+    return patcher.start()
 
 
-def _command(ctx) -> str:
-    return ctx.run.call_args.args[0]
-
-
-def _env(ctx) -> dict:
-    return ctx.run.call_args.kwargs["env"]
+def _pulumi_args(bazel) -> list[str]:
+    run, label, separator, *args = bazel.call_args.args
+    assert (run, label, separator) == ("run", "@pulumi", "--")
+    return args
 
 
 class TestRunPulumi(unittest.TestCase):
@@ -30,53 +26,26 @@ class TestRunPulumi(unittest.TestCase):
         passphrase = mock.patch.object(tool, "_local_pulumi_passphrase", return_value=None)
         passphrase.start()
         self.addCleanup(passphrase.stop)
+        self.bazel = _bazel_mock(self)
 
     def test_project_dir_default_uses_the_e2e_framework_project(self):
-        ctx = _run_mock()
-        with mock.patch.object(tool, "get_pulumi_dir_flag", return_value="-C /repo/test/e2e-framework/run"):
-            tool.run_pulumi(ctx, "up --yes", stack="user-aws-vm")
-        self.assertEqual(_command(ctx), "pulumi -C /repo/test/e2e-framework/run up --yes -s user-aws-vm")
+        with mock.patch.object(tool, "get_pulumi_dir_flag", return_value=["-C", "/repo/test/e2e-framework/run"]):
+            tool.run_pulumi("up", "--yes", stack="user-aws-vm")
+        self.assertEqual(
+            _pulumi_args(self.bazel), ["-C", "/repo/test/e2e-framework/run", "up", "--yes", "-s", "user-aws-vm"]
+        )
 
     def test_project_dir_false_omits_the_flag(self):
-        ctx = _run_mock()
-        tool.run_pulumi(ctx, "login --local", project_dir=False)
-        self.assertEqual(_command(ctx), "pulumi login --local")
+        tool.run_pulumi("login", "--local", project_dir=False)
+        self.assertEqual(_pulumi_args(self.bazel), ["login", "--local"])
 
-    def test_project_dir_path_is_quoted(self):
-        ctx = _run_mock()
-        tool.run_pulumi(ctx, "version", project_dir="/tmp/a dir")
-        self.assertEqual(_command(ctx), "pulumi -C '/tmp/a dir' version")
+    def test_project_dir_path_is_one_argument(self):
+        tool.run_pulumi("version", project_dir="/tmp/a dir")
+        self.assertEqual(_pulumi_args(self.bazel), ["-C", "/tmp/a dir", "version"])
 
-    def test_empty_flag_groups_do_not_leave_blanks(self):
-        # deploy interpolates a log-flags group that is empty unless logging is on.
-        ctx = _run_mock()
-        tool.run_pulumi(ctx, " stack init --no-select s ", project_dir=False)
-        self.assertEqual(_command(ctx), "pulumi stack init --no-select s")
-
-    def test_pty_is_disabled_on_windows(self):
-        ctx = _run_mock()
-        with mock.patch.object(tool, "is_windows", return_value=True):
-            tool.run_pulumi(ctx, "up --yes", project_dir=False, pty=True)
-        self.assertFalse(ctx.run.call_args.kwargs["pty"])
-
-    def test_pty_is_kept_elsewhere(self):
-        ctx = _run_mock()
-        with (
-            mock.patch.object(tool, "is_windows", return_value=False),
-            mock.patch("sys.stdout.isatty", return_value=True),
-        ):
-            tool.run_pulumi(ctx, "up --yes", project_dir=False, pty=True)
-        self.assertTrue(ctx.run.call_args.kwargs["pty"])
-
-    def test_pty_is_disabled_when_output_is_redirected(self):
-        # e.g. `dda inv aws.create-... > deploy.log`: a pty would fill the log with escape sequences.
-        ctx = _run_mock()
-        with (
-            mock.patch.object(tool, "is_windows", return_value=False),
-            mock.patch("sys.stdout.isatty", return_value=False),
-        ):
-            tool.run_pulumi(ctx, "up --yes", project_dir=False, pty=True)
-        self.assertFalse(ctx.run.call_args.kwargs["pty"])
+    def test_args_are_passed_verbatim(self):
+        tool.run_pulumi("up", "-c", 'ddagent:extraEnvVars=A="1 2"', project_dir=False)
+        self.assertEqual(_pulumi_args(self.bazel), ["up", "-c", 'ddagent:extraEnvVars=A="1 2"'])
 
 
 class TestPulumiEnv(unittest.TestCase):
@@ -88,7 +57,7 @@ class TestPulumiEnv(unittest.TestCase):
     def test_passphrase_comes_from_the_local_config(self):
         with mock.patch.object(tool, "_local_pulumi_passphrase", return_value="from-config"):
             env = tool.pulumi_env()
-        self.assertEqual(env, {"PULUMI_SKIP_UPDATE_CHECK": "true", "PULUMI_CONFIG_PASSPHRASE": "from-config"})
+        self.assertEqual(env, {"PULUMI_CONFIG_PASSPHRASE": "from-config"})
 
     def test_ambient_passphrase_wins(self):
         # Empty is a valid passphrase, so presence -- not truthiness -- is what counts.
@@ -99,12 +68,6 @@ class TestPulumiEnv(unittest.TestCase):
                 self.assertNotIn("PULUMI_CONFIG_PASSPHRASE", env)
                 read.assert_not_called()
 
-    def test_skip_update_check_can_be_turned_off(self):
-        # pulumi_version() reads the upgrade banner off stderr, so it must not be skipped.
-        with mock.patch.object(tool, "_local_pulumi_passphrase", return_value=None):
-            env = tool.pulumi_env(skip_update_check=False)
-        self.assertEqual(env, {})
-
     def test_overrides_win(self):
         with mock.patch.object(tool, "_local_pulumi_passphrase", return_value="from-config"):
             env = tool.pulumi_env(
@@ -113,12 +76,12 @@ class TestPulumiEnv(unittest.TestCase):
         self.assertEqual(env["PULUMI_CONFIG_PASSPHRASE"], "explicit")
         self.assertEqual(env["PULUMI_K8S_DELETE_UNREACHABLE"], "true")
 
-    def test_caller_env_reaches_run_without_a_shell_prefix(self):
-        ctx = _run_mock()
+    def test_caller_env_reaches_bazel_without_a_shell_prefix(self):
+        bazel = _bazel_mock(self)
         with mock.patch.object(tool, "_local_pulumi_passphrase", return_value=None):
-            tool.run_pulumi(ctx, "up --yes", project_dir=False, env={"PULUMI_K8S_DELETE_UNREACHABLE": "true"})
-        self.assertEqual(_command(ctx), "pulumi up --yes")
-        self.assertEqual(_env(ctx)["PULUMI_K8S_DELETE_UNREACHABLE"], "true")
+            tool.run_pulumi("up", "--yes", project_dir=False, env={"PULUMI_K8S_DELETE_UNREACHABLE": "true"})
+        self.assertEqual(_pulumi_args(bazel), ["up", "--yes"])
+        self.assertEqual(bazel.call_args.kwargs["env"]["PULUMI_K8S_DELETE_UNREACHABLE"], "true")
 
     def test_ci_selects_the_ci_backend(self):
         with (
@@ -140,15 +103,15 @@ class TestPulumiStackNames(unittest.TestCase):
         self.addCleanup(patcher.stop)
 
     def test_names_are_read_from_json(self):
-        ctx = _run_mock(stdout='[{"name": "a"}, {"name": "b"}, {"current": true}]')
-        self.assertEqual(tool.pulumi_stack_names(ctx, project_dir=False), ["a", "b"])
-        self.assertEqual(_command(ctx), "pulumi stack ls --all --json")
-        self.assertEqual(ctx.run.call_args.kwargs["hide"], "stdout")
+        bazel = _bazel_mock(self, '[{"name": "a"}, {"name": "b"}, {"current": true}]')
+        self.assertEqual(tool.pulumi_stack_names(project_dir=False), ["a", "b"])
+        self.assertEqual(_pulumi_args(bazel), ["stack", "ls", "--all", "--json"])
+        self.assertTrue(bazel.call_args.kwargs["capture_output"])
 
     def test_project_is_forwarded(self):
-        ctx = _run_mock(stdout="[]")
-        tool.pulumi_stack_names(ctx, project="e2elocal", project_dir=False)
-        self.assertEqual(_command(ctx), "pulumi stack ls --all --json --project e2elocal")
+        bazel = _bazel_mock(self, "[]")
+        tool.pulumi_stack_names(project="e2elocal", project_dir=False)
+        self.assertEqual(_pulumi_args(bazel), ["stack", "ls", "--all", "--json", "--project", "e2elocal"])
 
 
 class TestExistingStacks(unittest.TestCase):

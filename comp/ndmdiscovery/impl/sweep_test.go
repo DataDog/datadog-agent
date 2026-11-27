@@ -483,6 +483,58 @@ func TestSweepCancellationMidRangeResumesWithTheSameRunID(t *testing.T) {
 		"a plain restart mid-run does not duplicate the in_progress record")
 }
 
+func TestSweepResumesARunInterruptedBeforeItsFirstChunk(t *testing.T) {
+	scanner := answerAll()
+	reporter := &recordingReporter{}
+	cursors := newMemCursorStore()
+	s := newTestSweeper(t, scanner, reporter, cursors, 10)
+	s.newRunID = func() string { return "run-should-not-be-used" }
+
+	req := testSweepRequest(t, "10.0.0.0/25", nil)
+	require.NoError(t, cursors.Save("ad-1", cursorState{
+		RunID:        "run-earlier",
+		NextChunk:    0,
+		StartedAtMs:  1699000000000,
+		ConfigDigest: req.Digest,
+	}))
+
+	require.NoError(t, s.sweep(context.Background(), req))
+
+	runs := reporter.recordedRuns()
+	for _, run := range runs {
+		assert.Equal(t, "run-earlier", run.RunID)
+	}
+	assert.Zero(t, countRunStatus(runs, metadata.AutodiscoveryRunInProgress),
+		"the run already reported in_progress before the interruption")
+	final := runs[len(runs)-1]
+	assert.Equal(t, metadata.AutodiscoveryRunCompleted, final.Status)
+	assert.Equal(t, int64(1699000000000), final.StartedAtMs)
+	assert.Len(t, scanner.recorded(), 2)
+}
+
+func TestSweepStartsANewRunAfterACompletedOne(t *testing.T) {
+	scanner := answerAll()
+	reporter := &recordingReporter{}
+	cursors := newMemCursorStore()
+	s := newTestSweeper(t, scanner, reporter, cursors, 10)
+
+	req := testSweepRequest(t, "10.0.0.0/25", nil)
+	require.NoError(t, cursors.Save("ad-1", cursorState{
+		RunID:        "run-earlier",
+		NextChunk:    2,
+		Scanned:      128,
+		StartedAtMs:  1699000000000,
+		EndedAtMs:    1699000060000,
+		ConfigDigest: req.Digest,
+	}))
+
+	require.NoError(t, s.sweep(context.Background(), req))
+
+	runs := reporter.recordedRuns()
+	assert.Equal(t, 1, countRunStatus(runs, metadata.AutodiscoveryRunInProgress))
+	assert.Equal(t, "run-fixed", runs[len(runs)-1].RunID)
+}
+
 func TestSweepResumeAfterFailureOpensANewRun(t *testing.T) {
 	calls := 0
 	scanner := &recordingScanner{respond: func(call scanCall) ([]probe.Result, error) {

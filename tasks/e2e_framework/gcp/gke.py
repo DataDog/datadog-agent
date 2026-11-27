@@ -76,7 +76,6 @@ def create_gke(
     }
 
     full_stack_name = deploy(
-        ctx,
         scenario_name,
         debug=debug,
         app_key_required=True,
@@ -97,7 +96,7 @@ def create_gke(
     if interactive:
         tool.notify(ctx, "Your GKE cluster is now created")
 
-    _show_connection_message(ctx, full_stack_name, interactive)
+    _show_connection_message(full_stack_name, interactive)
 
 
 @task(help={"stack_name": doc.stack_name})
@@ -105,11 +104,11 @@ def destroy_gke(ctx: Context, stack_name: str | None = None, config_path: str | 
     """
     Destroy a GKE environment created with invoke gcp.create-gke.
     """
-    destroy(ctx, scenario_name=scenario_name, stack=stack_name, config_path=config_path)
+    destroy(scenario_name=scenario_name, stack=stack_name, config_path=config_path)
 
 
-def _show_connection_message(ctx: Context, full_stack_name: str, copy_to_clipboard: bool | None):
-    outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
+def _show_connection_message(full_stack_name: str, copy_to_clipboard: bool | None):
+    outputs = tool.get_stack_json_outputs(full_stack_name)
     kubeconfig_output = yaml.safe_load(outputs["dd-Cluster-gcp-gke"]["kubeConfig"])
     kubeconfig_content = yaml.dump(kubeconfig_output)
     kubeconfig = f"{full_stack_name}-config.yaml"

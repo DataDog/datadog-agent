@@ -9,8 +9,10 @@ load(
 )
 load("@supply_chain_tools//sbom:sbom.bzl", "sbom")
 load("@supply_chain_tools//sbom:spdx.bzl", "spdx")
+load("//bazel/rules:dd_agent_pkg_mklink.bzl", "dd_agent_pkg_mklink")
+load("//bazel/rules/dd_packaging:agent_binary.bzl", "agent_binary_for_package")
 load("//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
-load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
+load("//bazel/rules/dd_strip:get_debug_symbols.bzl", "get_debug_symbols")
 load("//bazel/tools/healthcheck:gate.bzl", "healthcheck_gate")
 load("//compliance:package_licenses.bzl", "package_licenses")
 load("//packages/rules:agent_path.bzl", "etc_dir")
@@ -24,34 +26,17 @@ package_name_variables(
     product_name = "datadog-heroku-agent",
 )
 
-rewrite_rpath(
-    name = "agent_binary_rpath",
-    destination = "{install_dir}/bin/agent",
-    inputs = ["//cmd/agent:agent-heroku"],
-    use_relative_rpaths = False,
-)
-
-pkg_files(
+agent_binary_for_package(
     name = "agent_binary",
-    srcs = [":agent_binary_rpath"],
-    attributes = pkg_attributes(mode = "755"),
+    patch_rpath = True,
     prefix = "bin/agent",
-    renames = {":agent_binary_rpath": "agent"},
+    target = "//cmd/agent:agent-heroku",
 )
 
-rewrite_rpath(
-    name = "process_agent_binary_rpath",
-    destination = "{install_dir}/embedded/bin",
-    inputs = ["//cmd/process-agent:process-agent-heroku"],
-    use_relative_rpaths = False,
-)
-
-pkg_files(
-    name = "process_agent_binary",
-    srcs = [":process_agent_binary_rpath"],
-    attributes = pkg_attributes(mode = "755"),
-    prefix = "embedded/bin",
-    renames = {":process_agent_binary_rpath": "process-agent"},
+dd_agent_pkg_mklink(
+    name = "installer_link",
+    link_name = "embedded/bin/installer",
+    target = "{install_dir}/bin/agent/agent",
 )
 
 pkg_files(
@@ -79,12 +64,17 @@ pkg_files(
     prefix = etc_dir(),
 )
 
+pkg_files(
+    name = "system_probe_dist_config",
+    srcs = ["//pkg/config:system_probe_config"],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = "bin/agent/dist",
+)
+
 dd_collect_dependencies(
     name = "_collected_libs",
     srcs = [
         "//cmd/agent",
-        "//cmd/privateactionrunner",
-        "//cmd/process-agent",
         "//cmd/trace-agent",
         "@curl//:curl_bin_pkg",
         "@freetds//:tdsodbc_pkg",
@@ -124,13 +114,18 @@ pkg_filegroup(
     srcs = [
         ":agent_binary",
         ":example_config",
-        ":process_agent_binary",
+        ":installer_link",
+        ":system_probe_dist_config",
         ":trace_agent_binary",
         ":trace_loader",
         "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
+        "//deps/agent_integrations:integration_configuration_files",
+        "//deps/agent_integrations:integrations_bin_files",
+        "//deps/agent_integrations:integrations_runtime_files",
+        "//deps/agent_integrations:requirements_agent_release_file",
+        "//packages/agent/product:conf_dir_files",
         "//packages/agent/product:dirs",
-        "//packages/agent/product:privateactionrunner_binary",
         "//packages/agent/python-scripts:all_files",
     ],
 )
@@ -168,12 +163,11 @@ pkg_filegroup(
 
 pkg_filegroup(
     name = "whole_distro",
-    srcs = [":installed_distro"] + select({
-        "//:is_standard_install": [
-            "//packages/agent/linux:datadog_agent_installer_symlinks",
-        ],
-        "//conditions:default": [],
-    }),
+    srcs = [
+        ":installed_distro",
+        "//cmd/agent/dist:dd_agent_stub",
+        "//packages:log_dir",
+    ],
 )
 
 _DESCRIPTION = """Datadog Monitoring Agent
@@ -186,11 +180,22 @@ forwards metrics from your applications as well as system services.
 See http://www.datadoghq.com/ for more information
 """
 
+get_debug_symbols(
+    name = "debug_symbols",
+    srcs = [":whole_distro"],
+    prefix = "{install_dir}/.debug",
+    tags = ["manual"],
+)
+
 dd_pkg_deb(
     name = "debian",
-    srcs = [":whole_distro"],
+    srcs = [
+        ":whole_distro",
+        "//packages/debian/etc:all_files",
+    ],
     out = "debian.deb",
     conflicts = ["datadog-iot-agent"],
+    debug_symbols = ":debug_symbols",
     description = _DESCRIPTION,
     homepage = "http://www.datadoghq.com",
     license = "Apache License Version 2.0",

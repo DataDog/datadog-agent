@@ -91,6 +91,9 @@ func (at *ActivityTree) PrepareGraphData(name string, selector string, resolver 
 	for _, p := range at.ProcessNodes {
 		at.prepareProcessNode(p, &data, resolver)
 	}
+	if at.UnattributedActivity != nil {
+		at.prepareProcessNode(at.UnattributedActivity, &data, resolver)
+	}
 
 	return data
 }
@@ -107,10 +110,14 @@ func (at *ActivityTree) prepareProcessNode(p *ProcessNode, data *utils.Graph, re
 		args = strings.ReplaceAll(args, "}", "\\}")
 		args = strings.ReplaceAll(args, "{", "\\{")
 	}
+	label := p.getNodeLabel(args)
+	if p == at.UnattributedActivity {
+		label = tableHeader + "<TR><TD><FONT POINT-SIZE=\"" + strconv.Itoa(bigText) + "\">Unattributed activity</FONT></TD></TR></TABLE>>"
+	}
 	panGraphID := utils.NewGraphID(utils.NewNodeIDFromPtr(p))
 	pan := &utils.Node{
 		ID:      panGraphID,
-		Label:   p.getNodeLabel(args),
+		Label:   label,
 		Size:    smallText,
 		Color:   processColor,
 		Shape:   processShape,

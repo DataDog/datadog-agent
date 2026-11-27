@@ -335,3 +335,45 @@ func TestHardLinkBypassesLeafCache(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "alias-a", cachedLeaf.Name)
 }
+
+func TestDirectoryAndFilePathIDSeparation(t *testing.T) {
+	dr, err := NewResolver(&config.Config{
+		DentryCacheSize:            128,
+		MapDentryResolutionEnabled: true,
+	}, &statsd.NoOpClient{}, nil)
+	require.NoError(t, err)
+
+	const (
+		mountID    = uint32(7)
+		highPathID = uint32(1) << 16
+		reusedIno  = uint64(500)
+	)
+
+	rootKey := model.PathKey{Inode: 1, MountID: mountID, PathID: highPathID}
+	fileKey := model.PathKey{Inode: reusedIno, MountID: mountID, PathID: highPathID | 1}
+	dirKey := model.PathKey{Inode: reusedIno, MountID: mountID, PathID: highPathID}
+
+	dr.cacheInode(rootKey, PathEntry{Name: "/"})
+	dr.cacheInode(fileKey, PathEntry{Parent: rootKey, Name: "old-file"})
+
+	_, err = dr.ResolveFromCache(dirKey, CallerFile)
+	require.ErrorIs(t, err, ErrEntryNotFound)
+
+	var dirLeaf model.PathLeaf
+	dirLeaf.Parent = rootKey
+	dirLeaf.SetName("new-dir")
+
+	var rootLeaf model.PathLeaf
+	rootLeaf.SetName("/")
+
+	dr.pathnames = &fakePathnamesMap{
+		entries: map[model.PathKey]model.PathLeaf{
+			dirKey:  dirLeaf,
+			rootKey: rootLeaf,
+		},
+	}
+
+	resolvedDir, err := dr.Resolve(dirKey, true, CallerFile)
+	require.NoError(t, err)
+	assert.Equal(t, "/new-dir", resolvedDir)
+}

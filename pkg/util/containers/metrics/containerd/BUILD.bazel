@@ -153,6 +153,7 @@ dd_agent_go_test(
             "@com_github_microsoft_hcsshim//cmd/containerd-shim-runhcs-v1/stats",
             "@com_github_opencontainers_runtime_spec//specs-go",
             "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
             "@org_golang_google_protobuf//types/known/anypb",
             "@org_golang_google_protobuf//types/known/timestamppb",
             "@org_uber_go_fx//:fx",

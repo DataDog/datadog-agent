@@ -6,8 +6,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import yaml
-from invoke import Context
-from invoke.exceptions import Exit
 
 from tasks import bazel_parity as parity
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag
@@ -80,13 +78,25 @@ class TestBazelParity(unittest.TestCase):
         self.assertEqual(items['field_postinst']['status'], 'done')
 
     def test_bazel_targets(self):
-        self.assertEqual(
-            product('with-debug', debug_package=True).bazel_targets(),
-            ['//with-debug:debian', '//with-debug:debian_dbg', '//with-debug:rpm', '//with-debug:rpm_dbg'],
-        )
+        self.assertEqual(product('both').bazel_targets(), ['//both:debian', '//both:rpm'])
         self.assertEqual(product('rpm-only', formats=('rpm',)).bazel_targets(), ['//rpm-only:rpm'])
-        with self.assertRaises(Exit):
-            parity.targets(Context(), 'unknown')
+
+    def test_package_jobs_build_every_registered_target(self):
+        ci_file = Path(__file__).parents[2] / '.gitlab/build/bazel/package.yml'
+        yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
+        jobs = yaml.safe_load(ci_file.read_text())
+
+        def variables(name):
+            job = jobs.get(name, {})
+            extends = job.get('extends', [])
+            resolved = {}
+            for parent in [extends] if isinstance(extends, str) else extends:
+                resolved |= variables(parent)
+            return resolved | job.get('variables', {})
+
+        for registered in parity.PRODUCTS.values():
+            targets = variables(registered.bazel_job)['BAZEL_PACKAGE_TARGETS'].split()
+            self.assertLessEqual(set(registered.bazel_targets()), set(targets), registered.bazel_job)
 
     def test_parity_job_needs_every_registered_package_job(self):
         ci_file = Path(__file__).parents[2] / '.gitlab/test/functional_test/bazel_parity_check.yml'

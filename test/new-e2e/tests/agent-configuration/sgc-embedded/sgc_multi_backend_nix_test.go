@@ -38,7 +38,7 @@ type linuxRuntimeSecretSuite struct {
 
 func TestSGCMultiBackendLinuxSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &linuxRuntimeSecretSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess())))))
+	e2e.Run(t, &linuxRuntimeSecretSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess())))))
 }
 
 // TestMultiBackend verifies that multi_secret_backends routes ENC[backendID;key] handles
@@ -63,7 +63,7 @@ additional_endpoints:
 		perms.WithOwner("dd-agent"),
 		perms.WithGroup("dd-agent"),
 	)
-	v.UpdateEnv(awshost.Provisioner(
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(
 		awshost.WithRunOptions(scenec2.WithAgentOptions(
 			agentparams.WithFileWithPermissions("/tmp/secrets.yaml", embeddedSecretYAML, true, unixPermission),
 			agentparams.WithFileWithPermissions("/tmp/secrets.json", embeddedSecretJSON, true, unixPermission),
@@ -118,7 +118,7 @@ additional_endpoints:
 		perms.WithOwner("dd-agent"),
 		perms.WithGroup("dd-agent"),
 	)
-	v.UpdateEnv(awshost.Provisioner(
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(
 		awshost.WithRunOptions(scenec2.WithAgentOptions(
 			agentparams.WithFileWithPermissions("/etc/datadog-agent/dummy_secret_script.py", dummyScript, true, scriptPermission),
 			agentparams.WithSkipAPIKeyInConfig(),
@@ -164,7 +164,7 @@ multi_secret_backends:
 		perms.WithOwner("dd-agent"),
 		perms.WithGroup("dd-agent"),
 	)
-	v.UpdateEnv(awshost.Provisioner(
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(
 		awshost.WithRunOptions(scenec2.WithAgentOptions(
 			agentparams.WithFileWithPermissions("/tmp/secrets_merged.yaml", embeddedSecretMergedYAML, true, unixPermission),
 			agentparams.WithSkipAPIKeyInConfig(),

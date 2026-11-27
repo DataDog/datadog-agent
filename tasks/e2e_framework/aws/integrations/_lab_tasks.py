@@ -16,7 +16,7 @@ from urllib.parse import quote
 
 from invoke.collection import Collection
 from invoke.context import Context
-from invoke.exceptions import Exit, UnexpectedExit
+from invoke.exceptions import Exit
 from invoke.tasks import Task, task
 
 from tasks.e2e_framework import tool
@@ -55,11 +55,11 @@ def _missing_outputs_message(role: str) -> str:
     )
 
 
-def _ssh_base(ctx: Context, scenario_name: str, role: str, stack_name: str | None = None) -> str:
+def _ssh_base(scenario_name: str, role: str, stack_name: str | None = None) -> str:
     try:
-        host = get_host(ctx, role, scenario_name, stack_name)
-    except (KeyError, UnexpectedExit) as exc:
-        # KeyError: outputs exist but lack this role. UnexpectedExit: `pulumi stack export`
+        host = get_host(role, scenario_name, stack_name)
+    except (KeyError, SystemExit) as exc:
+        # KeyError: outputs exist but lack this role. SystemExit: `pulumi stack output`
         # failed (no/partial stack). Both mean create did not complete successfully.
         raise RuntimeError(_missing_outputs_message(role)) from exc
     command = f"ssh {SSH_OPTIONS} {host.user}@{host.address}"
@@ -75,7 +75,7 @@ def _run_remote(ctx: Context, scenario_name: str, role: str, command: str, stack
     # destination). Do NOT insert a "--" here: ssh treats everything after the destination as
     # the remote command, so a leading "--" is sent to the login shell (`$SHELL -c '-- ...'`),
     # which rejects it as an invalid option and breaks status/check/exec/reload-check.
-    return ctx.run(f"{_ssh_base(ctx, scenario_name, role, stack_name)} {shlex.quote(command)}")
+    return ctx.run(f"{_ssh_base(scenario_name, role, stack_name)} {shlex.quote(command)}")
 
 
 def _datadog_site() -> str:
@@ -110,15 +110,15 @@ def _best_effort_datadog_hostname(ctx: Context, scenario_name: str, role: str, s
     except Exception:
         pass
     try:
-        host = get_host(ctx, role, scenario_name, stack_name)
+        host = get_host(role, scenario_name, stack_name)
         return host.address
-    except Exception:
+    except (Exception, SystemExit):
         return role
 
 
 def _show_create_success_message(ctx: Context, scenario_name: str, role: str, stack_name: str | None = None) -> None:
     try:
-        ssh_command = _ssh_base(ctx, scenario_name, role, stack_name)
+        ssh_command = _ssh_base(scenario_name, role, stack_name)
         hostname = _best_effort_datadog_hostname(ctx, scenario_name, role, stack_name)
     except Exception as exc:
         print(f"Datadog host URL unavailable until stack outputs exist: {exc}")
@@ -217,7 +217,7 @@ def build_collection(
     @task
     def destroy_lab(ctx: Context, config_path: str | None = None, stack_name: str | None = None):
         """Destroy resources owned by this integration lab."""
-        return e2e_destroy(ctx, scenario_name=scenario_name, config_path=config_path, stack=stack_name)
+        return e2e_destroy(scenario_name=scenario_name, config_path=config_path, stack=stack_name)
 
     @task
     def status(ctx: Context, role: str = remote_hostname, stack_name: str | None = None):
@@ -239,7 +239,7 @@ def build_collection(
     @task
     def ssh(ctx: Context, role: str = remote_hostname, stack_name: str | None = None, connect: bool = False):
         """Print or open SSH access for a lab host role."""
-        command = _ssh_base(ctx, scenario_name, _resolve_role(role), stack_name)
+        command = _ssh_base(scenario_name, _resolve_role(role), stack_name)
         print(command)
         if connect:
             return ctx.run(command, pty=True)
@@ -328,22 +328,22 @@ def build_kube_collection(
     def _full_stack_name(stack_name: str | None = None) -> str:
         return tool.get_stack_name(stack_name, scenario_name)
 
-    def _write_kubeconfig(ctx: Context, stack_name: str | None = None) -> str:
+    def _write_kubeconfig(stack_name: str | None = None) -> str:
         full_stack_name = _full_stack_name(stack_name)
         try:
-            outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
-        except UnexpectedExit as exc:
+            outputs = tool.get_stack_json_outputs(full_stack_name)
+        except SystemExit as exc:
             raise RuntimeError(_kube_missing_outputs_message(cluster_output_key)) from exc
         return _write_kubeconfig_from_outputs(outputs, cluster_output_key, full_stack_name)
 
-    def _show_connection_message(ctx: Context, stack_name: str | None = None) -> None:
-        kubeconfig_path = _write_kubeconfig(ctx, stack_name)
+    def _show_connection_message(stack_name: str | None = None) -> None:
+        kubeconfig_path = _write_kubeconfig(stack_name)
         print(f"export KUBECONFIG={kubeconfig_path}")
 
     def _run_kubectl(ctx: Context, command: str, stack_name: str | None = None):
         if not command:
             raise ValueError("command is required")
-        kubeconfig_path = _write_kubeconfig(ctx, stack_name)
+        kubeconfig_path = _write_kubeconfig(stack_name)
         return ctx.run(f"kubectl --kubeconfig={shlex.quote(kubeconfig_path)} {command}")
 
     def _run_kubectl_args(ctx: Context, args: list[str], stack_name: str | None = None):
@@ -376,13 +376,13 @@ def build_kube_collection(
             agent_config_path=agent_config_path,
             local_package=local_package,
         )
-        _show_connection_message(ctx, stack_name)
+        _show_connection_message(stack_name)
         return full_stack_name
 
     @task
     def destroy_lab(ctx: Context, config_path: str | None = None, stack_name: str | None = None):
         """Destroy resources owned by this integration lab."""
-        return e2e_destroy(ctx, scenario_name=scenario_name, config_path=config_path, stack=stack_name)
+        return e2e_destroy(scenario_name=scenario_name, config_path=config_path, stack=stack_name)
 
     @task
     def status(ctx: Context, stack_name: str | None = None):
@@ -412,7 +412,7 @@ def build_kube_collection(
     @task
     def ssh(ctx: Context, stack_name: str | None = None):
         """Print an export KUBECONFIG command for this Kubernetes lab."""
-        _show_connection_message(ctx, stack_name)
+        _show_connection_message(stack_name)
         return None
 
     collection = Collection(_collection_name(name))

@@ -14,7 +14,7 @@ from tasks.libs.common.constants import ALLOWED_REPO_NIGHTLY_BRANCHES
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.libs.releasing.json import get_current_milestone
-from tasks.libs.releasing.version import query_version
+from tasks.libs.releasing.version import query_version_cached
 from tasks.schema.generate import schema_codegen
 
 EBPF_PROFILER_MODULE = "go.opentelemetry.io/ebpf-profiler"
@@ -52,7 +52,7 @@ def _get_profiler_agent_version(ctx):
         return None
 
     major_version = get_current_milestone().split('.')[0]
-    version, pre, commits, git_sha, _ = query_version(ctx, major_version=major_version)
+    version, pre, commits, git_sha, _ = query_version_cached(ctx, major_version)
 
     if is_nightly:
         return f"{version}-nightly-git.{commits}.{git_sha}"
@@ -108,6 +108,32 @@ def build(ctx, enable_bazel=False):
         "./cmd/host-profiler/dist/host-profiler-config.yaml",
         os.path.join(dist_folder, "host-profiler-config.yaml"),
     )
+
+
+@task
+def publish(ctx, internal=False, devtest=False, git_ref=""):
+    """
+    Publish the host profiler image of a pushed branch from a reduced pipeline, without needing a PR.
+
+    --internal, the default when no target is given, publishes registry.ddbuild.io/ddot-ebpf:dev-<branch>-<sha>;
+    the tag is in the log of publish_internal_container_image-host_profiler_standalone.
+    --devtest overwrites the shared ddot-ebpf-dev:devtest-latest (used by relenv candidate-experimental)
+    and deploys it to the reliability devtest env.
+    """
+    from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+    from tasks.libs.common.git import get_current_branch
+    from tasks.libs.pipeline.tools import trigger_agent_pipeline
+
+    # Read by the rules of publish_internal_container_image-host_profiler_standalone and dev_deploy-host-profiler-devtest.
+    variables = {}
+    if internal or not devtest:
+        variables["PUBLISH_HOST_PROFILER_INTERNAL"] = "true"
+    if devtest:
+        variables["DEPLOY_HOST_PROFILER_DEVTEST"] = "true"
+
+    ref = git_ref or get_current_branch(ctx)
+    pipeline = trigger_agent_pipeline(get_gitlab_repo(), ref, "dev", variables=variables)
+    print(color_message("Pipeline: ", "blue") + color_message(pipeline.web_url, "green"))
 
 
 @task

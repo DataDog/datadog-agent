@@ -46,9 +46,9 @@ var defaultCommonActionFQNs = []string{
 }
 
 // KubeActionsActionFQNs is the full set of actions in the kubeactions bundle.
-// They are auto-added to the allowlist when the kubeactions subsystem is enabled
-// (kubeactions.enabled / DD_KUBEACTIONS_ENABLED) so operators do not have to set
-// private_action_runner.actions_allowlist manually.
+// They are auto-added to the allowlist when both kubeactions.enabled and
+// kubeactions.private_action_runner.enabled are true so operators do not have
+// to set private_action_runner.actions_allowlist manually.
 var KubeActionsActionFQNs = []string{
 	"com.datadoghq.kubernetes.kubeactions.deletePod",
 	"com.datadoghq.kubernetes.kubeactions.restartDeployment",
@@ -57,6 +57,20 @@ var KubeActionsActionFQNs = []string{
 	"com.datadoghq.kubernetes.kubeactions.patchStatefulset",
 	"com.datadoghq.kubernetes.kubeactions.rollbackDeployment",
 	"com.datadoghq.kubernetes.kubeactions.getResource",
+}
+
+var KubernetesRemediationActionFQNs = []string{
+	"com.datadoghq.kubernetes.apps.scaleDeployment",
+	"com.datadoghq.kubernetes.apps.scaleDeploymentVertically",
+	"com.datadoghq.kubernetes.apps.rollbackDeployment",
+	"com.datadoghq.kubernetes.apps.restartDeployment",
+	"com.datadoghq.kubernetes.apps.scaleStatefulSetHorizontally",
+	"com.datadoghq.kubernetes.apps.scaleStatefulSetVertically",
+	"com.datadoghq.kubernetes.autoscaling.updateAutoscalerLimits",
+	"com.datadoghq.kubernetes.batch.deleteJob",
+	"com.datadoghq.kubernetes.batch.updateCronJobSchedule",
+	"com.datadoghq.kubernetes.core.deletePod",
+	"com.datadoghq.kubernetes.watermarkpodautoscaler.updateWatermarkAutoscalerLimits",
 }
 
 // DefaultClusterAgentActionFQNs is a list of action FQNs that are enabled by default

@@ -18,8 +18,9 @@ This also supports the golang testing flag --run and --skip to target specific t
 dda inv new-e2e-tests.run --targets=./examples --run=TestMyLocalKindSuite/TestClusterAgentInstalled
 ```
 
-You can also run it with go test, from test/new-e2e
+You can also run it with go test, from test/new-e2e, once the pinned Pulumi CLI and plugins are in the Pulumi home
 ```bash
+bazel run @pulumi//:install -- --destdir="${PULUMI_HOME:-$HOME/.pulumi}"
 cd test/new-e2e && go test ./examples -timeout 0 -run=^TestVMSuite$
 ```
 

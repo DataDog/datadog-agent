@@ -9,7 +9,7 @@ To run scripts and code in this repository, you will need:
 - [Go](https://golang.org/doc/install) 1.22 or later. You'll also need to set your `$GOPATH` and have `$GOPATH/bin` in your path.
 - Python 3.9+ along with development libraries for tooling.
 - `account-admin-8h` role on the AWS `agent-sandbox` account.
-- [dda](https://datadoghq.dev/datadog-agent/setup/required/#tooling), [Pulumi](https://www.pulumi.com/docs/iac/download-install/) and [aws-vault](https://github.com/99designs/aws-vault) installed on your laptop.
+- [dda](https://datadoghq.dev/datadog-agent/setup/required/#tooling) and [aws-vault](https://github.com/99designs/aws-vault) installed on your laptop.
 
 This guide is tested on **MacOS**.
 
@@ -94,16 +94,16 @@ When performing operations on a `Stack`, Pulumi will need to store a state somew
 Normally the state should be stored in a durable storage (e.g. S3-like), but for testing purposes
 local filesystem could be used.
 
-To choose a default storage provider, use `pulumi login` (should be only done once):
+To choose a default storage provider, use `bazel run @pulumi login` (should be only done once):
 
 ```
 # Using local filesystem (state will be stored in ~/.pulumi)
-pulumi login --local
+bazel run @pulumi -- login --local
 
 # Using storage on Cloud Storage (GCP)
 # You need to create the bucket on sandbox.
 # You also need to have sandbox as your current tenant in gcloud CLI.
-pulumi login gs://<your_name>-pulumi
+bazel run @pulumi login gs://<your_name>-pulumi
 ```
 
 More information about state can be retrieved at: https://www.pulumi.com/docs/intro/concepts/state/
@@ -111,13 +111,13 @@ More information about state can be retrieved at: https://www.pulumi.com/docs/in
 Finally, Pulumi is encrypting secrets in your `Pulumi.<stack_name>.yaml` (if entered as such).
 To do that, it requires a password. For dev purposes, you can simply store the password in the `PULUMI_CONFIG_PASSPHRASE` variable in your `~/.zshrc`.
 
-### Creating a stack with `pulumi up`
+### Creating a stack with `bazel run @pulumi -- up`
 
 In this example, we're going to create an ECS Cluster:
 
 ```
 # You need to have a DD APIKey in variable DD_API_KEY
-pulumi up -C test/e2e-framework/run -c scenario=aws/ecs -c ddinfra:aws/defaultKeyPairName=<your_exisiting_aws_keypair_name> -c ddinfra:env=aws/agent-sandbox -c ddagent:apiKey=$DD_API_KEY -s <your_name>-ecs-test
+bazel run @pulumi -- up -C test/e2e-framework/run -c scenario=aws/ecs -c ddinfra:aws/defaultKeyPairName=<your_exisiting_aws_keypair_name> -c ddinfra:env=aws/agent-sandbox -c ddagent:apiKey=$DD_API_KEY -s <your_name>-ecs-test
 ```
 
 In case of failure, you may update some parameters or configuration and run the command again.
@@ -131,7 +131,7 @@ Once you're finished with the test environment you've created, you can safely de
 To do this, we'll use the `destroy` operation referencing our `Stack` file:
 
 ```
-pulumi destroy -s <your_name>-ecs-test
+bazel run @pulumi -- destroy -s <your_name>-ecs-test
 ```
 
 Note that we don't need to use `-c` again as the configuration values were put into the `Stack` file.
@@ -139,28 +139,28 @@ This will destroy all cloud resources associated to the Stack, but the state its
 To remove the stack state:
 
 ```
-pulumi stack rm <your_name>-ecs-test
+bazel run @pulumi stack rm <your_name>-ecs-test
 ```
 
 ## Quick start: A VM with Docker(/Compose) with Agent deployed
 
 ```
 # You need to have a DD APIKey in variable DD_API_KEY
-pulumi up -C test/e2e-framework/run -c scenario=aws/dockervm -c ddinfra:aws/defaultKeyPairName=<your_exisiting_aws_keypair_name> -c ddinfra:env=aws/agent-sandbox -c ddagent:apiKey=$DD_API_KEY -c ddinfra:aws/defaultPrivateKeyPath=$HOME/.ssh/id_rsa -s <your_name>-docker
+bazel run @pulumi -- up -C test/e2e-framework/run -c scenario=aws/dockervm -c ddinfra:aws/defaultKeyPairName=<your_exisiting_aws_keypair_name> -c ddinfra:env=aws/agent-sandbox -c ddagent:apiKey=$DD_API_KEY -c ddinfra:aws/defaultPrivateKeyPath=$HOME/.ssh/id_rsa -s <your_name>-docker
 ```
 
 ## Quick start: Create an ECS EC2 (Windows/Linux) + Fargate (Linux) Cluster
 
 ```
 # You need to have a DD APIKey in variable DD_API_KEY
-pulumi up -C test/e2e-framework/run -c scenario=aws/ecs -c ddinfra:aws/defaultKeyPairName=<your_exisiting_aws_keypair_name> -c ddinfra:env=aws/agent-sandbox -c ddagent:apiKey=$DD_API_KEY -s <your_name>-ecs
+bazel run @pulumi -- up -C test/e2e-framework/run -c scenario=aws/ecs -c ddinfra:aws/defaultKeyPairName=<your_exisiting_aws_keypair_name> -c ddinfra:env=aws/agent-sandbox -c ddagent:apiKey=$DD_API_KEY -s <your_name>-ecs
 ```
 
 ## Quick start: Create an EKS (Linux/Windows) + Fargate (Linux) Cluster + Agent (Helm)
 
 ```
 # You need to have a DD APIKey AND APPKey in variable DD_API_KEY / DD_APP_KEY
-pulumi up -C test/e2e-framework/run -c scenario=aws/eks -c ddinfra:aws/defaultKeyPairName=<your_exisiting_aws_keypair_name> -c ddinfra:env=aws/agent-sandbox -c ddagent:apiKey=$DD_API_KEY -c ddagent:appKey=$DD_APP_KEY -s <your_name>-eks
+bazel run @pulumi -- up -C test/e2e-framework/run -c scenario=aws/eks -c ddinfra:aws/defaultKeyPairName=<your_exisiting_aws_keypair_name> -c ddinfra:env=aws/agent-sandbox -c ddagent:apiKey=$DD_API_KEY -c ddagent:appKey=$DD_APP_KEY -s <your_name>-eks
 ```
 
 ## Quick start: Create a GKE Standard + Agent (Helm) or a GKE Autopilot + Agent (Helm)
@@ -171,15 +171,15 @@ pulumi up -C test/e2e-framework/run -c scenario=aws/eks -c ddinfra:aws/defaultKe
 ```
 # You need to have a DD APIKey AND APPKey in variable DD_API_KEY / DD_APP_KEY
 # GKE Standard
-pulumi up -C test/e2e-framework/run -c scenario=gcp/gke -c ddinfra:env=gcp/agent-sandbox -c ddinfra:gcp/defaultPublicKeyPath=$HOME/.ssh/id_ed25519.pub -c ddagent:apiKey=$DD_API_KEY -c ddagent:appKey=$DD_APP_KEY -s <your_name>-gke
+bazel run @pulumi -- up -C test/e2e-framework/run -c scenario=gcp/gke -c ddinfra:env=gcp/agent-sandbox -c ddinfra:gcp/defaultPublicKeyPath=$HOME/.ssh/id_ed25519.pub -c ddagent:apiKey=$DD_API_KEY -c ddagent:appKey=$DD_APP_KEY -s <your_name>-gke
 
 # GKE Autopilot
-pulumi up -C test/e2e-framework/run -c scenario=gcp/gke -c ddinfra:env=gcp/agent-sandbox -c ddinfra:gcp/defaultPublicKeyPath=$HOME/.ssh/id_ed25519.pub -c ddinfra:gcp/gke/enableAutopilot=true -c ddagent:apiKey=$DD_API_KEY -c ddagent:appKey=$DD_APP_KEY -s <your_name>-gke-autopilot
+bazel run @pulumi -- up -C test/e2e-framework/run -c scenario=gcp/gke -c ddinfra:env=gcp/agent-sandbox -c ddinfra:gcp/defaultPublicKeyPath=$HOME/.ssh/id_ed25519.pub -c ddinfra:gcp/gke/enableAutopilot=true -c ddagent:apiKey=$DD_API_KEY -c ddagent:appKey=$DD_APP_KEY -s <your_name>-gke-autopilot
 ```
 
 ## Quick start: Create an OpenShift Cluster + Agent (Helm) on an OpenShift Cluster
 
 ```
 # You need to have a DD APIKey AND APPKey in variable DD_API_KEY / DD_APP_KEY
-pulumi up -C test/e2e-framework/run -c scenario=gcp/openshiftvm -c ddinfra:env=gcp/agent-sandbox -c ddinfra:gcp/openshift/pullSecretPath=<your_pull_secret_path -c ddinfra:gcp/enableNestedVirtualization=true -c ddinfra:gcp/defaultInstanceType=n2-standard-8 -c ddinfra:gcp/defaultPublicKeyPath=$HOME/.ssh/id_ed25519.pub -c ddagent:apiKey=$DD_API_KEY  -c ddagent:appKey=$DD_APP_KEY -s <your_name>-openshift
+bazel run @pulumi -- up -C test/e2e-framework/run -c scenario=gcp/openshiftvm -c ddinfra:env=gcp/agent-sandbox -c ddinfra:gcp/openshift/pullSecretPath=<your_pull_secret_path -c ddinfra:gcp/enableNestedVirtualization=true -c ddinfra:gcp/defaultInstanceType=n2-standard-8 -c ddinfra:gcp/defaultPublicKeyPath=$HOME/.ssh/id_ed25519.pub -c ddagent:apiKey=$DD_API_KEY  -c ddagent:appKey=$DD_APP_KEY -s <your_name>-openshift
 ```

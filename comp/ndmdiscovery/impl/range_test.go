@@ -7,13 +7,16 @@ package ndmdiscoveryimpl
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	ndmdiscovery "github.com/DataDog/datadog-agent/comp/ndmdiscovery/def"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe/pingprobe"
 )
 
 var testDefaults = rangeDefaults{Namespace: "default", IntervalSec: 3600, MaxAddresses: 65536}
@@ -130,4 +133,43 @@ func TestParseRangeValidatesTheRangeID(t *testing.T) {
 			assert.Contains(t, err.Error(), "id")
 		})
 	}
+}
+
+func TestRangeConfigEqual(t *testing.T) {
+	base := func() rangeConfig {
+		cfg := testRangeConfig("ad-1", "10.0.0.0/26")
+		cfg.Tags = []string{"site:paris"}
+		cfg.Probes.Ping = &pingprobe.Options{Count: 1, Interval: time.Second, Timeout: time.Second}
+		return cfg
+	}
+
+	tests := map[string]struct {
+		mutate func(*rangeConfig)
+		want   bool
+	}{
+		"identical":                      {mutate: func(*rangeConfig) {}, want: true},
+		"nil and empty ignored list":     {mutate: func(c *rangeConfig) { c.IgnoredIPAddresses = []string{} }, want: true},
+		"another network address":        {mutate: func(c *rangeConfig) { c.NetworkAddress = "10.0.1.0/26" }, want: false},
+		"another interval":               {mutate: func(c *rangeConfig) { c.IntervalSec = 60 }, want: false},
+		"another tag":                    {mutate: func(c *rangeConfig) { c.Tags = []string{"site:lyon"} }, want: false},
+		"another credential":             {mutate: func(c *rangeConfig) { c.Probes.SNMP.CredIDs = []string{"cred-b"} }, want: false},
+		"another ping timeout":           {mutate: func(c *rangeConfig) { c.Probes.Ping.Timeout = 2 * time.Second }, want: false},
+		"ping dropped":                   {mutate: func(c *rangeConfig) { c.Probes.Ping = nil }, want: false},
+		"snmp dropped":                   {mutate: func(c *rangeConfig) { c.Probes.SNMP = nil }, want: false},
+		"another reason a probe dropped": {mutate: func(c *rangeConfig) { c.Probes.Dropped = []string{"ping unavailable"} }, want: false},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			other := base()
+			tt.mutate(&other)
+			assert.Equal(t, tt.want, base().equal(other))
+			assert.Equal(t, tt.want, other.equal(base()), "equal is symmetric")
+		})
+	}
+}
+
+func TestRangeConfigEqualCoversEveryField(t *testing.T) {
+	assert.Equal(t, 7, reflect.TypeOf(rangeConfig{}).NumField(), "a rangeConfig field was added or removed: update rangeConfig.equal and TestRangeConfigEqual")
+	assert.Equal(t, 3, reflect.TypeOf(probeParams{}).NumField(), "a probeParams field was added or removed: update probeParams.equal and TestRangeConfigEqual")
+	assert.Equal(t, 4, reflect.TypeOf(snmpParams{}).NumField(), "an snmpParams field was added or removed: update snmpParams.equal and TestRangeConfigEqual")
 }

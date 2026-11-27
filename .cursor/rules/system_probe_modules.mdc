@@ -258,7 +258,7 @@ Create or use a dedicated `ninja_<feature>_ebpf_programs()` function:
 
 ```python
 def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str):
-    gpu_headers_dir = Path("pkg/gpu/ebpf/c")
+    gpu_headers_dir = Path("pkg/gpu/probe/ebpf/c")
     gpu_c_dir = gpu_headers_dir / "runtime"
     gpu_flags = f"-I{gpu_headers_dir} -I{gpu_c_dir} -Ipkg/network/ebpf/c"
     gpu_programs = ["gpu"]
@@ -310,8 +310,8 @@ def_files = {
 ],
 
 # Complex/standalone
-"pkg/gpu/ebpf/kprobe_types.go": [
-    "pkg/gpu/ebpf/c/types.h",
+"pkg/gpu/probe/ebpf/kprobe_types.go": [
+    "pkg/gpu/probe/ebpf/c/types.h",
 ],
 ```
 
@@ -562,7 +562,7 @@ eBPF-based system-probe features fall into two categories based on scope and com
 
 **Key differences from simple checks**:
 - Custom package namespace under `pkg/<feature>/`
-- May have subdirectories for organization (e.g., `pkg/gpu/ebpf/`, `pkg/gpu/cuda/`)
+- May have subdirectories for organization (e.g., `pkg/gpu/probe/ebpf/`, `pkg/gpu/probe/cuda/`)
 - Dedicated build function in `tasks/system_probe.py`
 - May not have an agent-side check (pure system-probe feature)
 - Often has custom configuration beyond simple enable/disable

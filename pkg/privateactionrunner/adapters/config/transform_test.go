@@ -140,7 +140,7 @@ func TestIsActionAllowed(t *testing.T) {
 			mockConfig := configmock.New(t)
 			mockConfig.SetInTest(par.DefaultActionsEnabled, false)
 			mockConfig.SetInTest(par.ActionsAllowlist, tt.allowlist)
-			config := &Config{ActionsAllowlist: makeActionsAllowlist(mockConfig)}
+			config := &Config{ActionsAllowlist: MakeActionsAllowlist(mockConfig)}
 			assert.Equal(t, tt.allowed, config.IsActionAllowed(tt.bundleID, tt.action))
 		})
 	}
@@ -334,7 +334,7 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		mockConfig.SetInTest(par.ActionsAllowlist, []string{})
 		mockConfig.SetInTest(par.DefaultActionsEnabled, true)
 
-		allowlist := makeActionsAllowlist(mockConfig)
+		allowlist := MakeActionsAllowlist(mockConfig)
 
 		assert.True(t, allowlist["com.datadoghq.kubernetes.apps"].Has("listDeployment"))
 		assert.True(t, allowlist["com.datadoghq.kubernetes.core"].Has("getPod"))
@@ -357,7 +357,7 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		mockConfig.SetInTest(par.ActionsAllowlist, []string{})
 		mockConfig.SetInTest(par.DefaultActionsEnabled, true)
 
-		allowlist := makeActionsAllowlist(mockConfig)
+		allowlist := MakeActionsAllowlist(mockConfig)
 
 		// common actions should be present
 		assert.True(t, allowlist["com.datadoghq.remoteaction.networks"].Has("runNetworkPath"))
@@ -379,7 +379,7 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		mockConfig.SetInTest(par.ActionsAllowlist, []string{})
 		mockConfig.SetInTest(par.DefaultActionsEnabled, false)
 
-		allowlist := makeActionsAllowlist(mockConfig)
+		allowlist := MakeActionsAllowlist(mockConfig)
 
 		assert.Empty(t, allowlist)
 	})
@@ -392,7 +392,7 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		mockConfig.SetInTest(par.ActionsAllowlist, []string{"com.datadoghq.http.sendRequest"})
 		mockConfig.SetInTest(par.DefaultActionsEnabled, true)
 
-		allowlist := makeActionsAllowlist(mockConfig)
+		allowlist := MakeActionsAllowlist(mockConfig)
 
 		assert.True(t, allowlist["com.datadoghq.kubernetes.apps"].Has("listDeployment"))
 		assert.True(t, allowlist["com.datadoghq.http"].Has("sendRequest"))
@@ -403,7 +403,7 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		mockConfig.SetInTest(par.ActionsAllowlist, []string{"com.datadoghq.http.sendRequest"})
 		mockConfig.SetInTest(par.DefaultActionsEnabled, false)
 
-		allowlist := makeActionsAllowlist(mockConfig)
+		allowlist := MakeActionsAllowlist(mockConfig)
 
 		assert.True(t, allowlist["com.datadoghq.http"].Has("sendRequest"))
 		_, hasK8sApps := allowlist["com.datadoghq.kubernetes.apps"]
@@ -416,7 +416,7 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		mockConfig.SetInTest(par.DefaultActionsEnabled, false)
 		mockConfig.SetInTest("kubeactions.enabled", true)
 
-		allowlist := makeActionsAllowlist(mockConfig)
+		allowlist := MakeActionsAllowlist(mockConfig)
 
 		for _, action := range []string{"deletePod", "restartDeployment", "patchDeployment", "rollbackDeployment", "getResource"} {
 			assert.True(t, allowlist["com.datadoghq.kubernetes.kubeactions"].Has(action), "expected %s to be allowed", action)
@@ -429,7 +429,7 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		mockConfig.SetInTest(par.DefaultActionsEnabled, false)
 		mockConfig.SetInTest("kubeactions.enabled", false)
 
-		allowlist := makeActionsAllowlist(mockConfig)
+		allowlist := MakeActionsAllowlist(mockConfig)
 
 		_, has := allowlist["com.datadoghq.kubernetes.kubeactions"]
 		assert.False(t, has)
@@ -442,7 +442,7 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		mockConfig.SetInTest("kubeactions.enabled", true)
 		mockConfig.SetInTest("kubeactions.private_action_runner.enabled", false)
 
-		allowlist := makeActionsAllowlist(mockConfig)
+		allowlist := MakeActionsAllowlist(mockConfig)
 
 		_, has := allowlist["com.datadoghq.kubernetes.kubeactions"]
 		assert.False(t, has)
@@ -455,7 +455,7 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		mockConfig.SetInTest("kubeactions.enabled", true)
 		mockConfig.SetInTest("kubeactions.private_action_runner.enabled", false)
 
-		allowlist := makeActionsAllowlist(mockConfig)
+		allowlist := MakeActionsAllowlist(mockConfig)
 
 		assert.True(t, allowlist["com.datadoghq.kubernetes.kubeactions"].Has("getResource"))
 		assert.False(t, allowlist["com.datadoghq.kubernetes.kubeactions"].Has("deletePod"))

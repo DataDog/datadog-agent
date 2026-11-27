@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strconv"
 	"syscall"
 	"time"
@@ -57,12 +58,13 @@ const (
 	// spanCtxMalformed: the process published something that violates the
 	// contract.
 	spanCtxMalformed
-	// spanCtxUnpublished: seqlock timestamp 0 -- publisher mid-update or not yet
-	// published.
+	// spanCtxUnpublished: zeroed OTEL_CTX header signature or seqlock timestamp 0
+	// (publisher mid-update or not yet published).
 	spanCtxUnpublished
 	// spanCtxTorn: the payload changed under us on every attempt.
 	spanCtxTorn
-	// spanCtxUnreadable: permission/namespace -- /proc/<pid>/mem is not readable.
+	// spanCtxUnreadable: permission or namespace failure reading /proc/<pid>/mem
+	// or opening tracer files under the target process root.
 	spanCtxUnreadable
 	// spanCtxGone: the process exited while we were resolving.
 	spanCtxGone
@@ -135,6 +137,11 @@ func isVanishedTargetError(err error) bool {
 		errors.Is(err, syscall.EIO) || errors.Is(err, io.EOF)
 }
 
+func isUnreadableTargetError(err error) bool {
+	return errors.Is(err, syscall.EACCES) || errors.Is(err, syscall.EPERM) ||
+		errors.Is(err, os.ErrPermission)
+}
+
 // classifySpanCtxError maps an error to a status
 func classifySpanCtxError(err error) spanCtxStatus {
 	switch {
@@ -146,10 +153,14 @@ func classifySpanCtxError(err error) spanCtxStatus {
 		return spanCtxNotApplicable
 	case errors.Is(err, errSpanCtxUnsupported), errors.Is(err, golabels.ErrUnsupported):
 		return spanCtxUnsupported
-	case errors.Is(err, errSpanCtxMalformed), errors.Is(err, golabels.ErrMalformed):
-		return spanCtxMalformed
 	case errors.Is(err, errSpanCtxMapError):
 		return spanCtxMapError
+	case errors.Is(err, golabelsctx.ErrMapLookup), errors.Is(err, otelattrs.ErrMapLookup):
+		return spanCtxMapError
+	case isUnreadableTargetError(err):
+		return spanCtxUnreadable
+	case errors.Is(err, errSpanCtxMalformed), errors.Is(err, golabels.ErrMalformed):
+		return spanCtxMalformed
 	case errors.Is(err, otelprocessctx.ErrUnpublished):
 		return spanCtxUnpublished
 	case errors.Is(err, otelprocessctx.ErrTorn):
@@ -158,14 +169,10 @@ func classifySpanCtxError(err error) spanCtxStatus {
 		return spanCtxUnsupported
 	case errors.Is(err, otelprocessctx.ErrMalformed):
 		return spanCtxMalformed
-	case errors.Is(err, golabelsctx.ErrMapLookup), errors.Is(err, otelattrs.ErrMapLookup):
-		return spanCtxMapError
 	case errors.Is(err, golabelsctx.ErrStaleID), errors.Is(err, otelattrs.ErrStaleID):
 		return spanCtxStaleID
 	case errors.Is(err, otelattrs.ErrMalformed):
 		return spanCtxMalformed
-	case errors.Is(err, syscall.EACCES), errors.Is(err, syscall.EPERM):
-		return spanCtxUnreadable
 	default:
 		return spanCtxUnknown
 	}

@@ -346,8 +346,8 @@ agent_telemetry:
 		atel = createAtel(cfg, log, makeTelMock(t), &senderMock{}, &runnerMock{})
 	})
 	require.NotNil(t, atel)
-	require.NotNil(t, atel.errLogsCh)
-	assert.Equal(t, defaultErrortrackingBufferSize, cap(atel.errLogsCh))
+	require.NotNil(t, testQueue(atel))
+	assert.Equal(t, defaultErrortrackingBufferSize, cap(testQueue(atel)))
 }
 
 func TestCreateAtel_NegativeErrortrackingValuesFallbackToSafeDefaults(t *testing.T) {
@@ -393,8 +393,8 @@ agent_telemetry:
     shutdown_drain_timeout_seconds: 0
 `, &senderMock{}, nil, runner)
 
-	require.NotNil(t, atel.errLogsCh)
-	assert.Equal(t, 0, cap(atel.errLogsCh))
+	require.NotNil(t, testQueue(atel))
+	assert.Equal(t, 0, cap(testQueue(atel)))
 	assert.Equal(t, time.Duration(0), atel.errLogsFlushInterval)
 	assert.Equal(t, time.Duration(0), atel.errLogsStartupJitter)
 	assert.Equal(t, time.Duration(0), atel.shutdownDrainTimeout)
@@ -3228,7 +3228,7 @@ func TestDataPlanePreflightModeProfile(t *testing.T) {
 
 	wantTags := map[string][]string{
 		"data_plane.preflight_mode_result":           {"result"},
-		"data_plane.preflight_mode_finding":          {"finding", "source_file", "source_line"},
+		"data_plane.preflight_mode_finding":          {"finding", "source_file", "source_line", "spawn_stage", "spawn_error"},
 		"data_plane.preflight_mode_duration_seconds": nil,
 	}
 
@@ -3629,6 +3629,7 @@ agent_telemetry:
 
 // NewComponent must export the subscriber so the remoteflags component can
 // pick it up through the fx group, including when agent telemetry is disabled.
+// A disabled component subscribes only the profile flag.
 func TestRemoteFlagSubscriberIsProvided(t *testing.T) {
 	for _, enabled := range []bool{true, false} {
 		provides := NewComponent(Requires{
@@ -3639,8 +3640,14 @@ func TestRemoteFlagSubscriberIsProvided(t *testing.T) {
 
 		require.NotNil(t, provides.Subscriber)
 		handlers := provides.Subscriber.Handlers()
-		require.Len(t, handlers, 1)
+		require.NotEmpty(t, handlers)
 		assert.Equal(t, pkgremoteflags.FlagName(flagTroubleshooting), handlers[0].FlagName())
+		if !enabled {
+			require.Len(t, handlers, 1)
+			continue
+		}
+		require.Len(t, handlers, 2)
+		assert.Equal(t, pkgremoteflags.FlagName(flagErrortracking), handlers[1].FlagName())
 	}
 }
 

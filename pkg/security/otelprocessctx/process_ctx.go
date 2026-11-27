@@ -78,6 +78,9 @@ func parseHeader(buf []byte) (header, error) {
 		return h, fmt.Errorf("%w: short header: %d bytes", ErrMalformed, len(buf))
 	}
 	copy(h.signature[:], buf[0:8])
+	if h.signature == ([8]byte{}) {
+		return h, ErrUnpublished
+	}
 	if h.signature != signature {
 		return h, fmt.Errorf("%w: bad signature %q", ErrMalformed, buf[0:8])
 	}

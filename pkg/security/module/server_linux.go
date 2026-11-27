@@ -218,6 +218,7 @@ func (a *APIServer) fillStatusPlatform(apiStatus *api.Status) error {
 			UseMmapableMaps: p.GetKernelVersion().HaveMmapableMaps(),
 			UseRingBuffer:   p.GetUseRingBuffers(),
 			UseFentry:       p.GetUseFentry(),
+			UseTCX:          p.GetUseTCX(),
 		}
 
 		envErrors := p.VerifyEnvironment()

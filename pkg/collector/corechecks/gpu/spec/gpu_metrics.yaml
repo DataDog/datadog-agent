@@ -2441,7 +2441,10 @@ metrics:
   pci.link.speed.degraded:
     metadata:
       metric_type: gauge
-      description: Whether the current PCI link speed is lower than the max PCI link speed
+      description: >-
+        Whether the current PCI link speed is lower than the max PCI link speed.
+        Always 0 on GPUs attached to their host CPU over NVLink-C2C (Grace Hopper,
+        Grace Blackwell).
     tagsets:
       - device
     validator:
@@ -2487,7 +2490,10 @@ metrics:
   pci.link.width.degraded:
     metadata:
       metric_type: gauge
-      description: Whether the current PCI link width is lower than the max PCI link width
+      description: >-
+        Whether the current PCI link width is lower than the max PCI link width.
+        Always 0 on GPUs attached to their host CPU over NVLink-C2C (Grace Hopper,
+        Grace Blackwell).
     tagsets:
       - device
     validator:

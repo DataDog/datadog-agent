@@ -328,6 +328,20 @@ static struct dentry *__attribute__((always_inline)) get_path_dentry(struct path
     return dentry;
 }
 
+static u16 __attribute__((always_inline)) get_inode_mode(struct inode *inode) {
+    u64 inode_mode_offset;
+    LOAD_CONSTANT("inode_mode_offset", inode_mode_offset);
+
+    u16 mode = 0;
+    bpf_probe_read(&mode, sizeof(mode), (void *)inode + inode_mode_offset);
+
+    return mode;
+}
+
+static u16 __attribute__((always_inline)) get_dentry_mode(struct dentry *dentry) {
+    return get_inode_mode(get_dentry_inode(dentry));
+}
+
 static u32 __attribute__((always_inline)) get_inode_nlink(struct inode *inode) {
     u64 inode_nlink_offset;
     LOAD_CONSTANT("inode_nlink_offset", inode_nlink_offset);

@@ -230,7 +230,7 @@ class TestE2ERetries(unittest.TestCase):
         self.enterContext(patch("tasks.new_e2e_tests.running_in_ci", return_value=True))
         self.enterContext(patch("tasks.new_e2e_tests._stacks_cleaned_up_by_job", return_value=True))
         self.enterContext(patch("tasks.new_e2e_tests.tool.pulumi_env", return_value={}))
-        self.enterContext(patch("tasks.new_e2e_tests.tool.install_pulumi_plugins"))
+        self.enterContext(patch("tasks.new_e2e_tests.tool.install_pulumi"))
         self.enterContext(patch("tasks.new_e2e_tests._install_windows_testsuites"))
         self.enterContext(patch("tasks.new_e2e_tests.schema_codegen"))
         self.enterContext(patch("tasks.new_e2e_tests.get_commit_sha", return_value="abcdef42"))
