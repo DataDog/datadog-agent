@@ -648,6 +648,47 @@ func TestPromoteRestartsARunningStableDaemon(t *testing.T) {
 	assert.True(t, l.isRunning(installerJob))
 }
 
+// TestStopKeepsRestoringAStableJobLaunchdRefuses pins that a stop whose stable Agent job launchd
+// refuses through every attempt keeps the supervisor restoring it, reported as restoring so the
+// hook fails, until it is back, rather than leaving the job on neither variant.
+func TestStopKeepsRestoringAStableJobLaunchdRefuses(t *testing.T) {
+	l := supervisedHost(t)
+	require.NoError(t, configExperiment{jobs: configExperimentJobSet()}.Start(context.Background()))
+	l.mu.Lock()
+	l.failBootstrap["system/"+agentJob] = configExperimentRestoreRetries + 1
+	l.mu.Unlock()
+	r := request(t, unitsTargetStable)
+	runSupervisor(t)
+
+	waitForStatus(t, r, unitsPhaseRestoring)
+	waitForStatus(t, r, unitsPhaseDone)
+	for _, label := range configExperimentJobs {
+		assert.True(t, l.isRunning(label), "%s should be back", label)
+		assert.False(t, l.isRunning(label+"-exp"), "%s should be stopped", label+"-exp")
+	}
+}
+
+// TestFailedStartKeepsRestoringItsRollback pins that a start whose rollback cannot restore a stable
+// Agent job through every attempt keeps the supervisor restoring it until it is back, and only then
+// reports the start as failed.
+func TestFailedStartKeepsRestoringItsRollback(t *testing.T) {
+	l := supervisedHost(t)
+	l.mu.Lock()
+	l.failBootstrap["system/"+agentJob+"-exp"] = 1
+	l.failBootstrap["system/"+agentJob] = configExperimentRestoreRetries
+	l.mu.Unlock()
+	r := request(t, unitsTargetExperiment)
+	runSupervisor(t)
+
+	waitForStatus(t, r, unitsPhaseRestoring)
+	waitForStatus(t, r, unitsPhaseFailed)
+	for _, label := range agentJobs {
+		assert.True(t, l.isRunning(label), "%s should be back", label)
+		assert.False(t, l.isRunning(label+"-exp"), "%s should be stopped", label+"-exp")
+	}
+	assert.True(t, l.isRunning(installerJob), "the stable daemon was never replaced")
+}
+
 // TestRequestUnitsWaitsForTheAgentJobs pins the hooks' side: a request returns once the supervisor
 // reports the Agent jobs on the target, and fails with the supervisor's reason.
 func TestRequestUnitsWaitsForTheAgentJobs(t *testing.T) {
@@ -655,8 +696,9 @@ func TestRequestUnitsWaitsForTheAgentJobs(t *testing.T) {
 		phase, message string
 		wantErr        bool
 	}{
-		"applied": {unitsPhaseAgents, "", false},
-		"failed":  {unitsPhaseFailed, "injected failure", true},
+		"applied":   {unitsPhaseAgents, "", false},
+		"failed":    {unitsPhaseFailed, "injected failure", true},
+		"restoring": {unitsPhaseRestoring, "injected failure", true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			stubDeadlinePath(t)

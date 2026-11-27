@@ -95,6 +95,9 @@ type configExperiment struct {
 	keepRunningStable bool
 }
 
+// errRollbackFailed marks a start whose rollback could not restore every stable job either.
+var errRollbackFailed = errors.New("could not be rolled back")
+
 // Start hands the set over to its experiment jobs: the stable jobs are stopped, the experiment ones
 // written and started. If that fails partway, after some of the stable jobs were already stopped,
 // the stable jobs are put back rather than left down with nothing in their place.
@@ -110,7 +113,7 @@ func (e configExperiment) Start(ctx context.Context) error {
 		return nil
 	}
 	if restoreErr := e.restoreStable(context.WithoutCancel(ctx)); restoreErr != nil {
-		return fmt.Errorf("experiment failed to start (%w) and could not be rolled back: %w", err, restoreErr)
+		return fmt.Errorf("experiment failed to start (%w) and %w: %w", err, errRollbackFailed, restoreErr)
 	}
 	return err
 }

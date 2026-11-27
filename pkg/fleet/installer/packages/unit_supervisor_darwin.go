@@ -65,6 +65,9 @@ const (
 	// unitsPhaseFailing is an experiment that failed on the host, whose stable jobs are being
 	// restored: a retry or a relaunched supervisor resumes the restore from it.
 	unitsPhaseFailing = "failing"
+	// unitsPhaseRestoring is a request whose stable Agent jobs could not all be restored. The hook
+	// reports it as a failure, as it does failed, while the supervisor keeps restoring them.
+	unitsPhaseRestoring = "restoring"
 )
 
 var (
@@ -168,7 +171,7 @@ var requestUnits = func(ctx context.Context, target string) error {
 			switch status.phase {
 			case unitsPhaseAgents, unitsPhaseDone:
 				return nil
-			case unitsPhaseFailed:
+			case unitsPhaseFailed, unitsPhaseRestoring:
 				return fmt.Errorf("could not apply %s: %s", target, status.message)
 			}
 		}
@@ -365,6 +368,19 @@ func runExperiment(ctx context.Context, request unitsRequest, status unitsStatus
 		return failExperiment(ctx, request, status.message)
 	}
 	agents := configExperiment{jobs: agentJobSet()}
+	if status.nonce == request.nonce && status.phase == unitsPhaseRestoring {
+		// A start whose rollback failed: only the Agent jobs were touched, the installer daemon is
+		// still the stable one. The stable jobs are restored again until they are back.
+		if err := agents.restoreStable(context.WithoutCancel(ctx)); err != nil {
+			writeUnitsStatus(request.nonce, unitsPhaseRestoring, err.Error())
+			return fmt.Errorf("unit supervisor: could not bring the stable Agent jobs back: %w", err)
+		}
+		if err := experimentDeadline().Clear(); err != nil {
+			log.Warnf("unit supervisor: could not clear the deadline: %v", err)
+		}
+		writeUnitsStatus(request.nonce, unitsPhaseFailed, status.message)
+		return nil
+	}
 	if status.nonce != request.nonce {
 		if err := experimentDeadline().Write(configExperimentDeadlineWindow); err != nil {
 			writeUnitsStatus(request.nonce, unitsPhaseFailed, err.Error())
@@ -372,8 +388,12 @@ func runExperiment(ctx context.Context, request unitsRequest, status unitsStatus
 		}
 		// Wants and Conflicts: the experiment Agent and its jobs start, the stable ones stop.
 		if err := agents.Start(ctx); err != nil {
-			// When its rollback failed too, a stable Agent job is left on neither variant: nothing
-			// restarts it before the next request or a reboot, so say so loudly.
+			if errors.Is(err, errRollbackFailed) {
+				// A stable Agent job is left on neither variant: keep restoring it, every
+				// unitsRetryDelay, until it is back. The experiment is not over until then.
+				writeUnitsStatus(request.nonce, unitsPhaseRestoring, err.Error())
+				return fmt.Errorf("unit supervisor: the configuration experiment could not start: %w", err)
+			}
 			log.Errorf("unit supervisor: the configuration experiment could not start: %v", err)
 			_ = experimentDeadline().Clear()
 			writeUnitsStatus(request.nonce, unitsPhaseFailed, err.Error())
@@ -586,12 +606,11 @@ func applyStable(ctx context.Context, request unitsRequest, status unitsStatus, 
 	if status.nonce != request.nonce || status.phase != unitsPhaseAgents {
 		agents := configExperiment{jobs: agentJobSet(), keepRunningStable: !restart}
 		if err := agents.restoreStable(ctx); err != nil {
-			// Every attempt rewrote a missing or altered definition (WriteIfChanged); what still
-			// fails is launchd refusing the job. Nothing restarts it before the next request or a
-			// reboot, so say so loudly.
-			log.Errorf("unit supervisor: could not bring the stable Agent jobs back, they stay down until the next stop, promote or reboot: %v", err)
-			writeUnitsStatus(request.nonce, unitsPhaseFailed, err.Error())
-			return nil
+			// A stable Agent job is left on neither variant: report it, so the hook fails, and keep
+			// restoring it every unitsRetryDelay until it is back. A restoring status is not
+			// finished, so the next step runs applyStable again.
+			writeUnitsStatus(request.nonce, unitsPhaseRestoring, err.Error())
+			return fmt.Errorf("unit supervisor: could not bring the stable Agent jobs back: %w", err)
 		}
 		ensureProcmgr(ctx, restart)
 		writeUnitsStatus(request.nonce, unitsPhaseAgents, "")
