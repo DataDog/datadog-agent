@@ -34,6 +34,7 @@ exports_files(
 # IoT agent binary, installed to bin/agent/agent (same as the standard agent binary).
 agent_binary_for_package(
     name = "iot_agent_binary",
+    patch_rpath = True,
     prefix = "bin/agent",
     target = "//cmd/iot-agent",
 )
