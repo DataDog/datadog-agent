@@ -373,27 +373,7 @@ func TestWriteExperimentRecopiesAFileTheTreeOwnerDoesNotOwn(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "root: only\n", string(content))
 	// The tree's owner keeps access to it, as it has in the stable tree through an inherited entry.
-	assert.Contains(t, readACL(t, filepath.Join(dirs.ExperimentPath, "conf.d", "foreign.yaml")), "user:"+nobody.Username+" inherited allow read,write")
-}
-
-// TestCopyKeepsInheritedACLEntries pins that the entries a copied entry inherited from its directory
-// come back in the copy as inherited entries, which cp -a does not copy, without being repeated.
-func TestCopyKeepsInheritedACLEntries(t *testing.T) {
-	current, err := user.Current()
-	require.NoError(t, err)
-	dirs := newTestDirectories(t)
-	setACL(t, dirs.StablePath, "user:"+current.Username+" allow list,add_file,search,add_subdirectory,readattr,file_inherit,directory_inherit")
-	// Created after the directory's inheritable entry, so they inherit it.
-	require.NoError(t, os.WriteFile(filepath.Join(dirs.StablePath, "inherited.yaml"), nil, 0640))
-	require.NoError(t, os.Mkdir(filepath.Join(dirs.StablePath, "inherited.d"), 0755))
-
-	require.NoError(t, dirs.WriteExperiment(context.Background(), mergePatch("experiment-1", `{"log_level":"debug"}`)))
-
-	for _, path := range []string{"inherited.yaml", "inherited.d", "datadog.yaml"} {
-		acl := readACL(t, filepath.Join(dirs.ExperimentPath, path))
-		assert.Contains(t, acl, "user:"+current.Username+" inherited allow", "%s lost its inherited entry", path)
-		assert.Equal(t, 1, strings.Count(acl, "inherited allow"), "%s has a repeated inherited entry: %s", path, acl)
-	}
+	assert.Contains(t, readACL(t, filepath.Join(dirs.ExperimentPath, "conf.d", "foreign.yaml")), "user:"+nobody.Username+" allow read,write")
 }
 
 // TestWriteExperimentGivesCreatedDirectoriesTheTreeOwner needs root: only root creates a directory

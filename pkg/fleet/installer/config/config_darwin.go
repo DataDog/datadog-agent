@@ -111,10 +111,9 @@ func (d *Directories) stageExperiment(ctx context.Context, fill func(dir string)
 //     a file of that owner at that path holds;
 //   - file flags cp carried over (uchg, uappnd and the like) are cleared: a flagged file could not
 //     be patched, and a flagged copy could not be removed by a stop;
-//   - every entry below the copy's root is given back, as an inherited entry, the access the
-//     tree's owner inherits from its directory: the .dmg set-up gives every directory of the tree
-//     the owner's inheritable entry, and cp does not copy inherited entries. An entry the owner does
-//     not own, such as a file root added, is readable by the owner only through it.
+//   - an entry the tree's owner does not own is given the owner's access control entry, the one
+//     the .dmg set-up gives it. In the stable tree such an entry is readable by the owner through
+//     an entry inherited from its directory, and cp does not copy inherited entries.
 func checkCopy(ctx context.Context, source, copied string) error {
 	src, err := os.OpenRoot(source)
 	if err != nil {
@@ -129,7 +128,7 @@ func checkCopy(ctx context.Context, source, copied string) error {
 	if !ok {
 		return fmt.Errorf("could not read the ownership of %s", copied)
 	}
-	var dirs, files []string
+	var foreignDirs, foreignFiles []string
 	err = filepath.WalkDir(copied, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -148,11 +147,11 @@ func checkCopy(ctx context.Context, source, copied string) error {
 		if err != nil {
 			return err
 		}
-		if path != copied {
+		if uid, _, ok := ownership(info); ok && uid != treeOwner {
 			if entry.IsDir() {
-				dirs = append(dirs, path)
+				foreignDirs = append(foreignDirs, path)
 			} else if entry.Type().IsRegular() {
-				files = append(files, path)
+				foreignFiles = append(foreignFiles, path)
 			}
 		}
 		if !entry.Type().IsRegular() {
@@ -176,26 +175,25 @@ func checkCopy(ctx context.Context, source, copied string) error {
 		}
 		return nil
 	})
-	if err != nil || len(dirs)+len(files) == 0 {
+	if err != nil || len(foreignDirs)+len(foreignFiles) == 0 {
 		return err
 	}
 	owner, err := user.LookupId(strconv.Itoa(treeOwner))
 	if err != nil {
 		return fmt.Errorf("could not look up the owner of %s: %w", source, err)
 	}
-	if err := inheritACE(ctx, "user:"+owner.Username+" "+configDirRights, dirs); err != nil {
+	if err := grantACE(ctx, "user:"+owner.Username+" "+configDirRights, foreignDirs); err != nil {
 		return err
 	}
-	return inheritACE(ctx, "user:"+owner.Username+" "+inheritedFileRights, files)
+	return grantACE(ctx, "user:"+owner.Username+" "+configFileRights, foreignFiles)
 }
 
-// inheritACE adds an access control entry to paths as an inherited one (chmod +ai), which chmod
-// does not repeat when it is already there. The paths are all in the scratch directory only root
+// grantACE adds an access control entry to paths, which are all in the scratch directory only root
 // can reach.
-func inheritACE(ctx context.Context, ace string, paths []string) error {
+func grantACE(ctx context.Context, ace string, paths []string) error {
 	for start := 0; start < len(paths); start += aclBatchSize {
 		batch := paths[start:min(start+aclBatchSize, len(paths))]
-		cmd := exec.CommandContext(ctx, "/bin/chmod", append([]string{"+ai", ace}, batch...)...)
+		cmd := exec.CommandContext(ctx, "/bin/chmod", append([]string{"+a", ace}, batch...)...)
 		if output, err := cmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("could not give %d configuration entries their access control entry: %w: %s", len(batch), err, strings.TrimSpace(string(output)))
 		}
