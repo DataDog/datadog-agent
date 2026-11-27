@@ -446,7 +446,7 @@ http_archive(
     urls = ["https://dd-agent-build-artifacts.s3.amazonaws.com/toolchains/main/3857f6dd078bb69ceb53e37536fa0e90eb7f3c2eefa1454f5f43376f02d8c9cc/aarch64/aarch64-linux-gnu-gcc.tar.xz"],
 )
 
-temurin_jre_version = "11.0.33+10"
+temurin_jre_version = "11.0.33.1+1"
 
 http_archive(
     name = "temurin_jre_windows_x64",
@@ -465,7 +465,7 @@ pkg_install(
     srcs = [":files"],
 )
 """,
-    sha256 = "d07c70035f7462924cd385912d76d50622baa17b15e5260df8facabcf2fff998",
+    sha256 = "030d00896d3f2c1078e9f7e958b8e5c98c3334d3f4c50276fced97f43e65db19",
     strip_prefix = "jdk-{}-jre".format(temurin_jre_version),
     urls = ["https://github.com/adoptium/temurin11-binaries/releases/download/jdk-{}/OpenJDK11U-jre_x64_windows_hotspot_{}.zip".format(
         temurin_jre_version.replace("+", "%2B"),
