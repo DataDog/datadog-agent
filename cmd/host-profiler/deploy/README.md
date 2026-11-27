@@ -1,6 +1,4 @@
-# Deploying Datadog Host Profiler (Preview)
-
-> **Preview:** These deployment instructions use a preview Host Profiler image. Capabilities and configuration may change before general availability.
+# Deploying Datadog Host Profiler
 
 The Full Host Profiler collects CPU profiles across all processes, regardless of language or runtime. It runs as a DaemonSet directly on your Kubernetes nodes.
 
@@ -21,7 +19,7 @@ The standalone Helm and Operator examples require Kubernetes **1.30** or later f
 
 Common supported setups include self-managed Kubernetes clusters, Amazon EKS with EC2 nodes, GKE Standard, and AKS VM node pools.
 
-This preview does not support direct host or VM installation, Docker without Kubernetes, serverless runtimes, or Kubernetes modes that cannot run host-level DaemonSets, such as Amazon EKS on Fargate, GKE Autopilot, and AKS virtual nodes.
+The Host Profiler does not support direct host or VM installation, Docker without Kubernetes, serverless runtimes, or Kubernetes modes that cannot run host-level DaemonSets, such as Amazon EKS on Fargate, GKE Autopilot, and AKS virtual nodes.
 
 ## Deployment
 

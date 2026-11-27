@@ -14,8 +14,8 @@ spec:
   nodeSelector:
     kubernetes.io/os: linux
 
-  # Host Profiler preview image. Update the tag when using a newer preview build.
-  image: registry.datadoghq.com/ddot-ebpf:7.81.0-preview-host-profiler-1.0
+  # Host Profiler image. Update the tag when using a newer release.
+  image: registry.datadoghq.com/ddot-ebpf:7.86.0
 
   # Required for host-level process visibility.
   hostPID: true
@@ -213,7 +213,7 @@ spec:
   # The main container references this profile through securityContext.seccompProfile.
   initContainers:
     - name: seccomp-installer
-      image: registry.datadoghq.com/ddot-ebpf:7.81.0-preview-host-profiler-1.0
+      image: registry.datadoghq.com/ddot-ebpf:7.86.0
       command:
         - cp
         - /etc/dd-host-profiler/seccomp.json
