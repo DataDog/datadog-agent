@@ -303,8 +303,14 @@ var errImageUnresolvable = errors.New("baseline image no longer resolvable")
 // errImageNotFound marks an image that EC2 reports as missing or without a root snapshot.
 var errImageNotFound = errors.New("image not found")
 
-// isImageNotFound reports whether err proves the image no longer exists, as opposed to a
-// transient DescribeImages failure.
+// isImageNotFound reports whether err proves the baseline image is unusable, as opposed to
+// a failure that may be transient or caused by the caller's own access.
+//
+// InvalidAMIID.NotFound and InvalidAMIID.Unavailable are deliberately not definitive: EC2
+// also returns them when the caller cannot see a private AMI (for example after its launch
+// permissions change). For those, the lease is kept with its imageId and the release fails;
+// test-infra-cleaner's pool maintenance, which runs as the AMI owner, then resets the stale
+// runner and falls back to a full rotation if the AMI is really gone.
 func isImageNotFound(err error) bool {
 	if errors.Is(err, errImageNotFound) {
 		return true
@@ -313,11 +319,7 @@ func isImageNotFound(err error) bool {
 	if !errors.As(err, &apiErr) {
 		return false
 	}
-	switch apiErr.ErrorCode() {
-	case "InvalidAMIID.NotFound", "InvalidAMIID.Unavailable", "InvalidAMIID.Malformed":
-		return true
-	}
-	return false
+	return apiErr.ErrorCode() == "InvalidAMIID.Malformed"
 }
 
 // revertRootVolume resolves imageID to its root EBS snapshot and replaces
@@ -325,9 +327,9 @@ func isImageNotFound(err error) bool {
 func revertRootVolume(ctx context.Context, client *awsec2.Client, instanceID, imageID string) error {
 	snapshotID, resolveErr := resolveSnapshotID(ctx, client, imageID)
 	if resolveErr != nil {
-		// Only a definitive answer from EC2 means the baseline is gone. Any other error
-		// (throttling, permissions, network) is transient: callers must not clear imageId
-		// for it, or the lease permanently loses the image it is reset from.
+		// Only a definitive answer means the baseline is unusable. Any other error
+		// (throttling, permissions, network, or a NotFound that may be an access issue)
+		// must not clear imageId, or the lease permanently loses the image it is reset from.
 		if isImageNotFound(resolveErr) {
 			return fmt.Errorf("%w: %s: %w", errImageUnresolvable, imageID, resolveErr)
 		}

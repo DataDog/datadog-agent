@@ -24,8 +24,9 @@ func TestIsImageNotFound(t *testing.T) {
 		want bool
 	}{
 		"no root snapshot": {fmt.Errorf("%w: image ami-1 has no root snapshot", errImageNotFound), true},
-		"ami not found":    {fmt.Errorf("describe: %w", fakeAPIError{"InvalidAMIID.NotFound"}), true},
-		"ami unavailable":  {fakeAPIError{"InvalidAMIID.Unavailable"}, true},
+		"malformed ami id": {fmt.Errorf("describe: %w", fakeAPIError{"InvalidAMIID.Malformed"}), true},
+		"ami not found":    {fakeAPIError{"InvalidAMIID.NotFound"}, false}, // may be a lack of access
+		"ami unavailable":  {fakeAPIError{"InvalidAMIID.Unavailable"}, false},
 		"throttled":        {fakeAPIError{"RequestLimitExceeded"}, false},
 		"unauthorized":     {fakeAPIError{"UnauthorizedOperation"}, false},
 		"network error":    {errors.New("dial tcp: connection refused"), false},
