@@ -2050,7 +2050,7 @@ Bug Fixes
 Prelude
 -------
 
-Released on: 2026-11-11
+Released on: 2026-11-10
 
 - Please refer to the `7.85.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7853>`_ for the list of changes on the Core Checks
 
