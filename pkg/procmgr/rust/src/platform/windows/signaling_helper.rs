@@ -33,6 +33,7 @@
 //! contain it too. Creation is synchronous, like ordinary workload creation;
 //! observing the report is asynchronous and does not wait for helper exit.
 
+use crate::clock::Clock;
 use std::ffi::OsString;
 use std::io::Write;
 use std::os::windows::io::FromRawHandle;
@@ -310,8 +311,9 @@ pub(crate) async fn wait_for_graceful_stop(
     helper: &mut SignalingHelper,
     name: &str,
     timeout: Duration,
+    clock: &Clock,
 ) -> Delivery {
-    let deadline = tokio::time::Instant::now() + timeout.min(Duration::from_secs(2));
+    let deadline = clock.now() + timeout.min(Duration::from_secs(2));
     loop {
         let observation = helper.observe();
         if let Some(exit) = observation.exit
@@ -346,12 +348,14 @@ pub(crate) async fn wait_for_graceful_stop(
                 }
             };
         }
-        let now = tokio::time::Instant::now();
+        let now = clock.now();
         if now >= deadline {
             log::warn!("[{name}] signaling helper report timed out");
             return Delivery::Unreported;
         }
-        tokio::time::sleep_until((now + Duration::from_millis(10)).min(deadline)).await;
+        clock
+            .sleep((now + Duration::from_millis(10)).min(deadline) - now)
+            .await;
     }
 }
 
@@ -673,18 +677,36 @@ mod tests {
                 Delivery::Failed
             };
             assert_eq!(
-                wait_for_graceful_stop(&mut helper, "delivery-test", Duration::from_secs(90)).await,
+                wait_for_graceful_stop(
+                    &mut helper,
+                    "delivery-test",
+                    Duration::from_secs(90),
+                    &Clock::Real
+                )
+                .await,
                 expected
             );
         }
         let mut unreported = SignalingHelper::test_unreported();
         assert_eq!(
-            wait_for_graceful_stop(&mut unreported, "delivery-test", Duration::ZERO).await,
+            wait_for_graceful_stop(
+                &mut unreported,
+                "delivery-test",
+                Duration::ZERO,
+                &Clock::Real
+            )
+            .await,
             Delivery::Unreported
         );
         let mut unreadable = SignalingHelper::test_report_error("report read failed");
         assert_eq!(
-            wait_for_graceful_stop(&mut unreadable, "delivery-test", Duration::from_secs(90)).await,
+            wait_for_graceful_stop(
+                &mut unreadable,
+                "delivery-test",
+                Duration::from_secs(90),
+                &Clock::Real
+            )
+            .await,
             Delivery::Unreported
         );
     }
@@ -702,7 +724,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            wait_for_graceful_stop(&mut helper, "hung-helper", Duration::ZERO).await,
+            wait_for_graceful_stop(&mut helper, "hung-helper", Duration::ZERO, &Clock::Real).await,
             Delivery::Unreported
         );
         let HelperBackend::Process(process) = &helper.backend else {

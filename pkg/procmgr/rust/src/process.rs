@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+use crate::clock::Clock;
 use crate::config::{ProcessConfig, RestartPolicy};
 use crate::env::expand_env_vars;
 use crate::handle::ProcessHandle;
@@ -14,7 +15,7 @@ use log::{info, warn};
 use std::collections::VecDeque;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
-use tokio::time::{self, Duration, Instant};
+use tokio::time::{Duration, Instant};
 
 pub(crate) struct ExitEvent {
     pub name: String,
@@ -179,26 +180,39 @@ pub(crate) struct StopWait {
     killer: ProcessKiller,
     #[cfg(windows)]
     helper: Option<platform::SignalingHelper>,
+    clock: Clock,
+}
+
+/// Waits until `handle` finishes or `duration` passes on `clock`. Returns true if the
+/// handle finished.
+async fn finished_within(clock: &Clock, duration: Duration, handle: &mut JoinHandle<()>) -> bool {
+    tokio::select! {
+        biased;
+        _ = handle => true,
+        () = clock.sleep(duration) => false,
+    }
 }
 
 impl StopWait {
     pub(crate) async fn run(self) {
         let StopWait {
             name,
-            handle,
+            mut handle,
             started,
             timeout,
             stop_timeout,
             mut killer,
             #[cfg(windows)]
             helper,
+            clock,
         } = self;
-        tokio::pin!(handle);
+        let elapsed = || clock.now().duration_since(started);
 
         // On Linux, request_stop() already knows whether SIGTERM was sent.
         // On Windows, creating the helper does not establish that CTRL_BREAK
         // was generated; we must read the helper's report to find out.
-        // `delivered` is false only for a known-failed stop. It picks the log message.
+        // `delivered` is false only for a known-failed stop. It picks the log message
+        // and gates the zero-allowance yield below.
         let (grace, delivered) = match timeout {
             Some(stop) => (stop, true),
             None => (
@@ -208,13 +222,13 @@ impl StopWait {
         };
         #[cfg(windows)]
         let (grace, delivered) = if let Some(mut helper) = helper {
-            let remaining = grace.saturating_sub(started.elapsed());
+            let remaining = grace.saturating_sub(elapsed());
             let delivery = tokio::select! {
                 // If both branches are ready, prefer the completed watcher:
                 // once the child has exited, the delivery report is irrelevant.
                 biased;
                 _ = &mut handle => return,
-                delivery = platform::wait_for_graceful_stop(&mut helper, &name, remaining) => delivery,
+                delivery = platform::wait_for_graceful_stop(&mut helper, &name, remaining, &clock) => delivery,
             };
             match delivery {
                 // Unreported may still have reached the child.
@@ -229,11 +243,19 @@ impl StopWait {
             (grace, delivered)
         };
 
-        if time::timeout(grace.saturating_sub(started.elapsed()), &mut handle)
-            .await
-            .is_ok()
-        {
+        let remaining = grace.saturating_sub(elapsed());
+        if finished_within(&clock, remaining, &mut handle).await {
             return;
+        }
+
+        // A zero allowance on an undelivered stop can follow a child that was already
+        // reaped. Give the exit watcher one scheduler turn to observe it before the
+        // pid is signaled.
+        if !delivered && remaining.is_zero() {
+            tokio::task::yield_now().await;
+            if handle.is_finished() {
+                return;
+            }
         }
 
         if delivered {
@@ -243,10 +265,7 @@ impl StopWait {
         }
 
         killer.force_kill(&name);
-        if time::timeout(ManagedProcess::FORCE_KILL_TIMEOUT, &mut handle)
-            .await
-            .is_err()
-        {
+        if !finished_within(&clock, ManagedProcess::FORCE_KILL_TIMEOUT, &mut handle).await {
             warn!("[{name}] still running after force-kill, giving up");
         }
     }
@@ -757,6 +776,18 @@ impl ManagedProcess {
         if !self.mark_stop_requested() {
             return;
         }
+        // The watcher has already reaped the child, so the stored pid may be stale.
+        // Signaling it could reach an unrelated process group, so skip the signal.
+        // `finish_stop` still records the stop. Members of the child's group that
+        // outlived it are left unsignaled here. Cleaning up descendants needs a
+        // cgroup or a pidfd, which belongs with the `KillMode=mixed` follow-up.
+        if self
+            .watcher_handle
+            .as_ref()
+            .is_some_and(JoinHandle::is_finished)
+        {
+            return;
+        }
         info!("[{}] sending graceful stop (stop requested)", self.name);
         self.graceful_stop_failed = !self.graceful_stop();
     }
@@ -871,6 +902,7 @@ impl ManagedProcess {
             },
             #[cfg(windows)]
             helper: self.signal_helper.take(),
+            clock: Clock::Real,
         })
     }
 
@@ -968,10 +1000,13 @@ impl ManagedProcess {
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use crate::clock::ManualClock;
     use crate::config::ProcessConfig;
     use crate::test_helpers;
     #[cfg(unix)]
     use nix::sys::signal::Signal;
+    #[cfg(windows)]
+    use tokio::time;
 
     fn spawn_ok(proc: &mut ManagedProcess) -> mpsc::Receiver<ExitEvent> {
         let (tx, rx) = test_exit_channel();
@@ -984,6 +1019,7 @@ pub mod tests {
         job: platform::JobObject,
         outcome: platform::SignalOutcome,
         timeout: Duration,
+        clock: &Clock,
     ) -> StopWait {
         let faults = job.faults.clone();
         let handle = tokio::spawn(async move {
@@ -998,7 +1034,7 @@ pub mod tests {
         StopWait {
             name: "injected-stop".into(),
             handle,
-            started: Instant::now(),
+            started: clock.now(),
             timeout: Some(timeout),
             stop_timeout: timeout,
             killer: ProcessKiller {
@@ -1006,24 +1042,28 @@ pub mod tests {
                 identity: None,
             },
             helper: Some(platform::SignalingHelper::test_report(outcome)),
+            clock: clock.clone(),
         }
     }
 
-    /// Checks, on the paused clock, that the force-kill comes at `deadline`.
+    /// Checks that the force-kill comes at `deadline` on the manual clock.
     #[cfg(windows)]
     async fn assert_force_kill_at(
+        manual: &ManualClock,
         stop: StopWait,
         terminate_calls: impl Fn() -> usize,
         deadline: Duration,
     ) {
         let run = tokio::spawn(stop.run());
-        time::sleep(deadline.saturating_sub(Duration::from_millis(1))).await;
+        manual
+            .advance(deadline.saturating_sub(Duration::from_millis(1)))
+            .await;
         assert_eq!(
             terminate_calls(),
             0,
             "terminated before the {deadline:?} deadline"
         );
-        time::sleep(Duration::from_millis(2)).await;
+        manual.advance(Duration::from_millis(2)).await;
         assert_eq!(
             terminate_calls(),
             1,
@@ -1202,14 +1242,17 @@ pub mod tests {
     }
 
     #[cfg(windows)]
-    #[tokio::test(start_paused = true)]
+    #[tokio::test]
     async fn shared_wait_generated_report_uses_configured_timeout() {
+        let manual = ManualClock::new();
+        let clock = manual.clock();
         use std::sync::{Arc, atomic::Ordering};
         let job = platform::JobObject::new().unwrap();
         let faults = Arc::clone(&job.faults);
         let grace = Duration::from_millis(200);
-        let stop = injected_stop(job, platform::SignalOutcome::Generated, grace);
+        let stop = injected_stop(job, platform::SignalOutcome::Generated, grace, &clock);
         assert_force_kill_at(
+            &manual,
             stop,
             move || faults.terminate_calls.load(Ordering::SeqCst),
             grace,
@@ -1218,34 +1261,41 @@ pub mod tests {
     }
 
     #[cfg(windows)]
-    #[tokio::test(start_paused = true)]
+    #[tokio::test]
     async fn shared_wait_expired_grace_force_kills_without_waiting_again() {
+        let manual = ManualClock::new();
+        let clock = manual.clock();
         use std::sync::{Arc, atomic::Ordering};
         let job = platform::JobObject::new().unwrap();
         let faults = Arc::clone(&job.faults);
         let grace = Duration::from_secs(2);
-        let stop = injected_stop(job, platform::SignalOutcome::Generated, grace);
+        let stop = injected_stop(job, platform::SignalOutcome::Generated, grace, &clock);
         // The 2 s grace has already run out.
-        time::advance(Duration::from_millis(2500)).await;
-        let started = Instant::now();
-        stop.run().await;
-        assert!(started.elapsed() < Duration::from_millis(50));
+        manual.advance(Duration::from_millis(2500)).await;
+        // Nothing advances the manual clock here, so a regression that waits on it again
+        // would never finish. The real-time bound turns that hang into a failure.
+        tokio::time::timeout(Duration::from_secs(5), stop.run())
+            .await
+            .expect("expired grace should force-kill without waiting on the clock");
         assert_eq!(faults.terminate_calls.load(Ordering::SeqCst), 1);
     }
 
     #[cfg(windows)]
-    #[tokio::test(start_paused = true)]
+    #[tokio::test]
     async fn shared_wait_pending_report_does_not_extend_grace() {
+        let manual = ManualClock::new();
+        let clock = manual.clock();
         use std::sync::{Arc, atomic::Ordering};
         let job = platform::JobObject::new().unwrap();
         let faults = Arc::clone(&job.faults);
         let grace = Duration::from_secs(3);
-        let mut stop = injected_stop(job, platform::SignalOutcome::Generated, grace);
+        let mut stop = injected_stop(job, platform::SignalOutcome::Generated, grace, &clock);
         // The helper never reports, and 0.5 s of the grace is left.
         stop.helper = Some(platform::SignalingHelper::test_unreported());
-        time::advance(Duration::from_millis(2500)).await;
-        let remaining = grace - stop.started.elapsed();
+        manual.advance(Duration::from_millis(2500)).await;
+        let remaining = grace - clock.now().duration_since(stop.started);
         assert_force_kill_at(
+            &manual,
             stop,
             move || faults.terminate_calls.load(Ordering::SeqCst),
             remaining,
@@ -1254,8 +1304,10 @@ pub mod tests {
     }
 
     #[cfg(windows)]
-    #[tokio::test(start_paused = true)]
+    #[tokio::test]
     async fn shared_wait_unreported_keeps_configured_grace() {
+        let manual = ManualClock::new();
+        let clock = manual.clock();
         use std::sync::{Arc, atomic::Ordering};
         // Longer than UNDELIVERED_STOP_GRACE: the kill must still come at the full grace.
         let grace = Duration::from_secs(3);
@@ -1265,9 +1317,10 @@ pub mod tests {
         ] {
             let job = platform::JobObject::new().unwrap();
             let faults = Arc::clone(&job.faults);
-            let mut stop = injected_stop(job, platform::SignalOutcome::Generated, grace);
+            let mut stop = injected_stop(job, platform::SignalOutcome::Generated, grace, &clock);
             stop.helper = Some(helper);
             assert_force_kill_at(
+                &manual,
                 stop,
                 move || faults.terminate_calls.load(Ordering::SeqCst),
                 grace,
@@ -1277,15 +1330,18 @@ pub mod tests {
     }
 
     #[cfg(windows)]
-    #[tokio::test(start_paused = true)]
+    #[tokio::test]
     async fn shared_wait_unreported_short_grace_is_not_extended() {
+        let manual = ManualClock::new();
+        let clock = manual.clock();
         use std::sync::{Arc, atomic::Ordering};
         let job = platform::JobObject::new().unwrap();
         let faults = Arc::clone(&job.faults);
         let grace = Duration::from_secs(1);
-        let mut stop = injected_stop(job, platform::SignalOutcome::Generated, grace);
+        let mut stop = injected_stop(job, platform::SignalOutcome::Generated, grace, &clock);
         stop.helper = Some(platform::SignalingHelper::test_unreported());
         assert_force_kill_at(
+            &manual,
             stop,
             move || faults.terminate_calls.load(Ordering::SeqCst),
             grace,
@@ -1294,8 +1350,10 @@ pub mod tests {
     }
 
     #[cfg(windows)]
-    #[tokio::test(start_paused = true)]
+    #[tokio::test]
     async fn shared_wait_delivery_failure_allowance_is_capped_by_timeout() {
+        let manual = ManualClock::new();
+        let clock = manual.clock();
         use std::sync::{Arc, atomic::Ordering};
         for outcome in [
             platform::SignalOutcome::Failed,
@@ -1303,8 +1361,9 @@ pub mod tests {
         ] {
             let job = platform::JobObject::new().unwrap();
             let faults = Arc::clone(&job.faults);
-            let stop = injected_stop(job, outcome, Duration::from_secs(30));
+            let stop = injected_stop(job, outcome, Duration::from_secs(30), &clock);
             assert_force_kill_at(
+                &manual,
                 stop,
                 move || faults.terminate_calls.load(Ordering::SeqCst),
                 ManagedProcess::UNDELIVERED_STOP_GRACE,
@@ -1313,8 +1372,9 @@ pub mod tests {
 
             let job = platform::JobObject::new().unwrap();
             let faults = Arc::clone(&job.faults);
-            let stop = injected_stop(job, outcome, Duration::from_millis(500));
+            let stop = injected_stop(job, outcome, Duration::from_millis(500), &clock);
             assert_force_kill_at(
+                &manual,
                 stop,
                 move || faults.terminate_calls.load(Ordering::SeqCst),
                 Duration::from_millis(500),
@@ -1324,15 +1384,18 @@ pub mod tests {
     }
 
     #[cfg(windows)]
-    #[tokio::test(start_paused = true)]
+    #[tokio::test]
     async fn shared_wait_main_exit_does_not_wait_for_helper() {
+        let manual = ManualClock::new();
+        let clock = manual.clock();
         use std::sync::{Arc, atomic::Ordering};
         let job = platform::JobObject::new().unwrap();
         let faults = Arc::clone(&job.faults);
         let stop = StopWait {
             name: "main-exit".into(),
             handle: tokio::spawn(async {}),
-            started: Instant::now(),
+            started: clock.now(),
+            clock: clock.clone(),
             timeout: Some(Duration::from_secs(90)),
             stop_timeout: Duration::from_secs(90),
             killer: ProcessKiller {
@@ -2185,7 +2248,9 @@ runtime_success_sec: 5
         );
     }
 
-    /// A `stop_timeout` shorter than the 2 s allowance is not stretched.
+    /// An undelivered stop takes its allowance from the configured `stop_timeout` and waits at
+    /// least that long. The exact cap is checked on the manual clock in
+    /// `test_undelivered_stop_cap_is_exact_on_manual_clock`.
     #[tokio::test]
     async fn test_undelivered_graceful_stop_is_capped_by_stop_timeout() {
         let mut cfg = test_helpers::sleep_test_config(60);
@@ -2196,16 +2261,180 @@ runtime_success_sec: 5
         assert!(proc.mark_stop_requested());
         proc.graceful_stop_failed = true;
 
+        // Taken before the wait exists, so it never lands after the wait's own start.
         let started = std::time::Instant::now();
-        proc.wait_for_stop().await;
+
+        // Check the wiring from the manager's stop_timeout into the wait itself.
+        let wait = proc
+            .take_stop_wait()
+            .expect("a running child has a stop wait");
+        assert!(
+            wait.timeout.is_none(),
+            "an undelivered stop has no timeout to wait for"
+        );
+        assert_eq!(wait.stop_timeout, std::time::Duration::from_secs(1));
+
+        wait.run().await;
+        proc.finish_stop();
         let elapsed = started.elapsed();
         let _ = exit_rx.try_recv();
 
         assert_eq!(proc.state(), ProcessState::Stopped);
         assert!(
-            elapsed >= std::time::Duration::from_secs(1)
-                && elapsed < std::time::Duration::from_millis(1900),
-            "a 1 s stop_timeout should cap the undelivered allowance (took {elapsed:?})"
+            elapsed >= std::time::Duration::from_secs(1),
+            "an undelivered stop with a 1 s stop_timeout was force-killed before its 1 s allowance (took {elapsed:?})"
+        );
+    }
+
+    /// A stop requested after the watcher has reaped the child must not signal the stored pid,
+    /// because that pid may now belong to an unrelated process group. The unrelated child
+    /// below stands in for a process that reused that pid (the test stores its pid in
+    /// `proc.pid`) and must survive the stop.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_request_stop_skips_signal_after_child_is_reaped() {
+        use std::os::unix::process::CommandExt;
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut proc = ManagedProcess::new_config(
+            "svc".into(),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
+        );
+        // Nothing reads the exit event, so the process stays Running with its old pid.
+        let _exit_rx = spawn_ok(&mut proc);
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while !proc.watcher_handle.as_ref().unwrap().is_finished() {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("the watcher should reap the child");
+        assert_eq!(proc.state(), ProcessState::Running);
+
+        let (sleep, sleep_args) = test_helpers::sleep_cmd(30);
+        let mut unrelated = std::process::Command::new(sleep)
+            .args(sleep_args)
+            .process_group(0)
+            .spawn()
+            .unwrap();
+        proc.pid = Some(unrelated.id());
+
+        proc.request_stop();
+        proc.wait_for_stop().await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let alive = unrelated.try_wait().unwrap().is_none();
+        let _ = unrelated.kill();
+        let _ = unrelated.wait();
+
+        assert!(
+            alive,
+            "a stop must not signal a pid whose child was already reaped"
+        );
+        assert_eq!(proc.state(), ProcessState::Stopped);
+    }
+
+    /// The undelivered allowance is capped at `stop_timeout`, checked exactly on the manual
+    /// clock. A stop that never reached the child waits `stop_timeout`, then force-kills.
+    #[tokio::test]
+    async fn test_undelivered_stop_cap_is_exact_on_manual_clock() {
+        let manual = ManualClock::new();
+        let clock = manual.clock();
+        let stop = StopWait {
+            name: "svc".into(),
+            handle: tokio::spawn(std::future::pending::<()>()),
+            started: clock.now(),
+            timeout: None,
+            stop_timeout: Duration::from_secs(1),
+            killer: ProcessKiller {
+                #[cfg(not(windows))]
+                pid: None,
+                #[cfg(windows)]
+                job_object: None,
+                #[cfg(windows)]
+                identity: None,
+            },
+            #[cfg(windows)]
+            helper: None,
+            clock: clock.clone(),
+        };
+
+        let started = clock.now();
+        manual.drive(stop.run()).await;
+        assert_eq!(
+            clock.now().duration_since(started),
+            Duration::from_secs(1) + ManagedProcess::FORCE_KILL_TIMEOUT,
+        );
+    }
+
+    /// An undelivered stop with no allowance left (`stop_timeout = 0`) reaches the
+    /// `yield_now` guard. The watcher is still pending at the zero-length check, so it
+    /// can only finish during the yield, and then nothing may be signaled. The killer
+    /// gets a live target so a regression shows up as a kill.
+    #[tokio::test]
+    async fn test_undelivered_zero_allowance_yields_before_killing() {
+        let manual = ManualClock::new();
+        let clock = manual.clock();
+        // Spawned but not polled: the watcher is still pending at the first check.
+        let handle = tokio::spawn(async {});
+        // Force kill signals the process group `-pid`, so the child leads its own group
+        // and the kill cannot reach the test runner.
+        #[cfg(not(windows))]
+        let mut child = {
+            use std::os::unix::process::CommandExt;
+            let (sleep, sleep_args) = test_helpers::sleep_cmd(30);
+            std::process::Command::new(sleep)
+                .args(sleep_args)
+                .process_group(0)
+                .spawn()
+                .unwrap()
+        };
+        #[cfg(windows)]
+        let job = platform::JobObject::new().unwrap();
+        #[cfg(windows)]
+        let faults = std::sync::Arc::clone(&job.faults);
+        let stop = StopWait {
+            name: "svc".into(),
+            handle,
+            started: clock.now(),
+            timeout: None,
+            stop_timeout: Duration::ZERO,
+            killer: ProcessKiller {
+                #[cfg(not(windows))]
+                pid: Some(child.id()),
+                #[cfg(windows)]
+                job_object: Some(job),
+                #[cfg(windows)]
+                identity: None,
+            },
+            #[cfg(windows)]
+            helper: None,
+            clock: clock.clone(),
+        };
+
+        stop.run().await;
+
+        #[cfg(not(windows))]
+        {
+            // A kill lands asynchronously, so give the child a moment to show up as exited.
+            let mut exited = false;
+            for _ in 0..50 {
+                if child.try_wait().unwrap().is_some() {
+                    exited = true;
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+            let _ = child.kill();
+            let _ = child.wait();
+            assert!(!exited, "a finished watcher must not lead to a force kill");
+        }
+        #[cfg(windows)]
+        assert_eq!(
+            faults
+                .terminate_calls
+                .load(std::sync::atomic::Ordering::SeqCst),
+            0,
+            "a finished watcher must not lead to a force kill"
         );
     }
 

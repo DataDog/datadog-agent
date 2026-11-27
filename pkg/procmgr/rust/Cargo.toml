@@ -76,7 +76,6 @@ nix = { workspace = true, features = ["signal", "process", "user"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 tempfile.workspace = true
-tokio = { workspace = true, features = ["test-util"] }
 
 [[test]]
 name = "e2e"

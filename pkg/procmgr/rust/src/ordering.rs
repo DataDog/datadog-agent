@@ -17,8 +17,9 @@ pub struct ResolvedOrder {
     pub skipped: Vec<String>,
     /// Human-readable warnings (e.g. missing dependencies).
     pub warnings: Vec<String>,
-    /// For each index, the sorted indices that start after it. Shutdown stops a process
-    /// only after its dependents (see `shutdown_ordered`).
+    /// For each index, its direct dependents, sorted. This includes edges to processes that a
+    /// cycle kept out of startup. Shutdown stops a process only after its dependents (see
+    /// `shutdown_ordered`).
     pub dependents: Vec<Vec<usize>>,
 }
 

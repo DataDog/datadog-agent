@@ -7,7 +7,45 @@ use crate::process::ManagedProcess;
 #[cfg(test)]
 use crate::process::test_exit_channel;
 use std::collections::{HashMap, HashSet};
+use std::future::Future;
+use std::pin::Pin;
 use tokio::task::{Id, JoinSet};
+
+/// A stop still in progress, as returned by [`ShutdownTarget::stop_wait`].
+pub(crate) type StopFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
+
+/// A process that `shutdown_ordered` can stop. `ManagedProcess` implements it, and tests
+/// use fakes whose stop waits run on a controlled clock.
+pub(crate) trait ShutdownTarget: Send {
+    fn name(&self) -> &str;
+    fn is_running(&self) -> bool;
+    fn request_stop(&mut self);
+    /// The part of the stop that only waits, or `None` when there is nothing to wait for.
+    fn stop_wait(&mut self) -> Option<StopFuture>;
+    fn finish_stop(&mut self);
+}
+
+impl ShutdownTarget for ManagedProcess {
+    fn name(&self) -> &str {
+        ManagedProcess::name(self)
+    }
+
+    fn is_running(&self) -> bool {
+        ManagedProcess::is_running(self)
+    }
+
+    fn request_stop(&mut self) {
+        ManagedProcess::request_stop(self);
+    }
+
+    fn stop_wait(&mut self) -> Option<StopFuture> {
+        ManagedProcess::take_stop_wait(self).map(|wait| Box::pin(wait.run()) as StopFuture)
+    }
+
+    fn finish_stop(&mut self) {
+        ManagedProcess::finish_stop(self);
+    }
+}
 
 /// Stops every process in `order`. A process is signaled only after its dependents
 /// (`dependents[idx]`, limited to `order`) have finished stopping. Ready processes stop
@@ -15,8 +53,14 @@ use tokio::task::{Id, JoinSet};
 ///
 /// When some processes wait only on each other (a dependency cycle), it drops only the edge
 /// that closes the cycle, even while unrelated stops are still in progress.
-pub async fn shutdown_ordered(
-    processes: &mut [ManagedProcess],
+///
+/// Under systemd the order holds only if `dd-procmgrd` alone is signaled. The unit's default
+/// `KillMode=control-group` sends SIGTERM to every process in the cgroup at once, and
+/// `TimeoutStopSec` (default 90s) then SIGKILLs whatever is left. With `KillMode=mixed` only
+/// the daemon is signaled, and `TimeoutStopSec` must then cover the whole chain. Shutdown
+/// itself stays self-contained: each stop has its own timeouts.
+pub(crate) async fn shutdown_ordered<P: ShutdownTarget>(
+    processes: &mut [P],
     order: &[usize],
     dependents: &[Vec<usize>],
 ) {
@@ -50,10 +94,10 @@ pub async fn shutdown_ordered(
                 }
                 signaled.insert(idx);
                 processes[idx].request_stop();
-                match processes[idx].take_stop_wait() {
+                match processes[idx].stop_wait() {
                     Some(wait) => {
                         let handle = waits.spawn(async move {
-                            wait.run().await;
+                            wait.await;
                             idx
                         });
                         wait_owner.insert(handle.id(), idx);
@@ -71,11 +115,20 @@ pub async fn shutdown_ordered(
         if let Some(start) = order.iter().copied().find(|idx| stuck.contains(idx)) {
             match cycle_edge(start, order, &blockers, &stuck) {
                 Some((from, to)) => {
-                    log::warn!(
-                        "[{}] dependency cycle among stopped processes, will not wait for dependent [{}]",
-                        processes[from].name(),
-                        processes[to].name()
-                    );
+                    let message = "dependency cycle, will not wait for dependent";
+                    if processes[from].is_running() || processes[to].is_running() {
+                        log::warn!(
+                            "[{}] {message} [{}]",
+                            processes[from].name(),
+                            processes[to].name()
+                        );
+                    } else {
+                        log::debug!(
+                            "[{}] {message} [{}]",
+                            processes[from].name(),
+                            processes[to].name()
+                        );
+                    }
                     blockers.entry(from).or_default().remove(&to);
                 }
                 None => {
@@ -103,7 +156,8 @@ pub async fn shutdown_ordered(
             Some(Err(error)) => {
                 let idx = wait_owner[&error.id()];
                 log::warn!(
-                    "[{}] stop wait failed: {error}; leaving its state unfinalized",
+                    "[{}] stop wait failed: {error}. The process may still be running and may not \
+                     have been force-killed. Leaving its state unfinalized",
                     processes[idx].name()
                 );
                 finished.insert(idx);
@@ -113,35 +167,42 @@ pub async fn shutdown_ordered(
     }
 }
 
-/// Unsignaled processes whose unfinished dependents are all unsignaled too. Each one waits
-/// on another member, so the set holds every cycle that blocks shutdown. A process waiting
-/// on a stop in progress is excluded, since it unblocks when that stop finishes.
+/// Unsignaled processes that wait only on each other, directly or through other such
+/// processes. Each one waits on a member of the set, so the set holds every cycle that
+/// blocks shutdown. A process waiting on a stop in progress is excluded, even if it also
+/// waits on a stuck process, and so is every process waiting on it. They are reconsidered
+/// once that stop finishes. One depth-first walk over reverse edges visits each node and
+/// edge once.
 fn stuck_set(
     order: &[usize],
     signaled: &HashSet<usize>,
     blockers: &HashMap<usize, HashSet<usize>>,
     finished: &HashSet<usize>,
 ) -> HashSet<usize> {
-    let mut stuck: HashSet<usize> = order
+    let mut dependents_of: HashMap<usize, Vec<usize>> = HashMap::new();
+    for &idx in order {
+        for &blocker in &blockers[&idx] {
+            dependents_of.entry(blocker).or_default().push(idx);
+        }
+    }
+    let mut free: HashSet<usize> = HashSet::new();
+    let mut stack: Vec<usize> = order
         .iter()
         .copied()
-        .filter(|idx| !signaled.contains(idx))
+        .filter(|idx| signaled.contains(idx) && !finished.contains(idx))
         .collect();
-    loop {
-        let next: HashSet<usize> = stuck
-            .iter()
-            .copied()
-            .filter(|idx| {
-                blockers[idx]
-                    .iter()
-                    .all(|b| finished.contains(b) || stuck.contains(b))
-            })
-            .collect();
-        if next.len() == stuck.len() {
-            return stuck;
+    while let Some(idx) = stack.pop() {
+        for &dependent in dependents_of.get(&idx).into_iter().flatten() {
+            if !signaled.contains(&dependent) && free.insert(dependent) {
+                stack.push(dependent);
+            }
         }
-        stuck = next;
     }
+    order
+        .iter()
+        .copied()
+        .filter(|idx| !signaled.contains(idx) && !free.contains(idx))
+        .collect()
 }
 
 /// Follows dependents within `stuck` from `start` until a process repeats, and returns the
@@ -175,8 +236,10 @@ pub async fn shutdown_all(processes: &mut [ManagedProcess]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::clock::{Clock, ManualClock};
     use crate::state::ProcessState;
     use crate::test_helpers;
+    use std::sync::{Arc, Mutex};
     use tokio::time::Duration;
 
     fn sleep_config() -> crate::config::ProcessConfig {
@@ -276,12 +339,11 @@ mod tests {
         assert_eq!(procs[0].state(), ProcessState::Stopped);
     }
 
-    /// Two SIGTERM-ignoring children share one grace period, so shutdown takes about one grace.
+    /// Two SIGTERM-ignoring children both stop. Timing is checked on a manual clock in
+    /// `test_shutdown_stubborn_children_share_one_grace_on_manual_clock`.
     #[cfg(unix)]
     #[tokio::test]
-    async fn test_shutdown_stubborn_children_share_one_grace() {
-        use std::time::Instant;
-
+    async fn test_shutdown_stubborn_children_stop() {
         let dir = tempfile::tempdir().unwrap();
         let mut procs = Vec::new();
         for name in ["stubborn-a", "stubborn-b"] {
@@ -296,20 +358,261 @@ mod tests {
             procs.push(proc);
         }
 
-        let started = Instant::now();
         shutdown_all(&mut procs).await;
-        let elapsed = started.elapsed();
 
         for proc in &procs {
             assert_eq!(proc.state(), ProcessState::Stopped);
         }
+    }
+
+    /// Stop waits run on the manual clock, so timing is exact. Each event (signal, start,
+    /// end, finish) is logged with its process name and instant.
+    struct FakeTarget {
+        name: String,
+        grace: Duration,
+        /// Finish at once, with no stop wait.
+        immediate: bool,
+        /// The stop wait panics.
+        panics: bool,
+        log: StopLog,
+        clock: Clock,
+    }
+
+    type StopLog = Arc<Mutex<Vec<(String, &'static str, tokio::time::Instant)>>>;
+
+    fn fake(name: &str, grace: Duration, log: &StopLog, clock: &Clock) -> FakeTarget {
+        FakeTarget {
+            name: name.into(),
+            grace,
+            immediate: false,
+            panics: false,
+            log: Arc::clone(log),
+            clock: clock.clone(),
+        }
+    }
+
+    fn record(log: &StopLog, name: &str, event: &'static str, at: tokio::time::Instant) {
+        log.lock().unwrap().push((name.to_owned(), event, at));
+    }
+
+    /// Index of the first `event` for `name`. Ordering is checked by index, since two
+    /// events can share a virtual instant.
+    fn event_index(log: &StopLog, name: &str, event: &str) -> usize {
+        log.lock()
+            .unwrap()
+            .iter()
+            .position(|entry| entry.0 == name && entry.1 == event)
+            .unwrap_or_else(|| panic!("no {event} event for {name}"))
+    }
+
+    impl ShutdownTarget for FakeTarget {
+        fn name(&self) -> &str {
+            &self.name
+        }
+
+        fn is_running(&self) -> bool {
+            true
+        }
+
+        fn request_stop(&mut self) {
+            record(&self.log, &self.name, "signal", self.clock.now());
+        }
+
+        fn stop_wait(&mut self) -> Option<StopFuture> {
+            if self.immediate {
+                return None;
+            }
+            let name = self.name.clone();
+            let grace = self.grace;
+            let panics = self.panics;
+            let log = Arc::clone(&self.log);
+            let clock = self.clock.clone();
+            Some(Box::pin(async move {
+                record(&log, &name, "start", clock.now());
+                if panics {
+                    panic!("stop wait for {name} panicked");
+                }
+                clock.sleep(grace).await;
+                record(&log, &name, "end", clock.now());
+            }))
+        }
+
+        fn finish_stop(&mut self) {
+            record(&self.log, &self.name, "finish", self.clock.now());
+        }
+    }
+
+    /// Two stubborn children share one grace period: both waits start before either ends,
+    /// and shutdown takes one grace, not two.
+    #[tokio::test]
+    async fn test_shutdown_stubborn_children_share_one_grace_on_manual_clock() {
+        let grace = Duration::from_secs(2);
+        let manual = ManualClock::new();
+        let clock = manual.clock();
+        let log: StopLog = Arc::new(Mutex::new(Vec::new()));
+        let mut targets = vec![
+            fake("stubborn-a", grace, &log, &clock),
+            fake("stubborn-b", grace, &log, &clock),
+        ];
+
+        let started = clock.now();
+        manual
+            .drive(shutdown_ordered(&mut targets, &[0, 1], &[]))
+            .await;
+        assert_eq!(
+            clock.now().duration_since(started),
+            grace,
+            "two graces ran one after another"
+        );
+
+        let entries = log.lock().unwrap();
+        let last_start = entries
+            .iter()
+            .filter(|entry| entry.1 == "start")
+            .map(|entry| entry.2)
+            .max()
+            .expect("both waits started");
+        let first_end = entries
+            .iter()
+            .filter(|entry| entry.1 == "end")
+            .map(|entry| entry.2)
+            .min()
+            .expect("both waits ended");
         assert!(
-            elapsed < Duration::from_millis(3500),
-            "two 2 s stops ran one after another: shutdown took {elapsed:?}"
+            last_start < first_end,
+            "a wait started only after another one finished"
+        );
+    }
+
+    /// Children with different graces share one shutdown. The 1 s child finishes on its own
+    /// deadline, before the 3 s child, and shutdown takes 3 s, not 4 s.
+    #[tokio::test]
+    async fn test_shutdown_mixed_deadlines_finish_in_deadline_order_on_manual_clock() {
+        let manual = ManualClock::new();
+        let clock = manual.clock();
+        let log: StopLog = Arc::new(Mutex::new(Vec::new()));
+        let mut targets = vec![
+            fake("slow-stop", Duration::from_secs(3), &log, &clock),
+            fake("fast-stop", Duration::from_secs(1), &log, &clock),
+        ];
+
+        let started = clock.now();
+        manual
+            .drive(shutdown_ordered(&mut targets, &[0, 1], &[]))
+            .await;
+        assert_eq!(
+            clock.now().duration_since(started),
+            Duration::from_secs(3),
+            "the two graces ran one after another"
         );
         assert!(
-            elapsed >= Duration::from_millis(1900),
-            "shutdown ended before the 2 s grace ran out: took {elapsed:?}"
+            event_index(&log, "fast-stop", "end") < event_index(&log, "slow-stop", "end"),
+            "fast-stop should finish on its own 1 s deadline, before slow-stop"
+        );
+    }
+
+    /// `s` is a dependent of `a`, and it is still stopping when the cycle of `a` and `b` is first blocked.
+    /// The cycle must not be broken while `s` is stopping, so `a` and `b` are signaled only after
+    /// `s` has finished.
+    #[tokio::test]
+    async fn test_shutdown_ordered_defers_cycle_while_its_dependent_stops() {
+        let manual = ManualClock::new();
+        let clock = manual.clock();
+        let log: StopLog = Arc::new(Mutex::new(Vec::new()));
+        let mut targets = vec![
+            fake("s", Duration::from_secs(2), &log, &clock),
+            fake("a", Duration::ZERO, &log, &clock),
+            fake("b", Duration::ZERO, &log, &clock),
+        ];
+        // a waits for s and b, and b waits for a. s has no dependents.
+        let dependents = vec![vec![], vec![0, 2], vec![1]];
+        manual
+            .drive(shutdown_ordered(&mut targets, &[0, 1, 2], &dependents))
+            .await;
+
+        let s_end = event_index(&log, "s", "end");
+        assert!(
+            event_index(&log, "a", "signal") > s_end,
+            "a was signaled while s was still stopping"
+        );
+        assert!(
+            event_index(&log, "b", "signal") > s_end,
+            "b was signaled while s was still stopping"
+        );
+    }
+
+    /// A stop wait that panics ends its process without a finish, but its dependency must
+    /// still be stopped.
+    #[tokio::test]
+    async fn test_shutdown_ordered_panicking_wait_releases_dependency() {
+        let manual = ManualClock::new();
+        let clock = manual.clock();
+        let log: StopLog = Arc::new(Mutex::new(Vec::new()));
+        let mut panicking = fake("p", Duration::from_secs(1), &log, &clock);
+        panicking.panics = true;
+        let mut targets = vec![fake("d", Duration::ZERO, &log, &clock), panicking];
+        // d waits for p.
+        manual
+            .drive(shutdown_ordered(&mut targets, &[0, 1], &[vec![1], vec![]]))
+            .await;
+
+        event_index(&log, "d", "finish");
+        assert!(
+            log.lock()
+                .unwrap()
+                .iter()
+                .all(|entry| !(entry.0 == "p" && entry.1 == "finish")),
+            "a panicked stop wait must not finish its process"
+        );
+    }
+
+    /// A process with no stop wait finishes at once, and the process it stops first is then
+    /// signaled.
+    #[tokio::test]
+    async fn test_shutdown_ordered_immediate_finish_releases_dependency() {
+        let manual = ManualClock::new();
+        let clock = manual.clock();
+        let log: StopLog = Arc::new(Mutex::new(Vec::new()));
+        let mut quick = fake("q", Duration::ZERO, &log, &clock);
+        quick.immediate = true;
+        let mut targets = vec![fake("d", Duration::from_secs(1), &log, &clock), quick];
+        // d waits for q.
+        manual
+            .drive(shutdown_ordered(&mut targets, &[0, 1], &[vec![1], vec![]]))
+            .await;
+
+        assert!(
+            event_index(&log, "q", "finish") < event_index(&log, "d", "signal"),
+            "d was signaled before q finished"
+        );
+    }
+
+    /// A dependency is signaled only after every dependent has stopped, including the one
+    /// with the longer stop.
+    #[tokio::test]
+    async fn test_shutdown_ordered_fan_in_waits_for_all_dependents() {
+        let manual = ManualClock::new();
+        let clock = manual.clock();
+        let log: StopLog = Arc::new(Mutex::new(Vec::new()));
+        let mut targets = vec![
+            fake("d", Duration::ZERO, &log, &clock),
+            fake("x", Duration::from_secs(1), &log, &clock),
+            fake("y", Duration::from_secs(3), &log, &clock),
+        ];
+        // d waits for x and y.
+        let dependents = vec![vec![1, 2], vec![], vec![]];
+        manual
+            .drive(shutdown_ordered(&mut targets, &[0, 1, 2], &dependents))
+            .await;
+
+        let d_signal = event_index(&log, "d", "signal");
+        assert!(
+            event_index(&log, "x", "end") < d_signal,
+            "d was signaled before x finished"
+        );
+        assert!(
+            event_index(&log, "y", "end") < d_signal,
+            "d was signaled before y finished"
         );
     }
 
@@ -488,7 +791,8 @@ mod tests {
             ManagedProcess::new_config("a".into(), test_helpers::test_uuid(), sleep_config());
         let mut b =
             ManagedProcess::new_config("b".into(), test_helpers::test_uuid(), sleep_config());
-        c.spawn(test_exit_channel().0).unwrap();
+        let (c_tx, mut c_rx) = test_exit_channel();
+        c.spawn(c_tx).unwrap();
         let (a_tx, mut a_rx) = test_exit_channel();
         let (b_tx, mut b_rx) = test_exit_channel();
         a.spawn(a_tx).unwrap();
@@ -505,6 +809,11 @@ mod tests {
             Instant::now().saturating_duration_since(started)
         });
 
+        let c_exit = tokio::spawn(async move {
+            c_rx.recv().await.expect("c exit");
+            Instant::now().saturating_duration_since(started)
+        });
+
         let mut procs = vec![c, a, b];
         // dependents[1] == [2] and dependents[2] == [1]: a and b form a cycle.
         let dependents = vec![vec![], vec![2], vec![1]];
@@ -512,9 +821,10 @@ mod tests {
 
         let a_at = a_exit.await.unwrap();
         let b_at = b_exit.await.unwrap();
+        let c_at = c_exit.await.unwrap();
         assert!(
-            a_at < Duration::from_secs(2) && b_at < Duration::from_secs(2),
-            "cycle waited for the unrelated stop: a exited at {a_at:?}, b at {b_at:?}"
+            a_at < c_at && b_at < c_at,
+            "cycle waited for the unrelated stop: a exited at {a_at:?}, b at {b_at:?}, c at {c_at:?}"
         );
         for proc in &procs {
             assert_eq!(proc.state(), ProcessState::Stopped);
@@ -560,7 +870,7 @@ mod tests {
             db_ready.display()
         );
         let a_script = format!(
-            "trap 'touch \"{a_done}\"; exit 0' TERM; touch \"{}\"; while :; do sleep 0.05; done",
+            "trap 'sleep 0.3; touch \"{a_done}\"; exit 0' TERM; touch \"{}\"; while :; do sleep 0.05; done",
             a_ready.display()
         );
         let mut db = ManagedProcess::new_config(
@@ -616,7 +926,7 @@ mod tests {
             p0_ready.display()
         );
         let p2_script = format!(
-            "trap 'touch \"{p2_done}\"; exit 0' TERM; touch \"{}\"; while :; do sleep 0.05; done",
+            "trap 'sleep 0.3; touch \"{p2_done}\"; exit 0' TERM; touch \"{}\"; while :; do sleep 0.05; done",
             p2_ready.display()
         );
         let mut procs = vec![

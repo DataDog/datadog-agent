@@ -90,10 +90,10 @@ enum Commands {
         /// Do not start the process automatically
         #[arg(long)]
         no_auto_start: bool,
-        /// Start after this process (repeatable)
+        /// Start after this process (repeatable). Shutdown stops this process before it.
         #[arg(long)]
         after: Vec<String>,
-        /// Start before this process (repeatable)
+        /// Start before this process (repeatable). Shutdown stops this process after it.
         #[arg(long)]
         before: Vec<String>,
     },
