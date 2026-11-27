@@ -44,13 +44,13 @@ func TestSchemaContainerRestoredAfterCollection(t *testing.T) {
 			c, pool, mock, cleanup := newSchemaCheck(t)
 			defer cleanup()
 			pool.SetMaxOpenConns(1)
-			conn, err := pool.Connx(context.Background())
+			conn, err := pool.Connx(t.Context())
 			require.NoError(t, err)
 			defer conn.Close()
 			c.schemaQueryer = conn
 			expectSchemaSwitch(mock, 3, "PDB1")
 			expectSchemaRestore(mock)
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			called := false
 			run := func() error {
@@ -86,20 +86,20 @@ func TestSchemaContainerReusesReservedSession(t *testing.T) {
 	c, pool, mock, cleanup := newSchemaCheck(t)
 	defer cleanup()
 	pool.SetMaxOpenConns(1)
-	conn, err := pool.Connx(context.Background())
+	conn, err := pool.Connx(t.Context())
 	require.NoError(t, err)
 	defer conn.Close()
 	c.schemaQueryer = conn
 	expectSchemaSession(mock, 3, "PDB1")
 	calls := 0
 	for range 2 {
-		require.NoError(t, c.withSchemaContainer(context.Background(), 3, func() error {
+		require.NoError(t, c.withSchemaContainer(t.Context(), 3, func() error {
 			calls++
 			return nil
 		}))
 	}
 	require.Equal(t, 2, calls)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	require.ErrorIs(t, c.withSchemaContainer(ctx, 3, func() error {
 		t.Fatal("canceled collection must not use the cached session")
@@ -107,43 +107,43 @@ func TestSchemaContainerReusesReservedSession(t *testing.T) {
 	}), context.Canceled)
 	c.schemaQueryError = nil
 	require.NoError(t, conn.Close())
-	replacement, err := pool.Connx(context.Background())
+	replacement, err := pool.Connx(t.Context())
 	require.NoError(t, err)
 	defer replacement.Close()
 	c.schemaQueryer = replacement
 	expectSchemaSession(mock, 3, "PDB1")
-	require.NoError(t, c.withSchemaContainer(context.Background(), 3, func() error { return nil }))
+	require.NoError(t, c.withSchemaContainer(t.Context(), 3, func() error { return nil }))
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestSchemaContainerRechecksAfterSwitch(t *testing.T) {
 	c, pool, mock, cleanup := newSchemaCheck(t)
 	defer cleanup()
-	conn, err := pool.Connx(context.Background())
+	conn, err := pool.Connx(t.Context())
 	require.NoError(t, err)
 	defer conn.Close()
 	c.schemaQueryer = conn
 	expectSchemaSession(mock, 1, "CDB$ROOT")
-	require.NoError(t, c.withSchemaContainer(context.Background(), 1, func() error { return nil }))
+	require.NoError(t, c.withSchemaContainer(t.Context(), 1, func() error { return nil }))
 	expectSchemaSwitch(mock, 3, "PDB1")
 	expectSchemaRestore(mock)
-	require.NoError(t, c.withSchemaContainer(context.Background(), 3, func() error { return nil }))
+	require.NoError(t, c.withSchemaContainer(t.Context(), 3, func() error { return nil }))
 	expectSchemaSession(mock, 1, "CDB$ROOT")
-	require.NoError(t, c.withSchemaContainer(context.Background(), 1, func() error { return nil }))
+	require.NoError(t, c.withSchemaContainer(t.Context(), 1, func() error { return nil }))
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestSchemaContainerDiscardedWhenRestoreFails(t *testing.T) {
 	c, pool, mock, cleanup := newSchemaCheck(t)
 	defer cleanup()
-	conn, err := pool.Connx(context.Background())
+	conn, err := pool.Connx(t.Context())
 	require.NoError(t, err)
 	defer conn.Close()
 	c.schemaQueryer = conn
 	expectSchemaSwitch(mock, 3, "PDB1")
 	mock.ExpectExec(regexp.QuoteMeta(schemaSwitchContainerSQL("CDB$ROOT"))).WillReturnError(errors.New("connection lost"))
 	mock.ExpectClose()
-	err = c.withSchemaContainer(context.Background(), 3, func() error { return nil })
+	err = c.withSchemaContainer(t.Context(), 3, func() error { return nil })
 	require.ErrorContains(t, err, "restore schema connection")
 	require.Error(t, c.schemaQueryError)
 	require.ErrorIs(t, conn.Raw(func(any) error { return nil }), sql.ErrConnDone)
@@ -158,7 +158,7 @@ func TestSchemaContainerRejectsChangedIdentity(t *testing.T) {
 	mock.ExpectExec(regexp.QuoteMeta(schemaSwitchContainerSQL("PDB1"))).WillReturnResult(sqlmock.NewResult(0, 0))
 	expectSchemaSession(mock, 4, "PDB1")
 	expectSchemaRestore(mock)
-	err := c.withSchemaContainer(context.Background(), 3, func() error {
+	err := c.withSchemaContainer(t.Context(), 3, func() error {
 		t.Fatal("must not collect from a replacement PDB")
 		return nil
 	})
@@ -184,7 +184,7 @@ func TestSchemaLegacyColumnValuesUseCorrectContainer(t *testing.T) {
 						AddRow(id, "APP", "T", "C", "NO", "'DEFAULT'").AddRow(id, "APP", "T", "SYS_NC00002$", "YES", "UPPER(C)"))
 				expectSchemaRestore(mock)
 			}
-			c.enrichSchemaColumnValues(context.Background(), details, columns)
+			c.enrichSchemaColumnValues(t.Context(), details, columns)
 			for _, detail := range details {
 				require.Equal(t, "'DEFAULT'", detail.ColumnDefaults["C"])
 				require.Equal(t, []indexKeyPart{{Column: "C"}, {Expression: "UPPER(C)"}}, detail.Indexes[0].Columns)
@@ -256,7 +256,7 @@ func TestSchemaExpressionFailurePreservesIndexes(t *testing.T) {
 				expectSchemaSession(mock, 3, "PDB1")
 			}
 			mock.ExpectQuery("tab_cols").WillReturnError(errors.New("ORA-00904: invalid identifier"))
-			details := c.tableDetails(context.Background(), map[tableKey]struct{}{key: {}}, nil)
+			details := c.tableDetails(t.Context(), map[tableKey]struct{}{key: {}}, nil)
 			require.Contains(t, details, key)
 			require.Len(t, details[key].Indexes, 2)
 			require.Equal(t, "C", details[key].Indexes[0].Columns[0].Column)
@@ -293,7 +293,7 @@ func TestSchemaIndexExpressionsPreserveOrdinaryHiddenColumns(t *testing.T) {
 					WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "COLUMN_NAME", "DATA_DEFAULT"}).
 						AddRow(3, "APP", "T", "SYS_NC00002$", "UPPER(C)"))
 			}
-			c.enrichSchemaColumnValues(context.Background(), details, columns)
+			c.enrichSchemaColumnValues(t.Context(), details, columns)
 			require.Equal(t, []indexKeyPart{{Column: "SYS_NC_OID$"}}, details[key].Indexes[0].Columns)
 			require.Equal(t, []indexKeyPart{{Column: "SYS_NC_OID$"}, {Expression: "UPPER(C)"}, {Column: "SYS_NC_USER"}}, details[key].Indexes[1].Columns)
 			if version == "12.2.0.1.0" {
@@ -382,7 +382,7 @@ func TestSchemaSparseDefaultsPreserveNullVirtualAndHiddenColumns(t *testing.T) {
 			for _, view := range []string{"cdb_external_tables", "cdb_part_tables"} {
 				mock.ExpectQuery("FROM " + view).WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
 			}
-			details := c.tableDetailsForPage(context.Background(), map[tableKey]struct{}{key: {}}, columns)
+			details := c.tableDetailsForPage(t.Context(), map[tableKey]struct{}{key: {}}, columns)
 			require.NoError(t, mock.ExpectationsWereMet())
 			require.NotNil(t, details[key])
 			require.Equal(t, "NULL", details[key].ColumnDefaults["DEFAULT_NULL"])

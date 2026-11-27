@@ -168,7 +168,7 @@ func TestRunCycleRecordsARangeWithNoUsableProbe(t *testing.T) {
 	cfg.Probes.SNMP.CredIDs = []string{"cred-missing"}
 	sr := addStatusRange(d, cfg)
 
-	d.sched.runCycle(context.Background(), sr, time.Hour, false)
+	d.sched.runCycle(t.Context(), sr, time.Hour, false)
 
 	issues := statusAt(d, statusNowMs).Ranges[0].Issues
 	require.NotEmpty(t, issues)
@@ -182,7 +182,7 @@ func TestAReplacedCycleDoesNotRecordIssuesOnItsReplacement(t *testing.T) {
 	replaced := addStatusRange(d, cfg)
 	addStatusRange(d, testRangeConfig("ad-1", "10.0.0.0/24"))
 
-	d.sched.runCycle(context.Background(), replaced, time.Hour, false)
+	d.sched.runCycle(t.Context(), replaced, time.Hour, false)
 
 	assert.Empty(t, statusAt(d, statusNowMs).Ranges[0].Issues)
 }
@@ -245,7 +245,7 @@ func TestStatusShowsANewRunBeforeItsFirstChunkCompletes(t *testing.T) {
 	addStatusRange(d, testRangeConfig("ad-1", "10.0.0.0/24"))
 
 	done := make(chan error, 1)
-	go func() { done <- sw.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/24", nil)) }()
+	go func() { done <- sw.sweep(t.Context(), testSweepRequest(t, "10.0.0.0/24", nil)) }()
 	<-scanner.entered
 
 	r := statusAt(d, statusNowMs).Ranges[0]

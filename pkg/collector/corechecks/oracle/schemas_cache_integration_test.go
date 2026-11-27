@@ -87,7 +87,7 @@ func testSchemaCollectionReusesCachedSQLAgainstDatabase(t *testing.T, legacy boo
 	observer, err := sysCheck.Connect()
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = observer.Close() })
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
 
 	const otherOwner = "C##DD_SCHEMA_BIND_OTHER"

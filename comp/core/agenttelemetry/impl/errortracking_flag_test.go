@@ -89,7 +89,7 @@ func TestSetErrortracking_Toggle(t *testing.T) {
 	assert.Nil(t, testQueue(a))
 	assert.Zero(t, countErrortrackingJobs(runner))
 	a.SubmitErrorLog(errorLog("before the flag"))
-	a.flushErrortracking(context.Background())
+	a.flushErrortracking(t.Context())
 	assert.Empty(t, sndr.capturedLogs())
 
 	// On: the queue exists, the flush job is scheduled once.
@@ -97,7 +97,7 @@ func TestSetErrortracking_Toggle(t *testing.T) {
 	require.NotNil(t, testQueue(a))
 	assert.Equal(t, 1, countErrortrackingJobs(runner))
 	a.SubmitErrorLog(errorLog("while on"))
-	a.flushErrortracking(context.Background())
+	a.flushErrortracking(t.Context())
 	assert.Len(t, sndr.capturedLogs(), 1)
 
 	// Off: what is buffered is flushed, the queue is released, later
@@ -108,7 +108,7 @@ func TestSetErrortracking_Toggle(t *testing.T) {
 	assert.Len(t, sndr.capturedLogs(), 2)
 	assert.Nil(t, testQueue(a))
 	a.SubmitErrorLog(errorLog("after off"))
-	a.flushErrortracking(context.Background())
+	a.flushErrortracking(t.Context())
 	assert.Len(t, sndr.capturedLogs(), 2)
 
 	// On again: a new queue, and no second flush job.
@@ -116,7 +116,7 @@ func TestSetErrortracking_Toggle(t *testing.T) {
 	require.NotNil(t, testQueue(a))
 	assert.Equal(t, 1, countErrortrackingJobs(runner))
 	a.SubmitErrorLog(errorLog("second time on"))
-	a.flushErrortracking(context.Background())
+	a.flushErrortracking(t.Context())
 	assert.Len(t, sndr.capturedLogs(), 3)
 }
 
@@ -188,7 +188,7 @@ func TestErrortracking_FlagAndLocalPrecedence(t *testing.T) {
 
 			assert.Equal(t, tt.wantQueue, testQueue(a) != nil)
 			a.SubmitErrorLog(errorLog("x"))
-			a.flushErrortracking(context.Background())
+			a.flushErrortracking(t.Context())
 			if tt.wantQueue {
 				assert.Len(t, sndr.capturedLogs(), 1)
 			} else {
@@ -279,7 +279,7 @@ func TestErrortrackingHealthIsIndependent(t *testing.T) {
 	for i := 0; i < maxConsecutiveFlushFailures; i++ {
 		assert.True(t, a.newErrortrackingFlag().IsHealthy(), "still healthy after %d failures", i)
 		a.SubmitErrorLog(errorLog("x"))
-		a.flushErrortracking(context.Background())
+		a.flushErrortracking(t.Context())
 	}
 	assert.False(t, a.newErrortrackingFlag().IsHealthy())
 	assert.True(t, a.flag.IsHealthy(), "troubleshooting health must not follow errortracking flushes")
@@ -287,14 +287,14 @@ func TestErrortrackingHealthIsIndependent(t *testing.T) {
 	// A success clears the streak.
 	sndr.fail.Store(false)
 	a.SubmitErrorLog(errorLog("x"))
-	a.flushErrortracking(context.Background())
+	a.flushErrortracking(t.Context())
 	assert.True(t, a.newErrortrackingFlag().IsHealthy())
 
 	// Switching on again starts from a clean signal.
 	sndr.fail.Store(true)
 	for i := 0; i < maxConsecutiveFlushFailures; i++ {
 		a.SubmitErrorLog(errorLog("x"))
-		a.flushErrortracking(context.Background())
+		a.flushErrortracking(t.Context())
 	}
 	require.False(t, a.newErrortrackingFlag().IsHealthy())
 	a.newErrortrackingFlag().OnNoConfig()
@@ -351,7 +351,7 @@ func TestSetErrortracking_ConcurrentToggleAndSubmit(t *testing.T) {
 			defer togglers.Done()
 			for i := 0; i < 50; i++ {
 				setErrortrackingKey(a, i%2 == 0)
-				a.flushErrortracking(context.Background())
+				a.flushErrortracking(t.Context())
 			}
 		}()
 	}
@@ -445,7 +445,7 @@ func TestFlushErrortracking_StaleFlushDoesNotCountAsFailure(t *testing.T) {
 
 	flushed := make(chan struct{})
 	go func() {
-		a.flushErrortracking(context.Background())
+		a.flushErrortracking(t.Context())
 		close(flushed)
 	}()
 	<-sndr.entered // the flush holds the first queue and is blocked in the sender

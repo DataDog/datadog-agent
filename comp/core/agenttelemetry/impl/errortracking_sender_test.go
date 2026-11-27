@@ -300,7 +300,7 @@ func newTestAtelMinimal(t *testing.T, sndr sender, bufSize int) *atel {
 		errLogsFlushInterval: 60 * time.Second,
 		shutdownDrainTimeout: 5 * time.Second,
 	}
-	a.freeErrortrackingQueueLocked()
+	a.allocErrortrackingQueueLocked()
 	a.cancelCtx, a.cancel = context.WithCancel(t.Context())
 	return a
 }

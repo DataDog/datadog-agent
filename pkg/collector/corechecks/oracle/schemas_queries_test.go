@@ -113,7 +113,7 @@ func TestSchemaColumnCommentFilterBoundary(t *testing.T) {
 					AddRow(3, "APP", "T0000", "C0000", "列の説明").
 					AddRow(3, "APP", "T0000", "C0001", " "))
 			detail := &tableDetails{}
-			c.loadSchemaColumnDetails(context.Background(), filters, nil, func(key columnKey) *tableDetails {
+			c.loadSchemaColumnDetails(t.Context(), filters, nil, func(key columnKey) *tableDetails {
 				require.Contains(t, allowed, key)
 				return detail
 			})
@@ -201,9 +201,9 @@ func TestSchemaQueryArgumentsMatchGeneratedQueries(t *testing.T) {
 				for start := 0; start < count; start += 100 {
 					mock.ExpectQuery("WITH ranked_columns").WillReturnRows(emptyTablesRows())
 				}
-				require.NoError(t, c.hydrateTablePages(context.Background(), keys, 50, func([]schemaRowDB) error { return nil }))
+				require.NoError(t, c.hydrateTablePages(t.Context(), keys, 50, func([]schemaRowDB) error { return nil }))
 				mock.ExpectQuery("FROM cdb_constraints").WillReturnRows(emptyConstraintRows())
-				c.tableConstraintsForPage(context.Background(), selected, selected)
+				c.tableConstraintsForPage(t.Context(), selected, selected)
 				columns := make(map[columnKey]struct{}, len(selected))
 				for key := range selected {
 					columns[columnKey{tableKey: key, column: "ID"}] = struct{}{}
@@ -212,7 +212,7 @@ func TestSchemaQueryArgumentsMatchGeneratedQueries(t *testing.T) {
 				for range filters {
 					mock.ExpectQuery("FROM cdb_col_comments").WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
 				}
-				c.loadSchemaColumnDetails(context.Background(), filters, nil, func(columnKey) *tableDetails { t.Fatal("unexpected row"); return nil })
+				c.loadSchemaColumnDetails(t.Context(), filters, nil, func(columnKey) *tableDetails { t.Fatal("unexpected row"); return nil })
 				require.Equal(t, (count+99)/100+1+len(filters), calls)
 				require.NoError(t, mock.ExpectationsWereMet())
 			})
@@ -466,10 +466,10 @@ func TestSchemaBindingsHydrationSuppliesEveryNamedArgument(t *testing.T) {
 		})
 		c.schemaQueryError = nil
 		if view {
-			_, err := c.viewPageRows(context.Background(), keys, 17)
+			_, err := c.viewPageRows(t.Context(), keys, 17)
 			require.ErrorIs(t, err, context.Canceled)
 		} else {
-			_, err := c.tablePageRows(context.Background(), keys, 17)
+			_, err := c.tablePageRows(t.Context(), keys, 17)
 			require.ErrorIs(t, err, context.Canceled)
 		}
 	}
@@ -665,7 +665,7 @@ func TestSchemaColumnDefaultQueriesPreserveOptionalFailurePolicy(t *testing.T) {
 				}
 				expectation.WillReturnRows(rows)
 			}
-			details := c.tableDetailsForPage(context.Background(), allowed, columns)
+			details := c.tableDetailsForPage(t.Context(), allowed, columns)
 			require.NotNil(t, details[first])
 			require.NotNil(t, details[second])
 			require.True(t, details[first].PropertiesIncomplete)
@@ -677,9 +677,9 @@ func TestSchemaColumnDefaultQueriesPreserveOptionalFailurePolicy(t *testing.T) {
 			}
 			require.Nil(t, details[second].ColumnDefaults)
 			if errors.Is(test.queryError, context.DeadlineExceeded) || errors.Is(test.queryError, context.Canceled) {
-				require.ErrorIs(t, c.schemaContextError(context.Background()), test.queryError)
+				require.ErrorIs(t, c.schemaContextError(t.Context()), test.queryError)
 			} else {
-				require.NoError(t, c.schemaContextError(context.Background()))
+				require.NoError(t, c.schemaContextError(t.Context()))
 			}
 			require.NoError(t, mock.ExpectationsWereMet())
 		})
@@ -700,7 +700,7 @@ func TestSchemaColumnDefaultQueriesLeaveLegacyPathUnchanged(t *testing.T) {
 				return nil, errors.New("ORA-00942: optional metadata unavailable")
 			})
 			key := tableKey{conID: 3, owner: "A", table: "T"}
-			c.tableDetailsForPage(context.Background(), map[tableKey]struct{}{key: {}}, map[columnKey]struct{}{{tableKey: key, column: "ID"}: {}})
+			c.tableDetailsForPage(t.Context(), map[tableKey]struct{}{key: {}}, map[columnKey]struct{}{{tableKey: key, column: "ID"}: {}})
 			require.Zero(t, calls)
 			require.Equal(t, "c.data_default", c.defaultValueColumn())
 		})

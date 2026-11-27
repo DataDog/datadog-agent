@@ -838,7 +838,7 @@ func TestLoadCustomerConfigEnvReference(t *testing.T) {
 			configContent := "exporters:\n  datadog:\n    api:\n      key: " + tt.reference + "\n"
 			require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
 
-			customerConfig, err := loadCustomerConfig(context.Background(), []string{"file:" + configPath})
+			customerConfig, err := loadCustomerConfig(t.Context(), []string{"file:" + configPath})
 			require.NoError(t, err)
 			assert.Contains(t, customerConfig, "key: "+tt.want, "the reference should stay a reference, like in the live flare")
 			assert.NotContains(t, customerConfig, testAPIKey, "the value of the environment should not be in the configuration")

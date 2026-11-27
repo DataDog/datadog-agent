@@ -50,7 +50,7 @@ func TestSchemaRunDoesNotWaitForConnection(t *testing.T) {
 	defer c.Cancel()
 	prepareSchemaRun(&c)
 	pool.SetMaxOpenConns(1)
-	held, err := pool.Connx(context.Background())
+	held, err := pool.Connx(t.Context())
 	require.NoError(t, err)
 	defer held.Close()
 	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "PDB"))

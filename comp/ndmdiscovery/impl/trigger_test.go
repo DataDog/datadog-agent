@@ -44,7 +44,7 @@ func TestSchedulerTriggerSweepsWithoutWaitingForTheInterval(t *testing.T) {
 	scanner := answerAll()
 	s, _, _ := newTestScheduler(t, scanner, 10)
 	waits := cycleWaits(s)
-	s.start(context.Background())
+	s.start(t.Context())
 	defer s.stop()
 
 	// The range sweeps once on add, then is not due again for an hour.
@@ -85,7 +85,7 @@ func TestSchedulerTriggerSweepsThroughAnUnexpiredCursor(t *testing.T) {
 		Credentials:  store,
 	})
 	waits := cycleWaits(s)
-	s.start(context.Background())
+	s.start(t.Context())
 	defer s.stop()
 
 	require.NoError(t, s.set(cfg))
@@ -123,7 +123,7 @@ func TestSchedulerTriggerRescansTheChunksAResumeWouldSkip(t *testing.T) {
 		Credentials:  store,
 	})
 	waits := cycleWaits(s)
-	s.start(context.Background())
+	s.start(t.Context())
 	defer s.stop()
 
 	// The first cycle resumes, so it scans only the last two chunks.
@@ -153,7 +153,7 @@ func scannedFirstAddress(scanner *recordingScanner) bool {
 
 func TestSchedulerTriggerRejectsAnUnknownRange(t *testing.T) {
 	s, _, _ := newTestScheduler(t, answerAll(), 10)
-	s.start(context.Background())
+	s.start(t.Context())
 	defer s.stop()
 
 	err := s.triggerNow("ad-missing")
@@ -165,7 +165,7 @@ func TestSchedulerTriggerRejectsAnUnknownRange(t *testing.T) {
 func TestSchedulerTriggerRejectsARangeThatIsAlreadySweeping(t *testing.T) {
 	scanner := newBlockingScanner()
 	s, _, _ := newTestScheduler(t, &scanner.recordingScanner, 10)
-	s.start(context.Background())
+	s.start(t.Context())
 	defer s.stop()
 	defer close(scanner.release)
 
