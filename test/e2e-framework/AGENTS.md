@@ -234,10 +234,14 @@ Each fakeintake is an ECS Fargate task, so it costs one IP in the CI subnets for
 of the stack. When no assertion reads `Env().FakeIntake`, opt out with
 `ProvisionerNoFakeIntake` or the scenario's `WithoutFakeIntake()`, and use the same choice in
 every `UpdateEnv` of the suite: switching back and forth destroys and re-creates the Fargate
-task. Opting out doesn't change where the Agent's data ends up. By default the fakeintake
-forwards each payload to `app.datadoghq.com` (dddev) with the same API key the Agent would use
-(see `WithoutDDDevForwarding` in `scenarios/aws/fakeintake`), and without one the Agent sends
-straight there, unless `ddagent:site` points elsewhere.
+task. A suite that opts out must not depend on the intake answering. Without a fakeintake the
+Agent talks to the real Datadog endpoints, which CI test VMs can't reach (`dial tcp ...:443: i/o
+timeout`), even though they can from agent-sandbox. Anything that blocks on those calls can then
+pass locally and fail in CI. For example, `datadog-agent secret refresh` rotates the API key and
+validates it synchronously: without a fakeintake it takes about 30 s in CI, so the CLI's
+`server_timeout` (30 s) expires, and the error is reported as `tls: bad record MAC`. Search the
+suite for calls that trigger outbound traffic (API key rotation, Remote Config, flares sent with
+`--send`) before you remove its fakeintake.
 
 When that's not enough, common advanced patterns:
 
