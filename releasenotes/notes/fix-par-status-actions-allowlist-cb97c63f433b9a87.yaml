@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix the Private Action Runner section of Agent status to include automatically
+    allowed helper actions and kubeactions in the final actions allowlist.
