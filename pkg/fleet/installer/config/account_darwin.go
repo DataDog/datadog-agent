@@ -25,6 +25,9 @@ const (
 	// entry.
 	configDirRights  = "allow read,write,readattr,writeattr,readextattr,writeextattr,readsecurity,list,search,add_file,add_subdirectory,file_inherit,directory_inherit"
 	configFileRights = "allow read,write,readattr,writeattr,readextattr,writeextattr,readsecurity"
+	// inheritedFileRights is what a file inherits from configDirRights on its directory: list, add
+	// file, search and add subdirectory become read, write, execute and append.
+	inheritedFileRights = "allow read,write,execute,append,readattr,writeattr,readextattr,writeextattr,readsecurity"
 	// AgentConfigDirACE and AgentConfigFileACE are those entries for the Agent's account.
 	AgentConfigDirACE  = "user:" + AgentUser + " " + configDirRights
 	AgentConfigFileACE = "user:" + AgentUser + " " + configFileRights
