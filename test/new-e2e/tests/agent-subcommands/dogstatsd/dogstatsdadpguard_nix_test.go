@@ -51,7 +51,7 @@ func (s *dogstatsdADPGuardSuite) assertCommandBlocked(subcommand string) {
 func TestADPGuardSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &dogstatsdADPGuardSuite{}, e2e.WithProvisioner(
-		awshost.Provisioner(
+		awshost.ProvisionerNoFakeIntake(
 			awshost.WithRunOptions(
 				scenec2.WithAgentOptions(
 					agentparams.WithAgentConfig(`

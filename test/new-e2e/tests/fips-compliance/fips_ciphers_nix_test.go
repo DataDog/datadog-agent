@@ -42,6 +42,7 @@ func TestFIPSCiphersLinuxSuite(t *testing.T) {
 		e2e.WithProvisioner(
 			awsdocker.Provisioner(
 				awsdocker.WithRunOptions(
+					scendocker.WithoutFakeIntake(),
 					scendocker.WithAgentOptions(
 						dockeragentparams.WithFIPS(),
 						dockeragentparams.WithExtraComposeManifest("fips-server", pulumi.String(strings.ReplaceAll(dockerCompose, "{APPS_VERSION}", apps.Version))),

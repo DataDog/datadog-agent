@@ -193,7 +193,7 @@ Needed when you created a new package, and whenever a test starts consuming a bu
 
 ## Step 9 — Verify
 
-Needs `dda`, `pulumi`, `~/.test_infra_config.yaml` (created by `dda inv e2e.setup`), sandbox AWS credentials, and AppGate connected; `run-e2e` covers setup failures. Run the gates in order and stop at the first failure.
+Needs `dda`, `bazelisk`, `~/.test_infra_config.yaml` (created by `dda inv e2e.setup`), sandbox AWS credentials, and AppGate connected; `run-e2e` covers setup failures. Run the gates in order and stop at the first failure.
 
 | Gate | Command | Catches |
 |---|---|---|

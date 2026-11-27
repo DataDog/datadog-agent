@@ -4,11 +4,11 @@ import getpass
 import os
 import platform
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from invoke.context import Context
-from invoke.runners import Result
 
+from tasks.e2e_framework.tool import install_pulumi
 from tasks.kernel_matrix_testing.infra import (
     build_infrastructure,
     ensure_key_in_agent,
@@ -313,6 +313,7 @@ def start_microvms(
         "--provision-microvms" if provision_microvms else "",
         "--setup-gdb" if with_gdb else "",
     ]
+    install_pulumi()
     bazel(
         "run",
         *(f"--run_under={prefix}",) if prefix else (),
@@ -410,27 +411,25 @@ def destroy_stack_force(ctx: Context, stack: str):
     destroy_ec2_instances(ctx, stack)
 
     # Find a better solution for this
-    pulumi_stack_name = cast(
-        'Result',
-        ctx.run(
-            f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack ls -a -C ./test/e2e-framework 2> /dev/null | grep {stack} | cut -d ' ' -f 1",
-            warn=True,
-            hide=True,
-        ),
-    ).stdout.strip()
+    pulumi = ("run", "--run_env=PULUMI_CONFIG_PASSPHRASE=1234", "@pulumi", "--")
+    stacks = bazel(*pulumi, "stack", "ls", "-a", "-C", "./test/e2e-framework", capture_output=True, ignore_errors=True)
+    pulumi_stack_name = next((line.split(" ")[0] for line in stacks.stdout.splitlines() if stack in line), "")
 
     if pulumi_stack_name == "":
         return
 
-    ctx.run(
-        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi cancel -y -C ./test/e2e-framework -s {pulumi_stack_name}",
-        warn=True,
-        hide=True,
-    )
-    ctx.run(
-        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ./test/e2e-framework -s {pulumi_stack_name}",
-        warn=True,
-        hide=True,
+    bazel(*pulumi, "cancel", "-y", "-C", "./test/e2e-framework", "-s", pulumi_stack_name, ignore_errors=True)
+    bazel(
+        *pulumi,
+        "stack",
+        "rm",
+        "--force",
+        "-y",
+        "-C",
+        "./test/e2e-framework",
+        "-s",
+        pulumi_stack_name,
+        ignore_errors=True,
     )
 
 

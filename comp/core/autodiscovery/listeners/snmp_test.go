@@ -874,6 +874,25 @@ func TestCheckDeviceInfoParsing(t *testing.T) {
 	assert.InDelta(t, time.Now().Add(-1000*time.Second).UnixMilli(), info.BootTimeMs, 5000)
 }
 
+func TestCheckDeviceInfoLongUptime(t *testing.T) {
+	l, _ := setupTestListener(t, []interface{}{
+		map[string]interface{}{"network": "192.168.0.0/30", "community": "public"},
+	}, map[string]interface{}{
+		"network_devices.autodiscovery.use_deduplication": true,
+	})
+
+	// 113 days, past the ~49.7 days where sysUptime in milliseconds no longer fits in a uint32
+	uptime := 113 * 24 * time.Hour
+	sess := makeReachableSessionWithDeviceInfo("router-1", "Cisco IOS", "1.3.6.1.4.1.9.1.1", uint32(uptime/(10*time.Millisecond)))
+	l.sessionFactory = func(_ snmp.Authentication, _ string, _ uint16) (snmpSession, error) {
+		return sess, nil
+	}
+
+	info := l.checkDeviceInfo(snmp.Authentication{Community: "public"}, 161, "192.168.0.1")
+
+	assert.InDelta(t, time.Now().Add(-uptime).UnixMilli(), info.BootTimeMs, 5000)
+}
+
 func TestCheckDeviceInfoNoDedup(t *testing.T) {
 	l, factory := setupTestListener(t, []interface{}{
 		map[string]interface{}{"network": "192.168.0.0/30", "community": "public"},

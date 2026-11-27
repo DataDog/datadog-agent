@@ -85,9 +85,7 @@ def get_aws_wrapper(
     return f"aws-vault exec sso-{aws_account}-account-admin-8h -- "
 
 
-def show_eks_connection_message(
-    ctx: Context, full_stack_name: str, config_path: str | None, interactive: bool | None = True
-):
+def show_eks_connection_message(full_stack_name: str, config_path: str | None, interactive: bool | None = True):
     """
     Write the stack's kubeconfig as {full_stack_name}-kubeconfig.yaml in the current
     working directory, then print (and optionally copy) the kubectl command to reach the
@@ -98,7 +96,7 @@ def show_eks_connection_message(
 
     from tasks.e2e_framework import config, tool
 
-    outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
+    outputs = tool.get_stack_json_outputs(full_stack_name)
     kubeconfig_output = json.loads(outputs["dd-Cluster-eks"]["kubeConfig"])
     kubeconfig = f"{full_stack_name}-kubeconfig.yaml"
     tool.write_secret_file(kubeconfig, yaml.dump(kubeconfig_output))

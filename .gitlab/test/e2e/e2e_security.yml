@@ -7,18 +7,30 @@
   - changes:
       paths:
         - cmd/system-probe/modules/eventmonitor.go
+        - comp/core/workloadmeta/collectors/internal/containerd/image_sbom_trivy.go
+        - comp/core/workloadmeta/collectors/internal/crio/image_sbom_trivy.go
+        - comp/core/workloadmeta/collectors/internal/docker/image_sbom_trivy.go
         - comp/core/workloadmeta/collectors/internal/remote/sbomcollector/**/*
         - comp/core/workloadmeta/collectors/sbomutil/**/*
         - pkg/collector/corechecks/sbom/**/*
+        - pkg/proto/datadog/sbom/**/*
+        - pkg/proto/pbgo/sbom/**/*
         - pkg/sbom/**/*
         - pkg/security/config/config.go
+        - pkg/security/module/cws_linux.go
+        - pkg/security/module/sbom_queue.go
+        - pkg/security/module/server.go
         - pkg/security/module/server_linux.go
         - pkg/security/module/usage_consumer.go
         - pkg/security/probe/field_handlers_ebpf.go
         - pkg/security/probe/probe_ebpf.go
+        - pkg/security/probe/procfs/**/*
         - pkg/security/resolvers/resolvers_ebpf.go
         - pkg/security/resolvers/sbom/**/*
         - pkg/security/rules/bundled/**/*
+        - pkg/system-probe/config/adjust_security.go
+        - pkg/system-probe/config/config.go
+        - pkg/util/trivy/**/*
         - test/new-e2e/tests/sbom/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success

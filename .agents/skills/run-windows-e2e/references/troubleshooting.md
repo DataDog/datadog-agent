@@ -32,7 +32,7 @@ dda inv new-e2e-tests.clean --output   # clear local test output
 If cleanup reports "Cleanup supported for local state only":
 
 ```bash
-pulumi login --local
+bazel run @pulumi -- login --local
 ```
 
 ## AWS account / profile

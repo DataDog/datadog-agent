@@ -10,14 +10,14 @@ Follow the general E2E setup guide first:
 [doc/how-to/test/e2e/index.md](../../../../doc/how-to/test/e2e/index.md).
 It covers AWS `agent-sandbox` account access, `aws-vault` setup, the
 `PULUMI_CONFIG_PASSPHRASE` requirement, and required tooling (Go, Python,
-`dda`).
+`dda`, `bazelisk`).
 
 The Windows tests provision real AWS EC2 Windows instances and require the same
 AWS access as all other E2E tests. Without valid AWS credentials and
 `PULUMI_CONFIG_PASSPHRASE` set, the run fails before any test code executes.
 
 `dda inv e2e.setup` (defined in `tasks/e2e_framework/setup/`) walks through this
-interactively: it validates CLI tools, installs Pulumi if missing, prompts for
+interactively: it validates CLI tools, installs the pinned Pulumi, prompts for
 AWS keypair paths, Datadog API key, and Pulumi passphrase, then writes
 `~/.test_infra_config.yaml`.
 

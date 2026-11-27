@@ -54,6 +54,7 @@ dd_agent_go_test(
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/providers",
         "//comp/core/config",
+        "//comp/core/flare/helpers",
         "//comp/core/hostname/hostnameimpl",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",

@@ -56,6 +56,7 @@ const (
 var (
 	defaultWorkspaceEnvVars = map[string]string{
 		"PULUMI_DISABLE_AUTOMATIC_PLUGIN_ACQUISITION": "true",
+		"PULUMI_IGNORE_AMBIENT_PLUGINS":               "true",
 		"PULUMI_SKIP_UPDATE_CHECK":                    "true",
 	}
 
@@ -601,8 +602,18 @@ func buildWorkspace(ctx context.Context, profile runner.Profile, stackName strin
 		return nil, fmt.Errorf("unable to create temporary folder at: %s, err: %w", workspaceStackDir, err)
 	}
 
+	pulumiHome, err := workspace.GetPulumiHomeDir()
+	if err != nil {
+		return nil, err
+	}
+	pulumiCommand, err := auto.NewPulumiCommand(&auto.PulumiCommandOptions{Root: pulumiHome})
+	if err != nil {
+		return nil, fmt.Errorf("%w, install it with `bazel run @pulumi//:install -- --destdir=%s`", err, pulumiHome)
+	}
+
 	fmt.Printf("Creating workspace for stack: %s at %s\n", stackName, workspaceStackDir)
 	return auto.NewLocalWorkspace(ctx,
+		auto.Pulumi(pulumiCommand),
 		auto.Project(project),
 		auto.Program(runFunc),
 		auto.WorkDir(workspaceStackDir),

@@ -187,7 +187,7 @@ profile:
 | Metric | Meaning |
 |---|---|
 | `data_plane.preflight_mode_result{result}` | One value per run: `clean`, or the first finding. |
-| `data_plane.preflight_mode_finding{finding,source_file,source_line,config_key,worker_name}` | One increment per distinct finding, and for the two findings that come from ADP's log, one per distinct log site and config key or worker name it was reported from. |
+| `data_plane.preflight_mode_finding{finding,source_file,source_line,config_key,worker_name,spawn_stage,spawn_error}` | One increment per distinct finding, and for the two findings that come from ADP's log, one per distinct log site and config key or worker name it was reported from. |
 | `data_plane.preflight_mode_duration_seconds` | Wall-clock length of the run. |
 
 The profile's schedule is **recurring**, not one-shot, so that changing the run window cannot
@@ -197,6 +197,13 @@ whichever flush first observes it, and later flushes send zero, which `zero_metr
 
 Findings: `spawn_failed`, `probe_failed`, `exited_early`, `stop_timeout`, `errors_in_log`,
 `warnings_in_log`, `output_dropped`, `interrupted`.
+
+Every finding carries all six tags after `finding`, and a tag that does not apply is empty.
+`spawn_failed` is the only finding with `spawn_stage` and `spawn_error`: the step that failed,
+such as `workdir` or `start`, and the class of its error, such as `read_only` or
+`permission_denied`. Both come from closed sets of constants in
+`comp/dataplane/preflightmode/impl/spawnfailure.go`, never from error text. `spawn_failed` has no
+log site, so it is always one point and the location cap below never applies to it.
 
 `errors_in_log` and `warnings_in_log` are additionally tagged with the ADP source location
 that logged the record — `source_file:lib/saluki-components/src/common/datadog/validation.rs`,
@@ -245,7 +252,8 @@ from three places, or about three config keys from one place, ships three points
 runs that hit a finding at all comes from `preflight_mode_result`, or from grouping the finding
 metric by location.
 
-Apart from the log site, config key, and worker name, only the bounded enums above are shipped.
+Apart from the log site, config key, and worker name, only the bounded enums above, spawn stage
+and error class included, are shipped.
 ADP's actual error text is **not** yet sent anywhere — see the `TODO` on `report` in
 `comp/dataplane/preflightmode/impl/report.go`. The agent telemetry error-tracking pipeline
 deliberately ships PC-only telemetry with no message field, so shipping log text needs a new

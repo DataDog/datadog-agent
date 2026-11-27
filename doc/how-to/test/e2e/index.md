@@ -29,6 +29,7 @@ The simplest path is to run E2E tests from a [developer environment](../../../tu
 - **Go 1.22 or later**
 - **Python 3.9+**
 - **dda tooling** - Install by following the [development requirements](../../../setup/required.md)
+- **[Bazelisk](https://github.com/bazelbuild/bazelisk)** - Provides `bazel`, which installs and runs the pinned Pulumi CLI
 ///
 
 ### Cloud Provider Access
@@ -49,7 +50,7 @@ dda inv e2e.setup
 
 On the default (AWS-only) path, it:
 
-- Checks for the AWS CLI, installing/updating Pulumi if needed, and configures a local Pulumi backend (`pulumi login --local`).
+- Checks for the AWS CLI, installs the Pulumi CLI and plugins pinned by Bazel, and configures a local Pulumi backend (`bazel run @pulumi -- login --local`).
 - Adds the `agent-sandbox` SSO profile to `~/.aws/config` if it isn't there yet, and creates an EC2 keypair via `aws-vault` (which may prompt you to authenticate).
 - Asks one question — your GitHub team, used to tag AWS resources for cost attribution — and generates a Pulumi passphrase.
 

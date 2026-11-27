@@ -1,4 +1,8 @@
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+load(":dd_strip.bzl", "dd_strip_symbols")
 load(":dd_strip_test.bzl", "dd_strip_test_suite")
 
 # This is used by the analysis tests and nothingelse.
@@ -6,6 +10,69 @@ cc_binary(
     name = "test_binary",
     srcs = ["testdata/main.c"],
     tags = ["manual"],
+)
+
+# A non-ELF file living next to the ELFs, like a .py module inside the
+# integrations runtime tree.
+write_file(
+    name = "test_not_elf",
+    out = "lib/python/notelf.py",
+    content = [
+        "print('not an ELF')",
+    ],
+    tags = ["manual"],
+)
+
+# A tree input standing with ELF and non-ELF files.
+copy_to_directory(
+    name = "test_tree",
+    srcs = [
+        ":test_binary",
+        ":test_not_elf",
+    ],
+    root_paths = ["bazel/rules/dd_strip"],
+    tags = ["manual"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+dd_strip_symbols(
+    name = "test_tree_stripped",
+    src = ":test_tree",
+    tags = ["manual"],
+)
+
+filegroup(
+    name = "test_tree_stripped_files",
+    srcs = [":test_tree_stripped"],
+    output_group = "stripped",
+    tags = ["manual"],
+)
+
+filegroup(
+    name = "test_tree_debug_files",
+    srcs = [":test_tree_stripped"],
+    output_group = "debug",
+    tags = ["manual"],
+)
+
+# Inspects the real split action's outputs: .dbg twin for ELF with
+# .gnu_debuglink pointers, mirrored layout, and no .dbg for non-ELFs.
+sh_test(
+    name = "tree_split_test",
+    srcs = ["tree_split_test.sh"],
+    args = [
+        "$(rootpath //bazel/tools:readelf)",
+        "$(rootpath :test_tree)",
+        "$(rootpath :test_tree_stripped_files)",
+        "$(rootpath :test_tree_debug_files)",
+    ],
+    data = [
+        ":test_tree",
+        ":test_tree_debug_files",
+        ":test_tree_stripped_files",
+        "//bazel/tools:readelf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 dd_strip_test_suite(name = "_dd_strip_tests")

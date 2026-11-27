@@ -8,7 +8,11 @@
 package preflightmodeimpl
 
 import (
+	"errors"
+	"fmt"
+	"io/fs"
 	"strconv"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -73,6 +77,77 @@ func TestTelemetryNamesAreStable(t *testing.T) {
 	assert.Equal(t, "source_line", labelSourceLine)
 	assert.Equal(t, "config_key", labelConfigKey)
 	assert.Equal(t, "worker_name", labelWorkerName)
+	assert.Equal(t, "spawn_stage", labelSpawnStage)
+	assert.Equal(t, "spawn_error", labelSpawnError)
+}
+
+// TestSpawnLabelsAreStable pins the spawn stage and error class values, which are shipped as
+// telemetry tags. Changing one breaks every dashboard and query that groups by it.
+func TestSpawnLabelsAreStable(t *testing.T) {
+	assert.ElementsMatch(t, []spawnStage{
+		"binary", "workdir", "workdir_permissions", "socket_path", "hostname", "config", "start", "unknown",
+	}, allSpawnStages)
+	assert.ElementsMatch(t, []spawnErrorClass{
+		"permission_denied", "read_only", "not_found", "no_space", "name_too_long", "text_busy",
+		"exec_format", "not_executable", "not_regular_file", "other",
+	}, allSpawnErrorClasses)
+}
+
+func TestNewSpawnFailure(t *testing.T) {
+	pathErr := func(errno syscall.Errno) error {
+		return &fs.PathError{Op: "mkdir", Path: "/opt/datadog-agent/run/adp-preflight", Err: errno}
+	}
+
+	tests := []struct {
+		name string
+		err  error
+		want spawnFailure
+	}{
+		{"read-only run_path", atStage(spawnStageWorkDir, fmt.Errorf("could not create: %w", pathErr(syscall.EROFS))),
+			spawnFailure{spawnStageWorkDir, spawnErrorReadOnly}},
+		{"noexec mount", atStage(spawnStageStart, &fs.PathError{Op: "fork/exec", Path: "/bin/adp", Err: syscall.EACCES}),
+			spawnFailure{spawnStageStart, spawnErrorPermissionDenied}},
+		{"wrong architecture", atStage(spawnStageStart, &fs.PathError{Op: "fork/exec", Path: "/bin/adp", Err: syscall.ENOEXEC}),
+			spawnFailure{spawnStageStart, spawnErrorExecFormat}},
+		{"binary being replaced", atStage(spawnStageStart, &fs.PathError{Op: "fork/exec", Path: "/bin/adp", Err: syscall.ETXTBSY}),
+			spawnFailure{spawnStageStart, spawnErrorTextBusy}},
+		{"missing parent", atStage(spawnStageWorkDir, pathErr(syscall.ENOENT)),
+			spawnFailure{spawnStageWorkDir, spawnErrorNotFound}},
+		{"full disk", atStage(spawnStageConfig, pathErr(syscall.ENOSPC)),
+			spawnFailure{spawnStageConfig, spawnErrorNoSpace}},
+		{"long path", atStage(spawnStageWorkDir, pathErr(syscall.ENAMETOOLONG)),
+			spawnFailure{spawnStageWorkDir, spawnErrorNameTooLong}},
+		{"no execute bit", atStage(spawnStageBinary, fmt.Errorf("/bin/adp: %w", errNotExecutable)),
+			spawnFailure{spawnStageBinary, spawnErrorNotExecutable}},
+		{"directory instead of binary", atStage(spawnStageBinary, fmt.Errorf("/bin/adp: %w", errNotRegularFile)),
+			spawnFailure{spawnStageBinary, spawnErrorNotRegularFile}},
+		{"unclassified error", atStage(spawnStageHostname, errors.New("boom")),
+			spawnFailure{spawnStageHostname, spawnErrorOther}},
+		{"no stage", pathErr(syscall.EACCES),
+			spawnFailure{spawnStageUnknown, spawnErrorPermissionDenied}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, newSpawnFailure(tt.err))
+		})
+	}
+}
+
+// TestSpawnLabels checks that only spawn_failed carries the spawn stage and error class.
+func TestSpawnLabels(t *testing.T) {
+	o := &outcome{}
+	o.addSpawnFailure(atStage(spawnStageWorkDir, &fs.PathError{Op: "mkdir", Path: "/x", Err: syscall.EROFS}))
+	o.add(findingErrorsInLog)
+
+	assert.Equal(t, []finding{findingSpawnFailed, findingErrorsInLog}, o.findings)
+
+	stage, class := o.spawnLabels(findingSpawnFailed)
+	assert.Equal(t, "workdir", stage)
+	assert.Equal(t, "read_only", class)
+
+	stage, class = o.spawnLabels(findingErrorsInLog)
+	assert.Empty(t, stage)
+	assert.Empty(t, class)
 }
 
 // TestReportedLocations covers what the finding metric is tagged with. Only the two findings

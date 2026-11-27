@@ -74,6 +74,25 @@ func PCIInfoToBusID(pciInfo nvml.PciInfo) string {
 	return strings.ToLower(fmt.Sprintf("%04x:%02x:%02x.0", pciInfo.Domain, pciInfo.Bus, pciInfo.Device))
 }
 
+// Widths of the PCI address fields, from the PCI Local Bus specification: 8 bits of bus
+// number and 5 bits of device number. A domain is 16 bits on Linux, but NVML returns it in a
+// 32-bit field, so only an all-ones domain is treated as a placeholder rather than any value
+// above 0xffff.
+const (
+	pciMaxBus            = 0xff
+	pciMaxDevice         = 0x1f
+	pciPlaceholderDomain = 0xffffffff
+)
+
+// IsUnsetPCIInfo reports whether NVML answered with a placeholder instead of a real PCI
+// address. NVLink 5 platforms (HGX B200, GB200 NVL72) answer remote-end queries with SUCCESS
+// and an all-ones FFFFFFFF:FF:FF.0, because the fabric is managed by Fabric Manager and the
+// remote end is not a PCI device the host can see. Callers must check this before formatting
+// a remote address with PCIInfoToBusID, which is a formatter and does not validate.
+func IsUnsetPCIInfo(pciInfo nvml.PciInfo) bool {
+	return pciInfo.Domain == pciPlaceholderDomain || pciInfo.Bus > pciMaxBus || pciInfo.Device > pciMaxDevice
+}
+
 // FabricClusterUUIDFromNVMLInfo formats the native fabric UUID for GPU tags.
 func FabricClusterUUIDFromNVMLInfo(clusterUUID [16]uint8) string {
 	return fmt.Sprintf("%x-%x-%x-%x-%x", clusterUUID[0:4], clusterUUID[4:6], clusterUUID[6:8], clusterUUID[8:10], clusterUUID[10:16])

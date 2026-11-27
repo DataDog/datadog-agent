@@ -1337,7 +1337,7 @@ func newPTraceEventSerializer(e *model.Event) *PTraceEventSerializer {
 	return &PTraceEventSerializer{
 		Request: model.PTraceRequest(e.PTrace.Request).String(),
 		Address: fmt.Sprintf("0x%x", e.PTrace.Address),
-		Tracee:  newProcessContextSerializer(e.PTrace.Tracee, fakeTraceeEvent, nil),
+		Tracee:  newProcessContextSerializer(e.PTrace.Tracee, fakeTraceeEvent, nil, nil),
 	}
 }
 
@@ -1362,7 +1362,7 @@ func newSignalEventSerializer(e *model.Event) *SignalEventSerializer {
 	ses := &SignalEventSerializer{
 		Type:   model.Signal(e.Signal.Type).String(),
 		PID:    e.Signal.PID,
-		Target: newProcessContextSerializer(e.Signal.Target, e, nil),
+		Target: newProcessContextSerializer(e.Signal.Target, e, nil, nil),
 	}
 	return ses
 }
@@ -1535,7 +1535,7 @@ func serializeOutcome(retval int64) string {
 	}
 }
 
-func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule *rules.Rule) *ProcessContextSerializer {
+func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule *rules.Rule, scrubber *utils.Scrubber) *ProcessContextSerializer {
 	if pc == nil || pc.Pid == 0 || e == nil {
 		return nil
 	}
@@ -1544,7 +1544,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule 
 		ProcessSerializer: newProcessSerializer(&pc.Process, e),
 	}
 
-	ps.Variables = newVariablesContext(e, rule, "process.")
+	ps.Variables = newVariablesContext(e, rule, "process.", scrubber)
 
 	// add the syscalls from the event only for the top level parent
 	if e.GetEventType() == model.SyscallsEventType {
@@ -1573,7 +1573,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule 
 
 		// evaluate variables scoped to this ancestor
 		e.ProcessCacheEntry = pce
-		s.Variables = newVariablesContext(e, rule, "process.")
+		s.Variables = newVariablesContext(e, rule, "process.", scrubber)
 		e.ProcessCacheEntry = originalPCE
 
 		ps.Ancestors = append(ps.Ancestors, s)
@@ -1727,7 +1727,7 @@ func newSetrlimitEventSerializer(e *model.Event) *SetrlimitEventSerializer {
 		Resource: model.RlimitResource(e.Setrlimit.Resource).String(),
 		Current:  e.Setrlimit.RlimCur,
 		Max:      e.Setrlimit.RlimMax,
-		Target:   newProcessContextSerializer(e.Setrlimit.Target, fakeTargetEvent, nil),
+		Target:   newProcessContextSerializer(e.Setrlimit.Target, fakeTargetEvent, nil, nil),
 	}
 }
 
@@ -1815,7 +1815,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 			ECSTaskID: event.ProcessContext.ContainerContext.ECSTaskID,
 			Source:    event.ProcessContext.ContainerContext.ContainerSource.String(),
 			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(event.ProcessContext.ContainerContext.CreatedAt))),
-			Variables: newVariablesContext(event, rule, "container."),
+			Variables: newVariablesContext(event, rule, "container.", scrubber),
 		}
 	}
 
@@ -1824,7 +1824,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 			ID:        string(event.ProcessContext.CGroup.CGroupID),
 			Source:    event.ProcessContext.CGroup.CGroupSource.String(),
 			CreatedAt: utils.NewEasyjsonTimeIfNotZero(event.ProcessContext.CGroup.UnixCreatedAt()),
-			Variables: newVariablesContext(event, rule, "cgroup."),
+			Variables: newVariablesContext(event, rule, "cgroup.", scrubber),
 		}
 	}
 

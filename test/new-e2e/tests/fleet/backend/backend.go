@@ -25,6 +25,7 @@ import (
 	"github.com/cenkalti/backoff/v7"
 	"github.com/google/go-containerregistry/pkg/crane"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
+	goversion "github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/nacl/box"
 	"golang.org/x/mod/semver"
@@ -166,7 +167,18 @@ func (b *Backend) StartExperiment(pkg string, version string) error {
 	if err != nil {
 		return fmt.Errorf("error setting catalog: %w", err)
 	}
-	output, err := b.runDaemonCommandWithRestart("start-experiment", pkg, version)
+	var output string
+	// Download and extraction failures precede experiment state changes.
+	err = b.retry(func() error {
+		var err error
+		output, err = b.runDaemonCommandWithRestart("start-experiment", pkg, version)
+		if err != nil && !strings.Contains(err.Error(), "could not download package:") &&
+			!strings.Contains(err.Error(), "could not extract package layer:") &&
+			!strings.Contains(err.Error(), "could not extract package config layer:") {
+			return backoff.Permanent(err)
+		}
+		return err
+	}, backoff.WithMaxTries(3), backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)))
 	if err != nil {
 		return fmt.Errorf("%w, output: %s", err, output)
 	}
@@ -276,10 +288,9 @@ func (c *Catalog) LatestMinus(branch Branch, pkg string, minus int) string {
 // 7.86.1-2). RC and development builds must not become upgrade baselines.
 var releasedPackageVersion = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$`)
 
-var fullPackageVersion = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+([+-].+)?$`)
-
 func validPackageVersion(version string) bool {
-	return fullPackageVersion.MatchString(version) && semver.IsValid("v"+strings.TrimPrefix(version, "v"))
+	_, err := goversion.NewVersion(version)
+	return err == nil
 }
 
 // ErrNoReleasedVersions means the requested minor has no stable packages in the
@@ -293,29 +304,26 @@ var ErrNoReleasedVersions = errors.New("no released package versions")
 // preserving their original spelling. A missing minor is an error, not a reason
 // to substitute another release or silently omit upgrade coverage.
 func (c *Catalog) PreviousMinorVersions(branch Branch, pkg, currentVersion string, minus int) ([]string, error) {
-	current := "v" + strings.TrimPrefix(currentVersion, "v")
-	if !validPackageVersion(currentVersion) {
+	current, err := goversion.NewVersion(currentVersion)
+	if err != nil {
 		return nil, fmt.Errorf("invalid current package version %q", currentVersion)
 	}
 	if minus <= 0 {
 		return nil, fmt.Errorf("minor release offset must be positive, got %d", minus)
 	}
-	major := semver.Major(current)
-	minor, err := strconv.Atoi(strings.TrimPrefix(semver.MajorMinor(current), major+"."))
-	if err != nil {
-		return nil, fmt.Errorf("invalid minor in current package version %q: %w", currentVersion, err)
-	}
+	major, minor := current.Segments()[0], current.Segments()[1]
 	if minus > minor {
-		return nil, fmt.Errorf("minor release offset %d precedes major release %s for %s", minus, major, currentVersion)
+		return nil, fmt.Errorf("minor release offset %d precedes major release %d for %s", minus, major, currentVersion)
 	}
-	wantedMinor := fmt.Sprintf("%s.%d", major, minor-minus)
+	wantedMinor := fmt.Sprintf("%d.%d", major, minor-minus)
 	unique := make(map[string]string)
 	hasReleasedVersion := false
 	for _, entry := range c.packages {
 		if entry.Package != pkg || entry.branch != branch {
 			continue
 		}
-		if !validPackageVersion(entry.Version) {
+		packageVersion, err := goversion.NewVersion(entry.Version)
+		if err != nil {
 			return nil, fmt.Errorf("invalid catalog package version %q for package %s on branch %s", entry.Version, pkg, branch)
 		}
 		if !releasedPackageVersion.MatchString(entry.Version) {
@@ -323,7 +331,7 @@ func (c *Catalog) PreviousMinorVersions(branch Branch, pkg, currentVersion strin
 		}
 		hasReleasedVersion = true
 		normalized := "v" + strings.TrimPrefix(entry.Version, "v")
-		if semver.MajorMinor(normalized) != wantedMinor {
+		if packageVersion.Segments()[0] != major || packageVersion.Segments()[1] != minor-minus {
 			continue
 		}
 		// Prefer the unprefixed spelling if aliases expose both forms, so the
@@ -343,7 +351,7 @@ func (c *Catalog) PreviousMinorVersions(branch Branch, pkg, currentVersion strin
 		versions = append(versions, version)
 	}
 	sort.Slice(versions, func(i, j int) bool {
-		return semver.Compare("v"+strings.TrimPrefix(versions[i], "v"), "v"+strings.TrimPrefix(versions[j], "v")) > 0
+		return goversion.Must(goversion.NewVersion(versions[i])).GreaterThan(goversion.Must(goversion.NewVersion(versions[j])))
 	})
 	return versions, nil
 }
@@ -481,13 +489,19 @@ func (b *Backend) runDaemonCommandWithRestart(command string, args ...string) (s
 	if err != nil {
 		return "", err
 	}
+	// Windows promptly reuses freed PIDs, so the restarted daemon can get its
+	// original PID back; having seen it stopped also proves the restart.
+	daemonStopped := false
 	err = b.retry(func() error {
 		newPID, err := b.getDaemonPID()
+		if errors.Is(err, errDaemonNotRunning) {
+			daemonStopped = true
+		}
 		if err != nil {
 			return err
 		}
-		if newPID == originalPID {
-			return fmt.Errorf("daemon PID %d is still running", newPID)
+		if newPID == originalPID && !daemonStopped {
+			return fmt.Errorf("daemon PID %d is still running and was never seen stopped", newPID)
 		}
 		return nil
 	}, backoff.WithMaxTries(30), backoff.WithBackOff(backoff.NewConstantBackOff(15*time.Second)))
@@ -624,11 +638,13 @@ func (b *Backend) getDaemonPID() (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if pid == "0" {
-		return 0, errors.New("daemon PID is 0")
+	if pid == "0" || pid == "" {
+		return 0, errDaemonNotRunning
 	}
 	return strconv.Atoi(pid)
 }
+
+var errDaemonNotRunning = errors.New("daemon is not running")
 
 func getImageVersion(ref string) (string, error) {
 	p := v1.Platform{

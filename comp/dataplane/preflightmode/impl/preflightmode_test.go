@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"os"
 	"os/signal"
@@ -459,6 +460,29 @@ func (h *harness) findingLocations(t *testing.T, f finding) []sourceLocation {
 	return locations
 }
 
+// spawnFailure returns the spawn stage and error class spawn_failed was reported with.
+func (h *harness) spawnFailure(t *testing.T) spawnFailure {
+	t.Helper()
+	return spawnFailureFrom(t, h.tlm)
+}
+
+// spawnFailureFrom returns the spawn stage and error class spawn_failed was reported with.
+func spawnFailureFrom(t *testing.T, tlm telemetry.Mock) spawnFailure {
+	t.Helper()
+	metrics, err := tlm.GetCountMetric(telemetrySubsystem, metricFinding)
+	require.NoError(t, err)
+	for _, m := range metrics {
+		if m.Tags()[labelFinding] == string(findingSpawnFailed) {
+			return spawnFailure{
+				stage: spawnStage(m.Tags()[labelSpawnStage]),
+				class: spawnErrorClass(m.Tags()[labelSpawnError]),
+			}
+		}
+	}
+	require.Fail(t, "spawn_failed was not reported")
+	return spawnFailure{}
+}
+
 // result returns the single reported result label.
 func (h *harness) result(t *testing.T) string {
 	t.Helper()
@@ -867,6 +891,49 @@ func TestPreflightModeInertWhenBinaryMissing(t *testing.T) {
 	assert.Error(t, err, "a missing binary must not be reported")
 }
 
+// TestReportCarriesEveryLabel checks that every finding point carries the full label set, with
+// the subject labels filled only for log findings and the spawn labels only for spawn_failed.
+// The two sets arrived in separate changes, so this pins that neither leaks into the other's
+// findings.
+func TestReportCarriesEveryLabel(t *testing.T) {
+	keyRec, ok := parseRecord(realErrorIncompatibleKey)
+	require.True(t, ok)
+	workerRec, ok := parseRecord(realErrorSupervisor)
+	require.True(t, ok)
+
+	o := &outcome{records: []logRecord{keyRec, workerRec}}
+	o.addSpawnFailure(atStage(spawnStageWorkDir, &fs.PathError{Op: "mkdir", Path: "/x", Err: syscall.EROFS}))
+	o.add(findingErrorsInLog)
+
+	tlm := telemetrymock.New(t)
+	newReporter(logmock.New(t), tlm).report(o)
+
+	metrics, err := tlm.GetCountMetric(telemetrySubsystem, metricFinding)
+	require.NoError(t, err)
+
+	got := make([]map[string]string, 0, len(metrics))
+	for _, m := range metrics {
+		got = append(got, m.Tags())
+	}
+	// Exact maps, so a missing or extra label fails as surely as a wrong value.
+	assert.ElementsMatch(t, []map[string]string{
+		{
+			labelFinding: string(findingSpawnFailed), labelSourceFile: "", labelSourceLine: "",
+			labelConfigKey: "", labelWorkerName: "", labelSpawnStage: "workdir", labelSpawnError: "read_only",
+		},
+		{
+			labelFinding:    string(findingErrorsInLog),
+			labelSourceFile: "lib/agent-data-plane-config-system/src/compatibility.rs", labelSourceLine: "59",
+			labelConfigKey: "heroku_dyno", labelWorkerName: "", labelSpawnStage: "", labelSpawnError: "",
+		},
+		{
+			labelFinding:    string(findingErrorsInLog),
+			labelSourceFile: "lib/saluki-core/src/runtime/supervisor.rs", labelSourceLine: "938",
+			labelConfigKey: "", labelWorkerName: "primary", labelSpawnStage: "", labelSpawnError: "",
+		},
+	}, got)
+}
+
 // TestPreflightModeReportsUnusableBinary is the flip side: a binary that is present but not
 // runnable is a genuine packaging or permissions problem and must be reported.
 func TestPreflightModeReportsUnusableBinary(t *testing.T) {
@@ -892,6 +959,7 @@ func TestPreflightModeReportsUnusableBinary(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, metrics, 1)
 	assert.Equal(t, string(findingSpawnFailed), metrics[0].Tags()[labelResult])
+	assert.Equal(t, spawnFailure{spawnStageBinary, spawnErrorNotExecutable}, spawnFailureFrom(t, tlm))
 }
 
 // TestPreflightModeUnbindableSocketPath covers a run_path long enough that the socket cannot be
@@ -909,6 +977,25 @@ func TestPreflightModeUnbindableSocketPath(t *testing.T) {
 	h.runToCompletion(t)
 
 	assert.Equal(t, string(findingSpawnFailed), h.result(t))
+	assert.Equal(t, spawnFailure{spawnStageSocketPath, spawnErrorNameTooLong}, h.spawnFailure(t))
+	assert.Empty(t, h.captured(), "the process must not have been started at all")
+}
+
+// TestPreflightModeUncreatableWorkDir covers a run_path the Agent cannot create the working
+// directory under, as on a read-only filesystem, and checks the error class is reported.
+func TestPreflightModeUncreatableWorkDir(t *testing.T) {
+	// A regular file where run_path should be a directory: creating anything under it fails
+	// with ENOTDIR whatever user the test runs as, which a read-only mode would not.
+	runPath := filepath.Join(shortTempDir(t), "run")
+	require.NoError(t, os.WriteFile(runPath, nil, 0600))
+
+	h := newHarness(t, modeNormal, func(cfg pkgconfigmodel.Config) {
+		cfg.Set("run_path", runPath, pkgconfigmodel.SourceAgentRuntime)
+	})
+	h.runToCompletion(t)
+
+	assert.Equal(t, string(findingSpawnFailed), h.result(t))
+	assert.Equal(t, spawnFailure{spawnStageWorkDir, spawnErrorOther}, h.spawnFailure(t))
 	assert.Empty(t, h.captured(), "the process must not have been started at all")
 }
 
@@ -952,6 +1039,7 @@ func TestPreflightModeAbortsWhenWorkDirCannotBeSecured(t *testing.T) {
 	h.runToCompletion(t)
 
 	assert.Equal(t, string(findingSpawnFailed), h.result(t))
+	assert.Equal(t, spawnFailure{spawnStageWorkDirPermissions, spawnErrorOther}, h.spawnFailure(t))
 	assert.Empty(t, h.captured(), "the process must not have been started at all")
 
 	// Nothing may be left behind, least of all a config we could not protect.

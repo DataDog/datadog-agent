@@ -281,7 +281,8 @@ func checkConfigWarnings(runtimeConfigYAML string, cfg config.Component) []strin
 		if idx := strings.IndexByte(name, '/'); idx >= 0 {
 			baseName = name[:idx]
 		}
-		if baseName == "hostmetrics" {
+		// host_metrics is the receiver's current name; hostmetrics its deprecated alias.
+		if baseName == "hostmetrics" || baseName == "host_metrics" {
 			warnings = append(warnings, "The hostmetrics receiver is enabled in connected mode. "+
 				"The core Datadog Agent already collects host metrics. "+
 				"Use standalone mode (DD_OTEL_STANDALONE=true) to avoid metric conflicts.")

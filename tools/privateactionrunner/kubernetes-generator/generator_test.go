@@ -58,6 +58,8 @@ type HorizontalPodAutoscalerInterface interface {
 	HorizontalPodAutoscalerExpansion
 }
 `)
+	writeFixture(t, filepath.Join(root, "k8s.io/client-go/kubernetes/typed/autoscaling/v2/ignored_test.go"), "not Go syntax")
+	writeFixture(t, filepath.Join(root, "k8s.io/client-go/kubernetes/typed/autoscaling/v2/README.md"), "not Go syntax")
 	cfg := targetConfig{Version: "v2", CopyrightYear: 2026, Resources: []string{"HorizontalPodAutoscaler"}}
 	files, err := generateBundle(root, "autoscaling", source, cfg)
 	require.NoError(t, err)
@@ -67,7 +69,7 @@ type HorizontalPodAutoscalerInterface interface {
 		require.NoError(t, err)
 	}
 
-	create := string(files["create_horizontal_pod_autoscaler.gen.go"])
+	create := string(files["create_hpa.gen.go"])
 	for _, want := range []string{
 		`v1 "k8s.io/api/autoscaling/v2"`,
 		`metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"`,
@@ -79,11 +81,11 @@ type HorizontalPodAutoscalerInterface interface {
 	}
 	require.NotContains(t, create, "TypeMeta")
 
-	list := string(files["list_horizontal_pod_autoscaler.gen.go"])
+	list := string(files["list_hpa.gen.go"])
 	require.NotContains(t, list, "namespace is required", "List must allow all namespaces")
 	require.Contains(t, list, "Items:")
 	require.Contains(t, list, "ListMeta:")
-	patch := string(files["patch_horizontal_pod_autoscaler.gen.go"])
+	patch := string(files["patch_hpa.gen.go"])
 	for _, want := range []string{"inputs.PatchFields == nil", "json.Marshal(inputs.Body)", "typesv1.JSONPatchType"} {
 		require.Contains(t, patch, want)
 	}
@@ -96,6 +98,12 @@ type HorizontalPodAutoscalerInterface interface {
 	require.Contains(t, entry, `"zulu":  NewZuluHandler()`)
 	require.NotContains(t, entry, "NewHelperHandler")
 	require.NotContains(t, entry, "NewReceiverHandler")
+	// Admission's bundle directory differs from its SDK package and public types.
+	cfg.APIGroup = "autoscaling"
+	aliased, err := generateBundle(root, "different-directory", source, cfg)
+	require.NoError(t, err)
+	require.Equal(t, files, aliased)
+	cfg.APIGroup = ""
 	cfg.Resources = []string{"MissingResource"}
 	_, err = generateBundle(root, "autoscaling", source, cfg)
 	require.ErrorContains(t, err, "no client interface for resource MissingResource")
@@ -128,47 +136,116 @@ func TestMethodContracts(t *testing.T) {
 	}
 }
 
+func TestActionFilenames(t *testing.T) {
+	for _, tc := range []struct {
+		bundle, name, plural, stem, pluralStem string
+	}{
+		{"admission", "MutatingWebhookConfiguration", "MutatingWebhookConfigurations", "mutating_webhook", "mutating_webhooks"},
+		{"admission", "ValidatingWebhookConfiguration", "ValidatingWebhookConfigurations", "validating_webhook", "validating_webhooks"},
+		{"admission", "ValidatingAdmissionPolicy", "ValidatingAdmissionPolicies", "vap", "vaps"},
+		{"admission", "ValidatingAdmissionPolicyBinding", "ValidatingAdmissionPolicyBindings", "vap_binding", "vap_bindings"},
+		{"autoscaling", "HorizontalPodAutoscaler", "HorizontalPodAutoscalers", "hpa", "hpas"},
+		{"core", "Pod", "Pods", "pod", "pods"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, method := range []string{"Create", "Get", "List", "Update", "Patch", "Delete", "DeleteCollection"} {
+				a, ok := methodAction(method, tc.bundle, targetConfig{}, resource{Name: tc.name, NamePluralized: tc.plural})
+				require.True(t, ok)
+				prefix, stem := snake(method), tc.stem
+				if method == "DeleteCollection" {
+					prefix, stem = "delete_multiple", tc.pluralStem
+				}
+				filename := actionFilename(a.Name)
+				require.Equal(t, prefix+"_"+stem+".gen.go", filename)
+				// Match the Windows checkout prefix and maximum in tasks/linter.py:filenames.
+				rel := "pkg/privateactionrunner/bundles/kubernetes/" + tc.bundle + "/" + filename
+				require.LessOrEqual(t, 159+len(rel), 255, rel)
+			}
+		})
+	}
+}
+
+func TestListNamespaceValidation(t *testing.T) {
+	for _, required := range []bool{false, true} {
+		for _, namespaced := range []bool{false, true} {
+			cfg := targetConfig{Version: "v1", ListNamespaceRequired: required}
+			res := resource{Name: "Role", NamePluralized: "Roles", Namespaced: namespaced}
+			a, ok := methodAction("List", "rbac", cfg, res)
+			require.True(t, ok)
+			contents, err := render("actions", a)
+			require.NoError(t, err)
+			if namespaced && required {
+				require.Contains(t, string(contents), `errors.New("namespace is required")`)
+			} else {
+				require.NotContains(t, string(contents), `errors.New("namespace is required")`)
+			}
+		}
+	}
+}
+
+func TestRunRejectsUnconfiguredGeneratedBundles(t *testing.T) {
+	for _, checkout := range []string{"source", "agent[dev]", "agent["} {
+		t.Run(checkout, func(t *testing.T) {
+			root := t.TempDir()
+			source := filepath.Join(root, checkout)
+			filename := filepath.Join(source, "newbundle", "get_resource.gen.go")
+			writeFixture(t, filename, "existing generated file")
+			for _, check := range []bool{false, true} {
+				err := run(root, "", source, source, check)
+				require.ErrorContains(t, err, `unconfigured generated bundle "newbundle"`)
+				contents, err := os.ReadFile(filename)
+				require.NoError(t, err)
+				require.Equal(t, "existing generated file", string(contents))
+			}
+		})
+	}
+}
+
 func TestRunCheckAndCleanup(t *testing.T) {
-	root := t.TempDir()
-	source := filepath.Join(root, "source")
-	out := filepath.Join(root, "out")
-	writeFixture(t, filepath.Join(source, "discovery/helper.go"), "package discovery\n")
-	writeFixture(t, filepath.Join(root, "k8s.io/api/discovery/v1/types.go"), `package v1
+	for _, checkout := range []string{"source", "agent[dev]", "agent["} {
+		t.Run(checkout, func(t *testing.T) {
+			root := filepath.Join(t.TempDir(), checkout)
+			source := filepath.Join(root, "source")
+			out := filepath.Join(root, "out")
+			writeFixture(t, filepath.Join(source, "discovery/helper.go"), "package discovery\n")
+			writeFixture(t, filepath.Join(root, "k8s.io/api/discovery/v1/types.go"), `package v1
 type EndpointSlice struct { AddressType string }
 `)
-	writeFixture(t, filepath.Join(root, "k8s.io/client-go/kubernetes/typed/discovery/v1/slice.go"), `package v1
+			writeFixture(t, filepath.Join(root, "k8s.io/client-go/kubernetes/typed/discovery/v1/slice.go"), `package v1
 type EndpointSlicesGetter interface { EndpointSlices(namespace string) EndpointSliceInterface }
 type EndpointSliceInterface interface { Get() }
 `)
-	require.ErrorContains(t, run(root, "discovery", source, out, true), "stale generated files")
-	require.NoDirExists(t, out, "check must not create output directory")
-	require.NoError(t, run(root, "discovery", source, out, false))
-	require.NoError(t, run(root, "discovery", source, out, true))
-	filename := filepath.Join(out, "discovery/get_endpoint_slice.gen.go")
-	before, err := os.ReadFile(filename)
-	require.NoError(t, err)
-	writeFixture(t, filename, "stale content")
-	obsolete := filepath.Join(out, "discovery/obsolete.gen.go")
-	writeFixture(t, obsolete, "old action")
-	handwritten := filepath.Join(out, "discovery/manual.go")
-	writeFixture(t, handwritten, "handwritten")
-	unselected := filepath.Join(out, "core/keep.gen.go")
-	writeFixture(t, unselected, "unselected bundle")
+			require.ErrorContains(t, run(root, "discovery", source, out, true), "stale generated files")
+			require.NoDirExists(t, out, "check must not create output directory")
+			require.NoError(t, run(root, "discovery", source, out, false))
+			require.NoError(t, run(root, "discovery", source, out, true))
+			filename := filepath.Join(out, "discovery/get_endpoint_slice.gen.go")
+			before, err := os.ReadFile(filename)
+			require.NoError(t, err)
+			writeFixture(t, filename, "stale content")
+			obsolete := filepath.Join(out, "discovery/obsolete.gen.go")
+			writeFixture(t, obsolete, "old action")
+			handwritten := filepath.Join(out, "discovery/manual.go")
+			writeFixture(t, handwritten, "handwritten")
+			unselected := filepath.Join(out, "core/keep.gen.go")
+			writeFixture(t, unselected, "unselected bundle")
 
-	err = run(root, "discovery", source, out, true)
-	require.ErrorContains(t, err, "obsolete.gen.go")
-	require.ErrorContains(t, err, "get_endpoint_slice.gen.go")
-	got, err := os.ReadFile(filename)
-	require.NoError(t, err)
-	require.Equal(t, "stale content", string(got), "check must not modify files")
-	require.FileExists(t, obsolete, "check must not remove files")
+			err = run(root, "discovery", source, out, true)
+			require.ErrorContains(t, err, "obsolete.gen.go")
+			require.ErrorContains(t, err, "get_endpoint_slice.gen.go")
+			got, err := os.ReadFile(filename)
+			require.NoError(t, err)
+			require.Equal(t, "stale content", string(got), "check must not modify files")
+			require.FileExists(t, obsolete, "check must not remove files")
 
-	require.NoError(t, run(root, "discovery", source, out, false))
-	got, err = os.ReadFile(filename)
-	require.NoError(t, err)
-	require.Equal(t, before, got, "regeneration must restore deterministic output")
-	require.NoFileExists(t, obsolete)
-	require.FileExists(t, handwritten)
-	require.FileExists(t, unselected)
-	require.ErrorContains(t, run(root, "unknown", source, out, false), "unknown bundle")
+			require.NoError(t, run(root, "discovery", source, out, false))
+			got, err = os.ReadFile(filename)
+			require.NoError(t, err)
+			require.Equal(t, before, got, "regeneration must restore deterministic output")
+			require.NoFileExists(t, obsolete)
+			require.FileExists(t, handwritten)
+			require.FileExists(t, unselected)
+			require.ErrorContains(t, run(root, "unknown", source, out, false), "unknown bundle")
+		})
+	}
 }

@@ -147,6 +147,9 @@
       Use eBPF mmapable maps: {{ .UseMmapableMaps }}
       Use eBPF ring buffer: {{ .UseRingBuffer }}
       Use fentry: {{ .UseFentry }}
+      {{- if .UseTCX }}
+      Use TCX: {{ .UseTCX }}
+      {{- end }}
       {{ if .Constants }}
       Available constant fetchers
       ===========================

@@ -474,7 +474,14 @@ func extractEnvFromSpec(envSpec []kubelet.EnvVar) map[string]string {
 		ok := true
 		runtimeVal := e.Value
 		if runtimeVal != "" {
-			runtimeVal, ok = expansion.Expand(runtimeVal, mappingFunc)
+			var err error
+			runtimeVal, ok, err = expansion.ExpandWithLimit(runtimeVal, mappingFunc, containers.MaxEnvVarValueLen)
+			if err != nil {
+				// Drop the variable so later references to it stay unresolved.
+				log.Debugf("ignoring env var %q: %s", e.Name, err)
+				delete(env, e.Name)
+				continue
+			}
 		}
 
 		// Ignore environment variables that failed to expand

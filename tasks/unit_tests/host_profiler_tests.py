@@ -21,7 +21,7 @@ class TestGetProfilerAgentVersion(unittest.TestCase):
             patch.object(host_profiler, "get_current_milestone", return_value="7.81.0"),
             patch.object(
                 host_profiler,
-                "query_version",
+                "query_version_cached",
                 return_value=("7.81.0", "", 356, "09ad4bc", None),
             ),
         ):

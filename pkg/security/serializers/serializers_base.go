@@ -499,11 +499,11 @@ func NewBaseEventSerializer(event *model.Event, rule *rules.Rule, scrubber *util
 	s := &BaseEventSerializer{
 		EventContextSerializer: EventContextSerializer{
 			Name:        eventType.String(),
-			Variables:   newVariablesContext(event, rule, ""),
+			Variables:   newVariablesContext(event, rule, "", scrubber),
 			RuleContext: newRuleContext(event, rule, scrubber),
 			Source:      event.Source,
 		},
-		ProcessContextSerializer: newProcessContextSerializer(pc, event, rule),
+		ProcessContextSerializer: newProcessContextSerializer(pc, event, rule, scrubber),
 		Date:                     utils.NewEasyjsonTime(event.ResolveEventTime()),
 	}
 
@@ -545,6 +545,11 @@ func newRuleContext(e *model.Event, rule *rules.Rule, scrubber *utils.Scrubber) 
 		}
 
 		value := valuePos.Value
+		if strings.HasSuffix(valuePos.Field, ".env") {
+			value = maskEnvValue(value)
+		} else if strings.HasSuffix(valuePos.Field, ".envp") {
+			value = filterEnvpValue(value, scrubber)
+		}
 		switch value := value.(type) {
 		case []string:
 			scrubbedValues := make([]string, 0, len(value))
@@ -562,7 +567,51 @@ func newRuleContext(e *model.Event, rule *rules.Rule, scrubber *utils.Scrubber) 
 	return ruleContext
 }
 
-func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (variables Variables) {
+// maskEnvValue masks the value of an environment variable of a process
+func maskEnvValue(value interface{}) interface{} {
+	switch value := value.(type) {
+	case []string:
+		masked := make([]string, len(value))
+		for i := range masked {
+			masked[i] = maskedValue
+		}
+		return masked
+	default:
+		return maskedValue
+	}
+}
+
+// filterEnvpValue filters the envp entries, KEY=value, of the environment of a
+// process on envs_with_value
+func filterEnvpValue(value interface{}, scrubber *utils.Scrubber) interface{} {
+	switch value := value.(type) {
+	case []string:
+		filtered := make([]string, len(value))
+		for i, entry := range value {
+			filtered[i] = scrubber.FilterEnv(entry)
+		}
+		return filtered
+	case string:
+		return scrubber.FilterEnv(value)
+	default:
+		return value
+	}
+}
+
+// maskedValue replaces a value that isn't serialized
+const maskedValue = "********"
+
+// isEnvValueHidden returns whether the value of a variable read from the
+// environment variables of a process isn't serialized: one of them is evaluated
+// per event, or isn't listed in envs_with_value
+func isEnvValueHidden(opts eval.VariableOpts, scrubber *utils.Scrubber) bool {
+	if opts.EnvKeyEvaluated {
+		return true
+	}
+	return slices.ContainsFunc(opts.EnvKeys, func(key string) bool { return !scrubber.IsEnvWithValue(key) })
+}
+
+func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string, secScrubber *utils.Scrubber) (variables Variables) {
 	if rule != nil && rule.Opts != nil && rule.Opts.VariableStore != nil {
 		store := rule.Opts.VariableStore
 		for name, variable := range store.Variables {
@@ -580,9 +629,17 @@ func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (varia
 				continue
 			}
 
-			// Skip private variables
-			if variable.GetVariableOpts().Private {
+			// Skip private variables, and the ones read from environment
+			// variables whose values aren't serialized
+			opts := variable.GetVariableOpts()
+			if opts.Private || isEnvValueHidden(opts, secScrubber) {
 				continue
+			}
+			filterEnv := func(value string) string {
+				if opts.EnvFiltered {
+					return secScrubber.FilterEnv(value)
+				}
+				return value
 			}
 
 			evaluator := variable.GetEvaluator()
@@ -597,13 +654,13 @@ func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (varia
 					case []string:
 						scrubbedValues := make([]string, 0, len(value))
 						for _, elem := range value {
-							if scrubbed, err := scrubber.ScrubString(elem); err == nil {
+							if scrubbed, err := scrubber.ScrubString(filterEnv(elem)); err == nil {
 								scrubbedValues = append(scrubbedValues, scrubbed)
 							}
 						}
 						variables[trimmedName] = scrubbedValues
 					case string:
-						if scrubbed, err := scrubber.ScrubString(value); err == nil {
+						if scrubbed, err := scrubber.ScrubString(filterEnv(value)); err == nil {
 							variables[trimmedName] = scrubbed
 						}
 					default:

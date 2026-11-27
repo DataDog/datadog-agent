@@ -33,6 +33,7 @@ func TestPreflightModeLinuxSuite(t *testing.T) {
 			return err
 		},
 		grepPreflightMode: nixGrepPreflightMode,
+		appendAgentConfig: nixAppendAgentConfig("/etc/datadog-agent/datadog.yaml"),
 	}
 
 	e2e.Run(t, suite, suite.suiteOptions()...)

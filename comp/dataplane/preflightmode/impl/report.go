@@ -66,6 +66,10 @@ const (
 	// and are only populated for the few log sites listed in subjectTargets. See normalizeSubject.
 	labelConfigKey  = "config_key"
 	labelWorkerName = "worker_name"
+	// labelSpawnStage and labelSpawnError carry the step a spawn_failed run failed at and the
+	// class of the error, and are only populated for that finding. See spawnFailure.
+	labelSpawnStage = "spawn_stage"
+	labelSpawnError = "spawn_error"
 )
 
 // maxReportedLocations bounds how many distinct log sites one finding is reported with.
@@ -101,6 +105,7 @@ const probeMetricName = "n_o_i_n_d_e_x.datadog.agent.data_plane.preflight_mode.p
 type outcome struct {
 	findings        []finding
 	records         []logRecord // parsed ADP output; local only
+	spawn           spawnFailure
 	durationSeconds float64
 }
 
@@ -112,6 +117,21 @@ func (o *outcome) add(f finding) {
 		}
 	}
 	o.findings = append(o.findings, f)
+}
+
+// addSpawnFailure records findingSpawnFailed along with the stage and class of err.
+func (o *outcome) addSpawnFailure(err error) {
+	o.spawn = newSpawnFailure(err)
+	o.add(findingSpawnFailed)
+}
+
+// spawnLabels returns the spawn stage and error class the finding is reported with. Both are
+// empty for every finding but findingSpawnFailed, for the same reason locationNone is.
+func (o *outcome) spawnLabels(f finding) (string, string) {
+	if f != findingSpawnFailed {
+		return "", ""
+	}
+	return string(o.spawn.stage), string(o.spawn.class)
 }
 
 // reportedLocations returns the log sites the finding is reported with, one point each.
@@ -200,14 +220,15 @@ func (o *outcome) result() string {
 
 // reporter ships the outcome of a preflight mode run.
 //
-// What reaches Datadog stays bounded: the result and finding labels come from the constants
-// above, and the only values read out of ADP's output are the log site a finding came from —
-// a file path and a line number, which ADP's logger fills in from file!() and line!(), so they
-// are compile-time constants of its build rather than anything operator-controlled — and, for a
-// few known log sites, the config key or worker name the record names. Those come from closed,
-// code-determined sets; see subjectTargets. All of them are validated and the number of distinct
-// locations per finding is capped, because cardinality here is a cost paid by every Agent in the
-// fleet. Nothing derived from a log *message* is shipped, and no configuration value is.
+// What reaches Datadog stays bounded: the result, finding, spawn stage and spawn error labels
+// come from constants, and the only values read out of ADP's output are the log site a finding
+// came from — a file path and a line number, which ADP's logger fills in from file!() and
+// line!(), so they are compile-time constants of its build rather than anything
+// operator-controlled — and, for a few known log sites, the config key or worker name the record
+// names. Those come from closed, code-determined sets; see subjectTargets. All of them are
+// validated and the number of distinct locations per finding is capped, because cardinality here
+// is a cost paid by every Agent in the fleet. Nothing derived from a log *message* is shipped,
+// and no configuration value is.
 type reporter struct {
 	log      logcomp.Component
 	result   telemetry.Counter
@@ -221,8 +242,8 @@ func newReporter(log logcomp.Component, tlm telemetry.Component) *reporter {
 		result: tlm.NewCounter(telemetrySubsystem, metricResult, []string{labelResult},
 			"Outcome of the most recent Agent Data Plane preflight-mode run"),
 		finding: tlm.NewCounter(telemetrySubsystem, metricFinding,
-			[]string{labelFinding, labelSourceFile, labelSourceLine, labelConfigKey, labelWorkerName},
-			"Individual problems observed during an Agent Data Plane preflight-mode run, tagged with the Agent Data Plane source location that logged the problem where it has one, and the config key or worker name it names where it has one"),
+			[]string{labelFinding, labelSourceFile, labelSourceLine, labelConfigKey, labelWorkerName, labelSpawnStage, labelSpawnError},
+			"Individual problems observed during an Agent Data Plane preflight-mode run, tagged with the Agent Data Plane source location that logged the problem and the config key or worker name it names where it has them, and with the stage and error class of a failure to start Agent Data Plane"),
 		duration: tlm.NewGauge(telemetrySubsystem, metricDuration, nil,
 			"Wall-clock seconds the most recent Agent Data Plane preflight-mode run took"),
 	}
@@ -247,8 +268,9 @@ func (r *reporter) report(o *outcome) {
 		// counted across the fleet by where in ADP it was logged from. A finding with several
 		// sites is therefore several points: the per-site count is what identifies the failure,
 		// while the count of runs that hit the finding at all comes from the result metric.
+		stage, class := o.spawnLabels(f)
 		for _, loc := range o.reportedLocations(f) {
-			r.finding.Inc(string(f), loc.file, loc.line, loc.configKey, loc.workerName)
+			r.finding.Inc(string(f), loc.file, loc.line, loc.configKey, loc.workerName, stage, class)
 		}
 	}
 

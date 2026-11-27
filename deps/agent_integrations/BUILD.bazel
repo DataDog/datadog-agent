@@ -2,6 +2,7 @@ load("@py_agent_integrations_tool_requirements//:requirements.bzl", "requirement
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_attributes", "pkg_filegroup", "pkg_files")
 load("@rules_python//python:py_binary.bzl", "py_binary")
+load("//bazel/rules/dd_strip:dd_strip.bzl", "dd_strip_symbols")
 load("//compliance:package_licenses.bzl", "package_licenses")
 load("//packages/rules:agent_path.bzl", "conf_dir")
 load(":defs.bzl", "install_wheels")
@@ -65,6 +66,12 @@ filegroup(
     tags = ["manual"],
 )
 
+dd_strip_symbols(
+    name = "integrations_runtime_stripped",
+    src = "integrations_runtime",
+    tags = ["manual"],
+)
+
 filegroup(
     name = "integrations_bin",
     srcs = [":integrations"],
@@ -74,14 +81,14 @@ filegroup(
 
 pkg_files(
     name = "integrations_runtime_files",
-    srcs = [":integrations_runtime"],
+    srcs = [":integrations_runtime_stripped"],
     attributes = pkg_attributes(
         mode = "0644",
         rpm_own_tree_dirs = True,
     ),
     prefix = embedded_dir,
     renames = {
-        ":integrations_runtime": REMOVE_BASE_DIRECTORY,
+        ":integrations_runtime_stripped": REMOVE_BASE_DIRECTORY,
     },
     tags = ["manual"],
     visibility = ["//packages:__subpackages__"],

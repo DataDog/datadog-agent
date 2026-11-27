@@ -346,8 +346,8 @@ agent_telemetry:
 		atel = createAtel(cfg, log, makeTelMock(t), &senderMock{}, &runnerMock{})
 	})
 	require.NotNil(t, atel)
-	require.NotNil(t, atel.errLogsCh)
-	assert.Equal(t, defaultErrortrackingBufferSize, cap(atel.errLogsCh))
+	require.NotNil(t, testQueue(atel))
+	assert.Equal(t, defaultErrortrackingBufferSize, cap(testQueue(atel)))
 }
 
 func TestCreateAtel_NegativeErrortrackingValuesFallbackToSafeDefaults(t *testing.T) {
@@ -393,8 +393,8 @@ agent_telemetry:
     shutdown_drain_timeout_seconds: 0
 `, &senderMock{}, nil, runner)
 
-	require.NotNil(t, atel.errLogsCh)
-	assert.Equal(t, 0, cap(atel.errLogsCh))
+	require.NotNil(t, testQueue(atel))
+	assert.Equal(t, 0, cap(testQueue(atel)))
 	assert.Equal(t, time.Duration(0), atel.errLogsFlushInterval)
 	assert.Equal(t, time.Duration(0), atel.errLogsStartupJitter)
 	assert.Equal(t, time.Duration(0), atel.shutdownDrainTimeout)
@@ -3209,9 +3209,9 @@ func TestAgentPerformanceProfilePreservesContainerTags(t *testing.T) {
 // timeseries summed into the others, which would collapse every distinct finding into one
 // meaningless number — and for source_file/source_line, every log site a finding was
 // reported from into one, and for config_key/worker_name, every key or worker a log site
-// named into one. The matching tripwires on the producing side are
-// TestFindingsAreAllowlisted and TestTelemetryNamesAreStable in
-// comp/dataplane/preflightmode/impl.
+// named into one, and for spawn_stage/spawn_error, every way a spawn can fail into one. The
+// matching tripwires on the producing side are TestFindingsAreAllowlisted and
+// TestTelemetryNamesAreStable in comp/dataplane/preflightmode/impl.
 func TestDataPlanePreflightModeProfile(t *testing.T) {
 	cfg := configmock.NewFromYAML(t, defaultProfiles)
 	atCfg, err := parseConfig(cfg)
@@ -3229,7 +3229,7 @@ func TestDataPlanePreflightModeProfile(t *testing.T) {
 
 	wantTags := map[string][]string{
 		"data_plane.preflight_mode_result":           {"result"},
-		"data_plane.preflight_mode_finding":          {"finding", "source_file", "source_line", "config_key", "worker_name"},
+		"data_plane.preflight_mode_finding":          {"finding", "source_file", "source_line", "config_key", "worker_name", "spawn_stage", "spawn_error"},
 		"data_plane.preflight_mode_duration_seconds": nil,
 	}
 
@@ -3269,17 +3269,18 @@ func TestDataPlanePreflightModeProfile(t *testing.T) {
 // TestDataPlanePreflightModeFindingExport runs the preflight finding metric through the real
 // default profile and the exporter, rather than only reading the allowlist. Two config keys
 // logged from the same site, and a supervisor finding, must reach the payload as separate
-// timeseries with their tags intact.
+// timeseries with their tags intact, alongside a spawn_failed finding carrying its spawn labels.
 func TestDataPlanePreflightModeFindingExport(t *testing.T) {
 	tel := makeTelMock(t)
 	finding := tel.NewCounter("data_plane", "preflight_mode_finding",
-		[]string{"finding", "source_file", "source_line", "config_key", "worker_name"}, "")
+		[]string{"finding", "source_file", "source_line", "config_key", "worker_name", "spawn_stage", "spawn_error"}, "")
 
 	const compat = "lib/agent-data-plane-config-system/src/compatibility.rs"
 	const supervisor = "lib/saluki-core/src/runtime/supervisor.rs"
-	finding.Inc("errors_in_log", compat, "59", "heroku_dyno", "")
-	finding.Inc("errors_in_log", compat, "59", "otlp_config.receiver.protocols.http.tls.cert_pem", "")
-	finding.Inc("errors_in_log", supervisor, "1421", "", "ctrl-pln/privileged-api")
+	finding.Inc("errors_in_log", compat, "59", "heroku_dyno", "", "", "")
+	finding.Inc("errors_in_log", compat, "59", "otlp_config.receiver.protocols.http.tls.cert_pem", "", "", "")
+	finding.Inc("errors_in_log", supervisor, "1421", "", "ctrl-pln/privileged-api", "", "")
+	finding.Inc("spawn_failed", "", "", "", "", "workdir", "read_only")
 
 	// No profiles are configured, so the default profiles apply.
 	s := &senderMock{}
@@ -3296,15 +3297,17 @@ func TestDataPlanePreflightModeFindingExport(t *testing.T) {
 		}
 	}
 	metrics := makeStableMetricMap(sent)
-	require.Len(t, metrics, 3, "each config key and worker must be its own timeseries")
+	require.Len(t, metrics, 4, "each config key, worker and spawn failure must be its own timeseries")
 
-	key := func(file, line, configKey, workerName string) string {
-		return "config_key:" + configKey + ":finding:errors_in_log:source_file:" + file +
-			":source_line:" + line + ":worker_name:" + workerName + ":"
+	key := func(f, file, line, configKey, workerName, stage, class string) string {
+		return "config_key:" + configKey + ":finding:" + f + ":source_file:" + file +
+			":source_line:" + line + ":spawn_error:" + class + ":spawn_stage:" + stage +
+			":worker_name:" + workerName + ":"
 	}
-	assert.Contains(t, metrics, key(compat, "59", "heroku_dyno", ""))
-	assert.Contains(t, metrics, key(compat, "59", "otlp_config.receiver.protocols.http.tls.cert_pem", ""))
-	assert.Contains(t, metrics, key(supervisor, "1421", "", "ctrl-pln/privileged-api"))
+	assert.Contains(t, metrics, key("errors_in_log", compat, "59", "heroku_dyno", "", "", ""))
+	assert.Contains(t, metrics, key("errors_in_log", compat, "59", "otlp_config.receiver.protocols.http.tls.cert_pem", "", "", ""))
+	assert.Contains(t, metrics, key("errors_in_log", supervisor, "1421", "", "ctrl-pln/privileged-api", "", ""))
+	assert.Contains(t, metrics, key("spawn_failed", "", "", "", "", "workdir", "read_only"))
 }
 
 func TestAgentTelemetryParseDefaultConfiguration(t *testing.T) {
@@ -3671,6 +3674,7 @@ agent_telemetry:
 
 // NewComponent must export the subscriber so the remoteflags component can
 // pick it up through the fx group, including when agent telemetry is disabled.
+// A disabled component subscribes only the profile flag.
 func TestRemoteFlagSubscriberIsProvided(t *testing.T) {
 	for _, enabled := range []bool{true, false} {
 		provides := NewComponent(Requires{
@@ -3681,8 +3685,14 @@ func TestRemoteFlagSubscriberIsProvided(t *testing.T) {
 
 		require.NotNil(t, provides.Subscriber)
 		handlers := provides.Subscriber.Handlers()
-		require.Len(t, handlers, 1)
+		require.NotEmpty(t, handlers)
 		assert.Equal(t, pkgremoteflags.FlagName(flagTroubleshooting), handlers[0].FlagName())
+		if !enabled {
+			require.Len(t, handlers, 1)
+			continue
+		}
+		require.Len(t, handlers, 2)
+		assert.Equal(t, pkgremoteflags.FlagName(flagErrortracking), handlers[1].FlagName())
 	}
 }
 

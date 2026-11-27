@@ -12,10 +12,10 @@
   script:
     - PACKAGE_VERSION="$(dda inv -- agent.version --url-safe)" || exit $?
     - export PACKAGE_VERSION
-    - bazel build $BAZEL_PACKAGE_FLAGS $BAZEL_PACKAGE_TARGETS
+    - bazel build --//:install_stripped_binaries $BAZEL_PACKAGE_FLAGS $BAZEL_PACKAGE_TARGETS
     - mkdir -p "$BAZEL_PACKAGE_DIR"
     - EXECUTION_ROOT="$(bazel info execution_root)"
-    - PACKAGE_FILES="$(bazel cquery $BAZEL_PACKAGE_FLAGS --output=files "set($BAZEL_PACKAGE_TARGETS)")" || exit $?
+    - PACKAGE_FILES="$(bazel cquery --//:install_stripped_binaries $BAZEL_PACKAGE_FLAGS --output=files "set($BAZEL_PACKAGE_TARGETS)")" || exit $?
     - |
       for file in $PACKAGE_FILES; do
         case "$file" in
@@ -44,7 +44,6 @@
 bazel:package:linux-amd64:
   extends: [.bazel:runner:linux-amd64, .bazel:package]
   variables:
-    BAZEL_PACKAGE_FLAGS: "--//:install_stripped_binaries"
     BAZEL_PACKAGE_TARGETS: "//packages/agent/linux:debian //packages/agent/linux:debian_dbg //packages/agent/linux:rpm //packages/agent/linux:rpm_dbg"
     BAZEL_PACKAGE_REQUIRED_FILES: test/required_files/agent
 
@@ -52,7 +51,7 @@ bazel:package:linux-amd64:
   extends: .bazel:package
   variables:
     BAZEL_PACKAGE_FLAGS: "--//packages/agent:flavor=iot"
-    BAZEL_PACKAGE_TARGETS: "//packages/iot:debian //packages/iot:rpm"
+    BAZEL_PACKAGE_TARGETS: "//packages/iot:debian //packages/iot:debian_dbg //packages/iot:rpm //packages/iot:rpm_dbg"
     BAZEL_PACKAGE_REQUIRED_FILES: test/required_files/iot-agent
 
 bazel:package:iot:linux-amd64:
@@ -74,4 +73,9 @@ bazel:package:iot:suse-amd64:
   variables:
     BAZEL_PACKAGE_DIR: bazel-packages/suse
     BAZEL_PACKAGE_FLAGS: "--//packages/agent:flavor=iot --//packages/agent:host_distribution=suse"
-    BAZEL_PACKAGE_TARGETS: "//packages/iot:rpm"
+    BAZEL_PACKAGE_TARGETS: "//packages/iot:rpm //packages/iot:rpm_dbg"
+
+bazel:package:heroku:linux-amd64:
+  extends: [.bazel:runner:linux-amd64, .bazel:package]
+  variables:
+    BAZEL_PACKAGE_TARGETS: "//packages/heroku:debian //packages/heroku:debian_dbg"

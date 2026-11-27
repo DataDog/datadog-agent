@@ -34,7 +34,6 @@ post-validation:
     POST_VALIDATION_PARENT_BRANCH: $CI_COMMIT_BRANCH
     POST_VALIDATION_PARENT_TAG: $CI_COMMIT_TAG
     POST_VALIDATION_CLEANUP_ENABLED: "true"
-    DDCI_REQUEST_ID: $DDCI_REQUEST_ID
   trigger:
     include:
       - local: .gitlab/childs/post-validation.yml

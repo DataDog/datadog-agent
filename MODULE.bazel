@@ -308,10 +308,7 @@ llvm_bpf_ext.configure(
 )
 use_repo(llvm_bpf_ext, "llvm_bpf_amd64", "llvm_bpf_arm64")
 
-register_toolchains(
-    "@llvm_bpf_amd64//:toolchain",
-    "@llvm_bpf_arm64//:toolchain",
-)
+register_toolchains("//bazel/toolchains/llvm_bpf:all")
 
 ## Linux kernel headers for eBPF prebuilt compilation
 ## Registers three repos: host auto-detect + explicit x86_64 + explicit aarch64
@@ -369,6 +366,7 @@ archive_override(
         "//bazel/patches:gcc-toolchain/0003-add-nostdinc-to-asmflags.patch",
         "//bazel/patches:gcc-toolchain/0006-independent-exec-target-arch.patch",
         "//bazel/patches:gcc-toolchain/0007-link-cxx-against-libstdcxx-by-default.patch",  # f0rmiga/gcc-toolchain#221
+        "//bazel/patches:gcc-toolchain/0008-link-default-libs-as-needed.patch",
     ],
     sha256 = "9602cf9a7f854a9a70758e6eac241e269996d2a1eb941479e8886f4ccf127412",
     strip_prefix = "gcc-toolchain-0.12.1",
@@ -618,7 +616,7 @@ include("//deps/nfsiostat:nfsiostat.MODULE.bazel")
 include("//deps/openscap:openscap.MODULE.bazel")
 
 # buildifier: leave-alone
-include("//deps/pulumi_plugins:pulumi_plugins.MODULE.bazel")
+include("//deps/pulumi:pulumi.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/libpcap:libpcap.MODULE.bazel")
