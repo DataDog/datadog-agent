@@ -44,6 +44,13 @@ platform(
     constraint_values = [
         "@platforms//os:linux",
         "@platforms//cpu:armv7",
+        # Only read by hermetic-llvm. On aarch64 Linux hosts GCC wins because it is registered first;
+        # opt in with --extra_toolchains=@llvm_toolchains//:all. Other hosts have no GCC armv7
+        # toolchain and fall back to hermetic-llvm.
+        "@llvm//constraints/cxxstdlib:libstdcxx.13.2.0",
+        "@llvm//constraints/fpu:vfpv3-d16",
+        "@llvm//constraints/kernel/linux:6.4",
+        "@llvm//constraints/libc:gnu.2.17",  # same floor as the GCC armv7 sysroot
     ],
 )
 
