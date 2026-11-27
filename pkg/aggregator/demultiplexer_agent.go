@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
@@ -169,11 +168,6 @@ func initAgentDemultiplexer(log log.Component,
 	hostname string) *AgentDemultiplexer {
 	// prepare the multiple forwarders
 	// -------------------------------
-	if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") && pkgconfigsetup.Datadog().GetBool("telemetry.dogstatsd_origin") && !pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store") {
-		log.Warn("DogStatsD origin telemetry is not supported when aggregator_use_tags_store is disabled.")
-		pkgconfigsetup.Datadog().Set("telemetry.dogstatsd_origin", false, model.SourceAgentRuntime)
-	}
-
 	// prepare the serializer
 	// ----------------------
 
@@ -199,7 +193,7 @@ func initAgentDemultiplexer(log log.Component,
 
 	for i := 0; i < statsdPipelinesCount; i++ {
 		// the sampler
-		tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
+		tagsStore := tags.NewStore(fmt.Sprintf("timesampler #%d", i))
 
 		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, tagger, agg.hostname)
 		statsdSampler.dogStatsDLookback = options.DogStatsDLookback
@@ -427,7 +421,7 @@ func (d *AgentDemultiplexer) flushLoop() {
 			if ok && trigger != nil {
 				// Final flush requested
 				shutdownEvent := d.takePendingShutdownEvent()
-				d.flushToSerializer(trigger.time, trigger.waitForSerializer, trigger.forceFlushAll)
+				d.flushToSerializer(*trigger)
 				d.sendAgentShutdownEvent(shutdownEvent)
 				if trigger.blockChan != nil {
 					trigger.blockChan <- struct{}{}
@@ -436,13 +430,13 @@ func (d *AgentDemultiplexer) flushLoop() {
 			return
 		// manual flush sequence
 		case trigger := <-d.flushChan:
-			d.flushToSerializer(trigger.time, trigger.waitForSerializer, trigger.forceFlushAll)
+			d.flushToSerializer(trigger)
 			if trigger.blockChan != nil {
 				trigger.blockChan <- struct{}{}
 			}
 		// automatic flush sequence
 		case t := <-flushTicker:
-			d.flushToSerializer(t, false, false)
+			d.flushToSerializer(trigger{time: t})
 		}
 	}
 }
@@ -476,6 +470,7 @@ func (d *AgentDemultiplexer) Stop() {
 		blockChan:         make(chan struct{}),
 		waitForSerializer: true,
 		forceFlushAll:     forceFlushAll,
+		final:             true,
 	}
 
 	select {
@@ -546,7 +541,9 @@ func (d *AgentDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSeri
 // If one day a better (faster?) solution is needed, we could either consider:
 // - to have an implementation of SendIterableSeries listening on multiple sinks in parallel, or,
 // - to have a thread-safe implementation of the underlying `util.BufferedChan`.
-func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerializer bool, forceFlushAll bool) {
+func (d *AgentDemultiplexer) flushToSerializer(flush trigger) {
+	start, waitForSerializer, forceFlushAll := flush.time, flush.waitForSerializer, flush.forceFlushAll
+
 	d.m.RLock()
 	defer d.m.RUnlock()
 
@@ -596,6 +593,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 						blockChan:         make(chan struct{}),
 						waitForSerializer: waitForSerializer,
 						forceFlushAll:     forceFlushAll,
+						final:             flush.final,
 					},
 					sketchesSink: sketchesSink,
 					seriesSink:   seriesSink,
@@ -633,7 +631,7 @@ func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatform.Forwarde
 	return d.aggregator.GetEventPlatformForwarder()
 }
 
-func (d *AgentDemultiplexer) SetAggregatorTagFilterList(tagMatcher filterlist.TagMatcher) {
+func (d *AgentDemultiplexer) SetAggregatorTagFilterList(tagMatcher metricname.TagMatcher) {
 	d.m.RLock()
 	defer d.m.RUnlock()
 

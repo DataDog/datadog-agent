@@ -34,11 +34,11 @@ var PackagesList = []Package{
 	{Name: "datadog-apm-library-python", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 	{Name: "datadog-apm-library-php", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 	{Name: "datadog-apm-library-nginx", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+	{Name: "datadog-apm-library-httpd", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 	{Name: "datadog-agent", version: agentVersion, released: false, releasedWithRemoteUpdates: true},
 	{Name: "datadog-ddot", version: agentVersion, released: false, releasedWithRemoteUpdates: true, condition: ddotEnabled},
 	{Name: "datadog-apm-library-iis", version: apmLanguageVersion, released: false, releasedWithRemoteUpdates: true, condition: apmLanguageExplicitlyEnabled},
 	{Name: "datadog-apm-library-iis-rum", version: apmLanguageVersion, released: false, releasedWithRemoteUpdates: true, condition: apmLanguageExplicitlyEnabled},
-	{Name: "datadog-apm-library-httpd", version: apmLanguageVersion, released: false, releasedWithRemoteUpdates: true, condition: apmLanguageExplicitlyEnabled},
 	{Name: "datadog-apm-library-c", version: apmLanguageVersion, released: false, releasedWithRemoteUpdates: true, condition: apmLanguageExplicitlyEnabled},
 }
 
@@ -60,6 +60,7 @@ var apmPackageDefaultVersions = map[string]string{
 	"datadog-apm-library-python": "4",
 	"datadog-apm-library-php":    "1",
 	"datadog-apm-library-nginx":  "1",
+	"datadog-apm-library-httpd":  "1",
 }
 
 // DefaultPackages resolves the default packages URLs to install based on the environment.

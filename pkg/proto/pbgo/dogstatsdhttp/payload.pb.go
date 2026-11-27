@@ -24,28 +24,37 @@ const (
 type MetricType int32
 
 const (
-	MetricType_UNUSED MetricType = 0
-	MetricType_Count  MetricType = 1
-	MetricType_Rate   MetricType = 2
-	MetricType_Gauge  MetricType = 3
-	MetricType_Sketch MetricType = 4
+	MetricType_UNUSED         MetricType = 0
+	MetricType_Count          MetricType = 1
+	MetricType_Rate           MetricType = 2
+	MetricType_Gauge          MetricType = 3
+	MetricType_Sketch         MetricType = 4
+	MetricType_MergeableGauge MetricType = 8
+	MetricType_Histogram      MetricType = 9
+	MetricType_Set            MetricType = 10
 )
 
 // Enum value maps for MetricType.
 var (
 	MetricType_name = map[int32]string{
-		0: "UNUSED",
-		1: "Count",
-		2: "Rate",
-		3: "Gauge",
-		4: "Sketch",
+		0:  "UNUSED",
+		1:  "Count",
+		2:  "Rate",
+		3:  "Gauge",
+		4:  "Sketch",
+		8:  "MergeableGauge",
+		9:  "Histogram",
+		10: "Set",
 	}
 	MetricType_value = map[string]int32{
-		"UNUSED": 0,
-		"Count":  1,
-		"Rate":   2,
-		"Gauge":  3,
-		"Sketch": 4,
+		"UNUSED":         0,
+		"Count":          1,
+		"Rate":           2,
+		"Gauge":          3,
+		"Sketch":         4,
+		"MergeableGauge": 8,
+		"Histogram":      9,
+		"Set":            10,
 	}
 )
 
@@ -232,6 +241,10 @@ func (MetricFlags) EnumDescriptor() ([]byte, []int) {
 	return file_datadog_dogstatsdhttp_payload_proto_rawDescGZIP(), []int{3}
 }
 
+// On the aggregation endpoint, a payload carries the intermediate series one client aggregated
+// over one window: metadata is absent and metricData occurs once. The client id, window
+// timestamp and duration, and sequence number are in the URL, origin metadata is in the
+// x-dsd-ld and x-dsd-ed headers.
 type Payload struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Metadata      *Metadata              `protobuf:"bytes,2,opt,name=metadata,proto3" json:"metadata,omitempty"`
@@ -336,6 +349,41 @@ func (x *Metadata) GetResources() []string {
 	return nil
 }
 
+// Field numbers 1-31 follow intake v3 and 32-63 are left to intake v3. Numbers 64-99 are
+// dogstatsd http columns, 100 and up belong to the agent-internal spool format.
+//
+// # Aggregation endpoint
+//
+// Every field is length-delimited (packed or bytes) and occurs at most once. Unknown fields
+// are skipped.
+//
+// Each entry has a single point, for the window in the URL: intervals, numPoints and
+// timestamps are absent. An absent per-entry ref column (nameRefs, tagsetRefs, resourcesRefs,
+// sourceTypeNameRefs, originInfoRefs) means every entry refers to index zero.
+//
+// Entries are in primary key order: cardinality, tagset, resources, name. Each key occurs
+// once, tagsets and resource sets are deduplicated. Strings compare by length, then bytewise.
+// Tagsets and resource sets compare by length, then element-wise in ascending order;
+// resources compare by type, then name. Cardinality compares by its value in the types column.
+//
+// Accepted metric types, and what each entry consumes from valsUint64, setStrs and vals (the
+// column selected by valueType):
+//
+//	Count           vals [sum].
+//	MergeableGauge  vals [value], valsUint64 [offset]. The offset of the latest measurement
+//	                from the window start, in milliseconds, less than the window duration.
+//	Histogram       valsUint64 [n], n >= 1, then vals [value_1, weight_1, ...,
+//	                value_n, weight_n]. Values are distinct and ascending. Weights are finite
+//	                and > 0, the sum of 1/sample_rate of the observations, so they can be
+//	                fractional. valueType fits values and weights alike, and is never Zero.
+//	                Timings are sent as histograms.
+//	Set             valsUint64 [n], n >= 1, and n members in setStrs, distinct and in
+//	                shortlex order. valueType is Zero.
+//	Sketch          A distribution, in the agent's default DDSketch mapping (relative accuracy
+//	                1/128, min value 1e-9). Laid out as below, with one key/count pair per
+//	                bin. Bin keys are strictly ascending, counts are > 0 and sum to Cnt.
+//
+// Gauge and Rate are rejected.
 type MetricData struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Dictionaries
@@ -364,9 +412,11 @@ type MetricData struct {
 	ValsSint64    []int64   `protobuf:"zigzag64,17,rep,packed,name=valsSint64,proto3" json:"valsSint64,omitempty"`  // or
 	ValsFloat32   []float32 `protobuf:"fixed32,18,rep,packed,name=valsFloat32,proto3" json:"valsFloat32,omitempty"` // or
 	ValsFloat64   []float64 `protobuf:"fixed64,19,rep,packed,name=valsFloat64,proto3" json:"valsFloat64,omitempty"` // based on valueType
+	ValsUint64    []uint64  `protobuf:"varint,31,rep,packed,name=valsUint64,proto3" json:"valsUint64,omitempty"`    // independent of valueType
 	SketchNumBins []uint64  `protobuf:"varint,20,rep,packed,name=sketchNumBins,proto3" json:"sketchNumBins,omitempty"`
 	SketchBinKeys []int32   `protobuf:"zigzag32,21,rep,packed,name=sketchBinKeys,proto3" json:"sketchBinKeys,omitempty"` // per-metric sequence is delta encoded
 	SketchBinCnts []uint32  `protobuf:"varint,22,rep,packed,name=sketchBinCnts,proto3" json:"sketchBinCnts,omitempty"`
+	SetStrs       []byte    `protobuf:"bytes,64,opt,name=setStrs,proto3" json:"setStrs,omitempty"` // varint length + value
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -548,6 +598,13 @@ func (x *MetricData) GetValsFloat64() []float64 {
 	return nil
 }
 
+func (x *MetricData) GetValsUint64() []uint64 {
+	if x != nil {
+		return x.ValsUint64
+	}
+	return nil
+}
+
 func (x *MetricData) GetSketchNumBins() []uint64 {
 	if x != nil {
 		return x.SketchNumBins
@@ -569,6 +626,13 @@ func (x *MetricData) GetSketchBinCnts() []uint32 {
 	return nil
 }
 
+func (x *MetricData) GetSetStrs() []byte {
+	if x != nil {
+		return x.SetStrs
+	}
+	return nil
+}
+
 var File_datadog_dogstatsdhttp_payload_proto protoreflect.FileDescriptor
 
 const file_datadog_dogstatsdhttp_payload_proto_rawDesc = "" +
@@ -581,7 +645,7 @@ const file_datadog_dogstatsdhttp_payload_proto_rawDesc = "" +
 	"metricDataJ\x04\b\x01\x10\x02\"<\n" +
 	"\bMetadata\x12\x12\n" +
 	"\x04tags\x18\x01 \x03(\tR\x04tags\x12\x1c\n" +
-	"\tresources\x18\x02 \x03(\tR\tresources\"\xf6\x06\n" +
+	"\tresources\x18\x02 \x03(\tR\tresources\"\xb6\a\n" +
 	"\n" +
 	"MetricData\x12 \n" +
 	"\vdictNameStr\x18\x01 \x01(\fR\vdictNameStr\x12\x1e\n" +
@@ -613,10 +677,14 @@ const file_datadog_dogstatsdhttp_payload_proto_rawDesc = "" +
 	"valsSint64\x18\x11 \x03(\x12R\n" +
 	"valsSint64\x12 \n" +
 	"\vvalsFloat32\x18\x12 \x03(\x02R\vvalsFloat32\x12 \n" +
-	"\vvalsFloat64\x18\x13 \x03(\x01R\vvalsFloat64\x12$\n" +
+	"\vvalsFloat64\x18\x13 \x03(\x01R\vvalsFloat64\x12\x1e\n" +
+	"\n" +
+	"valsUint64\x18\x1f \x03(\x04R\n" +
+	"valsUint64\x12$\n" +
 	"\rsketchNumBins\x18\x14 \x03(\x04R\rsketchNumBins\x12$\n" +
 	"\rsketchBinKeys\x18\x15 \x03(\x11R\rsketchBinKeys\x12$\n" +
-	"\rsketchBinCnts\x18\x16 \x03(\rR\rsketchBinCnts*D\n" +
+	"\rsketchBinCnts\x18\x16 \x03(\rR\rsketchBinCnts\x12\x18\n" +
+	"\asetStrs\x18@ \x01(\fR\asetStrsJ\x04\b\x19\x10\x1f*v\n" +
 	"\n" +
 	"metricType\x12\n" +
 	"\n" +
@@ -625,7 +693,11 @@ const file_datadog_dogstatsdhttp_payload_proto_rawDesc = "" +
 	"\x04Rate\x10\x02\x12\t\n" +
 	"\x05Gauge\x10\x03\x12\n" +
 	"\n" +
-	"\x06Sketch\x10\x04*;\n" +
+	"\x06Sketch\x10\x04\x12\x12\n" +
+	"\x0eMergeableGauge\x10\b\x12\r\n" +
+	"\tHistogram\x10\t\x12\a\n" +
+	"\x03Set\x10\n" +
+	"\"\x04\b\x05\x10\a*;\n" +
 	"\tvalueType\x12\b\n" +
 	"\x04Zero\x10\x00\x12\n" +
 	"\n" +

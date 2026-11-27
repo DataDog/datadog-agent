@@ -12,21 +12,26 @@ import (
 	"io"
 	"net"
 	"os"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	ddfeatures "github.com/DataDog/datadog-agent/pkg/ebpf/features"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
+	connutil "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -37,6 +42,8 @@ import (
 func (s *TracerSuite) TestNetDevQueueSKBConnTuple() {
 	t := s.T()
 	cfg := testConfig()
+	// sharing the eBPF conntracker's map leaves net_dev_queue unattached
+	cfg.ShareConntrackNATMap = false
 	skipEbpflessTodo(t, cfg)
 	if ebpftest.GetBuildMode() == ebpftest.SK {
 		t.Skip("net_dev_queue probe is not used by the SK tracer")
@@ -51,9 +58,44 @@ func (s *TracerSuite) TestNetDevQueueSKBConnTuple() {
 		netlinktestutil.SetupDNAT6(t)
 	}
 
+	mode := ebpftest.GetBuildMode()
+	coreOrFentry := mode == ebpftest.CORE || mode == ebpftest.Fentry
+	forceRawTP := []bool{false}
+	if coreOrFentry {
+		// also force the raw tracepoint, so it stays covered on kernels that load tp_btf
+		forceRawTP = append(forceRawTP, true)
+	}
+	for _, force := range forceRawTP {
+		t.Run("forceRawTP="+strconv.FormatBool(force), func(t *testing.T) {
+			if force {
+				connutil.NetDevQueueTPBTFRejected.Store(true)
+				t.Cleanup(func() { connutil.NetDevQueueTPBTFRejected.Store(false) })
+			}
+			testNetDevQueueSKBConnTuple(t, cfg, v6, coreOrFentry && !force, force)
+		})
+	}
+}
+
+// testNetDevQueueSKBConnTuple runs the checks against a new tracer. With tpBTFEligible, the tracer must
+// load tp_btf wherever the kernel supports it; with forcedRawTP, it must fall back to the raw tracepoint.
+func testNetDevQueueSKBConnTuple(t *testing.T, cfg *config.Config, v6, tpBTFEligible, forcedRawTP bool) {
 	tr := setupTracer(t, cfg)
 	skbMap, err := tr.GetMap(probes.ConnectionTupleToSocketSKBConnMap)
 	require.NoError(t, err)
+
+	wantTPBTF := false
+	if tpBTFEligible {
+		require.False(t, connutil.NetDevQueueTPBTFRejected.Load(), "verifier rejected tp_btf net_dev_queue")
+		wantTPBTF = tpBTFExpected(t)
+	}
+	tpBTFRunning, err := tr.ProbeRunning(probes.NetDevQueueTPBTF)
+	require.NoError(t, err)
+	require.Equal(t, wantTPBTF, tpBTFRunning, "tp_btf net_dev_queue probe running")
+	if forcedRawTP && features.HaveProgramType(ebpf.RawTracepoint) == nil {
+		rawTPRunning, err := tr.ProbeRunning(probes.NetDevQueueRawTracepoint)
+		require.NoError(t, err)
+		require.True(t, rawTPRunning, "raw_tp net_dev_queue probe running")
+	}
 
 	t.Run("IPv4 TCP", func(t *testing.T) {
 		port := startEchoServer(t, "1.1.1.1:0", "tcp4")
@@ -61,6 +103,37 @@ func (s *TracerSuite) TestNetDevQueueSKBConnTuple() {
 		require.NoError(t, err)
 		t.Cleanup(func() { conn.Close() })
 
+		assertSKBConnTuples(t, skbMap, conn, net.ParseIP("2.2.2.2"), net.ParseIP("1.1.1.1"))
+	})
+
+	t.Run("IPv4 TCP stale value", func(t *testing.T) {
+		port := startEchoServer(t, "1.1.1.1:0", "tcp4")
+		// learn the source address the kernel picks for the NAT address, then reserve a local port, so the
+		// socket's key is known before its first packet
+		probe, err := tracertestutil.DialTCP("tcp4", net.JoinHostPort("2.2.2.2", port))
+		require.NoError(t, err)
+		localIP := probe.LocalAddr().(*net.TCPAddr).IP
+		probe.Close()
+		ln, err := net.Listen("tcp4", net.JoinHostPort(localIP.String(), "0"))
+		require.NoError(t, err)
+		local := ln.Addr().(*net.TCPAddr)
+		require.NoError(t, ln.Close())
+
+		rport, err := strconv.Atoi(port)
+		require.NoError(t, err)
+		key := normalizedClassificationKey(local, &net.TCPAddr{IP: net.ParseIP("2.2.2.2"), Port: rport})
+		// a value left by an earlier connection on the same 4-tuple, with another destination
+		stale := tcpConnTuple(localIP, uint16(local.Port), net.ParseIP("3.3.3.3"), uint16(rport))
+		require.NoError(t, skbMap.Update(unsafe.Pointer(&key), unsafe.Pointer(&stale), ebpf.UpdateNoExist))
+		t.Cleanup(func() { _ = skbMap.Delete(unsafe.Pointer(&key)) })
+
+		d := net.Dialer{LocalAddr: local, Timeout: 5 * time.Second}
+		conn, err := d.Dial("tcp4", net.JoinHostPort("2.2.2.2", port))
+		require.NoError(t, err)
+		t.Cleanup(func() { conn.Close() })
+		require.NoError(t, tracertestutil.SetTestDeadline(conn))
+
+		// the socket's packets replace the stale value
 		assertSKBConnTuples(t, skbMap, conn, net.ParseIP("2.2.2.2"), net.ParseIP("1.1.1.1"))
 	})
 
@@ -127,6 +200,18 @@ func (s *TracerSuite) TestNetDevQueueSKBConnTuple() {
 		}
 		require.NoError(t, it.Err())
 	})
+}
+
+// tpBTFExpected reports whether the kernel should load tp_btf/net_dev_queue. It must on 5.9+ with kernel
+// BTF on amd64 or arm64; older kernels, such as RHEL 8, can have it backported, so the trial decides there.
+func tpBTFExpected(t *testing.T) bool {
+	kv, err := kernel.HostVersion()
+	require.NoError(t, err)
+	_, err = os.Stat("/sys/kernel/btf/vmlinux")
+	if kv >= kernel.VersionCode(5, 9, 0) && err == nil && (runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64") {
+		return true
+	}
+	return ddfeatures.SupportsTPBTFProbeMem("net_dev_queue") == nil
 }
 
 // startEchoServer starts a TCP echo server and returns its port.
@@ -223,8 +308,8 @@ func flipConnTuple(c netebpf.ConnTuple) netebpf.ConnTuple {
 	return c
 }
 
-// lookupSKBConnTuple finds the skb tuple for sockTup. Both key and value are normalized by port, and DNAT keeps
-// ports, so a flipped key always comes with a flipped value.
+// lookupSKBConnTuple finds the skb tuple for sockTup. The key is the socket tuple normalized, so it can be flipped,
+// but the value is the skb tuple as it left the socket, so it's returned as is either way.
 func lookupSKBConnTuple(t *testing.T, skbMap *ebpf.Map, sockTup netebpf.ConnTuple) (netebpf.ConnTuple, bool) {
 	var v netebpf.ConnTuple
 	if err := skbMap.Lookup(unsafe.Pointer(&sockTup), unsafe.Pointer(&v)); err == nil {
@@ -232,7 +317,7 @@ func lookupSKBConnTuple(t *testing.T, skbMap *ebpf.Map, sockTup netebpf.ConnTupl
 	}
 	flipped := flipConnTuple(sockTup)
 	if err := skbMap.Lookup(unsafe.Pointer(&flipped), unsafe.Pointer(&v)); err == nil {
-		return flipConnTuple(v), true
+		return v, true
 	}
 	t.Logf("no entry for %+v", sockTup)
 	return netebpf.ConnTuple{}, false

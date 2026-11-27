@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Skip idle zero-delta rows during Oracle Database Monitoring statement metrics collection to reduce database load and payload size, enforce ``query_metrics.max_run_time`` before every execution plan lookup, and baseline the statement metrics cache on the first run.

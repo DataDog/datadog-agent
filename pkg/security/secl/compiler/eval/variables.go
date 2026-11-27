@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"net"
 	"reflect"
-	"regexp"
 	"sync"
 	"time"
 
@@ -21,8 +20,6 @@ import (
 const defaultMaxVariables = 100
 
 var (
-	variableRegex         = regexp.MustCompile(`\${[^}]*}`)
-	fieldReferenceRegex   = regexp.MustCompile(`%{[^}]*}`)
 	errAppendNotSupported = errors.New("append is not supported")
 	// ErrScopeNotAvailable is returned when a scoped variable operation cannot be
 	// applied because the current event does not provide the requested scope.
@@ -978,6 +975,13 @@ type VariableOpts struct {
 	Private   bool          `json:"private"` // When a variable is marked as private, it will not be included in the serialized event
 	Inherited bool          `json:"inherited"`
 	Telemetry *Telemetry    `json:"-"`
+	// EnvKeys are the environment variables of a process the value is read
+	// from: the variable is serialized only when they are all listed in
+	// envs_with_value
+	EnvKeys []string `json:"-"`
+	// EnvKeyEvaluated is whether the value is read from an environment variable
+	// whose name is evaluated per event: the variable is never serialized
+	EnvKeyEvaluated bool `json:"-"`
 }
 
 // NewVariables returns a new set of global variables

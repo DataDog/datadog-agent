@@ -47,6 +47,7 @@ const (
 	configStripProcArgs        = "process_config.strip_proc_arguments"
 	configDisallowList         = "process_config.blacklist_patterns"
 	configIgnoreZombies        = "process_config.ignore_zombie_processes"
+	configEnableAllZombies     = "process_config.enable_all_zombie_processes"
 )
 
 // NewProcessCheck returns an instance of the ProcessCheck.
@@ -94,6 +95,9 @@ type ProcessCheck struct {
 
 	// determine if zombie processes are excluded from individual collection and parent aggregation
 	ignoreZombieProcesses bool
+	// submitAllZombies submits non-GPU zombies individually for backward compatibility; it is never set while
+	// ignoreZombieProcesses is.
+	submitAllZombies bool
 
 	hostInfo                   *HostInfo
 	clock                      clock.Clock
@@ -149,7 +153,7 @@ type ProcessCheck struct {
 func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool) error {
 	p.hostInfo = info
 	p.sysProbeConfig = syscfg
-	p.ignoreZombieProcesses = p.config.GetBool(configIgnoreZombies)
+	p.loadZombieConfig()
 	p.probe = newProcessProbe(p.config,
 		procutil.WithPermission(syscfg.ProcessModuleEnabled),
 		procutil.WithIgnoreZombieProcesses(p.ignoreZombieProcesses))
@@ -202,6 +206,11 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 	}
 
 	return nil
+}
+
+func (p *ProcessCheck) loadZombieConfig() {
+	p.ignoreZombieProcesses = p.config.GetBool(configIgnoreZombies)
+	p.submitAllZombies = p.config.GetBool(configEnableAllZombies) && !p.ignoreZombieProcesses
 }
 
 // IsEnabled returns true if the check is enabled by configuration
@@ -264,8 +273,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		return CombinedRunResult{}, nil
 	}
 
-	// Store PIDs for RTProcess. When zombie collection is enabled, retain
-	// zombie PIDs so realtime payloads continue to emit their individual stats.
+	// Store PIDs for RTProcess, retaining collected zombies for payload-time zombie filtering.
 	p.lastPIDs = p.lastPIDs[:0]
 	for pid, proc := range procs {
 		if proc == nil || proc.Stats == nil || (p.ignoreZombieProcesses && proc.Stats.IsZombie()) {
@@ -331,7 +339,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	if aggregationEnabled {
 		zombiesByPPID = p.aggregateZombiesByParent(procs, start)
 	}
-	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIDProbe, zombiesByPPID, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags, p.tagger, start)
+	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIDProbe, zombiesByPPID, p.ignoreZombieProcesses, p.submitAllZombies, p.serviceExtractor, pidToGPUTags, p.tagger, start)
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
@@ -348,7 +356,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 
 		if p.realtimeLastProcs != nil {
 			// TODO: deduplicate chunking with RT collection
-			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, start)
+			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, pidToGPUTags, p.submitAllZombies, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, start)
 			groupSize := len(chunkedStats)
 			chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
 
@@ -591,6 +599,7 @@ func fmtProcesses(
 	lookupIDProbe *LookupIDProbe,
 	zombiesByPPID map[int32]zombieAggregate,
 	zombiesIgnored bool,
+	submitAllZombies bool,
 	serviceExtractor *parser.ServiceExtractor,
 	pidToGPUTags map[int32][]string,
 	tagger taggerdef.Component,
@@ -600,6 +609,10 @@ func fmtProcesses(
 
 	for _, fp := range procs {
 		if skipProcess(disallowList, fp, lastProcs, zombiesIgnored) {
+			continue
+		}
+		gpuTags, usesGPU := pidToGPUTags[fp.Pid]
+		if fp.Stats.IsZombie() && !submitsZombieIndividually(usesGPU, submitAllZombies) {
 			continue
 		}
 
@@ -635,9 +648,9 @@ func fmtProcesses(
 			HasZombieAggregation: !zombiesIgnored,
 		}
 
-		if tags, ok := pidToGPUTags[fp.Pid]; ok {
-			log.Debugf("Detected GPU, and process is in activePids, adding GPU tags to pid: %d, tags: %v", fp.Pid, tags)
-			proc.Tags = append(proc.Tags, tags...)
+		if usesGPU {
+			log.Debugf("Detected GPU, and process is in activePids, adding GPU tags to pid: %d, tags: %v", fp.Pid, gpuTags)
+			proc.Tags = append(proc.Tags, gpuTags...)
 		}
 
 		if tagger != nil {
@@ -782,6 +795,12 @@ func skipProcess(
 		return true
 	}
 	return zombiesIgnored && fp.Stats.IsZombie()
+}
+
+// submitsZombieIndividually reports whether a collected zombie gets its own payload entry.
+// Other zombies only count toward their parent's zombie aggregate.
+func submitsZombieIndividually(usesGPU, submitAllZombies bool) bool {
+	return usesGPU || submitAllZombies
 }
 
 func pidsForSystemProbeStats(procs map[int32]*procutil.Process) []int32 {

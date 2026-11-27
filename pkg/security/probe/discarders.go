@@ -29,8 +29,9 @@ func (e ErrDiscarderNotSupported) Error() string {
 }
 
 var (
-	// SupportedDiscarders lists all field which supports discarders
-	SupportedDiscarders = make(map[eval.Field]bool)
+	// SupportedDiscarders lists all field which supports discarders, with the
+	// fields whose values they discard together
+	SupportedDiscarders = make(map[eval.Field][]eval.Field)
 	// SupportedMultiDiscarder lists all supported multi discarders
 	SupportedMultiDiscarder []*rules.MultiDiscarder
 )

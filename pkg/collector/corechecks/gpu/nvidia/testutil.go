@@ -89,3 +89,11 @@ func (c *DeviceEventsGatherer) InjectEventsForTest(deviceUUID string, events []d
 func NumCollectors() int {
 	return len(factory)
 }
+
+// NewStateChangesPollForTest returns a function that runs one read of the watched values of
+// every GPU of the device cache, as the state changes gatherer worker does every second,
+// without starting it.
+func NewStateChangesPollForTest(deviceCache ddnvml.DeviceCache, deps *CollectorDependencies) func() {
+	g := NewStateChangesGatherer(deviceCache, deps)
+	return func() { g.pollAll(time.Now()) }
+}

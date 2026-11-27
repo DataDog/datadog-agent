@@ -5,14 +5,12 @@
  * runs steps 0–5 (dedup → bucketing → saturation → EWMA → severity state machine).
  * This component performs ONLY Step 6 (display-window aggregation) for chart rendering.
  *
- * Config values are read-only; they are driven by the server-returned ScoreState.config.
- * On each scenarioDataVersion bump the component POSTs the default config to
- * /api/scores/replay and replaces its local ScoreState with the response.
+ * The backend computes each timing view from the selected replay mode.
  */
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { api } from '../api/client';
-import type { ScoreState, ScoreBucket, ScorerConfig, SeverityEvent } from '../api/client';
+import type { ScoreState, ScoreBucket, ScorerConfig, SeverityEvent, LateBehavior } from '../api/client';
 import type { PhaseMarker } from './ChartWithAnomalyDetails';
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -21,7 +19,7 @@ const LEVEL_WEIGHTS = [0.2, 0.5, 1.0, 2.0, 3.0] as const;
 const LEVEL_LABELS = ['VeryLow', 'Low', 'Medium', 'High', 'XHigh'] as const;
 const LEVEL_COLORS = ['#64748b', '#eab308', '#f97316', '#ef4444', '#c026d3'] as const;
 
-// Fallback used only while GET /api/scores/config is in-flight.
+// Fallback used only while the scorer result is in-flight.
 // These values are never sent to the backend for replay.
 const DISPLAY_FALLBACK_CONFIG: ScorerConfig = {
   alpha: 0.014,
@@ -109,8 +107,19 @@ interface TimeRange {
   end: number;
 }
 
+export type ScorerTimeMode = 'reordered' | 'detection' | 'change-point';
+
+const REORDER_PRESETS = [0, 300, 600, 1800] as const;
+const DEFAULT_REORDER_WINDOW_SECS = 600;
+
 export function AnomalyScoreTimeline({
   scenarioDataVersion,
+  timeMode,
+  onTimeModeChange,
+  reorderWindow,
+  onReorderWindowChange,
+  lateBehavior,
+  onLateBehaviorChange,
   phaseMarkers = [],
   timeRange,
   hoveredEvent,
@@ -118,24 +127,23 @@ export function AnomalyScoreTimeline({
   onScoreState,
 }: {
   scenarioDataVersion: number;
+  timeMode: ScorerTimeMode;
+  onTimeModeChange: (mode: ScorerTimeMode) => void;
+  reorderWindow: number | null;
+  onReorderWindowChange: (secs: number | null) => void;
+  lateBehavior: LateBehavior | null;
+  onLateBehaviorChange: (behavior: LateBehavior | null) => void;
   phaseMarkers?: PhaseMarker[];
   timeRange?: TimeRange | null;
   hoveredEvent?: SeverityEvent | null;
   onTimeRangeChange?: (range: TimeRange | null) => void;
-  onScoreState?: (ss: ScoreState) => void;
+  onScoreState?: (ss: ScoreState | null) => void;
 }) {
   const [scoreState, setScoreState] = useState<ScoreState | null>(null);
-  const [replayConfig, setReplayConfig] = useState<ScorerConfig | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Fetch the canonical default config from the backend once on mount so we
-  // never need to duplicate threshold values in the frontend.
-  useEffect(() => {
-    api.getScoresConfig()
-      .then(cfg => setReplayConfig(cfg))
-      .catch(() => setReplayConfig(DISPLAY_FALLBACK_CONFIG));
-  }, []);
+  const [capturedConfig, setCapturedConfig] = useState<ScorerConfig | null>(null);
+  const requestIDRef = useRef(0);
 
   // Responsive chart width via ResizeObserver
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -153,23 +161,72 @@ export function AnomalyScoreTimeline({
     return () => ro.disconnect();
   }, []);
 
-  // Replay whenever a new scenario is loaded or the config first arrives.
+  // Load the selected timing view whenever the scenario or mode changes.
   useEffect(() => {
-    if (scenarioDataVersion === 0 || !replayConfig) return;
-    setLoading(true);
-    api.replayScores(replayConfig)
-      .then(st => { setScoreState(st); setError(null); onScoreState?.(st); })
-      .catch(e => setError(String(e)))
-      .finally(() => setLoading(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scenarioDataVersion, replayConfig]);
+    if (scenarioDataVersion === 0) {
+      return;
+    }
+    const requestID = ++requestIDRef.current;
+
+    const request = Promise.resolve().then(() => {
+      if (requestID !== requestIDRef.current) return null;
+      setScoreState(null);
+      onScoreState?.(null);
+      setLoading(true);
+      setError(null);
+      return api.getScores();
+    }).then(original => {
+      if (!original || requestID !== requestIDRef.current || !original.available) {
+        return original;
+      }
+      setCapturedConfig(original.config);
+      const config = { ...original.config, cooldown_secs: original.cooldown_secs! };
+      if (timeMode === 'reordered') {
+        config.anomaly_reordering_window_secs =
+          reorderWindow ?? config.anomaly_reordering_window_secs ?? DEFAULT_REORDER_WINDOW_SECS;
+        config.late_anomaly_behavior = lateBehavior ?? config.late_anomaly_behavior ?? 'clamp';
+      }
+      return api.replayScores(config, timeMode);
+    });
+    request
+      .then(st => {
+        if (!st || requestID !== requestIDRef.current) return;
+        setScoreState(st);
+        onScoreState?.(st);
+      })
+      .catch(e => {
+        if (requestID !== requestIDRef.current) return;
+        setError(String(e));
+      })
+      .finally(() => {
+        if (requestID === requestIDRef.current) setLoading(false);
+      });
+    return () => { requestIDRef.current += 1; };
+  }, [scenarioDataVersion, timeMode, reorderWindow, lateBehavior, onScoreState]);
 
   const allBuckets = scoreState?.buckets ?? [];
   const allEvents = scoreState?.events ?? [];
-  // Merge: use replayConfig (fetched from /api/scores/config) as the base so that
-  // cooldown_secs is always present, then overlay EWMA fields from scoreState.config.
-  // scoreState.config only contains the def-level AnomalyScorerConfig (no cooldown).
-  const cfg: ScorerConfig = { ...(replayConfig ?? DISPLAY_FALLBACK_CONFIG), ...(scoreState?.config ?? {}) };
+  const cfg: ScorerConfig = {
+    ...DISPLAY_FALLBACK_CONFIG,
+    ...(scoreState?.available === false ? {} : scoreState?.config ?? {}),
+    ...(scoreState?.available !== false && scoreState?.cooldown_secs !== undefined
+      ? { cooldown_secs: scoreState.cooldown_secs }
+      : {}),
+  };
+  const scorerUnavailable = scoreState?.available === false;
+  const effectiveWindow =
+    reorderWindow ?? capturedConfig?.anomaly_reordering_window_secs ?? DEFAULT_REORDER_WINDOW_SECS;
+  const effectiveBehavior = lateBehavior ?? capturedConfig?.late_anomaly_behavior ?? 'clamp';
+
+  const changeTimeMode = useCallback((mode: ScorerTimeMode) => {
+    if (mode === timeMode) return;
+    requestIDRef.current += 1;
+    setScoreState(null);
+    onScoreState?.(null);
+    setError(null);
+    setLoading(false);
+    onTimeModeChange(mode);
+  }, [timeMode, onScoreState, onTimeModeChange]);
 
   // Filter buckets to the selected time range (client-side zoom)
   const buckets = useMemo(() => {
@@ -358,6 +415,8 @@ export function AnomalyScoreTimeline({
               ? 'Updating…'
               : error
               ? <span className="text-red-400">{error}</span>
+              : scorerUnavailable
+              ? <span className="text-amber-300">Scorer unavailable for this run</span>
               : allBuckets.length === 0
               ? 'No data'
               : `${totalAnomalies} anomalies · ${buckets.length}s · ${upEvents}↑ ${downEvents}↓ severity transitions`}
@@ -369,6 +428,94 @@ export function AnomalyScoreTimeline({
           <div className="text-cyan-400 font-medium">EWMA peak: {ewmaPeak.toFixed(3)}</div>
         </div>
       </div>
+
+      <div className="flex items-center gap-3 mb-3 flex-wrap">
+        <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Timing</span>
+        <div className="inline-flex rounded-md border border-slate-600 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => changeTimeMode('reordered')}
+            className={`px-2.5 py-1 text-xs transition-colors ${
+              timeMode === 'reordered' ? 'bg-cyan-700 text-white' : 'text-slate-300 hover:bg-slate-700'
+            }`}
+          >
+            Reordered
+          </button>
+          <button
+            type="button"
+            onClick={() => changeTimeMode('detection')}
+            className={`px-2.5 py-1 text-xs transition-colors ${
+              timeMode === 'detection' ? 'bg-cyan-700 text-white' : 'text-slate-300 hover:bg-slate-700'
+            }`}
+          >
+            Detection time
+          </button>
+          <button
+            type="button"
+            onClick={() => changeTimeMode('change-point')}
+            className={`px-2.5 py-1 text-xs transition-colors ${
+              timeMode === 'change-point' ? 'bg-cyan-700 text-white' : 'text-slate-300 hover:bg-slate-700'
+            }`}
+          >
+            Change-point time
+          </button>
+        </div>
+        {timeMode === 'reordered' && (
+          <div className="inline-flex items-center gap-1.5">
+            {REORDER_PRESETS.map(secs => (
+              <button
+                key={secs}
+                type="button"
+                onClick={() => onReorderWindowChange(secs === effectiveWindow ? null : secs)}
+                className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                  effectiveWindow === secs ? 'bg-cyan-700 text-white' : 'text-slate-400 hover:bg-slate-700'
+                }`}
+              >
+                {secs === 0 ? '0s' : `${secs / 60}m`}
+              </button>
+            ))}
+            <input
+              type="number"
+              min={0}
+              max={3600}
+              value={reorderWindow ?? effectiveWindow}
+              onChange={(e) => onReorderWindowChange(Math.max(0, Math.min(3600, Number(e.target.value) || 0)))}
+              className="w-14 px-1.5 py-0.5 rounded bg-slate-700 border border-slate-600 text-[10px] text-slate-200 text-center"
+              title="Reordering window in seconds"
+            />
+            <span className="text-[10px] text-slate-500">s</span>
+          </div>
+        )}
+        {timeMode === 'reordered' && (
+          <div className="inline-flex rounded-md border border-slate-600 overflow-hidden">
+            {(['clamp', 'ignore'] as const).map(behavior => (
+              <button
+                key={behavior}
+                type="button"
+                onClick={() => onLateBehaviorChange(behavior === effectiveBehavior ? null : behavior)}
+                className={`px-2 py-0.5 text-[10px] transition-colors ${
+                  effectiveBehavior === behavior ? 'bg-cyan-700 text-white' : 'text-slate-400 hover:bg-slate-700'
+                }`}
+              >
+                {behavior}
+              </button>
+            ))}
+          </div>
+        )}
+        <span className="text-xs text-slate-400">
+          {timeMode === 'detection'
+            ? 'When the scorer actually received the evidence.'
+            : timeMode === 'reordered'
+            ? 'Replayed in arrival order with reordering; notifications appear when evidence becomes available.'
+            : 'Recomputed at estimated change points; excludes detection delay.'}
+        </span>
+      </div>
+      {timeMode === 'reordered' && (scoreState?.outside_window_count ?? 0) > 0 && (
+        <div className="mb-3 text-[10px] text-amber-300">
+          {scoreState!.outside_window_count} arrivals fell outside the {effectiveWindow}s replay window
+          {effectiveBehavior === 'clamp' ? ' and were clamped.' : ' and were ignored.'}
+        </div>
+      )}
 
       {/* Read-only config */}
       <div className="grid grid-cols-2 gap-x-8 gap-y-2 mb-3">
@@ -389,7 +536,13 @@ export function AnomalyScoreTimeline({
       {/* Chart */}
       {displayBuckets.length === 0 ? (
         <div className="h-24 flex items-center justify-center text-slate-500 text-sm">
-          {scenarioDataVersion === 0 ? 'Load a scenario to see the timeline' : 'No anomalies detected yet'}
+          {scenarioDataVersion === 0
+            ? 'Load a scenario to see the timeline'
+            : loading
+            ? 'Loading scorer timeline…'
+            : scorerUnavailable
+            ? 'Scorer unavailable for this run'
+            : 'No anomalies detected yet'}
         </div>
       ) : (
         <div ref={chartContainerRef} className="relative select-none">
@@ -534,10 +687,26 @@ export function AnomalyScoreTimeline({
               const isUp = ev.to_level > ev.from_level;
               const color = SEVERITY_COLORS[ev.to_level] ?? '#94a3b8';
               const BASE_Y = CHART_H + 10;
+              const hasHistorical = ev.historical_timestamp !== undefined &&
+                ev.historical_timestamp > 0 && ev.historical_timestamp < ev.timestamp;
               const pts = isUp
                 ? `${x},${CHART_H + 3} ${x - 5},${BASE_Y} ${x + 5},${BASE_Y}`
                 : `${x},${CHART_H + 17} ${x - 5},${BASE_Y} ${x + 5},${BASE_Y}`;
-              return <polygon key={i} points={pts} fill={color} opacity={0.9} />;
+              const histX = hasHistorical ? tsToX(ev.historical_timestamp!) : 0;
+              return (
+                <g key={i}>
+                  {hasHistorical && (
+                    <line
+                      x1={histX} y1={CHART_H + 10} x2={x} y2={CHART_H + 10}
+                      stroke={color} strokeWidth={1} strokeDasharray="3 2" opacity={0.6}
+                    />
+                  )}
+                  {hasHistorical && (
+                    <circle cx={histX} cy={CHART_H + 10} r={3} fill="none" stroke={color} strokeWidth={1.5} opacity={0.8} />
+                  )}
+                  <polygon points={pts} fill={color} opacity={0.9} />
+                </g>
+              );
             })}
 
             {/* Threshold labels */}
@@ -597,6 +766,15 @@ export function AnomalyScoreTimeline({
             <span className="text-slate-400">{label}</span>
           </span>
         ))}
+        {timeMode === 'reordered' && (
+          <span className="flex items-center gap-1 text-slate-400">
+            <svg width={20} height={10} stroke={SEVERITY_COLORS[2]} aria-hidden="true">
+              <circle cx={4} cy={5} r={3} fill="none" strokeWidth={1.5} />
+              <line x1={8} y1={5} x2={20} y2={5} strokeDasharray="3 2" />
+            </svg>
+            Historical High crossing
+          </span>
+        )}
         {onTimeRangeChange && (
           <span className="text-slate-500 ml-auto">drag to zoom</span>
         )}

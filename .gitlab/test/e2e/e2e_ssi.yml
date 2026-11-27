@@ -3,7 +3,14 @@
 # Owned by: injection-platform, agent-devx
 
 .on_ssi_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
+  - changes:
+      paths:
+        - test/new-e2e/tests/ssi/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+  - !reference [.on_e2e_default]
   - changes:
       paths:
         - pkg/clusteragent/admission/mutate/autoinstrumentation/**/*
@@ -15,7 +22,6 @@
         - comp/core/workloadmeta/collectors/internal/kubeapiserver/**/*
         - comp/languagedetection/**/*
         - pkg/ssi/**/*
-        - test/new-e2e/tests/ssi/**/*
       compare_to: $COMPARE_TO_BRANCH
 
 .new-e2e_ssi:
@@ -38,11 +44,14 @@
     - go_e2e_deps
     - !reference [.needs_fakeintake_publish]
   rules:
-    - !reference [.on_e2e_main_release_or_rc]
+    - !reference [.except_e2e_disabled]
+    - !reference [.on_e2e_infra_changes]
     - changes:
         paths:
           - test/new-e2e/tests/ssi/**/*
         compare_to: $COMPARE_TO_BRANCH
+      when: on_success
+    - !reference [.on_e2e_default]
     - !reference [.manual]
   variables:
     TARGETS: ./tests/ssi
@@ -57,11 +66,14 @@
 .new-e2e_ssi_extra_distribution:
   extends: .new-e2e_ssi
   rules:
-    - !reference [.on_e2e_main_release_or_rc]
+    - !reference [.except_e2e_disabled]
+    - !reference [.on_e2e_infra_changes]
     - changes:
         paths:
           - test/new-e2e/tests/ssi/**/*
         compare_to: $COMPARE_TO_BRANCH
+      when: on_success
+    - !reference [.on_e2e_default]
     - !reference [.manual]
 
 new-e2e-ssi-kind:
@@ -107,23 +119,23 @@ new-e2e-ssi-gke:
     E2E_PRE_INITIALIZED: "true"
   retry: !reference [.retry_only_infra_failure, retry]
 
-new-e2e-ssi-openshift-init:
-  extends: .new-e2e_ssi_extra_distribution_init
-  timeout: 1h 05m
-  before_script:
-    # We need to also fetch the OpenShift CRC pull secret and write it to a temp file, so we reference the new_e2e_template before_script first
-    - !reference [.new_e2e_template, before_script]
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CRC_PULL_SECRET > /tmp/crc-pull-secret.json || exit $?
+new-e2e-ssi-gke-autopilot:
+  extends: .new-e2e_ssi_extra_distribution
+  timeout: 2h
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.manual]
   variables:
-    E2E_PROVISIONER: openshift
-    E2E_STACK_NAME_SUFFIX: openshift
-    EXTRA_PARAMS: "-c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json"
+    E2E_PROVISIONER: gke-autopilot
+    E2E_STACK_NAME_SUFFIX: gke-autopilot
+    DYNAMIC_TESTS_FLAG: "" # Manual job: never skipped by the test selection
 
 new-e2e-ssi-openshift:
   extends: .new-e2e_ssi_extra_distribution
-  needs:
-    - !reference [.new-e2e_ssi_extra_distribution, needs]
-    - new-e2e-ssi-openshift-init
+  timeout: 2h
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.manual]
   before_script:
     # We need to also fetch the OpenShift CRC pull secret and write it to a temp file, so we reference the new_e2e_template before_script first
     - !reference [.new_e2e_template, before_script]
@@ -131,10 +143,8 @@ new-e2e-ssi-openshift:
   variables:
     E2E_PROVISIONER: openshift
     E2E_STACK_NAME_SUFFIX: openshift
-    E2E_PRE_INITIALIZED: "true"
     EXTRA_PARAMS: "-c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json"
-  allow_failure: true
-  retry: !reference [.retry_only_infra_failure, retry]
+    DYNAMIC_TESTS_FLAG: "" # Manual job: never skipped by the test selection
 
 new-e2e-ssi-aks:
   extends: .new-e2e_ssi_extra_distribution
@@ -146,11 +156,14 @@ new-e2e-ssi-aks:
 new-e2e-ssi-gradual-rollout:
   extends: .new_e2e_template
   rules:
-    - !reference [.on_ssi_or_e2e_changes]
+    - !reference [.except_e2e_disabled]
+    - !reference [.on_e2e_infra_changes]
     - changes:
         paths:
           - test/new-e2e/tests/ssi-gradual-rollout/**/*
         compare_to: $COMPARE_TO_BRANCH
+      when: on_success
+    - !reference [.on_ssi_or_e2e_changes]
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]

@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
@@ -91,28 +92,83 @@ func TestProcessCheckRealtimeSecondRun(t *testing.T) {
 	assert.Equal(t, int32(len(processCheck.hostInfo.SystemInfo.Cpus)), rt.NumCpus)
 }
 
-func TestRunRealtimeEmitsProcessThatBecameZombie(t *testing.T) {
-	processCheck, probe, _ := processCheckWithMocks(t)
-	processCheck.lastPIDs = []int32{1}
-	processCheck.realtimeLastProcs = map[int32]*procutil.Stats{1: makeProcessStats()}
-	processCheck.realtimeLastCPUTime = cpu.TimesStat{}
-	processCheck.realtimeLastRun = time.Now().Add(-time.Second)
+func TestRunRealtimeFiltersProcessThatBecameZombie(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		gpuTags          gpuTagsSubscriber
+		ignoreZombies    bool
+		enableAllZombies bool
+		wantZombie       bool
+	}{
+		{
+			name: "non-GPU zombie",
+		},
+		{
+			name:       "GPU zombie",
+			gpuTags:    gpuTagsSubscriber{1: {"gpu_uuid:gpu-1"}},
+			wantZombie: true,
+		},
+		{
+			name:       "GPU zombie with empty tags",
+			gpuTags:    gpuTagsSubscriber{1: {}},
+			wantZombie: true,
+		},
+		{
+			name:          "explicitly ignored GPU zombie",
+			gpuTags:       gpuTagsSubscriber{1: {"gpu_uuid:gpu-1"}},
+			ignoreZombies: true,
+		},
+		{
+			name:             "non-GPU zombie with all zombies enabled",
+			enableAllZombies: true,
+			wantZombie:       true,
+		},
+		{
+			name:             "explicitly ignored zombie with all zombies enabled",
+			ignoreZombies:    true,
+			enableAllZombies: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			processCheck, probe, _ := processCheckWithMocks(t)
+			processCheck.gpuSubscriber = tc.gpuTags
+			cfg := configmock.New(t)
+			cfg.SetInTest(configIgnoreZombies, tc.ignoreZombies)
+			cfg.SetInTest(configEnableAllZombies, tc.enableAllZombies)
+			processCheck.config = cfg
+			processCheck.loadZombieConfig()
+			processCheck.lastPIDs = []int32{1, 2}
+			processCheck.realtimeLastProcs = map[int32]*procutil.Stats{1: makeProcessStats(), 2: makeProcessStats()}
+			processCheck.realtimeLastRun = processCheck.clock.Now().Add(-time.Second)
 
-	zombie := makeProcessStats()
-	zombie.Status = "Z"
-	probe.On("StatsForPIDs", []int32{1}, mock.Anything).Return(map[int32]*procutil.Stats{1: zombie}, nil).Once()
+			zombie := makeProcessStats()
+			zombie.Status = "Z"
+			live := makeProcessStats()
+			probe.On("StatsForPIDs", []int32{1, 2}, mock.Anything).Return(map[int32]*procutil.Stats{1: zombie, 2: live}, nil).Once()
 
-	actual, err := processCheck.runRealtime(0)
-	require.NoError(t, err)
-	require.Len(t, actual.RealtimePayloads(), 1)
-	payload := actual.RealtimePayloads()[0].(*model.CollectorRealTime)
-	require.Len(t, payload.Stats, 1)
-	assert.Equal(t, int32(1), payload.Stats[0].Pid)
-	assert.Equal(t, model.ProcessState_Z, payload.Stats[0].ProcessState)
-	assert.Equal(t, map[int32]*procutil.Stats{1: zombie}, processCheck.realtimeLastProcs)
+			actual, err := processCheck.runRealtime(0)
+			require.NoError(t, err)
+			require.Len(t, actual.RealtimePayloads(), 1)
+			payload := actual.RealtimePayloads()[0].(*model.CollectorRealTime)
+			statsByPID := make(map[int32]*model.ProcessStat, len(payload.Stats))
+			for _, stat := range payload.Stats {
+				statsByPID[stat.Pid] = stat
+			}
+			require.Contains(t, statsByPID, int32(2))
+			assert.NotEqual(t, model.ProcessState_Z, statsByPID[2].ProcessState)
+			if tc.wantZombie {
+				require.Len(t, payload.Stats, 2)
+				require.Contains(t, statsByPID, int32(1))
+				assert.Equal(t, model.ProcessState_Z, statsByPID[1].ProcessState)
+			} else {
+				require.Len(t, payload.Stats, 1)
+				assert.NotContains(t, statsByPID, int32(1))
+			}
+		})
+	}
 }
 
-func TestFmtProcessStatsEmitsZombies(t *testing.T) {
+func TestFmtProcessStatsDropsNonGPUZombies(t *testing.T) {
 	live := makeProcessStats()
 	zombie := makeProcessStats()
 	zombie.Status = "Z"
@@ -122,33 +178,53 @@ func TestFmtProcessStatsEmitsZombies(t *testing.T) {
 		map[int32]*procutil.Stats{1: live, 2: zombie, 3: nil},
 		map[int32]*procutil.Stats{1: makeProcessStats(), 2: makeProcessStats(), 3: makeProcessStats()},
 		map[int]string{},
+		nil,
+		false,
 		cpu.TimesStat{},
 		cpu.TimesStat{},
 		time.Now().Add(-time.Second),
 		time.Now(),
 	)
 	require.Len(t, chunked, 1)
-	require.Len(t, chunked[0], 2)
-	statsByPID := map[int32]*model.ProcessStat{}
-	for _, stats := range chunked[0] {
-		statsByPID[stats.Pid] = stats
-	}
-	assert.NotEqual(t, model.ProcessState_Z, statsByPID[1].ProcessState)
-	assert.Equal(t, model.ProcessState_Z, statsByPID[2].ProcessState)
+	require.Len(t, chunked[0], 1)
+	assert.Equal(t, int32(1), chunked[0][0].Pid)
+	assert.NotEqual(t, model.ProcessState_Z, chunked[0][0].ProcessState)
 
 	allZombies := fmtProcessStats(
 		10,
 		map[int32]*procutil.Stats{2: zombie},
 		map[int32]*procutil.Stats{2: makeProcessStats()},
 		map[int]string{},
+		nil,
+		false,
 		cpu.TimesStat{},
 		cpu.TimesStat{},
 		time.Now().Add(-time.Second),
 		time.Now(),
 	)
-	require.Len(t, allZombies, 1)
-	require.Len(t, allZombies[0], 1)
-	assert.Equal(t, model.ProcessState_Z, allZombies[0][0].ProcessState)
+	assert.Empty(t, allZombies)
+
+	submitted := fmtProcessStats(
+		10,
+		map[int32]*procutil.Stats{1: live, 2: zombie, 3: nil},
+		map[int32]*procutil.Stats{1: makeProcessStats(), 2: makeProcessStats(), 3: makeProcessStats()},
+		map[int]string{},
+		nil,
+		true,
+		cpu.TimesStat{},
+		cpu.TimesStat{},
+		time.Now().Add(-time.Second),
+		time.Now(),
+	)
+	require.Len(t, submitted, 1)
+	statsByPID := make(map[int32]*model.ProcessStat, len(submitted[0]))
+	for _, stat := range submitted[0] {
+		statsByPID[stat.Pid] = stat
+	}
+	require.Len(t, statsByPID, 2)
+	require.Contains(t, statsByPID, int32(1))
+	require.Contains(t, statsByPID, int32(2))
+	assert.Equal(t, model.ProcessState_Z, statsByPID[2].ProcessState)
 }
 
 func TestFilterRealtimeStats(t *testing.T) {
@@ -215,7 +291,7 @@ func TestFmtProcessStats(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			chunked := fmtProcessStats(tc.maxBatchSize, procs, lastProcs, map[int]string{}, cpu.TimesStat{}, cpu.TimesStat{}, time.Now().Add(-time.Second), time.Now())
+			chunked := fmtProcessStats(tc.maxBatchSize, procs, lastProcs, map[int]string{}, nil, false, cpu.TimesStat{}, cpu.TimesStat{}, time.Now().Add(-time.Second), time.Now())
 			assert.Len(t, chunked, tc.expectedNumChunks)
 			for i, size := range tc.expectedChunkSizes {
 				assert.Len(t, chunked[i], size)

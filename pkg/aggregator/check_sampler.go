@@ -12,7 +12,6 @@ import (
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
@@ -34,9 +33,12 @@ type CheckSampler struct {
 	id                     checkid.ID
 	series                 []*metrics.Serie
 	sketches               metrics.SketchSeriesList
+	mergeableSeries        []*metrics.Serie
+	mergeableSketches      []mergeableSketch
 	contextResolver        *countBasedContextResolver
 	metrics                metrics.CheckMetrics
-	sketchMap              sketchMap
+	pendingSketches        contextSketches
+	sketchesPerTimestamp   sketchMap
 	lastBucketValue        map[ckey.ContextKey]int64
 	lastBucketValueByBound map[ckey.ContextKey]map[bucketBounds]int64
 	deregistered           bool
@@ -58,17 +60,20 @@ func newCheckSampler(
 	contextResolverMetrics bool,
 	statefulTimeout time.Duration,
 	allowSketchBucketReset bool,
+	sketchesAtCommit bool,
 	cache *tags.Store,
 	id checkid.ID,
 	tagger tagger.Component,
+	filteredIdentities *filteredIdentityTable,
 ) *CheckSampler {
 	return &CheckSampler{
 		id:                     id,
 		series:                 make([]*metrics.Serie, 0),
 		sketches:               make(metrics.SketchSeriesList, 0),
-		contextResolver:        newCountBasedContextResolver(expirationCount, cache, tagger, string(id)),
+		contextResolver:        newCountBasedContextResolver(expirationCount, cache, tagger, string(id), filteredIdentities),
 		metrics:                metrics.NewCheckMetrics(expireMetrics, statefulTimeout),
-		sketchMap:              make(sketchMap),
+		pendingSketches:        make(contextSketches),
+		sketchesPerTimestamp:   newSketchesPerTimestamp(sketchesAtCommit),
 		lastBucketValue:        make(map[ckey.ContextKey]int64),
 		contextResolverMetrics: contextResolverMetrics,
 		logThrottling:          util.NewSimpleThrottler(5, 5*time.Minute, ""),
@@ -81,9 +86,10 @@ func (cs *CheckSampler) SetObserverHandle(h observer.Handle) {
 	cs.observerHandle = h
 }
 
-func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList filterlist.TagMatcher) {
+func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList metricname.TagMatcher) {
 	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
 	if cs.observerHandle != nil {
+		// The observer sees each source with its full tags, even when its output is filtered.
 		context, _ := cs.contextResolver.get(contextKey)
 		cs.observerHandle.ObserveMetric(resolvedMetricView{
 			sample: metricSample,
@@ -92,7 +98,7 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterL
 		}, uint64(contextKey))
 	}
 	if metricSample.Mtype == metrics.DistributionType {
-		cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)
+		cs.insertSketch(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)
 		return
 	}
 
@@ -101,11 +107,13 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterL
 	}
 }
 
-func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) *metrics.SketchSeries {
+// newSketchSeries returns a context's sketch series with the given points, and the context, or nil if the context
+// isn't tracked.
+func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) (*metrics.SketchSeries, *Context) {
 	ctx, ok := cs.contextResolver.get(ck)
 	if !ok {
 		log.Errorf("Ignoring sketch on context key '%v': inconsistent context resolver state: the context is not tracked", ck)
-		return nil
+		return nil, nil
 	}
 	ss := &metrics.SketchSeries{
 		DistributionMetadata: metrics.DistributionMetadata{
@@ -118,10 +126,10 @@ func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Ske
 		Points: points,
 	}
 
-	return ss
+	return ss, ctx
 }
 
-func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList filterlist.TagMatcher) {
+func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList metricname.TagMatcher) {
 	if bucket.Value < 0 {
 		if !cs.logThrottling.ShouldThrottle() {
 			log.Warnf("Negative bucket value %d for metric %s discarding", bucket.Value, bucket.Name)
@@ -202,13 +210,13 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList
 
 	// "if the quantile falls into the highest bucket, the upper bound of the 2nd highest bucket is returned"
 	if math.IsInf(bucket.UpperBound, 1) {
-		cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.LowerBound, uint(bucket.Value))
+		cs.insertSketchInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.LowerBound, uint(bucket.Value))
 		return
 	}
 
 	// mirror the +Inf case: the open-ended bottom bucket collapses to its upper bound
 	if math.IsInf(bucket.LowerBound, -1) {
-		cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.UpperBound, bucket.UpperBound, uint(bucket.Value))
+		cs.insertSketchInterp(int64(bucket.Timestamp), contextKey, bucket.UpperBound, bucket.UpperBound, uint(bucket.Value))
 		return
 	}
 
@@ -216,7 +224,7 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList
 		"Interpolating %d values over the [%f-%f] bucket",
 		bucket.Value, bucket.LowerBound, bucket.UpperBound,
 	)
-	cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.UpperBound, uint(bucket.Value))
+	cs.insertSketchInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.UpperBound, uint(bucket.Value))
 }
 
 func (cs *CheckSampler) commitSeries(timestamp float64, filterList *metricname.Matcher) {
@@ -253,22 +261,84 @@ func (cs *CheckSampler) appendSeries(series []*metrics.Serie, errors map[ckey.Co
 		serie.NoIndex = context.noIndex
 		serie.SourceTypeName = checksSourceTypeName // this source type is required for metrics coming from the checks
 		serie.Source = context.source
+		if filtered := cs.contextResolver.resolver.filteredIdentityOf(context); filtered != nil {
+			serie.ContextKey, serie.Tags = filtered.key, filtered.Tags()
+			cs.mergeableSeries = append(cs.mergeableSeries, serie)
+			continue
+		}
 
 		cs.series = append(cs.series, serie)
 	}
 }
 
+// commitSketches releases the sketch of every context the check run submitted to, stamped at the commit, as series
+// are.
 func (cs *CheckSampler) commitSketches(timestamp float64, filterList *metricname.Matcher) {
+	if cs.sketchesPerTimestamp != nil {
+		cs.commitSketchesPerTimestamp(timestamp, filterList)
+		return
+	}
+	defer clear(cs.pendingSketches)
+	for ck, agent := range cs.pendingSketches {
+		sketch := agent.Finish()
+		if sketch == nil {
+			continue
+		}
+		series, ctx := cs.newSketchSeries(ck, []metrics.SketchPoint{{Sketch: sketch, Ts: int64(timestamp)}})
+		if series == nil {
+			continue
+		}
+		// Filter the metrics
+		if filterList != nil && filterList.Test(series.Name) {
+			tlmChecksFilteredMetrics.Inc()
+			continue
+		}
+		if filtered := cs.contextResolver.resolver.filteredIdentityOf(ctx); filtered != nil {
+			series.Tags = filtered.Tags()
+			cs.mergeableSketches = append(cs.mergeableSketches, mergeableSketch{key: filtered.key, sketch: series})
+			continue
+		}
+		cs.sketches = append(cs.sketches, series)
+	}
+}
+
+// newSketchesPerTimestamp returns the sketches a check sampler keeps per second of submission when they aren't
+// timestamped at commit (check_sampler_sketches_at_commit off), and nil otherwise.
+func newSketchesPerTimestamp(sketchesAtCommit bool) sketchMap {
+	if sketchesAtCommit {
+		return nil
+	}
+	return make(sketchMap)
+}
+
+func (cs *CheckSampler) insertSketch(ts int64, ck ckey.ContextKey, v float64, sampleRate float64) {
+	if cs.sketchesPerTimestamp != nil {
+		cs.sketchesPerTimestamp.insert(ts, ck, v, sampleRate)
+		return
+	}
+	cs.pendingSketches.insert(ck, v, sampleRate)
+}
+
+func (cs *CheckSampler) insertSketchInterp(ts int64, ck ckey.ContextKey, lower float64, upper float64, count uint) {
+	if cs.sketchesPerTimestamp != nil {
+		cs.sketchesPerTimestamp.insertInterp(ts, ck, lower, upper, count)
+		return
+	}
+	cs.pendingSketches.insertInterp(ck, lower, upper, count)
+}
+
+// commitSketchesPerTimestamp releases the sketches from before the commit's second, one point per second of submission.
+func (cs *CheckSampler) commitSketchesPerTimestamp(timestamp float64, filterList *metricname.Matcher) {
 	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
 
-	cs.sketchMap.flushBefore(int64(timestamp), func(ck ckey.ContextKey, p metrics.SketchPoint) {
+	cs.sketchesPerTimestamp.flushBefore(int64(timestamp), func(ck ckey.ContextKey, p metrics.SketchPoint) {
 		if p.Sketch == nil {
 			return
 		}
 		pointsByCtx[ck] = append(pointsByCtx[ck], p)
 	})
 	for ck, points := range pointsByCtx {
-		series := cs.newSketchSeries(ck, points)
+		series, _ := cs.newSketchSeries(ck, points)
 		if series == nil {
 			continue
 		}
@@ -328,7 +398,15 @@ func (cs *CheckSampler) commitDecomposable(timestamp float64, filterList *metric
 func (cs *CheckSampler) hasState(key ckey.ContextKey) bool {
 	_, bucket := cs.lastBucketValue[key]
 	_, byBound := cs.lastBucketValueByBound[key]
-	return bucket || byBound || cs.sketchMap.contains(key)
+	_, sketch := cs.pendingSketches[key]
+	return bucket || byBound || sketch || (cs.sketchesPerTimestamp != nil && cs.sketchesPerTimestamp.contains(key))
+}
+
+// flushMergeable returns the output committed since the last call that goes to the check output merger.
+func (cs *CheckSampler) flushMergeable() ([]*metrics.Serie, []mergeableSketch) {
+	series, sketches := cs.mergeableSeries, cs.mergeableSketches
+	cs.mergeableSeries, cs.mergeableSketches = nil, nil
+	return series, sketches
 }
 
 func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
@@ -344,10 +422,6 @@ func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
 	cs.updateMetrics()
 
 	return series, sketches
-}
-
-func (cs *CheckSampler) clearStripCache() {
-	cs.contextResolver.resolver.clearTagFilterCache()
 }
 
 func (cs *CheckSampler) release() {
@@ -385,4 +459,9 @@ func bucketBoundsFor(bucket *metrics.HistogramBucket) bucketBounds {
 		lower: bucket.LowerBound,
 		upper: bucket.UpperBound,
 	}
+}
+
+// refilter updates the identity every context filters to at output, after the rules changed.
+func (cs *CheckSampler) refilter(filterList metricname.TagMatcher) {
+	cs.contextResolver.resolver.refilter(filterList)
 }

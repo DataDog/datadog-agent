@@ -31,6 +31,7 @@ type MockSecretResolver struct {
 	t           *testing.T
 	scenarios   []mockSecretScenario
 	subscribers []secrets.SecretChangeCallback
+	originNames map[string]string
 }
 
 var _ secrets.Component = (*MockSecretResolver)(nil)
@@ -52,6 +53,13 @@ func (m *MockSecretResolver) Resolve(data []byte, origin string, _ string, _ str
 }
 
 func (m *MockSecretResolver) RemoveOrigin(_ string) {}
+
+func (m *MockSecretResolver) SetOriginName(origin string, name string) {
+	if m.originNames == nil {
+		m.originNames = map[string]string{}
+	}
+	m.originNames[origin] = name
+}
 
 func (m *MockSecretResolver) SubscribeToChanges(callback secrets.SecretChangeCallback) {
 	if m.subscribers == nil {
@@ -159,6 +167,20 @@ func TestSecretResolve(t *testing.T) {
 	assert.NotEqual(t, newConfig.Instances, sharedTpl.Instances)
 
 	assert.True(t, mockResolve.haveAllScenariosBeenCalled())
+}
+
+func TestDecryptConfigSetsOrigin(t *testing.T) {
+	unnamedTpl := sharedTpl
+	unnamedTpl.Name = ""
+
+	mockResolve := &MockSecretResolver{t: t}
+	_, err := decryptConfig(sharedTpl, mockResolve, "digest1")
+	require.NoError(t, err)
+	_, err = decryptConfig(unnamedTpl, mockResolve, "digest2")
+	require.NoError(t, err)
+
+	// configs without a name keep the digest
+	assert.Equal(t, map[string]string{"digest1": "cpu"}, mockResolve.originNames)
 }
 
 // TestDecryptConfigInstanceFailureSkipsInstance verifies that when one instance fails to

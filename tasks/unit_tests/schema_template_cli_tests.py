@@ -142,5 +142,69 @@ class TestSchemaTemplateCLI(unittest.TestCase):
         self.assertNotEqual(rc, 0)
 
 
+class TestTemplateBanners(unittest.TestCase):
+    @staticmethod
+    def _setting(**extra):
+        return {
+            "node_type": "setting",
+            "type": "string",
+            "default": "",
+            "description": "A setting",
+            "visibility": "public",
+            **extra,
+        }
+
+    def _render(self, properties):
+        from tasks.schema.template import generate_template
+
+        with tempfile.TemporaryDirectory() as tmp:
+            schema_path = os.path.join(tmp, "schema.yaml")
+            with open(schema_path, "w") as f:
+                yaml.safe_dump({"properties": properties}, f, sort_keys=False)
+            out_path = os.path.join(tmp, "out.yaml")
+            generate_template(schema_path, out_path, "datadog-agent", "linux")
+            with open(out_path) as f:
+                return f.read()
+
+    @staticmethod
+    def _banner(text):
+        outline = "#" * (len(text) + 6)
+        return f"{outline}\n## {text} ##\n{outline}\n\n"
+
+    def test_setting_banner_is_rendered_before_the_setting(self):
+        content = self._render({"api_key": self._setting(banner="Basic Configuration")})
+        self.assertIn(self._banner("Basic Configuration") + "## @param api_key", content)
+
+    def test_section_title_is_rendered_as_banner(self):
+        section = {
+            "node_type": "section",
+            "title": "Trace Collection Configuration",
+            "type": "object",
+            "visibility": "public",
+            "description": "A section",
+            "properties": {"enabled": self._setting()},
+        }
+        content = self._render({"apm_config": section})
+        self.assertIn(self._banner("Trace Collection Configuration") + "## @param apm_config", content)
+
+    def test_section_banner_takes_precedence_over_title(self):
+        section = {
+            "node_type": "section",
+            "title": "Label",
+            "banner": "Banner",
+            "type": "object",
+            "visibility": "public",
+            "description": "A section",
+            "properties": {"enabled": self._setting()},
+        }
+        content = self._render({"apm_config": section})
+        self.assertIn(self._banner("Banner"), content)
+        self.assertNotIn("## Label ##", content)
+
+    def test_setting_title_is_not_a_banner(self):
+        content = self._render({"api_key": self._setting(title="Basic Configuration")})
+        self.assertNotIn("## Basic Configuration ##", content)
+
+
 if __name__ == "__main__":
     unittest.main()

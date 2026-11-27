@@ -127,7 +127,11 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 	}
 
 	// Map DD_PRIVATE_ACTION_RUNNER_ENABLED env var into datadog.yaml
-	if parEnabledEnv := os.Getenv("DD_PRIVATE_ACTION_RUNNER_ENABLED"); strings.EqualFold(parEnabledEnv, "true") {
+	parEnabledEnv := os.Getenv("DD_PRIVATE_ACTION_RUNNER_ENABLED")
+	if strings.EqualFold(parEnabledEnv, "true") && env.FIPSMode {
+		s.Out.WriteString("Warning: DD_PRIVATE_ACTION_RUNNER_ENABLED is ignored: the private action runner is not supported in FIPS mode.\n")
+	}
+	if strings.EqualFold(parEnabledEnv, "true") && !env.FIPSMode {
 		if appKey := os.Getenv("DD_APP_KEY"); appKey != "" {
 			s.Config.DatadogYAML.AppKey = appKey
 		}

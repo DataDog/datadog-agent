@@ -12,6 +12,7 @@
 #include "sock.h"
 #include "port_range.h"
 #include "protocols/classification/shared-tracer-maps.h"
+#include "tracer/nat.h"
 #include "protocols/classification/stack-helpers.h"
 #include "protocols/tls/tags-types.h"
 #include "ip.h"
@@ -122,11 +123,15 @@ static __always_inline void update_conn_state(conn_tuple_t *t, conn_stats_ts_t *
 //
 // *how is the connection direction determined?*
 //
-// Basically we compare the src-side of the normalized USM tuple (which should
-// contain the client port), with the source port of the TCP *socket* (here
-// supplied as part the `pre_norm_tuple` argument). If they match, we mark the
-// protocol stack with FLAG_CLIENT_SIDE, otherwise we mark it with
-// FLAG_SERVER_SIDE.
+// `flipped` says whether normalize_tuple flipped this socket's view of the
+// tuple, with the socket's end as the source: for the socket's own tuple, and
+// for the NAT'd tuple, the packets' tuple as it leaves the socket. If it didn't
+// flip, this end is the normalized source and we mark the protocol stack with
+// FLAG_CLIENT_SIDE, otherwise with FLAG_SERVER_SIDE. The two ends of a
+// connection see the same normalized tuple in opposite orientations, so for two
+// distinct ends exactly one of them flips it; a self-connect (the same address
+// and port on both ends) flips for neither. Comparing source ports instead fails when the ports are
+// equal, and under the NAT'd tuple when NAT rewrote the socket's own port.
 //
 // *why do we do that?*
 //
@@ -141,8 +146,8 @@ static __always_inline void update_conn_state(conn_tuple_t *t, conn_stats_ts_t *
 // This doesn't matter in our case. Even if FLAG_SERVER_SIDE and
 // FLAG_CLIENT_SIDE are flipped, all we care about is the case where both flags
 // are present.
-static __always_inline void mark_protocol_direction(conn_tuple_t *pre_norm_tuple, conn_tuple_t *norm_tuple, protocol_stack_t *protocol_stack) {
-    if (pre_norm_tuple->sport == norm_tuple->sport) {
+static __always_inline void mark_protocol_direction(bool flipped, protocol_stack_t *protocol_stack) {
+    if (!flipped) {
         set_protocol_flag(protocol_stack, FLAG_CLIENT_SIDE);
         return;
     }
@@ -160,28 +165,27 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     // The key is based of the source & dest addresses and ports, and the metadata.
     conn_tuple_copy.netns = 0;
     conn_tuple_copy.pid = 0;
-    normalize_tuple(&conn_tuple_copy);
+    bool flipped = normalize_tuple(&conn_tuple_copy);
 
     // Using __get_protocol_stack_if_exists and __get_tls_enhanced_tags as `conn_tuple_copy` is already normalized.
     protocol_stack_t *protocol_stack = __get_protocol_stack_if_exists(&conn_tuple_copy);
     set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
-    mark_protocol_direction(t, &conn_tuple_copy, protocol_stack);
+    mark_protocol_direction(flipped, protocol_stack);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
 
     tls_info_t *tls_tags = __get_tls_enhanced_tags(&conn_tuple_copy);
     merge_tls_info(&stats->tls_tags, tls_tags);
 
-    conn_tuple_t *cached_skb_conn_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple_copy);
-    if (!cached_skb_conn_tup_ptr) {
+    conn_tuple_t skb_tup;
+    if (!get_skb_tuple(t, &conn_tuple_copy, &skb_tup, &flipped)) {
         return;
     }
 
-    conn_tuple_copy = *cached_skb_conn_tup_ptr;
-    normalize_tuple(&conn_tuple_copy);
+    conn_tuple_copy = skb_tup;
     // Using __get_protocol_stack_if_exists and __get_tls_enhanced_tags as `conn_tuple_copy` is already normalized.
     protocol_stack = __get_protocol_stack_if_exists(&conn_tuple_copy);
     set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
-    mark_protocol_direction(t, &conn_tuple_copy, protocol_stack);
+    mark_protocol_direction(flipped, protocol_stack);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
 
     tls_tags = __get_tls_enhanced_tags(&conn_tuple_copy);
@@ -213,6 +217,9 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
     if (!val) {
         return;
     }
+    // The 4.4 verifier marks only the checked register as non-null, not a copy spilled before the check, so make the
+    // compiler take its copies of val after the check.
+    barrier_var(val);
 
     SSL_report_cert(val);
 
@@ -251,19 +258,29 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
     }
 }
 
-// update_tcp_stats update rtt, retransmission and state on of a TCP connection
-static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats) {
-    // initialize-if-no-exist the connection state, and load it
+// get_or_create_tcp_stats returns the tcp_stats entry for the tuple, inserting a zeroed one if missing.
+// The entry exists on nearly every call, so look it up first: a BPF_NOEXIST update on an existing key
+// takes the bucket lock only to return -EEXIST.
+static __always_inline tcp_stats_t *get_or_create_tcp_stats(conn_tuple_t *t) {
+    tcp_stats_t *val = bpf_map_lookup_elem(&tcp_stats, t);
+    if (val) {
+        return val;
+    }
+
     tcp_stats_t empty = {};
     bpf_memset(&empty, 0, sizeof(tcp_stats_t));
 
     // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
     // and do not provide any useful signal since the key is expected to be present sometimes.
     bpf_map_update_with_telemetry(tcp_stats, t, &empty, BPF_NOEXIST, -EEXIST);
+    return bpf_map_lookup_elem(&tcp_stats, t);
+}
 
-    tcp_stats_t *val = bpf_map_lookup_elem(&tcp_stats, t);
+// update_tcp_stats update rtt, retransmission and state on of a TCP connection, returning the entry
+static __always_inline tcp_stats_t *update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats) {
+    tcp_stats_t *val = get_or_create_tcp_stats(t);
     if (val == NULL) {
-        return;
+        return NULL;
     }
 
     if (stats.rtt > 0) {
@@ -280,6 +297,7 @@ static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats)
     if (stats.failure_reason != 0) {
         val->failure_reason = stats.failure_reason;
     }
+    return val;
 }
 
 static __always_inline int handle_message(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, conn_direction_t dir,
@@ -289,10 +307,11 @@ static __always_inline int handle_message(conn_tuple_t *t, size_t sent_bytes, si
     return 0;
 }
 
-static __always_inline int handle_retransmit(struct sock *sk, int count) {
+// With btf set, sk must be a BTF-typed pointer.
+static __always_inline int __handle_retransmit(struct sock *sk, int count, const bool btf) {
     conn_tuple_t t = {};
     u64 zero = 0;
-    if (!read_conn_tuple(&t, sk, zero, CONN_TYPE_TCP)) {
+    if (!BTF_OR_PROBE_READ(btf, read_conn_tuple, &t, sk, zero, CONN_TYPE_TCP)) {
         return 0;
     }
 
@@ -311,11 +330,14 @@ static __always_inline int handle_retransmit(struct sock *sk, int count) {
     return 0;
 }
 
+static __always_inline int handle_retransmit(struct sock *sk, int count) {
+    return __handle_retransmit(sk, count, false);
+}
+
 // handle_congestion_stats reads TCP congestion fields from tcp_sock into the
 // tcp_stats map.
-static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock *sk) {
+static __always_inline void handle_congestion_stats(tcp_stats_t *val, struct sock *sk) {
 #if !defined(COMPILE_PREBUILT)
-    tcp_stats_t *val = bpf_map_lookup_elem(&tcp_stats, t);
     if (val == NULL) {
         return;
     }
@@ -453,11 +475,12 @@ static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u
     if (state > 0) {
         stats.state_transitions = (1 << state);
     }
-    update_tcp_stats(t, stats);
-    handle_congestion_stats(t, sk);
+    tcp_stats_t *val = update_tcp_stats(t, stats);
+    handle_congestion_stats(val, sk);
 }
 
-static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buff *skb, int len) {
+// With btf set, sk and skb must be BTF-typed pointers.
+static __always_inline int __handle_skb_consume_udp(struct sock *sk, struct sk_buff *skb, int len, const bool btf) {
     if (len < 0) {
         // peeking or an error happened
         return 0;
@@ -471,7 +494,7 @@ static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buf
 
     conn_tuple_t t;
     bpf_memset(&t, 0, sizeof(conn_tuple_t));
-    int data_len = sk_buff_to_tuple(skb, &t);
+    int data_len = BTF_OR_PROBE_READ(btf, sk_buff_to_tuple, skb, &t);
     if (data_len <= 0) {
         log_debug("ERR(skb_consume_udp): error reading tuple ret=%d", data_len);
         return 0;
@@ -481,8 +504,12 @@ static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buf
 
     log_debug("skb_consume_udp: bytes=%d", data_len);
     t.pid = GET_USER_MODE_PID(pid_tgid);
-    t.netns = get_netns_from_sock(sk);
+    t.netns = BTF_OR_PROBE_READ(btf, get_netns_from_sock, sk);
     return handle_message(&t, 0, data_len, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_INCREMENT, sk);
+}
+
+static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buff *skb, int len) {
+    return __handle_skb_consume_udp(sk, skb, len, false);
 }
 
 static __always_inline int handle_tcp_recv(u64 pid_tgid, struct sock *skp, int recv) {
@@ -500,24 +527,130 @@ static __always_inline int handle_tcp_recv(u64 pid_tgid, struct sock *skp, int r
     return handle_message(&t, 0, recv, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, skp);
 }
 
+#if defined(COMPILE_CORE) && defined(SOCK_PTR_IS_BTF)
+// Variants for programs whose sock pointers are BTF pointers (fentry/fexit arguments and return values).
+// They take the tcp_sock pointer once per handler and load tcp_sock fields directly instead of through
+// bpf_probe_read_kernel. With a NULL tcp_sock pointer they run the probe-read helpers above.
+
+// tcp_sk_btf returns NULL when the kernel lacks bpf_skc_to_tcp_sock (5.9+) or sk isn't a full TCP socket.
+static __always_inline struct tcp_sock *tcp_sk_btf(struct sock *sk) {
+    if (!bpf_helper_exists(BPF_FUNC_skc_to_tcp_sock)) {
+        return NULL;
+    }
+    return bpf_skc_to_tcp_sock(sk);
+}
+
+static __always_inline void handle_congestion_stats_btf(tcp_stats_t *val, struct tcp_sock *tp) {
+    if (val == NULL) {
+        return;
+    }
+    if (bpf_core_field_exists(struct tcp_sock, reord_seen)) {
+        val->reord_seen = tp->reord_seen;
+    }
+    if (bpf_core_field_exists(struct tcp_sock, rcv_ooopack)) {
+        val->rcv_ooopack = tp->rcv_ooopack;
+    }
+    if (bpf_core_field_exists(struct tcp_sock, delivered_ce)) {
+        val->delivered_ce = tp->delivered_ce;
+    }
+    if (bpf_core_field_exists(struct tcp_sock, ecn_flags)) {
+        __u8 ecn = tp->ecn_flags;
+        val->ecn_negotiated = ecn & 1; // ecn_flags bit 0 (TCP_ECN_OK) indicates whether ECN was negotiated for this connection
+    }
+}
+
+static __always_inline void handle_tcp_stats_btf(conn_tuple_t *t, struct sock *sk, struct tcp_sock *tp, u8 state) {
+    if (!tp) {
+        handle_tcp_stats(t, sk, state);
+        return;
+    }
+
+    tcp_stats_t stats = {};
+    bpf_memset(&stats, 0, sizeof(tcp_stats_t));
+    stats.rtt = tp->srtt_us;
+    stats.rtt_var = tp->mdev_us;
+    if (state > 0) {
+        stats.state_transitions = (1 << state);
+    }
+    tcp_stats_t *val = update_tcp_stats(t, stats);
+    handle_congestion_stats_btf(val, tp);
+}
+
+static __always_inline void get_tcp_segment_counts_btf(struct sock *sk, struct tcp_sock *tp, __u32 *packets_in, __u32 *packets_out) {
+    if (!tp) {
+        get_tcp_segment_counts(sk, packets_in, packets_out);
+        return;
+    }
+    *packets_out = tp->segs_out;
+    *packets_in = tp->segs_in;
+}
+
+static __always_inline int handle_tcp_recv_btf(u64 pid_tgid, struct sock *skp, int recv) {
+    conn_tuple_t t = {};
+    if (!read_conn_tuple_btf(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    struct tcp_sock *tp = tcp_sk_btf(skp);
+    handle_tcp_stats_btf(&t, skp, tp, 0);
+
+    __u32 packets_in = 0;
+    __u32 packets_out = 0;
+    get_tcp_segment_counts_btf(skp, tp, &packets_in, &packets_out);
+
+    return handle_message(&t, 0, recv, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, skp);
+}
+
+static __always_inline int handle_retransmit_btf(struct sock *sk, int count) {
+    return __handle_retransmit(sk, count, true);
+}
+
+static __always_inline int handle_skb_consume_udp_btf(struct sock *sk, struct sk_buff *skb, int len) {
+    return __handle_skb_consume_udp(sk, skb, len, true);
+}
+#endif
+
 __maybe_unused static __always_inline bool tcp_failed_connections_enabled() {
     __u64 val = 0;
     LOAD_CONSTANT("tcp_failed_connections_enabled", val);
     return val > 0;
 }
 
-// get_tcp_failure returns an error code for tcp_done/tcp_close, if there was one
-static __always_inline int get_tcp_failure(struct sock *sk) {
+// Field readers for __get_tcp_failure. The _btf variants take a BTF-typed sock pointer and use direct loads.
+static __always_inline void read_sk_err(struct sock *sk, int *err) {
+    BPF_CORE_READ_INTO(err, sk, sk_err);
+}
+
+static __always_inline void read_skc_state(struct sock *sk, unsigned char *state) {
+    struct sock_common *skc = (struct sock_common*) sk;
+    // the fact that this field is volatile breaks BPF_CORE_READ_INTO, so it must be cast separately
+    bpf_probe_read_kernel(state, 1, (unsigned char*) &skc->skc_state);
+}
+
+// These readers are gated by COMPILE_CORE only, not SOCK_PTR_IS_BTF like handle_tcp_failure_btf: BTF_OR_PROBE_READ
+// names fn##_btf in every CO-RE object (including the kprobe CO-RE tracer, which doesn't define SOCK_PTR_IS_BTF), so
+// they must exist there even though only the btf=true path calls them.
+#ifdef COMPILE_CORE
+static __maybe_unused __always_inline void read_sk_err_btf(struct sock *sk, int *err) {
+    *err = sk->sk_err;
+}
+
+static __maybe_unused __always_inline void read_skc_state_btf(struct sock *sk, unsigned char *state) {
+    *state = sk->__sk_common.skc_state;
+}
+#endif
+
+// __get_tcp_failure returns an error code for tcp_done/tcp_close, if there was one.
+// With btf set, sk must be a BTF-typed pointer.
+static __always_inline int __get_tcp_failure(struct sock *sk, const bool btf) {
     int err = 0;
-    BPF_CORE_READ_INTO(&err, sk, sk_err);
+    BTF_OR_PROBE_READ(btf, read_sk_err, sk, &err);
     if (err != 0) {
         return err;
     }
 
-    struct sock_common *skc = (struct sock_common*) sk;
     unsigned char state = 0;
-    // the fact that this field is volatile breaks BPF_CORE_READ_INTO, so it must be cast separately
-    bpf_probe_read_kernel(&state, 1, (unsigned char*) &skc->skc_state);
+    BTF_OR_PROBE_READ(btf, read_skc_state, sk, &state);
     // we are still in SYN_SENT when the socket closed, meaning the connect was cancelled
     if (state == TCP_SYN_SENT) {
         return TCP_CONN_FAILED_CANCELED;
@@ -550,13 +683,9 @@ static __always_inline void report_unrecognized_tcp_failure(int err) {
     }
 }
 
-// handle_tcp_failure handles TCP connection failures on the socket pointer and adds them to the connection tuple
+// record_tcp_failure adds the given TCP failure error code (from __get_tcp_failure) to the connection tuple's stats
 // returns an integer to the caller indicating if there was a failure or not
-static __always_inline bool handle_tcp_failure(struct sock *sk, conn_tuple_t *t) {
-    if (!tcp_failed_connections_enabled()) {
-        return false;
-    }
-    int err = get_tcp_failure(sk);
+static __always_inline bool record_tcp_failure(conn_tuple_t *t, int err) {
     if (err == 0) {
         return false;
     }
@@ -572,5 +701,26 @@ static __always_inline bool handle_tcp_failure(struct sock *sk, conn_tuple_t *t)
 
     return false;
 }
+
+// __handle_tcp_failure handles TCP connection failures on the socket pointer and adds them to the connection tuple
+// returns an integer to the caller indicating if there was a failure or not. With btf set, sk must be a BTF-typed
+// pointer.
+static __always_inline bool __handle_tcp_failure(struct sock *sk, conn_tuple_t *t, const bool btf) {
+    if (!tcp_failed_connections_enabled()) {
+        return false;
+    }
+    return record_tcp_failure(t, __get_tcp_failure(sk, btf));
+}
+
+static __always_inline bool handle_tcp_failure(struct sock *sk, conn_tuple_t *t) {
+    return __handle_tcp_failure(sk, t, false);
+}
+
+#if defined(COMPILE_CORE) && defined(SOCK_PTR_IS_BTF)
+// handle_tcp_failure for a BTF-typed sock pointer.
+static __always_inline bool handle_tcp_failure_btf(struct sock *sk, conn_tuple_t *t) {
+    return __handle_tcp_failure(sk, t, true);
+}
+#endif
 
 #endif // __TRACER_STATS_H

@@ -36,9 +36,10 @@ func generateContextKey(sample metrics.MetricSampleContext) ckey.ContextKey {
 	return k.Generate(sample.GetName(), sample.GetHost(), tb)
 }
 
-func testCheckGaugeSampling(t *testing.T, store *tags.Store) {
+func TestCheckGaugeSampling(t *testing.T) {
+	store := tags.NewStore("test")
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, true, store, checkid.ID("hello:world:1234"), taggerComponent, newFilteredIdentityTable())
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
 	mSample1 := metrics.MetricSample{
@@ -97,13 +98,10 @@ func testCheckGaugeSampling(t *testing.T, store *tags.Store) {
 	metrics.AssertSeriesEqual(t, expectedSeries, series)
 }
 
-func TestCheckGaugeSampling(t *testing.T) {
-	testWithTagsStore(t, testCheckGaugeSampling)
-}
-
-func testCheckRateSampling(t *testing.T, store *tags.Store) {
+func TestCheckRateSampling(t *testing.T) {
+	store := tags.NewStore("test")
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, true, store, checkid.ID("hello:world:1234"), taggerComponent, newFilteredIdentityTable())
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
 
@@ -183,7 +181,7 @@ func TestCheckSamplerReleaseDeletesContextTelemetry(t *testing.T) {
 		"aggregator__checks_contexts_bytes_by_mtype",
 	}
 
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, tags.NewStore(true, "test"), checkid.ID(id), nooptagger.NewComponent())
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, true, tags.NewStore("test"), checkid.ID(id), nooptagger.NewComponent(), newFilteredIdentityTable())
 	checkSampler.addSample(&metrics.MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
@@ -207,13 +205,10 @@ func TestCheckSamplerReleaseDeletesContextTelemetry(t *testing.T) {
 	}
 }
 
-func TestCheckRateSampling(t *testing.T) {
-	testWithTagsStore(t, testCheckRateSampling)
-}
-
-func testHistogramCountSampling(t *testing.T, store *tags.Store) {
+func TestHistogramCountSampling(t *testing.T) {
+	store := tags.NewStore("test")
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, true, store, checkid.ID("hello:world:1234"), taggerComponent, newFilteredIdentityTable())
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
 	matcher := metricname.NewMatcher([]string{}, false)
@@ -277,13 +272,10 @@ func testHistogramCountSampling(t *testing.T, store *tags.Store) {
 	require.Equal(t, 0, checkSampler.contextResolver.length())
 }
 
-func TestHistogramCountSampling(t *testing.T) {
-	testWithTagsStore(t, testHistogramCountSampling)
-}
-
-func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
+func TestCheckHistogramBucketSampling(t *testing.T) {
+	store := tags.NewStore("test")
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, true, store, checkid.ID("hello:world:1234"), taggerComponent, newFilteredIdentityTable())
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
 	matcher := metricname.NewMatcher([]string{}, false)
@@ -317,7 +309,7 @@ func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
 			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		},
 		Points: []metrics.SketchPoint{
-			{Ts: 12345.0, Sketch: expSketch},
+			{Ts: 12349.0, Sketch: expSketch},
 		},
 	}, flushed[0], .03)
 
@@ -351,7 +343,7 @@ func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
 			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		},
 		Points: []metrics.SketchPoint{
-			{Ts: 12400.0, Sketch: expSketch},
+			{Ts: 12401.0, Sketch: expSketch},
 		},
 	}, flushed[0], .03)
 
@@ -361,13 +353,10 @@ func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
 	assert.Equal(t, len(checkSampler.lastBucketValue), 0)
 }
 
-func TestCheckHistogramBucketSampling(t *testing.T) {
-	testWithTagsStore(t, testCheckHistogramBucketSampling)
-}
-
-func testCheckHistogramBucketDontFlushFirstValue(t *testing.T, store *tags.Store) {
+func TestCheckHistogramBucketDontFlushFirstValue(t *testing.T) {
+	store := tags.NewStore("test")
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, true, store, checkid.ID("hello:world:1234"), taggerComponent, newFilteredIdentityTable())
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
 
@@ -416,18 +405,15 @@ func testCheckHistogramBucketDontFlushFirstValue(t *testing.T, store *tags.Store
 			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		},
 		Points: []metrics.SketchPoint{
-			{Ts: 12400.0, Sketch: expSketch},
+			{Ts: 12401.0, Sketch: expSketch},
 		},
 	}, flushed[0], .03)
 }
 
-func TestCheckHistogramBucketDontFlushFirstValue(t *testing.T) {
-	testWithTagsStore(t, testCheckHistogramBucketDontFlushFirstValue)
-}
-
-func testCheckHistogramBucketReset(t *testing.T, store *tags.Store) {
+func TestCheckHistogramBucketReset(t *testing.T) {
+	store := tags.NewStore("test")
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, true, store, checkid.ID("hello:world:1234"), taggerComponent, newFilteredIdentityTable())
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
 
@@ -486,7 +472,7 @@ func testCheckHistogramBucketReset(t *testing.T, store *tags.Store) {
 			Name: "my.histogram",
 		},
 		Points: []metrics.SketchPoint{
-			{Ts: 12410, Sketch: sketchOf(10, 20, 3)},
+			{Ts: 12411, Sketch: sketchOf(10, 20, 3)},
 		},
 	}, flushed[0], 0.01)
 
@@ -495,18 +481,15 @@ func testCheckHistogramBucketReset(t *testing.T, store *tags.Store) {
 			Name: "my.histogram",
 		},
 		Points: []metrics.SketchPoint{
-			{Ts: 12420, Sketch: sketchOf(10, 20, 2)},
+			{Ts: 12421, Sketch: sketchOf(10, 20, 2)},
 		},
 	}, flushed[1], 0.01)
 }
 
-func TestCheckHistogramBucketReset(t *testing.T) {
-	testWithTagsStore(t, testCheckHistogramBucketReset)
-}
-
-func testCheckHistogramBucketMultipleBucketsSampling(t *testing.T, store *tags.Store) {
+func TestCheckHistogramBucketMultipleBucketsSampling(t *testing.T) {
+	store := tags.NewStore("test")
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, true, store, checkid.ID("hello:world:1234"), taggerComponent, newFilteredIdentityTable())
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
 	matcher := metricname.NewMatcher([]string{}, false)
@@ -562,7 +545,7 @@ func testCheckHistogramBucketMultipleBucketsSampling(t *testing.T, store *tags.S
 			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		},
 		Points: []metrics.SketchPoint{
-			{Ts: 12345.0, Sketch: expSketch.Finish()},
+			{Ts: 12349.0, Sketch: expSketch.Finish()},
 		},
 	}, flushed[0], .03)
 
@@ -605,7 +588,7 @@ func testCheckHistogramBucketMultipleBucketsSampling(t *testing.T, store *tags.S
 			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		},
 		Points: []metrics.SketchPoint{
-			{Ts: 12400.0, Sketch: expSketch.Finish()},
+			{Ts: 12401.0, Sketch: expSketch.Finish()},
 		},
 	}, flushed[0], .03)
 
@@ -615,19 +598,16 @@ func testCheckHistogramBucketMultipleBucketsSampling(t *testing.T, store *tags.S
 	assert.Len(t, checkSampler.lastBucketValueByBound, 0)
 }
 
-func TestCheckHistogramBucketMultipleBucketsSampling(t *testing.T) {
-	testWithTagsStore(t, testCheckHistogramBucketMultipleBucketsSampling)
-}
-
 func sketchOf(lower, upper float64, count uint) *quantile.Sketch {
 	s := quantile.Agent{}
 	s.InsertInterpolate(lower, upper, count)
 	return s.Finish()
 }
 
-func testCheckHistogramBucketInfinityBucket(t *testing.T, store *tags.Store) {
+func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
+	store := tags.NewStore("test")
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, true, store, checkid.ID("hello:world:1234"), taggerComponent, newFilteredIdentityTable())
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
 	matcher := metricname.NewMatcher([]string{}, false)
@@ -656,18 +636,15 @@ func testCheckHistogramBucketInfinityBucket(t *testing.T, store *tags.Store) {
 			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		},
 		Points: []metrics.SketchPoint{
-			{Ts: 12345.0, Sketch: expSketch},
+			{Ts: 12349.0, Sketch: expSketch},
 		},
 	}, flushed[0], .03)
 }
 
-func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
-	testWithTagsStore(t, testCheckHistogramBucketInfinityBucket)
-}
-
-func testCheckHistogramBucketNegativeInfinityBucket(t *testing.T, store *tags.Store) {
+func TestCheckHistogramBucketNegativeInfinityBucket(t *testing.T) {
+	store := tags.NewStore("test")
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, true, store, checkid.ID("hello:world:1234"), taggerComponent, newFilteredIdentityTable())
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
 	matcher := metricname.NewMatcher([]string{}, false)
@@ -695,18 +672,15 @@ func testCheckHistogramBucketNegativeInfinityBucket(t *testing.T, store *tags.St
 			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		},
 		Points: []metrics.SketchPoint{
-			{Ts: 12345.0, Sketch: expSketch},
+			{Ts: 12349.0, Sketch: expSketch},
 		},
 	}, flushed[0], .03)
 }
 
-func TestCheckHistogramBucketNegativeInfinityBucket(t *testing.T) {
-	testWithTagsStore(t, testCheckHistogramBucketNegativeInfinityBucket)
-}
-
-func testCheckDistribution(t *testing.T, store *tags.Store) {
+func TestCheckDistribution(t *testing.T) {
+	store := tags.NewStore("test")
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, true, store, checkid.ID("hello:world:1234"), taggerComponent, newFilteredIdentityTable())
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
 
@@ -734,18 +708,70 @@ func testCheckDistribution(t *testing.T, store *tags.Store) {
 			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		},
 		Points: []metrics.SketchPoint{
-			{Ts: 12345.0, Sketch: expSketch},
+			{Ts: 12349.0, Sketch: expSketch},
 		},
 	}, sketches[0])
 }
 
-func TestCheckDistribution(t *testing.T) {
-	testWithTagsStore(t, testCheckDistribution)
+func TestCheckDistributionStampedAtCommit(t *testing.T) {
+	store := tags.NewStore("test")
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, true, store, checkid.ID("hello:world:1234"), nooptagger.NewComponent(), newFilteredIdentityTable())
+	tagmatcher := filterlistimpl.NewNoopTagMatcher()
+	matcher := metricname.NewMatcher([]string{}, false)
+
+	// One run submits samples over several seconds, the last ones in the second it commits in.
+	for _, ts := range []float64{12345.2, 12346.5, 12347.1, 12347.4} {
+		checkSampler.addSample(&metrics.MetricSample{
+			Name: "my.metric.name", Value: 1, Mtype: metrics.DistributionType,
+			Tags: []string{"foo"}, SampleRate: 1, Timestamp: ts,
+		}, tagmatcher)
+	}
+	checkSampler.commit(12347.6, &matcher)
+	_, sketches := checkSampler.flush()
+
+	require.Len(t, sketches, 1)
+	require.Len(t, sketches[0].Points, 1, "one point for the run")
+	assert.Equal(t, int64(12347), sketches[0].Points[0].Ts, "stamped at the commit")
+	assert.Equal(t, int64(4), sketches[0].Points[0].Sketch.Basic.Cnt, "with every sample of the run, including the commit's second")
 }
 
-func testFilteredMetrics(t *testing.T, store *tags.Store) {
+func TestCheckSketchesPerTimestampWhenNotStampedAtCommit(t *testing.T) {
+	store := tags.NewStore("test")
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, false, store, checkid.ID("hello:world:1234"), nooptagger.NewComponent(), newFilteredIdentityTable())
+	tagmatcher := filterlistimpl.NewNoopTagMatcher()
+	matcher := metricname.NewMatcher([]string{}, false)
+
+	for _, ts := range []float64{12345.2, 12346.5, 12347.1} {
+		checkSampler.addSample(&metrics.MetricSample{
+			Name: "my.metric.name", Value: 1, Mtype: metrics.DistributionType,
+			Tags: []string{"foo"}, SampleRate: 1, Timestamp: ts,
+		}, tagmatcher)
+	}
+	checkSampler.addBucket(&metrics.HistogramBucket{
+		Name: "my.histogram", Value: 2, LowerBound: 10, UpperBound: 20, Tags: []string{"foo"}, Timestamp: 12346.5,
+	}, tagmatcher)
+	checkSampler.commit(12347.6, &matcher)
+	_, sketches := checkSampler.flush()
+
+	points := map[string][]int64{}
+	for _, s := range sketches {
+		for _, p := range s.Points {
+			points[s.Name] = append(points[s.Name], p.Ts)
+		}
+	}
+	assert.ElementsMatch(t, []int64{12345, 12346}, points["my.metric.name"], "per second of submission, holding the commit's second")
+	assert.Equal(t, []int64{12346}, points["my.histogram"])
+
+	checkSampler.commit(12348.1, &matcher)
+	_, sketches = checkSampler.flush()
+	require.Len(t, sketches, 1)
+	assert.Equal(t, []metrics.SketchPoint{{Ts: 12347, Sketch: sketches[0].Points[0].Sketch}}, sketches[0].Points, "the held second goes with the next commit")
+}
+
+func TestFilteredMetrics(t *testing.T) {
+	store := tags.NewStore("test")
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, true, store, checkid.ID("hello:world:1234"), taggerComponent, newFilteredIdentityTable())
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
 
@@ -817,13 +843,10 @@ func testFilteredMetrics(t *testing.T, store *tags.Store) {
 	assert.False(t, metricNames["custom.metric.four"])
 }
 
-func TestFilteredMetrics(t *testing.T) {
-	testWithTagsStore(t, testFilteredMetrics)
-}
-
-func testFilteredSketches(t *testing.T, store *tags.Store) {
+func TestFilteredSketches(t *testing.T) {
+	store := tags.NewStore("test")
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, true, store, checkid.ID("hello:world:1234"), taggerComponent, newFilteredIdentityTable())
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
 
@@ -894,23 +917,20 @@ func testFilteredSketches(t *testing.T, store *tags.Store) {
 	assert.False(t, sketchNames["custom.distribution.four"])
 }
 
-func TestFilteredSketches(t *testing.T) {
-	testWithTagsStore(t, testFilteredSketches)
-}
-
-func testNewSketchSeriesWithMissingContext(t *testing.T, store *tags.Store) {
+func TestNewSketchSeriesWithMissingContext(t *testing.T) {
+	store := tags.NewStore("test")
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, true, store, checkid.ID("hello:world:1234"), taggerComponent, newFilteredIdentityTable())
 
 	// Generate a context key that is NOT registered in the context resolver.
 	k := ckey.NewKeyGenerator()
 	tb := tagset.NewHashingTagsAccumulator()
 	orphanKey := k.Generate("orphan.metric", "orphanhost", tb)
 
-	// Insert a sketch point directly into sketchMap, bypassing trackContext.
+	// Insert a sketch point directly into pendingSketches, bypassing trackContext.
 	// This simulates an inconsistent state where the sketch map references a
 	// context key not present in the context resolver.
-	checkSampler.sketchMap.insert(12345, orphanKey, 1.0, 1.0)
+	checkSampler.pendingSketches.insert(orphanKey, 1.0, 1.0)
 
 	// Before the fix, commitSketches would call newSketchSeries which would
 	// dereference a nil *Context, causing a panic. After the fix, it logs
@@ -925,13 +945,10 @@ func testNewSketchSeriesWithMissingContext(t *testing.T, store *tags.Store) {
 	assert.Empty(t, sketches)
 }
 
-func TestNewSketchSeriesWithMissingContext(t *testing.T) {
-	testWithTagsStore(t, testNewSketchSeriesWithMissingContext)
-}
-
-func testSketchSeriesSourcePreserved(t *testing.T, store *tags.Store) {
+func TestSketchSeriesSourcePreserved(t *testing.T) {
+	store := tags.NewStore("test")
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, true, store, checkid.ID("hello:world:1234"), taggerComponent, newFilteredIdentityTable())
 
 	tagmatcher := filterlistimpl.NewNoopTagMatcher()
 
@@ -955,17 +972,13 @@ func testSketchSeriesSourcePreserved(t *testing.T, store *tags.Store) {
 		"SketchSeries must carry the MetricSource set on the original sample")
 }
 
-func TestSketchSeriesSourcePreserved(t *testing.T) {
-	testWithTagsStore(t, testSketchSeriesSourcePreserved)
-}
-
 type periodicFlushSampler struct {
 	*CheckSampler
 	matcher metricname.Matcher
 }
 
 func newPeriodicFlushSampler() *periodicFlushSampler {
-	cs := newCheckSampler(1, true, true, 1*time.Hour, true, tags.NewStore(true, "test"), checkid.ID("hello:world:1234"), nooptagger.NewComponent())
+	cs := newCheckSampler(1, true, true, 1*time.Hour, true, true, tags.NewStore("test"), checkid.ID("hello:world:1234"), nooptagger.NewComponent(), newFilteredIdentityTable())
 	return &periodicFlushSampler{CheckSampler: cs, matcher: metricname.NewMatcher(nil, false)}
 }
 

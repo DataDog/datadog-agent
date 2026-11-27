@@ -3,13 +3,19 @@
 # Owned by: accelerator-telemetry, agent-devx
 
 .on_gpu_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
+  - changes:
+      paths:
+        - test/new-e2e/tests/gpu/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+  - !reference [.on_e2e_default]
   - changes:
       paths:
         - pkg/gpu/**/*
         - pkg/ebpf/**/*
         - pkg/util/kernel/**/*
-        - test/new-e2e/tests/gpu/**/*
         - pkg/collector/corechecks/gpu/**/*
         - comp/core/workloadmeta/collectors/internal/nvml/**/*
         - comp/core/autodiscovery/listeners/staticconfig.go
@@ -34,4 +40,22 @@ new-e2e-gpu:
       - EXTRA_PARAMS: "--run TestGPUK8sSuiteUbuntu2204"
       - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver510"
       - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver430" # This driver is not supported by the agent, but we can check that the agent does not crash. No need to test in k8s this one.
+  retry: !reference [.retry_only_infra_failure, retry]
+
+# GPU suites on CPU-only kind clusters, with GPUs simulated by Mokka (no CUDA/eBPF).
+# TODO: run them automatically once the CI has validated them. The charts are pulled by Pulumi on the
+# CI runner, through the egress gateway: ghcr.io is allowed, registry.k8s.io (Kueue chart) needs
+# ddoghq/dd-source#197311. E2E_GPU_CHART_MIRROR can point to a registry that mirrors them instead.
+new-e2e-gpu-mokka:
+  extends: .new_e2e_template_needs_container_deploy_linux
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/gpu
+    TEAM: accelerator-telemetry
+    E2E_PULUMI_LOG_LEVEL: 10 # incident-33572
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: "--run TestGPUMokkaK8sSuite"
   retry: !reference [.retry_only_infra_failure, retry]

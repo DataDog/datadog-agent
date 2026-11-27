@@ -81,7 +81,7 @@ func TestCheck_Configure_InvalidConfig(t *testing.T) {
 		{
 			name:          "missing auth",
 			config:        invalidConfigMissingAuth,
-			expectedError: "auth is required",
+			expectedError: "invalid auth",
 		},
 		{
 			name:          "malformed YAML",

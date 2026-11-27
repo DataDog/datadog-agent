@@ -506,6 +506,29 @@ func TestConvert(t *testing.T) {
 			expectedResult: "extensions/standalone/dogtel-wired/config-result.yaml",
 			agentConfig:    "extensions/standalone/dogtel-wired/acfg.yaml",
 		},
+		// A user-declared datadog extension gets the resolved hostname in standalone
+		// mode, unless it sets one itself (OTAGENT-1445).
+		{
+			name:           "extensions/standalone/dd-hostname",
+			provided:       "extensions/standalone/dd-hostname/config.yaml",
+			expectedResult: "extensions/standalone/dd-hostname/config-result.yaml",
+			agentConfig:    "extensions/standalone/dd-hostname/acfg.yaml",
+		},
+		{
+			name:           "extensions/standalone/dd-hostname-err",
+			provided:       "extensions/standalone/dd-hostname-err/config.yaml",
+			expectedResult: "extensions/standalone/dd-hostname-err/config-result.yaml",
+			agentConfig:    "extensions/standalone/dd-hostname-err/acfg.yaml",
+			hostnameErr:    true,
+		},
+		{
+			// An empty body still gets the hostname, and no API key from the
+			// exporter.
+			name:           "extensions/standalone/dd-hostname-empty",
+			provided:       "extensions/standalone/dd-hostname-empty/config.yaml",
+			expectedResult: "extensions/standalone/dd-hostname-empty/config-result.yaml",
+			agentConfig:    "extensions/standalone/dd-hostname-empty/acfg.yaml",
+		},
 		// cumulativetodelta auto-injection (OTAGENT-1128).
 		{
 			name:           "cumulativetodelta/injected",
@@ -520,6 +543,21 @@ func TestConvert(t *testing.T) {
 			provided:       "cumulativetodelta/dedup/config.yaml",
 			expectedResult: "cumulativetodelta/dedup/config.yaml",
 			agentConfig:    "cumulativetodelta/dedup/acfg.yaml",
+		},
+		{
+			// Same, with the processor declared under its current name.
+			name:           "cumulativetodelta/dedup-new-name",
+			provided:       "cumulativetodelta/dedup-new-name/config.yaml",
+			expectedResult: "cumulativetodelta/dedup-new-name/config.yaml",
+			agentConfig:    "cumulativetodelta/dedup-new-name/acfg.yaml",
+		},
+		{
+			// Named instances under either name, and the instance injected by this
+			// or an older converter, all dedup; only the bare pipeline gets one.
+			name:           "cumulativetodelta/dedup-aliases",
+			provided:       "cumulativetodelta/dedup-aliases/config.yaml",
+			expectedResult: "cumulativetodelta/dedup-aliases/config-result.yaml",
+			agentConfig:    "cumulativetodelta/dedup-aliases/acfg.yaml",
 		},
 		{
 			name:           "cumulativetodelta/metrics-only",
@@ -714,6 +752,24 @@ func TestHostmetricsWarning(t *testing.T) {
 			agentConfig: "receivers/hostmetrics-warning/named-instance/acfg.yaml",
 			wantWarning: true,
 		},
+		{
+			name:        "host_metrics (current name) in connected mode emits warning",
+			provided:    "receivers/hostmetrics-warning/new-name/config.yaml",
+			agentConfig: "receivers/hostmetrics-warning/new-name/acfg.yaml",
+			wantWarning: true,
+		},
+		{
+			name:        "named host_metrics instance in connected mode emits warning",
+			provided:    "receivers/hostmetrics-warning/new-named/config.yaml",
+			agentConfig: "receivers/hostmetrics-warning/new-named/acfg.yaml",
+			wantWarning: true,
+		},
+		{
+			name:        "host_metrics in standalone mode no warning",
+			provided:    "receivers/hostmetrics-warning/new-standalone/config.yaml",
+			agentConfig: "receivers/hostmetrics-warning/new-standalone/acfg.yaml",
+			wantWarning: false,
+		},
 	}
 
 	for _, tc := range tests {
@@ -739,7 +795,7 @@ func TestHostmetricsWarning(t *testing.T) {
 
 			hostmetricsWarnings := filterLogsBySubstring(logs, "hostmetrics")
 			if tc.wantWarning {
-				assert.NotEmpty(t, hostmetricsWarnings, "expected a hostmetrics warning log")
+				require.NotEmpty(t, hostmetricsWarnings, "expected a hostmetrics warning log")
 				assert.Contains(t, hostmetricsWarnings[0].Message, "connected mode")
 			} else {
 				assert.Empty(t, hostmetricsWarnings, "expected no hostmetrics warning log")
@@ -898,4 +954,30 @@ func TestReuseExtension(t *testing.T) {
 		assert.Nil(t, conf.Get("service::extensions"))
 		assert.NotEmpty(t, filterLogsBySubstring(logs, "Could not wire existing extension"))
 	})
+}
+
+func TestIsComponentType(t *testing.T) {
+	tests := []struct {
+		fullName, typ string
+		want          bool
+	}{
+		{"cumulative_to_delta", "cumulative_to_delta", true},
+		{"cumulative_to_delta/x", "cumulative_to_delta", true},
+		{"cumulativetodelta", "cumulative_to_delta", true},
+		{"cumulativetodelta/x", "cumulative_to_delta", true},
+		{"hostmetrics/x", "host_metrics", true},
+		{"datadog/x", "datadog", true},
+		// The base name must match exactly, not as a prefix.
+		{"cumulative_to_delta_extra", "cumulative_to_delta", false},
+		{"cumulativetodeltax", "cumulative_to_delta", false},
+		// Aliases map a deprecated name to the current one only; callers pass current names.
+		{"cumulative_to_delta", "cumulativetodelta", false},
+		{"delta_to_rate", "cumulative_to_delta", false},
+		{"", "cumulative_to_delta", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.fullName+"_"+tt.typ, func(t *testing.T) {
+			assert.Equal(t, tt.want, isComponentType(tt.fullName, tt.typ))
+		})
+	}
 }

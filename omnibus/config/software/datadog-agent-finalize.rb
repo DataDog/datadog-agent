@@ -32,7 +32,7 @@ build do
             license_files_install_target = heroku_target? ? "//packages/heroku:license_files_install" : "//packages/agent/linux:license_files_install"
             command "bazel run #{omnibazel_flags} -- #{license_files_install_target} --destdir=#{install_dir}",
                 :live_stream => Omnibus.logger.live_stream(:info)
-        elsif osx_target?
+        elsif osx_target? || windows_target?
             command "bazel run #{omnibazel_flags} -- //packages/agent/dependencies:license_files_install --destdir=#{install_dir}",
                 :live_stream => Omnibus.logger.live_stream(:info)
         end
@@ -77,12 +77,17 @@ build do
             Dir.glob(File.join(emb3, "**", "*.chm")).each do |chm|
                 delete chm
             end
+
+            # Build-time-only files: C headers, Cython declarations, static libraries (~1.1 MiB)
+            delete File.join(emb3, "Lib", "site-packages", "lxml", "includes")
+            delete File.join(emb3, "Lib", "site-packages", "win32", "libs")
+            delete File.join(emb3, "Lib", "site-packages", "win32com", "libs")
         end
 
         # TODO: Rather than move these, let's install them to the right place to start
         if linux_target?
             # Move configuration files
-            mkdir "#{output_config_dir}/etc/datadog-agent"
+            mkdir "#{output_config_dir}/etc/datadog-agent", mode: 0755
             move "#{install_dir}/bin/agent/dd-agent", "/usr/bin/dd-agent"
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "#{output_config_dir}/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/conf.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
@@ -182,7 +187,9 @@ build do
             # Remove test-only eBPF object files
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/error_telemetry.o"
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/logdebug-test.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/skb-parse-test.o"
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/sleepable.o"
+            delete "#{install_dir}/embedded/share/system-probe/ebpf/runtime/skb-parse-test.c"
 
             # Do not strip eBPF programs
             strip_exclude("#{install_dir}/embedded/share/system-probe/ebpf/*.o")

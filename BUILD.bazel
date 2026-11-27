@@ -15,7 +15,6 @@ load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
 load("//bazel/rules/go_shim:defs.bzl", "go_shim")
-load("//bazel/rules/msgo:defs.bzl", "msgo_binary")
 load("//compliance/rules:purl.bzl", "purl_for_generic")
 load("//tasks:build_tags.bzl", "GAZELLE_BUILD_TAGS")
 
@@ -86,6 +85,7 @@ cc_library(
 # gazelle:exclude **/testdata/**/*.go
 # ======= END TESTDATA EXCLUDES =======
 
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/genresources //pkg/proto/pbgo/genresources
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient //pkg/proto/pbgo/privateactionrunner/actionsclient
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode //pkg/proto/pbgo/privateactionrunner/errorcode
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor //pkg/proto/pbgo/privateactionrunner/executor
@@ -144,13 +144,6 @@ alias(
 alias(
     name = "llvm",
     actual = platform_llvm_binary("llvm"),
-)
-
-# bazel run //:msgo -- ...
-msgo_binary(
-    name = "msgo",
-    src = "@rules_go//go",
-    tags = ["manual"],
 )
 
 # bazel run //:go_mod_tidy_all -- -x
@@ -321,6 +314,7 @@ write_source_files(
         "//pkg/proto/pbgo/core:remoteconfig_gen",
         "//pkg/proto/pbgo/core:write_pb_go",
         "//pkg/proto/pbgo/dogstatsdhttp:write_pb_go",
+        "//pkg/proto/pbgo/genresources:write_pb_go",
         "//pkg/proto/pbgo/languagedetection:write_pb_go",
         "//pkg/proto/pbgo/mocks/core:api_mockgen",
         "//pkg/proto/pbgo/privateactionrunner/actionsclient:write_pb_go",

@@ -43,6 +43,7 @@ from tasks.libs.common.utils import (
 from tasks.libs.releasing.json import _get_release_json_value
 from tasks.libs.testing.result_json import ActionType, ResultJson
 from tasks.modules import GoModule, get_module_by_path
+from tasks.schema.generate import compress as schema_compress
 from tasks.schema.generate import schema_codegen
 from tasks.test_core import DEFAULT_TEST_OUTPUT_JSON, TestResult, process_input_args, process_result
 from tasks.testwasher import TestWasher
@@ -331,6 +332,14 @@ def test_legacy(
     # TODO: remove once Bazel is used to build the Agent
     schema_codegen(ctx)
 
+    # Without Bazel, `go test` embeds whatever schema files are already on
+    # disk (pkg/config/schema/compressed/, gitignored). On the persistent AIX
+    # CI host those can be left over from a packaging build of a different
+    # commit, so regenerate them to match the tree under test. Linux CI gets
+    # fresh schemas from the agent.build step its test-legacy jobs run first.
+    if sys.platform == "aix":
+        schema_compress(ctx)
+
     modules, flavor = process_input_args(ctx, module, targets, flavor)
 
     unit_tests_tags = compute_build_tags_for_flavor(
@@ -518,17 +527,12 @@ def test(
         for target in module.test_targets
     ]
 
-    result = bazel(
+    bazel(
         "test",
         *bazel_flags,
         *_minimize_bazel_patterns(bazel_targets),
-        ignore_errors=True,
+        allowed_exit_codes=frozenset({BAZEL_EXIT_NO_TESTS_FOUND}) if only_modified_packages else frozenset(),
     )
-    if result.returncode == BAZEL_EXIT_NO_TESTS_FOUND and only_modified_packages:
-        print("No test targets in modified packages")
-        return
-    if result.returncode != 0:
-        raise SystemExit(result.returncode)
 
 
 @task

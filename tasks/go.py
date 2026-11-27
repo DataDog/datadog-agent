@@ -4,6 +4,7 @@ Golang related tasks go here
 
 from __future__ import annotations
 
+import contextlib
 import glob
 import os
 import posixpath
@@ -22,7 +23,7 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
 from tasks.libs.build.bazel import bazel, bazel_not_found_message, is_bazel_workspace
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import check_uncommitted_changes
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.gomodules import Configuration, GoModule, get_default_modules
@@ -43,6 +44,59 @@ GOARCH_MAPPING = {
     "arm64": "arm64",
     "ppc64": "ppc64",
 }
+
+
+def _user_cache_dir() -> str:
+    """Mirrors Go's os.UserCacheDir: unlike the temporary directory on Linux, other users can't write to it."""
+    if sys.platform == "win32":
+        return os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()
+    if sys.platform == "darwin":
+        return os.path.join(os.path.expanduser("~"), "Library", "Caches")
+    return os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
+
+
+def _gcflags_goflag(flag: str) -> str | None:
+    """Returns the GOFLAGS entry passing `flag` to the compiler of every package, or None if it can't be expressed.
+
+    cmd/go splits both GOFLAGS and the -gcflags value on whitespace, and only honors quotes around a whole field,
+    without escapes: a flag containing whitespace needs a different quote at each level, and can't contain either.
+    """
+    if not any(c in flag for c in " \t\n\r"):
+        return f"-gcflags=all={flag}"
+    if "'" in flag or '"' in flag:
+        return None
+    return f"\"-gcflags=all='{flag}'\""
+
+
+def _effective_goflags(ctx) -> str:
+    """Returns the GOFLAGS cmd/go uses, which may come from `go env -w`, unlike the environment variable."""
+    result = ctx.run("go env GOFLAGS", hide=True, warn=True)
+    return result.stdout.strip() if result and result.ok else os.environ.get("GOFLAGS", "")
+
+
+def _discard_linkobj_goflags(goflags: str, linkobj: str) -> str | None:
+    """Returns `goflags` making the compiler write its linker object to `linkobj`, or None, with a warning, if it can't.
+
+    Setting GOFLAGS in the environment replaces the value saved with `go env -w`, so `goflags` must be the effective one.
+    """
+    # For each package, cmd/go only keeps the last -gcflags that matches it, which would silently drop the user's own.
+    if re.search(r"(?:^|\s)[\"']?--?gcflags=", goflags):
+        reason = "GOFLAGS already sets -gcflags"
+    elif not os.path.isabs(linkobj):  # The compiler would resolve it from each package's directory.
+        reason = f"{linkobj!r} is relative"
+    elif not (goflag := _gcflags_goflag(f"-linkobj={linkobj}")):
+        reason = f"{linkobj!r} can't be passed in GOFLAGS"
+    else:
+        try:
+            os.makedirs(os.path.dirname(linkobj), exist_ok=True)
+            return f"{goflags} {goflag}".lstrip()
+        except OSError as e:
+            reason = str(e)
+    print(
+        color_message(f"Warning: not discarding linker objects ({reason}), linting will need more disk", Color.ORANGE),
+        file=sys.stderr,
+    )
+    return None
 
 
 def run_golangci_lint(
@@ -92,18 +146,34 @@ def run_golangci_lint(
     cmd += ["--build-tags", tags_arg, "--path-prefix", base_path] + golangci_lint_kwargs.split() + target_patterns
     if not headless_mode:
         print(f"running golangci-lint on: {targets_str}")
-    result, time_result = TimedOperationResult.run(
-        lambda: bazel(
-            "run",
-            *(f"--run_env={k}={v}" for k, v in env.items()),
-            "//internal/tools:golangci-lint",
-            "--",
-            *cmd,
-            ignore_errors=True,
-        ),
-        "golangci-lint",
-        f"Lint {targets_str}",
-    )
+    # golangci-lint only reads the export data of the archives `go list -export` compiles, not their linker object,
+    # which is ~97% of their size (5.3 of 5.5 GB for an E2E package and its Pulumi SDKs). `go list` stores each archive
+    # in GOCACHE and also keeps it in its work directory until it exits, so discarding that object is what lets a cold
+    # run fit in a sandbox's disk. The flag is part of the build cache key, so builds never use these archives.
+    # Every compile overwrites the same file, so it is only as large as the largest package. Concurrent compiles and
+    # runs can share it, since nothing ever reads it. Its path must not change between runs, as it is part of the
+    # cache key, and must not be writable by other users. It can't be os.devnull: the compiler seeks back in it to write
+    # the archive headers, which fails in NUL on Windows.
+    linkobj = os.path.join(_user_cache_dir(), "golangci-lint-linkobj.o")
+    if goflags := _discard_linkobj_goflags(_effective_goflags(ctx), linkobj):
+        env["GOFLAGS"] = goflags
+    try:
+        result, time_result = TimedOperationResult.run(
+            lambda: bazel(
+                "run",
+                *(f"--run_env={k}={v}" for k, v in env.items()),
+                "//internal/tools:golangci-lint",
+                "--",
+                *cmd,
+                ignore_errors=True,
+            ),
+            "golangci-lint",
+            f"Lint {targets_str}",
+        )
+    finally:
+        # Fails on Windows while a concurrent run still has it open, which leaves it for that run to remove.
+        with contextlib.suppress(OSError):
+            os.remove(linkobj)
     return [result], [time_result]
 
 
@@ -244,7 +314,8 @@ def reset(ctx):
 @task
 def check_go_mod_replaces(ctx, fix=False):
     errors_found = set()
-    for mod in get_default_modules().values():
+    modules = get_default_modules()
+    for mod in modules.values():
         with ctx.cd(mod.path):
             go_sum = os.path.join(mod.full_path(), "go.sum")
             if not os.path.exists(go_sum):
@@ -253,9 +324,14 @@ def check_go_mod_replaces(ctx, fix=False):
                 for line in f:
                     if "github.com/datadog/datadog-agent" in line.lower():
                         err_mod = line.split()[0]
-                        if (Path(err_mod.removeprefix("github.com/DataDog/datadog-agent/")) / "go.mod").exists():
+                        err_mod_path = err_mod.removeprefix("github.com/DataDog/datadog-agent/")
+                        if (Path(err_mod_path) / "go.mod").exists():
                             if fix:
-                                relative_path = os.path.relpath(err_mod, mod.import_path)
+                                # Point to the directory go.work uses, or `go work sync` reports conflicting replacements
+                                target = (
+                                    modules[err_mod_path].workspace_dir() if err_mod_path in modules else err_mod_path
+                                )
+                                relative_path = os.path.relpath(target, mod.path)
                                 ctx.run(f"go mod edit -replace {err_mod}={relative_path}")
                             else:
                                 errors_found.add(f"{mod.import_path}/go.mod is missing a replace for {err_mod}")
@@ -428,6 +504,16 @@ def _bazel_tidy(ctx, verbose: bool, timings=None):
         timings,
         lambda: write_test_binaries_bzl(ctx),
     )
+    # 8. **/BUILD.bazel + **/*.go -> bazel/go_tags/closure_tags.bzl
+    _timed_step("write tag manifest", timings, lambda: write_tag_manifest(ctx))
+
+
+@task
+def write_tag_manifest(_):
+    """
+    Regenerate bazel/go_tags/closure_tags.bzl: the build tags each go_library's closure reads.
+    """
+    bazel("run", "//tasks:write_go_tag_manifest")
 
 
 @task(autoprint=True)
@@ -438,7 +524,7 @@ def version(_):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.26.10 linux/amd64"
+    # result is like "go version go1.22.3 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

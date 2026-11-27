@@ -20,9 +20,6 @@ static __attribute__((always_inline)) void bump_high_path_id(u32 mount_id) {
     }
 }
 
-#define PATH_ID_LOW_MASK 0xFFFF
-#define PATH_ID(high, low) ((u32)((high << 16) | (low & PATH_ID_LOW_MASK)))
-
 // path ids of a given inode, as they were before and after the invalidation
 struct path_id_pair_t {
     u32 before;
@@ -59,7 +56,7 @@ static __attribute__((always_inline)) struct path_id_pair_t get_path_id_pair(u64
         __sync_fetch_and_add(low_id_ptr, 1);
     }
 
-    u32 low_id_value = *low_id_ptr % PATH_ID_LOW_MASK;
+    u32 low_id_value = (*low_id_ptr % PATH_ID_LOW_MASK) + 1;
 
     // need to invalidate the current path id for event which may change the association inode/name like.
     // After the operation, the path id should be incremented.
@@ -72,7 +69,7 @@ static __attribute__((always_inline)) struct path_id_pair_t get_path_id_pair(u64
 
     pair.before = PATH_ID(high_id_value, low_id_value);
     // read back the values that were just modified to get the path id after the invalidation
-    pair.after = PATH_ID(*high_id_ptr, *low_id_ptr % PATH_ID_LOW_MASK);
+    pair.after = PATH_ID(*high_id_ptr, (*low_id_ptr % PATH_ID_LOW_MASK) + 1);
     return pair;
 }
 
@@ -92,20 +89,10 @@ static __attribute__((always_inline)) void set_file_layer(struct dentry *dentry,
     }
 }
 
-static __attribute__((always_inline)) void fill_file(struct dentry *dentry, struct file_t *file) {
+static __attribute__((always_inline)) void fill_file_metadata(struct dentry *dentry, struct file_t *file) {
     struct inode *d_inode = get_dentry_inode(dentry);
 
     file->dev = get_dentry_dev(dentry);
-
-    // nlink is mostly used userspace side to invalidate cache. use the higher value found
-    u64 inode_nlink_offset;
-    LOAD_CONSTANT("inode_nlink_offset", inode_nlink_offset);
-
-    u32 nlink = 0;
-    bpf_probe_read(&nlink, sizeof(nlink), (void *)d_inode + inode_nlink_offset);
-    if (nlink > file->metadata.nlink) {
-      file->metadata.nlink = nlink;
-    }
 
     u64 inode_mode_offset;
     LOAD_CONSTANT("inode_mode_offset", inode_mode_offset);
@@ -161,6 +148,16 @@ static __attribute__((always_inline)) void fill_file(struct dentry *dentry, stru
     bpf_probe_read(&file->metadata.mtime.tv_nsec, sizeof(file->metadata.mtime.tv_nsec), &d_inode->i_mtime_nsec);
 #endif
 	}
+}
+
+static __attribute__((always_inline)) void fill_file(struct dentry *dentry, struct file_t *file) {
+    fill_file_metadata(dentry, file);
+
+    // nlink is mostly used userspace side to invalidate cache. use the higher value found
+    u32 nlink = get_dentry_nlink(dentry);
+    if (nlink > file->metadata.nlink) {
+      file->metadata.nlink = nlink;
+    }
 
     // set again the layer here as after update a file will be moved to the upper layer
     set_file_layer(dentry, file);
@@ -175,10 +172,14 @@ static __attribute__((always_inline)) void fill_file(struct dentry *dentry, stru
         .ino = get_inode_ino(inode), .mount_id = get_path_mount_id(path) \
     }
 
-// fill the inode and nlink of the file, without computing its path id
+// fill the inode, mode, and nlink of the file, without computing its path id
 static __attribute__((always_inline)) void fill_file_inode(struct dentry *dentry, struct file_t *file) {
     if (!file->path_key.ino) {
         file->path_key.ino = get_dentry_ino(dentry);
+    }
+
+    if (!file->metadata.mode) {
+        file->metadata.mode = get_dentry_mode(dentry);
     }
 
     int nlink = get_dentry_nlink(dentry);
@@ -188,14 +189,20 @@ static __attribute__((always_inline)) void fill_file_inode(struct dentry *dentry
 
     if (is_overlayfs(dentry)) {
         set_overlayfs_inode(dentry, file);
-        set_overlayfs_nlink(dentry, file);
+        if (!S_ISDIR(file->metadata.mode)) {
+            set_overlayfs_nlink(dentry, file);
+        }
     }
 }
 
 static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry, struct file_t *file, enum PATH_ID_INVALIDATE_TYPE invalidate_type) {
     fill_file_inode(dentry, file);
 
-    file->path_key.path_id = get_path_id(file->path_key.ino, file->path_key.mount_id, file->metadata.nlink, invalidate_type);
+    int nlink = S_ISDIR(file->metadata.mode) ? 1 : file->metadata.nlink;
+    file->path_key.path_id = get_path_id(file->path_key.ino, file->path_key.mount_id, nlink, invalidate_type);
+    if (S_ISDIR(file->metadata.mode)) {
+        file->path_key.path_id &= ~PATH_ID_LOW_MASK;
+    }
 }
 
 #endif

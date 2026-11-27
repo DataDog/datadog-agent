@@ -8,7 +8,7 @@ from tasks.schema.generate import schema_codegen
 
 
 @task
-def test(ctx, verbose=False) -> None:
+def test(ctx, verbose=False, coverage=False) -> None:
     """
     Runs oracle functional tests against a containerized database.
     """
@@ -26,6 +26,8 @@ def test(ctx, verbose=False) -> None:
         with ctx.cd("pkg/collector/corechecks/oracle"):
             print("Running tests...")
             go_flags = " -v" if verbose else ""
+            if coverage:
+                go_flags += " -covermode=atomic -coverprofile=coverage.out"
             ctx.run(f"go test{go_flags} -count=1 -tags \"test oracle oracle_test\" ./...")
     finally:
         clean(ctx, verbose)

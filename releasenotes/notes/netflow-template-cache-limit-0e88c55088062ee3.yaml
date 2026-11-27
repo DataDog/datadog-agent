@@ -1,0 +1,7 @@
+---
+security:
+  - |
+    NetFlow v9 and IPFIX listeners now limit the number of templates they retain
+    per listener, evicting the least recently used template once the limit is
+    reached. The limit is set with ``network_devices.netflow.template_cache_max_size``
+    (default 10000). Previously the template cache could grow without bound.

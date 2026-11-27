@@ -3,7 +3,14 @@
 # Owned by: kubernetes-experiences, container-autoscaling, agent-devx
 
 .on_orchestrator_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
+  - changes:
+      paths:
+        - test/new-e2e/tests/orchestrator/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+  - !reference [.on_e2e_default]
   - changes:
       paths:
         - comp/core/tagger/**/*
@@ -11,7 +18,6 @@
         - pkg/collector/corechecks/cluster/kubernetesapiserver/**/*
         - pkg/collector/corechecks/cluster/orchestrator/**/*
         - pkg/collector/corechecks/orchestrator/**/*
-        - test/new-e2e/tests/orchestrator/**/*
       compare_to: $COMPARE_TO_BRANCH
 
 new-e2e-orchestrator-ecs:
@@ -22,7 +28,7 @@ new-e2e-orchestrator-ecs:
   variables:
     EXTRA_PARAMS: --run TestECSSuite
     TARGETS: ./tests/orchestrator
-    TEAM: kubernetes-experiences
+    TEAM: ecs-experiences
     ON_NIGHTLY_FIPS: "true"
   timeout: 55m
 
@@ -40,21 +46,33 @@ new-e2e-orchestrator:
 .on_autoscaling_or_e2e_changes:
   # Do not skip known flaky tests on PRs that change spot scheduling code or tests.
   # Remove the GO_TEST_SKIP_FLAKE variable once the flakes are fixed.
-  # To make this work, the spot rule must come before .on_e2e_main_release_or_rc because the first matching rule wins.
-  # Repeat the guards of .on_e2e_main_release_or_rc so they still apply to it.
-  - !reference [.except_light_pipeline]
-  - if: $RUN_E2E_TESTS != "off"
-    changes:
+  # To make this work, the spot rules must come before .on_e2e_default because the first matching rule wins.
+  - !reference [.except_e2e_disabled]
+  # Spot test definitions always run.
+  - changes:
       paths:
         - test/new-e2e/tests/autoscaling/spot/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    variables:
+      GO_TEST_SKIP_FLAKE: "false"
+  # Spot source code: only automatic while pre-merge tests are not disabled, otherwise it follows the
+  # usual rules below (manual on PRs).
+  - if: $DISABLE_PRE_MERGE_TESTS_AGENT != "true"
+    changes:
+      paths:
         - pkg/clusteragent/autoscaling/cluster/spot/**/*
       compare_to: $COMPARE_TO_BRANCH
     variables:
       GO_TEST_SKIP_FLAKE: "false"
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_infra_changes]
   - changes:
       paths:
         - test/new-e2e/tests/autoscaling/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+  - !reference [.on_e2e_default]
+  - changes:
+      paths:
         - pkg/clusteragent/autoscaling/cluster/**/*
       compare_to: $COMPARE_TO_BRANCH
 

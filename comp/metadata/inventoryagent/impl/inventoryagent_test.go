@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"maps"
 	"net/http"
@@ -129,6 +130,52 @@ func TestGetPayload(t *testing.T) {
 	assert.True(t, payload.Timestamp > startTime)
 	assert.Equal(t, "my-hostname", payload.Hostname)
 	assert.Equal(t, 1234, payload.Metadata["test"])
+}
+
+func TestDefaultFeatureFlags(t *testing.T) {
+	originalSecurity, originalProcess := fetchSecurityConfig, fetchProcessConfig
+	originalTrace, originalSystemProbe := fetchTraceConfig, fetchSystemProbeConfig
+	t.Cleanup(func() {
+		fetchSecurityConfig, fetchProcessConfig = originalSecurity, originalProcess
+		fetchTraceConfig, fetchSystemProbeConfig = originalTrace, originalSystemProbe
+	})
+	fetchConfig := func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
+		return "", errors.New("unreachable")
+	}
+	fetchSecurityConfig = fetchConfig
+	fetchProcessConfig = fetchConfig
+	fetchTraceConfig = fetchConfig
+	fetchSystemProbeConfig = fetchConfig
+
+	ia := getTestInventoryPayload(t, nil, nil)
+	ia.refreshMetadata()
+
+	for key, expected := range map[string]bool{
+		"feature_apm_enabled":                                 true,
+		"feature_logs_enabled":                                false,
+		"feature_process_enabled":                             false,
+		"feature_synthetics_collector_enabled":                false,
+		"feature_network_path_remote_config_enabled":          false,
+		"feature_network_path_connections_monitoring_enabled": false,
+		"feature_cspm_enabled":                                false,
+	} {
+		assert.Equal(t, expected, ia.Get()[key], key)
+	}
+
+	t.Run("system-probe", func(t *testing.T) {
+		if runtime.GOOS == "darwin" {
+			t.Skip("system-probe does not support darwin")
+		}
+
+		for key, expected := range map[string]bool{
+			"feature_networks_enabled":   false,
+			"feature_traceroute_enabled": false,
+			"feature_cws_enabled":        false,
+			"feature_usm_enabled":        false,
+		} {
+			assert.Equal(t, expected, ia.Get()[key], key)
+		}
+	})
 }
 
 func TestFullAgentMetadataRefresh(t *testing.T) {
@@ -267,6 +314,8 @@ func TestInitData(t *testing.T) {
 
 		"fips.enabled":                                true,
 		"logs_enabled":                                true,
+		"private_action_runner.enabled":               true,
+		"private_action_runner.split_enabled":         true,
 		"compliance_config.enabled":                   true,
 		"compliance_config.host_benchmarks.enabled":   true,
 		"apm_config.enabled":                          true,
@@ -274,6 +323,8 @@ func TestInitData(t *testing.T) {
 		"process_config.container_collection.enabled": true,
 		"remote_configuration.enabled":                true,
 		"remote_updates":                              true,
+		"enable_payloads.series":                      false,
+		"autoscaling.cluster.enabled":                 true,
 		"process_config.process_collection.enabled":   true,
 		"container_image.enabled":                     true,
 		"network_path.remote_config.enabled":          true,
@@ -305,6 +356,7 @@ func TestInitData(t *testing.T) {
 
 		"feature_process_language_detection_enabled":          true,
 		"feature_logs_enabled":                                true,
+		"feature_private_action_runner_enabled":               true,
 		"feature_cspm_enabled":                                true,
 		"feature_cspm_host_benchmarks_enabled":                true,
 		"feature_apm_enabled":                                 true,
@@ -312,6 +364,8 @@ func TestInitData(t *testing.T) {
 		"feature_processes_container_enabled":                 true,
 		"feature_remote_configuration_enabled":                true,
 		"feature_remote_updates_enabled":                      true,
+		"feature_infra_enabled":                               false,
+		"feature_autoscaling_cluster_enabled":                 true,
 		"feature_process_enabled":                             true,
 		"feature_container_images_enabled":                    true,
 		"feature_network_path_remote_config_enabled":          true,
@@ -821,6 +875,33 @@ func TestFeatureGPUMonitoringEnabledFromCoreConfig(t *testing.T) {
 	assert.True(t, ia.Get()["feature_gpu_monitoring_enabled"].(bool))
 }
 
+func TestFeatureInfraAndAutoscalingDefaults(t *testing.T) {
+	ia := getTestInventoryPayload(t, nil, nil)
+	ia.fetchCoreAgentMetadata()
+	assert.Equal(t, true, ia.Get()["feature_infra_enabled"])
+	assert.Equal(t, false, ia.Get()["feature_autoscaling_cluster_enabled"])
+}
+
+// The backend derives these fields from full_configuration only when they are absent from the
+// payload, so they must be serialized even when false.
+func TestFeatureInfraAndAutoscalingSerializedWhenFalse(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{"enable_payloads.series": false}, nil)
+	ia.fetchCoreAgentMetadata()
+
+	raw, err := ia.data.GetPayload(nil, "test-uuid").MarshalJSON()
+	require.NoError(t, err)
+
+	var payload struct {
+		Metadata map[string]any `json:"agent_metadata"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &payload))
+	for _, key := range []string{"feature_infra_enabled", "feature_autoscaling_cluster_enabled"} {
+		value, ok := payload.Metadata[key]
+		require.True(t, ok, "%s missing from the serialized payload", key)
+		assert.Equal(t, false, value, key)
+	}
+}
+
 func TestFetchFleet(t *testing.T) {
 	ia := getTestInventoryPayload(t, map[string]any{
 		"config_id": "my-config",
@@ -868,8 +949,35 @@ func TestFetchSecrets(t *testing.T) {
 			"my_key":     "234c1d086201f04697450c7bcbe1e75a927ff021529b3a9eb785b40e9e0339fa",
 			"secret_one": "c9941a386f3401c35efab67c9a302b4f13317d0d018ae6697b531dce994a8008",
 		},
-		"scrubbed": []string{"authKey", "dd_url"},
+		"scrubbed": []string{"dd_url", "network_devices.snmp_traps.users.0.authKey"},
 	}, ia.Get()["enc_info"])
+}
+
+func TestFetchSecretsSanitizesPaths(t *testing.T) {
+	secretsComp := secretsmock.New(t)
+	secretsComp.SetPathsAndHandles(
+		[]string{"some_setting.https://alice:********@proxy.example.com.token"},
+		[]string{"my_handle"},
+	)
+	p := getProvides(t, map[string]any{
+		"some_setting": map[string]any{
+			"https://alice:raw-url-secret@proxy.example.com": map[string]any{"password": "hunter2"},
+		},
+	}, nil, fx.Provide(func() secrets.Component { return secretsComp }))
+	ia := p.Comp.(*inventoryagent)
+	ia.fetchSecretsMetadata()
+
+	encInfo := ia.Get()["enc_info"].(map[string]interface{})
+	assert.Equal(t, []string{"some_setting.https://alice:********@proxy.example.com.token"}, encInfo["paths"])
+	assert.Equal(t, []string{"some_setting.https://alice:********@proxy.example.com.password"}, encInfo["scrubbed"])
+	assert.Equal(t, []string{"my_handle"}, encInfo["handles"])
+
+	// Check the backend payload without the additional flare or endpoint scrubbing.
+	payload, err := ia.data.GetPayload(nil, "test-uuid").MarshalJSON()
+	require.NoError(t, err)
+	for _, secret := range []string{"raw-url-secret", "hunter2"} {
+		assert.NotContains(t, string(payload), secret)
+	}
 }
 
 func TestFetchSecretsOmitted(t *testing.T) {
@@ -965,34 +1073,34 @@ func TestFilterScrubbedKeys(t *testing.T) {
 		},
 		{
 			name:         "nested setting",
-			scrubbedKeys: []string{"https", "client_secret"},
+			scrubbedKeys: []string{"proxy.https", "client_secret"},
 			paths:        []string{"proxy.https"},
 			expected:     []string{"client_secret"},
 		},
 		{
-			name:         "slice index uses the parent key",
-			scrubbedKeys: []string{"community_strings", "client_secret"},
-			paths:        []string{"snmp_traps.community_strings.0", "snmp_traps.community_strings.1"},
-			expected:     []string{"client_secret"},
+			name:         "slice elements",
+			scrubbedKeys: []string{"snmp_traps.community_strings.0", "snmp_traps.community_strings.1", "client_secret"},
+			paths:        []string{"snmp_traps.community_strings.0"},
+			expected:     []string{"snmp_traps.community_strings.1", "client_secret"},
 		},
 		{
-			// integration configs use their digest as origin, and paths relative to the resolved section
+			// integration configs are prefixed by their name, and paths relative to the resolved section
 			name:         "nested setting from an integration config",
-			scrubbedKeys: []string{"password", "client_secret"},
-			paths:        []string{"a3f9c01b2d4e5f67:auth.password"},
+			scrubbedKeys: []string{"auth.password", "client_secret"},
+			paths:        []string{"http_check:auth.password"},
 			expected:     []string{"client_secret"},
 		},
 		{
 			name:         "top-level setting from an integration config",
 			scrubbedKeys: []string{"token", "client_secret"},
-			paths:        []string{"a3f9c01b2d4e5f67:token"},
+			paths:        []string{"http_check:token"},
 			expected:     []string{"client_secret"},
 		},
 		{
-			name:         "partial key names are not filtered",
-			scrubbedKeys: []string{"proxy", "api"},
+			name:         "partial paths are not filtered",
+			scrubbedKeys: []string{"proxy", "https", "api_key"},
 			paths:        []string{"proxy.https", "logs_config.api_key"},
-			expected:     []string{"proxy", "api"},
+			expected:     []string{"proxy", "https", "api_key"},
 		},
 		{
 			name:         "duplicates are removed",
@@ -1052,19 +1160,35 @@ api_key: datadog-secret
 		filepath.Join(tmpDir, "application_monitoring.yaml"): "tracing:\n  enabled: true\napi_key: application-secret\n",
 	}
 	for path, contents := range configFiles {
-		require.NoError(t, os.WriteFile(path, []byte(contents), 0600))
+		require.NoError(t, os.WriteFile(path, []byte(contents+"\nlogs_config:\n  api_key: ENC[shared_key]\n"), 0600))
 	}
 
-	ia := getTestInventoryPayload(t, map[string]any{
+	secretsComp := secretsmock.New(t)
+	secretsComp.SetPathsAndHandles([]string{"logs_config.api_key"}, []string{"shared_key"})
+	secretsComp.SetSecrets(map[string]string{"shared_key": "resolved-key"})
+	provided := getProvides(t, map[string]any{
 		"inventories_configuration_enabled": true,
-	}, nil)
+		"logs_config.api_key":               "resolved-key",
+		"apm_config.debugger_api_key":       "raw-debugger-key",
+	}, nil, fx.Provide(func() secrets.Component { return secretsComp }))
+	ia := provided.Comp.(*inventoryagent)
 
 	payload := ia.getPayload().(*agentmetadata.Payload)
+	require.Contains(t, payload.Metadata, "enc_info")
+	encInfo := payload.Metadata["enc_info"].(map[string]interface{})
+	assert.Equal(t, []string{"shared_key"}, encInfo["handles"])
+	assert.Equal(t, []string{"logs_config.api_key"}, encInfo["paths"])
+	assert.Contains(t, encInfo["scrubbed"], "apm_config.debugger_api_key")
 	require.Len(t, payload.FilesMetadata, len(configFiles))
 	for path := range configFiles {
 		rawfile, found := payload.FilesMetadata[path]
 		require.True(t, found)
 		assert.NotContains(t, rawfile.RawConfig, "-secret")
+		require.Len(t, rawfile.Secrets, 2)
+		assert.Equal(t, "enc", rawfile.Secrets[0].Kind)
+		assert.Equal(t, "shared_key", rawfile.Secrets[0].Handle)
+		assert.Equal(t, "logs_config.api_key", rawfile.Secrets[0].Path)
+		assert.Equal(t, "raw", rawfile.Secrets[1].Kind)
 
 		hash := sha256.Sum256([]byte(rawfile.RawConfig))
 		assert.Equal(t, hex.EncodeToString(hash[:]), rawfile.Hash)
@@ -1075,6 +1199,12 @@ api_key: datadog-secret
 	assert.Contains(t, datadogRawConfig, `first: "preserve this style"`)
 	assert.Contains(t, datadogRawConfig, "unknown_setting:\n  nested: untouched")
 	assert.NotContains(t, datadogRawConfig, "comments are not safe to report")
+	ia.conf.Set("metadata_skip_secrets", true, pkgconfigmodel.SourceAgentRuntime)
+	payload = ia.getPayload().(*agentmetadata.Payload)
+	assert.NotContains(t, payload.Metadata, "enc_info")
+	for _, file := range payload.FilesMetadata {
+		assert.Empty(t, file.Secrets)
+	}
 }
 
 func TestGetPayloadFilesMetadataSkipsUnsafeAndMissingFiles(t *testing.T) {

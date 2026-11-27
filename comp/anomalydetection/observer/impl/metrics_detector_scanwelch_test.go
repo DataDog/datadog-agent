@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"math"
 	"testing"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -30,21 +31,24 @@ func TestScanWelch_NotEnoughPoints(t *testing.T) {
 }
 
 func TestScanWelch_MinPointsBelowMinSegmentDoesNotPanic(t *testing.T) {
-	dCfg := DefaultScanWelchConfig()
-	dCfg.MinPoints = 4
-	dCfg.MinSegment = 12
-	dCfg.MaxPoints = 24
-	d := NewScanWelchDetector(dCfg)
-	storage := newTimeSeriesStorage()
+	for _, minSegment := range []int{12, 40, math.MaxInt} {
+		dCfg := DefaultScanWelchConfig()
+		dCfg.MinPoints = 4
+		dCfg.MinSegment = minSegment
+		dCfg.MaxPoints = 24
+		d := NewScanWelchDetector(dCfg)
+		d.config.MinSegment = minSegment
+		storage := newTimeSeriesStorage()
 
-	for timestamp := int64(1); timestamp <= int64(d.config.MinSegment); timestamp++ {
-		storage.Add("ns", "metric", 100, timestamp, nil)
+		for timestamp := int64(1); timestamp <= 12; timestamp++ {
+			storage.Add("ns", "metric", 100, timestamp, nil)
+		}
+
+		require.NotPanics(t, func() {
+			result := d.Detect(storage, 12, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
+			assert.Empty(t, result.Anomalies)
+		})
 	}
-
-	require.NotPanics(t, func() {
-		result := d.Detect(storage, int64(d.config.MinSegment), observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
-		assert.Empty(t, result.Anomalies)
-	})
 }
 
 func TestScanWelch_DetectsStepChange(t *testing.T) {
@@ -61,6 +65,9 @@ func TestScanWelch_DetectsStepChange(t *testing.T) {
 	result := d.Detect(storage, 40, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 
 	require.NotEmpty(t, result.Anomalies, "should detect step change")
+	require.NotNil(t, result.Anomalies[0].LevelChange)
+	assert.InDelta(t, 50, result.Anomalies[0].LevelChange.BeforeMedian, 1)
+	assert.InDelta(t, 200, result.Anomalies[0].LevelChange.AfterMedian, 1)
 	title, description := observer.FormatAnomaly(result.Anomalies[0])
 	assert.Equal(t, "ScanWelch changepoint: metric:avg", title)
 	assert.Contains(t, description, "increased")

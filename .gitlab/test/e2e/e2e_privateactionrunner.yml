@@ -3,7 +3,14 @@
 # Owned by: action-platform, agent-devx
 
 .on_privateactionrunner_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
+  - changes:
+      paths:
+        - test/new-e2e/tests/privateactionrunner/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+  - !reference [.on_e2e_default]
   - changes:
       paths:
         - cmd/privateactionrunner/**/*
@@ -11,8 +18,10 @@
         - Dockerfiles/agent/Dockerfile
         - Dockerfiles/agent/entrypoint.sh
         - Dockerfiles/agent/cont-init.d/**/*
+        - Dockerfiles/agent/entrypoint.d/_default
         - Dockerfiles/agent/entrypoint.d/privateactionrunner
         - Dockerfiles/agent/entrypoint.d/procmgr-all-in-one
+        - Dockerfiles/agent/entrypoint.d/s6-all-in-one
         - Dockerfiles/agent/par-probe.sh
         - Dockerfiles/agent/processes.d/datadog-agent-action-executor.yaml
         - Dockerfiles/agent/processes.d/datadog-agent-par-control.yaml
@@ -47,7 +56,6 @@
         - packages/agent/product/BUILD.bazel
         - pkg/proto/datadog/privateactionrunner/**/*
         - pkg/proto/pbgo/privateactionrunner/**/*
-        - test/new-e2e/tests/privateactionrunner/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 

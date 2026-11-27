@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -182,9 +181,12 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	ia.data.Set("config_proxy_http", scrub(ia.conf.GetString("proxy.http")))
 	ia.data.Set("config_proxy_https", scrub(ia.conf.GetString("proxy.https")))
 	ia.data.Set("feature_logs_enabled", ia.conf.GetBool("logs_enabled"))
+	ia.data.Set("feature_private_action_runner_enabled", ia.conf.GetBool("private_action_runner.enabled") && ia.conf.GetBool("private_action_runner.split_enabled"))
 	ia.data.Set("feature_imdsv2_enabled", ia.conf.GetBool("ec2_prefer_imdsv2"))
 	ia.data.Set("feature_remote_configuration_enabled", ia.conf.GetBool("remote_configuration.enabled"))
 	ia.data.Set("feature_remote_updates_enabled", ia.conf.GetBool("remote_updates"))
+	ia.data.Set("feature_infra_enabled", ia.conf.GetBool("enable_payloads.series"))
+	ia.data.Set("feature_autoscaling_cluster_enabled", ia.conf.GetBool("autoscaling.cluster.enabled"))
 	ia.data.Set("feature_container_images_enabled", ia.conf.GetBool("container_image.enabled"))
 	ia.data.Set("feature_network_path_remote_config_enabled", ia.conf.GetBool("network_path.remote_config.enabled"))
 	ia.data.Set("feature_network_path_connections_monitoring_enabled", ia.conf.GetBool("network_path.connections_monitoring.enabled"))
@@ -413,12 +415,12 @@ func (ia *inventoryagent) fetchSecretsMetadata() {
 func filterScrubbedKeys(scrubbedKeys []string, paths []string) []string {
 	seen := make(map[string]struct{}, len(paths)+len(scrubbedKeys))
 	for _, path := range paths {
-		// Scrubbed keys are bare YAML key names (ex: "community_strings")
-		// Secret paths are full dotted settings, optionally prefixed by their origin
-		//   (ex: "snmp_traps.community_strings.0" or "a3f9c01b2d4e5f67:auth.password")
-		// get last non-numerical element of the path, to match what the scrubbed keys uses
-		last := getPathLastName(path)
-		seen[last] = struct{}{}
+		// Scrubbed keys are full dotted settings (ex: "snmp_traps.community_strings.0")
+		// Secret paths are too, but integrations are prefixed by their name (ex: "http_check:auth.password")
+		if idx := strings.Index(path, ":"); idx != -1 {
+			path = path[idx+1:]
+		}
+		seen[path] = struct{}{}
 	}
 	res := []string{}
 	for _, key := range scrubbedKeys {
@@ -429,20 +431,6 @@ func filterScrubbedKeys(scrubbedKeys []string, paths []string) []string {
 		res = append(res, key)
 	}
 	return res
-}
-
-// getPathLastName returns last element of a setting path, skipping the last if it's a number
-// origin prefix is removed if present
-func getPathLastName(path string) string {
-	if idx := strings.Index(path, ":"); idx != -1 {
-		path = path[idx+1:]
-	}
-	elems := strings.Split(path, ".")
-	leaf := elems[len(elems)-1]
-	if _, err := strconv.Atoi(leaf); err == nil && len(elems) >= 2 {
-		leaf = elems[len(elems)-2]
-	}
-	return leaf
 }
 
 func (ia *inventoryagent) refreshMetadata() {
@@ -465,13 +453,8 @@ func (ia *inventoryagent) refreshMetadata() {
 }
 
 func (ia *inventoryagent) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
-	data, err := ia.GetAsJSON()
-	if err != nil {
-		httputils.SetJSONError(w, err, 500)
-		return
-	}
 	// Scrub by key name, as the flare does, so that sensitive fields such as the secret hashes are not exposed
-	scrubbed, err := scrubber.ScrubJSON(data)
+	scrubbed, err := ia.GetAsScrubbedJSON()
 	if err != nil {
 		httputils.SetJSONError(w, err, 500)
 		return
@@ -516,35 +499,39 @@ func (ia *inventoryagent) getRawFiles() map[string]agentmetadata.RawFile {
 
 	rawConfigFiles := make(map[string]agentmetadata.RawFile)
 	for _, file := range possibleFiles {
-		if scrubbedConfig, ok := ia.readAndScrubConfig(file); ok {
+		if scrubbedConfig, secrets, ok := ia.readAndScrubConfig(file); ok {
 			hash := sha256.Sum256(scrubbedConfig)
 			rawConfigFiles[file] = agentmetadata.RawFile{
 				RawConfig: string(scrubbedConfig),
 				Hash:      hex.EncodeToString(hash[:]),
+				Secrets:   secrets,
 			}
 		}
 	}
 	return rawConfigFiles
 }
 
-func (ia *inventoryagent) readAndScrubConfig(path string) ([]byte, bool) {
+func (ia *inventoryagent) readAndScrubConfig(path string) ([]byte, []scrubber.ConfigSecret, bool) {
 	if path == "" {
-		return nil, false
+		return nil, nil, false
 	}
 	rawContent, err := os.ReadFile(path)
 	if err != nil {
 		ia.log.Debugf("could not read configuration file metadata for %q", path)
-		return nil, false
+		return nil, nil, false
 	}
 	// Preserve yaml structure, except fields like `additional_endpoints` may
 	// lose order. This is acceptable behavior, since this setting isn't really used
 	// too often, and already has some strange edge-cases we handle specially.
-	scrubbedConfig, err := scrubber.ScrubYamlPreserveStructure(rawContent)
+	scrubbedConfig, secrets, err := scrubber.ScrubYamlPreserveStructure(rawContent)
 	if err != nil {
 		ia.log.Warnf("could not safely scrub configuration file metadata for %q", path)
-		return nil, false
+		return nil, nil, false
 	}
-	return scrubbedConfig, true
+	if ia.conf.GetBool("metadata_skip_secrets") {
+		secrets = nil
+	}
+	return scrubbedConfig, secrets, true
 }
 
 func (ia *inventoryagent) getPayload() marshaler.TypedJSONMarshaler {

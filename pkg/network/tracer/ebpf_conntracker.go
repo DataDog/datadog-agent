@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"io"
 	"net/netip"
-	"sync/atomic"
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -64,14 +63,12 @@ var conntrackerTelemetry = struct {
 	getsTotal           telemetryComp.Counter
 	unregistersTotal    telemetryComp.Counter
 	registersTotal      *prometheus.Desc
-	lastRegisters       atomic.Uint64
 }{
 	telemetryimpl.GetCompatComponent().NewHistogram(ebpfConntrackerModuleName, "gets_duration_nanoseconds", []string{}, "Histogram measuring the time spent retrieving connection tuples from the EBPF map", defaultBuckets),
 	telemetryimpl.GetCompatComponent().NewHistogram(ebpfConntrackerModuleName, "unregisters_duration_nanoseconds", []string{}, "Histogram measuring the time spent deleting connection tuples from the EBPF map", defaultBuckets),
 	telemetryimpl.GetCompatComponent().NewCounter(ebpfConntrackerModuleName, "gets_total", []string{}, "Counter measuring the total number of attempts to get connection tuples from the EBPF map"),
 	telemetryimpl.GetCompatComponent().NewCounter(ebpfConntrackerModuleName, "unregisters_total", []string{}, "Counter measuring the total number of attempts to delete connection tuples from the EBPF map"),
 	prometheus.NewDesc(ebpfConntrackerModuleName+"__registers_total", "Counter measuring the total number of attempts to update/create connection tuples in the EBPF map", nil, nil),
-	atomic.Uint64{},
 }
 
 type ebpfConntracker struct {
@@ -407,29 +404,15 @@ func (e *ebpfConntracker) Describe(ch chan<- *prometheus.Desc) {
 	ch <- conntrackerTelemetry.registersTotal
 }
 
-// Collect returns the current state of all metrics of the collector
+// Collect returns the current state of all metrics of the collector. The eBPF
+// register count is a running total and is published as-is, so that Collect
+// changes no state: every Gather of the telemetry registry calls it.
 func (e *ebpfConntracker) Collect(ch chan<- prometheus.Metric) {
 	ebpfTelemetry := &netebpf.ConntrackTelemetry{}
 	if err := e.telemetryMap.Lookup(&zero, ebpfTelemetry); err != nil {
 		log.Tracef("error retrieving the telemetry struct: %s", err)
 	} else {
-		delta := computeRegistersDelta(ebpfTelemetry.Registers)
-		ch <- prometheus.MustNewConstMetric(conntrackerTelemetry.registersTotal, prometheus.CounterValue, float64(delta))
-	}
-}
-
-// computeRegistersDelta atomically computes the delta between the current
-// and last-seen register count, and updates the last-seen value. Safe to
-// call concurrently (e.g. when two Prometheus Gather ticks overlap).
-func computeRegistersDelta(currentRegisters uint64) uint64 {
-	for {
-		last := conntrackerTelemetry.lastRegisters.Load()
-		if currentRegisters <= last {
-			return 0
-		}
-		if conntrackerTelemetry.lastRegisters.CompareAndSwap(last, currentRegisters) {
-			return currentRegisters - last
-		}
+		ch <- prometheus.MustNewConstMetric(conntrackerTelemetry.registersTotal, prometheus.CounterValue, float64(ebpfTelemetry.Registers))
 	}
 }
 
@@ -549,9 +532,12 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, build
 	if err != nil {
 		return nil, err
 	}
-	ddebpf.AddNameMappings(mgr.Manager, "npm_conntracker")
+	ddebpf.AddNameMappings(mgr.Manager, ebpfConntrackerModule)
 	return mgr.Manager, nil
 }
+
+// ebpfConntrackerModule is the module the eBPF conntracker's maps and programs are reported under
+const ebpfConntrackerModule = "npm_conntracker"
 
 var errPrebuiltConntrackerUnsupported = errors.New("prebuilt ebpf conntracker requires kernel version 4.14 or higher or a RHEL kernel with backported eBPF support")
 var errCOREConntrackerUnsupported = errors.New("CO-RE ebpf conntracker requires kernel version 4.14 or higher or a RHEL kernel with backported eBPF support")
@@ -565,13 +551,13 @@ func getPrebuiltConntracker(cfg *config.Config) (*manager.Manager, error) {
 		return nil, errPrebuiltConntrackerUnsupported
 	}
 
-	buf, err := netebpf.ReadConntrackBPFModule(cfg.BPFDir, cfg.BPFDebug)
+	buf, err := netebpf.ReadConntrackBPFModule(cfg.BPFDir)
 	if err != nil {
 		return nil, fmt.Errorf("could not read bpf module: %s", err)
 	}
 	defer buf.Close()
 
-	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir, cfg.BPFDebug)
+	offsetBuf, err := netebpf.ReadOffsetBPFModule(cfg.BPFDir)
 	if err != nil {
 		return nil, fmt.Errorf("could not load offset guessing module: %w", err)
 	}
@@ -649,7 +635,7 @@ func getCOREConntracker(cfg *config.Config) (*manager.Manager, error) {
 	}
 
 	var m *manager.Manager
-	err = ddebpf.LoadCOREAsset(netebpf.ModuleFileName("conntrack", cfg.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
+	err = ddebpf.LoadCOREAsset("conntrack.o", func(ar bytecode.AssetReader, o manager.Options) error {
 		o.ConstantEditors = append(o.ConstantEditors,
 			boolConst("tcpv4_enabled", cfg.CollectTCPv4Conns),
 			boolConst("udpv4_enabled", cfg.CollectUDPv4Conns),

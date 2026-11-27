@@ -117,73 +117,53 @@ func (serie Serie) String() string {
 	return string(s)
 }
 
-// PopulateDeviceField removes any `device:` tag in the series tags and uses the value to
-// populate the Serie.Device field
-// FIXME(olivier v): remove this as soon as the v1 API can handle `device` as a regular tag
-func (serie *Serie) PopulateDeviceField() {
-	if !serie.hasDeviceTag() {
-		return
-	}
-	// make a copy of the tags array. Otherwise the underlying array won't have
-	// the device tag for the Nth iteration (N>1), and the device field will
-	// be lost
-	filteredTags := make([]string, 0, serie.Tags.Len())
-
-	serie.Tags.ForEach(func(tag string) {
-		if strings.HasPrefix(tag, "device:") {
-			serie.Device = tag[7:]
-		} else {
-			filteredTags = append(filteredTags, tag)
+// PopulateDeviceAndResources extracts `device:` and `dd.internal.resource:` tags
+// into Serie.Device and Serie.Resources. It scans tags once when neither tag is
+// present, and filters them out into a new tag slice in a second pass if found.
+func (serie *Serie) PopulateDeviceAndResources() {
+	t1, t2 := serie.Tags.UnsafeGet()
+	hasSpecial := false
+	for _, tag := range t1 {
+		if strings.HasPrefix(tag, "device:") || strings.HasPrefix(tag, internalResourceTagPrefix) {
+			hasSpecial = true
+			break
 		}
-	})
-
-	serie.Tags = tagset.CompositeTagsFromSlice(filteredTags)
-}
-
-// hasDeviceTag checks whether a series contains a device tag
-func (serie *Serie) hasDeviceTag() bool {
-	return serie.Tags.Find(func(tag string) bool {
-		return strings.HasPrefix(tag, "device:")
-	})
-}
-
-// PopulateResources removes any dd.internal.resource tags in the series tags and uses the values to
-// populate the Serie.Resources field. The format for the dd.internal.resource tag values is
-// <resource_type>:<resource_name>. Any dd.internal.resource tag not matching the expected format
-// will be dropped.
-func (serie *Serie) PopulateResources() {
-	if !serie.hasResourceTag() {
-		return
 	}
-	// make a copy of the tags array. Otherwise the underlying array won't have
-	// the resource tag for the Nth iteration (N>1), and the resources field will
-	// be lost
-	filteredTags := make([]string, 0, serie.Tags.Len())
-
-	serie.Tags.ForEach(func(tag string) {
-		if strings.HasPrefix(tag, internalResourceTagPrefix) {
-			tagVal := tag[len(internalResourceTagPrefix):]
-			commaIdx := strings.Index(tagVal, internalResourceTagSeparator)
-			if commaIdx > 0 && commaIdx < len(tagVal)-1 {
-				resource := Resource{
-					Type: tagVal[:commaIdx],
-					Name: tagVal[commaIdx+1:],
-				}
-				serie.Resources = append(serie.Resources, resource)
+	if !hasSpecial {
+		for _, tag := range t2 {
+			if strings.HasPrefix(tag, "device:") || strings.HasPrefix(tag, internalResourceTagPrefix) {
+				hasSpecial = true
+				break
 			}
-		} else {
-			filteredTags = append(filteredTags, tag)
 		}
-	})
+	}
+	if !hasSpecial {
+		return
+	}
 
+	// Copy tags so the underlying tagset array is not mutated across iterations.
+	filteredTags := make([]string, 0, len(t1)+len(t2))
+	filterSlice := func(tags []string) {
+		for _, tag := range tags {
+			if strings.HasPrefix(tag, "device:") {
+				serie.Device = tag[7:]
+			} else if strings.HasPrefix(tag, internalResourceTagPrefix) {
+				tagVal := tag[len(internalResourceTagPrefix):]
+				commaIdx := strings.Index(tagVal, internalResourceTagSeparator)
+				if commaIdx > 0 && commaIdx < len(tagVal)-1 {
+					serie.Resources = append(serie.Resources, Resource{
+						Type: tagVal[:commaIdx],
+						Name: tagVal[commaIdx+1:],
+					})
+				}
+			} else {
+				filteredTags = append(filteredTags, tag)
+			}
+		}
+	}
+	filterSlice(t1)
+	filterSlice(t2)
 	serie.Tags = tagset.CompositeTagsFromSlice(filteredTags)
-}
-
-// hasResourceTag checks whether a series contains a resource tag
-func (serie *Serie) hasResourceTag() bool {
-	return serie.Tags.Find(func(tag string) bool {
-		return strings.HasPrefix(tag, internalResourceTagPrefix)
-	})
 }
 
 // Series is a collection of `Serie`

@@ -458,8 +458,8 @@ func TestDeviceEventsCollector(t *testing.T) {
 	// GetEvents is idempotent until Refresh, so subsequent Collect calls with
 	// the same cached events increase the lifetime gauge and re-emit the
 	// interval count as the number of events in that Collect call.
-	xid31Tags := []string{"type:31", "origin:hardware"}
-	xid12Tags := []string{"type:12", "origin:driver"}
+	xid31Tags := []string{"type:31", "xid_code:31", "origin:hardware"}
+	xid12Tags := []string{"type:12", "xid_code:12", "origin:driver"}
 	xid31Total := func(value float64) *Metric {
 		return NewMetric(xidErrorsTotalMetricName, value, metrics.GaugeType, Medium, xid31Tags, nil)
 	}
