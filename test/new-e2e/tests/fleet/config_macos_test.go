@@ -1231,7 +1231,12 @@ func (s *configMacOSSuite) TestConfigOwnershipMacOS() {
 	require.Equal(s.T(), "200", s.socketRequestAs("_dd-agent", "GET", "/status"),
 		"the Agent's account should be able to read the daemon's status")
 
-	s.startConfigExperimentRC(nextID("cfg-ownership"), logLevelPatch("debug"), nil)
+	// The experiment also writes a check configuration in a folder the stable configuration does not
+	// have, which the installer creates.
+	ownershipOps := append(logLevelPatch("debug"), backend.FileOperation{
+		FileOperationType: backend.FileOperationMergePatch, FilePath: "/conf.d/e2e_ownership.d/conf.yaml", Patch: []byte(`{"instances":[{}]}`),
+	})
+	s.startConfigExperimentRC(nextID("cfg-ownership"), ownershipOps, nil)
 	// The start is reported before the installer daemon is handed over to its experiment job, and
 	// the pidfile is briefly absent between the stable daemon exiting and the experiment daemon
 	// writing it.
@@ -1247,15 +1252,14 @@ func (s *configMacOSSuite) TestConfigOwnershipMacOS() {
 		require.False(s.T(), s.pathExists(path), "%s should not exist", path)
 	}
 
-	// One line per entry with its type, mode, uid and gid, followed by its explicit ACL entries, for
-	// every entry the experiment did not write. Timestamps and sizes are left out: a copy does not
-	// keep the former, and the comparison is about metadata rather than content. Inherited entries
-	// are left out: cp -a does not copy them, and in etc they only repeat the access the tree's owner
-	// has. The deployment ID is the experiment's own.
+	// One line per entry with its type, mode, uid and gid, followed by its ACL entries, inherited ones
+	// included, for every entry the experiment did not write. Timestamps and sizes are left out: a
+	// copy does not keep the former, and the comparison is about metadata rather than content. The
+	// deployment ID is the experiment's own, and the check folder exists only in the experiment.
 	metadata := func(dir string) string {
 		out, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`sudo sh -c 'cd %s && `+
-			`find . -mindepth 1 ! -path ./datadog.yaml ! -path ./.deployment-id ! -path ./.superseded | sort | while read -r f; do `+
-			`printf "%%s %%s\n" "$f" "$(stat -f "%%HT %%Lp %%u %%g" "$f")"; ls -lde "$f" | tail -n +2 | grep -v " inherited " | sed "s/^ *[0-9]*: //"; done'`, dir))
+			`find . -mindepth 1 ! -path ./datadog.yaml ! -path ./.deployment-id ! -path ./.superseded ! -path "./conf.d/e2e_ownership.d*" | sort | while read -r f; do `+
+			`printf "%%s %%s\n" "$f" "$(stat -f "%%HT %%Lp %%u %%g" "$f")"; ls -lde "$f" | tail -n +2 | sed "s/^ *[0-9]*: //"; done'`, dir))
 		require.NoError(s.T(), err)
 		return out
 	}
@@ -1267,6 +1271,12 @@ func (s *configMacOSSuite) TestConfigOwnershipMacOS() {
 	require.NoError(s.T(), err)
 	require.Equal(s.T(), [3]string{"660", "_dd-agent", "admin"}, [3]string{perms.Mode, perms.Owner, perms.Group},
 		"a file the experiment wrote should be _dd-agent:admin 0660")
+	// A folder the experiment created belongs to the Agent's account, like every other folder of the
+	// tree.
+	perms, err = s.Host.GetFilePermissions("/opt/datadog-agent/etc-exp/conf.d/e2e_ownership.d")
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), [2]string{"_dd-agent", "admin"}, [2]string{perms.Owner, perms.Group},
+		"a folder the experiment created should be _dd-agent:admin")
 
 	s.stopConfigExperimentRC()
 }
