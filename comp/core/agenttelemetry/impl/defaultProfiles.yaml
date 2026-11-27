@@ -770,11 +770,16 @@ profiles:
       # only populated for the `errors_in_log` and `warnings_in_log` findings; every other finding carries them
       # empty. They are bounded on the producing side: the values come from ADP's `file!()`/`line!()` rather than
       # from any log message, and the number of distinct locations reported per finding is capped.
+      #
+      # `spawn_stage` and `spawn_error` are the step a `spawn_failed` run failed at and the class of its error, and
+      # are only populated for that finding. Both come from closed sets of constants, never from error text.
       - name: data_plane.preflight_mode_finding
         preserve_tags:
           - finding
           - source_file
           - source_line
+          - spawn_stage
+          - spawn_error
       - name: data_plane.preflight_mode_duration_seconds
   schedule:
     # Preflight mode runs once at startup, for at least minPreflightModeDuration (90s, see
