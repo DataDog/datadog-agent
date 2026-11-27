@@ -1,0 +1,47 @@
+diff --git a/rust/private/rust.bzl b/rust/private/rust.bzl
+--- a/rust/private/rust.bzl
++++ b/rust/private/rust.bzl
+@@ -217,7 +217,7 @@
+         output_hash = determine_output_hash(crate_root, ctx.label)
+
+     rust_lib_name = determine_lib_name(
+-        crate_name,
++        getattr(ctx.attr, "lib_name", "") or crate_name,
+         crate_type,
+         toolchain,
+         output_hash,
+@@ -1335,9 +1335,21 @@
+     ),
+ }
+
++_LIB_NAME_ATTRS = {
++    "lib_name": attr.string(
++        doc = dedent("""\
++            Override the resulting library file name. By default, the library file will be named using the crate name,
++            however sometimes that is not desirable, for example when the name must contain characters that are not
++            valid in a crate name such as `-`. The platform specific prefix and extension are still added, so
++            `lib_name = "foo-bar"` produces `libfoo-bar.so` on Linux, `libfoo-bar.dylib` on macOS and `foo-bar.dll`
++            on Windows.
++        """),
++    ),
++}
++
+ rust_cdylib_library = rule(
+     implementation = _rust_cdylib_library_impl,
+-    attrs = _COMMON_ATTRS | _PLATFORM_ATTRS | _EXPERIMENTAL_USE_CC_COMMON_LINK_ATTRS | _CC_RUNTIME_LINKAGE_ATTRS,
++    attrs = _COMMON_ATTRS | _PLATFORM_ATTRS | _EXPERIMENTAL_USE_CC_COMMON_LINK_ATTRS | _CC_RUNTIME_LINKAGE_ATTRS | _LIB_NAME_ATTRS,
+     fragments = ["cpp"],
+     cfg = _rust_shared_library_transition,
+     toolchains = [
+diff --git a/rust/private/rustc.bzl b/rust/private/rustc.bzl
+--- a/rust/private/rustc.bzl
++++ b/rust/private/rustc.bzl
+@@ -1414,7 +1414,7 @@
+             # -Zno-codegen --emit=link writes lib<name>.rlib by default, which would
+             # collide with the full action's output; redirect to the hollow path.
+             rustc_flags.add(crate_info.metadata, format = "--emit=link=%s")
+-        elif kind == "link" and crate_info.type == "bin":
++        elif kind == "link" and (crate_info.type == "bin" or getattr(attr, "lib_name", "")):
+             rustc_flags.add(crate_info.output, format = "--emit=link=%s")
+         elif type(kind) in ["tuple", "list"] and len(kind) == 2:
+             # 'kind' is a (string, File) tuple/list. Passing the File object directly to

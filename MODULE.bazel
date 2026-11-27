@@ -555,6 +555,10 @@ use_repo(toolchains, "default_rust_toolchains")
 register_toolchains("@default_rust_toolchains//...")
 
 rules_rust_shim = use_extension("@rules_rs//rs:rules_rust.bzl", "rules_rust")
+rules_rust_shim.patch(
+    patches = ["//bazel/patches:rules_rust-cdylib-lib-name.patch"],
+    strip = 1,
+)
 use_repo(rules_rust_shim, "rules_rust")
 
 rules_rust_prost_shim = use_extension("@rules_rs//rs:rules_rust_prost.bzl", "rules_rust_prost")
