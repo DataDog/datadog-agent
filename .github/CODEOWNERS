@@ -130,6 +130,7 @@
 /.github/workflows/collector-generate-and-update.yml @DataDog/opentelemetry-agent @DataDog/agent-devx
 /.github/workflows/update-kubernetes-versions.yml    @DataDog/container-integrations @DataDog/agent-devx
 /.github/workflows/update-changelog.yml              @DataDog/agent-delivery @DataDog/agent-devx
+/.github/workflows/update-generatedsettings.yml      @DataDog/agent-delivery @DataDog/fleet-automation @DataDog/agent-devx
 
 # Gitlab files
 # Files containing job contents are owned by teams in charge of the jobs + agent-devx or agent-delivery or agent-build
