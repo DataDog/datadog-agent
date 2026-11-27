@@ -151,15 +151,21 @@ impl ProcessManager {
         self.shutting_down.load(Ordering::SeqCst)
     }
 
+    /// Runs until a stop request. On Windows that request comes only from the handlers
+    /// `service::run_as_service` installs (SCM stop, console Ctrl+C), so a caller that does not
+    /// go through it must notify `platform::shutdown_notify` itself or use
+    /// [`ProcessManager::run_with_shutdown`].
     pub async fn run(&self) -> Result<i32> {
         self.run_with_shutdown(platform::shutdown_signal()).await
     }
 
-    /// Runs until `shutdown` resolves. Create `shutdown` before [`ProcessManager::new`] so a stop
-    /// during the catalog load is kept. On Windows, Ctrl+C is registered on the first poll, so an
-    /// earlier Ctrl+C is not caught. The process-wide stop flag is never cleared, so a stop
-    /// recorded by an earlier run also ends this one. The flag is checked only during startup, so
-    /// after startup only `shutdown` ends the run.
+    /// Runs until `shutdown` resolves. Create `shutdown` before [`ProcessManager::new`] to keep
+    /// a stop request that arrives while the catalog loads. On Windows that holds because the
+    /// console and service control handlers are installed before the runtime exists. The stop
+    /// flag is process-wide and never cleared, so a stop recorded by an earlier run also ends
+    /// this one.
+    /// The flag is checked only during startup. After startup, only `shutdown` ends the run, so a
+    /// caller that passes its own future must watch for signals itself.
     pub async fn run_with_shutdown(&self, shutdown: impl Future<Output = ()>) -> Result<i32> {
         tokio::pin!(shutdown);
 

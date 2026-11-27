@@ -11,8 +11,9 @@
 //!
 //! Limits: a caller waits up to [`CALL_DEADLINE`] per distinct stalled path, on a runtime worker
 //! (with the process table locked in the start pass). On Unix, `Command::spawn` waits on the exec
-//! pipe, so a `command` or `working_dir` on a hung mount can still block a spawn. Refusals are
-//! keyed by the literal path, so a symlink to the same file is a different path.
+//! pipe, and on Windows `CreateProcess*` can wait on the image, so a `command` or `working_dir`
+//! on a hung mount can still block a spawn. Refusals are keyed by the literal path, so a symlink
+//! to the same file is a different path.
 
 use std::io;
 use std::path::{Path, PathBuf};
@@ -23,8 +24,9 @@ use std::time::{Duration, Instant};
 
 use log::{debug, error};
 
-/// Set by the early SIGTERM and SIGINT handler, which tokio's handler chains to. Never cleared,
-/// so it outlives any one `ProcessManager` run.
+/// Set by the early SIGTERM and SIGINT handler, which tokio's handler chains to (on Unix), and by
+/// the Windows service stop and console control handlers. Never cleared, so it outlives any one
+/// `ProcessManager` run.
 static STOP: AtomicBool = AtomicBool::new(false);
 
 /// The stop signal number that set `STOP`, or 0. Stored before `STOP` is set.
@@ -81,10 +83,11 @@ pub(crate) fn request_stop(signal: i32) {
     STOP.store(true, Ordering::SeqCst);
 }
 
-/// Records a stop request. Only an atomic store, so it is safe inside a console control handler.
+/// Records a stop request and returns whether this call was the first. Only an atomic swap, so
+/// it is safe inside a console control handler.
 #[cfg(not(unix))]
-pub(crate) fn request_stop() {
-    STOP.store(true, Ordering::SeqCst);
+pub(crate) fn request_stop() -> bool {
+    !STOP.swap(true, Ordering::SeqCst)
 }
 
 /// Name of the recorded stop signal. Call it after `stop_requested_flag` returns true.
@@ -188,8 +191,10 @@ fn bounded_with<T: Send + 'static>(
             // Held across the send: a caller giving up takes the same lock before recording
             // its entry, so it cannot record one for a call that finished.
             let abandoned = lock_abandoned();
-            let _ = tx.send(result);
+            let sent = tx.send(result);
             drop(abandoned);
+            // An unreceived result drops here, outside the lock, as dropping it can block.
+            drop(sent);
         })?;
 
     let started = Instant::now();
@@ -205,9 +210,13 @@ fn bounded_with<T: Send + 'static>(
                 let mut abandoned = lock_abandoned();
                 // A result sent since the last poll wins, and a dead reader is not recorded.
                 match rx.try_recv() {
-                    Ok(result) => return stopped_or(result, stop),
+                    Ok(result) => {
+                        drop(abandoned);
+                        return stopped_or(result, stop);
+                    }
                     Err(mpsc::TryRecvError::Disconnected) => return Err(reader_ended()),
-                    Err(mpsc::TryRecvError::Empty) => {}
+                    // Nothing is buffered, so a late send fails in the helper, not on this thread.
+                    Err(mpsc::TryRecvError::Empty) => drop(rx),
                 }
                 abandoned.push(Abandoned {
                     path: path.to_path_buf(),
@@ -233,9 +242,18 @@ fn bounded_with<T: Send + 'static>(
     }
 }
 
-/// A ready result, unless a stop was requested, which discards it.
-fn stopped_or<T>(result: T, stop: &AtomicBool) -> io::Result<T> {
+/// Drops `value` on a detached thread, for a value whose drop can block (a Windows handle to a
+/// remote file). Drops inline if the thread cannot start.
+pub(crate) fn drop_detached<T: Send + 'static>(value: T) {
+    let _ = thread::Builder::new()
+        .name("fs-discard".to_string())
+        .spawn(move || drop(value));
+}
+
+/// A ready result, unless a stop was requested, which discards it off this thread.
+fn stopped_or<T: Send + 'static>(result: T, stop: &AtomicBool) -> io::Result<T> {
     if stop.load(Ordering::SeqCst) {
+        drop_detached(result);
         return Err(io::Error::new(
             io::ErrorKind::Interrupted,
             "stop requested, discarding the result",
@@ -332,6 +350,82 @@ mod tests {
         .and_then(|result| result)
         .unwrap();
         assert_eq!(contents, "command: /bin/true\n");
+    }
+
+    /// Reports over its channel whether the abandoned table was free when it dropped.
+    #[derive(Debug)]
+    struct DropProbe(mpsc::Sender<bool>);
+
+    impl Drop for DropProbe {
+        fn drop(&mut self) {
+            // Retries ride out another test holding the table. A drop under the lock never sees
+            // it free.
+            let free = (0..500).any(|_| {
+                let held = matches!(
+                    ABANDONED.try_lock(),
+                    Err(std::sync::TryLockError::WouldBlock)
+                );
+                if held {
+                    thread::sleep(Duration::from_millis(10));
+                }
+                !held
+            });
+            let _ = self.0.send(free);
+        }
+    }
+
+    #[test]
+    fn a_result_nobody_receives_is_dropped_outside_the_table_lock() {
+        let path = scratch_path("late-drop");
+        let stop = AtomicBool::new(false);
+        let (probe_tx, probe_rx) = mpsc::channel();
+        let (started_tx, started_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let err = bounded_with(&path, Duration::from_millis(100), &stop, move || {
+            let _ = started_tx.send(());
+            let _ = release_rx.recv();
+            DropProbe(probe_tx)
+        })
+        .unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::TimedOut, "{err}");
+        started_rx.recv().unwrap();
+        release_tx.send(()).unwrap();
+        let free = probe_rx.recv_timeout(Duration::from_secs(10)).unwrap();
+        assert!(
+            free,
+            "a result that nobody received dropped under the table lock"
+        );
+        wait_until("the abandoned entry was not cleared", || {
+            blocked_entries(&path) == 0
+        });
+    }
+
+    /// Reports the name of the thread it drops on.
+    struct ThreadProbe(mpsc::Sender<Option<String>>);
+
+    impl Drop for ThreadProbe {
+        fn drop(&mut self) {
+            let _ = self.0.send(thread::current().name().map(str::to_owned));
+        }
+    }
+
+    #[test]
+    fn a_value_dropped_detached_drops_on_its_own_thread() {
+        let (tx, rx) = mpsc::channel();
+        drop_detached(ThreadProbe(tx));
+        let dropped_on = rx.recv_timeout(Duration::from_secs(10)).unwrap();
+        assert_eq!(dropped_on.as_deref(), Some("fs-discard"));
+    }
+
+    #[test]
+    fn a_result_discarded_for_a_stop_drops_on_a_detached_thread() {
+        let (tx, rx) = mpsc::channel();
+        let err = stopped_or(ThreadProbe(tx), &AtomicBool::new(true))
+            .err()
+            .unwrap();
+        assert_eq!(err.kind(), io::ErrorKind::Interrupted, "{err}");
+        let dropped_on = rx.recv_timeout(Duration::from_secs(10)).unwrap();
+        assert_eq!(dropped_on.as_deref(), Some("fs-discard"));
     }
 
     #[test]

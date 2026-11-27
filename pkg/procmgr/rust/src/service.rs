@@ -15,7 +15,7 @@
 //!
 //! The control handler bridges SCM stop events into the tokio runtime via
 //! [`crate::platform::shutdown_notify()`], so `ProcessManager::run()` shuts
-//! down without any API changes.
+//! down without any API changes. Console mode does the same for Ctrl+C.
 
 use std::ffi::c_void;
 use std::path::PathBuf;
@@ -25,9 +25,11 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
 use log::{error, info, warn};
+use tokio::sync::Notify;
 use windows_sys::Win32::Foundation::{
     ERROR_FAILED_SERVICE_CONTROLLER_CONNECT, ERROR_SERVICE_SPECIFIC_ERROR, GetLastError, NO_ERROR,
 };
+use windows_sys::Win32::System::Console::{CTRL_C_EVENT, SetConsoleCtrlHandler};
 use windows_sys::Win32::System::Services::{
     RegisterServiceCtrlHandlerExW, SERVICE_ACCEPT_PRESHUTDOWN, SERVICE_ACCEPT_SHUTDOWN,
     SERVICE_ACCEPT_STOP, SERVICE_CONTROL_INTERROGATE, SERVICE_CONTROL_PRESHUTDOWN,
@@ -245,6 +247,25 @@ pub fn run_as_service() -> Result<i32> {
     bail!("StartServiceCtrlDispatcherW failed: error {err}");
 }
 
+/// Console Ctrl+C handler. Runs on an OS thread, so it works while the runtime is blocked.
+unsafe extern "system" fn console_ctrl_handler(ctrl_type: u32) -> i32 {
+    console_ctrl_event(
+        ctrl_type,
+        crate::stop::request_stop,
+        platform::shutdown_notify(),
+    )
+}
+
+/// Returns 1 for the first Ctrl+C. A repeat or any other event returns 0, so the default handler
+/// runs and a stuck shutdown can still be ended.
+fn console_ctrl_event(ctrl_type: u32, request_stop: impl FnOnce() -> bool, notify: &Notify) -> i32 {
+    if ctrl_type != CTRL_C_EVENT || !request_stop() {
+        return 0;
+    }
+    notify.notify_one();
+    1
+}
+
 /// Fallback console mode: runs the process manager directly without SCM,
 /// useful for interactive debugging.
 fn run_console_fallback() -> Result<i32> {
@@ -256,6 +277,13 @@ fn run_console_fallback() -> Result<i32> {
     .context("failed to initialize logging")?;
 
     info!("dd-procmgrd starting (console mode)");
+
+    // Before the runtime so an early Ctrl+C is kept.
+    if unsafe { SetConsoleCtrlHandler(Some(console_ctrl_handler), 1) } == 0 {
+        warn!("SetConsoleCtrlHandler failed: {}", unsafe {
+            GetLastError()
+        });
+    }
 
     let runtime = tokio::runtime::Runtime::new().context("failed to create tokio runtime")?;
     runtime.block_on(async {
@@ -278,5 +306,41 @@ mod tests {
     fn test_stopped_exit_codes_critical_child() {
         assert_eq!(stopped_exit_codes(42), (ERROR_SERVICE_SPECIFIC_ERROR, 42));
         assert_eq!(stopped_exit_codes(1), (ERROR_SERVICE_SPECIFIC_ERROR, 1));
+    }
+
+    /// Whether `notify` holds a permit. Consumes it.
+    fn is_notified(notify: &Notify) -> bool {
+        use std::future::Future;
+        use std::task::{Context, Poll, Waker};
+        let mut notified = std::pin::pin!(notify.notified());
+        notified
+            .as_mut()
+            .poll(&mut Context::from_waker(Waker::noop()))
+            == Poll::Ready(())
+    }
+
+    #[test]
+    fn first_ctrl_c_is_taken_and_wakes_the_manager() {
+        let notify = Notify::new();
+        assert_eq!(console_ctrl_event(CTRL_C_EVENT, || true, &notify), 1);
+        assert!(is_notified(&notify));
+    }
+
+    #[test]
+    fn repeated_ctrl_c_is_left_to_the_default_handler() {
+        let notify = Notify::new();
+        assert_eq!(console_ctrl_event(CTRL_C_EVENT, || false, &notify), 0);
+        assert!(!is_notified(&notify));
+    }
+
+    #[test]
+    fn other_console_events_do_not_request_a_stop() {
+        use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, CTRL_CLOSE_EVENT};
+        let notify = Notify::new();
+        for event in [CTRL_BREAK_EVENT, CTRL_CLOSE_EVENT] {
+            let taken = console_ctrl_event(event, || unreachable!("no stop request"), &notify);
+            assert_eq!(taken, 0);
+        }
+        assert!(!is_notified(&notify));
     }
 }
