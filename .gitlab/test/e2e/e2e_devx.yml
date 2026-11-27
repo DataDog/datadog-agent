@@ -22,7 +22,18 @@ new-e2e-base:
     - agent_deb-x64-a7
   rules:
     - !reference [.except_light_pipeline]
+    - !reference [.except_e2e_off_if_pre_merge_disabled]
     - !reference [.except_coverage_pipeline]
+    # When DISABLE_PRE_MERGE_TESTS_AGENT is "true": infra and test-definition changes still run it,
+    # otherwise it is manual on PRs. Nothing changes while it is not.
+    - !reference [.on_e2e_infra_changes_if_pre_merge_disabled]
+    - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
+      changes:
+        paths:
+          - test/new-e2e/tests/agent-devx/**/*
+        compare_to: $COMPARE_TO_BRANCH
+      when: on_success
+    - !reference [.on_e2e_pr_manual]
     - when: on_success
   variables:
     TARGETS: ./tests/agent-devx

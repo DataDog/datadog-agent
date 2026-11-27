@@ -3,13 +3,19 @@
 # Owned by: agent-runtimes, fleet-remediation, agent-devx
 
 .on_arun_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
+  - changes:
+      paths:
+        - test/new-e2e/tests/agent-runtimes/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+  - !reference [.on_e2e_default]
   - changes:
       paths:
         - cmd/**/*
         - pkg/**/*
         - comp/**/*
-        - test/new-e2e/tests/agent-runtimes/**/*
       compare_to: $COMPARE_TO_BRANCH
 
 new-e2e-agent-runtimes:
@@ -24,7 +30,14 @@ new-e2e-agent-runtimes:
     ON_NIGHTLY_FIPS: "true"
 
 .on_procmgr_aio_or_e2e_changes:
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.except_e2e_disabled]
+  - !reference [.on_e2e_infra_changes]
+  - changes:
+      paths:
+        - test/new-e2e/tests/agent-runtimes/procmgr/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+  - !reference [.on_e2e_default]
   - changes:
       paths:
         - Dockerfiles/agent/Dockerfile
@@ -36,7 +49,6 @@ new-e2e-agent-runtimes:
         - Dockerfiles/agent/entrypoint.d/s6-all-in-one
         - Dockerfiles/agent/processes.d/aio/**/*
         - pkg/procmgr/**/*
-        - test/new-e2e/tests/agent-runtimes/procmgr/**/*
       compare_to: $COMPARE_TO_BRANCH
 
 new-e2e-agent-runtimes-procmgr-aio-docker:
