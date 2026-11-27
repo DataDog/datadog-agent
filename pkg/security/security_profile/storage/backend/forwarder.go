@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/cenkalti/backoff/v7"
 	"go.uber.org/atomic"
 
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -54,7 +55,6 @@ type ActivityDumpRemoteBackend struct {
 	client         *http.Client
 	maxRetries     int
 	retryBaseDelay time.Duration
-	sleep          func(time.Duration)
 }
 
 // NewActivityDumpRemoteBackend returns a new ActivityDumpRemoteBackend
@@ -163,21 +163,23 @@ func isRetryableTransportError(err error) bool {
 	return errors.As(err, &errno)
 }
 
-func retryDelayForResponse(resp *http.Response, baseDelay time.Duration, attempt int) time.Duration {
-	delay := baseDelay * (1 << attempt)
-	if resp != nil {
-		if raw := strings.TrimSpace(resp.Header.Get("Retry-After")); raw != "" {
-			if secs, err := strconv.Atoi(raw); err == nil && secs > 0 {
-				if retryAfter := time.Duration(secs) * time.Second; retryAfter > delay {
-					delay = retryAfter
-				}
-			}
-		}
+func parseRetryAfter(resp *http.Response, maxDelay time.Duration) (time.Duration, bool) {
+	if resp == nil {
+		return 0, false
 	}
-	if delay > defaultMaxRetryDelay {
-		delay = defaultMaxRetryDelay
+	raw := strings.TrimSpace(resp.Header.Get("Retry-After"))
+	if raw == "" {
+		return 0, false
 	}
-	return delay
+	secs, err := strconv.Atoi(raw)
+	if err != nil || secs <= 0 {
+		return 0, false
+	}
+	delay := time.Duration(secs) * time.Second
+	if delay > maxDelay {
+		delay = maxDelay
+	}
+	return delay, true
 }
 
 // sendToEndpoint streams the multipart body straight into the HTTP request instead of
@@ -220,20 +222,19 @@ func (backend *ActivityDumpRemoteBackend) sendToEndpoint(url string, apiKey stri
 	if baseDelay <= 0 {
 		baseDelay = defaultRetryBaseDelay
 	}
-	sleepFn := backend.sleep
-	if sleepFn == nil {
-		sleepFn = time.Sleep
-	}
 
-	var lastErr error
-	for attempt := 0; attempt <= maxRetries; attempt++ {
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = baseDelay
+	expBackoff.MaxInterval = defaultMaxRetryDelay
+
+	_, err := backoff.Retry(context.Background(), func() (struct{}, error) {
 		body, _ := newBody()
 
 		r, err := http.NewRequest("POST", url, body)
 		if err != nil {
 			// Unblock the writer goroutine, which is otherwise waiting on a reader for the pipe.
 			_ = body.Close()
-			return err
+			return struct{}{}, backoff.Permanent(err)
 		}
 
 		r.GetBody = newBody
@@ -245,31 +246,35 @@ func (backend *ActivityDumpRemoteBackend) sendToEndpoint(url string, apiKey stri
 		_ = body.Close()
 		if err != nil {
 			if !isRetryableTransportError(err) {
-				return err
+				return struct{}{}, backoff.Permanent(err)
 			}
-			lastErr = err
-			if attempt < maxRetries {
-				sleepFn(retryDelayForResponse(nil, baseDelay, attempt))
-			}
-			continue
+			return struct{}{}, err
 		}
 		_ = resp.Body.Close()
 		if resp.StatusCode == http.StatusAccepted {
-			return nil
+			return struct{}{}, nil
 		}
 		if resp.StatusCode == http.StatusRequestEntityTooLarge {
 			backend.tooLargeEntities.Inc()
-			return errors.New(resp.Status)
+			return struct{}{}, backoff.Permanent(errors.New(resp.Status))
 		}
-		lastErr = errors.New(resp.Status)
+		statusErr := errors.New(resp.Status)
 		if !isRetryableStatusCode(resp.StatusCode) {
-			return lastErr
+			return struct{}{}, backoff.Permanent(statusErr)
 		}
-		if attempt < maxRetries {
-			sleepFn(retryDelayForResponse(resp, baseDelay, attempt))
+		if retryAfter, ok := parseRetryAfter(resp, defaultMaxRetryDelay); ok {
+			return struct{}{}, backoff.RetryAfter(retryAfter, statusErr)
 		}
+		return struct{}{}, statusErr
+	},
+		backoff.WithBackOff(expBackoff),
+		backoff.WithMaxTries(uint(maxRetries+1)),
+		backoff.WithMaxElapsedTime(0),
+	)
+	if re := backoff.AsRetryError(err); re != nil {
+		return re.LastErr
 	}
-	return lastErr
+	return err
 }
 
 // HandleActivityDump sends the activity dump to the remote backend

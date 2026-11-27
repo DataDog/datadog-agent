@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -50,6 +51,12 @@ func TestMRFFailoverActive(t *testing.T) {
 			assert.Equal(t, tc.want, mrfFailoverActive(cfg))
 		})
 	}
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
 }
 
 // newCountingServer returns an httptest server that accepts every request (202 Accepted, the
@@ -403,45 +410,52 @@ func TestSendToEndpointRetriesTransientFailures(t *testing.T) {
 	})
 
 	t.Run("429 honors Retry-After header capped at max delay", func(t *testing.T) {
-		attempts := atomic.NewInt64(0)
-		var sleeps []time.Duration
+		synctest.Test(t, func(t *testing.T) {
+			attempts := atomic.NewInt64(0)
+			var attemptTimes []time.Time
 
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			attempt := attempts.Inc()
-			_, _ = decodeGzipMultipart(t, r)
-			if attempt == 1 {
-				w.Header().Set("Retry-After", "2")
-				w.WriteHeader(http.StatusTooManyRequests)
-				return
+			rt := roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				attempt := attempts.Inc()
+				attemptTimes = append(attemptTimes, time.Now())
+				ev, dp := decodeGzipMultipart(t, r)
+				assert.Equal(t, header, ev)
+				assert.Equal(t, dump, dp)
+
+				resp := &http.Response{
+					StatusCode: http.StatusAccepted,
+					Status:     "202 Accepted",
+					Header:     make(http.Header),
+					Body:       io.NopCloser(strings.NewReader("")),
+				}
+				if attempt == 1 {
+					resp.StatusCode = http.StatusTooManyRequests
+					resp.Status = "429 Too Many Requests"
+					resp.Header.Set("Retry-After", "2")
+				} else if attempt == 2 {
+					resp.StatusCode = http.StatusTooManyRequests
+					resp.Status = "429 Too Many Requests"
+					resp.Header.Set("Retry-After", "60")
+				}
+				return resp, nil
+			})
+
+			backend := &ActivityDumpRemoteBackend{
+				tooLargeEntities: atomic.NewUint64(0),
+				client:           &http.Client{Transport: rt},
+				maxRetries:       3,
+				retryBaseDelay:   100 * time.Millisecond,
 			}
-			if attempt == 2 {
-				w.Header().Set("Retry-After", "60")
-				w.WriteHeader(http.StatusTooManyRequests)
-				return
-			}
-			w.WriteHeader(http.StatusAccepted)
-		}))
-		defer srv.Close()
 
-		backend := &ActivityDumpRemoteBackend{
-			tooLargeEntities: atomic.NewUint64(0),
-			client:           srv.Client(),
-			maxRetries:       3,
-			retryBaseDelay:   100 * time.Millisecond,
-			sleep: func(d time.Duration) {
-				sleeps = append(sleeps, d)
-			},
-		}
-
-		require.NoError(t, backend.sendToEndpoint(srv.URL+"/api/v2/secdump", "api-key", header, dump))
-		assert.Equal(t, int64(3), attempts.Load())
-		assert.Equal(t, []time.Duration{2 * time.Second, defaultMaxRetryDelay}, sleeps)
+			require.NoError(t, backend.sendToEndpoint("http://intake.example/api/v2/secdump", "api-key", header, dump))
+			require.Len(t, attemptTimes, 3)
+			assert.Equal(t, 2*time.Second, attemptTimes[1].Sub(attemptTimes[0]))
+			assert.Equal(t, defaultMaxRetryDelay, attemptTimes[2].Sub(attemptTimes[1]))
+		})
 	})
 
 	t.Run("permanent transport errors fail on first attempt", func(t *testing.T) {
 		t.Run("untrusted TLS certificate", func(t *testing.T) {
 			attempts := atomic.NewInt64(0)
-			sleepCalls := atomic.NewInt64(0)
 
 			srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusAccepted)
@@ -459,32 +473,29 @@ func TestSendToEndpointRetriesTransientFailures(t *testing.T) {
 				client:           &http.Client{},
 				maxRetries:       3,
 				retryBaseDelay:   time.Second,
-				sleep: func(time.Duration) {
-					sleepCalls.Inc()
-				},
 			}
 
 			err := backend.sendToEndpoint(srv.URL+"/api/v2/secdump", "api-key", header, dump)
 			require.Error(t, err)
 			assert.Equal(t, int64(1), attempts.Load())
-			assert.Zero(t, sleepCalls.Load())
 		})
 
 		t.Run("unsupported protocol scheme", func(t *testing.T) {
-			sleepCalls := atomic.NewInt64(0)
+			attempts := atomic.NewInt64(0)
+			rt := roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				attempts.Inc()
+				return http.DefaultTransport.RoundTrip(r)
+			})
 			backend := &ActivityDumpRemoteBackend{
 				tooLargeEntities: atomic.NewUint64(0),
-				client:           &http.Client{},
+				client:           &http.Client{Transport: rt},
 				maxRetries:       3,
 				retryBaseDelay:   time.Second,
-				sleep: func(time.Duration) {
-					sleepCalls.Inc()
-				},
 			}
 
 			err := backend.sendToEndpoint("ftp://127.0.0.1/api/v2/secdump", "api-key", header, dump)
 			require.ErrorContains(t, err, "unsupported protocol scheme")
-			assert.Zero(t, sleepCalls.Load())
+			assert.Equal(t, int64(1), attempts.Load())
 		})
 	})
 }

@@ -17,6 +17,7 @@ go_library(
         "//pkg/security/seclog",
         "//pkg/security/utils",
         "//pkg/util/http",
+        "@com_github_cenkalti_backoff_v7//:backoff",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@org_uber_go_atomic//:atomic",
     ],
