@@ -79,6 +79,8 @@ native_binary(
         "PULUMI_IGNORE_AMBIENT_PLUGINS": "true",
         "PULUMI_SKIP_UPDATE_CHECK": "true",
     }},
+    # Also for tests running the CLI through the Automation API, which `go_shim`'s `bazel run` wrapper can't serve.
+    visibility = ["//visibility:public"],
 )
 
 go_shim(

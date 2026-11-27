@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "infra",
@@ -26,16 +27,18 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "infra_test",
+    size = "medium",
     srcs = ["stack_manager_test.go"],
+    data = ["@pulumi//:cli"],
     embed = [":infra"],
-    gotags = ["e2eunit"],
-    tags = ["manual"],
+    env = {"PULUMI_CLI": "$(rlocationpath @pulumi//:cli)"},
     deps = [
         "//test/e2e-framework/testing/utils/common",
         "@com_github_datadog_datadog_api_client_go_v2//api/datadogV1",
         "@com_github_pulumi_pulumi_sdk_v3//go/auto",
+        "@com_github_pulumi_pulumi_sdk_v3//go/common/workspace",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
