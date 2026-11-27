@@ -61,9 +61,9 @@ The `write-test` skill's <<<repo(".agents/skills/write-test/references/integrati
 
 **Owns:** the binary we built misbehaving as a program, on one machine: its CLI parsing and output, startup and configuration merging, a subcommand talking to a running Agent, or two of our binaries talking to each other over local sockets and files.
 
-**Use when** the assertion needs the built binaries running, but not the installed package, the service manager, a specific kernel, a cloud API, or an orchestrator. These tests start the built binaries in a temporary directory with a local configuration and fakeintake, and take minutes.
+**Use when** the assertion needs the built binaries running, but not the installed package, the service manager, a specific kernel, a cloud API, or an orchestrator. Such a test starts the built binaries in a temporary directory with a local configuration and fakeintake, and takes minutes.
 
-**Status:** there is no agreed way to run binary tests yet. Only the trace-agent has a harness: <<<repo("cmd/trace-agent/test")>>> builds the `trace-agent` binary, runs it with a test configuration against a fake backend, and runs in CI as `trace_agent_integration_tests`. The other Agent binaries have none. Until that is decided, an assertion that belongs here stays in E2E, unless an integration test preserves the same failure. The `e2e-audit` skill marks such assertions as binary-test candidates, which records what binary tests would need to cover.
+**Harness: TBD.** None has been agreed yet; only the trace-agent has its own: <<<repo("cmd/trace-agent/test")>>> builds the `trace-agent` binary, runs it with a test configuration against a fake backend, and runs in CI as `trace_agent_integration_tests`. The other Agent binaries have none. Until a harness is agreed, an assertion that belongs here stays in E2E, unless an integration test preserves the same failure. The `e2e-audit` skill marks such assertions as binary-test candidates, which records what binary tests would need to cover.
 
 **Does not catch:** the installed package, permissions it creates, service-manager behavior, other kernels, or cloud APIs.
 
