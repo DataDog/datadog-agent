@@ -145,6 +145,10 @@ func hgxCaps() *P2PCapabilities {
 	return &P2PCapabilities{Read: ptr(true), Write: ptr(true), Atomics: ptr(true), NVLink: ptr(true), PCI: ptr(false)}
 }
 
+func allTrueCaps() *P2PCapabilities {
+	return &P2PCapabilities{Read: ptr(true), Write: ptr(true), Atomics: ptr(true), NVLink: ptr(true), PCI: ptr(true)}
+}
+
 // TestPeeringHGXSwitchConnected models an HGX H100 as captured on real hardware: 18 links per
 // GPU to 4 NVSwitches. No remote is a GPU, so every port is an unresolved switch port and
 // every peer is published for its P2P capabilities alone.
@@ -184,6 +188,35 @@ func TestPeeringHGXSwitchConnected(t *testing.T) {
 			require.Equal(t, hgxCaps(), peer.P2PCapabilities)
 		}
 	}
+}
+
+// TestPeeringNVLink5Placeholder models an HGX B200 or GB200 NVL72: the fabric is managed by
+// Fabric Manager, so remote-end queries succeed but answer with the all-ones
+// FFFFFFFF:FF:FF.0 placeholder. The ports are the whole topology those nodes can see, so they
+// are still reported, but the placeholder must never reach the payload as an address.
+func TestPeeringNVLink5Placeholder(t *testing.T) {
+	const links = 18
+	placeholder := nvml.PciInfo{Domain: 0xffffffff, Bus: 0xff, Device: 0xff}
+	dev := &fakeLinkDevice{remotes: map[int]fakeRemote{}, version: 7, p2p: map[string]map[nvml.GpuP2PCapsIndex]fakeP2P{
+		gpuUUID(1): allP2P(nvml.P2P_STATUS_OK),
+	}}
+	for link := range links {
+		dev.remotes[link] = fakeRemote{deviceType: nvml.NVLINK_DEVICE_TYPE_SWITCH, pci: placeholder}
+	}
+	// A placeholder that claims to be a GPU must not resolve to a peer either: an address
+	// NVML would not name cannot be matched against the GPUs of this host.
+	dev.remotes[links] = fakeRemote{deviceType: nvml.NVLINK_DEVICE_TYPE_GPU, pci: placeholder}
+
+	result := scanOnce(newFakeGPU(0, links+1, dev), newFakeGPU(1, 0, &fakeLinkDevice{}))
+	p := result[lower(0)]
+	require.Len(t, p.UnresolvedNVLinks, links+1, "every port is reported, identifiable or not")
+	for i, port := range p.UnresolvedNVLinks {
+		require.Empty(t, port.RemotePCIBusID, "the NVLink 5 placeholder is not an address")
+		require.Equal(t, int32(i), port.Port)
+		require.Equal(t, "5.0", port.Version)
+	}
+	require.Equal(t, "gpu", p.UnresolvedNVLinks[links].RemoteType)
+	require.Equal(t, []GPUPeer{{UUID: lower(1), P2PCapabilities: allTrueCaps()}}, p.GPUPeers)
 }
 
 // TestPeeringDirectNVLinks covers ports that are not switch-connected: parallel links to a
