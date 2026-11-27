@@ -46,12 +46,13 @@ func ghcrChartRepository(path string) string {
 	return "oci://ghcr.io/" + path
 }
 
-// mokkaProfileParams describes the simulated GPUs of a Mokka suite, and any extra kindvm
-// options (e.g. a bigger VM).
+// mokkaProfileParams describes the simulated GPUs of a Mokka suite, and any extra Mokka options
+// (e.g. the GPU Operator) and kindvm options (e.g. a bigger VM).
 type mokkaProfileParams struct {
-	profile    string
-	gpuCount   int
-	runOptions []kindvm.RunOption
+	profile      string
+	gpuCount     int
+	mokkaOptions []mokka.Option
+	runOptions   []kindvm.RunOption
 }
 
 // gpuMokkaK8sProvisioner provisions a kind cluster on a CPU-only EC2 instance, with GPUs
@@ -60,13 +61,14 @@ func gpuMokkaK8sProvisioner(params mokkaProfileParams, kubernetesAgentOptions ..
 	agentOptions := append([]kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(mokkaHelmValues)}, kubernetesAgentOptions...)
 
 	runOptions := []kindvm.RunOption{
-		// TODO: mirror the Mokka (ghcr.io) and device plugin (nvcr.io) images in the internal registry.
+		// TODO: mirror the Mokka (ghcr.io), device plugin and GPU Operator (nvcr.io, registry.k8s.io)
+		// images in the internal registry.
 		kindvm.WithInternetAccess(),
-		kindvm.WithMokka(
+		kindvm.WithMokka(append([]mokka.Option{
 			mokka.WithProfile(params.profile),
 			mokka.WithGPUCount(params.gpuCount),
 			mokka.WithChartRepository(ghcrChartRepository("nvidia/k8s-test-infra/chart")),
-		),
+		}, params.mokkaOptions...)...),
 		kindvm.WithAgentOptions(agentOptions...),
 	}
 	runOptions = append(runOptions, params.runOptions...)

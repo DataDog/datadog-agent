@@ -107,48 +107,8 @@ func (s *gpuMokkaK8sSuite) TestGPUResourcesPublished() {
 // container (NVIDIA_VISIBLE_DEVICES, set by the device plugin), independently of the Agent, which
 // maps GPUs to pods through the kubelet pod-resources API.
 func (s *gpuMokkaK8sSuite) TestMockGPUAllocationTags() {
-	ctx := context.Background()
 	podName := strings.ToLower("gpu-sleeper-" + common.RandString(5))
-	kubeClient := s.Env().KubernetesCluster.Client()
-
-	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{Name: podName, Namespace: jobNamespace},
-		Spec: corev1.PodSpec{
-			RestartPolicy: corev1.RestartPolicyNever,
-			Containers: []corev1.Container{{
-				Name: "main",
-				// busybox has a shell to read the allocated GPU, and is statically linked, so the
-				// LD_PRELOAD that Mokka injects into GPU containers does not affect it.
-				Image:   busyboxImage,
-				Command: []string{"sleep", "3600"},
-				Resources: corev1.ResourceRequirements{
-					Limits: corev1.ResourceList{"nvidia.com/gpu": resource.MustParse("1")},
-				},
-			}},
-		},
-	}
-	_, err := kubeClient.CoreV1().Pods(jobNamespace).Create(ctx, pod, metav1.CreateOptions{})
-	s.Require().NoError(err, "failed to create the GPU pod")
-	s.T().Cleanup(func() {
-		_ = kubeClient.CoreV1().Pods(jobNamespace).Delete(context.Background(), podName, metav1.DeleteOptions{})
-	})
-
-	// The reference time comes from the container's start time, set by the kubelet on the VM, and
-	// not from the test machine's clock: the Agent timestamps its points with the VM clock too.
-	var podRunningSince int64
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		p, err := kubeClient.CoreV1().Pods(jobNamespace).Get(ctx, podName, metav1.GetOptions{})
-		if !assert.NoError(c, err) {
-			return
-		}
-		if !assert.Equal(c, corev1.PodRunning, p.Status.Phase, "GPU pod is not running: %s", podStartDiagnostics(ctx, kubeClient, p)) {
-			return
-		}
-		if assert.NotEmpty(c, p.Status.ContainerStatuses, "no container status yet") &&
-			assert.NotNil(c, p.Status.ContainerStatuses[0].State.Running, "the container is not running yet") {
-			podRunningSince = p.Status.ContainerStatuses[0].State.Running.StartedAt.Unix()
-		}
-	}, 3*time.Minute, 5*time.Second)
+	podRunningSince := startGPUPod(&s.BaseSuite, podName, 1)
 
 	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(jobNamespace, podName, "main", []string{"printenv", "NVIDIA_VISIBLE_DEVICES"})
 	s.Require().NoError(err, "failed to read the allocated GPU: %s", stderr)
@@ -187,6 +147,54 @@ func (s *gpuMokkaK8sSuite) TestMockGPUAllocationTags() {
 			assertMetricsHaveExpectedTagKeys(c, allocatedWithPodTags, mandatoryMetricTags, "gpu.core.limit")
 		}
 	}, 5*time.Minute, 10*time.Second)
+}
+
+// startGPUPod creates a pod named podName in jobNamespace whose container, "main", requests gpus
+// nvidia.com/gpu and sleeps, deletes it at the end of the test, and waits until it runs. It
+// returns the Unix time the container started at: the reference time comes from the kubelet on
+// the VM, and not from the test machine's clock, because the Agent timestamps its points with the
+// VM clock too.
+func startGPUPod(s *e2e.BaseSuite[environments.Kubernetes], podName string, gpus int) int64 {
+	ctx := context.Background()
+	kubeClient := s.Env().KubernetesCluster.Client()
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: podName, Namespace: jobNamespace},
+		Spec: corev1.PodSpec{
+			RestartPolicy: corev1.RestartPolicyNever,
+			Containers: []corev1.Container{{
+				Name: "main",
+				// busybox has a shell to read the allocated GPU, and is statically linked, so the
+				// LD_PRELOAD that Mokka injects into GPU containers does not affect it.
+				Image:   busyboxImage,
+				Command: []string{"sleep", "3600"},
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{"nvidia.com/gpu": *resource.NewQuantity(int64(gpus), resource.DecimalSI)},
+				},
+			}},
+		},
+	}
+	_, err := kubeClient.CoreV1().Pods(jobNamespace).Create(ctx, pod, metav1.CreateOptions{})
+	s.Require().NoError(err, "failed to create the GPU pod %s", podName)
+	s.T().Cleanup(func() {
+		_ = kubeClient.CoreV1().Pods(jobNamespace).Delete(context.Background(), podName, metav1.DeleteOptions{})
+	})
+
+	var runningSince int64
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		p, err := kubeClient.CoreV1().Pods(jobNamespace).Get(ctx, podName, metav1.GetOptions{})
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.Equal(c, corev1.PodRunning, p.Status.Phase, "GPU pod %s is not running: %s", podName, podStartDiagnostics(ctx, kubeClient, p)) {
+			return
+		}
+		if assert.NotEmpty(c, p.Status.ContainerStatuses, "no container status yet") &&
+			assert.NotNil(c, p.Status.ContainerStatuses[0].State.Running, "the container is not running yet") {
+			runningSince = p.Status.ContainerStatuses[0].State.Running.StartedAt.Unix()
+		}
+	}, 3*time.Minute, 5*time.Second)
+	return runningSince
 }
 
 // tagValue returns the value of the tag key, or an empty string.

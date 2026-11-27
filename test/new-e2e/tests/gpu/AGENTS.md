@@ -14,6 +14,7 @@ GPU e2e tests are located in `test/new-e2e/tests/gpu/` and verify GPU monitoring
 ### Kubernetes Tests
 - `TestGPUK8sSuiteUbuntu2204`: Tests GPU monitoring in Kubernetes on Ubuntu 22.04
 - `TestGPUMokkaK8sSuite`: Tests GPU monitoring in Kubernetes on a CPU-only kind cluster, with two NVIDIA T4 GPUs simulated by Mokka (see [Mokka (simulated GPUs)](#mokka-simulated-gpus))
+- `TestGPUMokkaTimeSlicingK8sSuite`: Tests GPU time-slicing detection on a CPU-only kind cluster, with one NVIDIA T4 GPU simulated by Mokka and shared into 4 replicas by the NVIDIA GPU Operator's device plugin
 
 ## Key Components
 
@@ -22,6 +23,7 @@ GPU e2e tests are located in `test/new-e2e/tests/gpu/` and verify GPU monitoring
 - `provisioner.go`: Infrastructure provisioning logic
 - `capabilities.go`: Environment-specific capabilities (host vs k8s)
 - `mokka_provisioner.go`, `mokka_test.go`: Mokka suite (simulated GPUs)
+- `mokka_timeslicing_test.go`: Mokka time-slicing suite
 
 ### Test Cases
 
@@ -35,6 +37,7 @@ GPU e2e tests are located in `test/new-e2e/tests/gpu/` and verify GPU monitoring
 8. **TestGPUResourcesPublished**: Checks that each physical GPU from the host’s nvidia-smi inventory produces a gpu_device event in fakeintake with the expected source, Agent hostname, TTL, model, driver, and PCI bus ID.
 9. **TestZZAgentDidNotRestart**: Ensures agent didn't restart during tests
 10. **TestMockGPUAllocationTags** (Mokka suite only): A pod requesting one GPU gets its tags on the metrics of exactly one GPU
+11. **TestTimeSlicedGPUMetrics** (Mokka time-slicing suite only): Pods holding 1 and 2 replicas of a time-sliced GPU get `gpu_sharing_mode:time-slicing` and their `gpu.device.sharing_replicas_used`, and the GPU reports its `gpu.device.sharing_replicas`
 
 ## Provisioning
 

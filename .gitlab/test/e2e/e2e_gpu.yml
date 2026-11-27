@@ -40,6 +40,7 @@ new-e2e-gpu:
 # TODO: run them automatically once the CI has validated them. The charts are pulled by Pulumi on the
 # CI runner, through the egress gateway: ghcr.io is allowed, registry.k8s.io (Kueue chart) needs
 # ddoghq/dd-source#197311. E2E_GPU_CHART_MIRROR can point to a registry that mirrors them instead.
+# The GPU Operator chart comes from nvidia.github.io, like in the TestGPUK8sSuiteUbuntu2204 suite.
 new-e2e-gpu-mokka:
   extends: .new_e2e_template_needs_container_deploy_linux
   rules:
@@ -52,4 +53,5 @@ new-e2e-gpu-mokka:
   parallel:
     matrix:
       - EXTRA_PARAMS: "--run TestGPUMokkaK8sSuite"
+      - EXTRA_PARAMS: "--run TestGPUMokkaTimeSlicingK8sSuite"
   retry: !reference [.retry_only_infra_failure, retry]
