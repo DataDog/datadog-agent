@@ -477,9 +477,10 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					{name: "Topic size is 120", topicName: strings.Repeat("a", 120), expectedBucketIndex: 9},
 				}
 
-				currentRawKernelTelemetry := &kafka.RawKernelTelemetry{}
 				for _, tt := range tests {
 					t.Run(tt.name, func(t *testing.T) {
+						currentRawKernelTelemetry, err := kafka.GetKernelTelemetryMap(monitor.ebpfProgram.Manager.Manager)
+						require.NoError(t, err)
 						client, err := kafka.NewClient(kafka.Options{
 							ServerAddress: ctx.targetAddress,
 							DialFn:        dialFn,
@@ -516,9 +517,6 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 							expectedNumberOfOccurrences := fixCount(2) // (1 produce request + 1 fetch request)
 							require.Equal(collect, uint64(expectedNumberOfOccurrences)+currentRawKernelTelemetry.Topic_name_size_buckets[tt.expectedBucketIndex], telemetryMap.Topic_name_size_buckets[tt.expectedBucketIndex])
 						}, time.Second*3, time.Millisecond*100)
-
-						// Update the current raw kernel telemetry for the next iteration
-						currentRawKernelTelemetry = telemetryMap
 					})
 				}
 			},
