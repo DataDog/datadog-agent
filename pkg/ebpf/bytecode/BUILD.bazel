@@ -135,16 +135,16 @@ runtime_compilation_bundle(
 
 runtime_compilation_bundle(
     name = "gpu",
-    header_deps = _NETWORK_HEADERS + ["//pkg/gpu/ebpf/c:gpu_headers_files"],
+    header_deps = _NETWORK_HEADERS + ["//pkg/gpu/probe/ebpf/c:gpu_headers_files"],
     include_dirs = [
         "pkg/ebpf/c",
-        "pkg/gpu/ebpf/c/runtime",
-        "pkg/gpu/ebpf/c",
+        "pkg/gpu/probe/ebpf/c/runtime",
+        "pkg/gpu/probe/ebpf/c",
         "pkg/network/ebpf/c",
     ],
     out_go_file = "//pkg/ebpf/bytecode/runtime:gpu.go",
     out_name = "gpu",
-    src_c = "//pkg/gpu/ebpf/c/runtime:gpu.c",
+    src_c = "//pkg/gpu/probe/ebpf/c/runtime:gpu.c",
     visibility = ["//visibility:public"],
 )
 

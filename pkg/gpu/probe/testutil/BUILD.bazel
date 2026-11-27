@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "testutil",
+    srcs = [
+        "builder.go",
+        "events.go",
+        "samplebins.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/gpu/probe/testutil",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/gpu/probe/ebpf",
+            "//pkg/network/protocols/http/testutil",
+            "//pkg/security/utils",
+            "//pkg/util/log",
+            "//pkg/util/testutil",
+            "//pkg/util/testutil/docker",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/gpu/probe/ebpf",
+            "//pkg/network/protocols/http/testutil",
+            "//pkg/security/utils",
+            "//pkg/util/log",
+            "//pkg/util/testutil",
+            "//pkg/util/testutil/docker",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)
