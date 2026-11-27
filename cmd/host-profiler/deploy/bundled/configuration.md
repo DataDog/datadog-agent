@@ -6,14 +6,9 @@ The bundled Host Profiler runs as a sidecar in the Datadog Agent DaemonSet. It i
 
 In bundled deployments, the Host Profiler uses the Datadog Agent configuration to determine where to send profiles and debug symbols. In most cases, you do not need to configure the Datadog site, API key, or profiling intake endpoints separately for the Host Profiler.
 
-The Host Profiler uses:
+For the main profiling destination, the Host Profiler extracts the Datadog site from `apm_config.profiling_dd_url` when set. This setting is not a literal Host Profiler export URL. If it is not set, the Host Profiler uses the Agent's `site`, or `datadoghq.com` if `site` is also unset. The Agent's `api_key` provides credentials for the main site, and `apm_config.profiling_send_to_main_endpoint` controls whether the Host Profiler includes this destination.
 
-- `apm_config.profiling_dd_url`, when set, as the preferred profiling intake URL;
-- `site`, when `apm_config.profiling_dd_url` is not set;
-- `api_key` for the main Datadog site;
-- `apm_config.profiling_additional_endpoints`, when set, to send profiles to additional Datadog sites with their respective API keys.
-
-If your Agent is configured to send profiles to multiple Datadog endpoints, the Host Profiler uses matching destinations for profile export and debug symbol upload.
+Entries in `apm_config.profiling_additional_endpoints` provide additional Datadog sites and API keys. Their URL keys identify the sites; they are not literal routing URLs. The resolved destinations are used for profile export and debug symbol upload.
 
 ## Optional overrides
 

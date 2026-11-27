@@ -39,8 +39,8 @@ spec:
     - name: DD_SITE
       value: "datadoghq.com"
     # For explicit cluster tagging, set OTEL_RESOURCE_ATTRIBUTES to
-    # k8s.cluster.name=<CLUSTER_NAME> and add "env" below. See "Cluster name"
-    # in operator.md for cloud-detector requirements.
+    # k8s.cluster.name=<CLUSTER_NAME> and add "env" below. See
+    # "Kubernetes cluster name" in operator.md for cloud detector requirements.
     # - name: OTEL_RESOURCE_ATTRIBUTES
     #   value: "k8s.cluster.name=<CLUSTER_NAME>"
     # spec.config references DD_API_KEY for profile export and debug symbol
@@ -135,8 +135,9 @@ spec:
               enabled: false
             os.type:
               enabled: false
-        # EKS requires the EC2 permission documented in operator.md. Set
-        # node_from_env_var to enable the API fallback when IMDS is unavailable.
+        # EKS cluster-name detection requires ec2:DescribeInstances. See the
+        # Kubernetes cluster name section in operator.md for details. Set
+        # node_from_env_var when using the API fallback if IMDS is unavailable.
         # timeout: 15s
         # eks:
         #   node_from_env_var: K8S_NODE_NAME

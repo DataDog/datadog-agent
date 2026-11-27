@@ -71,22 +71,30 @@ The Operator sets `runAsUser`, `runAsGroup`, and `runAsNonRoot` on the host-prof
 
 ## Seccomp
 
-The Operator installs a localhost seccomp profile for the Host Profiler, along with an init container that copies the profile to each node, and enables it by default. The profile restricts the syscalls available to the Host Profiler container beyond what its capabilities allow.
+The Operator installs a localhost seccomp profile for the Host Profiler, along with an init container that copies the profile to each node, and enables it by default. The profile restricts the syscalls available to the Host Profiler container beyond what its capabilities allow. The defaults remain unchanged: seccomp is enabled and the logging variant is disabled.
 
-To run the Host Profiler without the seccomp profile, or to use the variant that also permits logging syscalls:
+To disable the seccomp profile, set `enabled` to `false`:
 
 ```yaml
 spec:
   features:
     hostProfiler:
       seccomp:
-        # false runs the host-profiler container Unconfined (no profile, no init container).
         enabled: false
-        # true uses the seccomp profile that also permits logging syscalls.
+```
+
+Alternatively, keep seccomp enabled and use the profile that logs blocked syscalls:
+
+```yaml
+spec:
+  features:
+    hostProfiler:
+      seccomp:
+        enabled: true
         loggingEnabled: true
 ```
 
-`loggingEnabled` has no effect when the seccomp profile is disabled.
+These are alternatives. `loggingEnabled` has no effect when seccomp is disabled.
 
 ## SELinux
 

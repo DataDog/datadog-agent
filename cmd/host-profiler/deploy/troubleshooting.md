@@ -59,9 +59,9 @@ If no profiles appear:
 
 1. Confirm that the Host Profiler pods are running on the nodes you expect.
 2. Check the Host Profiler logs for export or configuration errors.
-3. Verify that `DD_SITE` matches your Datadog site. For example, use `datadoghq.com`, `datadoghq.eu`, or another supported [Datadog site](https://docs.datadoghq.com/getting_started/site/).
-4. Verify that the Datadog API key is available to the Host Profiler. OpenTelemetry deployment paths read it from the configured secret. Datadog Agent deployment paths use the Agent configuration by default.
-5. Make sure the cluster allows egress to `https://otlp.<DD_SITE>`. If you enabled NetworkPolicy or CiliumNetworkPolicy, confirm that it allows Datadog OTLP egress.
+3. For standalone OpenTelemetry deployments, verify that `DD_SITE` matches your Datadog site, such as `datadoghq.com` or `datadoghq.eu`. See [Datadog sites](https://docs.datadoghq.com/getting_started/site/). For bundled deployments, review how the Agent configuration resolves the site or sites in [Datadog intake configuration](bundled/configuration.md#datadog-intake-configuration).
+4. For standalone OpenTelemetry deployments, verify that the Collector receives `DD_API_KEY` from the configured Kubernetes Secret. For bundled deployments, check credentials only for configured destinations: the main destination uses the Agent's `api_key`, and additional destinations use the API keys in `apm_config.profiling_additional_endpoints`.
+5. Make sure the cluster allows egress to `https://otlp.<SITE>` for each resolved Datadog site. For standalone deployments, use the site set in `DD_SITE`; for bundled deployments, use the site or sites resolved from the Agent configuration. If you enabled NetworkPolicy or CiliumNetworkPolicy, confirm that it allows Datadog OTLP egress.
 6. In the Datadog Profiler UI, check the selected time range, environment, service, and host filters.
 
 ## Profiles are missing or grouped under the wrong service
