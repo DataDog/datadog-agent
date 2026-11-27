@@ -111,9 +111,7 @@ func (h *StatKeeper) Process(tx Transaction) {
 	defer h.mux.Unlock()
 
 	if tx.Incomplete() {
-		for _, joined := range h.incomplete.Add(tx) {
-			h.add(joined)
-		}
+		h.incomplete.Add(tx)
 		return
 	}
 
