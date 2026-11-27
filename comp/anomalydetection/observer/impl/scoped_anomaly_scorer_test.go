@@ -77,6 +77,9 @@ func makeServiceLogAnomaly(seriesName string, ts int64, ctxService string, tags 
 
 func TestScopedAnomalyScorerServiceIsolation(t *testing.T) {
 	router := newScopedAnomalyScorer(fastScopedScorerConfig())
+	assert.Equal(t, defaultScopedScorerMaxScopes, router.cfg.MaxScopes)
+	assert.Equal(t, int64(defaultScopedScorerIdleEvictionSec), router.cfg.IdleEvictionSec)
+
 	listener := &collectingScopedListener{}
 	_, err := router.SubscribeScopedSeverityEvents(severityeventsdef.SeverityEventsConfiguration{}, listener)
 	require.NoError(t, err)
@@ -418,6 +421,16 @@ func TestScopedAnomalyScorerReentrantUnsubscribe(t *testing.T) {
 	router.Advance(110)
 
 	assert.Equal(t, 1, calls)
+}
+
+func TestScopedAnomalyScorerInvalidConfigClampsToDefaults(t *testing.T) {
+	cfg := fastScopedScorerConfig()
+	cfg.MaxScopes = -5
+	cfg.IdleEvictionSec = -10
+	router := newScopedAnomalyScorer(cfg)
+
+	assert.Equal(t, defaultScopedScorerMaxScopes, router.cfg.MaxScopes)
+	assert.Equal(t, int64(defaultScopedScorerIdleEvictionSec), router.cfg.IdleEvictionSec)
 }
 
 func TestScopedAnomalyScorerConcurrentSubscribeRace(t *testing.T) {

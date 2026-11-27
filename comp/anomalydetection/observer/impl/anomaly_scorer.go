@@ -907,45 +907,6 @@ func (s *anomalyScorer) recordAnomaly(a observerdef.Anomaly, scoringSecond int64
 	}
 }
 
-// Advance finalises all 1-second buckets from lastAdvancedSec+1 up to dataTime
-// (inclusive). After releasing mu, the derived raw severity stream is fed to
-// the dispatcher, which may call listeners on resulting transitions.
-func (s *anomalyScorer) Advance(dataTime int64) {
-	states, missedHigh := s.advanceStates(dataTime)
-	if len(states) == 0 {
-		return
-	}
-
-	// Push EWMA gauge for the last second of this advance tick.
-	if s.ewmaGauge != nil {
-		last := states[len(states)-1]
-		s.ewmaGauge.Set(last.ewma, s.Name())
-	}
-	if s.ewmaFinalizedGauge != nil && s.config.ReorderingWindowSecs > 0 && s.replay != nil {
-		last := states[len(states)-1]
-		finalizedSec := last.sec - s.config.ReorderingWindowSecs
-		checkpoint := s.replay.checkpoints[replaySlot(finalizedSec, len(s.replay.checkpoints))]
-		if checkpoint.present && checkpoint.second == finalizedSec && checkpoint.state.initialized {
-			s.ewmaFinalizedGauge.Set(checkpoint.state.ewma, s.Name())
-		}
-	}
-	if s.severityGauge != nil {
-		last := states[len(states)-1]
-		s.severityGauge.Set(float64(last.level), s.Name())
-	}
-
-	// Drive the dispatchers outside the scorer lock so listeners can safely call
-	// back into the scorer without deadlocking.
-	s.dispatchersMu.RLock()
-	dispatchers := append([]*severityeventsimpl.Dispatcher(nil), s.dispatchers...)
-	s.dispatchersMu.RUnlock()
-	for _, st := range states {
-		for _, dispatcher := range dispatchers {
-			feedDispatcherState(dispatcher, dataTime, st, missedHigh)
-		}
-	}
-}
-
 func (s *anomalyScorer) advanceStates(dataTime int64) ([]secState, int64) {
 	s.mu.Lock()
 	if s.score.initialized && dataTime <= s.lastAdvancedSec {
@@ -987,6 +948,45 @@ func (s *anomalyScorer) advanceStates(dataTime int64) ([]secState, int64) {
 	}
 	s.mu.Unlock()
 	return states, missedHigh
+}
+
+// Advance finalises all 1-second buckets from lastAdvancedSec+1 up to dataTime
+// (inclusive). After releasing mu, the derived raw severity stream is fed to
+// the dispatcher, which may call listeners on resulting transitions.
+func (s *anomalyScorer) Advance(dataTime int64) {
+	states, missedHigh := s.advanceStates(dataTime)
+	if len(states) == 0 {
+		return
+	}
+
+	// Push EWMA gauge for the last second of this advance tick.
+	if s.ewmaGauge != nil {
+		last := states[len(states)-1]
+		s.ewmaGauge.Set(last.ewma, s.Name())
+	}
+	if s.ewmaFinalizedGauge != nil && s.config.ReorderingWindowSecs > 0 && s.replay != nil {
+		last := states[len(states)-1]
+		finalizedSec := last.sec - s.config.ReorderingWindowSecs
+		checkpoint := s.replay.checkpoints[replaySlot(finalizedSec, len(s.replay.checkpoints))]
+		if checkpoint.present && checkpoint.second == finalizedSec && checkpoint.state.initialized {
+			s.ewmaFinalizedGauge.Set(checkpoint.state.ewma, s.Name())
+		}
+	}
+	if s.severityGauge != nil {
+		last := states[len(states)-1]
+		s.severityGauge.Set(float64(last.level), s.Name())
+	}
+
+	// Drive the dispatchers outside the scorer lock so listeners can safely call
+	// back into the scorer without deadlocking.
+	s.dispatchersMu.RLock()
+	dispatchers := append([]*severityeventsimpl.Dispatcher(nil), s.dispatchers...)
+	s.dispatchersMu.RUnlock()
+	for _, st := range states {
+		for _, dispatcher := range dispatchers {
+			feedDispatcherState(dispatcher, dataTime, st, missedHigh)
+		}
+	}
 }
 
 func (s *anomalyScorer) rawScoreSnapshot() (scoringState, int64) {

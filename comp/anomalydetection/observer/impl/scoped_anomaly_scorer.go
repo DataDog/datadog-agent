@@ -13,6 +13,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
 	severityeventsimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/impl"
@@ -92,10 +93,16 @@ func newScopedAnomalyScorer(cfg ScopedAnomalyScorerConfig) *scopedAnomalyScorer 
 	cfg.Scorer.Logs = false
 	cfg.Scorer.MaxBuckets = -1
 	cfg.Scorer = newAnomalyScorerBase(cfg.Scorer).config
-	if cfg.MaxScopes <= 0 {
+	if cfg.MaxScopes < 0 {
+		logging.Warnf("scoped anomaly scorer: max_scopes must be > 0, got %d — using default %d", cfg.MaxScopes, defaultScopedScorerMaxScopes)
+		cfg.MaxScopes = defaultScopedScorerMaxScopes
+	} else if cfg.MaxScopes == 0 {
 		cfg.MaxScopes = defaultScopedScorerMaxScopes
 	}
-	if cfg.IdleEvictionSec <= 0 {
+	if cfg.IdleEvictionSec < 0 {
+		logging.Warnf("scoped anomaly scorer: idle_eviction_sec must be > 0, got %d — using default %d", cfg.IdleEvictionSec, defaultScopedScorerIdleEvictionSec)
+		cfg.IdleEvictionSec = defaultScopedScorerIdleEvictionSec
+	} else if cfg.IdleEvictionSec == 0 {
 		cfg.IdleEvictionSec = defaultScopedScorerIdleEvictionSec
 	}
 	return &scopedAnomalyScorer{
