@@ -61,7 +61,8 @@ func gpuMokkaK8sProvisioner(params mokkaProfileParams, kubernetesAgentOptions ..
 	agentOptions := append([]kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(mokkaHelmValues)}, kubernetesAgentOptions...)
 
 	runOptions := []kindvm.RunOption{
-		// TODO: mirror the Mokka (ghcr.io) and device plugin (nvcr.io) images in the internal registry.
+		// TODO: mirror the Mokka (ghcr.io), device plugin and GPU Operator (nvcr.io, registry.k8s.io)
+		// images in the internal registry.
 		kindvm.WithInternetAccess(),
 		kindvm.WithMokka(append([]mokka.Option{
 			mokka.WithProfile(params.profile),
