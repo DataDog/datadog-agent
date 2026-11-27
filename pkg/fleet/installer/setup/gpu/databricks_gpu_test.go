@@ -154,6 +154,7 @@ func TestSetupTracerEnv(t *testing.T) {
 			sparkEnvBlockStart+"\n"+
 			"export DD_INJECT_NATIVE='always'\n"+
 			"export DD_GPU_ENABLED='true'\n"+
+			"export DD_TRACE_LOG_FILE='stderr'\n"+
 			sparkEnvBlockEnd+"\n", string(content))
 	})
 
@@ -215,6 +216,7 @@ func TestSetupTracerConfig(t *testing.T) {
 		assert.Equal(t, config.APMConfigurationDefault{
 			InjectNative: "always",
 			GPUEnabled:   config.BoolToPtr(true),
+			TraceLogFile: "stderr",
 		}, s.Config.ApplicationMonitoringYAML.Default)
 	})
 

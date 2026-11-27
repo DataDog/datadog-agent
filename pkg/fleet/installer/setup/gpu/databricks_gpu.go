@@ -91,7 +91,7 @@ func SetupDatabricksGPU(s *common.Setup) error {
 // like the Data Jobs Monitoring script. The injector and the C tracer don't
 // read it yet, so setupTracerEnv also exports them in spark-env.sh.
 func setupTracerConfig(s *common.Setup) {
-	s.Out.WriteString("Enabling the C tracer and GPU tracing in application_monitoring.yaml\n")
+	s.Out.WriteString("Enabling the C tracer, GPU tracing and C tracer logs to stderr in application_monitoring.yaml\n")
 	cfg := config.APMConfigurationDefault{}
 	for _, kv := range tracerEnv() {
 		switch kv[0] {
@@ -99,6 +99,8 @@ func setupTracerConfig(s *common.Setup) {
 			cfg.InjectNative = kv[1]
 		case "DD_GPU_ENABLED":
 			cfg.GPUEnabled = config.BoolToPtr(kv[1] == "true")
+		case "DD_TRACE_LOG_FILE":
+			cfg.TraceLogFile = kv[1]
 		case "DD_SERVICE":
 			cfg.Service = kv[1]
 		case "DD_ENV":
@@ -137,13 +139,15 @@ func setupTracerEnv(s *common.Setup, path string) error {
 }
 
 // tracerEnv returns the environment of traced processes: the injector loads
-// the C tracer (native plugins are off by default) and the C tracer enables
-// GPU monitoring (off by default). DD_SERVICE and DD_ENV are passed through
+// the C tracer (native plugins are off by default), the C tracer enables GPU
+// monitoring (off by default) and logs to stderr (off by default), which shows
+// in the driver and executor logs. DD_SERVICE and DD_ENV are passed through
 // when set; otherwise the C tracer names the service after the process.
 func tracerEnv() [][2]string {
 	vars := [][2]string{
 		{"DD_INJECT_NATIVE", "always"},
 		{"DD_GPU_ENABLED", "true"},
+		{"DD_TRACE_LOG_FILE", "stderr"},
 	}
 	for _, key := range []string{"DD_SERVICE", "DD_ENV"} {
 		if value := os.Getenv(key); value != "" {
