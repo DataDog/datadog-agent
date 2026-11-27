@@ -108,7 +108,7 @@ func TestQueryAccountIDTagTransientFailureThenSuccess(t *testing.T) {
 	logs := captureLogs(t)
 
 	synctest.Test(t, func(t *testing.T) {
-		var accountIDCalls int
+		var accountIDCalls atomic.Int32
 		detectors := []cloudProviderDetector{
 			{
 				name:          "AWS",
@@ -117,8 +117,7 @@ func TestQueryAccountIDTagTransientFailureThenSuccess(t *testing.T) {
 					return true
 				},
 				accountIDCallback: func(context.Context) (string, error) {
-					accountIDCalls++
-					if accountIDCalls < 3 {
+					if accountIDCalls.Add(1) < 3 {
 						return "", errors.New("metadata timeout")
 					}
 					return "123456789012", nil
@@ -129,26 +128,15 @@ func TestQueryAccountIDTagTransientFailureThenSuccess(t *testing.T) {
 		resolver := newAccountIDTagResolver(detectors, maxAccountIDAttempts, accountIDRetryBackoff)
 
 		assert.Empty(t, resolver.queryAccountIDTag())
-		assert.Equal(t, 1, accountIDCalls)
+		assert.Equal(t, int32(1), accountIDCalls.Load())
 
-		time.Sleep(accountIDRetryBackoff / 2)
-		assert.Empty(t, resolver.queryAccountIDTag())
-		assert.Equal(t, 1, accountIDCalls)
-
-		time.Sleep(accountIDRetryBackoff)
-		assert.Empty(t, resolver.queryAccountIDTag())
 		resolver.waitForInFlight()
-		assert.Equal(t, 2, accountIDCalls)
-
-		time.Sleep(accountIDRetryBackoff)
-		assert.Empty(t, resolver.queryAccountIDTag())
-		resolver.waitForInFlight()
-		assert.Equal(t, 3, accountIDCalls)
+		assert.Equal(t, int32(3), accountIDCalls.Load())
 		assert.Equal(t, "account_id:123456789012", resolver.queryAccountIDTag())
 
 		time.Sleep(accountIDRetryBackoff)
 		assert.Equal(t, "account_id:123456789012", resolver.queryAccountIDTag())
-		assert.Equal(t, 3, accountIDCalls)
+		assert.Equal(t, int32(3), accountIDCalls.Load())
 	})
 
 	output := logs.String()
@@ -162,7 +150,7 @@ func TestQueryAccountIDTagRetryExhaustion(t *testing.T) {
 	logs := captureLogs(t)
 
 	synctest.Test(t, func(t *testing.T) {
-		var accountIDCalls int
+		var accountIDCalls atomic.Int32
 		detectors := []cloudProviderDetector{
 			{
 				name:          "Azure",
@@ -171,7 +159,7 @@ func TestQueryAccountIDTagRetryExhaustion(t *testing.T) {
 					return true
 				},
 				accountIDCallback: func(context.Context) (string, error) {
-					accountIDCalls++
+					accountIDCalls.Add(1)
 					return "", errors.New("HTTP 503")
 				},
 			},
@@ -180,21 +168,15 @@ func TestQueryAccountIDTagRetryExhaustion(t *testing.T) {
 		resolver := newAccountIDTagResolver(detectors, maxAccountIDAttempts, accountIDRetryBackoff)
 
 		assert.Empty(t, resolver.queryAccountIDTag())
-		assert.Equal(t, 1, accountIDCalls)
+		assert.Equal(t, int32(1), accountIDCalls.Load())
 
-		time.Sleep(accountIDRetryBackoff)
-		assert.Empty(t, resolver.queryAccountIDTag())
 		resolver.waitForInFlight()
-		assert.Equal(t, 2, accountIDCalls)
+		assert.Equal(t, int32(3), accountIDCalls.Load())
+		assert.Empty(t, resolver.queryAccountIDTag())
 
 		time.Sleep(accountIDRetryBackoff)
 		assert.Empty(t, resolver.queryAccountIDTag())
-		resolver.waitForInFlight()
-		assert.Equal(t, 3, accountIDCalls)
-
-		time.Sleep(accountIDRetryBackoff)
-		assert.Empty(t, resolver.queryAccountIDTag())
-		assert.Equal(t, 3, accountIDCalls)
+		assert.Equal(t, int32(3), accountIDCalls.Load())
 	})
 
 	output := logs.String()
@@ -253,9 +235,6 @@ func TestQueryAccountIDTagAsyncRetryAndInFlightNonBlocking(t *testing.T) {
 		assert.Empty(t, <-initialDone)
 		assert.Empty(t, <-concurrentInitialDone)
 
-		time.Sleep(accountIDRetryBackoff)
-
-		assert.Empty(t, resolver.queryAccountIDTag())
 		<-retryEntered
 		assert.Empty(t, resolver.queryAccountIDTag())
 		assert.Equal(t, int32(2), calls.Load())

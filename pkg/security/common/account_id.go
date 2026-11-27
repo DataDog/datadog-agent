@@ -14,6 +14,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/cenkalti/backoff/v7"
+
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
@@ -63,16 +65,12 @@ func queryAccountIDFromDetectors(ctx context.Context, detectors []cloudProviderD
 }
 
 type accountIDTagResolver struct {
-	mu           sync.Mutex
+	once         sync.Once
 	inFlightWG   sync.WaitGroup
 	initDone     chan struct{}
-	resolved     atomic.Bool
-	inFlight     bool
-	value        string
-	attempts     int
+	value        atomic.Pointer[string]
 	maxAttempts  int
 	retryBackoff time.Duration
-	lastAttempt  time.Time
 	detectors    []cloudProviderDetector
 }
 
@@ -86,83 +84,65 @@ func newAccountIDTagResolver(detectors []cloudProviderDetector, maxAttempts int,
 }
 
 func (r *accountIDTagResolver) queryAccountIDTag() string {
-	if r.resolved.Load() {
-		return r.value
+	if v := r.value.Load(); v != nil {
+		return *v
 	}
 
-	r.mu.Lock()
-	if r.resolved.Load() {
-		r.mu.Unlock()
-		return r.value
+	r.once.Do(func() {
+		r.inFlightWG.Add(1)
+		go r.resolve()
+	})
+
+	<-r.initDone
+	if v := r.value.Load(); v != nil {
+		return *v
 	}
-
-	if r.inFlight {
-		firstAttempt := r.attempts == 1
-		r.mu.Unlock()
-		if firstAttempt {
-			<-r.initDone
-			if r.resolved.Load() {
-				return r.value
-			}
-		}
-		return ""
-	}
-
-	if !r.lastAttempt.IsZero() && time.Since(r.lastAttempt) < r.retryBackoff {
-		r.mu.Unlock()
-		return ""
-	}
-
-	r.inFlight = true
-	r.attempts++
-	attempt := r.attempts
-	r.inFlightWG.Add(1)
-	r.mu.Unlock()
-
-	if attempt > 1 {
-		go r.performAttempt(attempt)
-		return ""
-	}
-
-	return r.performAttempt(attempt)
+	return ""
 }
 
-func (r *accountIDTagResolver) performAttempt(attempt int) string {
+func (r *accountIDTagResolver) resolve() {
 	defer r.inFlightWG.Done()
 
-	ctx, cancel := context.WithTimeout(context.Background(), accountIDQueryTimeout)
-	defer cancel()
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = r.retryBackoff
 
-	tagName, tagValue, err := queryAccountIDFromDetectors(ctx, r.detectors)
+	attempt := 0
+	_, err := backoff.Retry(context.Background(), func() (struct{}, error) {
+		attempt++
+		if attempt == 1 {
+			defer close(r.initDone)
+		}
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.inFlight = false
-	if attempt == 1 {
-		defer close(r.initDone)
-	}
+		ctx, cancel := context.WithTimeout(context.Background(), accountIDQueryTimeout)
+		defer cancel()
 
-	if err == nil {
-		r.value = tagName + ":" + tagValue
-		r.resolved.Store(true)
-		return r.value
-	}
+		tagName, tagValue, err := queryAccountIDFromDetectors(ctx, r.detectors)
+		if err == nil {
+			resolved := tagName + ":" + tagValue
+			r.value.Store(&resolved)
+			return struct{}{}, nil
+		}
 
-	if errors.Is(err, errNoCloudProvider) {
-		log.Debugf("failed to query account id: %v", err)
-		r.resolved.Store(true)
-		return ""
-	}
+		if errors.Is(err, errNoCloudProvider) {
+			log.Debugf("failed to query account id: %v", err)
+			return struct{}{}, backoff.Permanent(err)
+		}
 
-	if attempt >= r.maxAttempts {
+		if attempt < r.maxAttempts {
+			log.Debugf("failed to query account id (attempt %d/%d): %v", attempt, r.maxAttempts, err)
+		}
+		return struct{}{}, err
+	},
+		backoff.WithBackOff(expBackoff),
+		backoff.WithMaxTries(uint(r.maxAttempts)),
+		backoff.WithMaxElapsedTime(0),
+	)
+	if err != nil && !errors.Is(err, errNoCloudProvider) {
+		if re := backoff.AsRetryError(err); re != nil {
+			err = re.LastErr
+		}
 		log.Warnf("failed to query account id after %d attempts: %v", attempt, err)
-		r.resolved.Store(true)
-		return ""
 	}
-
-	r.lastAttempt = time.Now()
-	log.Debugf("failed to query account id (attempt %d/%d): %v", attempt, r.maxAttempts, err)
-	return ""
 }
 
 func (r *accountIDTagResolver) waitForInFlight() {
