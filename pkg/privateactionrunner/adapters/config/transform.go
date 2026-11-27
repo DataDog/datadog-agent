@@ -180,6 +180,10 @@ func makeActionsAllowlist(config config.Component) ActionsAllowlist {
 		}
 	}
 
+	if config.GetBool(par.KubernetesRemediationsEnabled) {
+		actionFqns = append(actionFqns, KubernetesRemediationActionFQNs...)
+	}
+
 	// When the kubeactions subsystem is enabled and its Private Action Runner
 	// delivery path is on, auto-allow its bundle so the kubernetes-actions
 	// backend (dispatching via wf-actions-server) works without operators having

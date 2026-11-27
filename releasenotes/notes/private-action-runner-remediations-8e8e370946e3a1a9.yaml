@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Add the opt-in ``private_action_runner.kubernetes_remediations_enabled`` setting to enable
+    a predefined set of Kubernetes remediation actions in the Agent's
+    Private Action Runner. The setting defaults to false and requires the
+    corresponding Kubernetes RBAC permissions.
