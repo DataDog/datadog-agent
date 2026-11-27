@@ -52,4 +52,5 @@ new-e2e-gpu-mokka:
   parallel:
     matrix:
       - EXTRA_PARAMS: "--run TestGPUMokkaK8sSuite"
+      - EXTRA_PARAMS: "--run TestGPUMokkaTimeSlicingK8sSuite"
   retry: !reference [.retry_only_infra_failure, retry]
