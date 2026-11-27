@@ -1,10 +1,10 @@
 {
-    "base_branch": "main",
+    "base_branch": "7.87.x",
     "current_milestone": "7.87.0",
     "dependencies": {
         "INTEGRATIONS_CORE_VERSION": "8032cb7f82ae0da62ab6e6a0725be094eb78002a",
         "INTEGRATIONS_WHEELS_STORAGE": "stable",
-        "OMNIBUS_RUBY_VERSION": "564a6f11686c655771da48765ae65a11c479d625",
+        "OMNIBUS_RUBY_VERSION": "7.87.x",
         "SECURITY_AGENT_POLICIES_SHA256": "3c3c092f77f251e2310ed170c1b641d35638ce6e61206b2ef31e86462de7a270",
         "SECURITY_AGENT_POLICIES_VERSION": "v0.87.0",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
