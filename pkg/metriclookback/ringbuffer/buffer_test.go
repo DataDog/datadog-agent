@@ -19,7 +19,7 @@ import (
 func TestAppendSamplesStoresCheckAndDogStatsDNoAggInOneRing(t *testing.T) {
 	buf := New(Options{Capacity: 8, ShardCount: 1})
 
-	err := buf.AppendSamples(context.Background(), Source{Kind: SourceCheckShadow, ID: "check:1"}, []metrics.MetricSample{{
+	err := buf.AppendSamples(t.Context(), Source{Kind: SourceCheckShadow, ID: "check:1"}, []metrics.MetricSample{{
 		Name:      "check.metric",
 		Value:     1,
 		Mtype:     metrics.GaugeType,
@@ -31,7 +31,7 @@ func TestAppendSamplesStoresCheckAndDogStatsDNoAggInOneRing(t *testing.T) {
 	}})
 	require.NoError(t, err)
 
-	err = buf.AppendSamples(context.Background(), Source{Kind: SourceDogStatsDNoAggregation}, []metrics.MetricSample{{
+	err = buf.AppendSamples(t.Context(), Source{Kind: SourceDogStatsDNoAggregation}, []metrics.MetricSample{{
 		Name:      "dog.metric",
 		Value:     2,
 		Mtype:     metrics.GaugeType,
@@ -79,7 +79,7 @@ func TestAppendSamplesStoresCheckAndDogStatsDNoAggInOneRing(t *testing.T) {
 func TestDogStatsDNoAggRateLikeSamplesUseNoAggAPISemantics(t *testing.T) {
 	buf := New(Options{Capacity: 4, ShardCount: 1})
 
-	err := buf.AppendSamples(context.Background(), Source{Kind: SourceDogStatsDNoAggregation}, []metrics.MetricSample{{
+	err := buf.AppendSamples(t.Context(), Source{Kind: SourceDogStatsDNoAggregation}, []metrics.MetricSample{{
 		Name:      "dog.counter",
 		Value:     20,
 		Mtype:     metrics.CounterType,
@@ -105,7 +105,7 @@ func TestAppendSeriePreservesNormalizedSeriesFields(t *testing.T) {
 		Interval: 10,
 	}
 
-	require.NoError(t, buf.AppendSerie(context.Background(), Source{Kind: SourceDogStatsDNoAggregation}, serie))
+	require.NoError(t, buf.AppendSerie(t.Context(), Source{Kind: SourceDogStatsDNoAggregation}, serie))
 
 	series := buf.Series()
 	require.Len(t, series, 1)
@@ -128,8 +128,8 @@ func TestAppendSerieRetainsContextPerPoint(t *testing.T) {
 		Interval: 10,
 	}
 
-	require.NoError(t, buf.AppendSerie(context.Background(), Source{Kind: SourceDogStatsDNoAggregation}, serie))
-	require.NoError(t, buf.AppendSamples(context.Background(), Source{Kind: SourceCheckShadow, ID: "check:1"}, []metrics.MetricSample{{
+	require.NoError(t, buf.AppendSerie(t.Context(), Source{Kind: SourceDogStatsDNoAggregation}, serie))
+	require.NoError(t, buf.AppendSamples(t.Context(), Source{Kind: SourceCheckShadow, ID: "check:1"}, []metrics.MetricSample{{
 		Name:      "check.metric",
 		Value:     4,
 		Mtype:     metrics.GaugeType,
@@ -148,7 +148,7 @@ func TestAppendSerieRetainsContextPerPoint(t *testing.T) {
 
 func TestSeriesBetweenFiltersByTimestamp(t *testing.T) {
 	buf := New(Options{Capacity: 8, ShardCount: 1})
-	err := buf.AppendSamples(context.Background(), Source{Kind: SourceCheckShadow, ID: "check:1"}, []metrics.MetricSample{
+	err := buf.AppendSamples(t.Context(), Source{Kind: SourceCheckShadow, ID: "check:1"}, []metrics.MetricSample{
 		{Name: "metric.1", Value: 1, Mtype: metrics.GaugeType, Timestamp: 10},
 		{Name: "metric.2", Value: 2, Mtype: metrics.GaugeType, Timestamp: 20},
 		{Name: "metric.3", Value: 3, Mtype: metrics.GaugeType, Timestamp: 30},
@@ -164,12 +164,12 @@ func TestPointsBetweenFiltersBySourceNameAndTimestamp(t *testing.T) {
 	buf := New(Options{Capacity: 8, ShardCount: 1})
 	dogstatsdSource := Source{Kind: SourceDogStatsDNoAggregation}
 	checkSource := Source{Kind: SourceCheckShadow, ID: "check:1"}
-	require.NoError(t, buf.AppendSamples(context.Background(), dogstatsdSource, []metrics.MetricSample{
+	require.NoError(t, buf.AppendSamples(t.Context(), dogstatsdSource, []metrics.MetricSample{
 		{Name: "metric", Value: 1, Mtype: metrics.GaugeType, Timestamp: 10},
 		{Name: "metric", Value: 2, Mtype: metrics.GaugeType, Timestamp: 20},
 		{Name: "other", Value: 3, Mtype: metrics.GaugeType, Timestamp: 20},
 	}))
-	require.NoError(t, buf.AppendSamples(context.Background(), checkSource, []metrics.MetricSample{
+	require.NoError(t, buf.AppendSamples(t.Context(), checkSource, []metrics.MetricSample{
 		{Name: "metric", Value: 4, Mtype: metrics.GaugeType, Timestamp: 20},
 	}))
 
@@ -180,7 +180,7 @@ func TestPointsBetweenFiltersBySourceNameAndTimestamp(t *testing.T) {
 func TestPointsBetweenReturnsRetainedPointTags(t *testing.T) {
 	buf := New(Options{Capacity: 8, ShardCount: 1})
 	source := Source{Kind: SourceCheckShadow, ID: "check:1"}
-	require.NoError(t, buf.AppendSamples(context.Background(), source, []metrics.MetricSample{
+	require.NoError(t, buf.AppendSamples(t.Context(), source, []metrics.MetricSample{
 		{Name: "metric", Value: 1, Mtype: metrics.GaugeType, Timestamp: 10, Tags: []string{"env:prod", "az:a"}},
 	}))
 
@@ -193,13 +193,13 @@ func TestPointsBetweenSourcesReadsMultipleDogStatsDSources(t *testing.T) {
 	bucketedSource := Source{Kind: SourceDogStatsDBucketed}
 	noAggSource := Source{Kind: SourceDogStatsDNoAggregation}
 	checkSource := Source{Kind: SourceCheckShadow, ID: "check:1"}
-	require.NoError(t, buf.AppendSamples(context.Background(), bucketedSource, []metrics.MetricSample{
+	require.NoError(t, buf.AppendSamples(t.Context(), bucketedSource, []metrics.MetricSample{
 		{Name: "metric", Value: 1, Mtype: metrics.GaugeType, Timestamp: 10},
 	}))
-	require.NoError(t, buf.AppendSamples(context.Background(), noAggSource, []metrics.MetricSample{
+	require.NoError(t, buf.AppendSamples(t.Context(), noAggSource, []metrics.MetricSample{
 		{Name: "metric", Value: 2, Mtype: metrics.GaugeType, Timestamp: 11},
 	}))
-	require.NoError(t, buf.AppendSamples(context.Background(), checkSource, []metrics.MetricSample{
+	require.NoError(t, buf.AppendSamples(t.Context(), checkSource, []metrics.MetricSample{
 		{Name: "metric", Value: 3, Mtype: metrics.GaugeType, Timestamp: 12},
 	}))
 
@@ -212,13 +212,13 @@ func TestPointsBetweenSourcesReadsMultipleDogStatsDSources(t *testing.T) {
 
 func TestPointsBetweenSourcesEmptyIDMatchesAllSourcesWithKind(t *testing.T) {
 	buf := New(Options{Capacity: 8, ShardCount: 1})
-	require.NoError(t, buf.AppendSamples(context.Background(), Source{Kind: SourceCheckShadow, ID: "check:1"}, []metrics.MetricSample{
+	require.NoError(t, buf.AppendSamples(t.Context(), Source{Kind: SourceCheckShadow, ID: "check:1"}, []metrics.MetricSample{
 		{Name: "metric", Value: 1, Mtype: metrics.GaugeType, Timestamp: 10},
 	}))
-	require.NoError(t, buf.AppendSamples(context.Background(), Source{Kind: SourceCheckShadow, ID: "check:2"}, []metrics.MetricSample{
+	require.NoError(t, buf.AppendSamples(t.Context(), Source{Kind: SourceCheckShadow, ID: "check:2"}, []metrics.MetricSample{
 		{Name: "metric", Value: 2, Mtype: metrics.GaugeType, Timestamp: 11},
 	}))
-	require.NoError(t, buf.AppendSamples(context.Background(), Source{Kind: SourceDogStatsDNoAggregation}, []metrics.MetricSample{
+	require.NoError(t, buf.AppendSamples(t.Context(), Source{Kind: SourceDogStatsDNoAggregation}, []metrics.MetricSample{
 		{Name: "metric", Value: 3, Mtype: metrics.GaugeType, Timestamp: 12},
 	}))
 
@@ -233,7 +233,7 @@ func TestAppendSamplesUsesNowForUntimestampedSamples(t *testing.T) {
 	now := time.Unix(123, 456000)
 	buf := New(Options{Capacity: 4, ShardCount: 1, Now: func() time.Time { return now }})
 
-	err := buf.AppendSamples(context.Background(), Source{Kind: SourceCheckShadow, ID: "check:1"}, []metrics.MetricSample{{
+	err := buf.AppendSamples(t.Context(), Source{Kind: SourceCheckShadow, ID: "check:1"}, []metrics.MetricSample{{
 		Name:  "metric",
 		Value: 1,
 		Mtype: metrics.GaugeType,
@@ -248,7 +248,7 @@ func TestAppendSamplesUsesNowForUntimestampedSamples(t *testing.T) {
 func TestOverwriteReleasesContexts(t *testing.T) {
 	buf := New(Options{Capacity: 2, ShardCount: 1})
 	for i := 0; i < 3; i++ {
-		err := buf.AppendSamples(context.Background(), Source{Kind: SourceCheckShadow, ID: "check:1"}, []metrics.MetricSample{{
+		err := buf.AppendSamples(t.Context(), Source{Kind: SourceCheckShadow, ID: "check:1"}, []metrics.MetricSample{{
 			Name:      "metric",
 			Value:     float64(i),
 			Mtype:     metrics.GaugeType,
@@ -272,7 +272,7 @@ func TestOverwriteReleasesContexts(t *testing.T) {
 
 func TestAppendSamplesReturnsContextCancellation(t *testing.T) {
 	buf := New(Options{Capacity: 4, ShardCount: 1})
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	err := buf.AppendSamples(ctx, Source{Kind: SourceCheckShadow, ID: "check:1"}, []metrics.MetricSample{{

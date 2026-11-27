@@ -8,7 +8,6 @@
 package externalmetrics
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -338,7 +337,7 @@ func TestGetExternalMetricErrorStatus(t *testing.T) {
 			}, "utest")
 
 			res, err := metricProvider.GetExternalMetric(
-				context.Background(),
+				t.Context(),
 				"ns",
 				labels.Everything(),
 				provider.ExternalMetricInfo{Metric: "datadogmetric@ns:metric0"},

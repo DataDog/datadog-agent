@@ -51,7 +51,7 @@ func TestHealthCheckLoop_HonorsRetryAfterMs(t *testing.T) {
 		config: &config.Config{HealthCheckInterval: defaultIntervalMs, MetricsClient: &statsd.NoOpClient{}},
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 
 	go runner.healthCheckLoop(ctx)
@@ -89,7 +89,7 @@ func TestHealthCheckLoop_DefaultIntervalWhenRetryAfterIsZero(t *testing.T) {
 		config: &config.Config{HealthCheckInterval: defaultIntervalMs, MetricsClient: &statsd.NoOpClient{}},
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 
 	go runner.healthCheckLoop(ctx)
@@ -123,7 +123,7 @@ func TestHealthCheckLoop_EmitsHealthCheckMetric(t *testing.T) {
 		config: &config.Config{HealthCheckInterval: defaultIntervalMs, MetricsClient: metricsClient},
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 
 	go runner.healthCheckLoop(ctx)

@@ -6,7 +6,6 @@
 package aws
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -32,7 +31,7 @@ func TestGenerateAwsAuthData(t *testing.T) {
 
 	orgUUID := "test-org-uuid-12345"
 
-	signingData, err := auth.generateAwsAuthData(context.Background(), orgUUID, awsCreds)
+	signingData, err := auth.generateAwsAuthData(t.Context(), orgUUID, awsCreds)
 	require.NoError(t, err)
 	require.NotNil(t, signingData)
 
@@ -98,7 +97,7 @@ func TestGenerateAwsAuthDataWithDefaultEndpoint(t *testing.T) {
 
 	orgUUID := "test-org-uuid-12345"
 
-	signingData, err := auth.generateAwsAuthData(context.Background(), orgUUID, awsCreds)
+	signingData, err := auth.generateAwsAuthData(t.Context(), orgUUID, awsCreds)
 	require.NoError(t, err)
 	require.NotNil(t, signingData)
 
@@ -121,7 +120,7 @@ func TestGenerateAwsAuthDataWithRegionalEndpoint(t *testing.T) {
 
 	orgUUID := "test-org-uuid-12345"
 
-	signingData, err := auth.generateAwsAuthData(context.Background(), orgUUID, awsCreds)
+	signingData, err := auth.generateAwsAuthData(t.Context(), orgUUID, awsCreds)
 	require.NoError(t, err)
 	require.NotNil(t, signingData)
 
@@ -142,7 +141,7 @@ func TestGenerateAwsAuthDataMissingOrgUUID(t *testing.T) {
 		Token:           "test-session-token",
 	}
 
-	_, err := auth.generateAwsAuthData(context.Background(), "", awsCreds)
+	_, err := auth.generateAwsAuthData(t.Context(), "", awsCreds)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "missing org UUID")
 }
@@ -155,24 +154,24 @@ func TestGenerateAwsAuthDataMissingCredentials(t *testing.T) {
 	orgUUID := "test-org-uuid-12345"
 
 	// Test with nil credentials
-	_, err := auth.generateAwsAuthData(context.Background(), orgUUID, nil)
+	_, err := auth.generateAwsAuthData(t.Context(), orgUUID, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "missing AWS credentials")
 
 	// Test with empty credentials
-	_, err = auth.generateAwsAuthData(context.Background(), orgUUID, &creds.SecurityCredentials{})
+	_, err = auth.generateAwsAuthData(t.Context(), orgUUID, &creds.SecurityCredentials{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "missing AWS credentials")
 
 	// Test with missing SecretAccessKey
-	_, err = auth.generateAwsAuthData(context.Background(), orgUUID, &creds.SecurityCredentials{
+	_, err = auth.generateAwsAuthData(t.Context(), orgUUID, &creds.SecurityCredentials{
 		AccessKeyID: "test-access-key",
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "missing AWS credentials")
 
 	// Test with missing AccessKeyID
-	_, err = auth.generateAwsAuthData(context.Background(), orgUUID, &creds.SecurityCredentials{
+	_, err = auth.generateAwsAuthData(t.Context(), orgUUID, &creds.SecurityCredentials{
 		SecretAccessKey: "test-secret-key",
 	})
 	assert.Error(t, err)
@@ -194,7 +193,7 @@ func TestGenerateAwsAuthDataWithoutToken(t *testing.T) {
 
 	orgUUID := "test-org-uuid-12345"
 
-	signingData, err := auth.generateAwsAuthData(context.Background(), orgUUID, awsCreds)
+	signingData, err := auth.generateAwsAuthData(t.Context(), orgUUID, awsCreds)
 	require.NoError(t, err)
 	require.NotNil(t, signingData)
 

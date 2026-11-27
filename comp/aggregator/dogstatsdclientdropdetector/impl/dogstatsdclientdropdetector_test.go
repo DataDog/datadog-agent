@@ -8,7 +8,6 @@
 package dogstatsdclientdropdetectorimpl
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -41,7 +40,7 @@ func (l *testLifecycle) start(t testing.TB) {
 	t.Helper()
 	for _, hook := range l.hooks {
 		if hook.OnStart != nil {
-			require.NoError(t, hook.OnStart(context.Background()))
+			require.NoError(t, hook.OnStart(t.Context()))
 		}
 	}
 }

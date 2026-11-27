@@ -8,7 +8,6 @@
 package com_datadoghq_remoteaction_pcap
 
 import (
-	"context"
 	"net/http"
 	"os"
 	"testing"
@@ -61,7 +60,7 @@ func TestSocketCaptureTrigger_Success(t *testing.T) {
 	})
 
 	trigger := &socketCaptureTrigger{}
-	out, err := trigger.Capture(context.Background(), RunCaptureInputs{
+	out, err := trigger.Capture(t.Context(), RunCaptureInputs{
 		BPFFilter:    "tcp port 443",
 		DurationSecs: 1,
 	})
@@ -98,7 +97,7 @@ func TestSocketCaptureTrigger_CaptureErrorsTrailer(t *testing.T) {
 	})
 
 	trigger := &socketCaptureTrigger{}
-	out, err := trigger.Capture(context.Background(), RunCaptureInputs{
+	out, err := trigger.Capture(t.Context(), RunCaptureInputs{
 		BPFFilter:    "tcp port 443",
 		DurationSecs: 1,
 	})
@@ -117,7 +116,7 @@ func TestSocketCaptureTrigger_ErrorStatus(t *testing.T) {
 	})
 
 	trigger := &socketCaptureTrigger{}
-	_, err := trigger.Capture(context.Background(), RunCaptureInputs{
+	_, err := trigger.Capture(t.Context(), RunCaptureInputs{
 		BPFFilter:    "tcp port 443",
 		DurationSecs: 1,
 	})
@@ -131,7 +130,7 @@ func TestSocketCaptureTrigger_SocketPathNotConfigured(t *testing.T) {
 	systemProbeConfig.SetInTest("packet_capture.socket", "")
 
 	trigger := &socketCaptureTrigger{}
-	_, err := trigger.Capture(context.Background(), RunCaptureInputs{
+	_, err := trigger.Capture(t.Context(), RunCaptureInputs{
 		BPFFilter:    "tcp port 443",
 		DurationSecs: 1,
 	})
@@ -156,7 +155,7 @@ func runOverSocket(t *testing.T, reason, socket string) (float64, error) {
 	t.Helper()
 	before := outcomeCount(reason, socket)
 	handler := NewRunCaptureHandler(pcapuploadermock.New(), newTestHostname())
-	_, err := handler.Run(context.Background(), newTask(map[string]interface{}{"durationSecs": 1}), nil)
+	_, err := handler.Run(t.Context(), newTask(map[string]interface{}{"durationSecs": 1}), nil)
 	return outcomeCount(reason, socket) - before, err
 }
 

@@ -198,7 +198,7 @@ func TestInfraAttributesLogProcessor(t *testing.T) {
 				return "test-host", nil
 			})
 			flp, err := factory.CreateLogs(
-				context.Background(),
+				t.Context(),
 				processortest.NewNopSettings(Type),
 				cfg,
 				next,
@@ -208,10 +208,10 @@ func TestInfraAttributesLogProcessor(t *testing.T) {
 
 			caps := flp.Capabilities()
 			assert.True(t, caps.MutatesData)
-			ctx := context.Background()
+			ctx := t.Context()
 			assert.NoError(t, flp.Start(ctx, nil))
 
-			cErr := flp.ConsumeLogs(context.Background(), test.inLogs)
+			cErr := flp.ConsumeLogs(t.Context(), test.inLogs)
 			assert.Nil(t, cErr)
 			assert.NoError(t, flp.Shutdown(ctx))
 
@@ -245,13 +245,13 @@ func TestInfraAttributesLogProcessorIgnoresContainerTagPromotion(t *testing.T) {
 				return "test-host", nil
 			})
 			flp, err := factory.CreateLogs(
-				context.Background(),
+				t.Context(),
 				processortest.NewNopSettings(Type),
 				cfg,
 				next,
 			)
 			assert.NoError(t, err)
-			ctx := context.Background()
+			ctx := t.Context()
 			assert.NoError(t, flp.Start(ctx, nil))
 
 			ld := testResourceLogs([]logWithResource{{

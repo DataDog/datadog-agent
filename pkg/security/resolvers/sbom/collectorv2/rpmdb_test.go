@@ -8,7 +8,6 @@
 package collectorv2
 
 import (
-	"context"
 	"database/sql"
 	"os"
 	"path/filepath"
@@ -85,11 +84,11 @@ func TestCopyRpmdbFoldsWAL(t *testing.T) {
 			// A reader keeps the writer from folding the log in when it closes.
 			reader, err := sql.Open("sqlite3", path)
 			require.NoError(t, err)
-			conn, err := reader.Conn(context.Background())
+			conn, err := reader.Conn(t.Context())
 			require.NoError(t, err)
 			t.Cleanup(func() { conn.Close(); reader.Close() })
 			var n int
-			require.NoError(t, conn.QueryRowContext(context.Background(), "SELECT count(*) FROM Packages").Scan(&n))
+			require.NoError(t, conn.QueryRowContext(t.Context(), "SELECT count(*) FROM Packages").Scan(&n))
 
 			for _, stmt := range tc.commit {
 				_, err = writer.Exec(stmt)

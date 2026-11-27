@@ -77,7 +77,7 @@ func TestNestingGuardRejectsDeepScriptsWithoutCrashing(t *testing.T) {
 			if err != nil {
 				t.Fatalf("New: %v", err)
 			}
-			if err := runner.Run(context.Background(), prog); err == nil {
+			if err := runner.Run(t.Context(), prog); err == nil {
 				t.Fatalf("Run accepted a script nested to depth %d (stderr=%q)", depth, stderr.String())
 			}
 			if !strings.Contains(stderr.String(), "nesting exceeds maximum depth") {
@@ -298,7 +298,7 @@ const deepNestingChildEnv = "RSHELL_DEEP_NESTING_CHILD"
 // and exits 0.
 func TestDeepNestingDoesNotCrashProcess(t *testing.T) {
 	if os.Getenv(deepNestingChildEnv) == "1" {
-		deepNestingChild()
+		deepNestingChild(t.Context())
 		return
 	}
 	cmd := exec.Command(os.Args[0], "-test.run=TestDeepNestingDoesNotCrashProcess", "-test.v")
@@ -315,7 +315,7 @@ func TestDeepNestingDoesNotCrashProcess(t *testing.T) {
 // deepNestingChild runs the documented ingestion path (ParseScript then Run) on
 // genuinely crash-inducing inputs and exits 0 only if every one was handled
 // without a fatal runtime throw.
-func deepNestingChild() {
+func deepNestingChild(ctx context.Context) {
 	const depth = 300000 // well past the stack-overflow threshold on unpatched code
 	for name, script := range deepNestingScripts(depth) {
 		prog, err := ParseScript(script, "")
@@ -329,7 +329,7 @@ func deepNestingChild() {
 			os.Exit(3)
 		}
 		// Must return an error, not crash.
-		_ = runner.Run(context.Background(), prog)
+		_ = runner.Run(ctx, prog)
 	}
 	fmt.Println("child: all deep scripts handled without crashing")
 	os.Exit(0)

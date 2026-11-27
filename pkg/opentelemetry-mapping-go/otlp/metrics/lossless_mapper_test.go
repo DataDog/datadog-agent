@@ -171,7 +171,7 @@ func TestLossLessMapperMapNumberMetrics(t *testing.T) {
 			dims := &Dimensions{name: "test.metric"}
 			consumer := newTestConsumer()
 
-			mapper.MapNumberMetrics(context.Background(), &consumer, dims, tt.dataType, slice)
+			mapper.MapNumberMetrics(t.Context(), &consumer, dims, tt.dataType, slice)
 
 			require.Len(t, consumer.data.Metrics.TimeSeries, len(tt.expectedTimeSeries))
 			for i, expected := range tt.expectedTimeSeries {
@@ -245,7 +245,7 @@ func testMapNumberMetricsGaugeInterval(t *testing.T, enabled bool) {
 					before := pmetric.NewNumberDataPointSlice()
 					slice.CopyTo(before)
 					consumer := newTestConsumer()
-					m.MapNumberMetrics(context.Background(), &consumer, &Dimensions{name: "test.gauge"}, Gauge, slice)
+					m.MapNumberMetrics(t.Context(), &consumer, &Dimensions{name: "test.gauge"}, Gauge, slice)
 					require.Len(t, consumer.data.Metrics.TimeSeries, 2)
 					for i, actual := range consumer.data.Metrics.TimeSeries {
 						assert.Equal(t, Gauge, actual.Type)
@@ -302,7 +302,7 @@ func testMapNumberMetricsGaugeIntervalDoesNotOverrideCount(t *testing.T, enabled
 					expectedType, expectedValue = Rate, 5
 				}
 				consumer := newTestConsumer()
-				m.MapNumberMetrics(context.Background(), &consumer, &Dimensions{name: "test.count"}, Count, slice)
+				m.MapNumberMetrics(t.Context(), &consumer, &Dimensions{name: "test.count"}, Count, slice)
 				require.Len(t, consumer.data.Metrics.TimeSeries, 1)
 				actual := consumer.data.Metrics.TimeSeries[0]
 				assert.Equal(t, expectedType, actual.Type)
@@ -344,7 +344,7 @@ func TestGaugeIntervalCumulativeUpDownCounter(t *testing.T) {
 				dp.SetIntValue(42)
 				dp.Attributes().PutInt(gaugeIntervalAttributeKey, 15)
 				consumer := newTestConsumer()
-				_, err = tr.MapMetrics(context.Background(), md, &consumer, nil)
+				_, err = tr.MapMetrics(t.Context(), md, &consumer, nil)
 				require.NoError(t, err)
 				require.Len(t, consumer.data.Metrics.TimeSeries, 1)
 				actual := consumer.data.Metrics.TimeSeries[0]
@@ -517,7 +517,7 @@ func TestLossLessMapperMapNumberMetrics_DeltaSumRateAttribute(t *testing.T) {
 				dt = Gauge
 			}
 
-			mapper.MapNumberMetrics(context.Background(), &consumer, dims, dt, slice)
+			mapper.MapNumberMetrics(t.Context(), &consumer, dims, dt, slice)
 
 			require.Len(t, consumer.data.Metrics.TimeSeries, len(tt.expectedTimeSeries))
 			for i, expected := range tt.expectedTimeSeries {
@@ -553,7 +553,7 @@ func TestMapNumberMetrics_RateAttributeWarnings(t *testing.T) {
 
 		dims := &Dimensions{name: "test.metric"}
 		consumer := newTestConsumer()
-		mapper.MapNumberMetrics(context.Background(), &consumer, dims, Count, slice)
+		mapper.MapNumberMetrics(t.Context(), &consumer, dims, Count, slice)
 
 		require.Equal(t, 1, logs.Len())
 		entry := logs.All()[0]
@@ -578,7 +578,7 @@ func TestMapNumberMetrics_RateAttributeWarnings(t *testing.T) {
 
 		dims := &Dimensions{name: "test.metric"}
 		consumer := newTestConsumer()
-		mapper.MapNumberMetrics(context.Background(), &consumer, dims, Count, slice)
+		mapper.MapNumberMetrics(t.Context(), &consumer, dims, Count, slice)
 
 		require.Len(t, consumer.data.Metrics.TimeSeries, 1)
 		ts := consumer.data.Metrics.TimeSeries[0]
@@ -607,7 +607,7 @@ func TestMapNumberMetrics_RateAttributeWarnings(t *testing.T) {
 
 		dims := &Dimensions{name: "test.metric"}
 		consumer := newTestConsumer()
-		mapper.MapNumberMetrics(context.Background(), &consumer, dims, Gauge, slice)
+		mapper.MapNumberMetrics(t.Context(), &consumer, dims, Gauge, slice)
 
 		require.Len(t, consumer.data.Metrics.TimeSeries, 3, "all datapoints should still be emitted")
 		for _, ts := range consumer.data.Metrics.TimeSeries {
@@ -777,7 +777,7 @@ func TestLossLessMapperMapSummaryMetrics(t *testing.T) {
 			dims := &Dimensions{name: "test.metric"}
 			consumer := newTestConsumer()
 
-			mapper.MapSummaryMetrics(context.Background(), &consumer, dims, slice)
+			mapper.MapSummaryMetrics(t.Context(), &consumer, dims, slice)
 
 			require.Len(t, consumer.data.Metrics.TimeSeries, len(tt.expectedTimeSeries))
 			for i, expected := range tt.expectedTimeSeries {
@@ -809,7 +809,7 @@ func TestLossLessMapperMapHistogramMetrics(t *testing.T) {
 	dims := &Dimensions{name: "test.histogram"}
 	consumer := &histogramTestConsumer{}
 
-	err := mapper.MapHistogramMetrics(context.Background(), consumer, dims, slice, true)
+	err := mapper.MapHistogramMetrics(t.Context(), consumer, dims, slice, true)
 	require.NoError(t, err)
 
 	// Verify ConsumeExplicitBoundHistogram was called
@@ -832,7 +832,7 @@ func TestLossLessMapperMapExponentialHistogramMetrics(t *testing.T) {
 	dims := &Dimensions{name: "test.exp_histogram"}
 	consumer := &histogramTestConsumer{}
 
-	mapper.MapExponentialHistogramMetrics(context.Background(), consumer, dims, slice, true)
+	mapper.MapExponentialHistogramMetrics(t.Context(), consumer, dims, slice, true)
 
 	// Verify ConsumeExponentialHistogram was called
 	assert.True(t, consumer.exponentialCalled)

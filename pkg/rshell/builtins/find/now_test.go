@@ -63,7 +63,7 @@ func TestNowConsistentAcrossRoots(t *testing.T) {
 	}
 
 	// Run find with two root paths and a time predicate.
-	result := run(context.Background(), callCtx, []string{"a", "b", "-mmin", "-60"})
+	result := run(t.Context(), callCtx, []string{"a", "b", "-mmin", "-60"})
 
 	assert.Equal(t, uint8(0), result.Code, "find should succeed")
 	assert.Contains(t, stdout.String(), "f1.txt")
@@ -111,7 +111,7 @@ func TestNowFromCallContextIsUsed(t *testing.T) {
 
 	// A fresh file should match +1 (older than 1 minute) when Now is 10 years
 	// in the future, proving that CallContext.Now is used for evaluation.
-	result := run(context.Background(), callCtx, []string{".", "-name", "fresh.txt", "-mmin", "+1"})
+	result := run(t.Context(), callCtx, []string{".", "-name", "fresh.txt", "-mmin", "+1"})
 	assert.Equal(t, uint8(0), result.Code, "find should succeed")
 	assert.Contains(t, stdout.String(), "fresh.txt",
 		"fresh file should match -mmin +1 when CallContext.Now is 10 years in the future")
@@ -120,7 +120,7 @@ func TestNowFromCallContextIsUsed(t *testing.T) {
 	// The same file should NOT match -1 (newer than 1 minute) under the same Now.
 	stdout.Reset()
 	stderr.Reset()
-	result = run(context.Background(), callCtx, []string{".", "-name", "fresh.txt", "-mmin", "-1"})
+	result = run(t.Context(), callCtx, []string{".", "-name", "fresh.txt", "-mmin", "-1"})
 	assert.Equal(t, uint8(0), result.Code, "find should succeed")
 	assert.NotContains(t, stdout.String(), "fresh.txt",
 		"fresh file should not match -mmin -1 when CallContext.Now is 10 years in the future")

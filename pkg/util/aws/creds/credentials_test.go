@@ -6,7 +6,6 @@
 package creds
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,7 +21,7 @@ import (
 )
 
 func TestGetIAMRole(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	const expected = "test-role"
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -42,7 +41,7 @@ func TestGetIAMRole(t *testing.T) {
 }
 
 func TestGetSecurityCredentials(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/iam/security-credentials/" {
 			w.Header().Set("Content-Type", "text/plain")
@@ -72,7 +71,7 @@ func TestGetSecurityCredentials(t *testing.T) {
 func TestGetSecurityCredentialsHonorsCloudProviderMetadata(t *testing.T) {
 	configmock.NewFromYAML(t, "cloud_provider_metadata:\n  - gcp\n  - azure\n")
 
-	got, err := GetSecurityCredentials(context.Background())
+	got, err := GetSecurityCredentials(t.Context())
 	require.Error(t, err)
 	assert.Nil(t, got)
 	assert.ErrorIs(t, err, ec2internal.ErrCloudProviderDisabled)

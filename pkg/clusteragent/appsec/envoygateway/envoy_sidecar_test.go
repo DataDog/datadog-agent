@@ -8,7 +8,6 @@
 package envoygateway
 
 import (
-	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -121,7 +120,7 @@ func countVolumes(pod *corev1.Pod, name string) int {
 }
 
 func TestEnvoyGatewaySidecarMutatePodHappyPath(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewaySidecarListKinds())
 	recorder := record.NewFakeRecorder(100)
@@ -180,7 +179,7 @@ func TestEnvoyGatewaySidecarMutatePodHappyPath(t *testing.T) {
 }
 
 func TestEnvoyGatewaySidecarAddedIsNoOp(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewaySidecarListKinds())
 	recorder := record.NewFakeRecorder(100)
@@ -195,7 +194,7 @@ func TestEnvoyGatewaySidecarAddedIsNoOp(t *testing.T) {
 }
 
 func TestEnvoyGatewaySidecarMutatePodRecreatesBackendWhenPolicyExists(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	existingPolicy := newTestEnvoyExtensionPolicy("eg-ns")
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewaySidecarListKinds(), existingPolicy)
@@ -355,7 +354,7 @@ func TestEnvoyGatewayNewModeSelection(t *testing.T) {
 }
 
 func TestEnvoyGatewaySidecarMutatePodHonorsGatewayOptOut(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewaySidecarListKinds())
 	gw := newTestGateway("eg-ns", "eg")
@@ -382,7 +381,7 @@ func TestEnvoyGatewaySidecarMutatePodHonorsGatewayOptOut(t *testing.T) {
 }
 
 func TestEnvoyGatewaySidecarMutatePodInjectsWhenGatewayOptedIn(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewaySidecarListKinds())
 	gw := newTestGateway("eg-ns", "eg")
@@ -403,7 +402,7 @@ func TestEnvoyGatewaySidecarMutatePodInjectsWhenGatewayOptedIn(t *testing.T) {
 }
 
 func TestEnvoyGatewaySidecarMutatePodFailsOpenOnEmptyUDSPath(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewaySidecarListKinds())
 	recorder := record.NewFakeRecorder(100)
@@ -531,7 +530,7 @@ func TestEnvoyGatewaySidecarBackendCheckUsesControllerNamespace(t *testing.T) {
 }
 
 func TestEnvoyGatewaySidecarMutatePodSkipsMissingGateway(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	logger := logmock.New(t)
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewaySidecarListKinds())
 	pattern := newTestEnvoyGatewaySidecarPattern(t, client, logger, record.NewFakeRecorder(100))

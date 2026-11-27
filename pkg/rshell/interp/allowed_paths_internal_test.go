@@ -64,7 +64,7 @@ func runScriptInternal(t *testing.T, script, dir string, opts ...RunnerOption) (
 		return nil
 	}
 
-	err = runner.Run(context.Background(), prog)
+	err = runner.Run(t.Context(), prog)
 	exitCode = 0
 	if err != nil {
 		var es ExitStatus
@@ -116,7 +116,7 @@ func TestAllowedPathsExecViaPathLookup(t *testing.T) {
 	defer runner.Close()
 	runner.Dir = dir
 
-	err = runner.Run(context.Background(), prog)
+	err = runner.Run(t.Context(), prog)
 	exitCode := 0
 	if err != nil {
 		var es ExitStatus
@@ -167,7 +167,7 @@ func TestRunRecoversPanic(t *testing.T) {
 	prog, err := parser.Parse(strings.NewReader("somecmd"), "")
 	require.NoError(t, err)
 
-	err = runner.Run(context.Background(), prog)
+	err = runner.Run(t.Context(), prog)
 	require.Error(t, err)
 	// The error returned to the caller must be generic — it must not include
 	// the panic value to avoid leaking internal state to untrusted callers.
@@ -186,7 +186,7 @@ func TestRunZeroValueRunnerReturnsError(t *testing.T) {
 	prog, err := parser.Parse(strings.NewReader("echo hi"), "")
 	require.NoError(t, err)
 
-	err = r.Run(context.Background(), prog)
+	err = r.Run(t.Context(), prog)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "use interp.New to construct a Runner")
 }

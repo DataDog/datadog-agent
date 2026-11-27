@@ -7,7 +7,6 @@ package interp_test
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -59,7 +58,7 @@ func TestGrandchildInheritsParentOverriddenStdin(t *testing.T) {
 	defer runner.Close()
 	runner.Dir = dir
 
-	if err := runner.Run(context.Background(), prog); err != nil {
+	if err := runner.Run(t.Context(), prog); err != nil {
 		var es interp.ExitStatus
 		require.True(t, errors.As(err, &es), "unexpected error: %v", err)
 		require.EqualValues(t, 0, es)

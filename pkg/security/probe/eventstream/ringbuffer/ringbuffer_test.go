@@ -20,7 +20,7 @@ import (
 func TestDispatcherRecoversFromHandlerPanic(t *testing.T) {
 	done := make(chan []byte, 1)
 	var n int
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	rb := New(ctx, func(_ int, data []byte) {

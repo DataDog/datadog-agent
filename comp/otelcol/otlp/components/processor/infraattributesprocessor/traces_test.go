@@ -198,7 +198,7 @@ func TestInfraAttributesTraceProcessor(t *testing.T) {
 				return "test-host", nil
 			})
 			fmp, err := factory.CreateTraces(
-				context.Background(),
+				t.Context(),
 				processortest.NewNopSettings(Type),
 				cfg,
 				next,
@@ -208,10 +208,10 @@ func TestInfraAttributesTraceProcessor(t *testing.T) {
 
 			caps := fmp.Capabilities()
 			assert.True(t, caps.MutatesData)
-			ctx := context.Background()
+			ctx := t.Context()
 			assert.NoError(t, fmp.Start(ctx, nil))
 
-			cErr := fmp.ConsumeTraces(context.Background(), test.inTraces)
+			cErr := fmp.ConsumeTraces(t.Context(), test.inTraces)
 			assert.Nil(t, cErr)
 			assert.NoError(t, fmp.Shutdown(ctx))
 

@@ -228,7 +228,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				require.NoError(t, client.CreateTopic(topicName))
 
 				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
-				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				ctxTimeout, cancel := context.WithTimeout(t.Context(), time.Second*5)
 				defer cancel()
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 
@@ -277,7 +277,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				require.NoError(t, client.CreateTopic(topicName))
 
 				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
-				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				ctxTimeout, cancel := context.WithTimeout(t.Context(), time.Second*5)
 				defer cancel()
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 
@@ -317,7 +317,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				numberOfIterations := 1000
 				for i := 1; i <= numberOfIterations; i++ {
 					record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
-					ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+					ctxTimeout, cancel := context.WithTimeout(t.Context(), time.Second*5)
 					require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 					cancel()
 				}
@@ -357,7 +357,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 
 				record1 := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
 				record2 := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka again!")}
-				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				ctxTimeout, cancel := context.WithTimeout(t.Context(), time.Second*5)
 				defer cancel()
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1, record2).FirstErr(), "record had a produce error while synchronously producing")
 
@@ -408,7 +408,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				record1 := &kgo.Record{Topic: topicName, Partition: 1, Value: []byte("Hello Kafka!")}
 				record2 := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka again!")}
 
-				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				ctxTimeout, cancel := context.WithTimeout(t.Context(), time.Second*5)
 				defer cancel()
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1).FirstErr())
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record2).FirstErr())
@@ -494,7 +494,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 						require.NoError(t, client.CreateTopic(tt.topicName))
 
 						record := &kgo.Record{Topic: tt.topicName, Value: []byte("Hello Kafka!")}
-						ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+						ctxTimeout, cancel := context.WithTimeout(t.Context(), time.Second*5)
 						defer cancel()
 						require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 

@@ -8,7 +8,6 @@
 package providers
 
 import (
-	"context"
 	"sync"
 	"testing"
 
@@ -95,12 +94,12 @@ func TestCRProvider_IsUpToDate(t *testing.T) {
 	p := newTestProvider(newMockTemplateStore(nil))
 	p.upToDate = true
 
-	upToDate, err := p.IsUpToDate(context.Background())
+	upToDate, err := p.IsUpToDate(t.Context())
 	require.NoError(t, err)
 	assert.True(t, upToDate)
 
 	p.setUpToDate(false)
-	upToDate, err = p.IsUpToDate(context.Background())
+	upToDate, err = p.IsUpToDate(t.Context())
 	require.NoError(t, err)
 	assert.False(t, upToDate)
 }
@@ -168,7 +167,7 @@ func TestCRProvider_Collect(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			p := newTestProvider(newMockTemplateStore(tc.templates), tc.slices...)
 
-			configs, err := p.Collect(context.Background())
+			configs, err := p.Collect(t.Context())
 			require.NoError(t, err)
 
 			gotNames := make([]string, 0, len(configs))

@@ -32,7 +32,7 @@ func runNested(t *testing.T, dir, script string) (uint8, string, string) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = r.Close() })
 	r.Dir = dir
-	_ = r.Run(context.Background(), parseScript(t, script))
+	_ = r.Run(t.Context(), parseScript(t, script))
 	return r.exit.code, stdout.String(), stderr.String()
 }
 
@@ -136,9 +136,9 @@ func TestNestedCommandDepthSelfDispatch(t *testing.T) {
 			var code uint8
 			var err error
 			if calls%2 == 0 {
-				code, err = callCtx.RunCommandWithStdin(context.Background(), "", name, nil, strings.NewReader(""))
+				code, err = callCtx.RunCommandWithStdin(t.Context(), "", name, nil, strings.NewReader(""))
 			} else {
-				code, err = callCtx.RunCommand(context.Background(), "", name, nil)
+				code, err = callCtx.RunCommand(t.Context(), "", name, nil)
 			}
 			if err != nil {
 				refusal = err

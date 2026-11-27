@@ -66,7 +66,7 @@ func TestWorkloadTokenUsesSelectedInstance(t *testing.T) {
 		d.instances[key] = instance
 	}
 	for _, key := range []string{"api_key", "logs_config.api_key"} {
-		token, err := d.GetWorkloadToken(context.Background(), key, request)
+		token, err := d.GetWorkloadToken(t.Context(), key, request)
 		require.NoError(t, err)
 		require.Equal(t, "token-for-"+key, token)
 		require.Zero(t, d.instances[key].consecutiveFailures)
@@ -79,34 +79,34 @@ func TestWorkloadTokenUsesSelectedInstance(t *testing.T) {
 func TestWorkloadTokenUnavailable(t *testing.T) {
 	d := NewComponent().Comp.(*delegatedAuthComponent)
 	request := common.WorkloadTokenRequest{Grants: []string{"par_enrollment"}}
-	_, err := d.GetWorkloadToken(context.Background(), "api_key", request)
+	_, err := d.GetWorkloadToken(t.Context(), "api_key", request)
 	require.EqualError(t, err, `delegated auth instance "api_key" is unavailable: check delegated authentication configuration and Agent status`)
 	// A different configured instance must not be used as a fallback.
 	d.instances["logs_config.api_key"] = &authInstance{provider: workloadProvider{}}
 	d.startupRecoveries["logs_config.api_key"] = &startupRecovery{lastError: errors.New("unrelated startup failure")}
-	_, err = d.GetWorkloadToken(context.Background(), "api_key", request)
+	_, err = d.GetWorkloadToken(t.Context(), "api_key", request)
 	require.EqualError(t, err, `delegated auth instance "api_key" is unavailable: check delegated authentication configuration and Agent status`)
 
 	d.startupRecoveries["api_key"] = &startupRecovery{}
-	_, err = d.GetWorkloadToken(context.Background(), "api_key", request)
+	_, err = d.GetWorkloadToken(t.Context(), "api_key", request)
 	require.EqualError(t, err, `delegated auth instance "api_key" is unavailable: startup is retrying`)
 	d.startupRecoveries["api_key"].lastError = errors.New("initial intake exchange failed")
-	_, err = d.GetWorkloadToken(context.Background(), "api_key", request)
+	_, err = d.GetWorkloadToken(t.Context(), "api_key", request)
 	require.EqualError(t, err, `delegated auth instance "api_key" is unavailable: startup is retrying: initial intake exchange failed`)
 
 	delete(d.startupRecoveries, "api_key")
 	d.disabledReason = "no supported cloud provider detected"
-	_, err = d.GetWorkloadToken(context.Background(), "api_key", request)
+	_, err = d.GetWorkloadToken(t.Context(), "api_key", request)
 	require.EqualError(t, err, `delegated auth instance "api_key" is unavailable: provider detection: no supported cloud provider detected`)
 
 	d.instances["api_key"] = &authInstance{}
-	_, err = d.GetWorkloadToken(context.Background(), "api_key", request)
+	_, err = d.GetWorkloadToken(t.Context(), "api_key", request)
 	require.ErrorContains(t, err, "does not support workload tokens")
 }
 
 func TestWorkloadTokenHonorsCancellation(t *testing.T) {
 	d := NewComponent().Comp.(*delegatedAuthComponent)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	token, err := d.GetWorkloadToken(ctx, "api_key", common.WorkloadTokenRequest{})
 	require.ErrorIs(t, err, context.Canceled)
@@ -126,7 +126,7 @@ func TestWorkloadTokenRejectsRemovedAdditionalEndpoint(t *testing.T) {
 			originalDirective:            "DELA[org]",
 		},
 	}
-	token, err := d.GetWorkloadToken(context.Background(), "additional-key", common.WorkloadTokenRequest{Grants: []string{"par_enrollment"}})
+	token, err := d.GetWorkloadToken(t.Context(), "additional-key", common.WorkloadTokenRequest{Grants: []string{"par_enrollment"}})
 	require.ErrorIs(t, err, errWritebackTargetChanged)
 	require.Empty(t, token)
 }

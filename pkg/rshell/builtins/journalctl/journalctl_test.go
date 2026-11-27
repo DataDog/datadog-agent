@@ -84,7 +84,7 @@ func runJournalctl(t *testing.T, args []string, callCtx *builtins.CallContext) b
 	fs.SetOutput(io.Discard)
 	handler := makeFlags(fs)
 	require.NoError(t, fs.Parse(args))
-	return handler(context.Background(), callCtx, fs.Args())
+	return handler(t.Context(), callCtx, fs.Args())
 }
 
 func TestJournalctlBuildsBoundedUnitQuery(t *testing.T) {
@@ -607,7 +607,7 @@ func TestJournalctlRejectsDangerousJournalctlOptions(t *testing.T) {
 	} {
 		t.Run(strings.Join(args, "_"), func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
-			result := handler(context.Background(), &builtins.CallContext{
+			result := handler(t.Context(), &builtins.CallContext{
 				Stdout: &stdout,
 				Stderr: &stderr,
 			}, args)

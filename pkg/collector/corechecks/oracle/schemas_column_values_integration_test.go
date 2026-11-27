@@ -8,7 +8,6 @@
 package oracle
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -26,8 +25,8 @@ func TestSchemaObjectIdentifierIndexAgainstDatabase(t *testing.T) {
 	for _, version := range []string{actualVersion, "12.2.0.1.0"} {
 		t.Run(version, func(t *testing.T) {
 			c.dbVersion = version
-			details := c.tableDetails(context.Background(), map[tableKey]struct{}{key: {}}, nil)
-			require.NoError(t, c.schemaContextError(context.Background()))
+			details := c.tableDetails(t.Context(), map[tableKey]struct{}{key: {}}, nil)
+			require.NoError(t, c.schemaContextError(t.Context()))
 			require.Contains(t, details, key)
 			require.Len(t, details[key].Indexes, 1)
 			index := details[key].Indexes[0]
@@ -45,12 +44,12 @@ func TestSchemaLegacyColumnValuesAgainstDatabase(t *testing.T) {
 	defer sys.Teardown()
 	var connected int
 	require.NoError(t, getWrapper(&sys, &connected, "SELECT 1 FROM dual"))
-	ctx := context.Background()
+	ctx := t.Context()
 	admin, err := sys.db.Connx(ctx)
 	require.NoError(t, err)
 	defer admin.Close()
 	defer func() {
-		_, err := admin.ExecContext(context.Background(), schemaSwitchContainerSQL("CDB$ROOT"))
+		_, err := admin.ExecContext(t.Context(), schemaSwitchContainerSQL("CDB$ROOT"))
 		require.NoError(t, err)
 	}()
 	keys := make(map[tableKey]struct{})

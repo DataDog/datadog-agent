@@ -173,7 +173,7 @@ func TestPingIPv6FlagAccepted(t *testing.T) {
 
 func TestPingContextCancel(t *testing.T) {
 	// Very short deadline: the ping should return promptly, not hang.
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
 	defer cancel()
 	start := time.Now()
 	// Use a real-looking but unreachable address to ensure pro-bing actually

@@ -10,7 +10,6 @@ package uploader
 import (
 	"bytes"
 	"compress/gzip"
-	"context"
 	"encoding/json"
 	"io"
 	"mime"
@@ -294,7 +293,7 @@ func TestBatchEncoder(t *testing.T) {
 				for _, s := range createPackageScopes() {
 					assert.NoError(t, enc.AddScope(s))
 				}
-				err = enc.Flush(context.Background(), true /* final */)
+				err = enc.Flush(t.Context(), true /* final */)
 				if injectError {
 					assert.Error(t, err)
 					assert.ErrorIs(t, err, ErrUpload)
@@ -344,7 +343,7 @@ func TestBatchEncoder_MultiBatch(t *testing.T) {
 		for i, s := range scopes {
 			assert.NoError(t, enc.AddScope(s))
 			final := i == len(scopes)-1
-			assert.NoError(t, enc.Flush(context.Background(), final))
+			assert.NoError(t, enc.Flush(t.Context(), final))
 		}
 		assert.Equal(t, len(scopes), enc.BatchCount())
 	}()
@@ -396,7 +395,7 @@ func TestBatchEncoder_Size(t *testing.T) {
 	// Drain the upload that Flush will send.
 	doneC := make(chan error, 1)
 	go func() {
-		doneC <- enc.Flush(context.Background(), false /* final */)
+		doneC <- enc.Flush(t.Context(), false /* final */)
 	}()
 	req := <-ts.requests
 	req.w.WriteHeader(http.StatusOK)
@@ -440,7 +439,7 @@ func TestBatchEncoder_DiskCache(t *testing.T) {
 		for _, s := range scopes {
 			assert.NoError(t, enc.AddScope(s))
 		}
-		assert.NoError(t, enc.Flush(context.Background(), true /* final */))
+		assert.NoError(t, enc.Flush(t.Context(), true /* final */))
 	}()
 
 	req := <-ts.requests
@@ -466,7 +465,7 @@ func TestBatchEncoder_EmptyFinal(t *testing.T) {
 	)
 	require.NoError(t, err)
 	// No AddScope calls.
-	require.NoError(t, enc.Flush(context.Background(), true))
+	require.NoError(t, enc.Flush(t.Context(), true))
 	require.Equal(t, 0, enc.BatchCount())
 
 	select {

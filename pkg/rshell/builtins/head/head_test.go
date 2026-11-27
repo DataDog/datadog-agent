@@ -451,7 +451,7 @@ func TestHeadContextCancellation(t *testing.T) {
 	// Use a pipe: create a heredoc that provides input.
 	writeFile(t, dir, "data.txt", fiveLines)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	// Should complete well within 5 seconds.
@@ -589,7 +589,7 @@ func TestHeadContextPreCancelled(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "file.txt", fiveLines)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel() // cancel before running
 
 	// We don't assert a specific exit code (context cancellation may or may

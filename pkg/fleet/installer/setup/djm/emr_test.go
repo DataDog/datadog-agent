@@ -7,7 +7,6 @@
 package djm
 
 import (
-	"context"
 	_ "embed"
 	"fmt"
 	"os"
@@ -74,10 +73,10 @@ func TestSetupEmr(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			span, _ := telemetry.StartSpanFromContext(context.Background(), "test")
+			span, _ := telemetry.StartSpanFromContext(t.Context(), "test")
 			s := &common.Setup{
 				Span: span,
-				Ctx:  context.Background(),
+				Ctx:  t.Context(),
 			}
 
 			_, _, err := setupCommonEmrHostTags(s)
@@ -89,10 +88,10 @@ func TestSetupEmr(t *testing.T) {
 
 func newTestSetup(t *testing.T) *common.Setup {
 	t.Helper()
-	span, _ := telemetry.StartSpanFromContext(context.Background(), "test")
+	span, _ := telemetry.StartSpanFromContext(t.Context(), "test")
 	return &common.Setup{
 		Span: span,
-		Ctx:  context.Background(),
+		Ctx:  t.Context(),
 		Out:  &common.Output{},
 	}
 }

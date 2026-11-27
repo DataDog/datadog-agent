@@ -15,7 +15,6 @@
 package metrics
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"testing"
@@ -221,7 +220,7 @@ func createBenchmarkRuntimeMetric(metricName string, metricType pmetric.MetricTy
 func benchmarkMapMetrics(metrics pmetric.Metrics, b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ctx := context.Background()
+		ctx := b.Context()
 		tr := newBenchmarkTranslator(b, zap.NewNop())
 		consumer := &mockFullConsumer{}
 

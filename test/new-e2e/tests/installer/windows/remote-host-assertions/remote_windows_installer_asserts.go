@@ -41,6 +41,25 @@ func (d *RemoteWindowsInstallerAssertions) Status() *RemoteWindowsInstallerStatu
 	}
 }
 
+// ExperimentConfig returns the experiment config ID reported by the status output
+// for the given package. Unlike Status, it does not fail the test on error, so it
+// can be polled while the installer is still rolling back a config experiment.
+func (d *RemoteWindowsInstallerAssertions) ExperimentConfig(name string) (string, error) {
+	output, err := d.execute("status --json")
+	if err != nil {
+		return "", err
+	}
+	status, err := parseStatusOutput(output)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse status output %q: %w", output, err)
+	}
+	configState, ok := status.Packages.ConfigStates[name]
+	if !ok {
+		return "", fmt.Errorf("package %s has no config state in status output", name)
+	}
+	return configState.Experiment, nil
+}
+
 // RemoteWindowsInstallerStatusAssertions provides assertions on the status output of the Datadog Installer.
 type RemoteWindowsInstallerStatusAssertions struct {
 	*RemoteWindowsInstallerAssertions

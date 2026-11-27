@@ -7,7 +7,6 @@ package interp
 
 import (
 	"bytes"
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,7 +35,7 @@ func runGlobbingVulnHunt(t *testing.T, script, dir string, configure func(*Runne
 	prog, err := parser.Parse(strings.NewReader(script), "")
 	require.NoError(t, err)
 
-	runErr := r.Run(context.Background(), prog)
+	runErr := r.Run(t.Context(), prog)
 	return stdout.String(), stderr.String(), r, runErr
 }
 

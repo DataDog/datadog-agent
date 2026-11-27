@@ -8,7 +8,6 @@
 package authoredscripts
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,7 +26,7 @@ func TestNewCommand_InjectsParameters(t *testing.T) {
 		},
 	}
 
-	cmd, err := NewCommand(context.Background(), pkg, session, map[string]interface{}{
+	cmd, err := NewCommand(t.Context(), pkg, session, map[string]interface{}{
 		"targetURL": "https://example.com",
 		"count":     3,
 	})
@@ -49,7 +48,7 @@ func TestNewCommand_RejectsNonObjectParameters(t *testing.T) {
 		Manifest: &Manifest{},
 	}
 
-	_, err := NewCommand(context.Background(), pkg, session, []interface{}{"not", "an", "object"})
+	_, err := NewCommand(t.Context(), pkg, session, []interface{}{"not", "an", "object"})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must be an object")
@@ -66,7 +65,7 @@ func TestNewCommand_RejectsCollisionWithAllowedEnvVar(t *testing.T) {
 		},
 	}
 
-	_, err := NewCommand(context.Background(), pkg, session, map[string]interface{}{"name": "world"})
+	_, err := NewCommand(t.Context(), pkg, session, map[string]interface{}{"name": "world"})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "already set")

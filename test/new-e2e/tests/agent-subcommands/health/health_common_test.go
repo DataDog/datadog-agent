@@ -6,7 +6,6 @@
 package health
 
 import (
-	"context"
 	"net/http"
 	"time"
 
@@ -35,7 +34,7 @@ func (v *baseHealthSuite) TestDefaultInstallHealthy() {
 
 	var output string
 	var err error
-	output, err = backoff.Retry(context.Background(), func() (string, error) {
+	output, err = backoff.Retry(v.T().Context(), func() (string, error) {
 		out, err := v.Env().Agent.Client.Health()
 		if err != nil {
 			return "", err

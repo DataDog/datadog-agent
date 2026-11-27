@@ -8,7 +8,6 @@
 package runners
 
 import (
-	"context"
 	"testing"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -41,7 +40,7 @@ func TestWorkflowTaskExecutorRejectsAuthoredScriptOnClusterAgent(t *testing.T) {
 	task := newWorkflowTask("task-id", publicBundle, actionName, "job-id")
 	task.Data.Attributes.ExecutionFQN = executionFQN
 
-	output, err := executor.RunTask(context.Background(), &PreparedWorkflowTask{Task: task})
+	output, err := executor.RunTask(t.Context(), &PreparedWorkflowTask{Task: task})
 	require.ErrorContains(t, err, "could not find bundle for com.datadoghq.authoredscripts.helm")
 	assert.Nil(t, output)
 }

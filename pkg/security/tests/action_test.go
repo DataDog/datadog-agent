@@ -93,7 +93,7 @@ func TestActionKill(t *testing.T) {
 			signal.Notify(sigCh, syscall.SIGUSR1)
 			defer signal.Stop(sigCh)
 
-			timeoutCtx, cancel := context.WithTimeout(context.Background(), 7*time.Second)
+			timeoutCtx, cancel := context.WithTimeout(t.Context(), 7*time.Second)
 			defer cancel()
 
 			if err := runSyscallTesterFunc(
@@ -154,7 +154,7 @@ func TestActionKill(t *testing.T) {
 			ch := make(chan bool, 1)
 
 			go func() {
-				timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				timeoutCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 				defer cancel()
 
 				cmd := exec.CommandContext(timeoutCtx, syscallTester, "open", testFile, ";", "sleep", "1", ";", "open", syscallTester, ";", "sleep", "5")
@@ -233,7 +233,7 @@ func TestActionKillExcludeBinary(t *testing.T) {
 	}
 	defer test.CloseTest()
 
-	sleepCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	sleepCtx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	killed := atomic.NewBool(false)
@@ -309,7 +309,7 @@ func TestActionKillRuleSpecific(t *testing.T) {
 		ch := make(chan bool, 1)
 
 		go func() {
-			timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			timeoutCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 
 			cmd := exec.CommandContext(timeoutCtx, syscallTester, "open", testFile, ";", "sleep", "1", ";", "open", syscallTester, ";", "sleep", "5")
@@ -382,7 +382,7 @@ func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester s
 			ch := make(chan bool, 1)
 
 			go func() {
-				timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				timeoutCtx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 				defer cancel()
 
 				cmdFunc(timeoutCtx)
@@ -660,7 +660,7 @@ func TestActionHash(t *testing.T) {
 		test.msgSender.flush()
 		test.WaitSignalFromRule(t, func() error {
 			go func() {
-				timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				timeoutCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 				defer cancel()
 
 				if err := runSyscallTesterFunc(
@@ -707,7 +707,7 @@ func TestActionHash(t *testing.T) {
 		test.msgSender.flush()
 		test.WaitSignalFromRule(t, func() error {
 			go func() {
-				timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				timeoutCtx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 				defer cancel()
 
 				if err := runSyscallTesterFunc(
@@ -817,7 +817,7 @@ func TestActionHash(t *testing.T) {
 		test.msgSender.flush()
 		test.WaitSignalFromRule(t, func() error {
 			go func() {
-				timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				timeoutCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 				defer cancel()
 
 				if err := runSyscallTesterFunc(

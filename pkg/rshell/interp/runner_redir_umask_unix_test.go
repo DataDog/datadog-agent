@@ -8,7 +8,6 @@
 package interp
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -51,7 +50,7 @@ func TestRemediationRedirect_Umask(t *testing.T) {
 				"echo appall &>> appall.txt\n"
 
 			r, _, stderr := newRemediationRunner(t, dir)
-			require.NoError(t, r.Run(context.Background(), parseScript(t, script)),
+			require.NoError(t, r.Run(t.Context(), parseScript(t, script)),
 				"stderr=%q", stderr.String())
 
 			for _, name := range []string{"trunc.txt", "clob.txt", "app.txt", "all.txt", "appall.txt"} {

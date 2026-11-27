@@ -9,7 +9,6 @@ package com_datadoghq_remoteaction_rshell
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -607,7 +606,7 @@ func TestNewRunCommandHandlerReducesOperatorAllowedPathsByAccess(t *testing.T) {
 func TestRunCommandEmptyCommandReturnsError(t *testing.T) {
 	handler := newDefaultRunCommandHandler()
 
-	_, err := handler.Run(context.Background(), makeTask("", nil), nil)
+	_, err := handler.Run(t.Context(), makeTask("", nil), nil)
 
 	assert.ErrorContains(t, err, "command is required")
 }
@@ -635,7 +634,7 @@ func TestRunCommandScriptSizeLimit(t *testing.T) {
 					script := command + strings.Repeat("x", tc.size-len(command))
 					handler := action.newHandler()
 
-					out, err := handler.Run(context.Background(), makeTask(script, []string{"rshell:echo"}), nil)
+					out, err := handler.Run(t.Context(), makeTask(script, []string{"rshell:echo"}), nil)
 
 					if tc.size > interp.MaxScriptBytes {
 						require.ErrorContains(t, err, "failed to parse command: script size")
@@ -658,7 +657,7 @@ func TestRunCommandNoAllowedCommandsBlocksExecution(t *testing.T) {
 	// Backend nil → empty effective list → rshell rejects.
 	handler := newDefaultRunCommandHandler()
 
-	out, err := handler.Run(context.Background(), makeTask("echo hello", nil), nil)
+	out, err := handler.Run(t.Context(), makeTask("echo hello", nil), nil)
 
 	require.NoError(t, err)
 	result := out.(*RunCommandOutputs)
@@ -691,7 +690,7 @@ func TestRunCommandWithoutSudoDoesNotRequirePrivilegedHelper(t *testing.T) {
 					task.Data.Attributes.Inputs["effectivePermissions"] = privilegedhelper.EscalationAllowed
 					task.Data.Attributes.Inputs["elevatableCommands"] = policy.elevatableCommands
 
-					out, err := handler.Run(context.Background(), task, nil)
+					out, err := handler.Run(t.Context(), task, nil)
 
 					require.NoError(t, err)
 					result := out.(*RunCommandOutputs)
@@ -728,7 +727,7 @@ func TestPrivilegedExecutionRequiresLocalOptIn(t *testing.T) {
 					task.Data.Attributes.Inputs["effectivePermissions"] = privilegedhelper.EscalationAllowed
 					task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:echo"}
 
-					out, err := tt.handler.Run(context.Background(), task, nil)
+					out, err := tt.handler.Run(t.Context(), task, nil)
 
 					require.NoError(t, err)
 					result := out.(*RunCommandOutputs)
@@ -761,7 +760,7 @@ func TestEnabledPrivilegedHelperFailureDoesNotFallBack(t *testing.T) {
 			task.Data.Attributes.SignedEnvelope = &privateactionspb.RemoteConfigSignatureEnvelope{}
 			task.Data.Attributes.VerificationKey = &types.TaskVerificationKey{DirectorProof: &types.DirectorKeyProof{}}
 
-			out, err := action.handler.Run(context.Background(), task, nil)
+			out, err := action.handler.Run(t.Context(), task, nil)
 
 			require.ErrorContains(t, err, "privileged rshell helper: connect to privileged helper")
 			assert.Nil(t, out)
@@ -784,7 +783,7 @@ func TestRunPrivilegedLogsSettingsAtInfoLevel(t *testing.T) {
 	task.Data.Attributes.Inputs["effectivePermissions"] = "EscalationAllowed"
 	task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:cat"}
 
-	_, err = handler.Run(context.Background(), task, nil)
+	_, err = handler.Run(t.Context(), task, nil)
 	require.ErrorContains(t, err, "privileged rshell socket is not configured")
 
 	logs := logBuffer.String()
@@ -814,7 +813,7 @@ func TestRunPrivilegedLogsAgentPolicyWhenOperatorSettingsConfigured(t *testing.T
 	task.Data.Attributes.Inputs["effectivePermissions"] = "EscalationAllowed"
 	task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:cat"}
 
-	_, err = handler.Run(context.Background(), task, nil)
+	_, err = handler.Run(t.Context(), task, nil)
 	require.ErrorContains(t, err, "privileged rshell socket is not configured")
 
 	logs := logBuffer.String()
@@ -911,7 +910,7 @@ func TestWholeScriptRootIsRejected(t *testing.T) {
 	task := makeTask("truncate -s 0 /var/log/app.log", []string{"rshell:truncate"})
 	task.Data.Attributes.Inputs["effectivePermissions"] = "Root"
 
-	_, err := handler.Run(context.Background(), task, nil)
+	_, err := handler.Run(t.Context(), task, nil)
 	require.ErrorContains(t, err, "whole-script root execution is not supported")
 }
 
@@ -956,7 +955,7 @@ func TestRunCommandMissingRemoteActionPolicyFailsClosed(t *testing.T) {
 		},
 	}
 
-	out, err := handler.Run(context.Background(), task, nil)
+	out, err := handler.Run(t.Context(), task, nil)
 
 	require.EqualError(t, err, "signed remote action policy is required")
 	assert.Nil(t, out)
@@ -980,7 +979,7 @@ func TestRunCommandEmptyRemoteActionPolicyIgnoresLegacyInputAllowlists(t *testin
 		},
 	}
 
-	out, err := handler.Run(context.Background(), task, nil)
+	out, err := handler.Run(t.Context(), task, nil)
 
 	require.NoError(t, err)
 	result := out.(*RunCommandOutputs)
@@ -991,7 +990,7 @@ func TestRunCommandEmptyRemoteActionPolicyIgnoresLegacyInputAllowlists(t *testin
 func TestRunCommandWithBackendAllowedCommand(t *testing.T) {
 	handler := newDefaultRunCommandHandler()
 
-	out, err := handler.Run(context.Background(),
+	out, err := handler.Run(t.Context(),
 		makeTask("echo hello", []string{"rshell:echo"}), nil)
 
 	require.NoError(t, err)
@@ -1005,7 +1004,7 @@ func TestRunCommandWithDisableDetailedTelemetryStillExecutes(t *testing.T) {
 	cfg.DisableDetailedTelemetry = true
 	handler := NewRunCommandHandler(cfg)
 
-	out, err := handler.Run(context.Background(),
+	out, err := handler.Run(t.Context(),
 		makeTask("echo hello", []string{"rshell:echo"}), nil)
 
 	require.NoError(t, err)
@@ -1020,7 +1019,7 @@ func TestRunCommandPassesSystemServicePolicyToRshell(t *testing.T) {
 		"mysql.service": systemServiceActions("read", "reboot"),
 	})
 
-	out, err := handler.Run(context.Background(), task, nil)
+	out, err := handler.Run(t.Context(), task, nil)
 
 	require.NoError(t, err)
 	result := out.(*RunCommandOutputs)
@@ -1050,7 +1049,7 @@ func TestRunCommandLogsBackendAndEffectiveSystemServicePolicies(t *testing.T) {
 		"mysql.service": systemServiceActions("restart", "read", "read"),
 	})
 
-	_, err = handler.Run(context.Background(), task, nil)
+	_, err = handler.Run(t.Context(), task, nil)
 	require.NoError(t, err)
 
 	logs := logBuffer.String()
@@ -1074,7 +1073,7 @@ func TestRunCommandLogsSettingsAtInfoLevel(t *testing.T) {
 	task := makeTask("echo hello", []string{"rshell:echo"})
 	task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:echo"}
 
-	_, err = handler.Run(context.Background(), task, nil)
+	_, err = handler.Run(t.Context(), task, nil)
 	require.NoError(t, err)
 
 	logs := logBuffer.String()
@@ -1091,7 +1090,7 @@ func TestRunCommandDisallowedCommandBlocked(t *testing.T) {
 	// in the signed backend list.
 	handler := newDefaultRunCommandHandler()
 
-	out, err := handler.Run(context.Background(),
+	out, err := handler.Run(t.Context(),
 		makeTask("grep foo", []string{"rshell:echo"}), nil)
 
 	require.NoError(t, err)
@@ -1106,7 +1105,7 @@ func TestRunCommandAgentCommandAllowlistNarrowsBackendPayload(t *testing.T) {
 		OperatorAllowedCommands: []string{"rshell:cat"},
 	})
 
-	out, err := handler.Run(context.Background(),
+	out, err := handler.Run(t.Context(),
 		makeTask("echo hi", []string{"rshell:echo", "rshell:cat"}), nil)
 
 	require.NoError(t, err)
@@ -1121,7 +1120,7 @@ func TestRunCommandExplicitEmptyAgentCommandAllowlistBlocksExecution(t *testing.
 		OperatorAllowedCommands: []string{},
 	})
 
-	out, err := handler.Run(context.Background(),
+	out, err := handler.Run(t.Context(),
 		makeTask("echo hi", []string{"rshell:echo"}), nil)
 
 	require.NoError(t, err)
@@ -1140,7 +1139,7 @@ func TestRunCommandBackendAllowedPathsRestrictsAccess(t *testing.T) {
 		[]string{"rshell:cat"},
 		[]string{"/tmp"})
 
-	out, err := handler.Run(context.Background(), task, nil)
+	out, err := handler.Run(t.Context(), task, nil)
 
 	require.NoError(t, err)
 	result := out.(*RunCommandOutputs)
@@ -1163,7 +1162,7 @@ func TestRunCommandSandboxWarningsKeepStderrClean(t *testing.T) {
 		[]string{"rshell:echo"},
 		[]string{dir, missing})
 
-	out, err := handler.Run(context.Background(), task, nil)
+	out, err := handler.Run(t.Context(), task, nil)
 
 	require.NoError(t, err)
 	result := out.(*RunCommandOutputs)
@@ -1186,7 +1185,7 @@ func TestRunCommandSandboxWarningsNilWhenCleanConfig(t *testing.T) {
 		[]string{"rshell:echo"},
 		[]string{dir})
 
-	out, err := handler.Run(context.Background(), task, nil)
+	out, err := handler.Run(t.Context(), task, nil)
 
 	require.NoError(t, err)
 	result := out.(*RunCommandOutputs)
@@ -1203,7 +1202,7 @@ func TestRunCommandPreservesAllowedPathAccessSuffixes(t *testing.T) {
 		[]string{"rshell:echo"},
 		[]string{dir + ":rw"})
 
-	out, err := handler.Run(context.Background(), task, nil)
+	out, err := handler.Run(t.Context(), task, nil)
 
 	require.NoError(t, err)
 	result := out.(*RunCommandOutputs)
@@ -1248,7 +1247,7 @@ func TestRunCommandOutputLimitsReturnActionErrors(t *testing.T) {
 				[]string{"rshell:cat"},
 				[]string{dir})
 
-			out, err := handler.Run(context.Background(), task, nil)
+			out, err := handler.Run(t.Context(), task, nil)
 
 			require.Error(t, err)
 			assert.ErrorIs(t, err, tc.wantErr)
@@ -1410,7 +1409,7 @@ func TestRunRemediationCommandAllowsFileRedirect(t *testing.T) {
 		[]string{"rshell:echo"},
 		[]string{dir + ":rw"})
 
-	out, err := handler.Run(context.Background(), task, nil)
+	out, err := handler.Run(t.Context(), task, nil)
 
 	require.NoError(t, err)
 	result := out.(*RunCommandOutputs)
@@ -1431,7 +1430,7 @@ func TestRunRemediationCommandReadOnlyPathBlocksFileRedirect(t *testing.T) {
 		[]string{"rshell:echo"},
 		[]string{dir + ":ro"})
 
-	out, err := handler.Run(context.Background(), task, nil)
+	out, err := handler.Run(t.Context(), task, nil)
 
 	require.NoError(t, err)
 	result := out.(*RunCommandOutputs)
@@ -1455,7 +1454,7 @@ func TestRunCommandReadOnlyBlocksFileRedirect(t *testing.T) {
 		[]string{"rshell:echo"},
 		[]string{dir + ":rw"})
 
-	out, err := handler.Run(context.Background(), task, nil)
+	out, err := handler.Run(t.Context(), task, nil)
 
 	require.NoError(t, err)
 	result := out.(*RunCommandOutputs)
@@ -1479,7 +1478,7 @@ func TestRunRemediationCommandRedirectOutsideSandboxBlocked(t *testing.T) {
 		[]string{"rshell:echo"},
 		[]string{allowedDir + ":rw"})
 
-	out, err := handler.Run(context.Background(), task, nil)
+	out, err := handler.Run(t.Context(), task, nil)
 
 	require.NoError(t, err)
 	result := out.(*RunCommandOutputs)

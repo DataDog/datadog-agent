@@ -85,7 +85,7 @@ func TestTestPoller_FetchTests_ReturnsTests(t *testing.T) {
 		healthy:         true,
 	}
 
-	tests, err := poller.fetchTests(context.Background())
+	tests, err := poller.fetchTests(t.Context())
 	require.NoError(t, err)
 	require.Len(t, tests, 1)
 	assert.Equal(t, "t-1", tests[0].PublicID)
@@ -114,7 +114,7 @@ func TestTestPoller_FetchTests_EmptyResponse(t *testing.T) {
 		healthy:         true,
 	}
 
-	tests, err := poller.fetchTests(context.Background())
+	tests, err := poller.fetchTests(t.Context())
 	require.NoError(t, err)
 	assert.Empty(t, tests)
 }
@@ -138,7 +138,7 @@ func TestTestPoller_FetchTests_NonOKStatus(t *testing.T) {
 		healthy:         true,
 	}
 
-	_, err := poller.fetchTests(context.Background())
+	_, err := poller.fetchTests(t.Context())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "500")
 }
@@ -163,7 +163,7 @@ func TestTestPoller_FetchTests_InvalidJSON(t *testing.T) {
 		healthy:         true,
 	}
 
-	_, err := poller.fetchTests(context.Background())
+	_, err := poller.fetchTests(t.Context())
 	require.Error(t, err)
 }
 
@@ -191,7 +191,7 @@ func TestTestPoller_PollLoop_EnqueuesTests(t *testing.T) {
 		healthy:         true,
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	poller.start(ctx)
 
 	select {
@@ -226,13 +226,13 @@ func TestTestPoller_HealthFlipsAfterNErrors(t *testing.T) {
 	}
 
 	for i := 0; i < maxConsecutiveErrors-1; i++ {
-		_, err := poller.fetchTests(context.Background())
+		_, err := poller.fetchTests(t.Context())
 		require.Error(t, err)
 		poller.markFailure()
 	}
 	assert.True(t, poller.isHealthy(), "still healthy below threshold")
 
-	_, err := poller.fetchTests(context.Background())
+	_, err := poller.fetchTests(t.Context())
 	require.Error(t, err)
 	poller.markFailure()
 	assert.False(t, poller.isHealthy(), "should be unhealthy at threshold")
@@ -266,14 +266,14 @@ func TestTestPoller_RecoversAfterSuccess(t *testing.T) {
 	}
 
 	for i := 0; i < maxConsecutiveErrors; i++ {
-		_, err := poller.fetchTests(context.Background())
+		_, err := poller.fetchTests(t.Context())
 		require.Error(t, err)
 		poller.markFailure()
 	}
 	assert.False(t, poller.isHealthy())
 
 	failNext.Store(false)
-	_, err := poller.fetchTests(context.Background())
+	_, err := poller.fetchTests(t.Context())
 	require.NoError(t, err)
 	poller.markSuccess()
 	assert.True(t, poller.isHealthy())
@@ -332,7 +332,7 @@ func TestWorker_PollerPriority(t *testing.T) {
 		scheduler.syntheticsTestProcessingChan <- SyntheticsTestCtx{cfg: makeCfg(fmt.Sprintf("fallback-%d", i))}
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	go scheduler.runWorker(ctx, 0)
 
 	require.Eventually(t, func() bool {
@@ -392,7 +392,7 @@ func TestWorker_ScheduledPollerTestRefreshesFallbackCache(t *testing.T) {
 	}
 	poller.TestsChan <- SyntheticsTestCtx{cfg: cfg}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	go scheduler.runWorker(ctx, 0)
 
 	require.Eventually(t, func() bool {

@@ -80,7 +80,7 @@ func FuzzTeeStdinContent(f *testing.F) {
 			t.Fatal(err)
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 		stdout, _, code := teeFuzzRunCtx(ctx, t, "tee out.txt < input.txt", dir)
 		if ctx.Err() != nil {
@@ -157,7 +157,7 @@ func FuzzTeeFlags(f *testing.F) {
 		dir, cleanup := testutil.FuzzIterDir(t, baseDir, &counter)
 		defer cleanup()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 		script := "printf hi | tee " + shellQuote(flag) + " out.txt"
 		_, _, code := teeFuzzRunCtx(ctx, t, script, dir)

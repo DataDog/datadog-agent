@@ -136,7 +136,7 @@ func TestServerWithoutCredentialUsesBareRequestKey(t *testing.T) {
 	server := &Server{Executor: executor}
 	serverConn, clientConn := net.Pipe()
 	defer clientConn.Close()
-	go server.handle(context.Background(), serverConn)
+	go server.handle(t.Context(), serverConn)
 
 	request := signedRequest(t, private, nil)
 	request.VerificationKeys = []CredentialKey{
@@ -167,7 +167,7 @@ func TestPolicyWithoutTrustMaterialNarrowsSignedBackendPolicy(t *testing.T) {
 	}
 	serverConn, clientConn := net.Pipe()
 	defer clientConn.Close()
-	go server.handle(context.Background(), serverConn)
+	go server.handle(t.Context(), serverConn)
 
 	request := signedRequest(t, private, func(task *PrivateActionTask) {
 		task.GetSystemInputs().GetRemoteAction().SystemServices = map[string]*structpb.ListValue{
@@ -265,7 +265,7 @@ func TestServerUsesDirectorAuthenticatedKeyForOneRequest(t *testing.T) {
 	server := &Server{Credential: credential, Executor: executor}
 	serverConn, clientConn := net.Pipe()
 	defer clientConn.Close()
-	go server.handle(context.Background(), serverConn)
+	go server.handle(t.Context(), serverConn)
 
 	request := signedRequest(t, private, nil)
 	request.VerificationKeys = []CredentialKey{material, socketCredentialKey(t, private)}
@@ -288,7 +288,7 @@ func TestServerLogsAuthorizationPolicyIntersection(t *testing.T) {
 	server := &Server{Credential: credential, Executor: executor, LogWriter: &diagnostics}
 	serverConn, clientConn := net.Pipe()
 	defer clientConn.Close()
-	go server.handle(context.Background(), serverConn)
+	go server.handle(t.Context(), serverConn)
 
 	require.NoError(t, writeMessage(clientConn, signedRequest(t, private, nil)))
 	var response ExecuteResponse

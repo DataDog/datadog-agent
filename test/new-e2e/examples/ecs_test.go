@@ -6,7 +6,6 @@
 package examples
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -29,7 +28,7 @@ func TestMyECSSuite(t *testing.T) {
 }
 
 func (v *myECSSuite) TestECS() {
-	ctx := context.Background()
+	ctx := v.T().Context()
 
 	tasks, err := v.Env().ECSCluster.ECSClient.ListTasks(ctx, &awsecs.ListTasksInput{
 		Cluster: aws.String(v.Env().ECSCluster.ClusterName),

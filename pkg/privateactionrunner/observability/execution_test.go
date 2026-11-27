@@ -15,8 +15,8 @@ import (
 )
 
 func TestExecutionDetails(t *testing.T) {
-	ctx, first := WithExecutionDetails(context.Background())
-	_, second := WithExecutionDetails(context.Background())
+	ctx, first := WithExecutionDetails(t.Context())
+	_, second := WithExecutionDetails(t.Context())
 	fields := []log.Field{log.String("version", "1.2.3")}
 	SetExecutionDetails(context.WithoutCancel(ctx), "execution", fields...)
 	fields[0] = log.String("version", "mutated")
@@ -29,5 +29,5 @@ func TestExecutionDetails(t *testing.T) {
 	require.Equal(t, "1.2.3", got[0].Value)
 	_, _, provided = second.snapshot()
 	require.False(t, provided, "metadata must not leak to another execution")
-	SetExecutionDetails(context.Background(), "execution", fields...) // Direct action calls have no collector.
+	SetExecutionDetails(t.Context(), "execution", fields...) // Direct action calls have no collector.
 }

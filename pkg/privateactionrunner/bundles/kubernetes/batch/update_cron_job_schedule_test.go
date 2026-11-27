@@ -6,7 +6,6 @@
 package com_datadoghq_kubernetes_batch
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -136,7 +135,7 @@ func TestUpdateCronJobSchedule(t *testing.T) {
 			}
 
 			handler := &UpdateCronJobScheduleHandler{client: client}
-			outputs, err := handler.Run(context.Background(), newBatchTestTask(inputs), nil)
+			outputs, err := handler.Run(t.Context(), newBatchTestTask(inputs), nil)
 			if test.wantErr {
 				require.Error(t, err)
 				assert.Nil(t, outputs)

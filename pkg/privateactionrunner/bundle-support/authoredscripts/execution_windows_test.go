@@ -25,7 +25,7 @@ import (
 func TestExecuteCommandWindowsSuccess(t *testing.T) {
 	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", `[Console]::Out.Write("hello"); [Console]::Error.Write("world")`)
 
-	result, err := ExecuteCommand(context.Background(), cmd)
+	result, err := ExecuteCommand(t.Context(), cmd)
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.ExitCode)
@@ -36,7 +36,7 @@ func TestExecuteCommandWindowsSuccess(t *testing.T) {
 func TestExecuteCommandWindowsNonZeroExit(t *testing.T) {
 	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", `[Console]::Error.Write("boom"); exit 3`)
 
-	result, err := ExecuteCommand(context.Background(), cmd)
+	result, err := ExecuteCommand(t.Context(), cmd)
 
 	require.Error(t, err)
 	assert.Equal(t, 3, result.ExitCode)
@@ -45,7 +45,7 @@ func TestExecuteCommandWindowsNonZeroExit(t *testing.T) {
 }
 
 func TestExecuteCommandWindowsContextTimeout(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()
 	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 30")
 
@@ -63,9 +63,9 @@ func TestExecuteCommandWindowsContextCancellationTerminatesDescendants(t *testin
 	require.NoError(t, err)
 	defer windows.CloseHandle(readyEvent)
 
-	testCtx, cancelTest := context.WithTimeout(context.Background(), testTimeout)
+	testCtx, cancelTest := context.WithTimeout(t.Context(), testTimeout)
 	defer cancelTest()
-	executionCtx, cancelExecution := context.WithCancel(context.Background())
+	executionCtx, cancelExecution := context.WithCancel(t.Context())
 	defer cancelExecution()
 	cmd := exec.Command(
 		"powershell.exe",
@@ -114,7 +114,7 @@ func TestExecuteCommandWindowsContextCancellationTerminatesDescendants(t *testin
 func TestExecuteCommandWindowsOutputLimit(t *testing.T) {
 	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", `while ($true) { [Console]::Out.Write("xxxxxxxxxxxxxxxx") }`)
 
-	result, err := executeCommand(context.Background(), cmd, 100)
+	result, err := executeCommand(t.Context(), cmd, 100)
 
 	require.ErrorIs(t, err, errOutputLimitExceeded)
 	assert.LessOrEqual(t, len(result.Stdout)+len(result.Stderr), 100)

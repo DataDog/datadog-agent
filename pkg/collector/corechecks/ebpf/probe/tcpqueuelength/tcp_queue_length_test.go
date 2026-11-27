@@ -59,7 +59,7 @@ func TestTCPQueueLengthTracer(t *testing.T) {
 			}
 		}, 3*time.Second, 1*time.Second)
 
-		err = runTCPLoadTest()
+		err = runTCPLoadTest(t.Context())
 		require.NoError(t, err)
 
 		var maxReadUsage uint32
@@ -108,11 +108,11 @@ var tcpTestAddr = &net.TCPAddr{
 
 const msgLen = 10000
 
-func runTCPLoadTest() error {
+func runTCPLoadTest(ctx context.Context) error {
 	serverReady := make(chan struct{})
 	bufferConfigured := make(chan struct{})
 
-	g, ctx := errgroup.WithContext(context.Background())
+	g, ctx := errgroup.WithContext(ctx)
 
 	// Server goroutine: listen, accept, configure a tiny receive buffer, then read.
 	g.Go(func() error {

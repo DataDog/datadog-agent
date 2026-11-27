@@ -28,7 +28,7 @@ import (
 // is canceled. This uses io.Discard so the test measures cancellation rather
 // than stdout buffering.
 func TestVulnHuntBuiltinSpecialFiles_DevZeroStopsOnContext(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()
 
 	prog, err := syntax.NewParser().Parse(strings.NewReader("tr a b < /dev/zero"), "")

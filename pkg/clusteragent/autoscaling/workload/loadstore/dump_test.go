@@ -38,7 +38,7 @@ func newEntity(metricName, ns, deployment, podName, containerName string) *Entit
 }
 
 func TestLocalAutoscalingWorkloadCheck(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	testTime := time.Now().Unix()
 	pkgconfigsetup.Datadog().SetInTest("autoscaling.failover.enabled", true)
 	defer cancel()

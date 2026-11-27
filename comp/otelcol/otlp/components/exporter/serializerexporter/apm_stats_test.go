@@ -99,7 +99,7 @@ func testAPMStats(t *testing.T, factory exporter.Factory, statsIn chan []byte) {
 		close(statsIn)
 		return nil
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	set := exportertest.NewNopSettings(factory.Type())
 	exp, err := factory.CreateMetrics(ctx, set, cfg)
 	require.NoError(t, err)

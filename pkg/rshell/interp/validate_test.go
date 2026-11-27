@@ -38,7 +38,7 @@ func TestValidateRedirect_ReadOnlyMode(t *testing.T) {
 		t.Run(tc.script, func(t *testing.T) {
 			prog, err := ParseScript(tc.script, "")
 			require.NoError(t, err)
-			err = validateNode(context.Background(), prog, false)
+			err = validateNode(t.Context(), prog, false)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.wantErr, "unexpected error for %q", tc.script)
 		})
@@ -61,7 +61,7 @@ func TestValidateRedirect_RemediationMode(t *testing.T) {
 		t.Run(script, func(t *testing.T) {
 			prog, err := ParseScript(script, "")
 			require.NoError(t, err)
-			assert.NoError(t, validateNode(context.Background(), prog, true), "expected no validation error for %q", script)
+			assert.NoError(t, validateNode(t.Context(), prog, true), "expected no validation error for %q", script)
 		})
 	}
 
@@ -78,7 +78,7 @@ func TestValidateRedirect_RemediationMode(t *testing.T) {
 		t.Run(tc.script, func(t *testing.T) {
 			prog, err := ParseScript(tc.script, "")
 			require.NoError(t, err)
-			err = validateNode(context.Background(), prog, true)
+			err = validateNode(t.Context(), prog, true)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.wantErr)
 		})
@@ -100,7 +100,7 @@ func TestValidateRedirect_AlwaysBlocked(t *testing.T) {
 			t.Run(tc.script, func(t *testing.T) {
 				prog, err := ParseScript(tc.script, "")
 				require.NoError(t, err)
-				err = validateNode(context.Background(), prog, remMode)
+				err = validateNode(t.Context(), prog, remMode)
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.wantErr)
 			})
@@ -123,7 +123,7 @@ func TestValidateNode_BlockedConstructs(t *testing.T) {
 		t.Run(tc.script, func(t *testing.T) {
 			prog, err := ParseScript(tc.script, "")
 			require.NoError(t, err)
-			err = validateNode(context.Background(), prog, false)
+			err = validateNode(t.Context(), prog, false)
 			require.Error(t, err)
 			assert.True(t, strings.Contains(err.Error(), tc.wantErr),
 				"error %q does not contain %q", err.Error(), tc.wantErr)
@@ -149,7 +149,7 @@ func TestValidateTildeViaBraceExpansion(t *testing.T) {
 		t.Run(script, func(t *testing.T) {
 			prog, err := ParseScript(script, "")
 			require.NoError(t, err)
-			err = validateNode(context.Background(), prog, false)
+			err = validateNode(t.Context(), prog, false)
 			require.Error(t, err)
 			assert.Equal(t, "tilde expansion is not supported", err.Error())
 		})
@@ -175,7 +175,7 @@ func TestValidateTildeViaBraceExpansion(t *testing.T) {
 		t.Run(script, func(t *testing.T) {
 			prog, err := ParseScript(script, "")
 			require.NoError(t, err)
-			assert.NoError(t, validateNode(context.Background(), prog, false))
+			assert.NoError(t, validateNode(t.Context(), prog, false))
 		})
 	}
 }
@@ -191,7 +191,7 @@ func TestValidateTildeLiteralWords(t *testing.T) {
 		t.Run(script, func(t *testing.T) {
 			prog, err := ParseScript(script, "")
 			require.NoError(t, err)
-			err = validateNode(context.Background(), prog, false)
+			err = validateNode(t.Context(), prog, false)
 			require.Error(t, err)
 			assert.Equal(t, "tilde expansion is not supported", err.Error())
 		})
@@ -224,7 +224,7 @@ func TestValidateTildeNestedBraceScaling(t *testing.T) {
 		prog, err := ParseScript(tc.script, "")
 		require.NoError(t, err)
 		start := time.Now()
-		err = validateNode(context.Background(), prog, false)
+		err = validateNode(t.Context(), prog, false)
 		elapsed := time.Since(start)
 		if tc.wantErr == "" {
 			assert.NoError(t, err, "case %d", i)
@@ -254,7 +254,7 @@ func TestValidateTildeBraceSplitWorkLimit(t *testing.T) {
 func TestValidateNodeHonoursCancellation(t *testing.T) {
 	prog, err := ParseScript("echo "+strings.Repeat("{,}", 4096)+"~root", "")
 	require.NoError(t, err)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	assert.ErrorIs(t, validateNode(ctx, prog, false), context.Canceled)
 }

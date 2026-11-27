@@ -102,7 +102,7 @@ func TestOrderRate(t *testing.T) {
 		retention := 5
 
 		var lock sync.RWMutex
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 
 		reOrderer := NewReOrderer(ctx, func(record *perf.Record) {
 			lock.Lock()

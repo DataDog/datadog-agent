@@ -162,7 +162,7 @@ func TestEventRaleLimiters(t *testing.T) {
 
 		// open from another process
 		err = test.GetEventSent(t, func() error {
-			timeoutCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			timeoutCtx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 			defer cancel()
 
 			return runSyscallTesterFunc(
@@ -213,7 +213,7 @@ func TestEventRaleLimiters(t *testing.T) {
 
 		// open from another process
 		err = test.GetEventSent(t, func() error {
-			timeoutCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			timeoutCtx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 			defer cancel()
 
 			return runSyscallTesterFunc(
@@ -274,7 +274,7 @@ func TestEventIteratorRegister(t *testing.T) {
 
 	t.Run("std", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "self-exec", "self-exec", "open", testFile)
+			return runSyscallTesterFunc(t.Context(), t, syscallTester, "self-exec", "self-exec", "open", testFile)
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_register_1")
 		}, "test_register_1")

@@ -7,7 +7,6 @@ package cut_test
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -43,7 +42,7 @@ func cutRun(t *testing.T, script, dir string) (string, string, int) {
 		runner.Dir = dir
 	}
 
-	err = runner.Run(context.Background(), prog)
+	err = runner.Run(t.Context(), prog)
 	exitCode := 0
 	if err != nil {
 		var es interp.ExitStatus

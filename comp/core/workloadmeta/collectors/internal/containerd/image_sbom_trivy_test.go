@@ -70,7 +70,7 @@ func TestProcessScanResultLogLevel(t *testing.T) {
 	c := provider.Collector.(*collector)
 	c.containerdClient = client
 
-	manifestErr := c.handleImageCreateOrUpdate(context.Background(), namespace, listed, nil)
+	manifestErr := c.handleImageCreateOrUpdate(t.Context(), namespace, listed, nil)
 	require.True(t, errdefs.IsNotFound(manifestErr), "manifest read error: %v", manifestErr)
 
 	tests := []struct {
@@ -101,7 +101,7 @@ func TestProcessScanResultLogLevel(t *testing.T) {
 			pkglog.SetupLogger(l, "debug")
 			t.Cleanup(func() { pkglog.SetupLogger(pkglog.Default(), "info") })
 
-			c.processScanResult(context.Background(), sbom.ScanResult{
+			c.processScanResult(t.Context(), sbom.ScanResult{
 				ImgMeta: &workloadmeta.ContainerImageMetadata{
 					EntityMeta: workloadmeta.EntityMeta{Name: tt.imageName, Namespace: namespace},
 				},

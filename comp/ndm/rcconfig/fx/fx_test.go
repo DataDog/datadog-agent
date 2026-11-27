@@ -6,7 +6,6 @@
 package fx
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -61,7 +60,7 @@ func (l *fakeLifecycle) Append(h fx.Hook) { l.hooks = append(l.hooks, h) }
 func (l *fakeLifecycle) start(t *testing.T) {
 	t.Helper()
 	for _, h := range l.hooks {
-		require.NoError(t, h.OnStart(context.Background()))
+		require.NoError(t, h.OnStart(t.Context()))
 	}
 }
 

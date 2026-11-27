@@ -9,7 +9,6 @@
 package tests
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -51,7 +50,7 @@ func TestSpliceEvent(t *testing.T) {
 
 	t.Run("test_splice", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "splice")
+			return runSyscallTesterFunc(t.Context(), t, syscallTester, "splice")
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "splice", event.GetType(), "wrong event type")
 			assert.Equal(t, uint32(0), event.Splice.PipeEntryFlag, "wrong pipe entry flag")

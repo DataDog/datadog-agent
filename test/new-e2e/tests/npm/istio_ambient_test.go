@@ -6,7 +6,6 @@
 package npm
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -282,7 +281,7 @@ func (s *istioAmbientSuite) AfterTest(suiteName, testName string) {
 // failures can be told apart from containers the agent never learned about.
 func (s *istioAmbientSuite) dumpAgentState(testName string) {
 	t := s.T()
-	ctx := context.Background()
+	ctx := t.Context()
 	client := s.Env().KubernetesCluster.Client()
 
 	ids := map[string]string{} // container ID to namespace/pod/container
@@ -492,7 +491,7 @@ type ambientPod struct {
 func (s *istioAmbientSuite) pod(namespace, app string) ambientPod {
 	var pod ambientPod
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
-		pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods(namespace).List(context.Background(), k8smetav1.ListOptions{LabelSelector: "app=" + app})
+		pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods(namespace).List(s.T().Context(), k8smetav1.ListOptions{LabelSelector: "app=" + app})
 		require.NoError(c, err)
 		require.Len(c, pods.Items, 1, "want one %s pod", app)
 		p := pods.Items[0]
@@ -507,7 +506,7 @@ func (s *istioAmbientSuite) pod(namespace, app string) ambientPod {
 }
 
 func (s *istioAmbientSuite) ztunnelPods(c *assert.CollectT) []ambientPod {
-	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("istio-system").List(context.Background(), k8smetav1.ListOptions{LabelSelector: "app=ztunnel"})
+	pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("istio-system").List(s.T().Context(), k8smetav1.ListOptions{LabelSelector: "app=ztunnel"})
 	require.NoError(c, err)
 	require.NotEmpty(c, pods.Items, "no ztunnel pods")
 	var out []ambientPod

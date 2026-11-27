@@ -59,7 +59,7 @@ func TestRotateJournalControlUsesFixedSynchronousMethod(t *testing.T) {
 
 	rotationDone := make(chan error, 1)
 	go func() {
-		rotationDone <- callJournalRotateVarlink(context.Background(), client)
+		rotationDone <- callJournalRotateVarlink(t.Context(), client)
 	}()
 
 	var decoded varlinkRequest
@@ -92,7 +92,7 @@ func TestRotateJournalControlReportsSafeProtocolErrors(t *testing.T) {
 			defer client.Close()
 			_, finished := serveVarlinkResponse(server, []byte(test.response), nil)
 
-			err := callJournalRotateVarlink(context.Background(), client)
+			err := callJournalRotateVarlink(t.Context(), client)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), test.needle)
 			if test.name == "unsafe daemon error" {
@@ -106,7 +106,7 @@ func TestRotateJournalControlReportsSafeProtocolErrors(t *testing.T) {
 func TestContextNetworkErrorHandlesDeadlinePublicationRace(t *testing.T) {
 	// Model the brief interval where the socket deadline has fired but the
 	// context timer has not yet published context.DeadlineExceeded.
-	ctx := elapsedDeadlineContext{Context: context.Background()}
+	ctx := elapsedDeadlineContext{Context: t.Context()}
 	err := fmt.Errorf("wrapped timeout: %w", os.ErrDeadlineExceeded)
 
 	assert.ErrorIs(t, contextNetworkError(ctx, err), context.DeadlineExceeded)
@@ -116,7 +116,7 @@ func TestRotateJournalControlHonorsCancellation(t *testing.T) {
 	client, server := net.Pipe()
 	gate := make(chan struct{})
 	_, finished := serveVarlinkResponse(server, []byte(`{"parameters":{}}`), gate)
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
 	defer cancel()
 
 	err := callJournalRotateVarlink(ctx, client)
@@ -133,7 +133,7 @@ func TestRotateJournalControlRejectsNonSocketEndpoints(t *testing.T) {
 	client := &Client{}
 	regular := filepath.Join(t.TempDir(), "journal.sock")
 	require.NoError(t, os.WriteFile(regular, []byte("not a socket"), 0o600))
-	err := client.rotateJournalControl(context.Background(), regular)
+	err := client.rotateJournalControl(t.Context(), regular)
 	assert.ErrorContains(t, err, "not a Unix socket")
 
 	if runtime.GOOS == "windows" {
@@ -141,7 +141,7 @@ func TestRotateJournalControlRejectsNonSocketEndpoints(t *testing.T) {
 	}
 	symlink := filepath.Join(t.TempDir(), "journal-link.sock")
 	require.NoError(t, os.Symlink(regular, symlink))
-	err = client.rotateJournalControl(context.Background(), symlink)
+	err = client.rotateJournalControl(t.Context(), symlink)
 	assert.ErrorContains(t, err, "not a Unix socket")
 }
 

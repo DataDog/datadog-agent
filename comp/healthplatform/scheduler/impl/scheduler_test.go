@@ -8,7 +8,6 @@
 package schedulerimpl
 
 import (
-	"context"
 	"errors"
 	"sync/atomic"
 	"testing"
@@ -196,11 +195,11 @@ func TestSchedulerLifecycle(t *testing.T) {
 	fn := func() ([]runnerdef.IssueReport, error) { return nil, nil }
 	require.NoError(t, s.Schedule("mycomp", fn, 20*time.Millisecond, nil))
 
-	require.NoError(t, s.start(context.Background()))
+	require.NoError(t, s.start(t.Context()))
 
 	assert.Eventually(t, func() bool { return atomic.LoadInt32(&callCount) >= 2 },
 		500*time.Millisecond, 10*time.Millisecond)
 
-	require.NoError(t, s.stop(context.Background()))
+	require.NoError(t, s.stop(t.Context()))
 	assert.GreaterOrEqual(t, atomic.LoadInt32(&callCount), int32(2))
 }

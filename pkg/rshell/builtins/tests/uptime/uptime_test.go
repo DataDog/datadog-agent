@@ -10,7 +10,6 @@ package uptime_test
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"io"
 	"testing"
@@ -53,7 +52,7 @@ func runHandler(t *testing.T, getInfo func() (sysinfo.Info, error), args ...stri
 		Stderr: &errBuf,
 		Now:    fixedNow,
 	}
-	result := handler(context.Background(), callCtx, fs.Args())
+	result := handler(t.Context(), callCtx, fs.Args())
 	return outBuf.String(), errBuf.String(), result.Code
 }
 

@@ -8,7 +8,6 @@
 package handlers
 
 import (
-	"context"
 	"testing"
 
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
@@ -173,7 +172,7 @@ func TestLogsHandle_CreateAndDelete(t *testing.T) {
 				},
 			})
 
-			status, err := h.Handle(context.Background(), instrumentation.EventCreate, cr)
+			status, err := h.Handle(t.Context(), instrumentation.EventCreate, cr)
 			require.NoError(t, err)
 			assert.Equal(t, metav1.ConditionTrue, status.Status)
 			assert.Equal(t, "Configured", status.Reason)
@@ -190,7 +189,7 @@ func TestLogsHandle_CreateAndDelete(t *testing.T) {
 			require.Len(t, configs[0].CELSelector.Containers, 1)
 			assert.Contains(t, configs[0].CELSelector.Containers[0], `container.pod.rootowner.name == "`+tt.targetName+`"`)
 
-			status, err = h.Handle(context.Background(), instrumentation.EventDelete, cr)
+			status, err = h.Handle(t.Context(), instrumentation.EventDelete, cr)
 			require.NoError(t, err)
 			assert.Equal(t, metav1.ConditionTrue, status.Status)
 			assert.Equal(t, "Deleted", status.Reason)
@@ -279,7 +278,7 @@ func TestLogsHandle_Update(t *testing.T) {
 		},
 	})
 
-	_, err := h.Handle(context.Background(), instrumentation.EventCreate, cr)
+	_, err := h.Handle(t.Context(), instrumentation.EventCreate, cr)
 	require.NoError(t, err)
 	configs, _ := cs.ListConfigs()
 	require.Len(t, configs, 1)
@@ -290,7 +289,7 @@ func TestLogsHandle_Update(t *testing.T) {
 			Source: "envoy",
 		},
 	})
-	status, err := h.Handle(context.Background(), instrumentation.EventUpdate, cr)
+	status, err := h.Handle(t.Context(), instrumentation.EventUpdate, cr)
 	require.NoError(t, err)
 	assert.Equal(t, metav1.ConditionTrue, status.Status)
 	assert.Contains(t, status.Message, "2 log config(s) configured")
@@ -322,15 +321,15 @@ func TestLogsHandle_MultipleCRs(t *testing.T) {
 		},
 	})
 
-	_, err := h.Handle(context.Background(), instrumentation.EventCreate, cr1)
+	_, err := h.Handle(t.Context(), instrumentation.EventCreate, cr1)
 	require.NoError(t, err)
-	_, err = h.Handle(context.Background(), instrumentation.EventCreate, cr2)
+	_, err = h.Handle(t.Context(), instrumentation.EventCreate, cr2)
 	require.NoError(t, err)
 
 	configs, _ := cs.ListConfigs()
 	require.Len(t, configs, 2)
 
-	_, err = h.Handle(context.Background(), instrumentation.EventDelete, cr1)
+	_, err = h.Handle(t.Context(), instrumentation.EventDelete, cr1)
 	require.NoError(t, err)
 
 	configs, _ = cs.ListConfigs()
@@ -341,7 +340,7 @@ func TestLogsHandle_MultipleCRs(t *testing.T) {
 
 func TestLogsHandler_NilCR(t *testing.T) {
 	h, _ := newLogsHandler()
-	status, err := h.Handle(context.Background(), instrumentation.EventCreate, nil)
+	status, err := h.Handle(t.Context(), instrumentation.EventCreate, nil)
 	require.NoError(t, err)
 	assert.Equal(t, metav1.ConditionUnknown, status.Status)
 	assert.Equal(t, "MissingResource", status.Reason)
@@ -373,9 +372,9 @@ func TestLogsHandlerSharesCheckStoreWithoutOverwritingChecks(t *testing.T) {
 		},
 	}
 
-	_, err := checksHandler.Handle(context.Background(), instrumentation.EventCreate, cr)
+	_, err := checksHandler.Handle(t.Context(), instrumentation.EventCreate, cr)
 	require.NoError(t, err)
-	_, err = logsHandler.Handle(context.Background(), instrumentation.EventCreate, cr)
+	_, err = logsHandler.Handle(t.Context(), instrumentation.EventCreate, cr)
 	require.NoError(t, err)
 
 	configs, _ := cs.ListConfigs()
@@ -390,7 +389,7 @@ func TestLogsHandlerSharesCheckStoreWithoutOverwritingChecks(t *testing.T) {
 	assert.NotNil(t, byName[logsCheckName].LogsConfig)
 	assert.Len(t, byName["redisdb"].Instances, 1)
 
-	_, err = logsHandler.Handle(context.Background(), instrumentation.EventDelete, cr)
+	_, err = logsHandler.Handle(t.Context(), instrumentation.EventDelete, cr)
 	require.NoError(t, err)
 
 	configs, _ = cs.ListConfigs()

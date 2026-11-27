@@ -131,7 +131,7 @@ func TestWriteAllPeriodically_CancelsOnContext(t *testing.T) {
 
 	store.Add("key1", nil)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	done := make(chan bool)
 	go func() {

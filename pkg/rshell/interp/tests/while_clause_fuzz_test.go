@@ -39,7 +39,7 @@ func whileFuzzRun(t *testing.T, script string) {
 
 	// 250 ms is enough for any non-pathological fuzz input to finish; longer
 	// pushes the seed-corpus run time past CI budgets.
-	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 250*time.Millisecond)
 	defer cancel()
 
 	var outBuf, errBuf bytes.Buffer

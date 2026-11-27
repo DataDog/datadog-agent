@@ -6,7 +6,6 @@
 package cert
 
 import (
-	"context"
 	"crypto/x509"
 	"encoding/pem"
 	"net"
@@ -126,7 +125,7 @@ func TestFetchOrCreateIPCCert_WithClusterCA(t *testing.T) {
 	config, tempDir, caCert, _ := setupTempConfigWithCA(t)
 
 	// Generate certificate using cluster CA from config
-	ctx := context.Background()
+	ctx := t.Context()
 	clientConfig, serverConfig, clusterClientConfig, err := FetchOrCreateIPCCert(ctx, config)
 	require.NoError(t, err)
 	require.NotNil(t, clientConfig)
@@ -179,7 +178,7 @@ func TestFetchOrCreateIPCCert_WithCLCRunnerHost(t *testing.T) {
 	config.SetInTest("clc_runner_host", testHostname)
 
 	// Generate certificate with CLC runner host
-	ctx := context.Background()
+	ctx := t.Context()
 	clientConfig, serverConfig, clusterClientConfig, err := FetchOrCreateIPCCert(ctx, config)
 	require.NoError(t, err)
 	require.NotNil(t, clientConfig)
@@ -238,7 +237,7 @@ func TestFetchOrCreateIPCCert_WithCAAndCLCRunner(t *testing.T) {
 	config.SetInTest("clc_runner_host", testHostname)
 
 	// Generate certificate using both CA and CLC runner host config
-	ctx := context.Background()
+	ctx := t.Context()
 	clientConfig, serverConfig, clusterClientConfig, err := FetchOrCreateIPCCert(ctx, config)
 	require.NoError(t, err)
 	require.NotNil(t, clientConfig)
@@ -298,7 +297,7 @@ func TestFetchOrCreateIPCCert_WithoutOptions(t *testing.T) {
 	config, tempDir := setupTempConfig(t)
 
 	// Generate certificate without any special config (should create self-signed)
-	ctx := context.Background()
+	ctx := t.Context()
 	clientConfig, serverConfig, clusterClientConfig, err := FetchOrCreateIPCCert(ctx, config)
 	require.NoError(t, err)
 	require.NotNil(t, clientConfig)
@@ -349,7 +348,7 @@ func TestFetchOrCreateIPCCert_WithoutOptions(t *testing.T) {
 // it's reused instead of generating a new one
 func TestFetchOrCreateIPCCert_CertificateReuse(t *testing.T) {
 	config, tempDir := setupTempConfig(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Generate first certificate
 	clientConfig1, serverConfig1, clusterClientConfig1, err := FetchOrCreateIPCCert(ctx, config)
@@ -396,7 +395,7 @@ func TestFetchIPCCert(t *testing.T) {
 	config, _, _, _ := setupTempConfigWithCA(t)
 
 	// First, create a certificate using FetchOrCreateIPCCert so we have something to fetch
-	ctx := context.Background()
+	ctx := t.Context()
 	_, _, _, err := FetchOrCreateIPCCert(ctx, config)
 	require.NoError(t, err)
 
@@ -578,7 +577,7 @@ func TestFetchOrCreateIPCCert_ClusterAgentFlavor(t *testing.T) {
 	defer config.SetInTest("cluster_agent.url", "")
 
 	// Generate certificate with ClusterAgent flavor
-	ctx := context.Background()
+	ctx := t.Context()
 	clientConfig, serverConfig, clusterClientConfig, err := FetchOrCreateIPCCert(ctx, config)
 	require.NoError(t, err)
 	require.NotNil(t, clientConfig)

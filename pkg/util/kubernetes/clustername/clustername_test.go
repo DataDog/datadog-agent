@@ -21,7 +21,7 @@ import (
 )
 
 func TestGetClusterName(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	mockConfig := configmock.New(t)
 	// Disable cloud provider metadata detection to avoid real HTTP calls to
 	// EC2/GCE/Azure metadata endpoints.
@@ -94,7 +94,7 @@ func TestGetClusterName(t *testing.T) {
 // never has a locally-reachable kubelet) still honors a cluster name provided
 // via config, without needing the node-label based auto discovery.
 func TestGetClusterNameCLCRunner(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	mockConfig := configmock.New(t)
 	env.SetFeatures(t, env.Kubernetes)
 
@@ -238,7 +238,7 @@ func TestGetClusterNameOTelResourceAttributes(t *testing.T) {
 			})
 			t.Setenv("OTEL_RESOURCE_ATTRIBUTES", tt.resourceAttributes)
 
-			assert.Equal(t, tt.want, getClusterName(context.Background(), newClusterNameData(), "hostname"))
+			assert.Equal(t, tt.want, getClusterName(t.Context(), newClusterNameData(), "hostname"))
 		})
 	}
 }

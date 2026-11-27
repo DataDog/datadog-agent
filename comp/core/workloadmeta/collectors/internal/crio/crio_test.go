@@ -365,7 +365,7 @@ func TestPull(t *testing.T) {
 				cfg:    config,
 			}
 
-			err := crioCollector.Pull(context.Background())
+			err := crioCollector.Pull(t.Context())
 
 			if tt.expectedError {
 				assert.Error(t, err)
@@ -518,7 +518,7 @@ func TestGenerateImageEventFromContainer(t *testing.T) {
 				cfg:    configmock.New(t),
 			}
 
-			event, err := crioCollector.generateImageEventFromContainer(context.Background(), tt.container)
+			event, err := crioCollector.generateImageEventFromContainer(t.Context(), tt.container)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -652,7 +652,7 @@ func TestOptimizedImageCollection(t *testing.T) {
 				cfg:    config,
 			}
 
-			events, imageIDs, err := crioCollector.generateImageEventsFromImageList(context.Background())
+			events, imageIDs, err := crioCollector.generateImageEventsFromImageList(t.Context())
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -876,7 +876,7 @@ func TestPullWithImageCollectionEnabled(t *testing.T) {
 				cfg:        config,
 			}
 
-			err := crioCollector.Pull(context.Background())
+			err := crioCollector.Pull(t.Context())
 
 			if tt.expectedError {
 				assert.Error(t, err)

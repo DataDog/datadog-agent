@@ -84,7 +84,7 @@ func setupTestConfig(t *testing.T, sendErr error) (chan error, chan autodiscover
 		},
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	out := &outMock{
 		send: func(resp *pb.AutodiscoveryStreamResponse) error {

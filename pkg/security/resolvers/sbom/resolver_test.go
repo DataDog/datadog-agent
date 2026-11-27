@@ -1215,7 +1215,7 @@ func TestStartIndexesHostThroughInitRoot(t *testing.T) {
 		failedSBOMGenerations: atomic.NewUint64(0),
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	if err := r.Start(ctx); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -2160,7 +2160,7 @@ func TestRescanHostOnCheck(t *testing.T) {
 			}
 			r.hostFingerprint, r.hostScanned = tt.fingerprint, tt.scanned
 
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			tick := make(chan time.Time)
 			done := make(chan struct{})
 			go func() {

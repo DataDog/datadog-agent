@@ -8,7 +8,6 @@
 package ecs
 
 import (
-	"context"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -117,14 +116,14 @@ func TestPullWithTaskCollectionEnabledWithV4Parser(t *testing.T) {
 	_, store, collector, cleanup := setupV4ParserTest(t, true)
 	defer cleanup()
 
-	err := collector.Pull(context.Background())
+	err := collector.Pull(t.Context())
 	require.NoError(t, err)
 
 	verifyV4ParserResults(t, store, true)
 
 	// second pull should not notify any events as they are in cache
 	store.notifiedEvents = store.notifiedEvents[:0]
-	err = collector.Pull(context.Background())
+	err = collector.Pull(t.Context())
 	require.NoError(t, err)
 	require.Len(t, store.notifiedEvents, 0)
 
@@ -142,14 +141,14 @@ func TestPullWithTaskCollectionEnabledWithV4ParserNoResourceTags(t *testing.T) {
 	_, store, collector, cleanup := setupV4ParserTest(t, false)
 	defer cleanup()
 
-	err := collector.Pull(context.Background())
+	err := collector.Pull(t.Context())
 	require.NoError(t, err)
 
 	verifyV4ParserResults(t, store, false)
 
 	// second pull should not notify any events as they are in cache
 	store.notifiedEvents = store.notifiedEvents[:0]
-	err = collector.Pull(context.Background())
+	err = collector.Pull(t.Context())
 	require.NoError(t, err)
 	require.Len(t, store.notifiedEvents, 0)
 }
@@ -162,7 +161,7 @@ func TestPullWithTaskCollectionEnabledWithV4ParserCacheClearing(t *testing.T) {
 	defer cleanup()
 
 	// First pull - should fetch tags from API
-	err := collector.Pull(context.Background())
+	err := collector.Pull(t.Context())
 	require.NoError(t, err)
 
 	verifyV4ParserResults(t, store, true)
@@ -179,7 +178,7 @@ func TestPullWithTaskCollectionEnabledWithV4ParserCacheClearing(t *testing.T) {
 	store.notifiedEvents = store.notifiedEvents[:0]
 
 	// Second pull - should fetch from API again since cache was cleared
-	err = collector.Pull(context.Background())
+	err = collector.Pull(t.Context())
 	require.NoError(t, err)
 
 	// Should notify events again since cache was cleared
@@ -210,7 +209,7 @@ func TestParseTasksFromV4TasksEndpoint(t *testing.T) {
 	}
 	c.taskCollectionParser = c.parseTasksFromV4TasksEndpoint
 
-	events, err := c.parseTasksFromV4TasksEndpoint(context.Background())
+	events, err := c.parseTasksFromV4TasksEndpoint(t.Context())
 	require.NoError(t, err)
 
 	// expect 2 task events + 2 container events
@@ -255,7 +254,7 @@ func TestParseTasksFromV4TasksEndpointUnsetsStaleTasks(t *testing.T) {
 		seen:         map[workloadmeta.EntityID]struct{}{staleID: {}},
 	}
 
-	events, err := c.parseTasksFromV4TasksEndpoint(context.Background())
+	events, err := c.parseTasksFromV4TasksEndpoint(t.Context())
 	require.NoError(t, err)
 
 	var unsetEvents []workloadmeta.CollectorEvent

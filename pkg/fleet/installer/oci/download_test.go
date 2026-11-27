@@ -38,6 +38,7 @@ import (
 
 type testDownloadServer struct {
 	*fixtures.Server
+	ctx   context.Context
 	m     *testMirrorServer
 	guard *localOnlyTransport
 }
@@ -46,6 +47,7 @@ func newTestDownloadServer(t *testing.T) *testDownloadServer {
 	s := fixtures.NewServer(t)
 	return &testDownloadServer{
 		Server: s,
+		ctx:    t.Context(),
 		m:      newTestMirrorServer(s.URL()),
 		guard:  &localOnlyTransport{},
 	}
@@ -87,7 +89,7 @@ func (s *testDownloadServer) DownloaderWithEnv(env *env.Env) *Downloader {
 }
 
 func (s *testDownloadServer) Image(f fixtures.Fixture) oci.Image {
-	downloadedPackage, err := s.Downloader().Download(context.Background(), s.PackageURL(f))
+	downloadedPackage, err := s.Downloader().Download(s.ctx, s.PackageURL(f))
 	if err != nil {
 		panic(err)
 	}
@@ -98,13 +100,13 @@ func TestDownload(t *testing.T) {
 	s := newTestDownloadServer(t)
 	d := s.Downloader()
 
-	downloadedPackage, err := d.Download(context.Background(), s.PackageURL(fixtures.FixtureSimpleV1))
+	downloadedPackage, err := d.Download(t.Context(), s.PackageURL(fixtures.FixtureSimpleV1))
 	assert.NoError(t, err)
 	assert.Equal(t, fixtures.FixtureSimpleV1.Package, downloadedPackage.Name)
 	assert.Equal(t, fixtures.FixtureSimpleV1.Version, downloadedPackage.Version)
 	assert.NotZero(t, downloadedPackage.Size)
 	tmpDir := t.TempDir()
-	err = downloadedPackage.ExtractLayers(context.Background(), DatadogPackageLayerMediaType, tmpDir)
+	err = downloadedPackage.ExtractLayers(t.Context(), DatadogPackageLayerMediaType, tmpDir)
 	assert.NoError(t, err)
 	fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), os.DirFS(tmpDir))
 }
@@ -114,14 +116,14 @@ func TestDownloadMirror(t *testing.T) {
 	defer s.Close()
 	d := s.DownloaderWithMirror()
 
-	downloadedPackage, err := d.Download(context.Background(), s.PackageURL(fixtures.FixtureSimpleV1))
+	downloadedPackage, err := d.Download(t.Context(), s.PackageURL(fixtures.FixtureSimpleV1))
 	assert.NoError(t, err)
 	assert.Empty(t, s.guard.Refused())
 	assert.Equal(t, fixtures.FixtureSimpleV1.Package, downloadedPackage.Name)
 	assert.Equal(t, fixtures.FixtureSimpleV1.Version, downloadedPackage.Version)
 	assert.NotZero(t, downloadedPackage.Size)
 	tmpDir := t.TempDir()
-	err = downloadedPackage.ExtractLayers(context.Background(), DatadogPackageLayerMediaType, tmpDir)
+	err = downloadedPackage.ExtractLayers(t.Context(), DatadogPackageLayerMediaType, tmpDir)
 	assert.NoError(t, err)
 	fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), os.DirFS(tmpDir))
 }
@@ -130,13 +132,13 @@ func TestDownloadLayout(t *testing.T) {
 	s := newTestDownloadServer(t)
 	d := s.Downloader()
 
-	downloadedPackage, err := d.Download(context.Background(), s.PackageLayoutURL(fixtures.FixtureSimpleV1))
+	downloadedPackage, err := d.Download(t.Context(), s.PackageLayoutURL(fixtures.FixtureSimpleV1))
 	assert.NoError(t, err)
 	assert.Equal(t, fixtures.FixtureSimpleV1.Package, downloadedPackage.Name)
 	assert.Equal(t, fixtures.FixtureSimpleV1.Version, downloadedPackage.Version)
 	assert.NotZero(t, downloadedPackage.Size)
 	tmpDir := t.TempDir()
-	err = downloadedPackage.ExtractLayers(context.Background(), DatadogPackageLayerMediaType, tmpDir)
+	err = downloadedPackage.ExtractLayers(t.Context(), DatadogPackageLayerMediaType, tmpDir)
 	assert.NoError(t, err)
 	fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), os.DirFS(tmpDir))
 }
@@ -145,13 +147,13 @@ func TestDownloadConfigLayer(t *testing.T) {
 	s := newTestDownloadServer(t)
 	d := s.Downloader()
 
-	downloadedPackage, err := d.Download(context.Background(), s.PackageURL(fixtures.FixtureSimpleV1))
+	downloadedPackage, err := d.Download(t.Context(), s.PackageURL(fixtures.FixtureSimpleV1))
 	assert.NoError(t, err)
 	assert.Equal(t, fixtures.FixtureSimpleV1.Package, downloadedPackage.Name)
 	assert.Equal(t, fixtures.FixtureSimpleV1.Version, downloadedPackage.Version)
 	assert.NotZero(t, downloadedPackage.Size)
 	tmpDir := t.TempDir()
-	err = downloadedPackage.ExtractLayers(context.Background(), DatadogPackageExtensionLayerMediaType, tmpDir, LayerAnnotation{Key: "com.datadoghq.package.extension.name", Value: "simple-extension"})
+	err = downloadedPackage.ExtractLayers(t.Context(), DatadogPackageExtensionLayerMediaType, tmpDir, LayerAnnotation{Key: "com.datadoghq.package.extension.name", Value: "simple-extension"})
 	assert.NoError(t, err)
 
 	extensionsFS := s.ExtensionsFS(fixtures.FixtureSimpleV1WithExtension)
@@ -165,7 +167,7 @@ func TestDownloadInvalidHash(t *testing.T) {
 
 	pkgURL := s.PackageURL(fixtures.FixtureSimpleV1)
 	pkgURL = pkgURL[:strings.Index(pkgURL, "@sha256:")] + "@sha256:2857b8e9faf502169c9cfaf6d4ccf3a035eccddc0f5b87c613b673a807ff6d23"
-	_, err := d.Download(context.Background(), pkgURL)
+	_, err := d.Download(t.Context(), pkgURL)
 	assert.Error(t, err)
 	assert.Empty(t, s.guard.Refused(), "fallback requests skipped the mirror")
 }
@@ -175,7 +177,7 @@ func TestDownloadPlatformNotAvailable(t *testing.T) {
 	d := s.Downloader()
 
 	pkg := s.PackageURL(fixtures.FixtureSimpleV1Linux2Amd128)
-	_, err := d.Download(context.Background(), pkg)
+	_, err := d.Download(t.Context(), pkg)
 	assert.Error(t, err)
 }
 
@@ -192,7 +194,7 @@ func TestDownloadRegistryWithOverride(t *testing.T) {
 		RegistryOverride: override.URL,
 	})
 
-	_, err := d.Download(context.Background(), s.PackageURL(fixtures.FixtureSimpleV1))
+	_, err := d.Download(t.Context(), s.PackageURL(fixtures.FixtureSimpleV1))
 	assert.Error(t, err)
 	assert.NotZero(t, overrideHits.Load(), "override registry was not contacted")
 }

@@ -74,11 +74,11 @@ func TestRunStartedFromResultCallback(t *testing.T) {
 			runs++
 			// the CWS consumer starts the next run from this callback
 			if runs == 1 {
-				assert.NoError(t, tester.RunSelfTest(context.Background(), timeout))
+				assert.NoError(t, tester.RunSelfTest(t.Context(), timeout))
 			}
 		})
 
-		require.NoError(t, tester.RunSelfTest(context.Background(), timeout))
+		require.NoError(t, tester.RunSelfTest(t.Context(), timeout))
 
 		for run := 1; run <= 2; run++ {
 			select {

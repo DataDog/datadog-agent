@@ -77,7 +77,7 @@ func startTestServer(t *testing.T, srv *Server) pb.ExecutorClient {
 	lis, err := Listen(socketPath)
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	served := make(chan error, 1)
 	go func() { served <- Serve(ctx, lis, srv, ServeOptions{}) }()
 
@@ -107,7 +107,7 @@ func startTestServer(t *testing.T, srv *Server) pb.ExecutorClient {
 func runAction(t *testing.T, client pb.ExecutorClient, taskBytes []byte) *pb.ActionResult {
 	t.Helper()
 
-	stream, err := client.RunAction(context.Background(), &pb.RunActionRequest{Task: taskBytes})
+	stream, err := client.RunAction(t.Context(), &pb.RunActionRequest{Task: taskBytes})
 	require.NoError(t, err)
 
 	var result *pb.ActionResult
@@ -164,8 +164,8 @@ func outputWithEncodedSize(t *testing.T, target int) string {
 	}
 }
 
-func receiveRunActionError(client pb.ExecutorClient, task []byte) error {
-	stream, err := client.RunAction(context.Background(), &pb.RunActionRequest{Task: task})
+func receiveRunActionError(ctx context.Context, client pb.ExecutorClient, task []byte) error {
+	stream, err := client.RunAction(ctx, &pb.RunActionRequest{Task: task})
 	if err != nil {
 		return err
 	}
@@ -187,7 +187,7 @@ func TestServeEnforcesRequestMessageLimit(t *testing.T) {
 	require.NotNil(t, result.GetOutput())
 
 	above := taskWithEncodedSize(t, maxMessageSize+1)
-	err := receiveRunActionError(client, above)
+	err := receiveRunActionError(t.Context(), client, above)
 	require.Error(t, err)
 	assert.Equal(t, codes.ResourceExhausted, status.Code(err))
 }
@@ -209,7 +209,7 @@ func TestServeEnforcesResponseMessageLimit(t *testing.T) {
 
 	above := outputWithEncodedSize(t, maxMessageSize+1)
 	fake.output = above
-	err = receiveRunActionError(client, []byte(`{"data":{"id":"task-2"}}`))
+	err = receiveRunActionError(t.Context(), client, []byte(`{"data":{"id":"task-2"}}`))
 	require.Error(t, err)
 	assert.Equal(t, codes.ResourceExhausted, status.Code(err))
 }
@@ -322,13 +322,13 @@ func TestHealthReportsReadinessAndVersion(t *testing.T) {
 	srv := NewServer(&fakeExecutor{}, "test-version")
 	client := startTestServer(t, srv)
 
-	resp, err := client.Health(context.Background(), &pb.HealthRequest{})
+	resp, err := client.Health(t.Context(), &pb.HealthRequest{})
 	require.NoError(t, err)
 	assert.False(t, resp.GetReady())
 	assert.Equal(t, "test-version", resp.GetVersion())
 
 	srv.SetReady(true)
-	resp, err = client.Health(context.Background(), &pb.HealthRequest{})
+	resp, err = client.Health(t.Context(), &pb.HealthRequest{})
 	require.NoError(t, err)
 	assert.True(t, resp.GetReady())
 }
@@ -362,12 +362,12 @@ func TestServeDrainsInFlightActionBeforeExit(t *testing.T) {
 	lis, err := Listen(socketPath)
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	served := make(chan error, 1)
 	go func() { served <- Serve(ctx, lis, srv, ServeOptions{DrainTimeout: 2 * time.Second}) }()
 
 	client := dialTestExecutor(t, socketPath)
-	stream, err := client.RunAction(context.Background(), &pb.RunActionRequest{Task: []byte(`{"data":{"id":"t"}}`)})
+	stream, err := client.RunAction(t.Context(), &pb.RunActionRequest{Task: []byte(`{"data":{"id":"t"}}`)})
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool { return srv.active.Load() == 1 }, time.Second, 5*time.Millisecond)
@@ -460,7 +460,7 @@ func TestServeMTLSRequiresValidClientCert(t *testing.T) {
 	lis, err := Listen(socketPath)
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	served := make(chan error, 1)
 	go func() {
 		served <- Serve(ctx, lis, srv, ServeOptions{}, grpc.Creds(credentials.NewTLS(serverTLS)))
@@ -485,23 +485,23 @@ func TestServeMTLSRequiresValidClientCert(t *testing.T) {
 		RootCAs:      caPool,
 		ServerName:   "localhost",
 	})
-	_, err = authed.Health(context.Background(), &pb.HealthRequest{})
+	_, err = authed.Health(t.Context(), &pb.HealthRequest{})
 	require.NoError(t, err, "client with a valid IPC-style cert should be accepted")
-	_, err = authed.GetControlPlaneConfig(context.Background(), &pb.GetControlPlaneConfigRequest{})
+	_, err = authed.GetControlPlaneConfig(t.Context(), &pb.GetControlPlaneConfigRequest{})
 	require.Equal(t, codes.PermissionDenied, status.Code(err), "a CA-signed action client must not retrieve credentials")
 
 	shared := dial(&tls.Config{Certificates: []tls.Certificate{serverCert}, RootCAs: caPool, ServerName: "localhost"})
 	for range 2 {
-		response, err := shared.GetControlPlaneConfig(context.Background(), &pb.GetControlPlaneConfigRequest{})
+		response, err := shared.GetControlPlaneConfig(t.Context(), &pb.GetControlPlaneConfigRequest{})
 		require.NoError(t, err)
 		require.Equal(t, "never-log-this-key", response.Identity.PrivateKey)
 	}
-	health, err := shared.Health(context.Background(), &pb.HealthRequest{})
+	health, err := shared.Health(t.Context(), &pb.HealthRequest{})
 	require.NoError(t, err)
 	require.False(t, health.Ready, "bootstrap must work before action readiness")
 
 	anon := dial(&tls.Config{RootCAs: caPool, ServerName: "localhost"})
-	shortCtx, shortCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	shortCtx, shortCancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer shortCancel()
 	_, err = anon.GetControlPlaneConfig(shortCtx, &pb.GetControlPlaneConfigRequest{})
 	require.Error(t, err, "client without a valid cert must be rejected")
@@ -511,7 +511,7 @@ func TestControlConfigRejectsPlaintext(t *testing.T) {
 	srv := NewServer(nil, "test")
 	srv.SetControlPlaneConfig(&pb.GetControlPlaneConfigResponse{}, []byte("certificate"))
 	client := startTestServer(t, srv)
-	_, err := client.GetControlPlaneConfig(context.Background(), &pb.GetControlPlaneConfigRequest{})
+	_, err := client.GetControlPlaneConfig(t.Context(), &pb.GetControlPlaneConfigRequest{})
 	require.Equal(t, codes.Unauthenticated, status.Code(err))
 }
 
@@ -536,7 +536,7 @@ func testServeExitsWhenIdle(t *testing.T, ready bool) {
 	idleTimedOut := false
 	const idleTimeout = time.Minute
 	go func() {
-		served <- Serve(context.Background(), lis, srv, ServeOptions{
+		served <- Serve(t.Context(), lis, srv, ServeOptions{
 			DrainTimeout: 2 * time.Second,
 			IdleTimeout:  idleTimeout,
 			OnIdleTimeout: func() {
@@ -571,7 +571,7 @@ func TestIdleTracking(t *testing.T) {
 	srv.SetReady(true)
 	assert.Zero(t, srv.idleFor(), "becoming ready should reset the idle clock")
 
-	_, err := srv.Health(context.Background(), &pb.HealthRequest{})
+	_, err := srv.Health(t.Context(), &pb.HealthRequest{})
 	require.NoError(t, err)
 	mockClock.Add(time.Second)
 	assert.Equal(t, time.Second, srv.idleFor(), "health checks should not count as activity")
@@ -579,7 +579,7 @@ func TestIdleTracking(t *testing.T) {
 	srv.startActivity()
 	mockClock.Add(2 * timeout)
 	assert.Zero(t, srv.idleFor(), "activity should suppress the idle state")
-	health, err := srv.Health(context.Background(), &pb.HealthRequest{})
+	health, err := srv.Health(t.Context(), &pb.HealthRequest{})
 	require.NoError(t, err)
 	assert.Zero(t, health.ActiveActions, "non-action activity must not affect action accounting")
 	srv.finishActivity()

@@ -28,7 +28,7 @@ func (w *countingWriter) Write(p []byte) (int, error) {
 // A single line can hold about a million fields or ranges, so the per-line
 // loops must stop on a cancelled context instead of finishing the line.
 func TestPerLineLoopsStopWhenCancelled(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	fieldsLine := []byte(strings.Repeat(",", 10_000))

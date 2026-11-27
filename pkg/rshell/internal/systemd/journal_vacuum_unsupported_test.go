@@ -8,7 +8,6 @@
 package systemd
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -20,7 +19,7 @@ import (
 
 func TestVacuumJournalFailsClosedOffUnix(t *testing.T) {
 	now := time.Now()
-	result, err := NewClient(Target{}).VacuumJournal(context.Background(), builtins.JournalVacuumRequest{
+	result, err := NewClient(Target{}).VacuumJournal(t.Context(), builtins.JournalVacuumRequest{
 		Now:    now,
 		Before: now.Add(-48 * time.Hour),
 	})

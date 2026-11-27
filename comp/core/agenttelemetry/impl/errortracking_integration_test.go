@@ -144,7 +144,7 @@ func runIntegrationScenario(t *testing.T, localErrortracking string, scenario fu
 
 		lc := compdef.NewTestLifecycle(t)
 		provides := NewComponent(Requires{Config: cfg, Log: logComp, Telemetry: telComp, Lc: lc})
-		require.NoError(t, lc.Start(context.Background()))
+		require.NoError(t, lc.Start(t.Context()))
 		t.Cleanup(func() { _ = lc.Stop(context.Background()) })
 
 		var flag pkgremoteflags.FlagHandler

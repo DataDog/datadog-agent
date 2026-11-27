@@ -7,7 +7,6 @@
 package djm
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"strings"
@@ -76,10 +75,10 @@ func TestSetupDataproc(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			span, _ := telemetry.StartSpanFromContext(context.Background(), "test")
+			span, _ := telemetry.StartSpanFromContext(t.Context(), "test")
 			s := &common.Setup{
 				Span: span,
-				Ctx:  context.Background(),
+				Ctx:  t.Context(),
 			}
 
 			_, _, err := setupCommonDataprocHostTags(s, mockMetadataClient)

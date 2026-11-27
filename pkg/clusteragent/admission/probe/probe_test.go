@@ -8,7 +8,6 @@
 package probe
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -68,7 +67,7 @@ func TestExecute_WebhookReachable(t *testing.T) {
 	client.PrependReactor("create", "configmaps", webhookReachableReactor)
 
 	p := newTestProbe(client)
-	err := p.execute(context.Background())
+	err := p.execute(t.Context())
 	assert.NoError(t, err)
 }
 
@@ -76,7 +75,7 @@ func TestExecute_WebhookNotReachable(t *testing.T) {
 	client := fakeclientset.NewSimpleClientset()
 	p := newTestProbe(client)
 
-	err := p.execute(context.Background())
+	err := p.execute(t.Context())
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errProbeNotReceived)
 }
@@ -95,7 +94,7 @@ func TestExecute_ConfigMapHasCorrectLabelsAndNamespace(t *testing.T) {
 	})
 
 	p := newTestProbe(client)
-	err := p.execute(context.Background())
+	err := p.execute(t.Context())
 	require.NoError(t, err)
 	require.NotNil(t, createdCM)
 	assert.Equal(t, "true", createdCM.Labels[admcommon.ProbeLabelKey])
@@ -117,7 +116,7 @@ func TestExecute_UsesDryRun(t *testing.T) {
 	})
 
 	p := newTestProbe(client)
-	err := p.execute(context.Background())
+	err := p.execute(t.Context())
 	assert.NoError(t, err)
 }
 
@@ -128,7 +127,7 @@ func TestExecute_Forbidden(t *testing.T) {
 	})
 
 	p := newTestProbe(client)
-	err := p.execute(context.Background())
+	err := p.execute(t.Context())
 	require.Error(t, err)
 	assert.True(t, k8serrors.IsForbidden(err))
 }
@@ -138,7 +137,7 @@ func TestRunProbe_StatsOnSuccess(t *testing.T) {
 	client.PrependReactor("create", "configmaps", webhookReachableReactor)
 
 	p := newTestProbe(client)
-	p.runProbe(context.Background())
+	p.runProbe(t.Context())
 
 	snap := p.GetStatsSnapshot()
 	assert.Equal(t, int64(1), snap.TotalExecutions)
@@ -154,7 +153,7 @@ func TestRunProbe_StatsOnConnectivityFailure(t *testing.T) {
 	client := fakeclientset.NewSimpleClientset()
 	p := newTestProbe(client)
 
-	p.runProbe(context.Background())
+	p.runProbe(t.Context())
 
 	snap := p.GetStatsSnapshot()
 	assert.Equal(t, int64(1), snap.TotalExecutions)
@@ -173,7 +172,7 @@ func TestRunProbe_StatsOnForbidden(t *testing.T) {
 	})
 
 	p := newTestProbe(client)
-	p.runProbe(context.Background())
+	p.runProbe(t.Context())
 
 	snap := p.GetStatsSnapshot()
 	assert.Equal(t, int64(1), snap.TotalExecutions)
@@ -188,13 +187,13 @@ func TestRunProbe_ConfigErrorClearedOnSuccess(t *testing.T) {
 	})
 
 	p := newTestProbe(client)
-	p.runProbe(context.Background())
+	p.runProbe(t.Context())
 	assert.NotEmpty(t, p.GetStatsSnapshot().ConfigError)
 
 	client.ReactionChain = nil
 	client.PrependReactor("create", "configmaps", webhookReachableReactor)
 
-	p.runProbe(context.Background())
+	p.runProbe(t.Context())
 	snap := p.GetStatsSnapshot()
 	assert.Empty(t, snap.ConfigError)
 	assert.Equal(t, int64(1), snap.SuccessCount)
@@ -205,11 +204,11 @@ func TestGetStatsForStatus_SuccessRate(t *testing.T) {
 	client.PrependReactor("create", "configmaps", webhookReachableReactor)
 
 	p := newTestProbe(client)
-	p.runProbe(context.Background())
-	p.runProbe(context.Background())
+	p.runProbe(t.Context())
+	p.runProbe(t.Context())
 
 	client.ReactionChain = nil
-	p.runProbe(context.Background())
+	p.runProbe(t.Context())
 
 	status := p.GetStatsForStatus()
 	assert.Equal(t, "66.7%", status["SuccessRate"])
@@ -225,7 +224,7 @@ func TestGetStatsForStatus_ConfigError(t *testing.T) {
 	})
 
 	p := newTestProbe(client)
-	p.runProbe(context.Background())
+	p.runProbe(t.Context())
 
 	status := p.GetStatsForStatus()
 	assert.Contains(t, status["ConfigError"], "does not have permission")
@@ -258,7 +257,7 @@ func TestRunProbe_ReportsHealthIssueOnConnectivityFailure(t *testing.T) {
 	client := fakeclientset.NewSimpleClientset()
 	p, hp := newTestProbeWithHP(t, client)
 
-	p.runProbe(context.Background())
+	p.runProbe(t.Context())
 
 	issue := hp.GetIssue(healthIssueID)
 	require.NotNil(t, issue, "expected a health issue to be reported on connectivity failure")
@@ -271,7 +270,7 @@ func TestRunProbe_NoHealthIssueOnForbidden(t *testing.T) {
 	})
 
 	p, hp := newTestProbeWithHP(t, client)
-	p.runProbe(context.Background())
+	p.runProbe(t.Context())
 
 	assert.Nil(t, hp.GetIssue(healthIssueID), "forbidden errors should not report health issues")
 }
@@ -280,13 +279,13 @@ func TestRunProbe_ClearsHealthIssueOnSuccess(t *testing.T) {
 	client := fakeclientset.NewSimpleClientset()
 	p, hp := newTestProbeWithHP(t, client)
 
-	p.runProbe(context.Background())
+	p.runProbe(t.Context())
 	require.NotNil(t, hp.GetIssue(healthIssueID))
 
 	client.ReactionChain = nil
 	client.PrependReactor("create", "configmaps", webhookReachableReactor)
 
-	p.runProbe(context.Background())
+	p.runProbe(t.Context())
 	assert.Nil(t, hp.GetIssue(healthIssueID), "expected health issue to be cleared after successful probe")
 }
 
@@ -297,7 +296,7 @@ func TestRunProbe_ReportsHealthIssueOnAPITimeout(t *testing.T) {
 	})
 
 	p, hp := newTestProbeWithHP(t, client)
-	p.runProbe(context.Background())
+	p.runProbe(t.Context())
 
 	issue := hp.GetIssue(healthIssueID)
 	require.NotNil(t, issue, "API timeout errors should report health issues as they indicate connectivity problems")
@@ -307,7 +306,7 @@ func TestRunProbe_NoHealthReportWithoutPlatform(t *testing.T) {
 	client := fakeclientset.NewSimpleClientset()
 	p := newTestProbe(client)
 
-	p.runProbe(context.Background())
+	p.runProbe(t.Context())
 
 	snap := p.GetStatsSnapshot()
 	assert.Equal(t, int64(1), snap.FailCount)

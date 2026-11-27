@@ -32,7 +32,7 @@ func setupTest(t *testing.T) (model.Config, context.Context) {
 
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest("autoconfig_from_environment", false)
-	return mockConfig, context.Background()
+	return mockConfig, t.Context()
 }
 
 func TestGet(t *testing.T) {

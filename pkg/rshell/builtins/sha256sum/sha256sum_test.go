@@ -290,7 +290,7 @@ func TestBlockedStdinHonorsCancellation(t *testing.T) {
 			defer reader.Close()
 			defer writer.Close()
 
-			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 			defer cancel()
 			start := time.Now()
 			testutil.RunScriptCtx(ctx, t, script, dir,

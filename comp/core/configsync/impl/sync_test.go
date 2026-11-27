@@ -29,7 +29,7 @@ func TestFetchConfig(t *testing.T) {
 		ipcmock := ipcmock.New(t)
 		_, url := makeServer(t, ipcmock, handler)
 
-		config, err := fetchConfig(context.Background(), ipcmock.GetClient(), url.String(), 0)
+		config, err := fetchConfig(t.Context(), ipcmock.GetClient(), url.String(), 0)
 		require.NoError(t, err)
 		require.Equal(t, map[string]interface{}{"key1": "value1"}, config)
 	})
@@ -42,7 +42,7 @@ func TestFetchConfig(t *testing.T) {
 		ipcmock := ipcmock.New(t)
 		_, url := makeServer(t, ipcmock, handler)
 
-		_, err := fetchConfig(context.Background(), ipcmock.GetClient(), url.String(), 0)
+		_, err := fetchConfig(t.Context(), ipcmock.GetClient(), url.String(), 0)
 		require.Error(t, err)
 	})
 
@@ -54,12 +54,12 @@ func TestFetchConfig(t *testing.T) {
 		ipcmock := ipcmock.New(t)
 		_, url := makeServer(t, ipcmock, handler)
 
-		_, err := fetchConfig(context.Background(), ipcmock.GetClient(), url.String(), 0)
+		_, err := fetchConfig(t.Context(), ipcmock.GetClient(), url.String(), 0)
 		require.Error(t, err)
 	})
 
 	t.Run("context cancelled", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
 		ipcmock := ipcmock.New(t)
@@ -88,7 +88,7 @@ func TestUpdater(t *testing.T) {
 		Log:    logmock.New(t),
 		url:    url,
 		client: ipcmock.GetClient(),
-		ctx:    context.Background(),
+		ctx:    t.Context(),
 	}
 
 	cs.updater()

@@ -33,7 +33,7 @@ func runScript(t *testing.T, script, dir string, opts ...interp.RunnerOption) (s
 // (nil leaves stdin unset, matching a script invoked with no piped input).
 func runScriptStdin(t *testing.T, script, dir string, stdin io.Reader, opts ...interp.RunnerOption) (string, string, int) {
 	t.Helper()
-	return runScriptCtx(context.Background(), t, script, dir, stdin, opts...)
+	return runScriptCtx(t.Context(), t, script, dir, stdin, opts...)
 }
 
 func runScriptCtx(ctx context.Context, t *testing.T, script, dir string, stdin io.Reader, opts ...interp.RunnerOption) (string, string, int) {

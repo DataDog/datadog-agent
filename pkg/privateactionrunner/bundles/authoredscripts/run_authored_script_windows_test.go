@@ -88,7 +88,7 @@ func TestRunAuthoredScriptExecutesPowerShellOnWindows(t *testing.T) {
 		Inputs:   map[string]interface{}{"message": "hello from windows"},
 	}
 
-	output, err := handler.Run(context.Background(), task, nil)
+	output, err := handler.Run(t.Context(), task, nil)
 
 	require.NoError(t, err)
 	result := output.(*RunAuthoredScriptOutputs)

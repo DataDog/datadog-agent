@@ -464,7 +464,7 @@ func testUDPSendAndReceive(t *testing.T, tr *Tracer, ntwk, addr string) {
 		},
 	}
 
-	err := server.Run(clientMessageSize)
+	err := server.Run(t.Context(), clientMessageSize)
 	require.NoError(t, err)
 	t.Cleanup(server.Shutdown)
 
@@ -532,7 +532,7 @@ func (s *TracerSuite) TestUDPDisabled() {
 		},
 	}
 
-	err := server.Run(clientMessageSize)
+	err := server.Run(t.Context(), clientMessageSize)
 	require.NoError(t, err)
 	t.Cleanup(server.Shutdown)
 
@@ -791,7 +791,7 @@ func benchEchoUDP(size int) func(b *testing.B) {
 			network:   "udp",
 			onMessage: echoOnMessage,
 		}
-		err := server.Run(size)
+		err := server.Run(b.Context(), size)
 		require.NoError(b, err)
 		defer server.Shutdown()
 
@@ -914,14 +914,14 @@ type UDPServer struct {
 	ln        net.PacketConn
 }
 
-func (s *UDPServer) Run(payloadSize int) error {
+func (s *UDPServer) Run(ctx context.Context, payloadSize int) error {
 	if s.network == "" {
 		return errors.New("must set network for UDPServer.Run()")
 	}
 	var err error
 	var ln net.PacketConn
 	if s.lc != nil {
-		ln, err = s.lc.ListenPacket(context.Background(), s.network, s.address)
+		ln, err = s.lc.ListenPacket(ctx, s.network, s.address)
 	} else {
 		ln, err = net.ListenPacket(s.network, s.address)
 	}
@@ -1275,7 +1275,7 @@ func (s *TracerSuite) TestTCPDirection() {
 	go func() {
 		_ = srv.ListenAndServe()
 	}()
-	defer srv.Shutdown(context.Background())
+	defer srv.Shutdown(t.Context())
 
 	// Allow the HTTP server time to get set up
 	time.Sleep(time.Millisecond * 500)

@@ -6,7 +6,6 @@
 package serializerexporter
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -40,7 +39,7 @@ func clearWorkloadIdentityEnv(t *testing.T) {
 func TestDetectWorkloadIdentity_None(t *testing.T) {
 	clearWorkloadIdentityEnv(t)
 
-	wi := detectWorkloadIdentity(context.Background(), zap.NewNop())
+	wi := detectWorkloadIdentity(t.Context(), zap.NewNop())
 
 	assert.Empty(t, wi.fargateTaskARN)
 	assert.Nil(t, wi.aca)
@@ -57,7 +56,7 @@ func TestDetectWorkloadIdentity_Fargate(t *testing.T) {
 	t.Setenv(ecsFargateEnvVar, "true")
 	t.Setenv(ecsMetadataURIv4EnvVar, server.URL)
 
-	wi := detectWorkloadIdentity(context.Background(), zap.NewNop())
+	wi := detectWorkloadIdentity(t.Context(), zap.NewNop())
 
 	assert.Equal(t, "arn:aws:ecs:us-east-1:123:task/cluster/abc", wi.fargateTaskARN)
 	assert.Nil(t, wi.aca)
@@ -74,7 +73,7 @@ func TestDetectWorkloadIdentity_FargateViaAWSExecutionEnv(t *testing.T) {
 	t.Setenv(awsExecutionEnvEnvVar, "AWS_ECS_FARGATE")
 	t.Setenv(ecsMetadataURIv4EnvVar, server.URL)
 
-	wi := detectWorkloadIdentity(context.Background(), zap.NewNop())
+	wi := detectWorkloadIdentity(t.Context(), zap.NewNop())
 
 	assert.Equal(t, "arn:aws:ecs:eu-west-1:456:task/cluster/def", wi.fargateTaskARN)
 }
@@ -85,7 +84,7 @@ func TestDetectWorkloadIdentity_FargateFetchFailsFallsBackToEmpty(t *testing.T) 
 	t.Setenv(ecsFargateEnvVar, "true")
 	// ecsMetadataURIv4EnvVar deliberately left unset, so the fetch fails.
 
-	wi := detectWorkloadIdentity(context.Background(), zap.NewNop())
+	wi := detectWorkloadIdentity(t.Context(), zap.NewNop())
 
 	assert.Empty(t, wi.fargateTaskARN)
 	assert.Nil(t, wi.aca)
@@ -99,7 +98,7 @@ func TestDetectWorkloadIdentity_AzureContainerApps(t *testing.T) {
 	t.Setenv(azureSubscriptionIDEnvVar, "sub-123")
 	t.Setenv(azureResourceGroupEnvVar, "my-rg")
 
-	wi := detectWorkloadIdentity(context.Background(), zap.NewNop())
+	wi := detectWorkloadIdentity(t.Context(), zap.NewNop())
 
 	assert.Empty(t, wi.fargateTaskARN)
 	require.NotNil(t, wi.aca)

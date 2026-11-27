@@ -8,7 +8,6 @@
 package procnetroute
 
 import (
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -34,7 +33,7 @@ func TestVulnHuntSubsystemResourceLimitBypass_RouteLineLengthCap(t *testing.T) {
 		strings.Repeat("A", MaxLineBytes+1) + "\n"
 	dir := writeProcNetRouteFile(t, content)
 
-	_, err := ReadRoutes(context.Background(), dir)
+	_, err := ReadRoutes(t.Context(), dir)
 	if err == nil {
 		t.Fatalf("expected overlong route line to fail")
 	}
@@ -51,7 +50,7 @@ func TestVulnHuntSubsystemResourceLimitBypass_RouteMaxTotalLines(t *testing.T) {
 	}
 	dir := writeProcNetRouteFile(t, b.String())
 
-	_, err := ReadRoutes(context.Background(), dir)
+	_, err := ReadRoutes(t.Context(), dir)
 	if !errors.Is(err, ErrMaxTotalLines) {
 		t.Fatalf("expected ErrMaxTotalLines, got %v", err)
 	}
@@ -66,7 +65,7 @@ func TestVulnHuntSubsystemResourceLimitBypass_RouteMaxRoutes(t *testing.T) {
 	}
 	dir := writeProcNetRouteFile(t, b.String())
 
-	_, err := ReadRoutes(context.Background(), dir)
+	_, err := ReadRoutes(t.Context(), dir)
 	if !errors.Is(err, ErrMaxRoutes) {
 		t.Fatalf("expected ErrMaxRoutes, got %v", err)
 	}

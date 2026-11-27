@@ -6,7 +6,6 @@
 package metriclookback
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -22,7 +21,7 @@ import (
 
 func TestRetentionAppendSamplesAndForwardRange(t *testing.T) {
 	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
-	err := retention.AppendSamples(context.Background(), ringbuffer.Source{Kind: ringbuffer.SourceCheckShadow, ID: "check:1"}, []metrics.MetricSample{
+	err := retention.AppendSamples(t.Context(), ringbuffer.Source{Kind: ringbuffer.SourceCheckShadow, ID: "check:1"}, []metrics.MetricSample{
 		{Name: "metric.1", Value: 1, Mtype: metrics.GaugeType, Timestamp: 10},
 		{Name: "metric.2", Value: 2, Mtype: metrics.GaugeType, Timestamp: 20},
 	})
@@ -44,7 +43,7 @@ func TestRetentionAppendSamplesAndForwardRange(t *testing.T) {
 
 func TestRetentionForwardRangeIsHalfOpen(t *testing.T) {
 	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
-	err := retention.AppendSamples(context.Background(), ringbuffer.Source{Kind: ringbuffer.SourceCheckShadow, ID: "check:1"}, []metrics.MetricSample{
+	err := retention.AppendSamples(t.Context(), ringbuffer.Source{Kind: ringbuffer.SourceCheckShadow, ID: "check:1"}, []metrics.MetricSample{
 		{Name: "metric.1", Value: 1, Mtype: metrics.GaugeType, Timestamp: 10},
 		{Name: "metric.2", Value: 2, Mtype: metrics.GaugeType, Timestamp: 20},
 	})
@@ -65,7 +64,7 @@ func TestRetentionForwardRangeIsHalfOpen(t *testing.T) {
 
 func TestRetentionForwardRangeIncludesFinalEligibleMicrosecond(t *testing.T) {
 	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
-	err := retention.AppendSamples(context.Background(), ringbuffer.Source{Kind: ringbuffer.SourceCheckShadow, ID: "check:1"}, []metrics.MetricSample{
+	err := retention.AppendSamples(t.Context(), ringbuffer.Source{Kind: ringbuffer.SourceCheckShadow, ID: "check:1"}, []metrics.MetricSample{
 		{Name: "metric.edge", Value: 1, Mtype: metrics.GaugeType, Timestamp: 20},
 		{Name: "metric.after", Value: 2, Mtype: metrics.GaugeType, Timestamp: 21},
 	})
@@ -87,7 +86,7 @@ func TestRetentionForwardRangeIncludesFinalEligibleMicrosecond(t *testing.T) {
 
 func TestRetentionForwardRangeExcludesMicrosecondBeforeSubMicrosecondLowerBound(t *testing.T) {
 	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
-	err := retention.AppendSamples(context.Background(), ringbuffer.Source{Kind: ringbuffer.SourceCheckShadow, ID: "check:1"}, []metrics.MetricSample{
+	err := retention.AppendSamples(t.Context(), ringbuffer.Source{Kind: ringbuffer.SourceCheckShadow, ID: "check:1"}, []metrics.MetricSample{
 		{Name: "metric.before", Value: 1, Mtype: metrics.GaugeType, Timestamp: 20},
 		{Name: "metric.after", Value: 2, Mtype: metrics.GaugeType, Timestamp: 20.001},
 	})
@@ -109,7 +108,7 @@ func TestRetentionForwardRangeExcludesMicrosecondBeforeSubMicrosecondLowerBound(
 
 func TestRetentionAppendSketchSeriesAndForwardRange(t *testing.T) {
 	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
-	err := retention.AppendSketchSeries(context.Background(), ringbuffer.Source{Kind: ringbuffer.SourceDogStatsDBucketed}, &metrics.SketchSeries{
+	err := retention.AppendSketchSeries(t.Context(), ringbuffer.Source{Kind: ringbuffer.SourceDogStatsDBucketed}, &metrics.SketchSeries{
 		DistributionMetadata: metrics.DistributionMetadata{
 			Name:    "dist.metric",
 			Tags:    tagset.CompositeTagsFromSlice([]string{"env:test"}),
@@ -157,7 +156,7 @@ func TestRetentionForwardRangeSketchOnlyDoesNotRequireScalarRing(t *testing.T) {
 	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
 	require.Nil(t, retention.buffer)
 
-	err := retention.AppendSketchSeries(context.Background(), ringbuffer.Source{Kind: ringbuffer.SourceDogStatsDBucketed}, &metrics.SketchSeries{
+	err := retention.AppendSketchSeries(t.Context(), ringbuffer.Source{Kind: ringbuffer.SourceDogStatsDBucketed}, &metrics.SketchSeries{
 		DistributionMetadata: metrics.DistributionMetadata{Name: "dist.metric"},
 		Points: []metrics.SketchPoint{
 			{Ts: 20, Sketch: testSketchData(2, 4)},
@@ -177,7 +176,7 @@ func TestRetentionForwardRangeSketchOnlyDoesNotRequireScalarRing(t *testing.T) {
 
 func TestRetentionProjectsSketchPointsWithPlaceholderAverage(t *testing.T) {
 	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
-	err := retention.AppendSketchSeries(context.Background(), ringbuffer.Source{Kind: ringbuffer.SourceDogStatsDBucketed}, &metrics.SketchSeries{
+	err := retention.AppendSketchSeries(t.Context(), ringbuffer.Source{Kind: ringbuffer.SourceDogStatsDBucketed}, &metrics.SketchSeries{
 		DistributionMetadata: metrics.DistributionMetadata{Name: "dist.metric"},
 		Points: []metrics.SketchPoint{
 			{Ts: 10, Sketch: testSketchData(1, 5)},

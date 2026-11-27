@@ -70,7 +70,7 @@ func TestSummaryMetrics(t *testing.T) {
 				testinstance.options...,
 			)
 			translator := NewTestTranslator(t, options...)
-			AssertTranslatorMap(t, translator, testinstance.otlpfile, testinstance.ddogfile)
+			AssertTranslatorMap(t.Context(), t, translator, testinstance.otlpfile, testinstance.ddogfile)
 		})
 		// The minimal translator with summary deltas must match the default translator.
 		t.Run(testinstance.name+"/minimal", func(t *testing.T) {
@@ -82,7 +82,7 @@ func TestSummaryMetrics(t *testing.T) {
 			require.NoError(t, err)
 			translator, err := NewMinimalTranslator(zap.NewNop(), attributesTranslator, options...)
 			require.NoError(t, err)
-			AssertTranslatorMap(t, translator, testinstance.otlpfile, testinstance.ddogfile)
+			AssertTranslatorMap(t.Context(), t, translator, testinstance.otlpfile, testinstance.ddogfile)
 		})
 	}
 }

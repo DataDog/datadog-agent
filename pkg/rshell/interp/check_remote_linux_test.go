@@ -29,12 +29,12 @@ import (
 func TestCheckRemoteNoHostIO(t *testing.T) {
 	const helperEnv = "RSHELL_REMOTE_NO_IO_HELPER"
 	if mode := os.Getenv(helperEnv); mode != "" {
-		runRemoteNoIOHelper(mode)
+		runRemoteNoIOHelper(t.Context(), mode)
 		os.Exit(0)
 	}
 	for _, mode := range []string{"check", "timer-wakeup", "stat-canary", "read-canary", "write-canary"} {
 		t.Run(mode, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 			defer cancel()
 			cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestCheckRemoteNoHostIO$", "-test.timeout=5m")
 			cmd.Env = append(os.Environ(), helperEnv+"="+mode)
@@ -54,7 +54,7 @@ func TestCheckRemoteNoHostIO(t *testing.T) {
 	}
 }
 
-func runRemoteNoIOHelper(mode string) {
+func runRemoteNoIOHelper(ctx context.Context, mode string) {
 	if !seccomp.Supported() {
 		os.Exit(77)
 	}
@@ -171,7 +171,7 @@ func runRemoteNoIOHelper(mode string) {
 		{"sudo echo hi; sudo systemctl restart app.service; journalctl -u app.service", CheckAllowed},
 		{"cat ~root/file", CheckDenied},
 	} {
-		result, err := CheckRemote(context.Background(), test.script, policy)
+		result, err := CheckRemote(ctx, test.script, policy)
 		if err != nil || result == nil || result.Status != test.status || result.Allowed != (test.status == CheckAllowed) {
 			os.Exit(10 + i)
 		}

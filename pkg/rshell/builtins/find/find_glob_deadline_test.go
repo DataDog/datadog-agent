@@ -49,7 +49,7 @@ func runFindWithDeadline(t *testing.T, script, dir string) (stdout string, runEr
 	done := make(chan error, 1)
 	start := time.Now()
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), deadline)
+		ctx, cancel := context.WithTimeout(t.Context(), deadline)
 		defer cancel()
 		done <- runner.Run(ctx, prog)
 	}()

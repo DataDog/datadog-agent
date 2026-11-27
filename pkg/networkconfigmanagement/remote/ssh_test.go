@@ -10,7 +10,6 @@ package remote
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
@@ -68,9 +67,9 @@ interface GigabitEthernet0/1
 	conn, err := client.Connect()
 	require.NoError(t, err)
 	t.Run("no_profile", func(t *testing.T) {
-		_, err := conn.RetrieveRunningConfig(context.Background())
+		_, err := conn.RetrieveRunningConfig(t.Context())
 		assert.Error(t, err)
-		_, err = conn.RetrieveStartupConfig(context.Background())
+		_, err = conn.RetrieveStartupConfig(t.Context())
 		assert.Error(t, err)
 	})
 	conn.SetProfile(&profile.NCMProfile{
@@ -78,9 +77,9 @@ interface GigabitEthernet0/1
 		Commands: profile.CommandSet{},
 	})
 	t.Run("no_command", func(t *testing.T) {
-		_, err := conn.RetrieveRunningConfig(context.Background())
+		_, err := conn.RetrieveRunningConfig(t.Context())
 		assert.Error(t, err)
-		_, err = conn.RetrieveStartupConfig(context.Background())
+		_, err = conn.RetrieveStartupConfig(t.Context())
 		assert.Error(t, err)
 	})
 
@@ -92,13 +91,13 @@ interface GigabitEthernet0/1
 		},
 	})
 	t.Run("running_config", func(t *testing.T) {
-		result, err := conn.RetrieveRunningConfig(context.Background())
+		result, err := conn.RetrieveRunningConfig(t.Context())
 		if assert.NoError(t, err) {
 			assert.Equal(t, expectedConfig, string(result.Output))
 		}
 	})
 	t.Run("startup_config", func(t *testing.T) {
-		result, err := conn.RetrieveStartupConfig(context.Background())
+		result, err := conn.RetrieveStartupConfig(t.Context())
 		if assert.NoError(t, err) {
 			assert.Equal(t, expectedConfig, string(result.Output))
 		}

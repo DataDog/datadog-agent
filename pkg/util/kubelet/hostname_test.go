@@ -36,7 +36,7 @@ func (m *kubeUtilMock) GetNodename(_ context.Context) (string, error) {
 func TestHostnameProvider(t *testing.T) {
 	env.SetFeatures(t, env.Kubernetes)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	mockConfig := configmock.New(t)
 
 	ku := &kubeUtilMock{}
@@ -69,7 +69,7 @@ func TestHostnameProvider(t *testing.T) {
 func TestHostnameProviderWillBeValid(t *testing.T) {
 	env.SetFeatures(t, env.Kubernetes)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	mockConfig := configmock.New(t)
 
 	ku := &kubeUtilMock{}
@@ -99,7 +99,7 @@ func TestHostnameProviderWillBeValid(t *testing.T) {
 func TestHostnameProviderInvalid(t *testing.T) {
 	env.SetFeatures(t, env.Kubernetes)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	mockConfig := configmock.New(t)
 
 	ku := &kubeUtilMock{}
@@ -278,7 +278,7 @@ func TestHostnameProviderOTelStandalone(t *testing.T) {
 				return ku, nil
 			}
 
-			hostName, err := GetHostname(context.Background())
+			hostName, err := GetHostname(t.Context())
 			if tt.wantErr {
 				assert.Error(t, err)
 				return

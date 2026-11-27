@@ -262,8 +262,8 @@ func newKAICollector(store workloadmeta.Component) *collector {
 
 // containerGPUEvents runs createContainerGPUEvents the way Pull does, with the
 // KAI fractions resolved from the same device cache.
-func containerGPUEvents(c *collector, deviceCache ddnvml.DeviceCache) []workloadmeta.CollectorEvent {
-	return c.createContainerGPUEvents(deviceCache, c.resolveKAIFractions(deviceCache), c.resolveTimeSlices(context.Background()))
+func containerGPUEvents(ctx context.Context, c *collector, deviceCache ddnvml.DeviceCache) []workloadmeta.CollectorEvent {
+	return c.createContainerGPUEvents(deviceCache, c.resolveKAIFractions(deviceCache), c.resolveTimeSlices(ctx))
 }
 
 // setGPUDeviceIDs indexes the GPUDeviceIDs published by a pull, by container ID.
@@ -953,7 +953,7 @@ func TestCreateContainerGPUEventsPublishesKAIFractions(t *testing.T) {
 	pods := allKAIFixturePods(t)
 	c := newKAICollector(storeWithPods(t, podSlice(pods)...))
 
-	published := setGPUDeviceIDs(t, containerGPUEvents(c, kaiFixtureDeviceCache()))
+	published := setGPUDeviceIDs(t, containerGPUEvents(t.Context(), c, kaiFixtureDeviceCache()))
 
 	// TestKAIFractionalGPUsFromFixtures asserts the mapping itself; this pins
 	// that it reaches the store as one event per fractional container, carrying
@@ -982,7 +982,7 @@ func TestCreateContainerGPUEventsPublishesKAIShares(t *testing.T) {
 	want := c.resolveKAIFractions(deviceCache).sharesByContainer
 
 	shares := make(map[string]map[string]workloadmeta.GPUShare)
-	for _, event := range containerGPUEvents(c, deviceCache) {
+	for _, event := range containerGPUEvents(t.Context(), c, deviceCache) {
 		if container, ok := event.Entity.(*workloadmeta.Container); ok && event.Type == workloadmeta.EventTypeSet {
 			shares[container.ID] = container.GPUShares
 		}
@@ -1046,7 +1046,7 @@ func TestCreateContainerGPUEventsSkipsKAIWhenDisabled(t *testing.T) {
 	c := newKAICollector(storeWithPods(t, podSlice(pods)...))
 	c.kaiSchedulerEnabled = false
 
-	require.Empty(t, containerGPUEvents(c, kaiFixtureDeviceCache()), "no events while the feature is off")
+	require.Empty(t, containerGPUEvents(t.Context(), c, kaiFixtureDeviceCache()), "no events while the feature is off")
 	require.Empty(t, c.seenContainerGPUs, "nothing claims while the feature is off")
 }
 
@@ -1058,7 +1058,7 @@ func TestCreateContainerGPUEventsKeepsAPartialKAIMapping(t *testing.T) {
 	c := newKAICollector(storeWithPods(t, podSlice(pods)...))
 	containerID := podContainerID(t, pods["frac-multi"])
 
-	published := setGPUDeviceIDs(t, containerGPUEvents(c, kaiFixtureDeviceCache()))
+	published := setGPUDeviceIDs(t, containerGPUEvents(t.Context(), c, kaiFixtureDeviceCache()))
 	require.Len(t, published[containerID], 2, "both of frac-multi's GPUs resolve first")
 
 	// One of the two reservation pods leaves the store, so its group goes back
@@ -1067,7 +1067,7 @@ func TestCreateContainerGPUEventsKeepsAPartialKAIMapping(t *testing.T) {
 	delete(degradedPods, kaiReservationPodOfFracMultiSecondGPU)
 	c.store = storeWithPods(t, podSlice(degradedPods)...)
 
-	degraded := setGPUDeviceIDs(t, containerGPUEvents(c, kaiFixtureDeviceCache()))
+	degraded := setGPUDeviceIDs(t, containerGPUEvents(t.Context(), c, kaiFixtureDeviceCache()))
 
 	assert.NotContains(t, degraded, containerID, "the shrunken set must not replace the published one")
 	assert.Equal(t, []string{kaiGPUSecondOfFracMulti, kaiGPUSharedByCUDAMulti}, c.publishedContainerGPUs[containerID],
@@ -1084,10 +1084,10 @@ func TestCreateContainerGPUEventsShrinksWhenAGPULeavesNVML(t *testing.T) {
 	c := newKAICollector(storeWithPods(t, podSlice(pods)...))
 	containerID := podContainerID(t, pods["frac-multi"])
 
-	published := setGPUDeviceIDs(t, containerGPUEvents(c, kaiFixtureDeviceCache()))
+	published := setGPUDeviceIDs(t, containerGPUEvents(t.Context(), c, kaiFixtureDeviceCache()))
 	require.Len(t, published[containerID], 2, "both of frac-multi's GPUs resolve first")
 
-	shrunk := setGPUDeviceIDs(t, containerGPUEvents(c,
+	shrunk := setGPUDeviceIDs(t, containerGPUEvents(t.Context(), c,
 		kaiFixtureDeviceCache(kaiGPUSharedByFracAAndB, kaiGPUOfFracC, kaiGPUSharedByCUDAMulti)))
 
 	assert.Equal(t, []string{kaiGPUSharedByCUDAMulti}, shrunk[containerID], "the departed GPU must leave the mapping")
@@ -1106,12 +1106,12 @@ func TestCreateContainerGPUEventsRetractsASingleFractionWhoseGPULeftNVML(t *test
 	c := newKAICollector(storeWithPods(t, podSlice(pods)...))
 	containerID := podContainerID(t, pods["frac-a"])
 
-	published := setGPUDeviceIDs(t, containerGPUEvents(c, kaiFixtureDeviceCache()))
+	published := setGPUDeviceIDs(t, containerGPUEvents(t.Context(), c, kaiFixtureDeviceCache()))
 	require.Equal(t, []string{kaiGPUSharedByFracAAndB}, published[containerID], "frac-a resolves first")
 
 	// Its GPU leaves NVML for good. The reservation pod is still in the store,
 	// so the group is accounted for rather than pending.
-	events := containerGPUEvents(c,
+	events := containerGPUEvents(t.Context(), c,
 		kaiFixtureDeviceCache(kaiGPUOfFracC, kaiGPUSharedByCUDAMulti, kaiGPUSecondOfFracMulti))
 
 	retracted := make(map[string]struct{}, len(events))
@@ -1138,7 +1138,7 @@ func TestCreateContainerGPUEventsRetractsKAIFraction(t *testing.T) {
 	pods := allKAIFixturePods(t)
 	c := newKAICollector(storeWithPods(t, podSlice(pods)...))
 
-	require.NotEmpty(t, containerGPUEvents(c, kaiFixtureDeviceCache()))
+	require.NotEmpty(t, containerGPUEvents(t.Context(), c, kaiFixtureDeviceCache()))
 
 	fracAContainerID := podContainerID(t, pods["frac-a"])
 	require.Contains(t, c.seenContainerGPUs, fracAContainerID)
@@ -1148,7 +1148,7 @@ func TestCreateContainerGPUEventsRetractsKAIFraction(t *testing.T) {
 	reservationsOnly := loadKAIFixturePods(t, "pods-kai-resource-reservation.yaml")
 	c.store = storeWithPods(t, podSlice(reservationsOnly)...)
 
-	events := containerGPUEvents(c, kaiFixtureDeviceCache())
+	events := containerGPUEvents(t.Context(), c, kaiFixtureDeviceCache())
 	require.NotEmpty(t, events, "the gone containers must be retracted")
 
 	retracted := make(map[string]struct{}, len(events))
@@ -1175,7 +1175,7 @@ func TestCreateContainerGPUEventsRetractsATerminatedKAIFraction(t *testing.T) {
 		t.Run(phase, func(t *testing.T) {
 			pods := allKAIFixturePods(t)
 			c := newKAICollector(storeWithPods(t, podSlice(pods)...))
-			require.NotEmpty(t, containerGPUEvents(c, kaiFixtureDeviceCache()))
+			require.NotEmpty(t, containerGPUEvents(t.Context(), c, kaiFixtureDeviceCache()))
 
 			fracAContainerID := podContainerID(t, pods["frac-a"])
 			fracBContainerID := podContainerID(t, pods["frac-b"])
@@ -1186,7 +1186,7 @@ func TestCreateContainerGPUEventsRetractsATerminatedKAIFraction(t *testing.T) {
 			c.store = storeWithPods(t, podSlice(pods)...)
 
 			var unset []string
-			for _, event := range containerGPUEvents(c, kaiFixtureDeviceCache()) {
+			for _, event := range containerGPUEvents(t.Context(), c, kaiFixtureDeviceCache()) {
 				if event.Type == workloadmeta.EventTypeUnset {
 					unset = append(unset, event.Entity.GetID().ID)
 				}
@@ -1236,7 +1236,7 @@ func TestCreateContainerGPUEventsMergesKAIWithDRA(t *testing.T) {
 	})
 
 	c := newKAICollector(store)
-	events := containerGPUEvents(c, deviceCache)
+	events := containerGPUEvents(t.Context(), c, deviceCache)
 	published := setGPUDeviceIDs(t, events)
 
 	require.ElementsMatch(t, []string{draUUID, kaiGPUSharedByFracAAndB}, published[containerID],
@@ -1360,7 +1360,7 @@ func TestKAIAssignmentFailedTelemetry(t *testing.T) {
 			c.kaiAssignmentFailed = newKAIAssignmentFailedCounter(tm)
 
 			for pull := 1; pull <= 2; pull++ {
-				containerGPUEvents(c, kaiFixtureDeviceCache())
+				containerGPUEvents(t.Context(), c, kaiFixtureDeviceCache())
 				want := map[string]float64{}
 				if test.reason != "" {
 					want[test.reason] = float64(pull * test.perPull)

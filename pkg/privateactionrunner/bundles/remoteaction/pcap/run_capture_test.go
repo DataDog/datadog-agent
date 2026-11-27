@@ -120,7 +120,7 @@ func TestRunCaptureTimeoutCoversCaptureAndUpload(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			parentDeadline := time.Now().Add(time.Minute)
-			ctx, cancel := context.WithDeadline(context.Background(), parentDeadline)
+			ctx, cancel := context.WithDeadline(t.Context(), parentDeadline)
 			defer cancel()
 			before := time.Now()
 			check := func(ctx context.Context) {
@@ -168,7 +168,7 @@ func TestRunCapture_OmittedBPFFilterIsAccepted(t *testing.T) {
 		"durationSecs": 10,
 	})
 
-	_, err := handler.Run(context.Background(), task, nil)
+	_, err := handler.Run(t.Context(), task, nil)
 	require.NoError(t, err)
 	assert.Empty(t, rec.got.BPFFilter)
 }
@@ -184,7 +184,7 @@ func TestRunCapture_CaptureIDIsHonoured(t *testing.T) {
 		"durationSecs": 5,
 	})
 
-	res, err := handler.Run(context.Background(), task, nil)
+	res, err := handler.Run(t.Context(), task, nil)
 	require.NoError(t, err)
 	require.IsType(t, &RunCaptureResult{}, res)
 	assert.Equal(t, "cap-abc-123", res.(*RunCaptureResult).CaptureID)
@@ -203,7 +203,7 @@ func TestRunCapture_ReportsCaptureCounts(t *testing.T) {
 		Duration:         5 * time.Second,
 	}
 
-	res, err := handler.Run(context.Background(), newTask(validInputs()), nil)
+	res, err := handler.Run(t.Context(), newTask(validInputs()), nil)
 	require.NoError(t, err)
 	assert.Equal(t, &RunCaptureResult{
 		CaptureID:        res.(*RunCaptureResult).CaptureID,
@@ -223,7 +223,7 @@ func TestRunCapture_CaptureIDGeneratedWhenAbsent(t *testing.T) {
 		"durationSecs": 5,
 	})
 
-	res, err := handler.Run(context.Background(), task, nil)
+	res, err := handler.Run(t.Context(), task, nil)
 	require.NoError(t, err)
 	assert.NotEmpty(t, res.(*RunCaptureResult).CaptureID)
 }
@@ -244,7 +244,7 @@ func TestRunCapture_CapsAlwaysBounded(t *testing.T) {
 			handler, rec := newRecordingHandler()
 			tc.inputs["captureId"] = "cap-1"
 
-			_, err := handler.Run(context.Background(), newTask(tc.inputs), nil)
+			_, err := handler.Run(t.Context(), newTask(tc.inputs), nil)
 			require.NoError(t, err)
 			assert.Equal(t, defaultMaxPackets, rec.got.MaxPackets)
 			assert.Equal(t, int64(defaultMaxBytes), rec.got.MaxBytes)
@@ -261,7 +261,7 @@ func TestRunCapture_ExplicitCapsArePreserved(t *testing.T) {
 		"maxBytes":     567890,
 	})
 
-	_, err := handler.Run(context.Background(), task, nil)
+	_, err := handler.Run(t.Context(), task, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 1234, rec.got.MaxPackets)
 	assert.Equal(t, int64(567890), rec.got.MaxBytes)
@@ -277,7 +277,7 @@ func TestRunCapture_LargerCapsAreLowered(t *testing.T) {
 		"maxBytes":     1e12,
 	})
 
-	_, err := handler.Run(context.Background(), task, nil)
+	_, err := handler.Run(t.Context(), task, nil)
 	require.NoError(t, err)
 	assert.Equal(t, defaultMaxPackets, rec.got.MaxPackets)
 	assert.Equal(t, int64(defaultMaxBytes), rec.got.MaxBytes)
@@ -290,7 +290,7 @@ func TestRunCaptureValidation_DurationTooLow(t *testing.T) {
 		"durationSecs": 0,
 	})
 
-	_, err := handler.Run(context.Background(), task, nil)
+	_, err := handler.Run(t.Context(), task, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "durationSecs")
 }
@@ -302,7 +302,7 @@ func TestRunCaptureValidation_DurationTooHigh(t *testing.T) {
 		"durationSecs": maxDurationSecs + 1,
 	})
 
-	_, err := handler.Run(context.Background(), task, nil)
+	_, err := handler.Run(t.Context(), task, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "durationSecs")
 }
@@ -313,7 +313,7 @@ func TestRunCaptureValidation_MaxDurationIsAccepted(t *testing.T) {
 		"durationSecs": maxDurationSecs,
 	})
 
-	_, err := handler.Run(context.Background(), task, nil)
+	_, err := handler.Run(t.Context(), task, nil)
 	require.NoError(t, err)
 }
 
@@ -321,7 +321,7 @@ func TestRunCaptureValidation_ValidInputs(t *testing.T) {
 	handler := newTestHandler()
 	task := newTask(validInputs())
 
-	output, err := handler.Run(context.Background(), task, nil)
+	output, err := handler.Run(t.Context(), task, nil)
 	require.NoError(t, err)
 
 	result, ok := output.(*RunCaptureResult)
@@ -341,7 +341,7 @@ func TestRunCaptureDefaults(t *testing.T) {
 		// snapLen, maxPackets and maxBytes intentionally absent
 	})
 
-	output, err := handler.Run(context.Background(), task, nil)
+	output, err := handler.Run(t.Context(), task, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, defaultSnapLen, rec.got.SnapLen)
@@ -381,7 +381,7 @@ func TestRunCapture_UploadsCapture(t *testing.T) {
 	pcapPath := writeCapture(t, []byte("pcap bytes"))
 	handler.capture = &recordingCaptureTrigger{out: captureOutcome{PcapPath: pcapPath}}
 
-	_, err := handler.Run(context.Background(), newTask(map[string]interface{}{
+	_, err := handler.Run(t.Context(), newTask(map[string]interface{}{
 		"captureId":    "cap-upload",
 		"durationSecs": 5,
 	}), nil)
@@ -421,7 +421,7 @@ func TestRunCapture_UploadsWithoutHostnameWhenLookupFails(t *testing.T) {
 			handler := NewRunCaptureHandler(uploader, tt.hostname)
 			handler.capture = &recordingCaptureTrigger{out: captureOutcome{PcapPath: writeCapture(t, []byte("pcap"))}}
 
-			_, err := handler.Run(context.Background(), newTask(validInputs()), nil)
+			_, err := handler.Run(t.Context(), newTask(validInputs()), nil)
 			require.NoError(t, err)
 
 			uploads := uploader.Uploads()
@@ -442,7 +442,7 @@ func TestRunCapture_UploadFailureFailsTheAction(t *testing.T) {
 	pcapPath := writeCapture(t, []byte("pcap bytes"))
 	handler.capture = &recordingCaptureTrigger{out: captureOutcome{PcapPath: pcapPath}}
 
-	_, err := handler.Run(context.Background(), newTask(validInputs()), nil)
+	_, err := handler.Run(t.Context(), newTask(validInputs()), nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "intake unavailable")
 	assert.NoFileExists(t, pcapPath)
@@ -452,7 +452,7 @@ func TestRunCapture_NoUploaderFailsTheAction(t *testing.T) {
 	handler := NewRunCaptureHandler(nil, newTestHostname())
 	handler.capture = &recordingCaptureTrigger{out: captureOutcome{PcapPath: writeCapture(t, []byte("pcap"))}}
 
-	_, err := handler.Run(context.Background(), newTask(validInputs()), nil)
+	_, err := handler.Run(t.Context(), newTask(validInputs()), nil)
 	require.Error(t, err)
 }
 
@@ -520,7 +520,7 @@ func TestRunCaptureOutcome_Reasons(t *testing.T) {
 			}
 
 			before := outcomeCount(tt.reason, tt.socket)
-			_, err := handler.Run(context.Background(), newTask(inputs), nil)
+			_, err := handler.Run(t.Context(), newTask(inputs), nil)
 			if tt.reason == reasonSuccess {
 				require.NoError(t, err)
 			} else {
@@ -555,7 +555,7 @@ func TestRunCaptureOutcome_CaptureFailures(t *testing.T) {
 			handler.capture = &failingCaptureTrigger{err: tt.err, socket: socketMain}
 
 			before := outcomeCount(tt.reason, socketMain)
-			_, err := handler.Run(context.Background(), newTask(validInputs()), nil)
+			_, err := handler.Run(t.Context(), newTask(validInputs()), nil)
 			require.Error(t, err)
 			assert.Equal(t, 1.0, outcomeCount(tt.reason, socketMain)-before)
 		})

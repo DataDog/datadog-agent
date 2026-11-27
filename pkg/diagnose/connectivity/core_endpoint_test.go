@@ -6,7 +6,6 @@
 package connectivity
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -55,13 +54,13 @@ func TestSendHTTPRequestToEndpoint(t *testing.T) {
 	client := defaultforwarderimpl.NewHTTPClient(mockConfig, 1, log)
 
 	// With the correct API Key, it should be a 200
-	statusCodeWithKey, responseBodyWithKey, _, errWithKey := sendHTTPRequestToEndpoint(context.Background(), client, ts1.URL, endpointInfoTest, apiKey1)
+	statusCodeWithKey, responseBodyWithKey, _, errWithKey := sendHTTPRequestToEndpoint(t.Context(), client, ts1.URL, endpointInfoTest, apiKey1)
 	assert.NoError(t, errWithKey)
 	assert.Equal(t, statusCodeWithKey, 200)
 	assert.Equal(t, string(responseBodyWithKey), "OK")
 
 	// With the wrong API Key, it should be a 400
-	statusCode, responseBody, _, err := sendHTTPRequestToEndpoint(context.Background(), client, ts1.URL, endpointInfoTest, apiKey2)
+	statusCode, responseBody, _, err := sendHTTPRequestToEndpoint(t.Context(), client, ts1.URL, endpointInfoTest, apiKey2)
 	assert.NoError(t, err)
 	assert.Equal(t, statusCode, 400)
 	assert.Equal(t, string(responseBody), "Bad Request")
@@ -139,7 +138,7 @@ func TestSendHTTPRequestToEndpoint_ProtoPayload(t *testing.T) {
 		ContentType: "application/x-protobuf",
 	}
 
-	statusCode, responseBody, _, err := sendHTTPRequestToEndpoint(context.Background(), client, ts.URL, endpointInfo, "api_key1")
+	statusCode, responseBody, _, err := sendHTTPRequestToEndpoint(t.Context(), client, ts.URL, endpointInfo, "api_key1")
 	assert.NoError(t, err)
 	assert.Equal(t, 200, statusCode)
 	assert.Equal(t, "Received Protobuf", string(responseBody))
@@ -176,7 +175,7 @@ func TestSendHTTPRequestHeaders(t *testing.T) {
 		ContentType: "application/x-protobuf",
 	}
 
-	statusCode, _, _, err := sendHTTPRequestToEndpoint(context.Background(), client, ts.URL, endpointInfo, "api_key1")
+	statusCode, _, _, err := sendHTTPRequestToEndpoint(t.Context(), client, ts.URL, endpointInfo, "api_key1")
 	assert.NoError(t, err)
 	assert.Equal(t, 200, statusCode)
 }

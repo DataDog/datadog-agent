@@ -7,7 +7,6 @@
 package telemetry
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -21,7 +20,7 @@ import (
 )
 
 func TestFreshSpan(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	_, ok := SpanFromContext(ctx)
 	require.False(t, ok)
 
@@ -40,7 +39,7 @@ func TestFreshSpan(t *testing.T) {
 }
 
 func TestInheritence(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	s, ctx := StartSpanFromContext(ctx, "test")
 	require.NotNil(t, s)
 
@@ -52,7 +51,7 @@ func TestInheritence(t *testing.T) {
 }
 
 func TestStartSpanFromIDs(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	traceID := "100"
 	parentID := "200"
 
@@ -71,7 +70,7 @@ func TestStartSpanFromIDs(t *testing.T) {
 }
 
 func TestStartSpanFromUint64IDs(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	span, ctx := StartSpanFromUint64IDs(ctx, "ids-operation", 100, 200)
 	require.NotNil(t, span)
@@ -147,7 +146,7 @@ func TestSpanFromEnv(t *testing.T) {
 				defer os.Unsetenv(envParentID)
 			}
 
-			span, ctx := StartSpanFromEnv(context.Background(), "env-operation")
+			span, ctx := StartSpanFromEnv(t.Context(), "env-operation")
 			require.NotNil(t, span, "Expected a span")
 			s, ok := SpanFromContext(ctx)
 			assert.True(t, ok)
@@ -166,7 +165,7 @@ func TestSpanFromEnv(t *testing.T) {
 
 func TestLimit(t *testing.T) {
 	totalSpans := maxSpansInFlight + 2
-	ctx := context.Background()
+	ctx := t.Context()
 	for i := 0; i < totalSpans; i++ {
 		_, ctx = StartSpanFromContext(ctx, "test")
 	}
@@ -174,19 +173,19 @@ func TestLimit(t *testing.T) {
 }
 
 func TestEnvFromContext(t *testing.T) {
-	s, ctx := StartSpanFromContext(context.Background(), "test")
+	s, ctx := StartSpanFromContext(t.Context(), "test")
 	s.span.TraceID = 456
 	s.span.SpanID = 123
 	ctx = setSpanIDsInContext(ctx, s)
 	env := EnvFromContext(ctx)
 	assert.ElementsMatch(t, []string{"DATADOG_TRACE_ID=456", "DATADOG_PARENT_ID=123"}, env)
 
-	env = EnvFromContext(context.Background())
+	env = EnvFromContext(t.Context())
 	assert.ElementsMatch(t, []string{}, env)
 }
 
 func TestSpanFinished(t *testing.T) {
-	s, _ := StartSpanFromContext(context.Background(), "test")
+	s, _ := StartSpanFromContext(t.Context(), "test")
 	s.Finish(nil)
 	s.SetResourceName("new")
 	s.SetTag("key", "value")
@@ -204,7 +203,7 @@ func TestRemapOnFlush(t *testing.T) {
 
 	// traces with 2 spans
 	for i := 0; i < numTraces; i++ {
-		parentSpan, ctx := StartSpanFromContext(context.Background(), "parent")
+		parentSpan, ctx := StartSpanFromContext(t.Context(), "parent")
 		childSpan, _ := StartSpanFromContext(ctx, "child")
 		childSpan.Finish(errors.New("test_error"))
 		parentSpan.Finish(nil)
@@ -338,7 +337,7 @@ func TestSampling(t *testing.T) {
 
 func TestFinishWithPlainErrorUsesFallbackStack(t *testing.T) {
 	globalTracer = &tracer{spans: make(map[uint64]*Span)}
-	s, _ := StartSpanFromContext(context.Background(), "test")
+	s, _ := StartSpanFromContext(t.Context(), "test")
 	s.Finish(errors.New("plain error"))
 
 	stack := s.span.Meta["error.stack"]
@@ -355,7 +354,7 @@ func TestFinishWithStackTracerErrorUsesCreationStack(t *testing.T) {
 	// Create an InstallerError with a stack captured at Wrap() time
 	err := installerErrors.Wrap(installerErrors.ErrDownloadFailed, errors.New("download failed"))
 
-	s, _ := StartSpanFromContext(context.Background(), "test")
+	s, _ := StartSpanFromContext(t.Context(), "test")
 	s.Finish(err)
 
 	stack := s.span.Meta["error.stack"]
@@ -371,7 +370,7 @@ func TestFinishWithWrappedStackTracerError(t *testing.T) {
 	inner := installerErrors.Wrap(installerErrors.ErrDownloadFailed, errors.New("download failed"))
 	err := fmt.Errorf("outer context: %w", inner)
 
-	s, _ := StartSpanFromContext(context.Background(), "test")
+	s, _ := StartSpanFromContext(t.Context(), "test")
 	s.Finish(err)
 
 	stack := s.span.Meta["error.stack"]
@@ -396,7 +395,7 @@ func TestWithService_InheritedByChild(t *testing.T) {
 	globalTracer = &tracer{spans: make(map[uint64]*Span)}
 	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", "default-service")
 
-	ctx := WithService(context.Background(), "custom")
+	ctx := WithService(t.Context(), "custom")
 	parent, ctx := StartSpanFromContext(ctx, "parent")
 	child, _ := StartSpanFromContext(ctx, "child")
 	child.Finish(nil)
@@ -414,7 +413,7 @@ func TestWithService_OverrideOnChild(t *testing.T) {
 	globalTracer = &tracer{spans: make(map[uint64]*Span)}
 	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", "default-service")
 
-	ctx := WithService(context.Background(), "service-a")
+	ctx := WithService(t.Context(), "service-a")
 	parent, ctx := StartSpanFromContext(ctx, "parent")
 	ctx = WithService(ctx, "service-b")
 	child, _ := StartSpanFromContext(ctx, "child")
@@ -436,7 +435,7 @@ func TestWithService_DeepInheritance(t *testing.T) {
 	globalTracer = &tracer{spans: make(map[uint64]*Span)}
 	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", "default-service")
 
-	ctx := WithService(context.Background(), "custom")
+	ctx := WithService(t.Context(), "custom")
 	s1, ctx := StartSpanFromContext(ctx, "gp")
 	s2, ctx := StartSpanFromContext(ctx, "p")
 	s3, _ := StartSpanFromContext(ctx, "c")
@@ -456,7 +455,7 @@ func TestWithService_UnsetFallsBackToDefault(t *testing.T) {
 	globalTracer = &tracer{spans: make(map[uint64]*Span)}
 	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", "default-service")
 
-	parent, _ := StartSpanFromContext(context.Background(), "parent")
+	parent, _ := StartSpanFromContext(t.Context(), "parent")
 	parent.Finish(nil)
 
 	resTraces := telem.extractCompletedSpans()
@@ -469,7 +468,7 @@ func TestWithService_EmptyStringFallsBackToDefault(t *testing.T) {
 	globalTracer = &tracer{spans: make(map[uint64]*Span)}
 	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", "default-service")
 
-	ctx := WithService(context.Background(), "")
+	ctx := WithService(t.Context(), "")
 	parent, _ := StartSpanFromContext(ctx, "parent")
 	parent.Finish(nil)
 
@@ -482,7 +481,7 @@ func TestWithService_SetBeforeFirstSpan(t *testing.T) {
 	globalTracer = &tracer{spans: make(map[uint64]*Span)}
 	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", "default-service")
 
-	ctx := WithService(context.Background(), "early")
+	ctx := WithService(t.Context(), "early")
 	parent, _ := StartSpanFromContext(ctx, "parent")
 	parent.Finish(nil)
 
@@ -494,7 +493,7 @@ func TestWithService_SetBeforeFirstSpan(t *testing.T) {
 func TestWithService_DoesNotBreakSpanLookup(t *testing.T) {
 	globalTracer = &tracer{spans: make(map[uint64]*Span)}
 
-	parent, ctx := StartSpanFromContext(context.Background(), "parent")
+	parent, ctx := StartSpanFromContext(t.Context(), "parent")
 	ctx = WithService(ctx, "custom")
 	got, ok := SpanFromContext(ctx)
 	require.True(t, ok)
@@ -505,7 +504,7 @@ func TestWithSamplingPriority_InheritedByChild(t *testing.T) {
 	globalTracer = &tracer{spans: make(map[uint64]*Span)}
 	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", "svc")
 
-	ctx := WithSamplingPriority(context.Background(), 1)
+	ctx := WithSamplingPriority(t.Context(), 1)
 	parent, ctx := StartSpanFromContext(ctx, "parent")
 	child, _ := StartSpanFromContext(ctx, "child")
 	child.Finish(nil)
@@ -523,7 +522,7 @@ func TestWithSamplingPriority_OverrideOnChild(t *testing.T) {
 	globalTracer = &tracer{spans: make(map[uint64]*Span)}
 	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", "svc")
 
-	ctx := WithSamplingPriority(context.Background(), 1)
+	ctx := WithSamplingPriority(t.Context(), 1)
 	parent, ctx := StartSpanFromContext(ctx, "parent")
 	ctx = WithSamplingPriority(ctx, 2)
 	child, _ := StartSpanFromContext(ctx, "child")
@@ -544,7 +543,7 @@ func TestWithSamplingPriority_UnsetUsesDefaultAtFlush(t *testing.T) {
 	globalTracer = &tracer{spans: make(map[uint64]*Span)}
 	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", "svc")
 
-	parent, _ := StartSpanFromContext(context.Background(), "parent")
+	parent, _ := StartSpanFromContext(t.Context(), "parent")
 	parent.Finish(nil)
 
 	resTraces := telem.extractCompletedSpans()
@@ -556,7 +555,7 @@ func TestWithSamplingPriority_ZeroShortCircuits(t *testing.T) {
 	globalTracer = &tracer{spans: make(map[uint64]*Span)}
 	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", "svc")
 
-	ctx := WithSamplingPriority(context.Background(), 0)
+	ctx := WithSamplingPriority(t.Context(), 0)
 	parent, _ := StartSpanFromContext(ctx, "parent")
 	assert.Equal(t, uint64(dropTraceID), parent.span.TraceID)
 	assert.Empty(t, globalTracer.spans, "dropped span should not be registered")
@@ -569,7 +568,7 @@ func TestWithSamplingPriority_NegativeShortCircuits(t *testing.T) {
 	globalTracer = &tracer{spans: make(map[uint64]*Span)}
 	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", "svc")
 
-	ctx := WithSamplingPriority(context.Background(), -1)
+	ctx := WithSamplingPriority(t.Context(), -1)
 	parent, _ := StartSpanFromContext(ctx, "parent")
 	assert.Equal(t, uint64(dropTraceID), parent.span.TraceID)
 	assert.Empty(t, globalTracer.spans)
@@ -582,7 +581,7 @@ func TestWithSamplingPriority_DropPropagatesToChildren(t *testing.T) {
 	globalTracer = &tracer{spans: make(map[uint64]*Span)}
 	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", "svc")
 
-	ctx := WithSamplingPriority(context.Background(), 0)
+	ctx := WithSamplingPriority(t.Context(), 0)
 	parent, ctx := StartSpanFromContext(ctx, "parent")
 	child, _ := StartSpanFromContext(ctx, "child")
 	child.Finish(nil)
@@ -597,7 +596,7 @@ func TestWithSamplingPriority_ChildCannotRescueDroppedParent(t *testing.T) {
 	globalTracer = &tracer{spans: make(map[uint64]*Span)}
 	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", "svc")
 
-	ctx := WithSamplingPriority(context.Background(), 0)
+	ctx := WithSamplingPriority(t.Context(), 0)
 	parent, ctx := StartSpanFromContext(ctx, "parent")
 	ctx = WithSamplingPriority(ctx, 2)
 	child, _ := StartSpanFromContext(ctx, "child")
@@ -616,7 +615,7 @@ func TestWithServiceAndSamplingPriority_Coexist(t *testing.T) {
 	globalTracer = &tracer{spans: make(map[uint64]*Span)}
 	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", "default-service")
 
-	ctx := WithService(context.Background(), "custom")
+	ctx := WithService(t.Context(), "custom")
 	ctx = WithSamplingPriority(ctx, 1)
 	parent, ctx := StartSpanFromContext(ctx, "parent")
 	child, _ := StartSpanFromContext(ctx, "child")
@@ -636,7 +635,7 @@ func TestWithService_DoesNotAffectSamplingPriority(t *testing.T) {
 	globalTracer = &tracer{spans: make(map[uint64]*Span)}
 	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", "default-service")
 
-	ctx := WithSamplingPriority(context.Background(), 1)
+	ctx := WithSamplingPriority(t.Context(), 1)
 	ctx = WithService(ctx, "custom")
 	parent, _ := StartSpanFromContext(ctx, "parent")
 	parent.Finish(nil)
@@ -651,7 +650,7 @@ func TestWithSamplingPriority_DoesNotAffectService(t *testing.T) {
 	globalTracer = &tracer{spans: make(map[uint64]*Span)}
 	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", "default-service")
 
-	ctx := WithService(context.Background(), "custom")
+	ctx := WithService(t.Context(), "custom")
 	ctx = WithSamplingPriority(ctx, 1)
 	parent, _ := StartSpanFromContext(ctx, "parent")
 	parent.Finish(nil)
@@ -668,13 +667,13 @@ func TestEnvFromContext_EmptyWhenNoSpanStarted(t *testing.T) {
 	// real inherited trace vars in child processes.
 	globalTracer = &tracer{spans: make(map[uint64]*Span)}
 
-	ctx := WithService(context.Background(), "custom")
+	ctx := WithService(t.Context(), "custom")
 	assert.Empty(t, EnvFromContext(ctx))
 
-	ctx = WithSamplingPriority(context.Background(), 1)
+	ctx = WithSamplingPriority(t.Context(), 1)
 	assert.Empty(t, EnvFromContext(ctx))
 
-	ctx = WithService(context.Background(), "custom")
+	ctx = WithService(t.Context(), "custom")
 	ctx = WithSamplingPriority(ctx, 1)
 	assert.Empty(t, EnvFromContext(ctx))
 }
@@ -687,7 +686,7 @@ func TestWithSamplingPriority_OverridesHeadSampling(t *testing.T) {
 
 	// "agent.startup" has rate 0.0 in samplingRates — without an override, all
 	// root spans with this name are head-dropped.
-	ctx := WithSamplingPriority(context.Background(), 2)
+	ctx := WithSamplingPriority(t.Context(), 2)
 	parent, _ := StartSpanFromContext(ctx, "agent.startup")
 	assert.NotEqual(t, uint64(dropTraceID), parent.span.TraceID,
 		"explicit keep priority must override head sampling")
@@ -703,7 +702,7 @@ func TestWithSamplingPriority_OverridesHeadSampling(t *testing.T) {
 func TestEnvFromContext_IncludesServiceAndPriority(t *testing.T) {
 	globalTracer = &tracer{spans: make(map[uint64]*Span)}
 
-	ctx := WithService(context.Background(), "custom")
+	ctx := WithService(t.Context(), "custom")
 	ctx = WithSamplingPriority(ctx, 1)
 	s, ctx := StartSpanFromContext(ctx, "parent")
 
@@ -717,7 +716,7 @@ func TestEnvFromContext_IncludesServiceAndPriority(t *testing.T) {
 func TestEnvFromContext_EmptyServiceNotEmitted(t *testing.T) {
 	globalTracer = &tracer{spans: make(map[uint64]*Span)}
 
-	ctx := WithService(context.Background(), "")
+	ctx := WithService(t.Context(), "")
 	_, ctx = StartSpanFromContext(ctx, "parent")
 
 	env := EnvFromContext(ctx)
@@ -739,7 +738,7 @@ func TestStartSpanFromEnv_ReadsServiceAndPriority(t *testing.T) {
 	defer os.Unsetenv(envService)
 	defer os.Unsetenv(envSamplingPriority)
 
-	span, _ := StartSpanFromEnv(context.Background(), "child")
+	span, _ := StartSpanFromEnv(t.Context(), "child")
 	span.Finish(nil)
 
 	resTraces := telem.extractCompletedSpans()
@@ -754,7 +753,7 @@ func TestCrossProcessRoundTrip_ServiceAndPriority(t *testing.T) {
 	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", "default-service")
 
 	// Parent process: sets service + priority, starts a span, emits env vars.
-	ctx := WithService(context.Background(), "parent-svc")
+	ctx := WithService(t.Context(), "parent-svc")
 	ctx = WithSamplingPriority(ctx, 1)
 	parent, ctx := StartSpanFromContext(ctx, "parent")
 	envVars := EnvFromContext(ctx)
@@ -765,7 +764,7 @@ func TestCrossProcessRoundTrip_ServiceAndPriority(t *testing.T) {
 		os.Setenv(parts[0], parts[1])
 		defer os.Unsetenv(parts[0])
 	}
-	child, _ := StartSpanFromEnv(context.Background(), "child")
+	child, _ := StartSpanFromEnv(t.Context(), "child")
 	child.Finish(nil)
 	parent.Finish(nil)
 
@@ -783,7 +782,7 @@ func TestCrossProcessRoundTrip_DropPropagatesViaPriorityEnv(t *testing.T) {
 	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", "svc")
 
 	// Parent: priority=0 short-circuits locally via dropTraceID. Env vars still emitted.
-	ctx := WithSamplingPriority(context.Background(), 0)
+	ctx := WithSamplingPriority(t.Context(), 0)
 	parent, ctx := StartSpanFromContext(ctx, "parent")
 	envVars := EnvFromContext(ctx)
 	assert.Contains(t, envVars, "DATADOG_SAMPLING_PRIORITY=0")
@@ -794,7 +793,7 @@ func TestCrossProcessRoundTrip_DropPropagatesViaPriorityEnv(t *testing.T) {
 		os.Setenv(parts[0], parts[1])
 		defer os.Unsetenv(parts[0])
 	}
-	child, _ := StartSpanFromEnv(context.Background(), "child")
+	child, _ := StartSpanFromEnv(t.Context(), "child")
 	child.Finish(nil)
 	parent.Finish(nil)
 
@@ -809,7 +808,7 @@ func TestStartSpanFromEnv_MalformedPriorityIgnored(t *testing.T) {
 	os.Setenv(envSamplingPriority, "not-a-number")
 	defer os.Unsetenv(envSamplingPriority)
 
-	span, _ := StartSpanFromEnv(context.Background(), "op")
+	span, _ := StartSpanFromEnv(t.Context(), "op")
 	span.Finish(nil)
 
 	resTraces := telem.extractCompletedSpans()
@@ -824,7 +823,7 @@ func TestHeadSamplingStillAppliesWithoutExplicitPriority(t *testing.T) {
 	globalTracer = &tracer{spans: make(map[uint64]*Span)}
 	telem := newTelemetry(&http.Client{}, "api", "datad0g.com", "svc")
 
-	parent, _ := StartSpanFromContext(context.Background(), "agent.startup")
+	parent, _ := StartSpanFromContext(t.Context(), "agent.startup")
 	assert.Equal(t, uint64(dropTraceID), parent.span.TraceID)
 	parent.Finish(nil)
 

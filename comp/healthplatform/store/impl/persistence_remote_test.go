@@ -47,7 +47,7 @@ func TestLoadFromRemoteRestoresReconciliationState(t *testing.T) {
 	resolvedCh := make(chan *healthplatformpayload.Issue, 1)
 	h.RegisterIssuesObserver(storedef.IssuesObserver{ResolvedCh: resolvedCh})
 
-	require.NoError(t, h.start(context.Background()))
+	require.NoError(t, h.start(t.Context()))
 	assert.Equal(t, []string{issueID}, h.GetActiveIssueIDsByIssueName("Invalid Agent Configuration"))
 
 	persisted := h.persistedIssues[issueID]
@@ -81,7 +81,7 @@ func TestLoadFromRemoteMatchesDiskIssueProcessing(t *testing.T) {
 		{IssueID: "empty-type", IssueName: "Empty Type", Category: "configuration"},
 		{IssueID: "empty-category", IssueName: "Empty Category", IssueType: "empty_category"},
 	}})
-	require.NoError(t, remote.loadPersistedState(context.Background()))
+	require.NoError(t, remote.loadPersistedState(t.Context()))
 
 	path := filepath.Join(t.TempDir(), "issues.json")
 	require.NoError(t, os.WriteFile(path, []byte(`{"version":2,"issues":{
@@ -94,7 +94,7 @@ func TestLoadFromRemoteMatchesDiskIssueProcessing(t *testing.T) {
 	}}`), 0600))
 	disk := newTestStore(t)
 	disk.persistence = newDiskPersistence(path, disk.log)
-	require.NoError(t, disk.loadPersistedState(context.Background()))
+	require.NoError(t, disk.loadPersistedState(t.Context()))
 
 	require.Len(t, remote.persistedIssues, 5)
 	assert.Equal(t, []string{"duplicate"}, remote.GetActiveIssueIDsByIssueName("New"))
@@ -114,5 +114,5 @@ func TestLoadFromRemoteMatchesDiskIssueProcessing(t *testing.T) {
 func TestRemotePersistencePropagatesLoadError(t *testing.T) {
 	h := newTestStore(t)
 	h.persistence = newRemotePersistence(&fakeRemoteIssueLoader{err: assert.AnError})
-	assert.ErrorIs(t, h.loadPersistedState(context.Background()), assert.AnError)
+	assert.ErrorIs(t, h.loadPersistedState(t.Context()), assert.AnError)
 }

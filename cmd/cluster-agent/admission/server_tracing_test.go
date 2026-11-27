@@ -8,7 +8,6 @@
 package admission
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -76,7 +75,7 @@ func TestAdmissionRequestTracing(t *testing.T) {
 			}
 			req := httptest.NewRequest(method, "/test", strings.NewReader(body))
 			req.Header.Set("Content-Type", jsonContentType)
-			upstream, ctx := tracer.StartSpanFromContext(context.Background(), "upstream")
+			upstream, ctx := tracer.StartSpanFromContext(t.Context(), "upstream")
 			w := httptest.NewRecorder()
 			s.mux.ServeHTTP(w, req.WithContext(ctx))
 			upstream.Finish()

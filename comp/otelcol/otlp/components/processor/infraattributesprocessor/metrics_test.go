@@ -202,7 +202,7 @@ func TestInfraAttributesMetricProcessor(t *testing.T) {
 				return "test-host", nil
 			})
 			fmp, err := factory.CreateMetrics(
-				context.Background(),
+				t.Context(),
 				processortest.NewNopSettings(Type),
 				cfg,
 				next,
@@ -212,10 +212,10 @@ func TestInfraAttributesMetricProcessor(t *testing.T) {
 
 			caps := fmp.Capabilities()
 			assert.True(t, caps.MutatesData)
-			ctx := context.Background()
+			ctx := t.Context()
 			assert.NoError(t, fmp.Start(ctx, nil))
 
-			cErr := fmp.ConsumeMetrics(context.Background(), test.inMetrics)
+			cErr := fmp.ConsumeMetrics(t.Context(), test.inMetrics)
 			assert.Nil(t, cErr)
 			assert.NoError(t, fmp.Shutdown(ctx))
 
@@ -249,13 +249,13 @@ func TestInfraAttributesMetricProcessorIgnoresContainerTagPromotion(t *testing.T
 				return "test-host", nil
 			})
 			fmp, err := factory.CreateMetrics(
-				context.Background(),
+				t.Context(),
 				processortest.NewNopSettings(Type),
 				cfg,
 				next,
 			)
 			assert.NoError(t, err)
-			ctx := context.Background()
+			ctx := t.Context()
 			assert.NoError(t, fmp.Start(ctx, nil))
 
 			md := testResourceMetrics([]metricWithResource{{
@@ -317,13 +317,13 @@ func TestInfraAttributesMetricProcessorMetricsAttributesAsTags(t *testing.T) {
 				return "test-host", nil
 			})
 			fmp, err := factory.CreateMetrics(
-				context.Background(),
+				t.Context(),
 				processortest.NewNopSettings(Type),
 				cfg,
 				next,
 			)
 			assert.NoError(t, err)
-			ctx := context.Background()
+			ctx := t.Context()
 			assert.NoError(t, fmp.Start(ctx, nil))
 
 			md := testResourceMetrics([]metricWithResource{{

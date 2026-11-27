@@ -133,7 +133,7 @@ func TestSendPayloadBody_StatusCodes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cl := &captureClient{statusCode: tc.status}
 			s := newTestSender(t, cl)
-			status, err := s.sendPayloadBody(context.Background(),
+			status, err := s.sendPayloadBody(t.Context(),
 				[]byte(`{"k":"v"}`), "logs", "test-key",
 				"https://example.invalid/api/v2/apmtelemetry", false)
 			require.NoError(t, err)
@@ -152,7 +152,7 @@ func TestSendPayloadBody_StatusCodes(t *testing.T) {
 func TestSendPayloadBody_NetworkError(t *testing.T) {
 	cl := &captureClient{err: errors.New("simulated network down")}
 	s := newTestSender(t, cl)
-	status, err := s.sendPayloadBody(context.Background(),
+	status, err := s.sendPayloadBody(t.Context(),
 		[]byte("{}"), "logs", "key", "https://example.invalid/path", false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "simulated network down")
@@ -301,7 +301,7 @@ func newTestAtelMinimal(t *testing.T, sndr sender, bufSize int) *atel {
 		shutdownDrainTimeout: 5 * time.Second,
 	}
 	a.allocErrortrackingQueueLocked()
-	a.cancelCtx, a.cancel = context.WithCancel(context.Background())
+	a.cancelCtx, a.cancel = context.WithCancel(t.Context())
 	return a
 }
 
@@ -329,7 +329,7 @@ func TestSubmitErrorLog_AcceptsRecord_PCZero(t *testing.T) {
 
 	a.SubmitErrorLog(errorLog("from-external"))
 
-	a.flushErrortracking(context.Background())
+	a.flushErrortracking(t.Context())
 
 	assert.Len(t, sm.capturedLogs(), 1,
 		"PC=0 record must be enqueued and flushed to the sender")
@@ -398,7 +398,7 @@ func TestFlushErrortracking_DrainsWholeBufferInOneCall(t *testing.T) {
 		a.SubmitErrorLog(errorLog(fmt.Sprintf("r-%d", i)))
 	}
 
-	a.flushErrortracking(context.Background())
+	a.flushErrortracking(t.Context())
 
 	got := sm.capturedLogs()
 	require.Len(t, got, total, "every enqueued record must be dispatched in one drain pass")
@@ -455,7 +455,7 @@ func TestFlushErrortracking_DrainIsBoundedToSnapshot(t *testing.T) {
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
-			a.flushErrortracking(context.Background())
+			a.flushErrortracking(t.Context())
 		}()
 
 		select {
@@ -489,13 +489,13 @@ func TestFlushErrortracking_LateArrivalsWaitForNextTick(t *testing.T) {
 	for i := range preFilled {
 		a.SubmitErrorLog(errorLog(fmt.Sprintf("pre-%d", i)))
 	}
-	a.flushErrortracking(context.Background())
+	a.flushErrortracking(t.Context())
 
 	const late = 3
 	for i := range late {
 		a.SubmitErrorLog(errorLog(fmt.Sprintf("late-%d", i)))
 	}
-	a.flushErrortracking(context.Background())
+	a.flushErrortracking(t.Context())
 
 	assert.Len(t, sm.capturedLogs(), preFilled+late,
 		"items enqueued after the first flush must be picked up by the next one")
@@ -522,7 +522,7 @@ func TestFlushErrortracking_FinalDrain(t *testing.T) {
 	a.SubmitErrorLog(errorLog("pending-2"))
 	a.SubmitErrorLog(errorLog("pending-3"))
 
-	shutdownCtx, cancelDrain := context.WithTimeout(context.Background(), a.shutdownDrainTimeout)
+	shutdownCtx, cancelDrain := context.WithTimeout(t.Context(), a.shutdownDrainTimeout)
 	defer cancelDrain()
 	a.flushErrortracking(shutdownCtx)
 
@@ -580,7 +580,7 @@ func TestFlushErrortracking_ShutdownCtxIsLive(t *testing.T) {
 	// from background, NOT from a.cancelCtx.
 	a.cancel()
 
-	shutdownCtx, cancelDrain := context.WithTimeout(context.Background(), a.shutdownDrainTimeout)
+	shutdownCtx, cancelDrain := context.WithTimeout(t.Context(), a.shutdownDrainTimeout)
 	defer cancelDrain()
 	a.flushErrortracking(shutdownCtx)
 
@@ -637,7 +637,7 @@ func TestTelemetryDelegatedAdditionalEndpointUpdates(t *testing.T) {
 			s := newTestSender(t, cl)
 			s.endpoints = endpoints
 			send := func() {
-				require.NoError(t, s.sendPayloadBytes(context.Background(), []byte(`{}`), "logs"))
+				require.NoError(t, s.sendPayloadBytes(t.Context(), []byte(`{}`), "logs"))
 			}
 			send()
 			reqs, _ := cl.snapshot()

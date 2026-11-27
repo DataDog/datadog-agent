@@ -6,7 +6,6 @@
 package creds
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -106,7 +105,7 @@ func TestGetAWSRegionFromEnvironment(t *testing.T) {
 			t.Setenv("AWS_REGION", tc.awsRegion)
 			t.Setenv("AWS_DEFAULT_REGION", tc.awsDefaultReg)
 
-			region, err := GetAWSRegion(context.Background())
+			region, err := GetAWSRegion(t.Context())
 
 			if tc.expectError {
 				assert.Error(t, err)
@@ -139,7 +138,7 @@ func TestDetectAWSCredentialSourceWithCredentials(t *testing.T) {
 	t.Setenv("AWS_ACCESS_KEY_ID", "AKIAIOSFODNN7EXAMPLE")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")
 
-	source, err := DetectAWSCredentialSource(context.Background())
+	source, err := DetectAWSCredentialSource(t.Context())
 	assert.NoError(t, err)
 	assert.Equal(t, SourceEnvironment, source)
 }
@@ -186,7 +185,7 @@ func TestDetectAWSCredentialSourceWithIMDS(t *testing.T) {
 		ec2internal.InstanceIdentityURL = originalIdentityURL
 	}()
 
-	source, err := DetectAWSCredentialSource(context.Background())
+	source, err := DetectAWSCredentialSource(t.Context())
 	assert.NoError(t, err)
 	assert.Equal(t, SourceIMDS, source)
 }
@@ -234,7 +233,7 @@ func TestGetAWSRegionFromIMDS(t *testing.T) {
 		ec2internal.InstanceIdentityURL = originalIdentityURL
 	}()
 
-	region, err := GetAWSRegion(context.Background())
+	region, err := GetAWSRegion(t.Context())
 	assert.NoError(t, err)
 	assert.Equal(t, "ap-northeast-1", region)
 }
@@ -245,7 +244,7 @@ func TestDetectAWSCredentialSourceWithIRSAEnvVars(t *testing.T) {
 	t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", "/var/run/secrets/eks.amazonaws.com/serviceaccount/token")
 	t.Setenv("AWS_ROLE_ARN", "arn:aws:iam::123456789012:role/test-role")
 
-	source, err := DetectAWSCredentialSource(context.Background())
+	source, err := DetectAWSCredentialSource(t.Context())
 	assert.NoError(t, err)
 	assert.Equal(t, SourceWebIdentity, source)
 }
@@ -255,7 +254,7 @@ func TestDetectAWSCredentialSourceWithContainerRelativeURI(t *testing.T) {
 	isolateAWSCredentialEnv(t)
 	t.Setenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "/v2/credentials/abc123def456")
 
-	source, err := DetectAWSCredentialSource(context.Background())
+	source, err := DetectAWSCredentialSource(t.Context())
 	assert.NoError(t, err)
 	assert.Equal(t, SourceContainer, source)
 }
@@ -265,7 +264,7 @@ func TestDetectAWSCredentialSourceWithContainerFullURI(t *testing.T) {
 	isolateAWSCredentialEnv(t)
 	t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", "http://169.254.170.23/v1/credentials")
 
-	source, err := DetectAWSCredentialSource(context.Background())
+	source, err := DetectAWSCredentialSource(t.Context())
 	assert.NoError(t, err)
 	assert.Equal(t, SourceContainer, source)
 }
@@ -307,7 +306,7 @@ func TestDetectAWSCredentialSourceNoSource(t *testing.T) {
 		ec2internal.InstanceIdentityURL = originalIdentityURL
 	}()
 
-	source, err := DetectAWSCredentialSource(context.Background())
+	source, err := DetectAWSCredentialSource(t.Context())
 	require.Error(t, err)
 	assert.Empty(t, source)
 	// The message must point the operator at each mechanism, not just say "not on AWS".
@@ -379,7 +378,7 @@ func TestDetectAWSCredentialSourceHonorsCloudProviderMetadata(t *testing.T) {
 	isolateAWSCredentialEnv(t)
 	configmock.NewFromYAML(t, "cloud_provider_metadata:\n  - gcp\n  - azure\n")
 
-	source, err := DetectAWSCredentialSource(context.Background())
+	source, err := DetectAWSCredentialSource(t.Context())
 	require.Error(t, err)
 	assert.Empty(t, source)
 	assert.ErrorIs(t, err, ec2internal.ErrCloudProviderDisabled)
@@ -393,7 +392,7 @@ func TestDetectAWSCredentialSourceEnvSourcesIgnoreCloudProviderMetadata(t *testi
 	t.Setenv("AWS_ACCESS_KEY_ID", "AKID")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "SECRET")
 
-	source, err := DetectAWSCredentialSource(context.Background())
+	source, err := DetectAWSCredentialSource(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, SourceEnvironment, source)
 }
@@ -405,7 +404,7 @@ func TestGetAWSRegionHonorsCloudProviderMetadata(t *testing.T) {
 	t.Setenv("AWS_DEFAULT_REGION", "")
 	configmock.NewFromYAML(t, "cloud_provider_metadata:\n  - gcp\n  - azure\n")
 
-	region, err := GetAWSRegion(context.Background())
+	region, err := GetAWSRegion(t.Context())
 	require.Error(t, err)
 	assert.Empty(t, region)
 	assert.ErrorIs(t, err, ec2internal.ErrCloudProviderDisabled)
@@ -417,7 +416,7 @@ func TestGetAWSRegionEnvIgnoresCloudProviderMetadata(t *testing.T) {
 	t.Setenv("AWS_REGION", "eu-west-1")
 	configmock.NewFromYAML(t, "cloud_provider_metadata:\n  - gcp\n")
 
-	region, err := GetAWSRegion(context.Background())
+	region, err := GetAWSRegion(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, "eu-west-1", region)
 }

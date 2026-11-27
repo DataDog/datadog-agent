@@ -6,7 +6,6 @@
 package observer
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -75,16 +74,16 @@ func TestHandler(t *testing.T) {
 	h := NewHandler()
 
 	// no observer registered: the multi-handler short-circuits
-	assert.False(t, h.Enabled(context.Background(), slog.LevelInfo))
+	assert.False(t, h.Enabled(t.Context(), slog.LevelInfo))
 
 	var calls []string
 	SetLogObserver(func(level types.LogLevel, message string) {
 		calls = append(calls, level.String()+":"+message)
 	})
-	assert.True(t, h.Enabled(context.Background(), slog.LevelInfo))
+	assert.True(t, h.Enabled(t.Context(), slog.LevelInfo))
 
 	r := slog.NewRecord(time.Now(), slog.LevelInfo, "hello", 0)
-	require.NoError(t, h.Handle(context.Background(), r))
+	require.NoError(t, h.Handle(t.Context(), r))
 
 	require.Len(t, calls, 1)
 	assert.Equal(t, "info:hello", calls[0])
@@ -116,7 +115,7 @@ func TestHandlerConcurrentEmissions(t *testing.T) {
 			defer wg.Done()
 			for j := range perGoroutine {
 				r := slog.NewRecord(time.Now(), slog.LevelInfo, fmt.Sprintf("message %d-%d", i, j), 0)
-				assert.NoError(t, async.Handle(context.Background(), r))
+				assert.NoError(t, async.Handle(t.Context(), r))
 			}
 		}()
 	}

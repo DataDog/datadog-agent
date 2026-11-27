@@ -36,7 +36,7 @@ func TestGlobalStdoutCapReturnsError(t *testing.T) {
 	content := strings.Repeat("A", 1<<20)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "mb.txt"), []byte(content), 0644))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	// cat the file 11 times — produces 11 MiB, exceeding the 10 MiB cap.
@@ -90,7 +90,7 @@ func TestGlobalStdoutCapMultipleRuns(t *testing.T) {
 		return prog
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// First call: write 9 MiB — just under the cap. Must succeed.
 	outBuf.Reset()
@@ -122,7 +122,7 @@ func TestGlobalStdoutCapPrecedenceOverExitCode(t *testing.T) {
 	content := strings.Repeat("A", 1<<20) // 1 MiB
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "mb.txt"), []byte(content), 0644))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	var outBuf bytes.Buffer
@@ -168,7 +168,7 @@ func TestGlobalStderrCapReturnsError(t *testing.T) {
 	content := strings.Repeat("A", 1<<20)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "mb.txt"), []byte(content), 0644))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	// cat the file 11 times to stderr — produces 11 MiB on stderr, exceeding the 10 MiB cap.
@@ -221,7 +221,7 @@ func TestGlobalStderrCapMultipleRuns(t *testing.T) {
 		return prog
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	errBuf.Reset()
 	ctx1, cancel1 := context.WithTimeout(ctx, 10*time.Second)
@@ -246,7 +246,7 @@ func TestGlobalStderrCapPrecedenceOverExitCode(t *testing.T) {
 	content := strings.Repeat("A", 1<<20)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "mb.txt"), []byte(content), 0644))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	var errBuf bytes.Buffer
@@ -281,7 +281,7 @@ func TestBothStreamsCapMatchesEitherSentinel(t *testing.T) {
 	content := strings.Repeat("A", 1<<20)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "mb.txt"), []byte(content), 0644))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 
 	var outBuf, errBuf bytes.Buffer
@@ -318,7 +318,7 @@ func TestCmdSubstOutputCapped(t *testing.T) {
 	content := strings.Repeat("A", 1<<20+100)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "big.txt"), []byte(content), 0644))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	// Using $(<file) shortcut with a large file — verify truncation via wc -c.
@@ -334,7 +334,7 @@ func TestCmdSubstOutputCapped(t *testing.T) {
 func TestCmdSubstOutputCappedEcho(t *testing.T) {
 	// Verify that command substitution with large output doesn't crash
 	dir := t.TempDir()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
 	// Create a script that generates many lines of output in a subshell

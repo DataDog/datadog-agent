@@ -7,7 +7,6 @@
 package gpu
 
 import (
-	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -270,7 +269,7 @@ func (s *gpuK8sSuite) AfterTest(suiteName, testName string) {
 		return
 	}
 
-	diagnose, err := k8sPulumiProvisioner.Diagnose(context.Background(), s.Env().KubernetesCluster.ClusterName)
+	diagnose, err := k8sPulumiProvisioner.Diagnose(s.T().Context(), s.Env().KubernetesCluster.ClusterName)
 	if err != nil {
 		s.T().Logf("failed to diagnose provisioner: %v", err)
 	}

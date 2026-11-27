@@ -6,7 +6,6 @@
 package testing
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -97,7 +96,7 @@ clusters:
 				{name: "explicit", inputs: map[string]interface{}{"namespace": "production"}},
 			} {
 				t.Run(namespace.name, func(t *testing.T) {
-					output, err := tt.action.Run(context.Background(), generatedActionTask(namespace.inputs), credentials)
+					output, err := tt.action.Run(t.Context(), generatedActionTask(namespace.inputs), credentials)
 					require.NoError(t, err)
 					require.NotNil(t, output)
 					expectedPath := tt.path

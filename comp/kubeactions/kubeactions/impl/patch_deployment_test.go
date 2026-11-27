@@ -8,7 +8,6 @@
 package kubeactionsimpl
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -61,7 +60,7 @@ func TestPatchDeploymentExecutor_ScaleReplicas(t *testing.T) {
 	in := patchInputs("default", "my-deployment", "test-uid-123",
 		mustJSON(map[string]interface{}{"spec": map[string]interface{}{"replicas": 5}}), "")
 
-	result := executor.Execute(context.Background(), in)
+	result := executor.Execute(t.Context(), in)
 	assert.Equal(t, kubeactions.StatusSuccess, result.Status)
 	assert.Contains(t, result.Message, "patched")
 }
@@ -81,7 +80,7 @@ func TestPatchDeploymentExecutor_UIDMismatch(t *testing.T) {
 	in := patchInputs("default", "my-deployment", "wrong-uid",
 		mustJSON(map[string]interface{}{"spec": map[string]interface{}{"replicas": 5}}), "")
 
-	result := executor.Execute(context.Background(), in)
+	result := executor.Execute(t.Context(), in)
 	assert.Equal(t, kubeactions.StatusFailed, result.Status)
 	assert.Contains(t, result.Message, "UID mismatch")
 }
@@ -93,7 +92,7 @@ func TestPatchDeploymentExecutor_MissingNamespace(t *testing.T) {
 	in := patchInputs("", "my-deployment", "test-uid",
 		mustJSON(map[string]interface{}{"spec": map[string]interface{}{"replicas": 5}}), "")
 
-	result := executor.Execute(context.Background(), in)
+	result := executor.Execute(t.Context(), in)
 	assert.Equal(t, kubeactions.StatusFailed, result.Status)
 	// Namespace validation happens in the validator layer before the executor is called.
 	// With an empty namespace, the k8s API returns a not-found error.
@@ -106,7 +105,7 @@ func TestPatchDeploymentExecutor_MissingPatch(t *testing.T) {
 
 	in := patchInputs("default", "my-deployment", "test-uid", nil, "")
 
-	result := executor.Execute(context.Background(), in)
+	result := executor.Execute(t.Context(), in)
 	assert.Equal(t, kubeactions.StatusFailed, result.Status)
 	assert.Contains(t, result.Message, "patch is required")
 }
@@ -128,7 +127,7 @@ func TestPatchDeploymentExecutor_WithMergeStrategy(t *testing.T) {
 	in := patchInputs("default", "my-deployment", "test-uid-merge",
 		mustJSON(map[string]interface{}{"spec": map[string]interface{}{"replicas": 10}}), "merge")
 
-	result := executor.Execute(context.Background(), in)
+	result := executor.Execute(t.Context(), in)
 	assert.Equal(t, kubeactions.StatusSuccess, result.Status)
 	assert.Contains(t, result.Message, "patched")
 }
@@ -148,7 +147,7 @@ func TestPatchDeploymentExecutor_DeploymentNotFound(t *testing.T) {
 	in := patchInputs("default", "nonexistent", "test-uid",
 		mustJSON(map[string]interface{}{"spec": map[string]interface{}{"replicas": 5}}), "")
 
-	result := executor.Execute(context.Background(), in)
+	result := executor.Execute(t.Context(), in)
 	assert.Equal(t, kubeactions.StatusFailed, result.Status)
 	assert.Contains(t, result.Message, "failed to get deployment")
 }

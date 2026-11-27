@@ -6,7 +6,6 @@
 package hostnameimpl
 
 import (
-	"context"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
@@ -26,7 +25,7 @@ func TestGet(t *testing.T) {
 	})
 	cfg.SetInTest("hostname", "test-hostname")
 	s := fxutil.Test[hostname.Component](t, Module())
-	name, err := s.Get(context.Background())
+	name, err := s.Get(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, "test-hostname", name)
 }
@@ -40,7 +39,7 @@ func TestGetWithProvider(t *testing.T) {
 	})
 	cfg.SetInTest("hostname", "test-hostname2")
 	s := fxutil.Test[hostname.Component](t, Module())
-	data, err := s.GetWithProvider(context.Background())
+	data, err := s.GetWithProvider(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, "test-hostname2", data.Hostname)
 	assert.Equal(t, "configuration", data.Provider)

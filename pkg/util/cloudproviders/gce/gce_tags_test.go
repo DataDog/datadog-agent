@@ -6,7 +6,6 @@
 package gce
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -89,7 +88,7 @@ func testTags(t *testing.T, tags []string, expectedTags []string) {
 }
 
 func TestGetHostTags(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	server := mockMetadataRequest(t)
 	defer server.Close()
 	defer cache.Cache.Delete(tagsCacheKey)
@@ -100,7 +99,7 @@ func TestGetHostTags(t *testing.T) {
 
 func TestGetHostTagsWithProjectID(t *testing.T) {
 	mockConfig := configmock.New(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	server := mockMetadataRequest(t)
 	defer server.Close()
 	defer cache.Cache.Delete(tagsCacheKey)
@@ -111,7 +110,7 @@ func TestGetHostTagsWithProjectID(t *testing.T) {
 }
 
 func TestGetHostTagsSuccessThenError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	server := mockMetadataRequest(t)
 	tags, err := GetTags(ctx)
 	require.NotNil(t, tags)
@@ -127,7 +126,7 @@ func TestGetHostTagsSuccessThenError(t *testing.T) {
 }
 
 func TestGetHostTagsWithNonDefaultTagFilters(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	mockConfig := configmock.New(t)
 	defaultExclude := mockConfig.GetStringSlice("exclude_gce_tags")
 

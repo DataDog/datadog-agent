@@ -128,7 +128,7 @@ func TestSubshellNegation(t *testing.T) {
 
 func TestSubshellContextCancellation(t *testing.T) {
 	dir := t.TempDir()
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	stdout, _, code := subshellRunCtx(ctx, t, `(echo fast)`, dir)
 	assert.Equal(t, 0, code)

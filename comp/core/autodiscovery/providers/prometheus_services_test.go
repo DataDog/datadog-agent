@@ -8,7 +8,6 @@
 package providers
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -196,7 +195,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 	cfg.SetInTest("prometheus_scrape.version", 2)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			api := &MockServiceAPI{}
 			defer api.AssertExpectations(t)
 
@@ -219,7 +218,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 }
 
 func TestPrometheusServicesInvalidate(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	api := &MockServiceAPI{}
 	svc := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -355,7 +354,7 @@ func TestPrometheusServicesInvalidateIfChanged(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			p := newPromServicesProvider(checks, api, true)
 			p.setUpToDate(true)
 			p.invalidateIfChanged(test.old, test.new)
@@ -595,7 +594,7 @@ func TestPrometheusServicesInvalidateIfChangedEndpoints(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			p := newPromServicesProvider(checks, api, true)
 			p.setUpToDate(test.initialUpToDate)
 			for _, monitored := range test.monitoredEndpoints {

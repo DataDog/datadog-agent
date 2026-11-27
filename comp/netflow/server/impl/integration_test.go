@@ -8,7 +8,6 @@
 package serverimpl
 
 import (
-	"context"
 	"encoding/binary"
 	"encoding/json"
 	"net"
@@ -233,7 +232,7 @@ func BenchmarkNetflowAdditionalFields(b *testing.B) {
 
 	formatDriver := goflowlib.NewAggregatorFormatDriver(flowChan, "bench", listenerFlowCount, false, false)
 	logrusLogger := logrus.StandardLogger()
-	ctx := context.Background()
+	ctx := b.Context()
 
 	templateSystem := memory.New(10000)
 	defer templateSystem.Close(ctx)

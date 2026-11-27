@@ -34,7 +34,7 @@ func runScript(t *testing.T, script string) (stdout, stderr string, code int) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	runErr := runner.Run(context.Background(), prog)
+	runErr := runner.Run(t.Context(), prog)
 	exitCode := 0
 	if runErr != nil {
 		var es interp.ExitStatus
@@ -319,7 +319,7 @@ func TestPSPentestLargePIDListDoesNotHang(t *testing.T) {
 		b.WriteString(strconv.Itoa(pid))
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	parser := syntax.NewParser()

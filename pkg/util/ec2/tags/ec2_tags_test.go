@@ -31,7 +31,7 @@ import (
 )
 
 func TestGetIAMRole(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	const expected = "test-role"
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -53,7 +53,7 @@ func TestGetIAMRole(t *testing.T) {
 }
 
 func TestGetSecurityCreds(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/iam/security-credentials/" {
 			w.Header().Set("Content-Type", "text/plain")
@@ -84,7 +84,7 @@ func TestGetSecurityCreds(t *testing.T) {
 }
 
 func TestFetchEc2TagsFromIMDS(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		switch r.RequestURI {
@@ -115,7 +115,7 @@ func TestFetchEc2TagsFromIMDS(t *testing.T) {
 }
 
 func TestFetchEc2TagsFromIMDSError(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	}))
@@ -137,7 +137,7 @@ func mockFetchTagsFailure(_ context.Context) ([]string, error) {
 }
 
 func TestGetTags(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	defer func() {
 		fetchTags = fetchEc2Tags
 		cache.Cache.Delete(tagsCacheKey)
@@ -150,7 +150,7 @@ func TestGetTags(t *testing.T) {
 }
 
 func TestGetTagsErrorEmptyCache(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	defer func() { fetchTags = fetchEc2Tags }()
 	fetchTags = mockFetchTagsFailure
 
@@ -160,7 +160,7 @@ func TestGetTagsErrorEmptyCache(t *testing.T) {
 }
 
 func TestGetTagsErrorFullCache(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	defer func() {
 		fetchTags = fetchEc2Tags
 		cache.Cache.Delete(tagsCacheKey)
@@ -174,7 +174,7 @@ func TestGetTagsErrorFullCache(t *testing.T) {
 }
 
 func TestGetTagsFullWorkflow(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	defer func() {
 		fetchTags = fetchEc2Tags
 		cache.Cache.Delete(tagsCacheKey)
@@ -252,7 +252,7 @@ func TestCollectEC2InstanceInfo(t *testing.T) {
 	isSpotInstance = func(_ context.Context) (bool, error) { return true, nil }
 	t.Cleanup(func() { isSpotInstance = oldIsSpot })
 
-	tags, err := GetInstanceInfo(context.Background())
+	tags, err := GetInstanceInfo(t.Context())
 	require.NoError(t, err)
 
 	expected := []string{
@@ -271,13 +271,13 @@ func TestCollectEC2InstanceInfo(t *testing.T) {
 	assert.Equal(t, expected, ec2Info.([]string))
 
 	conf.SetInTest("collect_ec2_instance_info", false)
-	tags, err = GetInstanceInfo(context.Background())
+	tags, err = GetInstanceInfo(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, []string(nil), tags)
 }
 
 func TestCreateEC2Client(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tests := []struct {
 		name        string
@@ -345,7 +345,7 @@ func setupTestIMDS(t *testing.T) {
 }
 
 func TestFetchEc2TagsFromAPIFallback(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	conf := configmock.New(t)
 	conf.SetInTest("ec2_metadata_timeout", 1000)
 

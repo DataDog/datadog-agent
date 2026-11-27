@@ -8,7 +8,6 @@
 package profile
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -80,7 +79,7 @@ func validTemplate() datadoghq.DatadogPodAutoscalerTemplate {
 
 func TestSyncProfileNewProfile(t *testing.T) {
 	c, profileStore := newTestProfileController()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	profile := newTestProfile("high-cpu", 1, validTemplate())
 	res, err := c.syncProfile(ctx, "high-cpu", profile)
@@ -98,7 +97,7 @@ func TestSyncProfileNewProfile(t *testing.T) {
 
 func TestSyncProfileNilBothSides(t *testing.T) {
 	c, profileStore := newTestProfileController()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	res, err := c.syncProfile(ctx, "missing", nil)
 
@@ -111,7 +110,7 @@ func TestSyncProfileNilBothSides(t *testing.T) {
 
 func TestSyncProfileDelete(t *testing.T) {
 	c, profileStore := newTestProfileController()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	profile := newTestProfile("high-cpu", 1, validTemplate())
 	_, _ = c.syncProfile(ctx, "high-cpu", profile)
@@ -130,7 +129,7 @@ func TestSyncProfileDelete(t *testing.T) {
 
 func TestSyncProfilePreservesWorkloadRefs(t *testing.T) {
 	c, profileStore := newTestProfileController()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	profile1 := newTestProfile("high-cpu", 1, validTemplate())
 	_, _ = c.syncProfile(ctx, "high-cpu", profile1)
@@ -156,7 +155,7 @@ func TestSyncProfilePreservesWorkloadRefs(t *testing.T) {
 
 func TestSyncProfileDeleteNotifiesObservers(t *testing.T) {
 	c, profileStore := newTestProfileController()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	deleted := false
 	profileStore.RegisterObserver(autoscalingstore.Observer{
@@ -177,7 +176,7 @@ func TestSyncProfileDeleteNotifiesObservers(t *testing.T) {
 
 func TestSyncProfileBurstableAnnotation(t *testing.T) {
 	c, profileStore := newTestProfileController()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("preview annotation forwarded when burstable=true", func(t *testing.T) {
 		profile := newTestProfile("p1", 1, validTemplate())

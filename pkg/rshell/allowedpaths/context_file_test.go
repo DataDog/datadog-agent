@@ -28,7 +28,7 @@ func (m *mockRWC) Close() error {
 }
 
 func TestWithContextClose_ExplicitClose(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	m := &mockRWC{}
 	f := WithContextClose(ctx, m)
 
@@ -41,7 +41,7 @@ func TestWithContextClose_ExplicitClose(t *testing.T) {
 }
 
 func TestWithContextClose_ExplicitCloseIdempotent(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	m := &mockRWC{}
 	f := WithContextClose(ctx, m)
 
@@ -55,7 +55,7 @@ func TestWithContextClose_ExplicitCloseIdempotent(t *testing.T) {
 }
 
 func TestWithContextClose_ContextCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	m := &mockRWC{}
 	WithContextClose(ctx, m) //nolint:errcheck
 
@@ -73,7 +73,7 @@ func TestWithContextClose_ContextCancellation(t *testing.T) {
 }
 
 func TestWithContextClose_ContextCancelledBeforeOpen(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel() // already done
 
 	m := &mockRWC{}
@@ -90,7 +90,7 @@ func TestWithContextClose_ContextCancelledBeforeOpen(t *testing.T) {
 }
 
 func TestWithContextClose_ContextCancelThenExplicitClose_ClosedOnce(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	m := &mockRWC{}
 	f := WithContextClose(ctx, m)
 
@@ -113,7 +113,7 @@ func TestWithContextClose_ContextCancelThenExplicitClose_ClosedOnce(t *testing.T
 }
 
 func TestWithContextClose_ErrorPropagated(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	want := errors.New("close failed")
 	m := &mockRWC{closeErr: want}
 	f := WithContextClose(ctx, m)
@@ -127,7 +127,7 @@ func TestWithContextClose_GoroutineExitsOnExplicitClose(t *testing.T) {
 	// Verify that the background goroutine exits when Close is called even if
 	// the context is never cancelled. We test this indirectly by ensuring no
 	// extra Close calls happen long after explicit Close.
-	ctx := context.Background()
+	ctx := t.Context()
 	m := &mockRWC{}
 	f := WithContextClose(ctx, m)
 	f.Close() //nolint:errcheck

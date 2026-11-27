@@ -86,7 +86,7 @@ func Test_CollectEventsWithMinimalPod(t *testing.T) {
 		fx.Provide(func() config.Component {
 			return config.NewMockWithOverrides(t, overrides)
 		}),
-		fx.Supply(context.Background()),
+		fx.Supply(t.Context()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 

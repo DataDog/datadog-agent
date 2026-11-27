@@ -7,7 +7,6 @@ package interp_test
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"io"
 	"strings"
@@ -41,7 +40,7 @@ func runWithStdout(t *testing.T, script string, stdout io.Writer) (stderr string
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	runErr := runner.Run(context.Background(), prog)
+	runErr := runner.Run(t.Context(), prog)
 	var es interp.ExitStatus
 	if runErr != nil && !errors.As(runErr, &es) {
 		t.Fatalf("unexpected error: %v", runErr)

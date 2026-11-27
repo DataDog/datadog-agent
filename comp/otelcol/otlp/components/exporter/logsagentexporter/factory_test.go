@@ -8,7 +8,6 @@
 package logsagentexporter
 
 import (
-	"context"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -26,6 +25,6 @@ func TestNewLogsExporter(t *testing.T) {
 	cfg := factory.CreateDefaultConfig()
 
 	set := exportertest.NewNopSettings(component.MustNewType(TypeStr))
-	_, err := factory.CreateLogs(context.Background(), set, cfg)
+	_, err := factory.CreateLogs(t.Context(), set, cfg)
 	assert.NoError(t, err)
 }

@@ -40,7 +40,7 @@ func TestMaxExecutionTimeStopsRun(t *testing.T) {
 		return ctx.Err()
 	}
 
-	err := r.Run(context.Background(), parseScript(t, "slowcmd"))
+	err := r.Run(t.Context(), parseScript(t, "slowcmd"))
 	require.Error(t, err)
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
 }
@@ -55,7 +55,7 @@ func TestMaxExecutionTimeRespectsEarlierParentDeadline(t *testing.T) {
 		return nil
 	}
 
-	parent, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
+	parent, cancel := context.WithTimeout(t.Context(), 25*time.Millisecond)
 	defer cancel()
 	parentDeadline, ok := parent.Deadline()
 	require.True(t, ok)
@@ -83,7 +83,7 @@ func TestMaxExecutionTimeStopsForLoop(t *testing.T) {
 	}
 
 	// 10 iterations × 20ms each = 200ms total, well beyond the 50ms timeout.
-	err := r.Run(context.Background(), parseScript(t, "for x in 1 2 3 4 5 6 7 8 9 10; do cmd; done"))
+	err := r.Run(t.Context(), parseScript(t, "for x in 1 2 3 4 5 6 7 8 9 10; do cmd; done"))
 	require.Error(t, err)
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
 }
@@ -100,12 +100,12 @@ func TestMaxExecutionTimeIsRefreshedPerRun(t *testing.T) {
 
 	prog := parseScript(t, "slowcmd")
 
-	err := r.Run(context.Background(), prog)
+	err := r.Run(t.Context(), prog)
 	require.NoError(t, err)
 
 	time.Sleep(20 * time.Millisecond)
 
-	err = r.Run(context.Background(), prog)
+	err = r.Run(t.Context(), prog)
 	require.NoError(t, err)
 
 	require.Len(t, deadlines, 2)
@@ -138,7 +138,7 @@ func TestReadHittingRunDeadlineIsNotSuccess(t *testing.T) {
 	var out bytes.Buffer
 	r := newTimeoutRunner(t, StdIO(pr, &out, &out))
 
-	parent, cancel := context.WithCancel(context.Background())
+	parent, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	ctx := raceCtx{Context: parent, deadline: time.Now().Add(20 * time.Millisecond)}
 

@@ -6,7 +6,6 @@
 package opms
 
 import (
-	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -125,7 +124,7 @@ func TestDequeueTask_RetryAfterMs_EmptyResponse(t *testing.T) {
 	defer srv.Close()
 
 	c := newTestClient(t, srv)
-	task, retryAfter, err := c.DequeueTask(context.Background())
+	task, retryAfter, err := c.DequeueTask(t.Context())
 
 	require.NoError(t, err)
 	assert.Nil(t, task, "empty body should produce a nil task")
@@ -141,7 +140,7 @@ func TestDequeueTask_RetryAfterMs_ZeroMeansDefault(t *testing.T) {
 	defer srv.Close()
 
 	c := newTestClient(t, srv)
-	_, retryAfter, err := c.DequeueTask(context.Background())
+	_, retryAfter, err := c.DequeueTask(t.Context())
 
 	require.NoError(t, err)
 	assert.Equal(t, time.Duration(0), retryAfter, "zero value should signal 'use default'")
@@ -155,7 +154,7 @@ func TestDequeueTask_RetryAfterMs_AbsentHeader(t *testing.T) {
 	defer srv.Close()
 
 	c := newTestClient(t, srv)
-	_, retryAfter, err := c.DequeueTask(context.Background())
+	_, retryAfter, err := c.DequeueTask(t.Context())
 
 	require.NoError(t, err)
 	assert.Equal(t, time.Duration(0), retryAfter)
@@ -206,7 +205,7 @@ func TestDequeueTask_RequestBody(t *testing.T) {
 	runnerStartedAt := c.runnerStartedAt.Format(time.RFC3339)
 
 	for _, s := range steps {
-		_, _, err := c.DequeueTask(context.Background())
+		_, _, err := c.DequeueTask(t.Context())
 		if s.wantErr {
 			require.Error(t, err, s.name)
 		} else {
@@ -238,7 +237,7 @@ func TestDequeueTask_RetryAfterMs_OnErrorResponse(t *testing.T) {
 	defer srv.Close()
 
 	c := newTestClient(t, srv)
-	_, retryAfter, err := c.DequeueTask(context.Background())
+	_, retryAfter, err := c.DequeueTask(t.Context())
 
 	require.Error(t, err)
 	assert.Equal(t, 5000*time.Millisecond, retryAfter, "retry-after should still be parsed on error response")
@@ -263,7 +262,7 @@ func TestHealthCheckUsesPAROverride(t *testing.T) {
 	runner, err := config.FromDDConfig(cfg, nil)
 	require.NoError(t, err)
 	runner.PrivateKey, runner.OrgId, runner.RunnerId = newTestKey(t), 1, "test-runner"
-	_, err = NewClient(cfg, runner).HealthCheck(context.Background())
+	_, err = NewClient(cfg, runner).HealthCheck(t.Context())
 	require.NoError(t, err)
 }
 
@@ -276,7 +275,7 @@ func TestHealthCheck_RetryAfterMs(t *testing.T) {
 	defer srv.Close()
 
 	c := newTestClient(t, srv)
-	data, err := c.HealthCheck(context.Background())
+	data, err := c.HealthCheck(t.Context())
 
 	require.NoError(t, err)
 	require.NotNil(t, data)
@@ -292,7 +291,7 @@ func TestHealthCheck_RetryAfterMs_ZeroMeansDefault(t *testing.T) {
 	defer srv.Close()
 
 	c := newTestClient(t, srv)
-	data, err := c.HealthCheck(context.Background())
+	data, err := c.HealthCheck(t.Context())
 
 	require.NoError(t, err)
 	assert.Equal(t, time.Duration(0), data.RetryAfter)
@@ -307,7 +306,7 @@ func TestHealthCheck_RetryAfterMs_PopulatedOnError(t *testing.T) {
 	defer srv.Close()
 
 	c := newTestClient(t, srv)
-	data, err := c.HealthCheck(context.Background())
+	data, err := c.HealthCheck(t.Context())
 
 	require.Error(t, err)
 	require.NotNil(t, data)
@@ -369,7 +368,7 @@ func TestDoEnrollRequestUsesOwnHttpClient(t *testing.T) {
 		},
 	}
 
-	_, _, err := p.doEnrollRequest(context.Background(), "https://app.datadoghq.com/enroll", []byte("{}"), "apikey", "")
+	_, _, err := p.doEnrollRequest(t.Context(), "https://app.datadoghq.com/enroll", []byte("{}"), "apikey", "")
 
 	require.NoError(t, err)
 	assert.True(t, transportCalled, "doEnrollRequest must use p.httpClient, not http.DefaultClient")
@@ -387,7 +386,7 @@ func TestEnrollmentCredentialRejectionStopsRetrying(t *testing.T) {
 			defer srv.Close()
 
 			p := &publicClient{httpClient: srv.Client()}
-			_, err := p.doEnrollRequestWithRetry(context.Background(), srv.URL, []byte("{}"), "api-key", "app-key")
+			_, err := p.doEnrollRequestWithRetry(t.Context(), srv.URL, []byte("{}"), "api-key", "app-key")
 			require.Error(t, err)
 			assert.Equal(t, 1, calls)
 			assert.ErrorIs(t, err, ErrEnrollmentRejected)
@@ -414,7 +413,7 @@ func TestEnrollmentRejectionWithUnreadableBodyStopsRetrying(t *testing.T) {
 		},
 	}
 
-	_, err := p.doEnrollRequestWithRetry(context.Background(), "https://app.datadoghq.com/enroll", []byte("{}"), "api-key", "app-key")
+	_, err := p.doEnrollRequestWithRetry(t.Context(), "https://app.datadoghq.com/enroll", []byte("{}"), "api-key", "app-key")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrEnrollmentRejected)
 	assert.Equal(t, 1, calls)
@@ -435,7 +434,7 @@ func TestEnrollmentTransientStatusIsRetried(t *testing.T) {
 			defer srv.Close()
 
 			p := &publicClient{httpClient: srv.Client()}
-			body, err := p.doEnrollRequestWithRetry(context.Background(), srv.URL, []byte("{}"), "api-key", "app-key")
+			body, err := p.doEnrollRequestWithRetry(t.Context(), srv.URL, []byte("{}"), "api-key", "app-key")
 			require.NoError(t, err)
 			assert.Equal(t, "{}", string(body))
 			assert.Equal(t, 2, calls)
@@ -451,7 +450,7 @@ func TestHeartbeat_NotFoundReturnsErrJobNotFound(t *testing.T) {
 	defer srv.Close()
 
 	c := newTestClient(t, srv)
-	err := c.Heartbeat(context.Background(), actionsclientpb.Client_WORKFLOWS, "task-id", "com.datadoghq.test.action", "job-id")
+	err := c.Heartbeat(t.Context(), actionsclientpb.Client_WORKFLOWS, "task-id", "com.datadoghq.test.action", "job-id")
 
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrJobNotFound), "expected ErrJobNotFound, got %v", err)
@@ -464,7 +463,7 @@ func TestHeartbeat_OtherErrorIsNotJobNotFound(t *testing.T) {
 	defer srv.Close()
 
 	c := newTestClient(t, srv)
-	err := c.Heartbeat(context.Background(), actionsclientpb.Client_WORKFLOWS, "task-id", "com.datadoghq.test.action", "job-id")
+	err := c.Heartbeat(t.Context(), actionsclientpb.Client_WORKFLOWS, "task-id", "com.datadoghq.test.action", "job-id")
 
 	require.Error(t, err)
 	assert.False(t, errors.Is(err, ErrJobNotFound), "500 must not be treated as job-not-found")

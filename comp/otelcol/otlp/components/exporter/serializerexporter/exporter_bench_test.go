@@ -192,12 +192,12 @@ func buildBenchExporter(t testing.TB, cfg *ExporterConfig) component.Component {
 	f := NewFactoryForOTelAgent(injectedSerializer, hostGetter, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil, false)
 
 	exp, err := f.CreateMetrics(
-		context.Background(),
+		t.Context(),
 		exportertest.NewNopSettings(component.MustNewType("datadog")),
 		cfg,
 	)
 	require.NoError(t, err)
-	require.NoError(t, exp.Start(context.Background(), componenttest.NewNopHost()))
+	require.NoError(t, exp.Start(t.Context(), componenttest.NewNopHost()))
 	return exp
 }
 
@@ -230,7 +230,7 @@ func benchConsumeMetrics(b *testing.B, useSync bool, metricsPerBatch int, payloa
 	cfg := benchExporterConfig(b, intake.URL)
 	cfg.Metrics.Tags = extraTags
 	exp := buildBenchExporter(b, cfg)
-	defer func() { _ = exp.Shutdown(context.Background()) }()
+	defer func() { _ = exp.Shutdown(b.Context()) }()
 
 	mc, ok := exp.(metricsConsumer)
 	require.True(b, ok, "exporter does not implement ConsumeMetrics: %T", exp)
@@ -239,7 +239,7 @@ func benchConsumeMetrics(b *testing.B, useSync bool, metricsPerBatch int, payloa
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	ctx := context.Background()
+	ctx := b.Context()
 	for i := 0; i < b.N; i++ {
 		if err := mc.ConsumeMetrics(ctx, md); err != nil {
 			b.Fatalf("ConsumeMetrics: %v", err)
@@ -314,7 +314,7 @@ func benchSyncForwarderConsumers(b *testing.B, numConsumers int, intakeLatency t
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	ctx := context.Background()
+	ctx := b.Context()
 	for i := 0; i < b.N; i++ {
 		if err := mc.ConsumeMetrics(ctx, md); err != nil {
 			b.Fatalf("ConsumeMetrics: %v", err)
@@ -330,7 +330,7 @@ func benchSyncForwarderConsumers(b *testing.B, numConsumers int, intakeLatency t
 	require.GreaterOrEqual(b, intake.requests.Load(), target, "queue did not drain within deadline")
 
 	// Shutdown after we stopped the timer, so its cost is excluded.
-	_ = exp.Shutdown(context.Background())
+	_ = exp.Shutdown(b.Context())
 
 	b.ReportMetric(float64(intake.requests.Load())/float64(b.N), "intake_reqs/op")
 	b.ReportMetric(float64(b.N)/b.Elapsed().Seconds(), "batches/sec")

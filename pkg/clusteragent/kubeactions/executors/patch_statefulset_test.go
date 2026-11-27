@@ -8,7 +8,6 @@
 package executors
 
 import (
-	"context"
 	"testing"
 
 	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
@@ -51,7 +50,7 @@ func TestPatchStatefulSetExecutor_ScaleReplicas(t *testing.T) {
 		},
 	}
 
-	result := executor.Execute(context.Background(), action)
+	result := executor.Execute(t.Context(), action)
 	assert.Equal(t, "success", result.Status)
 	assert.Contains(t, result.Message, "patched")
 }
@@ -84,7 +83,7 @@ func TestPatchStatefulSetExecutor_UIDMismatch(t *testing.T) {
 		},
 	}
 
-	result := executor.Execute(context.Background(), action)
+	result := executor.Execute(t.Context(), action)
 	assert.Equal(t, "failed", result.Status)
 	assert.Contains(t, result.Message, "UID mismatch")
 }
@@ -107,7 +106,7 @@ func TestPatchStatefulSetExecutor_MissingPatch(t *testing.T) {
 		},
 	}
 
-	result := executor.Execute(context.Background(), action)
+	result := executor.Execute(t.Context(), action)
 	assert.Equal(t, "failed", result.Status)
 	assert.Contains(t, result.Message, "patch is required")
 }
@@ -132,7 +131,7 @@ func TestPatchStatefulSetExecutor_NotFound(t *testing.T) {
 		},
 	}
 
-	result := executor.Execute(context.Background(), action)
+	result := executor.Execute(t.Context(), action)
 	assert.Equal(t, "failed", result.Status)
 	assert.Contains(t, result.Message, "failed to get statefulset")
 }

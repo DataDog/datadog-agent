@@ -8,7 +8,6 @@
 package istio
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -80,7 +79,7 @@ func newTestPodForSidecar(name, namespace, gatewayClassName string) *corev1.Pod 
 }
 
 func TestSidecarPattern_Added_IsNoOp(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	pattern := newTestIstioSidecarPattern(t)
 
 	gwClass := newTestGatewayClass("istio", istioGatewayControllerName)

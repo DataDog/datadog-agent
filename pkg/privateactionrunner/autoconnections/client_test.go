@@ -107,7 +107,7 @@ func TestConnectionsUsePAROverride(t *testing.T) {
 	cfg.SetInTest("remote_configuration.rc_dd_url", "https://rc-proxy.example.com")
 	client, err := NewConnectionsAPIClient(cfg, "datadoghq.eu", "api-key", "app-key")
 	require.NoError(t, err)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	err = client.CreateConnection(ctx, ConnectionDefinition{IntegrationType: "HTTP", Credentials: CredentialConfig{Type: "HTTPNoAuth"}}, "runner", "runner-name", nil)
 	require.Error(t, err)
@@ -198,7 +198,7 @@ func TestCreateConnection_Success(t *testing.T) {
 
 	tags := []string{"runner-id:runner-id-123", "hostname:test-hostname"}
 
-	err := client.CreateConnection(context.Background(), httpDef, "runner-id-123", "runner-name-abc", tags)
+	err := client.CreateConnection(t.Context(), httpDef, "runner-id-123", "runner-name-abc", tags)
 
 	require.NoError(t, err)
 	assert.Equal(t, "POST", receivedMethod)
@@ -226,7 +226,7 @@ func TestCreateConnection_MissingAppKey(t *testing.T) {
 		},
 	}
 
-	err := client.CreateConnection(context.Background(), httpDef, "runner-id-123", "runner-name-abc", nil)
+	err := client.CreateConnection(t.Context(), httpDef, "runner-id-123", "runner-name-abc", nil)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "app key is required")
@@ -280,7 +280,7 @@ func TestCreateConnection_ErrorResponses(t *testing.T) {
 
 			tags := []string{"runner-id:runner-id-123"}
 
-			err := client.CreateConnection(context.Background(), httpDef, "runner-id-123", "runner-name-abc", tags)
+			err := client.CreateConnection(t.Context(), httpDef, "runner-id-123", "runner-name-abc", tags)
 
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.expectedError)
@@ -314,7 +314,7 @@ func TestCreateConnection_RetriesOn5xxThenSucceeds(t *testing.T) {
 		Credentials:     CredentialConfig{Type: "HTTPNoAuth"},
 	}
 
-	err := client.CreateConnection(context.Background(), httpDef, "runner-id-123", "runner-name", []string{"tag:1"})
+	err := client.CreateConnection(t.Context(), httpDef, "runner-id-123", "runner-name", []string{"tag:1"})
 
 	require.NoError(t, err)
 	assert.EqualValues(t, 3, atomic.LoadInt32(&hits), "should have retried until success")
@@ -337,7 +337,7 @@ func TestCreateConnection_NoRetryOn4xx(t *testing.T) {
 		Credentials:     CredentialConfig{Type: "HTTPNoAuth"},
 	}
 
-	err := client.CreateConnection(context.Background(), httpDef, "runner-id-123", "runner-name", []string{"tag:1"})
+	err := client.CreateConnection(t.Context(), httpDef, "runner-id-123", "runner-name", []string{"tag:1"})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "403")
@@ -360,7 +360,7 @@ func TestCreateConnection_5xxExhaustsBudgetThenFails(t *testing.T) {
 	}
 
 	start := time.Now()
-	err := client.CreateConnection(context.Background(), httpDef, "runner-id-123", "runner-name", []string{"tag:1"})
+	err := client.CreateConnection(t.Context(), httpDef, "runner-id-123", "runner-name", []string{"tag:1"})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "500")

@@ -9,7 +9,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
@@ -119,7 +118,7 @@ func TestPrivilegedHelperRootIntegration(t *testing.T) {
 		{command: "uname -a", allowedCommand: "rshell:uname", wantOutput: true},
 		{command: "echo discarded >/dev/null", allowedCommand: "rshell:echo"},
 	} {
-		response, err := client.Execute(context.Background(), signedIntegrationRequest(t, privateKey, test.command, dir, test.allowedCommand))
+		response, err := client.Execute(t.Context(), signedIntegrationRequest(t, privateKey, test.command, dir, test.allowedCommand))
 		require.NoError(t, err, "command: %s", test.command)
 		require.Zero(t, response.ExitCode, "command: %s; stderr: %s", test.command, response.Stderr)
 		if test.wantOutput {
@@ -128,7 +127,7 @@ func TestPrivilegedHelperRootIntegration(t *testing.T) {
 	}
 
 	nonElevated := signedIntegrationRequest(t, privateKey, "truncate -s 0 "+target, dir, "rshell:truncate")
-	response, err := client.Execute(context.Background(), nonElevated)
+	response, err := client.Execute(t.Context(), nonElevated)
 	require.NoError(t, err)
 	require.NotZero(t, response.ExitCode, "non-elevated command unexpectedly modified a root-only file")
 	info, err := os.Stat(target)
@@ -136,7 +135,7 @@ func TestPrivilegedHelperRootIntegration(t *testing.T) {
 	require.NotZero(t, info.Size())
 
 	elevated := signedIntegrationRequest(t, privateKey, "sudo truncate -s 0 "+target, dir, "rshell:truncate")
-	response, err = client.Execute(context.Background(), elevated)
+	response, err = client.Execute(t.Context(), elevated)
 	require.NoError(t, err)
 	require.Zero(t, response.ExitCode, "stderr: %s", response.Stderr)
 	info, err = os.Stat(target)
@@ -144,24 +143,24 @@ func TestPrivilegedHelperRootIntegration(t *testing.T) {
 	require.Zero(t, info.Size())
 
 	nonElevatedRead := signedIntegrationRequestForAction(t, privateKey, "runCommand", "cat "+protectedFile, protectedDir, "rshell:cat", "rshell:cat")
-	response, err = client.Execute(context.Background(), nonElevatedRead)
+	response, err = client.Execute(t.Context(), nonElevatedRead)
 	require.NoError(t, err)
 	require.NotZero(t, response.ExitCode, "non-elevated command unexpectedly read a root-only file")
 	require.Empty(t, response.Stdout)
 
 	elevatedRead := signedIntegrationRequestForAction(t, privateKey, "runCommand", "sudo cat "+protectedFile, protectedDir, "rshell:cat", "rshell:cat")
-	response, err = client.Execute(context.Background(), elevatedRead)
+	response, err = client.Execute(t.Context(), elevatedRead)
 	require.NoError(t, err)
 	require.Zero(t, response.ExitCode, "stderr: %s", response.Stderr)
 	require.Equal(t, "root-only contents\n", response.Stdout)
 	elevatedGrep := signedIntegrationRequestForAction(t, privateKey, "runCommand", "sudo grep root-only "+protectedFile, protectedDir, "rshell:grep", "rshell:grep")
-	response, err = client.Execute(context.Background(), elevatedGrep)
+	response, err = client.Execute(t.Context(), elevatedGrep)
 	require.NoError(t, err)
 	require.Zero(t, response.ExitCode, "stderr: %s", response.Stderr)
 	require.Equal(t, "root-only contents\n", response.Stdout)
 
 	readOnlyWrite := signedIntegrationRequestForAction(t, privateKey, "runCommand", "sudo truncate -s 0 "+protectedFile, protectedDir, "rshell:truncate", "rshell:truncate")
-	response, err = client.Execute(context.Background(), readOnlyWrite)
+	response, err = client.Execute(t.Context(), readOnlyWrite)
 	require.NoError(t, err)
 	require.NotZero(t, response.ExitCode, "read-only action unexpectedly modified a root-only file")
 	contents, err := os.ReadFile(protectedFile)

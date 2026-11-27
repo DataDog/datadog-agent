@@ -6,7 +6,6 @@
 package com_datadoghq_remoteaction_datadogagent
 
 import (
-	"context"
 	"io"
 	"strings"
 	"testing"
@@ -27,7 +26,7 @@ func TestDumpDogstatsdContextsHandler(t *testing.T) {
 		},
 	}
 
-	result, err := NewDumpDogstatsdContextsHandler(client).Run(context.Background(), &types.Task{}, nil)
+	result, err := NewDumpDogstatsdContextsHandler(client).Run(t.Context(), &types.Task{}, nil)
 	require.NoError(t, err)
 	require.Equal(t, map[string]interface{}{
 		"path": "/opt/datadog-agent/run/dogstatsd_contexts.json.zstd",

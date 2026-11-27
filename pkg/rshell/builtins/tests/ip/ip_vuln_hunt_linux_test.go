@@ -106,7 +106,7 @@ func TestVulnHuntBuiltinResourceExhaustion_PreCanceledContextsDoNotHang(t *testi
 
 	for _, script := range []string{"ip addr show", "ip link show", "ip route show"} {
 		t.Run(script, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			cancel()
 
 			start := time.Now()

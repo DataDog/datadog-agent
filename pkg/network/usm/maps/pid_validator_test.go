@@ -42,7 +42,7 @@ func TestValidatePIDKeyedMap(t *testing.T) {
 	defer testMap.Close()
 
 	// Start a living process
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "sleep", "1000")

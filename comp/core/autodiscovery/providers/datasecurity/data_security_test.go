@@ -6,7 +6,6 @@
 package datasecurity
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"time"
@@ -370,7 +369,7 @@ func TestControllerUpdate(t *testing.T) {
 
 			streaming, ok := provider.(types.StreamingConfigProvider)
 			require.True(t, ok, "controller should be a streaming config provider")
-			changes := streaming.Stream(context.Background())
+			changes := streaming.Stream(t.Context())
 
 			// drain the initial empty snapshot pushed on creation
 			receiveChanges(t, changes)

@@ -8,7 +8,6 @@
 package diskstats
 
 import (
-	"context"
 	"strings"
 	"testing"
 )
@@ -88,7 +87,7 @@ func FuzzParseMountInfo(f *testing.F) {
 			return
 		}
 
-		mounts, err := parseMountInfo(context.Background(), strings.NewReader(string(data)))
+		mounts, err := parseMountInfo(t.Context(), strings.NewReader(string(data)))
 
 		// MUST: returned slice never exceeds the cap.
 		if len(mounts) > MaxMounts {

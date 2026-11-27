@@ -6,7 +6,6 @@
 package clusteragent
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/stretchr/testify/assert"
@@ -28,7 +27,7 @@ var dummyEndpointsConfigs = `{
 }`
 
 func (suite *clusterAgentSuite) TestEndpointsChecksNominal() {
-	ctx := context.Background()
+	ctx := suite.T().Context()
 	dca, err := newDummyClusterAgent(suite.config)
 	require.NoError(suite.T(), err)
 

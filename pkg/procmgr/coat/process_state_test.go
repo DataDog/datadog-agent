@@ -6,7 +6,6 @@
 package coat
 
 import (
-	"context"
 	"os"
 	"testing"
 
@@ -145,7 +144,7 @@ func TestCollectServiceProcessStateRunning(t *testing.T) {
 		},
 	})
 
-	snapshot := collector.Collect(context.Background())
+	snapshot := collector.Collect(t.Context())
 
 	assert.Equal(t, ProcessStateRunning, snapshot.ServiceProcessState(ServiceIDDDOT))
 }
@@ -155,7 +154,7 @@ func TestCollectServiceProcessStateDaemonUnreachable(t *testing.T) {
 
 	collector := NewCollectorWithClient(root, &mockClient{connectErr: os.ErrNotExist})
 
-	snapshot := collector.Collect(context.Background())
+	snapshot := collector.Collect(t.Context())
 
 	assert.Equal(t, ProcessStateUnknown, snapshot.ServiceProcessState(ServiceIDDDOT))
 }
@@ -165,7 +164,7 @@ func TestCollectServiceProcessStateNotInstalled(t *testing.T) {
 		daemon: DaemonSnapshot{Reachable: true, Ready: true},
 	})
 
-	snapshot := collector.Collect(context.Background())
+	snapshot := collector.Collect(t.Context())
 
 	assert.Equal(t, ProcessStateNotInstalled, snapshot.ServiceProcessState(ServiceIDDDOT))
 }

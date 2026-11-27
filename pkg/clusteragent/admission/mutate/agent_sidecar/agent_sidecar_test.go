@@ -8,7 +8,6 @@
 package agentsidecar
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -674,7 +673,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 					"token":   []byte("token"),
 				},
 			})
-			injected, err := webhook.injectAgentSidecar(context.Background(), test.Pod, testNamespace, nil, apiClient, test.DryRun)
+			injected, err := webhook.injectAgentSidecar(tt.Context(), test.Pod, testNamespace, nil, apiClient, test.DryRun)
 
 			if test.ExpectError {
 				assert.Error(tt, err, "expected non-nil error to be returned")
@@ -683,9 +682,9 @@ func TestInjectAgentSidecar(t *testing.T) {
 			}
 
 			if test.ExpectInjection {
-				assert.True(t, injected)
+				assert.True(tt, injected)
 			} else {
-				assert.False(t, injected)
+				assert.False(tt, injected)
 			}
 
 			expectedPod := test.ExpectedPodAfterInjection()
@@ -830,7 +829,7 @@ func TestAgentSidecarSecretPrecheck(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "pod-name", Namespace: testNamespace},
 				Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "app"}}},
 			}
-			injected, err := NewWebhook(mockConfig).injectAgentSidecar(context.Background(), pod, testNamespace, nil, apiClient, nil)
+			injected, err := NewWebhook(mockConfig).injectAgentSidecar(t.Context(), pod, testNamespace, nil, apiClient, nil)
 
 			assert.NoError(t, err)
 			assert.Equal(t, test.expectInjection, injected)
@@ -877,7 +876,7 @@ func TestAgentSidecarSecretPrecheckCleansFargateConfigVolumes(t *testing.T) {
 	}
 
 	injected, err := NewWebhook(mockConfig).injectAgentSidecar(
-		context.Background(),
+		t.Context(),
 		pod,
 		testNamespace,
 		nil,

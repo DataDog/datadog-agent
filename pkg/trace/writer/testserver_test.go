@@ -6,7 +6,6 @@
 package writer
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptrace"
 	"strings"
@@ -93,7 +92,7 @@ func TestTestServer(t *testing.T) {
 			ConnectStart:         func(_, _ string) { start = time.Now() },
 			GotFirstResponseByte: func() { d = time.Since(start) },
 		}
-		ctx := httptrace.WithClientTrace(context.Background(), &clienttrace)
+		ctx := httptrace.WithClientTrace(t.Context(), &clienttrace)
 		resp, err := http.DefaultClient.Do(req.WithContext(ctx))
 		assert.NoError(err)
 		assert.Equal(200, resp.StatusCode)

@@ -56,7 +56,7 @@ func TestSecretsManagerBackend(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, secretsManagerSecretsBackend)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	secretOutput := secretsManagerSecretsBackend.GetSecretOutput(ctx, "key1;user")
 	assert.NotNil(t, secretOutput.Value)
 	assert.Equal(t, "foo", *secretOutput.Value)
@@ -92,7 +92,7 @@ func TestSecretsManagerBackend_ForceString(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, secretsManagerSecretsBackend)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	secretOutput := secretsManagerSecretsBackend.GetSecretOutput(ctx, "key1;user")
 	assert.NotNil(t, secretOutput.Value)
 	assert.Equal(t, "{\"user\":\"foo\",\"password\":\"bar\"}", *secretOutput.Value)
@@ -117,7 +117,7 @@ func TestSecretsManagerBackend_NotJSON(t *testing.T) {
 	secretsManagerSecretsBackend, err := NewSecretsManagerBackend(secretsManagerBackendParams)
 	assert.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	// When the secret value is not JSON, it should be returned as-is
 	secretOutput := secretsManagerSecretsBackend.GetSecretOutput(ctx, "key1;anything")
 	assert.NotNil(t, secretOutput.Value)
@@ -147,7 +147,7 @@ func TestSecretsManagerBackend_InvalidFormat(t *testing.T) {
 	secretsManagerSecretsBackend, err := NewSecretsManagerBackend(secretsManagerBackendParams)
 	assert.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	// Test invalid secret format (missing semicolon)
 	secretOutput := secretsManagerSecretsBackend.GetSecretOutput(ctx, "key1")
 	assert.Nil(t, secretOutput.Value)
@@ -172,7 +172,7 @@ func TestSecretsManagerBackend_SecretNotFound(t *testing.T) {
 	secretsManagerSecretsBackend, err := NewSecretsManagerBackend(secretsManagerBackendParams)
 	assert.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	// Test secret ID that doesn't exist
 	secretOutput := secretsManagerSecretsBackend.GetSecretOutput(ctx, "nonexistent;user")
 	assert.Nil(t, secretOutput.Value)
@@ -204,7 +204,7 @@ func TestSecretsManagerBackend_NonStringValues(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, secretsManagerSecretsBackend)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	secretOutput := secretsManagerSecretsBackend.GetSecretOutput(ctx, "key1;port")
 	assert.NotNil(t, secretOutput.Value)
 	assert.Equal(t, "3306", *secretOutput.Value)
@@ -241,7 +241,7 @@ func TestSecretsManagerBackend_NumberPrecision(t *testing.T) {
 	backend, err := NewSecretsManagerBackend(params)
 	assert.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	out := backend.GetSecretOutput(ctx, "key1;big_number")
 	assert.Equal(t, "123456789.123456789", *out.Value)
 

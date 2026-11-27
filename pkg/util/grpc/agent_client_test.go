@@ -23,7 +23,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestGetDDAgentClientTimeout(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
 	defer cancel()
 
 	// Port 0 is use to avoid to bind to a running Agent
@@ -32,7 +32,7 @@ func TestGetDDAgentClientTimeout(t *testing.T) {
 }
 
 func TestGetDDAgentClientWithCmdPort0(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
 	defer cancel()
 
 	_, err := GetDDAgentClient(ctx, "127.0.0.1", "-1", &tls.Config{})

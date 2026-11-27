@@ -49,7 +49,7 @@ func callInPlace(t *testing.T, args []string, dir string, writeRegularFile func(
 		WriteRegularFile: writeRegularFile,
 	}
 
-	result := handler(context.Background(), callCtx, fs.Args())
+	result := handler(t.Context(), callCtx, fs.Args())
 	return errBuf.String(), int(result.Code)
 }
 

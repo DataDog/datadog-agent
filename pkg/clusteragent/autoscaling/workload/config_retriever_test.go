@@ -8,7 +8,6 @@
 package workload
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -43,7 +42,7 @@ func newMockConfigRetriever(t *testing.T, isLeader func() bool, store *store, cl
 
 	mockRCClient := &mockRCClient{}
 
-	cr, err := NewConfigRetriever(context.Background(), clock, store, isLeader, mockRCClient)
+	cr, err := NewConfigRetriever(t.Context(), clock, store, isLeader, mockRCClient)
 	assert.NoError(t, err)
 
 	return cr, mockRCClient

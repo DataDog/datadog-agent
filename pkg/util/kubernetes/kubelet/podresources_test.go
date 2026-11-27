@@ -38,7 +38,7 @@ func (f fakePodResourcesListerClient) Get(context.Context, *podresourcesv1.GetPo
 }
 
 func TestGetContainerResourcesMap(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	client := &PodResourcesClient{
 		client: fakePodResourcesListerClient{podResources: []*podresourcesv1.PodResources{
 			{

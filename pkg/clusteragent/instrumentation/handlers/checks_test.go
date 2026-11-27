@@ -8,7 +8,6 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -260,7 +259,7 @@ func TestValidate(t *testing.T) {
 
 func TestHandle_NilCR(t *testing.T) {
 	h, _, _ := newHandler()
-	status, err := h.Handle(context.Background(), instrumentation.EventCreate, nil)
+	status, err := h.Handle(t.Context(), instrumentation.EventCreate, nil)
 	require.NoError(t, err)
 	assert.Equal(t, metav1.ConditionUnknown, status.Status)
 	assert.Equal(t, "MissingResource", status.Reason)
@@ -283,7 +282,7 @@ func TestHandle_CreateAndDelete(t *testing.T) {
 			})
 
 			// Create
-			status, err := h.Handle(context.Background(), instrumentation.EventCreate, cr)
+			status, err := h.Handle(t.Context(), instrumentation.EventCreate, cr)
 			require.NoError(t, err)
 			assert.Equal(t, metav1.ConditionTrue, status.Status)
 			assert.Equal(t, "Configured", status.Reason)
@@ -295,7 +294,7 @@ func TestHandle_CreateAndDelete(t *testing.T) {
 			assert.Equal(t, "datadoginstrumentation:default/test", configs[0].Source)
 
 			// Delete
-			status, err = h.Handle(context.Background(), instrumentation.EventDelete, cr)
+			status, err = h.Handle(t.Context(), instrumentation.EventDelete, cr)
 			require.NoError(t, err)
 			assert.Equal(t, metav1.ConditionTrue, status.Status)
 			assert.Equal(t, "Deleted", status.Reason)
@@ -325,7 +324,7 @@ func TestHandle_Update(t *testing.T) {
 				},
 			})
 
-			_, err := h.Handle(context.Background(), instrumentation.EventCreate, cr)
+			_, err := h.Handle(t.Context(), instrumentation.EventCreate, cr)
 			require.NoError(t, err)
 			configs := configsForCR(cr, cs, ts)
 			require.Len(t, configs, 1)
@@ -341,7 +340,7 @@ func TestHandle_Update(t *testing.T) {
 				Integration: "nginx",
 				Instances:   []runtime.RawExtension{rawJSON(t, map[string]string{"url": "http://localhost"})},
 			})
-			status, err := h.Handle(context.Background(), instrumentation.EventUpdate, cr)
+			status, err := h.Handle(t.Context(), instrumentation.EventUpdate, cr)
 			require.NoError(t, err)
 			assert.Equal(t, metav1.ConditionTrue, status.Status)
 			assert.Contains(t, status.Message, "2 check(s) configured")
@@ -373,13 +372,13 @@ func TestHandle_MultipleCRs(t *testing.T) {
 				{Integration: "nginx", Instances: []runtime.RawExtension{rawJSON(t, map[string]string{"url": "http://nginx"})}},
 			})
 
-			_, err := h.Handle(context.Background(), instrumentation.EventCreate, cr1)
+			_, err := h.Handle(t.Context(), instrumentation.EventCreate, cr1)
 			require.NoError(t, err)
-			_, err = h.Handle(context.Background(), instrumentation.EventCreate, cr2)
+			_, err = h.Handle(t.Context(), instrumentation.EventCreate, cr2)
 			require.NoError(t, err)
 
 			// Delete first CR; second should remain
-			_, err = h.Handle(context.Background(), instrumentation.EventDelete, cr1)
+			_, err = h.Handle(t.Context(), instrumentation.EventDelete, cr1)
 			require.NoError(t, err)
 
 			remaining := configsForCR(cr2, cs, ts)
@@ -525,7 +524,7 @@ func TestTranslateCheck(t *testing.T) {
 				t.Run(tt.name, func(t *testing.T) {
 					cr := newCR("test", "default", targetKind, "app", []datadoghq.DatadogInstrumentationCheckConfig{tt.check})
 					h, cs, ts := newHandler()
-					status, err := h.Handle(context.Background(), instrumentation.EventCreate, cr)
+					status, err := h.Handle(t.Context(), instrumentation.EventCreate, cr)
 					require.NoError(t, err)
 					configs := configsForCR(cr, cs, ts)
 					require.Equal(t, metav1.ConditionTrue, status.Status)

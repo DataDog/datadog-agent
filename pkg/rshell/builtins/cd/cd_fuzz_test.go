@@ -129,7 +129,7 @@ func FuzzCdFlags(f *testing.F) {
 		if !shellSafe(args) {
 			return
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), fuzzTimeout)
+		ctx, cancel := context.WithTimeout(t.Context(), fuzzTimeout)
 		defer cancel()
 		_, _, code := cdRunCtxFuzz(ctx, t, "cd "+args, base)
 		if !validExit(code) {
@@ -195,7 +195,7 @@ func FuzzCdPath(f *testing.F) {
 		if !shellSafe(path) {
 			return
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), fuzzTimeout)
+		ctx, cancel := context.WithTimeout(t.Context(), fuzzTimeout)
 		defer cancel()
 		_, _, code := cdRunCtxFuzz(ctx, t, "cd "+path, base)
 		if !validExit(code) {

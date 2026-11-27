@@ -8,7 +8,6 @@
 package common
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -42,7 +41,7 @@ func TestMutateTracing(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mt := mocktracer.Start()
 			defer mt.Stop()
-			parent, ctx := tracer.StartSpanFromContext(context.Background(), "parent")
+			parent, ctx := tracer.StartSpanFromContext(t.Context(), "parent")
 			called := false
 			patch, err := Mutate(ctx, []byte(tt.raw), "sensitive-namespace", "test", func(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
 				called = true
@@ -119,7 +118,7 @@ func BenchmarkMutateTracingDisabled(b *testing.B) {
 				b.ReportAllocs()
 				b.ResetTimer()
 				for i := 0; i < b.N; i++ {
-					if _, err := Mutate(context.Background(), raw, "", "test", mutator, nil); err != nil {
+					if _, err := Mutate(b.Context(), raw, "", "test", mutator, nil); err != nil {
 						b.Fatal(err)
 					}
 				}

@@ -88,7 +88,7 @@ func TestMicroVMMetadataLifecycleReports(t *testing.T) {
 	require.NotNil(t, p.Provider.Callback)
 
 	// The runner's first collection waits for the identity /run delivers.
-	collectCtx, cancelCollect := context.WithCancel(context.Background())
+	collectCtx, cancelCollect := context.WithCancel(t.Context())
 	collected := make(chan struct{})
 	go func() { p.Provider.Callback(collectCtx); close(collected) }()
 	t.Cleanup(func() { cancelCollect(); <-collected })
@@ -141,7 +141,7 @@ func TestMicroVMMetadataLifecycleReports(t *testing.T) {
 				t.Fatal("the first collection did not observe the /run identity")
 			}
 		}
-		p.Provider.Callback(context.Background())
+		p.Provider.Callback(t.Context())
 		payloads := serial.sent()
 		require.Len(t, payloads, step.payloads, "%s: collection must not repeat a lifecycle report", step.name)
 		payload := payloads[step.payloads-1]
@@ -157,6 +157,6 @@ func TestMicroVMMetadataLifecycleReports(t *testing.T) {
 		assert.Equal(t, "startup", payload.Metadata["report_reason"], step.name)
 	}
 	require.Len(t, lc.hooks, 1)
-	require.NoError(t, lc.hooks[0].OnStop(context.Background()))
+	require.NoError(t, lc.hooks[0].OnStop(t.Context()))
 	assert.Len(t, serial.sent(), 3, "shutdown must not repeat the reported identity")
 }

@@ -80,7 +80,7 @@ func (h *interceptorHarness) sendStream(fake *fakeServerStream, method string, m
 func (h *interceptorHarness) callUnary(method string, resp any, err error) (any, error) {
 	h.t.Helper()
 	handler := func(_ context.Context, _ any) (any, error) { return resp, err }
-	return h.unary(context.Background(), nil, &googleGrpc.UnaryServerInfo{FullMethod: method}, handler)
+	return h.unary(h.t.Context(), nil, &googleGrpc.UnaryServerInfo{FullMethod: method}, handler)
 }
 
 // count returns the current value of the oversized counter for the given method tag,

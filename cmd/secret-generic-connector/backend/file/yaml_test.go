@@ -7,7 +7,6 @@
 package file
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -44,7 +43,7 @@ key2: value2
 
 	assert.Equal(t, secretsFilepath, yamlSecretsBackend.Config.FilePath)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	secretOutput := yamlSecretsBackend.GetSecretOutput(ctx, "key1")
 	assert.Equal(t, "value1", *secretOutput.Value)
 	assert.Nil(t, secretOutput.Error)

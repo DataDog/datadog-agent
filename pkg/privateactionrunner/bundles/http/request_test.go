@@ -6,7 +6,6 @@
 package com_datadoghq_http
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -89,7 +88,7 @@ func TestRequestVerb(t *testing.T) {
 			}
 			handler := NewHttpRequestAction(newHTTPTestConfig(t, server.URL))
 
-			output, err := handler.Run(context.Background(), newRequestTask(inputs), nil)
+			output, err := handler.Run(t.Context(), newRequestTask(inputs), nil)
 
 			if test.wantError != "" {
 				require.ErrorContains(t, err, test.wantError)
@@ -120,7 +119,7 @@ func TestRequestVerbRejectedWithBodyAndFormData(t *testing.T) {
 			test.inputs["url"] = server.URL + "/resource"
 			handler := NewHttpRequestAction(newHTTPTestConfig(t, server.URL))
 
-			_, err := handler.Run(context.Background(), newRequestTask(test.inputs), nil)
+			_, err := handler.Run(t.Context(), newRequestTask(test.inputs), nil)
 
 			require.ErrorContains(t, err, `unsupported HTTP verb "PROPPATCH"`)
 			require.Empty(t, methods())
@@ -151,7 +150,7 @@ func TestTestConnectionVerb(t *testing.T) {
 			task.Data.Attributes.Name = "testConnection"
 			handler := NewTestConnectionHandler(newHTTPTestConfig(t, server.URL))
 
-			_, err := handler.Run(context.Background(), task, credential)
+			_, err := handler.Run(t.Context(), task, credential)
 
 			if test.wantError != "" {
 				require.ErrorContains(t, err, test.wantError)

@@ -7,7 +7,6 @@
 package ddi
 
 import (
-	"context"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -147,7 +146,7 @@ func (s *ddiSuite) TestReadyConditions() {
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		resource, err := dynamicClient.Resource(ddiGVR).Namespace(testNamespace).Get(
-			context.Background(),
+			s.T().Context(),
 			ddiName,
 			metav1.GetOptions{},
 		)
@@ -167,7 +166,7 @@ func (s *ddiSuite) TestConfigurationUpdate() {
 	dynamicClient, err := dynamic.NewForConfig(s.Env().KubernetesCluster.KubernetesClient.K8sConfig)
 	require.NoError(s.T(), err)
 
-	ctx := context.Background()
+	ctx := s.T().Context()
 	resourceClient := dynamicClient.Resource(ddiGVR).Namespace(updateTestNamespace)
 	resource, err := resourceClient.Get(ctx, updateDDIName, metav1.GetOptions{})
 	require.NoError(s.T(), err)

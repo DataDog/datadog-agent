@@ -9,7 +9,6 @@ package serializer
 
 import (
 	"bytes"
-	"context"
 	cryptorand "crypto/rand"
 	"encoding/base64"
 	"encoding/json"
@@ -289,7 +288,7 @@ func TestSendAgentShutdownEvent(t *testing.T) {
 		return kind == transaction.Events
 	}), s.jsonExtraHeadersWithCompression).Return(nil).Once()
 
-	err := s.SendAgentShutdownEvent(context.Background(), &event.Event{
+	err := s.SendAgentShutdownEvent(t.Context(), &event.Event{
 		Text:           "Version 7.0.0",
 		SourceTypeName: "System",
 		Host:           "testhost",
@@ -681,7 +680,7 @@ func TestSendWithDisabledKind(t *testing.T) {
 			payload := &testPayload{}
 
 			s.SendEvents(make(event.Events, 0))
-			s.SendAgentShutdownEvent(context.Background(), &event.Event{})
+			s.SendAgentShutdownEvent(t.Context(), &event.Event{})
 			s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{}))
 			s.SendSketch(metrics.NewSketchesSourceTest())
 			s.SendServiceChecks(make(servicecheck.ServiceChecks, 0))

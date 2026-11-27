@@ -9,7 +9,6 @@ package repo
 
 import (
 	"bytes"
-	"context"
 	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
@@ -73,7 +72,7 @@ func TestSigningKeyTransport(t *testing.T) {
 			repo := Repo{SSLVerify: false, SSLCaCert: tc.ca}
 			client, err := repo.httpClient(verifiedHTTPSTransport)
 			require.NoError(t, err)
-			keys, err := readGPGKey(context.Background(), client, tc.url)
+			keys, err := readGPGKey(t.Context(), client, tc.url)
 			if tc.ok {
 				require.NoError(t, err)
 				require.Len(t, keys, 1)
@@ -85,7 +84,7 @@ func TestSigningKeyTransport(t *testing.T) {
 	require.Zero(t, insecureRequests, "neither HTTP keys nor downgraded redirects may be fetched")
 	client, err := (&Repo{}).httpClient(verifiedHTTPSTransport)
 	require.NoError(t, err)
-	keys, err := readGPGKeys(context.Background(), client, []string{insecure.URL, "file://" + keyPath})
+	keys, err := readGPGKeys(t.Context(), client, []string{insecure.URL, "file://" + keyPath})
 	require.Error(t, err)
 	require.Len(t, keys, 1, "an unusable key source must not hide another trusted key")
 }

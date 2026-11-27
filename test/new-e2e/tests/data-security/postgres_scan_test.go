@@ -103,12 +103,12 @@ func (s *postgresScanSuite) assertAccountsUnchanged(before []accountRow) {
 }
 
 func (s *postgresScanSuite) fetchAccounts() []accountRow {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(s.T().Context(), 30*time.Second)
 	defer cancel()
 
 	conn, err := s.openPostgres(ctx)
 	require.NoError(s.T(), err)
-	defer conn.Close(context.Background())
+	defer conn.Close(s.T().Context())
 
 	rows, err := conn.Query(ctx, `SELECT id, owner FROM accounts ORDER BY id`)
 	require.NoError(s.T(), err)

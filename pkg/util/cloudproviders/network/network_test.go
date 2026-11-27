@@ -97,7 +97,7 @@ func TestGetNetworkIDProviderGating(t *testing.T) {
 			getGCENetworkID = func(_ context.Context) (string, error) { gceCalls++; return "", gceErr }
 			getEC2NetworkID = func(_ context.Context) (string, error) { ec2Calls++; return "", ec2Err }
 
-			_, err := GetNetworkID(context.Background())
+			_, err := GetNetworkID(t.Context())
 			require.ErrorContains(t, err, tc.wantErrContain)
 			require.Equal(t, tc.gceCallCount, gceCalls)
 			require.Equal(t, tc.ec2CallCount, ec2Calls)
@@ -126,8 +126,8 @@ func TestGetNetworkIDDetectedProviderIsUsedDirectly(t *testing.T) {
 	// call GetNetworkID twice; the detected provider should only be probed
 	// once, since the resolved network ID (and the detection that produced it)
 	// is cached as a whole under networkIDCacheKey
-	networkID1, err1 := GetNetworkID(context.Background())
-	networkID2, err2 := GetNetworkID(context.Background())
+	networkID1, err1 := GetNetworkID(t.Context())
+	networkID2, err2 := GetNetworkID(t.Context())
 	require.NoError(t, err1)
 	require.NoError(t, err2)
 	require.Equal(t, "network-id", networkID1)
@@ -157,7 +157,7 @@ func TestGetNetworkIDDetectedProviderReturnsErrorOnFailure(t *testing.T) {
 	// EC2 is positively detected via DMI, but its direct fetch fails: GetNetworkID
 	// returns the error immediately rather than falling back to racing all
 	// supported providers.
-	_, err := GetNetworkID(context.Background())
+	_, err := GetNetworkID(t.Context())
 	require.ErrorContains(t, err, "could not detect network ID")
 	require.Equal(t, 0, gceCalls, "GCE should not be probed once EC2 is positively detected via DMI")
 	require.Equal(t, 1, ec2Calls, "EC2 should only be probed directly")
@@ -181,7 +181,7 @@ func TestGetNetworkIDUnsupportedProviderShortCircuits(t *testing.T) {
 	getGCENetworkID = func(_ context.Context) (string, error) { gceCalls++; return "", nil }
 	getEC2NetworkID = func(_ context.Context) (string, error) { ec2Calls++; return "", nil }
 
-	_, err := GetNetworkID(context.Background())
+	_, err := GetNetworkID(t.Context())
 	require.ErrorContains(t, err, "does not support network ID resolution")
 	require.Equal(t, 0, gceCalls, "GCE metadata endpoint should not be probed on a host known not to support it")
 	require.Equal(t, 0, ec2Calls, "EC2 metadata endpoint should not be probed on a host known not to support it")
@@ -193,7 +193,7 @@ func TestGetVPCSubnetsForHost(t *testing.T) {
 	mockGetVPCSubnetsForHostImpl(t, func(_ context.Context) ([]string, error) {
 		return expectedSubnets, nil
 	})
-	subnets, err := GetVPCSubnetsForHost(context.Background())
+	subnets, err := GetVPCSubnetsForHost(t.Context())
 	require.NoError(t, err)
 
 	var actualSubnets []string
@@ -209,7 +209,7 @@ func TestGetVPCSubnetsForHostInvalid(t *testing.T) {
 	mockGetVPCSubnetsForHostImpl(t, func(_ context.Context) ([]string, error) {
 		return []string{"not a valid subnet"}, nil
 	})
-	_, err := GetVPCSubnetsForHost(context.Background())
+	_, err := GetVPCSubnetsForHost(t.Context())
 	require.Error(t, err)
 }
 
@@ -219,6 +219,6 @@ func TestGetVPCSubnetsForHostError(t *testing.T) {
 	mockGetVPCSubnetsForHostImpl(t, func(_ context.Context) ([]string, error) {
 		return nil, errMock
 	})
-	_, err := GetVPCSubnetsForHost(context.Background())
+	_, err := GetVPCSubnetsForHost(t.Context())
 	require.ErrorIs(t, err, errMock)
 }

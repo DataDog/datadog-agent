@@ -8,7 +8,6 @@
 package providers
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -137,7 +136,7 @@ func TestZKGetTemplates(t *testing.T) {
 }
 
 func TestZKCollect(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	backend := &zkTest{}
 
 	backend.On("Children", "/datadog/check_configs").Return([]string{"other", "config_folder_1", "config_folder_2"}, nil, nil).Times(1)
@@ -191,7 +190,7 @@ func TestZKIsUpToDate(t *testing.T) {
 	// If the number of ADTemplate is modified we update
 	// If nothing changed we don't update
 
-	ctx := context.Background()
+	ctx := t.Context()
 	backend := &zkTest{}
 	z := new(zk.Stat)
 	backend.On("Children", "/datadog/check_configs").Return([]string{"config_folder_1"}, nil, nil).Times(1)

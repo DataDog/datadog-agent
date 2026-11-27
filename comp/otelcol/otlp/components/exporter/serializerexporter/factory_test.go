@@ -8,7 +8,6 @@
 package serializerexporter
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,7 +34,7 @@ func TestNewMetricsExporter(t *testing.T) {
 	factory := newFactory()
 	cfg := factory.CreateDefaultConfig()
 	set := exportertest.NewNopSettings(component.MustNewType(TypeStr))
-	exp, err := factory.CreateMetrics(context.Background(), set, cfg)
+	exp, err := factory.CreateMetrics(t.Context(), set, cfg)
 	assert.NoError(t, err)
 	assert.NotNil(t, exp)
 }
@@ -48,7 +47,7 @@ func TestNewMetricsExporterInvalid(t *testing.T) {
 	expCfg.Metrics.Metrics.HistConfig.Mode = "InvalidMode"
 
 	set := exportertest.NewNopSettings(component.MustNewType(TypeStr))
-	_, err := factory.CreateMetrics(context.Background(), set, cfg)
+	_, err := factory.CreateMetrics(t.Context(), set, cfg)
 	assert.Error(t, err)
 }
 
@@ -57,7 +56,7 @@ func TestNewTracesExporter(t *testing.T) {
 	cfg := factory.CreateDefaultConfig()
 
 	set := exportertest.NewNopSettings(component.MustNewType(TypeStr))
-	_, err := factory.CreateTraces(context.Background(), set, cfg)
+	_, err := factory.CreateTraces(t.Context(), set, cfg)
 	assert.Error(t, err)
 }
 
@@ -66,6 +65,6 @@ func TestNewLogsExporter(t *testing.T) {
 	cfg := factory.CreateDefaultConfig()
 
 	set := exportertest.NewNopSettings(component.MustNewType(TypeStr))
-	_, err := factory.CreateLogs(context.Background(), set, cfg)
+	_, err := factory.CreateLogs(t.Context(), set, cfg)
 	assert.Error(t, err)
 }

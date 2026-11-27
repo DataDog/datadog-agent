@@ -9,7 +9,6 @@ package capture
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -43,7 +42,7 @@ func TestDrainLoopEndsOnReadError(t *testing.T) {
 		return nil, gopacket.CaptureInfo{}, errors.New("read error")
 	})
 
-	go c.drainLoop(context.Background())
+	go c.drainLoop(t.Context())
 	select {
 	case <-c.Done():
 	case <-time.After(5 * time.Second):

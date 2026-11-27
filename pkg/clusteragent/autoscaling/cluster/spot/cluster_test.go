@@ -331,7 +331,7 @@ func (c *fakeCluster) CreateDeployment(namespace, name string, labels, annotatio
 		podSelector: podSelector,
 	}
 
-	_, err := c.dynamicClient.Resource(deploymentsGVR).Namespace(namespace).Create(context.Background(), u, metav1.CreateOptions{})
+	_, err := c.dynamicClient.Resource(deploymentsGVR).Namespace(namespace).Create(c.t.Context(), u, metav1.CreateOptions{})
 	require.NoError(c.t, err)
 
 	d.rolloutWithDelay(replicas)
@@ -347,7 +347,7 @@ func (d *fakeDeployment) ReplicaSet() string {
 // then deleting all pods of the previous ReplicaSet (if any).
 // Returns the name of the new ReplicaSet.
 func (d *fakeDeployment) Rollout(labels, annotations map[string]string, replicas int) string {
-	u, err := d.cluster.dynamicClient.Resource(deploymentsGVR).Namespace(d.namespace).Get(context.Background(), d.name, metav1.GetOptions{})
+	u, err := d.cluster.dynamicClient.Resource(deploymentsGVR).Namespace(d.namespace).Get(d.cluster.t.Context(), d.name, metav1.GetOptions{})
 	require.NoError(d.cluster.t, err)
 
 	if labels != nil {
@@ -366,7 +366,7 @@ func (d *fakeDeployment) Rollout(labels, annotations map[string]string, replicas
 		maps.Copy(ann, annotations)
 		u.SetAnnotations(ann)
 	}
-	_, err = d.cluster.dynamicClient.Resource(deploymentsGVR).Namespace(d.namespace).Update(context.Background(), u, metav1.UpdateOptions{})
+	_, err = d.cluster.dynamicClient.Resource(deploymentsGVR).Namespace(d.namespace).Update(d.cluster.t.Context(), u, metav1.UpdateOptions{})
 	require.NoError(d.cluster.t, err)
 
 	return d.rolloutWithDelay(replicas)
@@ -374,7 +374,7 @@ func (d *fakeDeployment) Rollout(labels, annotations map[string]string, replicas
 
 // UpdateMetadata merges the given labels and annotations into the Deployment without creating new pods.
 func (d *fakeDeployment) UpdateMetadata(newLabels, newAnnotations map[string]string) {
-	u, err := d.cluster.dynamicClient.Resource(deploymentsGVR).Namespace(d.namespace).Get(context.Background(), d.name, metav1.GetOptions{})
+	u, err := d.cluster.dynamicClient.Resource(deploymentsGVR).Namespace(d.namespace).Get(d.cluster.t.Context(), d.name, metav1.GetOptions{})
 	require.NoError(d.cluster.t, err)
 
 	if len(newLabels) > 0 {
@@ -395,13 +395,13 @@ func (d *fakeDeployment) UpdateMetadata(newLabels, newAnnotations map[string]str
 		u.SetAnnotations(ann)
 	}
 
-	_, err = d.cluster.dynamicClient.Resource(deploymentsGVR).Namespace(d.namespace).Update(context.Background(), u, metav1.UpdateOptions{})
+	_, err = d.cluster.dynamicClient.Resource(deploymentsGVR).Namespace(d.namespace).Update(d.cluster.t.Context(), u, metav1.UpdateOptions{})
 	require.NoError(d.cluster.t, err)
 }
 
 // RemoveLabels removes the given label keys from the Deployment without creating new pods.
 func (d *fakeDeployment) RemoveLabels(keys ...string) {
-	u, err := d.cluster.dynamicClient.Resource(deploymentsGVR).Namespace(d.namespace).Get(context.Background(), d.name, metav1.GetOptions{})
+	u, err := d.cluster.dynamicClient.Resource(deploymentsGVR).Namespace(d.namespace).Get(d.cluster.t.Context(), d.name, metav1.GetOptions{})
 	require.NoError(d.cluster.t, err)
 	lbl := u.GetLabels()
 	for _, k := range keys {
@@ -409,7 +409,7 @@ func (d *fakeDeployment) RemoveLabels(keys ...string) {
 	}
 	u.SetLabels(lbl)
 
-	_, err = d.cluster.dynamicClient.Resource(deploymentsGVR).Namespace(d.namespace).Update(context.Background(), u, metav1.UpdateOptions{})
+	_, err = d.cluster.dynamicClient.Resource(deploymentsGVR).Namespace(d.namespace).Update(d.cluster.t.Context(), u, metav1.UpdateOptions{})
 	require.NoError(d.cluster.t, err)
 }
 
@@ -418,7 +418,7 @@ func (d *fakeDeployment) Delete() {
 	if d.existingReplicaSet != "" {
 		d.cluster.DeleteOwnerPods(kubernetes.ReplicaSetKind, d.namespace, d.existingReplicaSet)
 	}
-	err := d.cluster.dynamicClient.Resource(deploymentsGVR).Namespace(d.namespace).Delete(context.Background(), d.name, metav1.DeleteOptions{})
+	err := d.cluster.dynamicClient.Resource(deploymentsGVR).Namespace(d.namespace).Delete(d.cluster.t.Context(), d.name, metav1.DeleteOptions{})
 	require.NoError(d.cluster.t, err)
 }
 

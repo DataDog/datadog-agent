@@ -8,7 +8,6 @@
 package configstreamconsumerimpl
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -152,7 +151,7 @@ func writeIPCCert(t *testing.T, path string) {
 	cfg.SetInTest("cluster_trust_chain.ca_cert_file_path", "")
 	cfg.SetInTest("cluster_trust_chain.ca_key_file_path", "")
 	cfg.SetInTest("cluster_trust_chain.enable_tls_verification", false)
-	_, _, _, err := cert.FetchOrCreateIPCCert(context.Background(), cfg)
+	_, _, _, err := cert.FetchOrCreateIPCCert(t.Context(), cfg)
 	require.NoError(t, err)
 }
 

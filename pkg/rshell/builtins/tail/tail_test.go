@@ -498,7 +498,7 @@ func TestTailContextCancellation(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "data.txt", fiveLines)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	_, _, code := runScriptCtx(ctx, t, "tail -n 3 data.txt", dir, interp.AllowedPaths([]string{dir}))
@@ -542,7 +542,7 @@ func TestTailContextPreCancelled(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "file.txt", fiveLines)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	done := make(chan struct{})

@@ -8,7 +8,6 @@
 package gke
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -72,7 +71,7 @@ func TestDetect(t *testing.T) {
 			client := dynamicfake.NewSimpleDynamicClient(scheme)
 			tt.setupMock(client)
 
-			found, err := Detect(context.Background(), client)
+			found, err := Detect(t.Context(), client)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {

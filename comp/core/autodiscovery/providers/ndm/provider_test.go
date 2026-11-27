@@ -150,7 +150,7 @@ func TestUpdateSchedulesAHandlersConfigsAndAcknowledgesThePath(t *testing.T) {
 		"path-a": {snmpConfig("10.0.0.1")},
 	}}
 	p := newTestProvider(t, h)
-	ch := p.Stream(context.Background())
+	ch := p.Stream(t.Context())
 	rec := newRecorder()
 
 	p.Update(map[string]state.RawConfig{"path-a": rawConfig(`{"snmp":{}}`)}, rec.callback)
@@ -166,7 +166,7 @@ func TestUpdateSchedulesAHandlersConfigsAndAcknowledgesThePath(t *testing.T) {
 func TestUpdateReportsNoApplyStateForADocumentItDoesNotOwn(t *testing.T) {
 	h := &fakeHandler{key: "snmp"}
 	p := newTestProvider(t, h)
-	ch := p.Stream(context.Background())
+	ch := p.Stream(t.Context())
 	rec := newRecorder()
 
 	p.Update(map[string]state.RawConfig{
@@ -185,7 +185,7 @@ func TestUpdateReportsAnErrorStateAndStillSchedulesTheSucceedingKey(t *testing.T
 	}}
 	ad := &fakeHandler{key: "autodiscovery", err: errors.New("range is too large")}
 	p := newTestProvider(t, snmp, ad)
-	ch := p.Stream(context.Background())
+	ch := p.Stream(t.Context())
 	rec := newRecorder()
 
 	p.Update(map[string]state.RawConfig{
@@ -205,7 +205,7 @@ func TestUpdateEmitsNothingForAnUnchangedSnapshot(t *testing.T) {
 		"path-a": {snmpConfig("10.0.0.1")},
 	}}
 	p := newTestProvider(t, h)
-	ch := p.Stream(context.Background())
+	ch := p.Stream(t.Context())
 	rec := newRecorder()
 	snapshot := map[string]state.RawConfig{"path-a": rawConfig(`{"snmp":{}}`)}
 
@@ -223,7 +223,7 @@ func TestUpdateReplacesAPathsConfigsInOneChange(t *testing.T) {
 		"path-a": {snmpConfig("10.0.0.1")},
 	}}
 	p := newTestProvider(t, h)
-	ch := p.Stream(context.Background())
+	ch := p.Stream(t.Context())
 	rec := newRecorder()
 
 	p.Update(map[string]state.RawConfig{"path-a": rawConfig(`{"snmp":{}}`)}, rec.callback)
@@ -245,7 +245,7 @@ func TestUpdateUnschedulesAPathThatLeftTheSnapshot(t *testing.T) {
 		"path-a": {snmpConfig("10.0.0.1")},
 	}}
 	p := newTestProvider(t, h)
-	ch := p.Stream(context.Background())
+	ch := p.Stream(t.Context())
 	rec := newRecorder()
 
 	p.Update(map[string]state.RawConfig{"path-a": rawConfig(`{"snmp":{}}`)}, rec.callback)
@@ -265,7 +265,7 @@ func TestUpdateUnschedulesAKeyThatLeftADocument(t *testing.T) {
 	}}
 	ad := &fakeHandler{key: "autodiscovery"}
 	p := newTestProvider(t, snmp, ad)
-	ch := p.Stream(context.Background())
+	ch := p.Stream(t.Context())
 	rec := newRecorder()
 
 	p.Update(map[string]state.RawConfig{"path-a": rawConfig(`{"snmp":{},"autodiscovery":{}}`)}, rec.callback)
@@ -281,7 +281,7 @@ func TestUpdateUnschedulesAKeyThatLeftADocument(t *testing.T) {
 func TestUpdateDropsTheConfigErrorsOfAPathThatLeftTheSnapshot(t *testing.T) {
 	h := &fakeHandler{key: "snmp", err: errors.New("credential \"c1\" is not available")}
 	p := newTestProvider(t, h)
-	p.Stream(context.Background())
+	p.Stream(t.Context())
 	rec := newRecorder()
 
 	p.Update(map[string]state.RawConfig{"path-a": rawConfig(`{"snmp":{}}`)}, rec.callback)
@@ -297,7 +297,7 @@ func TestStreamStopsSendingOnceTheContextIsCancelled(t *testing.T) {
 		"path-a": {snmpConfig("10.0.0.1")},
 	}}
 	p := newTestProvider(t, h)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	ch := p.Stream(ctx)
 
 	cancel()
@@ -314,7 +314,7 @@ func TestUpdateUnschedulesWhenAKeyStaysButProducesNoConfigs(t *testing.T) {
 		"path-a": {snmpConfig("10.0.0.1")},
 	}}
 	p := newTestProvider(t, h)
-	ch := p.Stream(context.Background())
+	ch := p.Stream(t.Context())
 	rec := newRecorder()
 
 	p.Update(map[string]state.RawConfig{"path-a": rawConfig(`{"snmp":{}}`)}, rec.callback)
@@ -335,7 +335,7 @@ func TestUpdateUnschedulesWhenAKeyStaysButItsHandlerFails(t *testing.T) {
 		"path-a": {snmpConfig("10.0.0.1")},
 	}}
 	p := newTestProvider(t, h)
-	ch := p.Stream(context.Background())
+	ch := p.Stream(t.Context())
 	rec := newRecorder()
 
 	p.Update(map[string]state.RawConfig{"path-a": rawConfig(`{"snmp":{}}`)}, rec.callback)
@@ -362,7 +362,7 @@ func TestUpdateAndGetConfigErrorsAreSafeToCallConcurrently(t *testing.T) {
 		"path-a": {snmpConfig("10.0.0.1")},
 	}}
 	p := newTestProvider(t, h)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	ch := p.Stream(ctx)
 
@@ -435,7 +435,7 @@ func TestUpdateBeforeStreamWaitsInTheChannel(t *testing.T) {
 
 	p.Update(map[string]state.RawConfig{"path-a": rawConfig(`{"snmp":{}}`)}, rec.callback)
 
-	ch := p.Stream(context.Background())
+	ch := p.Stream(t.Context())
 
 	changes := drain(t, ch)
 	require.Len(t, changes, 1)
@@ -451,7 +451,7 @@ func TestUpdateKeepsAnActivePathsConfigsWhenItsReplacementIsMalformed(t *testing
 		"path-a": {snmpConfig("10.0.0.1")},
 	}}
 	p := newTestProvider(t, h)
-	ch := p.Stream(context.Background())
+	ch := p.Stream(t.Context())
 	rec := newRecorder()
 
 	p.Update(map[string]state.RawConfig{"path-a": rawConfig(`{"snmp":{}}`)}, rec.callback)
@@ -520,7 +520,7 @@ func TestUpdateBothRendersAndSnapshotsAHandlerThatDoesEach(t *testing.T) {
 		"path-a": {snmpConfig("10.0.0.1")},
 	}}}
 	p := newTestProvider(t, h)
-	ch := p.Stream(context.Background())
+	ch := p.Stream(t.Context())
 
 	p.Update(map[string]state.RawConfig{"path-a": rawConfig(`{"snmp":{}}`)}, newRecorder().callback)
 
@@ -638,7 +638,7 @@ func TestUpdateStillSchedulesARenderedKeyWhenTheSnapshotterFails(t *testing.T) {
 		"path-a": {snmpConfig("10.0.0.1")},
 	}}
 	p := newTestProvider(t, snap, render)
-	ch := p.Stream(context.Background())
+	ch := p.Stream(t.Context())
 
 	p.Update(map[string]state.RawConfig{"path-a": rawConfig(`{"discovery":{},"snmp":{}}`)}, newRecorder().callback)
 

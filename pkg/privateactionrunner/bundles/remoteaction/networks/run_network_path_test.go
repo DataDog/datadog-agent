@@ -96,7 +96,7 @@ func TestRunNetworkPathHandlerRun(t *testing.T) {
 		},
 	}
 
-	output, err := handler.Run(context.Background(), task, nil)
+	output, err := handler.Run(t.Context(), task, nil)
 	require.NoError(t, err)
 
 	result, ok := output.(*payload.NetworkPath)
@@ -156,7 +156,7 @@ func TestRunNetworkPathHandlerRunDefaults(t *testing.T) {
 		},
 	}
 
-	_, err := handler.Run(context.Background(), task, nil)
+	_, err := handler.Run(t.Context(), task, nil)
 	require.NoError(t, err)
 
 	expectedCfg := tracerouteconfig.Config{
@@ -198,7 +198,7 @@ func TestRunNetworkPathHandlerRunInvalidPath(t *testing.T) {
 		},
 	}
 
-	_, err := handler.Run(context.Background(), task, nil)
+	_, err := handler.Run(t.Context(), task, nil)
 	require.ErrorContains(t, err, "invalid destination IP address")
 }
 
@@ -235,7 +235,7 @@ func TestRunNetworkPathHandlerRunSendToBackend(t *testing.T) {
 		},
 	}
 
-	output, err := handler.Run(context.Background(), task, nil)
+	output, err := handler.Run(t.Context(), task, nil)
 	require.NoError(t, err)
 	require.NotNil(t, output)
 	require.Equal(t, 1, forwarder.sendCount)

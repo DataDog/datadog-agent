@@ -36,7 +36,7 @@ func TestGauge(t *testing.T) {
 	err := metricClient.Gauge("test_gauge", 1, []string{"otlp:true", "service:otelcol"}, 1)
 	assert.NoError(t, err)
 	rm := metricdata.ResourceMetrics{}
-	assert.NoError(t, reader.Collect(context.Background(), &rm))
+	assert.NoError(t, reader.Collect(t.Context(), &rm))
 	require.Len(t, rm.ScopeMetrics, 1)
 	sm := rm.ScopeMetrics[0]
 	require.Len(t, sm.Metrics, 1)
@@ -61,7 +61,7 @@ func TestGaugeMultiple(t *testing.T) {
 	assert.NoError(t, err)
 
 	rm := metricdata.ResourceMetrics{}
-	assert.NoError(t, reader.Collect(context.Background(), &rm))
+	assert.NoError(t, reader.Collect(t.Context(), &rm))
 	require.Len(t, rm.ScopeMetrics, 1)
 	sm := rm.ScopeMetrics[0]
 	require.Len(t, sm.Metrics, 1)
@@ -82,7 +82,7 @@ func TestGaugeDataRace(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	go func() {
@@ -105,7 +105,7 @@ func TestGaugeDataRace(t *testing.T) {
 			case <-ctx.Done():
 				return
 			default:
-				err := reader.Collect(context.Background(), &metricdata.ResourceMetrics{})
+				err := reader.Collect(t.Context(), &metricdata.ResourceMetrics{})
 				assert.NoError(t, err)
 			}
 		}
@@ -120,7 +120,7 @@ func TestCount(t *testing.T) {
 	err := metricClient.Count("test_count", 1, []string{"otlp:true", "service:otelcol"}, 1)
 	assert.NoError(t, err)
 	rm := metricdata.ResourceMetrics{}
-	assert.NoError(t, reader.Collect(context.Background(), &rm))
+	assert.NoError(t, reader.Collect(t.Context(), &rm))
 	require.Len(t, rm.ScopeMetrics, 1)
 	sm := rm.ScopeMetrics[0]
 	require.Len(t, sm.Metrics, 1)
@@ -143,7 +143,7 @@ func TestCount(t *testing.T) {
 	assert.NoError(t, err)
 	err = metricClient.Count("test_count2", 3, []string{"otlp:true", "service:otelcol"}, 1)
 	assert.NoError(t, err)
-	assert.NoError(t, reader.Collect(context.Background(), &rm))
+	assert.NoError(t, reader.Collect(t.Context(), &rm))
 	require.Len(t, rm.ScopeMetrics, 1)
 	sm = rm.ScopeMetrics[0]
 	require.Len(t, sm.Metrics, 2)
@@ -180,7 +180,7 @@ func TestHistogram(t *testing.T) {
 	err := metricClient.Histogram("test_histogram", 1, []string{"otlp:true", "service:otelcol"}, 1)
 	assert.NoError(t, err)
 	rm := metricdata.ResourceMetrics{}
-	assert.NoError(t, reader.Collect(context.Background(), &rm))
+	assert.NoError(t, reader.Collect(t.Context(), &rm))
 	require.Len(t, rm.ScopeMetrics, 1)
 	sm := rm.ScopeMetrics[0]
 	require.Len(t, sm.Metrics, 1)
@@ -209,7 +209,7 @@ func TestTiming(t *testing.T) {
 	err := metricClient.Timing("test_timing", time.Duration(1000000000), []string{"otlp:true", "service:otelcol"}, 1)
 	assert.NoError(t, err)
 	rm := metricdata.ResourceMetrics{}
-	assert.NoError(t, reader.Collect(context.Background(), &rm))
+	assert.NoError(t, reader.Collect(t.Context(), &rm))
 	require.Len(t, rm.ScopeMetrics, 1)
 	sm := rm.ScopeMetrics[0]
 	require.Len(t, sm.Metrics, 1)

@@ -38,7 +38,7 @@ func runStat(
 		Stderr:         &stderr,
 		FileSystemStat: statFn,
 	}
-	result := handler(context.Background(), callCtx, fs.Args())
+	result := handler(t.Context(), callCtx, fs.Args())
 	return stdout.String(), stderr.String(), result
 }
 

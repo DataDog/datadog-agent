@@ -188,7 +188,7 @@ func TestStartFailsOpenWhenPersistenceLoadFails(t *testing.T) {
 	persistence := &memPersistence{loadErr: assert.AnError}
 	h.persistence = persistence
 
-	require.NoError(t, h.start(context.Background()))
+	require.NoError(t, h.start(t.Context()))
 	assert.Equal(t, 1, persistence.loadCalls)
 }
 
@@ -430,7 +430,7 @@ func TestPersistenceRoundTrip(t *testing.T) {
 
 	h2 := newTestStore(t)
 	h2.persistence = newDiskPersistence(path, logger)
-	require.NoError(t, h2.loadPersistedState(context.Background()))
+	require.NoError(t, h2.loadPersistedState(t.Context()))
 
 	// Detailed proto payload is not persisted — it is repopulated when the check re-runs.
 	// What must survive is the lifecycle state so that storeIssue can correctly
@@ -469,7 +469,7 @@ func TestLoadPersistedStatePreservesIssueTypeAndCategoryOnResolvedTombstone(t *t
 	h2.persistence = newDiskPersistence(path, logger)
 	ch := make(chan *healthplatformpayload.Issue, 1)
 	h2.RegisterIssuesObserver(storedef.IssuesObserver{ResolvedCh: ch})
-	require.NoError(t, h2.loadPersistedState(context.Background()))
+	require.NoError(t, h2.loadPersistedState(t.Context()))
 
 	require.Len(t, ch, 1)
 	got := <-ch
@@ -499,7 +499,7 @@ func TestPersistenceVersionMismatch(t *testing.T) {
 
 	h := newTestStore(t)
 	h.persistence = newDiskPersistence(path, logmock.New(t))
-	require.NoError(t, h.loadPersistedState(context.Background()))
+	require.NoError(t, h.loadPersistedState(t.Context()))
 
 	// Stale version: store must start fresh.
 	assert.Nil(t, h.GetIssue("t:id"))
@@ -549,7 +549,7 @@ func TestGetIssuesHTTPEndpoint(t *testing.T) {
 func TestFillFlareSkipsWhenEmpty(t *testing.T) {
 	h := newTestStore(t)
 	fb := newMockFlareBuilder()
-	require.NoError(t, h.fillFlare(context.Background(), fb))
+	require.NoError(t, h.fillFlare(t.Context(), fb))
 	_, written := fb.get("health-platform-issues.json")
 	assert.False(t, written, "fillFlare must not write a file when the store is empty")
 }
@@ -559,7 +559,7 @@ func TestFillFlareWritesWhenNonEmpty(t *testing.T) {
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
 
 	fb := newMockFlareBuilder()
-	require.NoError(t, h.fillFlare(context.Background(), fb))
+	require.NoError(t, h.fillFlare(t.Context(), fb))
 
 	data, written := fb.get("health-platform-issues.json")
 	require.True(t, written, "fillFlare must write a file when the store has issues")

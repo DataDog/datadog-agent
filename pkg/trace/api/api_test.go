@@ -1722,7 +1722,7 @@ func TestHandleTraces(t *testing.T) {
 		req.Header.Set(header.Lang, "go")
 
 		// Create a context with a very short timeout to trigger the context cancellation
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+		ctx, cancel := context.WithTimeout(t.Context(), 1*time.Nanosecond)
 		defer cancel()
 		req = req.WithContext(ctx)
 
@@ -1775,7 +1775,7 @@ func TestHandleTraces(t *testing.T) {
 		req.Header.Set(header.Lang, "python")
 
 		// Create a context with a very short timeout
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+		ctx, cancel := context.WithTimeout(t.Context(), 1*time.Nanosecond)
 		defer cancel()
 		req = req.WithContext(ctx)
 

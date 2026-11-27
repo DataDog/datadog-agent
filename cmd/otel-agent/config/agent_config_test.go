@@ -6,7 +6,6 @@
 package config
 
 import (
-	"context"
 	"fmt"
 	"io/fs"
 	"os"
@@ -51,7 +50,7 @@ func (suite *ConfigTestSuite) SetupTest() {
 }
 
 func TestNoURIsProvided(t *testing.T) {
-	_, err := NewConfigComponent(context.Background(), "", []string{})
+	_, err := NewConfigComponent(t.Context(), "", []string{})
 	assert.Error(t, err, "no URIs provided for configs")
 }
 
@@ -61,7 +60,7 @@ func TestNoURIsProvided(t *testing.T) {
 func TestDDOTSketchesV3BetaShadowDisabled(t *testing.T) {
 	configmock.New(t)
 	t.Setenv("DD_SERIALIZER_EXPERIMENTAL_USE_V3_API_SKETCHES_SHADOW_SAMPLE_RATE", "1")
-	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
+	c, err := NewConfigComponent(t.Context(), "", []string{"testdata/config_default.yaml"})
 	require.NoError(t, err)
 
 	assert.Zero(t, c.GetFloat64("serializer_experimental_use_v3_api.sketches.shadow_sample_rate"))
@@ -70,7 +69,7 @@ func TestDDOTSketchesV3BetaShadowDisabled(t *testing.T) {
 func (suite *ConfigTestSuite) TestAgentConfig() {
 	t := suite.T()
 	fileName := "testdata/config.yaml"
-	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	c, err := NewConfigComponent(t.Context(), "", []string{fileName})
 	if err != nil {
 		t.Errorf("Failed to load agent config: %v", err)
 	}
@@ -96,7 +95,7 @@ func (suite *ConfigTestSuite) TestAgentConfig() {
 func (suite *ConfigTestSuite) TestAgentConfigDefaults() {
 	t := suite.T()
 	fileName := "testdata/config_default.yaml"
-	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	c, err := NewConfigComponent(t.Context(), "", []string{fileName})
 	if err != nil {
 		t.Errorf("Failed to load agent config: %v", err)
 	}
@@ -120,7 +119,7 @@ func (suite *ConfigTestSuite) TestDisableOperationAndResourceNameV2FeatureGate()
 	featuregate.GlobalRegistry().Set("datadog.EnableOperationAndResourceNameV2", false)
 	t := suite.T()
 	fileName := "testdata/config_default.yaml"
-	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	c, err := NewConfigComponent(t.Context(), "", []string{fileName})
 	if err != nil {
 		t.Errorf("Failed to load agent config: %v", err)
 	}
@@ -144,7 +143,7 @@ func (suite *ConfigTestSuite) TestAgentConfigExpandEnvVars() {
 	t := suite.T()
 	fileName := "testdata/config_default_expand_envvar.yaml"
 	suite.T().Setenv("DD_API_KEY", "abc")
-	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	c, err := NewConfigComponent(t.Context(), "", []string{fileName})
 	if err != nil {
 		t.Errorf("Failed to load agent config: %v", err)
 	}
@@ -155,7 +154,7 @@ func (suite *ConfigTestSuite) TestAgentConfigExpandEnvVars_NumberAPIKey() {
 	t := suite.T()
 	fileName := "testdata/config_default_expand_envvar.yaml"
 	suite.T().Setenv("DD_API_KEY", "123456")
-	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	c, err := NewConfigComponent(t.Context(), "", []string{fileName})
 	if err != nil {
 		t.Errorf("Failed to load agent config: %v", err)
 	}
@@ -166,7 +165,7 @@ func (suite *ConfigTestSuite) TestAgentConfigExpandEnvVars_Raw() {
 	t := suite.T()
 	fileName := "testdata/config_default_expand_envvar_raw.yaml"
 	suite.T().Setenv("DD_API_KEY", "abc")
-	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	c, err := NewConfigComponent(t.Context(), "", []string{fileName})
 	if err != nil {
 		t.Errorf("Failed to load agent config: %v", err)
 	}
@@ -177,7 +176,7 @@ func (suite *ConfigTestSuite) TestAgentConfigWithDatadogYamlDefaults() {
 	t := suite.T()
 	fileName := "testdata/config_default.yaml"
 	ddFileName := "testdata/datadog.yaml"
-	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	c, err := NewConfigComponent(t.Context(), ddFileName, []string{fileName})
 	if err != nil {
 		t.Errorf("Failed to load agent config: %v", err)
 	}
@@ -207,7 +206,7 @@ func (suite *ConfigTestSuite) TestAgentConfigWithDatadogYamlKeysAvailable() {
 	t := suite.T()
 	fileName := "testdata/config_default.yaml"
 	ddFileName := "testdata/datadog.yaml"
-	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	c, err := NewConfigComponent(t.Context(), ddFileName, []string{fileName})
 	if err != nil {
 		t.Errorf("Failed to load agent config: %v", err)
 	}
@@ -233,7 +232,7 @@ func (suite *ConfigTestSuite) TestStandaloneModeIgnoresCoreAgentIPCEnvVars() {
 	t.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "true")
 	t.Setenv("DD_AGENT_IPC_CONFIG_REFRESH_INTERVAL", "60")
 
-	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config.yaml"})
+	c, err := NewConfigComponent(t.Context(), "", []string{"testdata/config.yaml"})
 	require.NoError(t, err)
 
 	assert.Equal(t, -1, c.GetInt("cmd_port"))
@@ -250,7 +249,7 @@ func (suite *ConfigTestSuite) TestStandaloneContainerizedKeepsTraceReceiverDisab
 	t.Setenv("DOCKER_DD_AGENT", "true")
 	t.Setenv("KUBERNETES_SERVICE_PORT", "443")
 
-	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config.yaml"})
+	c, err := NewConfigComponent(t.Context(), "", []string{"testdata/config.yaml"})
 	require.NoError(t, err)
 
 	assert.False(t, c.GetBool("apm_config.receiver_enabled"))
@@ -260,7 +259,7 @@ func (suite *ConfigTestSuite) TestAgentConfigSetAPMFeaturesFromDatadogYaml() {
 	t := suite.T()
 	fileName := "testdata/config_default.yaml"
 	ddFileName := "testdata/datadog_apm_config_features.yaml"
-	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	c, err := NewConfigComponent(t.Context(), ddFileName, []string{fileName})
 	if err != nil {
 		t.Errorf("Failed to load agent config: %v", err)
 	}
@@ -272,7 +271,7 @@ func (suite *ConfigTestSuite) TestAgentConfigSetAPMFeaturesFromEnv() {
 	t := suite.T()
 	fileName := "testdata/config_default.yaml"
 	t.Setenv("DD_APM_FEATURES", "test1,test2")
-	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	c, err := NewConfigComponent(t.Context(), "", []string{fileName})
 	if err != nil {
 		t.Errorf("Failed to load agent config: %v", err)
 	}
@@ -284,7 +283,7 @@ func (suite *ConfigTestSuite) TestLogLevelPrecedence() {
 	t := suite.T()
 	fileName := "testdata/config_default.yaml"
 	ddFileName := "testdata/datadog_low_log_level.yaml"
-	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	c, err := NewConfigComponent(t.Context(), ddFileName, []string{fileName})
 	if err != nil {
 		t.Errorf("Failed to load agent config: %v", err)
 	}
@@ -307,7 +306,7 @@ func (suite *ConfigTestSuite) TestEnvLogLevelPrecedence() {
 	}()
 	fileName := "testdata/config_default.yaml"
 	ddFileName := "testdata/datadog_low_log_level.yaml"
-	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	c, err := NewConfigComponent(t.Context(), ddFileName, []string{fileName})
 	if err != nil {
 		t.Errorf("Failed to load agent config: %v", err)
 	}
@@ -330,7 +329,7 @@ func (suite *ConfigTestSuite) TestEnvBadLogLevel() {
 	}()
 	fileName := "testdata/config_default.yaml"
 	ddFileName := "testdata/datadog_low_log_level.yaml"
-	_, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	_, err := NewConfigComponent(t.Context(), ddFileName, []string{fileName})
 	assert.EqualError(t, err, "invalid log level (yabadabadooo) set in the Datadog Agent configuration")
 }
 
@@ -347,7 +346,7 @@ func (suite *ConfigTestSuite) TestEnvUpperCaseLogLevel() {
 	}()
 	fileName := "testdata/config_default.yaml"
 	ddFileName := "testdata/datadog_uppercase_log_level.yaml"
-	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	c, err := NewConfigComponent(t.Context(), ddFileName, []string{fileName})
 	if err != nil {
 		t.Errorf("Failed to load agent config: %v", err)
 	}
@@ -361,7 +360,7 @@ func (suite *ConfigTestSuite) TestLogLevelSpec() {
 	t := suite.T()
 	fileName := "testdata/config_default.yaml"
 	ddFileName := "testdata/datadog_log_level_spec.yaml"
-	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	c, err := NewConfigComponent(t.Context(), ddFileName, []string{fileName})
 	if err != nil {
 		t.Errorf("Failed to load agent config: %v", err)
 	}
@@ -375,7 +374,7 @@ func (suite *ConfigTestSuite) TestLogLevelSpecReplacedByTelemetryLevel() {
 	t := suite.T()
 	fileName := "testdata/config_default.yaml"
 	ddFileName := "testdata/datadog_log_level_spec_low_default.yaml"
-	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	c, err := NewConfigComponent(t.Context(), ddFileName, []string{fileName})
 	if err != nil {
 		t.Errorf("Failed to load agent config: %v", err)
 	}
@@ -389,7 +388,7 @@ func (suite *ConfigTestSuite) TestBadDDConfigFile() {
 	t := suite.T()
 	fileName := "testdata/config_default.yaml"
 	ddFileName := "testdata/doesnotexists.yaml"
-	_, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	_, err := NewConfigComponent(t.Context(), ddFileName, []string{fileName})
 
 	assert.ErrorIs(t, err, fs.ErrNotExist)
 }
@@ -398,7 +397,7 @@ func (suite *ConfigTestSuite) TestBadLogLevel() {
 	t := suite.T()
 	fileName := "testdata/config_default.yaml"
 	ddFileName := "testdata/datadog_bad_log_level.yaml"
-	_, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	_, err := NewConfigComponent(t.Context(), ddFileName, []string{fileName})
 
 	assert.EqualError(t, err, "invalid log level (yabadabadoo) set in the Datadog Agent configuration")
 }
@@ -406,21 +405,21 @@ func (suite *ConfigTestSuite) TestBadLogLevel() {
 func (suite *ConfigTestSuite) TestNoDDExporter() {
 	t := suite.T()
 	fileName := "testdata/config_no_dd_exporter.yaml"
-	_, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	_, err := NewConfigComponent(t.Context(), "", []string{fileName})
 	assert.EqualError(t, err, "no datadog exporter found")
 }
 
 func (suite *ConfigTestSuite) TestMultipleDDExporters() {
 	t := suite.T()
 	fileName := "testdata/config_multiple_dd_exporters.yaml"
-	_, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	_, err := NewConfigComponent(t.Context(), "", []string{fileName})
 	assert.EqualError(t, err, "multiple datadog exporters found")
 }
 
 func (suite *ConfigTestSuite) TestNoDDAPISection() {
 	t := suite.T()
 	fileName := "testdata/config_no_api.yaml"
-	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	c, err := NewConfigComponent(t.Context(), "", []string{fileName})
 	require.NoError(t, err)
 	assert.Equal(t, "datadoghq.com", c.Get("site"))
 	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
@@ -431,7 +430,7 @@ func (suite *ConfigTestSuite) TestNoDDAPISection() {
 func (suite *ConfigTestSuite) TestNilDDAPISection() {
 	t := suite.T()
 	fileName := "testdata/config_nil_api.yaml"
-	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	c, err := NewConfigComponent(t.Context(), "", []string{fileName})
 	require.NoError(t, err)
 	assert.Equal(t, "datadoghq.com", c.Get("site"))
 	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
@@ -443,7 +442,7 @@ func (suite *ConfigTestSuite) TestNilDDAPISectionWithDDSite() {
 	t := suite.T()
 	t.Setenv("DD_SITE", "datadoghq.eu")
 	fileName := "testdata/config_nil_api.yaml"
-	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	c, err := NewConfigComponent(t.Context(), "", []string{fileName})
 	require.NoError(t, err)
 	assert.Equal(t, "datadoghq.eu", c.Get("site"))
 	assert.Equal(t, "https://api.datadoghq.eu", c.Get("dd_url"))
@@ -455,7 +454,7 @@ func (suite *ConfigTestSuite) TestDDAPIBlockAbsentWithDDSite() {
 	t := suite.T()
 	t.Setenv("DD_SITE", "datadoghq.eu")
 	fileName := "testdata/config_no_api_block.yaml"
-	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	c, err := NewConfigComponent(t.Context(), "", []string{fileName})
 	require.NoError(t, err)
 	assert.Equal(t, "datadoghq.eu", c.Get("site"))
 	assert.Equal(t, "https://api.datadoghq.eu", c.Get("dd_url"))
@@ -468,7 +467,7 @@ func (suite *ConfigTestSuite) TestExplicitSiteWithEmptyDDSite() {
 	// Verify that explicit api.site in OTel config works even with empty DD_SITE
 	t.Setenv("DD_SITE", "")
 	fileName := "testdata/config.yaml"
-	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	c, err := NewConfigComponent(t.Context(), "", []string{fileName})
 	// Should NOT return an error - explicit api.site takes precedence
 	require.NoError(t, err)
 	assert.Equal(t, "datadoghq.eu", c.Get("site"))
@@ -480,7 +479,7 @@ func (suite *ConfigTestSuite) TestSiteWithWhitespace() {
 	t := suite.T()
 	// Verify that api.site with whitespace is properly trimmed
 	fileName := "testdata/config_site_with_whitespace.yaml"
-	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	c, err := NewConfigComponent(t.Context(), "", []string{fileName})
 	require.NoError(t, err)
 	// Site should be trimmed
 	assert.Equal(t, "datadoghq.eu", c.Get("site"))
@@ -493,7 +492,7 @@ func (suite *ConfigTestSuite) TestSiteWithOnlyWhitespace() {
 	t := suite.T()
 	// Site with only whitespace should fall back to datadoghq.com
 	fileName := "testdata/config_site_whitespace.yaml"
-	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	c, err := NewConfigComponent(t.Context(), "", []string{fileName})
 	require.NoError(t, err)
 	// Should use datadoghq.com as fallback
 	assert.Equal(t, "datadoghq.com", c.Get("site"))
@@ -508,7 +507,7 @@ func (suite *ConfigTestSuite) TestWhitespaceSiteFallsBackToDDSite() {
 	t.Setenv("DD_SITE", "datadoghq.eu")
 	// config_site_whitespace.yaml has api.site: "   " (whitespace only)
 	fileName := "testdata/config_site_whitespace.yaml"
-	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	c, err := NewConfigComponent(t.Context(), "", []string{fileName})
 	require.NoError(t, err)
 	assert.Equal(t, "datadoghq.eu", c.Get("site"))
 	assert.Equal(t, "https://api.datadoghq.eu", c.Get("dd_url"))
@@ -519,7 +518,7 @@ func (suite *ConfigTestSuite) TestEmptyDDSiteFallback() {
 	// When DD_SITE is empty and no api.site in OTel config, fall back to datadoghq.com
 	t.Setenv("DD_SITE", "")
 	fileName := "testdata/config_no_api_block.yaml"
-	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	c, err := NewConfigComponent(t.Context(), "", []string{fileName})
 	require.NoError(t, err)
 	assert.Equal(t, "datadoghq.com", c.Get("site"))
 	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
@@ -528,7 +527,7 @@ func (suite *ConfigTestSuite) TestEmptyDDSiteFallback() {
 func (suite *ConfigTestSuite) TestNilDatadogExporter() {
 	t := suite.T()
 	fileName := "testdata/config_nil_datadog_exporter.yaml"
-	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	c, err := NewConfigComponent(t.Context(), "", []string{fileName})
 	require.NoError(t, err)
 	assert.Equal(t, "datadoghq.com", c.Get("site"))
 	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
@@ -540,7 +539,7 @@ func (suite *ConfigTestSuite) TestNilDatadogExporterWithDDSite() {
 	t := suite.T()
 	t.Setenv("DD_SITE", "datadoghq.eu")
 	fileName := "testdata/config_nil_datadog_exporter.yaml"
-	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	c, err := NewConfigComponent(t.Context(), "", []string{fileName})
 	require.NoError(t, err)
 	assert.Equal(t, "datadoghq.eu", c.Get("site"))
 	assert.Equal(t, "https://api.datadoghq.eu", c.Get("dd_url"))
@@ -551,14 +550,14 @@ func (suite *ConfigTestSuite) TestNilDatadogExporterWithDDSite() {
 func (suite *ConfigTestSuite) TestMalformedDDAPISection() {
 	t := suite.T()
 	fileName := "testdata/config_malformed_api.yaml"
-	_, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	_, err := NewConfigComponent(t.Context(), "", []string{fileName})
 	assert.EqualError(t, err, "invalid datadog exporter config")
 }
 
 func (suite *ConfigTestSuite) TestDDAPISiteEmpty() {
 	t := suite.T()
 	fileName := "testdata/config_site_empty.yaml"
-	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	c, err := NewConfigComponent(t.Context(), "", []string{fileName})
 	require.NoError(t, err)
 	assert.Equal(t, "datadoghq.com", c.Get("site"))
 	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
@@ -569,7 +568,7 @@ func (suite *ConfigTestSuite) TestDDAPISiteEmpty() {
 func (suite *ConfigTestSuite) TestDDAPISiteNotSet() {
 	t := suite.T()
 	fileName := "testdata/config_site_not_set.yaml"
-	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	c, err := NewConfigComponent(t.Context(), "", []string{fileName})
 	require.NoError(t, err)
 	assert.Equal(t, "datadoghq.com", c.Get("site"))
 	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
@@ -580,7 +579,7 @@ func (suite *ConfigTestSuite) TestDDAPISiteNotSet() {
 func (suite *ConfigTestSuite) TestDDAPISiteSet() {
 	t := suite.T()
 	fileName := "testdata/config_site_set.yaml"
-	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	c, err := NewConfigComponent(t.Context(), "", []string{fileName})
 	require.NoError(t, err)
 	assert.Equal(t, "us3.datadoghq.com", c.Get("site"))
 	assert.Equal(t, "https://api.us3.datadoghq.com", c.Get("dd_url"))
@@ -594,7 +593,7 @@ func (suite *ConfigTestSuite) TestProxyDDEnvVarsWithoutCoreConfig() {
 	t.Setenv("DD_PROXY_HTTPS", "https://dd-proxy.example.com:8443")
 	t.Setenv("DD_PROXY_NO_PROXY", "localhost,127.0.0.1")
 
-	pkgconfig, err := NewConfigComponent(context.Background(), "", []string{"testdata/config.yaml"})
+	pkgconfig, err := NewConfigComponent(t.Context(), "", []string{"testdata/config.yaml"})
 	require.NoError(t, err)
 
 	assert.Equal(t, "http://dd-proxy.example.com:8080", pkgconfig.GetString("proxy.http"))
@@ -609,7 +608,7 @@ func (suite *ConfigTestSuite) TestProxyHTTPEnvVarsWithoutCoreConfig() {
 	t.Setenv("HTTPS_PROXY", "https://proxy.example.com:8443")
 	t.Setenv("NO_PROXY", "localhost,127.0.0.1")
 
-	pkgconfig, err := NewConfigComponent(context.Background(), "", []string{"testdata/config.yaml"})
+	pkgconfig, err := NewConfigComponent(t.Context(), "", []string{"testdata/config.yaml"})
 	require.NoError(t, err)
 
 	assert.Equal(t, "http://proxy.example.com:8080", pkgconfig.GetString("proxy.http"))
@@ -625,7 +624,7 @@ func (suite *ConfigTestSuite) TestProxyDDEnvVarsTakePrecedenceOverHTTPEnvVars() 
 	t.Setenv("HTTP_PROXY", "http://other-proxy.example.com:8080")
 	t.Setenv("HTTPS_PROXY", "https://other-proxy.example.com:8443")
 
-	pkgconfig, err := NewConfigComponent(context.Background(), "", []string{"testdata/config.yaml"})
+	pkgconfig, err := NewConfigComponent(t.Context(), "", []string{"testdata/config.yaml"})
 	require.NoError(t, err)
 
 	assert.Equal(t, "http://dd-proxy.example.com:8080", pkgconfig.GetString("proxy.http"))
@@ -637,7 +636,7 @@ func (suite *ConfigTestSuite) TestProxyConfigURLTakesPrecedenceOverDDEnvVars() {
 	t.Setenv("DD_PROXY_HTTP", "http://dd-proxy.example.com:8080")
 	t.Setenv("DD_PROXY_HTTPS", "https://dd-proxy.example.com:8443")
 
-	pkgconfig, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_proxy.yaml"})
+	pkgconfig, err := NewConfigComponent(t.Context(), "", []string{"testdata/config_proxy.yaml"})
 	require.NoError(t, err)
 
 	// proxy_url from OTel exporter config should take precedence over DD_PROXY_* env vars
@@ -651,7 +650,7 @@ func (suite *ConfigTestSuite) TestProxyEnvVarsBoth() {
 	t.Setenv("HTTPS_PROXY", "https://secure-proxy.example.com:8443")
 	t.Setenv("NO_PROXY", "localhost,127.0.0.1,.local")
 
-	pkgconfig, err := NewConfigComponent(context.Background(), "testdata/datadog_proxy_test.yaml", []string{"testdata/config.yaml"})
+	pkgconfig, err := NewConfigComponent(t.Context(), "testdata/datadog_proxy_test.yaml", []string{"testdata/config.yaml"})
 	require.NoError(t, err)
 
 	assert.Equal(t, "http://proxy.example.com:8080", pkgconfig.GetString("proxy.http"))
@@ -664,7 +663,7 @@ func (suite *ConfigTestSuite) TestProxyEnvVarsHTTPOnly() {
 
 	t.Setenv("HTTP_PROXY", "http://proxy.example.com:3128")
 
-	pkgconfig, err := NewConfigComponent(context.Background(), "testdata/datadog_proxy_test.yaml", []string{"testdata/config.yaml"})
+	pkgconfig, err := NewConfigComponent(t.Context(), "testdata/datadog_proxy_test.yaml", []string{"testdata/config.yaml"})
 	require.NoError(t, err)
 
 	assert.Equal(t, "http://proxy.example.com:3128", pkgconfig.GetString("proxy.http"))
@@ -675,7 +674,7 @@ func (suite *ConfigTestSuite) TestProxyEnvVarsHTTPOnly() {
 func (suite *ConfigTestSuite) TestProxyEnvVarsNone() {
 	t := suite.T()
 
-	pkgconfig, err := NewConfigComponent(context.Background(), "testdata/datadog_proxy_test.yaml", []string{"testdata/config.yaml"})
+	pkgconfig, err := NewConfigComponent(t.Context(), "testdata/datadog_proxy_test.yaml", []string{"testdata/config.yaml"})
 	require.NoError(t, err)
 
 	assert.Equal(t, "", pkgconfig.GetString("proxy.http"))
@@ -689,7 +688,7 @@ func (suite *ConfigTestSuite) TestProxyEnvVarsNOProxyOnly() {
 	// Set only NO_PROXY
 	t.Setenv("NO_PROXY", "internal.company.com,localhost")
 
-	pkgconfig, err := NewConfigComponent(context.Background(), "testdata/datadog_proxy_test.yaml", []string{"testdata/config.yaml"})
+	pkgconfig, err := NewConfigComponent(t.Context(), "testdata/datadog_proxy_test.yaml", []string{"testdata/config.yaml"})
 	require.NoError(t, err)
 
 	assert.Equal(t, "", pkgconfig.GetString("proxy.http"))
@@ -700,7 +699,7 @@ func (suite *ConfigTestSuite) TestProxyEnvVarsNOProxyOnly() {
 func (suite *ConfigTestSuite) TestProxyConfigURLOnly() {
 	t := suite.T()
 
-	pkgconfig, err := NewConfigComponent(context.Background(), "testdata/datadog_proxy_test.yaml", []string{"testdata/config_proxy.yaml"})
+	pkgconfig, err := NewConfigComponent(t.Context(), "testdata/datadog_proxy_test.yaml", []string{"testdata/config_proxy.yaml"})
 	require.NoError(t, err)
 
 	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.http"))
@@ -714,7 +713,7 @@ func (suite *ConfigTestSuite) TestProxyConfigURLPrecedence() {
 	t.Setenv("HTTP_PROXY", "http://proxy.example.com:8080")
 	t.Setenv("HTTPS_PROXY", "https://secure-proxy.example.com:8443")
 
-	pkgconfig, err := NewConfigComponent(context.Background(), "testdata/datadog_proxy_test.yaml", []string{"testdata/config_proxy.yaml"})
+	pkgconfig, err := NewConfigComponent(t.Context(), "testdata/datadog_proxy_test.yaml", []string{"testdata/config_proxy.yaml"})
 	require.NoError(t, err)
 
 	// ProxyURL from config should take precedence over environment variables
@@ -726,7 +725,7 @@ func (suite *ConfigTestSuite) TestProxyConfigURLPrecedence() {
 func (suite *ConfigTestSuite) TestProxyConfigURLOverridesDDConfig() {
 	t := suite.T()
 
-	pkgconfig, err := NewConfigComponent(context.Background(), "testdata/datadog_proxy_with_settings.yaml", []string{"testdata/config_proxy.yaml"})
+	pkgconfig, err := NewConfigComponent(t.Context(), "testdata/datadog_proxy_with_settings.yaml", []string{"testdata/config_proxy.yaml"})
 	require.NoError(t, err)
 
 	// ProxyURL from OTLP config should override proxy.http and proxy.https from datadog config
@@ -744,7 +743,7 @@ func TestLogsEnabledViaEnvironmentVariable(t *testing.T) {
 	fileName := "testdata/config_default.yaml"
 
 	// This should not panic or error with "attempt to ReadInConfig before config is constructed"
-	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	c, err := NewConfigComponent(t.Context(), "", []string{fileName})
 	require.NoError(t, err, "NewConfigComponent should succeed with DD_LOGS_ENABLED set")
 	assert.True(t, c.GetBool("logs_enabled"), "logs_enabled should be true when DD_LOGS_ENABLED=true")
 }
@@ -755,7 +754,7 @@ func TestLogsEnabledViaEnvironmentVariable(t *testing.T) {
 func TestLogsEnabledViaDatadogConfig(t *testing.T) {
 	configmock.New(t)
 	ddFileName := "testdata/datadog_with_logs_enabled.yaml"
-	c, err := NewConfigComponent(context.Background(), "", []string{ddFileName})
+	c, err := NewConfigComponent(t.Context(), "", []string{ddFileName})
 	require.NoError(t, err, "NewConfigComponent should succeed with datadog config")
 	assert.True(t, c.GetBool("logs_enabled"), "logs_enabled should be true from datadog config")
 }
@@ -765,7 +764,7 @@ func TestLogsEnabledViaDatadogConfig(t *testing.T) {
 func (suite *ConfigTestSuite) TestDogtelExtensionConfig_FullStandaloneConfig() {
 	t := suite.T()
 	t.Setenv("DD_OTEL_STANDALONE", "true")
-	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_standalone.yaml"})
+	c, err := NewConfigComponent(t.Context(), "", []string{"testdata/config_standalone.yaml"})
 	require.NoError(t, err)
 
 	assert.Equal(t, true, c.GetBool("enable_metadata_collection"))
@@ -790,7 +789,7 @@ func (suite *ConfigTestSuite) TestStandaloneTelemetryResourceClusterName() {
 	t := suite.T()
 	t.Setenv("DD_OTEL_STANDALONE", "true")
 	t.Setenv("TEST_CLUSTER_NAME", "my-cluster")
-	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_standalone_telemetry_resource.yaml"})
+	c, err := NewConfigComponent(t.Context(), "", []string{"testdata/config_standalone_telemetry_resource.yaml"})
 	require.NoError(t, err)
 
 	assert.Equal(t, "my-cluster", c.GetString("otelcollector.standalone.telemetry_resource_cluster_name"))
@@ -801,7 +800,7 @@ func (suite *ConfigTestSuite) TestStandaloneTelemetryResourceClusterName() {
 func (suite *ConfigTestSuite) TestConnectedTelemetryResourceClusterName() {
 	t := suite.T()
 	t.Setenv("TEST_CLUSTER_NAME", "my-cluster")
-	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_standalone_telemetry_resource.yaml"})
+	c, err := NewConfigComponent(t.Context(), "", []string{"testdata/config_standalone_telemetry_resource.yaml"})
 	require.NoError(t, err)
 
 	assert.Equal(t, "", c.GetString("otelcollector.standalone.telemetry_resource_cluster_name"))
@@ -812,7 +811,7 @@ func (suite *ConfigTestSuite) TestConnectedTelemetryResourceClusterName() {
 func (suite *ConfigTestSuite) TestDogtelExtensionConfig_PartialConfig() {
 	t := suite.T()
 	t.Setenv("DD_OTEL_STANDALONE", "true")
-	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_standalone_partial.yaml"})
+	c, err := NewConfigComponent(t.Context(), "", []string{"testdata/config_standalone_partial.yaml"})
 	require.NoError(t, err)
 
 	assert.Equal(t, "192.168.1.100", c.Get("kubernetes_kubelet_host"))
@@ -835,7 +834,7 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_PartialConfig() {
 func (suite *ConfigTestSuite) TestDogtelExtensionConfig_UseKubeletCollectorFromDatadogConfig() {
 	t := suite.T()
 	t.Setenv("DD_OTEL_STANDALONE", "true")
-	c, err := NewConfigComponent(context.Background(), "testdata/datadog_use_kubelet_collector.yaml", []string{"testdata/config_standalone_partial.yaml"})
+	c, err := NewConfigComponent(suite.T().Context(), "testdata/datadog_use_kubelet_collector.yaml", []string{"testdata/config_standalone_partial.yaml"})
 	require.NoError(t, err)
 
 	assert.Equal(t, true, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
@@ -847,7 +846,7 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_UseKubeletCollectorFromD
 func (suite *ConfigTestSuite) TestDogtelExtensionConfig_UseKubeletCollectorExplicitTrue() {
 	t := suite.T()
 	t.Setenv("DD_OTEL_STANDALONE", "true")
-	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_standalone_use_kubelet_collector.yaml"})
+	c, err := NewConfigComponent(t.Context(), "", []string{"testdata/config_standalone_use_kubelet_collector.yaml"})
 	require.NoError(t, err)
 
 	assert.Equal(t, true, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
@@ -859,7 +858,7 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_UseKubeletCollectorExpli
 func (suite *ConfigTestSuite) TestDogtelExtensionConfig_UseKubeletCollectorExplicitFalse() {
 	t := suite.T()
 	t.Setenv("DD_OTEL_STANDALONE", "true")
-	c, err := NewConfigComponent(context.Background(), "testdata/datadog_use_kubelet_collector.yaml", []string{"testdata/config_standalone_no_kubelet_collector.yaml"})
+	c, err := NewConfigComponent(t.Context(), "testdata/datadog_use_kubelet_collector.yaml", []string{"testdata/config_standalone_no_kubelet_collector.yaml"})
 	require.NoError(t, err)
 
 	assert.Equal(t, false, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
@@ -870,7 +869,7 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_UseKubeletCollectorExpli
 func (suite *ConfigTestSuite) TestDogtelExtensionConfig_MetadataDisabled() {
 	t := suite.T()
 	t.Setenv("DD_OTEL_STANDALONE", "true")
-	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_standalone_no_metadata.yaml"})
+	c, err := NewConfigComponent(t.Context(), "", []string{"testdata/config_standalone_no_metadata.yaml"})
 	require.NoError(t, err)
 
 	assert.Equal(t, false, c.GetBool("enable_metadata_collection"))
@@ -882,7 +881,7 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_MetadataDisabled() {
 func (suite *ConfigTestSuite) TestDogtelExtensionConfig_MetadataInterval() {
 	t := suite.T()
 	t.Setenv("DD_OTEL_STANDALONE", "true")
-	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_standalone.yaml"})
+	c, err := NewConfigComponent(t.Context(), "", []string{"testdata/config_standalone.yaml"})
 	require.NoError(t, err)
 
 	providers := c.Get("metadata_providers")
@@ -906,7 +905,7 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_MetadataIntervalMerge() 
 	//   {name: resources, interval: 300} and {name: host, interval: 60}
 	// The dogtel extension in config_standalone.yaml sets metadata_interval: 600.
 	// The host entry's interval must be updated to 600; the resources entry must survive.
-	c, err := NewConfigComponent(context.Background(), "testdata/datadog_with_metadata_providers.yaml", []string{"testdata/config_standalone.yaml"})
+	c, err := NewConfigComponent(t.Context(), "testdata/datadog_with_metadata_providers.yaml", []string{"testdata/config_standalone.yaml"})
 	require.NoError(t, err)
 
 	providers := c.Get("metadata_providers")
@@ -934,7 +933,7 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_MetadataIntervalMerge() 
 // entirely in connected mode regardless of whether a dogtelextension is present.
 func (suite *ConfigTestSuite) TestDogtelExtensionConfig_NoDogtelExtension() {
 	t := suite.T()
-	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
+	c, err := NewConfigComponent(t.Context(), "", []string{"testdata/config_default.yaml"})
 	require.NoError(t, err)
 
 	// No dogtelextension + not standalone → hostname not set.
@@ -952,7 +951,7 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_NoDogtelExtension() {
 func (suite *ConfigTestSuite) TestDogtelExtensionConfig_StandaloneNoDDExporter() {
 	t := suite.T()
 	t.Setenv("DD_OTEL_STANDALONE", "true")
-	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_standalone_no_dd_exporter.yaml"})
+	c, err := NewConfigComponent(t.Context(), "", []string{"testdata/config_standalone_no_dd_exporter.yaml"})
 	require.ErrorIs(t, err, ErrNoDDExporter)
 	require.NotNil(t, c)
 
@@ -983,7 +982,7 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_StandaloneNoDDExporter()
 func (suite *ConfigTestSuite) TestDogtelExtensionConfig_ConnectedModeIgnored() {
 	t := suite.T()
 	// otel_standalone is false by default — dogtelextension fields must be ignored.
-	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_standalone.yaml"})
+	c, err := NewConfigComponent(t.Context(), "", []string{"testdata/config_standalone.yaml"})
 	require.NoError(t, err)
 
 	assert.Equal(t, "", c.GetString("hostname"))
@@ -1217,7 +1216,7 @@ func (suite *ConfigTestSuite) TestSecretsResolutionViaEnvVar() {
 	t.Setenv("DD_HOSTNAME", "ENC[hostname_secret]")
 	t.Setenv("DD_SECRET_BACKEND_COMMAND", scriptPath)
 
-	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
+	c, err := NewConfigComponent(t.Context(), "", []string{"testdata/config_default.yaml"})
 	require.NoError(t, err)
 
 	assert.Equal(t, "resolved-hostname-from-secret", c.GetString("hostname"),
@@ -1246,7 +1245,7 @@ func (suite *ConfigTestSuite) TestSecretsNotResolvedInConnectedMode() {
 	t.Setenv("DD_HOSTNAME", "ENC[hostname_secret]")
 	t.Setenv("DD_SECRET_BACKEND_COMMAND", scriptPath)
 
-	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
+	c, err := NewConfigComponent(t.Context(), "", []string{"testdata/config_default.yaml"})
 	require.NoError(t, err, "NewConfigComponent must not error in connected mode even when a secret backend is configured")
 
 	assert.Equal(t, "ENC[hostname_secret]", c.GetString("hostname"),
@@ -1264,7 +1263,7 @@ func (suite *ConfigTestSuite) TestSecretBackendTypeGate() {
 	t.Setenv("DD_OTEL_STANDALONE", "true")
 	t.Setenv("DD_SECRET_BACKEND_TYPE", "file.json")
 
-	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
+	c, err := NewConfigComponent(t.Context(), "", []string{"testdata/config_default.yaml"})
 	require.NoError(t, err)
 
 	assert.Equal(t, "file.json", c.GetString("secret_backend_type"),
@@ -1307,7 +1306,7 @@ func (suite *ConfigTestSuite) TestSecretsResolutionViaBackendType() {
 	ddCfg := fmt.Sprintf("secret_backend_config:\n  file_path: %q\n", secretsFile)
 	require.NoError(t, os.WriteFile(ddCfgPath, []byte(ddCfg), 0644))
 
-	c, err := NewConfigComponent(context.Background(), ddCfgPath, []string{"testdata/config_default.yaml"})
+	c, err := NewConfigComponent(t.Context(), ddCfgPath, []string{"testdata/config_default.yaml"})
 	require.NoError(t, err)
 
 	assert.Equal(t, "resolved-hostname-from-secret", c.GetString("hostname"),
@@ -1357,7 +1356,7 @@ service:
 `, scriptPath)
 	require.NoError(t, os.WriteFile(otelCfgPath, []byte(otelCfg), 0644))
 
-	c, err := NewConfigComponent(context.Background(), "", []string{otelCfgPath})
+	c, err := NewConfigComponent(t.Context(), "", []string{otelCfgPath})
 	require.NoError(t, err)
 
 	assert.Equal(t, scriptPath, c.GetString("secret_backend_command"),

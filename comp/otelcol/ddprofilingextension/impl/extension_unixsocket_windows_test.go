@@ -80,7 +80,7 @@ func TestStandaloneExtensionUnixSocketFallsBackToHTTP(t *testing.T) {
 	}, component.BuildInfo{}, nil, nil)
 	require.NoError(t, err)
 
-	require.NoError(t, ext.Start(context.Background(), componenttest.NewNopHost()))
+	require.NoError(t, ext.Start(t.Context(), componenttest.NewNopHost()))
 	t.Cleanup(func() { assert.NoError(t, ext.Shutdown(context.Background())) })
 
 	select {

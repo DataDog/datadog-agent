@@ -78,7 +78,7 @@ func TestWIFEnrollmentPersistsIdentityAcrossIntakeRotation(t *testing.T) {
 		return "workload-token", nil
 	}}
 	runner := &PrivateActionRunner{coreConfig: cfg, delegatedAuth: auth, hostnameGetter: hostname, logger: logmock.New(t), identityStorage: storage}
-	enrolled, err := runner.getRunnerConfig(context.Background())
+	enrolled, err := runner.getRunnerConfig(t.Context())
 	require.NoError(t, err)
 	got := <-received
 	require.Equal(t, "/api/unstable/on_prem_runners/workload_token", got.path)
@@ -98,7 +98,7 @@ func TestWIFEnrollmentPersistsIdentityAcrossIntakeRotation(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, jwk.KeyID, signedRequest.JWKThumbprint)
 	require.True(t, enrolled.PrivateKey.PublicKey.Equal(publicKey))
-	saved, err := storage.Load(context.Background())
+	saved, err := storage.Load(t.Context())
 	require.NoError(t, err)
 	require.NotNil(t, saved)
 	require.Equal(t, enrolled.Urn, saved.URN)
@@ -115,7 +115,7 @@ func TestWIFEnrollmentPersistsIdentityAcrossIntakeRotation(t *testing.T) {
 		restartConfig := coreconfig.NewMockWithOverrides(t, overrides)
 		restartStorage := enrollment.NewIdentityStorage(restartConfig, nil)
 		restarted := &PrivateActionRunner{coreConfig: restartConfig, delegatedAuth: auth, hostnameGetter: hostname, logger: logmock.New(t), identityStorage: restartStorage}
-		recovered, err := restarted.getRunnerConfig(context.Background())
+		recovered, err := restarted.getRunnerConfig(t.Context())
 		require.NoError(t, err)
 		require.Equal(t, enrolled.Urn, recovered.Urn)
 		require.True(t, enrolled.PrivateKey.Equal(recovered.PrivateKey))
@@ -169,10 +169,10 @@ func TestWIFEnrollmentFailuresDoNotFallBackOrPersist(t *testing.T) {
 			}
 			if scenario == "unsupported flavor" {
 				// Exercise the enrollment guard directly for a non-runner flavor.
-				_, err := enrollment.EnrollWithWorkloadToken(context.Background(), cfg, auth, &enrollment.AgentIdentifier{})
+				_, err := enrollment.EnrollWithWorkloadToken(t.Context(), cfg, auth, &enrollment.AgentIdentifier{})
 				require.ErrorContains(t, err, "only supported for node Agent")
 			} else {
-				_, err := runner.getRunnerConfig(context.Background())
+				_, err := runner.getRunnerConfig(t.Context())
 				require.Error(t, err)
 			}
 			expectedPosts, expectedTokens := 0, 0
@@ -217,7 +217,7 @@ func TestPrimaryWIFKeepsExplicitRunnerIdentity(t *testing.T) {
 		return "", nil
 	}}
 	runner := &PrivateActionRunner{coreConfig: cfg, delegatedAuth: auth, hostnameGetter: hostname, logger: logmock.New(t), identityStorage: storage}
-	resolved, err := runner.getRunnerConfig(context.Background())
+	resolved, err := runner.getRunnerConfig(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, urn, resolved.Urn)
 	require.True(t, resolved.PrivateKey.Equal(key.Key))

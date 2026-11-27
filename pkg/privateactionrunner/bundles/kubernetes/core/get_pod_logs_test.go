@@ -91,7 +91,7 @@ func TestGetPodLogsOptions(t *testing.T) {
 func TestReadPodLogs(t *testing.T) {
 	t.Run("returns and closes the stream", func(t *testing.T) {
 		reader := &trackingReadCloser{Reader: strings.NewReader("first\nsecond\n")}
-		logs, err := readPodLogs(context.Background(), func(context.Context) (io.ReadCloser, error) {
+		logs, err := readPodLogs(t.Context(), func(context.Context) (io.ReadCloser, error) {
 			return reader, nil
 		})
 		require.NoError(t, err)
@@ -101,14 +101,14 @@ func TestReadPodLogs(t *testing.T) {
 
 	t.Run("propagates stream errors", func(t *testing.T) {
 		wantErr := errors.New("stream failed")
-		_, err := readPodLogs(context.Background(), func(context.Context) (io.ReadCloser, error) {
+		_, err := readPodLogs(t.Context(), func(context.Context) (io.ReadCloser, error) {
 			return nil, wantErr
 		})
 		require.ErrorIs(t, err, wantErr)
 	})
 
 	t.Run("rejects oversized output", func(t *testing.T) {
-		_, err := readPodLogs(context.Background(), func(context.Context) (io.ReadCloser, error) {
+		_, err := readPodLogs(t.Context(), func(context.Context) (io.ReadCloser, error) {
 			return io.NopCloser(io.LimitReader(zeroReader{}, maxPodLogsBytes+1)), nil
 		})
 		require.ErrorContains(t, err, "output limit")

@@ -7,7 +7,6 @@
 package file
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -41,7 +40,7 @@ func TestJSONBackend(t *testing.T) {
 
 	assert.Equal(t, secretsFilepath, jsonSecretsBackend.Config.FilePath)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	secretOutput := jsonSecretsBackend.GetSecretOutput(ctx, "key1")
 	assert.Equal(t, "value1", *secretOutput.Value)
 	assert.Nil(t, secretOutput.Error)

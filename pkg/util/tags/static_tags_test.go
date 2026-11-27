@@ -6,7 +6,6 @@
 package tags
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,7 +26,7 @@ func TestStaticTags(t *testing.T) {
 	t.Run("just tags", func(t *testing.T) {
 		mockConfig.SetInTest("tags", []string{"some:tag", "another:tag", "nocolon"})
 		defer mockConfig.SetInTest("tags", []string{})
-		staticTags := GetStaticTags(context.Background(), mockConfig)
+		staticTags := GetStaticTags(t.Context(), mockConfig)
 		assert.Equal(t, map[string][]string{
 			"some":              {"tag"},
 			"another":           {"tag"},
@@ -41,7 +40,7 @@ func TestStaticTags(t *testing.T) {
 		mockConfig.SetInTest("extra_tags", []string{"extra:tag", "missingcolon"})
 		defer mockConfig.SetInTest("tags", []string{})
 		defer mockConfig.SetInTest("extra_tags", []string{})
-		staticTags := GetStaticTags(context.Background(), mockConfig)
+		staticTags := GetStaticTags(t.Context(), mockConfig)
 		assert.Equal(t, map[string][]string{
 			"some":              {"tag"},
 			"extra":             {"tag"},
@@ -53,7 +52,7 @@ func TestStaticTags(t *testing.T) {
 	t.Run("cluster name already set", func(t *testing.T) {
 		mockConfig.SetInTest("tags", []string{"kube_cluster_name:foo"})
 		defer mockConfig.SetInTest("tags", []string{})
-		staticTags := GetStaticTags(context.Background(), mockConfig)
+		staticTags := GetStaticTags(t.Context(), mockConfig)
 		assert.Equal(t, map[string][]string{
 			"eks_fargate_node":  {"eksnode"},
 			"kube_cluster_name": {"foo"},
@@ -72,7 +71,7 @@ func TestStaticTagsSlice(t *testing.T) {
 		mockConfig.SetInTest("provider_kind", "gke-autopilot")
 		defer mockConfig.SetInTest("provider_kind", "")
 
-		staticTags := GetStaticTagsSlice(context.Background(), mockConfig)
+		staticTags := GetStaticTagsSlice(t.Context(), mockConfig)
 		assert.ElementsMatch(t, []string{"provider_kind:gke-autopilot"}, staticTags)
 	})
 
@@ -81,7 +80,7 @@ func TestStaticTagsSlice(t *testing.T) {
 	t.Run("just tags", func(t *testing.T) {
 		mockConfig.SetInTest("tags", []string{"some:tag", "another:tag", "nocolon"})
 		defer mockConfig.SetInTest("tags", []string{})
-		staticTags := GetStaticTagsSlice(context.Background(), mockConfig)
+		staticTags := GetStaticTagsSlice(t.Context(), mockConfig)
 		assert.ElementsMatch(t, []string{
 			"nocolon",
 			"some:tag",
@@ -96,7 +95,7 @@ func TestStaticTagsSlice(t *testing.T) {
 		mockConfig.SetInTest("extra_tags", []string{"extra:tag", "missingcolon"})
 		defer mockConfig.SetInTest("tags", []string{})
 		defer mockConfig.SetInTest("extra_tags", []string{})
-		staticTags := GetStaticTagsSlice(context.Background(), mockConfig)
+		staticTags := GetStaticTagsSlice(t.Context(), mockConfig)
 		assert.ElementsMatch(t, []string{
 			"nocolon",
 			"missingcolon",

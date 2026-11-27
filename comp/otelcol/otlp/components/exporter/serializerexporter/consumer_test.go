@@ -409,7 +409,7 @@ func TestConsumeExplicitBoundHistogram(t *testing.T) {
 	p.BucketCounts().FromRaw([]uint64{1, 2, 3})
 
 	c := &serializerConsumer{extraTags: []string{"extra:tag"}}
-	c.ConsumeExplicitBoundHistogram(context.Background(), &otlpmetrics.Dimensions{}, pts)
+	c.ConsumeExplicitBoundHistogram(t.Context(), &otlpmetrics.Dimensions{}, pts)
 	require.Len(t, c.distributions, 2)
 	assert.True(t, c.sawMetric)
 	assert.Empty(t, c.sketches)
@@ -470,7 +470,7 @@ func TestConsumeExponentialHistogram(t *testing.T) {
 	p.SetZeroThreshold(math.NaN())
 
 	c := &serializerConsumer{}
-	c.ConsumeExponentialHistogram(context.Background(), &otlpmetrics.Dimensions{}, pts)
+	c.ConsumeExponentialHistogram(t.Context(), &otlpmetrics.Dimensions{}, pts)
 	require.Len(t, c.distributions, 1)
 	assert.True(t, c.sawMetric)
 
@@ -499,8 +499,8 @@ func TestConsumeExponentialHistogram(t *testing.T) {
 
 func TestConsumeOtelHistogramsEmptyBatch(t *testing.T) {
 	c := &serializerConsumer{}
-	c.ConsumeExplicitBoundHistogram(context.Background(), &otlpmetrics.Dimensions{}, pmetric.NewHistogramDataPointSlice())
-	c.ConsumeExponentialHistogram(context.Background(), &otlpmetrics.Dimensions{}, pmetric.NewExponentialHistogramDataPointSlice())
+	c.ConsumeExplicitBoundHistogram(t.Context(), &otlpmetrics.Dimensions{}, pmetric.NewHistogramDataPointSlice())
+	c.ConsumeExponentialHistogram(t.Context(), &otlpmetrics.Dimensions{}, pmetric.NewExponentialHistogramDataPointSlice())
 	assert.Empty(t, c.distributions)
 	assert.False(t, c.sawMetric)
 }

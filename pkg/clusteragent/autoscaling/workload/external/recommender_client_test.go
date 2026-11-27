@@ -8,7 +8,6 @@
 package external
 
 import (
-	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -456,11 +455,11 @@ func TestRecommenderClient_GetReplicaRecommendation(t *testing.T) {
 			pw := workload.NewPodWatcher(nil, nil)
 			pw.HandleEvent(newFakeWLMPodEvent(tt.dpa.Namespace, tt.dpa.Spec.TargetRef.Name, "pod1", []string{"container-name1"}))
 
-			client, err := newRecommenderClient(context.Background(), fakeClock, pw, nil)
+			client, err := newRecommenderClient(t.Context(), fakeClock, pw, nil)
 			require.NoError(t, err)
 			client.client = server.Client()
 
-			result, err := client.GetReplicaRecommendation(context.Background(), "test-cluster", tt.dpa.Build())
+			result, err := client.GetReplicaRecommendation(t.Context(), "test-cluster", tt.dpa.Build())
 
 			if tt.expectedError != "" {
 				assert.EqualError(t, err, tt.expectedError)
@@ -576,14 +575,14 @@ func TestRecommenderClientTLSClientCertificateReload(t *testing.T) {
 	pw := workload.NewPodWatcher(nil, nil)
 	pw.HandleEvent(newFakeWLMPodEvent(dpa.Namespace, dpa.Spec.TargetRef.Name, "pod1", []string{"container"}))
 
-	client, err := newRecommenderClient(context.Background(), fakeClock, pw, &TLSFilesConfig{
+	client, err := newRecommenderClient(t.Context(), fakeClock, pw, &TLSFilesConfig{
 		CAFile:   caPath,
 		CertFile: clientCertPath,
 		KeyFile:  clientKeyPath,
 	})
 	require.NoError(t, err)
 
-	result, err := client.GetReplicaRecommendation(context.Background(), "test-cluster", dpa.Build())
+	result, err := client.GetReplicaRecommendation(t.Context(), "test-cluster", dpa.Build())
 	require.NoError(t, err)
 	require.NotNil(t, result)
 

@@ -6,7 +6,6 @@
 package datastreams
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -119,7 +118,7 @@ func TestActionsController(t *testing.T) {
 	assert.Equal(t, state.ApplyStateAcknowledged, updateStatus["config_2"].State)
 
 	// Check the scheduled config
-	updates := c.Stream(context.Background())
+	updates := c.Stream(t.Context())
 	cfg := <-updates
 
 	require.Len(t, cfg.Schedule, 1)
@@ -321,7 +320,7 @@ func TestActionsControllerKeepsNumericTypes(t *testing.T) {
 	})
 	require.Equal(t, state.ApplyStateAcknowledged, updateStatus["config_1"].State)
 
-	cfg := <-c.Stream(context.Background())
+	cfg := <-c.Stream(t.Context())
 	require.Len(t, cfg.Schedule, 1)
 	require.Len(t, cfg.Schedule[0].Instances, 1)
 

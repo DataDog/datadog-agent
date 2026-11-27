@@ -6,7 +6,6 @@
 package ndm
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -63,7 +62,7 @@ func TestABackendDocumentBecomesSchedulableSNMPChecks(t *testing.T) {
 	p, err := NewProvider(logComp, []handler.Handler{ndmsnmp.NewHandler(cfg, logComp)})
 	require.NoError(t, err)
 
-	ch := p.Stream(context.Background())
+	ch := p.Stream(t.Context())
 	rec := newRecorder()
 
 	p.Update(map[string]state.RawConfig{
@@ -102,7 +101,7 @@ func TestADocumentWithAMissingCredentialSchedulesTheRestAndReportsAnError(t *tes
 	p, err := NewProvider(logComp, []handler.Handler{ndmsnmp.NewHandler(cfg, logComp)})
 	require.NoError(t, err)
 
-	ch := p.Stream(context.Background())
+	ch := p.Stream(t.Context())
 	rec := newRecorder()
 	const path = "datadog/2/NDM_CONFIG/ndm-1/config"
 
@@ -132,7 +131,7 @@ func TestRemovingTheDocumentUnschedulesEveryDevice(t *testing.T) {
 	p, err := NewProvider(logComp, []handler.Handler{ndmsnmp.NewHandler(cfg, logComp)})
 	require.NoError(t, err)
 
-	ch := p.Stream(context.Background())
+	ch := p.Stream(t.Context())
 	rec := newRecorder()
 	const path = "datadog/2/NDM_CONFIG/ndm-1/config"
 
@@ -153,7 +152,7 @@ func TestARepeatedIdenticalDocumentEmitsNothing(t *testing.T) {
 	p, err := NewProvider(logComp, []handler.Handler{ndmsnmp.NewHandler(cfg, logComp)})
 	require.NoError(t, err)
 
-	ch := p.Stream(context.Background())
+	ch := p.Stream(t.Context())
 	rec := newRecorder()
 	const path = "datadog/2/NDM_CONFIG/ndm-1/config"
 
@@ -172,7 +171,7 @@ func TestADocumentWhoseInstancesAreAllUnresolvableSchedulesNothingAndErrors(t *t
 	p, err := NewProvider(logComp, []handler.Handler{ndmsnmp.NewHandler(cfg, logComp)})
 	require.NoError(t, err)
 
-	ch := p.Stream(context.Background())
+	ch := p.Stream(t.Context())
 	rec := newRecorder()
 	const path = "datadog/2/NDM_CONFIG/ndm-1/config"
 

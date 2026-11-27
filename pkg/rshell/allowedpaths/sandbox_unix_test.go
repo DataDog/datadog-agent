@@ -8,7 +8,6 @@
 package allowedpaths
 
 import (
-	"context"
 	"io"
 	"os"
 	"path/filepath"
@@ -632,7 +631,7 @@ func TestWriteRegularFileRejectsFIFONoReader(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		done <- func() error {
-			_, err := sb.WriteRegularFile(context.Background(), "fifo", dir, []byte("new"), nil)
+			_, err := sb.WriteRegularFile(t.Context(), "fifo", dir, []byte("new"), nil)
 			return err
 		}()
 	}()
@@ -664,7 +663,7 @@ func TestWriteRegularFileRejectsFIFOWithReader(t *testing.T) {
 	defer sb.Close()
 	sb.SetWritable()
 
-	_, err = sb.WriteRegularFile(context.Background(), "fifo", dir, []byte("new"), nil)
+	_, err = sb.WriteRegularFile(t.Context(), "fifo", dir, []byte("new"), nil)
 	assert.ErrorIs(t, err, writeopen.ErrNotRegularFile)
 }
 
@@ -702,7 +701,7 @@ func TestWriteRegularFileRejectsRacedInFIFONonBlocking(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		done <- func() error {
-			_, err := sb.WriteRegularFile(context.Background(), "target", dir, []byte("new"), nil)
+			_, err := sb.WriteRegularFile(t.Context(), "target", dir, []byte("new"), nil)
 			return err
 		}()
 	}()

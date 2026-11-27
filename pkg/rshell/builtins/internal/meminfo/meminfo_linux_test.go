@@ -35,7 +35,7 @@ HugePages_Total:       0
 `
 
 func TestParseMeminfo_HappyPath(t *testing.T) {
-	info, err := parseMeminfo(context.Background(), strings.NewReader(sampleMeminfo))
+	info, err := parseMeminfo(t.Context(), strings.NewReader(sampleMeminfo))
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(16332188*1024), info.MemTotal)
 	assert.Equal(t, uint64(8974932*1024), info.MemFree)
@@ -56,7 +56,7 @@ MemFree:         8000000 kB
 Buffers:          200000 kB
 Cached:          5000000 kB
 `
-	info, err := parseMeminfo(context.Background(), strings.NewReader(input))
+	info, err := parseMeminfo(t.Context(), strings.NewReader(input))
 	assert.NoError(t, err)
 	want := uint64(8000000+200000+5000000) * 1024
 	assert.Equal(t, want, info.MemAvailable)
@@ -69,14 +69,14 @@ no colon here
 Malformed: not a number kB
 MemFree:         8000000 kB
 `
-	info, err := parseMeminfo(context.Background(), strings.NewReader(input))
+	info, err := parseMeminfo(t.Context(), strings.NewReader(input))
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(16332188*1024), info.MemTotal)
 	assert.Equal(t, uint64(8000000*1024), info.MemFree)
 }
 
 func TestParseMeminfo_EmptyInput(t *testing.T) {
-	info, err := parseMeminfo(context.Background(), strings.NewReader(""))
+	info, err := parseMeminfo(t.Context(), strings.NewReader(""))
 	assert.NoError(t, err)
 	assert.Equal(t, Info{}, info)
 }
@@ -120,12 +120,12 @@ func TestParseMeminfo_LineTooLong(t *testing.T) {
 	// scanner; bufio.Scanner surfaces bufio.ErrTooLong via scanner.Err(),
 	// which parseMeminfo propagates.
 	huge := "MemTotal:" + strings.Repeat("0", maxMeminfoLine*2) + " kB\n"
-	_, err := parseMeminfo(context.Background(), strings.NewReader(huge))
+	_, err := parseMeminfo(t.Context(), strings.NewReader(huge))
 	assert.Error(t, err)
 }
 
 func TestParseMeminfo_ContextCancelled(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	_, err := parseMeminfo(ctx, strings.NewReader(sampleMeminfo))
 	assert.ErrorIs(t, err, context.Canceled)

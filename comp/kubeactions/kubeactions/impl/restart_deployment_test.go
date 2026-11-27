@@ -8,7 +8,6 @@
 package kubeactionsimpl
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -43,11 +42,11 @@ func TestRestartDeploymentExecutor_Success(t *testing.T) {
 	clientset := fake.NewSimpleClientset(deployment)
 	executor := NewRestartDeploymentExecutor(clientset)
 
-	result := executor.Execute(context.Background(), restartInputs("default", "my-deploy", "deploy-uid"))
+	result := executor.Execute(t.Context(), restartInputs("default", "my-deploy", "deploy-uid"))
 	assert.Equal(t, kubeactions.StatusSuccess, result.Status)
 	assert.Contains(t, result.Message, "restarted")
 
-	updated, err := clientset.AppsV1().Deployments("default").Get(context.Background(), "my-deploy", metav1.GetOptions{})
+	updated, err := clientset.AppsV1().Deployments("default").Get(t.Context(), "my-deploy", metav1.GetOptions{})
 	require.NoError(t, err)
 	assert.NotEmpty(t, updated.Spec.Template.ObjectMeta.Annotations["kubectl.kubernetes.io/restartedAt"],
 		"restart annotation should be set")
@@ -64,7 +63,7 @@ func TestRestartDeploymentExecutor_UIDMismatch(t *testing.T) {
 	clientset := fake.NewSimpleClientset(deployment)
 	executor := NewRestartDeploymentExecutor(clientset)
 
-	result := executor.Execute(context.Background(), restartInputs("default", "my-deploy", "wrong-uid"))
+	result := executor.Execute(t.Context(), restartInputs("default", "my-deploy", "wrong-uid"))
 	assert.Equal(t, kubeactions.StatusFailed, result.Status)
 	assert.Contains(t, result.Message, "UID mismatch")
 }
@@ -73,7 +72,7 @@ func TestRestartDeploymentExecutor_NotFound(t *testing.T) {
 	clientset := fake.NewSimpleClientset()
 	executor := NewRestartDeploymentExecutor(clientset)
 
-	result := executor.Execute(context.Background(), restartInputs("default", "nonexistent", "deploy-uid"))
+	result := executor.Execute(t.Context(), restartInputs("default", "nonexistent", "deploy-uid"))
 	assert.Equal(t, kubeactions.StatusFailed, result.Status)
 	assert.Contains(t, result.Message, "failed to get deployment")
 }

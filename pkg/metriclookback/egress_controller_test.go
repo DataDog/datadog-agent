@@ -6,7 +6,6 @@
 package metriclookback
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -24,7 +23,7 @@ import (
 func TestEgressControllerForwardsEligibleRetainedRange(t *testing.T) {
 	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
 	from := time.Unix(100, 0)
-	require.NoError(t, retention.AppendSamples(context.Background(), ringbuffer.Source{Kind: ringbuffer.SourceDogStatsDNoAggregation}, []metrics.MetricSample{{
+	require.NoError(t, retention.AppendSamples(t.Context(), ringbuffer.Source{Kind: ringbuffer.SourceDogStatsDNoAggregation}, []metrics.MetricSample{{
 		Name:      "target",
 		Value:     1,
 		Mtype:     metrics.GaugeType,
@@ -50,7 +49,7 @@ func TestEgressControllerForwardsEligibleRetainedRange(t *testing.T) {
 func TestEgressControllerRespectsSendDelay(t *testing.T) {
 	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
 	pointTime := time.Unix(100, 0)
-	require.NoError(t, retention.AppendSamples(context.Background(), ringbuffer.Source{Kind: ringbuffer.SourceDogStatsDNoAggregation}, []metrics.MetricSample{{
+	require.NoError(t, retention.AppendSamples(t.Context(), ringbuffer.Source{Kind: ringbuffer.SourceDogStatsDNoAggregation}, []metrics.MetricSample{{
 		Name:      "target",
 		Value:     1,
 		Mtype:     metrics.GaugeType,
@@ -78,7 +77,7 @@ func TestEgressControllerRespectsSendDelay(t *testing.T) {
 func TestEgressControllerRetriesFailedRange(t *testing.T) {
 	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
 	from := time.Unix(100, 0)
-	require.NoError(t, retention.AppendSamples(context.Background(), ringbuffer.Source{Kind: ringbuffer.SourceDogStatsDNoAggregation}, []metrics.MetricSample{{
+	require.NoError(t, retention.AppendSamples(t.Context(), ringbuffer.Source{Kind: ringbuffer.SourceDogStatsDNoAggregation}, []metrics.MetricSample{{
 		Name:      "target",
 		Value:     1,
 		Mtype:     metrics.GaugeType,
@@ -105,13 +104,13 @@ func TestEgressControllerRetriesFailedRange(t *testing.T) {
 func TestEgressControllerDoesNotRetrySeriesAfterSketchFailure(t *testing.T) {
 	retention := NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
 	from := time.Unix(100, 0)
-	require.NoError(t, retention.AppendSamples(context.Background(), ringbuffer.Source{Kind: ringbuffer.SourceDogStatsDNoAggregation}, []metrics.MetricSample{{
+	require.NoError(t, retention.AppendSamples(t.Context(), ringbuffer.Source{Kind: ringbuffer.SourceDogStatsDNoAggregation}, []metrics.MetricSample{{
 		Name:      "target.series",
 		Value:     1,
 		Mtype:     metrics.GaugeType,
 		Timestamp: float64(from.Unix()),
 	}}))
-	require.NoError(t, retention.AppendSketchSeries(context.Background(), ringbuffer.Source{Kind: ringbuffer.SourceDogStatsDBucketed}, &metrics.SketchSeries{
+	require.NoError(t, retention.AppendSketchSeries(t.Context(), ringbuffer.Source{Kind: ringbuffer.SourceDogStatsDBucketed}, &metrics.SketchSeries{
 		DistributionMetadata: metrics.DistributionMetadata{Name: "target.sketch"},
 		Points: []metrics.SketchPoint{{
 			Ts:     from.Unix(),

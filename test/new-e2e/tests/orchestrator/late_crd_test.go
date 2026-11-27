@@ -6,7 +6,6 @@
 package orchestrator
 
 import (
-	"context"
 	_ "embed"
 	"strings"
 	"time"
@@ -45,7 +44,7 @@ func (suite *k8sSuite) TestCRManifOfCRDInstalledAfterAgentStart() {
 		timeout: defaultTimeout,
 	}.Assert(suite)
 
-	ctx := context.Background()
+	ctx := suite.T().Context()
 	client, err := dynamic.NewForConfig(suite.Env().KubernetesCluster.KubernetesClient.K8sConfig)
 	require.NoError(suite.T(), err)
 
@@ -58,7 +57,7 @@ func (suite *k8sSuite) TestCRManifOfCRDInstalledAfterAgentStart() {
 	require.NoError(suite.T(), err)
 	// Deleting the CRD deletes its CRs too.
 	suite.T().Cleanup(func() {
-		_ = client.Resource(crdGVR).Delete(context.Background(), crd.GetName(), metav1.DeleteOptions{})
+		_ = client.Resource(crdGVR).Delete(suite.T().Context(), crd.GetName(), metav1.DeleteOptions{})
 	})
 
 	// The CR can only be created once the CRD is established.

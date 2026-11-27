@@ -391,7 +391,7 @@ func TestTrClassicWordSplit(t *testing.T) {
 // --- Context cancellation ---
 
 func TestTrContextCancellation(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	_, _, _ = runScriptCtx(ctx, t, "tr a b", t.TempDir())
 }

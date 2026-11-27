@@ -92,7 +92,7 @@ func TestGetTraceroute(t *testing.T) {
 	}
 
 	rt := &remoteTraceroute{sysprobeClient: client, log: logmock.New(t), hostname: hostnameComponent}
-	path, err := rt.Run(context.Background(), cfg)
+	path, err := rt.Run(t.Context(), cfg)
 	require.NoError(t, err)
 	assert.Equal(t, expectedPath, path)
 }
@@ -119,7 +119,7 @@ func TestGetTracerouteError(t *testing.T) {
 	}
 
 	rt := &remoteTraceroute{sysprobeClient: client, log: logmock.New(t), hostname: hostnameComponent}
-	_, err := rt.Run(context.Background(), cfg)
+	_, err := rt.Run(t.Context(), cfg)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "traceroute request failed")
 }
@@ -146,7 +146,7 @@ func TestGetTracerouteInvalidJSON(t *testing.T) {
 	}
 
 	rt := &remoteTraceroute{sysprobeClient: client, log: logmock.New(t), hostname: hostnameComponent}
-	_, err := rt.Run(context.Background(), cfg)
+	_, err := rt.Run(t.Context(), cfg)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "error unmarshalling response")
 }
@@ -193,7 +193,7 @@ func TestGetTracerouteStructuredError(t *testing.T) {
 			}
 
 			rt := &remoteTraceroute{sysprobeClient: client, log: logmock.New(t), hostname: hostnameComponent}
-			_, err = rt.Run(context.Background(), cfg)
+			_, err = rt.Run(t.Context(), cfg)
 			require.Error(t, err)
 
 			var trErr *payload.TracerouteError
@@ -272,7 +272,7 @@ func TestGetTracerouteSACKNotSupported(t *testing.T) {
 			}
 
 			rt := &remoteTraceroute{sysprobeClient: client, log: logmock.New(t), hostname: hostnameComponent}
-			_, err = rt.Run(context.Background(), cfg)
+			_, err = rt.Run(t.Context(), cfg)
 			require.Error(t, err)
 
 			var trErr *payload.TracerouteError
@@ -305,7 +305,7 @@ func TestGetTraceroutePlainTextErrorFallback(t *testing.T) {
 	}
 
 	rt := &remoteTraceroute{sysprobeClient: client, log: logmock.New(t), hostname: hostnameComponent}
-	_, err := rt.Run(context.Background(), cfg)
+	_, err := rt.Run(t.Context(), cfg)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "traceroute request failed")
 	assert.Contains(t, err.Error(), "plain text error")

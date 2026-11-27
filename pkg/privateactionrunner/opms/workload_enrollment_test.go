@@ -54,7 +54,7 @@ func TestEnrollWithWorkloadToken(t *testing.T) {
 	client := NewPublicClient(cfg, server.URL, map[string]string{
 		"DD-API-KEY": "unused-api-key", "DD-APPLICATION-KEY": "unused-app-key", "Authorization": "unused-auth",
 	})
-	response, err := client.EnrollWithWorkloadToken(context.Background(), "workload-token", request)
+	response, err := client.EnrollWithWorkloadToken(t.Context(), "workload-token", request)
 	require.NoError(t, err)
 	require.Equal(t, "runner-test", response.RunnerID)
 	require.EqualValues(t, 42, response.OrgID)
@@ -90,7 +90,7 @@ func TestWorkloadEnrollmentFailuresDoNotRetryOrExposeCredentials(t *testing.T) {
 			defer server.Close()
 			cfg := configmock.New(t)
 			cfg.SetInTest("skip_ssl_validation", true)
-			response, err := NewPublicClient(cfg, server.URL, nil).EnrollWithWorkloadToken(context.Background(), "sensitive-token", par.CreateRunnerRequest{RunnerName: "test"})
+			response, err := NewPublicClient(cfg, server.URL, nil).EnrollWithWorkloadToken(t.Context(), "sensitive-token", par.CreateRunnerRequest{RunnerName: "test"})
 			require.Error(t, err)
 			require.Nil(t, response)
 			require.NotContains(t, err.Error(), "sensitive")
@@ -109,13 +109,13 @@ func TestWorkloadEnrollmentFailuresDoNotRetryOrExposeCredentials(t *testing.T) {
 
 func TestWorkloadEnrollmentInvalidInputAndCancellation(t *testing.T) {
 	cfg := configmock.New(t)
-	_, err := NewPublicClient(cfg, "https://api.datadoghq.com", nil).EnrollWithWorkloadToken(context.Background(), "", par.CreateRunnerRequest{})
+	_, err := NewPublicClient(cfg, "https://api.datadoghq.com", nil).EnrollWithWorkloadToken(t.Context(), "", par.CreateRunnerRequest{})
 	require.ErrorContains(t, err, "token is required")
-	_, err = NewPublicClient(cfg, "https://api.datadoghq.com", nil).EnrollWithWorkloadToken(context.Background(), "token", par.CreateRunnerRequest{ID: "existing-runner"})
+	_, err = NewPublicClient(cfg, "https://api.datadoghq.com", nil).EnrollWithWorkloadToken(t.Context(), "token", par.CreateRunnerRequest{ID: "existing-runner"})
 	require.ErrorContains(t, err, "existing runner")
-	_, err = NewPublicClient(cfg, "http://127.0.0.1:1", nil).EnrollWithWorkloadToken(context.Background(), "token", par.CreateRunnerRequest{})
+	_, err = NewPublicClient(cfg, "http://127.0.0.1:1", nil).EnrollWithWorkloadToken(t.Context(), "token", par.CreateRunnerRequest{})
 	require.ErrorContains(t, err, "HTTPS")
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	_, err = NewPublicClient(cfg, "https://127.0.0.1:1", nil).EnrollWithWorkloadToken(ctx, "token", par.CreateRunnerRequest{})
 	require.ErrorIs(t, err, context.Canceled)
@@ -131,7 +131,7 @@ func TestWorkloadEnrollmentUsesPublicClientTransport(t *testing.T) {
 			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"data":{"type":"createRunnerResponse","id":"runner-test","attributes":{"runner_id":"runner-test","org_id":42}}}`))}, nil
 		})},
 	}
-	_, err := client.EnrollWithWorkloadToken(context.Background(), "workload-token", par.CreateRunnerRequest{RunnerName: "test"})
+	_, err := client.EnrollWithWorkloadToken(t.Context(), "workload-token", par.CreateRunnerRequest{RunnerName: "test"})
 	require.NoError(t, err)
 	require.Equal(t, 1, calls)
 }
@@ -152,10 +152,10 @@ func TestWorkloadEnrollmentPreservesAPIKeyRedirectPolicy(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("skip_ssl_validation", true)
 	client := NewPublicClient(cfg, server.URL, nil).(*publicClient)
-	_, err := client.EnrollWithWorkloadToken(context.Background(), "workload-token", par.CreateRunnerRequest{RunnerName: "test"})
+	_, err := client.EnrollWithWorkloadToken(t.Context(), "workload-token", par.CreateRunnerRequest{RunnerName: "test"})
 	require.ErrorIs(t, err, ErrEnrollmentRejected)
 	require.Zero(t, redirected)
-	_, _, err = client.doEnrollRequest(context.Background(), server.URL+createPARApiKeyOnlyPath, []byte("{}"), "api-key", "")
+	_, _, err = client.doEnrollRequest(t.Context(), server.URL+createPARApiKeyOnlyPath, []byte("{}"), "api-key", "")
 	require.NoError(t, err)
 	require.Equal(t, 1, redirected)
 }

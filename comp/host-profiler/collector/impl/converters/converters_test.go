@@ -8,7 +8,6 @@
 package converters
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -336,7 +335,7 @@ func TestConverterWithoutAgentLogsViaOTelLogger(t *testing.T) {
 	conv := newTestConverterWithoutAgent(logger, noContainerID)
 	conf := confmap.NewFromStringMap(loadTestData(t, "no_agent/symbol-up-disabled/in.yaml"))
 
-	err := conv.Convert(context.Background(), conf)
+	err := conv.Convert(t.Context(), conf)
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, logs.Len(), 1, "expected at least one log from the converter")
 
@@ -357,7 +356,7 @@ func TestConverterWithoutAgentLogsHostArchWarning(t *testing.T) {
 	conv := newTestConverterWithoutAgent(logger, noContainerID)
 	conf := confmap.NewFromStringMap(loadTestData(t, "no_agent/preserve-host-arch/in.yaml"))
 
-	err := conv.Convert(context.Background(), conf)
+	err := conv.Convert(t.Context(), conf)
 	require.NoError(t, err)
 
 	const expectedMsg = "host.arch is required but is disabled by user configuration; preserving user value. Profiles for compiled languages will be missing symbols."

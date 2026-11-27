@@ -67,7 +67,7 @@ func runJQ(t *testing.T, options jqRunOptions, args ...string) (string, string, 
 	if err := fs.Parse(args); err != nil {
 		return stdout.String(), err.Error(), exitGeneric
 	}
-	result := handler(context.Background(), callCtx, fs.Args())
+	result := handler(t.Context(), callCtx, fs.Args())
 	return stdout.String(), stderr.String(), result.Code
 }
 
@@ -545,7 +545,7 @@ func TestResourceCaps(t *testing.T) {
 	assert.Equal(t, uint8(exitGeneric), code)
 	assert.Contains(t, stderr, "output")
 
-	reader := &budgetReader{ctx: context.Background(), reader: strings.NewReader("xx"), used: MaxTotalInputBytes - 1}
+	reader := &budgetReader{ctx: t.Context(), reader: strings.NewReader("xx"), used: MaxTotalInputBytes - 1}
 	buf := make([]byte, 2)
 	_, err := reader.Read(buf)
 	assert.ErrorIs(t, err, errInputLimit)
@@ -585,8 +585,8 @@ func TestRawLineLimitIsReportedAsSuch(t *testing.T) {
 	assert.Equal(t, uint8(exitGeneric), code)
 	assert.Contains(t, stderr, "raw input line exceeds")
 
-	reader := &budgetReader{ctx: context.Background(), reader: strings.NewReader("x"), used: MaxTotalInputBytes}
-	err := processRawLines(context.Background(), reader, func(value) error { return nil })
+	reader := &budgetReader{ctx: t.Context(), reader: strings.NewReader("x"), used: MaxTotalInputBytes}
+	err := processRawLines(t.Context(), reader, func(value) error { return nil })
 	assert.ErrorIs(t, err, errInputLimit)
 }
 
@@ -609,7 +609,7 @@ func TestLargeObjectEvaluationUsesBoundedMemory(t *testing.T) {
 	runtime.GC()
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
-	results, err := newEvaluator(context.Background(), nil).evaluate(null(), root)
+	results, err := newEvaluator(t.Context(), nil).evaluate(null(), root)
 	runtime.ReadMemStats(&after)
 	require.NoError(t, err)
 	require.Len(t, results, 1)
@@ -623,7 +623,7 @@ func TestObjectDuplicateKeyAccountsOnlyFinalValue(t *testing.T) {
 		root, err := parseFilter(filter)
 		require.NoError(t, err)
 
-		results, err := newEvaluator(context.Background(), nil).evaluate(large, root)
+		results, err := newEvaluator(t.Context(), nil).evaluate(large, root)
 		require.NoError(t, err)
 		require.Len(t, results, 1)
 		got, ok := results[0].obj.get("a")
@@ -665,7 +665,7 @@ func TestOverwrittenObjectValuesAreReleasedBeforeDescent(t *testing.T) {
 	runtime.GC()
 	var baseline runtime.MemStats
 	runtime.ReadMemStats(&baseline)
-	ctx := &heapSamplingContext{Context: context.Background(), baseline: baseline.HeapAlloc}
+	ctx := &heapSamplingContext{Context: t.Context(), baseline: baseline.HeapAlloc}
 	eval := newEvaluator(ctx, nil)
 	results, err := eval.evaluate(null(), root)
 	require.NoError(t, err)
@@ -700,7 +700,7 @@ func TestNestedObjectsShareOneRetentionBudget(t *testing.T) {
 			runtime.GC()
 			var baseline runtime.MemStats
 			runtime.ReadMemStats(&baseline)
-			ctx := &heapSamplingContext{Context: context.Background(), baseline: baseline.HeapAlloc}
+			ctx := &heapSamplingContext{Context: t.Context(), baseline: baseline.HeapAlloc}
 			eval := newEvaluator(ctx, nil)
 			_, err = eval.evaluate(null(), root)
 			assert.ErrorIs(t, err, errRetentionLimit)
@@ -782,7 +782,7 @@ func TestRecursiveEvaluatorSharesOneRetentionBudget(t *testing.T) {
 			runtime.GC()
 			var baseline runtime.MemStats
 			runtime.ReadMemStats(&baseline)
-			ctx := &heapSamplingContext{Context: context.Background(), baseline: baseline.HeapAlloc}
+			ctx := &heapSamplingContext{Context: t.Context(), baseline: baseline.HeapAlloc}
 			eval := newEvaluator(ctx, nil)
 			_, err = eval.evaluate(null(), root)
 			assert.ErrorIs(t, err, errRetentionLimit)
@@ -816,7 +816,7 @@ func TestNestedMapPartialResultsShareRetentionBudget(t *testing.T) {
 	runtime.GC()
 	var baseline runtime.MemStats
 	runtime.ReadMemStats(&baseline)
-	ctx := &heapSamplingContext{Context: context.Background(), baseline: baseline.HeapAlloc}
+	ctx := &heapSamplingContext{Context: t.Context(), baseline: baseline.HeapAlloc}
 	eval := newEvaluator(ctx, nil)
 	_, err = eval.evaluate(input, root)
 	assert.ErrorIs(t, err, errRetentionLimit)
@@ -844,7 +844,7 @@ func TestCanceledInvocationDoesNotCloseBorrowedStdin(t *testing.T) {
 	_, err = stdin.Seek(0, io.SeekStart)
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	var stderr bytes.Buffer
 	callCtx := &builtins.CallContext{Stdout: io.Discard, Stderr: &stderr, Stdin: stdin}

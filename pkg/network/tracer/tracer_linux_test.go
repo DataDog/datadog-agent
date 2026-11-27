@@ -1336,7 +1336,7 @@ func (s *TracerSuite) TestConnectionAssured() {
 		},
 	}
 
-	err := server.Run(clientMessageSize)
+	err := server.Run(t.Context(), clientMessageSize)
 	require.NoError(t, err)
 	t.Cleanup(server.Shutdown)
 
@@ -1378,7 +1378,7 @@ func (s *TracerSuite) TestConnectionNotAssured() {
 		},
 	}
 
-	err := server.Run(clientMessageSize)
+	err := server.Run(t.Context(), clientMessageSize)
 	require.NoError(t, err)
 	t.Cleanup(server.Shutdown)
 
@@ -1490,7 +1490,7 @@ func (s *TracerSuite) TestSelfConnect() {
 
 	tr := setupTracer(t, cfg)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Minute)
 	t.Cleanup(cancel)
 
 	cmd := exec.CommandContext(ctx, "testdata/fork.py")
@@ -1824,7 +1824,7 @@ func (s *TracerSuite) TestUDPPythonReusePort() {
 	var err error
 	for i := 0; i < 5; i++ {
 		err = func() error {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 			defer cancel()
 			out, err = testutil.RunCommandWithContext(ctx, "testdata/reuseport.py")
 			if err != nil {
@@ -1952,13 +1952,13 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 	}
 
 	s1 := createReuseServer(0)
-	err := s1.Run(clientMessageSize)
+	err := s1.Run(t.Context(), clientMessageSize)
 	assignedPort := s1.ln.LocalAddr().(*net.UDPAddr).Port
 	require.NoError(t, err)
 	t.Cleanup(s1.Shutdown)
 
 	s2 := createReuseServer(assignedPort)
-	err = s2.Run(clientMessageSize)
+	err = s2.Run(t.Context(), clientMessageSize)
 	require.NoError(t, err)
 	t.Cleanup(s2.Shutdown)
 
@@ -2233,7 +2233,7 @@ func (s *TracerSuite) TestSendfileRegression() {
 					},
 				}
 				t.Cleanup(server.Shutdown)
-				require.NoError(t, server.Run(1024))
+				require.NoError(t, server.Run(t.Context(), 1024))
 
 				// Connect to UDP server
 				c, err := net.DialTimeout(server.network, server.address, time.Second)
@@ -2848,7 +2848,7 @@ func (s *TracerSuite) TestUDPIncomingDirectionFix() {
 	cfg.ProtocolClassificationEnabled = false
 	tr := setupTracer(t, cfg)
 
-	err := server.Run(64)
+	err := server.Run(t.Context(), 64)
 	require.NoError(t, err)
 	t.Cleanup(server.Shutdown)
 
@@ -5883,7 +5883,7 @@ options ndots:1`
 		conn = expectDNSWorkload(ct, connections)
 	}, 5*time.Second, 200*time.Millisecond, "failed to find DNS connection with proper stats")
 
-	proc, err := process.NewProcessWithContext(context.Background(), int32(conn.Pid))
+	proc, err := process.NewProcessWithContext(t.Context(), int32(conn.Pid))
 	require.NoError(t, err)
 
 	createTime, err := proc.CreateTime()

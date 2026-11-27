@@ -8,7 +8,6 @@
 package fx
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -92,8 +91,8 @@ func TestTaggedModuleWithProviderStopsWriters(t *testing.T) {
 	require.True(t, present)
 	require.Equal(t, 1, factory.metricCalls)
 	require.Equal(t, 1, factory.logCalls)
-	require.NoError(t, app.Start(context.Background()))
-	require.NoError(t, app.Stop(context.Background()))
+	require.NoError(t, app.Start(t.Context()))
+	require.NoError(t, app.Stop(t.Context()))
 	require.Equal(t, 1, factory.metric.closes)
 	require.Equal(t, 1, factory.log.closes)
 }
@@ -118,8 +117,8 @@ func TestTaggedModuleDisabledDoesNotCreateOutput(t *testing.T) {
 	_, hasComponent := component.Get()
 	require.True(t, hasProvider)
 	require.False(t, hasComponent)
-	require.NoError(t, app.Start(context.Background()))
-	require.NoError(t, app.Stop(context.Background()))
+	require.NoError(t, app.Start(t.Context()))
+	require.NoError(t, app.Stop(t.Context()))
 	_, err := os.Stat(dir)
 	require.ErrorIs(t, err, os.ErrNotExist)
 }
@@ -168,7 +167,7 @@ func TestTaggedModuleFlushesRealWritersOnStop(t *testing.T) {
 	require.NoError(t, app.Err())
 	component, present := provided.Get()
 	require.True(t, present)
-	require.NoError(t, app.Start(context.Background()))
+	require.NoError(t, app.Start(t.Context()))
 	handle := component.GetHandle(func(string) observer.Handle { return &fxTestHandle{} })("check")
 	handle.ObserveMetric(&fxTestMetric{}, 17)
 	handle.ObserveLog(&fxTestLog{})
@@ -176,7 +175,7 @@ func TestTaggedModuleFlushesRealWritersOnStop(t *testing.T) {
 	files, err := filepath.Glob(filepath.Join(dir, "*.parquet"))
 	require.NoError(t, err)
 	require.Empty(t, files)
-	require.NoError(t, app.Stop(context.Background()))
+	require.NoError(t, app.Stop(t.Context()))
 	metrics, err := filepath.Glob(filepath.Join(dir, "observer-metrics-*.parquet"))
 	require.NoError(t, err)
 	require.Len(t, metrics, 1)

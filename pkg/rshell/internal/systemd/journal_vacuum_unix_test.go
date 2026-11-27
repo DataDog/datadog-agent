@@ -76,7 +76,7 @@ func TestVacuumJournalDeletesOldestArchivesWithinRequest(t *testing.T) {
 	old := writeVacuumFile(t, directory, archivedJournalName(2), now.Add(-5*24*time.Hour))
 	recent := writeVacuumFile(t, directory, archivedJournalName(3), now.Add(-time.Hour))
 
-	result, err := client.VacuumJournal(context.Background(), builtins.JournalVacuumRequest{
+	result, err := client.VacuumJournal(t.Context(), builtins.JournalVacuumRequest{
 		Now:    now,
 		Before: now.Add(-48 * time.Hour),
 	})
@@ -97,7 +97,7 @@ func TestVacuumJournalDryRunDoesNotDelete(t *testing.T) {
 	archive := writeVacuumFile(t, directory, archivedJournalName(1), now.Add(-7*24*time.Hour))
 	second := writeVacuumFile(t, directory, archivedJournalName(2), now.Add(-6*24*time.Hour))
 
-	result, err := client.VacuumJournal(context.Background(), builtins.JournalVacuumRequest{
+	result, err := client.VacuumJournal(t.Context(), builtins.JournalVacuumRequest{
 		Now:    now,
 		Before: now.Add(-48 * time.Hour),
 		DryRun: true,
@@ -115,7 +115,7 @@ func TestVacuumJournalDeletesCorruptionArchivesWithinRequest(t *testing.T) {
 	recent := writeVacuumFile(t, directory, corruptedJournalName(2), now.Add(-time.Hour))
 	malformed := writeVacuumFile(t, directory, archivedJournalName(3)+"~", now.Add(-7*24*time.Hour))
 
-	result, err := client.VacuumJournal(context.Background(), builtins.JournalVacuumRequest{
+	result, err := client.VacuumJournal(t.Context(), builtins.JournalVacuumRequest{
 		Now:    now,
 		Before: now.Add(-48 * time.Hour),
 	})
@@ -138,7 +138,7 @@ func TestVacuumJournalHonorsAllocatedSizeTargetAndTimeFloor(t *testing.T) {
 	require.NoError(t, err)
 	require.Greater(t, stat.allocated, uint64(1))
 
-	result, err := client.VacuumJournal(context.Background(), builtins.JournalVacuumRequest{
+	result, err := client.VacuumJournal(t.Context(), builtins.JournalVacuumRequest{
 		Now:      now,
 		MaxBytes: stat.allocated - 1,
 		Before:   now.Add(-48 * time.Hour),
@@ -159,7 +159,7 @@ func TestVacuumJournalCombinedCleanupStopsAtSizeTarget(t *testing.T) {
 	stat, err := journalStat(info)
 	require.NoError(t, err)
 
-	result, err := client.VacuumJournal(context.Background(), builtins.JournalVacuumRequest{
+	result, err := client.VacuumJournal(t.Context(), builtins.JournalVacuumRequest{
 		Now:      now,
 		MaxBytes: stat.allocated,
 		Before:   now.Add(-48 * time.Hour),
@@ -186,7 +186,7 @@ func TestVacuumJournalSizeTargetCountsActiveAndArchivedAllocation(t *testing.T) 
 	maxBytes := activeAllocated + secondAllocated
 	require.Less(t, oldestAllocated+secondAllocated, maxBytes)
 
-	result, err := client.VacuumJournal(context.Background(), builtins.JournalVacuumRequest{
+	result, err := client.VacuumJournal(t.Context(), builtins.JournalVacuumRequest{
 		Now:      now,
 		MaxBytes: maxBytes,
 		Before:   now.Add(-48 * time.Hour),
@@ -208,7 +208,7 @@ func TestVacuumJournalNeverDeletesActiveJournalsForSizeTarget(t *testing.T) {
 	archive := writeVacuumFile(t, directory, archivedJournalName(1), now.Add(-10*24*time.Hour))
 	remaining := allocatedBytesOf(t, active) + allocatedBytesOf(t, namespaceActive)
 
-	result, err := client.VacuumJournal(context.Background(), builtins.JournalVacuumRequest{
+	result, err := client.VacuumJournal(t.Context(), builtins.JournalVacuumRequest{
 		Now:      now,
 		MaxBytes: 1,
 		Before:   now.Add(-48 * time.Hour),
@@ -230,7 +230,7 @@ func TestVacuumJournalTimeCutoffOutranksSizeTarget(t *testing.T) {
 	active := writeVacuumFileOfSize(t, directory, "system.journal", now.Add(-30*24*time.Hour), 5*8192)
 	recent := writeVacuumFile(t, directory, archivedJournalName(1), now.Add(-time.Hour))
 
-	result, err := client.VacuumJournal(context.Background(), builtins.JournalVacuumRequest{
+	result, err := client.VacuumJournal(t.Context(), builtins.JournalVacuumRequest{
 		Now:      now,
 		MaxBytes: 1,
 		Before:   now.Add(-48 * time.Hour),
@@ -252,7 +252,7 @@ func TestVacuumJournalSkipsHardlinksAndSymlinks(t *testing.T) {
 	symlink := filepath.Join(directory, archivedJournalName(3))
 	require.NoError(t, os.Symlink(first, symlink))
 
-	result, err := client.VacuumJournal(context.Background(), builtins.JournalVacuumRequest{
+	result, err := client.VacuumJournal(t.Context(), builtins.JournalVacuumRequest{
 		Now:    now,
 		Before: now.Add(-48 * time.Hour),
 	})
@@ -277,7 +277,7 @@ func TestVacuumJournalRejectsSymlinkedMachineDirectory(t *testing.T) {
 	require.NoError(t, os.WriteFile(machineIDPath, []byte(testMachineID+"\n"), 0o600))
 	client := NewClient(Target{JournalDirs: []string{journalRoot}, MachineIDPath: machineIDPath})
 
-	_, err := client.VacuumJournal(context.Background(), builtins.JournalVacuumRequest{
+	_, err := client.VacuumJournal(t.Context(), builtins.JournalVacuumRequest{
 		Now:    now,
 		Before: now.Add(-48 * time.Hour),
 	})
@@ -289,19 +289,19 @@ func TestVacuumJournalRejectsSymlinkedMachineDirectory(t *testing.T) {
 func TestVacuumJournalRequiresRequestBounds(t *testing.T) {
 	now := time.Now()
 	client, _ := newVacuumTestClient(t)
-	_, err := client.VacuumJournal(context.Background(), builtins.JournalVacuumRequest{Before: now.Add(-time.Hour)})
+	_, err := client.VacuumJournal(t.Context(), builtins.JournalVacuumRequest{Before: now.Add(-time.Hour)})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "reference time")
 
-	_, err = client.VacuumJournal(context.Background(), builtins.JournalVacuumRequest{Now: now})
+	_, err = client.VacuumJournal(t.Context(), builtins.JournalVacuumRequest{Now: now})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "requires a size or time limit")
 
-	_, err = client.VacuumJournal(context.Background(), builtins.JournalVacuumRequest{Now: now, MaxBytes: 1})
+	_, err = client.VacuumJournal(t.Context(), builtins.JournalVacuumRequest{Now: now, MaxBytes: 1})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "size vacuum requires a time cutoff")
 
-	_, err = client.VacuumJournal(context.Background(), builtins.JournalVacuumRequest{Now: now, Before: now.Add(time.Hour)})
+	_, err = client.VacuumJournal(t.Context(), builtins.JournalVacuumRequest{Now: now, Before: now.Add(time.Hour)})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot be in the future")
 }
@@ -320,7 +320,7 @@ type cancelAfterContext struct {
 
 func newCancelAfterContext(t *testing.T, remaining int) *cancelAfterContext {
 	t.Helper()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	return &cancelAfterContext{Context: ctx, cancel: cancel, remaining: remaining}
 }
@@ -417,7 +417,7 @@ func TestVacuumJournalRevalidationFailureMidLoopReportsPartialProgress(t *testin
 	// a test cannot mutate it from the outside between iterations.
 	client := NewClient(Target{JournalDirs: []string{journalRoot, journalRoot}, MachineIDPath: machineIDPath})
 
-	result, err := client.VacuumJournal(context.Background(), builtins.JournalVacuumRequest{
+	result, err := client.VacuumJournal(t.Context(), builtins.JournalVacuumRequest{
 		Now:    now,
 		Before: now.Add(-48 * time.Hour),
 	})
@@ -561,7 +561,7 @@ func TestVacuumJournalSpansEveryConfiguredJournalDirectory(t *testing.T) {
 		JournalDirs:   []string{filepath.Dir(persistent), filepath.Dir(volatile)},
 		MachineIDPath: machineIDPath,
 	})
-	result, err := client.VacuumJournal(context.Background(), builtins.JournalVacuumRequest{
+	result, err := client.VacuumJournal(t.Context(), builtins.JournalVacuumRequest{
 		Now:    now,
 		Before: now.Add(-48 * time.Hour),
 	})

@@ -47,7 +47,7 @@ type integrationFixture struct {
 }
 
 func newIntegrationFixture(t *testing.T, configOverrides map[string]interface{}) *integrationFixture {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	scheme := runtime.NewScheme()
 	_ = apiextensionsv1.AddToScheme(scheme)

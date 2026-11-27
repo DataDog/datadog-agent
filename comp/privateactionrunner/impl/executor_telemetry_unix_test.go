@@ -73,7 +73,7 @@ func TestExecutorTelemetryLifecycle(t *testing.T) {
 				startChan:  make(chan struct{}),
 				shutdowner: shutdownFunc(func() error { idle <- struct{}{}; return nil }),
 			}
-			err = runner.StartExecutor(context.Background())
+			err = runner.StartExecutor(t.Context())
 			t.Cleanup(func() {
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()

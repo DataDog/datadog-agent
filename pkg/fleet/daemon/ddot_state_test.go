@@ -46,7 +46,7 @@ func ddotSnapshot(mode coat.ManagementMode, state string) coat.Snapshot {
 
 func TestDDOTProcessStateWithoutCollector(t *testing.T) {
 	d := &daemonImpl{}
-	assert.Equal(t, coat.ProcessStateUnknown, d.ddotProcessState(context.Background()))
+	assert.Equal(t, coat.ProcessStateUnknown, d.ddotProcessState(t.Context()))
 }
 
 func TestDDOTProcessStateFromCollector(t *testing.T) {
@@ -80,7 +80,7 @@ func TestDDOTProcessStateFromCollector(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			d := &daemonImpl{procmgrCollector: &fakeProcmgrCollector{snapshot: test.snapshot}}
-			assert.Equal(t, test.expected, d.ddotProcessState(context.Background()))
+			assert.Equal(t, test.expected, d.ddotProcessState(t.Context()))
 		})
 	}
 }
@@ -115,7 +115,7 @@ func TestRefreshStateReportsDDOTProcessState(t *testing.T) {
 	daemon.procmgrCollector = &fakeProcmgrCollector{
 		snapshot: ddotSnapshot(coat.ManagementModeProcmgr, coat.ProcessStateRunning),
 	}
-	daemon.refreshState(context.Background())
+	daemon.refreshState(t.Context())
 
 	state := rcc.GetInstallerState()
 	require.NotNil(t, state)

@@ -6,7 +6,6 @@
 package workloadmeta
 
 import (
-	"context"
 	"sort"
 	"testing"
 	"time"
@@ -115,7 +114,7 @@ func TestStreamServer(t *testing.T) {
 	streamClient := pbgo.NewProcessEntityStreamClient(cc)
 
 	// Test that the sync message is sent to the client
-	stream, err := streamClient.StreamEntities(context.Background(), &pbgo.ProcessStreamEntitiesRequest{})
+	stream, err := streamClient.StreamEntities(t.Context(), &pbgo.ProcessStreamEntitiesRequest{})
 	require.NoError(t, err)
 	defer stream.CloseSend()
 
@@ -196,7 +195,7 @@ func TestStreamServerDropRedundantCacheDiff(t *testing.T) {
 	streamClient := pbgo.NewProcessEntityStreamClient(cc)
 
 	// Test that the sync message is sent to the client
-	stream, err := streamClient.StreamEntities(context.Background(), &pbgo.ProcessStreamEntitiesRequest{})
+	stream, err := streamClient.StreamEntities(t.Context(), &pbgo.ProcessStreamEntitiesRequest{})
 	require.NoError(t, err)
 	defer stream.CloseSend()
 
@@ -251,7 +250,7 @@ func TestStreamVersioning(t *testing.T) {
 	assert.Equal(t, conn.GetState(), connectivity.Ready) // Assert the underlying connection is still open
 
 	// Make sure we are able to create a new stream using the same connection
-	stream, err = pbgo.NewProcessEntityStreamClient(conn).StreamEntities(context.Background(), &pbgo.ProcessStreamEntitiesRequest{})
+	stream, err = pbgo.NewProcessEntityStreamClient(conn).StreamEntities(t.Context(), &pbgo.ProcessStreamEntitiesRequest{})
 	require.NoError(t, err)
 	msg, err = stream.Recv()
 	require.NoError(t, err)
@@ -306,7 +305,7 @@ func TestSingleStream(t *testing.T) {
 	_, err := originalStream.Recv() // fast-forward through the sync message
 	require.NoError(t, err)
 
-	newStream, err := pbgo.NewProcessEntityStreamClient(conn).StreamEntities(context.Background(), &pbgo.ProcessStreamEntitiesRequest{})
+	newStream, err := pbgo.NewProcessEntityStreamClient(conn).StreamEntities(t.Context(), &pbgo.ProcessStreamEntitiesRequest{})
 	require.NoError(t, err)
 
 	_, err = newStream.Recv() // fast-forward through the sync message
@@ -397,7 +396,7 @@ func setupGRPCTest(t *testing.T) (*WorkloadMetaExtractor, *GRPCServer, *grpc.Cli
 		_ = cc.Close()
 	})
 
-	stream, err := pbgo.NewProcessEntityStreamClient(cc).StreamEntities(context.Background(), &pbgo.ProcessStreamEntitiesRequest{})
+	stream, err := pbgo.NewProcessEntityStreamClient(cc).StreamEntities(t.Context(), &pbgo.ProcessStreamEntitiesRequest{})
 	require.NoError(t, err)
 
 	return extractor, grpcServer, cc, stream

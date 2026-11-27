@@ -6,7 +6,6 @@
 package azure
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -26,7 +25,7 @@ import (
 var expectedAPIVersion = GetMetadataAPIVersion()
 
 func TestGetAlias(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	expected := "5d33a910-a7a0-4443-9f01-6a807801b29b"
 
 	var lastRequest *http.Request
@@ -74,7 +73,7 @@ func TestGetClusterName(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			var lastRequest *http.Request
 			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "text/plain")
@@ -128,7 +127,7 @@ func TestParseClusterNameFromResourceGroup(t *testing.T) {
 }
 
 func TestGetNTPHosts(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	expectedHosts := []string{"time.windows.com"}
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -147,7 +146,7 @@ func TestGetNTPHosts(t *testing.T) {
 }
 
 func TestGetHostname(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		io.WriteString(w, `{
@@ -183,7 +182,7 @@ func TestGetHostname(t *testing.T) {
 }
 
 func TestGetHostnameSkipsRetryWhenProviderDisabled(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	var calls int32
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -210,7 +209,7 @@ func TestGetHostnameSkipsRetryWhenProviderDisabled(t *testing.T) {
 }
 
 func TestGetHostnameRetriesTransientIMDSFailure(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	var calls int32
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -244,7 +243,7 @@ func TestGetHostnameRetriesTransientIMDSFailure(t *testing.T) {
 }
 
 func TestGetHostnameWithInvalidMetadata(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	mockConfig := configmock.New(t)
 
 	styles := []string{"vmid", "name", "name_and_resource_group", "full"}
@@ -277,7 +276,7 @@ func TestGetHostnameWithInvalidMetadata(t *testing.T) {
 func TestGetPublicIPv4(t *testing.T) {
 	var lastRequest *http.Request
 
-	ctx := context.Background()
+	ctx := t.Context()
 	pathPrefix := "/metadata/instance/network/interface/0/ipv4/ipAddress/0/publicIpAddress"
 	expected := "8.8.8.8"
 
@@ -302,7 +301,7 @@ func TestGetPublicIPv4(t *testing.T) {
 }
 
 func TestGetCCRID(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	fakeResponse := "/subscriptions/1234abcd-78ef-ab12-cd45-10abc2345def/resourceGroups/MYRESOURCES/providers/Microsoft.Compute/virtualMachines/my-vm-name"
 	expected := strings.ToLower(fakeResponse)
 
@@ -323,7 +322,7 @@ func TestGetCCRID(t *testing.T) {
 }
 
 func TestInstanceType(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	expected := "Standard_E2s_v3"
 
 	var lastRequest *http.Request
@@ -345,7 +344,7 @@ func TestInstanceType(t *testing.T) {
 func TestIsRunningOnFallsBackToDMI(t *testing.T) {
 	vmIDFetcher.Reset()
 	defer vmIDFetcher.Reset()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)

@@ -104,7 +104,7 @@ func FuzzJournalQuery(f *testing.F) {
 		if err != nil {
 			return
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), journalFuzzTimeout)
+		ctx, cancel := context.WithTimeout(t.Context(), journalFuzzTimeout)
 		defer cancel()
 		for count := 0; count < query.MaxEntries; count++ {
 			entry, found, err := iterator.previous(ctx)

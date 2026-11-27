@@ -106,7 +106,7 @@ func TestOperationLiveLaterFetch(t *testing.T) {
 	c, observer, sender := deadlineLiveCheck(t)
 	identity := deadlineSession(t, c)
 	// First exercise Next directly to prove QueryContext returned before the wait.
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	start := time.Now()
 	rows, err := c.db.QueryxContext(ctx, deadlineSlowQuery(true))

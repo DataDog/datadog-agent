@@ -30,7 +30,7 @@ func isClosed(ch <-chan struct{}) bool {
 func TestResizableSemaphoreBlocksAtLimit(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		s := newResizableSemaphore(2)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		require.NoError(t, s.Acquire(ctx, 1))
 		require.NoError(t, s.Acquire(ctx, 1))
@@ -54,7 +54,7 @@ func TestResizableSemaphoreBlocksAtLimit(t *testing.T) {
 func TestResizableSemaphoreSetLimitUpWakesWaiters(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		s := newResizableSemaphore(1)
-		ctx := context.Background()
+		ctx := t.Context()
 		require.NoError(t, s.Acquire(ctx, 1))
 
 		acquired := make(chan struct{})
@@ -76,7 +76,7 @@ func TestResizableSemaphoreSetLimitUpWakesWaiters(t *testing.T) {
 func TestResizableSemaphoreSetLimitDownDoesNotCancelInFlight(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		s := newResizableSemaphore(3)
-		ctx := context.Background()
+		ctx := t.Context()
 		require.NoError(t, s.Acquire(ctx, 1))
 		require.NoError(t, s.Acquire(ctx, 1))
 		require.NoError(t, s.Acquire(ctx, 1))
@@ -109,9 +109,9 @@ func TestResizableSemaphoreSetLimitDownDoesNotCancelInFlight(t *testing.T) {
 func TestResizableSemaphoreContextCancellation(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		s := newResizableSemaphore(1)
-		require.NoError(t, s.Acquire(context.Background(), 1))
+		require.NoError(t, s.Acquire(t.Context(), 1))
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		errCh := make(chan error, 1)
 		go func() {
 			errCh <- s.Acquire(ctx, 1)
@@ -131,7 +131,7 @@ func TestResizableSemaphoreContextCancellation(t *testing.T) {
 
 func TestResizableSemaphoreCancelledContextWithCapacity(t *testing.T) {
 	s := newResizableSemaphore(1)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	assert.ErrorIs(t, s.Acquire(ctx, 1), context.Canceled)
@@ -141,9 +141,9 @@ func TestResizableSemaphoreCancelledContextWithCapacity(t *testing.T) {
 func TestResizableSemaphoreCancelConcurrentWithRelease(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		s := newResizableSemaphore(1)
-		require.NoError(t, s.Acquire(context.Background(), 1))
+		require.NoError(t, s.Acquire(t.Context(), 1))
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		errCh := make(chan error, 1)
 		go func() {
 			errCh <- s.Acquire(ctx, 1)
@@ -166,7 +166,7 @@ func TestResizableSemaphoreCancelConcurrentWithRelease(t *testing.T) {
 			t.Fatal("Acquire should return when the context is cancelled")
 		}
 		assert.Equal(t, int64(0), s.inFlight)
-		assert.NoError(t, s.Acquire(context.Background(), 1))
+		assert.NoError(t, s.Acquire(t.Context(), 1))
 	})
 }
 
@@ -175,7 +175,7 @@ func TestResizableSemaphoreCancelConcurrentWithRelease(t *testing.T) {
 // function cancels it.
 func startBlockedAcquire(t *testing.T, s *resizableSemaphore) (<-chan error, context.CancelFunc) {
 	t.Helper()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	errCh := make(chan error, 1)
 	go func() {
@@ -189,7 +189,7 @@ func startBlockedAcquire(t *testing.T, s *resizableSemaphore) (<-chan error, con
 func TestSaturatedDurationAccumulates(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		s := newResizableSemaphore(1)
-		require.NoError(t, s.Acquire(context.Background(), 1))
+		require.NoError(t, s.Acquire(t.Context(), 1))
 		acquired, _ := startBlockedAcquire(t, s)
 
 		time.Sleep(3 * time.Second)
@@ -206,7 +206,7 @@ func TestSaturatedDurationAccumulates(t *testing.T) {
 func TestSaturatedDurationIgnoresFullWithoutWaiters(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		s := newResizableSemaphore(1)
-		require.NoError(t, s.Acquire(context.Background(), 1))
+		require.NoError(t, s.Acquire(t.Context(), 1))
 
 		// All tokens are in use but nobody is waiting for one.
 		time.Sleep(5 * time.Second)
@@ -217,7 +217,7 @@ func TestSaturatedDurationIgnoresFullWithoutWaiters(t *testing.T) {
 func TestSaturatedDurationFoldsOpenInterval(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		s := newResizableSemaphore(1)
-		require.NoError(t, s.Acquire(context.Background(), 1))
+		require.NoError(t, s.Acquire(t.Context(), 1))
 		startBlockedAcquire(t, s)
 
 		time.Sleep(2 * time.Second)
@@ -232,7 +232,7 @@ func TestSaturatedDurationFoldsOpenInterval(t *testing.T) {
 func TestSaturatedDurationTracksLimitChanges(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		s := newResizableSemaphore(2)
-		require.NoError(t, s.Acquire(context.Background(), 1))
+		require.NoError(t, s.Acquire(t.Context(), 1))
 		s.SetLimit(1)
 		acquired, _ := startBlockedAcquire(t, s)
 
@@ -249,7 +249,7 @@ func TestSaturatedDurationTracksLimitChanges(t *testing.T) {
 func TestSaturatedDurationEndsWhenWaiterCancels(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		s := newResizableSemaphore(1)
-		require.NoError(t, s.Acquire(context.Background(), 1))
+		require.NoError(t, s.Acquire(t.Context(), 1))
 		acquired, cancel := startBlockedAcquire(t, s)
 
 		time.Sleep(2 * time.Second)
@@ -265,7 +265,7 @@ func TestSaturatedDurationEndsWhenWaiterCancels(t *testing.T) {
 func TestSaturatedDurationContinuesWithRemainingWaiters(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		s := newResizableSemaphore(1)
-		require.NoError(t, s.Acquire(context.Background(), 1))
+		require.NoError(t, s.Acquire(t.Context(), 1))
 		first, _ := startBlockedAcquire(t, s)
 		second, _ := startBlockedAcquire(t, s)
 
@@ -292,7 +292,7 @@ func TestResizableSemaphoreScalingUnderLoad(t *testing.T) {
 		maxLimit.Store(initialLimit)
 		var inFlight atomic.Int64
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 
 		var wg sync.WaitGroup
 		for range 32 {

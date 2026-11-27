@@ -8,7 +8,6 @@
 package amdgpu
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"slices"
@@ -41,7 +40,7 @@ func newTestCollector(t *testing.T, store workloadmeta.Component, sysRoot string
 	cfg.SetInTest("gpu.amd.enabled", true)
 	cfg.SetInTest("gpu.integrate_with_workloadmeta_processes", true)
 	c := newCollector(cfg, sysRoot)
-	require.NoError(t, c.Start(context.Background(), store))
+	require.NoError(t, c.Start(t.Context(), store))
 	return c
 }
 
@@ -71,7 +70,7 @@ func TestStartDisabled(t *testing.T) {
 			for k, v := range settings {
 				cfg.SetInTest(k, v)
 			}
-			err := newCollector(cfg, t.TempDir()).Start(context.Background(), nil)
+			err := newCollector(cfg, t.TempDir()).Start(t.Context(), nil)
 			assert.True(t, dderrors.IsDisabled(err), "got %v", err)
 		})
 	}
@@ -81,7 +80,7 @@ func TestPullReportsGPUEntities(t *testing.T) {
 	store := newStore(t)
 	c := newTestCollector(t, store, fakeHost(t).Root)
 
-	require.NoError(t, c.Pull(context.Background()))
+	require.NoError(t, c.Pull(t.Context()))
 
 	gpu, err := store.GetGPU("000074a1-0000-1000-80c0-ffee00c0ffee")
 	require.NoError(t, err)
@@ -119,7 +118,7 @@ func TestPullReportsClocksAndBusWidth(t *testing.T) {
 	store := newStore(t)
 	c := newTestCollector(t, store, fs.Root)
 
-	require.NoError(t, c.Pull(context.Background()))
+	require.NoError(t, c.Pull(t.Context()))
 
 	gpu, err := store.GetGPU("000074a1-0000-1000-80c0-ffee00c0ffee")
 	require.NoError(t, err)
@@ -140,7 +139,7 @@ func TestPullKFDAccessDeniedIsNotAnError(t *testing.T) {
 	c := newTestCollector(t, store, fs.Root)
 
 	for range 3 {
-		require.NoError(t, c.Pull(context.Background()))
+		require.NoError(t, c.Pull(t.Context()))
 	}
 
 	gpus := store.ListGPUs()
@@ -182,23 +181,23 @@ func TestPullPreservesProcessesWithPartialKFDTopology(t *testing.T) {
 		assert.ElementsMatch(t, []workloadmeta.EntityID{firstGPU, nvidiaGPU}, process.GPUs)
 		assert.Equal(t, "container-200", process.ContainerID)
 	}
-	require.NoError(t, c.Pull(context.Background()))
+	require.NoError(t, c.Pull(t.Context()))
 	assertAssociations()
 
 	fs.DenyKFDNode(2)
 	for range 2 {
-		require.NoError(t, c.Pull(context.Background()), "permission denial must not become repetitive pull errors")
+		require.NoError(t, c.Pull(t.Context()), "permission denial must not become repetitive pull errors")
 		assertAssociations()
 	}
 	for _, name := range []string{"gpu_id", "properties"} {
 		require.NoError(t, os.Chmod(filepath.Join(fs.Root, "class/kfd/kfd/topology/nodes/2", name), 0o644))
 	}
-	require.NoError(t, c.Pull(context.Background()))
+	require.NoError(t, c.Pull(t.Context()))
 	assertAssociations()
 
 	// A complete snapshot can prove an exit, removing only AMD's contribution.
 	require.NoError(t, os.RemoveAll(filepath.Join(fs.Root, "class/kfd/kfd/proc/200")))
-	require.NoError(t, c.Pull(context.Background()))
+	require.NoError(t, c.Pull(t.Context()))
 	first, err := store.GetGPU(firstGPU.ID)
 	require.NoError(t, err)
 	assert.Equal(t, []int{100}, first.ActivePIDs)
@@ -212,7 +211,7 @@ func TestPullReportsGPUProcesses(t *testing.T) {
 	store := newStore(t)
 	fs := fakeHost(t)
 	c := newTestCollector(t, store, fs.Root)
-	require.NoError(t, c.Pull(context.Background()))
+	require.NoError(t, c.Pull(t.Context()))
 
 	proc, err := store.GetProcess(100)
 	require.NoError(t, err)
@@ -223,7 +222,7 @@ func TestPullReportsGPUProcesses(t *testing.T) {
 
 	// Process 200 exits: its GPU association is removed.
 	require.NoError(t, os.RemoveAll(fs.Root+"/class/kfd/kfd/proc/200"))
-	require.NoError(t, c.Pull(context.Background()))
+	require.NoError(t, c.Pull(t.Context()))
 	_, err = store.GetProcess(200)
 	assert.Error(t, err)
 	_, err = store.GetProcess(100)
@@ -237,9 +236,9 @@ func TestPullWithoutProcessIntegration(t *testing.T) {
 	cfg.SetInTest("gpu.amd.enabled", true)
 	cfg.SetInTest("gpu.integrate_with_workloadmeta_processes", false)
 	c := newCollector(cfg, fakeHost(t).Root)
-	require.NoError(t, c.Start(context.Background(), store))
+	require.NoError(t, c.Start(t.Context(), store))
 
-	require.NoError(t, c.Pull(context.Background()))
+	require.NoError(t, c.Pull(t.Context()))
 	assert.Len(t, store.ListGPUs(), 2)
 	_, err := store.GetProcess(100)
 	assert.Error(t, err)
@@ -249,11 +248,11 @@ func TestPullRemovesVanishedGPUs(t *testing.T) {
 	store := newStore(t)
 	fs := fakeHost(t)
 	c := newTestCollector(t, store, fs.Root)
-	require.NoError(t, c.Pull(context.Background()))
+	require.NoError(t, c.Pull(t.Context()))
 	require.Len(t, store.ListGPUs(), 2)
 
 	require.NoError(t, os.RemoveAll(fs.Root+"/class/drm/card1"))
-	require.NoError(t, c.Pull(context.Background()))
+	require.NoError(t, c.Pull(t.Context()))
 
 	gpus := store.ListGPUs()
 	require.Len(t, gpus, 1)
@@ -279,22 +278,22 @@ func TestPullSharedSerialKeepsOneEntityPerGPU(t *testing.T) {
 	}
 	both := []string{"amd-0000-27-00-0", "amd-0000-41-00-0"}
 
-	require.NoError(t, c.Pull(context.Background()))
+	require.NoError(t, c.Pull(t.Context()))
 	require.Equal(t, both, ids())
 
 	fs.WriteFiles(second, map[string]string{"device": "invalid\n"}) // the probe fails
-	require.Error(t, c.Pull(context.Background()))
+	require.Error(t, c.Pull(t.Context()))
 	assert.Equal(t, both, ids(), "an incomplete scan keeps the unobserved GPU")
 
 	require.NoError(t, os.RemoveAll(filepath.Join(fs.Root, "class/drm/card1")))
-	require.NoError(t, c.Pull(context.Background()))
+	require.NoError(t, c.Pull(t.Context()))
 	assert.Equal(t, []string{"amd-0000-27-00-0"}, ids())
 }
 
 func TestPullWithoutAMDGPUs(t *testing.T) {
 	store := newStore(t)
 	c := newTestCollector(t, store, t.TempDir())
-	require.NoError(t, c.Pull(context.Background()))
+	require.NoError(t, c.Pull(t.Context()))
 	assert.Empty(t, store.ListGPUs())
 }
 
@@ -316,7 +315,7 @@ func TestPullKeepsOtherProcessSources(t *testing.T) {
 			Entity: &workloadmeta.Process{EntityID: processID, Pid: 100, GPUs: []workloadmeta.EntityID{nvidiaID}},
 		},
 	})
-	require.NoError(t, c.Pull(context.Background()))
+	require.NoError(t, c.Pull(t.Context()))
 	process, err := store.GetProcess(100)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []workloadmeta.EntityID{
@@ -329,7 +328,7 @@ func TestPullKeepsOtherProcessSources(t *testing.T) {
 	// Changing AMD's GPU set must replace its own contribution, not append
 	// duplicates or overwrite the independently reported NVIDIA association.
 	fs.AddKFDProcess(100, 5100, 0)
-	require.NoError(t, c.Pull(context.Background()))
+	require.NoError(t, c.Pull(t.Context()))
 	process, err = store.GetProcess(100)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []workloadmeta.EntityID{
@@ -337,7 +336,7 @@ func TestPullKeepsOtherProcessSources(t *testing.T) {
 	}, process.GPUs)
 
 	require.NoError(t, os.RemoveAll(filepath.Join(fs.Root, "class/kfd/kfd/proc/100")))
-	require.NoError(t, c.Pull(context.Background()))
+	require.NoError(t, c.Pull(t.Context()))
 	process, err = store.GetProcess(100)
 	require.NoError(t, err)
 	assert.Equal(t, []workloadmeta.EntityID{nvidiaID}, process.GPUs)
@@ -358,12 +357,12 @@ func TestPullPreservesDevicesOnDiscoveryError(t *testing.T) {
 	store := newStore(t)
 	fs := fakeHost(t)
 	c := newTestCollector(t, store, fs.Root)
-	require.NoError(t, c.Pull(context.Background()))
+	require.NoError(t, c.Pull(t.Context()))
 
 	// A malformed attribute is deterministic even when tests run as root.
 	devDir := filepath.Join(fs.Root, "devices/pci0000:00/0000:41:00.0")
 	fs.WriteFiles(devDir, map[string]string{"device": "invalid\n"})
-	require.ErrorContains(t, c.Pull(context.Background()), "PCI device ID")
+	require.ErrorContains(t, c.Pull(t.Context()), "PCI device ID")
 	gpu, err := store.GetGPU("amd-0000-41-00-0")
 	require.NoError(t, err)
 	assert.Equal(t, []int{100, 200}, gpu.ActivePIDs)
@@ -373,12 +372,12 @@ func TestPullPreservesDevicesOnDiscoveryError(t *testing.T) {
 
 	// New devices can still be published while a different device fails.
 	fs.AddCard("card2", fs.AddPCIDevice("0000:51:00.0", "amdgpu", amd.MI300XAttributes("")))
-	require.Error(t, c.Pull(context.Background()))
+	require.Error(t, c.Pull(t.Context()))
 	_, err = store.GetGPU("amd-0000-51-00-0")
 	require.NoError(t, err)
 
 	require.NoError(t, os.RemoveAll(filepath.Join(fs.Root, "class/drm/card1")))
-	require.NoError(t, c.Pull(context.Background()))
+	require.NoError(t, c.Pull(t.Context()))
 	_, err = store.GetGPU("amd-0000-41-00-0")
 	assert.Error(t, err)
 	_, err = store.GetProcess(200)
@@ -389,10 +388,10 @@ func TestPullPreservesProcessesOnReadError(t *testing.T) {
 	store := newStore(t)
 	fs := fakeHost(t)
 	c := newTestCollector(t, store, fs.Root)
-	require.NoError(t, c.Pull(context.Background()))
+	require.NoError(t, c.Pull(t.Context()))
 	fs.WriteFiles(filepath.Join(fs.Root, "class/kfd/kfd/proc/200"), map[string]string{"vram_5100": "invalid\n"})
 
-	require.ErrorContains(t, c.Pull(context.Background()), "vram_5100")
+	require.ErrorContains(t, c.Pull(t.Context()), "vram_5100")
 	gpu, err := store.GetGPU("amd-0000-41-00-0")
 	require.NoError(t, err)
 	assert.Equal(t, []int{100, 200}, gpu.ActivePIDs)
@@ -401,7 +400,7 @@ func TestPullPreservesProcessesOnReadError(t *testing.T) {
 	assert.Equal(t, []workloadmeta.EntityID{{Kind: workloadmeta.KindGPU, ID: gpu.ID}}, process.GPUs)
 
 	fs.AddKFDProcess(200, 5100, 0)
-	require.NoError(t, c.Pull(context.Background()))
+	require.NoError(t, c.Pull(t.Context()))
 	gpu, err = store.GetGPU("amd-0000-41-00-0")
 	require.NoError(t, err)
 	assert.Equal(t, []int{100}, gpu.ActivePIDs)
@@ -421,7 +420,7 @@ func TestPullAddsObservedProcessesOnIncompleteScan(t *testing.T) {
 	fs.AddKFDProcess(100, 4101, 10)
 	store := newStore(t)
 	c := newTestCollector(t, store, fs.Root)
-	require.NoError(t, c.Pull(context.Background()))
+	require.NoError(t, c.Pull(t.Context()))
 	first, second := "amd-0000-27-00-0", "amd-0000-41-00-0"
 	assertGPUs := func(pid int, want ...string) {
 		t.Helper()
@@ -436,7 +435,7 @@ func TestPullAddsObservedProcessesOnIncompleteScan(t *testing.T) {
 
 	fs.WriteFiles(filepath.Join(fs.Root, "class/kfd/kfd/proc/100/context_1"), map[string]string{"vram_4101": "invalid\n"})
 	fs.AddKFDProcess(200, 5100, 7)
-	require.ErrorContains(t, c.Pull(context.Background()), "context_1")
+	require.ErrorContains(t, c.Pull(t.Context()), "context_1")
 	gpu, err := store.GetGPU(second)
 	require.NoError(t, err)
 	assert.Equal(t, []int{200}, gpu.ActivePIDs, "a healthy new process is published")
@@ -447,7 +446,7 @@ func TestPullAddsObservedProcessesOnIncompleteScan(t *testing.T) {
 	assertGPUs(100, first)
 
 	require.NoError(t, os.RemoveAll(filepath.Join(fs.Root, "class/kfd/kfd/proc/100")))
-	require.NoError(t, c.Pull(context.Background()))
+	require.NoError(t, c.Pull(t.Context()))
 	gpu, err = store.GetGPU(first)
 	require.NoError(t, err)
 	assert.Empty(t, gpu.ActivePIDs)

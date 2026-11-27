@@ -29,7 +29,7 @@ func TestConfigureCommand_PreservesProcessAttributes(t *testing.T) {
 }
 
 func TestRun_DeadlineAfterExitIsReported(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
 	defer cancel()
 	// The shell exits at once; the background sleep keeps stdout open until the deadline.
 	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", "sleep 30 &")

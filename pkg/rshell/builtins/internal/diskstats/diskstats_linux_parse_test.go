@@ -26,7 +26,7 @@ const sampleMountInfo = `36 35 98:0 / / rw,noatime - ext4 /dev/sda1 rw,errors=re
 `
 
 func TestParseMountInfo_HappyPath(t *testing.T) {
-	mounts, err := parseMountInfo(context.Background(), strings.NewReader(sampleMountInfo))
+	mounts, err := parseMountInfo(t.Context(), strings.NewReader(sampleMountInfo))
 	assert.NoError(t, err)
 	assert.Len(t, mounts, 7)
 
@@ -69,20 +69,20 @@ func TestParseMountInfo_SkipsMalformedLines(t *testing.T) {
 36 35 98:0 / / rw - ext4 /dev/sda1 rw
 short - bad
 ` + "37 36 0:18 / /sys rw - sysfs sysfs rw\n"
-	mounts, err := parseMountInfo(context.Background(), strings.NewReader(input))
+	mounts, err := parseMountInfo(t.Context(), strings.NewReader(input))
 	assert.NoError(t, err)
 	assert.Len(t, mounts, 2, "should skip malformed lines silently")
 }
 
 func TestParseMountInfo_NoSeparator(t *testing.T) {
-	mounts, err := parseMountInfo(context.Background(), strings.NewReader("36 35 98:0 / / rw ext4 /dev/sda1\n"))
+	mounts, err := parseMountInfo(t.Context(), strings.NewReader("36 35 98:0 / / rw ext4 /dev/sda1\n"))
 	assert.NoError(t, err)
 	assert.Empty(t, mounts, "lines without ' - ' must be skipped")
 }
 
 func TestParseMountInfo_LineTooLong(t *testing.T) {
 	long := strings.Repeat("x", maxMountInfoLine+1) + "\n"
-	mounts, err := parseMountInfo(context.Background(), strings.NewReader(long))
+	mounts, err := parseMountInfo(t.Context(), strings.NewReader(long))
 	assert.ErrorIs(t, err, errLineTooLong)
 	assert.Empty(t, mounts)
 }
@@ -92,13 +92,13 @@ func TestParseMountInfo_TooManyMounts(t *testing.T) {
 	for range MaxMounts + 5 {
 		b.WriteString("36 35 98:0 / /m rw - ext4 /dev/x rw\n")
 	}
-	mounts, err := parseMountInfo(context.Background(), strings.NewReader(b.String()))
+	mounts, err := parseMountInfo(t.Context(), strings.NewReader(b.String()))
 	assert.ErrorIs(t, err, ErrMaxMounts)
 	assert.Equal(t, MaxMounts, len(mounts))
 }
 
 func TestParseMountInfo_ContextCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	_, err := parseMountInfo(ctx, strings.NewReader(sampleMountInfo))
 	assert.ErrorIs(t, err, context.Canceled)
@@ -202,7 +202,7 @@ func TestIsOctal(t *testing.T) {
 }
 
 func TestList_LiveHost_Linux(t *testing.T) {
-	mounts, err := List(context.Background(), nil)
+	mounts, err := List(t.Context(), nil)
 	if err != nil && errors.Is(err, ErrNotSupported) {
 		t.Skipf("not supported on this platform: %v", err)
 	}

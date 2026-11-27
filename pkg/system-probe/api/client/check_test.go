@@ -218,14 +218,14 @@ func TestStartCheckerCanceledWaiterDoesNotWaitForBlockedProbe(t *testing.T) {
 		startupTimeout: time.Minute,
 	}
 
-	ownerCtx, cancelOwner := context.WithCancel(context.Background())
+	ownerCtx, cancelOwner := context.WithCancel(t.Context())
 	ownerDone := make(chan error)
 	go func() {
 		ownerDone <- checker.ensureStarted(ownerCtx, httpClient)
 	}()
 	<-firstStarted
 
-	waiterCtx, cancelWaiter := context.WithCancel(context.Background())
+	waiterCtx, cancelWaiter := context.WithCancel(t.Context())
 	cancelWaiter()
 	require.ErrorIs(t, checker.ensureStarted(waiterCtx, httpClient), context.Canceled)
 
@@ -261,7 +261,7 @@ func TestStartCheckerWaiterRetriesAfterProbeOwnerCancellation(t *testing.T) {
 		startupTimeout: time.Minute,
 	}
 
-	ownerCtx, cancelOwner := context.WithCancel(context.Background())
+	ownerCtx, cancelOwner := context.WithCancel(t.Context())
 	ownerDone := make(chan error)
 	go func() {
 		ownerDone <- checker.ensureStarted(ownerCtx, httpClient)
@@ -270,7 +270,7 @@ func TestStartCheckerWaiterRetriesAfterProbeOwnerCancellation(t *testing.T) {
 
 	waiterDone := make(chan error)
 	go func() {
-		waiterDone <- checker.ensureStarted(context.Background(), httpClient)
+		waiterDone <- checker.ensureStarted(t.Context(), httpClient)
 	}()
 	cancelOwner()
 
@@ -301,7 +301,7 @@ func TestWaitUntilStartedBacksOffUntilReady(t *testing.T) {
 	}
 
 	var delays []time.Duration
-	err := checker.waitUntilStarted(context.Background(), httpClient, func(_ context.Context, _ <-chan struct{}, delay time.Duration) error {
+	err := checker.waitUntilStarted(t.Context(), httpClient, func(_ context.Context, _ <-chan struct{}, delay time.Duration) error {
 		delays = append(delays, delay)
 		return nil
 	})
@@ -332,7 +332,7 @@ func TestWaitUntilStartedObservesSharedReadinessNotification(t *testing.T) {
 
 	done := make(chan error)
 	go func() {
-		done <- checker.waitUntilStarted(context.Background(), failingClient, func(ctx context.Context, started <-chan struct{}, _ time.Duration) error {
+		done <- checker.waitUntilStarted(t.Context(), failingClient, func(ctx context.Context, started <-chan struct{}, _ time.Duration) error {
 			close(waiting)
 			select {
 			case <-ctx.Done():
@@ -348,7 +348,7 @@ func TestWaitUntilStartedObservesSharedReadinessNotification(t *testing.T) {
 	successfulClient := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 		return successfulCheckResponse(), nil
 	})}
-	require.NoError(t, checker.ensureStarted(context.Background(), successfulClient))
+	require.NoError(t, checker.ensureStarted(t.Context(), successfulClient))
 	require.NoError(t, <-done)
 }
 
@@ -364,7 +364,7 @@ func TestWaitUntilStartedStopsAfterGracePeriod(t *testing.T) {
 	}
 
 	waitCalled := false
-	err := checker.waitUntilStarted(context.Background(), httpClient, func(context.Context, <-chan struct{}, time.Duration) error {
+	err := checker.waitUntilStarted(t.Context(), httpClient, func(context.Context, <-chan struct{}, time.Duration) error {
 		waitCalled = true
 		return nil
 	})
@@ -387,7 +387,7 @@ func TestWaitForStartupStopsWhenCanceled(t *testing.T) {
 		startedCh:      make(chan struct{}),
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error)
 	go func() { done <- client.WaitForStartup(ctx) }()
 	<-requestStarted
@@ -407,7 +407,7 @@ func TestGetCheckWithContextCancelsModuleRequest(t *testing.T) {
 	client := NewCheckClient(httpClient, httpClient)
 	client.startupChecker = checker
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	requestDone := make(chan error)
 	go func() {
 		_, err := GetCheckWithContext[testData](ctx, client, "context-cancel")

@@ -138,7 +138,7 @@ func TestHistogramSketches(t *testing.T) {
 	defaultEps := 1.0 / 128.0
 	tol := 1e-8
 	cfg := quantile.Default()
-	ctx := context.Background()
+	ctx := t.Context()
 	tr := newTranslator(t, zap.NewNop())
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -333,7 +333,7 @@ func TestExactHistogramStats(t *testing.T) {
 		})
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	tr := newTranslator(t, zap.NewNop())
 	for _, testInstance := range tests {
 		t.Run(testInstance.name, func(t *testing.T) {
@@ -417,7 +417,7 @@ func TestInfiniteBounds(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	tr := newTranslator(t, zap.NewNop())
 	for _, testInstance := range tests {
 		t.Run(testInstance.name, func(t *testing.T) {
@@ -663,7 +663,7 @@ func TestKnownDistributionsQuantile(t *testing.T) {
 	// The relative error depends on the bucket widths of the distribution.
 	const acceptableRelativeError = 0.04
 
-	ctx := context.Background()
+	ctx := t.Context()
 	tr := newTranslator(t, zap.NewNop())
 
 	for _, tt := range []struct {

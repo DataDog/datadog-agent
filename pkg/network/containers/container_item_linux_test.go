@@ -414,7 +414,7 @@ func TestReadContainerItemProcessRunningVsNotRunning(t *testing.T) {
 				ContainerID: intern.GetByString("test-container"),
 			}
 
-			result, err := cr.readContainerItem(context.Background(), processEvent)
+			result, err := cr.readContainerItem(t.Context(), processEvent)
 
 			if tt.expectedError {
 				require.Error(t, err)

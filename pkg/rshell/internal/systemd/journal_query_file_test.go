@@ -276,7 +276,7 @@ func TestJournalFileQueryHonorsCancellation(t *testing.T) {
 	require.NoError(t, err)
 	iterator, err := newJournalFileQueryIterator(view, builtins.JournalQuery{Units: []string{"api.service"}, MaxEntries: 1}, nil)
 	require.NoError(t, err)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	_, _, err = iterator.previous(ctx)
@@ -311,7 +311,7 @@ func TestJournalFileQueryRejectsCandidateMissingIndexedData(t *testing.T) {
 	require.NoError(t, err)
 	iterator, err := newJournalFileQueryIterator(view, builtins.JournalQuery{Units: []string{"api.service"}, MaxEntries: 1}, nil)
 	require.NoError(t, err)
-	_, _, err = iterator.previous(context.Background())
+	_, _, err = iterator.previous(t.Context())
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errJournalCorrupt)
 	assert.Contains(t, err.Error(), "does not reference the DATA object")
@@ -321,7 +321,7 @@ func collectJournalQueryEntries(t *testing.T, iterator *journalFileQueryIterator
 	t.Helper()
 	var entries []journalQueryEntry
 	for {
-		entry, found, err := iterator.previous(context.Background())
+		entry, found, err := iterator.previous(t.Context())
 		require.NoError(t, err)
 		if !found {
 			return entries

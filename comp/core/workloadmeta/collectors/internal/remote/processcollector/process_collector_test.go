@@ -264,7 +264,7 @@ func TestCollection(t *testing.T) {
 
 			time.Sleep(time.Second)
 
-			ctx := context.Background()
+			ctx := t.Context()
 
 			// remote process collector server (process agent)
 			server := newMockServer(ctx, test.serverResponses, test.errorResponse)

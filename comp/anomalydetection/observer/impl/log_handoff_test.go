@@ -329,7 +329,7 @@ anomaly_detection:
 			h.ObserveLog(&logObs{source: "nginx", content: "dropped-rate", status: "error", tags: []string{"service:web", "env:prod"}, timestampMs: 5_000})
 
 			require.Len(t, lc.hooks, 1)
-			require.NoError(t, lc.hooks[0].OnStop(context.Background()))
+			require.NoError(t, lc.hooks[0].OnStop(t.Context()))
 
 			require.Len(t, rec.recorded, 1)
 			assert.Equal(t, "logs", rec.recorded[0].Source)
@@ -347,7 +347,7 @@ func TestObserverFlushCtxHonorsExpiredContext(t *testing.T) {
 		metricsCh: make(chan observation),
 		logsCh:    make(chan observation), // unbuffered and no consumer running
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	require.ErrorIs(t, obs.flushCtx(ctx), context.Canceled)
 }
@@ -357,7 +357,7 @@ func TestObserverFlushCtxCancellationAfterMetricBarrier(t *testing.T) {
 		metricsCh: make(chan observation),
 		logsCh:    make(chan observation),
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	done := make(chan error, 1)
 	go func() { done <- obs.flushCtx(ctx) }()
@@ -373,7 +373,7 @@ func TestObserverFlushCtxCancellationWaitingForLogBarrier(t *testing.T) {
 		metricsCh: make(chan observation),
 		logsCh:    make(chan observation),
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	done := make(chan error, 1)
 	go func() { done <- obs.flushCtx(ctx) }()

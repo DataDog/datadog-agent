@@ -36,7 +36,7 @@ func TestNoop(t *testing.T) {
 
 func TestMain(m *testing.M) {
 	if os.Getenv("SKIP_TEST_MAIN") != "1" {
-		if err := setupTestDatabase(); err != nil {
+		if err := setupTestDatabase(t.Context()); err != nil {
 			fmt.Fprintf(os.Stderr, "Oracle test setup failed: %s\n", err)
 			os.Exit(1)
 		}

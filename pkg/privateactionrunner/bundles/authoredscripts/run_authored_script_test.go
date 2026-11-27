@@ -124,9 +124,9 @@ func TestRunAuthoredScriptUsesInjectedArtifactResolver(t *testing.T) {
 		Inputs:   map[string]interface{}{"message": "hello"},
 	}
 
-	first, err := handler.Run(context.Background(), task, nil)
+	first, err := handler.Run(t.Context(), task, nil)
 	require.NoError(t, err)
-	second, err := handler.Run(context.Background(), task, nil)
+	second, err := handler.Run(t.Context(), task, nil)
 	require.NoError(t, err)
 
 	require.IsType(t, &RunAuthoredScriptOutputs{}, first)
@@ -165,7 +165,7 @@ func TestRunAuthoredScriptUsesExecutionFQNForPackageIdentity(t *testing.T) {
 		Inputs:       map[string]interface{}{"message": "hello"},
 	}
 
-	output, err := handler.Run(context.Background(), task, nil)
+	output, err := handler.Run(t.Context(), task, nil)
 	require.NoError(t, err)
 	require.IsType(t, &RunAuthoredScriptOutputs{}, output)
 	assert.Equal(t, "hello", output.(*RunAuthoredScriptOutputs).Stdout)
@@ -174,13 +174,13 @@ func TestRunAuthoredScriptUsesExecutionFQNForPackageIdentity(t *testing.T) {
 func TestRunAuthoredScriptValidation(t *testing.T) {
 	t.Run("nil handler", func(t *testing.T) {
 		var handler *RunAuthoredScriptHandler
-		_, err := handler.Run(context.Background(), nil, nil)
+		_, err := handler.Run(t.Context(), nil, nil)
 		require.ErrorContains(t, err, "handler is not configured")
 	})
 
 	t.Run("missing task", func(t *testing.T) {
 		handler := &RunAuthoredScriptHandler{catalog: runTestCatalog{}}
-		_, err := handler.Run(context.Background(), nil, nil)
+		_, err := handler.Run(t.Context(), nil, nil)
 		require.ErrorContains(t, err, "task is required")
 	})
 
@@ -191,7 +191,7 @@ func TestRunAuthoredScriptValidation(t *testing.T) {
 		task := &types.Task{}
 		task.Data.Attributes = &types.Attributes{BundleID: "com.datadoghq.authoredscripts", Name: "test"}
 
-		_, err := handler.Run(context.Background(), task, nil)
+		_, err := handler.Run(t.Context(), task, nil)
 		require.ErrorIs(t, err, authoredscriptssupport.ErrPackageNotConfigured)
 		require.ErrorContains(t, err, "could not look up authored-script package")
 	})
@@ -204,7 +204,7 @@ func TestRunAuthoredScriptValidation(t *testing.T) {
 		task := &types.Task{}
 		task.Data.Attributes = &types.Attributes{BundleID: "com.datadoghq.authoredscripts", Name: "test"}
 
-		_, err := handler.Run(context.Background(), task, nil)
+		_, err := handler.Run(t.Context(), task, nil)
 		require.ErrorIs(t, err, expectedErr)
 		require.ErrorContains(t, err, "waiting for authored-script catalog")
 	})
@@ -218,7 +218,7 @@ func TestRunAuthoredScriptValidation(t *testing.T) {
 		task := &types.Task{}
 		task.Data.Attributes = &types.Attributes{BundleID: "com.datadoghq.authoredscripts", Name: "test"}
 
-		_, err := handler.Run(context.Background(), task, nil)
+		_, err := handler.Run(t.Context(), task, nil)
 		require.ErrorIs(t, err, expectedErr)
 	})
 }
@@ -275,7 +275,7 @@ func TestRunAuthoredScriptAuditReporting(t *testing.T) {
 			task := &types.Task{}
 			task.Data.Attributes = &types.Attributes{BundleID: "com.datadoghq.public", Name: "test", ExecutionFQN: descriptor.FQN, Inputs: map[string]interface{}{"message": "secret-input"}}
 			logger := &auditLogger{}
-			ctx, details := observability.WithExecutionDetails(log.ContextWithLogger(context.Background(), logger))
+			ctx, details := observability.WithExecutionDetails(log.ContextWithLogger(t.Context(), logger))
 			start := time.Now()
 			output, err := handler.Run(ctx, task, nil)
 			if tc.stage == "" {

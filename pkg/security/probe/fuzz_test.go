@@ -8,7 +8,6 @@
 package probe
 
 import (
-	"context"
 	"encoding/binary"
 	"testing"
 
@@ -149,7 +148,7 @@ func newFuzzEBPFProbe(tb testing.TB) *EBPFProbe {
 		processKiller:                  &ProcessKiller{},
 		fileHasher:                     &FileHasher{},
 		replayEventsState:              atomic.NewBool(false),
-		ctx:                            context.Background(),
+		ctx:                            tb.Context(),
 		dnsLayer:                       &layers.DNS{},
 		numCPU:                         1,
 		BPFFilterTruncated:             atomic.NewUint64(0),

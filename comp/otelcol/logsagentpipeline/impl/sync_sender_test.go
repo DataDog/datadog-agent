@@ -127,7 +127,7 @@ func TestSyncSenderDelivers(t *testing.T) {
 	intake := newRecordingIntake(t, okStatus)
 	s := newTestSyncSender(t, intake.URL, nil)
 
-	errs := s.Send(context.Background(), testMessages("a", "b", "c"))
+	errs := s.Send(t.Context(), testMessages("a", "b", "c"))
 
 	assert.Equal(t, []error{nil, nil, nil}, errs)
 	payloads, delivered := intake.stats()
@@ -139,7 +139,7 @@ func TestSyncSenderSplitsPayloadsAtTheBatchSize(t *testing.T) {
 	intake := newRecordingIntake(t, okStatus)
 	s := newTestSyncSender(t, intake.URL, map[string]interface{}{"logs_config.batch_max_size": 2})
 
-	errs := s.Send(context.Background(), testMessages("a", "b", "c", "d", "e"))
+	errs := s.Send(t.Context(), testMessages("a", "b", "c", "d", "e"))
 
 	assert.Equal(t, make([]error, 5), errs)
 	payloads, delivered := intake.stats()
@@ -170,7 +170,7 @@ func TestSyncSenderBoundsPayloadsInFlight(t *testing.T) {
 	var wg sync.WaitGroup
 	for range 2 {
 		wg.Go(func() {
-			assert.Equal(t, make([]error, 4), s.Send(context.Background(), testMessages("a", "b", "c", "d")))
+			assert.Equal(t, make([]error, 4), s.Send(t.Context(), testMessages("a", "b", "c", "d")))
 		})
 	}
 	wg.Wait()
@@ -196,7 +196,7 @@ func TestSyncSenderReportsIntakeErrors(t *testing.T) {
 			intake := newRecordingIntake(t, func([]string) int { return tt.status })
 			s := newTestSyncSender(t, intake.URL, nil)
 
-			errs := s.Send(context.Background(), testMessages("a", "b"))
+			errs := s.Send(t.Context(), testMessages("a", "b"))
 
 			require.Len(t, errs, 2)
 			for _, err := range errs {
@@ -218,7 +218,7 @@ func TestSyncSenderReportsErrorsPerPayload(t *testing.T) {
 	})
 	s := newTestSyncSender(t, intake.URL, map[string]interface{}{"logs_config.batch_max_size": 2})
 
-	errs := s.Send(context.Background(), testMessages("a", "b", "fail c", "d"))
+	errs := s.Send(t.Context(), testMessages("a", "b", "fail c", "d"))
 
 	assert.NoError(t, errs[0])
 	assert.NoError(t, errs[1])
@@ -232,7 +232,7 @@ func TestSyncSenderRejectsMessagesLargerThanAPayload(t *testing.T) {
 	intake := newRecordingIntake(t, okStatus)
 	s := newTestSyncSender(t, intake.URL, map[string]interface{}{"logs_config.batch_max_content_size": 1000})
 
-	errs := s.Send(context.Background(), testMessages("a", strings.Repeat("x", 2000), "b"))
+	errs := s.Send(t.Context(), testMessages("a", strings.Repeat("x", 2000), "b"))
 
 	assert.NoError(t, errs[0])
 	require.Error(t, errs[1])
@@ -249,7 +249,7 @@ func TestSyncSenderAppliesProcessingRules(t *testing.T) {
 		"logs_config.processing_rules": `[{"type": "exclude_at_match", "name": "drop", "pattern": "drop me"}]`,
 	})
 
-	errs := s.Send(context.Background(), testMessages("keep me", "drop me"))
+	errs := s.Send(t.Context(), testMessages("keep me", "drop me"))
 
 	assert.Equal(t, []error{nil, nil}, errs, "a message filtered out by a processing rule is not an error")
 	_, delivered := intake.stats()
@@ -266,7 +266,7 @@ func TestSyncSenderSendsToEveryReliableEndpoint(t *testing.T) {
 			`", "port": ` + additionalURL.Port() + `, "use_ssl": false}]`,
 	})
 
-	errs := s.Send(context.Background(), testMessages("a"))
+	errs := s.Send(t.Context(), testMessages("a"))
 
 	require.Error(t, errs[0], "a failure on an additional reliable endpoint must be reported")
 	assert.False(t, isRetryable(errs[0]))
@@ -284,7 +284,7 @@ func TestSyncSenderSkipsMultiRegionFailoverEndpoints(t *testing.T) {
 		"multi_region_failover.dd_url":        mrf.URL,
 	})
 
-	assert.Equal(t, []error{nil}, s.Send(context.Background(), testMessages("a")))
+	assert.Equal(t, []error{nil}, s.Send(t.Context(), testMessages("a")))
 
 	_, delivered := main.stats()
 	assert.Equal(t, []string{"a"}, delivered)
@@ -313,5 +313,5 @@ func TestAgentIsASyncSenderFactory(t *testing.T) {
 	s, err := agent.(*Agent).NewSyncSender()
 
 	require.NoError(t, err)
-	assert.Equal(t, []error{nil}, s.Send(context.Background(), testMessages("a")))
+	assert.Equal(t, []error{nil}, s.Send(t.Context(), testMessages("a")))
 }

@@ -68,7 +68,7 @@ func TestSendMessagesLoopPreservesFIFOAcrossReconnects(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := &CWSPtracerCtx{msgDataChan: make(chan []byte, 2)}
 			var cancel context.CancelFunc
-			ctx.cancel, cancel = context.WithCancel(context.Background())
+			ctx.cancel, cancel = context.WithCancel(t.Context())
 			defer cancel()
 			ctx.msgDataChan <- []byte("fork")
 			ctx.msgDataChan <- []byte("exec")
@@ -141,7 +141,7 @@ func TestSendMessagesLoopDropsOversizedMessages(t *testing.T) {
 		t.Run(location, func(t *testing.T) {
 			ctx := &CWSPtracerCtx{msgDataChan: make(chan []byte, 3)}
 			var cancel context.CancelFunc
-			ctx.cancel, cancel = context.WithCancel(context.Background())
+			ctx.cancel, cancel = context.WithCancel(t.Context())
 			defer cancel()
 			oversized := make([]byte, ebpfless.MaxMessageSize+1)
 			// Exercise the defensive sender check even if an invalid frame

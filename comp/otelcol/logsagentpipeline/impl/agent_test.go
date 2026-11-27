@@ -155,7 +155,7 @@ func (suite *AgentTestSuite) TestGetPipelineProvider() {
 	endpoints := config.NewEndpoints(endpoint, nil, true, false)
 
 	agent := createAgent(suite, endpoints)
-	agent.Start(context.Background())
+	agent.Start(suite.T().Context())
 
 	assert.NotNil(suite.T(), agent.GetPipelineProvider())
 }

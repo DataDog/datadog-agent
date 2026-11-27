@@ -7,7 +7,6 @@
 package healthprobeimpl
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -40,7 +39,7 @@ func TestServer(t *testing.T) {
 
 	assert.NotNil(t, provides.Comp)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	lc.AssertHooksNumber(1)
 	assert.NoError(t, lc.Start(ctx))

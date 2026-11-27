@@ -95,7 +95,7 @@ func TestRun(t *testing.T) {
 
 	ch := make(chan struct{})
 	go func() {
-		require.NoError(t, r.Run(context.Background()))
+		require.NoError(t, r.Run(t.Context()))
 		close(ch)
 	}()
 

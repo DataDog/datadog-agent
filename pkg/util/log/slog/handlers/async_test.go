@@ -25,7 +25,7 @@ func TestAsyncHandlerHandle(t *testing.T) {
 	defer handler.Close()
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test message", 0)
-	err := handler.Handle(context.Background(), record)
+	err := handler.Handle(t.Context(), record)
 	assert.NoError(t, err)
 
 	// Wait for async processing
@@ -43,7 +43,7 @@ func TestAsyncHandlerMultipleMessages(t *testing.T) {
 	// Send multiple messages
 	for range 10 {
 		record := slog.NewRecord(time.Now(), slog.LevelInfo, "message", 0)
-		err := handler.Handle(context.Background(), record)
+		err := handler.Handle(t.Context(), record)
 		assert.NoError(t, err)
 	}
 
@@ -61,7 +61,7 @@ func TestAsyncHandlerFlush(t *testing.T) {
 	// Send messages
 	for range 5 {
 		record := slog.NewRecord(time.Now(), slog.LevelInfo, "message", 0)
-		handler.Handle(context.Background(), record)
+		handler.Handle(t.Context(), record)
 	}
 
 	// Flush should wait for all messages to be written
@@ -81,7 +81,7 @@ func TestAsyncHandlerClose(t *testing.T) {
 	handler := NewAsync(inner)
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0)
-	handler.Handle(context.Background(), record)
+	handler.Handle(t.Context(), record)
 
 	// Close should wait for pending messages
 	handler.Close()
@@ -90,7 +90,7 @@ func TestAsyncHandlerClose(t *testing.T) {
 	assert.Equal(t, 1, inner.recordCount())
 
 	// Messages sent after close should be ignored
-	handler.Handle(context.Background(), record)
+	handler.Handle(t.Context(), record)
 
 	// Give a small amount of time to ensure no processing happens
 	time.Sleep(10 * time.Millisecond)
@@ -103,10 +103,10 @@ func TestAsyncHandlerEnabled(t *testing.T) {
 	handler := NewAsync(inner)
 	defer handler.Close()
 
-	assert.True(t, handler.Enabled(context.Background(), slog.LevelInfo))
+	assert.True(t, handler.Enabled(t.Context(), slog.LevelInfo))
 
 	inner.enabled = false
-	assert.False(t, handler.Enabled(context.Background(), slog.LevelInfo))
+	assert.False(t, handler.Enabled(t.Context(), slog.LevelInfo))
 }
 
 func TestAsyncHandlerFlushAfterClose(t *testing.T) {
@@ -114,7 +114,7 @@ func TestAsyncHandlerFlushAfterClose(t *testing.T) {
 	handler := NewAsync(inner)
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0)
-	handler.Handle(context.Background(), record)
+	handler.Handle(t.Context(), record)
 
 	// Close the handler first
 	handler.Close()
@@ -150,7 +150,7 @@ func TestAsyncHandlerConcurrentWrites(t *testing.T) {
 			defer wg.Done()
 			for range messageCount {
 				record := slog.NewRecord(time.Now(), slog.LevelInfo, "concurrent message", 0)
-				handler.Handle(context.Background(), record)
+				handler.Handle(t.Context(), record)
 			}
 		}()
 	}
@@ -178,7 +178,7 @@ func TestAsyncHandlerConcurrentFlushes(t *testing.T) {
 		defer wg.Done()
 		for range messageCount {
 			record := slog.NewRecord(time.Now(), slog.LevelInfo, "message", 0)
-			handler.Handle(context.Background(), record)
+			handler.Handle(t.Context(), record)
 		}
 	}()
 
@@ -218,7 +218,7 @@ func TestAsyncHandlerMessageOrder(t *testing.T) {
 	// Send messages with different content
 	for i := range 10 {
 		record := slog.NewRecord(time.Now(), slog.LevelInfo, string(rune('A'+i)), 0)
-		handler.Handle(context.Background(), record)
+		handler.Handle(t.Context(), record)
 	}
 
 	handler.Flush()
@@ -275,7 +275,7 @@ func TestAsyncHandlerWithAttrs(t *testing.T) {
 
 	// Log through the derived handler
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test with attrs", 0)
-	err := derivedHandler.Handle(context.Background(), record)
+	err := derivedHandler.Handle(t.Context(), record)
 	assert.NoError(t, err)
 
 	// Flush using the original handler (shared state)
@@ -306,7 +306,7 @@ func TestAsyncHandlerWithGroup(t *testing.T) {
 	// Log through the derived handler with an attribute
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test with group", 0)
 	record.AddAttrs(slog.String("nested", "value"))
-	err := derivedHandler.Handle(context.Background(), record)
+	err := derivedHandler.Handle(t.Context(), record)
 	assert.NoError(t, err)
 
 	// Flush using the original handler (shared state)
@@ -342,7 +342,7 @@ func TestAsyncHandlerWithAttrsAndGroup(t *testing.T) {
 
 	// Log through the derived handler
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "chained", 0)
-	err := derivedHandler.Handle(context.Background(), record)
+	err := derivedHandler.Handle(t.Context(), record)
 	assert.NoError(t, err)
 
 	handler.Flush()
@@ -378,8 +378,8 @@ func TestAsyncHandlerWithAttrsSharesState(t *testing.T) {
 	record1 := slog.NewRecord(time.Now(), slog.LevelInfo, "message 1", 0)
 	record2 := slog.NewRecord(time.Now(), slog.LevelInfo, "message 2", 0)
 
-	derivedHandler1.Handle(context.Background(), record1)
-	derivedHandler2.Handle(context.Background(), record2)
+	derivedHandler1.Handle(t.Context(), record1)
+	derivedHandler2.Handle(t.Context(), record2)
 
 	// Flush through original handler should flush all messages
 	handler.Flush()
@@ -413,8 +413,8 @@ func TestAsyncHandlerWithGroupSharesState(t *testing.T) {
 	record2 := slog.NewRecord(time.Now(), slog.LevelInfo, "message 2", 0)
 	record2.AddAttrs(slog.String("key", "val2"))
 
-	derivedHandler1.Handle(context.Background(), record1)
-	derivedHandler2.Handle(context.Background(), record2)
+	derivedHandler1.Handle(t.Context(), record1)
+	derivedHandler2.Handle(t.Context(), record2)
 
 	// Flush through original handler should flush all messages
 	handler.Flush()
@@ -442,7 +442,7 @@ func TestAsyncHandlerDerivedHandlerClose(t *testing.T) {
 
 	// Log through derived handler
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "before close", 0)
-	derivedHandler.Handle(context.Background(), record)
+	derivedHandler.Handle(t.Context(), record)
 
 	// Close the original handler
 	handler.Close()
@@ -454,7 +454,7 @@ func TestAsyncHandlerDerivedHandlerClose(t *testing.T) {
 
 	// Logging after close should be ignored (through derived handler)
 	record2 := slog.NewRecord(time.Now(), slog.LevelInfo, "after close", 0)
-	derivedHandler.Handle(context.Background(), record2)
+	derivedHandler.Handle(t.Context(), record2)
 
 	// Give time to ensure nothing is processed
 	time.Sleep(10 * time.Millisecond)
@@ -478,7 +478,7 @@ func TestAsyncHandlerSnapshotsAnyAttrsImmediately(t *testing.T) {
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0)
 	record.AddAttrs(slog.Any("obj", obj))
-	require.NoError(t, handler.Handle(context.Background(), record))
+	require.NoError(t, handler.Handle(t.Context(), record))
 
 	obj.Field = "after"
 
@@ -500,7 +500,7 @@ func TestAsyncHandlerLeavesSafeAttrsUnchanged(t *testing.T) {
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0)
 	record.AddAttrs(slog.Int("count", 42), slog.String("name", "foo"))
-	require.NoError(t, handler.Handle(context.Background(), record))
+	require.NoError(t, handler.Handle(t.Context(), record))
 
 	handler.Flush()
 
@@ -537,7 +537,7 @@ func TestAsyncHandlerHandleRaceWithMutation(t *testing.T) {
 		obj := &mutable{Field: "before"}
 		record := slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0)
 		record.AddAttrs(slog.Any("obj", obj))
-		require.NoError(t, handler.Handle(context.Background(), record))
+		require.NoError(t, handler.Handle(t.Context(), record))
 
 		obj.Field = fmt.Sprintf("after-%d", i)
 	}
@@ -564,7 +564,7 @@ func TestAsyncHandlerWithAttrsSnapshotsMutableAttrsImmediately(t *testing.T) {
 	obj.Field = "after"
 
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0)
-	require.NoError(t, derivedHandler.Handle(context.Background(), record))
+	require.NoError(t, derivedHandler.Handle(t.Context(), record))
 
 	handler.Flush()
 
@@ -602,7 +602,7 @@ func TestAsyncHandlerWithAttrsRaceWithMutation(t *testing.T) {
 		derivedHandler := handler.WithAttrs([]slog.Attr{slog.Any("obj", obj)})
 
 		record := slog.NewRecord(time.Now(), slog.LevelInfo, "test", 0)
-		require.NoError(t, derivedHandler.Handle(context.Background(), record))
+		require.NoError(t, derivedHandler.Handle(t.Context(), record))
 
 		obj.Field = fmt.Sprintf("after-%d", i)
 	}

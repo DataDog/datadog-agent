@@ -146,7 +146,7 @@ func TestXargsLargeInputUnderDeadline(t *testing.T) {
 	}
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "big.txt"), []byte(sb.String()), 0644))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	_, _, code := runScriptCtx(ctx, t, "xargs -a big.txt echo > /dev/null", dir,
 		interp.AllowedPaths([]string{dir}))
@@ -206,7 +206,7 @@ func TestXargsPreCancelledContext(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "in.txt"),
 		[]byte("a b c\n"), 0644))
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	done := make(chan struct{})
 	go func() {

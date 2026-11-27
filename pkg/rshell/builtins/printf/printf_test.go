@@ -459,7 +459,7 @@ func TestPrintfZeroPaddedInt(t *testing.T) {
 // --- Context cancellation ---
 
 func TestPrintfContextCancellation(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	// Large format reuse should respect context cancellation
 	// This script tries to print many items but should be bounded
@@ -767,7 +767,7 @@ func TestPrintfNegativeWidthClamped(t *testing.T) {
 // --- Coverage: precision clamping boundary ---
 
 func TestPrintfPrecisionClamped(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	stdout, _, code := runScriptCtx(ctx, t, `printf "%.99999s\n" hello`, "")
 	assert.Equal(t, 0, code)
@@ -783,7 +783,7 @@ func TestPrintfPrecisionClamped(t *testing.T) {
 // --- Coverage: star width/precision clamping ---
 
 func TestPrintfStarWidthClamped(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	stdout, _, code := runScriptCtx(ctx, t, `printf "%*d\n" 99999 42`, "")
 	assert.Equal(t, 0, code)
@@ -792,7 +792,7 @@ func TestPrintfStarWidthClamped(t *testing.T) {
 }
 
 func TestPrintfStarPrecisionClamped(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	stdout, _, code := runScriptCtx(ctx, t, `printf "%.*f\n" 99999 3.14`, "")
 	assert.Equal(t, 0, code)
@@ -806,7 +806,7 @@ func TestPrintfStarPrecisionClamped(t *testing.T) {
 // --- Coverage: format reuse iteration limit ---
 
 func TestPrintfFormatReuseIterationLimit(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 	// Supply more than 10000 args while staying below the shell-wide argument
 	// limit: format reuse should still stop at 10000 iterations.
@@ -821,7 +821,7 @@ func TestPrintfFormatReuseIterationLimit(t *testing.T) {
 // --- Coverage: context cancellation actually stops loop ---
 
 func TestPrintfContextCancellationStopsLoop(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()
 	// Try to print a very large number of args; timeout should kill it
 	args := strings.Repeat("x ", 100000)

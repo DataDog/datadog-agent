@@ -70,7 +70,7 @@ func TestVerifySystemdManagerMachineIDUsesManagerPeer(t *testing.T) {
 		return []any{strings.ToUpper(expectedMachineID)}, nil
 	}}
 
-	require.NoError(t, verifySystemdManagerMachineID(context.Background(), bus, expectedMachineID))
+	require.NoError(t, verifySystemdManagerMachineID(t.Context(), bus, expectedMachineID))
 	require.Len(t, bus.calls, 1)
 }
 
@@ -79,7 +79,7 @@ func TestVerifySystemdManagerMachineIDRejectsMismatch(t *testing.T) {
 		return []any{"fedcba9876543210fedcba9876543210"}, nil
 	}}
 
-	err := verifySystemdManagerMachineID(context.Background(), bus, "0123456789abcdef0123456789abcdef")
+	err := verifySystemdManagerMachineID(t.Context(), bus, "0123456789abcdef0123456789abcdef")
 	require.EqualError(t, err, "systemd manager peer machine ID does not match the configured target")
 }
 
@@ -164,7 +164,7 @@ func TestListSystemServicesUsesOnlyFixedMinimalPropertiesAndFiltersInactive(t *t
 		fakeManagerUnit{selector: "queued.socket", canonical: "queued.socket", description: "queued", loadState: "loaded", activeState: "inactive", subState: "dead", jobID: 42},
 	)
 
-	states, err := listSystemServicesWithBus(context.Background(), bus, builtins.SystemServiceListRequest{
+	states, err := listSystemServicesWithBus(t.Context(), bus, builtins.SystemServiceListRequest{
 		Services: []string{"active.service", "idle.timer", "queued.socket", "missing.path"},
 	})
 	require.NoError(t, err)
@@ -191,7 +191,7 @@ func TestListSystemServicesAllLoadsInactiveAndPreservesAuthorizedAlias(t *testin
 		activeState: "inactive",
 		subState:    "dead",
 	})
-	states, err := listSystemServicesWithBus(context.Background(), bus, builtins.SystemServiceListRequest{
+	states, err := listSystemServicesWithBus(t.Context(), bus, builtins.SystemServiceListRequest{
 		Services:        []string{"alias.timer", "missing.timer"},
 		IncludeInactive: true,
 	})
@@ -214,7 +214,7 @@ func TestInspectSystemServicesReturnsDetailsAndSynthesizesNotFound(t *testing.T)
 		mainPID:       123,
 		result:        "exit-code",
 	})
-	states, err := inspectSystemServicesWithBus(context.Background(), bus, []string{"api.service", "missing.service"})
+	states, err := inspectSystemServicesWithBus(t.Context(), bus, []string{"api.service", "missing.service"})
 	require.NoError(t, err)
 	require.Len(t, states, 2)
 	assert.Equal(t, uint32(123), states[0].MainPID)
@@ -239,7 +239,7 @@ func TestInspectSystemServicesUsesTypeSpecificResultInterface(t *testing.T) {
 		fakeManagerUnit{selector: "backup.timer", canonical: "backup.timer", loadState: "loaded", activeState: "inactive", subState: "dead", result: "success"},
 		fakeManagerUnit{selector: "backup.target", canonical: "backup.target", loadState: "loaded", activeState: "active", subState: "active"},
 	)
-	states, err := inspectSystemServicesWithBus(context.Background(), bus, []string{"backup.timer", "backup.target"})
+	states, err := inspectSystemServicesWithBus(t.Context(), bus, []string{"backup.timer", "backup.target"})
 	require.NoError(t, err)
 	require.Len(t, states, 2)
 	assert.Equal(t, "success", states[0].Result)
@@ -294,7 +294,7 @@ func TestRunSystemServiceJobsUsesFixedMethodAndWaitsForMatchingResult(t *testing
 			return nil, fmt.Errorf("unexpected method %q", call.method)
 		}
 	}
-	err := runSystemServiceJobsWithBus(context.Background(), bus, builtins.SystemServiceJobReload, []string{"api.service"})
+	err := runSystemServiceJobsWithBus(t.Context(), bus, builtins.SystemServiceJobReload, []string{"api.service"})
 	require.NoError(t, err)
 	assert.Nil(t, bus.signalSink)
 }
@@ -316,7 +316,7 @@ func TestRunSystemServiceJobsAcceptsSkippedResult(t *testing.T) {
 			return nil, fmt.Errorf("unexpected method %q", call.method)
 		}
 	}
-	require.NoError(t, runSystemServiceJobsWithBus(context.Background(), bus, builtins.SystemServiceJobStart, []string{"api.service"}))
+	require.NoError(t, runSystemServiceJobsWithBus(t.Context(), bus, builtins.SystemServiceJobStart, []string{"api.service"}))
 }
 
 func TestWaitSystemdJobClassifiesTerminalPaths(t *testing.T) {
@@ -435,7 +435,7 @@ func TestWaitSystemdJobClassifiesTerminalPaths(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			var ctx = context.Background()
+			var ctx = t.Context()
 			if test.cancelContext {
 				canceled, cancel := context.WithCancel(ctx)
 				cancel()
@@ -490,7 +490,7 @@ func TestRunSystemServiceJobsReportsPartialProgress(t *testing.T) {
 			return nil, fmt.Errorf("unexpected method %q", call.method)
 		}
 	}
-	err := runSystemServiceJobsWithBus(context.Background(), bus, builtins.SystemServiceJobRestart, []string{"first.service", "second.service"})
+	err := runSystemServiceJobsWithBus(t.Context(), bus, builtins.SystemServiceJobRestart, []string{"first.service", "second.service"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "after completing 1 units (first.service)")
 	assert.Contains(t, err.Error(), "not rolled back")
@@ -508,7 +508,7 @@ func TestRunSystemServiceJobsReportsAcceptedJobWithUnknownOutcome(t *testing.T) 
 			return nil, fmt.Errorf("unexpected method %q", call.method)
 		}
 	}
-	err := runSystemServiceJobsWithBus(context.Background(), bus, builtins.SystemServiceJobStart, []string{"api.service"})
+	err := runSystemServiceJobsWithBus(t.Context(), bus, builtins.SystemServiceJobStart, []string{"api.service"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `accepted a job for "api.service"`)
 	assert.Contains(t, err.Error(), "final state is unknown")
@@ -533,7 +533,7 @@ func TestRunSystemServiceJobsDistinguishesTransportAmbiguityFromDBusRejection(t 
 				}
 				return nil, test.callErr
 			}
-			err := runSystemServiceJobsWithBus(context.Background(), bus, builtins.SystemServiceJobStart, []string{"api.service"})
+			err := runSystemServiceJobsWithBus(t.Context(), bus, builtins.SystemServiceJobStart, []string{"api.service"})
 			require.Error(t, err)
 			assert.Equal(t, test.wantUncertain, strings.Contains(err.Error(), "may have accepted a job"))
 		})
@@ -553,7 +553,7 @@ func TestRunSystemServiceJobsReportsSignalOverflowAsUnknownOutcome(t *testing.T)
 			return nil, fmt.Errorf("unexpected method %q", call.method)
 		}
 	}
-	err := runSystemServiceJobsWithBus(context.Background(), bus, builtins.SystemServiceJobStart, []string{"api.service"})
+	err := runSystemServiceJobsWithBus(t.Context(), bus, builtins.SystemServiceJobStart, []string{"api.service"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `accepted a job for "api.service"`)
 	assert.Contains(t, err.Error(), "signal queue overflowed")
@@ -689,7 +689,7 @@ func TestSystemServiceUnitFileMutations(t *testing.T) {
 						}
 					}}
 
-					err := mutation.run(context.Background(), bus, units)
+					err := mutation.run(t.Context(), bus, units)
 					if test.wantErr == "" {
 						require.NoError(t, err)
 					} else {

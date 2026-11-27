@@ -48,7 +48,7 @@ func buildProduceVersionTest(name string, version *kversion.Versions, targetAddr
 		postTracerSetup: func(t *testing.T, ctx testContext) {
 			produceClient := ctx.extras["produce_client"].(*kafka.Client)
 			record := &kgo.Record{Topic: ctx.extras["topic_name"].(string), Value: []byte("Hello Kafka!")}
-			ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+			ctxTimeout, cancel := context.WithTimeout(t.Context(), time.Second*5)
 			defer cancel()
 			require.NoError(t, produceClient.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 		},
@@ -78,7 +78,7 @@ func buildFetchVersionTest(name string, version *kversion.Versions, targetAddres
 			require.NoError(t, produceClient.CreateTopic(ctx.extras["topic_name"].(string)))
 
 			record := &kgo.Record{Topic: ctx.extras["topic_name"].(string), Value: []byte("Hello Kafka!")}
-			ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+			ctxTimeout, cancel := context.WithTimeout(t.Context(), time.Second*5)
 			defer cancel()
 			require.NoError(t, produceClient.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 
@@ -92,7 +92,7 @@ func buildFetchVersionTest(name string, version *kversion.Versions, targetAddres
 		},
 		postTracerSetup: func(t *testing.T, ctx testContext) {
 			fetchClient := ctx.extras["fetch_client"].(*kafka.Client)
-			fetches := fetchClient.Client.PollFetches(context.Background())
+			fetches := fetchClient.Client.PollFetches(t.Context())
 			require.Empty(t, fetches.Errors())
 			records := fetches.Records()
 			require.Len(t, records, 1)
@@ -208,7 +208,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client := ctx.extras["client"].(*kafka.Client)
 				record := &kgo.Record{Topic: ctx.extras["topic_name"].(string), Value: []byte("Hello Kafka!")}
-				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				ctxTimeout, cancel := context.WithTimeout(t.Context(), time.Second*5)
 				defer cancel()
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 			},
@@ -241,7 +241,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 				client := ctx.extras["client"].(*kafka.Client)
 				record1 := &kgo.Record{Topic: ctx.extras["topic_name1"].(string), Value: []byte("Hello Kafka!")}
 				record2 := &kgo.Record{Topic: ctx.extras["topic_name2"].(string), Value: []byte("Hello Kafka!")}
-				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				ctxTimeout, cancel := context.WithTimeout(t.Context(), time.Second*5)
 				defer cancel()
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1, record2).FirstErr(), "record had a produce error while synchronously producing")
 			},

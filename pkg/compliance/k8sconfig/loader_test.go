@@ -1020,7 +1020,7 @@ func TestKubAksAzureJSON(t *testing.T) {
 			}
 
 			l := &loader{hostroot: tmpDir}
-			typ, node := l.load(context.Background(), func(_ context.Context) []proc {
+			typ, node := l.load(t.Context(), func(_ context.Context) []proc {
 				return procTable(tt.table)
 			})
 			assert.Equal(t, tt.typ, typ)
@@ -1623,7 +1623,7 @@ func TestBuildProcValuesInTheirOwnArgument(t *testing.T) {
 
 func loadTestConfiguration(t *testing.T, hostroot string, table string) *K8sNodeConfig {
 	l := &loader{hostroot: hostroot}
-	_, data := l.load(context.Background(), func(_ context.Context) []proc {
+	_, data := l.load(t.Context(), func(_ context.Context) []proc {
 		return procTable(table)
 	})
 	jsonData, err := json.Marshal(data)

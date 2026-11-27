@@ -8,7 +8,6 @@
 package workload
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"time"
@@ -171,17 +170,17 @@ func (f *verticalControllerFixture) runSync(args verticalTestArgs) {
 	switch args.targetKind {
 	case kubernetes.DeploymentKind:
 		_, err = f.controller.syncDeploymentKind(
-			context.Background(), fakeAutoscaler, &autoscalerInternal, target, gvk,
+			f.t.Context(), fakeAutoscaler, &autoscalerInternal, target, gvk,
 			args.recommendationID, args.pods, args.podsPerRecommendationID, args.podsPerDirectOwner,
 		)
 	case kubernetes.RolloutKind:
 		_, err = f.controller.syncRolloutKind(
-			context.Background(), fakeAutoscaler, &autoscalerInternal, target, gvk,
+			f.t.Context(), fakeAutoscaler, &autoscalerInternal, target, gvk,
 			args.recommendationID, args.pods, args.podsPerRecommendationID, args.podsPerDirectOwner,
 		)
 	case kubernetes.StatefulSetKind:
 		_, err = f.controller.syncStatefulSetKind(
-			context.Background(), fakeAutoscaler, &autoscalerInternal, target, gvk,
+			f.t.Context(), fakeAutoscaler, &autoscalerInternal, target, gvk,
 			args.recommendationID, args.pods, args.podsPerRecommendationID,
 		)
 	}
@@ -242,7 +241,7 @@ func (f *verticalControllerFixture) createTarget(ns, name, kind string) {
 		})
 		gvr = schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}
 	}
-	_, _ = f.dynamicClient.Resource(gvr).Namespace(ns).Create(context.Background(), obj, metav1.CreateOptions{})
+	_, _ = f.dynamicClient.Resource(gvr).Namespace(ns).Create(f.t.Context(), obj, metav1.CreateOptions{})
 }
 
 // scalingValWithRequests builds a VerticalScalingValues with both requests and limits set.
@@ -689,7 +688,7 @@ func TestPatchInPlace_NeedsPatch_PatchesResources(t *testing.T) {
 	p.Containers = []workloadmeta.OrchestratorContainer{{Name: "c1"}}
 	ai := buildInPlacePAI("default", "ai", scalingValWithRequests("r1", "500m"), "")
 
-	err := f.controller.patchInPlace(context.Background(), &ai, p, "r1")
+	err := f.controller.patchInPlace(t.Context(), &ai, p, "r1")
 	assert.NoError(t, err)
 	// Expect two sequential patches: resize subresource, then metadata annotation.
 	assert.Equal(t, 2, patchCallCount, "expected resize patch + annotation patch for pod needing update")
@@ -729,7 +728,7 @@ func (f *verticalControllerFixture) runSyncInPlaceMode(t *testing.T, dpa *datado
 	}
 
 	return f.controller.syncInternal(
-		context.Background(), dpa, &ai, target, gvk, recommendationID,
+		t.Context(), dpa, &ai, target, gvk, recommendationID,
 		pods, map[string]int32{}, map[string]int32{}, buildPodsByResizeStatus(pods, recommendationID),
 	)
 }
@@ -830,7 +829,7 @@ func TestSyncInternal_InPlace_Infeasible_TriggersRollout(t *testing.T) {
 	}
 
 	_, err := f.controller.syncInternal(
-		context.Background(), &datadoghq.DatadogPodAutoscaler{}, &ai, target, gvk, "r1",
+		t.Context(), &datadoghq.DatadogPodAutoscaler{}, &ai, target, gvk, "r1",
 		pods, map[string]int32{}, map[string]int32{}, buildPodsByResizeStatus(pods, "r1"),
 	)
 	assert.NoError(t, err)
@@ -878,7 +877,7 @@ func TestSyncInternal_InPlace_Infeasible_RolloutAlreadyTriggered_Skips(t *testin
 	}
 
 	result, err := f.controller.syncInternal(
-		context.Background(), &datadoghq.DatadogPodAutoscaler{}, &ai, target, gvk, "r1",
+		t.Context(), &datadoghq.DatadogPodAutoscaler{}, &ai, target, gvk, "r1",
 		pods, map[string]int32{}, map[string]int32{}, buildPodsByResizeStatus(pods, "r1"),
 	)
 	assert.NoError(t, err)
@@ -1003,7 +1002,7 @@ func TestSyncInternal_InPlace_FallbackToRollout_WhenStuck(t *testing.T) {
 	dpa := makeDPAWithFallbackDelay("default", "ai", 300) // 5 minutes
 
 	result, err := f.controller.syncInternal(
-		context.Background(), dpa, &ai, target, gvk, "r1",
+		t.Context(), dpa, &ai, target, gvk, "r1",
 		pods, map[string]int32{}, map[string]int32{}, buildPodsByResizeStatus(pods, "r1"),
 	)
 	assert.NoError(t, err)
@@ -1075,7 +1074,7 @@ func TestSyncInternal_TriggerRolloutStrategy_UsesRolloutPath(t *testing.T) {
 	pods := []*workloadmeta.KubernetesPod{pod("p1", "old", kubernetes.ReplicaSetKind, "rs1")}
 
 	_, err := f.controller.syncInternal(
-		context.Background(), fakeAutoscaler, &ai, target, gvk, "r1",
+		t.Context(), fakeAutoscaler, &ai, target, gvk, "r1",
 		pods, map[string]int32{"old": 1}, map[string]int32{"rs1": 1},
 		buildPodsByResizeStatus(pods, "r1"),
 	)
@@ -1116,7 +1115,7 @@ func TestSyncInternal_ConfigDisabled_NoApplyPolicy_UsesRolloutPath(t *testing.T)
 	pods := []*workloadmeta.KubernetesPod{pod("p1", "old", kubernetes.ReplicaSetKind, "rs1")}
 
 	_, err := f.controller.syncInternal(
-		context.Background(), fakeAutoscaler, &ai, target, gvk, "r1",
+		t.Context(), fakeAutoscaler, &ai, target, gvk, "r1",
 		pods, map[string]int32{"old": 1}, map[string]int32{"rs1": 1},
 		buildPodsByResizeStatus(pods, "r1"),
 	)
@@ -1162,7 +1161,7 @@ func TestSyncInternal_ConfigDisabled_AutoStrategy_UsesRolloutPath(t *testing.T) 
 	pods := []*workloadmeta.KubernetesPod{pod("p1", "old", kubernetes.ReplicaSetKind, "rs1")}
 
 	_, err := f.controller.syncInternal(
-		context.Background(), fakeAutoscaler, &ai, target, gvk, "r1",
+		t.Context(), fakeAutoscaler, &ai, target, gvk, "r1",
 		pods, map[string]int32{"old": 1}, map[string]int32{"rs1": 1},
 		buildPodsByResizeStatus(pods, "r1"),
 	)
@@ -1201,7 +1200,7 @@ func TestSyncInternal_InPlaceEnabled_NoApplyPolicy_UsesInPlacePath(t *testing.T)
 	pods := []*workloadmeta.KubernetesPod{pod("p1", "r1", kubernetes.ReplicaSetKind, "rs1")}
 
 	_, err := f.controller.syncInternal(
-		context.Background(), fakeAutoscaler, &ai, target, gvk, "r1",
+		t.Context(), fakeAutoscaler, &ai, target, gvk, "r1",
 		pods, map[string]int32{"r1": 1}, map[string]int32{"rs1": 1},
 		buildPodsByResizeStatus(pods, "r1"),
 	)
@@ -1247,7 +1246,7 @@ func TestSyncInternal_InPlaceEnabled_AutoStrategy_UsesInPlacePath(t *testing.T) 
 	pods := []*workloadmeta.KubernetesPod{pod("p1", "r1", kubernetes.ReplicaSetKind, "rs1")}
 
 	_, err := f.controller.syncInternal(
-		context.Background(), fakeAutoscaler, &ai, target, gvk, "r1",
+		t.Context(), fakeAutoscaler, &ai, target, gvk, "r1",
 		pods, map[string]int32{"r1": 1}, map[string]int32{"rs1": 1},
 		buildPodsByResizeStatus(pods, "r1"),
 	)

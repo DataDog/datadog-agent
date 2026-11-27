@@ -6,7 +6,6 @@
 package observability
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -72,7 +71,7 @@ func TestReportExecutionCompletedEnrichment(t *testing.T) {
 				var entries []executionLogEntry
 				logger := executionLogRecorder{entries: &entries}
 				metrics := &recordingTaggedStatsdClient{}
-				ctx, details := WithExecutionDetails(context.Background())
+				ctx, details := WithExecutionDetails(t.Context())
 				if enriched {
 					SetExecutionDetails(ctx, "execution", log.String("package_version", "1.2.3"))
 				}

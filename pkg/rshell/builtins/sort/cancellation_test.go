@@ -20,7 +20,7 @@ func TestCheckSortedRespectsContextCancellation(t *testing.T) {
 	// even for small inputs.
 	lines := []string{"a", "b", "c"}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel() // cancel immediately
 
 	var stderr bytes.Buffer
@@ -53,7 +53,7 @@ func TestCheckSortedCompletesWithoutCancellation(t *testing.T) {
 		return strings.Compare(a, b)
 	}
 
-	result := checkSorted(context.Background(), callCtx, lines, cmpFn, false, false, "-")
+	result := checkSorted(t.Context(), callCtx, lines, cmpFn, false, false, "-")
 
 	assert.Equal(t, uint8(0), result.Code,
 		"checkSorted should return exit code 0 for sorted input")
@@ -72,7 +72,7 @@ func TestCheckSortedDetectsDisorder(t *testing.T) {
 		return strings.Compare(a, b)
 	}
 
-	result := checkSorted(context.Background(), callCtx, lines, cmpFn, false, false, "-")
+	result := checkSorted(t.Context(), callCtx, lines, cmpFn, false, false, "-")
 
 	assert.Equal(t, uint8(1), result.Code)
 	assert.Contains(t, stderr.String(), "disorder")

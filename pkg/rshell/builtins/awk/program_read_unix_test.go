@@ -36,7 +36,7 @@ func TestReadProgramStdinReadsBlockingOSPipe(t *testing.T) {
 		_, _ = writer.WriteString(program)
 		_ = writer.Close()
 	}()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	total := 0
 
@@ -64,7 +64,7 @@ func TestReadProgramStdinReadsBlockingNamedFIFO(t *testing.T) {
 	_, err = writer.WriteString(program)
 	require.NoError(t, err)
 	require.NoError(t, writer.Close())
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	total := 0
 
@@ -86,7 +86,7 @@ func TestReadProgramStdinCancellationPreservesBlockingOSPipe(t *testing.T) {
 	t.Cleanup(func() { _ = writer.Close() })
 	require.Error(t, reader.SetReadDeadline(time.Time{}))
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() {
 		total := 0
@@ -120,7 +120,7 @@ func TestReadProgramStdinPreservesExistingDeadline(t *testing.T) {
 	t.Cleanup(func() { _ = writer.Close() })
 	require.NoError(t, reader.SetReadDeadline(time.Now().Add(50*time.Millisecond)))
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	total := 0
 
@@ -135,7 +135,7 @@ func TestReadProgramStdinClosedFileReturns(t *testing.T) {
 	require.NoError(t, reader.Close())
 	require.NoError(t, writer.Close())
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	total := 0
 

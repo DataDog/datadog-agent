@@ -7,7 +7,6 @@
 package remoteagentregistryimpl
 
 import (
-	"context"
 	"math"
 	"testing"
 	"time"
@@ -58,7 +57,7 @@ func TestFlareProvider(t *testing.T) {
 	fb := helpers.NewFlareBuilderMock(t, false)
 	fb.AssertNoFileExists(flareFilePath)
 
-	err := flareProvider.FlareFiller.Callback(context.Background(), fb)
+	err := flareProvider.FlareFiller.Callback(t.Context(), fb)
 	require.NoError(t, err)
 
 	fb.AssertFileExists(flareFilePath)
@@ -87,7 +86,7 @@ func TestFillFlareWritesUnreachableOnGRPCError(t *testing.T) {
 
 	fb := helpers.NewFlareBuilderMock(t, false)
 
-	err := flareProvider.FlareFiller.Callback(context.Background(), fb)
+	err := flareProvider.FlareFiller.Callback(t.Context(), fb)
 	require.NoError(t, err)
 
 	// The nominal artifact must NOT be written because the server is down.
@@ -102,7 +101,7 @@ func TestFillFlareWritesUnreachableOnGRPCError(t *testing.T) {
 
 func TestGetTelemetry(t *testing.T) {
 	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-	lc.Start(context.Background())
+	lc.Start(t.Context())
 	component := provides.Comp
 
 	promText := `
@@ -223,7 +222,7 @@ func TestGetTelemetry(t *testing.T) {
 
 func TestGetTelemetryUsesCanonicalHelpForLocalMetricFamily(t *testing.T) {
 	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-	lc.Start(context.Background())
+	lc.Start(t.Context())
 	component := provides.Comp
 
 	// This intentionally combines same-name local Core Agent and remote RAR families with
@@ -269,7 +268,7 @@ remote_only_metric 1
 
 func TestGetTelemetryCollectsADPClientByteCounters(t *testing.T) {
 	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-	lc.Start(context.Background())
+	lc.Start(t.Context())
 	component := provides.Comp
 
 	promText := `
@@ -310,7 +309,7 @@ dogstatsd_client__bytes_dropped_writer 2
 
 func TestGetTelemetryCollectsADPTransactionSuccessCounters(t *testing.T) {
 	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-	lc.Start(context.Background())
+	lc.Start(t.Context())
 	component := provides.Comp
 
 	promText := `
@@ -408,9 +407,9 @@ func TestGetTelemetryAuthoritativeEmitter(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-			require.NoError(t, lc.Start(context.Background()))
+			require.NoError(t, lc.Start(t.Context()))
 			t.Cleanup(func() {
-				require.NoError(t, lc.Stop(context.Background()))
+				require.NoError(t, lc.Stop(t.Context()))
 			})
 
 			promText := `# HELP authoritative_emitter_metric A remotely emitted metric
@@ -474,7 +473,7 @@ func TestRegistrationRejectsEmptyDisplayName(t *testing.T) {
 // to a mix of metrics with and without incoming emitter labels.
 func TestGetTelemetryMixedLabels(t *testing.T) {
 	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-	lc.Start(context.Background())
+	lc.Start(t.Context())
 	component := provides.Comp
 
 	// Simulate an agent sending one metric with a matching emitter and one without an emitter.
@@ -539,8 +538,8 @@ func metricsToMap(metrics []*io_prometheus_client.MetricFamily) map[string]*io_p
 func TestHistogramBucketMismatch(t *testing.T) {
 	t.Run("scenario 1: histogram same name as internal metric with different buckets", func(t *testing.T) {
 		provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-		lc.Start(context.Background())
-		defer lc.Stop(context.Background())
+		lc.Start(t.Context())
+		defer lc.Stop(t.Context())
 		component := provides.Comp
 
 		// This histogram has the same name as the internal RAR metric "remote_agent_registry_action_duration_seconds"
@@ -587,8 +586,8 @@ remote_agent_registry_action_duration_seconds_count 20
 
 	t.Run("scenario 2: two remote agents with same histogram name but different buckets", func(t *testing.T) {
 		provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-		lc.Start(context.Background())
-		defer lc.Stop(context.Background())
+		lc.Start(t.Context())
+		defer lc.Stop(t.Context())
 		component := provides.Comp
 
 		// Agent 1: histogram with buckets [0.1, 1.0, +Inf]
@@ -652,8 +651,8 @@ my_shared_histogram_count 300
 
 	t.Run("scenario 3: histogram with labels matching internal metric labels", func(t *testing.T) {
 		provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-		lc.Start(context.Background())
-		defer lc.Stop(context.Background())
+		lc.Start(t.Context())
+		defer lc.Stop(t.Context())
 		component := provides.Comp
 
 		// This histogram tries to use the same labels ("remote_agent_name", "action") as the internal metric
@@ -712,8 +711,8 @@ remote_agent_registry_action_duration_seconds_count{remote_agent_name="fake-agen
 
 	t.Run("scenario 4: unique histogram name works fine", func(t *testing.T) {
 		provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-		lc.Start(context.Background())
-		defer lc.Stop(context.Background())
+		lc.Start(t.Context())
+		defer lc.Stop(t.Context())
 		component := provides.Comp
 
 		promText := `
@@ -760,8 +759,8 @@ completely_unique_histogram_count 40
 func TestDescriptorConflicts(t *testing.T) {
 	t.Run("two agents same histogram exact same labels", func(t *testing.T) {
 		provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-		lc.Start(context.Background())
-		defer lc.Stop(context.Background())
+		lc.Start(t.Context())
+		defer lc.Stop(t.Context())
 		component := provides.Comp
 
 		// Both agents send the EXACT same metric with same labels - only emitter will differ
@@ -809,8 +808,8 @@ shared_request_duration_count{method="GET",path="/api"} 30
 
 	t.Run("same metric name different help strings causes error", func(t *testing.T) {
 		provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-		lc.Start(context.Background())
-		defer lc.Stop(context.Background())
+		lc.Start(t.Context())
+		defer lc.Stop(t.Context())
 		component := provides.Comp
 
 		// Two agents send metrics with same name but DIFFERENT help strings
@@ -842,8 +841,8 @@ requests 200
 
 	t.Run("same metric name same help different types causes error", func(t *testing.T) {
 		provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-		lc.Start(context.Background())
-		defer lc.Stop(context.Background())
+		lc.Start(t.Context())
+		defer lc.Stop(t.Context())
 		component := provides.Comp
 
 		// Two agents send metrics with same name and help but DIFFERENT types
@@ -872,8 +871,8 @@ requests 50
 
 	t.Run("same metric name different label sets between agents", func(t *testing.T) {
 		provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-		lc.Start(context.Background())
-		defer lc.Stop(context.Background())
+		lc.Start(t.Context())
+		defer lc.Stop(t.Context())
 		component := provides.Comp
 
 		// Agent 1: metric with labels {method, path}
@@ -945,8 +944,8 @@ func labelContains(labels []*io_prometheus_client.LabelPair, name string) bool {
 func TestHistogramBucketCountChanges(t *testing.T) {
 	t.Run("two agents same metric name different bucket counts", func(t *testing.T) {
 		provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-		lc.Start(context.Background())
-		defer lc.Stop(context.Background())
+		lc.Start(t.Context())
+		defer lc.Stop(t.Context())
 		component := provides.Comp
 
 		// Agent 1: 3 buckets
@@ -1008,8 +1007,8 @@ request_duration_count 25
 
 	t.Run("single agent histogram with 1 bucket only", func(t *testing.T) {
 		provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-		lc.Start(context.Background())
-		defer lc.Stop(context.Background())
+		lc.Start(t.Context())
+		defer lc.Stop(t.Context())
 		component := provides.Comp
 
 		// Minimal histogram - just +Inf bucket
@@ -1044,8 +1043,8 @@ minimal_histogram_count 100
 
 	t.Run("histogram with zero buckets", func(t *testing.T) {
 		provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-		lc.Start(context.Background())
-		defer lc.Stop(context.Background())
+		lc.Start(t.Context())
+		defer lc.Stop(t.Context())
 		component := provides.Comp
 
 		// Histogram with no bucket lines at all - just sum and count
@@ -1069,8 +1068,8 @@ no_bucket_histogram_count 50
 
 	t.Run("two agents same name same help but vastly different bucket counts", func(t *testing.T) {
 		provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-		lc.Start(context.Background())
-		defer lc.Stop(context.Background())
+		lc.Start(t.Context())
+		defer lc.Stop(t.Context())
 		component := provides.Comp
 
 		// Agent 1: 2 buckets (minimal)
@@ -1147,8 +1146,8 @@ api_latency_count 100
 
 	t.Run("histogram bucket boundaries subset vs superset", func(t *testing.T) {
 		provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-		lc.Start(context.Background())
-		defer lc.Stop(context.Background())
+		lc.Start(t.Context())
+		defer lc.Stop(t.Context())
 		component := provides.Comp
 
 		// Agent 1: buckets at [0.1, 0.5, 1, +Inf]
@@ -1208,8 +1207,8 @@ response_time_count 40
 
 	t.Run("histogram with overlapping but different bucket boundaries", func(t *testing.T) {
 		provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-		lc.Start(context.Background())
-		defer lc.Stop(context.Background())
+		lc.Start(t.Context())
+		defer lc.Stop(t.Context())
 		component := provides.Comp
 
 		// Agent 1: buckets at [0.1, 0.25, 0.5, 1, +Inf]
@@ -1293,8 +1292,8 @@ process_time_count 50
 func TestHistogramBucketChangeBetweenScrapes(t *testing.T) {
 	t.Run("bucket count increases between scrapes", func(t *testing.T) {
 		provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-		lc.Start(context.Background())
-		defer lc.Stop(context.Background())
+		lc.Start(t.Context())
+		defer lc.Stop(t.Context())
 		component := provides.Comp
 
 		// First scrape: 3 buckets
@@ -1360,8 +1359,8 @@ changing_histogram_count 45
 
 	t.Run("bucket count decreases between scrapes", func(t *testing.T) {
 		provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-		lc.Start(context.Background())
-		defer lc.Stop(context.Background())
+		lc.Start(t.Context())
+		defer lc.Stop(t.Context())
 		component := provides.Comp
 
 		// First scrape: 5 buckets
@@ -1426,8 +1425,8 @@ shrinking_histogram_count 40
 
 	t.Run("bucket boundaries change between scrapes same count", func(t *testing.T) {
 		provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-		lc.Start(context.Background())
-		defer lc.Stop(context.Background())
+		lc.Start(t.Context())
+		defer lc.Stop(t.Context())
 		component := provides.Comp
 
 		// First scrape: buckets at [0.1, 0.5, 1, +Inf]
@@ -1500,8 +1499,8 @@ boundary_histogram_count 55
 
 	t.Run("multiple rapid bucket changes", func(t *testing.T) {
 		provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-		lc.Start(context.Background())
-		defer lc.Stop(context.Background())
+		lc.Start(t.Context())
+		defer lc.Stop(t.Context())
 		component := provides.Comp
 
 		initialPromText := `
@@ -1600,8 +1599,8 @@ rapid_histogram_count 100
 func TestMalformedMetricEdgeCases(t *testing.T) {
 	t.Run("empty prometheus text", func(t *testing.T) {
 		provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-		lc.Start(context.Background())
-		defer lc.Stop(context.Background())
+		lc.Start(t.Context())
+		defer lc.Stop(t.Context())
 		component := provides.Comp
 
 		// Empty telemetry should not panic
@@ -1620,8 +1619,8 @@ func TestMalformedMetricEdgeCases(t *testing.T) {
 
 	t.Run("whitespace only prometheus text", func(t *testing.T) {
 		provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-		lc.Start(context.Background())
-		defer lc.Stop(context.Background())
+		lc.Start(t.Context())
+		defer lc.Stop(t.Context())
 		component := provides.Comp
 
 		promText := `
@@ -1640,8 +1639,8 @@ func TestMalformedMetricEdgeCases(t *testing.T) {
 
 	t.Run("histogram with missing +Inf bucket", func(t *testing.T) {
 		provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-		lc.Start(context.Background())
-		defer lc.Stop(context.Background())
+		lc.Start(t.Context())
+		defer lc.Stop(t.Context())
 		component := provides.Comp
 
 		// Histogram without the required +Inf bucket - parser may handle this differently
@@ -1666,8 +1665,8 @@ no_inf_histogram_count 20
 
 	t.Run("histogram with non-cumulative bucket counts", func(t *testing.T) {
 		provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-		lc.Start(context.Background())
-		defer lc.Stop(context.Background())
+		lc.Start(t.Context())
+		defer lc.Stop(t.Context())
 		component := provides.Comp
 
 		// Non-cumulative bucket counts (invalid but should not panic)
@@ -1693,8 +1692,8 @@ bad_histogram_count 100
 
 	t.Run("metric with empty label value", func(t *testing.T) {
 		provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-		lc.Start(context.Background())
-		defer lc.Stop(context.Background())
+		lc.Start(t.Context())
+		defer lc.Stop(t.Context())
 		component := provides.Comp
 
 		// Metric with empty label value
@@ -1716,8 +1715,8 @@ empty_label_metric{tag=""} 42
 
 	t.Run("metric with special characters in label", func(t *testing.T) {
 		provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-		lc.Start(context.Background())
-		defer lc.Stop(context.Background())
+		lc.Start(t.Context())
+		defer lc.Stop(t.Context())
 		component := provides.Comp
 
 		// Metric with special characters that might cause issues
@@ -1745,8 +1744,8 @@ special_char_metric{path="/api/v1/test",method="GET"} 100
 
 	t.Run("very large histogram bucket count", func(t *testing.T) {
 		provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-		lc.Start(context.Background())
-		defer lc.Stop(context.Background())
+		lc.Start(t.Context())
+		defer lc.Stop(t.Context())
 		component := provides.Comp
 
 		// Histogram with many buckets
@@ -1796,8 +1795,8 @@ many_buckets_histogram_count 250
 
 	t.Run("duplicate metric names from same agent", func(t *testing.T) {
 		provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
-		lc.Start(context.Background())
-		defer lc.Stop(context.Background())
+		lc.Start(t.Context())
+		defer lc.Stop(t.Context())
 		component := provides.Comp
 
 		// Same metric name declared twice - parser behavior varies

@@ -7,7 +7,6 @@
 package djm
 
 import (
-	"context"
 	"os"
 	"strings"
 	"testing"
@@ -223,7 +222,7 @@ func TestSetupCommonHostTags(t *testing.T) {
 			for k, v := range tt.env {
 				require.NoError(t, os.Setenv(k, v))
 			}
-			span, _ := telemetry.StartSpanFromContext(context.Background(), "test")
+			span, _ := telemetry.StartSpanFromContext(t.Context(), "test")
 			s := &common.Setup{Span: span}
 
 			setupCommonHostTags(s)
@@ -385,7 +384,7 @@ func TestLoadLogProcessingRules(t *testing.T) {
 
 			output := &common.Output{}
 
-			span, _ := telemetry.StartSpanFromContext(context.Background(), "test")
+			span, _ := telemetry.StartSpanFromContext(t.Context(), "test")
 			s := &common.Setup{
 				Span: span,
 				Out:  output,
@@ -439,7 +438,7 @@ func TestSetupGPUIntegration(t *testing.T) {
 				require.NoError(t, os.Setenv(k, v))
 			}
 
-			span, _ := telemetry.StartSpanFromContext(context.Background(), "test")
+			span, _ := telemetry.StartSpanFromContext(t.Context(), "test")
 			output := &common.Output{}
 			s := &common.Setup{
 				Span: span,

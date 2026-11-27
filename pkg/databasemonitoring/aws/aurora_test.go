@@ -8,7 +8,6 @@
 package aws
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -477,7 +476,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 			if tt.dbmTag != nil {
 				dbmTag = *tt.dbmTag
 			}
-			clusters, err := client.GetAuroraClusterEndpoints(context.Background(), tt.clusters, Config{DbmTag: dbmTag, GlobalViewDbTag: defaultGlobalViewDbTag})
+			clusters, err := client.GetAuroraClusterEndpoints(t.Context(), tt.clusters, Config{DbmTag: dbmTag, GlobalViewDbTag: defaultGlobalViewDbTag})
 			if tt.expectedErr != nil {
 				assert.EqualError(t, err, tt.expectedErr.Error())
 				return
@@ -643,7 +642,7 @@ func TestGetAuroraClusterEndpointsDbName(t *testing.T) {
 			mockClient := NewMockrdsService(ctrl)
 			tt.configureClient(mockClient)
 			client := &Client{client: mockClient}
-			clusters, err := client.GetAuroraClusterEndpoints(context.Background(), tt.clusters, Config{DbmTag: defaultDbmTag})
+			clusters, err := client.GetAuroraClusterEndpoints(t.Context(), tt.clusters, Config{DbmTag: defaultDbmTag})
 			if tt.expectedErr != nil {
 				assert.EqualError(t, err, tt.expectedErr.Error())
 				return
@@ -993,7 +992,7 @@ func TestGetAuroraClustersFromTags(t *testing.T) {
 			mockClient := NewMockrdsService(ctrl)
 			tt.configureClient(mockClient)
 			client := &Client{client: mockClient}
-			clusters, err := client.GetAuroraClustersFromTags(context.Background(), tt.tags)
+			clusters, err := client.GetAuroraClustersFromTags(t.Context(), tt.tags)
 			if tt.expectedErr != nil {
 				assert.EqualError(t, err, tt.expectedErr.Error())
 				return

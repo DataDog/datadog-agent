@@ -32,6 +32,8 @@ import (
 
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 
+	mockStatsd "github.com/DataDog/datadog-go/v5/statsd/mocks"
+
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -51,7 +53,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
-	mockStatsd "github.com/DataDog/datadog-go/v5/statsd/mocks"
 
 	"github.com/stretchr/testify/assert"
 
@@ -212,7 +213,7 @@ func TestStopWaits(t *testing.T) {
 	cfg.ReceiverPort = 0
 	// But keep a ReceiverSocket so that the Receiver can start and shutdown normally
 	cfg.ReceiverSocket = t.TempDir() + "/trace-agent-test.sock"
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 
 	wg := &sync.WaitGroup{}
@@ -282,7 +283,7 @@ func TestProcess(t *testing.T) {
 			Re:   regexp.MustCompile("AND.*"),
 			Repl: "...",
 		}}
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -311,7 +312,7 @@ func TestProcess(t *testing.T) {
 	t.Run("TracerPayloadModifier", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -353,7 +354,7 @@ func TestProcess(t *testing.T) {
 				Repl: "5555",
 			},
 		}
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -390,7 +391,7 @@ func TestProcess(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		cfg.ReplaceTags = envReplaceRules
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -427,7 +428,7 @@ func TestProcess(t *testing.T) {
 		translator, err := attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
 		require.NoError(t, err)
 		cfg.OTLPReceiver.AttributesTranslator = translator
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -468,7 +469,7 @@ func TestProcess(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		cfg.ReplaceTags = envReplaceRules
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -509,7 +510,7 @@ func TestProcess(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		cfg.Ignore["resource"] = []string{"^INSERT.*"}
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -556,7 +557,7 @@ func TestProcess(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		cfg.Ignore["resource"] = []string{".*"}
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -600,7 +601,7 @@ func TestProcess(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		cfg.Ignore["resource"] = []string{".*"}
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -625,7 +626,7 @@ func TestProcess(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		cfg.Ignore["resource"] = []string{"^INSERT.*"}
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -671,7 +672,7 @@ func TestProcess(t *testing.T) {
 	t.Run("Stats/Priority", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -722,7 +723,7 @@ func TestProcess(t *testing.T) {
 	t.Run("normalizing", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -749,7 +750,7 @@ func TestProcess(t *testing.T) {
 	t.Run("normalizingV1", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -778,7 +779,7 @@ func TestProcess(t *testing.T) {
 		// A zero trace ID drops the chunk, counted as in the legacy pipeline.
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		ts := agnt.Receiver.Stats.GetTagStats(info.Tags{})
@@ -796,7 +797,7 @@ func TestProcess(t *testing.T) {
 	t.Run("normalizingV1-NamesAreKept", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -822,7 +823,7 @@ func TestProcess(t *testing.T) {
 	t.Run("_dd.hostname", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -842,7 +843,7 @@ func TestProcess(t *testing.T) {
 	t.Run("APMMode-unset", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -864,7 +865,7 @@ func TestProcess(t *testing.T) {
 	t.Run("APMMode-edge", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -885,7 +886,7 @@ func TestProcess(t *testing.T) {
 	t.Run("APMMode-empty string", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -913,7 +914,7 @@ func TestProcess(t *testing.T) {
 	t.Run("APMMode-invalid value", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -943,7 +944,7 @@ func TestProcess(t *testing.T) {
 		t.Setenv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED", "false")
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 		agnt.TraceWriter = &mockTraceWriter{}
 		defer cancel()
@@ -970,7 +971,7 @@ func TestProcess(t *testing.T) {
 	t.Run("DiscardSpans", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -1009,7 +1010,7 @@ func TestProcess(t *testing.T) {
 	t.Run("TracerPayloadModifierV1", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -1030,7 +1031,7 @@ func TestProcess(t *testing.T) {
 	t.Run("SpanModifierV1", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -1055,7 +1056,7 @@ func TestProcess(t *testing.T) {
 	t.Run("DiscardSpansV1", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -1094,7 +1095,7 @@ func TestProcess(t *testing.T) {
 		// nil chunk entries. ProcessV1 must drop them instead of panicking.
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -1123,7 +1124,7 @@ func TestProcess(t *testing.T) {
 		// discardSpansV1 runs before the chunk loop, so it must also tolerate nil chunks.
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -1147,7 +1148,7 @@ func TestProcess(t *testing.T) {
 	t.Run("chunking", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -1180,7 +1181,7 @@ func TestProcess(t *testing.T) {
 	t.Run("someV1ChunksKept-NoRaceWritingAndStats", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancel()
 
@@ -1667,7 +1668,7 @@ func assertAttributesEqual(t *testing.T, expetedStrings *idx.StringTable, expect
 func TestClientComputedTopLevel(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	t.Run("onNotTop", func(t *testing.T) {
@@ -1728,7 +1729,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 func TestClientComputedTopLevelV1(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	t.Run("computeTopLevel when ClientComputedTopLevel is false", func(t *testing.T) {
@@ -2021,7 +2022,7 @@ func runTraceFilteringBenchmark(b *testing.B, root *pb.Span, require []*config.T
 func TestClientComputedStats(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 	defer cancel()
 	tp := testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpanAndPriority(&pb.Span{
@@ -3433,7 +3434,7 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 	// Disable the HTTP server to avoid colliding with a real agent on dev/CI machines.
 	c.ReceiverPort = 0
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
+	ctx, cancelFunc := context.WithCancel(b.Context())
 	wg := sync.WaitGroup{}
 	defer wg.Wait()
 	defer cancelFunc()
@@ -3514,7 +3515,7 @@ func benchThroughput(file string) func(*testing.B) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "irrelevant"
 
-		ctx, cancelFunc := context.WithCancel(context.Background())
+		ctx, cancelFunc := context.WithCancel(b.Context())
 		http.DefaultServeMux = &http.ServeMux{}
 		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		defer cancelFunc()
@@ -4045,14 +4046,14 @@ func TestMergeDuplicates(t *testing.T) {
 func TestProcessStatsTimeout(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 	defer cancel()
 
 	statsPayload := testutil.StatsPayloadSample()
 
 	syncTestContextTimeout := func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 		defer cancel()
 
 		agnt.ClientStatsAggregator.In = make(chan *pb.ClientStatsPayload) // unbuffered channel, will block
@@ -4070,7 +4071,7 @@ func TestProcessStatsTimeout(t *testing.T) {
 	t.Run("context_timeout", func(t *testing.T) { synctest.Test(t, syncTestContextTimeout) })
 
 	syncTestContextCancelled := func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 
 		agnt.ClientStatsAggregator.In = make(chan *pb.ClientStatsPayload) // unbuffered channel, will block
 
@@ -4093,7 +4094,7 @@ func TestProcessStatsTimeout(t *testing.T) {
 	t.Run("context_cancelled", func(t *testing.T) { synctest.Test(t, syncTestContextCancelled) })
 
 	t.Run("successful_processing", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
 		defer cancel()
 
 		agnt.ClientStatsAggregator.In = make(chan *pb.ClientStatsPayload, 10)
@@ -4116,7 +4117,7 @@ func TestProcessStatsTimeout(t *testing.T) {
 }
 
 func TestSampleWithPriorityNone(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
@@ -4419,7 +4420,7 @@ func TestSpanSampling(t *testing.T) {
 			// cover the case where non-span samplers decide to keep a priority==0
 			// chunk.
 			cfg.RareSamplerEnabled = false
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			traceAgent := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 			traceAgent.Process(&api.Payload{
@@ -4450,7 +4451,7 @@ func TestSingleSpanPlusAnalyticsEvents(t *testing.T) {
 	cfg.AnalyzedRateByServiceLegacy = map[string]float64{
 		"testsvc": 1.0,
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	traceAgent := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 	singleSpanMetrics := map[string]float64{
@@ -4498,7 +4499,7 @@ func TestSingleSpanPlusAnalyticsEvents(t *testing.T) {
 func TestSetFirstTraceTags(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	traceAgent := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 	root := &pb.Span{
@@ -4753,7 +4754,7 @@ func TestProcessedTrace(t *testing.T) {
 func TestUpdateAPIKey(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 	defer cancel()
 
@@ -5050,7 +5051,7 @@ func TestWaitForStopped(t *testing.T) {
 	cfg.ReceiverPort = 0
 	cfg.ReceiverSocket = filepath.Join(t.TempDir(), "trace.sock")
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 
 	go agnt.Run()
@@ -5058,7 +5059,7 @@ func TestWaitForStopped(t *testing.T) {
 	// WaitForStopped should not return until we cancel the context.
 	done := make(chan struct{})
 	go func() {
-		agnt.WaitForStopped(context.Background())
+		agnt.WaitForStopped(t.Context())
 		close(done)
 	}()
 
@@ -5106,7 +5107,7 @@ func TestShutdownFlushSyncInSyncMode(t *testing.T) {
 	cfg.DefaultEnv = "test"
 	cfg.Hostname = "testhost"
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 
 	// Use real Concentrator (backed by real StatsWriter) but mock trace writers.
@@ -5146,7 +5147,7 @@ func TestShutdownFlushSyncInSyncMode(t *testing.T) {
 	// 3. FlushSync (sends buffer to our test server)
 	// 4. Stop writers
 	cancel()
-	agnt.WaitForStopped(context.Background())
+	agnt.WaitForStopped(t.Context())
 
 	select {
 	case <-received:
@@ -5174,7 +5175,7 @@ func newForceFlushTestAgent(t *testing.T) (*Agent, *atomic.Int32) {
 	cfg.Endpoints[0].APIKey = "test"
 	cfg.Endpoints[0].Host = srv.URL
 	cfg.SynchronousFlushing = true
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	agnt.TraceWriter = &mockTraceWriter{apiKey: "test"}
@@ -5255,7 +5256,7 @@ func TestWaitForStoppedTimeout(t *testing.T) {
 	cfg.ReceiverPort = 0
 	cfg.ReceiverSocket = filepath.Join(t.TempDir(), "trace.sock")
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 
@@ -5263,7 +5264,7 @@ func TestWaitForStoppedTimeout(t *testing.T) {
 
 	// WaitForStopped with a short timeout should return context.DeadlineExceeded
 	// while the agent is still running.
-	waitCtx, waitCancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	waitCtx, waitCancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 	defer waitCancel()
 	err := agnt.WaitForStopped(waitCtx)
 	assert.ErrorIs(t, err, context.DeadlineExceeded)

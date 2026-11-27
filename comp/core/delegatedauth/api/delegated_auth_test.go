@@ -20,7 +20,7 @@ import (
 func TestGetAPIKeyHonorsCanceledContext(t *testing.T) {
 	config := mock.New(t)
 	config.SetInTest("dd_url", "http://127.0.0.1:1")
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	_, err := GetAPIKey(ctx, config, "proof", "")

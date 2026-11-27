@@ -56,7 +56,7 @@ func TestMaxExecutionTimeBoundsBuiltinBlockedOnStdinPipe(t *testing.T) {
 			t.Cleanup(func() { _ = r.Close() })
 
 			done := make(chan error, 1)
-			go func() { done <- r.Run(context.Background(), parseScript(t, script)) }()
+			go func() { done <- r.Run(t.Context(), parseScript(t, script)) }()
 			select {
 			case err := <-done:
 				assert.ErrorIs(t, err, context.DeadlineExceeded)
@@ -80,7 +80,7 @@ func TestStdinPipeDeadlineDoesNotLeakOrStealBytes(t *testing.T) {
 
 	_, err = pw.WriteString("one\n")
 	require.NoError(t, err)
-	require.NoError(t, r.Run(context.Background(), parseScript(t, "read x")))
+	require.NoError(t, r.Run(t.Context(), parseScript(t, "read x")))
 
 	_, err = pw.WriteString("two\n")
 	require.NoError(t, err)
@@ -105,7 +105,7 @@ func TestStdinPipeDeadlineClearedAfterTimeout(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = r.Close() })
 
-	require.ErrorIs(t, r.Run(context.Background(), parseScript(t, "cat")), context.DeadlineExceeded)
+	require.ErrorIs(t, r.Run(t.Context(), parseScript(t, "cat")), context.DeadlineExceeded)
 
 	_, err = pw.WriteString("after\n")
 	require.NoError(t, err)
@@ -130,7 +130,7 @@ func TestStdinPipeDeadlinePreservesCallerDeadline(t *testing.T) {
 	r, err := New(allowAllCommandsOpt(), StdIO(pr, io.Discard, io.Discard), MaxExecutionTime(5*time.Second))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = r.Close() })
-	require.NoError(t, r.Run(context.Background(), parseScript(t, "echo hi")))
+	require.NoError(t, r.Run(t.Context(), parseScript(t, "echo hi")))
 
 	// With the caller's deadline intact, a Read on the idle pipe times out
 	// instead of blocking forever.

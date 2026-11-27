@@ -8,7 +8,6 @@
 package kubelet
 
 import (
-	"context"
 	"maps"
 	"slices"
 	"sort"
@@ -54,7 +53,7 @@ func TestDisabledCLCRunner(t *testing.T) {
 		catalog:     workloadmeta.NodeAgent,
 	}
 
-	err := c.Start(context.Background(), nil)
+	err := c.Start(t.Context(), nil)
 	require.Error(t, err)
 	assert.True(t, pkgerrors.IsDisabled(err))
 }
@@ -72,7 +71,7 @@ func TestDisabledNodefilter(t *testing.T) {
 		nodefilterEnabled: func() bool { return true },
 	}
 
-	err := c.Start(context.Background(), nil)
+	err := c.Start(t.Context(), nil)
 	require.Error(t, err)
 	assert.True(t, pkgerrors.IsDisabled(err))
 }

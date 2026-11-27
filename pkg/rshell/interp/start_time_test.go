@@ -6,7 +6,6 @@
 package interp
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"time"
@@ -42,7 +41,7 @@ func TestStartTimeSetByRun(t *testing.T) {
 	t.Cleanup(func() { r.Close() })
 
 	before := time.Now()
-	err = r.Run(context.Background(), parseScript(t, "true"))
+	err = r.Run(t.Context(), parseScript(t, "true"))
 	after := time.Now()
 	require.NoError(t, err)
 
@@ -60,7 +59,7 @@ func TestStartTimeUpdatesOnSubsequentRun(t *testing.T) {
 
 	prog := parseScript(t, "true")
 
-	err = r.Run(context.Background(), prog)
+	err = r.Run(t.Context(), prog)
 	require.NoError(t, err)
 	first := r.startTime
 
@@ -68,7 +67,7 @@ func TestStartTimeUpdatesOnSubsequentRun(t *testing.T) {
 	// timer resolution is ~15 ms, so 50 ms provides a safe margin.
 	time.Sleep(50 * time.Millisecond)
 
-	err = r.Run(context.Background(), prog)
+	err = r.Run(t.Context(), prog)
 	require.NoError(t, err)
 	second := r.startTime
 
@@ -83,7 +82,7 @@ func TestStartTimePropagatedToSubshell(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { r.Close() })
 
-	err = r.Run(context.Background(), parseScript(t, "true"))
+	err = r.Run(t.Context(), parseScript(t, "true"))
 	require.NoError(t, err)
 	require.False(t, r.startTime.IsZero())
 
@@ -100,7 +99,7 @@ func TestStartTimeResetToZeroByReset(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { r.Close() })
 
-	err = r.Run(context.Background(), parseScript(t, "true"))
+	err = r.Run(t.Context(), parseScript(t, "true"))
 	require.NoError(t, err)
 	require.False(t, r.startTime.IsZero(), "startTime should be set after Run")
 

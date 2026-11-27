@@ -29,7 +29,7 @@ func TestSchemaForeignKeysAcrossWindowsAgainstDatabase(t *testing.T) {
 	c, _ := newDefaultCheck(t, "collect_schemas:\n  enabled: true", "")
 	defer c.Teardown()
 	require.NoError(t, c.init())
-	ctx := context.Background()
+	ctx := t.Context()
 	owner := strings.ToUpper(schemaTestUser)
 	source := tableKey{conID: 1, owner: owner, table: "DD_FK_SOURCE"}
 	target := tableKey{conID: 1, owner: owner, table: "DD_FK_TARGET"}
@@ -126,7 +126,7 @@ UNION ALL SELECT 3, 'APP', 'FACT', 'Z_OWNER', 'NORMAL_IDX', 'NULL_JOIN_FLAG', 1 
 	queries := schemaIndexQueries(map[tableKey]struct{}{{conID: 3, owner: "APP", table: "FACT"}: {}})
 	require.Len(t, queries, 1)
 	query := strings.NewReplacer("cdb_indexes", "fixture_indexes", "cdb_ind_columns", "fixture_columns").Replace(queries[0].text)
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 	defer cancel()
 	rows, err := c.db.QueryxContext(ctx, fixtures+query, queries[0].args...)
 	require.NoError(t, err)
@@ -152,13 +152,13 @@ func TestSchemaContainerAvailabilityAgainstDatabase(t *testing.T) {
 	c, _ := newDefaultCheck(t, "", "")
 	defer c.Teardown()
 	require.NoError(t, c.init())
-	containers, err := c.containerNames(context.Background())
+	containers, err := c.containerNames(t.Context())
 	require.NoError(t, err)
 	require.NotEmpty(t, containers)
 	for conID := range containers {
-		require.NoError(t, c.validateSchemaContainer(context.Background(), strconv.FormatInt(conID, 10)))
+		require.NoError(t, c.validateSchemaContainer(t.Context(), strconv.FormatInt(conID, 10)))
 	}
-	require.ErrorContains(t, c.validateSchemaContainer(context.Background(), "999999"), "no longer available")
+	require.ErrorContains(t, c.validateSchemaContainer(t.Context(), "999999"), "no longer available")
 }
 
 func TestSchemaWorkerAgainstDatabase(t *testing.T) {
@@ -332,7 +332,7 @@ func setupSchemaFixtures(t *testing.T) string {
 
 // ALTER SESSION and subsequent DDL must use the same physical connection.
 func setupPDBFixture(t *testing.T, sysCheck Check) string {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	var pdb string
 	err := sysCheck.db.QueryRowContext(ctx,

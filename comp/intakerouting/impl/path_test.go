@@ -72,7 +72,7 @@ func TestNetPathCheckerAddresses(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &netPathChecker{lookup: tt.lookup}
-			reason, err := c.check(context.Background(), intakerouting.Endpoint{Host: defaultHost})
+			reason, err := c.check(t.Context(), intakerouting.Endpoint{Host: defaultHost})
 			assert.Equal(t, tt.reason, reason)
 			if tt.reason == "" {
 				assert.NoError(t, err)
@@ -91,7 +91,7 @@ func TestNetPathCheckerResolvesAbsoluteName(t *testing.T) {
 		return []netip.Addr{netip.MustParseAddr("3.233.146.1")}, nil
 	}}
 	for _, host := range []string{defaultHost, defaultHost + "."} {
-		reason, err := c.check(context.Background(), intakerouting.Endpoint{Host: host})
+		reason, err := c.check(t.Context(), intakerouting.Endpoint{Host: host})
 		require.NoError(t, err)
 		assert.Empty(t, reason)
 	}
@@ -110,7 +110,7 @@ func TestNetPathCheckerProxy(t *testing.T) {
 		assert.Equal(t, defaultHost+":8443", req.URL.Host)
 		return url.Parse("http://proxy.internal:3128")
 	}}
-	reason, err := proxied.check(context.Background(), intakerouting.Endpoint{Host: defaultHost, Port: 8443})
+	reason, err := proxied.check(t.Context(), intakerouting.Endpoint{Host: defaultHost, Port: 8443})
 	assert.Equal(t, pathProxied, reason)
 	assert.Error(t, err)
 	assert.False(t, lookupCalled, "a proxied host is not resolved")
@@ -118,12 +118,12 @@ func TestNetPathCheckerProxy(t *testing.T) {
 	invalid := &netPathChecker{lookup: lookup, proxy: func(*http.Request) (*url.URL, error) {
 		return nil, errors.New("invalid proxy URL")
 	}}
-	reason, _ = invalid.check(context.Background(), intakerouting.Endpoint{Host: defaultHost})
+	reason, _ = invalid.check(t.Context(), intakerouting.Endpoint{Host: defaultHost})
 	assert.Equal(t, pathProxied, reason)
 
 	// No proxy for this host: it is resolved.
 	direct := &netPathChecker{lookup: lookup, proxy: func(*http.Request) (*url.URL, error) { return nil, nil }}
-	reason, err = direct.check(context.Background(), intakerouting.Endpoint{Host: defaultHost})
+	reason, err = direct.check(t.Context(), intakerouting.Endpoint{Host: defaultHost})
 	require.NoError(t, err)
 	assert.Empty(t, reason)
 	assert.True(t, lookupCalled)
@@ -139,12 +139,12 @@ func TestNetPathCheckerAgentProxySettings(t *testing.T) {
 	c := newNetPathChecker(httputils.CreateHTTPTransport(cfg))
 	c.lookup = lookupReturning("3.233.146.1")
 
-	reason, err := c.check(context.Background(), intakerouting.Endpoint{Host: defaultHost})
+	reason, err := c.check(t.Context(), intakerouting.Endpoint{Host: defaultHost})
 	assert.Equal(t, pathProxied, reason)
 	require.Error(t, err)
 	assert.NotContains(t, err.Error(), "secret")
 
-	reason, err = c.check(context.Background(), intakerouting.Endpoint{Host: "agent-http-intake.logs.datadoghq.eu"})
+	reason, err = c.check(t.Context(), intakerouting.Endpoint{Host: "agent-http-intake.logs.datadoghq.eu"})
 	require.NoError(t, err)
 	assert.Empty(t, reason)
 }

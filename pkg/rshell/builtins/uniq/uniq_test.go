@@ -598,7 +598,7 @@ func TestUniqNilStdin(t *testing.T) {
 func TestUniqContextCancellation(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "in.txt", "a\na\nb\n")
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	_, _, code := runScriptCtx(ctx, t, "uniq in.txt", dir, interp.AllowedPaths([]string{dir}))
 	assert.Equal(t, 0, code)

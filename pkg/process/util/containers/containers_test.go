@@ -6,7 +6,6 @@
 package containers
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -46,7 +45,7 @@ func TestGetContainers(t *testing.T) {
 	// Workload meta + tagger
 	metadataProvider := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(context.Background()),
+		fx.Supply(t.Context()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
@@ -722,7 +721,7 @@ func TestGetContainersExcludesFilteredContainers(t *testing.T) {
 	// Workload meta + tagger
 	metadataProvider := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(context.Background()),
+		fx.Supply(t.Context()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
@@ -873,7 +872,7 @@ func (erroringTagger) Tag(types.EntityID, types.TagCardinality) ([]string, error
 func TestGetContainersDoesNotPanicOnShortID(t *testing.T) {
 	metadataProvider := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(context.Background()),
+		fx.Supply(t.Context()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
@@ -928,7 +927,7 @@ func TestGetContainersInfraTags(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			metadataProvider := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				core.MockBundle(),
-				fx.Supply(context.Background()),
+				fx.Supply(t.Context()),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 

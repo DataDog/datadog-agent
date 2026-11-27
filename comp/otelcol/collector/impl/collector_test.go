@@ -8,7 +8,6 @@
 package collectorimpl
 
 import (
-	"context"
 	"testing"
 
 	datadogextension "github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension"
@@ -117,7 +116,7 @@ func TestBridgedFactoryRotatesExtensionForwarder(t *testing.T) {
 		BuildInfo: component.NewDefaultBuildInfo(),
 	}
 
-	ext, err := factory.Create(context.Background(), set, cfg)
+	ext, err := factory.Create(t.Context(), set, cfg)
 	require.NoError(t, err)
 	require.NotNil(t, ext)
 

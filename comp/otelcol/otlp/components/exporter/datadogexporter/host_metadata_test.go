@@ -155,7 +155,7 @@ func createTestFactory(t *testing.T, serverAddr string) exporter.Factory {
 	tcfg.TraceWriter.FlushPeriodSeconds = 0.1
 	tcfg.Endpoints[0].APIKey = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	tcfg.Endpoints[0].Host = serverAddr
-	ctx := context.Background()
+	ctx := t.Context()
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, implgzip.NewComponent())
 	go traceagent.Run()
 
@@ -177,7 +177,7 @@ func TestHostMetadata_FromTraces(t *testing.T) {
 	server := createTestServer(t, c)
 	defer server.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	f := createTestFactory(t, server.URL)
 	exporter, err := f.CreateTraces(ctx, exportertest.NewNopSettings(Type), createTestCfg(t, server.URL))
 	assert.NoError(t, err)
@@ -200,7 +200,7 @@ func TestHostMetadata_FromMetrics(t *testing.T) {
 	server := createTestServer(t, c)
 	defer server.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	f := createTestFactory(t, server.URL)
 	exporter, err := f.CreateMetrics(ctx, exportertest.NewNopSettings(Type), createTestCfg(t, server.URL))
 	assert.NoError(t, err)
@@ -235,7 +235,7 @@ func TestHostMetadata_CPUFromMetrics(t *testing.T) {
 	server := createTestServer(t, c)
 	defer server.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	f := createTestFactory(t, server.URL)
 	exporter, err := f.CreateMetrics(ctx, exportertest.NewNopSettings(Type), createTestCfg(t, server.URL))
 	assert.NoError(t, err)
@@ -271,7 +271,7 @@ func TestHostMetadata_FromLogs(t *testing.T) {
 	server := createTestServer(t, c)
 	defer server.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	f := createTestFactory(t, server.URL)
 	exporter, err := f.CreateLogs(ctx, exportertest.NewNopSettings(Type), createTestCfg(t, server.URL))
 	assert.NoError(t, err)

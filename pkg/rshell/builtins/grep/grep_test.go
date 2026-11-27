@@ -506,7 +506,7 @@ func TestGrepContextCancellation(t *testing.T) {
 		sb.WriteString("line\n")
 	}
 	writeFile(t, dir, "big.txt", sb.String())
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	done := make(chan struct{})
 	go func() {

@@ -6,7 +6,6 @@
 package repository
 
 import (
-	"context"
 	"os"
 	"path"
 	"testing"
@@ -31,12 +30,12 @@ func TestRepositoriesEmpty(t *testing.T) {
 func TestRepositories(t *testing.T) {
 	repositories := newTestRepositories(t)
 
-	err := repositories.Create(context.Background(), "repo1", "v1", t.TempDir())
+	err := repositories.Create(t.Context(), "repo1", "v1", t.TempDir())
 	assert.NoError(t, err)
 	repository := repositories.Get("repo1")
-	err = repository.SetExperiment(context.Background(), "v2", t.TempDir())
+	err = repository.SetExperiment(t.Context(), "v2", t.TempDir())
 	assert.NoError(t, err)
-	err = repositories.Create(context.Background(), "repo2", "v1.0", t.TempDir())
+	err = repositories.Create(t.Context(), "repo2", "v1.0", t.TempDir())
 	assert.NoError(t, err)
 
 	state, err := repositories.GetStates()
@@ -48,9 +47,9 @@ func TestRepositories(t *testing.T) {
 
 func TestRepositoriesReopen(t *testing.T) {
 	repositories := newTestRepositories(t)
-	err := repositories.Create(context.Background(), "repo1", "v1", t.TempDir())
+	err := repositories.Create(t.Context(), "repo1", "v1", t.TempDir())
 	assert.NoError(t, err)
-	err = repositories.Create(context.Background(), "repo2", "v1", t.TempDir())
+	err = repositories.Create(t.Context(), "repo2", "v1", t.TempDir())
 	assert.NoError(t, err)
 
 	repositories = NewRepositories(repositories.rootPath, nil)

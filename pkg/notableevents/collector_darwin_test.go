@@ -269,11 +269,11 @@ func TestDarwinCollectorFirstBaselineSuppressesHistory(t *testing.T) {
 	writeIPSFile(t, reportDir, "OldApp_1.ips", "OldApp", "/Applications/OldApp", "INCIDENT-OLD")
 	collector := newTestCollector(t, reportDir, &fakeDarwinBookmarkStore{})
 
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	assert.Empty(t, collector.Pending())
 
 	writeIPSFile(t, reportDir, "NewApp_1.ips", "NewApp", "/Applications/NewApp", "INCIDENT-NEW")
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	pending := collector.Pending()
 	require.Len(t, pending, 1)
@@ -302,7 +302,7 @@ func TestDarwinCollectorStableMalformedBaselineProvenance(t *testing.T) {
 			store := &fakeDarwinBookmarkStore{}
 			collector := newTestCollector(t, reportDir, store)
 
-			collector.scanOnce(context.Background())
+			collector.scanOnce(t.Context())
 			dirState := collector.state.Directories[hashString(filepath.Clean(reportDir))]
 			require.NotNil(t, dirState)
 			assert.True(t, dirState.Initialized)
@@ -312,14 +312,14 @@ func TestDarwinCollectorStableMalformedBaselineProvenance(t *testing.T) {
 
 			restarted := newTestCollector(t, reportDir, store)
 			writeIPSFile(t, reportDir, filepath.Base(path), "PartialApp", "/Applications/PartialApp", "INCIDENT-PARTIAL")
-			restarted.scanOnce(context.Background())
+			restarted.scanOnce(t.Context())
 			dirState = restarted.state.Directories[hashString(filepath.Clean(reportDir))]
 			assert.False(t, dirState.Files["PartialApp_1.ips"].BaselineOnly)
 			assert.Empty(t, restarted.Pending(), "completed pre-existing malformed report must remain baseline history")
 			assert.Contains(t, restarted.state.Acknowledged, eventID("incident:INCIDENT-PARTIAL"))
 
 			writeIPSFile(t, reportDir, "AfterBaseline.ips", "AfterBaseline", "/Applications/AfterBaseline", "INCIDENT-AFTER")
-			restarted.scanOnce(context.Background())
+			restarted.scanOnce(t.Context())
 			require.Len(t, restarted.Pending(), 1)
 			assert.Equal(t, eventID("incident:INCIDENT-AFTER"), restarted.Pending()[0].ID)
 		})
@@ -333,7 +333,7 @@ func TestDarwinCollectorPermanentMalformedReportDoesNotBlockBaseline(t *testing.
 	require.NoError(t, os.WriteFile(filepath.Join(reportDir, "Malformed.ips"), []byte(content), 0o600))
 	collector := newTestCollector(t, reportDir, &fakeDarwinBookmarkStore{})
 
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	dirState := collector.state.Directories[hashString(filepath.Clean(reportDir))]
 	require.NotNil(t, dirState)
@@ -347,16 +347,16 @@ func TestDarwinCollectorPostBaselineMalformedReportRemainsDeliveryEligible(t *te
 	reportDir := realTempDir(t)
 	path := filepath.Join(reportDir, "Later.ips")
 	collector := newTestCollector(t, reportDir, &fakeDarwinBookmarkStore{})
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	require.NoError(t, os.WriteFile(path, nil, 0o600))
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	dirState := collector.state.Directories[hashString(filepath.Clean(reportDir))]
 	require.NotNil(t, dirState)
 	assert.False(t, dirState.Files["Later.ips"].BaselineOnly)
 
 	writeIPSFile(t, reportDir, filepath.Base(path), "Later", "/Applications/Later", "INCIDENT-LATER")
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	require.Len(t, collector.Pending(), 1)
 	assert.Equal(t, eventID("incident:INCIDENT-LATER"), collector.Pending()[0].ID)
@@ -378,11 +378,11 @@ func TestDarwinCollectorDeliverableCopyOverridesBaselineOnlyCopy(t *testing.T) {
 		nil,
 	)
 	require.NoError(t, err)
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	writeIPSFile(t, baselineDir, filepath.Base(baselinePath), "App", "/Applications/App", "INCIDENT-COPY")
 	writeIPSFile(t, deliveryDir, "DeliveryCopy.ips", "App", "/Applications/App", "INCIDENT-COPY")
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	id := eventID("incident:INCIDENT-COPY")
 	assert.Contains(t, collector.state.Pending, id)
@@ -453,9 +453,9 @@ func TestDiagnosticReportOpenErrorsControlBaselineCompletion(t *testing.T) {
 func TestDarwinCollectorPendingIsRepeatableAndDeepCopied(t *testing.T) {
 	reportDir := realTempDir(t)
 	collector := newTestCollector(t, reportDir, &fakeDarwinBookmarkStore{})
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	writeIPSFile(t, reportDir, "App.ips", "App", "/Applications/App", "INCIDENT-PENDING")
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	first := collector.Pending()
 	second := collector.Pending()
@@ -474,9 +474,9 @@ func TestDarwinCollectorAckIsIdempotent(t *testing.T) {
 	store := &fakeDarwinBookmarkStore{}
 	reportDir := realTempDir(t)
 	collector := newTestCollector(t, reportDir, store)
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	writeIPSFile(t, reportDir, "App.ips", "App", "/Applications/App", "INCIDENT-ACK")
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	id := collector.Pending()[0].ID
 
 	require.NoError(t, collector.Ack([]string{id, id, "unknown"}))
@@ -486,7 +486,7 @@ func TestDarwinCollectorAckIsIdempotent(t *testing.T) {
 	assert.Equal(t, savesAfterAck, store.saveCalls)
 	assert.Contains(t, store.state.Acknowledged, id)
 
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	assert.Empty(t, collector.Pending())
 }
 
@@ -508,7 +508,7 @@ func TestDarwinCollectorPendingAndAckRemainResponsiveDuringScan(t *testing.T) {
 
 	scanDone := make(chan struct{})
 	go func() {
-		collector.scanOnce(context.Background())
+		collector.scanOnce(t.Context())
 		close(scanDone)
 	}()
 	<-scanStarted
@@ -553,7 +553,7 @@ func TestDarwinCollectorBlockedScanSaveDoesNotBlockPendingOrAck(t *testing.T) {
 
 	scanDone := make(chan struct{})
 	go func() {
-		collector.scanOnce(context.Background())
+		collector.scanOnce(t.Context())
 		close(scanDone)
 	}()
 	<-saveStarted
@@ -614,7 +614,7 @@ func TestDarwinCollectorBlockedAckSaveSerializesOtherCommits(t *testing.T) {
 
 	scanDone := make(chan struct{})
 	go func() {
-		collector.scanOnce(context.Background())
+		collector.scanOnce(t.Context())
 		close(scanDone)
 	}()
 	<-scanDone
@@ -631,9 +631,9 @@ func TestDarwinCollectorAckSaveFailureLeavesPending(t *testing.T) {
 	store := &fakeDarwinBookmarkStore{}
 	reportDir := realTempDir(t)
 	collector := newTestCollector(t, reportDir, store)
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	writeIPSFile(t, reportDir, "App.ips", "App", "/Applications/App", "INCIDENT-ACK-FAIL")
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	id := collector.Pending()[0].ID
 
 	store.saveErr = errors.New("disk full")
@@ -653,9 +653,9 @@ func TestDarwinCollectorAckKeepsAcknowledgementsBounded(t *testing.T) {
 	store := &fakeDarwinBookmarkStore{}
 	reportDir := realTempDir(t)
 	collector := newTestCollector(t, reportDir, store)
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	writeIPSFile(t, reportDir, "App.ips", "App", "/Applications/App", "INCIDENT-ACK-BOUND")
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	id := collector.Pending()[0].ID
 	for index := 0; index < collector.maxAcknowledged; index++ {
 		collector.state.Acknowledged[eventID(fmt.Sprintf("old-%d", index))] = 1
@@ -674,7 +674,7 @@ func TestDarwinCollectorPersistsPendingBeforePublishing(t *testing.T) {
 	store := &fakeDarwinBookmarkStore{}
 	reportDir := realTempDir(t)
 	collector := newTestCollector(t, reportDir, store)
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	writeIPSFile(t, reportDir, "App.ips", "App", "/Applications/App", "INCIDENT-SAVE-FIRST")
 
 	id := eventID("incident:INCIDENT-SAVE-FIRST")
@@ -684,7 +684,7 @@ func TestDarwinCollectorPersistsPendingBeforePublishing(t *testing.T) {
 		liveDirectory := collector.state.Directories[hashString(filepath.Clean(reportDir))]
 		assert.NotContains(t, liveDirectory.Files, "App.ips")
 	}
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	assert.Contains(t, collector.state.Pending, id)
 }
@@ -704,7 +704,7 @@ func TestDarwinCollectorPersistsBaselineBeforePublishing(t *testing.T) {
 		assert.Contains(t, candidate.Directories[dirKey].Files, "Old.ips")
 		assert.NotContains(t, collector.state.Directories, dirKey)
 	}
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	assert.True(t, collector.state.Directories[dirKey].Initialized)
 }
@@ -715,12 +715,12 @@ func TestDarwinCollectorPendingSaveFailurePreservesLiveState(t *testing.T) {
 	store := &fakeDarwinBookmarkStore{}
 	reportDir := realTempDir(t)
 	collector := newTestCollector(t, reportDir, store)
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	liveBefore := cloneDarwinBookmarkState(collector.state)
 	writeIPSFile(t, reportDir, "App.ips", "App", "/Applications/App", "INCIDENT-FAIL")
 
 	store.saveErr = errors.New("disk full")
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	assert.Equal(t, liveBefore, collector.state)
 	assert.Empty(t, collector.Pending())
@@ -735,7 +735,7 @@ func TestDarwinCollectorFailedFirstBaselineIsNotVisible(t *testing.T) {
 	writeIPSFile(t, reportDir, "Old.ips", "Old", "/Applications/Old", "INCIDENT-OLD")
 	collector := newTestCollector(t, reportDir, store)
 
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	assert.Empty(t, collector.state.Directories)
 	assert.Empty(t, collector.state.Acknowledged)
@@ -760,7 +760,7 @@ func TestDarwinCollectorStagesDirectorySyncAmbiguity(t *testing.T) {
 	}
 	collector := newTestCollector(t, reportDir, store)
 
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	require.NotNil(t, collector.stagedScan)
 	assert.Empty(t, collector.state.Directories)
@@ -770,7 +770,7 @@ func TestDarwinCollectorStagesDirectorySyncAmbiguity(t *testing.T) {
 	assert.Equal(t, collector.stagedScan.candidate, loaded, "rename may have committed despite Save returning an error")
 
 	store.fsync = func(int) error { return nil }
-	collector.retryMaintenance(context.Background())
+	collector.retryMaintenance(t.Context())
 	assert.Nil(t, collector.stagedScan)
 	assert.Equal(t, loaded, collector.state)
 	assert.Empty(t, collector.Pending())
@@ -817,12 +817,12 @@ func TestDarwinCollectorRecoversStageBeforeRescanningNewCrash(t *testing.T) {
 	writeIPSFile(t, reportDir, "Old.ips", "Old", "/Applications/Old", "INCIDENT-STAGED-OLD")
 	collector := newTestCollector(t, reportDir, store)
 
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	require.NotNil(t, collector.stagedScan)
 	writeIPSFile(t, reportDir, "New.ips", "New", "/Applications/New", "INCIDENT-STAGED-NEW")
 	store.saveErr = nil
 
-	collector.retryMaintenance(context.Background())
+	collector.retryMaintenance(t.Context())
 
 	assert.Nil(t, collector.stagedScan)
 	pending := collector.Pending()
@@ -835,15 +835,15 @@ func TestDarwinCollectorAckBlockedWhileScanStaged(t *testing.T) {
 	store := &fakeDarwinBookmarkStore{}
 	reportDir := realTempDir(t)
 	collector := newTestCollector(t, reportDir, store)
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	writeIPSFile(t, reportDir, "First.ips", "First", "/Applications/First", "INCIDENT-STAGED-ACK-FIRST")
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	firstID := eventID("incident:INCIDENT-STAGED-ACK-FIRST")
 	require.Contains(t, collector.state.Pending, firstID)
 
 	writeIPSFile(t, reportDir, "Second.ips", "Second", "/Applications/Second", "INCIDENT-STAGED-ACK-SECOND")
 	store.saveErr = errors.New("disk full")
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	require.NotNil(t, collector.stagedScan)
 	stateBeforeAck := cloneDarwinBookmarkState(collector.state)
 	stageBeforeAck := newStagedDarwinScan(collector.stagedScan.candidate)
@@ -861,7 +861,7 @@ func TestDarwinCollectorAckBlockedWhileScanStaged(t *testing.T) {
 	assert.Equal(t, runtimeBeforeAck, collector.stagedRuntime)
 
 	store.saveErr = nil
-	collector.retryMaintenance(context.Background())
+	collector.retryMaintenance(t.Context())
 	require.NoError(t, collector.Ack([]string{firstID}))
 	assert.NotContains(t, collector.state.Pending, firstID)
 	assert.Contains(t, collector.state.Acknowledged, firstID)
@@ -884,13 +884,13 @@ func TestDarwinCollectorStageRecoveryDoesNotRestoreRemovedDirectory(t *testing.T
 	)
 	require.NoError(t, err)
 
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	require.NotNil(t, collector.stagedScan)
 	assert.Contains(t, collector.retryDirs, directoryRuntimeKey(removedDir))
 
 	discovered = discovered[:1]
 	store.saveErr = nil
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	assert.Nil(t, collector.stagedScan)
 	assert.NotContains(t, collector.knownDirs, directoryRuntimeKey(removedDir))
@@ -919,14 +919,14 @@ func TestDarwinCollectorQueueFullRetriesAfterAck(t *testing.T) {
 	store := &fakeDarwinBookmarkStore{}
 	reportDir := realTempDir(t)
 	collector := newTestCollector(t, reportDir, store)
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	for index := 0; index < maxDarwinPendingEvents; index++ {
 		id := fmt.Sprintf("queued-%03d", index)
 		collector.state.Pending[id] = Event{ID: id}
 	}
 	writeIPSFile(t, reportDir, "Later.ips", "Later", "/Applications/Later", "INCIDENT-LATER")
 
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	laterID := eventID("incident:INCIDENT-LATER")
 	assert.NotContains(t, collector.state.Pending, laterID)
@@ -934,7 +934,7 @@ func TestDarwinCollectorQueueFullRetriesAfterAck(t *testing.T) {
 	assert.Contains(t, collector.retryDirs, directoryRuntimeKey(reportDir))
 
 	require.NoError(t, collector.Ack([]string{"queued-000"}))
-	collector.retryMaintenance(context.Background())
+	collector.retryMaintenance(t.Context())
 
 	assert.Contains(t, collector.state.Pending, laterID)
 	assert.Contains(t, collector.state.Directories[hashString(filepath.Clean(reportDir))].Files, "Later.ips")
@@ -960,7 +960,7 @@ func TestDarwinCollectorSaturatedDirectoryDoesNotBlockOtherDirectories(t *testin
 		nil,
 	)
 	require.NoError(t, err)
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	for index := 0; index <= maxDarwinFilesPerDirectory; index++ {
 		name := fmt.Sprintf("%03d-%s.ips", index, strings.Repeat("x", maxReportBasenameSize-len("000-.ips")))
@@ -968,7 +968,7 @@ func TestDarwinCollectorSaturatedDirectoryDoesNotBlockOtherDirectories(t *testin
 	}
 	writeIPSFile(t, healthyDir, "Healthy.ips", "Healthy", "/Applications/Healthy", "INCIDENT-HEALTHY")
 
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	hostileState := collector.state.Directories[hashString(filepath.Clean(hostileDir))]
 	require.NotNil(t, hostileState)
@@ -995,7 +995,7 @@ func TestDarwinCollectorSaturationRecoveryRebaselines(t *testing.T) {
 		paths = append(paths, filepath.Join(reportDir, name))
 	}
 
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	dirState := collector.state.Directories[hashString(filepath.Clean(reportDir))]
 	require.NotNil(t, dirState)
 	assert.True(t, dirState.Saturated)
@@ -1005,14 +1005,14 @@ func TestDarwinCollectorSaturationRecoveryRebaselines(t *testing.T) {
 	for _, path := range paths[2:] {
 		require.NoError(t, os.Remove(path))
 	}
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	dirState = collector.state.Directories[hashString(filepath.Clean(reportDir))]
 	assert.False(t, dirState.Saturated)
 	assert.True(t, dirState.Initialized)
 	assert.Empty(t, collector.Pending(), "reports present during saturation must become baseline history")
 
 	writeIPSFile(t, reportDir, "New.ips", "New", "/Applications/New", "INCIDENT-NEW-AFTER-SATURATION")
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	require.Len(t, collector.Pending(), 1)
 	assert.Equal(t, eventID("incident:INCIDENT-NEW-AFTER-SATURATION"), collector.Pending()[0].ID)
 }
@@ -1022,15 +1022,15 @@ func TestDarwinCollectorPendingSurvivesRestart(t *testing.T) {
 	store := &fakeDarwinBookmarkStore{}
 	reportDir := realTempDir(t)
 	first := newTestCollector(t, reportDir, store)
-	first.scanOnce(context.Background())
+	first.scanOnce(t.Context())
 	writeIPSFile(t, reportDir, "App.ips", "App", "/Applications/App", "INCIDENT-RESTART")
-	first.scanOnce(context.Background())
+	first.scanOnce(t.Context())
 	expected := first.Pending()
 	require.Len(t, expected, 1)
 
 	restarted := newTestCollector(t, reportDir, store)
 	assert.Equal(t, expected, restarted.Pending(), "persisted pending events must be available before the first rescan")
-	restarted.scanOnce(context.Background())
+	restarted.scanOnce(t.Context())
 	assert.Equal(t, expected, restarted.Pending())
 }
 
@@ -1039,9 +1039,9 @@ func TestDarwinCollectorReconstructsMissingPendingPayload(t *testing.T) {
 	store := &fakeDarwinBookmarkStore{}
 	reportDir := realTempDir(t)
 	first := newTestCollector(t, reportDir, store)
-	first.scanOnce(context.Background())
+	first.scanOnce(t.Context())
 	writeIPSFile(t, reportDir, "App.ips", "App", "/Applications/App", "INCIDENT-RECONSTRUCT")
-	first.scanOnce(context.Background())
+	first.scanOnce(t.Context())
 	id := first.Pending()[0].ID
 
 	// Simulate a bookmark written by an intermediate implementation that
@@ -1049,7 +1049,7 @@ func TestDarwinCollectorReconstructsMissingPendingPayload(t *testing.T) {
 	delete(store.state.Pending, id)
 	restarted := newTestCollector(t, reportDir, store)
 	assert.Empty(t, restarted.Pending())
-	restarted.scanOnce(context.Background())
+	restarted.scanOnce(t.Context())
 	require.Len(t, restarted.Pending(), 1)
 	assert.Equal(t, id, restarted.Pending()[0].ID)
 }
@@ -1059,11 +1059,11 @@ func TestDarwinCollectorReportsCrashCreatedWhileStopped(t *testing.T) {
 	store := &fakeDarwinBookmarkStore{}
 	reportDir := realTempDir(t)
 	first := newTestCollector(t, reportDir, store)
-	first.scanOnce(context.Background())
+	first.scanOnce(t.Context())
 
 	writeIPSFile(t, reportDir, "Downtime.ips", "Downtime", "/Applications/Downtime", "INCIDENT-DOWNTIME")
 	restarted := newTestCollector(t, reportDir, store)
-	restarted.scanOnce(context.Background())
+	restarted.scanOnce(t.Context())
 	require.Len(t, restarted.Pending(), 1)
 	assert.Equal(t, eventID("incident:INCIDENT-DOWNTIME"), restarted.Pending()[0].ID)
 }
@@ -1083,11 +1083,11 @@ func TestDarwinCollectorDeduplicatesIncidentAcrossDirectories(t *testing.T) {
 		nil,
 	)
 	require.NoError(t, err)
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	writeIPSFile(t, systemDir, "SystemCopy.ips", "App", "/Applications/App", "INCIDENT-COPY")
 	writeIPSFile(t, userDir, "UserCopy.ips", "App", "/Applications/App", "INCIDENT-COPY")
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	require.Len(t, collector.Pending(), 1)
 }
 
@@ -1119,15 +1119,15 @@ func TestDarwinCollectorDirectoryPermutationProducesSameIncidentState(t *testing
 	require.NoError(t, err)
 	first.now = func() time.Time { return fixedNow }
 	second.now = func() time.Time { return fixedNow }
-	first.scanOnce(context.Background())
-	second.scanOnce(context.Background())
+	first.scanOnce(t.Context())
+	second.scanOnce(t.Context())
 
 	writeIPSFile(t, initializedDir, "InitializedCopy.ips", "Initialized", "/Applications/Initialized", "INCIDENT-PERMUTATION")
 	writeIPSFile(t, baselineDir, "BaselineCopy.ips", "Baseline", "/Applications/Baseline", "INCIDENT-PERMUTATION")
 	firstOrder = []reportDirectory{initialized, baseline}
 	secondOrder = []reportDirectory{baseline, initialized}
-	first.scanOnce(context.Background())
-	second.scanOnce(context.Background())
+	first.scanOnce(t.Context())
+	second.scanOnce(t.Context())
 
 	id := eventID("incident:INCIDENT-PERMUTATION")
 	require.Equal(t, first.state, second.state)
@@ -1145,7 +1145,7 @@ func TestDarwinCollectorDirectoryPermutationProducesSameIncidentState(t *testing
 	)
 	require.NoError(t, restartErr)
 	restarted.now = func() time.Time { return fixedNow }
-	restarted.scanOnce(context.Background())
+	restarted.scanOnce(t.Context())
 	assert.Contains(t, restarted.state.Pending, id)
 	assert.NotContains(t, restarted.state.Acknowledged, id)
 	require.NoError(t, validateDarwinBookmarkState(restarted.state))
@@ -1172,7 +1172,7 @@ func TestDarwinCollectorBaselineOnlyDuplicateRemainsAcknowledgedAcrossPermutatio
 		)
 		require.NoError(t, err)
 		collector.now = func() time.Time { return fixedNow }
-		collector.scanOnce(context.Background())
+		collector.scanOnce(t.Context())
 		states = append(states, cloneDarwinBookmarkState(collector.state))
 	}
 
@@ -1239,7 +1239,7 @@ func TestDarwinCollectorCanceledPartialScanDefersIncidentDisposition(t *testing.
 		}}, nil
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan struct{})
 	go func() {
 		collector.scanDirectoriesLocked(ctx, []reportDirectory{dirs[0], dirs[1]})
@@ -1269,7 +1269,7 @@ func TestDarwinCollectorCanceledPartialScanDefersIncidentDisposition(t *testing.
 			},
 		}}, nil
 	}
-	collector.scanDirectoriesLocked(context.Background(), []reportDirectory{dirs[0], dirs[1]})
+	collector.scanDirectoriesLocked(t.Context(), []reportDirectory{dirs[0], dirs[1]})
 
 	require.Contains(t, collector.state.Pending, event.ID)
 	assert.Equal(t, directoryRuntimeKey(dirs[1].path), collector.state.Pending[event.ID].Title)
@@ -1322,7 +1322,7 @@ func TestDarwinCollectorCancellationPreservesUnconsumedBaselineProvenance(t *tes
 		}, nil
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan struct{})
 	go func() {
 		collector.scanDirectoriesLocked(ctx, dirs)
@@ -1352,7 +1352,7 @@ func TestDarwinCollectorCancellationPreservesUnconsumedBaselineProvenance(t *tes
 			}},
 		}, nil
 	}
-	collector.scanDirectoriesLocked(context.Background(), dirs)
+	collector.scanDirectoriesLocked(t.Context(), dirs)
 
 	fileState = collector.state.Directories[stateKey].Files["Baseline.ips"]
 	assert.False(t, fileState.BaselineOnly)
@@ -1413,7 +1413,7 @@ func TestDarwinCollectorOverflowPreservesUnconsumedBaselineProvenance(t *testing
 		}}, nil
 	}
 
-	collector.scanDirectoriesLocked(context.Background(), dirs)
+	collector.scanDirectoriesLocked(t.Context(), dirs)
 
 	fileState := collector.state.Directories[stateKey].Files["Baseline.ips"]
 	assert.True(t, fileState.BaselineOnly)
@@ -1437,16 +1437,16 @@ func TestDarwinCollectorNewDirectoryBaselineKeepsCrossDirectoryIncidentPending(t
 		nil,
 	)
 	require.NoError(t, err)
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	writeIPSFile(t, systemDir, "SystemCopy.ips", "App", "/Applications/App", "INCIDENT-NEW-DIR-COPY")
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	id := eventID("incident:INCIDENT-NEW-DIR-COPY")
 	require.Contains(t, collector.state.Pending, id)
 
 	writeIPSFile(t, userDir, "UserCopy.ips", "App", "/Applications/App", "INCIDENT-NEW-DIR-COPY")
 	discovered = append(discovered, reportDirectory{path: userDir, scope: "user"})
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	assert.Contains(t, collector.state.Pending, id)
 	assert.NotContains(t, collector.state.Acknowledged, id)
@@ -1460,7 +1460,7 @@ func TestDarwinCollectorNewDirectoryBaselineKeepsCrossDirectoryIncidentPending(t
 		nil,
 	)
 	require.NoError(t, restartErr)
-	restarted.scanOnce(context.Background())
+	restarted.scanOnce(t.Context())
 	require.Len(t, restarted.Pending(), 1)
 	assert.Equal(t, id, restarted.Pending()[0].ID)
 }
@@ -1479,7 +1479,7 @@ func TestDarwinCollectorSaturationRebaselineKeepsCrossDirectoryIncidentPending(t
 		nil,
 	)
 	require.NoError(t, err)
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	saturatedPaths := make([]string, 0, maxDarwinFilesPerDirectory+1)
 	for index := 0; index <= maxDarwinFilesPerDirectory; index++ {
@@ -1487,12 +1487,12 @@ func TestDarwinCollectorSaturationRebaselineKeepsCrossDirectoryIncidentPending(t
 		writeIPSFile(t, saturatedDir, name, "Old", "/Applications/Old", fmt.Sprintf("INCIDENT-SATURATED-%03d", index))
 		saturatedPaths = append(saturatedPaths, filepath.Join(saturatedDir, name))
 	}
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	saturatedKey := hashString(filepath.Clean(saturatedDir))
 	require.True(t, collector.state.Directories[saturatedKey].Saturated)
 
 	writeIPSFile(t, systemDir, "SystemCopy.ips", "App", "/Applications/App", "INCIDENT-SATURATION-COPY")
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	id := eventID("incident:INCIDENT-SATURATION-COPY")
 	require.Contains(t, collector.state.Pending, id)
 
@@ -1500,7 +1500,7 @@ func TestDarwinCollectorSaturationRebaselineKeepsCrossDirectoryIncidentPending(t
 		require.NoError(t, os.Remove(path))
 	}
 	writeIPSFile(t, saturatedDir, "UserCopy.ips", "App", "/Applications/App", "INCIDENT-SATURATION-COPY")
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	assert.False(t, collector.state.Directories[saturatedKey].Saturated)
 	assert.Contains(t, collector.state.Pending, id)
@@ -1514,13 +1514,13 @@ func TestDarwinCollectorPrunesFilesButRetainsPending(t *testing.T) {
 	reportDir := realTempDir(t)
 	path := filepath.Join(reportDir, "App.ips")
 	collector := newTestCollector(t, reportDir, &fakeDarwinBookmarkStore{})
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	writeIPSFile(t, reportDir, filepath.Base(path), "App", "/Applications/App", "INCIDENT-PRUNE")
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	id := collector.Pending()[0].ID
 
 	require.NoError(t, os.Remove(path))
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	assert.Contains(t, collector.state.Pending, id)
 	dirState := collector.state.Directories[hashString(filepath.Clean(reportDir))]
 	assert.Empty(t, dirState.Files)
@@ -1533,7 +1533,7 @@ func TestDarwinCollectorRecoversCorruptBookmarkByBaselining(t *testing.T) {
 	writeIPSFile(t, reportDir, "Old.ips", "Old", "/Applications/Old", "INCIDENT-CORRUPT")
 
 	collector := newTestCollector(t, reportDir, store)
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	assert.Empty(t, collector.Pending())
 	require.NotNil(t, store.state)
 	assert.Equal(t, darwinBookmarkSchemaVersion, store.state.Version)
@@ -1666,7 +1666,7 @@ func newShutdownTestCollector(
 func runShutdownCheck(t *testing.T, collector *Collector) {
 	t.Helper()
 	collector.checkShutdownCauseOnce()
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 }
 
 // TestDarwinCollectorChecksShutdownCauseBeforeScanning pins the call site: the
@@ -1918,7 +1918,7 @@ func TestDarwinCollectorLeavesNoShutdownStateWhenSaveFails(t *testing.T) {
 	// Reading the property is cheap; a warning per reconcile tick is not.
 	for iteration := 0; iteration < 3; iteration++ {
 		collector.retryShutdownCauseIfDeferred()
-		collector.scanOnce(context.Background())
+		collector.scanOnce(t.Context())
 	}
 
 	assert.Empty(t, collector.Pending())
@@ -1948,7 +1948,7 @@ func TestDarwinCollectorRecoversShutdownCauseFromATransientSaveFailure(t *testin
 	// Mirrors run()'s reconcile arm: retry the deferred check, then scan.
 	for iteration := 0; iteration < 2; iteration++ {
 		collector.retryShutdownCauseIfDeferred()
-		collector.scanOnce(context.Background())
+		collector.scanOnce(t.Context())
 	}
 
 	require.Len(t, collector.Pending(), 1)
@@ -2075,9 +2075,9 @@ func TestDarwinCollectorShutdownEventUsesFallbackTimestamp(t *testing.T) {
 func TestDarwinCollectorStatsReportSteadyState(t *testing.T) {
 	reportDir := realTempDir(t)
 	collector := newTestCollector(t, reportDir, &fakeDarwinBookmarkStore{})
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	writeIPSFile(t, reportDir, "App.ips", "App", "/Applications/App", "INCIDENT-STATS-STEADY")
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	stats := collector.Stats()
 	assert.Equal(t, 1, stats.PendingEvents)
@@ -2101,11 +2101,11 @@ func TestDarwinCollectorStatsCountPersistenceFailures(t *testing.T) {
 	reportDir := realTempDir(t)
 	store := &fakeDarwinBookmarkStore{}
 	collector := newTestCollector(t, reportDir, store)
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	store.saveErr = errors.New("disk full")
 	writeIPSFile(t, reportDir, "App.ips", "App", "/Applications/App", "INCIDENT-STATS-SAVE")
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	stats := collector.Stats()
 	assert.Equal(t, uint64(1), stats.PersistenceErrors)
@@ -2113,7 +2113,7 @@ func TestDarwinCollectorStatsCountPersistenceFailures(t *testing.T) {
 	assert.Equal(t, 1, stats.RetryDirectories)
 
 	store.saveErr = nil
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	stats = collector.Stats()
 	assert.False(t, stats.BookmarkStagePending)
@@ -2126,14 +2126,14 @@ func TestDarwinCollectorStatsCountPersistenceFailures(t *testing.T) {
 func TestDarwinCollectorStatsCountCapacityDeferrals(t *testing.T) {
 	reportDir := realTempDir(t)
 	collector := newTestCollector(t, reportDir, &fakeDarwinBookmarkStore{})
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	for index := 0; index < maxDarwinPendingEvents; index++ {
 		id := fmt.Sprintf("queued-%03d", index)
 		collector.state.Pending[id] = Event{ID: id}
 	}
 	writeIPSFile(t, reportDir, "Later.ips", "Later", "/Applications/Later", "INCIDENT-STATS-FULL")
 
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	stats := collector.Stats()
 	assert.Equal(t, uint64(1), stats.CapacityDeferrals)
@@ -2183,7 +2183,7 @@ func TestDarwinCollectorStatsSplitBaselineSuppression(t *testing.T) {
 	collector := newTestCollector(t, reportDir, &fakeDarwinBookmarkStore{})
 	writeIPSFile(t, reportDir, "Old.ips", "Old", "/Applications/Old", "INCIDENT-STATS-OLD")
 
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	stats := collector.Stats()
 	assert.Equal(t, uint64(1), stats.BaselineSuppressedFirstRun)
@@ -2194,7 +2194,7 @@ func TestDarwinCollectorStatsSplitBaselineSuppression(t *testing.T) {
 		name := fmt.Sprintf("Flood-%03d.ips", index)
 		writeIPSFile(t, reportDir, name, "Flood", "/Applications/Flood", fmt.Sprintf("INCIDENT-STATS-FLOOD-%03d", index))
 	}
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	require.True(t, collector.state.Directories[hashString(filepath.Clean(reportDir))].Saturated)
 	assert.Equal(t, uint64(1), collector.Stats().BaselineSuppressedFirstRun,
@@ -2203,7 +2203,7 @@ func TestDarwinCollectorStatsSplitBaselineSuppression(t *testing.T) {
 	for index := 2; index <= maxDarwinFilesPerDirectory; index++ {
 		require.NoError(t, os.Remove(filepath.Join(reportDir, fmt.Sprintf("Flood-%03d.ips", index))))
 	}
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	stats = collector.Stats()
 	assert.Zero(t, stats.SaturatedDirectories)
@@ -2217,7 +2217,7 @@ func TestDarwinCollectorStatsSplitBaselineSuppression(t *testing.T) {
 func TestDarwinCollectorStatsTrackRetryDirectories(t *testing.T) {
 	reportDir := realTempDir(t)
 	collector := newTestCollector(t, reportDir, &fakeDarwinBookmarkStore{})
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	require.Zero(t, collector.Stats().RetryDirectories)
 	dir := reportDirectory{path: reportDir, scope: "system"}
 
@@ -2271,7 +2271,7 @@ func TestDarwinCollectorStatsTrackWatcherLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, collector.Stats().WatcherActive)
 
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	stats := collector.Stats()
 	assert.True(t, stats.WatcherActive)
 	assert.Zero(t, stats.WatcherRestarts, "the initial attach is not a restart")
@@ -2312,7 +2312,7 @@ func TestDarwinCollectorStatsCountReattachAfterFailedRestore(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 	require.True(t, collector.Stats().WatcherActive)
 	require.Zero(t, collector.Stats().WatcherRestarts)
 
@@ -2325,7 +2325,7 @@ func TestDarwinCollectorStatsCountReattachAfterFailedRestore(t *testing.T) {
 	require.Zero(t, collector.Stats().WatcherRestarts)
 
 	createErr = nil
-	collector.scanOnce(context.Background())
+	collector.scanOnce(t.Context())
 
 	stats := collector.Stats()
 	assert.True(t, stats.WatcherActive)

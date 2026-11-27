@@ -881,7 +881,7 @@ func TestStartPodStoreOnGate(t *testing.T) {
 		autoscalingGate: gate,
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	done := make(chan struct{})

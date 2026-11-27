@@ -351,7 +351,7 @@ func makeCtn(value v1.Metrics, typeURL string, taskMetricsError error) container
 // TestCleanupContextOutlivesCaller checks that the containerd namespace
 // survives and the caller's cancellation does not.
 func TestCleanupContextOutlivesCaller(t *testing.T) {
-	ctx, cancel := context.WithCancel(namespaces.WithNamespace(context.Background(), "k8s.io"))
+	ctx, cancel := context.WithCancel(namespaces.WithNamespace(t.Context(), "k8s.io"))
 	cancel()
 
 	releaseCtx, releaseCancel := cleanupContext(ctx)
@@ -426,7 +426,7 @@ func TestUnpackedSnapshotter(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := unpackedSnapshotter(context.Background(), &unpackedImage{unpacked: tt.unpacked, errs: tt.errs})
+			got, err := unpackedSnapshotter(t.Context(), &unpackedImage{unpacked: tt.unpacked, errs: tt.errs})
 			if tt.wantErr {
 				require.Error(t, err)
 				require.Equal(t, tt.wantNotUnpacked, errors.Is(err, ErrNotUnpacked), "errors.Is(%v, ErrNotUnpacked)", err)

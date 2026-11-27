@@ -6,7 +6,6 @@
 package privateactionrunnerimpl
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -73,7 +72,7 @@ func TestStopCleansUpMetricsClient(t *testing.T) {
 			}
 			runner := newStartedRunnerForStopTest(metricsClient, tt.ownsClient)
 
-			err := runner.Stop(context.Background())
+			err := runner.Stop(t.Context())
 
 			if len(tt.wantErrs) == 0 {
 				require.NoError(t, err)

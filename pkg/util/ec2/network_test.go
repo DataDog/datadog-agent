@@ -6,7 +6,6 @@
 package ec2
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -20,7 +19,7 @@ import (
 )
 
 func TestGetPublicIPv4(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ip := "10.0.0.2"
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
@@ -49,7 +48,7 @@ func TestGetPublicIPv4(t *testing.T) {
 }
 
 func TestGetNetworkID(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	mac := "00:00:00:00:00"
 	vpc := "vpc-12345"
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -82,7 +81,7 @@ func TestGetNetworkID(t *testing.T) {
 }
 
 func TestGetInstanceIDNoMac(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		switch r.Method {
@@ -106,7 +105,7 @@ func TestGetInstanceIDNoMac(t *testing.T) {
 }
 
 func TestGetInstanceIDMultipleVPC(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	mac := "00:00:00:00:00"
 	vpc := "vpc-12345"
 	mac2 := "00:00:00:00:01"
@@ -144,7 +143,7 @@ func TestGetInstanceIDMultipleVPC(t *testing.T) {
 }
 
 func TestGetVPCSubnets(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		switch r.Method {
@@ -199,7 +198,7 @@ func TestGetVPCSubnets(t *testing.T) {
 }
 
 func TestGetVPCSubnets404(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	var found404Subnets bool
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

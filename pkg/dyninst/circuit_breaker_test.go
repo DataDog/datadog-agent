@@ -8,7 +8,6 @@
 package dyninst_test
 
 import (
-	"context"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -77,7 +76,7 @@ func testCircuitBreaker(
 
 	// Launch the sample service.
 	t.Logf("launching busyloop")
-	ctx := context.Background()
+	ctx := t.Context()
 	sampleProc, sampleStdin := dyninsttest.StartProcess(
 		ctx, t, tempDir, bin,
 		"1" /*round_cnt*/, "20" /*round_sec*/, "3", /*concurrency*/

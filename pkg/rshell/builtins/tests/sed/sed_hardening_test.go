@@ -73,7 +73,7 @@ func TestHardenContextCancellation(t *testing.T) {
 	dir := setupDir(t, map[string]string{
 		"big.txt": strings.Repeat("line\n", 100000),
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()
 	_, _, code := runScriptCtx(ctx, t, `sed 's/line/LINE/g' big.txt`, dir)
 	// Should either complete or be cancelled — both are acceptable.
@@ -206,7 +206,7 @@ func TestHardenRegexComplexPattern(t *testing.T) {
 	dir := setupDir(t, map[string]string{
 		"f.txt": strings.Repeat("a", 100) + "\n",
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	_, _, code := runScriptCtx(ctx, t, `sed -E 's/(a+)+b/x/' f.txt`, dir, interp.AllowedPaths([]string{dir}))
 	// Should complete without timeout (RE2 handles this in linear time).

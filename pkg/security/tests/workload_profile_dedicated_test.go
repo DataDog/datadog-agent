@@ -1334,7 +1334,7 @@ func TestWorkloadProfileDedicatedNodeEviction(t *testing.T) {
 			dockerInstance, selector := startWorkloadProfileContainer(t, test, tagger, syscallTester, newWorkloadProfileImage(), "v1")
 
 			// a process alive during the eviction keeps its node
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			alive := dockerInstance.CommandContext(ctx, workloadProfileExecPath("alive"), []string{"sleep", "60"}, []string{})
 			if err := alive.Start(); err != nil {

@@ -8,7 +8,6 @@
 package v2
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -20,7 +19,7 @@ import (
 )
 
 func TestGetTask(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	assert := assert.New(t)
 	ecsinterface, err := testutil.NewDummyECS(
 		testutil.FileHandlerOption("/v2/metadata", "./testdata/task.json"),
@@ -120,7 +119,7 @@ func TestGetTask(t *testing.T) {
 }
 
 func TestGetTaskWithTags(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	assert := assert.New(t)
 	ecsinterface, err := testutil.NewDummyECS(
 		testutil.FileHandlerOption("/v2/metadata", "./testdata/task_with_tags.json"),
@@ -226,7 +225,7 @@ func TestGetTaskWithTags(t *testing.T) {
 }
 
 func TestGetContainerStats(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	assert := assert.New(t)
 
 	tests := []struct {

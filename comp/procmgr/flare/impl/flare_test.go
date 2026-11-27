@@ -36,7 +36,7 @@ func fillFlareWith(t *testing.T, report coat.SupportReport) (*helpers.FlareBuild
 
 	p := &procmgrFlare{reporter: fakeReporter{report: report}}
 	mock := helpers.NewFlareBuilderMock(t, false)
-	require.NoError(t, p.fillFlare(context.Background(), mock))
+	require.NoError(t, p.fillFlare(t.Context(), mock))
 	require.True(t, mock.AssertFileExists(flareFile))
 
 	raw, err := os.ReadFile(filepath.Join(mock.Root, flareFile))
@@ -161,7 +161,7 @@ func TestFillFlareHonoursStripProcArguments(t *testing.T) {
 	}
 
 	mock := helpers.NewFlareBuilderMock(t, false)
-	require.NoError(t, p.fillFlare(context.Background(), mock))
+	require.NoError(t, p.fillFlare(t.Context(), mock))
 
 	raw, err := os.ReadFile(filepath.Join(mock.Root, flareFile))
 	require.NoError(t, err)

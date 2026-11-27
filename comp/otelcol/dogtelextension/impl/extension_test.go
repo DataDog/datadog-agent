@@ -51,7 +51,7 @@ func newTestExtension(t *testing.T, cfgOverrides map[string]interface{}, extCfg 
 // TestStart_ConnectedMode verifies that Start is a no-op when otel_standalone=false.
 func TestStart_ConnectedMode(t *testing.T) {
 	ext := newTestExtension(t, map[string]interface{}{"otel_standalone": false}, nil)
-	err := ext.Start(context.Background(), nil)
+	err := ext.Start(t.Context(), nil)
 	require.NoError(t, err)
 	assert.Nil(t, ext.taggerServer)
 	assert.Equal(t, 0, ext.taggerServerPort)
@@ -78,7 +78,7 @@ func TestStart_StandaloneMode_TaggerDisabled(t *testing.T) {
 		buildInfo:  component.BuildInfo{Version: "1.0", Command: "otel-agent"},
 	}
 
-	err := ext.Start(context.Background(), nil)
+	err := ext.Start(t.Context(), nil)
 	require.NoError(t, err)
 	assert.Nil(t, ext.taggerServer)
 	t.Cleanup(func() { _ = ext.Shutdown(context.Background()) })
@@ -87,7 +87,7 @@ func TestStart_StandaloneMode_TaggerDisabled(t *testing.T) {
 // TestShutdown_NoTaggerServer verifies Shutdown does not panic when no server is running.
 func TestShutdown_NoTaggerServer(t *testing.T) {
 	ext := newTestExtension(t, nil, nil)
-	err := ext.Shutdown(context.Background())
+	err := ext.Shutdown(t.Context())
 	require.NoError(t, err)
 }
 
@@ -115,7 +115,7 @@ func TestSendLivenessMetric_Success(t *testing.T) {
 		buildInfo:  component.BuildInfo{Version: "7.0.0", Command: "otel-agent"},
 	}
 
-	err := ext.sendLivenessMetric(context.Background())
+	err := ext.sendLivenessMetric(t.Context())
 	require.NoError(t, err)
 	serializer.AssertExpectations(t)
 }
@@ -135,7 +135,7 @@ func TestSendLivenessMetric_SerializerError(t *testing.T) {
 		hostname:   hostname,
 	}
 
-	err := ext.sendLivenessMetric(context.Background())
+	err := ext.sendLivenessMetric(t.Context())
 	require.ErrorIs(t, err, wantErr)
 }
 
@@ -164,7 +164,7 @@ func TestSendLivenessMetric_UsesHostname(t *testing.T) {
 		buildInfo:  component.BuildInfo{},
 	}
 
-	err := ext.sendLivenessMetric(context.Background())
+	err := ext.sendLivenessMetric(t.Context())
 	require.NoError(t, err)
 	require.Len(t, captured, 1)
 	assert.Equal(t, "otel.dogtel_extension.running", captured[0].Name)
@@ -207,7 +207,7 @@ func TestStart_StandaloneMode_NoopSecretsWarning(t *testing.T) {
 	}
 
 	// Start should succeed; the warning is logged but not fatal.
-	err := ext.Start(context.Background(), nil)
+	err := ext.Start(t.Context(), nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = ext.Shutdown(context.Background()) })
 }
@@ -242,7 +242,7 @@ func TestShutdown_ClosesLivenessChannel(t *testing.T) {
 	ext := newTestExtension(t, nil, nil)
 	ext.stopLiveness = make(chan struct{})
 
-	err := ext.Shutdown(context.Background())
+	err := ext.Shutdown(t.Context())
 	require.NoError(t, err)
 
 	// A closed channel always returns immediately with the zero value and ok=false.
@@ -276,11 +276,11 @@ func TestStart_StandaloneMode_InitializesLivenessChannel(t *testing.T) {
 
 	assert.Nil(t, ext.stopLiveness)
 
-	err := ext.Start(context.Background(), nil)
+	err := ext.Start(t.Context(), nil)
 	require.NoError(t, err)
 	assert.NotNil(t, ext.stopLiveness, "Start must initialize stopLiveness for the heartbeat goroutine")
 
 	// Shutdown stops the goroutine cleanly.
-	err = ext.Shutdown(context.Background())
+	err = ext.Shutdown(t.Context())
 	require.NoError(t, err)
 }

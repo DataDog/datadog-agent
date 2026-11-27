@@ -33,7 +33,7 @@ func runPS(t testing.TB, script string) (string, string, int) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	runErr := runner.Run(context.Background(), prog)
+	runErr := runner.Run(t.Context(), prog)
 	exitCode := 0
 	if runErr != nil {
 		var es interp.ExitStatus

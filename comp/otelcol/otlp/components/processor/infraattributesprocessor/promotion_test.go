@@ -313,7 +313,7 @@ func TestContainerTagPromotion(t *testing.T) {
 				return "test-host", nil
 			})
 			tp, err := factory.CreateTraces(
-				context.Background(),
+				t.Context(),
 				processortest.NewNopSettings(Type),
 				cfg,
 				next,
@@ -321,7 +321,7 @@ func TestContainerTagPromotion(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, tp)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			require.NoError(t, tp.Start(ctx, nil))
 
 			td := ptrace.NewTraces()

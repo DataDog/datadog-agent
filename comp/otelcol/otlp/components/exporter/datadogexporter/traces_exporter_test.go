@@ -109,7 +109,7 @@ func testTraceExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	if !enableReceiveResourceSpansV2 {
 		tcfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
 	telemetryComp := fxutil.Test[coretelemetry.Mock](t, mocktelemetry.Module())
@@ -168,7 +168,7 @@ func testNewTracesExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	params := exportertest.NewNopSettings(Type)
 	tcfg := config.New()
 	tcfg.Endpoints[0].APIKey = "ddog_32_characters_long_api_key1"
-	ctx := context.Background()
+	ctx := t.Context()
 	tcfg.ReceiverEnabled = false
 	if !enableReceiveResourceSpansV2 {
 		tcfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
@@ -186,7 +186,7 @@ func testNewTracesExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		),
 	}
 	f := NewFactory(testComponent{traceagent, nil}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), store, nil)
-	exp, err := f.CreateTraces(context.Background(), params, cfg)
+	exp, err := f.CreateTraces(t.Context(), params, cfg)
 	assert.NoError(t, err)
 	assert.NotNil(t, exp)
 }
@@ -222,7 +222,7 @@ func TestNoPanicSendTraceAfterTraceAgentStop(t *testing.T) {
 	tcfg.ReceiverEnabled = false
 	tcfg.TraceWriter.FlushPeriodSeconds = 0.1
 	tcfg.Endpoints[0].APIKey = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
 	store := serializerexporter.TelemetryStore{}

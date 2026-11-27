@@ -57,6 +57,7 @@ func (m mockSpanModifier) ModifySpanV1(tc *idx.InternalTraceChunk, s *idx.Intern
 
 func TestServerlessOTLPAgentReceivesTraces(t *testing.T) {
 	assert := assert.New(t)
+	ctx := t.Context()
 
 	// ensure internal otlp trace endpoint is always started on new port
 	tracePort, err := testutil.FindTCPPort()
@@ -98,7 +99,7 @@ func TestServerlessOTLPAgentReceivesTraces(t *testing.T) {
 		otlptracehttp.WithEndpoint(httpEndpoint),
 		otlptracehttp.WithInsecure(),
 	)
-	err = testServerlessOTLPAgentReceivesTraces(httpClient, traceChan)
+	err = testServerlessOTLPAgentReceivesTraces(ctx, httpClient, traceChan)
 	assert.Nil(err)
 
 	// test grpc traces
@@ -106,13 +107,12 @@ func TestServerlessOTLPAgentReceivesTraces(t *testing.T) {
 		otlptracegrpc.WithEndpoint(grpcEndpoint),
 		otlptracegrpc.WithInsecure(),
 	)
-	err = testServerlessOTLPAgentReceivesTraces(grpcClient, traceChan)
+	err = testServerlessOTLPAgentReceivesTraces(ctx, grpcClient, traceChan)
 	assert.Nil(err)
 }
 
-func testServerlessOTLPAgentReceivesTraces(client otlptrace.Client, traceChan <-chan struct{}) error {
+func testServerlessOTLPAgentReceivesTraces(ctx context.Context, client otlptrace.Client, traceChan <-chan struct{}) error {
 	// use opentelemetry to send spans
-	ctx := context.Background()
 	exporter, _ := otlptrace.New(ctx, client)
 	tracerProvider := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),

@@ -27,7 +27,7 @@ func fastTestOpts(maxElapsed time.Duration) RetryHTTPOptions {
 
 func TestRetryHTTPRequest_SuccessFirstTry(t *testing.T) {
 	var calls int32
-	result, err := RetryHTTPRequest(context.Background(), func() (string, int, error) {
+	result, err := RetryHTTPRequest(t.Context(), func() (string, int, error) {
 		atomic.AddInt32(&calls, 1)
 		return "ok", 200, nil
 	}, fastTestOpts(0))
@@ -39,7 +39,7 @@ func TestRetryHTTPRequest_SuccessFirstTry(t *testing.T) {
 
 func TestRetryHTTPRequest_RetriesOn5xxThenSucceeds(t *testing.T) {
 	var calls int32
-	result, err := RetryHTTPRequest(context.Background(), func() (string, int, error) {
+	result, err := RetryHTTPRequest(t.Context(), func() (string, int, error) {
 		n := atomic.AddInt32(&calls, 1)
 		if n < 3 {
 			return "", 503, errors.New("service unavailable")
@@ -54,7 +54,7 @@ func TestRetryHTTPRequest_RetriesOn5xxThenSucceeds(t *testing.T) {
 
 func TestRetryHTTPRequest_RetriesOnTransportErrorThenSucceeds(t *testing.T) {
 	var calls int32
-	result, err := RetryHTTPRequest(context.Background(), func() (string, int, error) {
+	result, err := RetryHTTPRequest(t.Context(), func() (string, int, error) {
 		n := atomic.AddInt32(&calls, 1)
 		if n < 2 {
 			return "", 0, errors.New("dial tcp: connection refused")
@@ -70,7 +70,7 @@ func TestRetryHTTPRequest_RetriesOnTransportErrorThenSucceeds(t *testing.T) {
 func TestRetryHTTPRequest_NoRetryOn4xx(t *testing.T) {
 	var calls int32
 	originalErr := errors.New("bad credentials")
-	_, err := RetryHTTPRequest(context.Background(), func() (string, int, error) {
+	_, err := RetryHTTPRequest(t.Context(), func() (string, int, error) {
 		atomic.AddInt32(&calls, 1)
 		return "", 401, originalErr
 	}, fastTestOpts(0))
@@ -82,7 +82,7 @@ func TestRetryHTTPRequest_NoRetryOn4xx(t *testing.T) {
 
 func TestRetryHTTPRequest_RetriesOn429ThenSucceeds(t *testing.T) {
 	var calls int32
-	result, err := RetryHTTPRequest(context.Background(), func() (string, int, error) {
+	result, err := RetryHTTPRequest(t.Context(), func() (string, int, error) {
 		if atomic.AddInt32(&calls, 1) == 1 {
 			return "", 429, errors.New("rate limited")
 		}
@@ -107,7 +107,7 @@ func TestRetryHTTPRequest_StopsAtMaxElapsedTime(t *testing.T) {
 	var calls int32
 	originalErr := errors.New("server error")
 	start := time.Now()
-	_, err := RetryHTTPRequest(context.Background(), func() (string, int, error) {
+	_, err := RetryHTTPRequest(t.Context(), func() (string, int, error) {
 		atomic.AddInt32(&calls, 1)
 		return "", 500, originalErr
 	}, fastTestOpts(50*time.Millisecond))
@@ -120,7 +120,7 @@ func TestRetryHTTPRequest_StopsAtMaxElapsedTime(t *testing.T) {
 }
 
 func TestRetryHTTPRequest_StopsOnContextCancel(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	var calls int32
 	go func() {
 		// Cancel after a few attempts.

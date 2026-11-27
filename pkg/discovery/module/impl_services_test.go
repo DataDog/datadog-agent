@@ -261,7 +261,7 @@ func (s *discoveryTestSuite) TestServicesServiceName() {
 	t.Cleanup(func() { f.Close() })
 	disableCloseOnExec(t, f)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(func() { cancel() })
 
 	cmd := exec.CommandContext(ctx, "sleep", "1000")
@@ -380,7 +380,7 @@ func (s *discoveryTestSuite) TestServicesTracerMetadata() {
 			t.Cleanup(func() { f.Close() })
 			disableCloseOnExec(t, f)
 
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			t.Cleanup(func() { cancel() })
 
 			cmd := exec.CommandContext(ctx, "sleep", "1000")
@@ -426,7 +426,7 @@ func (s *discoveryTestSuite) TestServicesTracerMetadataWithoutPorts() {
 	createTracerMemfd(t, data)
 
 	// Create a process WITHOUT any listening ports - just a simple sleep
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(func() { cancel() })
 
 	cmd := exec.CommandContext(ctx, "sleep", "1000")
@@ -527,7 +527,7 @@ func (s *discoveryTestSuite) TestServicesMultipleTracerMetadata() {
 	t.Cleanup(func() { f.Close() })
 	disableCloseOnExec(t, f)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(func() { cancel() })
 
 	cmd := exec.CommandContext(ctx, "sleep", "1000")
@@ -579,7 +579,7 @@ func (s *discoveryTestSuite) TestServicesLogsWithoutPorts() {
 
 	// Create a process WITHOUT any listening ports or tracer metadata
 	// but WITH an open log file
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(func() { cancel() })
 
 	cmd := exec.CommandContext(ctx, "sleep", "1000")
@@ -648,7 +648,7 @@ func (s *discoveryTestSuite) TestServicesGoDetectionDeletedExe() {
 	err = os.WriteFile(tmpBin, data, 0755)
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(func() { cancel() })
 
 	cmd := exec.CommandContext(ctx, tmpBin)
@@ -705,7 +705,7 @@ func (s *discoveryTestSuite) TestServicesAPMInstrumentationProvided() {
 
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			t.Cleanup(func() { cancel() })
 
 			bin := filepath.Join(serverDir, test.commandline[0])
@@ -828,7 +828,7 @@ func (s *discoveryTestSuite) TestServicesNamespaces() {
 	require.NoError(t, err)
 	t.Cleanup(func() { netns.Set(origNs) })
 
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Second)
 	t.Cleanup(func() { cancel() })
 
 	expectedPorts := make(map[int]int)

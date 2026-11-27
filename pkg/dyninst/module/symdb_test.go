@@ -181,7 +181,7 @@ func testSymdbManagerCancellation(t *testing.T, useStop bool) {
 	// Create a context that will be canceled when the test is done.
 	// Unforunately, context cancellation doesn't propagate through http clients
 	// the way it does for gRPC.
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	symdbServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if blockUpload {

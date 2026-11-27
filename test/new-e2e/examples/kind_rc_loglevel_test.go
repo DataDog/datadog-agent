@@ -21,7 +21,6 @@ package examples
 //     starts writing DEBUG lines to its log file.
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"time"
@@ -62,7 +61,7 @@ func (s *rcLogLevelKindExampleSuite) TestLogLevelViaRCKind() {
 	var agentPodName, agentPodNamespace string
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		res, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").
-			List(context.Background(), v1.ListOptions{LabelSelector: "app=dda-linux-datadog"})
+			List(s.T().Context(), v1.ListOptions{LabelSelector: "app=dda-linux-datadog"})
 		if !assert.NoError(c, err) {
 			return
 		}

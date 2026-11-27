@@ -54,7 +54,7 @@ func runSimpleCommandScriptCtx(ctx context.Context, t *testing.T, script, dir st
 
 func runSimpleCommandScript(t *testing.T, script, dir string, opts ...RunnerOption) (stdout, stderr string, exitCode int) {
 	t.Helper()
-	stdout, stderr, exitCode, err := runSimpleCommandScriptCtx(context.Background(), t, script, dir, opts...)
+	stdout, stderr, exitCode, err := runSimpleCommandScriptCtx(t.Context(), t, script, dir, opts...)
 	if err != nil {
 		var es ExitStatus
 		if !errors.As(err, &es) {
@@ -66,7 +66,7 @@ func runSimpleCommandScript(t *testing.T, script, dir string, opts ...RunnerOpti
 
 func runSimpleCommandValidationFailure(t *testing.T, script string) string {
 	t.Helper()
-	stdout, stderr, code, err := runSimpleCommandScriptCtx(context.Background(), t, script, "", allowAllCommandsOpt())
+	stdout, stderr, code, err := runSimpleCommandScriptCtx(t.Context(), t, script, "", allowAllCommandsOpt())
 	if err == nil {
 		t.Fatalf("expected validation error for %q", script)
 	}
@@ -239,7 +239,7 @@ func TestVulnHuntShellFeatureReadonlyBypass_AssignmentOnlyReadonlyTarget(t *test
 }
 
 func TestVulnHuntShellFeatureSignalContext_PreCanceledSimpleCommandDoesNotMutateOrDispatch(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	stdout, stderr, _, err := runSimpleCommandScriptCtx(ctx, t, "X=leak\necho SHOULD_NOT_RUN\n", "", allowAllCommandsOpt())
@@ -252,7 +252,7 @@ func TestVulnHuntShellFeatureSignalContext_PreCanceledSimpleCommandDoesNotMutate
 }
 
 func TestVulnHuntShellFeatureSignalContext_CommandSubstitutionTimeoutIsFatal(t *testing.T) {
-	stdout, stderr, _, err := runSimpleCommandScriptCtx(context.Background(), t,
+	stdout, stderr, _, err := runSimpleCommandScriptCtx(t.Context(), t,
 		"X=$(while true; do true; done)\necho after\n",
 		"",
 		allowAllCommandsOpt(),

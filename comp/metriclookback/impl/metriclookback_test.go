@@ -8,7 +8,6 @@
 package metriclookbackimpl
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -54,7 +53,7 @@ func TestMetricLookbackComponentProvidesDogStatsDFactory(t *testing.T) {
 	require.NotNil(t, provides.Comp)
 	require.NotNil(t, provides.DogStatsDLookbackFactory)
 
-	shadowManager := provides.Comp.NewSenderManager(context.Background(), "default-host")
+	shadowManager := provides.Comp.NewSenderManager(t.Context(), "default-host")
 	require.NotNil(t, shadowManager)
 	shadowSender, err := shadowManager.GetSender(checkid.ID("gpu:shadow"))
 	require.NoError(t, err)
@@ -256,7 +255,7 @@ func TestMetricLookbackMonitorEgressAdapterFromShadowSenderSamples(t *testing.T)
 	require.NotNil(t, lookback)
 	stopLookbackOnCleanup(t, lookback)
 
-	manager := collectormetriclookback.NewSenderManager(context.Background(), "default-host", retention)
+	manager := collectormetriclookback.NewSenderManager(t.Context(), "default-host", retention)
 	sender, err := manager.GetSender(checkid.ID("cpu:shadow"))
 	require.NoError(t, err)
 	for second := 0; second <= 30; second++ {

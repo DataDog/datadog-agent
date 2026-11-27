@@ -23,7 +23,7 @@ import (
 
 func runScript(t *testing.T, script, dir string, opts ...interp.RunnerOption) (string, string, int) {
 	t.Helper()
-	return runScriptCtx(context.Background(), t, script, dir, opts...)
+	return runScriptCtx(t.Context(), t, script, dir, opts...)
 }
 
 func runScriptCtx(ctx context.Context, t *testing.T, script, dir string, opts ...interp.RunnerOption) (string, string, int) {

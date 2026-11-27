@@ -105,7 +105,7 @@ func TestGetContainerID(t *testing.T) {
 	})
 
 	t.Run("ContainerID header with PID", func(t *testing.T) {
-		ctx := context.WithValue(context.Background(), ucredKey{}, &syscall.Ucred{Pid: containerPID})
+		ctx := context.WithValue(t.Context(), ucredKey{}, &syscall.Ucred{Pid: containerPID})
 		req, err := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
 		if !assert.NoError(t, err) {
 			t.Fail()
@@ -203,7 +203,7 @@ func TestGetContainerID(t *testing.T) {
 		})
 	}
 	t.Run("LocalData header with PID", func(t *testing.T) {
-		ctx := context.WithValue(context.Background(), ucredKey{}, &syscall.Ucred{Pid: containerPID})
+		ctx := context.WithValue(t.Context(), ucredKey{}, &syscall.Ucred{Pid: containerPID})
 		req, err := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
 		if !assert.NoError(t, err) {
 			t.Fail()
@@ -213,7 +213,7 @@ func TestGetContainerID(t *testing.T) {
 	})
 
 	t.Run("No header with an invalid PID", func(t *testing.T) {
-		ctx := context.WithValue(context.Background(), ucredKey{}, &syscall.Ucred{Pid: 2345})
+		ctx := context.WithValue(t.Context(), ucredKey{}, &syscall.Ucred{Pid: 2345})
 		req, err := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
 		if !assert.NoError(t, err) {
 			t.Fail()

@@ -7,7 +7,6 @@
 package serverimpl
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -459,7 +458,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 
 		// Stop the server so the parser-only assertions below can't race with
 		// the worker goroutines started by fulfillDepsWithConfigOverride.
-		require.NoError(t, s.stop(context.Background()))
+		require.NoError(t, s.stop(t.Context()))
 
 		assert.Len(s.cachedOriginCounters, 0, "this cache must be empty")
 		assert.Len(s.cachedOrder, 0, "this cache list must be empty")

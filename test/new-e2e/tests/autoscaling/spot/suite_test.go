@@ -12,7 +12,6 @@
 package spot
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -333,13 +332,13 @@ func (s *spotSchedulingSuite) createTestNamespace() {
 }
 
 func (s *spotSchedulingSuite) deleteTestNamespace() {
-	err := s.kubeClient.CoreV1().Namespaces().Delete(context.Background(), s.testNamespace, metav1.DeleteOptions{})
+	err := s.kubeClient.CoreV1().Namespaces().Delete(s.T().Context(), s.testNamespace, metav1.DeleteOptions{})
 	s.Require().NoError(err)
 
 	// Namespace deletion is asynchronous. Wait until it is gone so that re-running the same test
 	// (e.g. with -test.count) can create a namespace with the same name.
 	s.Require().Eventually(func() bool {
-		_, err := s.kubeClient.CoreV1().Namespaces().Get(context.Background(), s.testNamespace, metav1.GetOptions{})
+		_, err := s.kubeClient.CoreV1().Namespaces().Get(s.T().Context(), s.testNamespace, metav1.GetOptions{})
 		return apierrors.IsNotFound(err)
 	}, 2*time.Minute, time.Second, "namespace %s was not deleted", s.testNamespace)
 }
@@ -358,7 +357,7 @@ func (s *spotSchedulingSuite) cordonNode(name string) {
 // uncordonNode marks a node as schedulable.
 func (s *spotSchedulingSuite) uncordonNode(name string) {
 	s.T().Helper()
-	_, err := s.kubeClient.CoreV1().Nodes().Patch(context.Background(), name,
+	_, err := s.kubeClient.CoreV1().Nodes().Patch(s.T().Context(), name,
 		types.StrategicMergePatchType,
 		[]byte(`{"spec":{"unschedulable":false}}`),
 		metav1.PatchOptions{})

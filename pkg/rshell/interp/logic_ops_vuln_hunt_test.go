@@ -57,7 +57,7 @@ func TestVulnHuntShellFeatureRedirectionChain_LogicSkippedOutputRedirectDoesNotC
 	dir := t.TempDir()
 	created := filepath.Join(dir, "created.txt")
 
-	stdout, stderr, err := runLogicOpsVulnHunt(context.Background(), t, "false && echo hidden > created.txt\n", dir, nil, nil)
+	stdout, stderr, err := runLogicOpsVulnHunt(t.Context(), t, "false && echo hidden > created.txt\n", dir, nil, nil)
 
 	assert.Equal(t, "", stdout)
 	assert.Equal(t, "> file redirection is not supported\n", stderr)
@@ -70,7 +70,7 @@ func TestVulnHuntShellFeatureReadonlyBypass_LogicSkippedBranchDoesNotMutateReado
 	dir := t.TempDir()
 	var runner *Runner
 
-	stdout, stderr, err := runLogicOpsVulnHunt(context.Background(), t, "false && RO_VAR=hacked echo hidden\n", dir, nil, func(r *Runner) {
+	stdout, stderr, err := runLogicOpsVulnHunt(t.Context(), t, "false && RO_VAR=hacked echo hidden\n", dir, nil, func(r *Runner) {
 		runner = r
 		setReadonlyVulnHuntVar(t, r)
 	})
@@ -87,7 +87,7 @@ func TestVulnHuntShellFeatureReadonlyBypass_LogicExecutedBranchPreservesReadonly
 	dir := t.TempDir()
 	var runner *Runner
 
-	stdout, stderr, err := runLogicOpsVulnHunt(context.Background(), t, "RO_VAR=hacked true && echo hidden\n", dir, nil, func(r *Runner) {
+	stdout, stderr, err := runLogicOpsVulnHunt(t.Context(), t, "RO_VAR=hacked true && echo hidden\n", dir, nil, func(r *Runner) {
 		runner = r
 		setReadonlyVulnHuntVar(t, r)
 	})
@@ -122,7 +122,7 @@ func TestVulnHuntShellFeatureSignalContext_LogicSkippedBlockingStdinDoesNotStart
 
 	done := make(chan error, 1)
 	go func() {
-		done <- r.Run(context.Background(), prog)
+		done <- r.Run(t.Context(), prog)
 	}()
 
 	select {
@@ -139,7 +139,7 @@ func TestVulnHuntShellFeatureSignalContext_LogicSkippedBlockingStdinDoesNotStart
 func TestVulnHuntShellFeatureSignalContext_LogicCanceledLongChainStops(t *testing.T) {
 	dir := t.TempDir()
 	script := strings.Repeat("true && ", 1000) + "echo hidden\n"
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	stdout, _, err := runLogicOpsVulnHunt(ctx, t, script, dir, nil, nil)

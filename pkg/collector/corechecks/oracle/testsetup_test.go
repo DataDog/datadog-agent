@@ -30,7 +30,7 @@ func TestWaitForTestDatabase(t *testing.T) {
 	retry := make(chan time.Time, 2)
 	retry <- time.Time{}
 	retry <- time.Time{}
-	require.NoError(t, waitForTestDatabase(context.Background(), db, retry))
+	require.NoError(t, waitForTestDatabase(t.Context(), db, retry))
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -38,14 +38,14 @@ func TestWaitForTestDatabaseCancellation(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	require.ErrorIs(t, waitForTestDatabase(ctx, db, nil), context.Canceled)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestWaitForTestDatabaseQueryCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	matcher := sqlmock.QueryMatcherFunc(func(expected, actual string) error {
 		cancel()
@@ -77,7 +77,7 @@ func TestInitializeTestDatabase(t *testing.T) {
 	mock.ExpectExec("GRANT CREATE SESSION TO test").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec(regexp.QuoteMeta(block)).WillReturnResult(sqlmock.NewResult(0, 0))
 
-	require.NoError(t, initializeTestDatabase(context.Background(), db, scripts))
+	require.NoError(t, initializeTestDatabase(t.Context(), db, scripts))
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -95,7 +95,7 @@ func TestInitializeTestDatabaseStopsOnError(t *testing.T) {
 			mock.ExpectExec("CREATE USER test").WillReturnError(failure)
 			mock.ExpectExec("SELECT 1 FROM dual").WillReturnResult(sqlmock.NewResult(0, 0))
 
-			err = initializeTestDatabase(context.Background(), db, scripts)
+			err = initializeTestDatabase(t.Context(), db, scripts)
 			require.ErrorIs(t, err, failure)
 			require.ErrorContains(t, err, filename)
 			require.Error(t, mock.ExpectationsWereMet(), "later script must not execute")
@@ -104,7 +104,7 @@ func TestInitializeTestDatabaseStopsOnError(t *testing.T) {
 }
 
 func TestInitializeTestDatabaseMissingScripts(t *testing.T) {
-	err := initializeTestDatabase(context.Background(), nil, os.DirFS(t.TempDir()+"/missing"))
+	err := initializeTestDatabase(t.Context(), nil, os.DirFS(t.TempDir()+"/missing"))
 	require.ErrorContains(t, err, "reading initialization scripts")
 }
 

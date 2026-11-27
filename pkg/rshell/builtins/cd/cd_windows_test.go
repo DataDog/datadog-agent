@@ -30,7 +30,7 @@ func TestCdReservedNameDoesNotHang(t *testing.T) {
 	dir := canonicalTempDir(t)
 	for _, name := range []string{"CON", "NUL", "PRN", "AUX", "COM1", "LPT1"} {
 		t.Run(name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 			_, stderr, code := testutil.RunScriptCtx(ctx, t, "cd "+name, dir,
 				interp.AllowedPaths([]string{dir}))

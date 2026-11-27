@@ -13,15 +13,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
-	"github.com/benbjohnson/clock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestContextCancellationStopsRefresh(t *testing.T) {
@@ -32,7 +33,7 @@ func TestContextCancellationStopsRefresh(t *testing.T) {
 	// (select on ctx.Done and ticker) works correctly for context cancellation.
 
 	// Create a cancellable context
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	// Create a channel to signal when the goroutine exits
 	done := make(chan bool, 1)
@@ -106,7 +107,7 @@ func TestBackgroundRefreshContextHandling(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			done := make(chan bool, 1)
 
 			// Start the goroutine
@@ -224,7 +225,7 @@ func TestAddInstanceRetriesStartupUntilSuccess(t *testing.T) {
 		APIKeyConfigKey:   "api_key",
 		AllowAsyncStartup: true,
 	}
-	require.NoError(t, comp.AddInstance(context.Background(), params))
+	require.NoError(t, comp.AddInstance(t.Context(), params))
 	assert.Equal(t, 1, <-calls)
 	select {
 	case call := <-calls:
@@ -283,7 +284,7 @@ func TestStartupRecoveryStopsWhenProviderDetectionIsTerminal(t *testing.T) {
 		startupRecoveries: make(map[string]*startupRecovery),
 		clock:             mockClock,
 	}
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
 	defer cancel()
 	require.NoError(t, comp.AddInstance(ctx, delegatedauth.InstanceParams{
 		Config:            mockConfig,
@@ -345,7 +346,7 @@ func TestAddInstanceReplacementStopsStartupRecovery(t *testing.T) {
 		APIKeyConfigKey:   "api_key",
 		AllowAsyncStartup: true,
 	}
-	require.NoError(t, comp.AddInstance(context.Background(), params))
+	require.NoError(t, comp.AddInstance(t.Context(), params))
 	assert.Equal(t, 1, <-calls)
 
 	comp.mu.RLock()
@@ -354,7 +355,7 @@ func TestAddInstanceReplacementStopsStartupRecovery(t *testing.T) {
 	require.NotNil(t, recovery)
 
 	params.AllowAsyncStartup = false
-	require.NoError(t, comp.AddInstance(context.Background(), params))
+	require.NoError(t, comp.AddInstance(t.Context(), params))
 	assert.Equal(t, 2, <-calls)
 	select {
 	case <-recovery.done:
@@ -397,7 +398,7 @@ func TestAddInstanceReplacementCancelsInFlightRecovery(t *testing.T) {
 		APIKeyConfigKey:   "api_key",
 		AllowAsyncStartup: true,
 	}
-	require.NoError(t, comp.AddInstance(context.Background(), params))
+	require.NoError(t, comp.AddInstance(t.Context(), params))
 
 	comp.mu.RLock()
 	recovery := comp.startupRecoveries["api_key"]
@@ -415,7 +416,7 @@ func TestAddInstanceReplacementCancelsInFlightRecovery(t *testing.T) {
 	<-recoveryStarted
 
 	params.AllowAsyncStartup = false
-	replacementCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	replacementCtx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	go func() {
 		replacementDone <- comp.AddInstance(replacementCtx, params)
@@ -432,7 +433,7 @@ func TestAddInstanceReplacementCancelsInFlightRecovery(t *testing.T) {
 
 func TestReplaceInstancePreservesFallbackAfterStoppingOldInstance(t *testing.T) {
 	const directive = "DELA[second-org, aws, fallback=static-key]"
-	refreshCtx, refreshCancel := context.WithCancel(context.Background())
+	refreshCtx, refreshCancel := context.WithCancel(t.Context())
 	done := make(chan struct{})
 	comp := &delegatedAuthComponent{
 		instances: map[string]*authInstance{
@@ -461,7 +462,7 @@ func TestReplaceInstancePreservesFallbackAfterStoppingOldInstance(t *testing.T) 
 		lastWrittenValue: directive,
 	}
 
-	require.NoError(t, comp.replaceInstance(context.Background(), "additional", replacement))
+	require.NoError(t, comp.replaceInstance(t.Context(), "additional", replacement))
 
 	assert.Equal(t, "key-written-during-shutdown", replacement.lastWrittenValue)
 }
@@ -488,7 +489,7 @@ func TestReplaceInstanceDoesNotCarryValueAcrossDirectives(t *testing.T) {
 		},
 		lastWrittenValue: newDirective,
 	}
-	require.NoError(t, comp.replaceInstance(context.Background(), "additional", replacement))
+	require.NoError(t, comp.replaceInstance(t.Context(), "additional", replacement))
 
 	assert.Equal(t, newDirective, replacement.lastWrittenValue)
 }
@@ -728,7 +729,7 @@ func TestDoneChannelClosedOnGoroutineExit(t *testing.T) {
 	// Test that the done channel is properly closed when the background goroutine exits.
 	// This ensures proper goroutine lifecycle signaling for instance replacement.
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan struct{})
 
 	// Simulate the goroutine pattern used in startBackgroundRefresh
@@ -764,7 +765,7 @@ func TestWaitingForOldGoroutineOnInstanceReplacement(t *testing.T) {
 	// Test that when replacing an instance, we properly wait for the old goroutine to exit.
 	// This prevents goroutine leaks when instances are rapidly reconfigured.
 
-	oldCtx, oldCancel := context.WithCancel(context.Background())
+	oldCtx, oldCancel := context.WithCancel(t.Context())
 	oldDone := make(chan struct{})
 
 	// Track goroutine execution
@@ -800,7 +801,7 @@ func TestWaitingForOldGoroutineOnInstanceReplacement(t *testing.T) {
 	oldCancel()
 
 	// Wait for the old goroutine to exit (simulating the select in AddInstance)
-	waitCtx, waitCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	waitCtx, waitCancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer waitCancel()
 
 	select {
@@ -830,7 +831,7 @@ func TestAddInstanceRespectsContextCancellation(t *testing.T) {
 	}
 
 	// Create an already-canceled context
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	// Use the configmock package for a proper mock config
@@ -854,13 +855,13 @@ func TestWaitForOldGoroutineRespectsContextCancellation(t *testing.T) {
 	existing := &authInstance{done: make(chan struct{}), refreshCancel: func() {}}
 	comp := &delegatedAuthComponent{instances: map[string]*authInstance{"api_key": existing}}
 
-	replacementCtx, cancelReplacement := context.WithCancel(context.Background())
+	replacementCtx, cancelReplacement := context.WithCancel(t.Context())
 	replacement := &authInstance{
 		refreshCtx:    replacementCtx,
 		refreshCancel: cancelReplacement,
 		done:          make(chan struct{}),
 	}
-	waitCtx, cancelWait := context.WithCancel(context.Background())
+	waitCtx, cancelWait := context.WithCancel(t.Context())
 	cancelWait()
 
 	require.ErrorIs(t, comp.replaceInstance(waitCtx, "api_key", replacement), context.Canceled)
@@ -874,9 +875,9 @@ func TestClosedOldGoroutineDoesNotHideContextCancellation(t *testing.T) {
 	existing := &authInstance{done: done, refreshCancel: func() {}}
 	comp := &delegatedAuthComponent{instances: map[string]*authInstance{"api_key": existing}}
 
-	replacementCtx, cancelReplacement := context.WithCancel(context.Background())
+	replacementCtx, cancelReplacement := context.WithCancel(t.Context())
 	replacement := &authInstance{refreshCtx: replacementCtx, refreshCancel: cancelReplacement}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	require.ErrorIs(t, comp.replaceInstance(ctx, "api_key", replacement), context.Canceled)
@@ -885,7 +886,7 @@ func TestClosedOldGoroutineDoesNotHideContextCancellation(t *testing.T) {
 }
 
 func TestRemoveInstanceWaitsForRefreshLoop(t *testing.T) {
-	refreshCtx, cancelRefresh := context.WithCancel(context.Background())
+	refreshCtx, cancelRefresh := context.WithCancel(t.Context())
 	existing := &authInstance{
 		refreshCtx:    refreshCtx,
 		refreshCancel: cancelRefresh,
@@ -897,7 +898,7 @@ func TestRemoveInstanceWaitsForRefreshLoop(t *testing.T) {
 	}()
 	comp := &delegatedAuthComponent{instances: map[string]*authInstance{"api_key": existing}}
 
-	require.NoError(t, comp.replaceInstance(context.Background(), "api_key", nil))
+	require.NoError(t, comp.replaceInstance(t.Context(), "api_key", nil))
 	assert.NotContains(t, comp.instances, "api_key")
 }
 
@@ -1513,7 +1514,7 @@ func TestAuthenticateRejectsRemovedAdditionalEndpointBeforeGeneratingProof(t *te
 			lastWrittenValue: "DELA[org-uuid, aws]",
 		}
 
-		_, err := (&delegatedAuthComponent{config: mockConfig}).authenticate(context.Background(), instance)
+		_, err := (&delegatedAuthComponent{config: mockConfig}).authenticate(t.Context(), instance)
 		require.ErrorIs(t, err, errWritebackTargetChanged)
 		assert.Zero(t, provider.calls)
 	})
@@ -1531,7 +1532,7 @@ func TestAuthenticateRejectsRemovedAdditionalEndpointBeforeGeneratingProof(t *te
 			lastWrittenValue: "DELA[org-uuid, aws]",
 		}
 
-		_, err := (&delegatedAuthComponent{config: mockConfig}).authenticate(context.Background(), instance)
+		_, err := (&delegatedAuthComponent{config: mockConfig}).authenticate(t.Context(), instance)
 		require.ErrorIs(t, err, errWritebackTargetChanged)
 		assert.Zero(t, provider.calls)
 	})
@@ -1787,7 +1788,7 @@ func TestMergeIntoAdditionalEndpointsListRejectsDestinationChange(t *testing.T) 
 		lastWrittenValue: "DELA[logs-org-uuid, aws]",
 	}
 	comp := &delegatedAuthComponent{config: mockConfig}
-	_, err := comp.authenticate(context.Background(), instance)
+	_, err := comp.authenticate(t.Context(), instance)
 	require.ErrorIs(t, err, errWritebackTargetChanged)
 	assert.Zero(t, instance.provider.(*failingProvider).calls)
 	require.ErrorIs(t, comp.mergeIntoAdditionalEndpointsList(instance, "resolved-key", false), errWritebackTargetChanged)
@@ -1995,7 +1996,7 @@ func TestAddInstanceWritesFallbackWhenNoCloudProviderDetected(t *testing.T) {
 		config:      mockConfig,
 	}
 
-	err := comp.AddInstance(context.Background(), delegatedauth.InstanceParams{
+	err := comp.AddInstance(t.Context(), delegatedauth.InstanceParams{
 		Config:                       mockConfig,
 		OrgUUID:                      "second-org-uuid",
 		APIKeyConfigKey:              "additional_endpoints[https://second-org.datadoghq.com][second-org-uuid]",
@@ -2027,7 +2028,7 @@ func TestAddInstanceWithoutFallbackSkipsSilentlyWhenNoCloudProviderDetected(t *t
 		config:      mockConfig,
 	}
 
-	err := comp.AddInstance(context.Background(), delegatedauth.InstanceParams{
+	err := comp.AddInstance(t.Context(), delegatedauth.InstanceParams{
 		Config:                       mockConfig,
 		OrgUUID:                      "second-org-uuid",
 		APIKeyConfigKey:              "additional_endpoints[https://second-org.datadoghq.com][second-org-uuid]",
@@ -2075,7 +2076,7 @@ func TestAddInstanceWritesFallbackWhenInitialFetchFails(t *testing.T) {
 	}
 	comp.clock = clock.NewMock()
 	t.Cleanup(func() { require.NoError(t, comp.stopStartupRecovery(context.Background(), apiKeyConfigKey)) })
-	require.NoError(t, comp.AddInstance(context.Background(), params))
+	require.NoError(t, comp.AddInstance(t.Context(), params))
 
 	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
 	assert.Equal(t, []string{"static-fallback-key"}, got["https://second-org.datadoghq.com"],
@@ -2090,15 +2091,15 @@ func TestAddInstanceWritesFallbackWhenInitialFetchFails(t *testing.T) {
 	require.NotNil(t, recovery)
 	assert.Equal(t, cloudauthconfig.ProviderAWS, instance.providerName)
 	assert.Equal(t, "us-east-1", instance.providerRegion, "use the detected provider when none was supplied")
-	require.NoError(t, comp.AddInstance(context.Background(), params))
+	require.NoError(t, comp.AddInstance(t.Context(), params))
 	comp.mu.RLock()
 	assert.Same(t, instance, comp.instances[apiKeyConfigKey])
 	assert.Same(t, recovery, comp.startupRecoveries[apiKeyConfigKey])
 	comp.mu.RUnlock()
 
 	// The instance keeps the registration after recovery has stopped, too.
-	require.NoError(t, comp.stopStartupRecovery(context.Background(), apiKeyConfigKey))
-	require.NoError(t, comp.AddInstance(context.Background(), params))
+	require.NoError(t, comp.stopStartupRecovery(t.Context(), apiKeyConfigKey))
+	require.NoError(t, comp.AddInstance(t.Context(), params))
 	assert.Same(t, instance, comp.instances[apiKeyConfigKey])
 }
 
@@ -2110,7 +2111,7 @@ func TestAddInstanceStopsAfterInitialFailureWhenAsyncStartupIsDisabled(t *testin
 	mockConfig.SetInTest("logs_config.api_key", "static-key")
 	comp := &delegatedAuthComponent{instances: make(map[string]*authInstance)}
 
-	err := comp.AddInstance(context.Background(), delegatedauth.InstanceParams{
+	err := comp.AddInstance(t.Context(), delegatedauth.InstanceParams{
 		Config:          mockConfig,
 		ProviderConfig:  &cloudauthconfig.AWSProviderConfig{Region: "us-east-1"},
 		OrgUUID:         "logs-org",
@@ -2301,7 +2302,7 @@ func TestInitializeIfNeeded_ConfiguredRegionDoesNotSkipDetection(t *testing.T) {
 	mockConfig.Set("delegated_auth.aws.region", "eu-central-1", pkgconfigmodel.SourceFile)
 
 	comp := &delegatedAuthComponent{instances: make(map[string]*authInstance)}
-	providerConfig, err := comp.initializeIfNeeded(context.Background(), delegatedauth.InstanceParams{
+	providerConfig, err := comp.initializeIfNeeded(t.Context(), delegatedauth.InstanceParams{
 		Config:          mockConfig,
 		OrgUUID:         "test-org",
 		APIKeyConfigKey: "api_key",
@@ -2328,7 +2329,7 @@ func TestInitializeIfNeededExplicitProviderSkipsDetection(t *testing.T) {
 	explicit := &cloudauthconfig.AWSProviderConfig{Region: "eu-central-1"}
 	comp := &delegatedAuthComponent{instances: make(map[string]*authInstance)}
 
-	providerConfig, err := comp.initializeIfNeeded(context.Background(), delegatedauth.InstanceParams{
+	providerConfig, err := comp.initializeIfNeeded(t.Context(), delegatedauth.InstanceParams{
 		Config:          mockConfig,
 		ProviderConfig:  explicit,
 		OrgUUID:         "test-org",
@@ -2356,7 +2357,7 @@ func TestInitializeIfNeeded_DetectionFailureIsRecorded(t *testing.T) {
 	mockConfig := mock.New(t)
 
 	comp := &delegatedAuthComponent{instances: make(map[string]*authInstance)}
-	providerConfig, err := comp.initializeIfNeeded(context.Background(), delegatedauth.InstanceParams{
+	providerConfig, err := comp.initializeIfNeeded(t.Context(), delegatedauth.InstanceParams{
 		Config:          mockConfig,
 		OrgUUID:         "test-org",
 		APIKeyConfigKey: "api_key",
@@ -2383,14 +2384,14 @@ func TestInitializeIfNeeded_DetectionTimeoutCanRetry(t *testing.T) {
 	comp := &delegatedAuthComponent{instances: make(map[string]*authInstance)}
 	params := delegatedauth.InstanceParams{Config: mockConfig, OrgUUID: "test-org", APIKeyConfigKey: "api_key"}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	providerConfig, err := comp.initializeIfNeeded(ctx, params)
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Nil(t, providerConfig)
 	assert.False(t, comp.initialized)
 
-	providerConfig, err = comp.initializeIfNeeded(context.Background(), params)
+	providerConfig, err = comp.initializeIfNeeded(t.Context(), params)
 	require.NoError(t, err)
 	require.NotNil(t, providerConfig)
 	assert.Equal(t, 2, calls)
@@ -2433,6 +2434,7 @@ func TestAddInstanceEndpointRegistration(t *testing.T) {
 					startupRecoveries: make(map[string]*startupRecovery),
 					clock:             clock.NewMock(),
 				}
+				// don't use t.Context() here because it is cancelled by the test runner.
 				t.Cleanup(func() { require.NoError(t, comp.stopStartupRecovery(context.Background(), params.APIKeyConfigKey)) })
 
 				var oldInstance *authInstance
@@ -2442,7 +2444,7 @@ func TestAddInstanceEndpointRegistration(t *testing.T) {
 						oldParams.TargetSite = "old.datadoghq.com"
 					}
 					oldInstance = newAuthInstance(oldParams, oldParams.ProviderConfig)
-					oldInstance.refreshCtx, oldInstance.refreshCancel = context.WithCancel(context.Background())
+					oldInstance.refreshCtx, oldInstance.refreshCancel = context.WithCancel(t.Context())
 					t.Cleanup(oldInstance.refreshCancel)
 					oldInstance.lastWrittenValue = "previously-resolved-key"
 					comp.instances[params.APIKeyConfigKey] = oldInstance
@@ -2464,7 +2466,7 @@ func TestAddInstanceEndpointRegistration(t *testing.T) {
 					return comp.replaceInstance(ctx, p.APIKeyConfigKey, newAuthInstance(p, p.ProviderConfig))
 				}
 
-				require.NoError(t, comp.AddInstance(context.Background(), params))
+				require.NoError(t, comp.AddInstance(t.Context(), params))
 				require.Empty(t, attempts, "unchanged registration must not fetch again")
 				comp.mu.RLock()
 				currentInstance := comp.instances[params.APIKeyConfigKey]
@@ -2482,7 +2484,7 @@ func TestAddInstanceEndpointRegistration(t *testing.T) {
 				}
 
 				tt.change(&params)
-				require.NoError(t, comp.AddInstance(context.Background(), params))
+				require.NoError(t, comp.AddInstance(t.Context(), params))
 				require.Len(t, attempts, 1, "changed route must re-register even with the same directive")
 				assert.Equal(t, params, attempts[0])
 				if state == "active" {
@@ -2501,7 +2503,7 @@ func TestAddInstanceEndpointRegistration(t *testing.T) {
 					assert.NotSame(t, recovery, currentRecovery)
 				}
 
-				require.NoError(t, comp.AddInstance(context.Background(), params))
+				require.NoError(t, comp.AddInstance(t.Context(), params))
 				assert.Len(t, attempts, 1, "unchanged replacement must also be reused")
 			})
 		}

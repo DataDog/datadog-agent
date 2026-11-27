@@ -8,7 +8,6 @@
 package custommetrics
 
 import (
-	"context"
 	"math"
 	"reflect"
 	"testing"
@@ -200,7 +199,7 @@ func TestGetExternalMetric(t *testing.T) {
 				isServing:       true,
 				maxAge:          math.MaxInt32, // to avoid flackiness
 			}
-			output, err := dp.GetExternalMetric(context.Background(), test.compared.namespace, test.compared.labels.AsSelector(), test.compared.name)
+			output, err := dp.GetExternalMetric(t.Context(), test.compared.namespace, test.compared.labels.AsSelector(), test.compared.name)
 			require.NoError(t, err)
 			require.Equal(t, len(test.expected), len(output.Items))
 			// GetExternalMetric should only return one metric

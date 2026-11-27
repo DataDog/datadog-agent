@@ -77,7 +77,7 @@ func TestRunUploadLoop(t *testing.T) {
 			{Name: "github.com/example/foo"},
 		}
 		stats, err := RunUploadLoop(
-			context.Background(), enc, pkgIter(pkgs, 0),
+			t.Context(), enc, pkgIter(pkgs, 0),
 			"v1.2.3", 1<<30,
 		)
 		require.NoError(t, err)
@@ -95,7 +95,7 @@ func TestRunUploadLoop(t *testing.T) {
 			{Name: "a"}, {Name: "b"}, {Name: "c"}, {Name: "d"},
 		}
 		stats, err := RunUploadLoop(
-			context.Background(), enc, pkgIter(pkgs, 0),
+			t.Context(), enc, pkgIter(pkgs, 0),
 			"v1", 250,
 		)
 		require.NoError(t, err)
@@ -108,7 +108,7 @@ func TestRunUploadLoop(t *testing.T) {
 	t.Run("propagates_iterator_error", func(t *testing.T) {
 		enc := &fakeEncoder{}
 		_, err := RunUploadLoop(
-			context.Background(), enc, pkgIter([]symdb.Package{{Name: "a"}}, 1),
+			t.Context(), enc, pkgIter([]symdb.Package{{Name: "a"}}, 1),
 			"v", 1<<30,
 		)
 		require.Error(t, err)
@@ -118,7 +118,7 @@ func TestRunUploadLoop(t *testing.T) {
 	t.Run("propagates_add_error", func(t *testing.T) {
 		enc := &fakeEncoder{addErr: errors.New("encode boom")}
 		_, err := RunUploadLoop(
-			context.Background(), enc, pkgIter([]symdb.Package{{Name: "a"}}, 0),
+			t.Context(), enc, pkgIter([]symdb.Package{{Name: "a"}}, 0),
 			"v", 1<<30,
 		)
 		require.Error(t, err)
@@ -128,7 +128,7 @@ func TestRunUploadLoop(t *testing.T) {
 	t.Run("propagates_flush_error", func(t *testing.T) {
 		enc := &fakeEncoder{flushErr: ErrUpload}
 		_, err := RunUploadLoop(
-			context.Background(), enc, pkgIter([]symdb.Package{{Name: "a"}}, 0),
+			t.Context(), enc, pkgIter([]symdb.Package{{Name: "a"}}, 0),
 			"v", 1<<30,
 		)
 		require.Error(t, err)
@@ -137,7 +137,7 @@ func TestRunUploadLoop(t *testing.T) {
 
 	t.Run("respects_canceled_context", func(t *testing.T) {
 		enc := &fakeEncoder{}
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		_, err := RunUploadLoop(
 			ctx, enc, pkgIter([]symdb.Package{{Name: "a"}}, 0),

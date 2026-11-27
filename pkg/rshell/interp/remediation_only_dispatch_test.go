@@ -72,7 +72,7 @@ func TestRemediationOnlyBuiltinsRefusedInReadOnlyMode(t *testing.T) {
 				r, stdout, stderr := newReadOnlyRunner(t, dir)
 				// A non-zero exit surfaces as an error from Run; the exit
 				// code itself is asserted below.
-				_ = r.Run(context.Background(), parseScript(t, script))
+				_ = r.Run(t.Context(), parseScript(t, script))
 
 				assert.Equal(t, uint8(1), r.exit.code, "script %q should exit 1", script)
 				assert.Empty(t, stdout.String(), "script %q must not print help or other stdout", script)
@@ -98,7 +98,7 @@ func TestRemediationOnlyRefusalUsesRegisteredMessage(t *testing.T) {
 			"remediation-only builtin %q must carry a refusal message", name)
 
 		r, _, stderr := newReadOnlyRunner(t, dir)
-		_ = r.Run(context.Background(), parseScript(t, name))
+		_ = r.Run(t.Context(), parseScript(t, name))
 		assert.Equal(t, meta.RemediationDeniedMessage, stderr.String())
 	}
 }
@@ -115,7 +115,7 @@ func TestRemediationOnlyBuiltinsAllowedInRemediationMode(t *testing.T) {
 			require.True(t, ok)
 
 			r, _, stderr := newRemediationRunner(t, dir)
-			_ = r.Run(context.Background(), parseScript(t, name+" --help"))
+			_ = r.Run(t.Context(), parseScript(t, name+" --help"))
 			assert.NotEqual(t, meta.RemediationDeniedMessage, stderr.String(),
 				"%s must not be refused in remediation mode", name)
 		})
@@ -152,7 +152,7 @@ func TestRemediationOnlyGateCatchesBuiltinWithoutOwnCheck(t *testing.T) {
 
 	dir := t.TempDir()
 	r, stdout, stderr := newReadOnlyRunner(t, dir)
-	_ = r.Run(context.Background(), parseScript(t, name))
+	_ = r.Run(t.Context(), parseScript(t, name))
 
 	assert.False(t, ran, "handler must not be reached in read-only mode")
 	assert.Equal(t, uint8(1), r.exit.code)
@@ -183,7 +183,7 @@ func TestRemediationOnlyGateCatchesHelpDispatch(t *testing.T) {
 
 	dir := t.TempDir()
 	r, stdout, stderr := newReadOnlyRunner(t, dir)
-	_ = r.Run(context.Background(), parseScript(t, "help "+name))
+	_ = r.Run(t.Context(), parseScript(t, "help "+name))
 
 	assert.False(t, ran, "handler must not be reached via help in read-only mode")
 	assert.Empty(t, stdout.String())

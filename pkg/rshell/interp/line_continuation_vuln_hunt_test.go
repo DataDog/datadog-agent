@@ -19,7 +19,7 @@ import (
 func TestVulnHuntShellFeatureRedirectionChain_LineContinuationCannotHideOutputRedirect(t *testing.T) {
 	dir := t.TempDir()
 
-	stdout, stderr, code, err := runSimpleCommandScriptCtx(context.Background(), t,
+	stdout, stderr, code, err := runSimpleCommandScriptCtx(t.Context(), t,
 		"echo safe \\\n> created.txt\n",
 		dir,
 		allowAllCommandsOpt(),
@@ -153,7 +153,7 @@ func TestVulnHuntShellFeatureReadonlyBypass_LineContinuedForVariableRejected(t *
 }
 
 func TestVulnHuntShellFeatureSignalContext_PreCanceledLineContinuationDoesNotDispatch(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	stdout, stderr, _, err := runSimpleCommandScriptCtx(ctx, t, "ec\\\nho SHOULD_NOT_RUN\n", "", allowAllCommandsOpt())

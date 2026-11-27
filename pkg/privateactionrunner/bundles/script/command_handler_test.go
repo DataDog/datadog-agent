@@ -59,7 +59,7 @@ func TestScriptHandlerExecutionErrors(t *testing.T) {
 		{name: "timeout", mode: "child", timeout: 1, wantError: "timed out after 1 seconds"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			if tc.canceled {
 				cancel()
@@ -93,7 +93,7 @@ func TestScriptHandlerReleasesInheritedPipes(t *testing.T) {
 	exe, err := os.Executable()
 	require.NoError(t, err)
 	pidFile := filepath.Join(t.TempDir(), "child.pid")
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
@@ -120,7 +120,7 @@ func TestScriptHandlerReportsTimeoutAfterScriptExit(t *testing.T) {
 	require.NoError(t, err)
 	pidFile := filepath.Join(t.TempDir(), "child.pid")
 	// Fire the deadline only once the child runs, so slow script startup cannot race it.
-	ctx := newManualDeadlineContext()
+	ctx := newManualDeadlineContext(t)
 	done := make(chan error, 1)
 	go func() {
 		// The script exits at once while its child holds the output pipes until the deadline.
@@ -156,8 +156,8 @@ type manualDeadlineContext struct {
 	once sync.Once
 }
 
-func newManualDeadlineContext() *manualDeadlineContext {
-	return &manualDeadlineContext{Context: context.Background(), done: make(chan struct{})}
+func newManualDeadlineContext(t *testing.T) *manualDeadlineContext {
+	return &manualDeadlineContext{Context: t.Context(), done: make(chan struct{})}
 }
 
 func (c *manualDeadlineContext) expire() { c.once.Do(func() { close(c.done) }) }
@@ -177,7 +177,7 @@ func TestScriptHandlerTerminatesDetachedDescendants(t *testing.T) {
 	exe, err := os.Executable()
 	require.NoError(t, err)
 	pidFile := filepath.Join(t.TempDir(), "child.pid")
-	_, err = runProcessTestHandler(t, context.Background(), processTestConfig(exe, []string{"-test.run=^TestScriptProcess$", "--", "detach", pidFile}), false, 0)
+	_, err = runProcessTestHandler(t, t.Context(), processTestConfig(exe, []string{"-test.run=^TestScriptProcess$", "--", "detach", pidFile}), false, 0)
 	require.NoError(t, err)
 	child := waitForTestChild(t, pidFile)
 	require.Eventually(t, func() bool { return processStopped(child.Pid) },

@@ -21,13 +21,13 @@ func key(domain uint32, id uint16) *templates.TemplateKey {
 
 func get(t *testing.T, d *Driver, k *templates.TemplateKey) interface{} {
 	t.Helper()
-	v, err := d.GetTemplate(context.Background(), k)
+	v, err := d.GetTemplate(t.Context(), k)
 	require.NoError(t, err)
 	return v
 }
 
 func TestSizeNeverExceedsMax(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	d := New(100)
 	for dom := uint32(0); dom < 50; dom++ {
 		for id := uint16(256); id < 356; id++ {
@@ -40,7 +40,7 @@ func TestSizeNeverExceedsMax(t *testing.T) {
 }
 
 func TestRepeatedKeyUpdatesInPlace(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	d := New(2)
 	require.NoError(t, d.AddTemplate(ctx, key(1, 256), "a"))
 	require.NoError(t, d.AddTemplate(ctx, key(1, 256), "b"))
@@ -51,7 +51,7 @@ func TestRepeatedKeyUpdatesInPlace(t *testing.T) {
 }
 
 func TestLRUEviction(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	d := New(2)
 	require.NoError(t, d.AddTemplate(ctx, key(1, 1), "one"))
 	require.NoError(t, d.AddTemplate(ctx, key(1, 2), "two"))
@@ -65,7 +65,7 @@ func TestLRUEviction(t *testing.T) {
 }
 
 func TestUpdateRefreshesRecency(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	d := New(2)
 	require.NoError(t, d.AddTemplate(ctx, key(1, 1), "one"))
 	require.NoError(t, d.AddTemplate(ctx, key(1, 2), "two"))
@@ -77,7 +77,7 @@ func TestUpdateRefreshesRecency(t *testing.T) {
 }
 
 func TestUnlimited(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	d := New(0)
 	for id := uint16(0); id < 1000; id++ {
 		require.NoError(t, d.AddTemplate(ctx, key(1, id), id))
@@ -91,7 +91,7 @@ func TestGetMissing(t *testing.T) {
 }
 
 func TestListTemplates(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	d := New(2)
 	require.NoError(t, d.AddTemplate(ctx, key(1, 1), "one"))
 	require.NoError(t, d.AddTemplate(ctx, key(1, 2), "two"))
@@ -108,14 +108,14 @@ func TestListTemplates(t *testing.T) {
 
 func TestListTemplatesContextCancelled(t *testing.T) {
 	d := New(0)
-	require.NoError(t, d.AddTemplate(context.Background(), key(1, 1), "one"))
-	ctx, cancel := context.WithCancel(context.Background())
+	require.NoError(t, d.AddTemplate(t.Context(), key(1, 1), "one"))
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	assert.ErrorIs(t, d.ListTemplates(ctx, make(chan *templates.TemplateKey)), context.Canceled)
 }
 
 func TestConcurrentAccess(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	d := New(50)
 	var wg sync.WaitGroup
 	for g := 0; g < 8; g++ {

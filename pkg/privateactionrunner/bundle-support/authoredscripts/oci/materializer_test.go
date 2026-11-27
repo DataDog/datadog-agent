@@ -8,7 +8,6 @@
 package oci
 
 import (
-	"context"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -58,7 +57,7 @@ func TestMaterializerMaterialize(t *testing.T) {
 	require.NoError(t, err)
 	destination := t.TempDir()
 
-	err = materializer.Materialize(context.Background(), authoredscripts.Descriptor{
+	err = materializer.Materialize(t.Context(), authoredscripts.Descriptor{
 		Package: fixtures.FixtureSimpleV1.Package,
 		Version: fixtures.FixtureSimpleV1.Version,
 		URL:     packageURL,
@@ -81,7 +80,7 @@ func TestMaterializerMaterializeWithExtension(t *testing.T) {
 	require.NoError(t, err)
 	destination := t.TempDir()
 
-	err = materializer.Materialize(context.Background(), authoredscripts.Descriptor{
+	err = materializer.Materialize(t.Context(), authoredscripts.Descriptor{
 		Package: fixtures.FixtureSimpleV1WithExtension.Package,
 		Version: fixtures.FixtureSimpleV1WithExtension.Version,
 		URL:     packageURL,
@@ -106,7 +105,7 @@ func TestMaterializerRejectsPackageMetadataBeforeExtraction(t *testing.T) {
 	require.NoError(t, err)
 	destination := t.TempDir()
 
-	err = materializer.Materialize(context.Background(), authoredscripts.Descriptor{
+	err = materializer.Materialize(t.Context(), authoredscripts.Descriptor{
 		Package: "other-package",
 		Version: fixtures.FixtureSimpleV1.Version,
 		URL:     packageURL,
@@ -137,7 +136,7 @@ func TestMaterializerPackageSizeLimit(t *testing.T) {
 			require.NoError(t, err)
 			destination := t.TempDir()
 
-			err = materializer.Materialize(context.Background(), authoredscripts.Descriptor{
+			err = materializer.Materialize(t.Context(), authoredscripts.Descriptor{
 				Package: fixtures.FixtureSimpleV1.Package,
 				Version: fixtures.FixtureSimpleV1.Version,
 				URL:     packageURL,
@@ -162,7 +161,7 @@ func packageURLWithSize(t *testing.T, server *fixtures.Server, size uint64) stri
 	t.Helper()
 
 	downloader := fleetoci.NewDownloader(&installerenv.Env{}, http.DefaultClient)
-	fixture, err := downloader.Download(context.Background(), server.PackageLayoutURL(fixtures.FixtureSimpleV1))
+	fixture, err := downloader.Download(t.Context(), server.PackageLayoutURL(fixtures.FixtureSimpleV1))
 	require.NoError(t, err)
 	image := mutate.Annotations(fixture.Image, map[string]string{fleetoci.AnnotationSize: strconv.FormatUint(size, 10)}).(ociimage.Image)
 	path, err := layout.Write(t.TempDir(), empty.Index)

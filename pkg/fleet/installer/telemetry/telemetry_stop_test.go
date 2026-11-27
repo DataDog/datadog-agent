@@ -30,8 +30,8 @@ func newTelemetryWithUnreachableIntake() (*Telemetry, *unreachableIntake) {
 	return newTelemetry(&http.Client{Transport: intake}, "api", "datadoghq.com", "test-service"), intake
 }
 
-func finishTestSpan() {
-	span, _ := StartSpanFromContext(context.Background(), "stop-test")
+func finishTestSpan(ctx context.Context) {
+	span, _ := StartSpanFromContext(ctx, "stop-test")
 	span.Finish(nil)
 }
 
@@ -39,7 +39,7 @@ func TestStopBoundsFinalFlush(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		telem, intake := newTelemetryWithUnreachableIntake()
 		telem.Start()
-		finishTestSpan()
+		finishTestSpan(t.Context())
 
 		start := time.Now()
 		telem.Stop()
@@ -53,7 +53,7 @@ func TestStopBoundsInFlightPeriodicSend(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		telem, intake := newTelemetryWithUnreachableIntake()
 		telem.Start()
-		finishTestSpan()
+		finishTestSpan(t.Context())
 
 		time.Sleep(time.Minute)
 		synctest.Wait()

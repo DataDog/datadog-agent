@@ -8,7 +8,6 @@
 package nvml
 
 import (
-	"context"
 	"fmt"
 	"maps"
 	"os"
@@ -55,7 +54,7 @@ func TestStartDisabledWhenGPUMonitoringDisabled(t *testing.T) {
 	env.SetFeatures(t, env.NVML)
 
 	c := newCollector(nil, config.NewMock(t), noopsimpl.NewComponent())
-	err := c.Start(context.Background(), nil)
+	err := c.Start(t.Context(), nil)
 
 	require.Equal(t, dderrors.NewDisabled(componentName, "GPU monitoring is disabled"), err)
 }
@@ -67,7 +66,7 @@ func TestPullInvalidatesDeviceCacheWhileNVMLReleased(t *testing.T) {
 
 	require.NoError(t, ddnvml.ReleaseNVML())
 	t.Cleanup(ddnvml.ReacquireNVML)
-	require.NoError(t, c.Pull(context.Background()))
+	require.NoError(t, c.Pull(t.Context()))
 	require.True(t, cache.invalidated)
 }
 
@@ -77,7 +76,7 @@ func TestPull(t *testing.T) {
 
 	c := newTestCollector(t, wmetaMock)
 
-	c.Pull(context.Background())
+	c.Pull(t.Context())
 
 	gpus := wmetaMock.ListGPUs()
 	require.Equal(t, testutil.GetTotalExpectedDevices(), len(gpus))
@@ -134,7 +133,7 @@ func TestPullNVLinkVersion(t *testing.T) {
 	)
 	c := newTestCollector(t, wmetaMock)
 
-	c.Pull(context.Background())
+	c.Pull(t.Context())
 
 	for _, gpu := range wmetaMock.ListGPUs() {
 		expectedVersion := "1.0"
@@ -165,7 +164,7 @@ func TestPullMIGModeEnabled(t *testing.T) {
 			nvmltestutil.SetupMockNVML(t, tt.opts...)
 			c := newTestCollector(t, wmetaMock)
 
-			c.Pull(context.Background())
+			c.Pull(t.Context())
 
 			found := false
 			for _, gpu := range wmetaMock.ListGPUs() {
@@ -189,7 +188,7 @@ func TestPullWithoutNVLink(t *testing.T) {
 	)
 	c := newTestCollector(t, wmetaMock)
 
-	c.Pull(context.Background())
+	c.Pull(t.Context())
 
 	for _, gpu := range wmetaMock.ListGPUs() {
 		require.Equalf(t, "not_nvlink_capable", gpu.NVLinkVersion, "unexpected NVLink version for GPU %s", gpu.ID)
@@ -221,7 +220,7 @@ func TestPullPlatformInfo(t *testing.T) {
 	ddnvml.WithMockPCISysfs(t, writePCIDevice(t, "pci0018:00/0018:00:00.0/0018:01:00.0", "1"))
 	c := newTestCollector(t, wmetaMock)
 
-	c.Pull(context.Background())
+	c.Pull(t.Context())
 
 	parentUUID := testutil.GPUUUIDs[parentIdx]
 	withPlatform := map[string]bool{parentUUID: true}
@@ -268,7 +267,7 @@ func TestPullNUMANodeFromSysfs(t *testing.T) {
 	ddnvml.WithMockPCISysfs(t, writePCIDevice(t, "pci0000:00/0000:00:1e.0", "1"))
 	c := newTestCollector(t, wmetaMock)
 
-	c.Pull(context.Background())
+	c.Pull(t.Context())
 
 	gpus := wmetaMock.ListGPUs()
 	require.NotEmpty(t, gpus)
@@ -300,7 +299,7 @@ func TestPullPlatformInfoHGXB200(t *testing.T) {
 	)
 	c := newTestCollector(t, wmetaMock)
 
-	c.Pull(context.Background())
+	c.Pull(t.Context())
 
 	gpus := wmetaMock.ListGPUs()
 	require.NotEmpty(t, gpus)
@@ -403,7 +402,7 @@ func TestGpuProcessInfoUpdate(t *testing.T) {
 	c := newTestCollector(t, wmetaMock)
 
 	// First pull to populate the store with initial PIDs
-	c.Pull(context.Background())
+	c.Pull(t.Context())
 
 	gpus := wmetaMock.ListGPUs()
 	require.Equal(t, testutil.GetTotalExpectedDevices(), len(gpus))
@@ -420,7 +419,7 @@ func TestGpuProcessInfoUpdate(t *testing.T) {
 		{Pid: uint32(expectedActivePIDs[1]), UsedGpuMemory: 200},
 	}
 
-	c.Pull(context.Background())
+	c.Pull(t.Context())
 	gpus = wmetaMock.ListGPUs()
 	require.Equal(t, testutil.GetTotalExpectedDevices(), len(gpus))
 
@@ -469,7 +468,7 @@ func TestPullKeepsLostGPU(t *testing.T) {
 	c := newTestCollector(t, wmetaMock)
 	lostUUID := testutil.GPUUUIDs[lostIndex]
 
-	require.NoError(t, c.Pull(context.Background()))
+	require.NoError(t, c.Pull(t.Context()))
 	gpuCount := len(wmetaMock.ListGPUs())
 	before, err := wmetaMock.GetGPU(lostUUID)
 	require.NoError(t, err)
@@ -482,7 +481,7 @@ func TestPullKeepsLostGPU(t *testing.T) {
 	// Pull twice while lost, so the attributes are also kept when copied from
 	// an entity that was already published as lost.
 	for pull := 2; pull <= 3; pull++ {
-		require.NoError(t, c.Pull(context.Background()))
+		require.NoError(t, c.Pull(t.Context()))
 
 		require.Len(t, wmetaMock.ListGPUs(), gpuCount, "pull %d", pull)
 		after, err := wmetaMock.GetGPU(lostUUID)
@@ -541,7 +540,7 @@ func TestProcessEntities(t *testing.T) {
 	c.integrateWithWorkloadmetaProcesses = true
 
 	// Pull first, we have no process info so we should have no Process entities
-	c.Pull(context.Background())
+	c.Pull(t.Context())
 
 	processes := wmetaMock.ListProcesses()
 	require.Equal(t, 0, len(processes))
@@ -553,7 +552,7 @@ func TestProcessEntities(t *testing.T) {
 	}
 
 	// Pull again, we should have one Process entity
-	c.Pull(context.Background())
+	c.Pull(t.Context())
 	processes = wmetaMock.ListProcesses()
 	require.Equal(t, 1, len(processes))
 	require.Equal(t, testutil.GPUUUIDs[0], processes[0].GPUs[0].ID)
@@ -569,7 +568,7 @@ func TestProcessEntities(t *testing.T) {
 	}
 
 	// Pull again, we should have two Process entities, one for the first GPU and one for the second and third GPUs
-	c.Pull(context.Background())
+	c.Pull(t.Context())
 	processes = wmetaMock.ListProcesses()
 	require.Equal(t, 2, len(processes))
 
@@ -593,7 +592,7 @@ func TestProcessEntities(t *testing.T) {
 	processInfo[testutil.GPUUUIDs[0]] = testutil.MockProcessInfoList{}
 
 	// Pull again, we should have one Process entity, for the second and third GPUs
-	c.Pull(context.Background())
+	c.Pull(t.Context())
 	processes = wmetaMock.ListProcesses()
 	require.Equal(t, 1, len(processes))
 	require.Equal(t, testutil.GPUUUIDs[1], processes[0].GPUs[0].ID)
@@ -607,7 +606,7 @@ func TestProcessEntities(t *testing.T) {
 	processInfo[testutil.GPUUUIDs[2]] = testutil.MockProcessInfoList{}
 
 	// Pull again, we should have no Process entities
-	c.Pull(context.Background())
+	c.Pull(t.Context())
 	processes = wmetaMock.ListProcesses()
 	require.Equal(t, 0, len(processes))
 }
@@ -628,7 +627,7 @@ func TestProcessEntityMerging(t *testing.T) {
 	c.integrateWithWorkloadmetaProcesses = true
 
 	// First, create Process entity from GPU collector
-	c.Pull(context.Background())
+	c.Pull(t.Context())
 
 	gpus := wmetaMock.ListGPUs()
 	require.Len(t, gpus, 1)
@@ -676,7 +675,7 @@ func TestProcessEntityMerging(t *testing.T) {
 	procinfo = testutil.MockProcessInfoList{}
 
 	// Pull again to trigger unset event from SourceNVML
-	c.Pull(context.Background())
+	c.Pull(t.Context())
 
 	// Verify Process entity still exists (because service discovery still has it)
 	stillExistingProcess, err := wmetaMock.GetProcess(pid)
@@ -707,7 +706,7 @@ func TestPullWithMIGDevices(t *testing.T) {
 
 	c := newTestCollector(t, wmetaMock)
 
-	c.Pull(context.Background())
+	c.Pull(t.Context())
 
 	gpus := wmetaMock.ListGPUs()
 	require.Equal(t, testutil.GetTotalExpectedDevices(), len(gpus))

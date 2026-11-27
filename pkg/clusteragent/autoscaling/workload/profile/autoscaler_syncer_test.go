@@ -471,7 +471,7 @@ func TestAutoscalerSyncerWaitsForReadyDeps(t *testing.T) {
 	var ready atomic.Bool
 	s := NewAutoscalerSyncer(profileStore, dpaStore, func() bool { return true }, ready.Load)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	var runReturned atomic.Bool

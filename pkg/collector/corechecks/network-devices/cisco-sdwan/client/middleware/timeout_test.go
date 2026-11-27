@@ -29,7 +29,7 @@ func TestTimeoutTransportTimesOut(t *testing.T) {
 		transport := NewTimeoutTransport(blockingTransport{}, 10*time.Second)
 		start := time.Now()
 
-		err := roundTrip(transport, newTestRequest(context.Background(), t))
+		err := roundTrip(transport, newTestRequest(t.Context(), t))
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 		require.Equal(t, 10*time.Second, time.Since(start))
 	})
@@ -38,7 +38,7 @@ func TestTimeoutTransportTimesOut(t *testing.T) {
 func TestTimeoutTransportReleasesDeadlineOnBodyClose(t *testing.T) {
 	next := &stubTransport{}
 	transport := NewTimeoutTransport(next, time.Hour)
-	parent := newTestRequest(context.Background(), t)
+	parent := newTestRequest(t.Context(), t)
 
 	resp, err := transport.RoundTrip(parent)
 	require.NoError(t, err)

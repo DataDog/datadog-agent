@@ -200,7 +200,7 @@ func TestHandleLeadershipState_BecameLeader(t *testing.T) {
 		initialized:           true, // skip initial state handling
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	handler.handleLeadershipState(ctx)
 
 	spans := mt.FinishedSpans()
@@ -233,7 +233,7 @@ func TestHandleLeadershipState_BecameFollower(t *testing.T) {
 		initialized:           true, // skip initial state handling
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	handler.handleLeadershipState(ctx)
@@ -261,7 +261,7 @@ func TestHandleLeadershipState_NoChange(t *testing.T) {
 		initialized:           true,
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	handler.handleLeadershipState(ctx)
 
 	spans := mt.FinishedSpans()

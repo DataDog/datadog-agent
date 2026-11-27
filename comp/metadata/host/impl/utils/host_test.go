@@ -6,7 +6,6 @@
 package utils
 
 import (
-	"context"
 	"errors"
 	"runtime"
 	"testing"
@@ -29,7 +28,7 @@ import (
 func TestOTLPEnabled(t *testing.T) {
 	defer cache.Cache.Delete(hostCacheKey)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	conf := configmock.New(t)
 	// Disable cloud provider metadata detection to avoid real HTTP calls to
 	// EC2 IMDS / GCP / Azure metadata endpoints, which each take up to the
@@ -48,7 +47,7 @@ func TestOTLPEnabled(t *testing.T) {
 }
 
 func TestGetNetworkMeta(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	network.MockNetworkID(t, "test networkID")
 
 	m := getNetworkMeta(ctx)
@@ -135,7 +134,7 @@ func TestGetProxyMeta(t *testing.T) {
 func TestGetPayload(t *testing.T) {
 	defer cache.Cache.Delete(hostCacheKey)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	conf := configmock.New(t)
 	conf.SetInTest("cloud_provider_metadata", []string{})
 
@@ -168,7 +167,7 @@ func TestGetPayload(t *testing.T) {
 func TestGetFromCache(t *testing.T) {
 	defer cache.Cache.Delete(hostCacheKey)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	conf := configmock.New(t)
 
 	cache.Cache.Set(hostCacheKey, &Payload{Os: "testOS"}, cache.NoExpiration)

@@ -88,9 +88,9 @@ func TestArtifactResolverResolveReusesValidArtifact(t *testing.T) {
 	require.NoError(t, err)
 	descriptor := testArtifactDescriptor()
 
-	first, err := resolver.Resolve(context.Background(), descriptor)
+	first, err := resolver.Resolve(t.Context(), descriptor)
 	require.NoError(t, err)
-	second, err := resolver.Resolve(context.Background(), descriptor)
+	second, err := resolver.Resolve(t.Context(), descriptor)
 	require.NoError(t, err)
 
 	assert.Equal(t, first, second)
@@ -104,11 +104,11 @@ func TestArtifactResolverResolveRepairsInvalidArtifact(t *testing.T) {
 	require.NoError(t, err)
 	descriptor := testArtifactDescriptor()
 
-	artifact, err := resolver.Resolve(context.Background(), descriptor)
+	artifact, err := resolver.Resolve(t.Context(), descriptor)
 	require.NoError(t, err)
 	require.NoError(t, os.Remove(filepath.Join(artifact.ScriptDirectory(), "run.sh")))
 
-	repaired, err := resolver.Resolve(context.Background(), descriptor)
+	repaired, err := resolver.Resolve(t.Context(), descriptor)
 	require.NoError(t, err)
 	assert.Equal(t, artifact.Directory, repaired.Directory)
 	assert.Equal(t, 2, materializer.materializationCount())
@@ -151,7 +151,7 @@ func TestArtifactResolverFollowsRemoteCatalogSelection(t *testing.T) {
 			require.Equal(t, step.want.URL, descriptor.URL)
 			require.Equal(t, step.want.SHA256, descriptor.SHA256)
 
-			artifact, err := resolver.Resolve(context.Background(), descriptor)
+			artifact, err := resolver.Resolve(t.Context(), descriptor)
 			require.NoError(t, err)
 			require.Equal(t, step.materializes, materializer.materializationCount())
 			for digest, cached := range artifacts {
@@ -172,12 +172,12 @@ func TestArtifactResolverResolveTreatsFQNCaseInsensitively(t *testing.T) {
 	require.NoError(t, err)
 	descriptor := testArtifactDescriptor()
 
-	artifact, err := resolver.Resolve(context.Background(), descriptor)
+	artifact, err := resolver.Resolve(t.Context(), descriptor)
 	require.NoError(t, err)
 
 	lowercaseDescriptor := descriptor
 	lowercaseDescriptor.FQN = strings.ToLower(descriptor.FQN)
-	resolved, err := resolver.Resolve(context.Background(), lowercaseDescriptor)
+	resolved, err := resolver.Resolve(t.Context(), lowercaseDescriptor)
 	require.NoError(t, err)
 	assert.Equal(t, artifact, resolved)
 	assert.Equal(t, 1, materializer.materializationCount())
@@ -189,7 +189,7 @@ func TestArtifactResolverResolveDoesNotPublishFailedMaterialization(t *testing.T
 	resolver, err := NewArtifactResolver(filepath.Join(t.TempDir(), "cache"), materializer)
 	require.NoError(t, err)
 
-	artifact, err := resolver.Resolve(context.Background(), testArtifactDescriptor())
+	artifact, err := resolver.Resolve(t.Context(), testArtifactDescriptor())
 	require.ErrorIs(t, err, materializeErr)
 	assert.Empty(t, artifact)
 }
@@ -199,7 +199,7 @@ func TestArtifactResolverResolveValidatesDescriptor(t *testing.T) {
 	resolver, err := NewArtifactResolver(filepath.Join(t.TempDir(), "cache"), materializer)
 	require.NoError(t, err)
 
-	_, err = resolver.Resolve(context.Background(), Descriptor{FQN: "com.datadoghq.authoredscripts.testAction"})
+	_, err = resolver.Resolve(t.Context(), Descriptor{FQN: "com.datadoghq.authoredscripts.testAction"})
 	require.ErrorContains(t, err, "package is required")
 	assert.Equal(t, 0, materializer.materializationCount())
 }

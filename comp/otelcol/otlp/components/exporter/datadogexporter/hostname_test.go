@@ -25,12 +25,12 @@ func TestHostnameService_Get(t *testing.T) {
 		return "my-host", nil
 	}))
 
-	got, err := hs.Get(context.Background())
+	got, err := hs.Get(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, "my-host", got)
-	assert.Equal(t, "my-host", hs.GetSafe(context.Background()))
+	assert.Equal(t, "my-host", hs.GetSafe(t.Context()))
 
-	data, err := hs.GetWithProvider(context.Background())
+	data, err := hs.GetWithProvider(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, "my-host", data.Hostname)
 }
@@ -41,7 +41,7 @@ func TestHostnameService_Error(t *testing.T) {
 		return "", errors.New("boom")
 	}))
 
-	_, err := hs.Get(context.Background())
+	_, err := hs.Get(t.Context())
 	require.Error(t, err)
-	assert.Equal(t, "unknown host", hs.GetSafe(context.Background()))
+	assert.Equal(t, "unknown host", hs.GetSafe(t.Context()))
 }

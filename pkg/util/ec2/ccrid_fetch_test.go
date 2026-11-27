@@ -31,7 +31,7 @@ func TestGetHostCCRID(t *testing.T) {
 		return "123456789012", nil
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	arn, err := GetHostCCRID(ctx)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

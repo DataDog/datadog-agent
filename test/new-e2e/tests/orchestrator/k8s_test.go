@@ -6,7 +6,6 @@
 package orchestrator
 
 import (
-	"context"
 	_ "embed"
 	"strings"
 	"testing"
@@ -173,8 +172,8 @@ func (suite *k8sSuite) TestTerminatedResource() {
 	client := suite.Env().KubernetesCluster.KubernetesClient.K8sClient
 
 	// Check if the namespace exists, create it if not
-	if _, err := client.CoreV1().Namespaces().Get(context.Background(), namespace, metav1.GetOptions{}); err != nil {
-		_, err = client.CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
+	if _, err := client.CoreV1().Namespaces().Get(suite.T().Context(), namespace, metav1.GetOptions{}); err != nil {
+		_, err = client.CoreV1().Namespaces().Create(suite.T().Context(), &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: namespace,
 			},
@@ -200,7 +199,7 @@ func (suite *k8sSuite) TestTerminatedResource() {
 			},
 		},
 	}
-	_, err := client.AppsV1().Deployments(namespace).Create(context.Background(), deploy, metav1.CreateOptions{})
+	_, err := client.AppsV1().Deployments(namespace).Create(suite.T().Context(), deploy, metav1.CreateOptions{})
 	require.NoError(suite.T(), err)
 
 	// ensure the running deployment and pod are collected by the agent
@@ -226,7 +225,7 @@ func (suite *k8sSuite) TestTerminatedResource() {
 	}.Assert(suite.T(), suite.Env().FakeIntake.Client())
 
 	// delete the deployment
-	err = client.AppsV1().Deployments(namespace).Delete(context.Background(), deploymentName, metav1.DeleteOptions{})
+	err = client.AppsV1().Deployments(namespace).Delete(suite.T().Context(), deploymentName, metav1.DeleteOptions{})
 	require.NoError(suite.T(), err)
 
 	// ensure the terminated deployment and pod are collected by the agent

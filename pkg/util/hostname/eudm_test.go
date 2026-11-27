@@ -85,23 +85,23 @@ func TestEUDMResolution(t *testing.T) {
 				}
 				return name, nil
 			}
-			data, err := GetWithProvider(context.Background())
+			data, err := GetWithProvider(t.Context())
 			require.NoError(t, err)
 			require.Equal(t, tc.want, data.Hostname)
 			require.Equal(t, tc.provider, data.Provider)
 			if data.Provider == eudmProviderName || data.Provider == "aws" {
 				// Legacy resolution uses the provider chain and maintains its own cache.
-				legacy, err := GetWithLegacyResolutionProvider(context.Background())
+				legacy, err := GetWithLegacyResolutionProvider(t.Context())
 				require.NoError(t, err)
 				require.Equal(t, data, legacy)
 				getEUDMHostname = func(_ bool) (string, error) {
 					t.Fatal("identity was recollected despite cache")
 					return "", nil
 				}
-				cached, err := GetWithProvider(context.Background())
+				cached, err := GetWithProvider(t.Context())
 				require.NoError(t, err)
 				require.Equal(t, data, cached)
-				cachedLegacy, err := GetWithLegacyResolutionProvider(context.Background())
+				cachedLegacy, err := GetWithLegacyResolutionProvider(t.Context())
 				require.NoError(t, err)
 				require.Equal(t, legacy, cachedLegacy)
 			}
@@ -119,7 +119,7 @@ func TestEUDMSkippedOutsideEUDMMode(t *testing.T) {
 	}
 	cfg := configmock.New(t)
 	cfg.SetInTest("infrastructure_mode", "full")
-	_, err := fromEUDM(context.Background(), "")
+	_, err := fromEUDM(t.Context(), "")
 	require.Error(t, err)
 }
 
@@ -129,7 +129,7 @@ func TestEUDMUnsupportedPlatform(t *testing.T) {
 	getEUDMHostname = func(_ bool) (string, error) { return "", errors.ErrUnsupported }
 	cfg := configmock.New(t)
 	cfg.SetInTest("infrastructure_mode", "end_user_device")
-	_, err := fromEUDM(context.Background(), "")
+	_, err := fromEUDM(t.Context(), "")
 	require.ErrorIs(t, err, errors.ErrUnsupported)
 }
 
@@ -145,7 +145,7 @@ func TestEUDMSerialConfig(t *testing.T) {
 				require.Equal(t, value == "true", useSerial)
 				return "device", nil
 			}
-			_, err := fromEUDM(context.Background(), "")
+			_, err := fromEUDM(t.Context(), "")
 			require.NoError(t, err)
 		})
 	}

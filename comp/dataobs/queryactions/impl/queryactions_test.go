@@ -108,7 +108,7 @@ func TestHasSupportedIntegration(t *testing.T) {
 
 func TestStream_InitialEmptyChangesSentImmediately(t *testing.T) {
 	c, _ := newStreamComponent(t, nil)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	outCh := c.Stream(ctx)
@@ -124,7 +124,7 @@ func TestStream_InitialEmptyChangesSentImmediately(t *testing.T) {
 
 func TestStream_ContextCancel_ClosesChannel(t *testing.T) {
 	c, _ := newStreamComponent(t, nil)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	outCh := c.Stream(ctx)
 	<-outCh // drain initial empty
@@ -147,7 +147,7 @@ func TestStream_SubscribesImmediatelyWhenPostgresAvailable(t *testing.T) {
 		Instances: []integration.Data{integration.Data("host: localhost\ndbname: mydb\ndata_observability:\n  enabled: true\n")},
 	}
 	c, rc := newStreamComponent(t, []integration.Config{postgresCfg})
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	c.Stream(ctx)
@@ -159,7 +159,7 @@ func TestStream_SubscribesImmediatelyWhenPostgresAvailable(t *testing.T) {
 func TestStream_NoPostgresAvailable_DoesNotSubscribeImmediately(t *testing.T) {
 	// Without postgres, Subscribe must not be called before the first ticker tick (10s).
 	c, rc := newStreamComponent(t, nil)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	c.Stream(ctx)
@@ -180,7 +180,7 @@ func TestStream_RCCallback_DeliverChangesToChannel(t *testing.T) {
 		Instances: []integration.Data{integration.Data("host: localhost\ndbname: mydb\ndata_observability:\n  enabled: true\n")},
 	}
 	c, rc := newStreamComponent(t, []integration.Config{postgresCfg})
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	outCh := c.Stream(ctx)
@@ -232,7 +232,7 @@ func TestStream_ChannelReplace_PreservesUnschedule(t *testing.T) {
 		},
 	}
 	c, rc := newStreamComponent(t, []integration.Config{postgresCfg})
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	outCh := c.Stream(ctx)
@@ -318,7 +318,7 @@ func TestStream_NoPanicAfterContextCancel(t *testing.T) {
 		Instances: []integration.Data{integration.Data("host: localhost\ndbname: mydb\ndata_observability:\n  enabled: true\n")},
 	}
 	c, rc := newStreamComponent(t, []integration.Config{postgresCfg})
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	outCh := c.Stream(ctx)
 	<-outCh // drain initial empty

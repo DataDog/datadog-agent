@@ -69,7 +69,7 @@ func TestEBPFLessAttach(t *testing.T) {
 			signal.Notify(sigCh, syscall.SIGUSR1)
 			defer signal.Stop(sigCh)
 
-			timeoutCtx, cancel := context.WithTimeout(context.Background(), 7*time.Second)
+			timeoutCtx, cancel := context.WithTimeout(t.Context(), 7*time.Second)
 			defer cancel()
 
 			cmd := exec.CommandContext(timeoutCtx, syscallTester,

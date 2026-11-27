@@ -8,7 +8,6 @@
 package providers
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -67,7 +66,7 @@ func (m *consulKVMock) List(prefix string, q *consul.QueryOptions) (consul.KVPai
 //
 
 func TestConsulGetIdentifiers(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	kv := &consulKVMock{}
 	provider := &consulMock{kv: kv}
 
@@ -126,7 +125,7 @@ func TestConsulGetIdentifiers(t *testing.T) {
 }
 
 func TestConsulGetTemplates(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	kv := &consulKVMock{}
 	provider := &consulMock{kv: kv}
 
@@ -195,7 +194,7 @@ func TestConsulGetTemplates(t *testing.T) {
 }
 
 func TestConsulCollect(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	kv := &consulKVMock{}
 	provider := &consulMock{kv: kv}
 
@@ -304,7 +303,7 @@ func TestIsUpToDate(t *testing.T) {
 	// If the number of ADTemplate is modified we update
 	// If nothing changed we don't update
 
-	ctx := context.Background()
+	ctx := t.Context()
 	kv := &consulKVMock{}
 	provider := &consulMock{kv: kv}
 

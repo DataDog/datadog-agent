@@ -8,7 +8,6 @@
 package recorderimpl
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -138,7 +137,7 @@ func TestWriterConfigurationAndDefaults(t *testing.T) {
 			require.Equal(t, tc.flush, factory.metricCfg.FlushInterval)
 			require.Equal(t, tc.retention, factory.metricCfg.Retention)
 			require.Len(t, lifecycle.hooks, 1)
-			require.NoError(t, lifecycle.hooks[0].OnStop(context.Background()))
+			require.NoError(t, lifecycle.hooks[0].OnStop(t.Context()))
 			require.Equal(t, 1, factory.metric.closes)
 			require.Equal(t, 1, factory.log.closes)
 		})
@@ -211,7 +210,7 @@ func TestShutdownClosesBothWritersAndPreservesErrors(t *testing.T) {
 	_, err := NewConfiguredComponent(Requires{Config: testRecordingConfig(t, nil), Lifecycle: lifecycle, Factory: option.New[recorder.WriterFactory](factory)})
 	require.NoError(t, err)
 	require.Len(t, lifecycle.hooks, 1)
-	err = lifecycle.hooks[0].OnStop(context.Background())
+	err = lifecycle.hooks[0].OnStop(t.Context())
 	require.ErrorIs(t, err, metricErr)
 	require.ErrorIs(t, err, logErr)
 	require.Equal(t, 1, factory.metric.closes)

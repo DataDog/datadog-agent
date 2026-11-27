@@ -29,7 +29,7 @@ import (
 func TestExecuteCommand_Success(t *testing.T) {
 	cmd := exec.Command("/bin/sh", "-c", "echo hello; echo world 1>&2")
 
-	result, err := ExecuteCommand(context.Background(), cmd)
+	result, err := ExecuteCommand(t.Context(), cmd)
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.ExitCode)
@@ -38,9 +38,9 @@ func TestExecuteCommand_Success(t *testing.T) {
 }
 
 func TestExecuteCommand_NonZeroExit(t *testing.T) {
-	cmd := exec.CommandContext(context.Background(), "/bin/sh", "-c", "echo boom 1>&2; exit 3")
+	cmd := exec.CommandContext(t.Context(), "/bin/sh", "-c", "echo boom 1>&2; exit 3")
 
-	result, err := ExecuteCommand(context.Background(), cmd)
+	result, err := ExecuteCommand(t.Context(), cmd)
 
 	require.Error(t, err)
 	assert.Equal(t, 3, result.ExitCode)
@@ -56,7 +56,7 @@ func TestExecuteCommand_PermissionDenied(t *testing.T) {
 	scriptPath := filepath.Join(t.TempDir(), "script.sh")
 	require.NoError(t, os.WriteFile(scriptPath, []byte("#!/bin/sh\nexit 0\n"), 0o600))
 
-	result, err := ExecuteCommand(context.Background(), exec.Command(scriptPath))
+	result, err := ExecuteCommand(t.Context(), exec.Command(scriptPath))
 
 	require.Error(t, err)
 	assert.Equal(t, -1, result.ExitCode)
@@ -76,7 +76,7 @@ func TestExecuteCommand_NilContext(t *testing.T) {
 }
 
 func TestExecuteCommand_ContextTimeout(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
 	defer cancel()
 	cmd := exec.Command("/bin/sh", "-c", "sleep 5")
 
@@ -88,7 +88,7 @@ func TestExecuteCommand_ContextTimeout(t *testing.T) {
 }
 
 func TestExecuteCommand_ContextCanceled(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", "sleep 5")
 	cancel()
 
@@ -104,9 +104,9 @@ func TestExecuteCommand_CommandContextCancellationTerminatesProcessGroup(t *test
 		t.Skip("process-group assertion is not supported on AIX")
 	}
 
-	commandCtx, cancelCommand := context.WithCancel(context.Background())
+	commandCtx, cancelCommand := context.WithCancel(t.Context())
 	defer cancelCommand()
-	executionCtx, cancelExecution := context.WithTimeout(context.Background(), 5*time.Second)
+	executionCtx, cancelExecution := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancelExecution()
 
 	pidFile := filepath.Join(t.TempDir(), "child.pid")
@@ -144,9 +144,9 @@ func TestExecuteCommand_CommandContextCancellationTerminatesProcessGroup(t *test
 }
 
 func TestExecuteCommand_OutputLimitExceeded(t *testing.T) {
-	cmd := exec.CommandContext(context.Background(), "yes")
+	cmd := exec.CommandContext(t.Context(), "yes")
 
-	result, err := executeCommand(context.Background(), cmd, 100)
+	result, err := executeCommand(t.Context(), cmd, 100)
 
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, errOutputLimitExceeded))
@@ -158,9 +158,9 @@ func TestExecuteCommand_ReapsProcessGroup(t *testing.T) {
 		t.Skip("flaky on AIX")
 	}
 
-	cmd := exec.CommandContext(context.Background(), "/bin/sh", "-c", "sleep 30 </dev/null >/dev/null 2>&1 & echo $!")
+	cmd := exec.CommandContext(t.Context(), "/bin/sh", "-c", "sleep 30 </dev/null >/dev/null 2>&1 & echo $!")
 
-	result, err := ExecuteCommand(context.Background(), cmd)
+	result, err := ExecuteCommand(t.Context(), cmd)
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.ExitCode)
@@ -175,7 +175,7 @@ func TestExecuteCommand_ReapsProcessGroup(t *testing.T) {
 }
 
 func TestExecuteCommand_OutputLimitTerminatesProcessIgnoringSIGPIPE(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=TestExecuteCommand_SIGPIPEHelperProcess")
 	cmd.Env = append(os.Environ(), "GO_WANT_SIGPIPE_HELPER_PROCESS=1")
@@ -213,7 +213,7 @@ func TestExecuteCommand_ConcurrentExecutionsAreIndependent(t *testing.T) {
 	for i := 0; i < executionCount; i++ {
 		shouldReachLimit := i%2 == 0
 		go func(shouldReachLimit bool) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			var cmd *exec.Cmd
 			if shouldReachLimit {
 				cmd = exec.CommandContext(ctx, os.Args[0], "-test.run=TestExecuteCommand_SIGPIPEHelperProcess")
@@ -246,10 +246,10 @@ func TestExecuteCommand_ConcurrentExecutionsAreIndependent(t *testing.T) {
 
 func TestExecuteCommand_StderrTruncatedInError(t *testing.T) {
 	longStderr := strings.Repeat("e", maxErrorStderrSize+1000)
-	cmd := exec.CommandContext(context.Background(), "/bin/sh", "-c", "printf '%s' \"$LONG_STDERR\" 1>&2; exit 1")
+	cmd := exec.CommandContext(t.Context(), "/bin/sh", "-c", "printf '%s' \"$LONG_STDERR\" 1>&2; exit 1")
 	cmd.Env = append(cmd.Env, "LONG_STDERR="+longStderr)
 
-	_, err := ExecuteCommand(context.Background(), cmd)
+	_, err := ExecuteCommand(t.Context(), cmd)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "[truncated]")
@@ -257,7 +257,7 @@ func TestExecuteCommand_StderrTruncatedInError(t *testing.T) {
 }
 
 func TestExecuteCommand_CommandRequired(t *testing.T) {
-	_, err := executeCommand(context.Background(), nil, defaultOutputLimit)
+	_, err := executeCommand(t.Context(), nil, defaultOutputLimit)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "command is required")
@@ -266,7 +266,7 @@ func TestExecuteCommand_CommandRequired(t *testing.T) {
 func TestExecuteCommand_OutputLimitMustBePositive(t *testing.T) {
 	cmd := exec.Command("/bin/echo", "hi")
 
-	_, err := executeCommand(context.Background(), cmd, 0)
+	_, err := executeCommand(t.Context(), cmd, 0)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must be positive")

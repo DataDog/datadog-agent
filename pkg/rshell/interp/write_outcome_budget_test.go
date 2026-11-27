@@ -16,15 +16,15 @@ import (
 func TestWriteOutcomeDeadlineClampsToShorterCtxDeadline(t *testing.T) {
 	now := time.Now()
 	ctxDeadline := now.Add(5 * time.Second)
-	ctx, cancel := context.WithDeadline(context.Background(), ctxDeadline)
+	ctx, cancel := context.WithDeadline(t.Context(), ctxDeadline)
 	defer cancel()
 	require.Equal(t, ctxDeadline, writeOutcomeDeadline(ctx, now))
 }
 
 func TestWriteOutcomeDeadlineUsesTimeoutWhenCtxDeadlineIsLater(t *testing.T) {
 	now := time.Now()
-	require.Equal(t, now.Add(writeOutcomeWaitTimeout), writeOutcomeDeadline(context.Background(), now))
-	ctx, cancel := context.WithDeadline(context.Background(), now.Add(time.Hour))
+	require.Equal(t, now.Add(writeOutcomeWaitTimeout), writeOutcomeDeadline(t.Context(), now))
+	ctx, cancel := context.WithDeadline(t.Context(), now.Add(time.Hour))
 	defer cancel()
 	require.Equal(t, now.Add(writeOutcomeWaitTimeout), writeOutcomeDeadline(ctx, now))
 }
@@ -34,7 +34,7 @@ func TestWriteWithOutcomeReservesTimeWithinBudget(t *testing.T) {
 		t.Run(budget.String(), func(t *testing.T) {
 			start := time.Now()
 			deadline := start.Add(budget)
-			ctx, cancel := context.WithDeadline(context.Background(), deadline)
+			ctx, cancel := context.WithDeadline(t.Context(), deadline)
 			defer cancel()
 			_, err := writeWithOutcome(ctx, func(writeCtx context.Context) (bool, error) {
 				writeDeadline, ok := writeCtx.Deadline()
@@ -50,7 +50,7 @@ func TestWriteWithOutcomeReservesTimeWithinBudget(t *testing.T) {
 }
 
 func TestWriteWithOutcomePropagatesExplicitCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	_, err := writeWithOutcome(ctx, func(writeCtx context.Context) (bool, error) {
 		return false, writeCtx.Err()

@@ -100,7 +100,7 @@ func TestConfigureDelegatedAuthAllowsAsyncStartupOnlyForPrimaryKey(t *testing.T)
 		return nil
 	}}
 
-	require.NoError(t, configureDelegatedAuth(context.Background(), config, comp))
+	require.NoError(t, configureDelegatedAuth(t.Context(), config, comp))
 	require.Contains(t, paramsByKey, "api_key")
 	require.Contains(t, paramsByKey, "logs_config.api_key")
 	assert.True(t, paramsByKey["api_key"].AllowAsyncStartup)
@@ -176,7 +176,7 @@ logs_config:
       api_key: DELA[list-org, aws]
 `)
 				config.SetInTest("delegated_auth.startup_timeout_secs", timeout)
-				parent, cancelParent := context.WithCancel(context.Background())
+				parent, cancelParent := context.WithCancel(t.Context())
 				defer cancelParent()
 				var contexts []context.Context
 				comp := &delegatedauthmock.Mock{AddInstanceFunc: func(ctx context.Context, _ delegatedauth.InstanceParams) error {

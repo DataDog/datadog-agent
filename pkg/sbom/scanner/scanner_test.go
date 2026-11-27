@@ -116,7 +116,7 @@ func TestRetryLogic_Error(t *testing.T) {
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
-		fx.Supply(context.Background()),
+		fx.Supply(t.Context()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
@@ -165,7 +165,7 @@ func TestRetryLogic_Error(t *testing.T) {
 
 			// Create a scanner and start it
 			scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			scanner.Start(ctx)
 
 			// Enqueue a scan request for container images
@@ -198,7 +198,7 @@ func TestRetryLogic_NotSupported(t *testing.T) {
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
-		fx.Supply(context.Background()),
+		fx.Supply(t.Context()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
@@ -227,7 +227,7 @@ func TestRetryLogic_NotSupported(t *testing.T) {
 	cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
 
 	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	scanner.Start(ctx)
 
@@ -253,7 +253,7 @@ func TestRetryLogic_OSFallback(t *testing.T) {
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
-		fx.Supply(context.Background()),
+		fx.Supply(t.Context()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
@@ -312,7 +312,7 @@ func TestRetryLogic_OSFallback(t *testing.T) {
 			cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
 
 			scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			scanner.Start(ctx)
 
@@ -346,7 +346,7 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
-		fx.Supply(context.Background()),
+		fx.Supply(t.Context()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
@@ -377,7 +377,7 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 
 	// Create a scanner and start it
 	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	scanner.Start(ctx)
 
 	// Enqueue a scan request for container images
@@ -414,10 +414,10 @@ func TestPerformScanReturnsWhenContextEnds(t *testing.T) {
 		scanner := NewScanner(configmock.New(t), nil, option.None[workloadmeta.Component]())
 		defer scanner.scanQueue.ShutDown()
 
-		go scanner.PerformScan(context.Background(), &scanRequest{id: "first"}, collector)
+		go scanner.PerformScan(t.Context(), &scanRequest{id: "first"}, collector)
 		synctest.Wait()
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 		defer cancel()
 		results := make(chan *sbom.ScanResult, 1)
 		go func() { results <- scanner.PerformScan(ctx, &scanRequest{id: "second"}, collector) }()
@@ -448,7 +448,7 @@ func TestPerformScanRunsOneScanAtATime(t *testing.T) {
 
 		var wg sync.WaitGroup
 		for i := range 4 {
-			wg.Go(func() { scanner.PerformScan(context.Background(), &scanRequest{id: strconv.Itoa(i)}, collector) })
+			wg.Go(func() { scanner.PerformScan(t.Context(), &scanRequest{id: strconv.Itoa(i)}, collector) })
 		}
 		for range 4 {
 			synctest.Wait()
@@ -468,7 +468,7 @@ func TestRetryLogic_ContainerStopped(t *testing.T) {
 		workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
-			fx.Supply(context.Background()),
+			fx.Supply(t.Context()),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		))
 		container := func(id string, running bool) *workloadmeta.Container {
@@ -500,7 +500,7 @@ func TestRetryLogic_ContainerStopped(t *testing.T) {
 		cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
 
 		scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		scanner.Start(ctx)
 
 		for _, id := range []string{"missing", "stopped", "running"} {
@@ -541,7 +541,7 @@ func TestProcessScanAttachesImage(t *testing.T) {
 	defer scanner.scanQueue.ShutDown()
 
 	imgMeta := &workloadmeta.ContainerImageMetadata{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "id"}}
-	scanner.processScan(context.Background(), &scanRequest{collectorName: "mock", id: "id"}, imgMeta, collector)
+	scanner.processScan(t.Context(), &scanRequest{collectorName: "mock", id: "id"}, imgMeta, collector)
 
 	result := <-resultCh
 	assert.EqualError(t, result.Error, "scan error")
@@ -556,7 +556,7 @@ func TestRetryChannelFull(t *testing.T) {
 		workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
-			fx.Supply(context.Background()),
+			fx.Supply(t.Context()),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		))
 
@@ -586,7 +586,7 @@ func TestRetryChannelFull(t *testing.T) {
 
 		// Create a scanner and start it
 		scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		scanner.Start(ctx)
 
 		// Enqueue a scan request for container images
@@ -745,7 +745,7 @@ func TestImageScanPublishedSBOM(t *testing.T) {
 			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Provide(func() log.Component { return logmock.New(t) }),
 				fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
-				fx.Supply(context.Background()),
+				fx.Supply(t.Context()),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 			image := func(s *workloadmeta.CompressedSBOM) *workloadmeta.ContainerImageMetadata {
@@ -774,7 +774,7 @@ func TestImageScanPublishedSBOM(t *testing.T) {
 			cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
 			cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
 			scanner := NewScanner(cfg, map[string]collectors.Collector{"mock": mockCollector}, option.New[workloadmeta.Component](store))
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			scanner.Start(ctx)
 
@@ -827,7 +827,7 @@ func TestScanLeavesReportUnbuilt(t *testing.T) {
 	mockCollector.On("Type").Return(collectors.HostScanType)
 
 	scanner := NewScanner(configmock.New(t), map[string]collectors.Collector{"mock": mockCollector}, option.None[workloadmeta.Component]())
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	scanner.Start(ctx)
 

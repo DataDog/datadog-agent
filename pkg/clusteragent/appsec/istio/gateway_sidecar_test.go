@@ -8,7 +8,6 @@
 package istio
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -375,7 +374,7 @@ func TestGatewaySidecar_PodDeleted_IsNoOp(t *testing.T) {
 }
 
 func TestGatewaySidecar_Added_IsNoOp(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	pattern := newTestNativeGatewaySidecarPattern(t)
 
 	gw := newTestIstioGateway("test-gw", "default", map[string]any{"app": "istio-gateway"})

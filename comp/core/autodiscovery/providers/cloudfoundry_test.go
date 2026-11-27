@@ -8,7 +8,6 @@
 package providers
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -56,7 +55,7 @@ func (b bbsCacheFake) GetTagsForNode(_ string) (map[string][]string, error) {
 var testBBSCache = &bbsCacheFake{}
 
 func TestCloudFoundryConfigProvider_IsUpToDate(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	now := time.Now()
 	then := now.Add(time.Duration(1))
 	testBBSCache.Updated = now
@@ -363,7 +362,7 @@ func TestCloudFoundryConfigProvider_Collect(t *testing.T) {
 		},
 	} {
 		t.Run(tc.tc, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			p := CloudFoundryConfigProvider{bbsCache: testBBSCache}
 			testBBSCache.ActualLRPs = tc.aLRP
 			testBBSCache.DesiredLRPs = tc.dLRP

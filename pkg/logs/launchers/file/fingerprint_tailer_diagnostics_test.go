@@ -10,7 +10,6 @@ package file
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"errors"
 	"os"
 	"strings"
@@ -107,7 +106,7 @@ func setupFingerprintSkipTest(t *testing.T, count int) *fingerprintSkipTestSetup
 		path:     path,
 		scan: func() {
 			launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(
-				context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+				t.Context(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
 		},
 	}
 }
@@ -343,7 +342,7 @@ func TestLauncherKeepsFingerprintSkipOpenedDuringInFlightScan(t *testing.T) {
 
 	// What FilesToTail returns for a scan that started before this source existed.
 	staleResult := setup.launcher.fileProvider.FilesToTail(
-		context.Background(), setup.launcher.validatePodContainerID, nil, setup.launcher.registry)
+		t.Context(), setup.launcher.validatePodContainerID, nil, setup.launcher.registry)
 	require.Empty(t, staleResult, "a scan predating the source must not report its files")
 
 	// The between-scans entry point, which addSource uses to evaluate a new source immediately

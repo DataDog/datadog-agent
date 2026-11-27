@@ -15,7 +15,7 @@ import (
 
 func newTestStore(t *testing.T) *ActionStore {
 	t.Helper()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	return NewActionStore(ctx)
 }

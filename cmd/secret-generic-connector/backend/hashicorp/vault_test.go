@@ -7,7 +7,6 @@
 package hashicorp
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -45,7 +44,7 @@ func TestVaultBackend(t *testing.T) {
 	secretsBackend, err := NewVaultBackend(backendConfig)
 	assert.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	secretOutput := secretsBackend.GetSecretOutput(ctx, "secret/foo;key1")
 	assert.Equal(t, "value1", *secretOutput.Value)
 	assert.Nil(t, secretOutput.Error)
@@ -79,7 +78,7 @@ func TestVaultBackend_KeyNotFound(t *testing.T) {
 	secretsBackend, err := NewVaultBackend(backendConfig)
 	assert.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	secretOutput := secretsBackend.GetSecretOutput(ctx, "secret/foo;key_noexist")
 	assert.Nil(t, secretOutput.Value)
 	assert.Equal(t, secret.ErrKeyNotFound.Error(), *secretOutput.Error)
@@ -304,7 +303,7 @@ func TestVaultBackend_KVV2Support(t *testing.T) {
 	secretsBackend, err := NewVaultBackend(backendConfig)
 	assert.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	secretOutput := secretsBackend.GetSecretOutput(ctx, "kv2/foo;key1")
 	assert.Equal(t, "value1", *secretOutput.Value)
 	assert.Nil(t, secretOutput.Error)
@@ -666,7 +665,7 @@ func TestVaultBackend_VaultURIFormat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			secretOutput := secretsBackend.GetSecretOutput(ctx, tt.secretString)
 
 			if tt.expectError {
@@ -821,7 +820,7 @@ func TestVaultBackend_VaultURIFormat_KVv2(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			secretOutput := secretsBackend.GetSecretOutput(ctx, tt.secretString)
 
 			if tt.expectError {
@@ -855,7 +854,7 @@ func TestVaultBackend_BackwardCompatibility(t *testing.T) {
 	secretsBackend, err := NewVaultBackend(backendConfig)
 	assert.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	// Test that old format still works
 	secretOutput := secretsBackend.GetSecretOutput(ctx, "secret/test;key1")
 	assert.Equal(t, "value1", *secretOutput.Value)
@@ -922,7 +921,7 @@ func TestVaultBackend_ErrorHandling(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			secretOutput := secretsBackend.GetSecretOutput(ctx, tt.secretString)
 
 			if tt.expectError {

@@ -33,7 +33,7 @@ func checkRunner(t *testing.T, options ...RunnerOption) *Runner {
 
 func checkScript(t *testing.T, runner *Runner, script string) *CheckResult {
 	t.Helper()
-	result, err := runner.Check(context.Background(), script)
+	result, err := runner.Check(t.Context(), script)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, result.Status == CheckAllowed, result.Allowed)
@@ -118,7 +118,7 @@ func TestCheckCommands(t *testing.T) {
 			}
 			// Both entry points must share syntax, flags, traversal, command
 			// policy, and the complete report envelope without a second matrix.
-			remote, err := CheckRemote(context.Background(), test.script, RemotePolicy{AllowedCommands: test.allowed})
+			remote, err := CheckRemote(t.Context(), test.script, RemotePolicy{AllowedCommands: test.allowed})
 			require.NoError(t, err)
 			assert.Equal(t, result.Status, remote.Status)
 			assert.Equal(t, result.Allowed, remote.Allowed)
@@ -222,7 +222,7 @@ func TestCheckBuiltinHelpPolicyMatchesRun(t *testing.T) {
 				result := checkScript(t, runner, script)
 				program, err := ParseScript(script, "")
 				require.NoError(t, err)
-				err = runner.Run(context.Background(), program)
+				err = runner.Run(t.Context(), program)
 				assert.Equal(t, err == nil, result.Allowed, "%+v", result)
 			})
 		}
@@ -277,7 +277,7 @@ func TestCheckDoesNotExecuteOrChangeRunner(t *testing.T) {
 	assert.Zero(t, position)
 	program, err := ParseScript(`echo "$X"`, "")
 	require.NoError(t, err)
-	require.NoError(t, runner.Run(context.Background(), program))
+	require.NoError(t, runner.Run(t.Context(), program))
 	assert.Equal(t, "original\n", stdout.String())
 	assert.True(t, checkScript(t, runner, `sudo echo hi`).Allowed)
 	assert.True(t, checkHasIssue(checkScript(t, runner, `echo hi | (sudo echo there)`), CheckElevationNotAllowed))
@@ -330,7 +330,7 @@ func TestCheckUsesCurrentRunnerState(t *testing.T) {
 	runner := checkRunner(t, allowAllCommandsOpt(), AllowedPaths([]string{root}))
 	program, err := ParseScript(`F=../../outside; cd subdir`, "")
 	require.NoError(t, err)
-	require.NoError(t, runner.Run(context.Background(), program))
+	require.NoError(t, runner.Run(t.Context(), program))
 	result := checkScript(t, runner, `cat "$F"`)
 	assert.Equal(t, CheckDenied, result.Status)
 	assert.True(t, checkHasIssue(result, CheckPathNotAllowed))
@@ -374,13 +374,13 @@ func TestCheckPositionsWarningsAndJSON(t *testing.T) {
 
 func TestCheckCancellationAndLimits(t *testing.T) {
 	runner := checkRunner(t, allowAllCommandsOpt())
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	result, err := runner.Check(ctx, "echo hi")
 	assert.Nil(t, result)
 	assert.ErrorIs(t, err, context.Canceled)
 	bounded := checkRunner(t, allowAllCommandsOpt(), MaxExecutionTime(time.Nanosecond))
-	_, err = bounded.Check(context.Background(), strings.Repeat("echo hi;", 1000))
+	_, err = bounded.Check(t.Context(), strings.Repeat("echo hi;", 1000))
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
 	result = checkScript(t, runner, strings.Repeat(" ", MaxScriptBytes+1))
 	assert.True(t, checkHasIssue(result, CheckParseError))
@@ -389,7 +389,7 @@ func TestCheckCancellationAndLimits(t *testing.T) {
 	assert.True(t, checkHasIssue(result, CheckLimitExceeded))
 	assert.Len(t, result.Commands, MaxCheckCommands)
 	var invalid Runner
-	_, err = invalid.Check(context.Background(), "")
+	_, err = invalid.Check(t.Context(), "")
 	require.Error(t, err)
 }
 
@@ -411,7 +411,7 @@ func (e *cancelAssignmentEnvironment) Get(name string) expand.Variable {
 func (*cancelAssignmentEnvironment) Each(func(string, expand.Variable) bool) {}
 
 func TestCheckCancellationDuringAssignments(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	env := &cancelAssignmentEnvironment{cancel: cancel}
 	runner := checkRunner(t, func(r *Runner) error { r.Env = env; return nil })
@@ -467,7 +467,7 @@ func TestCheckElevatedXargsChildRequiresGrant(t *testing.T) {
 					panic("check must never elevate")
 				}))
 			result := checkScript(t, runner, test.script)
-			remote, err := CheckRemote(context.Background(), test.script, RemotePolicy{
+			remote, err := CheckRemote(t.Context(), test.script, RemotePolicy{
 				AllowedCommands: allowed, ElevatableCommands: test.elevatable, Mode: ModeRemediation,
 			})
 			require.NoError(t, err)
@@ -500,7 +500,7 @@ func TestCheckHelpOfRemediationOnlyBuiltinMatchesRun(t *testing.T) {
 				result := checkScript(t, runner, script)
 				program, err := ParseScript(script, "")
 				require.NoError(t, err)
-				err = runner.Run(context.Background(), program)
+				err = runner.Run(t.Context(), program)
 				assert.Equal(t, err == nil, result.Allowed, "%+v", result)
 				if mode == ModeReadOnly {
 					assert.False(t, result.Allowed, "%+v", result)
@@ -536,7 +536,7 @@ func TestCheckInputRedirectRequiresCatMatchesRun(t *testing.T) {
 				result := checkScript(t, runner, script)
 				program, err := ParseScript(script, "")
 				require.NoError(t, err)
-				_ = runner.Run(context.Background(), program)
+				_ = runner.Run(t.Context(), program)
 				gated := strings.Contains(stderr.String(), "cat not in allowed commands")
 				assert.Equal(t, !catAllowed, gated, "run stderr: %s", stderr.String())
 				assert.Equal(t, !catAllowed, checkHasIssue(result, CheckCommandNotAllowed), "%+v", result)

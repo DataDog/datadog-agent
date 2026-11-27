@@ -116,7 +116,7 @@ func newTestLocalAPI(t *testing.T) *testLocalAPI {
 		listener: l,
 		daemon:   daemon,
 	}
-	apiServer.Start(context.Background())
+	apiServer.Start(t.Context())
 	apiClient := &localAPIClientImpl{
 		client: &http.Client{},
 		addr:   l.Addr().String(),
@@ -124,13 +124,13 @@ func newTestLocalAPI(t *testing.T) *testLocalAPI {
 	return &testLocalAPI{daemon, apiServer, apiClient}
 }
 
-func (api *testLocalAPI) Stop() {
-	api.s.Stop(context.Background())
+func (api *testLocalAPI) Stop(ctx context.Context) {
+	api.s.Stop(ctx)
 }
 
 func TestAPIStatus(t *testing.T) {
 	api := newTestLocalAPI(t)
-	defer api.Stop()
+	defer api.Stop(t.Context())
 
 	remoteConfigState := &pbgo.ClientUpdater{
 		Packages: []*pbgo.PackageState{
@@ -154,7 +154,7 @@ func TestAPIStatus(t *testing.T) {
 
 func TestAPIInstall(t *testing.T) {
 	api := newTestLocalAPI(t)
-	defer api.Stop()
+	defer api.Stop(t.Context())
 
 	testPackage := Package{
 		Name:    "test-package",
@@ -171,7 +171,7 @@ func TestAPIInstall(t *testing.T) {
 
 func TestAPIStartExperiment(t *testing.T) {
 	api := newTestLocalAPI(t)
-	defer api.Stop()
+	defer api.Stop(t.Context())
 
 	testPackage := Package{
 		Name:    "test-package",
@@ -188,7 +188,7 @@ func TestAPIStartExperiment(t *testing.T) {
 
 func TestAPIStopExperiment(t *testing.T) {
 	api := newTestLocalAPI(t)
-	defer api.Stop()
+	defer api.Stop(t.Context())
 
 	testPackage := "test-package"
 	api.i.On("StopExperiment", mock.Anything, testPackage).Return(nil)
@@ -200,7 +200,7 @@ func TestAPIStopExperiment(t *testing.T) {
 
 func TestAPIPromoteExperiment(t *testing.T) {
 	api := newTestLocalAPI(t)
-	defer api.Stop()
+	defer api.Stop(t.Context())
 
 	testPackage := "test-package"
 	api.i.On("PromoteExperiment", mock.Anything, testPackage).Return(nil)

@@ -24,7 +24,7 @@ import (
 // whileRun runs a script with all commands allowed and no path restrictions.
 func whileRun(t *testing.T, script string) (string, string, int) {
 	t.Helper()
-	return whileRunCtx(context.Background(), t, script)
+	return whileRunCtx(t.Context(), t, script)
 }
 
 // whileRunCtx is whileRun with an explicit context — used by tests that need
@@ -453,7 +453,7 @@ func TestUntilContinue2InCondPropagates(t *testing.T) {
 // the helper does not surface as a non-zero exit code; the test passes if it
 // returns at all within a small fraction of the test's overall timeout.)
 func TestWhileTrueRespectsContextCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	timer := time.AfterFunc(50*time.Millisecond, cancel)
 	defer timer.Stop()
 	defer cancel()
@@ -466,7 +466,7 @@ func TestWhileTrueRespectsContextCancellation(t *testing.T) {
 // ctx check (loopCtx.Err()) — this exercises a path that only fires when the
 // parent ctx is already done at the moment we enter a new iteration.
 func TestWhileExitsOnPreCancelledContext(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	stdout, _, _ := whileRunCtx(ctx, t, `while true; do echo x; done`)
 	assert.Empty(t, stdout, "no body iterations should run when ctx is pre-cancelled")
@@ -477,7 +477,7 @@ func TestWhileExitsOnPreCancelledContext(t *testing.T) {
 // and assert stdout size stays under a generous upper bound that catches an
 // unbounded-growth regression.
 func TestWhileTrueOutputRespectsStdoutCap(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	stdout, _, _ := whileRunCtx(ctx, t, `while true; do echo x; done`)
 	// 32 MiB is well above any plausible cap, so any value past this points
@@ -492,7 +492,7 @@ func TestWhileTrueOutputRespectsStdoutCap(t *testing.T) {
 // same way it does through `while` — TestWhileTrueRespectsContextCancellation
 // covers `while`, this covers `until`.
 func TestUntilFalseRespectsContextCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	timer := time.AfterFunc(50*time.Millisecond, cancel)
 	defer timer.Stop()
 	defer cancel()
@@ -506,7 +506,7 @@ func TestUntilFalseRespectsContextCancellation(t *testing.T) {
 // subshell uses a forked runner with shared ctx, so the cancel must
 // propagate through the subshell into the inner while's loopCtx.Err() check.
 func TestSubshellInfiniteWhileRespectsContextCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	timer := time.AfterFunc(50*time.Millisecond, cancel)
 	defer timer.Stop()
 	defer cancel()

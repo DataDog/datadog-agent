@@ -6,7 +6,6 @@
 package autoconnections
 
 import (
-	"context"
 	"testing"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -20,7 +19,7 @@ func TestTagsProvider_WithClusterTags(t *testing.T) {
 	mockTagger.SetGlobalTags([]string{"kube_cluster_name:production", "orch_cluster_id:abc-123-def"}, nil, nil, nil)
 	provider := NewTagsProvider(mockTagger)
 
-	tags := provider.GetTags(context.Background(), "runner-abc", "host-01")
+	tags := provider.GetTags(t.Context(), "runner-abc", "host-01")
 
 	require.Len(t, tags, 5)
 	assert.Contains(t, tags, "runner-id:runner-abc")
@@ -40,7 +39,7 @@ func TestTagsProvider_WithEnvTag(t *testing.T) {
 	}, nil, nil, nil)
 	provider := NewTagsProvider(mockTagger)
 
-	tags := provider.GetTags(context.Background(), "runner-xyz", "host-02")
+	tags := provider.GetTags(t.Context(), "runner-xyz", "host-02")
 
 	require.Len(t, tags, 5)
 	assert.Contains(t, tags, "runner-id:runner-xyz")
@@ -55,7 +54,7 @@ func TestTagsProvider_NoClusterTagsAvailable(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	provider := NewTagsProvider(mockTagger)
 
-	tags := provider.GetTags(context.Background(), "runner-abc", "host-01")
+	tags := provider.GetTags(t.Context(), "runner-abc", "host-01")
 
 	require.Len(t, tags, 3)
 	assert.Contains(t, tags, "runner-id:runner-abc")
@@ -67,7 +66,7 @@ func TestTagsProvider_EmptyHostnameOmitted(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	provider := NewTagsProvider(mockTagger)
 
-	tags := provider.GetTags(context.Background(), "runner-abc", "")
+	tags := provider.GetTags(t.Context(), "runner-abc", "")
 
 	require.Len(t, tags, 2)
 	assert.Contains(t, tags, "runner-id:runner-abc")
@@ -88,7 +87,7 @@ func TestTagsProvider_AllWhitelistedTags(t *testing.T) {
 	}, nil, nil, nil)
 	provider := NewTagsProvider(mockTagger)
 
-	tags := provider.GetTags(context.Background(), "runner-abc", "host-01")
+	tags := provider.GetTags(t.Context(), "runner-abc", "host-01")
 
 	// Should have: runner-id, hostname, agent_flavor + 5 whitelisted tags
 	require.Len(t, tags, 8)

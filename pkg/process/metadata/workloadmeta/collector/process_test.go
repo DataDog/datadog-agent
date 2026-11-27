@@ -62,7 +62,7 @@ func acquireStream(t *testing.T, port int, tlsConfig *tls.Config) pbgo.ProcessEn
 		_ = cc.Close()
 	})
 
-	stream, err := pbgo.NewProcessEntityStreamClient(cc).StreamEntities(context.Background(), &pbgo.ProcessStreamEntitiesRequest{})
+	stream, err := pbgo.NewProcessEntityStreamClient(cc).StreamEntities(t.Context(), &pbgo.ProcessStreamEntitiesRequest{})
 	require.NoError(t, err)
 
 	return stream
@@ -95,7 +95,7 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 				"workloadmeta.local_process_collector.collection_interval": 15 * time.Second,
 			})
 		}),
-		fx.Supply(context.Background()),
+		fx.Supply(t.Context()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
@@ -120,7 +120,7 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 		collectionClock:   mockClock,
 		containerProvider: mockProvider,
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	require.NoError(t, c.Start(ctx, store))
 	t.Cleanup(cancel)
 

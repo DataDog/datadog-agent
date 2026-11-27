@@ -8,7 +8,6 @@
 package pipelineimpl
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -67,10 +66,10 @@ otlp_config:
 				config:         configmock.NewFromYAML(t, tlsReceiver),
 				log:            logmock.New(t),
 				inventoryAgent: inventory,
-				ctx:            context.Background(),
+				ctx:            t.Context(),
 			}
 
-			require.NoError(t, c.start(context.Background()))
+			require.NoError(t, c.start(t.Context()))
 			assert.Nil(t, c.col)
 			assert.Equal(t, true, inventory[otlpEnabled])
 

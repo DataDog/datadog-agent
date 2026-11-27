@@ -500,7 +500,7 @@ func TestCatLineModeLineBelowCap(t *testing.T) {
 func TestCatContextCancellation(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "file.txt", fiveLines)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	_, _, code := runScriptCtx(ctx, t, "cat file.txt", dir, interp.AllowedPaths([]string{dir}))
 	assert.Equal(t, 0, code)
@@ -509,7 +509,7 @@ func TestCatContextCancellation(t *testing.T) {
 func TestCatContextPreCancelled(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "file.txt", fiveLines)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	done := make(chan struct{})
 	go func() {

@@ -78,7 +78,7 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 
 	// Launch the sample service, inject the BPF program and collect the output.
 	t.Logf("running and instrumenting sample")
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 	sampleProc, sampleStdin := dyninsttest.StartProcess(
 		ctx, t, tempDir, busyloopPath,
@@ -161,7 +161,7 @@ func refreshesBudget(t *testing.T, busyloopPath string) {
 
 	// Launch the sample service, inject the BPF program and collect the output.
 	t.Logf("running and instrumenting sample")
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 	sampleProc, sampleStdin := dyninsttest.StartProcess(
 		ctx, t, tempDir, busyloopPath,

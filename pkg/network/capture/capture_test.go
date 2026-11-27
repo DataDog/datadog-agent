@@ -9,7 +9,6 @@ package capture
 
 import (
 	"bytes"
-	"context"
 	"syscall"
 	"testing"
 	"time"
@@ -76,7 +75,7 @@ func TestDoneClosesWhenDurationElapses(t *testing.T) {
 
 	c, err := newCapturer(CaptureConfig{Output: &bytes.Buffer{}, Interface: "lo", Duration: time.Second})
 	require.NoError(t, err)
-	require.NoError(t, c.Start(context.Background()))
+	require.NoError(t, c.Start(t.Context()))
 	defer c.Stop()
 
 	select {

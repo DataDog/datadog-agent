@@ -8,7 +8,6 @@
 package serverimpl
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,7 +17,7 @@ import (
 )
 
 func TestConvertParseDistributionServerless(t *testing.T) {
-	defaultHostname, err := hostname.Get(context.Background())
+	defaultHostname, err := hostname.Get(t.Context())
 
 	assert.Equal(t, "", defaultHostname, "In serverless mode, the hostname returned should be an empty string")
 	assert.NoError(t, err)

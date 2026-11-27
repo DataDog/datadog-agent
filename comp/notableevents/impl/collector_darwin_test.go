@@ -130,7 +130,7 @@ func runPoll(t *testing.T, c *collector, eventChan <-chan eventPayload, submitEr
 	t.Helper()
 	done := make(chan struct{})
 	go func() {
-		c.poll(context.Background())
+		c.poll(t.Context())
 		close(done)
 	}()
 
@@ -172,7 +172,7 @@ func TestWaitForDarwinSubmission(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			completion := make(chan error, 1)
 			if test.buffer {
@@ -255,7 +255,7 @@ func TestDarwinPollerAcknowledgesPriorSuccessesOnCancellation(t *testing.T) {
 	}
 	eventChan := make(chan eventPayload)
 	c := newCollectorWithClient(eventChan, client, time.Hour)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan struct{})
 	go func() {
 		c.poll(ctx)
@@ -285,7 +285,7 @@ func TestDarwinPollerFinalAckIncludesCompletionObservableAtCancellation(t *testi
 	}
 	eventChan := make(chan eventPayload)
 	c := newCollectorWithClient(eventChan, client, time.Hour)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan struct{})
 	go func() {
 		c.poll(ctx)

@@ -8,7 +8,6 @@
 package executors
 
 import (
-	"context"
 	"testing"
 
 	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
@@ -55,7 +54,7 @@ func TestPatchDaemonSetExecutor_Patch(t *testing.T) {
 		},
 	}
 
-	result := executor.Execute(context.Background(), action)
+	result := executor.Execute(t.Context(), action)
 	assert.Equal(t, "success", result.Status)
 	assert.Contains(t, result.Message, "patched")
 }
@@ -88,7 +87,7 @@ func TestPatchDaemonSetExecutor_UIDMismatch(t *testing.T) {
 		},
 	}
 
-	result := executor.Execute(context.Background(), action)
+	result := executor.Execute(t.Context(), action)
 	assert.Equal(t, "failed", result.Status)
 	assert.Contains(t, result.Message, "UID mismatch")
 }
@@ -111,7 +110,7 @@ func TestPatchDaemonSetExecutor_MissingPatch(t *testing.T) {
 		},
 	}
 
-	result := executor.Execute(context.Background(), action)
+	result := executor.Execute(t.Context(), action)
 	assert.Equal(t, "failed", result.Status)
 	assert.Contains(t, result.Message, "patch is required")
 }
@@ -136,7 +135,7 @@ func TestPatchDaemonSetExecutor_NotFound(t *testing.T) {
 		},
 	}
 
-	result := executor.Execute(context.Background(), action)
+	result := executor.Execute(t.Context(), action)
 	assert.Equal(t, "failed", result.Status)
 	assert.Contains(t, result.Message, "failed to get daemonset")
 }

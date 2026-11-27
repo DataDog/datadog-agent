@@ -6,7 +6,6 @@
 package packages
 
 import (
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -58,7 +57,7 @@ func TestEnsurePrivilegedRshellPermissionsRejectsSymlink(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(binaryPath), 0755))
 	require.NoError(t, os.Symlink("/bin/true", binaryPath))
 
-	err := ensurePrivilegedRshellPermissions(HookContext{Context: context.Background(), PackagePath: packagePath})
+	err := ensurePrivilegedRshellPermissions(HookContext{Context: t.Context(), PackagePath: packagePath})
 	require.ErrorContains(t, err, "privileged rshell helper is not a regular file")
 }
 
@@ -105,7 +104,7 @@ func TestPrivilegedRshellEnabled(t *testing.T) {
 		}
 	})
 
-	ctx := HookContext{Context: context.Background()}
+	ctx := HookContext{Context: t.Context()}
 	assert.False(t, privilegedRshellEnabled(ctx), "the helper must be disabled when config is absent")
 
 	require.NoError(t, os.WriteFile(filepath.Join(configDir, "datadog.yaml"), []byte(`
@@ -138,7 +137,7 @@ func TestInstallableUnitsFiltersPrivilegedRshell(t *testing.T) {
 		"datadog-agent-action.service",
 	}
 
-	ctx := HookContext{Context: context.Background(), PackagePath: t.TempDir()}
+	ctx := HookContext{Context: t.Context(), PackagePath: t.TempDir()}
 	assert.Equal(t, []string{"datadog-agent.service", "datadog-agent-action.service"}, installableUnits(ctx, units))
 	assert.Len(t, units, 4, "filtering must not mutate the lifecycle cleanup list")
 }
@@ -158,7 +157,7 @@ func TestExperimentStartUnits(t *testing.T) {
 
 	getLandlockABIVersion = func() (int, error) { return privilegedRshellMinLandlockABI, nil }
 	t.Setenv(privilegedRshellEnabledEnv, "true")
-	ctx := HookContext{Context: context.Background(), PackagePath: packagePath}
+	ctx := HookContext{Context: t.Context(), PackagePath: packagePath}
 	assert.Equal(t,
 		[]string{"datadog-agent-exp.service", privilegedRshellSocketExp},
 		experimentStartUnits(ctx, "datadog-agent-exp.service"),
@@ -191,7 +190,7 @@ func TestStopProcmgrOnOptOut(t *testing.T) {
 		stopped = append(stopped, manager)
 		return errors.New("not running")
 	}
-	ctx := HookContext{Context: context.Background(), PackagePath: t.TempDir()}
+	ctx := HookContext{Context: t.Context(), PackagePath: t.TempDir()}
 
 	currentInitSystem = func() service.Type { return service.SystemdType }
 	t.Setenv("DD_PROCESS_MANAGER_ENABLED", "false")
@@ -232,7 +231,7 @@ func TestOnlyOwnerOfProcmgrStopsItOnOptOut(t *testing.T) {
 		return nil
 	}
 	t.Setenv("DD_PROCESS_MANAGER_ENABLED", "false")
-	ctx := HookContext{Context: context.Background(), PackagePath: t.TempDir(), PackageType: PackageTypeDEB}
+	ctx := HookContext{Context: t.Context(), PackagePath: t.TempDir(), PackageType: PackageTypeDEB}
 
 	require.NoError(t, agentDDOTService.EnableStable(ctx))
 	assert.Empty(t, stopped)
@@ -259,7 +258,7 @@ func TestProcmgrOnSysVAndUpstartKeepsPlainResults(t *testing.T) {
 	for _, initSystem := range []service.Type{service.UpstartType, service.SysvinitType} {
 		t.Run(string(initSystem), func(t *testing.T) {
 			stubServiceManager(t, service.ProcmgrType, initSystem)
-			ctx := HookContext{Context: context.Background(), PackagePath: t.TempDir(), PackageType: PackageTypeDEB}
+			ctx := HookContext{Context: t.Context(), PackagePath: t.TempDir(), PackageType: PackageTypeDEB}
 
 			assert.NoError(t, agentService.WriteStable(ctx))
 			assert.NoError(t, agentService.RemoveStable(ctx))

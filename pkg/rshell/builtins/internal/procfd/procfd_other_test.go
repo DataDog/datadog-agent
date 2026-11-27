@@ -8,13 +8,12 @@
 package procfd
 
 import (
-	"context"
 	"errors"
 	"testing"
 )
 
 func TestListNotSupportedOffLinux(t *testing.T) {
-	_, err := List(context.Background(), "/proc", []int{1}, nil)
+	_, err := List(t.Context(), "/proc", []int{1}, nil)
 	if !errors.Is(err, ErrNotSupported) {
 		t.Errorf("List = %v, want ErrNotSupported", err)
 	}

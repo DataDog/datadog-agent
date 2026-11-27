@@ -283,7 +283,7 @@ func TestServiceDiscoveryBatchingSuccessfulRequestsMergeResponses(t *testing.T) 
 	})
 	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
 
-	resp, successfulNewPids, successfulHeartbeatPids, err := c.collector.getDiscoveryServicesBatched(context.Background(), []int32{101, 102}, nil)
+	resp, successfulNewPids, successfulHeartbeatPids, err := c.collector.getDiscoveryServicesBatched(t.Context(), []int32{101, 102}, nil)
 
 	require.NoError(t, err)
 	require.Equal(t, []int32{101, 102}, successfulNewPids)
@@ -302,7 +302,7 @@ func TestServiceDiscoveryBatchingStopsWhenContextCanceled(t *testing.T) {
 		serviceCollectionBatchSizeConfigKey: 1,
 	}
 	c := setUpCollectorTest(t, nil, sysConfigOverrides, nil)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	socketPath, requests := startScriptedServiceDiscoveryServer(t, func(call int, _ core.Params) serviceDiscoveryTestResponse {
@@ -344,7 +344,7 @@ func TestServiceDiscoveryBatchingFailureReturnsOperationError(t *testing.T) {
 	})
 	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
 
-	_, successfulNewPids, successfulHeartbeatPids, err := c.collector.getDiscoveryServicesBatched(context.Background(), []int32{101}, nil)
+	_, successfulNewPids, successfulHeartbeatPids, err := c.collector.getDiscoveryServicesBatched(t.Context(), []int32{101}, nil)
 
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "failed to get services")
@@ -384,7 +384,7 @@ func TestServiceDiscoveryPartialBatchFailurePreservesRetries(t *testing.T) {
 	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
 
 	alivePids, procs := makeAlivePidsAndProcesses([]int32{101, 102, 103, 104, 105})
-	entities, _ := c.collector.updateServices(context.Background(), alivePids, procs)
+	entities, _ := c.collector.updateServices(t.Context(), alivePids, procs)
 
 	assert.Equal(t, 2, requests())
 	requestMux.Lock()
@@ -448,7 +448,7 @@ func testServiceDiscoveryConsecutiveTimeoutsDisableRequests(t *testing.T, c coll
 
 	alivePids, procs := makeAlivePidsAndProcesses([]int32{101})
 	for i := 0; i < maxConsecutiveTimeouts; i++ {
-		entities, injectedPids := c.collector.updateServices(context.Background(), alivePids, procs)
+		entities, injectedPids := c.collector.updateServices(t.Context(), alivePids, procs)
 		require.Empty(t, entities)
 		require.Empty(t, injectedPids)
 	}
@@ -457,7 +457,7 @@ func testServiceDiscoveryConsecutiveTimeoutsDisableRequests(t *testing.T, c coll
 	assert.Equal(t, maxConsecutiveTimeouts, c.collector.consecutiveServiceDiscoveryTimeouts)
 	assert.Equal(t, maxConsecutiveTimeouts, requests())
 
-	entities, injectedPids := c.collector.updateServices(context.Background(), alivePids, procs)
+	entities, injectedPids := c.collector.updateServices(t.Context(), alivePids, procs)
 	require.Empty(t, entities)
 	require.Empty(t, injectedPids)
 	assert.Equal(t, maxConsecutiveTimeouts, requests(), "disabled service discovery should not send more requests")
@@ -480,7 +480,7 @@ func TestServiceDiscoverySuccessfulRequestResetsConsecutiveTimeouts(t *testing.T
 	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
 
 	alivePids, procs := makeAlivePidsAndProcesses([]int32{101})
-	entities, _ := c.collector.updateServices(context.Background(), alivePids, procs)
+	entities, _ := c.collector.updateServices(t.Context(), alivePids, procs)
 
 	require.Len(t, entities, 1)
 	assert.Equal(t, int32(101), entities[0].Pid)
@@ -589,7 +589,7 @@ func testServiceDiscoveryPartialBatchTimeoutPreservesSuccessfulPIDsAndResetsPrev
 	)
 
 	alivePids, procs := makeAlivePidsAndProcesses([]int32{101, 102, 103, 104, 105})
-	entities, _ := c.collector.updateServices(context.Background(), alivePids, procs)
+	entities, _ := c.collector.updateServices(t.Context(), alivePids, procs)
 
 	assert.Equal(t, 2, requests())
 	requestMux.Lock()
@@ -618,7 +618,7 @@ func TestServiceDiscoverySuccessfulNoServiceIncrementsRetries(t *testing.T) {
 	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
 
 	alivePids, procs := makeAlivePidsAndProcesses([]int32{101})
-	entities, _ := c.collector.updateServices(context.Background(), alivePids, procs)
+	entities, _ := c.collector.updateServices(t.Context(), alivePids, procs)
 
 	require.Len(t, entities, 1)
 	assert.Equal(t, int32(101), entities[0].Pid)
@@ -661,7 +661,7 @@ func TestCollectServicesSchedulesRegularIntervalFromStartupCollection(t *testing
 	c := setUpCollectorTest(t, nil, nil, nil)
 	c.mockClock.Set(baseTime)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	processesReady := make(chan struct{})
 	calls := make(chan time.Time, 2)
 	done := make(chan struct{})
@@ -709,7 +709,7 @@ func TestCollectServicesWaitsForSystemProbeStartup(t *testing.T) {
 	c := setUpCollectorTest(t, nil, nil, nil)
 	c.mockClock.Set(baseTime)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	processesReady := make(chan struct{})
 	close(processesReady)
 	waitStarted := make(chan struct{})
@@ -752,7 +752,7 @@ func TestCollectServicesWaitsForSystemProbeStartup(t *testing.T) {
 
 func TestCollectServicesDoesNotRunAfterCancellation(t *testing.T) {
 	c := setUpCollectorTest(t, nil, nil, nil)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	called := false
@@ -768,7 +768,7 @@ func TestCollectServicesDoesNotRunAfterCancellation(t *testing.T) {
 func TestSendProcessEventStopsWhenCanceled(t *testing.T) {
 	c := setUpCollectorTest(t, nil, nil, nil)
 	c.collector.processEventsCh = make(chan *Event)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	assert.False(t, c.collector.sendProcessEvent(ctx, &Event{Type: EventTypeServiceDiscovery}))
@@ -778,7 +778,7 @@ func TestCollectServicesRegularIntervalCancelsStartupWait(t *testing.T) {
 	c := setUpCollectorTest(t, nil, nil, nil)
 	c.mockClock.Set(baseTime)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	waitStarted := make(chan struct{})
 	waitCanceled := make(chan struct{})
 	systemProbeReady := make(chan struct{})
@@ -833,7 +833,7 @@ func TestCollectServicesCachedWaitsForProcessCache(t *testing.T) {
 	})
 	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	processesReady := make(chan struct{})
 	collectionTimer := c.mockClock.Timer(time.Minute)
@@ -884,7 +884,7 @@ func TestCollectServicesCachedReleasesProcessCacheLockBeforeServiceRequests(t *t
 	})
 	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	done := make(chan struct{})
 	processesReady := make(chan struct{})

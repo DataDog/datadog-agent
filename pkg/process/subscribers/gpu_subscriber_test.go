@@ -6,7 +6,6 @@
 package subscribers
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -150,14 +149,14 @@ func TestGPUDetection(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockWmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				core.MockBundle(),
-				fx.Supply(context.Background()),
+				fx.Supply(t.Context()),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 			fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 			gpuDetector := NewGPUSubscriber(mockWmeta, fakeTagger)
-			go gpuDetector.Run(context.Background())
-			defer gpuDetector.Stop(context.Background())
+			go gpuDetector.Run(t.Context())
+			defer gpuDetector.Stop(t.Context())
 
 			// Notify subscribers of events
 			mockWmeta.Notify(tt.events)
@@ -289,7 +288,7 @@ func TestGetGPUTags(t *testing.T) {
 			// Setup mocked dependencies and ProcessCheck
 			mockWmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				core.MockBundle(),
-				fx.Supply(context.Background()),
+				fx.Supply(t.Context()),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 

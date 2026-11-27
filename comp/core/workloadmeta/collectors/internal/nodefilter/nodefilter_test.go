@@ -404,7 +404,7 @@ func TestStart(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	require.NoError(t, c.Start(ctx, wlm))
 
@@ -445,7 +445,7 @@ func TestStart_ClientError(t *testing.T) {
 	warnings := captureWarnings(t)
 
 	for range 3 {
-		err := c.Start(context.Background(), nil)
+		err := c.Start(t.Context(), nil)
 		require.Error(t, err)
 		assert.True(t, retry.IsErrWillRetry(err))
 	}
@@ -515,7 +515,7 @@ func TestStart_Forbidden(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	require.NoError(t, c.Start(ctx, wlm))
 
@@ -575,7 +575,7 @@ func TestStart_NoPods(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	require.NoError(t, c.Start(ctx, wlm))
 

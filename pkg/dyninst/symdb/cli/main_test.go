@@ -8,7 +8,6 @@
 package main
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -72,7 +71,7 @@ func BenchmarkExtractAndUpload(b *testing.B) {
 	}))
 	defer srv.Close()
 
-	ctx := context.Background()
+	ctx := b.Context()
 	extractOpts := symdb.ExtractOptions{
 		Scope:     symdb.ExtractScopeModulesFromSameOrg,
 		DiskCache: diskCache,

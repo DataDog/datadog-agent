@@ -8,7 +8,6 @@
 package run
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,7 +19,7 @@ import (
 func TestFxRun_WithDatadogExporter(t *testing.T) {
 	t.Setenv("DD_OTELCOLLECTOR_ENABLED", "true")
 	fxutil.TestRun(t, func() error {
-		ctx := context.Background()
+		ctx := t.Context()
 		params := &cliParams{
 			GlobalParams: &subcommands.GlobalParams{
 				ConfPaths: []string{"test_config.yaml"},
@@ -33,7 +32,7 @@ func TestFxRun_WithDatadogExporter(t *testing.T) {
 func TestFxRun_NoDatadogExporter(t *testing.T) {
 	t.Setenv("DD_OTELCOLLECTOR_ENABLED", "true")
 	fxutil.TestRun(t, func() error {
-		ctx := context.Background()
+		ctx := t.Context()
 		params := &cliParams{
 			GlobalParams: &subcommands.GlobalParams{
 				ConfPaths: []string{"test_config_no_dd.yaml"},
@@ -47,7 +46,7 @@ func TestFxRun_Standalone(t *testing.T) {
 	t.Setenv("DD_OTELCOLLECTOR_ENABLED", "true")
 	t.Setenv("DD_OTEL_STANDALONE", "true")
 	fxutil.TestRun(t, func() error {
-		ctx := context.Background()
+		ctx := t.Context()
 		params := &cliParams{
 			GlobalParams: &subcommands.GlobalParams{
 				ConfPaths: []string{"test_config.yaml"},
@@ -61,7 +60,7 @@ func TestFxRun_NoDatadogExporter_Standalone(t *testing.T) {
 	t.Setenv("DD_OTELCOLLECTOR_ENABLED", "true")
 	t.Setenv("DD_OTEL_STANDALONE", "true")
 	fxutil.TestRun(t, func() error {
-		ctx := context.Background()
+		ctx := t.Context()
 		params := &cliParams{
 			GlobalParams: &subcommands.GlobalParams{
 				ConfPaths: []string{"test_config_no_dd_standalone.yaml"},
@@ -73,7 +72,7 @@ func TestFxRun_NoDatadogExporter_Standalone(t *testing.T) {
 
 func TestFxRun_Disabled(t *testing.T) {
 	t.Setenv("DD_OTELCOLLECTOR_ENABLED", "false")
-	ctx := context.Background()
+	ctx := t.Context()
 	params := &cliParams{
 		GlobalParams: &subcommands.GlobalParams{
 			ConfPaths: []string{"test_config.yaml"},

@@ -163,7 +163,7 @@ func TestVulnHuntResourceExhaustion_TestcmdDeepNegationRejected(t *testing.T) {
 }
 
 func TestVulnHuntSignalContext_PreCanceledTestcmdDoesNotDispatch(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	stdout, stderr, _, err := runTestcmdScriptErr(ctx, t, "test -n SHOULD_NOT_RUN\n", "", interpoption.AllowAllCommands().(interp.RunnerOption))

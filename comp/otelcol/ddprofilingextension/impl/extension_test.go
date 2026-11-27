@@ -101,7 +101,7 @@ func TestAgentExtension(t *testing.T) {
 	tcfg.Endpoints[0].APIKey = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	tcfg.DecoderTimeout = 10000
 	tcfg.ProfilingProxy = config.ProfilingProxyConfig{DDURL: server.URL}
-	ctx := context.Background()
+	ctx := t.Context()
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
 	// create extension
@@ -121,7 +121,7 @@ func TestAgentExtension(t *testing.T) {
 		},
 	)
 
-	err = ext.Start(context.Background(), host)
+	err = ext.Start(t.Context(), host)
 	assert.NoError(t, err)
 
 	timeout := time.After(15 * time.Second)
@@ -152,7 +152,7 @@ func TestStandaloneExtension(t *testing.T) {
 	}, component.BuildInfo{}, nil, nil)
 	require.NoError(t, err)
 
-	err = ext.Start(context.Background(), componenttest.NewNopHost())
+	err = ext.Start(t.Context(), componenttest.NewNopHost())
 	require.NoError(t, err)
 
 	timeout := time.After(15 * time.Second)
@@ -163,6 +163,6 @@ func TestStandaloneExtension(t *testing.T) {
 		t.Fatal("Timed out")
 	}
 
-	err = ext.Shutdown(context.Background())
+	err = ext.Shutdown(t.Context())
 	require.NoError(t, err)
 }

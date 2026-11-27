@@ -8,7 +8,6 @@
 package aws
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -518,7 +517,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 			mockClient := NewMockrdsService(ctrl)
 			tt.configureClient(mockClient)
 			client := &Client{client: mockClient}
-			clusters, err := client.GetRdsInstancesFromTags(context.Background(), Config{Tags: tt.tags, DbmTag: defaultDbmTag, GlobalViewDbTag: defaultGlobalViewDbTag})
+			clusters, err := client.GetRdsInstancesFromTags(t.Context(), Config{Tags: tt.tags, DbmTag: defaultDbmTag, GlobalViewDbTag: defaultGlobalViewDbTag})
 			if tt.expectedErr != nil {
 				assert.EqualError(t, err, tt.expectedErr.Error())
 				return

@@ -164,7 +164,7 @@ func TestClientSend(t *testing.T) {
 	podName := "nginx"
 	client.currentBatch[podName] = podInfo
 
-	client.send(context.Background(), client.currentBatch.toProto())
+	client.send(t.Context(), client.currentBatch.toProto())
 
 	// wait that the mock dca client processes the message
 	req := <-respCh
@@ -281,7 +281,7 @@ func TestClientSendContainerWithoutLanguage(t *testing.T) {
 
 	// No event should be sent for pod with unsupported languages
 	assert.Nil(t, client.currentBatch.toProto())
-	client.send(context.Background(), client.currentBatch.toProto())
+	client.send(t.Context(), client.currentBatch.toProto())
 	assert.Empty(t, respCh)
 }
 
@@ -1254,7 +1254,7 @@ func TestRun(t *testing.T) {
 	client.periodicalFlushPeriod = 1 * time.Second
 	client.processesWithoutPodCleanupPeriod = 100 * time.Millisecond
 
-	err := client.start(context.Background())
+	err := client.start(t.Context())
 	require.NoError(t, err)
 
 	container1 := &workloadmeta.Container{
@@ -1585,7 +1585,7 @@ func TestRun(t *testing.T) {
 		100*time.Millisecond,
 	)
 
-	client.stop(context.Background())
+	client.stop(t.Context())
 }
 
 func protoToBatch(protoMessage *pbgo.ParentLanguageAnnotationRequest) batch {

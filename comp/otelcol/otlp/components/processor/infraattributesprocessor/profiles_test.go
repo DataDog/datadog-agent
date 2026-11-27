@@ -28,14 +28,14 @@ func TestInfraAttributesProfileProcessor(t *testing.T) {
 
 	factory := NewFactoryForAgent(testutil.NewTestTaggerClient(), func(_ context.Context) (string, error) { return "test-host", nil })
 	next := new(consumertest.ProfilesSink)
-	fpp, err := factory.CreateProfiles(context.Background(), processortest.NewNopSettings(Type), cfg, next)
+	fpp, err := factory.CreateProfiles(t.Context(), processortest.NewNopSettings(Type), cfg, next)
 	require.NoError(t, err)
-	require.NoError(t, fpp.Start(context.Background(), nil))
+	require.NoError(t, fpp.Start(t.Context(), nil))
 
 	profiles := pprofile.NewProfiles()
 	profiles.ResourceProfiles().AppendEmpty().Resource().Attributes().FromRaw(map[string]any{})
-	fpp.ConsumeProfiles(context.Background(), profiles)
-	require.NoError(t, fpp.Shutdown(context.Background()))
+	fpp.ConsumeProfiles(t.Context(), profiles)
+	require.NoError(t, fpp.Shutdown(t.Context()))
 
 	require.Len(t, next.AllProfiles(), 1)
 	require.EqualValues(t, map[string]any{"datadog.host.name": "test-host", "host.arch": runtime.GOARCH}, next.AllProfiles()[0].ResourceProfiles().At(0).Resource().Attributes().AsRaw())
@@ -59,14 +59,14 @@ func TestInfraAttributesProfileProcessorIgnoresContainerTagPromotion(t *testing.
 
 			factory := NewFactoryForAgent(tc, func(_ context.Context) (string, error) { return "test-host", nil })
 			next := new(consumertest.ProfilesSink)
-			fpp, err := factory.CreateProfiles(context.Background(), processortest.NewNopSettings(Type), cfg, next)
+			fpp, err := factory.CreateProfiles(t.Context(), processortest.NewNopSettings(Type), cfg, next)
 			require.NoError(t, err)
-			require.NoError(t, fpp.Start(context.Background(), nil))
+			require.NoError(t, fpp.Start(t.Context(), nil))
 
 			profiles := pprofile.NewProfiles()
 			profiles.ResourceProfiles().AppendEmpty().Resource().Attributes().FromRaw(map[string]any{"container.id": "test"})
-			require.NoError(t, fpp.ConsumeProfiles(context.Background(), profiles))
-			require.NoError(t, fpp.Shutdown(context.Background()))
+			require.NoError(t, fpp.ConsumeProfiles(t.Context(), profiles))
+			require.NoError(t, fpp.Shutdown(t.Context()))
 
 			require.Len(t, next.AllProfiles(), 1)
 			out := next.AllProfiles()[0].ResourceProfiles().At(0).Resource().Attributes().AsRaw()

@@ -189,6 +189,7 @@ func testHTTPProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost,
 			},
 			teardown: func(_ *testing.T, ctx testContext) {
 				if srv, ok := ctx.extras["server"].(*nethttp.Server); ok {
+					// t.Context() is canceled before Cleanup functions run, so it cannot be used here.
 					timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 					defer cancel()
 					_ = srv.Shutdown(timedContext)
@@ -234,7 +235,7 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *tracer.Tracer, client
 				require.NoError(t, server.Run())
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				timedContext, cancel := context.WithTimeout(context.Background(), time.Second)
+				timedContext, cancel := context.WithTimeout(t.Context(), time.Second)
 				defer cancel()
 				c, err := defaultDialer.DialContext(timedContext, "tcp", ctx.targetAddress)
 				require.NoError(t, err)
@@ -264,7 +265,7 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *tracer.Tracer, client
 				require.NoError(t, server.Run())
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				timedContext, cancel := context.WithTimeout(context.Background(), time.Second)
+				timedContext, cancel := context.WithTimeout(t.Context(), time.Second)
 				defer cancel()
 				c, err := defaultDialer.DialContext(timedContext, "tcp", ctx.targetAddress)
 				require.NoError(t, err)
@@ -303,7 +304,7 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *tracer.Tracer, client
 				require.NoError(t, server.Run())
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				timedContext, cancel := context.WithTimeout(context.Background(), time.Second)
+				timedContext, cancel := context.WithTimeout(t.Context(), time.Second)
 				defer cancel()
 				c, err := defaultDialer.DialContext(timedContext, "tcp", ctx.targetAddress)
 				require.NoError(t, err)

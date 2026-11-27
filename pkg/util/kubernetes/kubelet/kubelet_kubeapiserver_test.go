@@ -8,7 +8,6 @@
 package kubelet
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -41,7 +40,7 @@ func (suite *KubeletOrchestratorTestSuite) SetupTest() {
 }
 
 func (suite *KubeletOrchestratorTestSuite) TestGetRawLocalPodList() {
-	ctx := context.Background()
+	ctx := suite.T().Context()
 	mockConfig := configmock.New(suite.T())
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json", "", "")

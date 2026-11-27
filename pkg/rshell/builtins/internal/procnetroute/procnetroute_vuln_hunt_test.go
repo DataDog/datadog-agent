@@ -6,7 +6,6 @@
 package procnetroute
 
 import (
-	"context"
 	"strings"
 	"testing"
 )
@@ -22,7 +21,7 @@ func TestVulnHuntSubsystemInvariantViolation_RejectsTraversalProcPath(t *testing
 
 	for _, path := range paths {
 		t.Run(path, func(t *testing.T) {
-			_, err := ReadRoutes(context.Background(), path)
+			_, err := ReadRoutes(t.Context(), path)
 			if err == nil {
 				t.Fatalf("expected unsafe procPath error")
 			}

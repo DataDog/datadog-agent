@@ -21,18 +21,20 @@ import (
 
 	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 
+	"github.com/benbjohnson/clock"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	remote "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/benbjohnson/clock"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 )
 
 const grantedScopeJSON = `{"data":{"attributes":{"valid":true,"api_key_scopes":["private_action_runner_enroll"]}}}`
 
 type scopeFixture struct {
+	ctx                 context.Context
 	clock               *clock.Mock
 	s                   *Discovery
 	rcService           *remote.CoreAgentService
@@ -47,7 +49,7 @@ type scopeFixture struct {
 func newScopeFixture(t *testing.T) *scopeFixture {
 	t.Helper()
 	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "false")
-	f := &scopeFixture{clock: clock.NewMock(), rcCode: 200, aaaCode: 200, body: grantedScopeJSON}
+	f := &scopeFixture{ctx: t.Context(), clock: clock.NewMock(), rcCode: 200, aaaCode: 200, body: grantedScopeJSON}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// RC key updates also refresh org metadata, independently of scope discovery.
 		if r.URL.Path == "/rc/api/v0.1/org" {
@@ -101,7 +103,7 @@ func (f *scopeFixture) rc(enabled, authorized bool) {
 	f.mu.Unlock()
 	remote.MockPollOrgStatus(f.rcService)
 }
-func (f *scopeFixture) step()                   { f.s.step(context.Background()) }
+func (f *scopeFixture) step()                   { f.s.step(f.ctx) }
 func (f *scopeFixture) advance(d time.Duration) { f.clock.Add(d); f.rc(true, true) }
 
 func TestPARDiscoveryRequiresBothRealRCBooleans(t *testing.T) {
@@ -231,7 +233,7 @@ func TestPARDiscoveryFencesLateResponseAndCancels(t *testing.T) {
 				<-release
 				return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(grantedScopeJSON)), Request: r}, nil
 			})}
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			go func() { f.s.step(ctx); close(done) }()
 			<-entered
@@ -344,7 +346,7 @@ func TestPARDiscoveryHugeHintAndStrictPayload(t *testing.T) {
 	require.Greater(t, f.s.GetPARScope().NextCheck.Sub(f.clock.Now()), 200*365*24*time.Hour)
 	for _, body := range []string{grantedScopeJSON + "garbage", strings.Repeat(" ", 1<<20) + grantedScopeJSON} {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = io.WriteString(w, body) }))
-		result := validate(context.Background(), server.Client(), server.URL, "key", time.Now())
+		result := validate(t.Context(), server.Client(), server.URL, "key", time.Now())
 		server.Close()
 		require.False(t, result.eligible)
 		require.Equal(t, phonehomedef.ReasonInvalidDiscoveryResponse, result.reason)
@@ -374,6 +376,6 @@ func TestPARDiscoveryUsesIndependentKey(t *testing.T) {
 	discovery.clock = clock.NewMock()
 	discovery.next = discovery.clock.Now()
 	discovery.SetPARDiscoveryDemand(true)
-	discovery.step(context.Background())
+	discovery.step(t.Context())
 	require.True(t, discovery.GetPARScope().Granted(discovery.clock.Now()))
 }

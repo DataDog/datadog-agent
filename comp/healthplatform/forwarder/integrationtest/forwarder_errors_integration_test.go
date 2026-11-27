@@ -164,7 +164,7 @@ func TestForwarderErrorsReachAgentTelemetry(t *testing.T) {
 		pipeline := newForwarderErrorsPipeline(t, refusedURL(t))
 		pipeline.forwarderErrorsSeries(t)
 
-		_, err := pipeline.forwarder.Send(context.Background(), report)
+		_, err := pipeline.forwarder.Send(t.Context(), report)
 		require.Error(t, err)
 
 		assert.Equal(t, []metricSeries{{Value: 1, Tags: map[string]any{
@@ -188,7 +188,7 @@ func TestForwarderErrorsReachAgentTelemetry(t *testing.T) {
 		pipeline := newForwarderErrorsPipeline(t, intake.URL)
 		pipeline.forwarderErrorsSeries(t)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 		defer cancel()
 		_, err := pipeline.forwarder.Send(ctx, report)
 		require.Error(t, err)
@@ -205,7 +205,7 @@ func TestForwarderErrorsReachAgentTelemetry(t *testing.T) {
 		pipeline := newForwarderErrorsPipeline(t, refusedURL(t))
 		pipeline.forwarderErrorsSeries(t)
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		_, err := pipeline.forwarder.Send(ctx, report)
 		require.Error(t, err)
@@ -221,7 +221,7 @@ func TestForwarderErrorsReachAgentTelemetry(t *testing.T) {
 		pipeline := newForwarderErrorsPipeline(t, intake.URL)
 		pipeline.forwarderErrorsSeries(t)
 
-		_, err := pipeline.forwarder.Send(context.Background(), report)
+		_, err := pipeline.forwarder.Send(t.Context(), report)
 		require.NoError(t, err)
 
 		assert.Empty(t, pipeline.forwarderErrorsSeries(t), "no forwarder.errors without a transport error")

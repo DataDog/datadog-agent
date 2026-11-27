@@ -382,7 +382,7 @@ func TestNetNSContainerResolverStart(t *testing.T) {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	r := newTestNetNSResolver(map[int]uint32{10: 7300, 20: podNS, 30: podNS})
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	r.start(ctx, wmeta)
 
@@ -408,12 +408,12 @@ func TestNetNSContainerResolverStart(t *testing.T) {
 
 func TestEnableNetNSContainerAttributionGuards(t *testing.T) {
 	off := &Tracer{config: &netconfig.Config{}}
-	require.NoError(t, off.EnableNetNSContainerAttribution(context.Background(), nil))
+	require.NoError(t, off.EnableNetNSContainerAttribution(t.Context(), nil))
 	assert.Nil(t, off.netnsResolver.Load(), "the feature is off by default")
 
 	// on, but without process event monitoring there's no owner container to start from
 	noProcessCache := &Tracer{config: &netconfig.Config{EnableNetNSContainerAttribution: true}}
-	require.NoError(t, noProcessCache.EnableNetNSContainerAttribution(context.Background(), nil))
+	require.NoError(t, noProcessCache.EnableNetNSContainerAttribution(t.Context(), nil))
 	assert.Nil(t, noProcessCache.netnsResolver.Load())
 }
 

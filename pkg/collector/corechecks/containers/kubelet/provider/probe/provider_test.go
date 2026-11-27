@@ -8,7 +8,6 @@
 package probe
 
 import (
-	"context"
 	"errors"
 	"os"
 	"reflect"
@@ -265,7 +264,7 @@ func TestProvider_Provide(t *testing.T) {
 
 			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				core.MockBundle(),
-				fx.Supply(context.Background()),
+				fx.Supply(t.Context()),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 

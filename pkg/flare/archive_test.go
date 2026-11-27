@@ -6,7 +6,6 @@
 package flare
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -100,7 +99,7 @@ func TestRegistryJSON(t *testing.T) {
 	confMock.SetInTest("logs_config.run_path", filepath.Dir(srcDir))
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
-	getRegistryJSON(context.Background(), mock)
+	getRegistryJSON(t.Context(), mock)
 
 	mock.AssertFileContent("mockfilecontent", "registry.json")
 }
@@ -143,7 +142,7 @@ func TestVersionHistory(t *testing.T) {
 	confMock.SetInTest("run_path", filepath.Dir(srcDir))
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
-	getVersionHistory(context.Background(), mock)
+	getVersionHistory(t.Context(), mock)
 
 	mock.AssertFileContent("mockfilecontent", "version-history.json")
 }

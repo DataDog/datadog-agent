@@ -9,7 +9,6 @@ package dyninst_test
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"path/filepath"
 	"runtime"
@@ -120,7 +119,7 @@ func testMissingTypeRecompilation(t *testing.T, cfg testprogs.Config) {
 	// to settle (numPrograms == 0). Returns the logs produced during this run.
 	runProcess := func(runName string) []receivedLog {
 		t.Helper()
-		ctx := context.Background()
+		ctx := t.Context()
 		proc, stdin := dyninsttest.StartProcess(ctx, t, tempDir, bin)
 		pid := proc.Process.Pid
 		t.Logf("[%s] launched sample with pid %d", runName, pid)

@@ -6,7 +6,6 @@
 package checks
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -104,7 +103,7 @@ func mockContainerProvider(t *testing.T) proccontainers.ContainerProvider {
 	metadataProvider := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
-		fx.Supply(context.Background()),
+		fx.Supply(t.Context()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)

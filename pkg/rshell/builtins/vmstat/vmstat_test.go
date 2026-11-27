@@ -169,7 +169,7 @@ func TestValidateStatsArgsAllowsIgnoredDelay(t *testing.T) {
 // A long delay combined with a short-lived context proves the select on
 // ctx.Done() returns promptly during a bounded sampling invocation.
 func TestRunSamplingStopsOnContextCancellation(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
 	defer cancel()
 
 	var stdout, stderr bytes.Buffer

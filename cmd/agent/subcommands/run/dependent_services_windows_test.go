@@ -251,7 +251,7 @@ func TestFindService(t *testing.T) {
 }
 
 func TestStartProcmgrIfEnabled(t *testing.T) {
-	assert.False(t, startProcmgrIfEnabled(context.Background(), Servicedef{name: "procmgr"}))
+	assert.False(t, startProcmgrIfEnabled(t.Context(), Servicedef{name: "procmgr"}))
 }
 
 func TestWaitForProcmgrStartupOutcome(t *testing.T) {
@@ -262,14 +262,14 @@ func TestWaitForProcmgrStartupOutcome(t *testing.T) {
 		err      error
 		suppress bool
 	}{
-		{name: "suppresses when procmgr is running", ctx: context.Background(), state: svc.Running, suppress: true},
-		{name: "falls back when procmgr is stopped", ctx: context.Background(), state: svc.Stopped, suppress: false},
-		{name: "falls back when procmgr stops pending", ctx: context.Background(), state: svc.StopPending, suppress: false},
-		{name: "suppresses when still start pending at timeout", ctx: context.Background(), state: svc.StartPending, err: context.DeadlineExceeded, suppress: true},
-		{name: "suppresses when the state query fails", ctx: context.Background(), err: errors.New("access denied"), suppress: true},
+		{name: "suppresses when procmgr is running", ctx: t.Context(), state: svc.Running, suppress: true},
+		{name: "falls back when procmgr is stopped", ctx: t.Context(), state: svc.Stopped, suppress: false},
+		{name: "falls back when procmgr stops pending", ctx: t.Context(), state: svc.StopPending, suppress: false},
+		{name: "suppresses when still start pending at timeout", ctx: t.Context(), state: svc.StartPending, err: context.DeadlineExceeded, suppress: true},
+		{name: "suppresses when the state query fails", ctx: t.Context(), err: errors.New("access denied"), suppress: true},
 		// Shutdown stops dd-procmgr-service, so a wait that outlived the agent would see
 		// Stopped and tell the caller to start the legacy service the stop pass just stopped.
-		{name: "suppresses when the agent is shutting down", ctx: cancelledContext(), state: svc.Stopped, suppress: true},
+		{name: "suppresses when the agent is shutting down", ctx: cancelledContext(t), state: svc.Stopped, suppress: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -335,8 +335,8 @@ func stubStartPendingExit(t *testing.T, fn func(context.Context, string, svc.Sta
 	})
 }
 
-func cancelledContext() context.Context {
-	ctx, cancel := context.WithCancel(context.Background())
+func cancelledContext(t *testing.T) context.Context {
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	return ctx
 }

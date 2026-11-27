@@ -61,7 +61,7 @@ func TestReportIncludesEveryProcessNotJustCatalogServices(t *testing.T) {
 		},
 	})
 
-	report := collector.Report(context.Background(), ScrubOptions{})
+	report := collector.Report(t.Context(), ScrubOptions{})
 
 	require.Len(t, report.Processes, 2,
 		"the report must cover every supervised process, not only the migratable catalog")
@@ -82,7 +82,7 @@ func TestReportSetsDaemonServiceStateWhenConnectFails(t *testing.T) {
 
 	collector := NewCollectorWithClient(t.TempDir(), &mockClient{connectErr: os.ErrNotExist})
 
-	report := collector.Report(context.Background(), ScrubOptions{})
+	report := collector.Report(t.Context(), ScrubOptions{})
 
 	assert.False(t, report.Daemon.Reachable)
 	assert.NotEmpty(t, report.DaemonError)
@@ -149,7 +149,7 @@ func TestReportUnreachableDaemonIsRecordedNotDropped(t *testing.T) {
 		connectErr: errors.New("open \\\\.\\pipe\\datadog-procmgrd: file does not exist"),
 	})
 
-	report := collector.Report(context.Background(), ScrubOptions{})
+	report := collector.Report(t.Context(), ScrubOptions{})
 
 	assert.False(t, report.Daemon.Reachable)
 	assert.Contains(t, report.DaemonError, "connect to dd-procmgrd",
@@ -164,7 +164,7 @@ func TestReportStatusFailureIsRecorded(t *testing.T) {
 		daemonErr: errors.New("deadline exceeded"),
 	})
 
-	report := collector.Report(context.Background(), ScrubOptions{})
+	report := collector.Report(t.Context(), ScrubOptions{})
 
 	assert.Contains(t, report.DaemonError, "dd-procmgrd status")
 	assert.Contains(t, report.DaemonError, "deadline exceeded")
@@ -176,7 +176,7 @@ func TestReportListFailureKeepsDaemonState(t *testing.T) {
 		listErr: errors.New("list failed"),
 	})
 
-	report := collector.Report(context.Background(), ScrubOptions{})
+	report := collector.Report(t.Context(), ScrubOptions{})
 
 	assert.True(t, report.Daemon.Reachable, "a failed list must not discard the status we did get")
 	assert.Empty(t, report.DaemonError)
@@ -192,7 +192,7 @@ func TestReportDescribeFailureFallsBackToListData(t *testing.T) {
 		describeErr: errors.New("describe failed"),
 	})
 
-	report := collector.Report(context.Background(), ScrubOptions{})
+	report := collector.Report(t.Context(), ScrubOptions{})
 
 	process := reportProcessByName(t, report, "datadog-agent-process")
 	assert.Equal(t, uint32(42), process.PID, "a failed describe must keep the data List already gave us")
@@ -225,7 +225,7 @@ func TestReportDistinguishesGatedProcessFromInertCatalogEntry(t *testing.T) {
 		},
 	})
 
-	report := collector.Report(context.Background(), ScrubOptions{})
+	report := collector.Report(t.Context(), ScrubOptions{})
 
 	gated := reportProcessByName(t, report, "datadog-agent-process")
 	assert.Equal(t, ProcessStateSkipped, gated.State)
@@ -251,7 +251,7 @@ func TestReportSeparatesCrashLoopFromFailedSpawn(t *testing.T) {
 		},
 	})
 
-	report := collector.Report(context.Background(), ScrubOptions{})
+	report := collector.Report(t.Context(), ScrubOptions{})
 
 	looper := reportProcessByName(t, report, "crash-looper")
 	assert.Equal(t, uint32(5), looper.RestartCount)
@@ -280,7 +280,7 @@ func TestReportServicesExplainStoppedLegacyService(t *testing.T) {
 		},
 	})
 
-	report := collector.Report(context.Background(), ScrubOptions{})
+	report := collector.Report(t.Context(), ScrubOptions{})
 
 	var found bool
 	for _, service := range report.Services {
@@ -302,7 +302,7 @@ func TestReportMarshalsToReadableJSON(t *testing.T) {
 		},
 	})
 
-	raw, err := json.Marshal(collector.Report(context.Background(), ScrubOptions{}))
+	raw, err := json.Marshal(collector.Report(t.Context(), ScrubOptions{}))
 	require.NoError(t, err)
 
 	var decoded map[string]any
@@ -335,7 +335,7 @@ func TestReportRedactsSecretArguments(t *testing.T) {
 		},
 	})
 
-	proc := reportProcessByName(t, collector.Report(context.Background(), ScrubOptions{}), "datadog-agent-process")
+	proc := reportProcessByName(t, collector.Report(t.Context(), ScrubOptions{}), "datadog-agent-process")
 
 	// Asserted as the whole argv rather than as absences: NotContains compares whole elements, so a
 	// value that leaked only part of itself, which is how this went wrong before, would satisfy it.
@@ -744,7 +744,7 @@ func TestReportHonoursOperatorWordsBesideDefaultOnes(t *testing.T) {
 		},
 	})
 
-	report := collector.Report(context.Background(), ScrubOptions{CustomSensitiveWords: []string{"*tenant*"}})
+	report := collector.Report(t.Context(), ScrubOptions{CustomSensitiveWords: []string{"*tenant*"}})
 
 	proc := reportProcessByName(t, report, "datadog-agent-process")
 	assert.NotContains(t, strings.Join(proc.Args, " "), "leaked-beside-a-default-flag",
@@ -758,7 +758,7 @@ func TestReportHonoursOperatorWordsBesideDefaultOnes(t *testing.T) {
 // checked without spending it.
 func TestFlareContextEndsBeforeTheCallerStopsWaiting(t *testing.T) {
 	t.Run("a caller without a deadline gets the collection budget", func(t *testing.T) {
-		ctx, cancel := flareContext(context.Background())
+		ctx, cancel := flareContext(t.Context())
 		defer cancel()
 
 		deadline, ok := ctx.Deadline()
@@ -767,7 +767,7 @@ func TestFlareContextEndsBeforeTheCallerStopsWaiting(t *testing.T) {
 	})
 
 	t.Run("a generous caller deadline leaves the collection budget binding", func(t *testing.T) {
-		parent, cancelParent := context.WithTimeout(context.Background(), time.Hour)
+		parent, cancelParent := context.WithTimeout(t.Context(), time.Hour)
 		defer cancelParent()
 		ctx, cancel := flareContext(parent)
 		defer cancel()
@@ -778,7 +778,7 @@ func TestFlareContextEndsBeforeTheCallerStopsWaiting(t *testing.T) {
 
 	t.Run("a tighter caller deadline binds instead, less the write margin", func(t *testing.T) {
 		callerDeadline := time.Now().Add(flareCollectionBudget / 2)
-		parent, cancelParent := context.WithDeadline(context.Background(), callerDeadline)
+		parent, cancelParent := context.WithDeadline(t.Context(), callerDeadline)
 		defer cancelParent()
 		ctx, cancel := flareContext(parent)
 		defer cancel()
@@ -798,7 +798,7 @@ func TestFlareContextEndsBeforeTheCallerStopsWaiting(t *testing.T) {
 // outlive an expired parent, so a daemon that hangs until the budget is gone would otherwise leave
 // every "systemctl is-active" failing on arrival and every service reporting management_mode "none".
 func TestDaemonCallsLeaveTimeForTheServiceSweep(t *testing.T) {
-	collection, cancel := flareContext(context.Background())
+	collection, cancel := flareContext(t.Context())
 	defer cancel()
 	collectionDeadline, ok := collection.Deadline()
 	require.True(t, ok)
@@ -825,7 +825,7 @@ func TestAShortCallerBudgetStillLeavesTheServiceSweepReserve(t *testing.T) {
 	// lowering the status budget past it fails this test instead of silently changing behaviour.
 	const shortestSupportedCallerBudget = 4 * time.Second
 
-	parent, cancelParent := context.WithTimeout(context.Background(), shortestSupportedCallerBudget)
+	parent, cancelParent := context.WithTimeout(t.Context(), shortestSupportedCallerBudget)
 	defer cancelParent()
 
 	collection, cancelCollection := flareContext(parent)
@@ -847,7 +847,7 @@ func TestAShortCallerBudgetStillLeavesTheServiceSweepReserve(t *testing.T) {
 // When the remaining budget is no larger than the reserve, carving it out would leave the daemon
 // calls already expired. Prefer giving them the full budget over failing every RPC on arrival.
 func TestDaemonPhaseSkipsReserveWhenBudgetIsNoLargerThanReserve(t *testing.T) {
-	parent, cancel := context.WithTimeout(context.Background(), serviceSweepReserve)
+	parent, cancel := context.WithTimeout(t.Context(), serviceSweepReserve)
 	defer cancel()
 	parentDeadline, ok := parent.Deadline()
 	require.True(t, ok)
@@ -888,7 +888,7 @@ func (c *blockingClient) Connect(ctx context.Context) (ProcmgrSession, error) {
 // fail on something the code under test does not control.
 func TestReportYieldsAReportWhenTheCallerIsAlmostOutOfTime(t *testing.T) {
 	callerDeadline := time.Now().Add(flareWriteMargin / 2)
-	ctx, cancel := context.WithDeadline(context.Background(), callerDeadline)
+	ctx, cancel := context.WithDeadline(t.Context(), callerDeadline)
 	defer cancel()
 
 	client := &blockingClient{}

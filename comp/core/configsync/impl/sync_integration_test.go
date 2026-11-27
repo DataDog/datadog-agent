@@ -29,7 +29,7 @@ func TestRunWithChan(t *testing.T) {
 			w.Write([]byte(`{"key1": "value1", "key2": "value2", "key3": "value3", "key4": "value4"}`))
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cs := makeConfigSyncWithServer(t, ctx, handler)
 
 		cs.Config.Set("key0", "value0", pkgconfigmodel.SourceFile)
@@ -63,7 +63,7 @@ func TestRunWithChan(t *testing.T) {
 			}
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		t.Cleanup(cancel)
 		cs := makeConfigSyncWithServer(t, ctx, handler)
 
@@ -99,7 +99,7 @@ func TestRunWithInterval(t *testing.T) {
 		w.Write([]byte(fmt.Sprintf(`{"api_key": "%s"}`, key)))
 	})
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	cs := makeConfigSyncWithServer(t, ctx, handler)
@@ -141,7 +141,7 @@ func TestRunWithIntervalFiresOnUpdateForAPIKey(t *testing.T) {
 		w.Write([]byte(fmt.Sprintf(`{"api_key": "%s"}`, configCore.GetString("api_key"))))
 	})
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	cs := makeConfigSyncWithServer(t, ctx, handler)

@@ -70,7 +70,7 @@ func TestRun(t *testing.T) {
 	))
 	mocklogger := logmock.New(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	lp := newMockLanguagePatcher(ctx, mockK8sClient, mockStore, mocklogger)
 
 	go lp.run(ctx)
@@ -304,7 +304,7 @@ func TestPatcherRetriesFailedPatches(t *testing.T) {
 	))
 	mocklogger := logmock.New(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	lp := newMockLanguagePatcher(ctx, mockK8sClient, mockStore, mocklogger)
 
 	go lp.run(ctx)

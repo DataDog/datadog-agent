@@ -811,7 +811,7 @@ func BenchmarkNormalization(b *testing.B) {
 }
 
 func TestLexerNormalization(t *testing.T) {
-	ctx, cancelFunc := context.WithCancel(context.Background())
+	ctx, cancelFunc := context.WithCancel(t.Context())
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	cfg.SQLObfuscationMode = string(obfuscate.ObfuscateAndNormalize)

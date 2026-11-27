@@ -6,7 +6,6 @@
 package connectivity
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -351,13 +350,13 @@ func TestCheckGet(t *testing.T) {
 	client := &http.Client{}
 
 	// Test successful GET request
-	result, err := endpoint.checkGet(context.Background(), client)
+	result, err := endpoint.checkGet(t.Context(), client)
 	assert.NoError(t, err)
 	assert.Equal(t, "Success", result)
 
 	// Test with wrong API key
 	endpoint.apiKey = "wrong-api-key"
-	_, err = endpoint.checkGet(context.Background(), client)
+	_, err = endpoint.checkGet(t.Context(), client)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid status code: 401")
 }
@@ -400,7 +399,7 @@ func TestRun(t *testing.T) {
 
 	client := getClient(cfg, 2, logmock.New(t))
 
-	diagnoses, err := checkEndpoints(context.Background(), testEndpoints, client)
+	diagnoses, err := checkEndpoints(t.Context(), testEndpoints, client)
 	assert.NoError(t, err)
 	assert.Len(t, diagnoses, len(testEndpoints))
 	successCount := 0

@@ -346,7 +346,7 @@ func TestWcDoubleDash(t *testing.T) {
 func TestWcContextCancellation(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "file.txt", strings.Repeat("x\n", 100))
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	_, _, code := runScriptCtx(ctx, t, "wc file.txt", dir, interp.AllowedPaths([]string{dir}))
 	assert.Equal(t, 0, code)

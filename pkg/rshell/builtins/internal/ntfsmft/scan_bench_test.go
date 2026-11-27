@@ -8,7 +8,6 @@
 package ntfsmft
 
 import (
-	"context"
 	"os"
 	"testing"
 
@@ -44,7 +43,7 @@ func BenchmarkScan(b *testing.B) {
 	opts := Options{TopFiles: 10, TopExtensions: 10, TreeDepth: 1}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := Scan(context.Background(), target, opts); err != nil {
+		if _, err := Scan(b.Context(), target, opts); err != nil {
 			b.Fatalf("Scan: %v", err)
 		}
 	}

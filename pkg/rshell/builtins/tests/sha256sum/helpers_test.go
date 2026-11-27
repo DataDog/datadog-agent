@@ -21,7 +21,7 @@ func shaRunCtx(ctx context.Context, t testing.TB, script, dir string, allowedPat
 
 func shaRun(t testing.TB, script, dir string, allowedPaths ...string) (string, string, int) {
 	t.Helper()
-	return shaRunCtx(context.Background(), t, script, dir, allowedPaths...)
+	return shaRunCtx(t.Context(), t, script, dir, allowedPaths...)
 }
 
 func shellQuote(s string) string {

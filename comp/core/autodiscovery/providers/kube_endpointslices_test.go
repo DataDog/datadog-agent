@@ -8,7 +8,6 @@
 package providers
 
 import (
-	"context"
 	"strconv"
 	"sync"
 	"testing"
@@ -567,7 +566,7 @@ func TestEndpointSlice_InvalidateOnServiceUpdate(t *testing.T) {
 			provider := &kubeEndpointSlicesConfigProvider{upToDate: true}
 			provider.invalidateOnServiceUpdate(tc.old, tc.obj)
 
-			upToDate, err := provider.IsUpToDate(context.Background())
+			upToDate, err := provider.IsUpToDate(t.Context())
 			assert.NoError(t, err)
 			assert.Equal(t, !tc.invalidate, upToDate)
 		})
@@ -754,7 +753,7 @@ func TestEndpointSlice_InvalidateOnEndpointSliceUpdate(t *testing.T) {
 			provider.invalidateOnEndpointSliceUpdate(tc.oldSlice, tc.newSlice)
 
 			// Check result
-			upToDate, err := provider.IsUpToDate(context.Background())
+			upToDate, err := provider.IsUpToDate(t.Context())
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedUpToDate, upToDate)
 		})
@@ -811,7 +810,7 @@ func TestEndpointSlice_ConcurrentIsUpToDateAndInvalidate(t *testing.T) {
 	// Simulates the autodiscovery scheduler's polling loop reading upToDate.
 	wg.Go(func() {
 		for i := 0; i < iterations; i++ {
-			_, err := provider.IsUpToDate(context.Background())
+			_, err := provider.IsUpToDate(t.Context())
 			assert.NoError(t, err)
 		}
 	})

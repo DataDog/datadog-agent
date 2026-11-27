@@ -79,7 +79,7 @@ func runSuccessTests(t *testing.T, conv converter, tests []testCase) {
 			require.NoError(t, err, "failed to convert input to confmap: %s", tc.provided)
 
 			// Run converter
-			err = conv.Convert(context.Background(), conf)
+			err = conv.Convert(t.Context(), conf)
 			require.NoError(t, err, "converter failed for: %s", tc.provided)
 
 			// Update golden files if -update flag is set
@@ -127,7 +127,7 @@ func runErrorTests(t *testing.T, conv converter, tests []errorTestCase) {
 			require.NoError(t, err, "failed to convert input to confmap: %s", tc.provided)
 
 			// Run converter - expect error
-			err = conv.Convert(context.Background(), conf)
+			err = conv.Convert(t.Context(), conf)
 			require.Error(t, err, "converter should have failed for: %s", tc.provided)
 			require.Contains(t, err.Error(), tc.expectedError,
 				"error message should contain expected text for: %s", tc.name)

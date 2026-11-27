@@ -219,7 +219,7 @@ func findKeyInMap[K comparable](m *ebpf.Map, theKey K) bool {
 
 // startDummyProgram starts sleeping thread.
 func startDummyProgram(t *testing.T) (*exec.Cmd, context.CancelFunc) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(func() { cancel() })
 
 	cmd := exec.CommandContext(ctx, "sleep", "1000")

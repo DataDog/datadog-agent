@@ -65,7 +65,7 @@ func TestSparkCollectorCollectsDriverEnvVars(t *testing.T) {
 		},
 	}
 
-	collected, err := NewSpark().Collect(context.Background(), reader)
+	collected, err := NewSpark().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	requireSparkEnvVarPredicate(t, reader)
@@ -118,7 +118,7 @@ func TestSparkCollectorReadsExplicitPropertiesFile(t *testing.T) {
 		env: map[string]string{"SPARK_CONF_DIR": "/opt/spark/conf"},
 	}
 
-	collected, err := NewSpark().Collect(context.Background(), reader)
+	collected, err := NewSpark().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/etc/spark/driver.conf"}, reader.readFileCalls)
@@ -140,7 +140,7 @@ func TestSparkCollectorCollectsSparkSubmitDriverConfigAndEnvVars(t *testing.T) {
 		env: map[string]string{"SPARK_DRIVER_MEMORY": "2g"},
 	}
 
-	collected, err := NewSpark().Collect(context.Background(), reader)
+	collected, err := NewSpark().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []configfilesdiscoveryimpl.ConfigEnvVar{{Name: "SPARK_DRIVER_MEMORY", Value: "2g"}}, collected.EnvVars)
@@ -159,7 +159,7 @@ func TestSparkCollectorCollectsEnvWhenExplicitPropertiesFileIsMissing(t *testing
 		env: map[string]string{"SPARK_DRIVER_MEMORY": "2g"},
 	}
 
-	collected, err := NewSpark().Collect(context.Background(), reader)
+	collected, err := NewSpark().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/etc/spark/missing.conf"}, reader.readFileCalls)
@@ -178,7 +178,7 @@ func TestSparkCollectorPropagatesCancellationWhenExplicitPropertiesFileReadIsCan
 		}},
 		env: map[string]string{"SPARK_DRIVER_MEMORY": "2g"},
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	collected, err := NewSpark().Collect(ctx, reader)
@@ -200,7 +200,7 @@ func TestSparkCollectorDoesNotFallbackWhenExplicitPropertiesFileCannotResolve(t 
 		env: map[string]string{"SPARK_CONF_DIR": "/opt/custom/spark-conf", "SPARK_DRIVER_MEMORY": "2g"},
 	}
 
-	collected, err := NewSpark().Collect(context.Background(), reader)
+	collected, err := NewSpark().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Empty(t, reader.readFileCalls)
@@ -219,7 +219,7 @@ func TestSparkCollectorDoesNotReadSparkConfDirForStandaloneDriver(t *testing.T) 
 		env:                map[string]string{"SPARK_CONF_DIR": "/opt/custom/spark-conf", "SPARK_DRIVER_MEMORY": "2g"},
 	}
 
-	collected, err := NewSpark().Collect(context.Background(), reader)
+	collected, err := NewSpark().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Empty(t, reader.readFileCalls)
@@ -238,7 +238,7 @@ func TestSparkCollectorReadsSparkConfDirForTaggedSparkSubmitDriver(t *testing.T)
 		env:                map[string]string{"SPARK_CONF_DIR": "/opt/custom/spark-conf"},
 	}
 
-	collected, err := NewSpark().Collect(context.Background(), reader)
+	collected, err := NewSpark().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{configPath}, reader.readFileCalls)
@@ -252,7 +252,7 @@ func TestSparkCollectorCollectsEnvWhenSparkConfDirFileIsMissingForTaggedSparkSub
 		env:                map[string]string{"SPARK_CONF_DIR": "/opt/custom/spark-conf", "SPARK_DRIVER_MEMORY": "2g"},
 	}
 
-	collected, err := NewSpark().Collect(context.Background(), reader)
+	collected, err := NewSpark().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/opt/custom/spark-conf/spark-defaults.conf"}, reader.readFileCalls)
@@ -270,7 +270,7 @@ func TestSparkCollectorDoesNotReadWorkerDefaultConfigForStandaloneDriver(t *test
 		files:              map[string]configfilesdiscoveryimpl.ConfigFile{configPath: {Path: configPath}},
 	}
 
-	collected, err := NewSpark().Collect(context.Background(), reader)
+	collected, err := NewSpark().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Empty(t, reader.readFileCalls)
@@ -291,7 +291,7 @@ func TestSparkCollectorReadsDefaultConfigForTaggedSparkSubmitWithoutConfigHints(
 		files: map[string]configfilesdiscoveryimpl.ConfigFile{configPath: {Path: configPath}},
 	}
 
-	collected, err := NewSpark().Collect(context.Background(), reader)
+	collected, err := NewSpark().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{configPath}, reader.readFileCalls)
@@ -306,7 +306,7 @@ func TestSparkCollectorReadsBitnamiDefaultConfigForTaggedSparkSubmitWhenApachePa
 		files:              map[string]configfilesdiscoveryimpl.ConfigFile{configPath: {Path: configPath}},
 	}
 
-	collected, err := NewSpark().Collect(context.Background(), reader)
+	collected, err := NewSpark().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/opt/spark/conf/spark-defaults.conf", configPath}, reader.readFileCalls)
@@ -322,7 +322,7 @@ func TestSparkCollectorCollectsConfigWhenEnvReadFails(t *testing.T) {
 		readEnvVarsErr:     errors.New("environment unavailable"),
 	}
 
-	collected, err := NewSpark().Collect(context.Background(), reader)
+	collected, err := NewSpark().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	require.Len(t, collected.ConfigFiles, 1)
@@ -339,7 +339,7 @@ func TestSparkCollectorCollectsEnvAfterRuntimeInspectionErrorWithoutConfigFile(t
 		env: map[string]string{"SPARK_LOCAL_DIRS": "/tmp/spark"},
 	}
 
-	collected, err := NewSpark().Collect(context.Background(), reader)
+	collected, err := NewSpark().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Empty(t, collected.ConfigFiles)
@@ -361,7 +361,7 @@ func TestSparkCollectorCollectsSparkSubmitDriverEnvVars(t *testing.T) {
 		},
 	}
 
-	collected, err := NewSpark().Collect(context.Background(), reader)
+	collected, err := NewSpark().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	requireSparkEnvVarPredicate(t, reader)
@@ -383,7 +383,7 @@ func TestSparkCollectorFindsLiveDriverAfterRuntimeInspectionError(t *testing.T) 
 		env: map[string]string{"SPARK_LOCAL_DIRS": "/tmp/spark"},
 	}
 
-	collected, err := NewSpark().Collect(context.Background(), reader)
+	collected, err := NewSpark().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	requireSparkEnvVarPredicate(t, reader)
@@ -406,7 +406,7 @@ func TestSparkCollectorFindsLiveSparkSubmitDriverAfterRuntimeInspectionError(t *
 		env: map[string]string{"SPARK_LOCAL_DIRS": "/tmp/spark"},
 	}
 
-	collected, err := NewSpark().Collect(context.Background(), reader)
+	collected, err := NewSpark().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	requireSparkEnvVarPredicate(t, reader)
@@ -425,7 +425,7 @@ func TestSparkCollectorSkipsNonDriverWithoutReadingEnvVars(t *testing.T) {
 		env: map[string]string{"SPARK_LOCAL_IP": "192.0.2.4"},
 	}
 
-	collected, err := NewSpark().Collect(context.Background(), reader)
+	collected, err := NewSpark().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	assert.Equal(t, configfilesdiscoveryimpl.CollectedConfig{}, collected)
@@ -442,7 +442,7 @@ func TestSparkCollectorReturnsRuntimeInspectionErrorWithoutLiveDriver(t *testing
 		},
 	}
 
-	collected, err := NewSpark().Collect(context.Background(), reader)
+	collected, err := NewSpark().Collect(t.Context(), reader)
 
 	require.ErrorIs(t, err, runtimeErr)
 	assert.Equal(t, configfilesdiscoveryimpl.CollectedConfig{}, collected)
@@ -459,7 +459,7 @@ func TestSparkCollectorReturnsEnvVarErrorForDriver(t *testing.T) {
 		readEnvVarsErr: envErr,
 	}
 
-	collected, err := NewSpark().Collect(context.Background(), reader)
+	collected, err := NewSpark().Collect(t.Context(), reader)
 
 	require.ErrorIs(t, err, envErr)
 	assert.Equal(t, configfilesdiscoveryimpl.CollectedConfig{}, collected)
@@ -528,7 +528,7 @@ func TestSparkCollectorSkipsDriverWithoutSelectedEnvVars(t *testing.T) {
 		env: map[string]string{"UNREQUESTED": "value"},
 	}
 
-	collected, err := NewSpark().Collect(context.Background(), reader)
+	collected, err := NewSpark().Collect(t.Context(), reader)
 
 	require.NoError(t, err)
 	requireSparkEnvVarPredicate(t, reader)

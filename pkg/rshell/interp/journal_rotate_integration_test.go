@@ -9,7 +9,6 @@ package interp
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net"
 	"os"
@@ -125,7 +124,7 @@ func TestJournalctlRotateEndToEnd(t *testing.T) {
 
 	program, err := ParseScript("journalctl --rotate", "")
 	require.NoError(t, err)
-	require.NoError(t, runner.Run(context.Background(), program))
+	require.NoError(t, runner.Run(t.Context(), program))
 	assert.Empty(t, stderr.String())
 	assert.Contains(t, stdout.String(), "Journal rotation completed.")
 
@@ -177,7 +176,7 @@ func TestJournalctlRotateDeniedWithoutRemediationDespiteGrant(t *testing.T) {
 
 	program, err := ParseScript("journalctl --rotate", "")
 	require.NoError(t, err)
-	runErr := runner.Run(context.Background(), program)
+	runErr := runner.Run(t.Context(), program)
 	var exitStatus ExitStatus
 	require.ErrorAs(t, runErr, &exitStatus)
 	assert.Equal(t, ExitStatus(1), exitStatus)

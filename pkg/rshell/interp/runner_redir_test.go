@@ -7,7 +7,6 @@ package interp
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -33,7 +32,7 @@ func TestRunnerRedir_ReadOnlyModeBlocksFileTarget(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = r.Close() })
 
-			err = r.Run(context.Background(), parseScript(t, script))
+			err = r.Run(t.Context(), parseScript(t, script))
 			require.Error(t, err)
 			var es ExitStatus
 			require.True(t, errors.As(err, &es))
@@ -69,7 +68,7 @@ func TestRunnerRedir_DevNullAlwaysAccepted(t *testing.T) {
 				require.NoError(t, err)
 				t.Cleanup(func() { _ = r.Close() })
 
-				err = r.Run(context.Background(), parseScript(t, tc.script))
+				err = r.Run(t.Context(), parseScript(t, tc.script))
 				require.NoError(t, err, "stderr=%q", stderr.String())
 				assert.Equal(t, tc.wantStdout, stdout.String())
 			})
@@ -94,7 +93,7 @@ func TestRunnerRedir_RemediationModeTruncatesOnOverwrite(t *testing.T) {
 	t.Cleanup(func() { _ = r.Close() })
 	r.Dir = dir
 
-	err = r.Run(context.Background(), parseScript(t, "echo new > out.txt"))
+	err = r.Run(t.Context(), parseScript(t, "echo new > out.txt"))
 	require.NoError(t, err)
 
 	data, err := os.ReadFile(filepath.Join(dir, "out.txt"))
@@ -122,7 +121,7 @@ func TestRunnerRedir_FdCheckPreventsCommandSubstitution(t *testing.T) {
 
 	// If the substitution runs, it creates the sentinel file.
 	script := `echo x 3>$(echo ` + sentinel + `)`
-	err = r.Run(context.Background(), parseScript(t, script))
+	err = r.Run(t.Context(), parseScript(t, script))
 	require.Error(t, err)
 
 	var es ExitStatus

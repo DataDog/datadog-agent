@@ -6,7 +6,6 @@
 package aws
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 
@@ -49,7 +48,7 @@ func TestResolveCredentials_StaticEnvVars(t *testing.T) {
 	t.Setenv("AWS_SESSION_TOKEN", "token456")
 
 	auth := &AWSAuth{region: "us-east-1"}
-	got, err := auth.resolveCredentials(context.Background(), configmock.New(t))
+	got, err := auth.resolveCredentials(t.Context(), configmock.New(t))
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, "AKIAIOSFODNN7EXAMPLE", got.AccessKeyID)
@@ -63,7 +62,7 @@ func TestResolveCredentials_StaticEnvVars_NoToken(t *testing.T) {
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "secret123")
 
 	auth := &AWSAuth{region: "us-east-1"}
-	got, err := auth.resolveCredentials(context.Background(), configmock.New(t))
+	got, err := auth.resolveCredentials(t.Context(), configmock.New(t))
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, "AKIAIOSFODNN7EXAMPLE", got.AccessKeyID)

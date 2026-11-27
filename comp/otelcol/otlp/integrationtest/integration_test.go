@@ -115,7 +115,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams, pid
 			return cp
 		}),
 		fx.Provide(func() (coreconfig.Component, error) {
-			c, err := agentConfig.NewConfigComponent(context.Background(), "", params.ConfPaths)
+			c, err := agentConfig.NewConfigComponent(ctx, "", params.ConfPaths)
 			if err != nil {
 				return nil, err
 			}
@@ -235,7 +235,7 @@ func TestIntegration(t *testing.T) {
 	}
 	pidfilePath := "test_pid"
 	go func() {
-		if app, err = runTestOTelAgent(context.Background(), params, pidfilePath); err != nil {
+		if app, err = runTestOTelAgent(t.Context(), params, pidfilePath); err != nil {
 			log.Fatal("failed to start otel agent ", err)
 		}
 	}()
@@ -320,7 +320,7 @@ func TestIntegration(t *testing.T) {
 	}
 
 	// Verify that DDOT stops gracefully
-	stopCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	stopCtx, cancel := context.WithTimeout(t.Context(), time.Minute)
 	defer cancel()
 	require.NoError(t, app.Stop(stopCtx))
 }
@@ -348,7 +348,7 @@ func waitForReadiness(t *testing.T) {
 }
 
 func sendTraces(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Set up OTel-Go SDK and exporter
 	traceExporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithInsecure())

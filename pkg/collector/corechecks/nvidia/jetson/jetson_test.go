@@ -8,7 +8,6 @@
 package nvidia
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -839,7 +838,7 @@ func TestRunCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.binary, func(t *testing.T) {
-			out, err := runCommand(context.Background(), tt.binary, tt.args, false)
+			out, err := runCommand(t.Context(), tt.binary, tt.args, false)
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedOutput, string(out))
 		})

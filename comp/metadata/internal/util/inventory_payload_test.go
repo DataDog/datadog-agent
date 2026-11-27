@@ -6,7 +6,6 @@
 package util
 
 import (
-	"context"
 	"errors"
 	"math/rand/v2"
 	"testing"
@@ -128,12 +127,12 @@ func TestFillFlare(t *testing.T) {
 	flareFiller := i.FlareProvider().FlareFiller.Callback
 
 	i.Enabled = false
-	flareFiller(context.Background(), f)
+	flareFiller(t.Context(), f)
 	f.AssertFileExists("metadata", "inventory", "test.json")
 	f.AssertFileContent("inventory metadata is disabled", "metadata", "inventory", "test.json")
 
 	i.Enabled = true
-	flareFiller(context.Background(), f)
+	flareFiller(t.Context(), f)
 	f.AssertFileExists("metadata", "inventory", "test.json")
 	f.AssertFileContent("{\n  \"test\": true\n}", "metadata", "inventory", "test.json")
 }
@@ -143,7 +142,7 @@ func TestCollectRecentLastCollect(t *testing.T) {
 	i.LastCollect = time.Now()
 	i.createdAt = time.Now().Add(-2 * time.Minute)
 
-	interval := i.Collect(context.Background())
+	interval := i.Collect(t.Context())
 	assert.Equal(t, defaultMinInterval, interval)
 	// check that no Payload was send since LastCollect is recent
 	i.serializer.(*serializermock.MetricSerializer).AssertExpectations(t)
@@ -159,7 +158,7 @@ func TestCollectStartupTime(t *testing.T) {
 	serializerMock := i.serializer.(*serializermock.MetricSerializer)
 	duration := 1 * time.Minute
 
-	interval := i.Collect(context.Background())
+	interval := i.Collect(t.Context())
 	assert.Equal(t, duration-time.Since(createdAt).Round(duration), interval.Round(duration))
 	assert.Empty(t, serializerMock.Calls)
 
@@ -181,7 +180,7 @@ func TestCollectStartupTime(t *testing.T) {
 		})).Return(nil)
 
 	i.serializer = serializerMock
-	interval = i.Collect(context.Background())
+	interval = i.Collect(t.Context())
 	assert.Equal(t, defaultMinInterval, interval)
 	serializerMock.AssertExpectations(t)
 }
@@ -209,7 +208,7 @@ func TestCollect(t *testing.T) {
 	i.LastCollect = time.Now().Add(-1 * time.Hour)
 
 	now := time.Now()
-	interval := i.Collect(context.Background())
+	interval := i.Collect(t.Context())
 	assert.Equal(t, defaultMinInterval, interval)
 	assert.False(t, i.LastCollect.Before(now))
 	i.serializer.(*serializermock.MetricSerializer).AssertExpectations(t)
@@ -221,7 +220,7 @@ func TestCollect(t *testing.T) {
 	i.serializer = serializerMock
 
 	i.LastCollect = time.Now().Add(-i.MinInterval + 1*time.Second)
-	i.Collect(context.Background())
+	i.Collect(t.Context())
 	i.serializer.(*serializermock.MetricSerializer).AssertExpectations(t)
 
 	// testing collect with LastCollect between MinInterval and MaxInterval with forceRefresh being trigger
@@ -238,7 +237,7 @@ func TestCollect(t *testing.T) {
 			return true
 		})).Return(nil)
 
-	i.Collect(context.Background())
+	i.Collect(t.Context())
 	i.serializer.(*serializermock.MetricSerializer).AssertExpectations(t)
 	assert.False(t, i.forceRefresh.Load())
 }
@@ -258,7 +257,7 @@ func TestSubmitBypassesCollectionDelays(t *testing.T) {
 			})
 			i.LastCollect = time.Now()
 			serializerMock := i.serializer.(*serializermock.MetricSerializer)
-			i.Collect(context.Background())
+			i.Collect(t.Context())
 			serializerMock.AssertNotCalled(t, "SendMetadata", mock.Anything)
 
 			serializerMock.On("SendMetadata", &testPayload{}).Return(nil).Twice()
@@ -271,7 +270,7 @@ func TestSubmitBypassesCollectionDelays(t *testing.T) {
 				assert.False(t, i.RefreshTriggered())
 			}
 			serializerMock.AssertNumberOfCalls(t, "SendMetadata", 2)
-			i.Collect(context.Background())
+			i.Collect(t.Context())
 			serializerMock.AssertNumberOfCalls(t, "SendMetadata", 2)
 		})
 	}
@@ -318,16 +317,16 @@ func TestSubmitRefreshAndScheduledCollection(t *testing.T) {
 	i.Refresh()
 	assert.NoError(t, i.Submit())
 	assert.False(t, i.RefreshTriggered())
-	assert.Equal(t, i.MinInterval, i.Collect(context.Background()))
+	assert.Equal(t, i.MinInterval, i.Collect(t.Context()))
 	serializerMock.AssertNumberOfCalls(t, "SendMetadata", 1)
 
 	i.Refresh()
-	assert.Equal(t, i.MinInterval, i.Collect(context.Background()))
+	assert.Equal(t, i.MinInterval, i.Collect(t.Context()))
 	assert.False(t, i.RefreshTriggered())
 	serializerMock.AssertNumberOfCalls(t, "SendMetadata", 2)
 
 	i.LastCollect = time.Now().Add(-i.MaxInterval)
-	assert.Equal(t, i.MinInterval, i.Collect(context.Background()))
+	assert.Equal(t, i.MinInterval, i.Collect(t.Context()))
 	serializerMock.AssertNumberOfCalls(t, "SendMetadata", 3)
 }
 
@@ -343,7 +342,7 @@ func TestSubmitPreservesRefreshTriggeredWhileBuildingPayload(t *testing.T) {
 	assert.True(t, i.RefreshTriggered())
 
 	i.getPayload = func() marshaler.TypedJSONMarshaler { return &testPayload{} }
-	i.Collect(context.Background())
+	i.Collect(t.Context())
 	assert.False(t, i.RefreshTriggered())
 	serializerMock.AssertNumberOfCalls(t, "SendMetadata", 2)
 }
@@ -376,7 +375,7 @@ func TestSubmitEmptyPayloadAndSerializerError(t *testing.T) {
 			assert.False(t, i.LastCollect.Before(before))
 			assert.False(t, i.RefreshTriggered())
 			lastCollect := i.LastCollect
-			i.Collect(context.Background())
+			i.Collect(t.Context())
 			assert.Equal(t, lastCollect, i.LastCollect)
 			if tt.emptyPayload {
 				serializerMock.AssertNotCalled(t, "SendMetadata", mock.Anything)
@@ -387,7 +386,7 @@ func TestSubmitEmptyPayloadAndSerializerError(t *testing.T) {
 			i.getPayload = func() marshaler.TypedJSONMarshaler { return &testPayload{} }
 			serializerMock.On("SendMetadata", &testPayload{}).Return(nil).Once()
 			i.Refresh()
-			i.Collect(context.Background())
+			i.Collect(t.Context())
 			assert.False(t, i.RefreshTriggered())
 			serializerMock.AssertExpectations(t)
 		})
@@ -462,24 +461,24 @@ func TestCollectJittersTheNextPayload(t *testing.T) {
 	sent := func() int { return len(i.serializer.(*serializermock.MetricSerializer).Calls) }
 
 	// The first payload is unscheduled: the next one is due halfway between MinInterval and MaxInterval.
-	i.Collect(context.Background())
+	i.Collect(t.Context())
 	require.Equal(t, 1, sent())
 	unscheduled := i.MinInterval + (i.MaxInterval-i.MinInterval)/2
 	assert.Equal(t, unscheduled, i.dueInterval())
 
 	i.LastCollect = time.Now().Add(-unscheduled + time.Second)
-	i.Collect(context.Background())
+	i.Collect(t.Context())
 	assert.Equal(t, 1, sent(), "not due yet")
 
 	// A scheduled payload: the next one is due after MaxInterval minus half of scheduledJitter.
 	i.LastCollect = time.Now().Add(-unscheduled - time.Second)
-	i.Collect(context.Background())
+	i.Collect(t.Context())
 	require.Equal(t, 2, sent())
 	assert.Equal(t, i.MaxInterval-time.Duration(0.5*scheduledJitter*float64(i.MaxInterval)), i.dueInterval())
 
 	// A refresh is unscheduled again, like the first payload.
 	i.Refresh()
-	i.Collect(context.Background())
+	i.Collect(t.Context())
 	require.Equal(t, 3, sent())
 	assert.Equal(t, unscheduled, i.dueInterval())
 }

@@ -6,7 +6,6 @@
 package ndmdiscoveryimpl
 
 import (
-	"context"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -59,7 +58,7 @@ func TestSchedulerSweepsOnAdd(t *testing.T) {
 	scanner := answerAll()
 	s, reporter, _ := newTestScheduler(t, scanner, 10)
 
-	s.start(context.Background())
+	s.start(t.Context())
 	defer s.stop()
 
 	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/26")))
@@ -78,7 +77,7 @@ func TestSchedulerSweepsOnAdd(t *testing.T) {
 func TestSchedulerKeepsARangeWhoseProbeCannotBeResolved(t *testing.T) {
 	scanner := answerAll()
 	s, _, _ := newTestScheduler(t, scanner, 10)
-	s.start(context.Background())
+	s.start(t.Context())
 	defer s.stop()
 
 	cfg := testRangeConfig("ad-1", "10.0.0.0/26")
@@ -93,7 +92,7 @@ func TestSchedulerKeepsARangeWhoseProbeCannotBeResolved(t *testing.T) {
 func TestSchedulerResolvesEveryProbeEachCycle(t *testing.T) {
 	scanner := answerAll()
 	s, _, _ := newTestScheduler(t, scanner, 10)
-	s.start(context.Background())
+	s.start(t.Context())
 	defer s.stop()
 
 	cfg := testRangeConfig("ad-1", "10.0.0.0/26")
@@ -109,7 +108,7 @@ func TestSchedulerResolvesEveryProbeEachCycle(t *testing.T) {
 func TestSchedulerDropsOnlyTheProbeItCannotResolve(t *testing.T) {
 	scanner := answerAll()
 	s, _, _ := newTestScheduler(t, scanner, 10)
-	s.start(context.Background())
+	s.start(t.Context())
 	defer s.stop()
 
 	cfg := testRangeConfig("ad-1", "10.0.0.0/26")
@@ -125,7 +124,7 @@ func TestSchedulerDropsOnlyTheProbeItCannotResolve(t *testing.T) {
 
 func TestSchedulerRejectsOversizedRange(t *testing.T) {
 	s, _, _ := newTestScheduler(t, answerAll(), 10)
-	s.start(context.Background())
+	s.start(t.Context())
 	defer s.stop()
 
 	err := s.set(testRangeConfig("ad-1", "10.0.0.0/12"))
@@ -146,7 +145,7 @@ func TestSchedulerSetBeforeStartIsRejected(t *testing.T) {
 func TestSchedulerRemoveStopsTheRange(t *testing.T) {
 	scanner := answerAll()
 	s, _, _ := newTestScheduler(t, scanner, 10)
-	s.start(context.Background())
+	s.start(t.Context())
 	defer s.stop()
 
 	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/26")))
@@ -163,7 +162,7 @@ func TestSchedulerRemoveStopsTheRange(t *testing.T) {
 func TestSchedulerRemoveClearsTheCursor(t *testing.T) {
 	scanner := answerAll()
 	s, _, _ := newTestScheduler(t, scanner, 10)
-	s.start(context.Background())
+	s.start(t.Context())
 	defer s.stop()
 
 	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/26")))
@@ -183,7 +182,7 @@ func TestSchedulerRemoveClearsTheCursor(t *testing.T) {
 func TestSchedulerReplacesRangeOnUpdate(t *testing.T) {
 	scanner := answerAll()
 	s, _, _ := newTestScheduler(t, scanner, 10)
-	s.start(context.Background())
+	s.start(t.Context())
 	defer s.stop()
 
 	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/26")))
@@ -228,7 +227,7 @@ func TestSchedulerWorkerShareNeverExceedsTheSweeperBudget(t *testing.T) {
 func TestSchedulerStopIsIdempotentAndDrains(t *testing.T) {
 	scanner := answerAll()
 	s, _, _ := newTestScheduler(t, scanner, 10)
-	s.start(context.Background())
+	s.start(t.Context())
 
 	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/26")))
 	require.Eventually(t, func() bool { return len(scanner.recorded()) >= 1 }, 5*time.Second, 10*time.Millisecond)
@@ -241,7 +240,7 @@ func TestSchedulerStopIsIdempotentAndDrains(t *testing.T) {
 func TestSchedulerResolvesTheProbesPerCycle(t *testing.T) {
 	scanner := answerAll()
 	s, _, store := newTestScheduler(t, scanner, 10)
-	s.start(context.Background())
+	s.start(t.Context())
 	defer s.stop()
 
 	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/26")))
@@ -262,7 +261,7 @@ func TestSchedulerFloorsIntervalsBelowTheMinimum(t *testing.T) {
 		return timer.C, func() { timer.Stop() }
 	}
 
-	s.start(context.Background())
+	s.start(t.Context())
 	defer s.stop()
 
 	floor := time.Duration(minIntervalSec) * time.Second
@@ -336,7 +335,7 @@ func TestSchedulerDoesNotOverlapCyclesForOneRange(t *testing.T) {
 		Defaults:     rangeDefaults{Namespace: "default", IntervalSec: 3600, MaxAddresses: 65536},
 		Credentials:  testSchedulerStore(),
 	})
-	s.start(context.Background())
+	s.start(t.Context())
 	defer s.stop()
 
 	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/26")))
@@ -360,7 +359,7 @@ func TestSchedulerDoesNotOverlapCyclesForOneRange(t *testing.T) {
 func TestSchedulerRemoveDuringACycleDrainsOnStop(t *testing.T) {
 	scanner := newBlockingScanner()
 	s, _, _ := newTestScheduler(t, &scanner.recordingScanner, 10)
-	s.start(context.Background())
+	s.start(t.Context())
 
 	require.NoError(t, s.set(testRangeConfig("ad-1", "10.0.0.0/26")))
 	<-scanner.entered

@@ -6,7 +6,6 @@
 package interp
 
 import (
-	"context"
 	"strings"
 	"sync"
 	"testing"
@@ -21,7 +20,7 @@ func TestTelemetrySpanLimitIsConcurrentSafe(t *testing.T) {
 	previous := telemetrySpansStarted.Swap(maxTelemetrySpans - 1)
 	t.Cleanup(func() { telemetrySpansStarted.Store(previous) })
 
-	ctx := context.Background()
+	ctx := t.Context()
 	start := make(chan struct{})
 	var wg sync.WaitGroup
 	for range 32 {
@@ -47,7 +46,7 @@ func TestRunContinuesAfterTelemetrySpanLimit(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { runner.Close() })
 
-	require.NoError(t, runner.Run(context.Background(), parseScript(t, "true")))
+	require.NoError(t, runner.Run(t.Context(), parseScript(t, "true")))
 	assert.Equal(t, uint64(maxTelemetrySpans), telemetrySpansStarted.Load())
 }
 

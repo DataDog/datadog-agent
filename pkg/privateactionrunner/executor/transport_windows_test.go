@@ -98,7 +98,7 @@ func TestListenFailsClosedWhenAgentAccountIsUnresolved(t *testing.T) {
 			assert.Nil(t, lis)
 
 			// No pipe, permissive or otherwise, may have been created.
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 			defer cancel()
 			_, err = Dial(ctx, address, time.Second)
 			assert.ErrorIs(t, err, windows.ERROR_FILE_NOT_FOUND)
@@ -134,7 +134,7 @@ func TestListenServesClientWithParControlAccess(t *testing.T) {
 	}()
 
 	for i := 0; i < connections; i++ {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		conn, err := Dial(ctx, address, 2*time.Second)
 		cancel()
 		require.NoError(t, err)

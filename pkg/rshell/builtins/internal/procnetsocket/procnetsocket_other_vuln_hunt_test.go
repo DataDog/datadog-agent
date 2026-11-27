@@ -27,7 +27,7 @@ func TestVulnHuntSubsystemPlatformDivergence_NonLinuxReadersDoNotOpenProc(t *tes
 
 	for _, reader := range readers {
 		t.Run(reader.name, func(t *testing.T) {
-			_, err := reader.fn(context.Background(), DefaultProcPath)
+			_, err := reader.fn(t.Context(), DefaultProcPath)
 			if err == nil {
 				t.Fatalf("expected non-Linux platform error")
 			}

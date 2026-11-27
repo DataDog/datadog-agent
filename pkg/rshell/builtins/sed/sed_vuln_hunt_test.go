@@ -9,7 +9,6 @@ package sed_test
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -111,7 +110,7 @@ func TestVulnHuntBuiltinResourceExhaustion_OutputLimitStopsPrintAmplification(t 
 	defer runner.Close()
 	runner.Dir = dir
 
-	err = runner.Run(context.Background(), prog)
+	err = runner.Run(t.Context(), prog)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, interp.ErrOutputLimitExceeded), "got %v", err)
 	assert.LessOrEqual(t, stdout.Len(), 10*1024*1024)

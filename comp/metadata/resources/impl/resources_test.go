@@ -9,7 +9,6 @@ package resourcesimpl
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -132,7 +131,7 @@ func TestCollect(t *testing.T) {
 	r := ret.Comp.(*resourcesImpl)
 	r.hostname = "resources-test-hostname"
 
-	interval := r.collect(context.Background())
+	interval := r.collect(t.Context())
 	assert.Equal(t, defaultCollectInterval, interval)
 	s.AssertExpectations(t)
 }
@@ -155,7 +154,7 @@ func TestCollectError(t *testing.T) {
 	)
 
 	r := ret.Comp.(*resourcesImpl)
-	interval := r.collect(context.Background())
+	interval := r.collect(t.Context())
 	assert.Equal(t, defaultCollectInterval, interval)
 	s.AssertExpectations(t)
 }

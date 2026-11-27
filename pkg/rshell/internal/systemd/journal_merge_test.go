@@ -7,7 +7,6 @@ package systemd
 
 import (
 	"bytes"
-	"context"
 	"encoding/binary"
 	"testing"
 	"time"
@@ -34,7 +33,7 @@ func TestQueryJournalEntriesMergesRotatedFilesAndFindsCurrentBoot(t *testing.T) 
 		{seqnum: 4, bootID: currentBoot, realtime: uint64(start.Add(3 * time.Second).UnixMicro()), monotonic: 300, fields: []string{"_SYSTEMD_UNIT=api.service", "MESSAGE=healthy"}},
 	}), machineID, repeatedJournalID(0x32), sequenceID)
 
-	entries, err := client.queryJournalEntries(context.Background(), builtins.JournalQuery{
+	entries, err := client.queryJournalEntries(t.Context(), builtins.JournalQuery{
 		Units:       []string{"api.service"},
 		CurrentBoot: true,
 		MaxEntries:  10,
@@ -58,7 +57,7 @@ func TestQueryJournalEntriesHandlesDuplicateSequenceNumbers(t *testing.T) {
 			{seqnum: 5, bootID: bootID, realtime: uint64(start.Add(time.Second).UnixMicro()), monotonic: 200, fields: []string{"_SYSTEMD_UNIT=api.service", "MESSAGE=second"}},
 		}), machineID, repeatedJournalID(0x32), sequenceID)
 
-		entries, err := client.queryJournalEntries(context.Background(), builtins.JournalQuery{Units: []string{"api.service"}, MaxEntries: 10})
+		entries, err := client.queryJournalEntries(t.Context(), builtins.JournalQuery{Units: []string{"api.service"}, MaxEntries: 10})
 		require.NoError(t, err)
 		assert.Equal(t, []string{"second", "first"}, journalMessages(entries))
 	})
@@ -71,7 +70,7 @@ func TestQueryJournalEntriesHandlesDuplicateSequenceNumbers(t *testing.T) {
 		writeJournalSnapshotFixture(t, journalDir, "one.journal", buildJournalQueryFixture(t, spec), machineID, repeatedJournalID(0x31), sequenceID)
 		writeJournalSnapshotFixture(t, journalDir, "two.journal", buildJournalQueryFixture(t, spec), machineID, repeatedJournalID(0x32), sequenceID)
 
-		entries, err := client.queryJournalEntries(context.Background(), builtins.JournalQuery{Units: []string{"api.service"}, MaxEntries: 10})
+		entries, err := client.queryJournalEntries(t.Context(), builtins.JournalQuery{Units: []string{"api.service"}, MaxEntries: 10})
 		require.NoError(t, err)
 		assert.Equal(t, []string{"duplicate"}, journalMessages(entries))
 	})

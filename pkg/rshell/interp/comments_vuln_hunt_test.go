@@ -100,7 +100,7 @@ func TestVulnHuntShellFeatureReadonlyBypass_CommentsDoNotMaskReadonlyFailures(t 
 }
 
 func TestVulnHuntShellFeatureSignalContext_CommentsDoNotConsumeCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	stdout, stderr, _, err := runSimpleCommandScriptCtx(ctx, t, "# comment only\necho SHOULD_NOT_RUN\n", "", allowAllCommandsOpt())

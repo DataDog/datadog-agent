@@ -19,37 +19,37 @@ func TestPathGlobMatchTrailingBackslash(t *testing.T) {
 	// A trailing backslash is a dangling escape (no character to escape).
 	// GNU find's fnmatch treats this as non-matching for any input,
 	// including a literal backslash character.
-	assert.False(t, pathGlobMatch(context.Background(), `abc\`, `abc\`))
-	assert.False(t, pathGlobMatch(context.Background(), `abc\`, `abcd`))
-	assert.False(t, pathGlobMatch(context.Background(), `abc\`, `abc`))
-	assert.False(t, pathGlobMatch(context.Background(), `\`, `\`))
-	assert.False(t, pathGlobMatch(context.Background(), `*\`, `abc\`))
+	assert.False(t, pathGlobMatch(t.Context(), `abc\`, `abc\`))
+	assert.False(t, pathGlobMatch(t.Context(), `abc\`, `abcd`))
+	assert.False(t, pathGlobMatch(t.Context(), `abc\`, `abc`))
+	assert.False(t, pathGlobMatch(t.Context(), `\`, `\`))
+	assert.False(t, pathGlobMatch(t.Context(), `*\`, `abc\`))
 
 	// Properly escaped backslash (\\) DOES match a literal backslash.
-	assert.True(t, pathGlobMatch(context.Background(), `abc\\`, `abc\`))
-	assert.True(t, pathGlobMatch(context.Background(), `\\`, `\`))
-	assert.True(t, pathGlobMatch(context.Background(), `*\\`, `abc\`))
+	assert.True(t, pathGlobMatch(t.Context(), `abc\\`, `abc\`))
+	assert.True(t, pathGlobMatch(t.Context(), `\\`, `\`))
+	assert.True(t, pathGlobMatch(t.Context(), `*\\`, `abc\`))
 }
 
 func TestMatchGlobMalformedBracket(t *testing.T) {
 	// Unclosed bracket patterns fall back to literal comparison.
-	assert.True(t, matchGlob(context.Background(), "[", "["))
-	assert.False(t, matchGlob(context.Background(), "[", "a"))
-	assert.True(t, matchGlob(context.Background(), "[abc", "[abc"))
-	assert.False(t, matchGlob(context.Background(), "[abc", "a"))
+	assert.True(t, matchGlob(t.Context(), "[", "["))
+	assert.False(t, matchGlob(t.Context(), "[", "a"))
+	assert.True(t, matchGlob(t.Context(), "[abc", "[abc"))
+	assert.False(t, matchGlob(t.Context(), "[abc", "a"))
 
 	// Incomplete range (trailing dash) — non-matching per GNU fnmatch.
-	assert.False(t, matchGlob(context.Background(), "[a-", "[a-"))
-	assert.False(t, matchGlob(context.Background(), "[a-", "a"))
-	assert.False(t, matchGlob(context.Background(), "[ab-", "[ab-"))
+	assert.False(t, matchGlob(t.Context(), "[a-", "[a-"))
+	assert.False(t, matchGlob(t.Context(), "[a-", "a"))
+	assert.False(t, matchGlob(t.Context(), "[ab-", "[ab-"))
 }
 
 func TestMatchGlobFoldMalformedBracket(t *testing.T) {
-	assert.True(t, matchGlobFold(context.Background(), "[", "["))
-	assert.False(t, matchGlobFold(context.Background(), "[", "a"))
+	assert.True(t, matchGlobFold(t.Context(), "[", "["))
+	assert.False(t, matchGlobFold(t.Context(), "[", "a"))
 
 	// Incomplete range — non-matching.
-	assert.False(t, matchGlobFold(context.Background(), "[a-", "[a-"))
+	assert.False(t, matchGlobFold(t.Context(), "[a-", "[a-"))
 }
 
 func TestBaseNameEdgeCases(t *testing.T) {
@@ -69,93 +69,93 @@ func TestBaseNameEdgeCases(t *testing.T) {
 
 func TestMatchClassEdgeCases(t *testing.T) {
 	// Valid class
-	matched, width := matchClass(context.Background(), "[abc]", 'a')
+	matched, width := matchClass(t.Context(), "[abc]", 'a')
 	assert.True(t, matched)
 	assert.Equal(t, 5, width)
 
 	// Non-matching valid class
-	matched, width = matchClass(context.Background(), "[abc]", 'z')
+	matched, width = matchClass(t.Context(), "[abc]", 'z')
 	assert.False(t, matched)
 	assert.Equal(t, 5, width)
 
 	// Negated class
-	matched, width = matchClass(context.Background(), "[!abc]", 'z')
+	matched, width = matchClass(t.Context(), "[!abc]", 'z')
 	assert.True(t, matched)
 	assert.Equal(t, 6, width)
 
-	matched, width = matchClass(context.Background(), "[^abc]", 'a')
+	matched, width = matchClass(t.Context(), "[^abc]", 'a')
 	assert.False(t, matched)
 	assert.Equal(t, 6, width)
 
 	// Range
-	matched, width = matchClass(context.Background(), "[a-z]", 'm')
+	matched, width = matchClass(t.Context(), "[a-z]", 'm')
 	assert.True(t, matched)
 	assert.Equal(t, 5, width)
 
-	matched, width = matchClass(context.Background(), "[a-z]", 'A')
+	matched, width = matchClass(t.Context(), "[a-z]", 'A')
 	assert.False(t, matched)
 	assert.Equal(t, 5, width)
 
 	// Malformed (unclosed)
-	matched, width = matchClass(context.Background(), "[abc", 'a')
+	matched, width = matchClass(t.Context(), "[abc", 'a')
 	assert.False(t, matched)
 	assert.Equal(t, 0, width)
 
 	// Single char "[" — too short
-	matched, width = matchClass(context.Background(), "[", 'a')
+	matched, width = matchClass(t.Context(), "[", 'a')
 	assert.False(t, matched)
 	assert.Equal(t, 0, width)
 
 	// "]" as first char in class (literal, not closing)
-	matched, width = matchClass(context.Background(), "[]abc]", ']')
+	matched, width = matchClass(t.Context(), "[]abc]", ']')
 	assert.True(t, matched)
 	assert.Equal(t, 6, width)
 
 	// Backslash escape inside class: [\]] matches literal ]
-	matched, width = matchClass(context.Background(), "[\\]]", ']')
+	matched, width = matchClass(t.Context(), "[\\]]", ']')
 	assert.True(t, matched)
 	assert.Equal(t, 4, width)
 
-	matched, width = matchClass(context.Background(), "[\\]]", 'a')
+	matched, width = matchClass(t.Context(), "[\\]]", 'a')
 	assert.False(t, matched)
 	assert.Equal(t, 4, width)
 
 	// Backslash escape: [a\]] matches a or ]
-	matched, width = matchClass(context.Background(), "[a\\]]", ']')
+	matched, width = matchClass(t.Context(), "[a\\]]", ']')
 	assert.True(t, matched)
 	assert.Equal(t, 5, width)
 
-	matched, width = matchClass(context.Background(), "[a\\]]", 'a')
+	matched, width = matchClass(t.Context(), "[a\\]]", 'a')
 	assert.True(t, matched)
 	assert.Equal(t, 5, width)
 
 	// Backslash escape: [\\a] matches \ or a
-	matched, width = matchClass(context.Background(), "[\\\\a]", '\\')
+	matched, width = matchClass(t.Context(), "[\\\\a]", '\\')
 	assert.True(t, matched)
 	assert.Equal(t, 5, width)
 
-	matched, width = matchClass(context.Background(), "[\\\\a]", 'a')
+	matched, width = matchClass(t.Context(), "[\\\\a]", 'a')
 	assert.True(t, matched)
 	assert.Equal(t, 5, width)
 
-	matched, width = matchClass(context.Background(), "[\\\\a]", 'z')
+	matched, width = matchClass(t.Context(), "[\\\\a]", 'z')
 	assert.False(t, matched)
 	assert.Equal(t, 5, width)
 
 	// Escaped multi-byte character inside class: [\é] matches é
-	matched, width = matchClass(context.Background(), `[\é]`, 'é')
+	matched, width = matchClass(t.Context(), `[\é]`, 'é')
 	assert.True(t, matched)
 	assert.Equal(t, 5, width) // [ + \ + é(2 bytes) + ] = 5
 
-	matched, width = matchClass(context.Background(), `[\é]`, 'a')
+	matched, width = matchClass(t.Context(), `[\é]`, 'a')
 	assert.False(t, matched)
 	assert.Equal(t, 5, width)
 
 	// Escaped multi-byte range endpoints: [\é-\ü]
-	matched, _ = matchClass(context.Background(), `[\é-\ü]`, 'ö') // ö is between é and ü
+	matched, _ = matchClass(t.Context(), `[\é-\ü]`, 'ö') // ö is between é and ü
 	assert.True(t, matched)
 
-	matched, _ = matchClass(context.Background(), `[\é-\ü]`, 'a')
+	matched, _ = matchClass(t.Context(), `[\é-\ü]`, 'a')
 	assert.False(t, matched)
 }
 
@@ -283,21 +283,21 @@ func TestMatchPerm(t *testing.T) {
 
 func TestPathGlobMatchMalformedBracket(t *testing.T) {
 	// Unclosed bracket patterns fall back to literal comparison.
-	assert.True(t, pathGlobMatch(context.Background(), "[", "["))
-	assert.False(t, pathGlobMatch(context.Background(), "[", "a"))
-	assert.True(t, pathGlobMatch(context.Background(), "dir/[sub/file", "dir/[sub/file"))
-	assert.False(t, pathGlobMatch(context.Background(), "dir/[sub/file", "dir/asub/file"))
+	assert.True(t, pathGlobMatch(t.Context(), "[", "["))
+	assert.False(t, pathGlobMatch(t.Context(), "[", "a"))
+	assert.True(t, pathGlobMatch(t.Context(), "dir/[sub/file", "dir/[sub/file"))
+	assert.False(t, pathGlobMatch(t.Context(), "dir/[sub/file", "dir/asub/file"))
 	// Star followed by malformed bracket (backtracking interaction).
-	assert.True(t, pathGlobMatch(context.Background(), "*/[", "dir/["))
-	assert.False(t, pathGlobMatch(context.Background(), "*/[", "dir/a"))
+	assert.True(t, pathGlobMatch(t.Context(), "*/[", "dir/["))
+	assert.False(t, pathGlobMatch(t.Context(), "*/[", "dir/a"))
 
 	// Incomplete range (trailing dash) — non-matching per GNU fnmatch.
-	assert.False(t, pathGlobMatch(context.Background(), "[a-", "[a-"))
-	assert.False(t, pathGlobMatch(context.Background(), "dir/[a-", "dir/[a-"))
+	assert.False(t, pathGlobMatch(t.Context(), "[a-", "[a-"))
+	assert.False(t, pathGlobMatch(t.Context(), "dir/[a-", "dir/[a-"))
 
 	// Escaped multi-byte character in bracket class.
-	assert.True(t, pathGlobMatch(context.Background(), `[\é]`, "é"))
-	assert.False(t, pathGlobMatch(context.Background(), `[\é]`, "a"))
+	assert.True(t, pathGlobMatch(t.Context(), `[\é]`, "é"))
+	assert.False(t, pathGlobMatch(t.Context(), `[\é]`, "a"))
 }
 
 func TestPathGlobMatchStopsWhenCancelled(t *testing.T) {
@@ -306,7 +306,7 @@ func TestPathGlobMatchStopsWhenCancelled(t *testing.T) {
 	// give up after one check interval rather than run to completion.
 	name := strings.Repeat("./", 1<<16)
 	pattern := "*" + strings.Repeat("./", 1<<15) + "X"
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	start := time.Now()
 	assert.False(t, pathGlobMatch(ctx, pattern, name))
@@ -317,14 +317,14 @@ func TestMatchClassStopsWhenCancelled(t *testing.T) {
 	// A long class scan must observe cancellation and report it as a
 	// non-matching (false, -1) result rather than finish the scan.
 	class := "[" + strings.Repeat("a", 1<<20) + "]"
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	matched, width := matchClass(ctx, class, 'z')
 	assert.False(t, matched)
 	assert.Equal(t, -1, width)
 
 	// With a live context the same class still scans to the end.
-	matched, width = matchClass(context.Background(), class, 'a')
+	matched, width = matchClass(t.Context(), class, 'a')
 	assert.True(t, matched)
 	assert.Equal(t, len(class), width)
 
@@ -340,7 +340,7 @@ func TestPathGlobMatchLongInputsStillMatch(t *testing.T) {
 	// The step counter must not change results for long inputs that cross
 	// many check intervals with a live context.
 	name := strings.Repeat("ab/", 1<<12) + "end"
-	ctx := context.Background()
+	ctx := t.Context()
 	assert.True(t, pathGlobMatch(ctx, "*/end", name))
 	assert.True(t, pathGlobMatch(ctx, "ab/*b/e?d", name))
 	assert.False(t, pathGlobMatch(ctx, "*/nope", name))

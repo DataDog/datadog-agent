@@ -6,7 +6,6 @@
 package serializerexporter
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -28,7 +27,7 @@ func TestFetchECSTaskARN_Success(t *testing.T) {
 
 	t.Setenv(ecsMetadataURIv4EnvVar, server.URL)
 
-	arn, err := fetchECSTaskARN(context.Background())
+	arn, err := fetchECSTaskARN(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, wantARN, arn)
 }
@@ -40,7 +39,7 @@ func TestFetchECSTaskARN_EnvVarNotSet(t *testing.T) {
 	// the env looks off of ECS Fargate.
 	t.Setenv(ecsMetadataURIv4EnvVar, "")
 
-	_, err := fetchECSTaskARN(context.Background())
+	_, err := fetchECSTaskARN(t.Context())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), ecsMetadataURIv4EnvVar)
 }
@@ -54,7 +53,7 @@ func TestFetchECSTaskARN_HTTPError(t *testing.T) {
 
 	t.Setenv(ecsMetadataURIv4EnvVar, server.URL)
 
-	_, err := fetchECSTaskARN(context.Background())
+	_, err := fetchECSTaskARN(t.Context())
 	require.Error(t, err)
 }
 
@@ -67,7 +66,7 @@ func TestFetchECSTaskARN_MalformedJSON(t *testing.T) {
 
 	t.Setenv(ecsMetadataURIv4EnvVar, server.URL)
 
-	_, err := fetchECSTaskARN(context.Background())
+	_, err := fetchECSTaskARN(t.Context())
 	require.Error(t, err)
 }
 
@@ -81,7 +80,7 @@ func TestFetchECSTaskARN_EmptyTaskARN(t *testing.T) {
 
 	t.Setenv(ecsMetadataURIv4EnvVar, server.URL)
 
-	_, err := fetchECSTaskARN(context.Background())
+	_, err := fetchECSTaskARN(t.Context())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "TaskARN")
 }
@@ -95,6 +94,6 @@ func TestFetchECSTaskARN_ConnectionRefused(t *testing.T) {
 
 	t.Setenv(ecsMetadataURIv4EnvVar, addr)
 
-	_, err := fetchECSTaskARN(context.Background())
+	_, err := fetchECSTaskARN(t.Context())
 	require.Error(t, err)
 }

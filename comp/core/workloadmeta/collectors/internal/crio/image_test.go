@@ -527,7 +527,7 @@ func TestGenerateImageEventsFromImageList(t *testing.T) {
 				cfg:    configmock.New(t),
 			}
 
-			events, imageIDs, err := collector.generateImageEventsFromImageList(context.Background())
+			events, imageIDs, err := collector.generateImageEventsFromImageList(t.Context())
 
 			if tt.expectedError {
 				assert.Error(t, err)

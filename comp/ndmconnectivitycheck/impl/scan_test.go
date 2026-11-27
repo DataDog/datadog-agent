@@ -6,7 +6,6 @@
 package ndmconnectivitycheckimpl
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,7 +20,7 @@ func TestScanTriesEachGroupOnlyWithItsCredentials(t *testing.T) {
 	assert.Equal(t, creds[1:], credsByID(creds, []string{"cred-b", "cred-z"}))
 
 	c := newImpl(logmock.New(t))
-	res, err := c.scan(context.Background(), connectivity.Request{
+	res, err := c.scan(t.Context(), connectivity.Request{
 		Checks:      []string{connectivity.CheckSNMP},
 		SNMPOptions: &connectivity.SNMPOptions{Port: 1, TimeoutMs: 50},
 		Credentials: creds,

@@ -118,10 +118,10 @@ func TestNewSenderWorkerDistribution(t *testing.T) {
 func TestPendingSendsWaitEndingEarlyDoesNotBlockAdds(t *testing.T) {
 	p := newPendingSends()
 	// Nothing is pending, so the wait returns right away
-	p.WaitPendingSends(context.Background())
+	p.WaitPendingSends(t.Context())
 
 	p.AddPendingSend()
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 	defer cancel()
 	// A send is pending, so the wait returns only when ctx is done
 	p.WaitPendingSends(ctx)
@@ -139,7 +139,7 @@ func TestPendingSendsWaitEndingEarlyDoesNotBlockAdds(t *testing.T) {
 
 	waited := make(chan struct{})
 	go func() {
-		p.WaitPendingSends(context.Background())
+		p.WaitPendingSends(t.Context())
 		close(waited)
 	}()
 	p.PendingSendDone()
@@ -161,7 +161,7 @@ func TestDisabledServerlessMetaPendingSendsAreHarmless(t *testing.T) {
 		assert.NotPanics(t, func() {
 			meta.AddPendingSend()
 			meta.PendingSendDone()
-			meta.WaitPendingSends(context.Background())
+			meta.WaitPendingSends(t.Context())
 		})
 	}
 }

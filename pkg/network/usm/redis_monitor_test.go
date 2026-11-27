@@ -8,7 +8,6 @@
 package usm
 
 import (
-	"context"
 	"net"
 	"os"
 	"reflect"
@@ -132,7 +131,7 @@ func waitForRedisServer(t *testing.T, serverAddress string, enableTLS bool, vers
 	require.NotNil(t, redisClient)
 	defer redisClient.Close()
 	require.Eventually(t, func() bool {
-		return redisClient.Ping(context.Background()).Err() == nil
+		return redisClient.Ping(t.Context()).Err() == nil
 	}, 10*time.Second, 100*time.Millisecond, "couldn't connect to redis server")
 }
 
@@ -168,13 +167,13 @@ func testRedisDecoding(t *testing.T, isTLS bool, version int, trackResources boo
 				redisClient, err := redis.NewClient(ctx.serverAddress, dialer, isTLS, version)
 				require.NoError(t, err)
 				require.NotNil(t, redisClient)
-				require.NoError(t, redisClient.Ping(context.Background()).Err())
+				require.NoError(t, redisClient.Ping(t.Context()).Err())
 				ctx.extras["redis"] = redisClient
 			},
 			postMonitorSetup: func(t *testing.T, ctx redisTestContext) {
 				redisClient := ctx.extras["redis"].(*redisv9.Client)
-				require.NoError(t, redisClient.Set(context.Background(), "test-key", "test-value", 0).Err())
-				val, err := redisClient.Get(context.Background(), "test-key").Result()
+				require.NoError(t, redisClient.Set(t.Context(), "test-key", "test-value", 0).Err())
+				val, err := redisClient.Get(t.Context(), "test-key").Result()
 				require.NoError(t, err)
 				require.Equal(t, "test-value", val)
 			},
@@ -211,14 +210,14 @@ func testRedisDecoding(t *testing.T, isTLS bool, version int, trackResources boo
 				redisClient, err := redis.NewClient(ctx.serverAddress, dialer, isTLS, version)
 				require.NoError(t, err)
 				require.NotNil(t, redisClient)
-				require.NoError(t, redisClient.Ping(context.Background()).Err())
+				require.NoError(t, redisClient.Ping(t.Context()).Err())
 				ctx.extras["redis"] = redisClient
 			},
 			postMonitorSetup: func(t *testing.T, ctx redisTestContext) {
 				redisClient := ctx.extras["redis"].(*redisv9.Client)
 				// Execute multiple PING commands
 				for i := 0; i < 5; i++ {
-					require.NoError(t, redisClient.Ping(context.Background()).Err())
+					require.NoError(t, redisClient.Ping(t.Context()).Err())
 				}
 			},
 			validation: func(t *testing.T, _ redisTestContext, monitor *Monitor) {
@@ -239,7 +238,7 @@ func testRedisDecoding(t *testing.T, isTLS bool, version int, trackResources boo
 				redisClient, err := redis.NewClient(ctx.serverAddress, dialer, isTLS, version)
 				require.NoError(t, err)
 				require.NotNil(t, redisClient)
-				require.NoError(t, redisClient.Ping(context.Background()).Err())
+				require.NoError(t, redisClient.Ping(t.Context()).Err())
 				ctx.extras["redis"] = redisClient
 			},
 			postMonitorSetup: func(t *testing.T, ctx redisTestContext) {
@@ -247,7 +246,7 @@ func testRedisDecoding(t *testing.T, isTLS bool, version int, trackResources boo
 				// PING with message argument returns bulk string instead of simple string
 				// This tests that all RESP response types are accepted
 				for i := 0; i < 3; i++ {
-					result, err := redisClient.Do(context.Background(), "PING", "hello").Result()
+					result, err := redisClient.Do(t.Context(), "PING", "hello").Result()
 					require.NoError(t, err)
 					require.Equal(t, "hello", result)
 				}
@@ -292,7 +291,7 @@ func testRedisDecoding(t *testing.T, isTLS bool, version int, trackResources boo
 			obj, ok := tt.context.extras["redis"]
 			require.True(t, ok)
 			redisClient := obj.(*redisv9.Client)
-			require.NoError(t, redisClient.Ping(context.Background()).Err())
+			require.NoError(t, redisClient.Ping(t.Context()).Err())
 			tt.postMonitorSetup(t, tt.context)
 			require.NoError(t, monitor.Pause())
 			tt.validation(t, tt.context, monitor)

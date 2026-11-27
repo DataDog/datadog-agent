@@ -1751,13 +1751,13 @@ func TestComponentRegistersAutodiscoverySchedulerOnStart(t *testing.T) {
 	})
 
 	require.NotNil(t, lifecycle.hook.OnStart)
-	require.NoError(t, lifecycle.hook.OnStart(context.Background()))
+	require.NoError(t, lifecycle.hook.OnStart(t.Context()))
 	assert.Equal(t, schedulerName, ac.addedName)
 	assert.True(t, ac.replay)
 	require.Implements(t, (*scheduler.Scheduler)(nil), ac.scheduler)
 
 	require.NotNil(t, lifecycle.hook.OnStop)
-	require.NoError(t, lifecycle.hook.OnStop(context.Background()))
+	require.NoError(t, lifecycle.hook.OnStop(t.Context()))
 	assert.Equal(t, schedulerName, ac.removedName)
 }
 
@@ -1792,10 +1792,10 @@ func TestComponentAppliesStartupJitterToFirstConfigDiscoveredAfterRegistration(t
 	adScheduler := c.scheduler
 	adScheduler.readers[RuntimeDocker] = fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})
 	defer func() {
-		require.NoError(t, c.stop(context.Background()))
+		require.NoError(t, c.stop(t.Context()))
 	}()
 
-	require.NoError(t, c.start(context.Background()))
+	require.NoError(t, c.start(t.Context()))
 	mockClock.Add(time.Minute)
 	ac.scheduler.Schedule([]integration.Config{firstConfig, secondConfig})
 
@@ -1832,7 +1832,7 @@ func TestComponentRecollectsFromSubscribedProcessEventsAndStops(t *testing.T) {
 	)
 	c.scheduler.readers[RuntimeDocker] = fakeConfigReaderFactory(fakeConfigReader{runtime: RuntimeDocker})
 
-	require.NoError(t, c.start(context.Background()))
+	require.NoError(t, c.start(t.Context()))
 	config := checkConfig(testRedisIntegrationName, "docker://abc123")
 	c.scheduler.Schedule([]integration.Config{config})
 	collector.waitForRuns(t, 1)
@@ -1845,7 +1845,7 @@ func TestComponentRecollectsFromSubscribedProcessEventsAndStops(t *testing.T) {
 	})
 	collector.waitForRuns(t, 2)
 
-	require.NoError(t, c.stop(context.Background()))
+	require.NoError(t, c.stop(t.Context()))
 	assert.Equal(t, schedulerName, ac.removedName)
 	assert.Nil(t, c.processEvents)
 }

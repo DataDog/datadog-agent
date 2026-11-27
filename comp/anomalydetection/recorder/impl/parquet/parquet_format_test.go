@@ -8,7 +8,6 @@
 package parquet
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -49,7 +48,7 @@ func readOneBatch(t *testing.T, pattern string, bloomColumns []string, check fun
 	}
 	r, err := pqarrow.NewFileReader(pf, pqarrow.ArrowReadProperties{BatchSize: 1024}, memory.DefaultAllocator)
 	require.NoError(t, err)
-	rr, err := r.GetRecordReader(context.Background(), nil, nil)
+	rr, err := r.GetRecordReader(t.Context(), nil, nil)
 	require.NoError(t, err)
 	defer rr.Release()
 	require.True(t, rr.Next())

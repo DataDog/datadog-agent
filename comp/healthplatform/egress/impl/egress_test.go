@@ -153,9 +153,9 @@ func TestLifecycleStartStop(t *testing.T) {
 	e := newTestEgress(t, storemock.New(t), forwardermock.New(t))
 	e.interval = 50 * time.Millisecond
 
-	require.NoError(t, e.start(context.Background()))
+	require.NoError(t, e.start(t.Context()))
 	time.Sleep(30 * time.Millisecond)
-	require.NoError(t, e.stop(context.Background()))
+	require.NoError(t, e.stop(t.Context()))
 }
 
 // TestTickFiresOnInterval verifies run()'s ticker loop actually repeats, not
@@ -171,11 +171,11 @@ func TestTickFiresOnInterval(t *testing.T) {
 	e := newTestEgress(t, store, fwd)
 	e.interval = 30 * time.Millisecond
 
-	require.NoError(t, e.start(context.Background()))
+	require.NoError(t, e.start(t.Context()))
 	require.Eventually(t, func() bool {
 		return sendCount.Load() >= 2
 	}, 2*time.Second, 10*time.Millisecond, "expected at least 2 ticks")
-	require.NoError(t, e.stop(context.Background()))
+	require.NoError(t, e.stop(t.Context()))
 }
 
 // TestErrorThenRecovery verifies a failing tick does not kill run()'s loop:
@@ -197,7 +197,7 @@ func TestErrorThenRecovery(t *testing.T) {
 	e := newTestEgress(t, store, fwd)
 	e.interval = 20 * time.Millisecond
 
-	require.NoError(t, e.start(context.Background()))
+	require.NoError(t, e.start(t.Context()))
 	require.Eventually(t, func() bool { return attempts.Load() >= 1 }, 2*time.Second, 5*time.Millisecond)
 
 	erroring.Store(false)
@@ -205,7 +205,7 @@ func TestErrorThenRecovery(t *testing.T) {
 	require.Eventually(t, func() bool { return successes.Load() >= 1 }, 2*time.Second, 5*time.Millisecond,
 		"expected successful send after error recovery")
 
-	require.NoError(t, e.stop(context.Background()))
+	require.NoError(t, e.stop(t.Context()))
 }
 
 func TestBuildReport(t *testing.T) {

@@ -84,7 +84,7 @@ func TestProcessQueues(t *testing.T) {
 			sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 			p.sender = sender
 
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			cancel() // To force the flush in p.processQueues
 
 			p.processQueues(ctx, 500*time.Millisecond)

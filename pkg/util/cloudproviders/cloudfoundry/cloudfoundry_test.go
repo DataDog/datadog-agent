@@ -6,7 +6,6 @@
 package cloudfoundry
 
 import (
-	"context"
 	"os"
 	"testing"
 
@@ -17,7 +16,7 @@ import (
 )
 
 func TestHostAliasDisable(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	mockConfig := configmock.New(t)
 
 	mockConfig.SetInTest("cloud_foundry", false)
@@ -29,7 +28,7 @@ func TestHostAliasDisable(t *testing.T) {
 }
 
 func TestHostAlias(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	defer func() { getFqdn = netutil.Fqdn }()
 	mockConfig := configmock.New(t)
 
@@ -69,7 +68,7 @@ func TestHostAlias(t *testing.T) {
 }
 
 func TestHostAliasDefault(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	mockConfig := configmock.New(t)
 	mockHostname := "hostname"
 

@@ -51,7 +51,7 @@ func TestConnectivityCheckHandlerRun(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			handler := NewConnectivityCheckHandler(encryptioncontext.NewStore(), ipcmock.New(t).GetClient())
 
-			res, err := handler.Run(context.Background(), makeConnectivityTask(tc.taskInputs), nil)
+			res, err := handler.Run(t.Context(), makeConnectivityTask(tc.taskInputs), nil)
 			require.Equal(t, tc.expectedResults, res)
 			require.ErrorContains(t, err, tc.expectedErr)
 		})
@@ -89,7 +89,7 @@ func TestConnectivityCheckHandlerTimeout(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			client := ipcmock.New(t).GetClient()
 			parentDeadline := time.Now().Add(time.Minute)
-			ctx, cancel := context.WithDeadline(context.Background(), parentDeadline)
+			ctx, cancel := context.WithDeadline(t.Context(), parentDeadline)
 			defer cancel()
 			before := time.Now()
 			handler := NewConnectivityCheckHandler(encryptioncontext.NewStore(), checkingIPCClient{
@@ -137,7 +137,7 @@ func TestConnectivityCheckHandlerForwardsTargetGroups(t *testing.T) {
 	}
 	handler := NewConnectivityCheckHandler(encryptioncontext.NewStore(), client)
 
-	res, err := handler.Run(context.Background(), makeConnectivityTask(map[string]any{
+	res, err := handler.Run(t.Context(), makeConnectivityTask(map[string]any{
 		"checks": []string{"snmp"},
 		"targetGroups": []map[string]any{
 			{"credentialIDs": []string{"cred-1"}, "targetIPs": []string{"10.0.0.1"}},

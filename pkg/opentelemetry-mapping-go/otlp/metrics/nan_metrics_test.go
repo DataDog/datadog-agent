@@ -15,7 +15,6 @@
 package metrics
 
 import (
-	"context"
 	"math"
 	"testing"
 
@@ -153,7 +152,7 @@ func TestNaNMetrics(t *testing.T) {
 
 	core, observed := observer.New(zapcore.DebugLevel)
 	testLogger := zap.New(core)
-	ctx := context.Background()
+	ctx := t.Context()
 	tr := newTranslator(t, testLogger)
 	consumer := &mockFullConsumer{}
 	_, err := tr.MapMetrics(ctx, md, consumer, nil)

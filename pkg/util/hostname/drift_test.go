@@ -149,7 +149,7 @@ func TestScheduleHostnameDriftChecks(t *testing.T) {
 	}
 
 	// Create a context that we can cancel
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	// Schedule the drift checks
@@ -206,7 +206,7 @@ func TestCheckHostnameDriftEmitsTelemetry(t *testing.T) {
 	cfg := configmock.New(t) // idempotent; reuses setupHostnameTest's mock
 	cfg.SetInTest("hostname_drift_initial_delay", "1ms")
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 	t.Cleanup(func() { cache.Cache.Delete(cache.BuildAgentKey("hostname_check")) })
 
@@ -241,7 +241,7 @@ func TestCheckHostnameDriftDetectsHostnameChange(t *testing.T) {
 	cacheHostnameKey := cache.BuildAgentKey("hostname_check")
 	t.Cleanup(func() { cache.Cache.Delete(cacheHostnameKey) })
 
-	initial, err := GetWithProvider(context.Background())
+	initial, err := GetWithProvider(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, "aws", initial.Provider)
 
@@ -249,7 +249,7 @@ func TestCheckHostnameDriftDetectsHostnameChange(t *testing.T) {
 	t.Cleanup(func() { ec2GetInstanceID = prevEC2GetInstanceID })
 	ec2GetInstanceID = func(context.Context) (string, error) { return "hostname-from-ec2-v2", nil }
 
-	(&driftService{}).checkHostnameDrift(context.Background(), cacheHostnameKey)
+	(&driftService{}).checkHostnameDrift(t.Context(), cacheHostnameKey)
 
 	body := scrapeTelemetry(t)
 	assert.Contains(t, body, `hostname__drift_detected{provider="aws",state="`+hostnameChanged+`"} 1`,

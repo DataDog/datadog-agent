@@ -6,7 +6,6 @@
 package config
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -40,7 +39,7 @@ func TestOperationApply_Patch(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.NoError(t, err)
 
 	// Check file content
@@ -78,7 +77,7 @@ func TestOperationApply_MalformedYAMLNamesFile(t *testing.T) {
 		Patch:             []byte(`{"config_id": "abc"}`),
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.Error(t, err)
 	// The error must name the offending file so customers can pinpoint it...
 	assert.ErrorContains(t, err, `"/application_monitoring.yaml"`)
@@ -107,7 +106,7 @@ func TestOperationApply_MergePatch(t *testing.T) {
 		Patch:             []byte(mergePatch),
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.NoError(t, err)
 
 	updated, err := os.ReadFile(filePath)
@@ -135,7 +134,7 @@ func TestOperationApply_Delete(t *testing.T) {
 		FilePath:          "/datadog.yaml",
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.NoError(t, err)
 	_, err = os.Stat(filePath)
 	assert.Error(t, err)
@@ -159,7 +158,7 @@ func TestOperationApply_EmptyYAMLFile(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.NoError(t, err)
 
 	// Check that the file now contains the patched value
@@ -186,7 +185,7 @@ func TestOperationApply_NoFile(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.NoError(t, err)
 
 	filePath := filepath.Join(tmpDir, "datadog.yaml")
@@ -215,7 +214,7 @@ func TestOperationApply_DisallowedFile(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not allowed")
 }
@@ -235,7 +234,7 @@ func TestOperationApply_SNMPCredentialsFile(t *testing.T) {
 		Patch:             []byte(`{"foo": "bar"}`),
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.NoError(t, err)
 
 	written, err := os.ReadFile(filepath.Join(tmpDir, "conf.d", "snmp.d", "credentials", "snmp_credentials.yaml"))
@@ -269,7 +268,7 @@ func TestOperationApply_NestedConfigFile(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.NoError(t, err)
 
 	updated, err := os.ReadFile(filePath)
@@ -460,7 +459,7 @@ func TestOperationApply_Copy(t *testing.T) {
 		DestinationPath:   "/security-agent.yaml",
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.NoError(t, err)
 
 	// Check that source file still exists
@@ -493,7 +492,7 @@ func TestOperationApply_Move(t *testing.T) {
 		DestinationPath:   "/otel-config.yaml",
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.NoError(t, err)
 
 	// Check that source file no longer exists
@@ -528,7 +527,7 @@ func TestOperationApply_CopyWithNestedDestination(t *testing.T) {
 		DestinationPath:   "/conf.d/mycheck.d/config.yaml",
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.NoError(t, err)
 
 	// Check that nested directories were created
@@ -562,7 +561,7 @@ func TestOperationApply_MoveWithNestedDestination(t *testing.T) {
 		DestinationPath:   "/conf.d/mycheck.d/config.yaml",
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.NoError(t, err)
 
 	// Check that nested directories were created
@@ -593,7 +592,7 @@ func TestOperationApply_CopyMissingSource(t *testing.T) {
 		DestinationPath:   "/security-agent.yaml",
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.Error(t, err)
 }
 
@@ -610,7 +609,7 @@ func TestOperationApply_MoveMissingSource(t *testing.T) {
 		DestinationPath:   "/otel-config.yaml",
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.Error(t, err)
 }
 
@@ -629,7 +628,7 @@ func TestConfig_SimpleStartPromote(t *testing.T) {
 	}
 
 	// Start experiment: create a new config in experiment
-	err := dirs.WriteExperiment(context.Background(), Operations{
+	err := dirs.WriteExperiment(t.Context(), Operations{
 		DeploymentID: "exp-001",
 		FileOperations: []FileOperation{
 			{
@@ -647,7 +646,7 @@ func TestConfig_SimpleStartPromote(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Promote experiment
-	err = dirs.PromoteExperiment(context.Background())
+	err = dirs.PromoteExperiment(t.Context())
 	assert.NoError(t, err)
 
 	// After promote: stable has the new content
@@ -674,7 +673,7 @@ func TestConfig_SimpleStartStop(t *testing.T) {
 	}
 
 	// Start experiment: patch config
-	err := dirs.WriteExperiment(context.Background(), Operations{
+	err := dirs.WriteExperiment(t.Context(), Operations{
 		DeploymentID: "exp-002",
 		FileOperations: []FileOperation{
 			{
@@ -692,7 +691,7 @@ func TestConfig_SimpleStartStop(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Stop experiment (rollback to stable)
-	err = dirs.RemoveExperiment(context.Background())
+	err = dirs.RemoveExperiment(t.Context())
 	assert.NoError(t, err)
 
 	// Stable should remain unchanged
@@ -737,7 +736,7 @@ func TestConfig_OTelConfigStartPromote(t *testing.T) {
 
 	dirs := &Directories{StablePath: stableDir, ExperimentPath: experimentDir}
 
-	err := dirs.WriteExperiment(context.Background(), Operations{
+	err := dirs.WriteExperiment(t.Context(), Operations{
 		DeploymentID: "otel-exp-001",
 		FileOperations: []FileOperation{
 			// Deep-merge a nested collector value without clobbering sibling keys.
@@ -748,7 +747,7 @@ func TestConfig_OTelConfigStartPromote(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	err = dirs.PromoteExperiment(context.Background())
+	err = dirs.PromoteExperiment(t.Context())
 	assert.NoError(t, err)
 
 	// After promote the stable config reflects the merge-patch + jq transform with sibling keys preserved.
@@ -769,7 +768,7 @@ func TestConfig_OTelConfigStartStop(t *testing.T) {
 
 	dirs := &Directories{StablePath: stableDir, ExperimentPath: experimentDir}
 
-	err = dirs.WriteExperiment(context.Background(), Operations{
+	err = dirs.WriteExperiment(t.Context(), Operations{
 		DeploymentID: "otel-exp-002",
 		FileOperations: []FileOperation{
 			{FileOperationType: FileOperationMergePatch, FilePath: "/otel-config.yaml", Patch: []byte(`{"processors":{"infraattributes":{"cardinality":1}}}`)},
@@ -778,7 +777,7 @@ func TestConfig_OTelConfigStartStop(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Rolling back restores the stable config to its original content (OS-agnostic).
-	err = dirs.RemoveExperiment(context.Background())
+	err = dirs.RemoveExperiment(t.Context())
 	assert.NoError(t, err)
 
 	stableContent, err := os.ReadFile(filepath.Join(stableDir, "otel-config.yaml"))
@@ -829,7 +828,7 @@ api_key: "KEY_2"
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.NoError(t, err)
 
 	// Check file content, should now have api_key: NEW_KEY
@@ -866,7 +865,7 @@ func TestOperationApply_ApplicationMonitoringPermissions(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.NoError(t, err)
 
 	// Check file permissions - should be world-readable (0644)
@@ -906,7 +905,7 @@ func TestOperationApply_NestedMaps(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.NoError(t, err)
 
 	// Check file content
@@ -1084,7 +1083,7 @@ func TestOperationApply_JQ(t *testing.T) {
 		Transform:         `.foo = "baz"`,
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.NoError(t, err)
 
 	updated, err := os.ReadFile(filePath)
@@ -1122,7 +1121,7 @@ func TestOperationApply_JQWithArguments(t *testing.T) {
 		Arguments:         json.RawMessage(`{"api_key": "abcd1234", "env_tag": "env:prod"}`),
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.NoError(t, err)
 
 	updated, err := os.ReadFile(filePath)
@@ -1152,7 +1151,7 @@ func TestOperationApply_JQWithTypedArguments(t *testing.T) {
 		Arguments:         json.RawMessage(`{"workers": 4, "enabled": true, "apm": {"enabled": false}}`),
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.NoError(t, err)
 
 	updated, err := os.ReadFile(filePath)
@@ -1182,7 +1181,7 @@ func TestOperationApply_JQUndeclaredVariable(t *testing.T) {
 		Transform:         `.foo = $missing`,
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.Error(t, err)
 }
 
@@ -1210,7 +1209,7 @@ func TestOperationApply_JQConditionalTransform(t *testing.T) {
 		Transform:         `.tags |= map(ascii_upcase) | .logs_config = {"enabled": .logs_enabled}`,
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.NoError(t, err)
 
 	updated, err := os.ReadFile(filePath)
@@ -1242,7 +1241,7 @@ func TestOperationApply_JQMultipleOutputs(t *testing.T) {
 		Transform:         `.items[] | {value: .}`,
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.NoError(t, err)
 
 	updated, err := os.ReadFile(filePath)
@@ -1276,7 +1275,7 @@ func TestOperationApply_JQWithTimestamp(t *testing.T) {
 		Transform:         `.foo = "baz"`,
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.NoError(t, err)
 
 	updated, err := os.ReadFile(filePath)
@@ -1305,7 +1304,7 @@ func TestOperationApply_JQWithSubSecondTimestamp(t *testing.T) {
 		Transform:         `.foo = "baz"`,
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.NoError(t, err)
 
 	updated, err := os.ReadFile(filePath)
@@ -1334,7 +1333,7 @@ func TestOperationApply_JQInvalidTransform(t *testing.T) {
 		Transform:         `.foo |`, // syntax error
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.Error(t, err)
 }
 
@@ -1355,7 +1354,7 @@ func TestOperationApply_JQRuntimeError(t *testing.T) {
 		Transform:         `.foo.bar`,
 	}
 
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.Error(t, err)
 }
 
@@ -1395,7 +1394,7 @@ func applyJQToTags(t *testing.T, tags []any, transform string) []any {
 		FilePath:          "/datadog.yaml",
 		Transform:         transform,
 	}
-	err = op.apply(context.Background(), root)
+	err = op.apply(t.Context(), root)
 	assert.NoError(t, err)
 
 	updated, err := os.ReadFile(filePath)
@@ -1475,7 +1474,7 @@ init_config:
 			// Must see the original values, not the ones written by the operation above.
 			{FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "RES[log_level]", "logs_config": "RES[logs_config]", "timeout": "RES[/conf.d/nginx.d/conf.yaml:init_config.timeout]"}`)},
 		}}
-		require.NoError(t, ops.Apply(context.Background(), tmpDir))
+		require.NoError(t, ops.Apply(t.Context(), tmpDir))
 		got := readYAML(t, filepath.Join(tmpDir, "datadog.yaml"))
 		assert.Equal(t, "info", got["log_level"])
 		assert.Equal(t, map[string]any{"enabled": true, "tags": []any{"a", "b"}}, got["logs_config"])
@@ -1487,7 +1486,7 @@ init_config:
 		ops := Operations{FileOperations: []FileOperation{
 			{FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "RES[does.not.exist]", "foo": "RES[/conf.d/missing.d/conf.yaml:foo]"}`)},
 		}}
-		require.NoError(t, ops.Apply(context.Background(), tmpDir))
+		require.NoError(t, ops.Apply(t.Context(), tmpDir))
 		got := readYAML(t, filepath.Join(tmpDir, "datadog.yaml"))
 		assert.NotContains(t, got, "log_level")
 		assert.NotContains(t, got, "foo")
@@ -1499,7 +1498,7 @@ init_config:
 			{FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"logs_config": null}`)},
 			{FileOperationType: FileOperationJQ, FilePath: "/datadog.yaml", Transform: `.logs_config = $logs`, Arguments: json.RawMessage(`{"logs": "RES[logs_config]"}`)},
 		}}
-		require.NoError(t, ops.Apply(context.Background(), tmpDir))
+		require.NoError(t, ops.Apply(t.Context(), tmpDir))
 		got := readYAML(t, filepath.Join(tmpDir, "datadog.yaml"))
 		assert.Equal(t, map[string]any{"enabled": true, "tags": []any{"a", "b"}}, got["logs_config"])
 	})
@@ -1518,7 +1517,7 @@ init_config:
 				{FileOperationType: FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)},
 				op,
 			}}
-			require.Error(t, ops.Apply(context.Background(), tmpDir))
+			require.Error(t, ops.Apply(t.Context(), tmpDir))
 			assert.Equal(t, "info", readYAML(t, filepath.Join(tmpDir, "datadog.yaml"))["log_level"])
 		})
 	}

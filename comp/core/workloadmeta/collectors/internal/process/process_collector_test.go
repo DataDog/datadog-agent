@@ -59,7 +59,7 @@ func TestCollectProcessesSignalsReadinessAfterSuccessfulEmptyScan(t *testing.T) 
 	c.probe.EXPECT().ProcessesByPID(mock.Anything, false).Return(map[int32]*procutil.Process{}, nil).Once()
 	c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(nil).Times(1)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	processesReady := make(chan struct{})
 	done := make(chan struct{})
@@ -89,7 +89,7 @@ func TestCollectProcessesDoesNotSignalReadinessAfterFailedScan(t *testing.T) {
 		Return(nil, assert.AnError).
 		Once()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	processesReady := make(chan struct{})
 	done := make(chan struct{})
 	go func() {
@@ -649,7 +649,7 @@ func TestStartConfiguration(t *testing.T) {
 
 			c := setUpCollectorTest(t, cfg, tc.sysConfigOverrides, nil)
 
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 
 			// set up mocks as some configurations result in calls

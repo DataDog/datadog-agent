@@ -267,7 +267,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := &metricRecorder{}
-			ctx := context.Background()
+			ctx := t.Context()
 			f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
 				return "", nil
 			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil, false)
@@ -314,7 +314,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 // newAgentExporter returns an Agent OTLP ingest exporter without a sending queue and with extra tag "extra:tag".
 func newAgentExporter(t *testing.T, rec *metricRecorder, hostTags HostTagsFunc) exporter.Metrics {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	f := NewFactoryForAgent(rec, func(context.Context) (string, error) {
 		return "agent-host", nil
 	}, hostTags, TelemetryStore{})
@@ -366,7 +366,7 @@ func Test_ConsumeMetrics_HostTags(t *testing.T) {
 			h.SetCount(100)
 			n := pmetric.NewNumberDataPoint()
 			n.SetIntValue(777)
-			require.NoError(t, exp.ConsumeMetrics(context.Background(), newMetrics(histogramMetricName, h, numberMetricName, n)))
+			require.NoError(t, exp.ConsumeMetrics(t.Context(), newMetrics(histogramMetricName, h, numberMetricName, n)))
 
 			// Second slice is the translator's per-point tags: empty, not nil, since
 			// these points carry no attributes. CompositeTags treats both as len 0.
@@ -398,7 +398,7 @@ func Test_ConsumeMetrics_HostTagsExpiryKeepsCumulativeState(t *testing.T) {
 		dp := sum.DataPoints().AppendEmpty()
 		dp.SetTimestamp(pcommon.NewTimestampFromTime(time.Unix(int64(i+1), 0)))
 		dp.SetIntValue(v)
-		require.NoError(t, exp.ConsumeMetrics(context.Background(), md))
+		require.NoError(t, exp.ConsumeMetrics(t.Context(), md))
 	}
 
 	var got []string
@@ -481,7 +481,7 @@ func Test_ConsumeMetrics_ExtraTags_Wire(t *testing.T) {
 	cfg.Metrics.Tags = "extra1:a,extra2:b"
 
 	exp := buildBenchExporter(t, cfg)
-	defer func() { _ = exp.Shutdown(context.Background()) }()
+	defer func() { _ = exp.Shutdown(t.Context()) }()
 	mc, ok := exp.(metricsConsumer)
 	require.True(t, ok, "exporter does not implement ConsumeMetrics: %T", exp)
 
@@ -503,7 +503,7 @@ func Test_ConsumeMetrics_ExtraTags_Wire(t *testing.T) {
 	scope.SetName("my_library")
 	scope.SetVersion("v1.0.0")
 
-	require.NoError(t, mc.ConsumeMetrics(context.Background(), md))
+	require.NoError(t, mc.ConsumeMetrics(t.Context(), md))
 
 	seriesPayloads := intake.payloads("/api/v2/series")
 	require.NotEmpty(t, seriesPayloads, "no series payload reached the intake")
@@ -617,7 +617,7 @@ func Test_ConsumeMetrics_MetricOrigins(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := &metricRecorder{}
-			ctx := context.Background()
+			ctx := t.Context()
 			f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
 				return "", nil
 			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil, false)
@@ -760,7 +760,7 @@ func testMetricPrefixWithFeatureGates(t *testing.T, disablePrefix bool, inName s
 	}()
 
 	rec := &metricRecorder{}
-	ctx := context.Background()
+	ctx := t.Context()
 	f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
 		return "", nil
 	}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil, false)
@@ -1201,7 +1201,7 @@ func newMetrics(
 
 func TestUsageMetric_AgentOTLPIngest(t *testing.T) {
 	rec := &metricRecorder{}
-	ctx := context.Background()
+	ctx := t.Context()
 	telemetryComp := fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
 	store := TelemetryStore{
 		OTLPIngestMetrics: telemetryComp.NewGauge(
@@ -1245,7 +1245,7 @@ func TestUsageMetric_AgentOTLPIngest(t *testing.T) {
 
 func TestUsageMetric_DDOT(t *testing.T) {
 	rec := &metricRecorder{}
-	ctx := context.Background()
+	ctx := t.Context()
 	telemetryComp := fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
 	store := TelemetryStore{
 		DDOTMetrics: telemetryComp.NewGauge(
@@ -1311,7 +1311,7 @@ func TestUsageMetric_DDOT(t *testing.T) {
 
 func usageMetricGW(t *testing.T, gwUsage otel.GatewayUsage, expGwUsage float64, expGwEnvVar float64) {
 	rec := &metricRecorder{}
-	ctx := context.Background()
+	ctx := t.Context()
 	telemetryComp := fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
 	store := TelemetryStore{
 		DDOTGWUsage: telemetryComp.NewGauge(
@@ -1592,12 +1592,12 @@ func TestSyncForwarder_PropagatesErrors(t *testing.T) {
 
 	cfg := benchExporterConfig(t, intake.URL)
 	exp := buildBenchExporter(t, cfg)
-	defer func() { _ = exp.Shutdown(context.Background()) }()
+	defer func() { _ = exp.Shutdown(t.Context()) }()
 
 	mc, ok := exp.(metricsConsumer)
 	require.True(t, ok)
 
-	err := mc.ConsumeMetrics(context.Background(), makeGaugeMetrics(50))
+	err := mc.ConsumeMetrics(t.Context(), makeGaugeMetrics(50))
 	require.Error(t, err, "5xx from intake must surface back through ConsumeMetrics")
 	require.GreaterOrEqual(t, intake.requests.Load(), int64(1), "intake should have received at least one request")
 }
@@ -1616,17 +1616,17 @@ func TestSyncForwarder_PermanentError(t *testing.T) {
 
 	cfg := benchExporterConfig(t, intake.URL)
 	exp := buildBenchExporter(t, cfg)
-	defer func() { _ = exp.Shutdown(context.Background()) }()
+	defer func() { _ = exp.Shutdown(t.Context()) }()
 
 	mc, ok := exp.(metricsConsumer)
 	require.True(t, ok)
 
-	err := mc.ConsumeMetrics(context.Background(), makeGaugeMetrics(50))
+	err := mc.ConsumeMetrics(t.Context(), makeGaugeMetrics(50))
 	require.Error(t, err, "400 from intake must surface back through ConsumeMetrics")
 	require.True(t, consumererror.IsPermanent(err), "400 is non-retryable and must be wrapped as a permanent error")
 	requestsAfterFirstAttempt := intake.requests.Load()
 
-	err = mc.ConsumeMetrics(context.Background(), makeGaugeMetrics(50))
+	err = mc.ConsumeMetrics(t.Context(), makeGaugeMetrics(50))
 	require.Error(t, err, "400 from intake must surface back through ConsumeMetrics")
 	require.True(t, consumererror.IsPermanent(err))
 	require.Equal(t, requestsAfterFirstAttempt*2, intake.requests.Load(),
@@ -1652,12 +1652,12 @@ func TestSyncForwarder_RetryOnTransientError(t *testing.T) {
 
 	cfg := retryExporterConfig(t, intake.URL)
 	exp := buildBenchExporter(t, cfg)
-	defer func() { _ = exp.Shutdown(context.Background()) }()
+	defer func() { _ = exp.Shutdown(t.Context()) }()
 
 	mc, ok := exp.(metricsConsumer)
 	require.True(t, ok)
 
-	err := mc.ConsumeMetrics(context.Background(), makeGaugeMetrics(10))
+	err := mc.ConsumeMetrics(t.Context(), makeGaugeMetrics(10))
 	require.NoError(t, err, "ConsumeMetrics should succeed after retries")
 	require.GreaterOrEqual(t, intake.requests.Load(), int64(failFirst+1),
 		"intake should have received at least %d requests (failures + success)", failFirst+1)
@@ -1676,12 +1676,12 @@ func TestSyncForwarder_RetryBudgetExhausted(t *testing.T) {
 	cfg := retryExporterConfig(t, intake.URL)
 	cfg.RetryConfig.MaxElapsedTime = 200 * time.Millisecond
 	exp := buildBenchExporter(t, cfg)
-	defer func() { _ = exp.Shutdown(context.Background()) }()
+	defer func() { _ = exp.Shutdown(t.Context()) }()
 
 	mc, ok := exp.(metricsConsumer)
 	require.True(t, ok)
 
-	err := mc.ConsumeMetrics(context.Background(), makeGaugeMetrics(10))
+	err := mc.ConsumeMetrics(t.Context(), makeGaugeMetrics(10))
 	require.Error(t, err, "ConsumeMetrics should return error after retry budget is exhausted")
 	require.GreaterOrEqual(t, intake.requests.Load(), int64(1),
 		"intake should have received at least one request before budget was exhausted")
@@ -1704,19 +1704,19 @@ func TestSyncForwarder_RetryConfig_Respected(t *testing.T) {
 	cfgLong.RetryConfig.MaxElapsedTime = 300 * time.Millisecond
 
 	expShort := buildBenchExporter(t, cfgShort)
-	defer func() { _ = expShort.Shutdown(context.Background()) }()
+	defer func() { _ = expShort.Shutdown(t.Context()) }()
 
 	mcShort, ok := expShort.(metricsConsumer)
 	require.True(t, ok)
-	require.Error(t, mcShort.ConsumeMetrics(context.Background(), makeGaugeMetrics(10)))
+	require.Error(t, mcShort.ConsumeMetrics(t.Context(), makeGaugeMetrics(10)))
 	reqsAfterShort := intake.requests.Load()
 
 	expLong := buildBenchExporter(t, cfgLong)
-	defer func() { _ = expLong.Shutdown(context.Background()) }()
+	defer func() { _ = expLong.Shutdown(t.Context()) }()
 
 	mcLong, ok := expLong.(metricsConsumer)
 	require.True(t, ok)
-	require.Error(t, mcLong.ConsumeMetrics(context.Background(), makeGaugeMetrics(10)))
+	require.Error(t, mcLong.ConsumeMetrics(t.Context(), makeGaugeMetrics(10)))
 	reqsAfterLong := intake.requests.Load()
 
 	require.Greater(t, reqsAfterLong, reqsAfterShort,
@@ -1737,13 +1737,13 @@ func TestDefaultForwarder_SwallowsErrors(t *testing.T) {
 
 	cfg := benchExporterConfig(t, intake.URL)
 	exp := buildBenchExporter(t, cfg)
-	defer func() { _ = exp.Shutdown(context.Background()) }()
+	defer func() { _ = exp.Shutdown(t.Context()) }()
 
 	mc, ok := exp.(metricsConsumer)
 	require.True(t, ok)
 
 	// Default async forwarder enqueues the payload and returns nil immediately.
-	require.NoError(t, mc.ConsumeMetrics(context.Background(), makeGaugeMetrics(50)))
+	require.NoError(t, mc.ConsumeMetrics(t.Context(), makeGaugeMetrics(50)))
 }
 
 // TestOSSSyncForwarder_PropagatesErrors verifies that the OSS Datadog exporter
@@ -1769,18 +1769,18 @@ func TestOSSSyncForwarder_PropagatesErrors(t *testing.T) {
 	cfg := benchExporterConfig(t, intake.URL)
 	f := NewFactoryForOSSExporter(component.MustNewType("datadog"), nil)
 	exp, err := f.CreateMetrics(
-		context.Background(),
+		t.Context(),
 		exportertest.NewNopSettings(component.MustNewType("datadog")),
 		cfg,
 	)
 	require.NoError(t, err)
-	require.NoError(t, exp.Start(context.Background(), componenttest.NewNopHost()))
-	defer func() { _ = exp.Shutdown(context.Background()) }()
+	require.NoError(t, exp.Start(t.Context(), componenttest.NewNopHost()))
+	defer func() { _ = exp.Shutdown(t.Context()) }()
 
 	mc, ok := exp.(metricsConsumer)
 	require.True(t, ok)
 
-	err = mc.ConsumeMetrics(context.Background(), makeGaugeMetrics(50))
+	err = mc.ConsumeMetrics(t.Context(), makeGaugeMetrics(50))
 	require.Error(t, err, "5xx from intake must surface back through ConsumeMetrics on the OSS exporter path")
 	require.GreaterOrEqual(t, intake.requests.Load(), int64(1), "intake should have received at least one request")
 }
@@ -1944,7 +1944,7 @@ func newTestAgentSerializer(t *testing.T, settings map[string]any) (*serializer.
 	return s, fwd
 }
 
-func createDDOTMetricsExporter(s serializer.MetricSerializer, histogramsMode datadogconfig.HistogramMode) (exporter.Metrics, error) {
+func createDDOTMetricsExporter(ctx context.Context, s serializer.MetricSerializer, histogramsMode datadogconfig.HistogramMode) (exporter.Metrics, error) {
 	f := NewFactoryForOTelAgent(s, func(context.Context) (string, error) {
 		return "", nil
 	}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil, false)
@@ -1952,7 +1952,7 @@ func createDDOTMetricsExporter(s serializer.MetricSerializer, histogramsMode dat
 	if histogramsMode != "" {
 		cfg.Metrics.Metrics.HistConfig.Mode = histogramsMode
 	}
-	return f.CreateMetrics(context.Background(), exportertest.NewNopSettings(component.MustNewType("datadog")), cfg)
+	return f.CreateMetrics(ctx, exportertest.NewNopSettings(component.MustNewType("datadog")), cfg)
 }
 
 // v3SketchPointsWithGate sends newHistogramsMetrics through DDOT, with histograms in counters
@@ -1962,8 +1962,8 @@ func v3SketchPointsWithGate(t *testing.T, enabled bool) int {
 	s, fwd := newTestAgentSerializer(t, map[string]any{
 		"serializer_experimental_use_v3_api.sketches.endpoints": []string{"http://intake.example.test"},
 	})
-	ctx := context.Background()
-	exp, err := createDDOTMetricsExporter(s, datadogconfig.HistogramModeCounters)
+	ctx := t.Context()
+	exp, err := createDDOTMetricsExporter(ctx, s, datadogconfig.HistogramModeCounters)
 	require.NoError(t, err)
 	require.NoError(t, exp.Start(ctx, componenttest.NewNopHost()))
 	require.NoError(t, exp.ConsumeMetrics(ctx, newHistogramsMetrics()))
@@ -1981,13 +1981,14 @@ func TestNativeOTelHistogramsGate(t *testing.T) {
 
 func TestNativeOTelHistogramsGateRequiresV3Sketches(t *testing.T) {
 	setNativeHistogramsGate(t, true)
+	ctx := t.Context()
 
 	t.Run("v2 destinations", func(t *testing.T) {
 		s, _ := newTestAgentSerializer(t, map[string]any{
 			"serializer_experimental_use_v3_api.sketches.endpoints": []string{"http://intake.example.test"},
 			"additional_endpoints": map[string][]string{"http://proxy.example.test": {"alt_key"}},
 		})
-		_, err := createDDOTMetricsExporter(s, "")
+		_, err := createDDOTMetricsExporter(ctx, s, "")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "these use v2: http://proxy.example.test;")
 		assert.Contains(t, err.Error(), "use_v3_api.distributions.enabled")
@@ -1999,7 +2000,7 @@ func TestNativeOTelHistogramsGateRequiresV3Sketches(t *testing.T) {
 			"use_v3_api.distributions.enabled": "true",
 			"additional_endpoints":             map[string][]string{"http://proxy.example.test": {"alt_key"}},
 		})
-		_, err := createDDOTMetricsExporter(s, "")
+		_, err := createDDOTMetricsExporter(ctx, s, "")
 		require.NoError(t, err)
 	})
 
@@ -2011,20 +2012,20 @@ func TestNativeOTelHistogramsGateRequiresV3Sketches(t *testing.T) {
 			},
 			"additional_endpoints": map[string][]string{"http://proxy.example.test": {"alt_key"}},
 		})
-		_, err := createDDOTMetricsExporter(s, "")
+		_, err := createDDOTMetricsExporter(ctx, s, "")
 		require.NoError(t, err)
 	})
 
 	t.Run("not the agent serializer", func(t *testing.T) {
-		_, err := createDDOTMetricsExporter(&MockSerializer{}, "")
+		_, err := createDDOTMetricsExporter(ctx, &MockSerializer{}, "")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "needs the agent serializer")
 	})
 
 	t.Run("agent OTLP ingest is not checked", func(t *testing.T) {
-		f := NewFactoryForAgent(&MockSerializer{}, func(context.Context) (string, error) { return "", nil }, nil, TelemetryStore{})
+		f := NewFactoryForAgent(&MockSerializer{}, func(_ context.Context) (string, error) { return "", nil }, nil, TelemetryStore{})
 		cfg := f.CreateDefaultConfig().(*ExporterConfig)
-		_, err := f.CreateMetrics(context.Background(), exportertest.NewNopSettings(component.MustNewType("serializer")), cfg)
+		_, err := f.CreateMetrics(ctx, exportertest.NewNopSettings(component.MustNewType("serializer")), cfg)
 		require.NoError(t, err)
 	})
 }
@@ -2044,7 +2045,7 @@ func ignoredHistogramOptionsWarnings(t *testing.T, mode datadogconfig.HistogramM
 	core, logs := observer.New(zap.WarnLevel)
 	set := exportertest.NewNopSettings(component.MustNewType("datadog"))
 	set.Logger = zap.New(core)
-	_, err := f.CreateMetrics(context.Background(), set, cfg)
+	_, err := f.CreateMetrics(t.Context(), set, cfg)
 	require.NoError(t, err)
 	var warnings []string
 	for _, e := range logs.FilterMessageSnippet("OTel histograms are sent as native histograms").All() {

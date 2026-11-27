@@ -8,7 +8,6 @@
 package run
 
 import (
-	"context"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/cmd/host-profiler/globalparams"
@@ -29,6 +28,6 @@ func TestFxRunWithoutAgentCore(t *testing.T) {
 func TestFxRunWithAgentCore(t *testing.T) {
 	// Use fxutil.TestOneShot as TestOneShotSubcommand would require valid datadog.yaml file, auth_token file and ipc_cert.pem.
 	fxutil.TestOneShot(t, func() {
-		runHostProfilerCommand(context.Background(), &cliParams{GlobalParams: &globalparams.GlobalParams{CoreConfPath: "config_path"}})
+		runHostProfilerCommand(t.Context(), &cliParams{GlobalParams: &globalparams.GlobalParams{CoreConfPath: "config_path"}})
 	})
 }

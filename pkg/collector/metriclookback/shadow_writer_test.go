@@ -6,7 +6,6 @@
 package metriclookback
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -20,12 +19,12 @@ import (
 )
 
 func TestNewSenderManagerRequiresRetention(t *testing.T) {
-	require.Nil(t, NewSenderManager(context.Background(), "default-host", nil))
+	require.Nil(t, NewSenderManager(t.Context(), "default-host", nil))
 }
 
 func TestNewSenderManagerWritesShadowCheckSamples(t *testing.T) {
 	retention := corelookback.NewRetention(ringbuffer.Options{Capacity: 8, ShardCount: 1})
-	manager := NewSenderManager(context.Background(), "default-host", retention)
+	manager := NewSenderManager(t.Context(), "default-host", retention)
 	require.NotNil(t, manager)
 
 	sender, err := manager.GetSender(checkid.ID("cpu:shadow"))
@@ -72,7 +71,7 @@ func TestNewSenderManagerSamplesNotifyMonitor(t *testing.T) {
 	require.NoError(t, err)
 	retention.SetMonitor(watcher)
 
-	manager := NewSenderManager(context.Background(), "default-host", retention)
+	manager := NewSenderManager(t.Context(), "default-host", retention)
 	sender, err := manager.GetSender(checkid.ID("cpu:shadow"))
 	require.NoError(t, err)
 	require.NoError(t, sender.GaugeWithTimestamp("shadow.metric", 40, "", nil, 10))

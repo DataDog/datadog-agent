@@ -108,7 +108,7 @@ func TestPull(t *testing.T) {
 		taskCollectionParser: mockParser,
 	}
 
-	err := collector.Pull(context.Background())
+	err := collector.Pull(t.Context())
 	require.NoError(t, err)
 	require.Len(t, store.notifiedEvents, 1)
 	assert.Equal(t, workloadmeta.EventTypeSet, store.notifiedEvents[0].Type)
@@ -127,7 +127,7 @@ func TestPullError(t *testing.T) {
 		taskCollectionParser: mockParser,
 	}
 
-	err := collector.Pull(context.Background())
+	err := collector.Pull(t.Context())
 	require.Error(t, err)
 	assert.Equal(t, "parser error", err.Error())
 	require.Len(t, store.notifiedEvents, 0)
@@ -183,7 +183,7 @@ func TestDetectLaunchType(t *testing.T) {
 				deploymentMode: deploymentModeDaemon,
 			}
 
-			result := collector.detectLaunchType(context.Background())
+			result := collector.detectLaunchType(t.Context())
 			assert.Equal(t, tt.expectedType, result, "Launch type detection failed for %s", tt.name)
 		})
 	}

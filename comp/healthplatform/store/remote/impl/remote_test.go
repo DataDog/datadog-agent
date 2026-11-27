@@ -101,7 +101,7 @@ func TestRemoteIssueLoaderLoad(t *testing.T) {
 		}))
 	})
 
-	issues, err := loader.Load(context.Background())
+	issues, err := loader.Load(t.Context())
 	require.NoError(t, err)
 	require.Len(t, issues, 2)
 	assert.Equal(t, agentIssueID, issues[0].IssueID)
@@ -122,7 +122,7 @@ func TestRemoteIssueLoaderLoadEmpty(t *testing.T) {
 		_, _ = w.Write(snapshotResponse(t, "daemonset-uid", []remoteIssue{}))
 	})
 
-	issues, err := loader.Load(context.Background())
+	issues, err := loader.Load(t.Context())
 	require.NoError(t, err)
 	assert.Empty(t, issues)
 }
@@ -136,7 +136,7 @@ func TestRemoteIssueLoaderLoadClusterAgent(t *testing.T) {
 	loader.agentFlavor = flavor.ClusterAgent
 	loader.resourceID = (&remoteTestIdentity{clusterID: "cluster-uuid"}).ClusterIDWithContext
 
-	issues, err := loader.Load(context.Background())
+	issues, err := loader.Load(t.Context())
 	require.NoError(t, err)
 	assert.Empty(t, issues)
 	assert.Equal(t, "/api/v2/agenthealth/hosts/cluster-uuid/issues?agent_type=cluster", <-requestURI)
@@ -147,7 +147,7 @@ func TestRemoteIssueLoaderLoadRequiresResourceID(t *testing.T) {
 		t.Fatal("request should not be sent")
 	})
 
-	issues, err := loader.Load(context.Background())
+	issues, err := loader.Load(t.Context())
 	assert.Nil(t, issues)
 	assert.ErrorContains(t, err, "resource ID is required")
 }
@@ -168,7 +168,7 @@ func TestRemoteIssueLoaderIdentityDeadline(t *testing.T) {
 					<-ctx.Done()
 					return ""
 				}
-				ctx, cancel := context.WithTimeout(context.Background(), startupTimeout)
+				ctx, cancel := context.WithTimeout(t.Context(), startupTimeout)
 				defer cancel()
 
 				start := time.Now()
@@ -188,7 +188,7 @@ func TestRemoteIssueLoaderLoadRequiresHTTPS(t *testing.T) {
 	})
 	loader.baseURL = "http://api.example.com"
 
-	issues, err := loader.Load(context.Background())
+	issues, err := loader.Load(t.Context())
 	assert.Nil(t, issues)
 	assert.ErrorContains(t, err, "must use HTTPS")
 }
@@ -216,7 +216,7 @@ func TestRemoteIssueLoaderLoadResponseErrors(t *testing.T) {
 				_, _ = w.Write([]byte(test.body))
 			})
 
-			issues, err := loader.Load(context.Background())
+			issues, err := loader.Load(t.Context())
 			assert.Nil(t, issues)
 			assert.ErrorContains(t, err, test.wantError)
 		})
@@ -227,7 +227,7 @@ func TestRemoteIssueLoaderLoadCanceledContext(t *testing.T) {
 	loader := newTestRemoteIssueLoader(t, "daemonset-uid", remoteIssuesNodeAgentType, func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write(snapshotResponse(t, "daemonset-uid", []remoteIssue{}))
 	})
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	issues, err := loader.Load(ctx)
@@ -246,7 +246,7 @@ func TestRemoteIssueLoaderLoadDoesNotFollowRedirects(t *testing.T) {
 		http.Redirect(w, r, "/redirect-target", http.StatusFound)
 	})
 
-	issues, err := loader.Load(context.Background())
+	issues, err := loader.Load(t.Context())
 	assert.Nil(t, issues)
 	assert.ErrorContains(t, err, "status 302")
 	assert.Equal(t, int32(1), requestCount.Load())
@@ -280,7 +280,7 @@ func TestRemoteIssueLoaderDisabledModes(t *testing.T) {
 			loader := newRemoteIssueLoader(Requires{Config: cfg, Log: logmock.New(t)}, test.agentFlavor,
 				&remoteTestIdentity{deploymentID: "daemonset-uid", clusterID: "cluster-uuid"})
 
-			issues, err := loader.Load(context.Background())
+			issues, err := loader.Load(t.Context())
 			require.NoError(t, err)
 			assert.Nil(t, issues)
 		})
@@ -296,9 +296,9 @@ func TestNewRemoteIssueLoaderSelectsIdentity(t *testing.T) {
 
 	node := newRemoteIssueLoader(reqs, flavor.DefaultAgent, identity)
 	assert.Equal(t, remoteIssuesNodeAgentType, node.agentType)
-	assert.Equal(t, "daemonset-uid", node.resourceID(context.Background()))
+	assert.Equal(t, "daemonset-uid", node.resourceID(t.Context()))
 
 	cluster := newRemoteIssueLoader(reqs, flavor.ClusterAgent, identity)
 	assert.Equal(t, remoteIssuesClusterAgentType, cluster.agentType)
-	assert.Equal(t, "cluster-uuid", cluster.resourceID(context.Background()))
+	assert.Equal(t, "cluster-uuid", cluster.resourceID(t.Context()))
 }

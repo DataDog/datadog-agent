@@ -39,7 +39,7 @@ func TestFollowerWaitsForWIFReplacement(t *testing.T) {
 				secret.Data[wifOrgUUIDField] = []byte(tc.org)
 				secret.Data[wifSiteField] = []byte(tc.site)
 				client := fake.NewSimpleClientset(secret)
-				ctx, cancel := context.WithCancel(context.Background())
+				ctx, cancel := context.WithCancel(t.Context())
 				defer cancel()
 				var got *corev1.Secret
 				var loadErr error
@@ -88,7 +88,7 @@ func TestWIFReplacementLeaderAndCancellation(t *testing.T) {
 		t.Run(map[bool]string{true: "leader", false: "cancelled follower"}[leader], func(t *testing.T) {
 			secret := makeTestSecret("default", "identity")
 			client := fake.NewSimpleClientset(secret)
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			if !leader {
 				cancel()
@@ -100,7 +100,7 @@ func TestWIFReplacementLeaderAndCancellation(t *testing.T) {
 			} else {
 				require.ErrorIs(t, err, context.Canceled)
 			}
-			saved, err := client.CoreV1().Secrets("default").Get(context.Background(), "identity", metav1.GetOptions{})
+			saved, err := client.CoreV1().Secrets("default").Get(t.Context(), "identity", metav1.GetOptions{})
 			require.NoError(t, err)
 			require.Equal(t, secret.Data, saved.Data, "do not delete or modify the old Secret before enrollment")
 		})

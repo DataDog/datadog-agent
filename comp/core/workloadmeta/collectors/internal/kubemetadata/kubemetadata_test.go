@@ -164,7 +164,7 @@ func TestDisabledCLCRunner(t *testing.T) {
 		cfg: cfg,
 	}
 
-	err := c.Start(context.Background(), nil)
+	err := c.Start(t.Context(), nil)
 	require.Error(t, err)
 	assert.True(t, pkgerrors.IsDisabled(err))
 }

@@ -65,7 +65,7 @@ func TestHandlersRejectRedirectsOutsideDomain(t *testing.T) {
 
 	for name, handler := range newJenkinsHandlers(defaultConfig) {
 		t.Run(name, func(t *testing.T) {
-			_, err := handler.Run(context.Background(), newJenkinsTask(map[string]interface{}{"jobName": "my-job"}), newJenkinsCredentials(jenkins.URL))
+			_, err := handler.Run(t.Context(), newJenkinsTask(map[string]interface{}{"jobName": "my-job"}), newJenkinsCredentials(jenkins.URL))
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "different origin")
 		})
@@ -89,7 +89,7 @@ func TestHandlersEnforceConfiguredDomainAllowlist(t *testing.T) {
 	for _, allowlist := range [][]string{{}, {"jenkins.example.com"}, {"*.example.com"}} {
 		for name, handler := range newJenkinsHandlers(&config.Config{Allowlist: []string{"*"}, DomainAllowlist: allowlist}) {
 			t.Run(fmt.Sprintf("%s/%v", name, allowlist), func(t *testing.T) {
-				_, err := handler.Run(context.Background(), newJenkinsTask(map[string]interface{}{"jobName": "my-job"}), newJenkinsCredentials(jenkins.URL))
+				_, err := handler.Run(t.Context(), newJenkinsTask(map[string]interface{}{"jobName": "my-job"}), newJenkinsCredentials(jenkins.URL))
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), "private_action_runner.domain_allowlist")
 			})
@@ -105,7 +105,7 @@ func TestHandlersReachConfiguredDomainAllowlistDomain(t *testing.T) {
 	defer jenkins.Close()
 
 	cfg := &config.Config{Allowlist: []string{}, DomainAllowlist: []string{"127.0.0.1"}}
-	_, err := NewBuildJobHandler(cfg).Run(context.Background(), newJenkinsTask(map[string]interface{}{"jobName": "my-job"}), newJenkinsCredentials(jenkins.URL))
+	_, err := NewBuildJobHandler(cfg).Run(t.Context(), newJenkinsTask(map[string]interface{}{"jobName": "my-job"}), newJenkinsCredentials(jenkins.URL))
 	require.NoError(t, err)
 }
 
@@ -128,7 +128,7 @@ func TestGetJobStatusFollowsRedirectWithinDomain(t *testing.T) {
 	defer jenkins.Close()
 
 	out, err := NewGetJobStatusHandler(defaultConfig).Run(
-		context.Background(),
+		t.Context(),
 		newJenkinsTask(map[string]interface{}{"jobName": "my-job"}),
 		newJenkinsCredentials(jenkins.URL),
 	)
@@ -161,9 +161,9 @@ func TestBuildAndDeleteJobIgnoreHTTPAllowlist(t *testing.T) {
 
 	cfg := defaultConfig
 	task := newJenkinsTask(map[string]interface{}{"jobName": "my-job"})
-	_, err := NewBuildJobHandler(cfg).Run(context.Background(), task, newJenkinsCredentials(jenkins.URL))
+	_, err := NewBuildJobHandler(cfg).Run(t.Context(), task, newJenkinsCredentials(jenkins.URL))
 	require.NoError(t, err)
-	_, err = NewDeleteJobHandler(cfg).Run(context.Background(), task, newJenkinsCredentials(jenkins.URL))
+	_, err = NewDeleteJobHandler(cfg).Run(t.Context(), task, newJenkinsCredentials(jenkins.URL))
 	require.NoError(t, err)
 	assert.Equal(t, int32(1), buildHits.Load())
 	assert.Equal(t, int32(1), deleteHits.Load())

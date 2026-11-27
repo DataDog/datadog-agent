@@ -174,7 +174,7 @@ func TestDoGet(t *testing.T) {
 		}
 		client, ts := getMockServerAndConfig(t, http.HandlerFunc(handler), testToken)
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 
 		_, err := client.Get(ts.URL, WithContext(ctx))

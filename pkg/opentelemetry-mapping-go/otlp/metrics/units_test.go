@@ -6,7 +6,6 @@
 package metrics
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -63,7 +62,7 @@ func TestUnits(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tr := newTranslatorWithOptions(t, WithUnits())
 			consumer := newTestConsumer()
-			_, err := tr.MapMetrics(context.Background(), gaugeMetricsWithUnit("test.metric", tt.unit), &consumer, nil)
+			_, err := tr.MapMetrics(t.Context(), gaugeMetricsWithUnit("test.metric", tt.unit), &consumer, nil)
 			require.NoError(t, err)
 			require.Len(t, consumer.data.Metrics.TimeSeries, 1)
 			assert.Equal(t, tt.wantUnit, consumer.data.Metrics.TimeSeries[0].Unit)
@@ -74,7 +73,7 @@ func TestUnits(t *testing.T) {
 func TestNoUnits(t *testing.T) {
 	tr := newTranslatorWithOptions(t)
 	consumer := newTestConsumer()
-	_, err := tr.MapMetrics(context.Background(), gaugeMetricsWithUnit("test.metric", "By"), &consumer, nil)
+	_, err := tr.MapMetrics(t.Context(), gaugeMetricsWithUnit("test.metric", "By"), &consumer, nil)
 	require.NoError(t, err)
 	require.Len(t, consumer.data.Metrics.TimeSeries, 1)
 	assert.Empty(t, consumer.data.Metrics.TimeSeries[0].Unit)
@@ -138,7 +137,7 @@ func TestHistogramUnits(t *testing.T) {
 		WithHistogramAggregations(),
 	)
 	consumer := newTestConsumer()
-	_, err := tr.MapMetrics(context.Background(), deltaHistogramWithUnit("request.duration", "s"), &consumer, nil)
+	_, err := tr.MapMetrics(t.Context(), deltaHistogramWithUnit("request.duration", "s"), &consumer, nil)
 	require.NoError(t, err)
 
 	units := unitsByName(consumer.data.Metrics.TimeSeries)
@@ -158,7 +157,7 @@ func TestSummaryUnits(t *testing.T) {
 		WithInitialCumulMonoValueMode(InitialCumulMonoValueModeKeep),
 	)
 	consumer := newTestConsumer()
-	_, err := tr.MapMetrics(context.Background(), summaryWithUnit("request.duration", "s"), &consumer, nil)
+	_, err := tr.MapMetrics(t.Context(), summaryWithUnit("request.duration", "s"), &consumer, nil)
 	require.NoError(t, err)
 
 	units := unitsByName(consumer.data.Metrics.TimeSeries)

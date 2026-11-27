@@ -9,7 +9,6 @@
 package tests
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"math/rand/v2"
@@ -61,7 +60,7 @@ func TestAcceptEvent(t *testing.T) {
 		port := rand.IntN(MAX-MIN) + MIN
 
 		test.WaitSignalFromRule(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "accept", "AF_INET", "0.0.0.0", "127.0.0.1", strconv.Itoa(port), "false")
+			return runSyscallTesterFunc(t.Context(), t, syscallTester, "accept", "AF_INET", "0.0.0.0", "127.0.0.1", strconv.Itoa(port), "false")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_accept_af_inet")
 			assert.Equal(t, "accept", event.GetType(), "wrong event type")
@@ -78,7 +77,7 @@ func TestAcceptEvent(t *testing.T) {
 		port := rand.IntN(MAX-MIN) + MIN
 
 		test.WaitSignalFromRule(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "accept", "AF_INET", "0.0.0.0", "127.0.0.1", strconv.Itoa(port), "true")
+			return runSyscallTesterFunc(t.Context(), t, syscallTester, "accept", "AF_INET", "0.0.0.0", "127.0.0.1", strconv.Itoa(port), "true")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_accept_af_inet")
 			assert.Equal(t, "accept", event.GetType(), "wrong event type")
@@ -186,7 +185,7 @@ func TestAcceptEvent(t *testing.T) {
 		port := rand.IntN(MAX-MIN) + MIN
 
 		test.WaitSignalFromRule(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "accept", "AF_INET6", "::", "::1", strconv.Itoa(port), "false")
+			return runSyscallTesterFunc(t.Context(), t, syscallTester, "accept", "AF_INET6", "::", "::1", strconv.Itoa(port), "false")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_accept_af_inet6")
 			assert.Equal(t, "accept", event.GetType(), "wrong event type")
@@ -206,7 +205,7 @@ func TestAcceptEvent(t *testing.T) {
 		port := rand.IntN(MAX-MIN) + MIN
 
 		test.WaitSignalFromRule(t, func() error {
-			return runSyscallTesterFunc(context.Background(), t, syscallTester, "accept", "AF_INET6", "::", "::1", strconv.Itoa(port), "true")
+			return runSyscallTesterFunc(t.Context(), t, syscallTester, "accept", "AF_INET6", "::", "::1", strconv.Itoa(port), "true")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_accept_af_inet6")
 			assert.Equal(t, "accept", event.GetType(), "wrong event type")

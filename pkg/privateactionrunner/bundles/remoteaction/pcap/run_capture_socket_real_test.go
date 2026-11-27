@@ -8,7 +8,6 @@
 package com_datadoghq_remoteaction_pcap
 
 import (
-	"context"
 	"os"
 	"testing"
 
@@ -52,7 +51,7 @@ func TestSocketCaptureTrigger_RealSystemProbe(t *testing.T) {
 	systemProbeConfig.SetInTest("system_probe_config.sysprobe_socket", socketPath)
 
 	trigger := &socketCaptureTrigger{}
-	out, err := trigger.Capture(context.Background(), RunCaptureInputs{
+	out, err := trigger.Capture(t.Context(), RunCaptureInputs{
 		BPFFilter:    "icmp",
 		DurationSecs: 3,
 		Interface:    iface,

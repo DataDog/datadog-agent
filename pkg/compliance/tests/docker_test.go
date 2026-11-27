@@ -8,7 +8,6 @@
 package tests
 
 import (
-	"context"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
@@ -20,7 +19,7 @@ import (
 const dockerHostname = "host-docker-test-42"
 
 func TestDockerInfoInput(t *testing.T) {
-	dockerCl, err := docker.ConnectToDocker(context.Background())
+	dockerCl, err := docker.ConnectToDocker(t.Context())
 	if err != nil {
 		t.Skipf("could not connect to docker to start testing: %v", err)
 	}
