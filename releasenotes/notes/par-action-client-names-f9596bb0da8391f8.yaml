@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    The Private Action Runner now tags ``datadog.actions.private_runner.executions.*``
+    metrics with the name of the calling product (for example ``action_client:MCP``)
+    for all current Datadog products. Before, newer products were reported as raw
+    numbers, such as ``action_client:25``.

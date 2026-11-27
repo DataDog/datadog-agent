@@ -45,7 +45,23 @@ const (
 	Client_CI_ACTION_WORKER                                   Client = 18
 	Client_DOD_SANDBOXER                                      Client = 19
 	Client_RSHELL_TERMINAL                                    Client = 20
+	Client_SERVERLESS_INVESTIGATOR                            Client = 21
+	Client_ECS_REMEDIATION_AGENT                              Client = 22
+	Client_NCM                                                Client = 23
+	Client_NDM                                                Client = 24
+	Client_MCP                                                Client = 25
+	Client_ATOM                                               Client = 26
 	Client_KUBE_TRAY                                          Client = 27
+	Client_ACTION_TOOLKIT_EVAL                                Client = 28
+	Client_BITS_CODE                                          Client = 29
+	Client_SOFTWARE_CATALOG                                   Client = 30
+	Client_ACTION_PLATFORM_MCP                                Client = 31
+	Client_SERVICE_HEELER                                     Client = 32
+	Client_NETWORK_PATH                                       Client = 33
+	Client_BITS_GUARDRAILS                                    Client = 34
+	Client_CNM                                                Client = 35
+	Client_GPU_BENCHMARK                                      Client = 36
+	Client_BYO_MCP                                            Client = 37
 	Client_DEV                                                Client = 9999
 )
 
@@ -73,7 +89,23 @@ var (
 		18:   "CI_ACTION_WORKER",
 		19:   "DOD_SANDBOXER",
 		20:   "RSHELL_TERMINAL",
+		21:   "SERVERLESS_INVESTIGATOR",
+		22:   "ECS_REMEDIATION_AGENT",
+		23:   "NCM",
+		24:   "NDM",
+		25:   "MCP",
+		26:   "ATOM",
 		27:   "KUBE_TRAY",
+		28:   "ACTION_TOOLKIT_EVAL",
+		29:   "BITS_CODE",
+		30:   "SOFTWARE_CATALOG",
+		31:   "ACTION_PLATFORM_MCP",
+		32:   "SERVICE_HEELER",
+		33:   "NETWORK_PATH",
+		34:   "BITS_GUARDRAILS",
+		35:   "CNM",
+		36:   "GPU_BENCHMARK",
+		37:   "BYO_MCP",
 		9999: "DEV",
 	}
 	Client_value = map[string]int32{
@@ -98,7 +130,23 @@ var (
 		"CI_ACTION_WORKER":                                   18,
 		"DOD_SANDBOXER":                                      19,
 		"RSHELL_TERMINAL":                                    20,
+		"SERVERLESS_INVESTIGATOR":                            21,
+		"ECS_REMEDIATION_AGENT":                              22,
+		"NCM":                                                23,
+		"NDM":                                                24,
+		"MCP":                                                25,
+		"ATOM":                                               26,
 		"KUBE_TRAY":                                          27,
+		"ACTION_TOOLKIT_EVAL":                                28,
+		"BITS_CODE":                                          29,
+		"SOFTWARE_CATALOG":                                   30,
+		"ACTION_PLATFORM_MCP":                                31,
+		"SERVICE_HEELER":                                     32,
+		"NETWORK_PATH":                                       33,
+		"BITS_GUARDRAILS":                                    34,
+		"CNM":                                                35,
+		"GPU_BENCHMARK":                                      36,
+		"BYO_MCP":                                            37,
 		"DEV":                                                9999,
 	}
 )
@@ -134,7 +182,7 @@ var File_datadog_privateactionrunner_actionsclient_proto protoreflect.FileDescri
 
 const file_datadog_privateactionrunner_actionsclient_proto_rawDesc = "" +
 	"\n" +
-	"/datadog/privateactionrunner/actionsclient.proto\x12)datadog.privateactionrunner.actionsclient*\x9a\x04\n" +
+	"/datadog/privateactionrunner/actionsclient.proto\x12)datadog.privateactionrunner.actionsclient*\xb2\x06\n" +
 	"\x06Client\x12\x0f\n" +
 	"\vUNSPECIFIED\x10\x00\x12\r\n" +
 	"\tWORKFLOWS\x10\x01\x12\x0f\n" +
@@ -157,8 +205,24 @@ const file_datadog_privateactionrunner_actionsclient_proto_rawDesc = "" +
 	"\x1aDATA_OBSERVABILITY_CRAWLER\x10\x11\x12\x14\n" +
 	"\x10CI_ACTION_WORKER\x10\x12\x12\x11\n" +
 	"\rDOD_SANDBOXER\x10\x13\x12\x13\n" +
-	"\x0fRSHELL_TERMINAL\x10\x14\x12\r\n" +
-	"\tKUBE_TRAY\x10\x1b\x12\b\n" +
+	"\x0fRSHELL_TERMINAL\x10\x14\x12\x1b\n" +
+	"\x17SERVERLESS_INVESTIGATOR\x10\x15\x12\x19\n" +
+	"\x15ECS_REMEDIATION_AGENT\x10\x16\x12\a\n" +
+	"\x03NCM\x10\x17\x12\a\n" +
+	"\x03NDM\x10\x18\x12\a\n" +
+	"\x03MCP\x10\x19\x12\b\n" +
+	"\x04ATOM\x10\x1a\x12\r\n" +
+	"\tKUBE_TRAY\x10\x1b\x12\x17\n" +
+	"\x13ACTION_TOOLKIT_EVAL\x10\x1c\x12\r\n" +
+	"\tBITS_CODE\x10\x1d\x12\x14\n" +
+	"\x10SOFTWARE_CATALOG\x10\x1e\x12\x17\n" +
+	"\x13ACTION_PLATFORM_MCP\x10\x1f\x12\x12\n" +
+	"\x0eSERVICE_HEELER\x10 \x12\x10\n" +
+	"\fNETWORK_PATH\x10!\x12\x13\n" +
+	"\x0fBITS_GUARDRAILS\x10\"\x12\a\n" +
+	"\x03CNM\x10#\x12\x11\n" +
+	"\rGPU_BENCHMARK\x10$\x12\v\n" +
+	"\aBYO_MCP\x10%\x12\b\n" +
 	"\x03DEV\x10\x8fNBSZQgithub.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclientb\x06proto3"
 
 var (
