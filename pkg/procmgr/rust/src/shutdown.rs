@@ -54,6 +54,11 @@ impl ShutdownTarget for ManagedProcess {
 /// When some processes wait only on each other (a dependency cycle), it drops only the edge
 /// that closes the cycle, even while unrelated stops are still in progress.
 ///
+/// A stop that gives up after the force kill, or whose wait task fails, counts as done for the
+/// order, so its dependencies are still stopped. Holding them back would skip stopping them,
+/// because the daemon exits either way. The order is best effort when a process survives the
+/// force kill or its wait task fails.
+///
 /// Under systemd the order holds only if `dd-procmgrd` alone is signaled. The unit's default
 /// `KillMode=control-group` sends SIGTERM to every process in the cgroup at once, and
 /// `TimeoutStopSec` (default 90s) then SIGKILLs whatever is left. With `KillMode=mixed` only
