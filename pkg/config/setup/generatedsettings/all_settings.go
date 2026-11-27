@@ -685,6 +685,7 @@ func InitCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("private_action_runner.actions_allowlist", []string{})
 	config.ParseEnvSplitComma("private_action_runner.actions_allowlist")
 	config.BindEnvAndSetDefault("private_action_runner.default_actions_enabled", true)
+	config.BindEnvAndSetDefault("private_action_runner.kubernetes_remediations_enabled", false)
 	config.BindEnvAndSetDefault("private_action_runner.credentials.values", map[string]map[string]interface{}{})
 	config.BindEnvAndSetDefault("private_action_runner.http_timeout_seconds", 30)
 	config.BindEnvAndSetDefault("private_action_runner.http_allowlist", []string{})
