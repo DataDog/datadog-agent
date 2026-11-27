@@ -128,7 +128,7 @@ dda inv new-e2e-tests.clean --output
 
 If cleanup says "Cleanup supported for local state only":
 ```bash
-pulumi login --local
+bazel run @pulumi -- login --local
 ```
 
 ### Test Output Location

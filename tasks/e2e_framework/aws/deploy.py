@@ -33,7 +33,7 @@ def deploy(
     agent_env: str | None = None,
     helm_config: str | None = None,
     local_package: str | None = None,
-    pulumi_extra_args: str = "",
+    pulumi_extra_args: tuple[str, ...] = (),
     pulumi_env: dict[str, str] | None = None,
     needs_agent_containers: bool = True,
     extra_image_paths: list[str | None] | None = None,
@@ -86,7 +86,6 @@ def deploy(
     if needs_agent_containers:
         flags.update(_image_pull_flags(ctx, full_image_path, cluster_agent_full_image_path, *(extra_image_paths or [])))
     return common_deploy(
-        ctx,
         scenario_name,
         config_path,
         app_key_required,
@@ -111,8 +110,10 @@ def deploy(
     )
 
 
-def _image_pull_flags(ctx: Context, *images: str | None) -> dict[str, str]:
+def _image_pull_flags(ctx: Context, *images: str | None) -> dict[str, Any]:
     """Pull secret flags for the cluster: agent-qa always, plus agent-sandbox when an image lives there."""
+    from pydantic import SecretStr
+
     creds = [c for c in (agent_qa_ecr_credential(ctx), agent_sandbox_ecr_credential(ctx, *images)) if c is not None]
     if not creds:
         return {}
@@ -120,7 +121,7 @@ def _image_pull_flags(ctx: Context, *images: str | None) -> dict[str, str]:
     return {
         "ddagent:imagePullRegistry": ",".join(registries),
         "ddagent:imagePullUsername": ",".join(usernames),
-        "ddagent:imagePullPassword": ",".join(passwords),
+        "ddagent:imagePullPassword": SecretStr(",".join(passwords)),
     }
 
 

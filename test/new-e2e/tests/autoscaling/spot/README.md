@@ -77,6 +77,6 @@ After inspecting, destroy the stack — this deletes the kind cluster and remove
 $TMPDIR/pulumi-workspace/*/*spotschedulingsuite*
 
 # 2. Destroy resources (deletes the kind cluster) and remove the stack
-PULUMI_CONFIG_PASSPHRASE=dummy pulumi destroy --cwd <workspace> --yes
-PULUMI_CONFIG_PASSPHRASE=dummy pulumi stack rm  --cwd <workspace> --yes
+PULUMI_CONFIG_PASSPHRASE=dummy bazel run @pulumi -- destroy --cwd <workspace> --yes
+PULUMI_CONFIG_PASSPHRASE=dummy bazel run @pulumi -- stack rm  --cwd <workspace> --yes
 ```

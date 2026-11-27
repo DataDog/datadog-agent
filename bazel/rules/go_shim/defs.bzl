@@ -1,6 +1,7 @@
 """Shim to run a tool with the hermetic Go SDK's `go` first in $PATH, from the current working directory.
 
 A (thin) wrapper is unavoidable because prepending to the inherited PATH cannot be expressed declaratively.
+The environment the tool declares for `bazel run` (`RunEnvironmentInfo`), e.g. through `native_binary`'s `env`, is kept.
 The SDK's `go` is used over @rules_go//go, because the latter changes the current directory again, breaking subcommands.
 
 References:
@@ -36,7 +37,7 @@ def _impl(ctx):
             [sdk.go],
             transitive_files = depset(transitive = [sdk.headers, sdk.libs, sdk.srcs, sdk.tools]),
         ).merge(ctx.attr.tool[DefaultInfo].default_runfiles),
-    )]
+    )] + ([ctx.attr.tool[RunEnvironmentInfo]] if RunEnvironmentInfo in ctx.attr.tool else [])
 
 go_shim = rule(
     implementation = _impl,

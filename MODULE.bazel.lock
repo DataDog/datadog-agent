@@ -885,7 +885,7 @@
         ]
       }
     },
-    "//deps/pulumi_plugins:extension.bzl%pulumi_plugins": {
+    "//deps/pulumi:extension.bzl%pulumi": {
       "https://github.com/pulumi/pulumi-aws/releases/download/v7.55.0/pulumi-aws_7.55.0_checksums.txt": {
         "pulumi-resource-aws-v7.55.0-darwin-amd64.tar.gz": "sha1-Gs2pYXprlQ1Zp6H/wzbbGONNfug=",
         "pulumi-resource-aws-v7.55.0-darwin-arm64.tar.gz": "sha1-xD6C15449b+5R82YpWXn9inOxnU=",
@@ -995,6 +995,14 @@
         "pulumi-resource-tls-v5.6.3-linux-arm64.tar.gz": "sha1-Yb884nTwFk82Ex2YiJ8QjSuQXkw=",
         "pulumi-resource-tls-v5.6.3-windows-amd64.tar.gz": "sha1-aec8hWNGjSsAv/tfdTrmSbXFHxI=",
         "pulumi-resource-tls-v5.6.3-windows-arm64.tar.gz": "sha1-dZy6FIIeRS6ln4coeQFziuM9nMw="
+      },
+      "https://github.com/pulumi/pulumi/releases/download/v3.277.0/pulumi-3.277.0-checksums.txt": {
+        "pulumi-v3.277.0-darwin-arm64.tar.gz": "sha256-c0TQYq3BehDFjPYhMwJwpQsTjtdhrB2Q+viYiZKqtxs=",
+        "pulumi-v3.277.0-darwin-x64.tar.gz": "sha256-fx1qM+UY+sIQSQDvetYrSF3jHco5V1sJ0UpdvsgUEfc=",
+        "pulumi-v3.277.0-linux-arm64.tar.gz": "sha256-ucJwi9E//cunn1VaBTKJOptaRO/KjiJdFxuPe2BbFs4=",
+        "pulumi-v3.277.0-linux-x64.tar.gz": "sha256-Hjjw+2mhSjJs86z6+XV3Do3l0HcQQvJikvABPSN7g5M=",
+        "pulumi-v3.277.0-windows-arm64.zip": "sha256-/HbXPTd7fqVYG854DevRKvYw/IsPjsb2mSab9mHcTQ4=",
+        "pulumi-v3.277.0-windows-x64.zip": "sha256-kj4CzBdL4BZ7eoATxlZTh5nLAuQxcISqEanCZzWd+pE="
       },
       "https://github.com/pulumiverse/pulumi-time/releases/download/v0.1.0/pulumi-time_0.1.0_checksums.txt": {
         "pulumi-resource-time-v0.1.0-darwin-amd64.tar.gz": "sha256-p/pkRdejbGHoWbfk7m2b6oHEEO5Dx8Jcvp56gmqAqEI=",

@@ -15,7 +15,6 @@ from tasks.e2e_framework.tool import (
     get_aws_cmd,
     get_resource_owner_id,
     info,
-    install_pulumi_plugins,
     is_windows,
     run_pulumi,
     warn,
@@ -127,7 +126,7 @@ def setup(
     from tasks.e2e_framework.setup.agent import setup_agent_config
     from tasks.e2e_framework.setup.aws import setup_aws_config
     from tasks.e2e_framework.setup.config import check_config
-    from tasks.e2e_framework.setup.pulumi import install_pulumi, pulumi_version, setup_pulumi_config
+    from tasks.e2e_framework.setup.pulumi import setup_pulumi_config
 
     # AWS CLI is the only hard prereq on the default path.
     if not shutil.which("aws"):
@@ -146,15 +145,8 @@ def setup(
 
         install_gcloud_auth_plugin(ctx)
 
-    pulumi_ver, pulumi_up_to_date = pulumi_version(ctx)
-    if pulumi_up_to_date:
-        info(f"✓ Pulumi is up to date: {pulumi_ver}")
-    else:
-        install_pulumi(ctx)
-
-    install_pulumi_plugins()
-    run_pulumi(ctx, "login --local", project_dir=False, hide=True)
-    info("✓ Pulumi plugins installed; local backend configured")
+    run_pulumi("login", "--local", project_dir=False)
+    info("✓ Pulumi CLI and plugins installed; local backend configured")
 
     try:
         cfg = config.get_local_config(config_path)
@@ -456,22 +448,14 @@ def debug_env(ctx, config_path: str | None = None):
     """
     from tasks.e2e_framework.setup.aws import DEFAULT_AWS_REGION
 
-    # check pulumi found
-    try:
-        out = run_pulumi(ctx, "version", project_dir=False, skip_update_check=False, hide=True)
-    except UnexpectedExit as e:
-        error(f"{e}")
-        error("Pulumi CLI not found, please install it: https://www.pulumi.com/docs/get-started/install/")
-        raise Exit(code=1) from e
-    info(f"Pulumi version: {out.stdout.strip()}")
+    out = run_pulumi("version", project_dir=False, capture_output=True)
+    info(f"Pulumi version: {out.strip()}")
 
     # Check pulumi credentials
-    try:
-        out = run_pulumi(ctx, "whoami", project_dir=False, hide=True)
-    except UnexpectedExit as e:
+    if run_pulumi("whoami", project_dir=False, ignore_errors=True).returncode != 0:
         error("No pulumi credentials found")
-        info("Please login, e.g. pulumi login --local")
-        raise Exit(code=1) from e
+        info("Please login, e.g. `bazel run @pulumi -- login --local`")
+        raise Exit(code=1)
 
     # check awscli version
     out = ctx.run("aws --version", hide=True)

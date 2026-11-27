@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import datetime
 import json
-import multiprocessing
+import multiprocessing.pool
 import os
 import os.path
 import re
@@ -431,12 +431,6 @@ def run(
     if "test" not in tags:
         tags = tags + ["test"]
 
-    if shutil.which("pulumi") is None:
-        raise Exit(
-            "pulumi CLI not found, Pulumi needs to be installed on the system (see https://github.com/DataDog/datadog-agent/blob/main/test/e2e-framework/README.md)",
-            1,
-        )
-
     _check_e2e_local_config_or_exit(profile)
 
     e2e_module = get_default_modules()[module_name]
@@ -472,7 +466,7 @@ def run(
 
     # Pulls PULUMI_CONFIG_PASSPHRASE out of the local config when the environment doesn't
     # already carry one, so developers don't have to put the passphrase in their rc file.
-    env_vars.update(tool.pulumi_env(skip_update_check=False))
+    env_vars.update(tool.pulumi_env())
 
     if not running_in_ci():
         env_vars.update(_docker_host_env(ctx))
@@ -607,7 +601,7 @@ def run(
             use_bazel_built_binaries = False
 
     _install_windows_testsuites(module_name, targets)
-    tool.install_pulumi_plugins()
+    tool.install_pulumi()
 
     if use_bazel_built_binaries:
         bazel("run", "//:go", "--", "build", "-o", "./gotest-custom", "./internal/tools/gotest-custom")
@@ -808,8 +802,8 @@ def clean(ctx, locks=True, stacks=False, output=False, skip_destroy=False):
     Clean any environment created with invoke tasks or e2e tests
     By default removes only lock files.
     """
-    if not _is_local_state(_get_pulumi_about(ctx)):
-        print("Cleanup supported for local state only, run `pulumi login --local` to switch to local state")
+    if not _is_local_state(_get_pulumi_about()):
+        print("Cleanup supported for local state only, run `bazel run @pulumi -- login --local` to switch to it")
         return
 
     if locks:
@@ -818,19 +812,19 @@ def clean(ctx, locks=True, stacks=False, output=False, skip_destroy=False):
             print("If you still have issues, try running with -s option to clean up stacks")
 
     if stacks:
-        _clean_stacks(ctx, skip_destroy)
+        _clean_stacks(skip_destroy)
 
     if output:
         _clean_output()
 
 
-def _get_pulumi_backend_url(ctx: Context) -> str | None:
+def _get_pulumi_backend_url() -> str | None:
     """
     Get the Pulumi backend URL using 'pulumi whoami --json'.
     Returns the backend URL or None if it cannot be determined.
     """
     try:
-        whoami = tool.pulumi_json(ctx, "whoami --json", project_dir=False, warn=True)
+        whoami = tool.pulumi_json("whoami", "--json", project_dir=False, warn=True)
     except json.JSONDecodeError:
         return None
     if whoami is None:
@@ -892,7 +886,7 @@ def _list_stacks_from_s3(backend_url: str, project: str = "e2eci") -> list[dict]
         return []
 
 
-def list_stacks(ctx: Context, project: str = "e2eci") -> list[dict]:
+def list_stacks(project: str = "e2eci") -> list[dict]:
     """
     List Pulumi stacks. Uses S3 SDK for S3 backends (much faster),
     falls back to pulumi CLI for other backends.
@@ -904,13 +898,13 @@ def list_stacks(ctx: Context, project: str = "e2eci") -> list[dict]:
     Returns:
         List of stack dictionaries with 'name' key
     """
-    backend_url = _get_pulumi_backend_url(ctx)
+    backend_url = _get_pulumi_backend_url()
 
     if backend_url and backend_url.startswith("s3://"):
         return _list_stacks_from_s3(backend_url, project)
 
     # Fallback to pulumi CLI for non-S3 backends (local, etc.)
-    return tool.pulumi_json(ctx, "stack ls --all --json", project_dir=False, warn=True) or []
+    return tool.pulumi_json("stack", "ls", "--all", "--json", project_dir=False, warn=True) or []
 
 
 @task
@@ -929,7 +923,7 @@ def cleanup_remote_stacks(ctx, stack_regex, pipeline_id=None):
     stack_regex = re.compile(stack_regex)
 
     # Use S3 SDK for listing stacks (much faster than pulumi CLI)
-    stacks = list_stacks(ctx)
+    stacks = list_stacks()
     if not stacks:
         print("No stacks found or failed to list stacks")
         return
@@ -944,7 +938,7 @@ def cleanup_remote_stacks(ctx, stack_regex, pipeline_id=None):
 
     print("About to delete the following stacks:", to_delete_stacks)
 
-    with multiprocessing.Pool(len(to_delete_stacks)) as pool:
+    with multiprocessing.pool.ThreadPool(len(to_delete_stacks)) as pool:
         destroy_func = (
             partial(destroy_remote_stack_api, pipeline_id=pipeline_id)
             if remote_stack_cleaning
@@ -1349,10 +1343,10 @@ def _clean_locks():
             print(f"🗑️  Deleted lock: {path}")
 
 
-def _clean_stacks(ctx: Context, skip_destroy: bool):
+def _clean_stacks(skip_destroy: bool):
     print("🧹 Clean up stack")
 
-    stacks = _get_existing_stacks(ctx)
+    stacks = _get_existing_stacks()
     if not stacks:
         print("No local stacks found")
         return
@@ -1366,7 +1360,7 @@ def _clean_stacks(ctx: Context, skip_destroy: bool):
         for stack in selected_stacks:
             print(f"🔥 Destroying stack {stack}")
             try:
-                _destroy_stack(ctx, stack)
+                _destroy_stack(stack)
             except Exception as e:
                 print(
                     color_message(
@@ -1376,7 +1370,7 @@ def _clean_stacks(ctx: Context, skip_destroy: bool):
 
     for stack in selected_stacks:
         print(f"🗑️ Removing stack {stack}")
-        _remove_stack(ctx, stack)
+        _remove_stack(stack)
 
 
 def _prompt_select_stacks(stacks: list[str]) -> list[str]:
@@ -1405,14 +1399,14 @@ def _prompt_select_stacks(stacks: list[str]) -> list[str]:
         return [stacks[i - 1] for i in selected_indices]
 
 
-def _get_existing_stacks(ctx: Context) -> list[str]:
-    e2e_stacks = tool.pulumi_stack_names(ctx, project="e2elocal", project_dir=False)
+def _get_existing_stacks() -> list[str]:
+    e2e_stacks = tool.pulumi_stack_names(project="e2elocal", project_dir=False)
     for stack_name in e2e_stacks:
         print(f"Adding stack {stack_name}")
     return e2e_stacks
 
 
-def _destroy_stack(ctx: Context, stack: str):
+def _destroy_stack(stack: str):
     # running in temp dir as this is where datadog-agent test
     # stacks are stored. It is expected to fail on stacks existing locally
     # with resources removed by agent-sandbox clean up job
@@ -1421,14 +1415,19 @@ def _destroy_stack(ctx: Context, stack: str):
     tmp_dir = tempfile.gettempdir()
 
     ret = tool.run_pulumi(
-        ctx,
-        f"destroy --stack {stack} --yes --remove --skip-preview",
+        "destroy",
+        "--stack",
+        stack,
+        "--yes",
+        "--remove",
+        "--skip-preview",
         project_dir=tmp_dir,
         env=destroy_env,
-        warn=True,
-        hide=True,
+        capture_output=True,
+        capture_stderr=True,
+        ignore_errors=True,
     )
-    if ret is not None and ret.exited != 0:
+    if ret.returncode != 0:
         if "No valid credential sources found" in ret.stdout:
             raise Exception(
                 f"no valid credentials sources found for stack {stack}, if you set the AWS_PROFILE environment variable ensure it is valid"
@@ -1439,34 +1438,44 @@ def _destroy_stack(ctx: Context, stack: str):
             return
         # run with refresh on first destroy attempt failure
         ret = tool.run_pulumi(
-            ctx,
-            f"destroy --stack {stack} -r --yes --remove --skip-preview",
+            "destroy",
+            "--stack",
+            stack,
+            "-r",
+            "--yes",
+            "--remove",
+            "--skip-preview",
             project_dir=tmp_dir,
             env=destroy_env,
-            warn=True,
-            hide=True,
+            capture_output=True,
+            capture_stderr=True,
+            ignore_errors=True,
         )
-    if ret is not None and ret.exited != 0:
+    if ret.returncode != 0:
         raise Exception(f"{ret.stdout, ret.stderr}")
 
 
-def _remove_stack(ctx: Context, stack: str):
+def _remove_stack(stack: str):
     ret = tool.run_pulumi(
-        ctx,
-        f"stack rm --force --yes --stack {stack}",
+        "stack",
+        "rm",
+        "--force",
+        "--yes",
+        "--stack",
+        stack,
         project_dir=False,
-        warn=True,
-        hide=True,
+        capture_stderr=True,
+        ignore_errors=True,
     )
-    if ret is not None and ret.exited != 0:
+    if ret.returncode != 0:
         if "no stack named" in ret.stderr:
             print(f"Stack {stack} was already removed")
             return
         print(color_message(f"⚠️  Failed to remove stack {stack} locally: {ret.stderr}", Color.ORANGE))
 
 
-def _get_pulumi_about(ctx: Context) -> dict:
-    return tool.pulumi_json(ctx, "about --json", project_dir=False) or {}
+def _get_pulumi_about() -> dict:
+    return tool.pulumi_json("about", "--json", project_dir=False)
 
 
 def _is_local_state(pulumi_about: dict) -> bool:

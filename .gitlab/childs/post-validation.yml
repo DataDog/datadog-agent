@@ -1,5 +1,6 @@
 ---
 include:
+  - local: .gitlab/childs/bazel.yml
   - local: .gitlab/common/checkout.yml
 
 workflow:
@@ -27,6 +28,7 @@ stages:
   - post_validation
 
 new-e2e-cleanup-on-failure:
+  extends: .bazel:defs:cache:progressive
   stage: post_validation
   allow_failure: true
   variables:
@@ -44,7 +46,7 @@ new-e2e-cleanup-on-failure:
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_public_key_rsa > $E2E_PUBLIC_KEY_PATH || exit $?
     - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E ssh_key_rsa > $E2E_PRIVATE_KEY_PATH || exit $?
     - PULUMI_CONFIG_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_QA_E2E pulumi_passphrase) || exit $?; export PULUMI_CONFIG_PASSPHRASE
-    - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+    - bazel run @pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
   script:
     - STACK_REGEX="ci-init-${CLEANUP_TARGET_PIPELINE_ID}-.*"
     - dda inv -- -e new-e2e-tests.cleanup-remote-stacks --stack-regex "$STACK_REGEX" --pipeline-id "$CLEANUP_TARGET_PIPELINE_ID"

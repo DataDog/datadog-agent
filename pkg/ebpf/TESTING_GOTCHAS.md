@@ -63,9 +63,6 @@ test binaries were built, `kmt.test` of one `pkg/ebpf` test took about 90 second
   `launchctl print system/com.apple.bootpd`).
 - **`kmt.gen-config` prompts for confirmation;** pass `--yes` in a non-interactive shell. A run that
   stopped at the prompt has already created the stack, so rerun with `--no-init-stack`.
-- **`no resource plugin 'pulumi-resource-command' found`** from `kmt.launch-stack` means the Pulumi
-  plugins are older than the repo pins; `kmt.selfcheck` passes as long as any are installed. Install
-  the pinned set with `bazel run @pulumi_plugins//:install -- --destdir=$HOME/.pulumi/plugins`.
 - **`HVF does not support GICv2 emulation`** from `kmt.launch-stack`: recent QEMU on Apple Silicon
   needs GICv3, and the arm64 distro template
   (`test/e2e-framework/scenarios/aws/microVMs/microvms/resources/distro/domain-arm64.xsl`) doesn't
