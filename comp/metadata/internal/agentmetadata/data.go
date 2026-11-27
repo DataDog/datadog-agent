@@ -36,29 +36,13 @@ type Data struct {
 	hostname     string
 	data         agentMetadata
 	mu           sync.Mutex
-
-	// fullConfigEnabled decides whether full_configuration is emitted. Set at
-	// construction and never changed afterwards.
-	fullConfigEnabled FullConfigurationEnabledFunc
-}
-
-// FullConfigurationEnabledFunc reports whether the payload includes
-// full_configuration. It is called on every payload build and must be cheap and
-// safe for concurrent use.
-type FullConfigurationEnabledFunc func() bool
-
-// FullConfigurationFromSetting returns the function that follows the
-// inventories_full_configuration_enabled setting.
-func FullConfigurationFromSetting(conf config.Component) FullConfigurationEnabledFunc {
-	return func() bool { return conf.GetBool("inventories_full_configuration_enabled") }
 }
 
 // NewData returns empty metadata for the resolved hostname. Init collects the
-// common fields. fullConfigEnabled decides whether the payload includes
-// full_configuration.
-func NewData(conf config.Component, l log.Component, hostname hostnameinterface.Component, fullConfigEnabled FullConfigurationEnabledFunc) *Data {
+// common fields.
+func NewData(conf config.Component, l log.Component, hostname hostnameinterface.Component) *Data {
 	hname, _ := hostname.Get(context.Background())
-	return &Data{conf: conf, log: l, hostnameComp: hostname, hostname: hname, data: make(agentMetadata), fullConfigEnabled: fullConfigEnabled}
+	return &Data{conf: conf, log: l, hostnameComp: hostname, hostname: hname, data: make(agentMetadata)}
 }
 
 // Init collects the common fields: install info, hostname source, version,
@@ -173,7 +157,7 @@ func (ia *Data) getConfigs(data agentMetadata) {
 				}
 			}
 		}
-		if ia.fullConfigEnabled() {
+		if ia.conf.GetBool("inventories_full_configuration_enabled") {
 			if yaml, err := ia.marshalAndScrub(flareScrubber, ia.conf.AllSettingsWithoutSecrets()); err == nil {
 				data["full_configuration"] = yaml
 			}

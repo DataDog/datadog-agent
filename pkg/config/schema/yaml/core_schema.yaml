@@ -1154,14 +1154,10 @@ properties:
     default: true
     visibility: public
     description: |-
-      When set to false, the `full_configuration` entry (all settings, including defaults) is omitted from the
-      inventory payload sent to Datadog. The `provided_configuration` entry and the per-source configuration layers are
-      unchanged.
+      When set to false, the `full_configuration` entry is omitted from the
+      agent metadata payload sent to Datadog.
 
-      This setting only applies when `inventories_configuration_enabled` is true.
-
-      Datadog may override this setting remotely, unless it is set explicitly (in `datadog.yaml`, through the
-      `DD_INVENTORIES_FULL_CONFIGURATION_ENABLED` environment variable or through Fleet policies).
+      The setting `inventories_configuration_enabled` still takes precedence.
     tags:
     - template_section:Common
     - full-agent-only:true

@@ -96,15 +96,13 @@ type Provides struct {
 // NewComponent creates a new inventoryagent component
 func NewComponent(deps Requires) Provides {
 	ia := &inventoryagent{
+		data:         agentmetadata.NewData(deps.Config, deps.Log, deps.Hostname),
 		conf:         deps.Config,
 		log:          deps.Log,
 		sysprobeConf: deps.SysProbeConfig,
 		secrets:      deps.Secrets,
 		client:       deps.IPCClient,
 	}
-	// The handler only calls ia.Refresh once a flag update arrives, after construction.
-	flag := newFullConfigFlagHandler(deps.Config, ia.Refresh)
-	ia.data = agentmetadata.NewData(deps.Config, deps.Log, deps.Hostname, flag.fullConfigurationEnabled)
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
 
 	if ia.Enabled {
@@ -119,7 +117,7 @@ func NewComponent(deps Requires) Provides {
 		FlareProvider:        ia.FlareProvider(),
 		StatusHeaderProvider: status.NewHeaderInformationProvider(ia),
 		Endpoint:             api.NewAgentEndpointProvider(ia.writePayloadAsJSON, "/metadata/inventory-agent", "GET"),
-		Subscriber:           flag,
+		Subscriber:           newFullConfigFlagHandler(deps.Config, deps.Log),
 	}
 }
 

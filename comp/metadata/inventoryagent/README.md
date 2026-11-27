@@ -27,22 +27,21 @@ Sending Agent configuration can be disabled using `inventories_configuration_ena
 
 ### Dropping `full_configuration`
 
-The `full_configuration` field (all settings, including defaults) can be omitted on its own by setting
+The `full_configuration` field can be omitted on its own by setting
 `inventories_full_configuration_enabled` to `false` (default `true`). `provided_configuration` and the per-source
 layers are unchanged. It only applies when `inventories_configuration_enabled` is true. The setting is shared with the
-serverless inventory payloads, which only use the plain setting.
+serverless inventory payloads.
 
-The core Agent inventory payload also subscribes to the `inventory_drop_full_configuration` remote flag
-(Remote Config product `AGENT_REMOTE_FLAGS`), so Datadog can drop `full_configuration` per organization. A flag value of
-`true` means "drop". Resolution order:
+The core Agent also subscribes to the `inventory_drop_full_configuration` remote flag (Remote Config product
+`AGENT_REMOTE_FLAGS`), so Datadog can drop `full_configuration` per organization. A flag value of `true` means "drop".
+The flag writes `inventories_full_configuration_enabled` under the `remote-config` source, so the configuration (and the
+`remote_configuration` layer of the payload) shows its effect:
 
-1. If `inventories_full_configuration_enabled` was set explicitly (configuration file, `DD_INVENTORIES_FULL_CONFIGURATION_ENABLED`,
-   Fleet policies, ...; that is, its source is anything other than the default), that value is used.
-2. Otherwise, if the remote flag is known, `full_configuration` is dropped when the flag is `true` and kept when `false`.
-3. Otherwise (flag never received, absent from the remote configuration, or after a recovery) the default of the
-   setting applies.
-
-The payload is refreshed when the effective value changes.
+- The flag only applies while the setting comes from its default. A setting from any other source (configuration
+  file, environment variable, Fleet policies, infrastructure mode, `agent config set`, ...) wins over the flag.
+- When the flag is removed from the remote configuration, or after a recovery, the `remote-config` value is unset and the
+  setting goes back to its local value.
+- As for any configuration change, the payload is refreshed, still respecting `inventories_min_interval`.
 
 # Format
 

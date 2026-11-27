@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -27,14 +26,14 @@ import (
 
 func newTestData(t *testing.T) *Data {
 	hostname, _ := hostnamemock.NewMock("data-hostname")
-	d := newSettingData(t, config.NewMock(t), hostname)
+	d := NewData(config.NewMock(t), logmock.New(t), hostname)
 	d.Init()
 	return d
 }
 
 func TestNewDataCollectsNothingBeforeInit(t *testing.T) {
 	hostname, _ := hostnamemock.NewMock("data-hostname")
-	d := newSettingData(t, config.NewMock(t), hostname)
+	d := NewData(config.NewMock(t), logmock.New(t), hostname)
 	assert.Empty(t, d.Get())
 	d.Init()
 	assert.Equal(t, version.AgentVersion, d.Get()["agent_version"])
@@ -72,9 +71,9 @@ func TestGet(t *testing.T) {
 // are safe to call concurrently without external serialization.
 func TestDataConcurrentAccess(t *testing.T) {
 	hostname, _ := hostnamemock.NewMock("data-hostname")
-	d := newSettingData(t, config.NewMockWithOverrides(t, map[string]any{
+	d := NewData(config.NewMockWithOverrides(t, map[string]any{
 		"inventories_configuration_enabled": false,
-	}), hostname)
+	}), logmock.New(t), hostname)
 	d.Init()
 
 	const writers = 4
@@ -167,10 +166,10 @@ func TestDataInitErrorInstallInfo(t *testing.T) {
 func TestDataGetPayloadScrubsKeysStrippedAtRuntime(t *testing.T) {
 	const secret = "stripped-at-runtime-value"
 	hostname, _ := hostnamemock.NewMock("data-hostname")
-	d := newSettingData(t, config.NewMockWithOverrides(t, map[string]any{
+	d := NewData(config.NewMockWithOverrides(t, map[string]any{
 		"inventories_configuration_enabled": true,
 		"cluster_name":                      secret,
-	}), hostname)
+	}), logmock.New(t), hostname)
 	d.GetPayload(nil, "id")
 
 	scrubber.AddStrippedKeys([]string{"cluster_name"})
@@ -181,9 +180,9 @@ func TestDataGetPayloadScrubsKeysStrippedAtRuntime(t *testing.T) {
 
 func TestDataGetConfigs(t *testing.T) {
 	hostname, _ := hostnamemock.NewMock("data-hostname")
-	d := newSettingData(t, config.NewMockWithOverrides(t, map[string]any{
+	d := NewData(config.NewMockWithOverrides(t, map[string]any{
 		"inventories_configuration_enabled": true,
-	}), hostname)
+	}), logmock.New(t), hostname)
 	d.Init()
 
 	data := make(map[string]interface{})
@@ -212,24 +211,9 @@ func TestDataGetConfigs(t *testing.T) {
 }
 
 func TestDataGetConfigsFullConfigurationSetting(t *testing.T) {
-	otherLayers := []string{
-		"provided_configuration",
-		"file_configuration",
-		"environment_variable_configuration",
-		"agent_runtime_configuration",
-		"fleet_policies_configuration",
-		"remote_configuration",
-		"cli_configuration",
-		"source_local_configuration",
-	}
-	// build follows the setting; buildWith always returns enabled.
 	build := func(t *testing.T, overrides map[string]any) *Data {
 		hostname, _ := hostnamemock.NewMock("data-hostname")
-		return newSettingData(t, config.NewMockWithOverrides(t, overrides), hostname)
-	}
-	buildWith := func(t *testing.T, overrides map[string]any, enabled bool) *Data {
-		hostname, _ := hostnamemock.NewMock("data-hostname")
-		return NewData(config.NewMockWithOverrides(t, overrides), logmock.New(t), hostname, func() bool { return enabled })
+		return NewData(config.NewMockWithOverrides(t, overrides), logmock.New(t), hostname)
 	}
 
 	t.Run("setting on by default", func(t *testing.T) {
@@ -247,36 +231,27 @@ func TestDataGetConfigsFullConfigurationSetting(t *testing.T) {
 		data := make(map[string]interface{})
 		d.getConfigs(data)
 		assert.NotContains(t, data, "full_configuration")
-		for _, k := range otherLayers {
+		for _, k := range []string{
+			"provided_configuration",
+			"file_configuration",
+			"environment_variable_configuration",
+			"agent_runtime_configuration",
+			"fleet_policies_configuration",
+			"remote_configuration",
+			"cli_configuration",
+			"source_local_configuration",
+		} {
 			assert.Contains(t, data, k)
 		}
 	})
 
-	t.Run("function overrides setting", func(t *testing.T) {
-		d := buildWith(t, map[string]any{"inventories_configuration_enabled": true}, false)
-		data := make(map[string]interface{})
-		d.getConfigs(data)
-		assert.NotContains(t, data, "full_configuration")
-		assert.Contains(t, data, "provided_configuration")
-
-		d = buildWith(t, map[string]any{
-			"inventories_configuration_enabled":      true,
-			"inventories_full_configuration_enabled": false,
-		}, true)
-		data = make(map[string]interface{})
-		d.getConfigs(data)
-		assert.Contains(t, data, "full_configuration")
-	})
-
 	t.Run("configuration disabled", func(t *testing.T) {
-		d := buildWith(t, map[string]any{"inventories_configuration_enabled": false}, true)
+		d := build(t, map[string]any{
+			"inventories_configuration_enabled":      false,
+			"inventories_full_configuration_enabled": true,
+		})
 		data := make(map[string]interface{})
 		d.getConfigs(data)
 		assert.Empty(t, data)
 	})
-}
-
-// newSettingData builds a Data whose full_configuration follows the setting, like the serverless payloads.
-func newSettingData(t *testing.T, conf config.Component, hostname hostnameinterface.Component) *Data {
-	return NewData(conf, logmock.New(t), hostname, FullConfigurationFromSetting(conf))
 }

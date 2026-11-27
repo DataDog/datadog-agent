@@ -6,121 +6,83 @@
 package inventoryagentimpl
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/agentmetadata"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgremoteflags "github.com/DataDog/datadog-agent/pkg/remoteflags"
 )
 
-type fakeSettings struct {
-	value  bool
-	source model.Source
+func newTestFlagHandler(t *testing.T) (*fullConfigFlagHandler, config.Component) {
+	conf := config.NewMock(t)
+	return newFullConfigFlagHandler(conf, logmock.New(t)), conf
 }
 
-func (f *fakeSettings) GetBool(string) bool           { return f.value }
-func (f *fakeSettings) GetSource(string) model.Source { return f.source }
-
 func TestFullConfigFlagName(t *testing.T) {
-	h := newFullConfigFlagHandler(&fakeSettings{}, nil)
+	h, _ := newTestFlagHandler(t)
 	assert.Equal(t, pkgremoteflags.FlagName("inventory_drop_full_configuration"), h.FlagName())
 	assert.Equal(t, []pkgremoteflags.FlagHandler{h}, h.Handlers())
 	assert.True(t, h.IsHealthy())
 }
 
-func TestFullConfigurationEnabledMatrix(t *testing.T) {
-	type userCase struct {
-		name   string
-		value  bool
-		source model.Source
-	}
-	users := []userCase{
-		{"unset-default", true, model.SourceDefault},
-		{"unset-schema", true, model.SourceSchema},
-		{"unset-unknown", true, model.SourceUnknown},
-		{"file-true", true, model.SourceFile},
-		{"file-false", false, model.SourceFile},
-		{"env-false", false, model.SourceEnvVar},
-		{"fleet-false", false, model.SourceFleetPolicies},
-	}
-	flags := []struct {
-		name  string
-		apply func(h *fullConfigFlagHandler)
-	}{
-		{"unknown", func(*fullConfigFlagHandler) {}},
-		{"drop", func(h *fullConfigFlagHandler) { require.NoError(t, h.OnChange(true)) }},
-		{"keep", func(h *fullConfigFlagHandler) { require.NoError(t, h.OnChange(false)) }},
-	}
+func TestFullConfigFlagSetsSetting(t *testing.T) {
+	h, conf := newTestFlagHandler(t)
+	require.Equal(t, model.SourceDefault, conf.GetSource(fullConfigurationSetting))
 
-	for _, u := range users {
-		for _, f := range flags {
-			t.Run(fmt.Sprintf("%s/%s", u.name, f.name), func(t *testing.T) {
-				h := newFullConfigFlagHandler(&fakeSettings{value: u.value, source: u.source}, nil)
-				f.apply(h)
-
-				var want bool
-				switch {
-				case u.source != model.SourceDefault && u.source != model.SourceSchema && u.source != model.SourceUnknown:
-					want = u.value // user wins
-				case f.name == "drop":
-					want = false
-				case f.name == "keep":
-					want = true
-				default:
-					want = u.value
-				}
-				assert.Equal(t, want, h.fullConfigurationEnabled())
-			})
-		}
-	}
-}
-
-func TestFullConfigFlagRefreshOnChange(t *testing.T) {
-	refreshes := 0
-	h := newFullConfigFlagHandler(&fakeSettings{value: true, source: model.SourceDefault}, func() { refreshes++ })
-
-	require.NoError(t, h.OnChange(true)) // true -> false
-	assert.Equal(t, 1, refreshes)
-	require.NoError(t, h.OnChange(true)) // unchanged
-	assert.Equal(t, 1, refreshes)
-	require.NoError(t, h.OnChange(false)) // false -> true
-	assert.Equal(t, 2, refreshes)
-	require.NoError(t, h.OnChange(false)) // unchanged
-	assert.Equal(t, 2, refreshes)
-}
-
-func TestFullConfigFlagNoRefreshWhenUserSet(t *testing.T) {
-	refreshes := 0
-	h := newFullConfigFlagHandler(&fakeSettings{value: true, source: model.SourceFile}, func() { refreshes++ })
 	require.NoError(t, h.OnChange(true))
-	h.OnNoConfig()
-	assert.Zero(t, refreshes)
-	assert.True(t, h.fullConfigurationEnabled())
+	assert.False(t, conf.GetBool(fullConfigurationSetting))
+	assert.Equal(t, model.SourceRC, conf.GetSource(fullConfigurationSetting))
+
+	require.NoError(t, h.OnChange(false))
+	assert.True(t, conf.GetBool(fullConfigurationSetting))
+	assert.Equal(t, model.SourceRC, conf.GetSource(fullConfigurationSetting))
 }
 
-func TestFullConfigFlagResets(t *testing.T) {
+func TestFullConfigFlagResetsSetting(t *testing.T) {
 	resets := map[string]func(h *fullConfigFlagHandler){
 		"OnNoConfig":  func(h *fullConfigFlagHandler) { h.OnNoConfig() },
 		"SafeRecover": func(h *fullConfigFlagHandler) { h.SafeRecover(assert.AnError, true) },
 	}
 	for name, reset := range resets {
 		t.Run(name, func(t *testing.T) {
-			refreshes := 0
-			h := newFullConfigFlagHandler(&fakeSettings{value: true, source: model.SourceDefault}, func() { refreshes++ })
+			h, conf := newTestFlagHandler(t)
 			require.NoError(t, h.OnChange(true))
-			require.False(t, h.fullConfigurationEnabled())
-			assert.Equal(t, 1, refreshes)
+			require.False(t, conf.GetBool(fullConfigurationSetting))
 
 			reset(h)
-			assert.True(t, h.fullConfigurationEnabled())
-			assert.Equal(t, 2, refreshes)
+			assert.True(t, conf.GetBool(fullConfigurationSetting))
+			assert.Equal(t, model.SourceDefault, conf.GetSource(fullConfigurationSetting))
 
-			reset(h) // already unknown: no refresh
-			assert.Equal(t, 2, refreshes)
+			reset(h) // nothing left to unset
+			assert.Equal(t, model.SourceDefault, conf.GetSource(fullConfigurationSetting))
+		})
+	}
+}
+
+func TestFullConfigFlagKeepsExplicitSetting(t *testing.T) {
+	for _, source := range []model.Source{
+		model.SourceInfraMode,
+		model.SourceFile,
+		model.SourceFleetPolicies,
+		model.SourceAgentRuntime,
+		model.SourceCLI,
+	} {
+		t.Run(string(source), func(t *testing.T) {
+			h, conf := newTestFlagHandler(t)
+			conf.Set(fullConfigurationSetting, true, source)
+
+			require.NoError(t, h.OnChange(true))
+			assert.True(t, conf.GetBool(fullConfigurationSetting))
+			assert.Equal(t, source, conf.GetSource(fullConfigurationSetting))
+
+			h.OnNoConfig()
+			assert.True(t, conf.GetBool(fullConfigurationSetting))
+			assert.Equal(t, source, conf.GetSource(fullConfigurationSetting))
 		})
 	}
 }
@@ -143,6 +105,7 @@ func TestComponentWiresFullConfigurationFlag(t *testing.T) {
 	md := getMetadata(t, ia)
 	assert.NotContains(t, md, "full_configuration")
 	assert.Contains(t, md, "provided_configuration")
-	require.NoError(t, h.OnChange(false))
+	assert.Contains(t, md["remote_configuration"], fullConfigurationSetting)
+	h.OnNoConfig()
 	assert.Contains(t, getMetadata(t, ia), "full_configuration")
 }
