@@ -10,8 +10,7 @@
   rules: !reference [.on_deploy]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
-  # The schema tasks only read the YAML schema from the repository: no artifact
-  # from any other job is needed.
+  # Jobs that only read the YAML schema can start without waiting for other jobs.
   needs: []
 
 generate_config_templates:
@@ -29,6 +28,8 @@ generate_config_templates:
 
 generate_config_json_schema:
   extends: .config_schema_artifacts
+  # agent.version reads the cache uploaded by setup_agent_version.
+  needs: ["setup_agent_version"]
   variables:
     JSON_SCHEMA_OUTPUT_DIR: $CI_PROJECT_DIR/json-schema
   # The artifact mirrors the datadog-agent/ folder of the DataDog/schema repository, where the
