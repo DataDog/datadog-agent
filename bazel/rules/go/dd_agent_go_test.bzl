@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_test")
+load("@with_cfg.bzl", "with_cfg")
 load(
     "//tasks:build_tags.bzl",
     "AIX_EXCLUDED_TAGS",
@@ -70,6 +71,8 @@ def _test_tag_set_check_name(name, gotags = None):
              "_TAG_SET_SUFFIX_ALIASES in //bazel/rules/go:dd_agent_go_test.bzl.") % (name, length, _WINDOWS_MAX_PATH),
         )
 
+_e2e_go_test, _ = with_cfg(go_test).set(Label("@rules_go//go/toolchain:sdk_name"), "go_civisibility_sdk").build()
+
 def dd_agent_go_test(
         name,
         gotags_sets = None,
@@ -97,13 +100,16 @@ def dd_agent_go_test(
     importpath = "github.com/DataDog/datadog-agent/" + native.package_name()
     if kwargs.get("importpath") not in (None, importpath):
         fail('{}: expected `importpath = "{}"`, got `importpath = "{}"`'.format(name, importpath, kwargs["importpath"]))
+    test = go_test
     if native.package_name().startswith("test/new-e2e/tests/"):
         kwargs["importpath"] = importpath  # for CI Visibility's module-identity parity
+        if "manual" in user_tags:
+            test = _e2e_go_test
     visibility = ["//test/new-e2e/tests:__subpackages__"]  # for e2e suites running test binaries remotely
 
     if include_default:
         _test_tag_set_check_name(name)
-        go_test(
+        test(
             name = name,
             gotags = _test_tag_set_tags(),
             tags = user_tags + ["dd_agent_go_test"],
@@ -115,7 +121,7 @@ def dd_agent_go_test(
     for gotags in gotags_sets or []:
         suffix = _test_tag_set_suffix(gotags)
         _test_tag_set_check_name(name + "_" + suffix, gotags)
-        go_test(
+        test(
             name = name + "_" + suffix,
             gotags = _test_tag_set_tags(gotags),
             tags = user_tags + ["dd_agent_go_test", "tagset_" + suffix],
