@@ -26,7 +26,7 @@ type settingWriter interface {
 }
 
 // fullConfigFlagHandler applies the remote flag dropping full_configuration to the
-// inventories_full_configuration_enabled setting, under the Remote Config source, so that the
+// inventories_full_configuration_enabled setting, under the agent-runtime source, so that the
 // configuration reflects what the Agent sends.
 type fullConfigFlagHandler struct {
 	conf settingWriter
@@ -51,8 +51,8 @@ func (h *fullConfigFlagHandler) FlagName() pkgremoteflags.FlagName {
 // default, or this handler's previous value, wins over the flag.
 func (h *fullConfigFlagHandler) OnChange(drop pkgremoteflags.FlagValue) error {
 	switch source := h.conf.GetSource(fullConfigurationSetting); source {
-	case model.SourceDefault, model.SourceRC:
-		h.conf.Set(fullConfigurationSetting, !bool(drop), model.SourceRC)
+	case model.SourceDefault, model.SourceAgentRuntime:
+		h.conf.Set(fullConfigurationSetting, !bool(drop), model.SourceAgentRuntime)
 	default:
 		h.log.Infof("Remote flag %s: not applied, %s is set by %s", flagDropFullConfiguration, fullConfigurationSetting, source)
 	}
@@ -69,5 +69,5 @@ func (h *fullConfigFlagHandler) SafeRecover(_ error, _ pkgremoteflags.FlagValue)
 func (h *fullConfigFlagHandler) IsHealthy() bool { return true }
 
 func (h *fullConfigFlagHandler) unset() {
-	h.conf.UnsetForSource(fullConfigurationSetting, model.SourceRC)
+	h.conf.UnsetForSource(fullConfigurationSetting, model.SourceAgentRuntime)
 }

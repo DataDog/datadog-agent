@@ -34,12 +34,12 @@ serverless inventory payloads.
 
 The core Agent also subscribes to the `inventory_drop_full_configuration` remote flag (Remote Config product
 `AGENT_REMOTE_FLAGS`), so Datadog can drop `full_configuration` per organization. A flag value of `true` means "drop".
-The flag writes `inventories_full_configuration_enabled` under the `remote-config` source, so the configuration (and the
-`remote_configuration` layer of the payload) shows its effect:
+The flag writes `inventories_full_configuration_enabled` under the `agent-runtime` source, so the configuration (and the
+`agent_runtime_configuration` layer of the payload) shows its effect:
 
 - The flag only applies while the setting comes from its default. A setting from any other source (configuration
   file, environment variable, Fleet policies, infrastructure mode, ...) wins over the flag.
-- When the flag is removed from the remote configuration, or after a recovery, the `remote-config` value is unset and the
+- When the flag is removed from the remote configuration, or after a recovery, the `agent-runtime` value is unset and the
   setting goes back to its local value.
 - As for any configuration change, the payload is refreshed, still respecting `inventories_min_interval`.
 

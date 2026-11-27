@@ -36,11 +36,11 @@ func TestFullConfigFlagSetsSetting(t *testing.T) {
 
 	require.NoError(t, h.OnChange(true))
 	assert.False(t, conf.GetBool(fullConfigurationSetting))
-	assert.Equal(t, model.SourceRC, conf.GetSource(fullConfigurationSetting))
+	assert.Equal(t, model.SourceAgentRuntime, conf.GetSource(fullConfigurationSetting))
 
 	require.NoError(t, h.OnChange(false))
 	assert.True(t, conf.GetBool(fullConfigurationSetting))
-	assert.Equal(t, model.SourceRC, conf.GetSource(fullConfigurationSetting))
+	assert.Equal(t, model.SourceAgentRuntime, conf.GetSource(fullConfigurationSetting))
 }
 
 func TestFullConfigFlagResetsSetting(t *testing.T) {
@@ -69,7 +69,7 @@ func TestFullConfigFlagKeepsExplicitSetting(t *testing.T) {
 		model.SourceInfraMode,
 		model.SourceFile,
 		model.SourceFleetPolicies,
-		model.SourceAgentRuntime,
+		model.SourceRC,
 		model.SourceCLI,
 	} {
 		t.Run(string(source), func(t *testing.T) {
@@ -105,7 +105,7 @@ func TestComponentWiresFullConfigurationFlag(t *testing.T) {
 	md := getMetadata(t, ia)
 	assert.NotContains(t, md, "full_configuration")
 	assert.Contains(t, md, "provided_configuration")
-	assert.Contains(t, md["remote_configuration"], fullConfigurationSetting)
+	assert.Contains(t, md["agent_runtime_configuration"], fullConfigurationSetting)
 	h.OnNoConfig()
 	assert.Contains(t, getMetadata(t, ia), "full_configuration")
 }
