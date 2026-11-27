@@ -1,4 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//test/new-e2e:tests/civisibility_test_binary.bzl", "civisibility_test_binary")
+load("//test/new-e2e:tests/test_binaries.bzl", "TEST_BINARIES")
 
 go_library(
     name = "new-e2e",
@@ -6,3 +8,13 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e",
     visibility = ["//visibility:public"],
 )
+
+[
+    civisibility_test_binary(
+        name = binary_name,
+        testonly = True,
+        tags = ["manual"],
+        test = test,
+    )
+    for test, binary_name in TEST_BINARIES.items()
+]

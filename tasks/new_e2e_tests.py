@@ -189,8 +189,6 @@ def _build_binaries_with_bazel(ctx: Context, targets: list[str]) -> bool:
     # Normalize targets: ./tests/agent-devx -> tests/agent-devx
     target_prefixes = [target.lstrip("./") for target in targets]
 
-    bazel_args = ["--@rules_go//go/toolchain:sdk_name=go_civisibility_sdk"]
-
     output_path = Path("test-binaries").absolute()
     manifest_binaries = []
     build_start = time.monotonic()
@@ -201,8 +199,7 @@ def _build_binaries_with_bazel(ctx: Context, targets: list[str]) -> bool:
         binary_path = output_path / binary_name
         binary_start = time.monotonic()
         build_binary_with_bazel(
-            label,
-            args=bazel_args,
+            f"//test/new-e2e:{binary_name}",
             bin_path=str(binary_path),
         )
         print(f"  Built {binary_name} with Bazel in {time.monotonic() - binary_start:.1f}s")
