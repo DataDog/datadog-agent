@@ -1019,7 +1019,7 @@ def build_target_packages(filter_packages: list[str], build_tags: list[str]):
 
 def build_object_files(ctx, arch: Arch):
     info("[+] Building eBPF object files via Bazel...")
-    bazel_build_ebpf(ctx, arch, verify=True)
+    bazel_build_ebpf(ctx, arch, verify=True, tests=True)
 
 
 def compute_package_dependencies(ctx: Context, packages: list[str], build_tags: list[str]) -> dict[str, set[str]]:

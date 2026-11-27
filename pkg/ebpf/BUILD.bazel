@@ -86,7 +86,11 @@ test_suite(
     ],
 )
 
-# Shipped eBPF assets (stripped objects).
+# prebuilt_objects, co_re_objects and runtime_sources are shipped in the agent
+# package (//packages/agent/product) and staged by install_object_files. The
+# other groups are only staged on request, by install_test_object_files
+# (`dda inv system-probe.object-files --tests`) and install_debug_object_files
+# (`--debug`).
 filegroup(
     name = "prebuilt_objects",
     srcs = [
@@ -104,6 +108,7 @@ filegroup(
     visibility = ["//visibility:public"],
 )
 
+# Test-only, not shipped.
 filegroup(
     name = "prebuilt_test_objects",
     srcs = [
@@ -112,26 +117,19 @@ filegroup(
     visibility = ["//visibility:public"],
 )
 
+# Shipped.
 filegroup(
     name = "co_re_objects",
     srcs = [
-        "//cmd/system-probe/subcommands/ebpf/testdata:btf_test.stripped",
         "//pkg/collector/corechecks/ebpf/c/runtime:ebpf.stripped",
         "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor.stripped",
         "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill.stripped",
         "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length.stripped",
         "//pkg/dyninst/ebpf:dyninst_event.stripped",
-        "//pkg/dyninst/ebpf:dyninst_event-debug.stripped",
         "//pkg/ebpf/c:ksyms_iter.stripped",
         "//pkg/ebpf/c:lock_contention.stripped",
-        "//pkg/ebpf/testdata/c:error_telemetry.stripped",
-        "//pkg/ebpf/testdata/c:logdebug-test.stripped",
-        "//pkg/ebpf/testdata/c:preempt_test.stripped",
-        "//pkg/ebpf/testdata/c:sleepable.stripped",
-        "//pkg/ebpf/testdata/c:uprobe_attacher-test.stripped",
         "//pkg/gpu/probe/ebpf/c/runtime:gpu.stripped",
         "//pkg/network/ebpf/c:tracer.stripped",
-        "//pkg/network/ebpf/c/co-re:skb-parse-test.stripped",
         "//pkg/network/ebpf/c/co-re:tracer-fentry.stripped",
         "//pkg/network/ebpf/c/runtime:conntrack.stripped",
         "//pkg/network/ebpf/c/runtime:shared-libraries.stripped",
@@ -141,8 +139,29 @@ filegroup(
     visibility = ["//visibility:public"],
 )
 
+# Test-only, not shipped.
+filegroup(
+    name = "co_re_test_objects",
+    srcs = [
+        "//cmd/system-probe/subcommands/ebpf/testdata:btf_test.stripped",
+        "//pkg/ebpf/testdata/c:error_telemetry.stripped",
+        "//pkg/ebpf/testdata/c:logdebug-test.stripped",
+        "//pkg/ebpf/testdata/c:preempt_test.stripped",
+        "//pkg/ebpf/testdata/c:sleepable.stripped",
+        "//pkg/ebpf/testdata/c:uprobe_attacher-test.stripped",
+        "//pkg/network/ebpf/c/co-re:skb-parse-test.stripped",
+    ],
+)
+
+# Loaded when dyninst debug is enabled, which the dyninst tests exercise. Staged
+# with the test objects. Not shipped.
+filegroup(
+    name = "dyninst_debug_objects",
+    srcs = ["//pkg/dyninst/ebpf:dyninst_event-debug.stripped"],
+)
+
 # DEBUG=1 variants of the ebpf_program_suite programs, staged only by
-# `dda inv system-probe.object-files --debug`.
+# `dda inv system-probe.object-files --debug`. Not shipped.
 filegroup(
     name = "prebuilt_debug_objects",
     srcs = [
@@ -173,21 +192,29 @@ filegroup(
     ],
 )
 
+# Shipped.
 filegroup(
     name = "runtime_sources",
     srcs = [
         "//pkg/ebpf/bytecode:conntrack_flat",
         "//pkg/ebpf/bytecode:gpu_flat",
-        "//pkg/ebpf/bytecode:offsetguess-test_flat",
         "//pkg/ebpf/bytecode:oom-kill_flat",
         "//pkg/ebpf/bytecode:runtime-security_flat",
         "//pkg/ebpf/bytecode:shared-libraries_flat",
-        "//pkg/ebpf/bytecode:skb-parse-test_flat",
         "//pkg/ebpf/bytecode:tcp-queue-length_flat",
         "//pkg/ebpf/bytecode:tracer_flat",
         "//pkg/ebpf/bytecode:usm_flat",
     ],
     visibility = ["//visibility:public"],
+)
+
+# Test-only, not shipped.
+filegroup(
+    name = "runtime_test_sources",
+    srcs = [
+        "//pkg/ebpf/bytecode:offsetguess-test_flat",
+        "//pkg/ebpf/bytecode:skb-parse-test_flat",
+    ],
 )
 
 # Convenience: build every eBPF program (.o) and runtime bundle (.c) at once.
@@ -197,9 +224,12 @@ filegroup(
     srcs = select({
         "@platforms//os:linux": [
             ":co_re_objects",
+            ":co_re_test_objects",
+            ":dyninst_debug_objects",
             ":prebuilt_objects",
             ":prebuilt_test_objects",
             ":runtime_sources",
+            ":runtime_test_sources",
             "//pkg/ebpf/kernelbugs:uprobe-trigger",
         ],
         "//conditions:default": [],
@@ -242,10 +272,7 @@ selects.config_setting_group(
 # The arch directories must match get_ebpf_build_dir() in tasks/system_probe.py.
 pkg_files(
     name = "install_prebuilt_objects",
-    srcs = [
-        ":prebuilt_objects",
-        ":prebuilt_test_objects",
-    ],
+    srcs = [":prebuilt_objects"],
     attributes = pkg_attributes(mode = "644"),
     prefix = select({
         ":ebpf_aarch64": "pkg/ebpf/bytecode/build/arm64",
@@ -321,10 +348,7 @@ pkg_install(
 # CWS unit tests load Baloum builds under the shipped object names.
 pkg_files(
     name = "install_prebuilt_objects_without_cws",
-    srcs = [
-        ":prebuilt_objects",
-        ":prebuilt_test_objects",
-    ],
+    srcs = [":prebuilt_objects"],
     attributes = pkg_attributes(mode = "644"),
     excludes = [
         "//pkg/security/ebpf/c/prebuilt:runtime-security-fentry.stripped",
@@ -395,6 +419,46 @@ pkg_install(
     srcs = [
         ":install_co_re_debug_objects",
         ":install_prebuilt_debug_objects",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+pkg_files(
+    name = "install_prebuilt_test_objects",
+    srcs = [":prebuilt_test_objects"],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = select({
+        ":ebpf_aarch64": "pkg/ebpf/bytecode/build/arm64",
+        "//conditions:default": "pkg/ebpf/bytecode/build/x86_64",
+    }),
+)
+
+pkg_files(
+    name = "install_co_re_test_objects",
+    srcs = [
+        ":co_re_test_objects",
+        ":dyninst_debug_objects",
+    ],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = select({
+        ":ebpf_aarch64": "pkg/ebpf/bytecode/build/arm64/co-re",
+        "//conditions:default": "pkg/ebpf/bytecode/build/x86_64/co-re",
+    }),
+)
+
+pkg_files(
+    name = "install_runtime_test_sources",
+    srcs = [":runtime_test_sources"],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = "pkg/ebpf/bytecode/build/runtime",
+)
+
+pkg_install(
+    name = "install_test_object_files",
+    srcs = [
+        ":install_co_re_test_objects",
+        ":install_prebuilt_test_objects",
+        ":install_runtime_test_sources",
     ],
     target_compatible_with = ["@platforms//os:linux"],
 )
