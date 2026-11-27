@@ -204,6 +204,7 @@ func (p *Processor) processContainer(sender sender.Sender, tags []string, contai
 		p.sendMetric(sender.Gauge, "container.memory.commit.peak", containerStats.Memory.CommitPeakBytes, tags)
 		p.sendMetric(sender.Gauge, "container.memory.usage.peak", containerStats.Memory.Peak, tags)
 		p.sendMetric(sender.Rate, "container.memory.partial_stall", containerStats.Memory.PartialStallTime, tags)
+		p.sendMetric(sender.Rate, "container.memory.full_stall", containerStats.Memory.FullStallTime, tags)
 		p.sendMetric(sender.MonotonicCount, "container.memory.page_faults", containerStats.Memory.Pgfault, tags)
 		p.sendMetric(sender.MonotonicCount, "container.memory.major_page_faults", containerStats.Memory.Pgmajfault, tags)
 
@@ -241,6 +242,7 @@ func (p *Processor) processContainer(sender sender.Sender, tags []string, contai
 		}
 
 		p.sendMetric(sender.Rate, "container.io.partial_stall", containerStats.IO.PartialStallTime, tags)
+		p.sendMetric(sender.Rate, "container.io.full_stall", containerStats.IO.FullStallTime, tags)
 	}
 
 	if containerStats.PID != nil {

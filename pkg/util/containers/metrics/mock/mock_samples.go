@@ -54,6 +54,7 @@ func GetFullSampleContainerEntry() ContainerEntry {
 				Swap:             pointer.Ptr(0.0),
 				OOMEvents:        pointer.Ptr(10.0),
 				PartialStallTime: pointer.Ptr(97000.0),
+				FullStallTime:    pointer.Ptr(99000.0),
 				Peak:             pointer.Ptr(50000.0),
 
 				Pgfault:    pointer.Ptr(97001.0),
@@ -94,6 +95,7 @@ func GetFullSampleContainerEntry() ContainerEntry {
 				ReadOperations:   pointer.Ptr(20.0),
 				WriteOperations:  pointer.Ptr(40.0),
 				PartialStallTime: pointer.Ptr(98000.0),
+				FullStallTime:    pointer.Ptr(100000.0),
 			},
 			PID: &metrics.ContainerPIDStats{
 				ThreadCount: pointer.Ptr(10.0),
