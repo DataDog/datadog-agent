@@ -149,8 +149,8 @@ func (stats *Stats) HeapSize() int64 {
 	return stats.SizeBytes
 }
 
-// SendStats sends metrics to Datadog
-func (stats *Stats) SendStats(client statsd.ClientInterface, treeType string) error {
+// SendStats sends metrics to Datadog. extraTags are added to the per-profile v2 metrics.
+func (stats *Stats) SendStats(client statsd.ClientInterface, treeType string, extraTags ...string) error {
 	treeTypeTag := "tree_type:" + treeType
 
 	tags := []string{treeTypeTag, "", ""}
@@ -183,7 +183,7 @@ func (stats *Stats) SendStats(client statsd.ClientInterface, treeType string) er
 		}
 	}
 
-	treeTag := []string{treeTypeTag}
+	treeTag := append([]string{treeTypeTag}, extraTags...)
 	if value := stats.FileNodesMerged; value > 0 {
 		stats.FileNodesMerged = 0
 		if err := client.Count(metrics.MetricSecurityProfileV2PathPatternsFileNodesMerged, value, treeTag, 1.0); err != nil {

@@ -233,7 +233,7 @@ func (f *FileFields) IsFileless() bool {
 
 // HasHardLinks returns whether the file has hardlink
 func (f *FileFields) HasHardLinks() bool {
-	return f.NLink > 1
+	return !f.IsDir() && f.NLink > 1
 }
 
 // IsInLowerLayer returns whether a file is in a lower layer

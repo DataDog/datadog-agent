@@ -20,10 +20,11 @@ import (
 )
 
 func generateBundle(sdkRoot, target, source string, cfg targetConfig) (map[string][]byte, error) {
+	if cfg.APIGroup != "" {
+		target = cfg.APIGroup
+	}
 	clientDir := filepath.Join(sdkRoot, "k8s.io/client-go/kubernetes/typed", target, cfg.Version)
-	clients, err := parser.ParseDir(token.NewFileSet(), clientDir, func(info os.FileInfo) bool {
-		return !strings.HasSuffix(info.Name(), "_test.go")
-	}, 0)
+	clients, err := os.ReadDir(clientDir)
 	if err != nil {
 		return nil, err
 	}
@@ -33,18 +34,23 @@ func generateBundle(sdkRoot, target, source string, cfg targetConfig) (map[strin
 		return nil, err
 	}
 	interfaces := map[string]*ast.InterfaceType{}
-	for _, pkg := range clients {
-		for _, file := range pkg.Files {
-			ast.Inspect(file, func(node ast.Node) bool {
-				if decl, ok := node.(*ast.TypeSpec); ok {
-					if iface, ok := decl.Type.(*ast.InterfaceType); ok {
-						interfaces[decl.Name.Name] = iface
-					}
-					return false
-				}
-				return true
-			})
+	for _, entry := range clients {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
 		}
+		file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(clientDir, entry.Name()), nil, 0)
+		if err != nil {
+			return nil, err
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			if decl, ok := node.(*ast.TypeSpec); ok {
+				if iface, ok := decl.Type.(*ast.InterfaceType); ok {
+					interfaces[decl.Name.Name] = iface
+				}
+				return false
+			}
+			return true
+		})
 	}
 	var actions []action
 	for _, name := range cfg.Resources {
@@ -97,7 +103,7 @@ func generateBundle(sdkRoot, target, source string, cfg targetConfig) (map[strin
 		if slices.Contains(manual, a.Name) {
 			return nil, fmt.Errorf("action %s is both handwritten and generated", a.Name)
 		}
-		filename := snake(a.Name) + ".gen.go"
+		filename := actionFilename(a.Name)
 		content, err := render("actions", a)
 		if err != nil {
 			return nil, fmt.Errorf("render %s: %w", a.Name, err)
@@ -147,7 +153,7 @@ func methodAction(method, target string, cfg targetConfig, res resource) (action
 			}
 		}
 	}
-	namespaceRequired := res.Namespaced && method != "List"
+	namespaceRequired := res.Namespaced && (method != "List" || cfg.ListNamespaceRequired)
 	if namespaceRequired || slices.Contains([]string{"Create", "Update", "Get", "Delete", "Patch"}, method) {
 		imports[`"errors"`] = true
 	}

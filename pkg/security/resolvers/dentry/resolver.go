@@ -382,6 +382,8 @@ func computeFilenameFromParts(parts [][]byte) string {
 	return builder.String()
 }
 
+const pathIDLowMask uint32 = 0xFFFF
+
 // ResolveFromMap resolves the path of the provided inode / mount id / path id
 func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool, caller Caller) (string, error) {
 	var resolutionErr error
@@ -415,7 +417,7 @@ func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool, caller Cal
 		if err != nil {
 			if (cache || caller == CallerFileHardLink) && depth > 0 {
 				canonicalKey := pathKey
-				canonicalKey.PathID &^= 0xFFFF
+				canonicalKey.PathID &^= pathIDLowMask
 				if cachedEntry, cacheErr := dr.lookupInodeFromCache(canonicalKey); cacheErr == nil {
 					depth++
 					cacheDepth++
@@ -466,7 +468,7 @@ func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool, caller Cal
 		if !model.IsFakeInode(pathKey.Inode) && cache {
 			cacheKey := pathKey
 			if depth > 1 {
-				cacheKey.PathID &^= 0xFFFF
+				cacheKey.PathID &^= pathIDLowMask
 			}
 			dr.keys = append(dr.keys, cacheKey)
 			dr.cacheNameEntries = append(dr.cacheNameEntries, name)
@@ -628,6 +630,9 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool, caller Ca
 		// parse the path_key_t structure
 		pathKey.Inode = binary.NativeEndian.Uint64(dr.erpcSegment[i : i+8])
 		pathKey.MountID = binary.NativeEndian.Uint32(dr.erpcSegment[i+8 : i+12])
+		if depth > 1 {
+			pathKey.PathID &^= pathIDLowMask
+		}
 		lastKey = pathKey
 
 		// skip PathID
@@ -651,11 +656,7 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool, caller Ca
 		i += len(segment) + 1
 
 		if !model.IsFakeInode(pathKey.Inode) && cache {
-			cacheKey := pathKey
-			if depth > 1 {
-				cacheKey.PathID &^= 0xFFFF
-			}
-			dr.keys = append(dr.keys, cacheKey)
+			dr.keys = append(dr.keys, pathKey)
 			dr.cacheNameEntries = append(dr.cacheNameEntries, segment)
 		}
 	}

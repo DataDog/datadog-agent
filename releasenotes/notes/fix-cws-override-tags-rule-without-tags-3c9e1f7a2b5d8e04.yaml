@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    CWS: Loading a rule that uses ``combine: override`` with the ``tags``
+    override field no longer panics when the rule it overrides has no
+    ``tags``; the override's tags are now applied to that rule.

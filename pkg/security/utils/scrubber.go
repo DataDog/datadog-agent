@@ -31,6 +31,8 @@ func scrubKeyValues(s string) string {
 type Scrubber struct {
 	procScrubber  *procutil.DataScrubber
 	regexScrubber *scrubber.Scrubber
+	// envsWithValue are the environment variables whose values are serialized
+	envsWithValue map[string]bool
 }
 
 // NewScrubber creates a new scrubber
@@ -49,6 +51,30 @@ func NewScrubber(customSensitiveWords []string, regexps []string) (*Scrubber, er
 	}
 
 	return s, nil
+}
+
+// WithEnvsWithValue sets the environment variables whose values are serialized,
+// `envs_with_value`
+func (s *Scrubber) WithEnvsWithValue(envs []string) *Scrubber {
+	s.envsWithValue = make(map[string]bool, len(envs))
+	for _, env := range envs {
+		s.envsWithValue[env] = true
+	}
+	return s
+}
+
+// IsEnvWithValue returns whether the value of an environment variable is serialized
+func (s *Scrubber) IsEnvWithValue(name string) bool {
+	return s != nil && s.envsWithValue[name]
+}
+
+// FilterEnv returns an envp entry, KEY=value, with its value only when KEY is
+// listed in envs_with_value
+func (s *Scrubber) FilterEnv(entry string) string {
+	if key, _, found := strings.Cut(entry, "="); found && !s.IsEnvWithValue(key) {
+		return key
+	}
+	return entry
 }
 
 // ScrubCommand scrubs the command line using the proc scrubber and the regex scrubber
