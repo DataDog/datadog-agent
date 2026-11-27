@@ -216,8 +216,7 @@ func (nr *Resolver) ResolveNetworkNamespace(nsID uint32) *NetworkNamespace {
 	return nil
 }
 
-// snapshotNetworkDevices snapshots the network devices of the provided network namespace. This function returns the
-// number of non-loopback network devices to which egress and ingress TC classifiers were successfully attached.
+// snapshotNetworkDevices attaches the devices of a namespace, and returns how many attached devices keep it in use
 func (nr *Resolver) snapshotNetworkDevices(netns *NetworkNamespace) int {
 	handle, err := netns.GetNamespaceHandleDup()
 	if err != nil {
@@ -243,7 +242,7 @@ func (nr *Resolver) snapshotNetworkDevices(netns *NetworkNamespace) int {
 		return 0
 	}
 
-	var attachedDeviceCountNoLazyDeletion int
+	var keepingDeviceCount int
 	for _, link := range links {
 		attrs := link.Attrs()
 		if attrs == nil {
@@ -258,14 +257,14 @@ func (nr *Resolver) snapshotNetworkDevices(netns *NetworkNamespace) int {
 
 		if err = nr.tcResolver.SetupNewTCClassifierWithNetNSHandle(device, handle, nr.manager); err == nil {
 			if nr.keepsNetworkNamespace(link) {
-				attachedDeviceCountNoLazyDeletion++
+				keepingDeviceCount++
 			}
 		} else {
 			nr.reportTCClassifierError(err, device)
 		}
 	}
 
-	return attachedDeviceCountNoLazyDeletion
+	return keepingDeviceCount
 }
 
 // IsLazyDeletionInterface returns true if an interface name is in the list of interfaces that aren't explicitly deleted by the
@@ -513,8 +512,8 @@ func (nr *Resolver) preventNetworkNamespaceDrift(probesCount map[uint32]int) {
 		netns.Unlock()
 
 		if shouldSnapshot {
-			deviceCountNoLoopbackNoDummy := nr.snapshotNetworkDevices(netns)
-			if deviceCountNoLoopbackNoDummy == 0 {
+			keepingDeviceCount := nr.snapshotNetworkDevices(netns)
+			if keepingDeviceCount == 0 {
 				nr.flushNetworkNamespace(netns)
 			}
 		}
