@@ -8,7 +8,18 @@ from __future__ import annotations
 
 import unittest
 
-from review import EXIT_FAILED, EXIT_OK, EXIT_UNAVAILABLE, EXIT_USAGE, Reviewer, detect_self, main, parse_args, review
+from review import (
+    EXIT_FAILED,
+    EXIT_OK,
+    EXIT_UNAVAILABLE,
+    EXIT_USAGE,
+    Reviewer,
+    detect_self,
+    main,
+    parse_args,
+    resolve_self,
+    review,
+)
 
 
 def fake(provider: str, available: bool = True) -> Reviewer:
@@ -82,6 +93,20 @@ class ReviewTest(unittest.TestCase):
         seen = []
         review([fake("codex")], "", ["--base", "main"], lambda cmd: seen.append(cmd) or 0)
         self.assertEqual(seen, [["codex-up", "--base", "main"]])
+
+
+class ResolveSelfTest(unittest.TestCase):
+    def test_none_turns_detection_off(self):
+        self.assertEqual(resolve_self("none", {"CLAUDECODE": "1"}), "")
+
+    def test_explicit_wins_over_environment(self):
+        self.assertEqual(resolve_self("codex", {"CLAUDECODE": "1"}), "codex")
+
+    def test_empty_detects(self):
+        self.assertEqual(resolve_self("", {"CLAUDECODE": "1"}), "claude")
+
+    def test_invalid(self):
+        self.assertIsNone(resolve_self("Claude", {}))
 
 
 class MainTest(unittest.TestCase):

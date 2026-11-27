@@ -12,7 +12,7 @@ Load this file from step 5 of `SKILL.md` when `scripts/review.py` exits with any
 
 So `--self claude` only tries `codex`, and `--self codex` tries `claude` on the host, then in the developer environment.
 
-Without `--self`, or with an empty value, the script detects the provider from the environment: `CLAUDECODE` for Claude Code, `CODEX_*` for Codex. When it finds neither, or both (e.g. Codex started from a Claude Code shell), it skips no reviewer. Pass `--self` whenever you know your provider.
+Without `--self`, or with an empty value, the script detects the provider from the environment: `CLAUDECODE` for Claude Code, `CODEX_*` for Codex. When it finds neither, or both (e.g. Codex started from a Claude Code shell), it skips no reviewer. These variables are inherited by child processes, so another agent or a human running the script from a shell Claude Code or Codex started would be taken for that agent. `--self none` turns detection off and skips no reviewer, so pass `--self` whenever you know your provider, and `--self none` when you are neither.
 
 ## When the review doesn't complete
 
@@ -22,7 +22,7 @@ Handle each outcome as follows; each one tells the user why the usual review did
 | --- | --- |
 | Exit 1: every attempted review failed | Tell the user, with the errors, then do a subagent review. |
 | Exit 2: no reviewer from another provider is available | Show the user the reasons the script printed, then do a subagent review. |
-| Exit 3: the script can't run as invoked (an invalid `--self` value, or not in a git checkout) | No review ran. Fix the invocation (`--self` takes `claude` or `codex`, lowercase; run it from the checkout) and run it again. |
+| Exit 3: the script can't run as invoked (an invalid `--self` value, or not in a git checkout) | No review ran. Fix the invocation (`--self` takes `claude`, `codex` or `none`, lowercase; run it from the checkout) and run it again. |
 | No result after 20 minutes | Stop the script (`TaskStop` in Claude Code): it only prints locally, but output arriving later would give the user a second set of findings to reconcile. If your harness can't stop it, ignore its output when it arrives and say so. Then do a subagent review rather than stalling PR creation. |
 
 ## Subagent review

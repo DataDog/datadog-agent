@@ -11,7 +11,8 @@ names the AI agent running /create-pr: reviewers of that provider are skipped, s
 a second opinion from another provider. Without `--self` (or with an empty value), the provider is
 detected from the environment: `CLAUDECODE` for Claude Code, `CODEX_*` for Codex. When both are
 set, e.g. Codex started from a Claude Code shell, the provider is unknown and no reviewer is
-skipped. Every other argument is passed to `dda review`.
+skipped. Those variables are inherited by child processes, so `--self none` turns detection off and
+skips no reviewer, for agents other than claude and codex and for humans. Every other argument is passed to `dda review`.
 
 The review goes to stdout; progress and the reasons a reviewer was skipped go to stderr.
 
@@ -35,6 +36,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 PROVIDERS = ("claude", "codex")
+NO_PROVIDER = "none"
 EXIT_OK, EXIT_FAILED, EXIT_UNAVAILABLE, EXIT_USAGE = 0, 1, 2, 3
 
 
@@ -202,12 +204,22 @@ def review(
     return EXIT_UNAVAILABLE
 
 
+def resolve_self(requested: str, env: Mapping[str, str]) -> str | None:
+    """Return the provider whose reviewers to skip ("" for none), or None for an invalid value."""
+    if not requested:
+        return detect_self(env)
+    if requested == NO_PROVIDER:
+        return ""
+    if requested in PROVIDERS:
+        return requested
+    log(f"unknown --self value '{requested}', expected claude, codex or none")
+    return None
+
+
 def main(argv: Sequence[str]) -> int:
-    self_provider, dda_args = parse_args(argv)
-    if not self_provider:
-        self_provider = detect_self(os.environ)
-    if self_provider and self_provider not in PROVIDERS:
-        log(f"unknown --self value '{self_provider}', expected claude or codex")
+    requested, dda_args = parse_args(argv)
+    self_provider = resolve_self(requested, os.environ)
+    if self_provider is None:
         return EXIT_USAGE
     if self_provider:
         log(f"running as {self_provider}, so {self_provider} reviewers are skipped")

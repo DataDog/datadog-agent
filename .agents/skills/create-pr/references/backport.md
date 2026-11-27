@@ -1,0 +1,8 @@
+# Backport detection for /create-pr
+
+Load this file from step 9 of `SKILL.md`, before finalizing labels, to decide whether the change also needs to land on a release branch:
+
+1. **List "living" release branch labels**: run `gh label list --search backport/7 --limit 5`. We can limit to 5 as there should not be more than 2 active releases. Equivalently: `gh api repos/{owner}/{repo}/labels --paginate --jq '.[] | select(.name | startswith("backport/7")) | .name + " | " + (.description // "")'`. Only labels whose description mentions automatic backport-PR creation (e.g. "Automatically create a backport PR to ... once the PR is merged") correspond to *active* release branches — the repo keeps many old `<version>.x` branches around that are no longer maintained, so branch existence alone (`git ls-remote --heads origin`) is not a reliable signal.
+2. **Compare against the base branch's target milestone**: read `release.json`'s `base_branch` / `current_milestone` to see what's currently in development on `main`. A change merged to `main` is typically only backported if the same fix is needed in a still-supported release (e.g. a bug also present in the currently-shipping minor version).
+3. **Decide relevance**: this is a judgment call, not automatic — a new feature usually does not need a backport; a bug fix, security fix, or CI/build resilience fix often does, if the affected release branch(es) still exist and are active. If genuinely unsure, ask the user.
+4. **If a backport is warranted**, propose the specific `backport/<version>.x` label(s) to the user for confirmation before adding them — don't silently add backport labels.
