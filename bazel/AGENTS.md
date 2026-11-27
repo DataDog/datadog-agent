@@ -311,7 +311,8 @@ the resulting diff is non-empty. If you do add one, explain why on the same line
 
 Each suite under `test/new-e2e/tests/` is a `dd_agent_go_test` with `tags = ["manual"]`. `manual` drops the target
 from wildcard patterns such as `//...`. The macro in `//bazel/rules/go:dd_agent_go_test.bzl` also appends the
-`dd_agent_go_test` tag.
+`dd_agent_go_test` tag, and builds the suite with the Go SDK patched for CI Visibility, so no command needs
+`--@rules_go//go/toolchain:sdk_name`, whose changes discard the analysis cache.
 
 Linux and macOS CI run `bazel test //...` (`.gitlab/build/bazel/test.yml`). Windows splits that pattern across
 `--config=no-dd-agent-go-tests` and `--config=dd-agent-go-tests-only` (`bazel/configs/go_tests.bazelrc`). A suite
