@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	ndmdiscovery "github.com/DataDog/datadog-agent/comp/ndmdiscovery/def"
@@ -21,6 +22,7 @@ const minIntervalSec = 60
 var autodiscoveryIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // rangeConfig is the validated, defaulted form of one range.
+// Keep rangeConfig.equal in sync: it decides whether a running range restarts.
 type rangeConfig struct {
 	AutodiscoveryID    string
 	Namespace          string
@@ -29,6 +31,17 @@ type rangeConfig struct {
 	IgnoredIPAddresses []string
 	Tags               []string
 	Probes             probeParams
+}
+
+// equal reports whether two configs sweep the same way, so a running range can be kept.
+func (c rangeConfig) equal(o rangeConfig) bool {
+	return c.AutodiscoveryID == o.AutodiscoveryID &&
+		c.Namespace == o.Namespace &&
+		c.NetworkAddress == o.NetworkAddress &&
+		c.IntervalSec == o.IntervalSec &&
+		slices.Equal(c.IgnoredIPAddresses, o.IgnoredIPAddresses) &&
+		slices.Equal(c.Tags, o.Tags) &&
+		c.Probes.equal(o.Probes)
 }
 
 // rangeDefaults are the agent-side defaults applied to a range.

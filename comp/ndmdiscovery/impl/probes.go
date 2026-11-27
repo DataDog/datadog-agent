@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -81,6 +82,24 @@ type probeParams struct {
 	SNMP *snmpParams
 	// Dropped is why each requested probe that is not in the params was left out.
 	Dropped []string
+}
+
+func (p probeParams) equal(o probeParams) bool {
+	return pingEqual(p.Ping, o.Ping) && p.SNMP.equal(o.SNMP) && slices.Equal(p.Dropped, o.Dropped)
+}
+
+func pingEqual(a, b *pingprobe.Options) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
+}
+
+func (s *snmpParams) equal(o *snmpParams) bool {
+	if s == nil || o == nil {
+		return s == o
+	}
+	return s.Port == o.Port && s.Timeout == o.Timeout && s.Retries == o.Retries && slices.Equal(s.CredIDs, o.CredIDs)
 }
 
 // credentialStore reads the credentials of one kind from the Agent configuration.
