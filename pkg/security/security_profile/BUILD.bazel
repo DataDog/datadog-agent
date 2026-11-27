@@ -10,7 +10,6 @@ go_library(
         "manager_test_helpers.go",
         "manager_v2.go",
         "profile_manager.go",
-        "profile_result.go",
         "testing.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/security_profile",

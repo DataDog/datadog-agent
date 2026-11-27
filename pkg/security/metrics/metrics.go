@@ -317,19 +317,19 @@ var (
 	// Activity dump metrics
 
 	// MetricActivityDumpEventProcessed is the name of the metric used to count the number of events processed while
-	// creating an activity dump.
-	// Tags: event_type, tree_type
+	// updating a security profile's activity tree.
+	// Tags: tree_type
 	MetricActivityDumpEventProcessed = newRuntimeMetric(".activity_dump.event.processed")
-	// MetricActivityDumpEventAdded is the name of the metric used to count the number of events that were added to an
-	// activity dump.
-	// Tags: event_type, tree_type
+	// MetricActivityDumpEventAdded is the name of the metric used to count the number of events that were added to a
+	// security profile's activity tree.
+	// Tags: tree_type, event_type, generation_type ('runtime', 'snapshot', 'profile_drift', 'workload_warmup', 'unknown')
 	MetricActivityDumpEventAdded = newRuntimeMetric(".activity_dump.event.added")
-	// MetricActivityDumpEventDropped is the name of the metric used to count the number of events that were dropped from an
-	// activity dump.
-	// Tags: event_type, reason, tree_type
+	// MetricActivityDumpEventDropped is the name of the metric used to count the number of events that were dropped from a
+	// security profile's activity tree.
+	// Tags: tree_type, event_type, reason ('event_type', 'invalid_root_node', 'bind_family', 'connect_family', 'broken_event', 'unknown')
 	MetricActivityDumpEventDropped = newRuntimeMetric(".activity_dump.event.dropped")
-	// MetricActivityDumpEntityTooLarge is the name of the metric used to report the number of active dumps that couldn't
-	// be sent because they are too big
+	// MetricActivityDumpEntityTooLarge is the name of the metric used to report the number of security profiles that
+	// couldn't be sent to remote storage because they are too big
 	// Tags: format, compression
 	MetricActivityDumpEntityTooLarge = newAgentMetric(".activity_dump.entity_too_large")
 
@@ -395,9 +395,6 @@ var (
 	// the max dump size stays tracked until it is removed.
 	// Tags: profile_image_name, profile_short_image (omitted when the short image is unknown)
 	MetricSecurityProfileProfiles = newRuntimeMetric(".security_profile.profiles")
-	// MetricSecurityProfileEventFiltering is the name of the metric used to report the count of Security Profile event filtered
-	// Tags: event_type, profile_state ('no_profile', 'unstable', 'unstable_event_type', 'stable', 'auto_learning', 'workload_warmup'), in_profile ('true', 'false' or none)
-	MetricSecurityProfileEventFiltering = newRuntimeMetric(".security_profile.evaluation.hit")
 
 	// Hash resolver metrics
 

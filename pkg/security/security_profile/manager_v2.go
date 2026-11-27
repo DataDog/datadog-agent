@@ -178,8 +178,6 @@ type ManagerV2 struct {
 	profilesLock sync.Mutex
 	pathsReducer *activity_tree.PathsReducer
 
-	eventFiltering map[eventFilteringEntry]*atomic.Uint64
-
 	insertionErrors map[insertionErrorKey]*atomic.Uint64
 
 	eventMetrics [metricSourceCount]map[model.EventType]*perEventTypeMetrics
@@ -382,7 +380,6 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpfM
 		startTimeMono:               resolvers.TimeResolver.ComputeMonotonicTimestamp(startTime),
 		sendAnomalyDetection:        sendAnomalyDetection,
 		triggerNopEvent:             triggerNopEvent,
-		eventFiltering:              make(map[eventFilteringEntry]*atomic.Uint64),
 		insertionErrors:             make(map[insertionErrorKey]*atomic.Uint64),
 		resolvedCgroups:             make(map[containerutils.CGroupID]struct{}),
 		pendingProfileRemovals:      make(map[cgroupModel.WorkloadSelector]time.Time),
@@ -429,21 +426,12 @@ func enabledSampleMaps(cfg *config.Config, ebpfManager *ebpfmanager.Manager) (ma
 	return sampleMaps, nil
 }
 
-// initMetricsMap initializes the event filtering metrics map with all combinations of event types, states, and results
+// initMetricsMap initializes the insertion error metrics map with all combinations of event types, error types, and outcomes
 func (m *ManagerV2) initMetricsMap() {
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
 		for _, errorType := range activity_tree.InsertionErrorTypes {
 			for _, outcome := range insertionErrorOutcomes {
 				m.insertionErrors[insertionErrorKey{eventType: i, errorType: errorType, outcome: outcome}] = atomic.NewUint64(0)
-			}
-		}
-		for _, state := range model.AllEventFilteringProfileState {
-			for _, result := range allEventFilteringResults {
-				m.eventFiltering[eventFilteringEntry{
-					eventType: i,
-					state:     state,
-					result:    result,
-				}] = atomic.NewUint64(0)
 			}
 		}
 	}
@@ -1542,20 +1530,6 @@ func (m *ManagerV2) SendStats() error {
 		}
 	}
 
-	// Event filtering metrics
-	for entry, count := range m.eventFiltering {
-		tags := []string{
-			"event_type:" + entry.eventType.String(),
-			entry.state.ToTag(),
-			entry.result.toTag(),
-		}
-		if value := count.Swap(0); value > 0 {
-			if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), tags, 1.0); err != nil {
-				return err
-			}
-		}
-	}
-
 	// Event errors and unexpected activity-tree insertion failures
 	for key, count := range m.insertionErrors {
 		if value := count.Swap(0); value > 0 {
@@ -1649,7 +1623,6 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		m.afterProfileLookup()
 	}
 	if !secprof.IsEnabled() {
-		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
 		return nil, false, nil
 	}
 
@@ -1670,7 +1643,6 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	if secprof.ComputeHeapSize() >= int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) {
 		secprof.Disable()
 		seclog.Infof("Activity dump of %s was stopped because it reached the maximum allowed size of %d.", secprof.GetSelectorStr(), int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()))
-		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
 		return nil, false, nil
 	}
 
@@ -2252,12 +2224,6 @@ func (m *ManagerV2) FillProfileContextFromWorkloadID(id containerutils.WorkloadI
 			instance.Unlock()
 		}
 		prof.InstancesLock.Unlock()
-	}
-}
-
-func (m *ManagerV2) incrementEventFilteringStat(eventType model.EventType, state model.EventFilteringProfileState, result EventFilteringResult) {
-	if entry, ok := m.eventFiltering[eventFilteringEntry{eventType, state, result}]; ok {
-		entry.Inc()
 	}
 }
 

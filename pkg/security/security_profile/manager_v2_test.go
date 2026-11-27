@@ -760,7 +760,6 @@ func newInsertionTestManagerV2(t *testing.T) (*ManagerV2, *[]*model.Event) {
 		tagResolutionCappedTotal:  atomic.NewUint64(0),
 		resolvedCgroups:           make(map[containerutils.CGroupID]struct{}),
 		localStorage:              localStorage,
-		eventFiltering:            make(map[eventFilteringEntry]*atomic.Uint64),
 		insertionErrors:           make(map[insertionErrorKey]*atomic.Uint64),
 		pendingProfileRemovals:    make(map[cgroupModel.WorkloadSelector]time.Time),
 		sampleCookieMap:           cookieMap,
@@ -1305,7 +1304,6 @@ func TestManagerV2_insertEventIntoProfile_maxSize(t *testing.T) {
 		m.onEventTagsResolved(newTestEventV2(model.ExecEventType, "v1", "new"))
 		assert.Empty(t, *anomalies, "a disabled profile shouldn't trigger anomalies")
 		assert.True(t, disabled.ActivityTree.IsEmpty(), "a disabled profile shouldn't learn new activities")
-		assert.Positive(t, m.eventFiltering[eventFilteringEntry{model.ExecEventType, model.ProfileAtMaxSize, NA}].Load())
 	})
 
 	t.Run("a profile below the max size keeps learning", func(t *testing.T) {
@@ -2241,7 +2239,6 @@ func TestManagerV2_seedMountsForWorkload_maxSize(t *testing.T) {
 		assert.True(t, p.ActivityTree.IsEmpty(), "a disabled profile drops its activity tree")
 		assert.Empty(t, p.ActivityTree.Mounts)
 		assert.Zero(t, p.ComputeHeapSize())
-		assert.Positive(t, m.eventFiltering[eventFilteringEntry{model.FileOpenEventType, model.ProfileAtMaxSize, NA}].Load())
 	})
 
 	t.Run("foreign namespace is not seeded once the base namespace reached the max size", func(t *testing.T) {
