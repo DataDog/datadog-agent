@@ -44,9 +44,9 @@ require (
 	github.com/jackc/pgx/v5 v5.13.0
 	github.com/kr/pretty v0.3.1
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.55.0
-	github.com/pulumi/pulumi-awsx/sdk/v3 v3.13.0
+	github.com/pulumi/pulumi-awsx/sdk/v3 v3.14.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.3
-	github.com/pulumi/pulumi/sdk/v3 v3.276.0
+	github.com/pulumi/pulumi/sdk/v3 v3.277.0
 	github.com/samber/lo v1.53.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.1
@@ -54,7 +54,7 @@ require (
 	go.yaml.in/yaml/v3 v3.0.6
 	golang.org/x/crypto v0.59.0
 	golang.org/x/mod v0.43.0
-	golang.org/x/net v0.62.0
+	golang.org/x/net v0.63.0
 	golang.org/x/sys v0.50.0
 	golang.org/x/term v0.48.0
 	golang.org/x/text v0.44.0
@@ -298,19 +298,19 @@ require (
 	github.com/prometheus/common v0.74.0 // indirect
 	github.com/prometheus/procfs v0.23.0 // indirect
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.30.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/compute/v3 v3.30.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v3 v3.30.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3 v3.30.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.30.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.30.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.32.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/compute/v3 v3.32.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v3 v3.32.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3 v3.32.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.32.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.32.0 // indirect
 	github.com/pulumi/pulumi-cloud-sdk/go v1.20261104.0 // indirect
 	github.com/pulumi/pulumi-command/sdk v1.3.0 // indirect
 	github.com/pulumi/pulumi-docker-build/sdk/go/dockerbuild v0.0.3 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v5 v5.3.0 // indirect
 	github.com/pulumi/pulumi-eks/sdk/v4 v4.6.0 // indirect
-	github.com/pulumi/pulumi-gcp/sdk/v10 v10.3.0 // indirect
+	github.com/pulumi/pulumi-gcp/sdk/v10 v10.5.0 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.6 // indirect
 	github.com/pulumi/pulumi-tls/sdk/v5 v5.6.3 // indirect
@@ -375,7 +375,7 @@ require (
 	golang.org/x/oauth2 v0.38.0 // indirect
 	golang.org/x/sync v0.25.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
-	golang.org/x/tools v0.52.0 // indirect
+	golang.org/x/tools v0.53.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	google.golang.org/api v0.304.0 // indirect
 	google.golang.org/genproto v0.0.0-20261012220534-4341edf3f941 // indirect

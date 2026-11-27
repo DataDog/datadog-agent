@@ -227,13 +227,16 @@ func (pc *ProcessCacheEntry) EqualsForProcfs(entry *ProcessCacheEntry) bool {
 }
 
 func (pc *ProcessCacheEntry) markFileEventAsResolved() {
-	// mark file path as resolved
+	// mark file path and filesystem as resolved, resolving the filesystem of mount 0 fails and overwrites the error of
+	// the event
 	pc.FileEvent.SetPathnameStr("")
 	pc.FileEvent.SetBasenameStr("")
+	pc.FileEvent.Filesystem = UnknownFS
 
 	// mark interpreter as resolved too
 	pc.LinuxBinprm.FileEvent.SetPathnameStr("")
 	pc.LinuxBinprm.FileEvent.SetBasenameStr("")
+	pc.LinuxBinprm.FileEvent.Filesystem = UnknownFS
 }
 
 // NewPlaceholderProcessCacheEntry returns a new empty process cache entry for failed process resolutions

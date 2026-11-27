@@ -31,22 +31,22 @@ require (
 	github.com/moby/moby/client v0.6.3
 	github.com/pkg/sftp v1.13.12
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.55.0
-	github.com/pulumi/pulumi-awsx/sdk/v3 v3.13.0
-	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.30.0
-	github.com/pulumi/pulumi-azure-native-sdk/compute/v3 v3.30.0
-	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v3 v3.30.0
-	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3 v3.30.0
-	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.30.0
-	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.30.0
+	github.com/pulumi/pulumi-awsx/sdk/v3 v3.14.0
+	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.32.0
+	github.com/pulumi/pulumi-azure-native-sdk/compute/v3 v3.32.0
+	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v3 v3.32.0
+	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3 v3.32.0
+	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.32.0
+	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.32.0
 	github.com/pulumi/pulumi-command/sdk v1.3.0
 	github.com/pulumi/pulumi-docker/sdk/v5 v5.3.0
 	github.com/pulumi/pulumi-eks/sdk/v4 v4.6.0
-	github.com/pulumi/pulumi-gcp/sdk/v10 v10.3.0
+	github.com/pulumi/pulumi-gcp/sdk/v10 v10.5.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.3
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.6
 	github.com/pulumi/pulumi-tls/sdk/v5 v5.6.3
-	github.com/pulumi/pulumi/sdk/v3 v3.276.0
+	github.com/pulumi/pulumi/sdk/v3 v3.277.0
 	github.com/pulumiverse/pulumi-time/sdk v0.1.0
 	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.12.1
@@ -343,14 +343,14 @@ require (
 	go.yaml.in/yaml/v2 v2.4.5 // indirect
 	golang.org/x/exp v0.0.0-20261011100332-faecfb24eb49 // indirect
 	golang.org/x/mod v0.43.0 // indirect
-	golang.org/x/net v0.62.0 // indirect
+	golang.org/x/net v0.63.0 // indirect
 	golang.org/x/oauth2 v0.38.0 // indirect
 	golang.org/x/sync v0.25.0 // indirect
 	golang.org/x/sys v0.50.0 // indirect
 	golang.org/x/term v0.48.0 // indirect
 	golang.org/x/text v0.44.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
-	golang.org/x/tools v0.52.0 // indirect
+	golang.org/x/tools v0.53.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	google.golang.org/api v0.304.0 // indirect
 	google.golang.org/genproto v0.0.0-20261012220534-4341edf3f941 // indirect

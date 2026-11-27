@@ -27,7 +27,7 @@ func TestSnapshotUsesCachedAttributes(t *testing.T) {
 		BoardSerial: "BOARD", ChassisSerial: "CHASSIS", FabricGUID: "0x00000000000000ab",
 		FabricClusterUUID: "01020304-0506-0708-090a-0b0c0d0e0f10",
 	}}
-	snapshot := Snapshot([]safenvml.Device{physical, &safenvml.MIGDevice{}})
+	snapshot := Snapshot([]safenvml.Device{physical, &safenvml.MIGDevice{}}, nil)
 	require.Len(t, snapshot, 1)
 	d := snapshot[0]
 	require.Equal(t, "tesla_t4", d.Model)
@@ -56,7 +56,7 @@ func TestSnapshotUsesCachedAttributes(t *testing.T) {
 
 func TestSnapshotExcludesVirtualDevices(t *testing.T) {
 	physical := &safenvml.PhysicalDevice{DeviceInfo: safenvml.DeviceInfo{VirtualizationMode: nvml.GPU_VIRTUALIZATION_MODE_VGPU}}
-	require.Empty(t, Snapshot([]safenvml.Device{physical, &safenvml.MIGDevice{}}))
+	require.Empty(t, Snapshot([]safenvml.Device{physical, &safenvml.MIGDevice{}}, nil))
 }
 
 func TestSnapshotFabricMembership(t *testing.T) {
@@ -73,12 +73,12 @@ func TestSnapshotFabricMembership(t *testing.T) {
 			device := &safenvml.PhysicalDevice{DeviceInfo: safenvml.DeviceInfo{
 				FabricClusterUUID: cluster, FabricCliqueID: tc.clique,
 			}}
-			result := Snapshot([]safenvml.Device{device})
+			result := Snapshot([]safenvml.Device{device}, nil)
 			require.Equal(t, &tc.clique, result[0].FabricCliqueID)
 			require.Equal(t, tc.partition, result[0].NVLinkPartition)
 		})
 	}
-	result := Snapshot([]safenvml.Device{&safenvml.PhysicalDevice{}})
+	result := Snapshot([]safenvml.Device{&safenvml.PhysicalDevice{}}, nil)
 	require.Nil(t, result[0].FabricCliqueID)
 	require.Empty(t, result[0].NVLinkPartition)
 }
@@ -95,7 +95,7 @@ func TestSnapshotPlacementFacts(t *testing.T) {
 			PCIeMaxGeneration: 6, PCIeGPUMaxGeneration: 6, PCIeMaxWidth: 16,
 		},
 	}}
-	d := Snapshot([]safenvml.Device{gb200})[0]
+	d := Snapshot([]safenvml.Device{gb200}, nil)[0]
 	require.Equal(t, "294110de", d.PCIDeviceID)
 	require.Equal(t, "20ca10de", d.PCISubsystemID)
 	require.Equal(t, "699-2G548-0200-000", d.BoardPartNumber)
@@ -131,7 +131,7 @@ func TestSnapshotHGXHostWithoutChassis(t *testing.T) {
 		SlotNumber: 255, TrayIndex: 255, ModuleID: 7, HostID: 1,
 		HostLink: safenvml.HostLinkInfo{C2CEnabled: &c2c, PCIeMaxGeneration: 5, PCIeGPUMaxGeneration: 6, PCIeMaxWidth: 16},
 	}}
-	d := Snapshot([]safenvml.Device{b200})[0]
+	d := Snapshot([]safenvml.Device{b200}, nil)[0]
 	require.Equal(t, 0, *d.NUMANode, "node 0 is valid")
 	require.Equal(t, []string{"0000:8b:01.0", "0000:8a:00.0", "0000:89:00.0"}, *d.PCIePath)
 	require.Nil(t, d.SlotNumber)
@@ -147,11 +147,11 @@ func TestSnapshotHGXHostWithoutChassis(t *testing.T) {
 func TestSnapshotUnknownPlacementFactsAreAbsent(t *testing.T) {
 	d := Snapshot([]safenvml.Device{&safenvml.PhysicalDevice{DeviceInfo: safenvml.DeviceInfo{
 		UUID: testUUID, HostLink: safenvml.HostLinkInfo{PCIeMaxGeneration: 99, PCIeMaxWidth: 16},
-	}}})[0]
+	}}}, nil)[0]
 	require.Equal(t, &HostLink{Protocol: "pcie", PCIeMaxGeneration: 99, PCIeMaxWidth: 16}, d.HostLink,
 		"PCIe when C2C is unknown, with no bandwidth for an unknown generation")
 
-	d = Snapshot([]safenvml.Device{&safenvml.PhysicalDevice{DeviceInfo: safenvml.DeviceInfo{UUID: testUUID}}})[0]
+	d = Snapshot([]safenvml.Device{&safenvml.PhysicalDevice{DeviceInfo: safenvml.DeviceInfo{UUID: testUUID}}}, nil)[0]
 	encoded, err := json.Marshal(d)
 	require.NoError(t, err)
 	var fields map[string]any
@@ -169,7 +169,7 @@ func TestSnapshotPublishesKnownEmptyPCIePath(t *testing.T) {
 	// A GPU directly on the root complex (e.g. VM passthrough) has no bridges.
 	d := Snapshot([]safenvml.Device{&safenvml.PhysicalDevice{DeviceInfo: safenvml.DeviceInfo{
 		UUID: testUUID, PCIBusID: "0000:00:05.0", PCIePath: []string{},
-	}}})[0]
+	}}}, nil)[0]
 	encoded, err := json.Marshal(d)
 	require.NoError(t, err)
 	var fields map[string]any

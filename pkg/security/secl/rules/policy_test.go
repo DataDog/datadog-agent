@@ -3476,6 +3476,193 @@ func TestActionSetVariableEnvKeysThroughVariables(t *testing.T) {
 	}
 }
 
+// envpMark is how a variable read from the environment of a process is
+// serialized
+type envpMark int
+
+const (
+	// envpAsIs is serialized as is
+	envpAsIs envpMark = iota
+	// envpFiltered is serialized entry by entry, with a value only for the keys
+	// of envs_with_value
+	envpFiltered
+	// envpHidden is never serialized
+	envpHidden
+)
+
+func setEnvpRule(id string, sets ...*SetDefinition) *RuleDefinition {
+	rule := &RuleDefinition{ID: id, Expression: `exec.file.path == "/usr/bin/` + id + `"`}
+	for _, set := range sets {
+		rule.Actions = append(rule.Actions, &ActionDefinition{Set: set})
+	}
+	return rule
+}
+
+func assertEnvpMarks(t *testing.T, rs *RuleSet, expected map[string]envpMark) {
+	t.Helper()
+	for name, mark := range expected {
+		variable := rs.evalOpts.VariableStore.Get(name)
+		require.NotNil(t, variable, "variable %s not found", name)
+		opts := variable.GetVariableOpts()
+		assert.False(t, opts.Private, "variable %s: expected not to be private", name)
+		switch mark {
+		case envpAsIs:
+			assert.False(t, opts.EnvKeyEvaluated || opts.EnvFiltered, "variable %s: expected no env mark", name)
+		case envpFiltered:
+			assert.True(t, opts.EnvFiltered && !opts.EnvKeyEvaluated, "variable %s: expected to be filtered", name)
+		case envpHidden:
+			assert.True(t, opts.EnvKeyEvaluated, "variable %s: expected to be hidden", name)
+		}
+	}
+}
+
+// The envp entries copied as is are filtered on their keys, a part of one or a
+// value computed out of one is hidden.
+func TestActionSetVariableEnvpField(t *testing.T) {
+	t.Run("field", func(t *testing.T) {
+		rs, errs := loadPolicy(t, &PolicyDef{Rules: []*RuleDefinition{
+			setEnvpRule("field",
+				&SetDefinition{Name: "envp", Field: "exec.envp", Append: true},
+				&SetDefinition{Name: "parent_envp", Field: "process.parent.envp", Append: true},
+				&SetDefinition{Name: "ancestors_envp", Field: "process.ancestors.envp", Append: true},
+				&SetDefinition{Name: "first_env", Field: "exec.envp[0]"},
+				&SetDefinition{Name: "scoped_envp", Field: "exec.envp", Append: true, Scope: ScopeProcess},
+				&SetDefinition{Name: "lang", Field: "exec.envp[0]", Capture: "^LANG=(.+)$"},
+				&SetDefinition{Name: "envs", Field: "exec.envs", Append: true},
+				&SetDefinition{Name: "path", Field: "exec.file.path"},
+			),
+		}}, PolicyLoaderOpts{})
+		require.NoError(t, errs.ErrorOrNil())
+
+		assertEnvpMarks(t, rs, map[string]envpMark{
+			"envp":                envpFiltered,
+			"parent_envp":         envpFiltered,
+			"ancestors_envp":      envpFiltered,
+			"first_env":           envpFiltered,
+			"process.scoped_envp": envpFiltered,
+			"lang":                envpHidden,
+			"envs":                envpAsIs,
+			"path":                envpAsIs,
+		})
+	})
+
+	t.Run("expression", func(t *testing.T) {
+		rs, errs := loadPolicy(t, &PolicyDef{
+			Macros: []*MacroDefinition{
+				{ID: "envp_macro", Expression: `"%{exec.envp}"`},
+				{ID: "nested_envp_macro", Expression: `envp_macro`},
+			},
+			Rules: []*RuleDefinition{
+				setEnvpRule("expression",
+					&SetDefinition{Name: "envp", Expression: `exec.envp`, DefaultValue: []string{""}, Append: true},
+					&SetDefinition{Name: "envp_ref", Expression: `"%{exec.envp}"`, DefaultValue: ""},
+					&SetDefinition{Name: "envp_macro", Expression: `nested_envp_macro`, DefaultValue: ""},
+					&SetDefinition{Name: "path", Expression: `"%{exec.file.path}"`, DefaultValue: ""},
+				),
+			},
+		}, PolicyLoaderOpts{})
+		require.NoError(t, errs.ErrorOrNil())
+
+		assertEnvpMarks(t, rs, map[string]envpMark{
+			"envp":       envpFiltered,
+			"envp_ref":   envpHidden,
+			"envp_macro": envpHidden,
+			"path":       envpAsIs,
+		})
+	})
+
+	t.Run("propagation", func(t *testing.T) {
+		// the variables read from envp ones are added before them
+		rs, errs := loadPolicy(t, &PolicyDef{Rules: []*RuleDefinition{
+			setEnvpRule("derived",
+				&SetDefinition{Name: "derived", Expression: `"display:${display}"`, DefaultValue: ""},
+				&SetDefinition{Name: "derived_twice", Expression: `"${derived}"`, DefaultValue: ""},
+				&SetDefinition{Name: "copied_from_filtered", Expression: `${first_env}`, DefaultValue: ""},
+				&SetDefinition{Name: "derived_from_filtered", Expression: `"${first_env}"`, DefaultValue: ""},
+				&SetDefinition{Name: "length_of_filtered", Expression: `${first_env.length}`, DefaultValue: 0},
+				&SetDefinition{Name: "unrelated", Expression: `"${path}"`, DefaultValue: ""},
+			),
+			setEnvpRule("source",
+				&SetDefinition{Name: "display", Field: "exec.envp[0]", Capture: "^DISPLAY=(.+)$"},
+				&SetDefinition{Name: "first_env", Field: "exec.envp[0]"},
+				&SetDefinition{Name: "path", Field: "exec.file.path"},
+			),
+		}}, PolicyLoaderOpts{})
+		require.NoError(t, errs.ErrorOrNil())
+
+		assertEnvpMarks(t, rs, map[string]envpMark{
+			"display":               envpHidden,
+			"derived":               envpHidden,
+			"derived_twice":         envpHidden,
+			"first_env":             envpFiltered,
+			"copied_from_filtered":  envpHidden,
+			"derived_from_filtered": envpHidden,
+			"length_of_filtered":    envpHidden,
+			"path":                  envpAsIs,
+			"unrelated":             envpAsIs,
+		})
+	})
+
+	t.Run("most-restrictive", func(t *testing.T) {
+		// a variable set by several rules gets the marks of all of them
+		rs, errs := loadPolicy(t, &PolicyDef{Rules: []*RuleDefinition{
+			setEnvpRule("filtered", &SetDefinition{Name: "env", Field: "exec.envp[0]"}),
+			setEnvpRule("captured", &SetDefinition{Name: "env", Field: "exec.envp[0]", Capture: "^LANG=(.+)$"}),
+			setEnvpRule("constant", &SetDefinition{Name: "mixed", Value: "FOO=bar"}),
+			setEnvpRule("mixed", &SetDefinition{Name: "mixed", Field: "exec.envp[0]"}),
+		}}, PolicyLoaderOpts{})
+		require.NoError(t, errs.ErrorOrNil())
+
+		assertEnvpMarks(t, rs, map[string]envpMark{
+			"env":   envpHidden,
+			"mixed": envpFiltered,
+		})
+	})
+
+	t.Run("rejected", func(t *testing.T) {
+		// a rule that fails to load doesn't mark the variables it shares with
+		// valid rules, from a failing action or from a valid one before it
+		rs, errs := loadPolicy(t, &PolicyDef{Rules: []*RuleDefinition{
+			setEnvpRule("valid",
+				&SetDefinition{Name: "shared", Field: "exec.file.path"},
+				&SetDefinition{Name: "before_failing", Field: "exec.file.path"},
+			),
+			// an exec field in an open rule
+			{ID: "rejected_field", Expression: `open.file.path == "/tmp/test"`, Actions: []*ActionDefinition{
+				{Set: &SetDefinition{Name: "shared", Field: "exec.envp[0]"}},
+			}},
+			setEnvpRule("rejected_action",
+				&SetDefinition{Name: "before_failing", Field: "exec.envp[0]"},
+				&SetDefinition{Name: "failing", Field: "open.file.path"},
+			),
+		}}, PolicyLoaderOpts{})
+		require.Error(t, errs.ErrorOrNil())
+		// rejected when their actions are compiled
+		assert.Contains(t, errs.Error(), "is not compatible with 'open' rules")
+		assert.Contains(t, errs.Error(), "is not compatible with 'exec' rules")
+		assert.Contains(t, errs.Error(), "rejected_field")
+		assert.Contains(t, errs.Error(), "rejected_action")
+		require.NotNil(t, rs.GetRuleByID("valid"))
+
+		assertEnvpMarks(t, rs, map[string]envpMark{
+			"shared":         envpAsIs,
+			"before_failing": envpAsIs,
+		})
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		// a hidden variable can still be read by other rules
+		rs, errs := loadPolicy(t, &PolicyDef{Rules: []*RuleDefinition{
+			setEnvpRule("source", &SetDefinition{Name: "display", Field: "exec.envp[0]", Capture: "^DISPLAY=(.+)$", Scope: ScopeProcess}),
+			{ID: "chained", Expression: `open.file.path == "/tmp/test" && ${process.display} == ":0"`},
+		}}, PolicyLoaderOpts{})
+		require.NoError(t, errs.ErrorOrNil())
+
+		assert.NotNil(t, rs.GetRuleByID("chained"))
+		assertEnvpMarks(t, rs, map[string]envpMark{"process.display": envpHidden})
+	})
+}
+
 // The subscript of a set field can read a variable declared by a rule loaded
 // after it: the variables are declared before any field is compiled.
 func TestActionSetVariableSubscriptVariable(t *testing.T) {

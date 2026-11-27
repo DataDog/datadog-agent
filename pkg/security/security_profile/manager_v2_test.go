@@ -171,7 +171,7 @@ func TestManagerV2_evictUnusedNodes_skipsDisabledProfile(t *testing.T) {
 }
 
 // TestManagerV2_SendStats_reportsProfileCount verifies the profile-count gauge follows the V2
-// manager: enabled and disabled profiles both count, and an empty manager reports zero.
+// manager: each tracked profile, enabled or disabled, is reported as 1, and an empty manager reports zero.
 func TestManagerV2_SendStats_reportsProfileCount(t *testing.T) {
 	newManager := func() (*ManagerV2, *gaugeRecorder) {
 		m, _ := newTestManagerV2WithLocalStorage(t)
@@ -210,7 +210,66 @@ func TestManagerV2_SendStats_reportsProfileCount(t *testing.T) {
 		assert.Equal(t, map[string]float64{
 			"profile_image_name:gcr.io/org/app":    1,
 			"profile_image_name:gcr.io/org/worker": 1,
+		}, got, "the short image tag is left off when the profile has not learned it")
+	})
+
+	t.Run("adds the short image stored on the profile", func(t *testing.T) {
+		m, recorder := newManager()
+
+		selector := cgroupModel.WorkloadSelector{Image: "gcr.io/org/app", Tag: "*"}
+		prof := profile.New(profile.WithWorkloadSelector(selector))
+		// The short image is the workload tag copied onto the version context when tags resolve.
+		prof.PrepareNewVersion("v1", []string{"image_name:gcr.io/org/app", "short_image:app"}, 1, 0)
+		prof.Disable()
+		m.profiles[selector] = prof
+
+		// a profile that never saw a short_image tag has none
+		orphanSelector := cgroupModel.WorkloadSelector{Image: "gcr.io/org/worker", Tag: "*"}
+		m.profiles[orphanSelector] = profile.New(profile.WithWorkloadSelector(orphanSelector))
+
+		require.NoError(t, m.SendStats())
+
+		got := map[string]float64{}
+		for i, tags := range recorder.tags[metrics.MetricSecurityProfileProfiles] {
+			got[strings.Join(tags, ",")] = recorder.values[metrics.MetricSecurityProfileProfiles][i]
+		}
+		assert.Equal(t, map[string]float64{
+			"profile_image_name:gcr.io/org/app,profile_short_image:app": 1,
+			"profile_image_name:gcr.io/org/worker":                      1,
 		}, got)
+		assert.Equal(t, [][]string{{
+			"profile_image_name:gcr.io/org/app",
+			"profile_image_tag:*",
+			"profile_short_image:app",
+		}}, recorder.tags[metrics.MetricSecurityProfileV2DisabledProfiles])
+
+		gotSize := map[string]struct{}{}
+		for _, tags := range recorder.tags[metrics.MetricSecurityProfileV2ProfileSize] {
+			gotSize[strings.Join(tags, ",")] = struct{}{}
+		}
+		assert.Contains(t, gotSize, "profile_image_name:gcr.io/org/app,profile_image_tag:*,storage:ram,profile_short_image:app")
+		assert.Contains(t, gotSize, "profile_image_name:gcr.io/org/worker,profile_image_tag:*,storage:ram")
+	})
+
+	t.Run("disk series of an untracked profile uses the stored short image", func(t *testing.T) {
+		m, recorder := newManager()
+
+		selector := cgroupModel.WorkloadSelector{Image: "gcr.io/org/app", Tag: "*"}
+		prof := profile.New(profile.WithWorkloadSelector(selector))
+		prof.Metadata = mtdt.Metadata{Name: "disk-only"}
+		prof.PrepareNewVersion("v1", []string{"image_name:gcr.io/org/app", "short_image:app"}, 1, 0)
+		encoded, err := prof.Encode(config.Profile)
+		require.NoError(t, err)
+		require.NoError(t, m.localStorage.Persist(config.StorageRequest{Format: config.Profile}, prof, encoded))
+
+		require.NoError(t, m.SendStats())
+
+		assert.Equal(t, [][]string{{
+			"profile_image_name:gcr.io/org/app",
+			"profile_image_tag:*",
+			"storage:disk",
+			"profile_short_image:app",
+		}}, recorder.tags[metrics.MetricSecurityProfileV2ProfileSize])
 	})
 
 	t.Run("reports zero when no profile is tracked", func(t *testing.T) {
@@ -1557,6 +1616,7 @@ func TestManagerV2_ProcessEvent_capsPendingEventsTotal(t *testing.T) {
 
 func TestManagerV2_eventsWithError(t *testing.T) {
 	brokenLineage := &model.ErrProcessBrokenLineage{Err: errors.New("missing parent")}
+	critical := &path.ErrPathResolution{Err: errors.New("dentry not found")}
 	countOf := func(m *ManagerV2, eventType model.EventType, errorType string, outcome string) uint64 {
 		return m.insertionErrors[insertionErrorKey{eventType: eventType, errorType: errorType, outcome: outcome}].Load()
 	}
@@ -1583,11 +1643,11 @@ func TestManagerV2_eventsWithError(t *testing.T) {
 	t.Run("dropped before insertion", func(t *testing.T) {
 		m := newTagResolutionTestManagerV2(t, 10, 10)
 		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
-		event.Error = model.ErrNoProcessContext
+		event.Error = errors.New("unknown")
 
 		m.ProcessEvent(event)
 
-		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorNoProcessContext, insertionErrorDropped))
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorOther, insertionErrorDropped))
 		assert.EqualValues(t, 1, total(m))
 		assert.Empty(t, m.profiles)
 		assert.Empty(t, m.resolvedCgroups)
@@ -1640,13 +1700,59 @@ func TestManagerV2_eventsWithError(t *testing.T) {
 	t.Run("dropped during insertion", func(t *testing.T) {
 		m, _ := newInsertionTestManagerV2(t)
 		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
-		event.Error = &path.ErrPathResolution{Err: errors.New("dentry not found")}
+		event.SetPathResolutionError(&event.Open.File, critical)
 
 		_, inserted, _ := m.insertEventIntoProfile(event)
 
 		assert.False(t, inserted)
 		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorPathResolution, insertionErrorDropped))
 		assert.EqualValues(t, 1, total(m))
+	})
+
+	t.Run("path errors that leave the activity intact are kept", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		kernelMount := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		kernelMount.SetPathResolutionError(&kernelMount.Open.File, &path.ErrPathResolutionNotCritical{Err: errors.New("kernel mount")})
+		otherFile := newTestEventV2(model.FileOpenEventType, "v1", "new")
+		otherFile.SetPathResolutionError(&otherFile.ProcessCacheEntry.LinuxBinprm.FileEvent, critical)
+
+		_, inserted, _ := m.insertEventIntoProfile(kernelMount)
+		assert.True(t, inserted)
+		p, inserted, _ := m.insertEventIntoProfile(otherFile)
+		assert.True(t, inserted)
+
+		require.NotNil(t, p)
+		assert.NotNil(t, findTestEventNode(p, model.FileOpenEventType, "known"))
+		assert.NotNil(t, findTestEventNode(p, model.FileOpenEventType, "new"))
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorPathResolutionNotCritical, insertionErrorKept))
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorPathResolution, insertionErrorKept))
+	})
+
+	t.Run("a path error hides the decoding failure of a dns packet", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.DNSEventType, "v1", "known")
+		event.SetPathResolutionError(&event.ProcessCacheEntry.LinuxBinprm.FileEvent, critical)
+
+		_, inserted, _ := m.insertEventIntoProfile(event)
+
+		assert.False(t, inserted)
+		assert.EqualValues(t, 1, countOf(m, model.DNSEventType, activity_tree.InsertionErrorPathResolution, insertionErrorDropped))
+	})
+
+	t.Run("an exec whose binary path couldn't be resolved is dropped despite its broken lineage", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.ExecEventType, "v1", "known")
+		event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, critical)
+		breakLineage(event, false)
+
+		p, inserted, _ := m.insertEventIntoProfile(event)
+
+		assert.False(t, inserted)
+		assert.Nil(t, p)
+		require.Contains(t, m.profiles, testSelector)
+		assert.Empty(t, m.profiles[testSelector].ActivityTree.ProcessNodes)
+		assert.EqualValues(t, 1, countOf(m, model.ExecEventType, activity_tree.InsertionErrorPathResolution, insertionErrorDropped))
+		assert.Zero(t, countOf(m, model.ExecEventType, activity_tree.InsertionErrorBrokenLineage, insertionErrorDropped))
 	})
 
 	t.Run("broken lineage outside of the container is kept", func(t *testing.T) {
@@ -1698,6 +1804,47 @@ func TestManagerV2_eventsWithError(t *testing.T) {
 		require.NotNil(t, p)
 		require.NotNil(t, p.ActivityTree.UnattributedActivity)
 		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorBrokenLineage, insertionErrorUnattributed))
+		assert.EqualValues(t, 1, total(m))
+	})
+
+	t.Run("no process context in the container is unattributed", func(t *testing.T) {
+		for _, eventType := range []model.EventType{model.FileOpenEventType, model.DNSEventType, model.BindEventType, model.ConnectEventType} {
+			t.Run(eventType.String(), func(t *testing.T) {
+				m, anomalies := newInsertionTestManagerV2(t)
+				event := newTestEventV2(eventType, "v1", "known")
+				placeholder := model.NewPlaceholderProcessCacheEntry(42, 42, false)
+				placeholder.ContainerContext = event.ProcessCacheEntry.ContainerContext
+				event.ProcessCacheEntry = placeholder
+				event.ProcessContext = &placeholder.ProcessContext
+				event.Error = model.ErrNoProcessContext
+
+				m.onEventTagsResolved(event)
+
+				p := m.profiles[testSelector]
+				require.NotNil(t, p)
+				assert.Empty(t, *anomalies)
+				assert.Empty(t, p.ActivityTree.ProcessNodes)
+				require.NotNil(t, p.ActivityTree.UnattributedActivity)
+				assert.NotNil(t, findTestEventNodeIn([]*activity_tree.ProcessNode{p.ActivityTree.UnattributedActivity}, eventType, "known"))
+				assert.EqualValues(t, 1, countOf(m, eventType, activity_tree.InsertionErrorNoProcessContext, insertionErrorUnattributed))
+				assert.EqualValues(t, 1, total(m))
+			})
+		}
+	})
+
+	t.Run("no process context in the container is dropped for an exec", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.ExecEventType, "v1", "known")
+		placeholder := model.NewPlaceholderProcessCacheEntry(42, 42, false)
+		placeholder.ContainerContext = event.ProcessCacheEntry.ContainerContext
+		event.ProcessCacheEntry = placeholder
+		event.ProcessContext = &placeholder.ProcessContext
+		event.Error = model.ErrNoProcessContext
+
+		_, inserted, _ := m.insertEventIntoProfile(event)
+
+		assert.False(t, inserted)
+		assert.EqualValues(t, 1, countOf(m, model.ExecEventType, activity_tree.InsertionErrorNoProcessContext, insertionErrorDropped))
 		assert.EqualValues(t, 1, total(m))
 	})
 

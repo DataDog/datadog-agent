@@ -141,6 +141,13 @@ type SafeDevice interface {
 	GetNvLinkState(link int) (nvml.EnableState, error)
 	// GetNvLinkVersion returns the version of the specified NVLink.
 	GetNvLinkVersion(link int) (int, error)
+	// GetNvLinkRemoteDeviceType returns the type of device at the remote end of a local NVLink port.
+	GetNvLinkRemoteDeviceType(link int) (nvml.IntNvLinkDeviceType, error)
+	// GetNvLinkRemotePciInfo returns the PCI information of the device at the remote end of a local NVLink port.
+	GetNvLinkRemotePciInfo(link int) (nvml.PciInfo, error)
+	// GetP2PStatus returns the status of a peer-to-peer capability from this device (as the
+	// source) to the given peer device. The direction of the query is significant.
+	GetP2PStatus(peer SafeDevice, capability nvml.GpuP2PCapsIndex) (nvml.GpuP2PStatus, error)
 	// GetNvLinkErrorCounter returns the specified NVLink error counter for a link.
 	GetNvLinkErrorCounter(link int, counter nvml.NvLinkErrorCounter) (uint64, error)
 	// GetNumGpuCores returns the number of GPU cores in the device
@@ -715,9 +722,9 @@ func (d *DeviceInfo) fillNVLinkDataFromNVML(dev SafeDevice) {
 		}
 
 		if d.NVLinkVersion == "" {
-			d.NVLinkVersion = nvlinkVersionString(version)
-		} else if d.NVLinkVersion != nvlinkVersionString(version) {
-			singleton.logDeviceWarning(d.UUID, "NVLink version %s for link %d differs from version %s reported by another link", nvlinkVersionString(version), link, d.NVLinkVersion)
+			d.NVLinkVersion = NVLinkVersionString(version)
+		} else if d.NVLinkVersion != NVLinkVersionString(version) {
+			singleton.logDeviceWarning(d.UUID, "NVLink version %s for link %d differs from version %s reported by another link", NVLinkVersionString(version), link, d.NVLinkVersion)
 		}
 	}
 }
@@ -741,7 +748,8 @@ func nvmlFieldValueToInt(fv nvml.FieldValue) (int, error) {
 	}
 }
 
-func nvlinkVersionString(version int) string {
+// NVLinkVersionString maps the NVML NVLink version enum to the protocol version (e.g. 6 -> "4.0").
+func NVLinkVersionString(version int) string {
 	switch version {
 	case 1:
 		return "1.0"
