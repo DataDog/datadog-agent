@@ -94,7 +94,7 @@ func TestComponent(t *testing.T) {
 	assert.True(t, called)
 }
 
-func TestConcurrentUse(t *testing.T) {
+func TestConcurrentUse(_ *testing.T) {
 	c := New()
 	var wg sync.WaitGroup
 	for range 8 {
