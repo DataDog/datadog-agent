@@ -90,10 +90,10 @@ func newSweeper(scan scanFunc, reporter discoveryReporter, cursors cursorStore, 
 func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 	id := r.Config.AutodiscoveryID
 	r.Workers = clampWorkers(r.Workers, s.budget)
-	state := s.startState(r)
+	state, resumed := s.startState(r)
 	total := r.Plan.chunkCount()
 
-	if state.NextChunk == 0 {
+	if !resumed {
 		s.log.Infof("ndmdiscovery: scanning range %s (%s): %d addresses in %d chunks, %d ignored, run %s",
 			id, r.Config.NetworkAddress, r.Plan.totalAddresses(), total, r.Plan.ignoredCount(), state.RunID)
 		// Saved before the first chunk, so the cursor never shows the previous run.
@@ -204,14 +204,14 @@ func (s *sweeper) nextRunAt(r sweepRequest, endedAtMs int64) int64 {
 }
 
 // startState resumes the persisted cycle when the range and its credentials
-// are unchanged, and starts a new one otherwise.
-func (s *sweeper) startState(r sweepRequest) cursorState {
+// are unchanged, and starts a new one otherwise. It reports whether it resumed.
+func (s *sweeper) startState(r sweepRequest) (cursorState, bool) {
 	if saved, ok := s.cursors.Load(r.Config.AutodiscoveryID); !r.Fresh && ok &&
 		saved.ConfigDigest == r.Digest &&
-		saved.NextChunk > 0 &&
+		(saved.NextChunk > 0 || saved.EndedAtMs == 0) &&
 		saved.NextChunk < r.Plan.chunkCount() {
 		if !saved.Failed {
-			return saved
+			return saved, true
 		}
 
 		// The saved run already reported a terminal status, so the remaining
@@ -221,7 +221,7 @@ func (s *sweeper) startState(r sweepRequest) cursorState {
 		saved.Failed = false
 		s.saveCursor(r.Config.AutodiscoveryID, saved)
 		s.reportRun(r, inProgressRun(r.Config.AutodiscoveryID, saved.RunID, saved.Scanned, saved.StartedAtMs))
-		return saved
+		return saved, true
 	}
 
 	return cursorState{
@@ -231,7 +231,7 @@ func (s *sweeper) startState(r sweepRequest) cursorState {
 		Scanned:      int64(r.Plan.ignoredCount()),
 		StartedAtMs:  s.now(),
 		ConfigDigest: r.Digest,
-	}
+	}, false
 }
 
 func (s *sweeper) probe(ctx context.Context, r sweepRequest, runID string, chunk probeChunk) ([]metadata.DiscoveredDeviceMetadata, error) {

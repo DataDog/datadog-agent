@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -158,6 +159,10 @@ func (s *scheduler) set(cfg rangeConfig) error {
 	}
 	var replaced context.CancelFunc
 	if existing, ok := s.ranges[cfg.AutodiscoveryID]; ok {
+		if reflect.DeepEqual(existing.cfg, cfg) {
+			s.mu.Unlock()
+			return nil
+		}
 		replaced = existing.cancel
 	}
 	rangeCtx, rangeCancel := context.WithCancel(s.ctx)
