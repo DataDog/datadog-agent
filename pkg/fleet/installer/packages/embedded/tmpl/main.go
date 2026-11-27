@@ -359,6 +359,6 @@ var darwinProcmgrEmbeddedLayouts = []embeddedLayout{
 // every stable definition in darwin/ is loaded at install.
 var launchdUnitSupervisorEmbeddedLayouts = []embeddedLayout{
 	{subdir: "darwin-supervisor", units: map[string][]byte{
-		"com.datadoghq.unit-supervisor.plist": mustReadUnit("com.datadoghq.unit-supervisor.plist", stableDataLaunchd, false, false),
+		"com.datadoghq.supervisor.plist": mustReadUnit("com.datadoghq.supervisor.plist", stableDataLaunchd, false, false),
 	}},
 }

@@ -45,7 +45,7 @@ const (
 	// unitSupervisorJob is the supervisor's launchd job. It has no experiment variant, starts only
 	// when a hook kickstarts it, and is relaunched by launchd if it crashes (KeepAlive Crashed,
 	// which unlike SuccessfulExit does not imply RunAtLoad).
-	unitSupervisorJob = "com.datadoghq.unit-supervisor"
+	unitSupervisorJob = "com.datadoghq.supervisor"
 
 	// superviseUnitsCommand is the package command the supervisor job runs.
 	superviseUnitsCommand = "superviseUnits"
@@ -207,7 +207,7 @@ func withdrawUnitsRequest(ctx context.Context) {
 }
 
 // ensureUnitSupervisor writes the supervisor's job definition (embedded/tmpl/
-// com.datadoghq.unit-supervisor.plist.tmpl), loads it if it is not, and starts it. Starting a
+// com.datadoghq.supervisor.plist.tmpl), loads it if it is not, and starts it. Starting a
 // supervisor that runs already does nothing: it sees the new target by itself.
 var ensureUnitSupervisor = func(ctx context.Context) error {
 	client := installerLaunchdClient()

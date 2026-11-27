@@ -49,7 +49,7 @@ var launchdJobs embed.FS
 // launchdUnitSupervisorJob is the launchd job definition of the configuration experiment's unit
 // supervisor on macOS (see embedded/tmpl/main.go).
 //
-//go:embed tmpl/gen/darwin-supervisor/com.datadoghq.unit-supervisor.plist
+//go:embed tmpl/gen/darwin-supervisor/com.datadoghq.supervisor.plist
 var launchdUnitSupervisorJob []byte
 
 // darwinProcmgrConfigs holds the macOS processes.d entries (see embedded/tmpl/main.go).

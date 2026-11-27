@@ -120,7 +120,7 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         # The unit supervisor starts and stops a configuration experiment's jobs: it is booted out
         # before the installer daemons and the jobs go, or it would read them going away as a failure.
         preinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/preinst").read_text()
-        supervisor = preinst.index("launchctl bootout system/com.datadoghq.unit-supervisor")
+        supervisor = preinst.index("launchctl bootout system/com.datadoghq.supervisor")
         daemons = preinst.index("launchctl bootout system/com.datadoghq.installer ")
         self.assertLess(supervisor, daemons)
 
@@ -131,10 +131,10 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         end = uninstall.find("\n}\n", start)
         self.assertNotEqual(start, -1)
         body = uninstall[start:end]
-        supervisor = body.find("launchctl bootout system/com.datadoghq.unit-supervisor")
+        supervisor = body.find("launchctl bootout system/com.datadoghq.supervisor")
         self.assertNotEqual(supervisor, -1)
         self.assertLess(supervisor, body.find("launchctl bootout system/com.datadoghq.installer-exp"))
-        self.assertIn("rm -f /Library/LaunchDaemons/com.datadoghq.unit-supervisor.plist", body)
+        self.assertIn("rm -f /Library/LaunchDaemons/com.datadoghq.supervisor.plist", body)
 
     def test_uninstall_without_installer_stops_the_unit_supervisor_again_after_the_daemons(self):
         # An installer command a daemon ran may start the unit supervisor again until the daemons
@@ -148,8 +148,14 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         self.assertEqual(len(calls), 2, "the supervisor is stopped before and after the installer daemons")
         lines = body.splitlines()
         daemons = next(i for i, line in enumerate(lines) if "launchctl bootout system/com.datadoghq.installer " in line)
-        wait = next(i for i, line in enumerate(lines) if "for label in com.datadoghq.installer-exp com.datadoghq.installer;" in line)
-        first_job = next(i for i, line in enumerate(lines) if "launchctl bootout system/com.datadoghq.agent-exp" in line)
+        wait = next(
+            i
+            for i, line in enumerate(lines)
+            if "for label in com.datadoghq.installer-exp com.datadoghq.installer;" in line
+        )
+        first_job = next(
+            i for i, line in enumerate(lines) if "launchctl bootout system/com.datadoghq.agent-exp" in line
+        )
         self.assertLess(calls[0], daemons)
         self.assertLess(daemons, wait)
         self.assertLess(wait, calls[1])
@@ -178,8 +184,8 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
                 self.assertNotEqual(start, -1)
                 body = text[start : text.find("\n    }\n", start)]
                 clear = body.find("rm -f /opt/datadog-packages/run/units-target")
-                bootout = body.find("launchctl bootout system/com.datadoghq.unit-supervisor")
-                wait = body.find("launchctl print system/com.datadoghq.unit-supervisor")
+                bootout = body.find("launchctl bootout system/com.datadoghq.supervisor")
+                wait = body.find("launchctl print system/com.datadoghq.supervisor")
                 self.assertNotEqual(clear, -1)
                 self.assertNotEqual(wait, -1)
                 self.assertLess(clear, bootout)

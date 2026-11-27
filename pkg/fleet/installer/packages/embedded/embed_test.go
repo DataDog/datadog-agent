@@ -304,7 +304,7 @@ func TestLaunchdUnitSupervisorJob(t *testing.T) {
 	assertPropertyList(t, content)
 	definition := string(content)
 
-	assert.Contains(t, definition, "<string>com.datadoghq.unit-supervisor</string>")
+	assert.Contains(t, definition, "<string>com.datadoghq.supervisor</string>")
 	assert.Regexp(t, `<key>RunAtLoad</key>\s*<false/>`, definition)
 	// SuccessfulExit would imply RunAtLoad, and start the supervisor at boot.
 	assert.Regexp(t, `<key>KeepAlive</key>\s*<dict>\s*<key>Crashed</key>\s*<true/>\s*</dict>`, definition)
@@ -313,7 +313,7 @@ func TestLaunchdUnitSupervisorJob(t *testing.T) {
 	// makes it abort with SIGABRT instead.
 	assert.Regexp(t, `<key>GOTRACEBACK</key>\s*<string>crash</string>`, definition)
 	assert.Regexp(t, `<key>UserName</key>\s*<string>root</string>`, definition)
-	assert.Regexp(t, `<key>StandardOutPath</key>\s*<string>/opt/datadog-agent/logs/launchd_unit-supervisor.log</string>`, definition)
+	assert.Regexp(t, `<key>StandardOutPath</key>\s*<string>/opt/datadog-agent/logs/launchd_supervisor.log</string>`, definition)
 
 	var plist struct {
 		Args []string `xml:"dict>array>string"`
@@ -324,7 +324,7 @@ func TestLaunchdUnitSupervisorJob(t *testing.T) {
 	for _, variant := range []LaunchdVariant{LaunchdStable, LaunchdExperiment} {
 		labels, err := LaunchdJobs(variant)
 		require.NoError(t, err)
-		assert.NotContains(t, labels, "com.datadoghq.unit-supervisor")
+		assert.NotContains(t, labels, "com.datadoghq.supervisor")
 	}
 }
 
