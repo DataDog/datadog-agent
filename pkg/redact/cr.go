@@ -32,6 +32,29 @@ func ScrubCRManifest(r *unstructured.Unstructured, scrubber *DataScrubber) {
 	}
 }
 
+// ScrubUnstructured scrubs the metadata and content of an unstructured object.
+func ScrubUnstructured(r *unstructured.Unstructured, scrubber *DataScrubber) {
+	if annotations := r.GetAnnotations(); len(annotations) > 0 {
+		RemoveSensitiveAnnotationsAndLabels(annotations, nil)
+		scrubAnnotations(annotations, scrubber)
+		r.SetAnnotations(annotations)
+	}
+	if labels := r.GetLabels(); len(labels) > 0 {
+		RemoveSensitiveAnnotationsAndLabels(nil, labels)
+		r.SetLabels(labels)
+	}
+	ScrubCRManifest(r, scrubber)
+}
+
+func scrubValue(v interface{}, scrubber *DataScrubber) {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		scrubMap(val, scrubber, false)
+	case []interface{}:
+		scrubSlice(val, scrubber, false)
+	}
+}
+
 // scrubMap recursively scrubs sensitive values in a map
 func scrubMap(m map[string]interface{}, scrubber *DataScrubber, parentSensitive bool) {
 	for k, v := range m {

@@ -797,3 +797,40 @@ fi;
 	}
 	return tests
 }
+
+func TestScrubPodScrubsMetadataAndEphemeralContainers(t *testing.T) {
+	pod := &v1.Pod{
+		ObjectMeta: sensitiveObjectMeta(),
+		Spec: v1.PodSpec{EphemeralContainers: []v1.EphemeralContainer{{
+			EphemeralContainerCommon: v1.EphemeralContainerCommon{Name: "debug", Env: []v1.EnvVar{{Name: "PASSWORD", Value: "sensitive-value"}}},
+			TargetContainerName:      "app",
+		}}},
+	}
+	ScrubPod(pod, NewDefaultDataScrubber())
+	assertScrubbedObjectMeta(t, pod.ObjectMeta)
+	assert.Equal(t, "debug", pod.Spec.EphemeralContainers[0].Name)
+	assert.Equal(t, "app", pod.Spec.EphemeralContainers[0].TargetContainerName)
+	assert.Equal(t, []v1.EnvVar{{Name: "PASSWORD", Value: redactedSecret}}, pod.Spec.EphemeralContainers[0].Env)
+}
+
+func TestScrubPodTemplateSpecScrubsMetadata(t *testing.T) {
+	template := sensitivePodTemplateSpec()
+	ScrubPodTemplateSpec(&template, NewDefaultDataScrubber())
+	assertScrubbedPodTemplateSpec(t, template)
+}
+
+func TestScrubContainerTokenEnvVars(t *testing.T) {
+	container := v1.Container{Name: "app", Env: []v1.EnvVar{
+		{Name: "TOKEN", Value: "sensitive-value"},
+		{Name: "GITHUB_TOKEN", Value: "sensitive-value"},
+		{Name: "DD_AUTH_TOKEN_FILE_PATH", Value: "/etc/token"},
+		{Name: "TOKENIZER", Value: "public"},
+	}}
+	scrubContainer(&container, NewDefaultDataScrubber())
+	assert.Equal(t, []v1.EnvVar{
+		{Name: "TOKEN", Value: redactedSecret},
+		{Name: "GITHUB_TOKEN", Value: redactedSecret},
+		{Name: "DD_AUTH_TOKEN_FILE_PATH", Value: "/etc/token"},
+		{Name: "TOKENIZER", Value: "public"},
+	}, container.Env)
+}

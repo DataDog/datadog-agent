@@ -29,25 +29,27 @@ func RemoveSensitiveAnnotationsAndLabels(annotations map[string]string, labels m
 
 // ScrubPodTemplateSpec scrubs a pod template.
 func ScrubPodTemplateSpec(template *v1.PodTemplateSpec, scrubber *DataScrubber) {
-	scrubAnnotations(template.Annotations, scrubber)
-
-	for c := 0; c < len(template.Spec.InitContainers); c++ {
-		scrubContainer(&template.Spec.InitContainers[c], scrubber)
-	}
-	for c := 0; c < len(template.Spec.Containers); c++ {
-		scrubContainer(&template.Spec.Containers[c], scrubber)
-	}
+	ScrubObjectMeta(&template.ObjectMeta, scrubber)
+	scrubPodSpec(&template.Spec, scrubber)
 }
 
 // ScrubPod scrubs a pod.
 func ScrubPod(p *v1.Pod, scrubber *DataScrubber) {
-	scrubAnnotations(p.Annotations, scrubber)
+	ScrubObjectMeta(&p.ObjectMeta, scrubber)
+	scrubPodSpec(&p.Spec, scrubber)
+}
 
-	for c := 0; c < len(p.Spec.InitContainers); c++ {
-		scrubContainer(&p.Spec.InitContainers[c], scrubber)
+func scrubPodSpec(spec *v1.PodSpec, scrubber *DataScrubber) {
+	for c := range spec.InitContainers {
+		scrubContainer(&spec.InitContainers[c], scrubber)
 	}
-	for c := 0; c < len(p.Spec.Containers); c++ {
-		scrubContainer(&p.Spec.Containers[c], scrubber)
+	for c := range spec.Containers {
+		scrubContainer(&spec.Containers[c], scrubber)
+	}
+	for c := range spec.EphemeralContainers {
+		container := v1.Container(spec.EphemeralContainers[c].EphemeralContainerCommon)
+		scrubContainer(&container, scrubber)
+		spec.EphemeralContainers[c].EphemeralContainerCommon = v1.EphemeralContainerCommon(container)
 	}
 }
 
@@ -80,7 +82,7 @@ func scrubContainerProbe(probe *v1.Probe, scrubber *DataScrubber) {
 func scrubContainer(c *v1.Container, scrubber *DataScrubber) {
 	// scrub env vars
 	for e := 0; e < len(c.Env); e++ {
-		if scrubber.ContainsSensitiveWord(c.Env[e].Name) {
+		if isSensitiveEnvVarName(c.Env[e].Name, scrubber) {
 			// It's possible the env var is set using a ValueFrom field, in which case we don't want to scrub the value field
 			if c.Env[e].Value != "" {
 				c.Env[e].Value = redactedSecret
