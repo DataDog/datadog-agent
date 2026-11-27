@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"slices"
 	"strings"
 	"time"
@@ -274,6 +275,14 @@ func NewVaultBackend(bc map[string]interface{}) (*VaultBackend, error) {
 func (b *VaultBackend) GetSecretOutput(ctx context.Context, secretString string) secret.Output {
 	if strings.HasPrefix(secretString, "vault://") {
 		return b.handleVaultURIFormat(ctx, secretString)
+	}
+
+	if secretString != "" && !strings.ContainsAny(secretString, "/;#") {
+		lookupPath := os.Getenv("DD_SECRETS_LOOKUP_PATH")
+		valueKey := os.Getenv("DD_SECRETS_VALUES_KEY")
+		if lookupPath != "" && valueKey != "" {
+			return b.handleVaultURIFormat(ctx, fmt.Sprintf("vault://%s#/data/%s", path.Join(lookupPath, secretString), valueKey))
+		}
 	}
 
 	return b.handleTypicalFormat(ctx, secretString)

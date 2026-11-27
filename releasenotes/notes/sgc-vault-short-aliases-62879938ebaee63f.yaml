@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    The HashiCorp Vault backend in the secret-generic-connector can resolve
+    short secret aliases when both ``DD_SECRETS_LOOKUP_PATH`` and
+    ``DD_SECRETS_VALUES_KEY`` are set. For example, ``ENC[db_password]`` with
+    lookup path ``secret/shared`` and value key ``value`` resolves like
+    ``ENC[vault://secret/shared/db_password#/data/value]``. Explicit Vault
+    references are unchanged; without both settings, short aliases remain
+    unsupported. Prefer explicit references for new configurations.
