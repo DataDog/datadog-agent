@@ -616,7 +616,8 @@ mod tests {
         );
     }
 
-    /// A short-timeout child is force-killed on its own deadline, not the longer child's.
+    /// Real children that ignore SIGTERM are SIGKILLed, and not before their own deadlines.
+    /// Which deadline fires first is checked on the manual clock.
     #[cfg(unix)]
     #[tokio::test]
     async fn test_shutdown_short_timeout_killed_on_its_own_deadline() {
@@ -626,7 +627,6 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let mut procs = Vec::new();
         let mut exits = Vec::new();
-        // The long-timeout child is first, so a sequential wait would block on it.
         for (name, stop_timeout) in [("slow-stop", 3), ("fast-stop", 1)] {
             let ready = dir.path().join(format!("{name}.ready"));
             let (cmd, args) = test_helpers::trap_term_sleep_ready(&ready);
@@ -665,8 +665,10 @@ mod tests {
         let (slow_exit, slow_status) = &results[0];
         let (fast_exit, fast_status) = &results[1];
 
-        // Lower bounds only: a kill never comes before its deadline. Upper bounds would be
-        // flaky on a loaded runner, so the ordering check stands in for them.
+        // Lower bounds only: a kill never comes before its deadline. Upper bounds and the
+        // order of the two exits depend on when the receiver tasks run, so deadline ordering
+        // is checked on the manual clock in
+        // `test_shutdown_mixed_deadlines_finish_in_deadline_order_on_manual_clock`.
         assert!(
             *fast_exit >= Duration::from_millis(1000),
             "fast-stop was killed before its 1 s deadline: exited at {fast_exit:?}"
@@ -674,10 +676,6 @@ mod tests {
         assert!(
             *slow_exit >= Duration::from_millis(2500),
             "slow-stop was killed before its 3 s deadline: exited at {slow_exit:?}"
-        );
-        assert!(
-            fast_exit < slow_exit,
-            "fast-stop should be killed on its own deadline, before slow-stop: fast {fast_exit:?}, slow {slow_exit:?}"
         );
         for status in [slow_status, fast_status] {
             assert_eq!(
