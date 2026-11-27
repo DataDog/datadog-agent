@@ -463,6 +463,17 @@ func Test_ParsersProduceSameOutput(t *testing.T) {
 	minimalParserResult := minimalParser.Parse(minimalPod)
 
 	assert.Equal(t, fullParserResult, minimalParserResult)
+
+	// The minimal informer decodes API JSON: check that the MinimalPod JSON tags decode the same
+	// fields, including initContainers and their restartPolicy.
+	// Both pods are decoded from the same JSON so that their timestamps compare equal.
+	raw, err := json.Marshal(fullPod)
+	require.NoError(t, err)
+	var decodedFullPod corev1.Pod
+	require.NoError(t, json.Unmarshal(raw, &decodedFullPod))
+	var decodedMinimalPod MinimalPod
+	require.NoError(t, json.Unmarshal(raw, &decodedMinimalPod))
+	assert.Equal(t, fullParser.Parse(&decodedFullPod), minimalParser.Parse(&decodedMinimalPod))
 }
 
 // Exercise the API-server parsers rather than constructing image-bearing workloadmeta pods.

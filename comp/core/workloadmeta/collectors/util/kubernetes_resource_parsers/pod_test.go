@@ -14,6 +14,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -146,7 +147,7 @@ func TestPodParser_Parse(t *testing.T) {
 
 func TestPodParser_ParseInitContainers(t *testing.T) {
 	parser, err := NewPodParser(nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	alwaysRestart := corev1.ContainerRestartPolicyAlways
 	pod := &corev1.Pod{
@@ -180,7 +181,7 @@ func TestPodParser_ParseInitContainers(t *testing.T) {
 	}
 
 	parsed := parser.Parse(pod).(*workloadmeta.KubernetesPod)
-	assert.Len(t, parsed.InitContainers, 2)
+	require.Len(t, parsed.InitContainers, 2)
 	assert.Equal(t, "sidecar", parsed.InitContainers[0].Name)
 	assert.Equal(t, string(corev1.ContainerRestartPolicyAlways), parsed.InitContainers[0].RestartPolicy)
 	assert.Equal(t, string(corev1.RestartContainer), parsed.InitContainers[0].ResizePolicy.CPURestartPolicy)
