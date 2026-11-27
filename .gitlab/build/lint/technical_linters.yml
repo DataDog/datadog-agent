@@ -150,9 +150,14 @@ lint_config_schema:
 
 .on_release_refreshed_files_changes:
   - !reference [.except_main_release_or_mq]
-  # Branches of the release automation's refresh PRs, e.g. `7.86.0/refresh-config-templates-<uuid>_<n>`.
-  # The pattern is strict so that no other branch matches it by accident.
+  # Branches of the release automation's PRs. The patterns are strict so that no other branch
+  # matches them by accident.
+  # Config templates refresh PRs, e.g. `7.86.0/refresh-config-templates-<uuid>_<n>`.
   - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.[0-9]+\/refresh-config-templates-[0-9a-f-]+(_[0-9]+)?$/
+    when: never
+  # release.json and Go modules PRs of each RC and final version, which also regenerate the
+  # generatedsettings snapshot, e.g. `7.87.0-rc.1/update-release-json-<workflow ID>`.
+  - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?\/update-release-json-[A-Za-z0-9._-]+$/
     when: never
 
 lint_config_examples_not_edited:
