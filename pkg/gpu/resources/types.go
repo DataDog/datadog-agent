@@ -6,24 +6,94 @@
 // Package resources builds and publishes static GPU device inventory to REDAPL.
 package resources
 
-// Device contains a physical GPU's static resource fields.
+// Device contains a physical GPU's static resource fields. Unknown values are
+// omitted; pointers mark fields where zero is a valid value.
 type Device struct {
-	Hostname           string  `json:"hostname"`
-	UUID               string  `json:"gpu_uuid"`
-	Vendor             string  `json:"gpu_vendor,omitempty"`
-	Model              string  `json:"gpu_device,omitempty"`
-	Architecture       string  `json:"gpu_architecture,omitempty"`
-	ComputeCapability  string  `json:"compute_capability,omitempty"`
-	CoreCount          int     `json:"core_count,omitempty"`
-	MemoryTotalBytes   uint64  `json:"memory_total_bytes,omitempty"`
-	MemoryBusWidth     uint32  `json:"memory_bus_width,omitempty"`
-	DriverVersion      string  `json:"gpu_driver_version,omitempty"`
-	VirtualizationMode string  `json:"gpu_virtualization_mode,omitempty"`
-	PCIBusID           string  `json:"gpu_pci_bus_id,omitempty"`
-	FabricGUID         string  `json:"gpu_fabric_guid,omitempty"`
-	FabricClusterUUID  string  `json:"gpu_fabric_cluster_uuid,omitempty"`
-	FabricCliqueID     *uint32 `json:"gpu_fabric_clique_id,omitempty"`
-	NVLinkPartition    string  `json:"gpu_nvlink_partition,omitempty"`
-	BoardSerial        string  `json:"gpu_board_serial,omitempty"`
-	ChassisSerial      string  `json:"gpu_chassis_serial,omitempty"`
+	Hostname           string    `json:"hostname"`
+	UUID               string    `json:"gpu_uuid"`
+	Vendor             string    `json:"gpu_vendor,omitempty"`
+	Model              string    `json:"gpu_device,omitempty"`
+	BoardPartNumber    string    `json:"board_part_number,omitempty"`
+	Architecture       string    `json:"gpu_architecture,omitempty"`
+	ComputeCapability  string    `json:"compute_capability,omitempty"`
+	CoreCount          int       `json:"core_count,omitempty"`
+	MemoryTotalBytes   uint64    `json:"memory_total_bytes,omitempty"`
+	MemoryBusWidth     uint32    `json:"memory_bus_width,omitempty"`
+	BAR1TotalBytes     uint64    `json:"bar1_total_bytes,omitempty"`
+	DriverVersion      string    `json:"gpu_driver_version,omitempty"`
+	VirtualizationMode string    `json:"gpu_virtualization_mode,omitempty"`
+	PCIBusID           string    `json:"gpu_pci_bus_id,omitempty"`
+	PCIDeviceID        string    `json:"pci_device_id,omitempty"`
+	PCISubsystemID     string    `json:"pci_subsystem_id,omitempty"`
+	PCIePath           *[]string `json:"pcie_path,omitempty"` // empty when the GPU is on the root complex
+	NUMANode           *int      `json:"gpu_numa_node,omitempty"`
+	FabricGUID         string    `json:"gpu_fabric_guid,omitempty"`
+	FabricClusterUUID  string    `json:"gpu_fabric_cluster_uuid,omitempty"`
+	FabricCliqueID     *uint32   `json:"gpu_fabric_clique_id,omitempty"`
+	NVLinkPartition    string    `json:"gpu_nvlink_partition,omitempty"`
+	NVLinkLinkCount    int       `json:"nvlink_link_count,omitempty"`
+	BoardSerial        string    `json:"gpu_board_serial,omitempty"`
+	ChassisSerial      string    `json:"gpu_chassis_serial,omitempty"`
+	SlotNumber         *uint8    `json:"gpu_slot_number,omitempty"`
+	TrayIndex          *uint8    `json:"gpu_tray_index,omitempty"`
+	ModuleID           *uint8    `json:"gpu_module_id,omitempty"`
+	Platform           *Platform `json:"platform,omitempty"`
+	HostLink           *HostLink `json:"host_link,omitempty"`
+
+	// GPUPeers lists the host-local GPUs that are directly attached over NVLink or that report
+	// at least one supported P2P capability, ordered by UUID.
+	GPUPeers []GPUPeer `json:"gpu_peers,omitempty"`
+	// UnresolvedNVLinks lists the NVLink ports whose remote end is not a host-local GPU,
+	// ordered by port. Switch ports stay here until switch identities are published.
+	UnresolvedNVLinks []UnresolvedNVLink `json:"unresolved_nvlinks,omitempty"`
+}
+
+// Platform is the GPU's hardware platform placement.
+type Platform struct {
+	// HostID is the NVML node index within the slot; zero is valid.
+	HostID uint8 `json:"host_id"`
+}
+
+// HostLink holds the GPU-to-host protocol and its maximum capabilities.
+// Negotiated values are metrics.
+type HostLink struct {
+	Protocol                       string `json:"protocol,omitempty"`
+	PCIeMaxGeneration              int    `json:"pcie_max_generation,omitempty"`
+	PCIeGPUMaxGeneration           int    `json:"pcie_gpu_max_generation,omitempty"`
+	PCIeMaxWidth                   int    `json:"pcie_max_width,omitempty"`
+	PCIeMaxBandwidthBytesPerSecond int64  `json:"pcie_max_bandwidth_bytes_per_second,omitempty"`
+	C2CLinkCount                   int    `json:"c2c_link_count,omitempty"`
+	C2CMaxBandwidthMbps            int64  `json:"c2c_max_bandwidth_mbps,omitempty"`
+}
+
+// GPUPeer describes another GPU of the same host from the point of view of one GPU.
+type GPUPeer struct {
+	UUID            string           `json:"gpu_uuid"`
+	P2PCapabilities *P2PCapabilities `json:"p2p_capabilities,omitempty"`
+	DirectNVLinks   []DirectNVLink   `json:"direct_nvlinks,omitempty"`
+}
+
+// P2PCapabilities holds the peer-to-peer capabilities of an ordered GPU pair: true is supported,
+// false is explicitly unsupported or disabled and absent is unknown.
+type P2PCapabilities struct {
+	Read    *bool `json:"read,omitempty"`
+	Write   *bool `json:"write,omitempty"`
+	Atomics *bool `json:"atomics,omitempty"`
+	NVLink  *bool `json:"nvlink,omitempty"`
+	PCI     *bool `json:"pci,omitempty"`
+}
+
+// DirectNVLink is one local NVLink port that terminates at a peer GPU.
+type DirectNVLink struct {
+	Port           int32  `json:"nvlink_port"`
+	RemotePCIBusID string `json:"remote_pci_bus_id,omitempty"`
+	Version        string `json:"version,omitempty"`
+}
+
+// UnresolvedNVLink is one local NVLink port without a resolved GPU or switch identity.
+type UnresolvedNVLink struct {
+	Port           int32  `json:"nvlink_port"`
+	RemoteType     string `json:"remote_type,omitempty"`
+	RemotePCIBusID string `json:"remote_pci_bus_id,omitempty"`
+	Version        string `json:"version,omitempty"`
 }

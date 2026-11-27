@@ -118,6 +118,72 @@ func TestVariablePrivateField(t *testing.T) {
 // after the intermediate exits and the grandchild is reparented onto a
 // subreaper - i.e. that the inherited value is snapshotted onto the grandchild
 // before its parent link changes.
+var _ = declare(TestVariableEnvpFiltered, testOpts{envsWithValue: []string{"DD_ENVP_LISTED"}})
+
+// The envp entries copied into a variable are sent with a value only for the
+// keys of envs_with_value, a part of one or a value read from it isn't sent, and
+// the envp entries matched by the rule are filtered the same way.
+func TestVariableEnvpFiltered(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	executable := which(t, "true")
+	ruleDefs := []*rules.RuleDefinition{{
+		ID:         "test_rule_envp_variable",
+		Expression: `exec.file.path == "` + executable + `" && exec.envp in [~"DD_ENVP_SECRET=*"]`,
+		Actions: []*rules.ActionDefinition{
+			{Set: &rules.SetDefinition{Name: "envp", Field: "exec.envp", Append: true}},
+			{Set: &rules.SetDefinition{Name: "secret", Field: "exec.envp[1]", Capture: "^DD_ENVP_SECRET=(.+)$"}},
+			{Set: &rules.SetDefinition{Name: "derived", Expression: `"x:${secret}"`, DefaultValue: ""}},
+		},
+	}}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	test.WaitSignalFromRule(t, func() error {
+		cmd := exec.Command(executable)
+		cmd.Env = []string{"DD_ENVP_LISTED=visible", "DD_ENVP_SECRET=s3cr3t"}
+		return cmd.Run()
+	}, func(_ *model.Event, _ *rules.Rule) {}, "test_rule_envp_variable")
+
+	err = retry(t, func() error {
+		msg := test.msgSender.getMsg("test_rule_envp_variable")
+		if msg == nil {
+			return errors.New("message not found")
+		}
+
+		assert.NotContains(t, string(msg.Data), "s3cr3t", "the secret value should not be sent")
+
+		jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
+			envp, err := jsonpath.JsonPathLookup(obj, `$.evt.variables.envp`)
+			if assert.NoError(t, err, "the envp variable should be sent") {
+				assert.ElementsMatch(t, []interface{}{"DD_ENVP_LISTED=visible", "DD_ENVP_SECRET"}, envp)
+			}
+			for _, name := range []string{"secret", "derived"} {
+				if _, err := jsonpath.JsonPathLookup(obj, `$.evt.variables.`+name); err == nil {
+					t.Errorf("variable %s should not be sent", name)
+				}
+			}
+
+			values, err := jsonpath.JsonPathLookup(obj, `$.evt.rule_context.matching_subexprs[?(@.field == 'exec.envp')].value`)
+			if assert.NoError(t, err, "the matched envp should be in the rule context") {
+				assert.NotEmpty(t, values)
+				for _, value := range values.([]interface{}) {
+					assert.Contains(t, value, "DD_ENVP_LISTED=visible")
+				}
+			}
+		})
+
+		return nil
+	}, backoff.WithMaxTries(10))
+	if err != nil {
+		t.Error(err)
+	}
+}
+
 func TestVariableInheritanceReparenting(t *testing.T) {
 	SkipIfNotAvailable(t)
 

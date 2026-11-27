@@ -10,6 +10,8 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -23,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -341,7 +344,7 @@ jmx_metrics: [{password: 'ENC[shared]'}]
 	assert.ElementsMatch(t, append(encPaths, encPaths...), payload.EncInfo["paths"])
 	assert.Equal(t, []string{"shared", "shared", "shared", "shared", "shared", "shared"}, payload.EncInfo["handles"])
 	assert.ElementsMatch(t, append(rawPaths, rawPaths...), payload.EncInfo["scrubbed"])
-	assert.Equal(t, map[string]string{"shared": "31160254d1297393d2ad00e1c01851aec834361e02c524b89fe06aff2879ce6a"}, payload.EncInfo["hash_secret_id"])
+	assert.Equal(t, map[string]string{"shared": sharedSecretHash}, payload.EncInfo["hash_secret_id"])
 	encoded, err := json.Marshal(payload)
 	require.NoError(t, err)
 	assert.NotContains(t, string(encoded), "secret-value")
@@ -357,6 +360,55 @@ jmx_metrics: [{password: 'ENC[shared]'}]
 	assert.Nil(t, payload.EncInfo)
 }
 
+// getTestInventoryChecksWithSecretHash returns an inventorychecks component whose integration configuration uses
+// a resolved secret, so that its payload carries the hash of the secret value under enc_info.hash_secret_id.
+func getTestInventoryChecksWithSecretHash(t *testing.T) *inventorychecksImpl {
+	confdPath := t.TempDir()
+	file := filepath.Join(confdPath, "http_check.d", "conf.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(file), 0700))
+	require.NoError(t, os.WriteFile(file, []byte("instances: [{password: 'ENC[shared]'}]\n"), 0600))
+	providers.ResetReader([]string{confdPath})
+	t.Cleanup(func() { providers.ResetReader(nil) })
+
+	ic := getTestInventoryChecks(t, option.None[collector.Component](), option.Option[logagent.Component]{}, map[string]any{"inventories_enabled": true})
+	secretsComp := secretsmock.New(t)
+	secretsComp.SetSecrets(map[string]string{"shared": "secret-value"})
+	ic.secrets = secretsComp
+	return ic
+}
+
+const sharedSecretHash = "31160254d1297393d2ad00e1c01851aec834361e02c524b89fe06aff2879ce6a"
+
+func TestShowMetadataScrubsSecretHashes(t *testing.T) {
+	ic := getTestInventoryChecksWithSecretHash(t)
+
+	rec := httptest.NewRecorder()
+	ic.writePayloadAsJSON(rec, httptest.NewRequest(http.MethodGet, "/metadata/inventory-checks", nil))
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), `"hash_secret_id": "********"`)
+	assert.Contains(t, rec.Body.String(), `"shared"`)
+	assert.NotContains(t, rec.Body.String(), sharedSecretHash)
+
+	// The payload sent to the backend still carries the hashes
+	encoded, err := json.Marshal(ic.getPayloadWithConfigs())
+	require.NoError(t, err)
+	assert.Contains(t, string(encoded), sharedSecretHash)
+}
+
+func TestFlareScrubsSecretHashes(t *testing.T) {
+	ic := getTestInventoryChecksWithSecretHash(t)
+
+	fb := flarehelpers.NewFlareBuilderMock(t, false)
+	require.NoError(t, ic.FlareProvider().FlareFiller.Callback(t.Context(), fb))
+
+	content, err := os.ReadFile(filepath.Join(fb.Root, "metadata", "inventory", "checks.json"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), `"hash_secret_id": "********"`)
+	assert.Contains(t, string(content), `"shared"`)
+	assert.NotContains(t, string(content), sharedSecretHash)
+}
+
 func TestFlareProviderFilename(t *testing.T) {
 	ic := getTestInventoryChecks(
 		t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil,
@@ -370,4 +422,67 @@ func TestExpvarExist(t *testing.T) {
 		t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil,
 	)
 	assert.NotNil(t, expvar.Get("inventories"))
+}
+
+func TestGetPayloadCapsLogsMetadata(t *testing.T) {
+	ic := getTestInventoryChecks(t,
+		option.None[collector.Component](),
+		option.None[logagent.Component](),
+		map[string]any{
+			"inventories_configuration_enabled":            true,
+			"inventories_checks_configuration_enabled":     true,
+			"inventories_checks_max_logs_metadata_entries": 3,
+		},
+	)
+
+	logSources := sources.NewLogSources()
+	newSource := func(name string, i int, inError bool) {
+		src := sources.NewLogSource(name, &logConfig.LogsConfig{
+			Type:              logConfig.FileType,
+			Path:              fmt.Sprintf("/var/log/%s/%d.log", name, i),
+			IntegrationSource: fmt.Sprintf("%s-%d", name, i),
+		})
+		if inError {
+			src.Status().Error(errors.New("broken"))
+		} else {
+			src.Status().Success()
+		}
+		logSources.AddSource(src)
+	}
+	// 2 sources in error before 2 working ones, for the same name
+	for i := range 4 {
+		newSource("container_collect_all", i, i < 2)
+	}
+	// under the cap
+	for i := range 3 {
+		newSource("redisdb", i, false)
+	}
+	ic.sources.Set(logSources)
+
+	p := ic.getPayloadWithConfigs().(*Payload)
+
+	cca := p.LogsMetadata["container_collect_all"]
+	require.Len(t, cca, 3)
+	// working sources are kept first, then sources in error, in their original order
+	var kept []string
+	for _, m := range cca {
+		kept = append(kept, m["integration_source"].(string))
+	}
+	assert.Equal(t, []string{"container_collect_all-2", "container_collect_all-3", "container_collect_all-0"}, kept)
+	assert.Len(t, p.LogsMetadata["redisdb"], 3)
+	assert.Equal(t, map[string]int{"container_collect_all": 1}, p.LogsMetadataTruncated)
+
+	// the truncation count is only serialized when something was dropped
+	ic.maxLogsMetadataEntries = 10
+	p = ic.getPayloadWithConfigs().(*Payload)
+	assert.Nil(t, p.LogsMetadataTruncated)
+	b, err := p.MarshalJSON()
+	require.NoError(t, err)
+	assert.NotContains(t, string(b), "logs_metadata_truncated")
+
+	// a non-positive value disables the cap
+	ic.maxLogsMetadataEntries = 0
+	p = ic.getPayloadWithConfigs().(*Payload)
+	assert.Len(t, p.LogsMetadata["container_collect_all"], 4)
+	assert.Nil(t, p.LogsMetadataTruncated)
 }

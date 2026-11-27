@@ -27,7 +27,7 @@ type sgcWindowsRuntimeSuite struct {
 
 func TestSGCWindowsRuntimeSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &sgcWindowsRuntimeSuite{}, e2e.WithProvisioner(awshost.Provisioner(
+	e2e.Run(t, &sgcWindowsRuntimeSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
 		awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault), ec2.WithInternetAccess())),
 	)))
 }
@@ -44,7 +44,7 @@ secret_backend_config:
 	)
 
 	v.UpdateEnv(
-		awshost.Provisioner(
+		awshost.ProvisionerNoFakeIntake(
 			awshost.WithRunOptions(
 				ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault), ec2.WithInternetAccess()),
 				ec2.WithAgentOptions(

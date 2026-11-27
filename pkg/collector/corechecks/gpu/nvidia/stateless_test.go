@@ -535,6 +535,9 @@ func TestNVLinkCollector_Initialization(t *testing.T) {
 			name: "Success with 4 links",
 			mockOpts: []testutil.NvmlMockOption{testutil.WithCustomHook(func(device *testutil.MockDevice) {
 				device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
+					if values[0].FieldId == nvml.FI_DEV_C2C_LINK_COUNT {
+						return nvml.ERROR_NOT_SUPPORTED
+					}
 					require.Len(t, values, 1, "Expected one field value for total number of links, got %d", len(values))
 					require.Equal(t, values[0].FieldId, uint32(nvml.FI_DEV_NVLINK_LINK_COUNT), "Expected field ID to be FI_DEV_NVLINK_LINK_COUNT, got %d", values[0].FieldId)
 					require.Equal(t, values[0].ScopeId, uint32(0), "Expected scope ID to be 0, got %d", values[0].ScopeId)
@@ -881,6 +884,7 @@ func TestPCIELinkMetrics(t *testing.T) {
 		maxWidth           int
 		currentGeneration  int
 		maxGeneration      int
+		c2cLinkCount       int
 		expectedMetricVals map[string]float64
 		expectedErr        string
 	}{
@@ -910,6 +914,23 @@ func TestPCIELinkMetrics(t *testing.T) {
 				"pci.link.speed.current":  15.753846153846155e9,
 				"pci.link.speed.max":      31.50769230769231e9,
 				"pci.link.speed.degraded": 1,
+			},
+		},
+		// A GB200 GPU reaches its host over NVLink-C2C, so the driver negotiates the
+		// PCIe sideband down to Gen4 x1 by design. That is not a degradation.
+		"c2c link negotiated down by design": {
+			currentWidth:      1,
+			maxWidth:          16,
+			currentGeneration: 4,
+			maxGeneration:     4,
+			c2cLinkCount:      5,
+			expectedMetricVals: map[string]float64{
+				"pci.link.width.current":  1,
+				"pci.link.width.max":      16,
+				"pci.link.width.degraded": 0,
+				"pci.link.speed.current":  1.9692307692307693e9,
+				"pci.link.speed.max":      31.50769230769231e9,
+				"pci.link.speed.degraded": 0,
 			},
 		},
 		"current width error": {
@@ -958,7 +979,7 @@ func TestPCIELinkMetrics(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			device := setupMockDevice(t, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+			device := setupMockDevice(t, testutil.WithC2CLinkCount(test.c2cLinkCount), testutil.WithCustomHook(func(device *testutil.MockDevice) {
 				device.GetCurrPcieLinkWidthFunc = func() (int, nvml.Return) {
 					if test.currentWidth == -1 {
 						return 0, nvml.ERROR_UNKNOWN
@@ -995,7 +1016,15 @@ func TestPCIELinkMetrics(t *testing.T) {
 			for metricName, expectedValue := range test.expectedMetricVals {
 				metric := findMetric(metricsOut, metricName)
 				require.NotNil(t, metric, "expected metric %s", metricName)
-				require.InDelta(t, expectedValue, metric.Value, 1e6)
+				switch metricName {
+				case "pci.link.speed.current", "pci.link.speed.max":
+					// Derived from the generation table, so compared with a tolerance.
+					require.InDelta(t, expectedValue, metric.Value, 1e6)
+				default:
+					// Lane counts and the 0/1 degradation flags must match exactly: a
+					// 1e6 tolerance would swallow the flags entirely.
+					require.Equal(t, expectedValue, metric.Value)
+				}
 				require.Equal(t, metrics.GaugeType, metric.Type)
 			}
 		})

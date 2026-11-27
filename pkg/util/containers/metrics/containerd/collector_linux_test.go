@@ -496,3 +496,56 @@ func Test_fillStatsFromSpec(t *testing.T) {
 		})
 	}
 }
+
+func Test_fillStatsFromSpecMemoryLimit(t *testing.T) {
+	specWithLimit := &oci.Spec{
+		Linux: &specs.Linux{
+			Resources: &specs.LinuxResources{
+				Memory: &specs.LinuxMemory{Limit: pointer.Ptr(int64(4096))},
+			},
+		},
+	}
+
+	tests := []struct {
+		name     string
+		spec     *oci.Spec
+		limit    *float64
+		expected *float64
+	}{
+		{
+			name:     "limit missing from metrics is taken from the spec",
+			spec:     specWithLimit,
+			expected: pointer.Ptr(4096.0),
+		},
+		{
+			name:     "limit from metrics is kept",
+			spec:     specWithLimit,
+			limit:    pointer.Ptr(2000.0),
+			expected: pointer.Ptr(2000.0),
+		},
+		{
+			name: "no limit in metrics or spec",
+			spec: &oci.Spec{Linux: &specs.Linux{Resources: &specs.LinuxResources{}}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			outContainerStats := &provider.ContainerStats{
+				Memory: &provider.ContainerMemStats{Limit: tt.limit},
+			}
+
+			fillStatsFromSpec(outContainerStats, tt.spec)
+			assert.Equal(t, tt.expected, outContainerStats.Memory.Limit)
+		})
+	}
+}
+
+func TestGetMemoryStatsCgroupV1UnsetLimit(t *testing.T) {
+	// gVisor's runsc shim only fills usage and leaves the limit to 0
+	stats := getMemoryStatsCgroupV1(&v1.MemoryStat{
+		Usage: &v1.MemoryEntry{Usage: 1000},
+	})
+
+	assert.Equal(t, pointer.Ptr(1000.0), stats.UsageTotal)
+	assert.Nil(t, stats.Limit)
+}

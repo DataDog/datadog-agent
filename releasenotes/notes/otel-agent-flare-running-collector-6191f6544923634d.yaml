@@ -1,0 +1,98 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+security:
+  - |
+    ``otel-agent flare`` now scrubs credentials, such as the API key, from the
+    flare archive, and only keeps the environment variables that are safe to
+    share, like the core Agent flare does.
+fixes:
+  - |
+    ``otel-agent flare`` now collects the effective configuration and the
+    pprof, zpages, and health_check data of the running collector through its
+    ddflare extension, like the core Agent flare does. It falls back to the
+    configuration files when the collector can't be reached, and records why in
+    ``otel-agent.log``.
+  - |
+    ``otel-agent flare`` now uploads the flare with the API key and site of the
+    Datadog exporter configuration when ``DD_API_KEY`` isn't set, and keeps the
+    customer configuration when it contains ``${env:...}`` or ``${...}``
+    environment references.
+  - |
+    ``otel-agent flare`` now collects the log file of the collector, and the
+    files its rotation keeps next to it, like the core Agent flare does.
+  - |
+    ``otel-agent flare`` now resolves the ``ENC[...]`` secrets of the Datadog
+    configuration with the configured secret backend, like the core Agent flare
+    does, so the flare is uploaded with the resolved API key instead of the
+    ``ENC[...]`` handle.
+  - |
+    ``otel-agent flare`` now applies the proxy and the ``scrubber.additional_keys``
+    that environment variables give, like ``otel-agent run`` does, even when
+    there is no ``datadog.yaml``. Unless the collector is standalone, it also
+    loads the default ``datadog.yaml`` of the Agent when ``--core-config`` is
+    not given, like ``otel-agent run`` does, and it no longer stops when that
+    file can't be loaded.
+  - |
+    When the collector can't be reached, ``otel-agent flare`` now keeps the
+    ``${env:NAME}`` references of the collector configuration as they are, like
+    the live flare does, instead of writing the values of the variables, which
+    can be secrets that no scrubber recognizes. Its ``env-config.yaml`` only has
+    the settings that come from the environment.
+  - |
+    ``otel-agent flare`` now scrubs the JSON files of the archive as JSON, so
+    ``otel-response.json`` stays valid and keeps the whole configuration when
+    the configuration has a key that the scrubber hides, like ``password``,
+    instead of being cut at that key.
+  - |
+    ``otel-agent flare`` now keeps ``DD_PROXY_HTTP``, ``DD_PROXY_HTTPS``,
+    ``DD_PROXY_NO_PROXY``, ``DD_AUTH_TOKEN_FILE_PATH``, and ``HOSTNAME`` in the
+    environment of the flare, like the core Agent flare does for the proxy, with
+    the password of a proxy URL masked. It also scrubs the credentials in the
+    value of an environment variable that is JSON, like
+    ``DD_SECRET_BACKEND_CONFIG``.
+  - |
+    ``otel-agent flare`` no longer stops with a panic when it reads the
+    configuration files and the ``endpoint`` of a ``pprof``, ``zpages``, or
+    ``health_check`` extension is empty or is not a string. It skips that
+    extension, with a warning.
+  - |
+    ``otel-agent flare`` now reports an error when it can't write the end of the
+    archive, for example when the disk is full, instead of saying that the
+    archive was created. It also removes its temporary directory when the
+    archive can't be created, and once the upload removed the archive.
+  - |
+    ``otel-agent flare`` now bounds what it reads into memory. It keeps the end
+    of each log file of the collector, at most 10 MiB per file and 50 MiB for all
+    of them, newest first, and a log file that was cut starts with a line that
+    says so. It keeps at most 32 MiB of each debug response and 128 MiB for all
+    of them, and records an error entry instead of a response that is larger.
+  - |
+    ``otel-agent flare`` now adds ``flare-info.txt`` to the archive. It says when
+    and on which host the flare was made, by which version, whether its data
+    came from the running collector or from the configuration files, and lists
+    the warnings of the run, which were only printed on the console before. The
+    files of the archive also have the time they were written at, instead of a
+    date in 1980.
+  - |
+    ``otel-agent flare`` no longer uploads the flare to the metrics endpoint of
+    the Datadog exporter, which can be a relay, with the API key. Like the core
+    Agent flare, it uploads to the flare endpoint of the site, unless
+    ``DD_DD_URL`` says otherwise.
+issues:
+  - |
+    ``otel-agent flare`` has these known limitations:
+
+    - In the gateway deployment of the Datadog Helm chart, the ``ddflare`` and
+      ``health_check`` extensions are not enabled, so the flare can't read the
+      running collector. It falls back to the configuration files, and without
+      ``--config`` it has no configuration and no ``pprof``, ``zpages``, or
+      ``health_check`` data. It still has the collector log and the environment.
+    - When ``--config`` has a Datadog exporter, the ``dd_url`` of the Datadog
+      configuration file doesn't decide where the flare is uploaded to. Use
+      ``DD_DD_URL``.

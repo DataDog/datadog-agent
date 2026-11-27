@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,7 +18,14 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
+func setTestTimeout(t *testing.T, d time.Duration) {
+	prevTimeout := timeout
+	timeout = d
+	t.Cleanup(func() { timeout = prevTimeout })
+}
+
 func TestGetInstanceID(t *testing.T) {
+	setTestTimeout(t, 5*time.Second)
 	cfg := configmock.New(t)
 	ctx := t.Context()
 	cfg.SetInTest("cloud_provider_metadata", []string{"tencent"})
@@ -25,20 +33,21 @@ func TestGetInstanceID(t *testing.T) {
 	expected := "ins-nad6bga0"
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		lastRequest = r
 		w.Header().Set("Content-Type", "text/plain")
 		io.WriteString(w, expected)
-		lastRequest = r
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
 
 	val, err := GetInstanceID(ctx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/meta-data/instance-id")
 }
 
 func TestGetHostAliases(t *testing.T) {
+	setTestTimeout(t, 5*time.Second)
 	cfg := configmock.New(t)
 	ctx := t.Context()
 	cfg.SetInTest("cloud_provider_metadata", []string{"tencent"})
@@ -46,21 +55,22 @@ func TestGetHostAliases(t *testing.T) {
 	expected := "ins-nad6bga0"
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		lastRequest = r
 		w.Header().Set("Content-Type", "text/plain")
 		io.WriteString(w, expected)
-		lastRequest = r
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
 
 	aliases, err := GetHostAliases(ctx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	require.Len(t, aliases, 1)
 	assert.Equal(t, expected, aliases[0])
 	assert.Equal(t, lastRequest.URL.Path, "/meta-data/instance-id")
 }
 
 func TestGetNTPHosts(t *testing.T) {
+	setTestTimeout(t, 5*time.Second)
 	cfg := configmock.New(t)
 	cfg.SetInTest("cloud_provider_metadata", []string{"tencent"})
 

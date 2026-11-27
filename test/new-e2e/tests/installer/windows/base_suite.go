@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v7"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -815,32 +817,21 @@ func (s *BaseSuite) AssertSuccessfulConfigPromoteExperiment(configID string) {
 		HasARunningDatadogAgentService()
 }
 
-// AssertSuccessfulConfigStopExperiment that config experiment was stopped successfully
+// AssertSuccessfulConfigStopExperiment waits until the config experiment is stopped successfully.
 func (s *BaseSuite) AssertSuccessfulConfigStopExperiment() {
 	s.T().Helper()
 
-	err := s.WaitForInstallerService("Running")
-	s.Require().NoError(err)
-
-	// The rollback restarts the services before it clears the experiment state,
-	// so the installer can be Running while the experiment is still being removed.
-	installerAsserts := s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller()
-	_, err = backoff.Retry(s.T().Context(), func() (any, error) {
-		experiment, err := installerAsserts.ExperimentConfig(consts.AgentPackage)
-		if err != nil {
-			return nil, err
-		}
-		if experiment != "" {
-			return nil, fmt.Errorf("config experiment %q is still set for package %s", experiment, consts.AgentPackage)
-		}
-		return nil, nil
-	}, backoff.WithBackOff(backoff.NewConstantBackOff(10*time.Second)), backoff.WithMaxTries(18))
-	s.Require().NoError(err, "config experiment was not removed")
-
-	installerAsserts.Status().
-		HasConfigState(consts.AgentPackage).
-		WithExperimentConfigEqual("").
-		HasARunningDatadogAgentService()
+	// The Installer can be running before the background watchdog has finished
+	// restoring stable config. Wait for rollback state, not just service startup,
+	// within the same 15-minute budget used by WaitForInstallerService.
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		assertions := suiteasserts.New(s, require.New(c))
+		assertions.Host(s.Env().RemoteHost).HasAService(consts.ServiceName).WithStatus("Running")
+		assertions.Host(s.Env().RemoteHost).HasDatadogInstaller().Status().
+			HasConfigState(consts.AgentPackage).
+			WithExperimentConfigEqual("").
+			HasARunningDatadogAgentService()
+	}, 15*time.Minute, 30*time.Second, "config experiment should be rolled back and services running")
 }
 
 // WaitForDaemonToStop waits for the daemon service PID or start time to change after the function is called.

@@ -176,6 +176,11 @@ func (m *MetricData) CloneVT() *MetricData {
 		copy(tmpContainer, rhs)
 		r.ValsFloat64 = tmpContainer
 	}
+	if rhs := m.ValsUint64; rhs != nil {
+		tmpContainer := make([]uint64, len(rhs))
+		copy(tmpContainer, rhs)
+		r.ValsUint64 = tmpContainer
+	}
 	if rhs := m.SketchNumBins; rhs != nil {
 		tmpContainer := make([]uint64, len(rhs))
 		copy(tmpContainer, rhs)
@@ -190,6 +195,11 @@ func (m *MetricData) CloneVT() *MetricData {
 		tmpContainer := make([]uint32, len(rhs))
 		copy(tmpContainer, rhs)
 		r.SketchBinCnts = tmpContainer
+	}
+	if rhs := m.SetStrs; rhs != nil {
+		tmpBytes := make([]byte, len(rhs))
+		copy(tmpBytes, rhs)
+		r.SetStrs = tmpBytes
 	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
@@ -456,6 +466,18 @@ func (this *MetricData) EqualVT(that *MetricData) bool {
 			return false
 		}
 	}
+	if len(this.ValsUint64) != len(that.ValsUint64) {
+		return false
+	}
+	for i, vx := range this.ValsUint64 {
+		vy := that.ValsUint64[i]
+		if vx != vy {
+			return false
+		}
+	}
+	if string(this.SetStrs) != string(that.SetStrs) {
+		return false
+	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
 
@@ -600,114 +622,145 @@ func (m *MetricData) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if len(m.OriginInfoRefs) > 0 {
+	if len(m.SetStrs) > 0 {
+		i -= len(m.SetStrs)
+		copy(dAtA[i:], m.SetStrs)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.SetStrs)))
+		i--
+		dAtA[i] = 0x4
+		i--
+		dAtA[i] = 0x82
+	}
+	if len(m.ValsUint64) > 0 {
 		var pksize2 int
-		for _, num := range m.OriginInfoRefs {
-			pksize2 += protohelpers.SizeOfZigzag(uint64(num))
+		for _, num := range m.ValsUint64 {
+			pksize2 += protohelpers.SizeOfVarint(uint64(num))
 		}
 		i -= pksize2
 		j1 := i
-		for _, num := range m.OriginInfoRefs {
-			x3 := (uint64(num) << 1) ^ uint64((num >> 63))
-			for x3 >= 1<<7 {
-				dAtA[j1] = uint8(uint64(x3)&0x7f | 0x80)
+		for _, num := range m.ValsUint64 {
+			for num >= 1<<7 {
+				dAtA[j1] = uint8(uint64(num)&0x7f | 0x80)
+				num >>= 7
 				j1++
-				x3 >>= 7
 			}
-			dAtA[j1] = uint8(x3)
+			dAtA[j1] = uint8(num)
 			j1++
 		}
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize2))
 		i--
 		dAtA[i] = 0x1
 		i--
+		dAtA[i] = 0xfa
+	}
+	if len(m.OriginInfoRefs) > 0 {
+		var pksize4 int
+		for _, num := range m.OriginInfoRefs {
+			pksize4 += protohelpers.SizeOfZigzag(uint64(num))
+		}
+		i -= pksize4
+		j3 := i
+		for _, num := range m.OriginInfoRefs {
+			x5 := (uint64(num) << 1) ^ uint64((num >> 63))
+			for x5 >= 1<<7 {
+				dAtA[j3] = uint8(uint64(x5)&0x7f | 0x80)
+				j3++
+				x5 >>= 7
+			}
+			dAtA[j3] = uint8(x5)
+			j3++
+		}
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize4))
+		i--
+		dAtA[i] = 0x1
+		i--
 		dAtA[i] = 0xc2
 	}
 	if len(m.SourceTypeNameRefs) > 0 {
-		var pksize5 int
+		var pksize7 int
 		for _, num := range m.SourceTypeNameRefs {
-			pksize5 += protohelpers.SizeOfZigzag(uint64(num))
+			pksize7 += protohelpers.SizeOfZigzag(uint64(num))
 		}
-		i -= pksize5
-		j4 := i
+		i -= pksize7
+		j6 := i
 		for _, num := range m.SourceTypeNameRefs {
-			x6 := (uint64(num) << 1) ^ uint64((num >> 63))
-			for x6 >= 1<<7 {
-				dAtA[j4] = uint8(uint64(x6)&0x7f | 0x80)
-				j4++
-				x6 >>= 7
+			x8 := (uint64(num) << 1) ^ uint64((num >> 63))
+			for x8 >= 1<<7 {
+				dAtA[j6] = uint8(uint64(x8)&0x7f | 0x80)
+				j6++
+				x8 >>= 7
 			}
-			dAtA[j4] = uint8(x6)
-			j4++
+			dAtA[j6] = uint8(x8)
+			j6++
 		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize5))
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize7))
 		i--
 		dAtA[i] = 0x1
 		i--
 		dAtA[i] = 0xba
 	}
 	if len(m.SketchBinCnts) > 0 {
-		var pksize8 int
-		for _, num := range m.SketchBinCnts {
-			pksize8 += protohelpers.SizeOfVarint(uint64(num))
-		}
-		i -= pksize8
-		j7 := i
-		for _, num := range m.SketchBinCnts {
-			for num >= 1<<7 {
-				dAtA[j7] = uint8(uint64(num)&0x7f | 0x80)
-				num >>= 7
-				j7++
-			}
-			dAtA[j7] = uint8(num)
-			j7++
-		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize8))
-		i--
-		dAtA[i] = 0x1
-		i--
-		dAtA[i] = 0xb2
-	}
-	if len(m.SketchBinKeys) > 0 {
 		var pksize10 int
-		for _, num := range m.SketchBinKeys {
-			pksize10 += protohelpers.SizeOfZigzag(uint64(num))
+		for _, num := range m.SketchBinCnts {
+			pksize10 += protohelpers.SizeOfVarint(uint64(num))
 		}
 		i -= pksize10
 		j9 := i
-		for _, num := range m.SketchBinKeys {
-			x11 := (uint32(num) << 1) ^ uint32((num >> 31))
-			for x11 >= 1<<7 {
-				dAtA[j9] = uint8(uint64(x11)&0x7f | 0x80)
+		for _, num := range m.SketchBinCnts {
+			for num >= 1<<7 {
+				dAtA[j9] = uint8(uint64(num)&0x7f | 0x80)
+				num >>= 7
 				j9++
-				x11 >>= 7
 			}
-			dAtA[j9] = uint8(x11)
+			dAtA[j9] = uint8(num)
 			j9++
 		}
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize10))
 		i--
 		dAtA[i] = 0x1
 		i--
+		dAtA[i] = 0xb2
+	}
+	if len(m.SketchBinKeys) > 0 {
+		var pksize12 int
+		for _, num := range m.SketchBinKeys {
+			pksize12 += protohelpers.SizeOfZigzag(uint64(num))
+		}
+		i -= pksize12
+		j11 := i
+		for _, num := range m.SketchBinKeys {
+			x13 := (uint32(num) << 1) ^ uint32((num >> 31))
+			for x13 >= 1<<7 {
+				dAtA[j11] = uint8(uint64(x13)&0x7f | 0x80)
+				j11++
+				x13 >>= 7
+			}
+			dAtA[j11] = uint8(x13)
+			j11++
+		}
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize12))
+		i--
+		dAtA[i] = 0x1
+		i--
 		dAtA[i] = 0xaa
 	}
 	if len(m.SketchNumBins) > 0 {
-		var pksize13 int
+		var pksize15 int
 		for _, num := range m.SketchNumBins {
-			pksize13 += protohelpers.SizeOfVarint(uint64(num))
+			pksize15 += protohelpers.SizeOfVarint(uint64(num))
 		}
-		i -= pksize13
-		j12 := i
+		i -= pksize15
+		j14 := i
 		for _, num := range m.SketchNumBins {
 			for num >= 1<<7 {
-				dAtA[j12] = uint8(uint64(num)&0x7f | 0x80)
+				dAtA[j14] = uint8(uint64(num)&0x7f | 0x80)
 				num >>= 7
-				j12++
+				j14++
 			}
-			dAtA[j12] = uint8(num)
-			j12++
+			dAtA[j14] = uint8(num)
+			j14++
 		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize13))
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize15))
 		i--
 		dAtA[i] = 0x1
 		i--
@@ -715,9 +768,9 @@ func (m *MetricData) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	}
 	if len(m.ValsFloat64) > 0 {
 		for iNdEx := len(m.ValsFloat64) - 1; iNdEx >= 0; iNdEx-- {
-			f14 := math.Float64bits(float64(m.ValsFloat64[iNdEx]))
+			f16 := math.Float64bits(float64(m.ValsFloat64[iNdEx]))
 			i -= 8
-			binary.LittleEndian.PutUint64(dAtA[i:], uint64(f14))
+			binary.LittleEndian.PutUint64(dAtA[i:], uint64(f16))
 		}
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.ValsFloat64)*8))
 		i--
@@ -727,9 +780,9 @@ func (m *MetricData) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	}
 	if len(m.ValsFloat32) > 0 {
 		for iNdEx := len(m.ValsFloat32) - 1; iNdEx >= 0; iNdEx-- {
-			f15 := math.Float32bits(float32(m.ValsFloat32[iNdEx]))
+			f17 := math.Float32bits(float32(m.ValsFloat32[iNdEx]))
 			i -= 4
-			binary.LittleEndian.PutUint32(dAtA[i:], uint32(f15))
+			binary.LittleEndian.PutUint32(dAtA[i:], uint32(f17))
 		}
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.ValsFloat32)*4))
 		i--
@@ -738,79 +791,59 @@ func (m *MetricData) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		dAtA[i] = 0x92
 	}
 	if len(m.ValsSint64) > 0 {
-		var pksize17 int
+		var pksize19 int
 		for _, num := range m.ValsSint64 {
-			pksize17 += protohelpers.SizeOfZigzag(uint64(num))
+			pksize19 += protohelpers.SizeOfZigzag(uint64(num))
 		}
-		i -= pksize17
-		j16 := i
+		i -= pksize19
+		j18 := i
 		for _, num := range m.ValsSint64 {
-			x18 := (uint64(num) << 1) ^ uint64((num >> 63))
-			for x18 >= 1<<7 {
-				dAtA[j16] = uint8(uint64(x18)&0x7f | 0x80)
-				j16++
-				x18 >>= 7
+			x20 := (uint64(num) << 1) ^ uint64((num >> 63))
+			for x20 >= 1<<7 {
+				dAtA[j18] = uint8(uint64(x20)&0x7f | 0x80)
+				j18++
+				x20 >>= 7
 			}
-			dAtA[j16] = uint8(x18)
-			j16++
+			dAtA[j18] = uint8(x20)
+			j18++
 		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize17))
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize19))
 		i--
 		dAtA[i] = 0x1
 		i--
 		dAtA[i] = 0x8a
 	}
 	if len(m.Timestamps) > 0 {
-		var pksize20 int
+		var pksize22 int
 		for _, num := range m.Timestamps {
-			pksize20 += protohelpers.SizeOfZigzag(uint64(num))
+			pksize22 += protohelpers.SizeOfZigzag(uint64(num))
 		}
-		i -= pksize20
-		j19 := i
+		i -= pksize22
+		j21 := i
 		for _, num := range m.Timestamps {
-			x21 := (uint64(num) << 1) ^ uint64((num >> 63))
-			for x21 >= 1<<7 {
-				dAtA[j19] = uint8(uint64(x21)&0x7f | 0x80)
-				j19++
-				x21 >>= 7
+			x23 := (uint64(num) << 1) ^ uint64((num >> 63))
+			for x23 >= 1<<7 {
+				dAtA[j21] = uint8(uint64(x23)&0x7f | 0x80)
+				j21++
+				x23 >>= 7
 			}
-			dAtA[j19] = uint8(x21)
-			j19++
+			dAtA[j21] = uint8(x23)
+			j21++
 		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize20))
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize22))
 		i--
 		dAtA[i] = 0x1
 		i--
 		dAtA[i] = 0x82
 	}
 	if len(m.NumPoints) > 0 {
-		var pksize23 int
-		for _, num := range m.NumPoints {
-			pksize23 += protohelpers.SizeOfVarint(uint64(num))
-		}
-		i -= pksize23
-		j22 := i
-		for _, num := range m.NumPoints {
-			for num >= 1<<7 {
-				dAtA[j22] = uint8(uint64(num)&0x7f | 0x80)
-				num >>= 7
-				j22++
-			}
-			dAtA[j22] = uint8(num)
-			j22++
-		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize23))
-		i--
-		dAtA[i] = 0x7a
-	}
-	if len(m.Intervals) > 0 {
 		var pksize25 int
-		for _, num := range m.Intervals {
+		for _, num := range m.NumPoints {
 			pksize25 += protohelpers.SizeOfVarint(uint64(num))
 		}
 		i -= pksize25
 		j24 := i
-		for _, num := range m.Intervals {
+		for _, num := range m.NumPoints {
 			for num >= 1<<7 {
 				dAtA[j24] = uint8(uint64(num)&0x7f | 0x80)
 				num >>= 7
@@ -821,100 +854,99 @@ func (m *MetricData) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		}
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize25))
 		i--
-		dAtA[i] = 0x72
+		dAtA[i] = 0x7a
 	}
-	if len(m.ResourcesRefs) > 0 {
+	if len(m.Intervals) > 0 {
 		var pksize27 int
-		for _, num := range m.ResourcesRefs {
-			pksize27 += protohelpers.SizeOfZigzag(uint64(num))
+		for _, num := range m.Intervals {
+			pksize27 += protohelpers.SizeOfVarint(uint64(num))
 		}
 		i -= pksize27
 		j26 := i
-		for _, num := range m.ResourcesRefs {
-			x28 := (uint64(num) << 1) ^ uint64((num >> 63))
-			for x28 >= 1<<7 {
-				dAtA[j26] = uint8(uint64(x28)&0x7f | 0x80)
+		for _, num := range m.Intervals {
+			for num >= 1<<7 {
+				dAtA[j26] = uint8(uint64(num)&0x7f | 0x80)
+				num >>= 7
 				j26++
-				x28 >>= 7
 			}
-			dAtA[j26] = uint8(x28)
+			dAtA[j26] = uint8(num)
 			j26++
 		}
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize27))
 		i--
+		dAtA[i] = 0x72
+	}
+	if len(m.ResourcesRefs) > 0 {
+		var pksize29 int
+		for _, num := range m.ResourcesRefs {
+			pksize29 += protohelpers.SizeOfZigzag(uint64(num))
+		}
+		i -= pksize29
+		j28 := i
+		for _, num := range m.ResourcesRefs {
+			x30 := (uint64(num) << 1) ^ uint64((num >> 63))
+			for x30 >= 1<<7 {
+				dAtA[j28] = uint8(uint64(x30)&0x7f | 0x80)
+				j28++
+				x30 >>= 7
+			}
+			dAtA[j28] = uint8(x30)
+			j28++
+		}
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize29))
+		i--
 		dAtA[i] = 0x6a
 	}
 	if len(m.TagsetRefs) > 0 {
-		var pksize30 int
+		var pksize32 int
 		for _, num := range m.TagsetRefs {
-			pksize30 += protohelpers.SizeOfZigzag(uint64(num))
+			pksize32 += protohelpers.SizeOfZigzag(uint64(num))
 		}
-		i -= pksize30
-		j29 := i
+		i -= pksize32
+		j31 := i
 		for _, num := range m.TagsetRefs {
-			x31 := (uint64(num) << 1) ^ uint64((num >> 63))
-			for x31 >= 1<<7 {
-				dAtA[j29] = uint8(uint64(x31)&0x7f | 0x80)
-				j29++
-				x31 >>= 7
+			x33 := (uint64(num) << 1) ^ uint64((num >> 63))
+			for x33 >= 1<<7 {
+				dAtA[j31] = uint8(uint64(x33)&0x7f | 0x80)
+				j31++
+				x33 >>= 7
 			}
-			dAtA[j29] = uint8(x31)
-			j29++
+			dAtA[j31] = uint8(x33)
+			j31++
 		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize30))
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize32))
 		i--
 		dAtA[i] = 0x62
 	}
 	if len(m.NameRefs) > 0 {
-		var pksize33 int
+		var pksize35 int
 		for _, num := range m.NameRefs {
-			pksize33 += protohelpers.SizeOfZigzag(uint64(num))
+			pksize35 += protohelpers.SizeOfZigzag(uint64(num))
 		}
-		i -= pksize33
-		j32 := i
+		i -= pksize35
+		j34 := i
 		for _, num := range m.NameRefs {
-			x34 := (uint64(num) << 1) ^ uint64((num >> 63))
-			for x34 >= 1<<7 {
-				dAtA[j32] = uint8(uint64(x34)&0x7f | 0x80)
-				j32++
-				x34 >>= 7
+			x36 := (uint64(num) << 1) ^ uint64((num >> 63))
+			for x36 >= 1<<7 {
+				dAtA[j34] = uint8(uint64(x36)&0x7f | 0x80)
+				j34++
+				x36 >>= 7
 			}
-			dAtA[j32] = uint8(x34)
-			j32++
+			dAtA[j34] = uint8(x36)
+			j34++
 		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize33))
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize35))
 		i--
 		dAtA[i] = 0x5a
 	}
 	if len(m.Types) > 0 {
-		var pksize36 int
-		for _, num := range m.Types {
-			pksize36 += protohelpers.SizeOfVarint(uint64(num))
-		}
-		i -= pksize36
-		j35 := i
-		for _, num := range m.Types {
-			for num >= 1<<7 {
-				dAtA[j35] = uint8(uint64(num)&0x7f | 0x80)
-				num >>= 7
-				j35++
-			}
-			dAtA[j35] = uint8(num)
-			j35++
-		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize36))
-		i--
-		dAtA[i] = 0x52
-	}
-	if len(m.DictOriginInfo) > 0 {
 		var pksize38 int
-		for _, num := range m.DictOriginInfo {
+		for _, num := range m.Types {
 			pksize38 += protohelpers.SizeOfVarint(uint64(num))
 		}
 		i -= pksize38
 		j37 := i
-		for _, num1 := range m.DictOriginInfo {
-			num := uint64(num1)
+		for _, num := range m.Types {
 			for num >= 1<<7 {
 				dAtA[j37] = uint8(uint64(num)&0x7f | 0x80)
 				num >>= 7
@@ -924,6 +956,27 @@ func (m *MetricData) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 			j37++
 		}
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize38))
+		i--
+		dAtA[i] = 0x52
+	}
+	if len(m.DictOriginInfo) > 0 {
+		var pksize40 int
+		for _, num := range m.DictOriginInfo {
+			pksize40 += protohelpers.SizeOfVarint(uint64(num))
+		}
+		i -= pksize40
+		j39 := i
+		for _, num1 := range m.DictOriginInfo {
+			num := uint64(num1)
+			for num >= 1<<7 {
+				dAtA[j39] = uint8(uint64(num)&0x7f | 0x80)
+				num >>= 7
+				j39++
+			}
+			dAtA[j39] = uint8(num)
+			j39++
+		}
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize40))
 		i--
 		dAtA[i] = 0x4a
 	}
@@ -935,65 +988,65 @@ func (m *MetricData) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		dAtA[i] = 0x42
 	}
 	if len(m.DictResourceName) > 0 {
-		var pksize40 int
+		var pksize42 int
 		for _, num := range m.DictResourceName {
-			pksize40 += protohelpers.SizeOfZigzag(uint64(num))
+			pksize42 += protohelpers.SizeOfZigzag(uint64(num))
 		}
-		i -= pksize40
-		j39 := i
+		i -= pksize42
+		j41 := i
 		for _, num := range m.DictResourceName {
-			x41 := (uint64(num) << 1) ^ uint64((num >> 63))
-			for x41 >= 1<<7 {
-				dAtA[j39] = uint8(uint64(x41)&0x7f | 0x80)
-				j39++
-				x41 >>= 7
+			x43 := (uint64(num) << 1) ^ uint64((num >> 63))
+			for x43 >= 1<<7 {
+				dAtA[j41] = uint8(uint64(x43)&0x7f | 0x80)
+				j41++
+				x43 >>= 7
 			}
-			dAtA[j39] = uint8(x41)
-			j39++
+			dAtA[j41] = uint8(x43)
+			j41++
 		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize40))
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize42))
 		i--
 		dAtA[i] = 0x3a
 	}
 	if len(m.DictResourceType) > 0 {
-		var pksize43 int
+		var pksize45 int
 		for _, num := range m.DictResourceType {
-			pksize43 += protohelpers.SizeOfZigzag(uint64(num))
+			pksize45 += protohelpers.SizeOfZigzag(uint64(num))
 		}
-		i -= pksize43
-		j42 := i
+		i -= pksize45
+		j44 := i
 		for _, num := range m.DictResourceType {
-			x44 := (uint64(num) << 1) ^ uint64((num >> 63))
-			for x44 >= 1<<7 {
-				dAtA[j42] = uint8(uint64(x44)&0x7f | 0x80)
-				j42++
-				x44 >>= 7
+			x46 := (uint64(num) << 1) ^ uint64((num >> 63))
+			for x46 >= 1<<7 {
+				dAtA[j44] = uint8(uint64(x46)&0x7f | 0x80)
+				j44++
+				x46 >>= 7
 			}
-			dAtA[j42] = uint8(x44)
-			j42++
+			dAtA[j44] = uint8(x46)
+			j44++
 		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize43))
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize45))
 		i--
 		dAtA[i] = 0x32
 	}
 	if len(m.DictResourceLen) > 0 {
-		var pksize46 int
+		var pksize48 int
 		for _, num := range m.DictResourceLen {
-			pksize46 += protohelpers.SizeOfVarint(uint64(num))
+			pksize48 += protohelpers.SizeOfVarint(uint64(num))
 		}
-		i -= pksize46
-		j45 := i
+		i -= pksize48
+		j47 := i
 		for _, num1 := range m.DictResourceLen {
 			num := uint64(num1)
 			for num >= 1<<7 {
-				dAtA[j45] = uint8(uint64(num)&0x7f | 0x80)
+				dAtA[j47] = uint8(uint64(num)&0x7f | 0x80)
 				num >>= 7
-				j45++
+				j47++
 			}
-			dAtA[j45] = uint8(num)
-			j45++
+			dAtA[j47] = uint8(num)
+			j47++
 		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize46))
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize48))
 		i--
 		dAtA[i] = 0x2a
 	}
@@ -1005,23 +1058,23 @@ func (m *MetricData) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		dAtA[i] = 0x22
 	}
 	if len(m.DictTagsets) > 0 {
-		var pksize48 int
+		var pksize50 int
 		for _, num := range m.DictTagsets {
-			pksize48 += protohelpers.SizeOfZigzag(uint64(num))
+			pksize50 += protohelpers.SizeOfZigzag(uint64(num))
 		}
-		i -= pksize48
-		j47 := i
+		i -= pksize50
+		j49 := i
 		for _, num := range m.DictTagsets {
-			x49 := (uint64(num) << 1) ^ uint64((num >> 63))
-			for x49 >= 1<<7 {
-				dAtA[j47] = uint8(uint64(x49)&0x7f | 0x80)
-				j47++
-				x49 >>= 7
+			x51 := (uint64(num) << 1) ^ uint64((num >> 63))
+			for x51 >= 1<<7 {
+				dAtA[j49] = uint8(uint64(x51)&0x7f | 0x80)
+				j49++
+				x51 >>= 7
 			}
-			dAtA[j47] = uint8(x49)
-			j47++
+			dAtA[j49] = uint8(x51)
+			j49++
 		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize48))
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize50))
 		i--
 		dAtA[i] = 0x1a
 	}
@@ -1176,114 +1229,145 @@ func (m *MetricData) MarshalToSizedBufferVTStrict(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if len(m.OriginInfoRefs) > 0 {
+	if len(m.SetStrs) > 0 {
+		i -= len(m.SetStrs)
+		copy(dAtA[i:], m.SetStrs)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.SetStrs)))
+		i--
+		dAtA[i] = 0x4
+		i--
+		dAtA[i] = 0x82
+	}
+	if len(m.ValsUint64) > 0 {
 		var pksize2 int
-		for _, num := range m.OriginInfoRefs {
-			pksize2 += protohelpers.SizeOfZigzag(uint64(num))
+		for _, num := range m.ValsUint64 {
+			pksize2 += protohelpers.SizeOfVarint(uint64(num))
 		}
 		i -= pksize2
 		j1 := i
-		for _, num := range m.OriginInfoRefs {
-			x3 := (uint64(num) << 1) ^ uint64((num >> 63))
-			for x3 >= 1<<7 {
-				dAtA[j1] = uint8(uint64(x3)&0x7f | 0x80)
+		for _, num := range m.ValsUint64 {
+			for num >= 1<<7 {
+				dAtA[j1] = uint8(uint64(num)&0x7f | 0x80)
+				num >>= 7
 				j1++
-				x3 >>= 7
 			}
-			dAtA[j1] = uint8(x3)
+			dAtA[j1] = uint8(num)
 			j1++
 		}
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize2))
 		i--
 		dAtA[i] = 0x1
 		i--
+		dAtA[i] = 0xfa
+	}
+	if len(m.OriginInfoRefs) > 0 {
+		var pksize4 int
+		for _, num := range m.OriginInfoRefs {
+			pksize4 += protohelpers.SizeOfZigzag(uint64(num))
+		}
+		i -= pksize4
+		j3 := i
+		for _, num := range m.OriginInfoRefs {
+			x5 := (uint64(num) << 1) ^ uint64((num >> 63))
+			for x5 >= 1<<7 {
+				dAtA[j3] = uint8(uint64(x5)&0x7f | 0x80)
+				j3++
+				x5 >>= 7
+			}
+			dAtA[j3] = uint8(x5)
+			j3++
+		}
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize4))
+		i--
+		dAtA[i] = 0x1
+		i--
 		dAtA[i] = 0xc2
 	}
 	if len(m.SourceTypeNameRefs) > 0 {
-		var pksize5 int
+		var pksize7 int
 		for _, num := range m.SourceTypeNameRefs {
-			pksize5 += protohelpers.SizeOfZigzag(uint64(num))
+			pksize7 += protohelpers.SizeOfZigzag(uint64(num))
 		}
-		i -= pksize5
-		j4 := i
+		i -= pksize7
+		j6 := i
 		for _, num := range m.SourceTypeNameRefs {
-			x6 := (uint64(num) << 1) ^ uint64((num >> 63))
-			for x6 >= 1<<7 {
-				dAtA[j4] = uint8(uint64(x6)&0x7f | 0x80)
-				j4++
-				x6 >>= 7
+			x8 := (uint64(num) << 1) ^ uint64((num >> 63))
+			for x8 >= 1<<7 {
+				dAtA[j6] = uint8(uint64(x8)&0x7f | 0x80)
+				j6++
+				x8 >>= 7
 			}
-			dAtA[j4] = uint8(x6)
-			j4++
+			dAtA[j6] = uint8(x8)
+			j6++
 		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize5))
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize7))
 		i--
 		dAtA[i] = 0x1
 		i--
 		dAtA[i] = 0xba
 	}
 	if len(m.SketchBinCnts) > 0 {
-		var pksize8 int
-		for _, num := range m.SketchBinCnts {
-			pksize8 += protohelpers.SizeOfVarint(uint64(num))
-		}
-		i -= pksize8
-		j7 := i
-		for _, num := range m.SketchBinCnts {
-			for num >= 1<<7 {
-				dAtA[j7] = uint8(uint64(num)&0x7f | 0x80)
-				num >>= 7
-				j7++
-			}
-			dAtA[j7] = uint8(num)
-			j7++
-		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize8))
-		i--
-		dAtA[i] = 0x1
-		i--
-		dAtA[i] = 0xb2
-	}
-	if len(m.SketchBinKeys) > 0 {
 		var pksize10 int
-		for _, num := range m.SketchBinKeys {
-			pksize10 += protohelpers.SizeOfZigzag(uint64(num))
+		for _, num := range m.SketchBinCnts {
+			pksize10 += protohelpers.SizeOfVarint(uint64(num))
 		}
 		i -= pksize10
 		j9 := i
-		for _, num := range m.SketchBinKeys {
-			x11 := (uint32(num) << 1) ^ uint32((num >> 31))
-			for x11 >= 1<<7 {
-				dAtA[j9] = uint8(uint64(x11)&0x7f | 0x80)
+		for _, num := range m.SketchBinCnts {
+			for num >= 1<<7 {
+				dAtA[j9] = uint8(uint64(num)&0x7f | 0x80)
+				num >>= 7
 				j9++
-				x11 >>= 7
 			}
-			dAtA[j9] = uint8(x11)
+			dAtA[j9] = uint8(num)
 			j9++
 		}
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize10))
 		i--
 		dAtA[i] = 0x1
 		i--
+		dAtA[i] = 0xb2
+	}
+	if len(m.SketchBinKeys) > 0 {
+		var pksize12 int
+		for _, num := range m.SketchBinKeys {
+			pksize12 += protohelpers.SizeOfZigzag(uint64(num))
+		}
+		i -= pksize12
+		j11 := i
+		for _, num := range m.SketchBinKeys {
+			x13 := (uint32(num) << 1) ^ uint32((num >> 31))
+			for x13 >= 1<<7 {
+				dAtA[j11] = uint8(uint64(x13)&0x7f | 0x80)
+				j11++
+				x13 >>= 7
+			}
+			dAtA[j11] = uint8(x13)
+			j11++
+		}
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize12))
+		i--
+		dAtA[i] = 0x1
+		i--
 		dAtA[i] = 0xaa
 	}
 	if len(m.SketchNumBins) > 0 {
-		var pksize13 int
+		var pksize15 int
 		for _, num := range m.SketchNumBins {
-			pksize13 += protohelpers.SizeOfVarint(uint64(num))
+			pksize15 += protohelpers.SizeOfVarint(uint64(num))
 		}
-		i -= pksize13
-		j12 := i
+		i -= pksize15
+		j14 := i
 		for _, num := range m.SketchNumBins {
 			for num >= 1<<7 {
-				dAtA[j12] = uint8(uint64(num)&0x7f | 0x80)
+				dAtA[j14] = uint8(uint64(num)&0x7f | 0x80)
 				num >>= 7
-				j12++
+				j14++
 			}
-			dAtA[j12] = uint8(num)
-			j12++
+			dAtA[j14] = uint8(num)
+			j14++
 		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize13))
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize15))
 		i--
 		dAtA[i] = 0x1
 		i--
@@ -1291,9 +1375,9 @@ func (m *MetricData) MarshalToSizedBufferVTStrict(dAtA []byte) (int, error) {
 	}
 	if len(m.ValsFloat64) > 0 {
 		for iNdEx := len(m.ValsFloat64) - 1; iNdEx >= 0; iNdEx-- {
-			f14 := math.Float64bits(float64(m.ValsFloat64[iNdEx]))
+			f16 := math.Float64bits(float64(m.ValsFloat64[iNdEx]))
 			i -= 8
-			binary.LittleEndian.PutUint64(dAtA[i:], uint64(f14))
+			binary.LittleEndian.PutUint64(dAtA[i:], uint64(f16))
 		}
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.ValsFloat64)*8))
 		i--
@@ -1303,9 +1387,9 @@ func (m *MetricData) MarshalToSizedBufferVTStrict(dAtA []byte) (int, error) {
 	}
 	if len(m.ValsFloat32) > 0 {
 		for iNdEx := len(m.ValsFloat32) - 1; iNdEx >= 0; iNdEx-- {
-			f15 := math.Float32bits(float32(m.ValsFloat32[iNdEx]))
+			f17 := math.Float32bits(float32(m.ValsFloat32[iNdEx]))
 			i -= 4
-			binary.LittleEndian.PutUint32(dAtA[i:], uint32(f15))
+			binary.LittleEndian.PutUint32(dAtA[i:], uint32(f17))
 		}
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.ValsFloat32)*4))
 		i--
@@ -1314,79 +1398,59 @@ func (m *MetricData) MarshalToSizedBufferVTStrict(dAtA []byte) (int, error) {
 		dAtA[i] = 0x92
 	}
 	if len(m.ValsSint64) > 0 {
-		var pksize17 int
+		var pksize19 int
 		for _, num := range m.ValsSint64 {
-			pksize17 += protohelpers.SizeOfZigzag(uint64(num))
+			pksize19 += protohelpers.SizeOfZigzag(uint64(num))
 		}
-		i -= pksize17
-		j16 := i
+		i -= pksize19
+		j18 := i
 		for _, num := range m.ValsSint64 {
-			x18 := (uint64(num) << 1) ^ uint64((num >> 63))
-			for x18 >= 1<<7 {
-				dAtA[j16] = uint8(uint64(x18)&0x7f | 0x80)
-				j16++
-				x18 >>= 7
+			x20 := (uint64(num) << 1) ^ uint64((num >> 63))
+			for x20 >= 1<<7 {
+				dAtA[j18] = uint8(uint64(x20)&0x7f | 0x80)
+				j18++
+				x20 >>= 7
 			}
-			dAtA[j16] = uint8(x18)
-			j16++
+			dAtA[j18] = uint8(x20)
+			j18++
 		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize17))
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize19))
 		i--
 		dAtA[i] = 0x1
 		i--
 		dAtA[i] = 0x8a
 	}
 	if len(m.Timestamps) > 0 {
-		var pksize20 int
+		var pksize22 int
 		for _, num := range m.Timestamps {
-			pksize20 += protohelpers.SizeOfZigzag(uint64(num))
+			pksize22 += protohelpers.SizeOfZigzag(uint64(num))
 		}
-		i -= pksize20
-		j19 := i
+		i -= pksize22
+		j21 := i
 		for _, num := range m.Timestamps {
-			x21 := (uint64(num) << 1) ^ uint64((num >> 63))
-			for x21 >= 1<<7 {
-				dAtA[j19] = uint8(uint64(x21)&0x7f | 0x80)
-				j19++
-				x21 >>= 7
+			x23 := (uint64(num) << 1) ^ uint64((num >> 63))
+			for x23 >= 1<<7 {
+				dAtA[j21] = uint8(uint64(x23)&0x7f | 0x80)
+				j21++
+				x23 >>= 7
 			}
-			dAtA[j19] = uint8(x21)
-			j19++
+			dAtA[j21] = uint8(x23)
+			j21++
 		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize20))
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize22))
 		i--
 		dAtA[i] = 0x1
 		i--
 		dAtA[i] = 0x82
 	}
 	if len(m.NumPoints) > 0 {
-		var pksize23 int
-		for _, num := range m.NumPoints {
-			pksize23 += protohelpers.SizeOfVarint(uint64(num))
-		}
-		i -= pksize23
-		j22 := i
-		for _, num := range m.NumPoints {
-			for num >= 1<<7 {
-				dAtA[j22] = uint8(uint64(num)&0x7f | 0x80)
-				num >>= 7
-				j22++
-			}
-			dAtA[j22] = uint8(num)
-			j22++
-		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize23))
-		i--
-		dAtA[i] = 0x7a
-	}
-	if len(m.Intervals) > 0 {
 		var pksize25 int
-		for _, num := range m.Intervals {
+		for _, num := range m.NumPoints {
 			pksize25 += protohelpers.SizeOfVarint(uint64(num))
 		}
 		i -= pksize25
 		j24 := i
-		for _, num := range m.Intervals {
+		for _, num := range m.NumPoints {
 			for num >= 1<<7 {
 				dAtA[j24] = uint8(uint64(num)&0x7f | 0x80)
 				num >>= 7
@@ -1397,100 +1461,99 @@ func (m *MetricData) MarshalToSizedBufferVTStrict(dAtA []byte) (int, error) {
 		}
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize25))
 		i--
-		dAtA[i] = 0x72
+		dAtA[i] = 0x7a
 	}
-	if len(m.ResourcesRefs) > 0 {
+	if len(m.Intervals) > 0 {
 		var pksize27 int
-		for _, num := range m.ResourcesRefs {
-			pksize27 += protohelpers.SizeOfZigzag(uint64(num))
+		for _, num := range m.Intervals {
+			pksize27 += protohelpers.SizeOfVarint(uint64(num))
 		}
 		i -= pksize27
 		j26 := i
-		for _, num := range m.ResourcesRefs {
-			x28 := (uint64(num) << 1) ^ uint64((num >> 63))
-			for x28 >= 1<<7 {
-				dAtA[j26] = uint8(uint64(x28)&0x7f | 0x80)
+		for _, num := range m.Intervals {
+			for num >= 1<<7 {
+				dAtA[j26] = uint8(uint64(num)&0x7f | 0x80)
+				num >>= 7
 				j26++
-				x28 >>= 7
 			}
-			dAtA[j26] = uint8(x28)
+			dAtA[j26] = uint8(num)
 			j26++
 		}
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize27))
 		i--
+		dAtA[i] = 0x72
+	}
+	if len(m.ResourcesRefs) > 0 {
+		var pksize29 int
+		for _, num := range m.ResourcesRefs {
+			pksize29 += protohelpers.SizeOfZigzag(uint64(num))
+		}
+		i -= pksize29
+		j28 := i
+		for _, num := range m.ResourcesRefs {
+			x30 := (uint64(num) << 1) ^ uint64((num >> 63))
+			for x30 >= 1<<7 {
+				dAtA[j28] = uint8(uint64(x30)&0x7f | 0x80)
+				j28++
+				x30 >>= 7
+			}
+			dAtA[j28] = uint8(x30)
+			j28++
+		}
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize29))
+		i--
 		dAtA[i] = 0x6a
 	}
 	if len(m.TagsetRefs) > 0 {
-		var pksize30 int
+		var pksize32 int
 		for _, num := range m.TagsetRefs {
-			pksize30 += protohelpers.SizeOfZigzag(uint64(num))
+			pksize32 += protohelpers.SizeOfZigzag(uint64(num))
 		}
-		i -= pksize30
-		j29 := i
+		i -= pksize32
+		j31 := i
 		for _, num := range m.TagsetRefs {
-			x31 := (uint64(num) << 1) ^ uint64((num >> 63))
-			for x31 >= 1<<7 {
-				dAtA[j29] = uint8(uint64(x31)&0x7f | 0x80)
-				j29++
-				x31 >>= 7
+			x33 := (uint64(num) << 1) ^ uint64((num >> 63))
+			for x33 >= 1<<7 {
+				dAtA[j31] = uint8(uint64(x33)&0x7f | 0x80)
+				j31++
+				x33 >>= 7
 			}
-			dAtA[j29] = uint8(x31)
-			j29++
+			dAtA[j31] = uint8(x33)
+			j31++
 		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize30))
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize32))
 		i--
 		dAtA[i] = 0x62
 	}
 	if len(m.NameRefs) > 0 {
-		var pksize33 int
+		var pksize35 int
 		for _, num := range m.NameRefs {
-			pksize33 += protohelpers.SizeOfZigzag(uint64(num))
+			pksize35 += protohelpers.SizeOfZigzag(uint64(num))
 		}
-		i -= pksize33
-		j32 := i
+		i -= pksize35
+		j34 := i
 		for _, num := range m.NameRefs {
-			x34 := (uint64(num) << 1) ^ uint64((num >> 63))
-			for x34 >= 1<<7 {
-				dAtA[j32] = uint8(uint64(x34)&0x7f | 0x80)
-				j32++
-				x34 >>= 7
+			x36 := (uint64(num) << 1) ^ uint64((num >> 63))
+			for x36 >= 1<<7 {
+				dAtA[j34] = uint8(uint64(x36)&0x7f | 0x80)
+				j34++
+				x36 >>= 7
 			}
-			dAtA[j32] = uint8(x34)
-			j32++
+			dAtA[j34] = uint8(x36)
+			j34++
 		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize33))
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize35))
 		i--
 		dAtA[i] = 0x5a
 	}
 	if len(m.Types) > 0 {
-		var pksize36 int
-		for _, num := range m.Types {
-			pksize36 += protohelpers.SizeOfVarint(uint64(num))
-		}
-		i -= pksize36
-		j35 := i
-		for _, num := range m.Types {
-			for num >= 1<<7 {
-				dAtA[j35] = uint8(uint64(num)&0x7f | 0x80)
-				num >>= 7
-				j35++
-			}
-			dAtA[j35] = uint8(num)
-			j35++
-		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize36))
-		i--
-		dAtA[i] = 0x52
-	}
-	if len(m.DictOriginInfo) > 0 {
 		var pksize38 int
-		for _, num := range m.DictOriginInfo {
+		for _, num := range m.Types {
 			pksize38 += protohelpers.SizeOfVarint(uint64(num))
 		}
 		i -= pksize38
 		j37 := i
-		for _, num1 := range m.DictOriginInfo {
-			num := uint64(num1)
+		for _, num := range m.Types {
 			for num >= 1<<7 {
 				dAtA[j37] = uint8(uint64(num)&0x7f | 0x80)
 				num >>= 7
@@ -1500,6 +1563,27 @@ func (m *MetricData) MarshalToSizedBufferVTStrict(dAtA []byte) (int, error) {
 			j37++
 		}
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize38))
+		i--
+		dAtA[i] = 0x52
+	}
+	if len(m.DictOriginInfo) > 0 {
+		var pksize40 int
+		for _, num := range m.DictOriginInfo {
+			pksize40 += protohelpers.SizeOfVarint(uint64(num))
+		}
+		i -= pksize40
+		j39 := i
+		for _, num1 := range m.DictOriginInfo {
+			num := uint64(num1)
+			for num >= 1<<7 {
+				dAtA[j39] = uint8(uint64(num)&0x7f | 0x80)
+				num >>= 7
+				j39++
+			}
+			dAtA[j39] = uint8(num)
+			j39++
+		}
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize40))
 		i--
 		dAtA[i] = 0x4a
 	}
@@ -1511,65 +1595,65 @@ func (m *MetricData) MarshalToSizedBufferVTStrict(dAtA []byte) (int, error) {
 		dAtA[i] = 0x42
 	}
 	if len(m.DictResourceName) > 0 {
-		var pksize40 int
+		var pksize42 int
 		for _, num := range m.DictResourceName {
-			pksize40 += protohelpers.SizeOfZigzag(uint64(num))
+			pksize42 += protohelpers.SizeOfZigzag(uint64(num))
 		}
-		i -= pksize40
-		j39 := i
+		i -= pksize42
+		j41 := i
 		for _, num := range m.DictResourceName {
-			x41 := (uint64(num) << 1) ^ uint64((num >> 63))
-			for x41 >= 1<<7 {
-				dAtA[j39] = uint8(uint64(x41)&0x7f | 0x80)
-				j39++
-				x41 >>= 7
+			x43 := (uint64(num) << 1) ^ uint64((num >> 63))
+			for x43 >= 1<<7 {
+				dAtA[j41] = uint8(uint64(x43)&0x7f | 0x80)
+				j41++
+				x43 >>= 7
 			}
-			dAtA[j39] = uint8(x41)
-			j39++
+			dAtA[j41] = uint8(x43)
+			j41++
 		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize40))
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize42))
 		i--
 		dAtA[i] = 0x3a
 	}
 	if len(m.DictResourceType) > 0 {
-		var pksize43 int
+		var pksize45 int
 		for _, num := range m.DictResourceType {
-			pksize43 += protohelpers.SizeOfZigzag(uint64(num))
+			pksize45 += protohelpers.SizeOfZigzag(uint64(num))
 		}
-		i -= pksize43
-		j42 := i
+		i -= pksize45
+		j44 := i
 		for _, num := range m.DictResourceType {
-			x44 := (uint64(num) << 1) ^ uint64((num >> 63))
-			for x44 >= 1<<7 {
-				dAtA[j42] = uint8(uint64(x44)&0x7f | 0x80)
-				j42++
-				x44 >>= 7
+			x46 := (uint64(num) << 1) ^ uint64((num >> 63))
+			for x46 >= 1<<7 {
+				dAtA[j44] = uint8(uint64(x46)&0x7f | 0x80)
+				j44++
+				x46 >>= 7
 			}
-			dAtA[j42] = uint8(x44)
-			j42++
+			dAtA[j44] = uint8(x46)
+			j44++
 		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize43))
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize45))
 		i--
 		dAtA[i] = 0x32
 	}
 	if len(m.DictResourceLen) > 0 {
-		var pksize46 int
+		var pksize48 int
 		for _, num := range m.DictResourceLen {
-			pksize46 += protohelpers.SizeOfVarint(uint64(num))
+			pksize48 += protohelpers.SizeOfVarint(uint64(num))
 		}
-		i -= pksize46
-		j45 := i
+		i -= pksize48
+		j47 := i
 		for _, num1 := range m.DictResourceLen {
 			num := uint64(num1)
 			for num >= 1<<7 {
-				dAtA[j45] = uint8(uint64(num)&0x7f | 0x80)
+				dAtA[j47] = uint8(uint64(num)&0x7f | 0x80)
 				num >>= 7
-				j45++
+				j47++
 			}
-			dAtA[j45] = uint8(num)
-			j45++
+			dAtA[j47] = uint8(num)
+			j47++
 		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize46))
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize48))
 		i--
 		dAtA[i] = 0x2a
 	}
@@ -1581,23 +1665,23 @@ func (m *MetricData) MarshalToSizedBufferVTStrict(dAtA []byte) (int, error) {
 		dAtA[i] = 0x22
 	}
 	if len(m.DictTagsets) > 0 {
-		var pksize48 int
+		var pksize50 int
 		for _, num := range m.DictTagsets {
-			pksize48 += protohelpers.SizeOfZigzag(uint64(num))
+			pksize50 += protohelpers.SizeOfZigzag(uint64(num))
 		}
-		i -= pksize48
-		j47 := i
+		i -= pksize50
+		j49 := i
 		for _, num := range m.DictTagsets {
-			x49 := (uint64(num) << 1) ^ uint64((num >> 63))
-			for x49 >= 1<<7 {
-				dAtA[j47] = uint8(uint64(x49)&0x7f | 0x80)
-				j47++
-				x49 >>= 7
+			x51 := (uint64(num) << 1) ^ uint64((num >> 63))
+			for x51 >= 1<<7 {
+				dAtA[j49] = uint8(uint64(x51)&0x7f | 0x80)
+				j49++
+				x51 >>= 7
 			}
-			dAtA[j47] = uint8(x49)
-			j47++
+			dAtA[j49] = uint8(x51)
+			j49++
 		}
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize48))
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize50))
 		i--
 		dAtA[i] = 0x1a
 	}
@@ -1811,6 +1895,17 @@ func (m *MetricData) SizeVT() (n int) {
 			l += protohelpers.SizeOfZigzag(uint64(e))
 		}
 		n += 2 + protohelpers.SizeOfVarint(uint64(l)) + l
+	}
+	if len(m.ValsUint64) > 0 {
+		l = 0
+		for _, e := range m.ValsUint64 {
+			l += protohelpers.SizeOfVarint(uint64(e))
+		}
+		n += 2 + protohelpers.SizeOfVarint(uint64(l)) + l
+	}
+	l = len(m.SetStrs)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -3717,6 +3812,116 @@ func (m *MetricData) UnmarshalVT(dAtA []byte) error {
 			} else {
 				return fmt.Errorf("proto: wrong wireType = %d for field OriginInfoRefs", wireType)
 			}
+		case 31:
+			if wireType == 0 {
+				var v uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return protohelpers.ErrIntOverflow
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					v |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				m.ValsUint64 = append(m.ValsUint64, v)
+			} else if wireType == 2 {
+				var packedLen int
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return protohelpers.ErrIntOverflow
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					packedLen |= int(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				if packedLen < 0 {
+					return protohelpers.ErrInvalidLength
+				}
+				postIndex := iNdEx + packedLen
+				if postIndex < 0 {
+					return protohelpers.ErrInvalidLength
+				}
+				if postIndex > l {
+					return io.ErrUnexpectedEOF
+				}
+				var elementCount int
+				var count int
+				for _, integer := range dAtA[iNdEx:postIndex] {
+					if integer < 128 {
+						count++
+					}
+				}
+				elementCount = count
+				if elementCount != 0 && len(m.ValsUint64) == 0 {
+					m.ValsUint64 = make([]uint64, 0, elementCount)
+				}
+				for iNdEx < postIndex {
+					var v uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return protohelpers.ErrIntOverflow
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						v |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					m.ValsUint64 = append(m.ValsUint64, v)
+				}
+			} else {
+				return fmt.Errorf("proto: wrong wireType = %d for field ValsUint64", wireType)
+			}
+		case 64:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SetStrs", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SetStrs = append(m.SetStrs[:0], dAtA[iNdEx:postIndex]...)
+			if m.SetStrs == nil {
+				m.SetStrs = []byte{}
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
@@ -5636,6 +5841,113 @@ func (m *MetricData) UnmarshalVTUnsafe(dAtA []byte) error {
 			} else {
 				return fmt.Errorf("proto: wrong wireType = %d for field OriginInfoRefs", wireType)
 			}
+		case 31:
+			if wireType == 0 {
+				var v uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return protohelpers.ErrIntOverflow
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					v |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				m.ValsUint64 = append(m.ValsUint64, v)
+			} else if wireType == 2 {
+				var packedLen int
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return protohelpers.ErrIntOverflow
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					packedLen |= int(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				if packedLen < 0 {
+					return protohelpers.ErrInvalidLength
+				}
+				postIndex := iNdEx + packedLen
+				if postIndex < 0 {
+					return protohelpers.ErrInvalidLength
+				}
+				if postIndex > l {
+					return io.ErrUnexpectedEOF
+				}
+				var elementCount int
+				var count int
+				for _, integer := range dAtA[iNdEx:postIndex] {
+					if integer < 128 {
+						count++
+					}
+				}
+				elementCount = count
+				if elementCount != 0 && len(m.ValsUint64) == 0 {
+					m.ValsUint64 = make([]uint64, 0, elementCount)
+				}
+				for iNdEx < postIndex {
+					var v uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return protohelpers.ErrIntOverflow
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						v |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					m.ValsUint64 = append(m.ValsUint64, v)
+				}
+			} else {
+				return fmt.Errorf("proto: wrong wireType = %d for field ValsUint64", wireType)
+			}
+		case 64:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SetStrs", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SetStrs = dAtA[iNdEx:postIndex]
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])

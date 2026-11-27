@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"strconv"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -817,6 +818,20 @@ func BuildOpenShiftHelmValues() HelmValues {
 		},
 		"agents": pulumi.Map{
 			"enabled": pulumi.Bool(true),
+			// On OpenShift, the Node Agent also monitors the ~100 containers of the cluster
+			// operators, scans their images for SBOMs and tags with a high cardinality, so its
+			// memory usage routinely reaches the 700Mi limit of the default values, and some of its
+			// restarts were OOM kills. `agent check` commands, e.g. those of the containers suite,
+			// also run a second Agent process in the same memory cgroup. Only the limit is raised.
+			"containers": pulumi.Map{
+				"agent": pulumi.Map{
+					"resources": pulumi.StringMapMap{
+						"limits": pulumi.StringMap{
+							"memory": pulumi.String("1Gi"),
+						},
+					},
+				},
+			},
 			"tolerations": pulumi.MapArray{
 				// Deploy Agents on master nodes
 				pulumi.Map{
@@ -1116,6 +1131,14 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_LOGS_CONFIG_LOGS_DD_URL"),
 				"value": pulumi.Sprintf("%s", fi.URL),
+			},
+			pulumi.StringMap{
+				"name":  pulumi.String("DD_GENRESOURCES_LOGS_DD_URL"),
+				"value": fi.URL,
+			},
+			pulumi.StringMap{
+				"name":  pulumi.String("DD_GENRESOURCES_LOGS_NO_SSL"),
+				"value": fi.Scheme.ApplyT(func(scheme string) string { return strconv.FormatBool(scheme == "http") }).(pulumi.StringOutput),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_AGENT_TELEMETRY_LOGS_DD_URL"),

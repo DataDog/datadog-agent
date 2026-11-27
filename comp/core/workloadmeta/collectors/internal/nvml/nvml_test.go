@@ -47,10 +47,7 @@ func newTestCollector(t *testing.T, store workloadmeta.Component) *collector {
 	config := config.NewMock(t)
 	config.SetInTest("gpu.enabled", true)
 
-	c := newCollector(store, config, noopsimpl.NewComponent())
-	// Keep tests independent of the host's PCI devices.
-	c.pciDevicesRoots = []string{t.TempDir()}
-	return c
+	return newCollector(store, config, noopsimpl.NewComponent())
 }
 
 func TestStartDisabledWhenGPUMonitoringDisabled(t *testing.T) {
@@ -212,14 +209,15 @@ func TestPullPlatformInfo(t *testing.T) {
 			d.GetPlatformInfoFunc = func() (nvml.PlatformInfo, nvml.Return) {
 				return nvml.PlatformInfo{IbGuid: fabricGUID, ChassisSerialNumber: chassisSerial, SlotNumber: 20, TrayIndex: 10, HostId: 1, ModuleId: 2}, nvml.SUCCESS
 			}
-			d.GetNumaNodeIdFunc = func() (int, nvml.Return) {
-				return 1, nvml.SUCCESS
-			}
 			d.GetSerialFunc = func() (string, nvml.Return) {
 				return "1650825051135", nvml.SUCCESS
 			}
+			d.GetPciInfoFunc = func() (nvml.PciInfo, nvml.Return) {
+				return nvml.PciInfo{Domain: 0x18, Bus: 1}, nvml.SUCCESS
+			}
 		})),
 	)
+	ddnvml.WithMockPCISysfs(t, writePCIDevice(t, "pci0018:00/0018:00:00.0/0018:01:00.0", "1"))
 	c := newTestCollector(t, wmetaMock)
 
 	c.Pull(t.Context())
@@ -248,53 +246,26 @@ func TestPullPlatformInfo(t *testing.T) {
 	}
 }
 
-func TestPCINUMANode(t *testing.T) {
-	hostSys, containerSys := t.TempDir(), t.TempDir()
-	writeNUMA := func(root, address, value string) {
-		require.NoError(t, os.MkdirAll(filepath.Join(root, address), 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(root, address, "numa_node"), []byte(value), 0o644))
-	}
-	writeNUMA(containerSys, "0008:01:00.0", "0\n")
-	writeNUMA(containerSys, "0019:01:00.0", "1\n")
-	writeNUMA(hostSys, "0019:01:00.0", "1\n")
-	writeNUMA(containerSys, "0000:00:1e.0", "-1\n")
-	writeNUMA(containerSys, "10000:01:00.0", "3\n")
-	writeNUMA(containerSys, "0000:01:00.0", "5\n")
-	roots := []string{hostSys, containerSys}
-
-	node, err := pciNUMANode(roots, "0008:01:00.0") // only in the second root
-	require.NoError(t, err)
-	require.Equal(t, 0, node)
-
-	node, err = pciNUMANode(roots, "00000019:01:00.0") // 8-digit domain from NVML
-	require.NoError(t, err)
-	require.Equal(t, 1, node)
-
-	node, err = pciNUMANode(roots, "0000:00:1E.0") // unknown to the kernel
-	require.NoError(t, err)
-	require.Equal(t, -1, node)
-
-	// Domains above 0xffff keep their significant digits.
-	node, err = pciNUMANode(roots, "00010000:01:00.0")
-	require.NoError(t, err)
-	require.Equal(t, 3, node)
-
-	node, err = pciNUMANode(roots, "10000:01:00.0")
-	require.NoError(t, err)
-	require.Equal(t, 3, node)
-
-	_, err = pciNUMANode(roots, "0009:01:00.0")
-	require.Error(t, err)
+// writePCIDevice returns a sysfs root holding one PCI device at path (e.g.
+// "pci0000:00/0000:00:1e.0"), linked from bus/pci/devices like the kernel does.
+func writePCIDevice(t *testing.T, path, numaNode string) string {
+	t.Helper()
+	sysRoot := t.TempDir()
+	deviceDir := filepath.Join(sysRoot, "devices", path)
+	require.NoError(t, os.MkdirAll(deviceDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(deviceDir, "numa_node"), []byte(numaNode+"\n"), 0o644))
+	busDir := filepath.Join(sysRoot, "bus", "pci", "devices")
+	require.NoError(t, os.MkdirAll(busDir, 0o755))
+	require.NoError(t, os.Symlink(filepath.Join("..", "..", "..", "devices", path), filepath.Join(busDir, filepath.Base(path))))
+	return sysRoot
 }
 
 func TestPullNUMANodeFromSysfs(t *testing.T) {
-	// NVML doesn't support GetNumaNodeId (default mock), so the collector reads sysfs.
+	// The NUMA node comes from sysfs, never from NVML.
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	nvmltestutil.SetupMockNVML(t)
+	ddnvml.WithMockPCISysfs(t, writePCIDevice(t, "pci0000:00/0000:00:1e.0", "1"))
 	c := newTestCollector(t, wmetaMock)
-	root := c.pciDevicesRoots[0]
-	require.NoError(t, os.MkdirAll(filepath.Join(root, "0000:00:1e.0"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "0000:00:1e.0", "numa_node"), []byte("1\n"), 0o644))
 
 	c.Pull(t.Context())
 

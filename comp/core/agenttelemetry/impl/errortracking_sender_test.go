@@ -293,14 +293,14 @@ func newTestAtelMinimal(t *testing.T, sndr sender, bufSize int) *atel {
 	t.Helper()
 	a := &atel{
 		enabled:              true,
-		errortrackingEnabled: true,
 		logComp:              logmock.New(t),
 		sender:               sndr,
-		errLogsCh:            make(chan errortracking.ErrorLog, bufSize),
+		errLogsBufferSize:    bufSize,
 		errLogsDropped:       atomic.NewUint64(0),
 		errLogsFlushInterval: 60 * time.Second,
 		shutdownDrainTimeout: 5 * time.Second,
 	}
+	a.freeErrortrackingQueueLocked()
 	a.cancelCtx, a.cancel = context.WithCancel(t.Context())
 	return a
 }
@@ -343,16 +343,15 @@ func TestSubmitErrorLog_AcceptsRecord_PCZero(t *testing.T) {
 // in pay zero overhead (no buffer, no idle flush goroutine).
 func TestSubmitErrorLog_FeatureDisabled_NoChannel(t *testing.T) {
 	// Simulate the "createAtel saw errortracking gate=false" shape:
-	// enabled (agenttelemetry) is true, errortrackingEnabled is false,
+	// enabled (agenttelemetry) is true, errLogsCh is nil,
 	// errLogsCh is left as the zero value (nil).
 	a := &atel{
-		enabled:              true,
-		errortrackingEnabled: false,
-		logComp:              logmock.New(t),
-		errLogsDropped:       atomic.NewUint64(0),
+		enabled:        true,
+		logComp:        logmock.New(t),
+		errLogsDropped: atomic.NewUint64(0),
 	}
 
-	assert.Nil(t, a.errLogsCh, "feature-disabled atel must not allocate the channel")
+	assert.Nil(t, testQueue(a), "feature-disabled atel must not allocate the channel")
 
 	// Calling SubmitErrorLog must be a no-op: the errLogsCh==nil
 	// guard short-circuits before the select, so no panic and no drop
@@ -378,7 +377,7 @@ func TestSubmitErrorLog_NonBlocking_DropsOnOverflow(t *testing.T) {
 	a.SubmitErrorLog(errorLog("drop-1"))
 	a.SubmitErrorLog(errorLog("drop-2"))
 
-	assert.Equal(t, 2, len(a.errLogsCh), "buffer should still hold exactly cap records")
+	assert.Equal(t, 2, len(testQueue(a)), "buffer should still hold exactly cap records")
 	assert.Equal(t, uint64(2), a.errLogsDropped.Load(),
 		"both overflow submits MUST be counted as drops")
 }
@@ -446,7 +445,7 @@ func TestFlushErrortracking_DrainIsBoundedToSnapshot(t *testing.T) {
 		require.False(t, time.Now().After(deadline),
 			"producer never landed a refill while a flush was draining, across repeated attempts")
 
-		for len(a.errLogsCh) < bufSize {
+		for len(testQueue(a)) < bufSize {
 			runtime.Gosched()
 		}
 
@@ -659,4 +658,12 @@ func TestTelemetryDelegatedAdditionalEndpointUpdates(t *testing.T) {
 			}
 		})
 	}
+}
+
+// testQueue returns the errortracking queue of a, or nil when it is off.
+func testQueue(a *atel) chan errortracking.ErrorLog {
+	if ch := a.errLogsCh.Load(); ch != nil {
+		return *ch
+	}
+	return nil
 }

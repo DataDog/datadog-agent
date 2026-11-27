@@ -21,6 +21,7 @@ import (
 
 func (c *Check) configureResources() error {
 	c.resourcePublisher = nil
+	c.peeringScanner = nil
 	if !c.gpuConfig.Resources.Enabled {
 		return nil
 	}
@@ -39,7 +40,13 @@ func (c *Check) configureResources() error {
 	}
 	var err error
 	c.resourcePublisher, err = gpuresources.NewPublisher(options)
-	return err
+	if err != nil {
+		return fmt.Errorf("create GPU resource publisher: %w", err)
+	}
+	// Peering is static: rescan it once per resource refresh, so a refreshed resource carries a
+	// fresh scan without running O(GPUs²) NVML calls on every collection.
+	c.peeringScanner = gpuresources.NewPeeringScanner(c.resourcePublisher.RefreshInterval())
+	return nil
 }
 
 func (c *Check) publishResources(snd sender.Sender, now time.Time) error {
@@ -55,5 +62,6 @@ func (c *Check) publishResources(snd sender.Sender, now time.Time) error {
 	if err != nil {
 		return fmt.Errorf("GPU resource enumeration failed: %w", err)
 	}
-	return c.resourcePublisher.Publish(now, host, gpuresources.Snapshot(devices), snd)
+	peering := c.peeringScanner.Scan(now, devices)
+	return c.resourcePublisher.Publish(now, host, gpuresources.Snapshot(devices, peering), snd)
 }

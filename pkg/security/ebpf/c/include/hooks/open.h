@@ -277,7 +277,7 @@ static __always_inline int _sys_open_ret_impl(void *ctx, struct syscall_cache_t 
         goto pop_and_exit;
     }
 
-    if (syscall->resolver.ret == DENTRY_INVALID) {
+    if (syscall->resolver.ret <= 0) {
         goto pop_and_exit;
     }
 

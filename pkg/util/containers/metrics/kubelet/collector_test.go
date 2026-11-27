@@ -569,3 +569,13 @@ func setFakeStatsSummary(kubeletMock *mock.KubeletMock, content []byte, rc int, 
 func clearFakeStatsSummary(kubeletMock *mock.KubeletMock) {
 	delete(kubeletMock.MockReplies, "/stats/summary")
 }
+
+func TestNewCollectorMetadataSandboxedFlavors(t *testing.T) {
+	collectors := &provider.Collectors{}
+	metadata := newCollectorMetadata(collectors)
+
+	for _, flavor := range provider.SandboxedRuntimeFlavors {
+		runtime := provider.NewRuntimeMetadata(string(provider.RuntimeNameContainerd), string(flavor))
+		assert.Same(t, collectors, metadata.Collectors[runtime], "missing collectors for flavor %q", flavor)
+	}
+}

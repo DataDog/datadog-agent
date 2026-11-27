@@ -332,7 +332,12 @@ func TestExtractRuntimeFlavor(t *testing.T) {
 			expected: workloadmeta.ContainerRuntimeFlavorKata,
 		},
 		{
-			name:     "non-kata",
+			name:     "gvisor",
+			runtime:  "io.containerd.runsc.v1",
+			expected: workloadmeta.ContainerRuntimeFlavorGVisor,
+		},
+		{
+			name:     "runc",
 			runtime:  "io.containerd.runc.v2",
 			expected: workloadmeta.ContainerRuntimeFlavorDefault,
 		},

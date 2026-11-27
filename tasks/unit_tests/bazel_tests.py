@@ -7,6 +7,7 @@ from pathlib import Path
 from tasks.bazel import (
     _IMPORT_PREFIX,
     _BepContext,
+    _collect_test2json,
     _is_gotestsum_shaped,
     _label_to_import_path,
     _parse_bep,
@@ -73,6 +74,11 @@ _JUNIT_XML = """<?xml version="1.0"?>
 </testsuite>
 """
 
+_TEST2JSON = (
+    '{"Action":"run","Package":"github.com/DataDog/datadog-agent/pkg/foo","Test":"TestFoo"}\n'
+    '{"Action":"pass","Package":"github.com/DataDog/datadog-agent/pkg/foo","Test":"TestFoo","Elapsed":0}\n'
+)
+
 
 class TestIsGotestsumShaped(unittest.TestCase):
     def test_true_when_every_testcase_has_classname(self):
@@ -100,10 +106,10 @@ class TestParseBep(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             exec_root = Path(tmpdir) / "exec_root"
             reconstructed = exec_root / "bazel-out/k8-fastbuild/testlogs/pkg/foo/foo_test/test.xml"
-            reconstructed_log = reconstructed.parent / "test.log"
-            reconstructed.parent.mkdir(parents=True)
+            reconstructed_json = reconstructed.parent / "test.outputs/test2json.json"
+            reconstructed_json.parent.mkdir(parents=True)
             reconstructed.write_text(_JUNIT_XML)
-            reconstructed_log.write_text("PASS\n")
+            reconstructed_json.write_text(_TEST2JSON)
 
             bep_path = Path(tmpdir) / "bep.json"
             bep_path.write_text(
@@ -123,7 +129,10 @@ class TestParseBep(unittest.TestCase):
                                     "cachedLocally": True,
                                     "testActionOutput": [
                                         {"name": "test.xml", "uri": "bytestream://example/blobs/abc/123"},
-                                        {"name": "test.log", "uri": "bytestream://example/blobs/def/456"},
+                                        {
+                                            "name": "test.outputs/test2json.json",
+                                            "uri": "bytestream://example/blobs/def/456",
+                                        },
                                     ],
                                 },
                             }
@@ -138,7 +147,7 @@ class TestParseBep(unittest.TestCase):
                     "//pkg/foo:foo_test": {
                         "cached": True,
                         "xml_paths": [reconstructed],
-                        "log_paths": [reconstructed_log],
+                        "json_paths": [reconstructed_json],
                     }
                 },
             )
@@ -147,10 +156,10 @@ class TestParseBep(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             exec_root = Path(tmpdir) / "exec_root"
             reconstructed = exec_root / "bazel-out/k8-fastbuild/testlogs/pkg/foo/foo_test/test.xml"
-            reconstructed_log = reconstructed.parent / "test.log"
-            reconstructed.parent.mkdir(parents=True)
+            reconstructed_json = reconstructed.parent / "test.outputs/test2json.json"
+            reconstructed_json.parent.mkdir(parents=True)
             reconstructed.write_text(_JUNIT_XML)
-            reconstructed_log.write_text("PASS\n")
+            reconstructed_json.write_text(_TEST2JSON)
             # The file:// URI Bazel reports for a local (non-cached) action
             # points at the same underlying file as the reconstructed path.
             file_uri_path = reconstructed
@@ -172,7 +181,7 @@ class TestParseBep(unittest.TestCase):
                                 "testResult": {
                                     "testActionOutput": [
                                         {"name": "test.xml", "uri": file_uri_path.as_uri()},
-                                        {"name": "test.log", "uri": reconstructed_log.as_uri()},
+                                        {"name": "test.outputs/test2json.json", "uri": reconstructed_json.as_uri()},
                                     ]
                                 },
                             }
@@ -183,20 +192,20 @@ class TestParseBep(unittest.TestCase):
 
             artifacts = _parse_bep(bep_path)
             self.assertEqual(artifacts["//pkg/foo:foo_test"]["xml_paths"], [file_uri_path])
-            self.assertEqual(artifacts["//pkg/foo:foo_test"]["log_paths"], [reconstructed_log])
+            self.assertEqual(artifacts["//pkg/foo:foo_test"]["json_paths"], [reconstructed_json])
 
     def test_repeated_test_result_for_same_label_all_kept(self):
         # A sharded or retried target reports multiple testResult events for
-        # the same label, each with its own test.xml/test.log; none should be dropped.
+        # the same label, each with its own test.xml/test2json.json; none should be dropped.
         with tempfile.TemporaryDirectory() as tmpdir:
             first = Path(tmpdir) / "shard_0.xml"
             second = Path(tmpdir) / "shard_1.xml"
-            first_log = Path(tmpdir) / "shard_0.log"
-            second_log = Path(tmpdir) / "shard_1.log"
+            first_json = Path(tmpdir) / "shard_0.json"
+            second_json = Path(tmpdir) / "shard_1.json"
             first.write_text(_JUNIT_XML)
             second.write_text(_JUNIT_XML)
-            first_log.write_text("PASS\n")
-            second_log.write_text("PASS\n")
+            first_json.write_text(_TEST2JSON)
+            second_json.write_text(_TEST2JSON)
 
             bep_path = Path(tmpdir) / "bep.json"
             bep_path.write_text(
@@ -208,7 +217,7 @@ class TestParseBep(unittest.TestCase):
                                 "testResult": {
                                     "testActionOutput": [
                                         {"name": "test.xml", "uri": first.as_uri()},
-                                        {"name": "test.log", "uri": first_log.as_uri()},
+                                        {"name": "test.outputs/test2json.json", "uri": first_json.as_uri()},
                                     ]
                                 },
                             }
@@ -219,7 +228,7 @@ class TestParseBep(unittest.TestCase):
                                 "testResult": {
                                     "testActionOutput": [
                                         {"name": "test.xml", "uri": second.as_uri()},
-                                        {"name": "test.log", "uri": second_log.as_uri()},
+                                        {"name": "test.outputs/test2json.json", "uri": second_json.as_uri()},
                                     ]
                                 },
                             }
@@ -230,7 +239,7 @@ class TestParseBep(unittest.TestCase):
 
             artifacts = _parse_bep(bep_path)
             self.assertEqual(sorted(artifacts["//pkg/foo:foo_test"]["xml_paths"]), sorted([first, second]))
-            self.assertEqual(sorted(artifacts["//pkg/foo:foo_test"]["log_paths"]), sorted([first_log, second_log]))
+            self.assertEqual(sorted(artifacts["//pkg/foo:foo_test"]["json_paths"]), sorted([first_json, second_json]))
 
     def test_no_test_result_events_produces_nothing(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -238,7 +247,7 @@ class TestParseBep(unittest.TestCase):
             bep_path.write_text(_bep_line({"id": {"workspace": {}}, "workspaceInfo": {"localExecRoot": "/exec/root"}}))
             self.assertEqual(_parse_bep(bep_path), {})
 
-    def test_missing_log_is_error(self):
+    def test_missing_json_is_skipped(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             xml_path = Path(tmpdir) / "test.xml"
             xml_path.write_text(_JUNIT_XML)
@@ -252,8 +261,51 @@ class TestParseBep(unittest.TestCase):
                 )
             )
 
-            with self.assertRaisesRegex(RuntimeError, "did not include .*test.log"):
+            self.assertEqual(_parse_bep(bep_path)["//pkg/foo:foo_test"]["json_paths"], [])
+
+    def test_missing_xml_is_error(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bep_path = Path(tmpdir) / "bep.json"
+            bep_path.write_text(
+                _bep_line(
+                    {
+                        "id": {"testResult": {"label": "//pkg/foo:foo_test", "configuration": {"id": "cfg1"}}},
+                        "testResult": {"testActionOutput": []},
+                    }
+                )
+            )
+
+            with self.assertRaisesRegex(RuntimeError, "did not include .*test.xml"):
                 _parse_bep(bep_path)
+
+
+class TestCollectTest2json(unittest.TestCase):
+    def test_merges_attempts_and_relabels_package(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            first = Path(tmpdir) / "first.json"
+            second = Path(tmpdir) / "second.json"
+            other = Path(tmpdir) / "other.json"
+            first.write_text(_TEST2JSON)
+            second.write_text(_TEST2JSON)
+            other.write_text(_TEST2JSON)
+            output = Path(tmpdir) / "test_output.json"
+
+            _collect_test2json(
+                {
+                    "//pkg/foo:foo_test_containerd": {"cached": False, "xml_paths": [], "json_paths": [other]},
+                    "//pkg/foo:foo_test": {"cached": False, "xml_paths": [], "json_paths": [first, second]},
+                    "//pkg/bar:bar_sh_test": {"cached": False, "xml_paths": [], "json_paths": []},
+                },
+                output,
+            )
+
+            events = [json.loads(line) for line in output.read_text().splitlines()]
+            self.assertEqual(
+                [e["Package"] for e in events],
+                ["//pkg/foo:foo_test"] * 4 + ["//pkg/foo:foo_test_containerd"] * 2,
+            )
+            self.assertEqual([e["Action"] for e in events], ["run", "pass"] * 3)
+            self.assertEqual({e["Test"] for e in events}, {"TestFoo"})
 
 
 class TestBepContextBazelBin(unittest.TestCase):
