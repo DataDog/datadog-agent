@@ -18,6 +18,7 @@ package mokka
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
@@ -73,7 +74,7 @@ func NewInstallation(e config.Env, params *Params, kubeProvider *kubernetes.Prov
 
 	// Mokka sets up the container runtime and stages the mock driver that the device plugin, or
 	// the operator's operands, read: they must come after it.
-	dependsOnRelease := append(opts, pulumi.DependsOn([]pulumi.Resource{comp.Release}))
+	dependsOnRelease := append(slices.Clone(opts), pulumi.DependsOn([]pulumi.Resource{comp.Release}))
 	if params.GPUOperator != nil {
 		comp.GPUOperator, err = newGPUOperator(e, params, dependsOnRelease...)
 		if err != nil {
