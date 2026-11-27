@@ -572,7 +572,9 @@ func applyInstallEnv(conf *os.Root, env installEnv) error {
 		content = replaceLines(content, `^api_key:.*`, "api_key: "+key)
 	}
 	if site := env["DD_SITE"]; site != "" {
-		content = replaceLines(content, `^#* *site:.*`, "site: "+site)
+		// The top-level key only: the example also has commented site settings nested in other
+		// sections.
+		content = replaceLines(content, `^(# ?)?site:.*`, "site: "+site)
 	}
 	if mode := env["DD_INFRASTRUCTURE_MODE"]; mode != "" {
 		content = setOrAppend(content, `^#* *infrastructure_mode:.*`, "infrastructure_mode: "+mode)

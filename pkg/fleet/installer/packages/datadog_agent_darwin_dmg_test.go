@@ -52,10 +52,11 @@ func TestApplyInstallEnvLogsEnabled(t *testing.T) {
 }
 
 // TestApplyInstallEnvSetsTheInstallScriptsSettings pins the other settings the install script
-// forwards: the API key, the site, the infrastructure mode and the Chrome extension.
+// forwards: the API key, the site, the infrastructure mode and the Chrome extension. The site is set
+// on the top-level key only, not on a commented site setting nested in another section.
 func TestApplyInstallEnvSetsTheInstallScriptsSettings(t *testing.T) {
 	conf := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(conf, "datadog.yaml"), []byte("api_key: APIKEY\n# site: datadoghq.com\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(conf, "datadog.yaml"), []byte("api_key: APIKEY\n# site: datadoghq.com\n# private_action_runner:\n#   site: \"\"\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(conf, "ai_usage_native_host.yaml"), []byte("# chrome_extension_id: abc\n"), 0o600))
 
 	require.NoError(t, applyInstallEnv(openConfRoot(t, conf), installEnv{
@@ -67,7 +68,8 @@ func TestApplyInstallEnvSetsTheInstallScriptsSettings(t *testing.T) {
 
 	content, err := os.ReadFile(filepath.Join(conf, "datadog.yaml"))
 	require.NoError(t, err)
-	assert.Equal(t, "api_key: 0123\nsite: datad0g.com\n\ninfrastructure_mode: basic\n", string(content))
+	// The nested, commented site setting is left as it is.
+	assert.Equal(t, "api_key: 0123\nsite: datad0g.com\n# private_action_runner:\n#   site: \"\"\n\ninfrastructure_mode: basic\n", string(content))
 	nativeHost, err := os.ReadFile(filepath.Join(conf, "ai_usage_native_host.yaml"))
 	require.NoError(t, err)
 	assert.Equal(t, "chrome_extension_id: "+strings.Repeat("abcdefghijklmnop", 2)+"\n", string(nativeHost))
