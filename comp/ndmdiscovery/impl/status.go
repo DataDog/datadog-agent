@@ -109,7 +109,7 @@ func (p statusProvider) status() discoveryStatus {
 	})
 
 	return discoveryStatus{
-		Workers:  p.d.sched.opts.Workers,
+		Workers:  p.d.sched.sweeper.budget,
 		Ranges:   ranges,
 		Rejected: rejected,
 	}

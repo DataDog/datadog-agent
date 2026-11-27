@@ -47,7 +47,6 @@ func newTestScheduler(t *testing.T, scanner *recordingScanner, workers int64) (*
 	sw := newTestSweeper(t, scanner, reporter, newMemCursorStore(), workers)
 
 	s := newScheduler(sw, logmock.New(t), schedulerOptions{
-		Workers:      workers,
 		MaxAddresses: 65536,
 		Defaults:     rangeDefaults{Namespace: "default", IntervalSec: 3600, MaxAddresses: 65536},
 		Credentials:  store,
@@ -202,29 +201,6 @@ func TestSchedulerReplacesRangeOnUpdate(t *testing.T) {
 	}, 5*time.Second, 10*time.Millisecond)
 }
 
-func TestSchedulerWorkerShare(t *testing.T) {
-	s, _, _ := newTestScheduler(t, answerAll(), 10)
-
-	s.ranges["a"] = &scheduledRange{}
-	assert.Equal(t, int64(10), s.workerShare(), "one range gets the whole budget")
-
-	s.ranges["b"] = &scheduledRange{}
-	s.ranges["c"] = &scheduledRange{}
-	assert.Equal(t, int64(3), s.workerShare())
-
-	for _, id := range []string{"d", "e", "f", "g", "h", "i", "j", "k", "l"} {
-		s.ranges[id] = &scheduledRange{}
-	}
-	assert.Equal(t, int64(1), s.workerShare(), "the share never drops below one worker")
-}
-
-func TestSchedulerWorkerShareNeverExceedsTheSweeperBudget(t *testing.T) {
-	sw := newTestSweeper(t, answerAll(), &recordingReporter{}, newMemCursorStore(), 4)
-	s := newScheduler(sw, logmock.New(t), schedulerOptions{Workers: 64, MaxAddresses: 65536})
-
-	assert.Equal(t, int64(4), s.workerShare())
-}
-
 func TestSchedulerStopIsIdempotentAndDrains(t *testing.T) {
 	scanner := answerAll()
 	s, _, _ := newTestScheduler(t, scanner, 10)
@@ -328,10 +304,9 @@ func (c *blockingScanner) sawTarget(ip string) bool {
 
 func TestSchedulerDoesNotOverlapCyclesForOneRange(t *testing.T) {
 	scanner := newBlockingScanner()
-	// A share equal to the budget would serialise the cycles on the semaphore alone.
-	sw := newTestSweeper(t, &scanner.recordingScanner, &recordingReporter{}, newMemCursorStore(), 10)
+	// Room for two full chunks, so overlapping cycles could not hide behind the semaphore.
+	sw := newTestSweeper(t, &scanner.recordingScanner, &recordingReporter{}, newMemCursorStore(), 256)
 	s := newScheduler(sw, logmock.New(t), schedulerOptions{
-		Workers:      1,
 		MaxAddresses: 65536,
 		Defaults:     rangeDefaults{Namespace: "default", IntervalSec: 3600, MaxAddresses: 65536},
 		Credentials:  testSchedulerStore(),

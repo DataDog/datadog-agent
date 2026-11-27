@@ -26,7 +26,6 @@ func newStatusTestDiscovery(t *testing.T, workers int64) (*ndmDiscovery, *memCur
 	cursors := newMemCursorStore()
 	sw := newTestSweeper(t, answerAll(), &recordingReporter{}, cursors, workers)
 	s := newScheduler(sw, logmock.New(t), schedulerOptions{
-		Workers:      workers,
 		MaxAddresses: 65536,
 		Credentials:  testSchedulerStore(),
 	})
@@ -241,11 +240,12 @@ func TestStatusShowsANewRunBeforeItsFirstChunkCompletes(t *testing.T) {
 	scanner := newBlockingScanner()
 	sw := newTestSweeper(t, &scanner.recordingScanner, &recordingReporter{}, cursors, 10)
 	sw.newRunID = func() string { return "run-new" }
-	d := &ndmDiscovery{log: logmock.New(t), sched: newScheduler(sw, logmock.New(t), schedulerOptions{Workers: 10, MaxAddresses: 65536})}
+	d := &ndmDiscovery{log: logmock.New(t), sched: newScheduler(sw, logmock.New(t), schedulerOptions{MaxAddresses: 65536})}
 	addStatusRange(d, testRangeConfig("ad-1", "10.0.0.0/24"))
 
+	req := testSweepRequest(t, "10.0.0.0/24", nil)
 	done := make(chan error, 1)
-	go func() { done <- sw.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/24", nil)) }()
+	go func() { done <- sw.sweep(context.Background(), req) }()
 	<-scanner.entered
 
 	r := statusAt(d, statusNowMs).Ranges[0]
