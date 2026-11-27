@@ -40,6 +40,7 @@ def deploy(
     scenario_name: str,
     config_path: str | None = None,
     app_key_required: bool = False,
+    no_app_key: bool = False,
     stack_name: str | None = None,
     pipeline_id: str | None = None,
     install_agent: bool | None = None,
@@ -151,6 +152,8 @@ def deploy(
 
     if app_key_required:
         flags["ddagent:appKey"] = config.get_app_key(cfg)
+    # Always set, so a stack that once ran without an app key doesn't keep running without one
+    flags["ddagent:noAppKey"] = no_app_key
 
     return _deploy(
         ctx,

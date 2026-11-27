@@ -110,8 +110,11 @@ type HelmComponent struct {
 }
 
 func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi.ResourceOption) (*HelmComponent, error) {
-	apiKey := e.AgentAPIKey()
-	appKey := e.AgentAPPKey()
+	credentials := pulumi.StringMap{"api-key": e.AgentAPIKey()}
+	noAppKey := e.AgentNoAPPKey()
+	if !noAppKey {
+		credentials["app-key"] = e.AgentAPPKey()
+	}
 	baseName := args.BaseName
 	opts = append(opts, pulumi.Providers(args.KubeProvider), e.WithProviders(config.ProviderRandom), pulumi.DeletedWith(args.KubeProvider))
 
@@ -191,10 +194,7 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 			Namespace: ns.Metadata.Name(),
 			Name:      pulumi.Sprintf("%s-datadog-credentials", baseName),
 		},
-		StringData: pulumi.StringMap{
-			"api-key": apiKey,
-			"app-key": appKey,
-		},
+		StringData: credentials,
 	}, opts...)
 	if err != nil {
 		return nil, err
@@ -245,6 +245,9 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 		values = buildLinuxHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentImagePath, clusterAgentImageTag, randomClusterAgentToken.Result, !args.DisableLogsContainerCollectAll, e.TestingWorkloadDeploy(), args.FIPS, true)
 	}
 	values.configureImagePullSecret(imgPullSecret)
+	if noAppKey {
+		values.dropAppKeySecret()
+	}
 	if err := values.configureFakeintake(e, args.Fakeintake, args.DualShipping); err != nil {
 		return nil, err
 	}
@@ -299,6 +302,9 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 	if args.DeployWindows {
 		values := buildWindowsHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentImagePath, clusterAgentImageTag)
 		values.configureImagePullSecret(imgPullSecret)
+		if noAppKey {
+			values.dropAppKeySecret()
+		}
 		if err := values.configureFakeintake(e, args.Fakeintake, args.DualShipping); err != nil {
 			return nil, err
 		}
@@ -992,6 +998,14 @@ func buildWindowsHelmValues(baseName string, agentImagePath, agentImageTag, _, _
 				"datadogInstrumentations": pulumi.Bool(false),
 			},
 		},
+	}
+}
+
+// dropAppKeySecret removes the chart's reference to the app key, for a deployment without one: the credentials
+// secret then has no app-key entry, and a reference to it would keep the cluster agent from starting.
+func (values HelmValues) dropAppKeySecret() {
+	if datadog, ok := values["datadog"].(pulumi.Map); ok {
+		delete(datadog, "appKeyExistingSecret")
 	}
 }
 
