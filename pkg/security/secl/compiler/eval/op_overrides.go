@@ -34,8 +34,8 @@ type OpOverrides struct {
 	// are fresh: the comparison options of the field are set on them.
 	ExtraInputs func(field Field) []*StringEvaluator
 
-	// EqualsOnly restricts the field to `==` and `=~`, every other comparison
-	// of it being an error.
+	// EqualsOnly restricts the field to `==` and `=~` and their negations `!=`
+	// and `!~`, `in` and the array comparisons of it being an error.
 	EqualsOnly bool
 
 	// StaticEquals, when set, compiles `==` and `=~` of the field with a static
@@ -46,11 +46,11 @@ type OpOverrides struct {
 }
 
 // checkEqualsOnly returns an error when one of the overrides restricts the
-// field to `==`
+// field to `==`, `=~` and their negations
 func checkEqualsOnly(opOverrides []*OpOverrides, field Field) error {
 	for _, opOverride := range opOverrides {
 		if opOverride.EqualsOnly {
-			return fmt.Errorf("field `%s` only supports `==`", field)
+			return fmt.Errorf("field `%s` only supports `==`, `!=`, `=~` and `!~`", field)
 		}
 	}
 	return nil

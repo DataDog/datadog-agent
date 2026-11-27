@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
-// OnDemandNameOverrides is a set of overrides for on demand name field, which only supports `==`
+// OnDemandNameOverrides is a set of overrides for on demand name field, which only supports `==`, `!=`, `=~` and `!~`
 var OnDemandNameOverrides = &eval.OpOverrides{
 	EqualsOnly: true,
 }
