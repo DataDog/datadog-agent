@@ -191,6 +191,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 	// Mokka must be running before the Agent starts: its NRI plugin only injects the mock GPU
 	// driver into containers created after it, so it is handled like a pre-Agent workload.
 	mokkaNames := make(map[string]struct{}, len(params.mokkaInstallations))
+	gpuOperators := 0
 	for _, mokkaOpts := range params.mokkaInstallations {
 		mokkaParams, err := mokka.NewParams(mokkaOpts...)
 		if err != nil {
@@ -201,6 +202,12 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 			return fmt.Errorf("several WithMokka installations are named %q: give each one its own mokka.WithName", mokkaParams.Name)
 		}
 		mokkaNames[mokkaParams.Name] = struct{}{}
+		// The GPU Operator manages every GPU node of the cluster: a second one would fight the first.
+		if mokkaParams.GPUOperator != nil {
+			if gpuOperators++; gpuOperators > 1 {
+				return errors.New("several WithMokka installations use mokka.WithGPUOperator: the operator manages every GPU node, use it in one installation only")
+			}
+		}
 		mokkaComp, err := mokka.NewInstallation(&awsEnv, mokkaParams, kubeProvider)
 		if err != nil {
 			return err

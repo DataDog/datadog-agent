@@ -31,6 +31,14 @@ const (
 	DevicesAnnotation = "nvml-mock.nvidia.com/devices"
 	// MockDriverRoot is the host directory holding the mock driver tree.
 	MockDriverRoot = "/var/lib/nvml-mock/driver"
+
+	// DefaultGPUOperatorChartRepository is the Helm repository of the NVIDIA GPU Operator chart.
+	DefaultGPUOperatorChartRepository = "https://nvidia.github.io/gpu-operator"
+	// DefaultGPUOperatorVersion is the pinned GPU Operator chart version: the one NVIDIA validates
+	// against Mokka. The operands of v26.7.1 and v26.7.2 never start on Mokka.
+	DefaultGPUOperatorVersion = "v26.7.3"
+	// DefaultGPUOperatorNamespace is the namespace the GPU Operator is installed in.
+	DefaultGPUOperatorNamespace = "gpu-operator"
 )
 
 // Params holds the configuration of a Mokka installation.
@@ -47,7 +55,23 @@ type Params struct {
 	KernelLog         bool
 	DevicePluginImage string
 	HelmValues        pulumi.Map
+	// GPUOperator, when set, makes the installation deploy the NVIDIA GPU Operator on top of
+	// Mokka instead of a standalone device plugin.
+	GPUOperator *GPUOperatorParams
 }
+
+// GPUOperatorParams holds the configuration of the NVIDIA GPU Operator deployed on top of Mokka.
+type GPUOperatorParams struct {
+	ChartRepository string
+	Version         string
+	Namespace       string
+	// DevicePluginConfig is the device plugin configuration file, e.g. to share GPUs with
+	// time-slicing. Empty keeps the device plugin defaults.
+	DevicePluginConfig string
+}
+
+// GPUOperatorOption configures the GPU Operator of a Mokka installation.
+type GPUOperatorOption = func(*GPUOperatorParams) error
 
 // Option configures a Mokka installation.
 type Option = func(*Params) error
@@ -144,6 +168,60 @@ func WithKernelLog() Option {
 func WithDevicePluginImage(image string) Option {
 	return func(p *Params) error {
 		p.DevicePluginImage = image
+		return nil
+	}
+}
+
+// WithGPUOperator deploys the NVIDIA GPU Operator on top of Mokka, instead of a standalone device
+// plugin: its device plugin and GPU Feature Discovery (which labels the nodes) then run on the
+// mock GPUs, as on a real GPU node. The operator manages every GPU node of the cluster, so use it
+// in a single installation. WithDevicePluginImage does not apply to it.
+func WithGPUOperator(options ...GPUOperatorOption) Option {
+	return func(p *Params) error {
+		operator, err := common.ApplyOption(&GPUOperatorParams{
+			ChartRepository: DefaultGPUOperatorChartRepository,
+			Version:         DefaultGPUOperatorVersion,
+			Namespace:       DefaultGPUOperatorNamespace,
+		}, options)
+		if err != nil {
+			return err
+		}
+		p.GPUOperator = operator
+		return nil
+	}
+}
+
+// WithGPUOperatorChartRepository overrides the Helm repository of the GPU Operator chart.
+func WithGPUOperatorChartRepository(repository string) GPUOperatorOption {
+	return func(p *GPUOperatorParams) error {
+		p.ChartRepository = repository
+		return nil
+	}
+}
+
+// WithGPUOperatorVersion overrides the pinned GPU Operator chart version. Check that the
+// version runs on Mokka first: see DefaultGPUOperatorVersion.
+func WithGPUOperatorVersion(version string) GPUOperatorOption {
+	return func(p *GPUOperatorParams) error {
+		p.Version = version
+		return nil
+	}
+}
+
+// WithGPUOperatorNamespace sets the namespace the GPU Operator is installed in.
+func WithGPUOperatorNamespace(namespace string) GPUOperatorOption {
+	return func(p *GPUOperatorParams) error {
+		p.Namespace = namespace
+		return nil
+	}
+}
+
+// WithGPUOperatorDevicePluginConfig sets the configuration file of the device plugin the
+// operator deploys, in the device plugin format
+// (https://github.com/NVIDIA/k8s-device-plugin#configuration-file), e.g. a time-slicing config.
+func WithGPUOperatorDevicePluginConfig(config string) GPUOperatorOption {
+	return func(p *GPUOperatorParams) error {
+		p.DevicePluginConfig = config
 		return nil
 	}
 }
