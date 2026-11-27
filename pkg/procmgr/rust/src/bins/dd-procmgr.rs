@@ -107,8 +107,28 @@ async fn main() -> ExitCode {
     match run(cli).await {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("Error: {e}");
-            ExitCode::FAILURE
+            eprintln!("Error: {}", e.message);
+            ExitCode::from(e.exit_code)
+        }
+    }
+}
+
+/// Exit code of `reload` when the daemon refused it and kept its current processes. The
+/// Windows installer matches it in `processmanager/reload_windows.go`.
+const RELOAD_REFUSED_EXIT_CODE: u8 = 3;
+
+const FAILURE_EXIT_CODE: u8 = 1;
+
+struct CliError {
+    message: String,
+    exit_code: u8,
+}
+
+impl From<String> for CliError {
+    fn from(message: String) -> Self {
+        Self {
+            message,
+            exit_code: FAILURE_EXIT_CODE,
         }
     }
 }
@@ -162,11 +182,11 @@ async fn connect(socket_override: Option<&str>) -> Result<ProcessManagerClient<C
     Ok(ProcessManagerClient::new(channel))
 }
 
-async fn run(cli: Cli) -> Result<(), String> {
+async fn run(cli: Cli) -> Result<(), CliError> {
     let mut client = connect(cli.socket.as_deref()).await?;
     let json = cli.json;
 
-    match cli.command {
+    let result = match cli.command {
         Commands::List => cmd_list(&mut client, json).await,
         Commands::Describe { name_or_uuid } => cmd_describe(&mut client, &name_or_uuid, json).await,
         Commands::Status => cmd_status(&mut client, json).await,
@@ -210,8 +230,9 @@ async fn run(cli: Cli) -> Result<(), String> {
             )
             .await
         }
-        Commands::Reload => cmd_reload(&mut client, json).await,
-    }
+        Commands::Reload => return cmd_reload(&mut client, json).await,
+    };
+    Ok(result?)
 }
 
 fn parse_env_args(args: &[String]) -> Result<HashMap<String, String>, String> {
@@ -706,11 +727,31 @@ async fn cmd_create(
     Ok(())
 }
 
-async fn cmd_reload(client: &mut ProcessManagerClient<Channel>, json: bool) -> Result<(), String> {
+/// A reload the daemon refused has its own exit code. Only an `Unavailable` carrying the marker
+/// counts, so an `Unavailable` raised by the transport stays an ordinary failure.
+fn reload_error(status: tonic::Status) -> CliError {
+    let refused = status.code() == tonic::Code::Unavailable
+        && status
+            .metadata()
+            .contains_key(dd_procmgr_client::RELOAD_REFUSED_METADATA_KEY);
+    CliError {
+        message: grpc_err(status),
+        exit_code: if refused {
+            RELOAD_REFUSED_EXIT_CODE
+        } else {
+            FAILURE_EXIT_CODE
+        },
+    }
+}
+
+async fn cmd_reload(
+    client: &mut ProcessManagerClient<Channel>,
+    json: bool,
+) -> Result<(), CliError> {
     let resp = client
         .reload_config(proto::ReloadConfigRequest {})
         .await
-        .map_err(grpc_err)?
+        .map_err(reload_error)?
         .into_inner();
 
     if json {
@@ -749,6 +790,36 @@ async fn cmd_reload(client: &mut ProcessManagerClient<Channel>, json: bool) -> R
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn refused_status(code: tonic::Code) -> tonic::Status {
+        let mut status = tonic::Status::new(code, "config reload refused");
+        status.metadata_mut().insert(
+            dd_procmgr_client::RELOAD_REFUSED_METADATA_KEY,
+            tonic::metadata::MetadataValue::from_static("1"),
+        );
+        status
+    }
+
+    #[test]
+    fn test_reload_refused_exit_code_is_the_installer_contract() {
+        // The Windows installer matches this value in processmanager/reload_windows.go.
+        assert_eq!(RELOAD_REFUSED_EXIT_CODE, 3);
+    }
+
+    #[test]
+    fn test_reload_error_exit_codes() {
+        let marked = refused_status(tonic::Code::Unavailable);
+        assert_eq!(reload_error(marked).exit_code, RELOAD_REFUSED_EXIT_CODE);
+
+        let unmarked = tonic::Status::unavailable("transport closed");
+        assert_eq!(reload_error(unmarked).exit_code, FAILURE_EXIT_CODE);
+
+        let marked_other = refused_status(tonic::Code::Internal);
+        assert_eq!(reload_error(marked_other).exit_code, FAILURE_EXIT_CODE);
+
+        let denied = tonic::Status::permission_denied("no");
+        assert_eq!(reload_error(denied).exit_code, FAILURE_EXIT_CODE);
+    }
 
     #[test]
     fn test_state_name_all_variants() {

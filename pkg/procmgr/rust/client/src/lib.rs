@@ -38,6 +38,10 @@ const DEFAULT_IPC_PATH: &str = "/var/run/datadog-procmgrd/dd-procmgrd.sock";
 #[cfg(windows)]
 const DEFAULT_IPC_PATH: &str = r"\\.\pipe\datadog-procmgrd";
 
+/// Metadata on the `Unavailable` status of a refused `ReloadConfig`, which tells it apart from an
+/// `Unavailable` raised by the transport.
+pub const RELOAD_REFUSED_METADATA_KEY: &str = "x-dd-procmgr-reload-refused";
+
 const TONIC_PLACEHOLDER_URI: &str = "http://[::]:50051";
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 

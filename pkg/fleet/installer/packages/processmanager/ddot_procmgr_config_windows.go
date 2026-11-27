@@ -19,7 +19,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const ddotProcmgrConfigFileName = "datadog-agent-ddot.yaml"
+// DDOTProcmgrProcessName is the name dd-procmgr gives the DDOT process: its config file stem.
+const DDOTProcmgrProcessName = "datadog-agent-ddot"
+
+const ddotProcmgrConfigFileName = DDOTProcmgrProcessName + ".yaml"
 
 // WriteDDOTProcmgrConfig writes datadog-agent-ddot.yaml next to the MSI install layout so
 // dd-procmgrd picks it up (default_config_dir is InstallPath\processes.d on Windows).

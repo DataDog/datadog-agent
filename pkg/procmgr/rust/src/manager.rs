@@ -176,7 +176,7 @@ impl ProcessManager {
         let grpc_handle = tokio::spawn(grpc::server::run(self.clone(), cmd_tx, grpc_shutdown_rx));
 
         let (exit_tx, mut exit_rx) = mpsc::channel::<ExitEvent>(256);
-        let (restart_tx, mut restart_rx) = mpsc::channel::<String>(256);
+        let (restart_tx, mut restart_rx) = mpsc::channel::<(String, u64)>(256);
         let external_shutdown = self.start_until(&exit_tx, &mut shutdown).await;
         if external_shutdown {
             self.shutting_down.store(true, Ordering::SeqCst);
@@ -195,8 +195,8 @@ impl ProcessManager {
                 Some(event) = exit_rx.recv() => {
                     self.handle_exit(event, &restart_tx).await;
                 }
-                Some(name) = restart_rx.recv() => {
-                    self.complete_restart(&name, &exit_tx).await;
+                Some((name, generation)) = restart_rx.recv() => {
+                    self.complete_restart(&name, generation, &exit_tx).await;
                 }
                 Some(cmd) = cmd_rx.recv() => {
                     match cmd {
@@ -260,7 +260,11 @@ impl ProcessManager {
         self.config_loader.location()
     }
 
-    pub(crate) async fn handle_exit(&self, event: ExitEvent, restart_tx: &mpsc::Sender<String>) {
+    pub(crate) async fn handle_exit(
+        &self,
+        event: ExitEvent,
+        restart_tx: &mpsc::Sender<(String, u64)>,
+    ) {
         let mut procs = self.processes.write().await;
         let Some(proc) = procs.iter_mut().find(|p| p.name() == event.name) else {
             warn!("exit event for unknown process '{}'", event.name);
@@ -298,22 +302,34 @@ impl ProcessManager {
             self.request_supervisor_exit(proc.name(), exit_code_of(&event.status));
             return;
         }
-        if let Some(delay) = proc.handle_restart() {
+        if let Some((delay, generation)) = proc.handle_restart() {
             let tx = restart_tx.clone();
             let name = event.name.clone();
             tokio::spawn(async move {
                 tokio::time::sleep(delay).await;
-                let _ = tx.send(name).await;
+                let _ = tx.send((name, generation)).await;
             });
         }
     }
 
-    pub(crate) async fn complete_restart(&self, name: &str, exit_tx: &mpsc::Sender<ExitEvent>) {
+    pub(crate) async fn complete_restart(
+        &self,
+        name: &str,
+        generation: u64,
+        exit_tx: &mpsc::Sender<ExitEvent>,
+    ) {
         let mut procs = self.processes.write().await;
         let Some(proc) = procs.iter_mut().find(|p| p.name() == name) else {
             warn!("restart for unknown process '{name}'");
             return;
         };
+        // A timer that does not match the queued restart is stale: a spawn, a stop
+        // that cancelled the restart, or a later exit superseded it. The live timer
+        // is consumed here whatever happens next.
+        if !proc.take_fired_restart(generation) {
+            debug!("[{name}] restart timer superseded or cancelled, not restarting");
+            return;
+        }
         if proc.is_running() {
             info!("[{name}] already running, skipping queued restart");
             return;
@@ -437,6 +453,15 @@ impl ProcessManager {
             let proc = &mut procs[idx];
 
             if !proc.is_running() {
+                // A restart queued after a crash is cancelled rather than refused, so the process
+                // stays down and its timer does not bring it back.
+                if proc.cancel_pending_restart() {
+                    info!("[{}] queued restart cancelled by stop", proc.name());
+                    return Ok(StopResult {
+                        uuid: proc.uuid().to_owned(),
+                        state: proc.state(),
+                    });
+                }
                 return Err(Status::failed_precondition(format!(
                     "process '{}' is not running",
                     proc.name()
@@ -474,7 +499,21 @@ impl ProcessManager {
         &self,
         exit_tx: &mpsc::Sender<ExitEvent>,
     ) -> Result<ReloadResult, Status> {
-        let catalog = self.config_loader.load();
+        // A catalog that could not be read keeps the current processes, not an empty catalog.
+        let catalog = self.config_loader.try_load().map_err(|err| {
+            // A read cut short by a stop is the daemon shutting down, not a refusal.
+            if crate::stop::stop_requested_flag() {
+                return Status::unavailable("daemon is shutting down");
+            }
+            let message = format!("config reload refused, keeping the current processes: {err:#}");
+            warn!("{message}");
+            let mut status = Status::unavailable(message);
+            status.metadata_mut().insert(
+                dd_procmgr_client::RELOAD_REFUSED_METADATA_KEY,
+                tonic::metadata::MetadataValue::from_static("1"),
+            );
+            status
+        })?;
         let valid_order: Vec<String> = catalog.processes.iter().map(|pd| pd.name.clone()).collect();
         let invalid_order: Vec<String> = catalog.invalid.iter().map(|e| e.name.clone()).collect();
         let mut valid: std::collections::HashMap<String, config::ProcessConfig> = catalog
@@ -1356,13 +1395,328 @@ mod tests {
             assert!(procs[0].is_running());
         }
 
-        mgr.complete_restart("svc", &exit_tx).await;
+        // No restart timer was queued, so no generation is live and the call is a no-op.
+        mgr.complete_restart("svc", 0, &exit_tx).await;
 
         let procs = mgr.processes().await;
         assert_eq!(procs.len(), 1);
         assert!(procs[0].is_running());
 
         test_helpers::cleanup_process(procs[0].pid().unwrap());
+        Ok(())
+    }
+
+    fn restarting_def(name: &str) -> ProcessDefinition {
+        let mut def = sleep_def(name);
+        def.config.restart = config::RestartPolicy::Always;
+        def.config.restart_sec = Some(0.5);
+        def
+    }
+
+    #[tokio::test]
+    async fn test_stop_during_restart_backoff_keeps_the_process_down() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(loader(vec![restarting_def("svc")]), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.start(&exit_tx).await;
+        let mut restart_rx = exit_with(&mgr, "svc", test_helpers::exit_status(1)).await;
+
+        // A crashed DDOT is down with its restart queued. The stop is accepted and cancels that restart.
+        let stopped = mgr
+            .handle_stop("svc")
+            .await
+            .expect("a stop during the restart backoff must be accepted");
+        assert_eq!(stopped.state, ProcessState::Failed);
+
+        // The backoff elapses and the timer fires, but the cancelled restart must not spawn.
+        let (name, generation) = next_restart(&mut restart_rx).await;
+        assert_eq!(name, "svc");
+        mgr.complete_restart(&name, generation, &exit_tx).await;
+        let procs = mgr.processes().await;
+        assert!(
+            !procs[0].is_running(),
+            "the cancelled restart must not respawn the process"
+        );
+        assert_eq!(procs[0].state(), ProcessState::Failed);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_cancelled_restart_does_not_outlive_a_later_start() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(loader(vec![restarting_def("svc")]), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.start(&exit_tx).await;
+        let mut first = exit_with(&mgr, "svc", test_helpers::exit_status(1)).await;
+        mgr.handle_stop("svc")
+            .await
+            .expect("a stop during the restart backoff must be accepted");
+        let (name, generation) = next_restart(&mut first).await;
+        assert_eq!(name, "svc");
+        mgr.complete_restart(&name, generation, &exit_tx).await;
+        assert!(!mgr.processes().await[0].is_running());
+
+        // An operator start is a spawn, which ends the cancellation. A later crash must be
+        // restarted normally, so the earlier cancel cannot swallow it.
+        mgr.handle_start("svc", &exit_tx).await?;
+        assert!(mgr.processes().await[0].is_running());
+        let mut second = exit_with(&mgr, "svc", test_helpers::exit_status(1)).await;
+        let (name, generation) = next_restart(&mut second).await;
+        assert_eq!(name, "svc");
+        mgr.complete_restart(&name, generation, &exit_tx).await;
+        assert!(
+            mgr.processes().await[0].is_running(),
+            "a crash after the cancelled restart must be restarted"
+        );
+        cleanup_first_process(&mgr).await;
+        Ok(())
+    }
+
+    /// A timer queued before a manual start is stale, and a later crash's timer is
+    /// stale once a stop cancels it. Neither may respawn the process.
+    #[tokio::test]
+    async fn test_stale_restart_timers_do_not_respawn_after_a_stop() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(loader(vec![restarting_def("svc")]), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.start(&exit_tx).await;
+        let mut first = exit_with(&mgr, "svc", test_helpers::exit_status(1)).await;
+        mgr.handle_start("svc", &exit_tx).await?;
+        let mut second = exit_with(&mgr, "svc", test_helpers::exit_status(1)).await;
+        mgr.handle_stop("svc")
+            .await
+            .expect("a stop during the restart backoff must be accepted");
+
+        let (name, generation) = next_restart(&mut first).await;
+        mgr.complete_restart(&name, generation, &exit_tx).await;
+        assert!(
+            !mgr.processes().await[0].is_running(),
+            "the timer queued before the start must be stale"
+        );
+        let (name, generation) = next_restart(&mut second).await;
+        mgr.complete_restart(&name, generation, &exit_tx).await;
+        assert!(
+            !mgr.processes().await[0].is_running(),
+            "the cancelled restart must not respawn the process"
+        );
+        Ok(())
+    }
+
+    /// A stop, a start, and a second stop leave the first crash's timer stale.
+    #[tokio::test]
+    async fn test_restart_timer_stays_stale_across_stop_start_stop() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(loader(vec![restarting_def("svc")]), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.start(&exit_tx).await;
+        let mut first = exit_with(&mgr, "svc", test_helpers::exit_status(1)).await;
+        mgr.handle_stop("svc")
+            .await
+            .expect("a stop during the restart backoff must be accepted");
+        mgr.handle_start("svc", &exit_tx).await?;
+        mgr.handle_stop("svc").await?;
+
+        let (name, generation) = next_restart(&mut first).await;
+        mgr.complete_restart(&name, generation, &exit_tx).await;
+        assert!(
+            !mgr.processes().await[0].is_running(),
+            "the stale timer must not respawn a process that was stopped"
+        );
+        Ok(())
+    }
+
+    /// A stop of the running process after a manual start leaves the earlier timer stale.
+    #[tokio::test]
+    async fn test_stop_of_running_process_makes_earlier_timer_stale() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(loader(vec![restarting_def("svc")]), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.start(&exit_tx).await;
+        let mut first = exit_with(&mgr, "svc", test_helpers::exit_status(1)).await;
+        mgr.handle_start("svc", &exit_tx).await?;
+        assert!(mgr.processes().await[0].is_running());
+        mgr.handle_stop("svc").await?;
+
+        let (name, generation) = next_restart(&mut first).await;
+        mgr.complete_restart(&name, generation, &exit_tx).await;
+        assert!(
+            !mgr.processes().await[0].is_running(),
+            "the timer from before the start must not respawn after the stop"
+        );
+        Ok(())
+    }
+
+    /// Once a stop has cancelled the queued restart there is nothing left to cancel,
+    /// so a second stop is refused like any other stop of a process that is not running.
+    #[tokio::test]
+    async fn test_second_stop_during_backoff_is_refused() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(loader(vec![restarting_def("svc")]), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.start(&exit_tx).await;
+        let _restart_rx = exit_with(&mgr, "svc", test_helpers::exit_status(1)).await;
+        mgr.handle_stop("svc")
+            .await
+            .expect("the first stop cancels the queued restart");
+
+        let err = mgr
+            .handle_stop("svc")
+            .await
+            .expect_err("the second stop has no restart left to cancel");
+        assert_eq!(err.code(), tonic::Code::FailedPrecondition);
+        Ok(())
+    }
+
+    /// Two crashes queue two timers. The first, now stale, must not respawn ahead
+    /// of the second, which is the restart that is actually live.
+    #[tokio::test]
+    async fn test_stale_timer_does_not_fire_ahead_of_a_newer_restart() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(loader(vec![restarting_def("svc")]), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.start(&exit_tx).await;
+        let mut first = exit_with(&mgr, "svc", test_helpers::exit_status(1)).await;
+        mgr.handle_start("svc", &exit_tx).await?;
+        let mut second = exit_with(&mgr, "svc", test_helpers::exit_status(1)).await;
+
+        let (name, generation) = next_restart(&mut first).await;
+        mgr.complete_restart(&name, generation, &exit_tx).await;
+        assert!(
+            !mgr.processes().await[0].is_running(),
+            "a stale timer must not spend the backoff of the newer crash"
+        );
+
+        let (name, generation) = next_restart(&mut second).await;
+        mgr.complete_restart(&name, generation, &exit_tx).await;
+        assert!(
+            mgr.processes().await[0].is_running(),
+            "the newer restart fires on its own timer"
+        );
+        cleanup_first_process(&mgr).await;
+        Ok(())
+    }
+
+    /// A process removed by a reload and added back under the same name must not be respawned
+    /// by the timer its predecessor queued. Generations come from a process-wide counter, so no
+    /// timer of the removed process can match a restart the re-added one queues.
+    #[tokio::test]
+    async fn test_removed_then_readded_process_ignores_its_predecessors_timer() -> anyhow::Result<()>
+    {
+        let config_loader = Arc::new(MutableConfigLoader::new(vec![restarting_def("svc")]));
+        let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.start(&exit_tx).await;
+        let mut old_timer = exit_with(&mgr, "svc", test_helpers::exit_status(1)).await;
+
+        // Removed while it is backing off, then added back under the same name.
+        config_loader.set(vec![]);
+        mgr.handle_reload_config(&exit_tx).await?;
+        assert!(mgr.processes().await.is_empty());
+        config_loader.set(vec![restarting_def("svc")]);
+        mgr.handle_reload_config(&exit_tx).await?;
+        if !mgr.processes().await[0].is_running() {
+            mgr.handle_start("svc", &exit_tx).await?;
+        }
+        assert!(mgr.processes().await[0].is_running());
+
+        // The re-added process crashes too, so it queues a timer of its own.
+        let mut new_timer = exit_with(&mgr, "svc", test_helpers::exit_status(1)).await;
+
+        let (name, generation) = next_restart(&mut old_timer).await;
+        mgr.complete_restart(&name, generation, &exit_tx).await;
+        assert!(
+            !mgr.processes().await[0].is_running(),
+            "the timer of the removed process must not respawn the re-added one"
+        );
+
+        let (name, generation) = next_restart(&mut new_timer).await;
+        mgr.complete_restart(&name, generation, &exit_tx).await;
+        assert!(
+            mgr.processes().await[0].is_running(),
+            "the re-added process must restart on its own timer"
+        );
+        cleanup_first_process(&mgr).await;
+        Ok(())
+    }
+
+    /// A script that runs the test sleep, so a restart can be told apart from its absence.
+    #[cfg(unix)]
+    fn write_runnable_script(path: &std::path::Path) {
+        use std::os::unix::fs::PermissionsExt;
+        let (cmd, args) = test_helpers::sleep_cmd(test_helpers::TEST_SLEEP_SECS);
+        std::fs::write(path, format!("#!/bin/sh\nexec {cmd} {}\n", args.join(" "))).unwrap();
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    #[cfg(unix)]
+    fn restarting_script_def(name: &str, script: &std::path::Path) -> ProcessDefinition {
+        ProcessDefinition {
+            name: name.to_string(),
+            config: config::ProcessConfig {
+                command: script.display().to_string(),
+                restart: config::RestartPolicy::Always,
+                restart_sec: Some(0.5),
+                ..Default::default()
+            },
+        }
+    }
+
+    /// A failed manual start during a restart backoff keeps the queued restart, so the
+    /// automatic restart still fires and brings the process back.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_failed_manual_start_keeps_the_queued_restart() -> anyhow::Result<()> {
+        let dir = tempfile::tempdir()?;
+        let script = dir.path().join("svc.sh");
+        write_runnable_script(&script);
+        let mgr = ProcessManager::new(
+            loader(vec![restarting_script_def("svc", &script)]),
+            uuid_gen(),
+        );
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.start(&exit_tx).await;
+        let mut restart_rx = exit_with(&mgr, "svc", test_helpers::exit_status(1)).await;
+
+        // The binary is gone, so the operator's start cannot spawn.
+        std::fs::remove_file(&script)?;
+        assert!(mgr.handle_start("svc", &exit_tx).await.is_err());
+        assert_eq!(mgr.processes().await[0].state(), ProcessState::Failed);
+
+        // The binary is back before the queued restart fires.
+        write_runnable_script(&script);
+        let (name, generation) = next_restart(&mut restart_rx).await;
+        mgr.complete_restart(&name, generation, &exit_tx).await;
+        assert!(
+            mgr.processes().await[0].is_running(),
+            "the restart queued before the failed start must still fire"
+        );
+        cleanup_first_process(&mgr).await;
+        Ok(())
+    }
+
+    /// A stop after a failed manual start cancels the restart that is still queued.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_stop_after_failed_manual_start_cancels_the_queued_restart() -> anyhow::Result<()>
+    {
+        let dir = tempfile::tempdir()?;
+        let script = dir.path().join("svc.sh");
+        write_runnable_script(&script);
+        let mgr = ProcessManager::new(
+            loader(vec![restarting_script_def("svc", &script)]),
+            uuid_gen(),
+        );
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.start(&exit_tx).await;
+        let mut restart_rx = exit_with(&mgr, "svc", test_helpers::exit_status(1)).await;
+
+        std::fs::remove_file(&script)?;
+        assert!(mgr.handle_start("svc", &exit_tx).await.is_err());
+        mgr.handle_stop("svc")
+            .await
+            .expect("the stop cancels the restart that is still queued");
+
+        // The binary comes back, but the cancelled timer must not respawn the process.
+        write_runnable_script(&script);
+        let (name, generation) = next_restart(&mut restart_rx).await;
+        mgr.complete_restart(&name, generation, &exit_tx).await;
+        assert!(
+            !mgr.processes().await[0].is_running(),
+            "a cancelled restart must stay cancelled after a failed start"
+        );
         Ok(())
     }
 
@@ -1387,8 +1741,8 @@ mod tests {
         mgr: &ProcessManager,
         name: &str,
         status: std::process::ExitStatus,
-    ) -> mpsc::Receiver<String> {
-        let (restart_tx, restart_rx) = mpsc::channel::<String>(8);
+    ) -> mpsc::Receiver<(String, u64)> {
+        let (restart_tx, restart_rx) = mpsc::channel::<(String, u64)>(8);
         let pid = mgr
             .processes()
             .await
@@ -1409,7 +1763,16 @@ mod tests {
         restart_rx
     }
 
-    async fn assert_nothing_queued(restart_rx: &mut mpsc::Receiver<String>) {
+    /// Waits for the restart timer that an exit queued, and returns its process
+    /// name and generation for `complete_restart`.
+    async fn next_restart(restart_rx: &mut mpsc::Receiver<(String, u64)>) -> (String, u64) {
+        restart_rx
+            .recv()
+            .await
+            .expect("a restart timer should have been queued")
+    }
+
+    async fn assert_nothing_queued(restart_rx: &mut mpsc::Receiver<(String, u64)>) {
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         assert!(
             restart_rx.try_recv().is_err(),
@@ -1473,7 +1836,7 @@ mod tests {
 
         assert_eq!(mgr.supervisor_exit_code(), None);
         assert_eq!(
-            restart_rx.recv().await.as_deref(),
+            restart_rx.recv().await.map(|(name, _)| name).as_deref(),
             Some("aux"),
             "the restart policy still applies to a non-critical process"
         );
@@ -1525,6 +1888,76 @@ mod tests {
         let result = mgr.handle_stop("crit").await?;
         assert_eq!(result.state, ProcessState::Stopped);
         assert_eq!(mgr.supervisor_exit_code(), Some(0));
+        Ok(())
+    }
+
+    /// A catalog whose reads can be made to fail.
+    struct FlakyCatalog {
+        inner: Arc<MutableConfigLoader>,
+        fail: std::sync::atomic::AtomicBool,
+    }
+
+    impl ConfigLoader for FlakyCatalog {
+        fn load(&self) -> LoadedCatalog {
+            self.inner.load()
+        }
+        fn try_load(&self) -> anyhow::Result<LoadedCatalog> {
+            if self.fail.load(std::sync::atomic::Ordering::SeqCst) {
+                anyhow::bail!("catalog read stalled");
+            }
+            Ok(self.inner.load())
+        }
+        fn source(&self) -> &str {
+            self.inner.source()
+        }
+        fn location(&self) -> String {
+            self.inner.location()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_reload_with_a_stalled_catalog_keeps_the_current_set() -> anyhow::Result<()> {
+        let inner = Arc::new(MutableConfigLoader::new(vec![sleep_def("keep")]));
+        let loader = Arc::new(FlakyCatalog {
+            inner: inner.clone(),
+            fail: std::sync::atomic::AtomicBool::new(false),
+        });
+        let mgr = ProcessManager::new(loader.clone(), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.start(&exit_tx).await;
+
+        inner.set(vec![]);
+        loader.fail.store(true, std::sync::atomic::Ordering::SeqCst);
+        let err = match mgr.handle_reload_config(&exit_tx).await {
+            Ok(_) => panic!("a stalled read must refuse the reload"),
+            Err(err) => err,
+        };
+        assert_eq!(err.code(), tonic::Code::Unavailable);
+        assert!(
+            err.metadata()
+                .contains_key(dd_procmgr_client::RELOAD_REFUSED_METADATA_KEY),
+            "a refusal must be marked, to tell it from a transport failure"
+        );
+        let procs = mgr.processes().await;
+        assert_eq!(procs.len(), 1, "the current set must be kept");
+        assert!(
+            procs[0].is_running(),
+            "the kept process must still be running"
+        );
+        // The reload and shutdown below take the write lock.
+        drop(procs);
+
+        // Once the catalog reads again, the reload applies it.
+        loader
+            .fail
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+        let result = match mgr.handle_reload_config(&exit_tx).await {
+            Ok(result) => result,
+            Err(err) => panic!("the reload must apply once the read recovers: {err}"),
+        };
+        assert!(result.removed.contains(&"keep".to_string()));
+
+        mgr.shutdown().await;
         Ok(())
     }
 
@@ -2792,7 +3225,7 @@ mod tests {
         /// `Failed`, not `Crashed`. The gate accounting under test is the same
         /// for both, and keeping the synthetic status decoupled from how the
         /// child actually died is what makes the result identical on Windows.
-        async fn crash(mgr: &ProcessManager, name: &str, restart_tx: &mpsc::Sender<String>) {
+        async fn crash(mgr: &ProcessManager, name: &str, restart_tx: &mpsc::Sender<(String, u64)>) {
             let pid = mgr.processes().await[0]
                 .pid()
                 .expect("process should be running");
@@ -2874,24 +3307,17 @@ mod tests {
             );
             let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
 
-            mgr.start(&exit_tx).await;
-            let pid = {
-                let procs = mgr.processes().await;
-                assert!(procs[0].is_running());
-                procs[0].pid().unwrap()
-            };
+            let (restart_tx, mut restart_rx) = mpsc::channel::<(String, u64)>(8);
 
+            mgr.start(&exit_tx).await;
+            assert!(mgr.processes().await[0].is_running());
+
+            // The gate is open when the exit is handled, so the restart is queued.
+            crash(&mgr, "gated-svc", &restart_tx).await;
             // The gate closes between the exit and the queued restart firing.
             write_agent_yaml(dir.path(), false);
-            {
-                let mut procs = mgr.processes.write().await;
-                let (cmd, args) = test_helpers::false_cmd();
-                let status = std::process::Command::new(cmd).args(args).status()?;
-                procs[0].set_last_status(status);
-            }
-            test_helpers::cleanup_process(pid);
-
-            mgr.complete_restart("gated-svc", &exit_tx).await;
+            let (name, generation) = next_restart(&mut restart_rx).await;
+            mgr.complete_restart(&name, generation, &exit_tx).await;
             assert!(
                 !mgr.processes().await[0].is_running(),
                 "on-failure restart should skip when the config gate is closed"
@@ -3030,7 +3456,7 @@ mod tests {
                 uuid_gen(),
             );
             let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
-            let (restart_tx, mut restart_rx) = mpsc::channel::<String>(8);
+            let (restart_tx, mut restart_rx) = mpsc::channel::<(String, u64)>(8);
 
             mgr.start(&exit_tx).await;
             assert!(mgr.processes().await[0].is_running());
@@ -3079,7 +3505,7 @@ mod tests {
                 )]));
             let mgr = ProcessManager::new(config_loader.clone(), uuid_gen());
             let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
-            let (restart_tx, mut restart_rx) = mpsc::channel::<String>(8);
+            let (restart_tx, mut restart_rx) = mpsc::channel::<(String, u64)>(8);
 
             mgr.start(&exit_tx).await;
             write_agent_yaml(dir.path(), false);
@@ -3124,7 +3550,7 @@ mod tests {
                 uuid_gen(),
             );
             let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
-            let (restart_tx, mut restart_rx) = mpsc::channel::<String>(8);
+            let (restart_tx, mut restart_rx) = mpsc::channel::<(String, u64)>(8);
 
             mgr.start(&exit_tx).await;
 
@@ -3138,7 +3564,8 @@ mod tests {
                 "the exit-time decision recorded this restart"
             );
             write_agent_yaml(dir.path(), false);
-            mgr.complete_restart("gated-svc", &exit_tx).await;
+            let (name, generation) = next_restart(&mut restart_rx).await;
+            mgr.complete_restart(&name, generation, &exit_tx).await;
             assert_stranded_by_gate(&mgr, ProcessState::Failed).await;
 
             write_agent_yaml(dir.path(), true);
@@ -3174,7 +3601,7 @@ mod tests {
             def.config.start_limit_interval_sec = Some(3600);
             let mgr = ProcessManager::new(loader(vec![def]), uuid_gen());
             let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
-            let (restart_tx, mut restart_rx) = mpsc::channel::<String>(8);
+            let (restart_tx, mut restart_rx) = mpsc::channel::<(String, u64)>(8);
 
             mgr.start(&exit_tx).await;
 
@@ -3185,7 +3612,8 @@ mod tests {
                 "this crash is the one restart the burst allows, so it is recorded"
             );
             write_agent_yaml(dir.path(), false);
-            mgr.complete_restart("gated-svc", &exit_tx).await;
+            let (name, generation) = next_restart(&mut restart_rx).await;
+            mgr.complete_restart(&name, generation, &exit_tx).await;
             assert_stranded_by_gate(&mgr, ProcessState::Failed).await;
 
             write_agent_yaml(dir.path(), true);
@@ -3253,7 +3681,7 @@ mod tests {
             def.config.auto_start = false;
             let mgr = ProcessManager::new(loader(vec![def]), uuid_gen());
             let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
-            let (restart_tx, _restart_rx) = mpsc::channel::<String>(8);
+            let (restart_tx, _restart_rx) = mpsc::channel::<(String, u64)>(8);
 
             mgr.start(&exit_tx).await;
             assert_eq!(mgr.processes().await[0].state(), ProcessState::Skipped);
@@ -3300,7 +3728,7 @@ mod tests {
                 uuid_gen(),
             );
             let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
-            let (restart_tx, _restart_rx) = mpsc::channel::<String>(8);
+            let (restart_tx, _restart_rx) = mpsc::channel::<(String, u64)>(8);
 
             mgr.start(&exit_tx).await;
             let pid = mgr.processes().await[0].pid().unwrap();
@@ -3332,7 +3760,7 @@ mod tests {
             def.config.start_limit_interval_sec = Some(3600);
             let mgr = ProcessManager::new(loader(vec![def]), uuid_gen());
             let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
-            let (restart_tx, _restart_rx) = mpsc::channel::<String>(8);
+            let (restart_tx, _restart_rx) = mpsc::channel::<(String, u64)>(8);
 
             // The gate stays open throughout: the burst limit is the only
             // reason the second crash does not restart.
@@ -3370,6 +3798,43 @@ mod tests {
             std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
         }
 
+        /// A stop after the backoff hold has been recorded has nothing to cancel, so it is
+        /// refused, and the reload that opens the gate still recovers the process.
+        #[tokio::test]
+        async fn test_stop_after_backoff_hold_is_refused_and_reload_still_recovers()
+        -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), true);
+            let mgr = ProcessManager::new(
+                loader(vec![gated_on_failure_sleep_def("gated-svc", &yaml)]),
+                uuid_gen(),
+            );
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+            let (restart_tx, mut restart_rx) = mpsc::channel::<(String, u64)>(8);
+
+            mgr.start(&exit_tx).await;
+            crash(&mgr, "gated-svc", &restart_tx).await;
+            write_agent_yaml(dir.path(), false);
+            let (name, generation) = next_restart(&mut restart_rx).await;
+            mgr.complete_restart(&name, generation, &exit_tx).await;
+            assert_stranded_by_gate(&mgr, ProcessState::Failed).await;
+
+            let err = mgr
+                .handle_stop("gated-svc")
+                .await
+                .expect_err("the hold left no queued restart to cancel");
+            assert_eq!(err.code(), tonic::Code::FailedPrecondition);
+
+            write_agent_yaml(dir.path(), true);
+            mgr.handle_reload_config(&exit_tx).await?;
+            assert!(
+                mgr.processes().await[0].is_running(),
+                "reload must still recover a process the closed gate stranded"
+            );
+            cleanup_first_process(&mgr).await;
+            Ok(())
+        }
+
         /// The gate check runs before the burst limit, so a crash behind a closed
         /// gate consumes no budget and records no restart. Recovery must therefore
         /// re-check the budget itself, or a gate flap hands back a restart the
@@ -3383,7 +3848,7 @@ mod tests {
             def.config.start_limit_interval_sec = Some(3600);
             let mgr = ProcessManager::new(loader(vec![def]), uuid_gen());
             let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
-            let (restart_tx, _restart_rx) = mpsc::channel::<String>(8);
+            let (restart_tx, _restart_rx) = mpsc::channel::<(String, u64)>(8);
 
             // One crash with the gate open spends the whole budget.
             mgr.start(&exit_tx).await;

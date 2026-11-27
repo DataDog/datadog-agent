@@ -239,6 +239,11 @@ impl StopWait {
     }
 }
 
+/// Source of restart timer generations for every process. Process-wide so that
+/// a process that is removed and re-added is never handed a generation an old
+/// timer can match.
+static NEXT_RESTART_GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
 pub struct ManagedProcess {
     name: String,
     uuid: String,
@@ -257,6 +262,12 @@ pub struct ManagedProcess {
     /// Set only where a respawn was skipped because a start condition was
     /// closed, and cleared in `spawn()`.
     restart_block: RestartBlock,
+    /// Generation of the restart timer that `handle_restart` queued after an
+    /// exit and that has not been resolved yet. A successful spawn, a stop that
+    /// cancels the restart, and the live timer firing all clear it. A timer
+    /// carries its generation, so a timer that no longer matches is stale and
+    /// does nothing.
+    pending_restart: Option<u64>,
     origin: ProcessOrigin,
     last_exit_status: Option<std::process::ExitStatus>,
     skip_reasons: Vec<String>,
@@ -317,6 +328,7 @@ impl ManagedProcess {
             stop_requested: false,
             graceful_stop_failed: false,
             restart_block: RestartBlock::None,
+            pending_restart: None,
             origin,
             last_exit_status: None,
             skip_reasons: Vec::new(),
@@ -648,6 +660,10 @@ impl ManagedProcess {
         self.transition_to(ProcessState::Starting);
         match self.try_spawn() {
             Ok(handle) => {
+                // A successful spawn supersedes a queued restart, so its timer is stale and a
+                // later crash is restarted normally. A failed spawn keeps the timer, so a
+                // transient failure of a manual start still gets the automatic restart.
+                self.pending_restart = None;
                 self.start_exit_watcher(handle, exit_tx);
                 Ok(())
             }
@@ -891,8 +907,10 @@ impl ManagedProcess {
         &self.config.restart
     }
 
+    /// Decides, at exit time, whether to queue a restart. Returns the backoff
+    /// and the generation of the timer that will fire it.
     #[must_use]
-    pub fn handle_restart(&mut self) -> Option<Duration> {
+    pub fn handle_restart(&mut self) -> Option<(Duration, u64)> {
         // `Crashed` is restartable exactly like `Failed`: both are unsuccessful
         // exits, and treating them differently would silently stop supervising
         // a segfaulting child under `restart: always`.
@@ -946,7 +964,39 @@ impl ManagedProcess {
         );
         self.restarts
             .advance_backoff(self.config.max_restart_delay());
-        Some(delay)
+        // Process-wide, so a process removed and re-added under the same name, or
+        // reusing a uuid, never hands out a generation that an old timer can match.
+        // Starts at 1, so 0 is never issued.
+        let generation = NEXT_RESTART_GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.pending_restart = Some(generation);
+        Some((delay, generation))
+    }
+
+    /// Cancels the restart queued after an exit, so its timer does not respawn
+    /// the process. Returns false, and cancels nothing, when no restart is
+    /// queued or the process is not down.
+    pub(crate) fn cancel_pending_restart(&mut self) -> bool {
+        let down = matches!(
+            self.state,
+            ProcessState::Exited | ProcessState::Crashed | ProcessState::Failed
+        );
+        if !(self.pending_restart.is_some() && down) {
+            return false;
+        }
+        self.pending_restart = None;
+        true
+    }
+
+    /// Consumes the timer with this generation. Returns true when it is the
+    /// live restart, and the caller may respawn. Returns false when the timer
+    /// is stale: a spawn or a stop superseded it, or a later exit queued a
+    /// newer restart.
+    pub(crate) fn take_fired_restart(&mut self, generation: u64) -> bool {
+        if self.pending_restart != Some(generation) {
+            return false;
+        }
+        self.pending_restart = None;
+        true
     }
 }
 
