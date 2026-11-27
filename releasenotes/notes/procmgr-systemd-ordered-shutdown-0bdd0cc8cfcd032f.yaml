@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    On Linux hosts using systemd, the process manager units (``datadog-agent-procmgr.service`` and ``datadog-agent-procmgr-exp.service``) now signal only ``dd-procmgrd`` on stop. ``dd-procmgrd`` decides how its managed processes are stopped, instead of systemd sending SIGTERM to all of them at the same time. systemd kills any process still running once ``dd-procmgrd`` exits.
+  - |
+    On Linux hosts using systemd, the process manager units now allow up to 360 seconds to stop (``TimeoutStopSec=360``). This covers a chain of three dependent processes that use the default ``stop_timeout`` of 90 seconds, since each process can take up to 100 seconds to stop, including the 10 second force-kill wait (300 seconds in total), with 60 seconds of slack. Longer dependency chains, or processes with a longer ``stop_timeout``, can still be interrupted by systemd before they finish. For those, lower the ``stop_timeout`` of the processes in the chain so the whole chain fits within 360 seconds.

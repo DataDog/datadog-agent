@@ -150,6 +150,13 @@ func (s *packageBaseSuite) assertUnits(state host.State, oldUnits bool) {
 	for _, unit := range loadedUnits {
 		s.host.AssertUnitProperty(unit, "FragmentPath", filepath.Join(systemdPath, unit))
 	}
+
+	if s.host.ProcmgrEnabled() {
+		// Only dd-procmgrd is signaled on stop, so it can stop its processes in dependency order,
+		// and TimeoutStopSec covers a chain of dependent processes.
+		s.host.AssertUnitProperty(procmgrUnit, "KillMode", "mixed")
+		s.host.AssertUnitProperty(procmgrUnit, "TimeoutStopUSec", "6min")
+	}
 }
 
 func (s *packageAgentSuite) TestExperimentTimeout() {

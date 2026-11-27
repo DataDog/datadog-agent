@@ -28,6 +28,12 @@ RuntimeDirectory=datadog-procmgrd
 ExecStart={{.InstallDir}}/embedded/bin/dd-procmgrd
 StartLimitInterval=10
 StartLimitBurst=5
+# Signal only dd-procmgrd on stop so it can stop its processes in dependency order.
+# systemd SIGKILLs any leftover processes once it exits.
+# TimeoutStopSec covers a chain of 3 processes at the default stop_timeout (90s each, plus a 10s force-kill wait each, 300s in total) with 60s of slack.
+# Longer chains or longer stop_timeout values need a lower stop_timeout to fit.
+KillMode=mixed
+TimeoutStopSec=360
 
 [Install]
 WantedBy=multi-user.target
