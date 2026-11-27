@@ -4294,6 +4294,7 @@
 <li><strong>Go 1.22 or later</strong></li>
 <li><strong>Python 3.9+</strong></li>
 <li><strong>dda tooling</strong> - Install by following the <a href="../../../setup/required/">development requirements</a></li>
+<li><strong><a href="https://github.com/bazelbuild/bazelisk">Bazelisk</a></strong> - Provides <code>bazel</code>, which installs and runs the pinned Pulumi CLI</li>
 </ul>
 </details>
 <h3 id="cloud-provider-access">Cloud Provider Access<a class="headerlink" href="#cloud-provider-access" title="Permanent link">&para;</a></h3>
@@ -4306,7 +4307,7 @@
 </span></code></pre></div>
 <p>On the default (AWS-only) path, it:</p>
 <ul>
-<li>Checks for the AWS CLI, installing/updating Pulumi if needed, and configures a local Pulumi backend (<code>pulumi login --local</code>).</li>
+<li>Checks for the AWS CLI, installs the Pulumi CLI and plugins pinned by Bazel, and configures a local Pulumi backend (<code>bazel run @pulumi -- login --local</code>).</li>
 <li>Adds the <code>agent-sandbox</code> SSO profile to <code>~/.aws/config</code> if it isn't there yet, and creates an EC2 keypair via <code>aws-vault</code> (which may prompt you to authenticate).</li>
 <li>Asks one question — your GitHub team, used to tag AWS resources for cost attribution — and generates a Pulumi passphrase.</li>
 </ul>
