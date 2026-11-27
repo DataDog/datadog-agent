@@ -38,7 +38,6 @@ test/fakeintake/
 | `/api/v1/collector` | ProcessAggregator | `GetProcesses()` |
 | `/api/v1/connections` | ConnectionsAggregator | `GetConnections()` |
 | `/api/v1/container` | ContainerAggregator | `GetContainers()` |
-| `/api/v2/agentdiscovery` | AgentDiscoveryAggregator | `GetAgentDiscoveryPayloads()` |
 | `/api/v2/genresources` | GenResourcesAggregator | `GetGenResources()` / `FilterGenResources()` |
 | `/api/v2/sdsresult` | SDSResultAggregator | `GetSDSResults()` |
 | `/api/v2/contimage` | ContainerImageAggregator | `GetContainerImageNames()` / `FilterContainerImages()` |

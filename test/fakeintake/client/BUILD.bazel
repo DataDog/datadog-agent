@@ -61,13 +61,11 @@ dd_agent_go_test(
         "//test/fakeintake/api",
         "//test/fakeintake/fixtures",
         "//test/fakeintake/server",
-        "@com_github_datadog_agent_payload_v5//agentdiscovery",
         "@com_github_datadog_agent_payload_v5//gogen",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_datadog_agent_payload_v5//metrics/intake_v3",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_golang_google_protobuf//proto",
-        "@org_golang_google_protobuf//types/known/timestamppb",
     ],
 )

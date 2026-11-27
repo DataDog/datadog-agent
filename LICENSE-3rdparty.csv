@@ -140,7 +140,6 @@ core,github.com/Code-Hex/go-generics-cache/policy/lru,MIT,Copyright (c) 2021 cod
 core,github.com/Code-Hex/go-generics-cache/policy/mru,MIT,Copyright (c) 2021 codehex
 core,github.com/Code-Hex/go-generics-cache/policy/simple,MIT,Copyright (c) 2021 codehex
 core,github.com/CycloneDX/cyclonedx-go,Apache-2.0,Copyright & License | Copyright (c) OWASP Foundation | Copyright (c) OWASP Foundation. All Rights Reserved | Copyright OWASP Foundation
-core,github.com/DataDog/agent-payload/v5/agentdiscovery,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/autoscaling/kubernetes,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/contimage,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/contlcycle,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
@@ -1723,7 +1722,6 @@ core,github.com/mitchellh/reflectwalk,MIT,Copyright (c) 2013 Mitchell Hashimoto
 core,github.com/mkrautz/goar,BSD-3-Clause,Copyright (c) 2011 Mikkel Krautz
 core,github.com/moby/docker-image-spec/specs-go/v1,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/moby/locker,Apache-2.0,"Copyright 2013-2018 Docker, Inc"
-core,github.com/moby/moby/api/pkg/stdcopy,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/moby/moby/api/types,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/moby/moby/api/types/blkiodev,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/moby/moby/api/types/build,Apache-2.0,"Copyright 2012-2017 Docker, Inc."

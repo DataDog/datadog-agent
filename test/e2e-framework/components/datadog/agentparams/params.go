@@ -322,8 +322,6 @@ sds_result.forwarder.logs_dd_url: %[1]s:%[2]d
 sds_result.forwarder.logs_no_ssl: true
 service_discovery.forwarder.logs_dd_url: %[1]s:%[2]d
 service_discovery.forwarder.logs_no_ssl: true
-config_files_discovery.forwarder.logs_dd_url: %[1]s:%[2]d
-config_files_discovery.forwarder.logs_no_ssl: true
 software_inventory.forwarder.logs_dd_url: %[1]s:%[2]d
 software_inventory.forwarder.logs_no_ssl: true
 data_streams.forwarder.logs_dd_url: %[1]s:%[2]d

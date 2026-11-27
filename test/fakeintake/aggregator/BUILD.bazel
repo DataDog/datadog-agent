@@ -4,7 +4,6 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "aggregator",
     srcs = [
-        "agentDiscoveryAggregator.go",
         "agenthealthAggregator.go",
         "apmStatsAggregator.go",
         "apmTelemetryAggregator.go",
@@ -48,7 +47,6 @@ go_library(
         "//pkg/proto/pbgo/sds",
         "//pkg/proto/pbgo/trace",
         "//test/fakeintake/api",
-        "@com_github_datadog_agent_payload_v5//agentdiscovery",
         "@com_github_datadog_agent_payload_v5//contimage",
         "@com_github_datadog_agent_payload_v5//contlcycle",
         "@com_github_datadog_agent_payload_v5//gogen",
@@ -66,7 +64,6 @@ go_library(
 dd_agent_go_test(
     name = "aggregator_test",
     srcs = [
-        "agentDiscoveryAggregator_test.go",
         "agenthealthAggregator_test.go",
         "apmStatsAggregator_test.go",
         "apmTelemetryAggregator_test.go",
@@ -128,7 +125,6 @@ dd_agent_go_test(
         "//pkg/proto/pbgo/sds",
         "//test/fakeintake/api",
         "//test/fakeintake/fixtures",
-        "@com_github_datadog_agent_payload_v5//agentdiscovery",
         "@com_github_datadog_agent_payload_v5//gogen",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_datadog_agent_payload_v5//metrics/intake_v3",
@@ -139,6 +135,5 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//require",
         "@org_golang_google_protobuf//encoding/protowire",
         "@org_golang_google_protobuf//proto",
-        "@org_golang_google_protobuf//types/known/timestamppb",
     ],
 )

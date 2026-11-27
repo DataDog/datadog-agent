@@ -79,7 +79,6 @@ const (
 	processesEndpoint            = "/api/v1/collector"
 	containersEndpoint           = "/api/v1/container"
 	processDiscoveryEndpoint     = "/api/v1/discovery"
-	agentDiscoveryEndpoint       = "/api/v2/agentdiscovery"
 	genResourcesEndpoint         = "/api/v2/genresources"
 	sdsResultEndpoint            = "/api/v2/sdsresult"
 	containerImageEndpoint       = "/api/v2/contimage"
@@ -177,7 +176,6 @@ type Client struct {
 	processAggregator              aggregator.ProcessAggregator
 	containerAggregator            aggregator.ContainerAggregator
 	processDiscoveryAggregator     aggregator.ProcessDiscoveryAggregator
-	agentDiscoveryAggregator       aggregator.AgentDiscoveryAggregator
 	genResourcesAggregator         aggregator.GenResourcesAggregator
 	sdsResultAggregator            aggregator.SDSResultAggregator
 	containerImageAggregator       aggregator.ContainerImageAggregator
@@ -220,7 +218,6 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		processAggregator:              aggregator.NewProcessAggregator(),
 		containerAggregator:            aggregator.NewContainerAggregator(),
 		processDiscoveryAggregator:     aggregator.NewProcessDiscoveryAggregator(),
-		agentDiscoveryAggregator:       aggregator.NewAgentDiscoveryAggregator(),
 		genResourcesAggregator:         aggregator.NewGenResourcesAggregator(),
 		sdsResultAggregator:            aggregator.NewSDSResultAggregator(),
 		containerImageAggregator:       aggregator.NewContainerImageAggregator(),
@@ -314,14 +311,6 @@ func (c *Client) getProcessDiscoveries() error {
 		return err
 	}
 	return c.processDiscoveryAggregator.UnmarshallPayloads(payloads)
-}
-
-func (c *Client) getAgentDiscoveryPayloads() error {
-	payloads, err := c.getFakePayloads(agentDiscoveryEndpoint)
-	if err != nil {
-		return err
-	}
-	return c.agentDiscoveryAggregator.UnmarshallPayloads(payloads)
 }
 
 func (c *Client) getSDSResults() error {
@@ -933,7 +922,6 @@ func (c *Client) FlushServerAndResetAggregators() error {
 	c.logAggregator.Reset()
 	c.apmStatsAggregator.Reset()
 	c.traceAggregator.Reset()
-	c.agentDiscoveryAggregator.Reset()
 	c.genResourcesAggregator.Reset()
 	c.sdsResultAggregator.Reset()
 	c.agentTelemetryLogAggregator.Reset()
@@ -1060,21 +1048,6 @@ func (c *Client) GetProcessDiscoveries() ([]*aggregator.ProcessDiscoveryPayload,
 	}
 
 	return discs, nil
-}
-
-// GetAgentDiscoveryPayloads fetches fakeintake on `/api/v2/agentdiscovery` endpoint and returns
-// all received Agent Discovery payloads.
-func (c *Client) GetAgentDiscoveryPayloads() ([]*aggregator.AgentDiscoveryPayload, error) {
-	if err := c.getAgentDiscoveryPayloads(); err != nil {
-		return nil, err
-	}
-
-	var payloads []*aggregator.AgentDiscoveryPayload
-	for _, name := range c.agentDiscoveryAggregator.GetNames() {
-		payloads = append(payloads, c.agentDiscoveryAggregator.GetPayloadsByName(name)...)
-	}
-
-	return payloads, nil
 }
 
 // GetGenResources returns all generic resource events received by fakeintake.
