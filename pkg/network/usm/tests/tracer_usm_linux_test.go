@@ -254,7 +254,10 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *tracer.Tracer, c
 
 		go srv.Serve(lis)
 		t.Cleanup(func() {
-			_ = srv.Shutdown(t.Context())
+			// t.Context() is canceled before Cleanup functions run, so it cannot be used here.
+			timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+			defer cancel()
+			_ = srv.Shutdown(timedContext)
 			_ = lis.Close()
 		})
 		_, port, err := net.SplitHostPort(srv.Addr)
@@ -1786,7 +1789,8 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 
 	redisTeardown := func(_ *testing.T, ctx testContext) {
 		if client, ok := ctx.extras["client"].(*redis2.Client); ok {
-			timedContext, cancel := context.WithTimeout(t.Context(), defaultTimeout)
+			// t.Context() is canceled before Cleanup functions run, so it cannot be used here.
+			timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 			defer cancel()
 			require.NoError(t, client.FlushDB(timedContext).Err())
 		}
@@ -1806,7 +1810,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 				targetAddress: targetAddress,
 				extras:        make(map[string]interface{}),
 			},
-			preTracerSetup: func(_ *testing.T, ctx testContext) {
+			preTracerSetup: func(t *testing.T, ctx testContext) {
 				client, err := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, redisProtocolVersion)
 				require.NoError(t, err)
 				timedContext, cancel := context.WithTimeout(t.Context(), defaultTimeout)
@@ -1831,7 +1835,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 				targetAddress: targetAddress,
 				extras:        make(map[string]interface{}),
 			},
-			preTracerSetup: func(_ *testing.T, ctx testContext) {
+			preTracerSetup: func(t *testing.T, ctx testContext) {
 				client, err := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, redisProtocolVersion)
 				require.NoError(t, err)
 				timedContext, cancel := context.WithTimeout(t.Context(), defaultTimeout)
@@ -1859,7 +1863,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 				targetAddress: targetAddress,
 				extras:        make(map[string]interface{}),
 			},
-			preTracerSetup: func(_ *testing.T, ctx testContext) {
+			preTracerSetup: func(t *testing.T, ctx testContext) {
 				client, err := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, redisProtocolVersion)
 				require.NoError(t, err)
 				timedContext, cancel := context.WithTimeout(t.Context(), defaultTimeout)
@@ -1903,7 +1907,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 				targetAddress: targetAddress,
 				extras:        make(map[string]interface{}),
 			},
-			preTracerSetup: func(_ *testing.T, ctx testContext) {
+			preTracerSetup: func(t *testing.T, ctx testContext) {
 				client, err := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, redisProtocolVersion)
 				require.NoError(t, err)
 				timedContext, cancel := context.WithTimeout(t.Context(), defaultTimeout)

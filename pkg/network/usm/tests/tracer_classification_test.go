@@ -189,7 +189,8 @@ func testHTTPProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost,
 			},
 			teardown: func(_ *testing.T, ctx testContext) {
 				if srv, ok := ctx.extras["server"].(*nethttp.Server); ok {
-					timedContext, cancel := context.WithTimeout(t.Context(), defaultTimeout)
+					// t.Context() is canceled before Cleanup functions run, so it cannot be used here.
+					timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 					defer cancel()
 					_ = srv.Shutdown(timedContext)
 				}

@@ -673,7 +673,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 					"token":   []byte("token"),
 				},
 			})
-			injected, err := webhook.injectAgentSidecar(t.Context(), test.Pod, testNamespace, nil, apiClient, test.DryRun)
+			injected, err := webhook.injectAgentSidecar(tt.Context(), test.Pod, testNamespace, nil, apiClient, test.DryRun)
 
 			if test.ExpectError {
 				assert.Error(tt, err, "expected non-nil error to be returned")
@@ -682,9 +682,9 @@ func TestInjectAgentSidecar(t *testing.T) {
 			}
 
 			if test.ExpectInjection {
-				assert.True(t, injected)
+				assert.True(tt, injected)
 			} else {
-				assert.False(t, injected)
+				assert.False(tt, injected)
 			}
 
 			expectedPod := test.ExpectedPodAfterInjection()

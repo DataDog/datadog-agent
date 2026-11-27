@@ -1451,7 +1451,7 @@ func TestHandleKubeMetadata(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
 			cfg := configmock.New(t)
-			collector := NewWorkloadMetaCollector(t.Context(), cfg, store, nil)
+			collector := NewWorkloadMetaCollector(tt.Context(), cfg, store, nil)
 
 			collector.initK8sResourcesMetaAsTags(test.k8sResourcesLabelsAsTags, test.k8sResourcesAnnotationsAsTags)
 
@@ -3105,7 +3105,7 @@ func TestHandleKubeCRD(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
 			cfg := configmock.New(t)
-			collector := NewWorkloadMetaCollector(t.Context(), cfg, store, nil)
+			collector := NewWorkloadMetaCollector(tt.Context(), cfg, store, nil)
 
 			actual := collector.handleCRD(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
@@ -3244,7 +3244,7 @@ func TestHandleKubeDeployment(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
 			cfg := configmock.New(t)
-			collector := NewWorkloadMetaCollector(t.Context(), cfg, store, nil)
+			collector := NewWorkloadMetaCollector(tt.Context(), cfg, store, nil)
 
 			collector.initK8sResourcesMetaAsTags(test.k8sResourcesLabelsAsTags, test.k8sResourcesAnnotationsAsTags)
 
@@ -5852,7 +5852,7 @@ func TestHandleKubeNode(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
 			cfg := configmock.New(t)
-			collector := NewWorkloadMetaCollector(t.Context(), cfg, store, nil)
+			collector := NewWorkloadMetaCollector(tt.Context(), cfg, store, nil)
 
 			collector.initK8sResourcesMetaAsTags(test.k8sResourcesLabelsAsTags, test.k8sResourcesAnnotationsAsTags)
 

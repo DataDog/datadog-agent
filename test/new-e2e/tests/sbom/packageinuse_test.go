@@ -998,7 +998,10 @@ func startHostShell(t *testing.T, env *environments.Kubernetes) string {
 	}, metav1.CreateOptions{})
 	require.NoError(t, err, "failed to create the host shell pod")
 	t.Cleanup(func() {
-		_ = client.CoreV1().Pods(hostShellNamespace).Delete(t.Context(), pod.Name, metav1.DeleteOptions{})
+		// t.Context() is canceled before Cleanup functions run, so it cannot be used here.
+		timedContext, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		_ = client.CoreV1().Pods(hostShellNamespace).Delete(timedContext, pod.Name, metav1.DeleteOptions{})
 	})
 
 	require.EventuallyWithTf(t, func(c *assert.CollectT) {
@@ -1811,7 +1814,10 @@ func (s *packageInUseSuite) TestZZRunningBeforeSystemProbe() {
 		s.Require().NoError(s.SaveCoverage(dir), "save the coverage before the restart of system-probe")
 	} else {
 		t.Cleanup(func() {
-			if err := s.Env().KubernetesCluster.Client().CoreV1().Pods(agent.Namespace).Delete(t.Context(), agent.Name, metav1.DeleteOptions{}); err != nil {
+			// t.Context() is canceled before Cleanup functions run, so it cannot be used here.
+			timedContext, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			defer cancel()
+			if err := s.Env().KubernetesCluster.Client().CoreV1().Pods(agent.Namespace).Delete(timedContext, agent.Name, metav1.DeleteOptions{}); err != nil {
 				t.Logf("failed to delete the Agent pod %s: %v", agent.Name, err)
 			}
 		})

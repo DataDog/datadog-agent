@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTestDatabase() error {
+func setupTestDatabase(ctx context.Context) error {
 	timeout, err := testDatabaseReadyTimeout()
 	if err != nil {
 		return err
@@ -37,14 +37,14 @@ func setupTestDatabase() error {
 	defer db.Close()
 	db.SetMaxOpenConns(1)
 
-	ctx, cancel := context.WithTimeout(t.Context(), timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	if err := waitForTestDatabase(ctx, db, ticker.C); err != nil {
 		return fmt.Errorf("waiting for %s:%d/%s: %w", connection.Server, connection.Port, connection.ServiceName, err)
 	}
-	initCtx, cancelInit := context.WithTimeout(t.Context(), 5*time.Minute)
+	initCtx, cancelInit := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancelInit()
 	return initializeTestDatabase(initCtx, db, os.DirFS("compose/initdb.d"))
 }

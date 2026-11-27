@@ -382,9 +382,9 @@ func TestWriteBackRestoreUsesUncancelledContext(t *testing.T) {
 }
 
 // TestWriteBackRestoreContextIsBounded is a regression test for a P2
-// finding: detaching the restore call from ctx via t.Context()
+// finding: detaching the restore call from ctx via ctx
 // (see TestWriteBackRestoreUsesUncancelledContext above) is correct on its
-// own, but a bare t.Context() has no deadline at all, so a
+// own, but a bare context.Background() has no deadline at all, so a
 // restore that stalls (e.g. against a slow or stalled FUSE/network-backed
 // AllowedPaths root) could hang indefinitely with nothing to bound it. The
 // restore call's context must carry its own deadline (restoreTimeout)
@@ -395,7 +395,7 @@ func TestWriteBackRestoreContextIsBounded(t *testing.T) {
 	callCtx := &builtins.CallContext{WriteRegularFile: write}
 	eng := &engine{}
 
-	err := eng.writeBack(t.Context(), callCtx, "file.txt", []byte("new content"), []byte("old content"), nil)
+	err := eng.writeBack(context.Background(), callCtx, "file.txt", []byte("new content"), []byte("old content"), nil)
 	require.Error(t, err)
 
 	require.Len(t, *ctxs, 2)
@@ -720,7 +720,7 @@ func (trackedStatCloser) Stat() (os.FileInfo, error) { return fakeFileInfo{mode:
 // behavior directly (closing the returned handle when its ctx argument's
 // Done channel fires) for any call keyed to the caller's ctx, while a call
 // made with a different (here, always-live) context is unaffected — mirroring
-// how readAllBounded's second, t.Context()-rooted open must behave
+// how readAllBounded's second, context.Background()-rooted open must behave
 // against real WithContextClose-wrapped handles.
 func TestReadAllBoundedPinSurvivesReadContextCancellation(t *testing.T) {
 	dir := t.TempDir()
@@ -738,7 +738,7 @@ func TestReadAllBoundedPinSurvivesReadContextCancellation(t *testing.T) {
 			}
 			openedFile = f
 			if callerCtx == ctx {
-				t.Fatal("readAllBounded must never open with the caller-supplied ctx directly — it must go through openPinBounded's t.Context()-rooted request instead, since ctx becoming done must not force-close the one and only handle this function opens")
+				t.Fatal("readAllBounded must never open with the caller-supplied ctx directly — it must go through openPinBounded's context.Background()-rooted request instead, since ctx becoming done must not force-close the one and only handle this function opens")
 			}
 			// Simulate allowedpaths.WithContextClose's real force-close-on-
 			// Done behavior for whatever context this call actually did
@@ -775,7 +775,7 @@ func TestReadAllBoundedPinSurvivesReadContextCancellation(t *testing.T) {
 
 // TestOpenPinBoundedTimesOutRatherThanHangingForever is a regression test
 // for a P2 finding: the identity pin is deliberately opened via
-// t.Context() so it survives the caller's ctx being cancelled,
+// context.Background() so it survives the caller's ctx being cancelled,
 // but an open(2) syscall that itself blocks (e.g. a stalled FUSE/network-
 // backed AllowedPaths root) has no open descriptor yet for a
 // WithContextClose-style close-on-cancel mechanism to interrupt — so
