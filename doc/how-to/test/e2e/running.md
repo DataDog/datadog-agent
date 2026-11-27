@@ -138,14 +138,25 @@ It is ignored, or can't apply, in these cases:
 ### Validating a test-only change
 
 A change to test code alone, such as switching a suite to `ProvisionerNoFakeIntake` or
-removing an `UpdateEnv`, doesn't need a local package: the default Agent (the latest nightly)
-is enough to show that the suite still provisions and passes. Suites from the table above still
-need their pipeline, so run those jobs in the PR's own pipeline. Its packages were built from
-the same branch.
+removing an `UpdateEnv`, doesn't need a local package, but the Agent version still matters:
+a suite can pass with a released Agent and fail with the one the PR's pipeline builds. Run it
+both ways:
 
-Separate suites can run in parallel from one worktree per branch (`git worktree add`), but each
-new worktree builds the test binary with a cold Bazel cache first, which takes about 15 minutes
-before anything is provisioned.
+- Locally, pin the Agent so that the run can be repeated: `-c ddagent:version=<release>` (for
+  example the latest stable), or `--pipeline-id <id>` to install the PR pipeline's packages.
+  Without either, you get whatever nightly is latest at the time, and the run doesn't record
+  which one: on Linux only the `Setting up datadog-agent (...)` line of the install output shows
+  it, and Windows doesn't log it.
+- In CI, re-run the suite's job in the PR's own pipeline and wait for it to succeed. A suite
+  that passes inside a failed job doesn't count, and neither does a local pass. A test that
+  passed only after gotestsum re-ran it is a failure to investigate, not a pass. Compare with
+  the same test on `main` in CI Visibility before calling a failure flaky.
+
+Separate suites can run in parallel from one worktree each, but each new worktree builds the test
+binary with a cold Bazel cache first, which takes about 15 minutes before anything is
+provisioned. Each run must also hold valid AWS credentials until teardown, because an expired
+SSO session makes Pulumi's `credential_process` time out partway through. If you kill a run,
+the stack stays locked: run `pulumi cancel` and `pulumi destroy` on it before running it again.
 
 ## Test with Local Agent Image
 

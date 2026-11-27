@@ -165,6 +165,9 @@ paths match the change, and use its `TARGETS` and `EXTRA_PARAMS`.
   still ship from omnibus. The package architecture must match the test host.
   `doc/how-to/test/e2e/running.md` has the steps, the suites that can't use a local package
   (install-script, installer, fleet, container suites), and how to follow a run.
+- A local pass doesn't replace the suite's CI job. CI installs the Agent the PR's pipeline
+  builds, which can behave differently from a nightly or a release, so wait for that job to
+  succeed before calling a change validated.
 - On a Datadog workspace, if `$WORKSPACE_NAME` is empty, load `/etc/environment` first
   (`set -a; . /etc/environment; set +a`), or resources are named after the shared `bits` user.
 

@@ -115,7 +115,10 @@ dev env does not.
 
 First decide which Agent build gets installed, because by default it isn't your working tree: the
 task looks for a CI pipeline for your commit and installs its packages, and without one it
-installs the latest nightly. When the change under test hasn't been through CI, build a local
+installs the latest nightly. The lookup searches pipelines of the *checked-out branch* and needs
+its `packaging` and `deploy_packages` stages to have fully passed, so a detached worktree, or a
+pipeline with a failed packaging job, silently falls back to the nightly. Pin the build instead
+(`--pipeline-id <id>` or `-c ddagent:version=<release>`) whenever the run has to be repeatable. When the change under test hasn't been through CI, build a local
 package and pass `--local-package`, following `references/local-package.md`. That reference also
 lists the suites that ignore a local package, and the host/architecture match the run needs.
 
