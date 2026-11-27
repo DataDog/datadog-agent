@@ -174,12 +174,7 @@ pkg_filegroup(
         ":installed_distro",
         "//cmd/agent/dist:dd_agent_stub",
         "//packages:log_dir",
-    ] + select({
-        "//:is_standard_install": [
-            "//packages/agent/linux:datadog_agent_installer_symlinks",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 _DESCRIPTION = """Datadog Monitoring Agent
