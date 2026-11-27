@@ -168,48 +168,58 @@ func (s *usmHTTPSuite) testSimple(t *testing.T, isIPv6 bool) {
 			},
 		},
 	}
+	// DIAGNOSTICS: repeat the TLS runs
+	runs := 1
+	if s.isTLS {
+		runs = 10
+	}
 	for _, tt := range tests {
-		for _, clientCount := range []int{1, 2, 5} {
-			testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
-			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
-				t.Cleanup(func() { cleanProtocolMaps(t, "http", monitor.ebpfProgram.Manager.Manager) })
-				tt.runClients(t, clientCount)
-
-				res := make(map[usmhttp.Key]int)
-				time.Sleep(time.Second)
-				assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-					for key, stat := range getHTTPLikeProtocolStats(t, monitor, protocols.HTTP) {
-						if key.DstPort == httpSrvPort || key.SrcPort == httpSrvPort {
-							count := stat.Data[200].Count
-							newKey := usmhttp.Key{
-								Path:   usmhttp.Path{Content: key.Path.Content},
-								Method: key.Method,
-							}
-							if _, ok := res[newKey]; !ok {
-								res[newKey] = count
-							} else {
-								res[newKey] += count
-							}
-						}
-					}
-
-					require.Equal(collect, len(tt.expectedEndpoints), len(res), "expected endpoints count mismatch")
-
-					for key, count := range res {
-						value, ok := tt.expectedEndpoints[key]
-						require.True(collect, ok, "expected endpoint mismatch")
-						require.Equal(collect, value, count, "expected endpoint mismatch")
-					}
-				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
-				if t.Failed() {
-					for key := range tt.expectedEndpoints {
-						if _, ok := res[key]; !ok {
-							t.Logf("key: %v was not found in res", key.Path.Content.Get())
-						}
-					}
-					ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, "http_in_flight")
+		for run := range runs {
+			for _, clientCount := range []int{1, 2, 5} {
+				testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
+				if runs > 1 {
+					testNameSuffix += fmt.Sprintf(" - run %d", run)
 				}
-			})
+				t.Run(tt.name+testNameSuffix, func(t *testing.T) {
+					t.Cleanup(func() { cleanProtocolMaps(t, "http", monitor.ebpfProgram.Manager.Manager) })
+					tt.runClients(t, clientCount)
+
+					res := make(map[usmhttp.Key]int)
+					time.Sleep(time.Second)
+					assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+						for key, stat := range getHTTPLikeProtocolStats(t, monitor, protocols.HTTP) {
+							if key.DstPort == httpSrvPort || key.SrcPort == httpSrvPort {
+								count := stat.Data[200].Count
+								newKey := usmhttp.Key{
+									Path:   usmhttp.Path{Content: key.Path.Content},
+									Method: key.Method,
+								}
+								if _, ok := res[newKey]; !ok {
+									res[newKey] = count
+								} else {
+									res[newKey] += count
+								}
+							}
+						}
+
+						require.Equal(collect, len(tt.expectedEndpoints), len(res), "expected endpoints count mismatch")
+
+						for key, count := range res {
+							value, ok := tt.expectedEndpoints[key]
+							require.True(collect, ok, "expected endpoint mismatch")
+							require.Equal(collect, value, count, "expected endpoint mismatch")
+						}
+					}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
+					if t.Failed() {
+						for key := range tt.expectedEndpoints {
+							if _, ok := res[key]; !ok {
+								t.Logf("key: %v was not found in res", key.Path.Content.Get())
+							}
+						}
+						ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, "http_in_flight")
+					}
+				})
+			}
 		}
 	}
 }

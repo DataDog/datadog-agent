@@ -19,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 	"unsafe"
@@ -477,47 +478,73 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					{name: "Topic size is 120", topicName: strings.Repeat("a", 120), expectedBucketIndex: 9},
 				}
 
-				for _, tt := range tests {
-					t.Run(tt.name, func(t *testing.T) {
-						currentRawKernelTelemetry, err := kafka.GetKernelTelemetryMap(monitor.ebpfProgram.Manager.Manager)
-						require.NoError(t, err)
-						client, err := kafka.NewClient(kafka.Options{
-							ServerAddress: ctx.targetAddress,
-							DialFn:        dialFn,
-							CustomOptions: []kgo.Opt{
-								kgo.MaxVersions(version),
-								kgo.ConsumeTopics(tt.topicName),
-								kgo.ClientID("test-client"),
-							},
-						})
-						require.NoError(t, err)
-						t.Cleanup(client.Client.Close)
-						require.NoError(t, client.CreateTopic(tt.topicName))
-
-						record := &kgo.Record{Topic: tt.topicName, Value: []byte("Hello Kafka!")}
-						ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
-						defer cancel()
-						require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
-
-						var telemetryMap *kafka.RawKernelTelemetry
-						require.EventuallyWithT(t, func(collect *assert.CollectT) {
-							telemetryMap, err = kafka.GetKernelTelemetryMap(monitor.ebpfProgram.Manager.Manager)
-							require.NoError(collect, err)
-
-							// Ensure that the other buckets remain unchanged before verifying the expected bucket.
-							for idx := 0; idx < kafka.TopicNameBuckets; idx++ {
-								if idx != tt.expectedBucketIndex {
-									require.Equal(collect, currentRawKernelTelemetry.Topic_name_size_buckets[idx],
-										telemetryMap.Topic_name_size_buckets[idx],
-										"Expected bucket (%d) to remain unchanged", idx)
+				// DIAGNOSTICS: repeat with distinct topics, and dump the client's writes and the eBPF trace on failure
+				for run := range 10 {
+					for _, tt := range tests {
+						tt.topicName = strings.Repeat(string(rune('a'+run)), len(tt.topicName))
+						t.Run(fmt.Sprintf("%s run %d", tt.name, run), func(t *testing.T) {
+							writes := &brokerWriteRecorder{}
+							var traceMu sync.Mutex
+							var trace []string
+							ebpftest.LogTracePipeFilter(t, func(ev *ebpftest.TraceEvent) bool {
+								if strings.Contains(ev.Raw, "DIAG") {
+									traceMu.Lock()
+									defer traceMu.Unlock()
+									trace = append(trace, ev.Raw)
 								}
-							}
+								return false
+							})
+							t.Cleanup(func() {
+								if t.Failed() {
+									writes.log(t)
+									traceMu.Lock()
+									defer traceMu.Unlock()
+									for _, line := range trace {
+										t.Logf("DIAGNOSTICS: trace_pipe: %s", strings.TrimSpace(line))
+									}
+								}
+							})
+							currentRawKernelTelemetry, err := kafka.GetKernelTelemetryMap(monitor.ebpfProgram.Manager.Manager)
+							require.NoError(t, err)
+							client, err := kafka.NewClient(kafka.Options{
+								ServerAddress: ctx.targetAddress,
+								DialFn:        dialFn,
+								CustomOptions: []kgo.Opt{
+									kgo.MaxVersions(version),
+									kgo.ConsumeTopics(tt.topicName),
+									kgo.ClientID("test-client"),
+									kgo.WithHooks(writes),
+								},
+							})
+							require.NoError(t, err)
+							t.Cleanup(client.Client.Close)
+							require.NoError(t, client.CreateTopic(tt.topicName))
 
-							// Verify that the expected bucket contains the correct number of occurrences.
-							expectedNumberOfOccurrences := fixCount(2) // (1 produce request + 1 fetch request)
-							require.Equal(collect, uint64(expectedNumberOfOccurrences)+currentRawKernelTelemetry.Topic_name_size_buckets[tt.expectedBucketIndex], telemetryMap.Topic_name_size_buckets[tt.expectedBucketIndex])
-						}, time.Second*3, time.Millisecond*100)
-					})
+							record := &kgo.Record{Topic: tt.topicName, Value: []byte("Hello Kafka!")}
+							ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+							defer cancel()
+							require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+
+							var telemetryMap *kafka.RawKernelTelemetry
+							require.EventuallyWithT(t, func(collect *assert.CollectT) {
+								telemetryMap, err = kafka.GetKernelTelemetryMap(monitor.ebpfProgram.Manager.Manager)
+								require.NoError(collect, err)
+
+								// Ensure that the other buckets remain unchanged before verifying the expected bucket.
+								for idx := 0; idx < kafka.TopicNameBuckets; idx++ {
+									if idx != tt.expectedBucketIndex {
+										require.Equal(collect, currentRawKernelTelemetry.Topic_name_size_buckets[idx],
+											telemetryMap.Topic_name_size_buckets[idx],
+											"Expected bucket (%d) to remain unchanged", idx)
+									}
+								}
+
+								// Verify that the expected bucket contains the correct number of occurrences.
+								expectedNumberOfOccurrences := fixCount(2) // (1 produce request + 1 fetch request)
+								require.Equal(collect, uint64(expectedNumberOfOccurrences)+currentRawKernelTelemetry.Topic_name_size_buckets[tt.expectedBucketIndex], telemetryMap.Topic_name_size_buckets[tt.expectedBucketIndex])
+							}, time.Second*3, time.Millisecond*100)
+						})
+					}
 				}
 			},
 		},
@@ -530,12 +557,35 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 	cfg := getDefaultTestConfiguration(tls)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+			monitorCfg := *cfg
+			monitorCfg.BPFDebug = strings.HasPrefix(tt.name, "Kafka Kernel Telemetry") // DIAGNOSTICS
+			monitor := setupUSMTLSMonitor(t, &monitorCfg, useExistingConsumer)
 			if tls && cfg.EnableGoTLSSupport {
 				utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 			}
 			tt.testBody(t, &tt.context, monitor)
 		})
+	}
+}
+
+// brokerWriteRecorder records every request a kgo client writes (DIAGNOSTICS).
+type brokerWriteRecorder struct {
+	mu     sync.Mutex
+	writes []string
+}
+
+func (r *brokerWriteRecorder) OnBrokerWrite(meta kgo.BrokerMetadata, key int16, bytesWritten int, writeWait, timeToWrite time.Duration, err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.writes = append(r.writes, fmt.Sprintf("%s broker=%d key=%d bytes=%d wait=%s write=%s err=%v",
+		time.Now().Format("15:04:05.000000"), meta.NodeID, key, bytesWritten, writeWait, timeToWrite, err))
+}
+
+func (r *brokerWriteRecorder) log(t *testing.T) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, w := range r.writes {
+		t.Logf("DIAGNOSTICS: kgo write: %s", w)
 	}
 }
 

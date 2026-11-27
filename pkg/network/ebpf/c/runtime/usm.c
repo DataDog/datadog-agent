@@ -98,6 +98,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Write) {
     go_tls_write_args_data_t *seen = bpf_map_lookup_elem(&go_tls_write_args, &call_key);
     if (seen != NULL && seen->conn_pointer == call_data.conn_pointer && seen->b_data == call_data.b_data &&
         seen->b_len == call_data.b_len) {
+        log_debug("DIAG go-tls-write restart conn %llx len %llu", call_data.conn_pointer, call_data.b_len);
         return 0;
     }
     bpf_map_update_with_telemetry(go_tls_write_args, &call_key, &call_data, BPF_ANY);
@@ -113,7 +114,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Write) {
     }
 
     char *buffer_ptr = (char*)call_data.b_data;
-    log_debug("[go-tls-write] processing %s", buffer_ptr);
+    log_debug("DIAG go-tls-write conn %llx len %llu", call_data.conn_pointer, call_data.b_len);
     conn_tuple_t copy = {0};
     bpf_memcpy(&copy, t, sizeof(conn_tuple_t));
     // We want to guarantee write-TLS hooks generates the same connection tuple, while read-TLS hooks generate
@@ -244,6 +245,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Read__return) {
     normalize_tuple(&copy);
     char *buffer_ptr = (char*)call_data_ptr->b_data;
     bpf_map_delete_elem(&go_tls_read_args, &call_key);
+    log_debug("DIAG go-tls-read conn %llx len %llu", (u64)call_data_ptr->conn_pointer, bytes_read);
     tls_process(ctx, &copy, buffer_ptr, bytes_read, GO);
     return 0;
 

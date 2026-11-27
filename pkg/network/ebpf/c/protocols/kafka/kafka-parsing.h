@@ -1699,6 +1699,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     }
 
     extra_debug("topic_name_size: %u", topic_name_size);
+    log_debug("DIAG kafka count api_key %d correlation_id %d topic_size %u", kafka_header.api_key, kafka_header.correlation_id, topic_name_size);
     update_topic_name_size_telemetry(kafka_tel, topic_name_size);
     bpf_memset(kafka_transaction->topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
     pktbuf_read_into_buffer_topic_name_parser((char *)kafka_transaction->topic_name, pkt, offset);
