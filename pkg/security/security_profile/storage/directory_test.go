@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	adprotov1 "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -220,4 +221,63 @@ func TestDirectoryPersistRejectsUnsafeNames(t *testing.T) {
 
 	_, err = os.Stat(filepath.Join(rootDir, "escaped."+request.Format.String()))
 	assert.ErrorIs(t, err, os.ErrNotExist, "no file must be written outside of the profiles directory")
+}
+
+func TestNewDirectoryRemovesInvalidProfileFiles(t *testing.T) {
+	testDir := t.TempDir()
+
+	corruptedPath := filepath.Join(testDir, "corrupted.profile")
+	require.NoError(t, os.WriteFile(corruptedPath, []byte("not-valid-protobuf"), 0400))
+
+	noMetadataRaw, err := (&adprotov1.SecurityProfile{
+		Selector: &adprotov1.ProfileSelector{ImageName: "img", ImageTag: "tag"},
+	}).MarshalVT()
+	require.NoError(t, err)
+	noMetadataPath := filepath.Join(testDir, "no-metadata.profile")
+	require.NoError(t, os.WriteFile(noMetadataPath, noMetadataRaw, 0400))
+
+	noSelectorRaw, err := (&adprotov1.SecurityProfile{
+		Metadata: &adprotov1.Metadata{Name: "no-selector"},
+	}).MarshalVT()
+	require.NoError(t, err)
+	noSelectorPath := filepath.Join(testDir, "no-selector.profile")
+	require.NoError(t, os.WriteFile(noSelectorPath, noSelectorRaw, 0400))
+
+	valid := newProfileWithSelector("valid", "image1", "tag1")
+	validBuf, err := valid.profile.Encode(config.Profile)
+	require.NoError(t, err)
+	validPath := filepath.Join(testDir, "valid.profile")
+	require.NoError(t, os.WriteFile(validPath, validBuf.Bytes(), 0400))
+
+	var unreadablePath string
+	if os.Geteuid() != 0 {
+		unreadablePath = filepath.Join(testDir, "unreadable.profile")
+		require.NoError(t, os.WriteFile(unreadablePath, validBuf.Bytes(), 0000))
+	}
+
+	d, err := NewDirectory(testDir, 10)
+	require.NoError(t, err)
+
+	for _, invalidPath := range []string{corruptedPath, noMetadataPath, noSelectorPath} {
+		_, err := os.Stat(invalidPath)
+		assert.ErrorIsf(t, err, os.ErrNotExist, "invalid profile file %s should be removed", invalidPath)
+	}
+
+	if unreadablePath != "" {
+		_, err = os.Stat(unreadablePath)
+		require.NoError(t, err, "unreadable profile file must not be removed")
+	}
+
+	_, err = profile.LoadProtoFromFile(filepath.Join(testDir, "missing.profile"))
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, profile.ErrDecodeProtobufProfile)
+
+	_, err = os.Stat(validPath)
+	require.NoError(t, err)
+
+	loaded := profile.New()
+	ok, err := d.Load(&valid.selector, loaded)
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, valid.profile.Metadata.Name, loaded.Metadata.Name)
 }
