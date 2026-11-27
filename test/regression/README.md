@@ -11,7 +11,7 @@ The Regression Detector finds Agent performance changes with controlled experime
 
 ## How Agent CI selects experiments
 
-Most experiments are under `container/` and use `container/selection.yaml`. Metal eBPF experiments use the separate `ebpf/` lane.
+Most experiments are under `container/` and use `container/selection.yaml`. Metal eBPF experiments use the separate `ebpf/` lane. Kubernetes tests under `kjob/` run separately. See the [Kubernetes regression tests README](kjob/README.md).
 
 The selection manifest supports three modes:
 

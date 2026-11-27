@@ -1,0 +1,87 @@
+# The minimum resources that the Cluster Agent needs to run alone, with no Node Agent.
+# The Cluster Agent uses the default ServiceAccount of the namespace.
+# Read access for the Kubernetes metadata, the events and the kubernetes_apiserver check.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: datadog-cluster-agent
+rules:
+  - apiGroups: [""]
+    resources: [pods, nodes, namespaces, endpoints, componentstatuses, events]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: datadog-cluster-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: datadog-cluster-agent
+subjects:
+  - kind: ServiceAccount
+    name: default
+    # KJob uses the case name as the namespace.
+    namespace: cluster-agent-idle
+---
+# The leader election lock, the cluster ID and the event token use ConfigMaps in the namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: datadog-cluster-agent
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [get, create, update]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: datadog-cluster-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: datadog-cluster-agent
+subjects:
+  - kind: ServiceAccount
+    name: default
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: datadog-cluster-agent
+spec:
+  selector:
+    matchLabels:
+      app: datadog-cluster-agent
+  template:
+    metadata:
+      labels:
+        app: datadog-cluster-agent
+    spec:
+      containers:
+        - name: cluster-agent
+          image: "{{overrides.cluster_agent_image}}"
+          env:
+            - name: DD_API_KEY
+              value: "00000000000000000000000000000000"
+            - name: DD_DD_URL
+              value: "{{blackhole.intake}}"
+            # The Cluster Agent does not start without leader election. The kubernetes_apiserver check runs only on the leader.
+            - name: DD_LEADER_ELECTION
+              value: "true"
+            - name: DD_COLLECT_KUBERNETES_EVENTS
+              value: "true"
+            - name: DD_HEALTH_PORT
+              value: "5556"
+            # Orchestrator Explorer needs more RBAC. Remote Configuration and Agent telemetry call Datadog.
+            - name: DD_ORCHESTRATOR_EXPLORER_ENABLED
+              value: "false"
+            - name: DD_REMOTE_CONFIGURATION_ENABLED
+              value: "false"
+            - name: DD_AGENT_TELEMETRY_ENABLED
+              value: "false"
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 5556

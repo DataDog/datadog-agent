@@ -1,0 +1,256 @@
+# Submit a KJob Kubernetes performance job to SMP and wait for its report, when a PR
+# label selects the run. test/regression/kjob/README.md explains the labels and retries.
+# - smp-run-k8s-experiments: single_machine_performance-kjob, with the default images.
+# - smp-run-k8s-experiments-with-build: single_machine_performance-kjob-with-build, with
+#   the images of this commit. This label wins when the PR has both labels.
+.single_machine_performance-kjob:
+  stage: functional_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
+  tags: ["arch:amd64", "specific:true"]
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  allow_failure: true
+  # A retry submits the whole KJob job again.
+  retry: 0
+  timeout: 2h
+  variables:
+    # The KJob services of SMP_TEAM_NAME must use the same report format as this CLI build.
+    SMP_VERSION: dev-pr4862-db3e8f21f
+    KJOB_LABEL: smp-run-k8s-experiments
+    KJOB_BUILD_LABEL: smp-run-k8s-experiments-with-build
+    SMP_TEAM_NAME: agent-beta
+    AWS_NAMED_PROFILE: single-machine-performance
+    # The SMP CLI submits each directory under test/regression/kjob that has an experiment.yaml file.
+    KJOB_DIRECTORY: test/regression/kjob
+    KJOB_REPLICATES: "10"
+    KJOB_DURATION: 60s
+    KJOB_COOLDOWN: 0s
+    # Stop before the 2h job timeout, so that after_script and the artifact upload run.
+    KJOB_WAIT_SECONDS: "6600"
+    KJOB_STATUS_POLL_SECONDS: "30"
+    KJOB_STATUS_ERROR_LIMIT: "10"
+    # The SMP CLI renders Helm charts at submission and needs exactly this version.
+    HELM_VERSION: v4.3.1
+    HELM_SHA256: 0403a88ae20913d11b10a2467b50087721fea7581736da6b9d3992f5357fe54b
+    # Do not log the access key ID of the bot, as in the regression detector.
+    RUST_LOG: info,aws_config::profile::credentials=error
+  artifacts:
+    expire_in: 1 weeks
+    when: always
+    paths:
+      - outputs/
+  script:
+    - mkdir -p outputs
+    # outputs/no_result_reason marks a job that owns the PR comment. Each step writes the
+    # reason that the comment shows if the job stops there. A job without it writes no comment.
+    - |
+      SMP_GH_TOKEN=$(dd-octo-sts token --scope "${CI_PROJECT_PATH}" --policy self.gitlab.smp-pr-context || true)
+      if [[ -z "${SMP_GH_TOKEN}" ]] || ! GITHUB_TOKEN="${SMP_GH_TOKEN}" dda inv owners.smp-pr-context --branch "${CI_COMMIT_BRANCH}" --labels-out /tmp/kjob_pr_labels.txt --involved-teams-out /tmp/kjob_involved_teams.txt </dev/null; then
+        echo "ERROR: the PR labels are unavailable, so this job cannot tell whether to run KJob."
+        exit 1
+      fi
+      case ",$(cat /tmp/kjob_pr_labels.txt)," in
+        *",${KJOB_BUILD_LABEL},"*) KJOB_SELECTED=with-build ;;
+        *",${KJOB_LABEL},"*) KJOB_SELECTED=default ;;
+        *) KJOB_SELECTED=none ;;
+      esac
+      if [[ "${KJOB_SELECTED}" != "${KJOB_MODE}" ]]; then
+        echo "The PR labels select the ${KJOB_SELECTED} KJob run, so this ${KJOB_MODE} job does not run KJob."
+        exit 0
+      fi
+      if [[ "${KJOB_NO_IMAGE_BUILD:-}" == "true" ]]; then
+        echo "the PR has the ${KJOB_BUILD_LABEL} label, but this pipeline builds no SMP Node Agent image" | tee outputs/no_result_reason
+        exit 1
+      fi
+      echo "the CI job failed before the run started" > outputs/no_result_reason
+    # The CI egress proxy blocks get.helm.sh. The Depot read API caches the
+    # same archive in ADMS, as for tools/ci/conduit.sh.
+    - curl --silent --show-error --fail --location --output /tmp/helm.tar.gz "https://depot-read-api-bzl.us1.ddbuild.io/get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz"
+    - echo "${HELM_SHA256}  /tmp/helm.tar.gz" | sha256sum --check -
+    - tar --extract --gzip --file /tmp/helm.tar.gz --directory /tmp linux-amd64/helm
+    - export PATH="/tmp/linux-amd64:${PATH}"
+    - helm version --template '{{.Version}}'
+    - SMP_BOT_ID=$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$SMP_ACCOUNT" bot_login) || exit $?
+    - SMP_BOT_KEY=$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$SMP_ACCOUNT" bot_token) || exit $?
+    - aws configure set aws_access_key_id "$SMP_BOT_ID" --profile "${AWS_NAMED_PROFILE}"
+    - aws configure set aws_secret_access_key "$SMP_BOT_KEY" --profile "${AWS_NAMED_PROFILE}"
+    - aws configure set region us-west-2 --profile "${AWS_NAMED_PROFILE}"
+    - aws --profile "${AWS_NAMED_PROFILE}" s3 cp --only-show-errors "s3://smp-cli-releases/${SMP_VERSION}/x86_64-unknown-linux-musl/smp" smp
+    - chmod +x smp
+    - SMP_KJOB_ARGS=(--replicates "${KJOB_REPLICATES}" --duration "${KJOB_DURATION}" --cooldown "${KJOB_COOLDOWN}")
+    # The image jobs publish the images of this commit to the SMP registry. The cases
+    # declare these parameters, with their default images as fallbacks.
+    - |
+      if [[ "${KJOB_MODE}" == "with-build" ]]; then
+        SMP_ACCOUNT_ID=$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$SMP_ACCOUNT" account_id) || exit $?
+        SMP_ECR_URL="${SMP_ACCOUNT_ID}.dkr.ecr.us-west-2.amazonaws.com"
+        SMP_KJOB_ARGS+=(--override "node_agent_image=${SMP_ECR_URL}/agent:${CI_COMMIT_SHA}-7-full-amd64")
+        SMP_KJOB_ARGS+=(--override "cluster_agent_image=${SMP_ECR_URL}/cluster-agent:${CI_COMMIT_SHA}-amd64")
+      fi
+    # Try the submit again one time, but not after the last step: a failed job message send can leave a job.
+    - |
+      for KJOB_SUBMIT_TRY in 1 2; do
+        KJOB_SUBMIT_CODE=0
+        ./smp --team-name "${SMP_TEAM_NAME}" --aws-named-profile "${AWS_NAMED_PROFILE}" kjob submit "${KJOB_DIRECTORY}" "${SMP_KJOB_ARGS[@]}" --output json > outputs/submit.json || KJOB_SUBMIT_CODE=$?
+        cat outputs/submit.json
+        if [[ "${KJOB_SUBMIT_CODE}" == "0" ]]; then
+          break
+        fi
+        if [[ "${KJOB_SUBMIT_TRY}" == "2" ]] || ! jq -e '(.error | type == "string") and (.error | startswith("failed to submit Kubernetes job") | not)' outputs/submit.json > /dev/null 2>&1; then
+          exit "${KJOB_SUBMIT_CODE}"
+        fi
+        echo "The KJob submit failed before the job message. Try again in 30 seconds."
+        sleep 30
+      done
+    - KJOB_JOB_ID=$(jq -er '.id' outputs/submit.json)
+    - echo "KJob job ID is ${KJOB_JOB_ID}"
+    - echo "the CI job stopped before the run finished" > outputs/no_result_reason
+    # Poll until the KJob job is `completed` or `failed`, which means that its report is final.
+    - |
+      KJOB_STATUS_ERRORS=0
+      while :; do
+        if KJOB_STATE=$(./smp --team-name "${SMP_TEAM_NAME}" --aws-named-profile "${AWS_NAMED_PROFILE}" kjob status "${KJOB_JOB_ID}" --output json | jq -er '.state'); then
+          KJOB_STATUS_ERRORS=0
+        else
+          KJOB_STATE=unknown
+          KJOB_STATUS_ERRORS=$(( KJOB_STATUS_ERRORS + 1 ))
+        fi
+        echo "$(date -u +%H:%M:%S) KJob job state is ${KJOB_STATE}"
+        if [[ "${KJOB_STATE}" == "completed" || "${KJOB_STATE}" == "failed" ]]; then
+          break
+        fi
+        if (( KJOB_STATUS_ERRORS >= KJOB_STATUS_ERROR_LIMIT )); then
+          echo "the CI job could not read the status of the run" | tee outputs/no_result_reason
+          exit 1
+        fi
+        if (( SECONDS >= KJOB_WAIT_SECONDS )); then
+          echo "the run did not finish before the time limit" | tee outputs/no_result_reason
+          exit 1
+        fi
+        sleep "${KJOB_STATUS_POLL_SECONDS}"
+      done
+      echo "the CI job could not read the result of the run" > outputs/no_result_reason
+      # Exit codes: 0 all pass, 1 a replicate or check failed, 2 an error, 3 not ready.
+      # A failed replicate or check is a result for the PR comment, so the CI job passes.
+      KJOB_RESULT_CODE=0
+      ./smp --team-name "${SMP_TEAM_NAME}" --aws-named-profile "${AWS_NAMED_PROFILE}" kjob report --job-id "${KJOB_JOB_ID}" > outputs/report.v1.json || KJOB_RESULT_CODE=$?
+      case "${KJOB_RESULT_CODE}" in
+        0) echo "All KJob replicates and checks passed." ;;
+        1) echo "A KJob replicate or check failed. The PR comment shows the details." ;;
+        *) echo "smp kjob report failed with exit code ${KJOB_RESULT_CODE}."; exit "${KJOB_RESULT_CODE}" ;;
+      esac
+    - jq . outputs/report.v1.json
+  # The after_script also runs when the script fails. `smp kjob report` renders the
+  # comment. Without a job ID, or when the render fails, a short message takes its place.
+  # The CLI shows no_result_reason only when the run has no report.
+  after_script:
+    - |
+      # A cancelled job must not replace the result of a newer pipeline.
+      if [[ "${CI_JOB_STATUS}" == "canceled" || ! -f outputs/no_result_reason ]]; then
+        echo "This job writes no PR comment."
+        exit 0
+      fi
+      KJOB_NO_RESULT_REASON=$(cat outputs/no_result_reason)
+      KJOB_JOB_ID=$(jq -er '.id // empty' outputs/submit.json 2>/dev/null || true)
+      if [[ "${KJOB_MODE}" == "with-build" ]]; then KJOB_IMAGES="Images of this commit"; else KJOB_IMAGES="Default images"; fi
+      jq -n --arg commit "${CI_COMMIT_SHA}" --arg job_url "${CI_JOB_URL}" --arg images "${KJOB_IMAGES}" --arg reason "${KJOB_NO_RESULT_REASON}" \
+        '{commit: $commit, job_url: $job_url, images: $images, no_result_reason: $reason}' > outputs/extra.json
+      if [[ -n "${KJOB_JOB_ID}" ]]; then
+        ./smp --team-name "${SMP_TEAM_NAME}" --aws-named-profile "${AWS_NAMED_PROFILE}" kjob report --job-id "${KJOB_JOB_ID}" --template-file test/regression/kjob/report_template.md.j2 --extra outputs/extra.json > outputs/report.md || true
+      fi
+      if [[ ! -s outputs/report.md ]]; then
+        printf '**⚠️ No result:** %s\n\n<sub><i><a href="https://github.com/DataDog/datadog-agent/commit/%s">Commit %s</a> · <a href="%s">CI job</a> · %s</i></sub>\n' \
+          "${KJOB_NO_RESULT_REASON}" "${CI_COMMIT_SHA}" "${CI_COMMIT_SHA:0:11}" "${CI_JOB_URL}" "${KJOB_IMAGES}" > outputs/report.md
+      fi
+      jq -n --arg commit "${CI_COMMIT_SHA}" --rawfile message outputs/report.md \
+        '{org: "DataDog", repo: "datadog-agent", commit: $commit, header: "K8s Regression Detector Results", message: $message}' > outputs/pr_comment.json
+  rules:
+    - !reference [.except_coverage_pipeline]
+    - !reference [.on_dev_branches]
+    - when: on_success
+
+single_machine_performance-kjob:
+  extends: .single_machine_performance-kjob
+  needs: []
+  variables:
+    KJOB_MODE: default
+
+single_machine_performance-kjob-with-build:
+  extends: .single_machine_performance-kjob
+  needs:
+    - job: single_machine_performance-full-amd64-a7
+      artifacts: false
+    - job: single_machine_performance-cluster-agent-amd64
+      artifacts: false
+  rules:
+    - !reference [.except_coverage_pipeline]
+    # The same rules as single_machine_performance-full-amd64-a7, so the job waits for the images.
+    - !reference [.on_dev_branches_with_artifact_changes]
+    # The pipeline builds no Node Agent image. The job starts at once, and fails if the PR has its label.
+    - when: on_success
+      needs: []
+      variables:
+        KJOB_NO_IMAGE_BUILD: "true"
+  variables:
+    KJOB_MODE: with-build
+
+# Post the result of a KJob job on the PR, as single-machine-performance-regression_detector-pr-comment
+# does in .gitlab/childs/smp-regression-child-pipeline.yml. Each KJob job has its own comment
+# job, so that a run with the default images does not wait for the image builds. The KJob
+# jobs have allow_failure, so these on_success jobs also run after a failed KJob job.
+.single_machine_performance-kjob-pr-comment:
+  stage: functional_test
+  image:
+    name: "486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:3-jammy"
+    entrypoint: [""] # disable entrypoint script for the pr-commenter image
+  tags: ["arch:amd64", "specific:true"]
+  variables:
+    # Not using the entrypoint script for the pr-commenter image
+    FF_KUBERNETES_HONOR_ENTRYPOINT: false
+  allow_failure: true # a comment-service failure must not change the KJob result
+  rules:
+    - !reference [.except_coverage_pipeline]
+    - !reference [.on_dev_branches]
+    - when: on_success
+  script:
+    - |
+      if [[ ! -s "outputs/pr_comment.json" ]]
+      then
+          echo "No KJob job wrote a PR comment payload, so this job posts no comment."
+          exit 0
+      fi
+    # The pr-commenter service updates the comment with the same header, and
+    # ignores a commit that has no PR.
+    - |
+      set +e
+      out=$(curl https://pr-commenter.us1.ddbuild.io/internal/cit/pr-comment \
+          -H "$(authanywhere)" \
+          -H "X-DdOrigin: curl" \
+          -X PATCH \
+          --data-binary @outputs/pr_comment.json)
+      exitcode=$?
+      set -e
+      if [ -n "${out}" ]; then
+        if [ $exitcode -eq 0 ]; then
+          echo "$out"
+        else
+          echo "$out" >&2
+        fi
+      fi
+      if [ "${out}" != "${out/invalid request: no pr found for this commit}" ]; then
+        exit 0
+      fi
+      exit $exitcode
+
+single_machine_performance-kjob-pr-comment:
+  extends: .single_machine_performance-kjob-pr-comment
+  needs:
+    - job: single_machine_performance-kjob
+      artifacts: true
+
+single_machine_performance-kjob-with-build-pr-comment:
+  extends: .single_machine_performance-kjob-pr-comment
+  needs:
+    - job: single_machine_performance-kjob-with-build
+      artifacts: true

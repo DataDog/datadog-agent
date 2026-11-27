@@ -1,0 +1,53 @@
+runner: kind
+runtime_config:
+  kwok: false
+# CI can replace these images with the images of the commit. The defaults are the images that Operator 1.31.0 selects.
+parameters:
+  node_agent_image:
+    type: image
+    default: "registry.datadoghq.com/agent:7.84.1"
+  cluster_agent_image:
+    type: image
+    default: "registry.datadoghq.com/cluster-agent:7.84.1"
+helm:
+  - release_name: datadog-operator
+    repository: https://helm.datadoghq.com
+    chart: datadog-operator
+    version: "2.29.0"
+    values_files:
+      - helm/operator-values.yaml
+readiness:
+  - apiVersion: apps/v1
+    kind: DaemonSet
+    name: datadog-agent
+  - apiVersion: apps/v1
+    kind: Deployment
+    name: datadog-cluster-agent
+# The Agent payloads go to these receivers, not to public Datadog endpoints.
+blackhole:
+  - id: intake
+    http:
+      binding_addr: "0.0.0.0:9091"
+      status: 200
+      response_delay_millis: 0
+  - id: process
+    http:
+      binding_addr: "0.0.0.0:9092"
+      status: 200
+      response_delay_millis: 0
+      headers:
+        content-type: application/octet-stream
+      body_variant: raw_bytes
+      raw_bytes: [3, 0, 23, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 0]
+
+checks:
+  - name: node_agent_memory_peak
+    description: Limit peak working-set memory of the Node Agent container.
+    bounds:
+      series: "target.memory.working_set_bytes{container:agent}"
+      upper_bound: "165 MiB"
+  - name: cluster_agent_memory_peak
+    description: Limit peak working-set memory of the Cluster Agent container.
+    bounds:
+      series: "target.memory.working_set_bytes{container:cluster-agent}"
+      upper_bound: "105 MiB"

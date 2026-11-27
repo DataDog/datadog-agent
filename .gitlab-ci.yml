@@ -514,8 +514,11 @@ variables:
     - tasks/**/*.py
     - omnibus/**/*
     - release.json
-    # SMP regression detector experiments
-    - test/regression/**/*
+    # SMP regression detector experiments. test/regression/kjob is not in this list,
+    # because KJob has its own job in .gitlab/test/functional_test/kjob.yml.
+    - test/regression/*
+    - test/regression/container/**/*
+    - test/regression/ebpf/**/*
     # Containers
     - Dockerfiles/**/*
     - .gitlab/test/functional_test/regression_detector.yml
