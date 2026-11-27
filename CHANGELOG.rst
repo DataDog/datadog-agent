@@ -1929,6 +1929,190 @@ Other Notes
 - Update ``zlib`` to 1.3.2.
 
 
+.. _Release Notes_7.85.5:
+
+7.85.5
+======
+
+.. _Release Notes_7.85.5_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-11-19
+
+- Please refer to the `7.85.5 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7855>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.85.5_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The Agent's embedded Python has been upgraded from 3.13.17 to 3.13.18
+
+- Update Agent Data Plane to 1.7.3. The Remote Agents section of
+  ``agent status`` now reports Agent Data Plane Forwarder transaction
+  status, and Agent Data Plane reports additional aggregator and forwarder
+  telemetry through the Agent telemetry endpoint and flares.
+
+- Agents are now built with Go ``1.26.11``.
+
+
+.. _Release Notes_7.85.5_Security Notes:
+
+Security Notes
+--------------
+
+- CWS: when ``runtime_security_config.socket`` (or ``runtime_security_config.cmd_socket``)
+  is a TCP address, which is the default on Windows, the gRPC endpoints between
+  ``system-probe`` and ``security-agent`` now require TLS and the Agent IPC auth token.
+  Previously, any local user could connect to them. Unix and vsock sockets are unchanged.
+
+- The Jetson check now runs only when its configuration comes from a local file, such as ``conf.d/jetson.d/conf.yaml``.
+  Configurations supplied by Autodiscovery, including container labels, pod annotations, and cluster checks, are rejected.
+  Set ``tegrastats_path`` and ``use_sudo`` in a local configuration file.
+
+
+.. _Release Notes_7.85.5_Bug Fixes:
+
+Bug Fixes
+---------
+
+- APM: Fix an issue where the error sampler and rare sampler could accidentally 
+  override the probabilistic sampler for V1 trace payloads.
+
+- APM: Restore the behavior of dropping traces whose 128-bit trace ID is zero, including empty
+  or missing trace IDs, and counts them as dropped with reason ``trace_id_zero``,
+  in the V1 trace pipeline..
+
+- APM: Fix inconsistency with processing of v1 trace payloads where non-string
+  span attributes, and fields like "component", "version", and "env" were not
+  properly truncated with the default limits: 200 bytes for keys, 25,000 for values.
+
+- Agent Data Plane 1.7.3 no longer counts API key validation requests, or
+  events and service checks in discarded payloads, in its forwarder and
+  aggregator flush telemetry.
+
+- Fix ``infrastructure_mode: end_user_device`` not enabling the system-probe
+  software inventory module (Windows and macOS) and notable events module
+  (macOS) unless ``software_inventory.enabled`` or ``notable_events.enabled``
+  was set explicitly in ``datadog.yaml``.
+
+- The node agent now evicts the ``language_detection_dca_client_processed_events``
+  telemetry series for a pod when that pod is deleted. Previously these per-pod
+  series accumulated without bound as pods churned, which could cause the
+  ``agent_telemetry`` check to hit its ``max_returned_metrics`` limit and drop
+  other agent telemetry.
+
+- Keys added to the scrubber through ``scrubber.additional_keys``, ``flare_stripped_keys``, or
+  configuration values resolved from secrets are now matched regardless of case when scrubbing
+  structured YAML and JSON data.
+
+
+.. _Release Notes_7.85.4:
+
+7.85.4
+======
+
+.. _Release Notes_7.85.4_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-11-10
+
+- Please refer to the `7.85.4 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7854>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.85.4_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Disable the Agent Health Platform by default on Kubernetes to avoid Autodiscovery stalls.
+  Reporting Autodiscovery annotation and template errors to the Health Platform
+  could block Autodiscovery for several seconds, causing workloadmeta to drop
+  event bundles. This applies to both the node Agent and the Cluster Agent when
+  running on Kubernetes (including EKS Fargate); other environments keep the
+  Health Platform enabled by default. To turn it back on in Kubernetes, set
+  ``health_platform.enabled: true`` in ``datadog.yaml`` or
+  ``DD_HEALTH_PLATFORM_ENABLED=true``.
+
+
+.. _Release Notes_7.85.3:
+
+7.85.3
+======
+
+.. _Release Notes_7.85.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-11-10
+
+- Please refer to the `7.85.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7853>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.85.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- On AIX, the ``dd-agent`` user is now created with a 512MiB data-segment
+  limit instead of the 128MiB system default, which agent-data-plane could
+  exhaust on busy hosts, causing allocation failures and repeated restarts.
+  Higher or unlimited limits are left unchanged.
+
+- APM: The trace-agent's ``/v0.4/traces``, ``/v0.5/traces``, and
+  ``/v1.0/traces`` payload decoders now check that a payload is long enough
+  to contain the elements an array or map header declares before allocating
+  memory for them. Previously, a request of a few bytes could make the
+  trace-agent allocate hundreds of megabytes or more. Array and map headers
+  in these payloads, other than string tables, are now also limited to
+  500,000 elements, matching the limit already applied to the v0.4 msgpack
+  decoder used when trace conversion is disabled.
+
+- CWS: Short DNS responses that cannot be decoded, and all short DNS
+  responses when DNS resolution is disabled, are no longer handled as regular
+  events, which decoded process, span and cgroup context from the DNS packet.
+  The ``failed_dns`` internal monitoring event is still sent for responses
+  that cannot be decoded.
+
+- Fix the bundled OpenTelemetry Collector failing to start after a Linux FIPS
+  Agent upgrade through Fleet Automation. The Collector now loads the FIPS
+  libraries from its Agent package instead of the previous installation directory.
+
+- Fix a system-probe crash when reading DNS packets from the AF_PACKET ring
+  buffer. The TPACKET_V3 reader could read a block header before the kernel
+  had handed the block over; on a newly created ring the header could still
+  be zero, causing the reader to walk past the end of the block and crash.
+  Corrupted frames are now detected and skipped instead.
+
+- Fix Cloud Network Monitoring failing to start on GKE nodes running
+  Container-Optimized OS (Standard and Autopilot) with
+  ``could not start ebpf manager: probes activation validation failed:
+  {UID:net EBPFFuncName:socket__classifier_entry}: cannot allocate memory``.
+  The protocol classification socket filter no longer exceeds the
+  ``net.core.optmem_max`` limit of 20 KiB on these nodes. If the socket
+  filter still can't be attached for lack of memory, the error now
+  suggests raising ``net.core.optmem_max`` or disabling protocol
+  classification.
+
+- The Private Action Runner no longer crashes when an HTTP action decodes
+  an odd-length response body as ``utf16le`` or ``ucs2``. The trailing
+  byte is now ignored.
+
+- Health Platform: health reports are no longer sent to ``dd_url``, which
+  only overrides the metrics intake and rejected them with a 404, logging a
+  ``Health platform egress: failed to send`` warning on every report. They
+  now go to the health platform intake of the configured ``site``, and can
+  be redirected with the new ``health_platform.forwarder.dd_url`` setting,
+  like the other dedicated intakes (``apm_config.apm_dd_url``,
+  ``logs_config.logs_dd_url``).
+
+
 .. _Release Notes_7.85.2:
 
 7.85.2
