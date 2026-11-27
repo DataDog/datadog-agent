@@ -20,6 +20,7 @@ import (
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/redact"
 )
 
 type ScaleStatefulSetVerticallyHandler struct {
@@ -166,11 +167,12 @@ func (h *ScaleStatefulSetVerticallyHandler) Run(
 		return nil, err
 	}
 
-	return support.ScrubResourceOutput(&ScaleStatefulSetVerticallyOutputs{
+	redact.ScrubStatefulSet(response, redact.NewDefaultDataScrubber())
+	return &ScaleStatefulSetVerticallyOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	})
+	}, nil
 }
 
 func (h *ScaleStatefulSetVerticallyHandler) getClient(credential *privateconnection.PrivateCredentials) (kubernetes.Interface, error) {

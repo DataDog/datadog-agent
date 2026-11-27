@@ -14,6 +14,7 @@ import (
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/redact"
 )
 
 type ListCustomResourceDefinitionHandler struct{}
@@ -57,8 +58,9 @@ func (h *ListCustomResourceDefinitionHandler) Run(
 		return nil, err
 	}
 
-	return support.ScrubResourceOutput(&ListCustomResourceDefinitionOutputs{
+	support.ScrubItems(resp.Items, redact.ScrubUnstructured)
+	return &ListCustomResourceDefinitionOutputs{
 		Items: resp.Items,
 		Meta:  resp.Object["metadata"],
-	})
+	}, nil
 }

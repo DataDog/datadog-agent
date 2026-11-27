@@ -15,6 +15,7 @@ import (
 
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/redact"
 	v1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -54,8 +55,9 @@ func (h *ListValidatingAdmissionPolicyBindingHandler) Run(
 		return nil, err
 	}
 
-	return support.ScrubResourceOutput(&ListValidatingAdmissionPolicyBindingOutputs{
+	support.ScrubItems(response.Items, redact.ScrubValidatingAdmissionPolicyBinding)
+	return &ListValidatingAdmissionPolicyBindingOutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,
-	})
+	}, nil
 }

@@ -17,6 +17,7 @@ import (
 
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/redact"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	typesv1 "k8s.io/apimachinery/pkg/types"
@@ -85,7 +86,8 @@ func (h *PatchEventHandler) Run(
 		return nil, err
 	}
 
-	return support.ScrubResourceOutput(&PatchEventOutputs{
+	redact.ScrubEvent(response, redact.NewDefaultDataScrubber())
+	return &PatchEventOutputs{
 		ObjectMeta:          response.ObjectMeta,
 		InvolvedObject:      response.InvolvedObject,
 		Reason:              response.Reason,
@@ -101,5 +103,5 @@ func (h *PatchEventHandler) Run(
 		Related:             response.Related,
 		ReportingController: response.ReportingController,
 		ReportingInstance:   response.ReportingInstance,
-	})
+	}, nil
 }

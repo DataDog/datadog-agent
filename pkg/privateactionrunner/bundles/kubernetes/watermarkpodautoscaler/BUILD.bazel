@@ -13,6 +13,7 @@ go_library(
         "//pkg/privateactionrunner/bundle-support/kubernetes",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
+        "//pkg/redact",
         "@com_github_datadog_watermarkpodautoscaler_apis//datadoghq/v1alpha1",
         "@io_k8s_apimachinery//pkg/api/errors",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",

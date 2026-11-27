@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/redact"
 	authv1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -59,28 +60,29 @@ func (h *TestConnectionHandler) Run(
 	if err != nil {
 		configurationValid = false
 		errors = append(errors, fmt.Sprintf("Configuration validation failed: %v", err))
-		return kubernetes.ScrubResourceOutput(&TestConnectionOutputs{
+		return &TestConnectionOutputs{
 			ConfigurationValid: configurationValid,
 			ConnectionValid:    false,
 			UserInfo:           userInfo,
 			ServerInfo:         serverInfo,
 			Errors:             errors,
-		})
+		}, nil
 	}
 
 	selfSubjectReview := &authv1.SelfSubjectReview{}
 	result, err := client.AuthenticationV1().SelfSubjectReviews().Create(ctx, selfSubjectReview, metav1.CreateOptions{})
 	if err != nil {
 		errors = append(errors, fmt.Sprintf("Failed to connect to Kubernetes cluster: %v", err))
-		return kubernetes.ScrubResourceOutput(&TestConnectionOutputs{
+		return &TestConnectionOutputs{
 			ConfigurationValid: configurationValid,
 			ConnectionValid:    false,
 			UserInfo:           userInfo,
 			ServerInfo:         serverInfo,
 			Errors:             errors,
-		})
+		}, nil
 	}
 
+	redact.ScrubUserInfo(&result.Status.UserInfo, redact.NewDefaultDataScrubber())
 	extra := make(map[string]string)
 	if result.Status.UserInfo.Extra != nil {
 		for key, values := range result.Status.UserInfo.Extra {
@@ -106,11 +108,11 @@ func (h *TestConnectionHandler) Run(
 		}
 	}
 
-	return kubernetes.ScrubResourceOutput(&TestConnectionOutputs{
+	return &TestConnectionOutputs{
 		ConfigurationValid: configurationValid,
 		ConnectionValid:    true,
 		UserInfo:           userInfo,
 		ServerInfo:         serverInfo,
 		Errors:             errors,
-	})
+	}, nil
 }

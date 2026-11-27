@@ -16,6 +16,7 @@ import (
 
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/redact"
 	v1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -65,10 +66,11 @@ func (h *GetEndpointSliceHandler) Run(
 		return nil, err
 	}
 
-	return support.ScrubResourceOutput(&GetEndpointSliceOutputs{
+	redact.ScrubEndpointSlice(response, redact.NewDefaultDataScrubber())
+	return &GetEndpointSliceOutputs{
 		ObjectMeta:  response.ObjectMeta,
 		AddressType: response.AddressType,
 		Endpoints:   response.Endpoints,
 		Ports:       response.Ports,
-	})
+	}, nil
 }

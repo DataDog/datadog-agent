@@ -22,6 +22,7 @@ import (
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/redact"
 )
 
 // watermarkPodAutoscalerResource identifies the WatermarkPodAutoscaler custom resource.
@@ -90,16 +91,12 @@ func (h *UpdateWatermarkAutoscalerLimitsHandler) Run(
 		return nil, err
 	}
 
+	redact.ScrubUnstructured(response, redact.NewDefaultDataScrubber())
 	watermarkPodAutoscaler, err := decodeWatermarkPodAutoscaler(response)
 	if err != nil {
 		return nil, err
 	}
-
-	redacted, err := support.ScrubResourceOutput(watermarkPodAutoscaler)
-	if err != nil {
-		return nil, err
-	}
-	return map[string]interface{}{"watermarkPodAutoscaler": redacted}, nil
+	return map[string]interface{}{"watermarkPodAutoscaler": watermarkPodAutoscaler}, nil
 }
 
 // validate checks the bounds the caller supplied, without reading the cluster.

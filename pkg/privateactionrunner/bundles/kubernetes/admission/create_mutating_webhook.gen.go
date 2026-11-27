@@ -16,6 +16,7 @@ import (
 
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/redact"
 	v1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -60,8 +61,9 @@ func (h *CreateMutatingWebhookConfigurationHandler) Run(
 		return nil, err
 	}
 
-	return support.ScrubResourceOutput(&CreateMutatingWebhookConfigurationOutputs{
+	redact.ScrubMutatingWebhookConfiguration(response, redact.NewDefaultDataScrubber())
+	return &CreateMutatingWebhookConfigurationOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Webhooks:   response.Webhooks,
-	})
+	}, nil
 }

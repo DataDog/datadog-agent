@@ -18,6 +18,7 @@ import (
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/redact"
 )
 
 type UpdateAutoscalerLimitsHandler struct {
@@ -90,11 +91,8 @@ func (h *UpdateAutoscalerLimitsHandler) Run(
 		return nil, err
 	}
 
-	redacted, err := support.ScrubResourceOutput(response)
-	if err != nil {
-		return nil, err
-	}
-	return map[string]interface{}{"horizontalPodAutoscaler": redacted}, nil
+	redact.ScrubHorizontalPodAutoscaler(response, redact.NewDefaultDataScrubber())
+	return map[string]interface{}{"horizontalPodAutoscaler": response}, nil
 }
 
 func (h *UpdateAutoscalerLimitsHandler) getClient(credential *privateconnection.PrivateCredentials) (kubernetes.Interface, error) {

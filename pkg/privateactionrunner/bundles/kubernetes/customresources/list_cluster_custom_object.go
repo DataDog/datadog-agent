@@ -11,6 +11,7 @@ import (
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/redact"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -57,8 +58,9 @@ func (h *ListClusterCustomObjectHandler) Run(
 		return nil, err
 	}
 
-	return support.ScrubResourceOutput(&ListClusterCustomObjectOutputs{
+	support.ScrubItems(resp.Items, redact.ScrubUnstructured)
+	return &ListClusterCustomObjectOutputs{
 		Items: resp.Items,
 		Meta:  resp.Object["metadata"],
-	})
+	}, nil
 }

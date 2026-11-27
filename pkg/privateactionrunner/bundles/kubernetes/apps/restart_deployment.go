@@ -17,6 +17,7 @@ import (
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/redact"
 )
 
 type RestartDeploymentHandler struct{}
@@ -74,9 +75,10 @@ func (h *RestartDeploymentHandler) Run(
 		return nil, err
 	}
 
-	return support.ScrubResourceOutput(&RestartDeploymentOutputs{
+	redact.ScrubDeployment(response, redact.NewDefaultDataScrubber())
+	return &RestartDeploymentOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
 		Status:     response.Status,
-	})
+	}, nil
 }

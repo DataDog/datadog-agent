@@ -152,3 +152,53 @@ func TestConnectionRedactsSensitiveUserDetails(t *testing.T) {
 	require.Contains(t, string(encoded), `"username":"alice"`)
 	require.Contains(t, string(encoded), `"team":"platform"`)
 }
+
+func TestCustomResourceActionsRedactObjectWithItemsField(t *testing.T) {
+	credentials := redactionTestCredentials(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{
+			"apiVersion": "example.com/v1", "kind": "Widget",
+			"metadata": {"name": "password-app"},
+			"items": ["first", "second"],
+			"spec": {"password": "sensitive-value", "port": "8080"}
+		}`)
+	})
+	inputs := map[string]interface{}{"namespace": "default", "name": "password-app", "group": "example.com", "version": "v1", "plural": "widgets"}
+
+	output, err := customresources.NewKubernetesCustomResources(nil).GetAction("getCustomObject").Run(t.Context(), generatedActionTask(inputs), credentials)
+	require.NoError(t, err)
+	encoded, err := json.Marshal(output)
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), "sensitive-value")
+	require.Contains(t, string(encoded), `"password":"********"`)
+	require.Contains(t, string(encoded), `"items":["first","second"]`)
+}
+
+func TestCustomResourceActionsPreserveLargeIntegers(t *testing.T) {
+	const object = `{
+		"apiVersion": "example.com/v1", "kind": "Widget",
+		"metadata": {"name": "password-app"},
+		"spec": {"generation": 9007199254740993, "ratio": 1.5}
+	}`
+	for _, verb := range []string{"get", "list"} {
+		t.Run(verb, func(t *testing.T) {
+			credentials := redactionTestCredentials(t, func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				if verb == "list" {
+					_, _ = io.WriteString(w, `{"apiVersion": "example.com/v1", "kind": "WidgetList", "metadata": {}, "items": [`+object+`]}`)
+				} else {
+					_, _ = io.WriteString(w, object)
+				}
+			})
+			inputs := map[string]interface{}{"namespace": "default", "name": "password-app", "group": "example.com", "version": "v1", "plural": "widgets"}
+
+			bundle := types.Bundle(customresources.NewKubernetesCustomResources(nil))
+			output, err := bundle.GetAction(verb+"CustomObject").Run(t.Context(), generatedActionTask(inputs), credentials)
+			require.NoError(t, err)
+			encoded, err := json.Marshal(output)
+			require.NoError(t, err)
+			require.Contains(t, string(encoded), `"generation":9007199254740993`)
+			require.Contains(t, string(encoded), `"ratio":1.5`)
+		})
+	}
+}
