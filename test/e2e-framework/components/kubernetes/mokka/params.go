@@ -174,8 +174,9 @@ func WithDevicePluginImage(image string) Option {
 
 // WithGPUOperator deploys the NVIDIA GPU Operator on top of Mokka, instead of a standalone device
 // plugin: its device plugin and GPU Feature Discovery (which labels the nodes) then run on the
-// mock GPUs, as on a real GPU node. The operator manages every GPU node of the cluster, so use it
-// in a single installation. WithDevicePluginImage does not apply to it.
+// mock GPUs, as on a real GPU node. The operator deploys its device plugin on every node Mokka
+// runs on, so the installation using it must be the only one of the cluster: kindvm rejects any
+// other. WithDevicePluginImage does not apply to it.
 func WithGPUOperator(options ...GPUOperatorOption) Option {
 	return func(p *Params) error {
 		operator, err := common.ApplyOption(&GPUOperatorParams{
