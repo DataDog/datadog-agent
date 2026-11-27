@@ -839,7 +839,11 @@ func experimentPlistPath(label string) string {
 // (pkg/fleet/installer/packages/unit_supervisor_darwin.go): it starts and stops the experiment jobs
 // with the semantics the Linux experiment units have, and reverts the experiment when the
 // experiment Agent exits or the experiment times out.
-const unitSupervisorLabel = "com.datadoghq.unit-supervisor"
+const unitSupervisorLabel = "com.datadoghq.supervisor"
+
+// supervisorBusyPath is the unit supervisor's busy marker: launchd keeps the supervisor alive while
+// it exists (KeepAlive PathState in com.datadoghq.supervisor.plist).
+const supervisorBusyPath = "/var/run/com.datadoghq.supervisor.busy"
 
 // supervisorProcessPattern matches the unit supervisor's process.
 const supervisorProcessPattern = "package-command datadog-agent superviseUnits"
@@ -1252,14 +1256,16 @@ func (s *configMacOSSuite) TestConfigOwnershipMacOS() {
 		require.False(s.T(), s.pathExists(path), "%s should not exist", path)
 	}
 
-	// One line per entry with its type, mode, uid and gid, followed by its ACL entries, inherited ones
-	// included, for every entry the experiment did not write. Timestamps and sizes are left out: a
-	// copy does not keep the former, and the comparison is about metadata rather than content. The
-	// deployment ID is the experiment's own, and the check folder exists only in the experiment.
+	// One line per entry with its type, mode, uid and gid, followed by its explicit ACL entries, for
+	// every entry the experiment did not write. Timestamps and sizes are left out: a copy does not
+	// keep the former, and the comparison is about metadata rather than content. Inherited entries
+	// are left out: cp -a does not copy them, and in etc they only repeat the access the tree's owner
+	// has. The deployment ID is the experiment's own, and the check folder exists only in the
+	// experiment.
 	metadata := func(dir string) string {
 		out, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`sudo sh -c 'cd %s && `+
 			`find . -mindepth 1 ! -path ./datadog.yaml ! -path ./.deployment-id ! -path ./.superseded ! -path "./conf.d/e2e_ownership.d*" | sort | while read -r f; do `+
-			`printf "%%s %%s\n" "$f" "$(stat -f "%%HT %%Lp %%u %%g" "$f")"; ls -lde "$f" | tail -n +2 | sed "s/^ *[0-9]*: //"; done'`, dir))
+			`printf "%%s %%s\n" "$f" "$(stat -f "%%HT %%Lp %%u %%g" "$f")"; ls -lde "$f" | tail -n +2 | grep -v " inherited " | sed "s/^ *[0-9]*: //"; done'`, dir))
 		require.NoError(s.T(), err)
 		return out
 	}
@@ -1548,7 +1554,10 @@ const installerDaemonPlistPath = "/Library/LaunchDaemons/com.datadoghq.installer
 // job set and the unit supervisor stay down, and the experiment is left for Fleet's stop to end.
 func (s *configMacOSSuite) killAllServicesSimulatingShutdown() {
 	// The unit supervisor dies with the host: booted out, so launchd does not relaunch it, and so it
-	// does not revert the experiment under the test. Any helper an earlier build left dies too.
+	// does not revert the experiment under the test. Its busy marker goes too, as /var/run is emptied
+	// at boot: launchd keeps the supervisor alive while it exists. Any helper an earlier build left
+	// dies too.
+	_, _ = s.Env().RemoteHost.Execute("sudo rm -f " + supervisorBusyPath)
 	_, _ = s.Env().RemoteHost.Execute("sudo launchctl bootout system/" + unitSupervisorLabel + " || true")
 	_, _ = s.Env().RemoteHost.Execute("sudo pkill -SIGKILL -f '" + detachedProcessPattern + "' || true")
 
