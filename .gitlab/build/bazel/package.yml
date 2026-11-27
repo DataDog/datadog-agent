@@ -78,4 +78,4 @@ bazel:package:iot:suse-amd64:
 bazel:package:heroku:linux-amd64:
   extends: [.bazel:runner:linux-amd64, .bazel:package]
   variables:
-    BAZEL_PACKAGE_TARGETS: "//packages/heroku:debian"
+    BAZEL_PACKAGE_TARGETS: "//packages/heroku:debian //packages/heroku:debian_dbg"
