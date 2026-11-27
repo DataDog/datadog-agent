@@ -103,7 +103,10 @@ go_library(
 
 dd_agent_go_test(
     name = "jetson_test",
-    srcs = ["jetson_test.go"],
+    srcs = [
+        "jetson_command_test.go",
+        "jetson_test.go",
+    ],
     embed = [":jetson"],
     deps = select({
         "@rules_go//go/platform:android": [
