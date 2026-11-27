@@ -136,6 +136,7 @@ dd_agent_go_test(
         "ebpf_gotls_helpers_test.go",
         "ebpf_main_test.go",
         "ebpf_ssl_test.go",
+        "gotls_write_test.go",
         "istio_test.go",
         "kafka_monitor_test.go",
         "monitor_common_linux_test.go",

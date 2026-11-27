@@ -13,8 +13,8 @@ BPF_HASH_MAP(offsets_data, go_tls_offsets_data_key_t, tls_offsets_data_t, 1024)
    The key contains the go routine id and the pid. */
 BPF_HASH_MAP(go_tls_read_args, go_tls_function_args_key_t, go_tls_read_args_data_t, 10240)
 
-/* go_tls_write_args is used to get the read function info when running in the write-return uprobe.
-   The key contains the go routine id and the pid. */
+/* go_tls_write_args holds the arguments of the Write call being processed, to tell a restart of its prologue
+   from a new call. The key contains the go routine id and the pid. */
 BPF_HASH_MAP(go_tls_write_args, go_tls_function_args_key_t, go_tls_write_args_data_t, 10240)
 
 /* This map associates crypto/tls.(*Conn) values to the corresponding conn_tuple_t* value.
