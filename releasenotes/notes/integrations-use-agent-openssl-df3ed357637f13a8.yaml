@@ -11,7 +11,9 @@ enhancements:
     On Linux, Python integrations now use the Agent's OpenSSL instead of the
     copies bundled with some of their dependencies (``confluent-kafka``,
     ``aerospike``, ``cryptography`` and ``psycopg``). This makes the Linux
-    packages about 7 MiB smaller.
+    packages about 7 MiB smaller. The Agent's OpenSSL now also ships the
+    legacy provider those copies had built in, so legacy algorithms such as
+    the RC4 used by NTLM authentication remain available.
 fixes:
   - |
     On the Linux FIPS Agent, the Kafka consumer and Aerospike integrations no

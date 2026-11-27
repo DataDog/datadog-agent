@@ -108,6 +108,19 @@ build do
         PYTHON
         # `-B`: don't write `.pyc` files for the modules this imports into the package
         shellout! Shellwords.join([python, "-B", "-I", "-S", "-c", load_check, agent_lib_dir, *openssl_users])
+
+        # The bundled copies have the legacy provider built in, and cryptography loads it to support algorithms such as
+        # the RC4 NTLM authentication needs, so the Agent's OpenSSL must provide it too. FIPS doesn't allow those.
+        unless fips_mode?
+          legacy_check = <<~PYTHON
+            import ctypes, sys
+            crypto = ctypes.CDLL(sys.argv[1])
+            crypto.OSSL_PROVIDER_try_load.restype = ctypes.c_void_p
+            if not crypto.OSSL_PROVIDER_try_load(None, b"legacy", 1):
+                sys.exit(f"{sys.argv[1]} can't load OpenSSL's legacy provider")
+          PYTHON
+          shellout! Shellwords.join([python, "-B", "-I", "-S", "-c", legacy_check, "#{agent_lib_dir}/libcrypto.so.3"])
+        end
       end
 
       # In FIPS builds these must use the Agent's OpenSSL, so they can't come with their own, even statically linked

@@ -302,12 +302,18 @@ dd_cc_packaged(
     dest_dir = "embedded/lib",
     input = ":libcrypto_shared",
     installed_executables = select({
-        # Engines, modules, and fips provider are only installed for FIPS builds.
+        # Engines and the fips provider are only installed for FIPS builds.
         "@@//bazel/platforms:fips": {
             ":_engines": "embedded/lib",
             ":_ossl_modules": "embedded/lib",
             "@openssl_fips//:fips_provider": "embedded/lib/ossl-modules",
         },
+        "//conditions:default": {},
+    }) | select({
+        # On Linux, integration dependencies use this OpenSSL instead of the
+        # copy their wheel bundles, which has the legacy provider built in, so
+        # ship it as a module (cryptography loads it, e.g. for the RC4 NTLM needs).
+        "@platforms//os:linux": {":_ossl_modules": "embedded/lib"},
         "//conditions:default": {},
     }),
     libname = "libcrypto",
