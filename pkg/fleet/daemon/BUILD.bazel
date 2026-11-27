@@ -4,6 +4,8 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "daemon",
     srcs = [
+        "client_id_darwin.go",
+        "client_id_other.go",
         "daemon.go",
         "ddot_state.go",
         "local_api.go",
@@ -95,6 +97,8 @@ go_library(
 dd_agent_go_test(
     name = "daemon_test",
     srcs = [
+        "client_id_darwin_test.go",
+        "client_id_test.go",
         "daemon_test.go",
         "ddot_state_test.go",
         "local_api_test.go",
@@ -103,6 +107,7 @@ dd_agent_go_test(
     ],
     embed = [":daemon"],
     deps = [
+        "//pkg/config/remote/client",
         "//pkg/fleet/installer",
         "//pkg/fleet/installer/config",
         "//pkg/fleet/installer/env",

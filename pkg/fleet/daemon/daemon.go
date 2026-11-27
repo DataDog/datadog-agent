@@ -138,7 +138,12 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 	if err != nil {
 		return nil, fmt.Errorf("could not create task DB: %w", err)
 	}
-	rc, err := newRemoteConfig(rcFetcher)
+	// A daemon that is not enabled never polls: it has no client ID to keep.
+	var clientID string
+	if config.GetBool("remote_updates") {
+		clientID = loadClientID()
+	}
+	rc, err := newRemoteConfig(rcFetcher, clientID)
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
 	}
