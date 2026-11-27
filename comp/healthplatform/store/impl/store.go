@@ -160,6 +160,10 @@ const (
 	persistInterval = 10 * time.Second
 )
 
+// wrapPersistence lets tests wrap the persistence of the stores NewComponent
+// creates, see SetSaveDelay.
+var wrapPersistence = func(p issuesPersistence) issuesPersistence { return p }
+
 var issueStateToString = map[IssueState]string{
 	IssueStateActive:   "active",
 	IssueStateResolved: "resolved",
@@ -324,6 +328,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 	default:
 		reqs.Log.Info("Running on Kubernetes: health platform persistence disabled")
 	}
+
+	persistence = wrapPersistence(persistence)
 
 	// Initialize the health platform implementation
 	comp := newHealthPlatform(reqs.Log, reqs.Telemetry, reqs.Hostname, agentFlavor, selfIdent, persistence)

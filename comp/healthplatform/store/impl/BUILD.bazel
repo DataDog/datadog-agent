@@ -8,6 +8,7 @@ go_library(
         "persistence_noop.go",
         "persistence_remote.go",
         "store.go",
+        "test_helpers.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/store/impl",
     visibility = ["//visibility:public"],
