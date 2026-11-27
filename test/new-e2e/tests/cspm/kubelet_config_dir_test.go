@@ -40,6 +40,7 @@ func TestKubeletConfigDirCSPM(t *testing.T) {
 		provkindvm.Provisioner(
 			provkindvm.WithRunOptions(
 				scenkindvm.WithInternetAccess(),
+				scenkindvm.WithoutFakeIntake(),
 				scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(complianceValues)),
 				scenkindvm.WithKindWorkerNodes(kubecomp.KindWorkerNode{
 					KubeletExtraArgs: map[string]string{"config-dir": kubeletConfigDir},
