@@ -13,12 +13,15 @@ _DEFAULT_DEFINES = {
 
 # rpm only removes directories listed in the package on uninstall. Declare the
 # implicit parent directories of srcs so they don't get left behind.
-def _rpm_package(name, srcs, defines = None, **kwargs):
+def _rpm_package(name, srcs, tags, defines = None, **kwargs):
+    if "no-cache" in (tags or []):
+        fail("%s: dd_pkg_rpm already sets the no-cache tag" % name)
+
     owned_dirs = "%s_owned_dirs_" % name
     dd_pkg_owned_dirs(
         name = owned_dirs,
         srcs = srcs,
-        tags = ["manual"],
+        tags = ["manual", "no-cache"],
         visibility = ["//visibility:private"],
     )
 
@@ -32,7 +35,14 @@ def _rpm_package(name, srcs, defines = None, **kwargs):
             "//:is_release": "w9T8.xzdio",
             "//conditions:default": "w5T8.xzdio",
         }),
-        defines = merged_defines,
+        defines = merged_defines | select({
+            # rpmbuild otherwise uses the host's architecture in the header,
+            # which is wrong when cross-compiling. BuildArch can't be used for
+            # this, as rpmbuild rejects architectures the host can't build.
+            "@platforms//cpu:armv7": {"_target_cpu": "armv7hl"},
+            "//conditions:default": {},
+        }),
+        tags = (tags or []) + ["no-cache"],
         **kwargs
     )
 

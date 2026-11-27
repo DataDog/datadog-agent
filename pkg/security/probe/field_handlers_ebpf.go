@@ -12,6 +12,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -28,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/otelthreadctx"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
+	spath "github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
@@ -119,8 +121,14 @@ func (fh *EBPFFieldHandlers) ResolveFileBasename(_ *model.Event, f *model.FileEv
 	if !f.IsBasenameStrResolved && len(f.BasenameStr) == 0 {
 		if f.PathnameStr != "" {
 			f.SetBasenameStr(path.Base(f.PathnameStr))
-		} else {
-			f.SetBasenameStr(fh.resolvers.PathResolver.ResolveBasename(&f.FileFields))
+		} else if f.PathKey.IsNull() {
+			f.SetBasenameStr("")
+		} else if fh.resolvers != nil && fh.resolvers.PathResolver != nil {
+			if basename := fh.resolvers.PathResolver.ResolveBasename(&f.FileFields); basename != "" {
+				f.SetBasenameStr(basename)
+			} else if dentryPath, err := fh.resolvers.PathResolver.ResolveDentryFilePath(&f.FileFields); err == nil && dentryPath != "" && dentryPath != "/" {
+				f.SetBasenameStr(path.Base(dentryPath))
+			}
 		}
 	}
 	return f.BasenameStr
@@ -134,12 +142,22 @@ func (fh *EBPFFieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.Fil
 		} else {
 			fs, err := fh.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, ev.PIDContext.Pid)
 			if err != nil && f.PathResolutionError == nil {
-				ev.SetPathResolutionError(f, fmt.Errorf("filesystem resolution failed (mount_id=%d, pid=%d): %w", f.FileFields.MountID, ev.PIDContext.Pid, err))
+				ev.SetPathResolutionError(f, filesystemResolutionError(f.FileFields.MountID, ev.PIDContext.Pid, err))
 			}
 			f.Filesystem = fs
 		}
 	}
 	return f.Filesystem
+}
+
+// filesystemResolutionError returns the error of a filesystem that couldn't be resolved, not critical on a
+// kernel-internal mount, where the dentry path of the file is all there is
+func filesystemResolutionError(mountID uint32, pid uint32, err error) error {
+	err = fmt.Errorf("filesystem resolution failed (mount_id=%d, pid=%d): %w", mountID, pid, err)
+	if errors.Is(err, mount.ErrMountKernelID) {
+		return &spath.ErrPathResolutionNotCritical{Err: err}
+	}
+	return err
 }
 
 // ResolveProcessArgsFlags resolves the arguments flags of the event
@@ -291,6 +309,14 @@ func (fh *EBPFFieldHandlers) ResolveProcessArgvScrubbed(_ *model.Event, process 
 func (fh *EBPFFieldHandlers) ResolveProcessEnvp(_ *model.Event, process *model.Process) []string {
 	envp, _ := fh.resolvers.ProcessResolver.GetProcessEnvp(process)
 	return envp
+}
+
+// ResolveProcessEnv resolves the environment variables of the process, by name
+func (fh *EBPFFieldHandlers) ResolveProcessEnv(_ *model.Event, process *model.Process) map[string]string {
+	if process.EnvsEntry == nil {
+		return process.Env
+	}
+	return process.EnvsEntry.KeyValues()
 }
 
 // ResolveProcessArgsTruncated returns whether the args are truncated

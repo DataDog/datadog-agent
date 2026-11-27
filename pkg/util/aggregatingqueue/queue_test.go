@@ -6,80 +6,47 @@
 package queue
 
 import (
-	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 )
 
-func newMockFlush[T any]() (callback func([]T), waitCallbackCalled func(int), getAccumulator func() [][]T) {
-	accumulator := [][]T{}
-	nbCalled := 0
-	var mutex sync.Mutex
-	cond := sync.NewCond(&mutex)
-
-	callback = func(elems []T) {
-		mutex.Lock()
-		defer mutex.Unlock()
-		accumulator = append(accumulator, elems)
-		nbCalled++
-		cond.Signal()
-	}
-
-	waitCallbackCalled = func(nb int) {
-		mutex.Lock()
-		defer mutex.Unlock()
-		for nbCalled < nb {
-			cond.Wait()
-		}
-	}
-
-	getAccumulator = func() [][]T {
-		mutex.Lock()
-		defer mutex.Unlock()
-		return accumulator
-	}
-
-	return
-}
-
 func TestQueue(t *testing.T) {
-	callback, wait, accumulator := newMockFlush[int]()
-	cl := clock.NewMock()
-	queue := newQueue(3, 1*time.Minute, callback, cl)
+	synctest.Test(t, func(t *testing.T) {
+		// The callback runs on the queue goroutine. Handing the batches over a
+		// channel, rather than a shared slice, gives the race detector a
+		// happens-before edge in both directions.
+		flushed := make(chan []int, 10)
+		queue := NewQueue(3, 1*time.Minute, func(elems []int) {
+			flushed <- elems
+		})
 
-	for i := 0; i <= 10; i++ {
-		queue <- i
-	}
+		// receiveFlushed returns the batches flushed since the last call, once the
+		// queue goroutine has processed everything it was given.
+		receiveFlushed := func() [][]int {
+			synctest.Wait()
+			var batches [][]int
+			for {
+				select {
+				case batch := <-flushed:
+					batches = append(batches, batch)
+				default:
+					return batches
+				}
+			}
+		}
 
-	wait(3) // wait callback to have been called 3 times
+		for i := 0; i <= 10; i++ {
+			queue <- i
+		}
+		assert.Equal(t, [][]int{{0, 1, 2}, {3, 4, 5}, {6, 7, 8}}, receiveFlushed())
 
-	assert.Equal(
-		t,
-		[][]int{
-			{0, 1, 2},
-			{3, 4, 5},
-			{6, 7, 8},
-		},
-		accumulator(),
-	)
+		// Elements 9 and 10 are flushed once the retention time has elapsed.
+		time.Sleep(2 * time.Minute)
+		assert.Equal(t, [][]int{{9, 10}}, receiveFlushed())
 
-	cl.Add(2 * time.Minute)
-
-	wait(4) // wait callback to have been called one more time
-
-	assert.Equal(
-		t,
-		[][]int{
-			{0, 1, 2},
-			{3, 4, 5},
-			{6, 7, 8},
-			{9, 10},
-		},
-		accumulator(),
-	)
-
-	close(queue)
+		close(queue)
+	})
 }

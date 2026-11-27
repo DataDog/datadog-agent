@@ -856,6 +856,50 @@ func TestResolveThenRefresh(t *testing.T) {
 	assert.Equal(t, []string{"password1", "password2", "password3", "update-first", "update-second", "update-third"}, newValues)
 }
 
+func TestRefreshRequestedHandles(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendCommand = "some_command"
+	secretValues := map[string]string{
+		"api_key":        "key1",
+		"apikey2":        "key2",
+		"apikey3":        "key3",
+		"apikey4":        "key4",
+		"proxy_password": "password",
+	}
+	var requestedHandles []string
+	resolver.fetchHookFunc = func(handles []string) (map[string]string, error) {
+		requestedHandles = append(requestedHandles, handles...)
+		values := make(map[string]string, len(handles))
+		for _, handle := range handles {
+			if value, found := secretValues[handle]; found {
+				values[handle] = value
+			}
+		}
+		return values, nil
+	}
+
+	conf := `api_key: ENC[api_key]
+additional_endpoints:
+  https://first.example.com:
+    - ENC[apikey2]
+    - ENC[apikey3]
+  https://second.example.com:
+    - ENC[apikey4]
+    - ENC[api_key]
+proxy:
+  password: ENC[proxy_password]
+`
+	_, err := resolver.Resolve([]byte(conf), "datadog.yaml", "", "", true)
+	require.NoError(t, err)
+
+	// Only inspect refresh requests; the initial resolve also fetches nonrefreshable secrets.
+	requestedHandles = nil
+	_, err = resolver.RefreshNow()
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"api_key", "apikey2", "apikey3", "apikey4"}, requestedHandles)
+}
+
 // test that the allowlist only lets setting paths that match it get Refreshed
 func TestRefreshAllowlist(t *testing.T) {
 	tel := nooptelemetry.GetCompatComponent()

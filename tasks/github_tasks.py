@@ -252,6 +252,54 @@ def notify_community_pr(_, repo='', pr_id=-1):
 
 
 @task
+def ask_backport_owner(_, pr_id: int, branches: str, explanation: str = '', confidence: str = 'LOW', ttl: int = 7200):
+    """
+    Ask the owner of a merged PR on Slack which release branches to backport it to.
+
+    Sends the owner a DM with one button per candidate branch, plus "Apply selection" and
+    "No backport needed", then waits up to `ttl` seconds for their answer over Socket Mode.
+    This task never labels the PR. It prints the outcome (add | dismiss | timeout | no_recipient)
+    and the confirmed branches. On GitHub Actions it also writes them to $GITHUB_OUTPUT.
+
+    Requires SLACK_DATADOG_AGENT_BOT_TOKEN (bot token) and SLACK_BACKPORT_APP_TOKEN (app-level
+    token with connections:write). Running it while a CI run is listening can drop clicks, because
+    Slack delivers each click to only one Socket Mode connection of the app.
+
+    Example: dda inv github.ask-backport-owner --pr-id 59984 --branches 7.85.x,7.86.x --ttl 600
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+    from tasks.libs.notify.backport import CONFIDENCE_LEVELS, BackportRequest, valid_branches
+    from tasks.libs.notify.backport import ask_backport_owner as ask
+
+    candidates = valid_branches(branches)
+    if not candidates:
+        print(f"No valid release branch in {branches!r}, nothing to ask about")
+        return
+    confidence = confidence.strip().upper()
+    if confidence not in CONFIDENCE_LEVELS:
+        confidence = 'LOW'
+
+    pr = GithubAPI().get_pr(int(pr_id))
+    request = BackportRequest(
+        pr_number=pr.number,
+        pr_title=pr.title,
+        pr_url=pr.html_url,
+        branches=candidates,
+        explanation=explanation.strip(),
+        confidence=confidence,
+        ttl=int(ttl),
+    )
+    outcome, chosen = ask(
+        pr, request, os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'], os.environ['SLACK_BACKPORT_APP_TOKEN']
+    )
+
+    print(f"Outcome: {outcome} {','.join(chosen)}")
+    if 'GITHUB_OUTPUT' in os.environ:
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+            f.write(f"outcome={outcome}\nbranches={','.join(chosen)}\n")
+
+
+@task
 def milestone_pr_team_stats(_: Context, milestone: str, team: str):
     """
     This task prints statistics about the PRs opened by a given team and

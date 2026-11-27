@@ -1,0 +1,5 @@
+fixes:
+  - |
+    On Windows, reinstalling a package whose previous version directory
+    could not be fully removed no longer fails on extra files left in that
+    directory, such as a DLL still loaded by a process.

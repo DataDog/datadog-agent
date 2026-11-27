@@ -7,8 +7,10 @@ clang-bpf and llvm-strip for a single arch each, with different selection axes:
   for runtime eBPF compilation, so it must match the target CPU, never the
   host's.
 
-- toolchain: both binaries are registered as the LLVM BPF toolchain used to
-  compile eBPF programs at build time, matching the exec platform's CPU.
+- toolchain: both binaries make up the LLVM BPF toolchain used to compile eBPF
+  programs at build time, matching the exec platform's CPU. Its toolchain()
+  targets live in //bazel/toolchains/llvm_bpf: declared here, registering them
+  would fetch both repos.
 
 - installation: both binaries are also installed on build machines and in KMT
   VMs of either arch.
@@ -55,17 +57,7 @@ llvm_bpf_toolchain(
     clang_bpf = "bin/clang-bpf",
     llvm_strip = "bin/llvm-strip",
     version = "{version}",
-)
-
-toolchain(
-    name = "toolchain",
-    exec_compatible_with = [
-        "@platforms//os:linux",
-        "@platforms//cpu:{cpu}",
-    ],
-    target_compatible_with = ["@platforms//os:linux"],
-    toolchain = ":llvm_bpf",
-    toolchain_type = "@@//bazel/toolchains/llvm_bpf:llvm_bpf_toolchain_type",
+    visibility = ["//visibility:public"],
 )
 
 filegroup(

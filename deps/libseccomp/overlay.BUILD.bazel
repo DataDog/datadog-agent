@@ -55,3 +55,13 @@ cc_library(
     linkstatic = True,
     deps = ["@linux_headers"],
 )
+
+cc_library(
+    name = "headers",
+    hdrs = [
+        "include/seccomp.h",
+        "include/seccomp-syscalls.h",
+    ],
+    includes = ["include"],
+    deps = ["@linux_headers"],
+)
