@@ -208,7 +208,6 @@ stages:
   - source_test_stats
   - software_composition_analysis
   - binary_build
-  - package_deps_build
   - kernel_matrix_testing_prepare
   - kernel_matrix_testing_system_probe
   - kernel_matrix_testing_security_agent
