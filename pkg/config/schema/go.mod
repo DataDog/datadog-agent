@@ -3,8 +3,8 @@ module github.com/DataDog/datadog-agent/pkg/config/schema
 go 1.26.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.84.0-devel.0.20261028224924-1c255663adbd
-	github.com/DataDog/datadog-agent/pkg/zstd v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/config/model v0.87.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/zstd v0.87.0-rc.1
 	github.com/stretchr/testify v1.12.1
 )
 

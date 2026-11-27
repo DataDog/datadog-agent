@@ -3,8 +3,8 @@ module github.com/DataDog/datadog-agent/comp/core/schema/noop-impl
 go 1.26.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/schema/def v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/config/model v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/schema/def v0.87.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/config/model v0.87.0-rc.1
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
