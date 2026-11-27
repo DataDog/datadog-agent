@@ -8,7 +8,9 @@
 package irgen_test
 
 import (
+	"debug/dwarf"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -138,6 +140,15 @@ func TestLineProbeSourceFile(t *testing.T) {
 				require.NoError(t, err)
 				require.Empty(t, program.Issues)
 				require.Len(t, program.Probes, 1)
+				for _, inst := range program.Probes[0].Instances {
+					for _, ev := range inst.Events {
+						for _, ip := range ev.InjectionPoints {
+							file, line := lineAtPC(t, obj.DwarfData(), ip.PC)
+							require.True(t, strings.HasSuffix(file, "/rc_tester/main.go"), file)
+							require.Equal(t, 85, line)
+						}
+					}
+				}
 				return
 			}
 			var noProbes *ir.NoSuccessfulProbesError
@@ -147,4 +158,15 @@ func TestLineProbeSourceFile(t *testing.T) {
 			require.Contains(t, noProbes.Issues[0].Message, tc.wantIssue)
 		})
 	}
+}
+
+func lineAtPC(t *testing.T, d *dwarf.Data, pc uint64) (string, int) {
+	r := d.Reader()
+	unit, err := r.SeekPC(pc)
+	require.NoError(t, err)
+	lr, err := d.LineReader(unit)
+	require.NoError(t, err)
+	var entry dwarf.LineEntry
+	require.NoError(t, lr.SeekPC(pc, &entry))
+	return entry.File.Name, entry.Line
 }
