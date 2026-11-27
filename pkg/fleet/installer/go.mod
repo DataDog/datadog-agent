@@ -4,11 +4,11 @@ go 1.26.0
 
 require (
 	cloud.google.com/go/compute/metadata v0.10.0
-	github.com/DataDog/datadog-agent/pkg/fips v0.84.0-devel.0.20261028224924-1c255663adbd
-	github.com/DataDog/datadog-agent/pkg/template v0.84.0-devel.0.20261028224924-1c255663adbd
-	github.com/DataDog/datadog-agent/pkg/util/log v0.84.0-devel.0.20261028224924-1c255663adbd
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.84.0-devel.0.20261028224924-1c255663adbd
-	github.com/DataDog/datadog-agent/pkg/version v0.84.0-devel.0.20261028224924-1c255663adbd
+	github.com/DataDog/datadog-agent/pkg/fips v0.87.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/template v0.87.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.87.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.87.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/version v0.87.0-rc.1
 	github.com/Microsoft/go-winio v0.6.4
 	github.com/cenkalti/backoff/v7 v7.0.3
 	github.com/evanphx/json-patch/v5 v5.9.11
@@ -30,7 +30,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.87.0-rc.1 // indirect
 	github.com/docker/cli v29.10.0+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.9 // indirect
 	github.com/ebitengine/purego v0.11.2 // indirect
