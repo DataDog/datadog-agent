@@ -12,6 +12,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -759,7 +761,12 @@ func (s *TracerSuite) TestConntrackExpiration() {
 	_, cleanup2 := getConnections(t, tr)
 	defer cleanup2()
 
-	assert.Nil(t, tr.conntracker.GetTranslationForConn(&conn.ConnectionTuple), "translation should have been deleted")
+	if ebpftest.GetBuildMode() == ebpftest.SK {
+		// the SK tracer doesn't expire a TCP connection while the kernel still has its socket
+		assert.NotNil(t, tr.conntracker.GetTranslationForConn(&conn.ConnectionTuple), "translation of an open connection should have been kept")
+	} else {
+		assert.Nil(t, tr.conntracker.GetTranslationForConn(&conn.ConnectionTuple), "translation should have been deleted")
+	}
 
 	// write newline so server connections will exit
 	_, err = c.Write([]byte("\n"))
@@ -3432,6 +3439,662 @@ func checkSkipFailureConnectionsTests(t *testing.T) {
 	if _, ok := failedConnectionsBuildModes[ebpftest.GetBuildMode()]; !ok {
 		t.Skip("Skipping test on unsupported build mode: ", ebpftest.GetBuildMode())
 	}
+}
+
+// tcpConnTotals adds up what the tracer reports for one TCP connection over several checks.
+// The per-check deltas (Last) are what reaches the backend, so their sums must match what the
+// connection really did, whichever check its close lands in.
+type tcpConnTotals struct {
+	sentBytes, recvBytes uint64
+	closed               uint16
+	// failures reported with the close
+	closeFailures map[uint16]uint32
+	// every report, to explain a mismatch
+	reports []string
+}
+
+// add adds the deltas reported for the local->remote connection in one check.
+func (ct *tcpConnTotals) add(connections *network.Connections, local, remote net.Addr) {
+	for _, c := range network.FilterConnections(connections, network.ByTuple(local, remote)) {
+		ct.sentBytes += c.Last.SentBytes
+		ct.recvBytes += c.Last.RecvBytes
+		ct.closed += c.Last.TCPClosed
+		if c.Last.TCPClosed > 0 {
+			ct.closeFailures = maps.Clone(c.TCPFailures)
+		}
+		ct.reports = append(ct.reports, fmt.Sprintf("cookie=%d pid=%d last=%+v monotonic=%+v failures=%v", c.Cookie, c.Pid, c.Last, c.Monotonic, c.TCPFailures))
+	}
+}
+
+// pollConnections runs check on the connections of each check, every 50ms, until it returns true
+// or the timeout expires. It returns whether check returned true.
+func pollConnections(t *testing.T, tr *Tracer, timeout time.Duration, check func(*network.Connections) bool) bool {
+	deadline := time.Now().Add(timeout)
+	for {
+		connections, cleanup := getConnections(t, tr)
+		done := check(connections)
+		cleanup()
+		if done {
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// keepOrphanInFinWait2 makes the kernel keep the socket of c as is in FIN_WAIT2 once c is closed.
+// By default (tcp_fin_timeout <= 60s) an orphaned socket reaching FIN_WAIT2 is replaced right away
+// by a small timewait socket, which is the end of the full socket.
+func keepOrphanInFinWait2(t *testing.T, c net.Conn) {
+	tcpConn, ok := c.(*net.TCPConn)
+	require.True(t, ok)
+	rc, err := tcpConn.SyscallConn()
+	require.NoError(t, err)
+	var sockErr error
+	require.NoError(t, rc.Control(func(fd uintptr) {
+		// above 60s, the kernel keeps the full socket and only uses a FIN_WAIT2 timer
+		sockErr = unix.SetsockoptInt(int(fd), unix.IPPROTO_TCP, unix.TCP_LINGER2, 120)
+	}))
+	require.NoError(t, sockErr)
+}
+
+const (
+	procNetTCPTimeWait = 0x06
+	procNetTCPNoSocket = -1
+)
+
+// procNetTCPState returns the state of the TCP socket local->remote as /proc/net/tcp{,6} shows it,
+// or procNetTCPNoSocket if the kernel has no such socket. A timewait socket shows its substate:
+// FIN_WAIT2 until the peer's FIN arrives, then TIME_WAIT.
+func procNetTCPState(t require.TestingT, local, remote net.Addr) int {
+	want := func(a net.Addr) netip.AddrPort {
+		ap := a.(*net.TCPAddr).AddrPort()
+		return netip.AddrPortFrom(ap.Addr().Unmap(), ap.Port())
+	}
+	wantLocal, wantRemote := want(local), want(remote)
+	// parses a /proc/net/tcp{,6} address, e.g. 0100007F:1F90, the IP in 32-bit host-order words
+	parse := func(s string) netip.AddrPort {
+		ipHex, portHex, ok := strings.Cut(s, ":")
+		ip, err := hex.DecodeString(ipHex)
+		port, err2 := strconv.ParseUint(portHex, 16, 16)
+		if !ok || err != nil || err2 != nil || len(ip)%4 != 0 {
+			return netip.AddrPort{}
+		}
+		for i := 0; i < len(ip); i += 4 {
+			binary.BigEndian.PutUint32(ip[i:], binary.NativeEndian.Uint32(ip[i:]))
+		}
+		addr, _ := netip.AddrFromSlice(ip)
+		return netip.AddrPortFrom(addr.Unmap(), uint16(port))
+	}
+	for _, path := range []string{"/proc/net/tcp", "/proc/net/tcp6"} {
+		content, err := os.ReadFile(path)
+		require.NoError(t, err)
+		for _, line := range strings.Split(string(content), "\n")[1:] {
+			fields := strings.Fields(line)
+			if len(fields) < 4 || parse(fields[1]) != wantLocal || parse(fields[2]) != wantRemote {
+				continue
+			}
+			state, err := strconv.ParseUint(fields[3], 16, 8)
+			require.NoError(t, err)
+			return int(state)
+		}
+	}
+	return procNetTCPNoSocket
+}
+
+// waitForTCPTeardown waits until the client socket client->server is in TIME_WAIT and the server
+// socket server->client is gone, i.e. both full sockets have been destroyed, then runs two more
+// checks, which flush the close events of that teardown, and passes their connections to add.
+//
+// The kernel destroys a full socket (tcp_done, then tcp_v4_destroy_sock) in the same call that
+// replaces it with a timewait socket or unhashes it, so every hook that can report either side has
+// run by then, or is about to finish on another CPU. The second check, 50ms later, covers that.
+func waitForTCPTeardown(t *testing.T, tr *Tracer, client, server net.Addr, add func(*network.Connections)) {
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		assert.Equal(collect, procNetTCPTimeWait, procNetTCPState(collect, client, server), "client socket state")
+		assert.Equal(collect, procNetTCPNoSocket, procNetTCPState(collect, server, client), "server socket state")
+	}, 5*time.Second, 10*time.Millisecond, "TCP connection not torn down")
+	for i := range 2 {
+		if i > 0 {
+			time.Sleep(50 * time.Millisecond)
+		}
+		connections, cleanup := getConnections(t, tr)
+		add(connections)
+		cleanup()
+	}
+}
+
+// TestTCPCloseReportedOnce checks that a closed TCP connection is reported closed only once, even
+// when the kernel finishes tearing down the socket well after the application closed it. Here the
+// client closes first, and its socket stays in FIN_WAIT2 until the server closes its side.
+// Before that, a check sees the client side either closed (kprobe/fentry tracers, which report the
+// close at tcp_close) or still active (SK tracer, which reports it when the socket is destroyed).
+func (s *TracerSuite) TestTCPCloseReportedOnce() {
+	t := s.T()
+	cfg := testConfig()
+	if cfg.EnableEbpfless {
+		t.Skip("ebpf-less tracks connections from packets, not socket close events")
+	}
+	tr := setupTracer(t, cfg)
+
+	closeServerSide := make(chan struct{})
+	var closeServerSideOnce sync.Once
+	releaseServer := func() { closeServerSideOnce.Do(func() { close(closeServerSide) }) }
+	t.Cleanup(releaseServer)
+
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+		r := bufio.NewReader(c)
+		r.ReadBytes(byte('\n'))
+		c.Write(genPayload(serverMessageSize))
+		<-closeServerSide
+		c.Close()
+	})
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
+
+	c, err := server.Dial()
+	require.NoError(t, err)
+	keepOrphanInFinWait2(t, c)
+	_, err = c.Write(genPayload(clientMessageSize))
+	require.NoError(t, err)
+	r := bufio.NewReader(c)
+	_, err = r.ReadBytes(byte('\n'))
+	require.NoError(t, err)
+
+	// the client closes first, so its socket waits in FIN_WAIT2 for the server's FIN
+	c.Close()
+
+	clientAddr, serverAddr := c.LocalAddr(), c.RemoteAddr()
+	var totals, serverTotals tcpConnTotals
+	require.True(t, pollConnections(t, tr, 3*time.Second, func(conns *network.Connections) bool {
+		totals.add(conns, clientAddr, serverAddr)
+		return totals.sentBytes > 0
+	}), "connection not found after the client closed it")
+
+	// The server's FIN moves the client socket to TIME_WAIT, which ends it.
+	releaseServer()
+	waitForTCPTeardown(t, tr, clientAddr, serverAddr, func(conns *network.Connections) {
+		totals.add(conns, clientAddr, serverAddr)
+		serverTotals.add(conns, serverAddr, clientAddr)
+	})
+	require.NotZero(t, serverTotals.closed, "server side of the connection never reported as closed\n%s", strings.Join(serverTotals.reports, "\n"))
+
+	assert.Equal(t, uint16(1), totals.closed, "client side of the connection should be reported closed exactly once\n%s", strings.Join(totals.reports, "\n"))
+	assert.Equal(t, uint64(clientMessageSize), totals.sentBytes, "bytes sent by the client\n%s", strings.Join(totals.reports, "\n"))
+	// the SK tracer counts the server's FIN as a received byte
+	assert.InDelta(t, serverMessageSize, totals.recvBytes, 1, "bytes received by the client\n%s", strings.Join(totals.reports, "\n"))
+}
+
+// TestTCPOrphanNotExpired checks that a TCP connection the application closed, but whose socket the
+// kernel keeps (here in FIN_WAIT2) for longer than the TCP expiry timeout, is still reported once.
+// The SK tracer lists such a socket as active until it's destroyed: expiring it in userspace drops
+// its stats, so the close event then reports the whole connection a second time.
+func (s *TracerSuite) TestTCPOrphanNotExpired() {
+	t := s.T()
+	if ebpftest.GetBuildMode() != ebpftest.SK {
+		t.Skip("only the SK tracer lists closed sockets as active until they are destroyed")
+	}
+	cfg := testConfig()
+	cfg.TCPConnTimeout = 100 * time.Millisecond
+	tr := setupTracer(t, cfg)
+
+	closeServerSide := make(chan struct{})
+	var closeServerSideOnce sync.Once
+	releaseServer := func() { closeServerSideOnce.Do(func() { close(closeServerSide) }) }
+	t.Cleanup(releaseServer)
+
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+		r := bufio.NewReader(c)
+		r.ReadBytes(byte('\n'))
+		<-closeServerSide
+		c.Close()
+	})
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
+
+	c, err := server.Dial()
+	require.NoError(t, err)
+	keepOrphanInFinWait2(t, c)
+	payload := genPayload(clientMessageSize)
+	_, err = c.Write(payload)
+	require.NoError(t, err)
+	clientAddr, serverAddr := c.LocalAddr(), c.RemoteAddr()
+
+	var totals tcpConnTotals
+	require.True(t, pollConnections(t, tr, 3*time.Second, func(conns *network.Connections) bool {
+		totals.add(conns, clientAddr, serverAddr)
+		return totals.sentBytes > 0
+	}), "connection not found")
+
+	// the client closes first, so its socket waits in FIN_WAIT2 for the server's FIN
+	c.Close()
+	time.Sleep(100 * time.Millisecond)
+	// A conntrack entry keeps an idle TCP connection from expiring, so remove it. The connection is
+	// idle from now on, so no packet creates it again.
+	clientPort := strconv.Itoa(clientAddr.(*net.TCPAddr).Port)
+	_ = exec.Command("conntrack", "-D", "-p", "tcp", "--orig-port-src", clientPort).Run()
+
+	// several checks, well past the expiry timeout
+	deadline := time.Now().Add(time.Second)
+	pollConnections(t, tr, 2*time.Second, func(conns *network.Connections) bool {
+		totals.add(conns, clientAddr, serverAddr)
+		return time.Now().After(deadline)
+	})
+	require.Zero(t, totals.closed, "connection reported closed while the client socket is in FIN_WAIT2\n%s", strings.Join(totals.reports, "\n"))
+
+	// the server's FIN moves the client socket to TIME_WAIT, which ends it
+	releaseServer()
+	waitForTCPTeardown(t, tr, clientAddr, serverAddr, func(conns *network.Connections) {
+		totals.add(conns, clientAddr, serverAddr)
+	})
+
+	assert.Equal(t, uint16(1), totals.closed, "connection should be reported closed exactly once\n%s", strings.Join(totals.reports, "\n"))
+	assert.Equal(t, uint64(len(payload)), totals.sentBytes, "bytes sent by the client\n%s", strings.Join(totals.reports, "\n"))
+}
+
+// fillTCPSendQueue writes to c until the peer's receive buffer and c's send buffer are full, so
+// that what c wrote is still queued in its send buffer. The peer must not be reading. It shrinks
+// c's send buffer first, and writes until the write blocks rather than a fixed amount, so that it
+// works whatever the tcp_wmem/tcp_rmem sysctls are. It returns the number of bytes written.
+func fillTCPSendQueue(t *testing.T, c net.Conn) int {
+	tcpConn, ok := c.(*net.TCPConn)
+	require.True(t, ok)
+	// a fixed send buffer also disables its autotuning
+	require.NoError(t, tcpConn.SetWriteBuffer(64<<10))
+	chunk := genPayload(16 << 10)
+	require.NoError(t, c.SetWriteDeadline(time.Now().Add(500*time.Millisecond)))
+	written := 0
+	for {
+		n, err := c.Write(chunk)
+		written += n
+		if err != nil {
+			require.ErrorIs(t, err, os.ErrDeadlineExceeded)
+			break
+		}
+		require.Less(t, written, 256<<20, "the peer's receive buffer never filled up")
+	}
+	require.NoError(t, c.SetWriteDeadline(time.Time{}))
+	require.Positive(t, written)
+	queued := tcpSendQueueBytes(t, c)
+	t.Logf("%d of %d bytes still queued (SO_SNDBUF %d)", queued, written, tcpSockoptInt(t, c, unix.SO_SNDBUF))
+	require.Positive(t, queued, "data should still be queued in the send buffer")
+	return written
+}
+
+// setTCPReadBuffer sets the receive buffer of c, which also disables its autotuning, so that it
+// fills up quickly once the application stops reading.
+func setTCPReadBuffer(c net.Conn, size int) {
+	if tcpConn, ok := c.(*net.TCPConn); ok {
+		_ = tcpConn.SetReadBuffer(size)
+	}
+}
+
+// tcpSendQueueBytes returns the number of bytes of c's send buffer not yet acknowledged by the peer
+func tcpSendQueueBytes(t *testing.T, c net.Conn) int {
+	tcpConn, ok := c.(*net.TCPConn)
+	require.True(t, ok)
+	rc, err := tcpConn.SyscallConn()
+	require.NoError(t, err)
+	var queued int
+	var ioctlErr error
+	require.NoError(t, rc.Control(func(fd uintptr) {
+		queued, ioctlErr = unix.IoctlGetInt(int(fd), unix.SIOCOUTQ)
+	}))
+	require.NoError(t, ioctlErr)
+	return queued
+}
+
+// tcpSockoptInt returns the value of the SOL_SOCKET option opt of c
+func tcpSockoptInt(t *testing.T, c net.Conn, opt int) int {
+	tcpConn, ok := c.(*net.TCPConn)
+	require.True(t, ok)
+	rc, err := tcpConn.SyscallConn()
+	require.NoError(t, err)
+	var val int
+	var sockErr error
+	require.NoError(t, rc.Control(func(fd uintptr) {
+		val, sockErr = unix.GetsockoptInt(int(fd), unix.SOL_SOCKET, opt)
+	}))
+	require.NoError(t, sockErr)
+	return val
+}
+
+// TestTCPLingerCloseStaysListed checks that a TCP connection is still listed while the application's
+// close() waits for SO_LINGER, and that it's counted once. During that wait, the socket has no file
+// anymore, but isn't orphaned yet either. A check missing the connection makes userspace drop its
+// stats, so that the next check would count the whole connection again.
+func (s *TracerSuite) TestTCPLingerCloseStaysListed() {
+	t := s.T()
+	if ebpftest.GetBuildMode() != ebpftest.SK {
+		t.Skip("only the SK tracer lists closed sockets as active until they are destroyed")
+	}
+	tr := setupTracer(t, testConfig())
+
+	startReading := make(chan struct{})
+	var startReadingOnce sync.Once
+	releaseServer := func() { startReadingOnce.Do(func() { close(startReading) }) }
+	t.Cleanup(releaseServer)
+	serverDone := make(chan int64, 1)
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+		setTCPReadBuffer(c, 64<<10)
+		// don't read until the client's close() has returned, so that it waits for SO_LINGER
+		<-startReading
+		n, _ := io.Copy(io.Discard, c)
+		c.Close()
+		serverDone <- n
+	})
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
+
+	c, err := server.Dial()
+	require.NoError(t, err)
+	const lingerSeconds = 3
+	tcpConn, ok := c.(*net.TCPConn)
+	require.True(t, ok)
+	require.NoError(t, tcpConn.SetLinger(lingerSeconds))
+	written := fillTCPSendQueue(t, c)
+	clientAddr, serverAddr := c.LocalAddr(), c.RemoteAddr()
+
+	var totals tcpConnTotals
+	require.True(t, pollConnections(t, tr, 3*time.Second, func(conns *network.Connections) bool {
+		totals.add(conns, clientAddr, serverAddr)
+		return totals.sentBytes > 0
+	}), "connection not found")
+
+	// close() blocks until the queued data is sent, which it can't be, or the linger time is over
+	closeStart := time.Now()
+	closeDone := make(chan time.Duration, 1)
+	go func() {
+		c.Close()
+		closeDone <- time.Since(closeStart)
+	}()
+	// The connections a check reports are only those whose stats changed, while the connection is
+	// idle here, so look at what the tracer lists, then run a check as usual.
+	isListed := func() bool {
+		_, active, err := tr.getConnections(network.NewConnectionBuffer(512, 512))
+		require.NoError(t, err)
+		for _, conn := range active {
+			if conn.Type == network.TCP && network.ByTuple(clientAddr, serverAddr)(conn) {
+				return true
+			}
+		}
+		return false
+	}
+	var closeTook time.Duration
+	for fetch := 1; closeTook == 0; fetch++ {
+		listed := isListed()
+		connections, cleanup := getConnections(t, tr)
+		totals.add(connections, clientAddr, serverAddr)
+		cleanup()
+		// after close() returns the socket is orphaned, so it must be listed in every fetch
+		require.True(t, listed, "connection not listed in fetch %d, %s after close() started\n%s", fetch, time.Since(closeStart), strings.Join(totals.reports, "\n"))
+		select {
+		case closeTook = <-closeDone:
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+	t.Logf("close() took %s", closeTook)
+	require.Greater(t, closeTook, time.Second, "close() should have waited for SO_LINGER")
+	require.Zero(t, totals.closed, "connection reported closed while its data is still queued\n%s", strings.Join(totals.reports, "\n"))
+
+	releaseServer()
+	select {
+	case n := <-serverDone:
+		require.Equal(t, int64(written), n, "server didn't receive the whole payload")
+	case <-time.After(10 * time.Second):
+		require.Fail(t, "server didn't receive the whole payload in time")
+	}
+	waitForTCPTeardown(t, tr, clientAddr, serverAddr, func(conns *network.Connections) {
+		totals.add(conns, clientAddr, serverAddr)
+	})
+
+	t.Logf("reports:\n%s", strings.Join(totals.reports, "\n"))
+	assert.Equal(t, uint16(1), totals.closed, "connection should be reported closed exactly once\n%s", strings.Join(totals.reports, "\n"))
+	// the kernel's count of bytes put on the wire includes retransmissions, see TestTCPCloseReportsDataSentAfterClose
+	assert.GreaterOrEqual(t, totals.sentBytes, uint64(written), "bytes sent by the client\n%s", strings.Join(totals.reports, "\n"))
+	assert.Less(t, totals.sentBytes, uint64(2*written), "bytes sent by the client, counted twice?\n%s", strings.Join(totals.reports, "\n"))
+}
+
+// TestTCPCloseWithoutOrphanIterator checks that, on kernels without sk_storage map iterators, the SK
+// tracer reports a TCP connection closed when the application closes it, since nothing lists the
+// socket after that, and that it reports it only once.
+func (s *TracerSuite) TestTCPCloseWithoutOrphanIterator() {
+	t := s.T()
+	if ebpftest.GetBuildMode() != ebpftest.SK {
+		t.Skip("only the SK tracer uses the orphan sockets iterator")
+	}
+	t.Cleanup(sk.DisableOrphanSocketsIterator())
+	tr := setupTracer(t, testConfig())
+
+	closeServerSide := make(chan struct{})
+	var closeServerSideOnce sync.Once
+	releaseServer := func() { closeServerSideOnce.Do(func() { close(closeServerSide) }) }
+	t.Cleanup(releaseServer)
+
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+		r := bufio.NewReader(c)
+		r.ReadBytes(byte('\n'))
+		c.Write(genPayload(serverMessageSize))
+		<-closeServerSide
+		c.Close()
+	})
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
+
+	c, err := server.Dial()
+	require.NoError(t, err)
+	keepOrphanInFinWait2(t, c)
+	_, err = c.Write(genPayload(clientMessageSize))
+	require.NoError(t, err)
+	r := bufio.NewReader(c)
+	_, err = r.ReadBytes(byte('\n'))
+	require.NoError(t, err)
+
+	// the client closes first, so its socket waits in FIN_WAIT2 for the server's FIN
+	c.Close()
+
+	clientAddr, serverAddr := c.LocalAddr(), c.RemoteAddr()
+	var totals tcpConnTotals
+	require.True(t, pollConnections(t, tr, 3*time.Second, func(conns *network.Connections) bool {
+		totals.add(conns, clientAddr, serverAddr)
+		return totals.closed > 0
+	}), "connection not reported closed when the client closed it\n%s", strings.Join(totals.reports, "\n"))
+	// FIN_WAIT1 (0x04) until the server acks the client's FIN, then FIN_WAIT2 (0x05)
+	require.Contains(t, []int{0x04, 0x05}, procNetTCPState(t, clientAddr, serverAddr), "the client socket should still be waiting for the server's FIN")
+
+	releaseServer()
+	waitForTCPTeardown(t, tr, clientAddr, serverAddr, func(conns *network.Connections) {
+		totals.add(conns, clientAddr, serverAddr)
+	})
+
+	assert.Equal(t, uint16(1), totals.closed, "connection should be reported closed exactly once\n%s", strings.Join(totals.reports, "\n"))
+	assert.Equal(t, uint64(clientMessageSize), totals.sentBytes, "bytes sent by the client\n%s", strings.Join(totals.reports, "\n"))
+	assert.InDelta(t, serverMessageSize, totals.recvBytes, 1, "bytes received by the client\n%s", strings.Join(totals.reports, "\n"))
+}
+
+// TestTCPOrphanReportsClosingProcess checks that a TCP connection the application closed is credited
+// to the process that closed it, both while its orphaned socket is listed and in its close event,
+// even when no pid was stored with the socket before the close. Neither runs in that process: the
+// orphan sockets iterator runs in system-probe, and the close event is sent when the socket is
+// destroyed, here from the softirq handling the server's FIN.
+func (s *TracerSuite) TestTCPOrphanReportsClosingProcess() {
+	t := s.T()
+	if ebpftest.GetBuildMode() != ebpftest.SK {
+		t.Skip("only the SK tracer lists closed sockets as active until they are destroyed")
+	}
+	tr := setupTracer(t, testConfig())
+
+	closeServerSide := make(chan struct{})
+	var closeServerSideOnce sync.Once
+	releaseServer := func() { closeServerSideOnce.Do(func() { close(closeServerSide) }) }
+	t.Cleanup(releaseServer)
+
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+		r := bufio.NewReader(c)
+		r.ReadBytes(byte('\n'))
+		<-closeServerSide
+		c.Close()
+	})
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
+
+	c, err := server.Dial()
+	require.NoError(t, err)
+	keepOrphanInFinWait2(t, c)
+	_, err = c.Write([]byte("ping\n"))
+	require.NoError(t, err)
+	clientAddr, serverAddr := c.LocalAddr(), c.RemoteAddr()
+
+	// Hand the socket over to a child process, which closes it when it exits.
+	f, err := c.(*net.TCPConn).File()
+	require.NoError(t, err)
+	// Delete what the tracer stored for the socket (with this process's pid) when it connected, so
+	// that tcp_close creates the storage again, as for a socket whose storage is created lazily.
+	skTCPStats, err := tr.GetMap("sk_tcp_stats")
+	require.NoError(t, err)
+	require.NoError(t, skTCPStats.Delete(uint32(f.Fd())))
+	require.NoError(t, c.Close())
+	child := exec.Command("sh", "-c", "read _ || true")
+	child.ExtraFiles = []*os.File{f}
+	childStdin, err := child.StdinPipe()
+	require.NoError(t, err)
+	require.NoError(t, child.Start())
+	t.Cleanup(func() { _ = child.Process.Kill() })
+	require.NoError(t, f.Close())
+	childPid := uint32(child.Process.Pid)
+	require.NoError(t, childStdin.Close())
+	require.NoError(t, child.Wait())
+	t.Logf("test pid %d, child pid %d", os.Getpid(), childPid)
+
+	// FIN_WAIT1 (0x04) until the server acks the client's FIN, then FIN_WAIT2 (0x05)
+	require.Contains(t, []int{0x04, 0x05}, procNetTCPState(t, clientAddr, serverAddr), "the client socket should be waiting for the server's FIN")
+	// The connections a check reports are only those whose stats changed, so look at what the
+	// tracer lists.
+	_, active, err := tr.getConnections(network.NewConnectionBuffer(512, 512))
+	require.NoError(t, err)
+	var listed []uint32
+	for _, conn := range active {
+		if conn.Type == network.TCP && network.ByTuple(clientAddr, serverAddr)(conn) {
+			listed = append(listed, conn.Pid)
+		}
+	}
+	require.Equal(t, []uint32{childPid}, listed, "the orphaned socket should be listed once, with the pid of the process that closed it (test pid %d)", os.Getpid())
+
+	releaseServer()
+	var closedPids []uint32
+	waitForTCPTeardown(t, tr, clientAddr, serverAddr, func(conns *network.Connections) {
+		for _, conn := range network.FilterConnections(conns, network.ByTuple(clientAddr, serverAddr)) {
+			if conn.Last.TCPClosed > 0 {
+				closedPids = append(closedPids, conn.Pid)
+			}
+		}
+	})
+	assert.Equal(t, []uint32{childPid}, closedPids, "the close should be reported once, with the pid of the process that closed the connection (test pid %d)", os.Getpid())
+}
+
+// TestTCPCloseReportsDataSentAfterClose checks that the bytes an application wrote before closing
+// a TCP connection are all reported, including those the kernel only sends after the close.
+func (s *TracerSuite) TestTCPCloseReportsDataSentAfterClose() {
+	t := s.T()
+	cfg := testConfig()
+	if cfg.EnableEbpfless {
+		t.Skip("ebpf-less tracks connections from packets, not socket close events")
+	}
+	tr := setupTracer(t, cfg)
+
+	startReading := make(chan struct{})
+	var startReadingOnce sync.Once
+	releaseServer := func() { startReadingOnce.Do(func() { close(startReading) }) }
+	t.Cleanup(releaseServer)
+	serverDone := make(chan int64, 1)
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+		setTCPReadBuffer(c, 64<<10)
+		// Don't read until the client has closed: once the server's receive buffer is full, what
+		// the client writes stays queued in its send buffer.
+		<-startReading
+		n, _ := io.Copy(io.Discard, c)
+		c.Close()
+		serverDone <- n
+	})
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
+
+	c, err := server.Dial()
+	require.NoError(t, err)
+	// whatever the buffer sysctls are, data is still queued when the client closes
+	written := fillTCPSendQueue(t, c)
+	c.Close()
+	releaseServer()
+
+	select {
+	case n := <-serverDone:
+		require.Equal(t, int64(written), n, "server didn't receive the whole payload")
+	case <-time.After(10 * time.Second):
+		require.Fail(t, "server didn't receive the whole payload in time")
+	}
+
+	// The client socket reaches TIME_WAIT once it has received the server's FIN, after the
+	// server read everything.
+	var totals tcpConnTotals
+	waitForTCPTeardown(t, tr, c.LocalAddr(), c.RemoteAddr(), func(conns *network.Connections) {
+		totals.add(conns, c.LocalAddr(), c.RemoteAddr())
+	})
+
+	assert.Equal(t, uint16(1), totals.closed, "connection should be reported closed exactly once\n%s", strings.Join(totals.reports, "\n"))
+	t.Logf("reports:\n%s", strings.Join(totals.reports, "\n"))
+	if ebpftest.GetBuildMode() == ebpftest.SK {
+		// The SK tracer reports the kernel's count of bytes put on the wire, which includes
+		// retransmissions: the server's full receive buffer can make loopback drop segments.
+		assert.GreaterOrEqual(t, totals.sentBytes, uint64(written), "bytes sent by the client\n%s", strings.Join(totals.reports, "\n"))
+		assert.Less(t, totals.sentBytes, uint64(2*written), "bytes sent by the client\n%s", strings.Join(totals.reports, "\n"))
+	} else {
+		assert.Equal(t, uint64(written), totals.sentBytes, "bytes sent by the client\n%s", strings.Join(totals.reports, "\n"))
+	}
+}
+
+// TestTCPFailureAfterClose checks that a TCP connection that fails after the application closed it
+// (here, the peer resets it while the client waits in FIN_WAIT2) is reported with that failure.
+// Only the SK tracer sees it: the kprobe/fentry tracers report the close at tcp_close.
+func (s *TracerSuite) TestTCPFailureAfterClose() {
+	t := s.T()
+	if ebpftest.GetBuildMode() != ebpftest.SK {
+		t.Skip("only the SK tracer reports failures that happen after tcp_close")
+	}
+	checkSkipFailureConnectionsTests(t)
+
+	cfg := testConfig()
+	cfg.TCPFailedConnectionsEnabled = true
+	tr := setupTracer(t, cfg)
+
+	clientClosed := make(chan struct{})
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+		// closing without reading what the client sent makes the server send a RST
+		<-clientClosed
+		time.Sleep(100 * time.Millisecond)
+		c.Close()
+	})
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
+
+	c, err := server.Dial()
+	require.NoError(t, err)
+	keepOrphanInFinWait2(t, c)
+	_, err = c.Write([]byte("ping\n"))
+	require.NoError(t, err)
+	// the client closes first: its FIN is acked, and it waits in FIN_WAIT2 for the server's
+	c.Close()
+	close(clientClosed)
+
+	var totals tcpConnTotals
+	require.True(t, pollConnections(t, tr, 3*time.Second, func(conns *network.Connections) bool {
+		totals.add(conns, c.LocalAddr(), c.RemoteAddr())
+		return totals.closed > 0
+	}), "connection not reported closed")
+	assert.Equal(t, uint16(1), totals.closed, "connection should be reported closed exactly once\n%s", strings.Join(totals.reports, "\n"))
+	assert.Equal(t, uint32(1), totals.closeFailures[uint16(syscall.ECONNRESET)], "expected the reset to be reported\n%s", strings.Join(totals.reports, "\n"))
+	assert.Equal(t, uint64(5), totals.sentBytes, "bytes sent by the client")
 }
 
 func (s *TracerSuite) TestTCPFailureConnectionTimeout() {

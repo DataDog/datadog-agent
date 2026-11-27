@@ -40,12 +40,8 @@ static __always_inline void copy_conn_tuple(conn_tuple_t *t, conn_tuple_t *stats
     if (stats_tup->metadata) t->metadata |= stats_tup->metadata;
 }
 
-static __always_inline int read_conn_tuple_sk(conn_tuple_t* t, struct sock* sk, struct task_struct *task) {
+static __always_inline int read_conn_tuple_sk(conn_tuple_t* t, struct sock* sk) {
     int err = 0;
-
-    if (!t->pid) {
-        t->pid = task ? task->tgid : GET_USER_MODE_PID(bpf_get_current_pid_tgid());
-    }
 
     if (!t->netns) {
         t->netns = get_netns_from_sock(sk);

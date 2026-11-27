@@ -24,6 +24,8 @@ var programs = map[string]struct{}{
 	"tcp_finish_connect_entry":        {},
 	"tcp_done_entry":                  {},
 	"tcp_close_entry":                 {},
+	"tcp_disconnect_entry":            {},
+	"tcp_v4_destroy_sock_entry":       {},
 	"tcp_enter_loss_entry":            {},
 	"tcp_enter_recovery_entry":        {},
 	"tcp_send_probe0_entry":           {},
@@ -46,6 +48,8 @@ var fentrySymbols = []string{
 	"tcp_finish_connect",
 	"tcp_done",
 	"tcp_close",
+	"tcp_disconnect",
+	"tcp_v4_destroy_sock",
 	"tcp_enter_loss",
 	"tcp_enter_recovery",
 	"tcp_send_probe0",
@@ -85,6 +89,8 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, "tcp_finish_connect_entry")
 		enableProgram(enabled, "tcp_done_entry")
 		enableProgram(enabled, "tcp_close_entry")
+		enableProgram(enabled, "tcp_disconnect_entry")
+		enableProgram(enabled, "tcp_v4_destroy_sock_entry")
 		enableProgram(enabled, "tcp_enter_loss_entry")
 		enableProgram(enabled, "tcp_enter_recovery_entry")
 		enableProgram(enabled, "tcp_send_probe0_entry")

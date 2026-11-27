@@ -3,6 +3,7 @@
 
 #include "ktypes.h"
 #include "bpf_helpers.h"
+#include "bpf_core_read.h"
 
 #include "defs.h"
 #include "sk.h"
@@ -17,8 +18,18 @@ static __always_inline int create_tcp_conn(conn_t *conn, struct sock *sk, sk_tcp
     if (sk_stats) {
         copy_conn_tuple(&conn->tup, &sk_stats->tup);
     }
-    if (!read_conn_tuple_sk(&conn->tup, sk, task)) {
+    if (!read_conn_tuple_sk(&conn->tup, sk)) {
         return 0;
+    }
+    // The socket's pid is normally stored in sk_stats at connect or accept. It's missing when no
+    // hook saw either, e.g. for a socket created before system-probe started. Then only an
+    // iterated task (bpf_iter__task_file_socket) tells who owns the socket. The other callers
+    // run in the orphan iterator (system-probe) or when the socket is destroyed or disconnected
+    // (often from a softirq or a timer, in whatever task it interrupted), so the current task
+    // isn't the socket's owner there, and pid 0 is reported rather than a wrong one.
+    // tcp_close_entry stores the pid of the closing process if it's still missing then.
+    if (!conn->tup.pid && task) {
+        conn->tup.pid = task->tgid;
     }
     conn->tup.metadata |= CONN_TYPE_TCP;
 
@@ -64,8 +75,11 @@ static __always_inline int create_udp_conn(conn_t *conn, struct sock *sk, sk_udp
     if (sk_stats) {
         copy_conn_tuple(&conn->tup, &sk_stats->tup);
     }
-    if (!read_conn_tuple_sk(&conn->tup, sk, task)) {
+    if (!read_conn_tuple_sk(&conn->tup, sk)) {
         return 0;
+    }
+    if (!conn->tup.pid) {
+        conn->tup.pid = task ? task->tgid : GET_USER_MODE_PID(bpf_get_current_pid_tgid());
     }
     conn->tup.metadata |= CONN_TYPE_UDP;
     conn->conn_stats.cookie = (__u32)(bpf_get_socket_cookie(sk) & 0xFFFFFFFF);
@@ -107,6 +121,10 @@ int bpf_iter__task_file_socket(struct bpf_iter__task_file *ctx) {
     if (sk->sk_protocol == IPPROTO_TCP || sk->sk_protocol == IPPROTO_MPTCP) {
         log_debug("iterate tcp: sk=%p pid=%d", sk, task->tgid);
         sk_tcp_stats_t *sk_stats = bpf_sk_storage_get(&sk_tcp_stats, sk, 0, 0);
+        if (sk_stats && sk_stats->close_sent) {
+            // the connection was disconnected and reported closed, and the socket not connected again
+            return 0;
+        }
         if (!create_tcp_conn(&conn, sk, sk_stats, task)) {
             return 0;
         }
@@ -122,6 +140,54 @@ int bpf_iter__task_file_socket(struct bpf_iter__task_file *ctx) {
         conn.tup.pid = task->tgid;
     }
     bpf_seq_write(seq, &conn, sizeof(conn_t));
+    return 0;
+}
+
+static __always_inline bool is_sock_dead(struct sock *sk) {
+    unsigned long flags = BPF_CORE_READ(sk, __sk_common.skc_flags);
+    return flags & (1UL << SOCK_DEAD);
+}
+
+// bpf_iter__sk_storage_map_tcp_orphans lists the TCP sockets the application has closed, but
+// the kernel is still tearing down (FIN_WAIT, CLOSING, LAST_ACK). They have no file anymore,
+// so bpf_iter__task_file_socket doesn't find them, and their close event is only sent once
+// they are destroyed, see send_tcp_close_event. It is attached to the sk_tcp_stats map.
+//
+// That includes a socket whose tcp_close is still running: with SO_LINGER, tcp_close waits (up
+// to the linger time) for the queued data to be sent before orphaning the socket, and the file
+// is already gone from the fd table by then.
+//
+// The file is removed from the fd table before tcp_close runs, so a socket can't be listed by both
+// iterators for that reason. It can be if the application closes it between the two iterations of
+// a check, in which case userspace keeps a single entry for the socket's cookie (mergeByCookie).
+SEC("iter/bpf_sk_storage_map")
+int bpf_iter__sk_storage_map_tcp_orphans(struct bpf_iter__bpf_sk_storage_map *ctx) {
+    struct sock *sk = ctx->sk;
+    sk_tcp_stats_t *sk_stats = ctx->value;
+    if (!sk || !sk_stats) {
+        return 0;
+    }
+    if (sk_stats->close_sent) {
+        return 0;
+    }
+    // app_closed is set at the start of tcp_close, and SOCK_DEAD by sock_orphan, when tcp_close
+    // detaches the socket from its file. SOCK_DEAD is still needed for the sockets that are
+    // orphaned by __tcp_close without going through tcp_close, such as the MPTCP subflows that
+    // __mptcp_close_ssk disposes of. The children a listener had not accepted yet when it was
+    // closed (inet_child_forget) are not among them: they go through tcp_disconnect first, which
+    // sends their close event and sets close_sent.
+    if (!sk_stats->app_closed && !is_sock_dead(sk)) {
+        return 0;
+    }
+    if (!is_protocol_family_enabled(sk)) {
+        return 0;
+    }
+
+    conn_t conn = {};
+    if (!create_tcp_conn(&conn, sk, sk_stats, NULL)) {
+        return 0;
+    }
+    bpf_seq_write(ctx->meta->seq, &conn, sizeof(conn_t));
     return 0;
 }
 
