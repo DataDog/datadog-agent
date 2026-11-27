@@ -8,13 +8,20 @@
        units (unit_supervisor_darwin.go). It never starts at load: a reboot mid-experiment comes back
        on the stable jobs only, as on Linux, where the experiment units are not enabled. A hook
        kickstarts it. KeepAlive Crashed relaunches it after a crash, and unlike SuccessfulExit it
-       does not imply RunAtLoad. */}}
+       does not imply RunAtLoad. KeepAlive PathState keeps it alive while the busy marker a hook
+       writes exists, so a supervisor killed by SIGKILL is relaunched; /var/run is emptied at boot,
+       so a reboot mid-experiment still comes back on the stable jobs only. */}}
         <key>RunAtLoad</key>
         <false/>
         <key>KeepAlive</key>
         <dict>
             <key>Crashed</key>
             <true/>
+            <key>PathState</key>
+            <dict>
+                <key>/var/run/com.datadoghq.supervisor.busy</key>
+                <true/>
+            </dict>
         </dict>
         <key>EnvironmentVariables</key>
         <dict>

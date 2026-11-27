@@ -10,6 +10,11 @@
         <dict>
             <key>Crashed</key>
             <true/>
+            <key>PathState</key>
+            <dict>
+                <key>/var/run/com.datadoghq.supervisor.busy</key>
+                <true/>
+            </dict>
         </dict>
         <key>EnvironmentVariables</key>
         <dict>

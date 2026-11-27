@@ -307,7 +307,10 @@ func TestLaunchdUnitSupervisorJob(t *testing.T) {
 	assert.Contains(t, definition, "<string>com.datadoghq.supervisor</string>")
 	assert.Regexp(t, `<key>RunAtLoad</key>\s*<false/>`, definition)
 	// SuccessfulExit would imply RunAtLoad, and start the supervisor at boot.
-	assert.Regexp(t, `<key>KeepAlive</key>\s*<dict>\s*<key>Crashed</key>\s*<true/>\s*</dict>`, definition)
+	assert.Regexp(t, `<key>KeepAlive</key>\s*<dict>\s*<key>Crashed</key>\s*<true/>`, definition)
+	// While a hook's busy marker exists, launchd keeps the supervisor alive: a SIGKILL is
+	// recovered. The marker is in /var/run, emptied at boot, so a reboot does not start it.
+	assert.Regexp(t, `<key>PathState</key>\s*<dict>\s*<key>/var/run/com.datadoghq.supervisor.busy</key>\s*<true/>\s*</dict>\s*</dict>`, definition)
 	assert.NotContains(t, definition, "SuccessfulExit")
 	// A Go fatal error exits with status 2, which KeepAlive Crashed does not relaunch: GOTRACEBACK=crash
 	// makes it abort with SIGABRT instead.

@@ -158,14 +158,15 @@ func stubUnitsState(t *testing.T) {
 	t.Helper()
 
 	dir := filepath.Dir(configExperimentDeadlinePath)
-	originalTarget, originalStatus := unitsTargetPath, unitsStatusPath
+	originalTarget, originalStatus, originalBusy := unitsTargetPath, unitsStatusPath, supervisorBusyPath
 	unitsTargetPath, unitsStatusPath = filepath.Join(dir, "units-target"), filepath.Join(dir, "units-status")
+	supervisorBusyPath = filepath.Join(dir, "supervisor.busy")
 	originalPoll, originalTick, originalRetry := unitsPollInterval, unitsTickInterval, unitsRetryDelay
 	unitsPollInterval, unitsTickInterval, unitsRetryDelay = 5*time.Millisecond, 20*time.Millisecond, 10*time.Millisecond
 	originalLockPoll := installerLockPoll
 	installerLockPoll = 20 * time.Millisecond
 	t.Cleanup(func() {
-		unitsTargetPath, unitsStatusPath = originalTarget, originalStatus
+		unitsTargetPath, unitsStatusPath, supervisorBusyPath = originalTarget, originalStatus, originalBusy
 		unitsPollInterval, unitsTickInterval, unitsRetryDelay = originalPoll, originalTick, originalRetry
 		installerLockPoll = originalLockPoll
 	})
@@ -687,6 +688,27 @@ func TestFailedStartKeepsRestoringItsRollback(t *testing.T) {
 		assert.False(t, l.isRunning(label+"-exp"), "%s should be stopped", label+"-exp")
 	}
 	assert.True(t, l.isRunning(installerJob), "the stable daemon was never replaced")
+}
+
+// TestSupervisorBusyMarkerSpansTheRequest pins the marker launchd keeps the supervisor alive on
+// (KeepAlive PathState): a hook writes it before the supervisor starts, the supervisor removes it
+// once it has nothing left to do, and a stop by bootout leaves it.
+func TestSupervisorBusyMarkerSpansTheRequest(t *testing.T) {
+	l := supervisedHost(t)
+	stubEnsureUnitSupervisor(t)
+	require.NoError(t, configExperiment{jobs: configExperimentJobSet()}.Start(context.Background()))
+
+	withdrawUnitsRequest(context.Background())
+	assert.FileExists(t, supervisorBusyPath, "the hook should mark the supervisor busy before starting it")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.NoError(t, superviseUnits(ctx))
+	assert.FileExists(t, supervisorBusyPath, "a bootout must not clear the marker")
+
+	require.NoError(t, superviseUnits(context.Background()))
+	assert.NoFileExists(t, supervisorBusyPath, "the supervisor should clear the marker once it is done")
+	assert.True(t, l.isRunning(agentJob))
 }
 
 // TestRequestUnitsWaitsForTheAgentJobs pins the hooks' side: a request returns once the supervisor

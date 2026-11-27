@@ -63,6 +63,7 @@ uninstall_without_installer() {
         $sudo_cmd rm -f /opt/datadog-packages/run/units-target
         $sudo_cmd launchctl bootout system/com.datadoghq.supervisor 2>/dev/null || true
         $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.supervisor.plist
+        $sudo_cmd rm -f /var/run/com.datadoghq.supervisor.busy
         # bootout returns before the job has left; wait for it, as for the installer daemons.
         attempts=0
         while [ $attempts -lt 30 ] && $sudo_cmd launchctl print system/com.datadoghq.supervisor >/dev/null 2>&1; do

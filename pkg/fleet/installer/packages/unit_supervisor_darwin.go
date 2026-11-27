@@ -11,6 +11,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -75,6 +77,13 @@ var (
 	// tests can point them at temporary files.
 	unitsTargetPath = filepath.Join(paths.ConfigExperimentStatePath, "units-target")
 	unitsStatusPath = filepath.Join(paths.ConfigExperimentStatePath, "units-status")
+	// supervisorBusyPath exists while the supervisor has a request to apply. launchd keeps the
+	// supervisor alive while it exists (KeepAlive PathState in its job definition), so one killed by
+	// SIGKILL is relaunched and resumes from its status. /var/run is emptied at boot, so a reboot
+	// mid-experiment does not start it. Anyone in the daemon group can create or remove it there:
+	// creating it only relaunches an idle supervisor, which exits again; removing it only drops the
+	// relaunch after a SIGKILL.
+	supervisorBusyPath = "/var/run/com.datadoghq.supervisor.busy"
 
 	// unitsRequestTimeout bounds how long a hook waits for the supervisor to apply its request.
 	unitsRequestTimeout = 5 * time.Minute
@@ -158,6 +167,7 @@ var requestUnits = func(ctx context.Context, target string) error {
 	if err := writeUnitsRequest(request); err != nil {
 		return fmt.Errorf("could not write the unit supervisor's target: %w", err)
 	}
+	markSupervisorBusy()
 	if err := ensureUnitSupervisor(ctx); err != nil {
 		return err
 	}
@@ -204,6 +214,7 @@ func withdrawUnitsRequest(ctx context.Context) {
 		log.Errorf("could not ask the unit supervisor for the stable jobs: %v", err)
 		return
 	}
+	markSupervisorBusy()
 	if err := ensureUnitSupervisor(ctx); err != nil {
 		log.Errorf("could not start the unit supervisor to bring the stable jobs back: %v", err)
 	}
@@ -266,6 +277,23 @@ func unloadUnitSupervisor(ctx context.Context) {
 	if err := set.Remove(launchd.Stable); err != nil {
 		log.Warnf("could not remove the unit supervisor's job definition: %v", err)
 	}
+	clearSupervisorBusy()
+}
+
+// markSupervisorBusy creates the marker that keeps the supervisor alive (supervisorBusyPath). It is
+// written before the supervisor is started, so even a supervisor killed before its first step is
+// relaunched. Best effort: without it, only a SIGKILL goes unrecovered, as before.
+func markSupervisorBusy() {
+	if err := os.WriteFile(supervisorBusyPath, nil, 0644); err != nil {
+		log.Warnf("could not mark the unit supervisor busy: %v", err)
+	}
+}
+
+// clearSupervisorBusy removes the marker once the supervisor has nothing left to do.
+func clearSupervisorBusy() {
+	if err := os.Remove(supervisorBusyPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		log.Warnf("could not clear the unit supervisor's busy marker: %v", err)
+	}
 }
 
 // clearUnitsState removes the supervisor's target and status files.
@@ -299,6 +327,9 @@ func superviseUnits(ctx context.Context) error {
 		}
 		done, err := superviseUnitsStep(ctx)
 		if done {
+			// Nothing left to do: launchd may let the supervisor go. A stop by bootout (above)
+			// leaves the marker, which matters only while the job is loaded.
+			clearSupervisorBusy()
 			return nil
 		}
 		if errors.Is(err, errTargetChanged) {
