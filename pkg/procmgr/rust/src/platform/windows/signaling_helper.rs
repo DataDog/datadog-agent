@@ -301,8 +301,7 @@ pub(crate) enum Delivery {
     Generated,
     /// No signal was generated: signaling failed, or the target had already exited.
     Failed,
-    /// No usable report: none arrived before the deadline, or it could not be read. Whether the
-    /// signal was generated is unknown.
+    /// No usable report arrived or it was unreadable, so delivery is unknown.
     Unreported,
 }
 
@@ -683,7 +682,6 @@ mod tests {
             wait_for_graceful_stop(&mut unreported, "delivery-test", Duration::ZERO).await,
             Delivery::Unreported
         );
-        // A report that cannot be read leaves delivery unknown, so it is not a Failed.
         let mut unreadable = SignalingHelper::test_report_error("report read failed");
         assert_eq!(
             wait_for_graceful_stop(&mut unreadable, "delivery-test", Duration::from_secs(90)).await,

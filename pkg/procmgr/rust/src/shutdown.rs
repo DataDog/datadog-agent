@@ -9,15 +9,11 @@ use crate::process::test_exit_channel;
 use std::collections::{HashMap, HashSet};
 use tokio::task::{Id, JoinSet};
 
-/// Stops every process in `order`. A process is signaled only after each process that
-/// depends on it (`dependents[idx]`, limited to `order`) has finished stopping, so a
-/// dependency stays up while its dependents shut down. Processes whose dependents are
-/// all finished stop concurrently, and each is force-killed at its own deadline.
+/// Stops every process in `order`. A process is signaled only after its dependents
+/// (`dependents[idx]`, limited to `order`) have finished stopping. Ready processes stop
+/// concurrently, each force-killed at its own deadline.
 ///
-/// A dependency cycle among the stopped processes cannot be ordered. When no stop wait is
-/// active and no process is ready, the scheduler walks unfinished dependents from the
-/// earliest pending process until one repeats. It then drops only the dependency edge that
-/// closes that walk, which lies on a cycle. Every other dependency edge keeps its order.
+/// On a stall (a dependency cycle) it drops only the edge that closes the cycle.
 pub async fn shutdown_ordered(
     processes: &mut [ManagedProcess],
     order: &[usize],
@@ -43,8 +39,7 @@ pub async fn shutdown_ordered(
     let mut wait_owner: HashMap<Id, usize> = HashMap::new();
 
     loop {
-        // A process without a wait finishes at once, which can unblock others, so repeat
-        // until no new process can be signaled.
+        // A process without a wait finishes at once and can unblock others.
         let mut progressed = true;
         while progressed {
             progressed = false;
@@ -72,7 +67,7 @@ pub async fn shutdown_ordered(
         }
 
         if waits.is_empty() {
-            // No stop wait is active, so every unsignaled process waits on another unsignaled one.
+            // Nothing is stopping, so the remaining processes are blocked on each other.
             let Some(start) = order.iter().copied().find(|idx| !signaled.contains(idx)) else {
                 break;
             };
@@ -86,8 +81,7 @@ pub async fn shutdown_ordered(
                     blockers.entry(from).or_default().remove(&to);
                 }
                 None => {
-                    // Unreachable while the invariant above holds. Clearing the blockers of
-                    // `start` still guarantees progress if it ever does not.
+                    // Unreachable. Still guarantees progress if it ever happens.
                     debug_assert!(false, "stall without a cycle edge");
                     blockers.entry(start).or_default().clear();
                 }
@@ -101,7 +95,6 @@ pub async fn shutdown_ordered(
                 finished.insert(idx);
             }
             Some(Err(error)) => {
-                // finish_stop is skipped for a failed wait, so its state stays unfinalized.
                 let idx = wait_owner[&error.id()];
                 log::warn!(
                     "[{}] stop wait failed: {error}; leaving its state unfinalized",
@@ -114,11 +107,8 @@ pub async fn shutdown_ordered(
     }
 }
 
-/// Follows unfinished dependents from `start` until a process repeats. Returns the edge
-/// `(from, to)` that closes the walk, where `to` was already visited, so the edge lies on a
-/// cycle. With no stop wait active, every unsignaled process has an unfinished dependent that
-/// is also unsignaled, so the walk normally finds such an edge. `None` means that invariant
-/// does not hold.
+/// Follows unfinished dependents from `start` until a process repeats, and returns the edge
+/// `(from, to)` that closes the walk (so it lies on a cycle). `None` if the walk dead-ends.
 fn cycle_edge(
     start: usize,
     order: &[usize],
@@ -296,8 +286,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let mut procs = Vec::new();
         let mut exits = Vec::new();
-        // The long-timeout child is listed first, so a sequential wait would block on it
-        // before the short child's deadline is checked.
+        // The long-timeout child is first, so a sequential wait would block on it.
         for (name, stop_timeout) in [("slow-stop", 3), ("fast-stop", 1)] {
             let ready = dir.path().join(format!("{name}.ready"));
             let (cmd, args) = test_helpers::trap_term_sleep_ready(&ready);
@@ -312,7 +301,6 @@ mod tests {
             exits.push(rx);
         }
 
-        // Record when each child actually exits, and how.
         let exit_tasks: Vec<_> = exits
             .into_iter()
             .map(|mut rx| {
@@ -389,9 +377,7 @@ mod tests {
         assert_eq!(procs[2].state(), ProcessState::Stopped);
     }
 
-    /// The dependency (index 0) handles TERM by writing a marker, but only if the dependent
-    /// (index 1) has already written its own marker. The dependent takes about 300 ms to finish,
-    /// so the dependency's marker appears only if it was signaled after the dependent finished.
+    /// The dependency's marker appears only if it was signaled after the slow dependent finished.
     #[cfg(unix)]
     #[tokio::test]
     async fn test_shutdown_ordered_signals_dependency_after_dependents() {
@@ -426,7 +412,6 @@ mod tests {
         test_helpers::wait_for_file(&dependent_ready, Duration::from_secs(10)).await;
 
         let mut procs = vec![dependency, dependent];
-        // dependents[0] == [1]: the dependency must wait for the dependent to stop.
         shutdown_ordered(&mut procs, &[1, 0], &[vec![1], vec![]]).await;
 
         assert!(
@@ -442,7 +427,7 @@ mod tests {
         }
     }
 
-    /// A dependency cycle cannot be ordered, so shutdown must still finish and stop every process.
+    /// Shutdown must finish despite a dependency cycle.
     #[tokio::test]
     async fn test_shutdown_ordered_breaks_dependency_cycle() {
         let mut p1 =
@@ -464,9 +449,8 @@ mod tests {
         assert_eq!(procs[1].state(), ProcessState::Stopped);
     }
 
-    /// `db` (index 0) is not in the cycle. `a` (index 1) depends on `db`, and `a` and `b`
-    /// (index 2) form a cycle. `db` must not be signaled before `a` has finished. `db` writes
-    /// its marker only if `a` has already finished, and `a` exits as soon as it gets TERM.
+    /// `a` and `b` form a cycle, and `a` is a dependent of `db`. Breaking the cycle must keep
+    /// `db` waiting for `a`.
     #[cfg(unix)]
     #[tokio::test]
     async fn test_shutdown_ordered_breaks_cycle_not_upstream_dependency() {
@@ -504,7 +488,6 @@ mod tests {
         test_helpers::wait_for_file(&a_ready, Duration::from_secs(10)).await;
 
         let mut procs = vec![db, a, b];
-        // dependents[0] == [1]: a starts after db. a and b depend on each other.
         let dependents = vec![vec![1], vec![2], vec![1]];
         let completed = tokio::time::timeout(
             Duration::from_secs(60),
@@ -522,10 +505,8 @@ mod tests {
         }
     }
 
-    /// Two cycles are connected by one edge. Process 0 is in a cycle with 1, and process 2 is in
-    /// a cycle with 3. Process 2 also depends on process 0, so process 2 must stop first. Breaking the
-    /// first cycle must not drop that edge. Process 0 writes its marker only if process 2 has
-    /// already finished.
+    /// Cycles 0 <-> 1 and 2 <-> 3 are joined by the edge "2 is a dependent of 0". Breaking the
+    /// cycles must keep 0 waiting for 2.
     #[cfg(unix)]
     #[tokio::test]
     async fn test_shutdown_ordered_breaks_two_connected_cycles() {
@@ -564,7 +545,6 @@ mod tests {
         test_helpers::wait_for_file(&p0_ready, Duration::from_secs(10)).await;
         test_helpers::wait_for_file(&p2_ready, Duration::from_secs(10)).await;
 
-        // dependents[0] == [1, 2]: 0 stops after 1 and 2. Cycles: 0 <-> 1 and 2 <-> 3.
         let dependents = vec![vec![1, 2], vec![0], vec![3], vec![2]];
         let completed = tokio::time::timeout(
             Duration::from_secs(60),

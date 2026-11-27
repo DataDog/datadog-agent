@@ -835,9 +835,8 @@ impl ProcessManager {
         let n = self.processes.read().await.len();
         let ordered = self.startup_order.read().await.clone();
         let dependents = self.startup_dependents.read().await.clone();
-        // `dependents` gates each stop: a process is signaled only after its dependents
-        // have stopped. The reversed startup order sets the scheduling order. Cycle-excluded
-        // indices are appended so a running omittee is still stopped.
+        // Reversed startup order, with cycle-excluded indices appended so a running
+        // omittee is still stopped.
         let mut order: Vec<usize> = ordered.iter().copied().rev().collect();
         let in_order: HashSet<usize> = ordered.into_iter().collect();
         for idx in 0..n {
@@ -2183,7 +2182,6 @@ mod tests {
             "runtime process with after-dep should appear in startup order"
         );
 
-        // svc-b starts after svc-a, so svc-b is svc-a's dependent and stops first.
         let dependents = mgr.startup_dependents.read().await;
         let idx = |name: &str| procs.iter().position(|p| p.name() == name).unwrap();
         assert_eq!(
@@ -2561,8 +2559,7 @@ mod tests {
             "startup order should be recomputed with dependency constraints"
         );
 
-        // After the reload, startup_dependents must match the recomputed order. svc-api
-        // starts after svc-b, so it is svc-b's dependent and must stop first.
+        // svc-api starts after svc-b, so it is svc-b's dependent.
         let dependents = mgr.startup_dependents.read().await;
         let idx = |name: &str| procs.iter().position(|p| p.name() == name).unwrap();
         assert_eq!(
@@ -2574,8 +2571,7 @@ mod tests {
         Ok(())
     }
 
-    /// `svc-app` starts after `svc-db`, so `svc-db` must stop only after `svc-app` has stopped.
-    /// Checks that the dependents computed at startup reach `ProcessManager::shutdown`.
+    /// `svc-db` must stop only after its dependent `svc-app`, through `ProcessManager::shutdown`.
     #[cfg(unix)]
     #[tokio::test]
     async fn test_shutdown_stops_dependency_after_dependent() -> anyhow::Result<()> {
