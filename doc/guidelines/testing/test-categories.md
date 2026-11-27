@@ -43,7 +43,7 @@ When reviewing, ask three questions of each test:
 
 **Owns:** two of our components disagreeing through their real interfaces, or our code disagreeing with a real local dependency.
 
-**Use when** the important boundary can be preserved locally: components wired for real with `fxutil.Test`, an HTTP client against a local server, configuration loaded from real files, a local fakeintake, or a real local daemon, driver, or hardware. A real local dependency does not by itself require E2E. Integration tests are still Go tests, and take seconds.
+**Use when** the important boundary can be preserved locally: components wired for real with `fxutil.Test`, an HTTP client against a local server, configuration merged from real files, `DD_*` environment variables, and fleet policies by the real config components, a local fakeintake, or a real local daemon, driver, or hardware. A real local dependency does not by itself require E2E. Integration tests are still Go tests, and take seconds.
 
 An integration test is only as good as what it keeps real:
 
@@ -57,9 +57,28 @@ The `write-test` skill's <<<repo(".agents/skills/write-test/references/integrati
 
 **Does not catch:** anything that only appears in a shipped binary or a running service, or kernel behavior that differs from the kernel the test runs on.
 
+### Testing through Fx
+
+Most Agent code is an Fx component, and the component graph is what lets a change be validated end to end without a binary:
+
+- **The graph shows what a change reaches.** A component's `Requires` struct lists what it consumes, and the importers of its `def` package are what consume it. For a set of changed paths, <<<repo(".agents/skills/write-test/scripts/map_components.py")>>> lists the components reached, their consumers, and the `fx` modules and mocks that wire them. Those are the hops an integration test keeps real.
+- **Tests reuse production wiring.** `fxutil.Test[T]` starts the same `fx` modules and bundles the binaries start, so one test can follow a behavior from where its input enters, such as a config file, a socket, or a check, to where its output is observed, such as fakeintake, status, or flare. A missing or duplicate dependency fails the test at start, as it would fail the binary.
+- **Mocks mark the boundary.** Replace a real `fx` module with its `mock` or `fx-mock` only for components outside the boundary.
+
+| Question | Helper | Category |
+| --- | --- | --- |
+| Does this component compute the right result? | Its constructor with mocked `Requires`, no Fx | Unit |
+| Can this bundle or command build its graph? Does the command build the right parameters from its flags? | `fxutil.TestBundle`, `fxutil.TestOneShotSubcommand`, `fxutil.TestRun` | Unit |
+| Do these components start and agree when wired for real? | `fxutil.Test[T]` with real `fx` modules | Integration |
+| Does the assembled binary start, serve, and answer its CLI? | None: no helper runs a whole binary | Binary test |
+
+`fxutil.TestOneShotSubcommand` parses a command line, checks the parameters the command builds from it, and validates the command's real graph, `agent run` included, with `fx.ValidateApp`. It skips the command body and starts only what its verify function and the command's own `fx.Invoke` options request. `fxutil.Test[T]` builds and starts every component `T` requests, so a component that fails when it starts is caught by an integration test that requests it. A failure that needs the whole assembled binary, or a CLI talking to a running Agent, still needs a binary test.
+
+Configuration merging is an integration test: real files, `DD_*` variables, and fleet policies go through the real config module the way the binary loads them. A binary test keeps what only the running binary shows, such as the configuration other processes receive from the core Agent.
+
 ## Binary test
 
-**Owns:** the binary we built misbehaving as a program, on one machine: its CLI parsing and output, startup and configuration merging, a subcommand talking to a running Agent, or two of our binaries talking to each other over local sockets and files.
+**Owns:** the binary we built misbehaving as a program, on one machine: starting and stopping, CLI output against a running Agent, or two of our binaries talking over local sockets and files, such as the configuration other processes sync from the core Agent.
 
 **Use when** the assertion needs the built binaries running, but not the installed package, the service manager, a specific kernel, a cloud API, or an orchestrator. Such a test starts the built binaries in a temporary directory with a local configuration and fakeintake, and takes minutes.
 
