@@ -172,7 +172,7 @@ def expand_providers(provider: str) -> tuple[str, ...]:
     if provider == "all":
         return PROVIDERS
     if provider not in PROVIDER_CHOICES:
-        raise CodeReviewError(f"Unknown provider {provider!r}. Expected one of: {', '.join(PROVIDER_CHOICES)}")
+        raise CodeReviewError(f"Unknown provider {provider!r}. Expected one of: {', '.join(PROVIDER_CHOICES)}, auto")
     return (provider,)
 
 

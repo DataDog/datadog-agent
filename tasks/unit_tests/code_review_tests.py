@@ -13,6 +13,14 @@ from unittest.mock import patch
 
 from invoke import Context
 
+from tasks.libs.code_review.auto import (
+    Candidate,
+    auto_candidates,
+    detect_running_agent,
+    dev_env_options_problem,
+    review_with_first_available,
+    run_auto_review,
+)
 from tasks.libs.code_review.prompt import (
     CodeReviewError,
     Guideline,
@@ -470,6 +478,101 @@ class TestCodeReviewProviders(unittest.TestCase):
             self.assertEqual(output_path.read_text(encoding="utf-8"), "verdict: ✅\n")
 
         self.assertEqual(stdout.getvalue(), "verdict: ?\n")
+
+
+class TestCodeReviewAuto(unittest.TestCase):
+    def test_detect_running_agent(self):
+        self.assertEqual(detect_running_agent({"CLAUDECODE": "1"}), "claude")
+        self.assertEqual(detect_running_agent({"CODEX_SANDBOX": "seatbelt"}), "codex")
+        self.assertEqual(detect_running_agent({"GEMINI_CLI": "1"}), "gemini")
+        self.assertIsNone(detect_running_agent({"CLAUDECODE": ""}))
+
+    def test_detect_running_agent_is_unknown_when_several_match(self):
+        # A Codex session started from a Claude Code shell inherits CLAUDECODE
+        with patch("sys.stderr", io.StringIO()):
+            self.assertIsNone(detect_running_agent({"CLAUDECODE": "1", "CODEX_THREAD_ID": "t"}))
+
+    def test_candidates_skip_the_running_agent(self):
+        self.assertEqual(auto_candidates("claude"), (Candidate("codex"), Candidate("gemini")))
+        self.assertEqual(
+            auto_candidates("codex"),
+            (Candidate("claude"), Candidate("gemini"), Candidate("claude", in_dev_env=True)),
+        )
+
+    def test_candidates_for_an_unknown_agent(self):
+        self.assertEqual(
+            auto_candidates(None),
+            (Candidate("codex"), Candidate("claude"), Candidate("gemini"), Candidate("claude", in_dev_env=True)),
+        )
+
+    def run_first_available(self, candidates, unavailable=(), failing=()):
+        reviewed = []
+
+        def review(candidate):
+            reviewed.append(candidate.label)
+            if candidate.label in failing:
+                raise CodeReviewError("boom")
+
+        with patch("sys.stderr", io.StringIO()):
+            result = review_with_first_available(
+                candidates, lambda c: "not installed" if c.label in unavailable else None, review
+            )
+        return result, reviewed
+
+    def test_first_available_candidate_reviews(self):
+        result, reviewed = self.run_first_available(auto_candidates("claude"), unavailable=("codex",))
+        self.assertEqual((result, reviewed), (Candidate("gemini"), ["gemini"]))
+
+    def test_next_candidate_is_tried_after_a_failure(self):
+        result, reviewed = self.run_first_available(auto_candidates(None), failing=("codex",))
+        self.assertEqual((result, reviewed), (Candidate("claude"), ["codex", "claude"]))
+
+    def test_every_review_failed(self):
+        with self.assertRaisesRegex(CodeReviewError, "every attempted review failed"):
+            self.run_first_available(auto_candidates("claude"), unavailable=("gemini",), failing=("codex",))
+
+    def test_no_reviewer_available(self):
+        with self.assertRaisesRegex(CodeReviewError, "no reviewer is available"):
+            self.run_first_available(auto_candidates("claude"), unavailable=("codex", "gemini"))
+
+    def test_dev_env_options_with_shell_characters_are_refused(self):
+        self.assertIsNone(dev_env_options_problem({"base": "main", "extra-prompt": "Check shutdown paths"}))
+        self.assertIn("--extra-prompt", dev_env_options_problem({"extra-prompt": "Check the literal $HOME"}))
+        # Without a space, dda doesn't quote the value at all
+        self.assertIn("--extra-prompt", dev_env_options_problem({"extra-prompt": "Don't"}))
+        self.assertIn("--base", dev_env_options_problem({"base": "a;b"}))
+        self.assertIn("--extra-prompt", dev_env_options_problem({"extra-prompt": "line 1\nline 2"}))
+
+    def test_dev_env_reviews_when_the_prompt_cant_be_built_on_the_host(self):
+        builds = []
+
+        def build_prompt():
+            builds.append(1)
+            raise CodeReviewError("npm error")
+
+        ctx = FakeContext()
+        with (
+            patch("tasks.libs.code_review.auto._host_unavailable_reason", return_value=None),
+            patch("tasks.libs.code_review.auto._prepare_dev_env", return_value=None),
+            patch("tasks.libs.code_review.auto.dev_env_id", return_value="create-pr-review-1"),
+            patch("tasks.libs.code_review.auto.run_review") as run_review,
+            patch("sys.stderr", io.StringIO()),
+        ):
+            result = run_auto_review(
+                ctx=ctx,
+                repo_root=Path("/repo"),
+                build_prompt=build_prompt,
+                task_options={"base": "main", "extra-prompt": None},
+                env={"CODEX_SANDBOX": "seatbelt"},
+            )
+
+        self.assertEqual(result, Candidate("claude", in_dev_env=True))
+        run_review.assert_not_called()
+        self.assertEqual(builds, [1])  # Not retried for each host reviewer
+        command = ctx.commands[0][0]
+        self.assertIn("code-review.run", command)
+        self.assertIn("--base=main", command)
+        self.assertNotIn("extra-prompt", command)
 
 
 if __name__ == "__main__":

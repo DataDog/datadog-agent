@@ -8,11 +8,9 @@ model: sonnet
 
 Create a pull request for the current branch following the Datadog Agent contributing guidelines.
 
-**This is the canonical process for opening PRs in this repo.** Whenever you (or another agent or skill working in this repo) are about to run `gh pr create`, not only when the user types `/create-pr`, follow the steps below instead of assembling a title, body and labels ad hoc: an improvised PR misses the labels CI checks and the description reviewers rely on.
-
 **Ownership:** maintained by `@DataDog/agent-devx`.
 
-**Prerequisites:** the `gh` CLI must be installed and authenticated (`gh auth status`) with access to `DataDog/datadog-agent`, and `origin` must point at that repo (or a fork with push access) so `git push` and `gh pr create` succeed. The local review (step 5) needs [`dda`](https://datadoghq.dev/datadog-agent-dev/) and Python 3.9+, plus `codex` or `claude` logged in on the host, or docker for a developer environment. Without them, a subagent reviews instead.
+**Prerequisites:** the `gh` CLI must be installed and authenticated (`gh auth status`) with access to `DataDog/datadog-agent`, and `origin` must point at that repo (or a fork with push access) so `git push` and `gh pr create` succeed. The local review (step 5) needs [`dda`](https://datadoghq.dev/datadog-agent-dev/), plus `codex`, `claude` or `gemini` logged in on the host, or docker for a developer environment.
 
 ## Instructions
 
@@ -27,15 +25,13 @@ Create a pull request for the current branch following the Datadog Agent contrib
 2. **Get the commits** on this branch compared to `main` using `git log main..HEAD`
 3. **Get the diff** using `git diff main...HEAD` (three dots: only this branch's changes, even after `main` moves on) to understand all changes
 4. **Read the PR template** from `.github/PULL_REQUEST_TEMPLATE.md`
-5. **Local code review**: get a review from another reviewer than yourself, so it isn't anchored on the reasoning that produced the change. The review script runs `dda review`, which builds the same prompt as the PR `Code review` workflow (`.github/workflows/code-review.yml`) from the `codereview_guideline.md` files relevant to the diff. It skips reviewers of your own provider, so pass yours:
+5. **Local code review**: run this in the background (e.g. `run_in_background: true` in Claude Code), and do step 6 meanwhile:
    ```bash
-   .agents/skills/create-pr/scripts/review.py --self claude   # you are Claude Code: codex reviews
-   .agents/skills/create-pr/scripts/review.py --self codex    # you are Codex CLI: claude reviews
-   .agents/skills/create-pr/scripts/review.py --self none     # any other agent: codex, then claude
+   dda review --provider auto
    ```
-   A review takes several minutes, and starting a developer environment for the first time pulls a large image. Run it in the background (e.g. `run_in_background: true` in Claude Code) so it isn't killed mid-run, do step 6 meanwhile, and check on it; if it hasn't finished 20 minutes after it started, treat it as timed out (see below). The review goes to stdout, and the reasons a reviewer was skipped to stderr.
-   - **Exit 0**: show the findings to the user with the draft in step 8, and say which reviewer ran when it wasn't `codex`, since CI uses `codex`. Findings don't block PR creation; fix them first only if the user asks.
-   - **Any other exit, or no result after 20 minutes**: follow "When the review doesn't complete" in [references/local-review.md](references/local-review.md). It usually ends in a review by a subagent, so the PR still gets one before it opens.
+   It detects which agent you are and reviews with the first available other provider, with the same prompt as the PR `Code review` workflow. If it detects you wrongly, name the reviewer instead, e.g. `dda review --provider codex` when you are Claude Code.
+   - **Exit 0**: show the findings and the reviewer with the draft in step 8. Fix findings before opening the PR only if the user asks.
+   - **Any other exit, or still running 20 minutes after it started**: stop it (`TaskStop` in Claude Code), show the user its last lines, and do a [subagent review](references/local-review.md).
 6. **Describe the functional changes**: invoke the `/describe-functional-changes` skill on this branch, passing any motivation or context the user gave (if your harness can't invoke skills, read and follow `.agents/skills/describe-functional-changes/SKILL.md`). It returns a collapsed "Functional changes" block, usually a Before | After table (or a single "No functional change" line), that says what behaves differently, and for whom. Without it, reviewers have to read every changed line to understand what the PR actually does. It may also return notes, such as unverified claims or likely bugs: show them to the user with the draft in step 8. This step doesn't depend on the review, so do it while the review from step 5 runs.
 7. **PR title**: Use [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/) format, prefixed with the general area of change. Examples:
    - `fix(e2e): Fix flaky diagnose test`
@@ -146,11 +142,11 @@ When the PR is open, end with a short report, then ask about following CI (step 
 ```markdown
 Opened <draft|ready-for-review> PR <URL>: `<title>`
 - Labels: <the labels from step 10, e.g. `changelog/no-changelog`, `qa/no-code-change`>
-- Local review (<codex|claude|subagent>): <n> findings, not fixed:
+- Local review (<codex|claude|gemini|subagent>): <n> findings, not fixed:
   - `pkg/foo/bar.go:42`: <defect> — <failure scenario>
   - …
 - Functional changes notes: <unverified claims or likely bugs from step 6, if any>
 - Backport: <proposed `backport/<version>.x` label awaiting your confirmation, if any>
 ```
 
-Say "no findings" when the review found nothing, and name the reviewer: codex, claude, or a subagent. When no review ran, say why. Leave out lines that don't apply. The PR is done when it is open with these labels and description, and the user has seen every review finding and note.
+Say "no findings" when the review found nothing, and name the reviewer: codex, claude, gemini, or a subagent. When no review ran, say why. Leave out lines that don't apply. The PR is done when it is open with these labels and description, and the user has seen every review finding and note.
