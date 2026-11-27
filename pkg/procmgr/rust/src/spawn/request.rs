@@ -120,6 +120,15 @@ impl SpawnRequest {
     }
 }
 
+/// Whether `err` is, or wraps, an I/O error of kind `NotFound`.
+fn is_not_found(err: &anyhow::Error) -> bool {
+    err.chain().any(|cause| {
+        cause
+            .downcast_ref::<std::io::Error>()
+            .is_some_and(|io| io.kind() == std::io::ErrorKind::NotFound)
+    })
+}
+
 fn collect_env(
     process_name: &str,
     config: &ProcessConfig,
@@ -146,13 +155,18 @@ fn collect_env(
             (false, raw_path.as_str())
         };
 
-        if optional && !std::path::Path::new(path).exists() {
-            info!("[{process_name}] optional environment file not found, skipping: {path}");
-        } else {
-            let vars = parse_environment_file(path).with_context(|| {
-                format!("[{process_name}] failed to read environment file: {path}")
-            })?;
-            env.extend(vars);
+        // One bounded read decides it. Only NotFound makes an optional file absent: an EIO or a
+        // timeout must not start the process without its variables.
+        match parse_environment_file(path) {
+            Ok(vars) => env.extend(vars),
+            Err(err) if optional && is_not_found(&err) => {
+                info!("[{process_name}] optional environment file not found, skipping: {path}");
+            }
+            Err(err) => {
+                return Err(err.context(format!(
+                    "[{process_name}] failed to read environment file: {path}"
+                )));
+            }
         }
     }
 
@@ -298,6 +312,49 @@ mod tests {
             "environment_file vars must be included in spawn env: {:?}",
             request.env
         );
+    }
+
+    /// An optional environment file is absent only when it is not found.
+    #[test]
+    fn an_optional_environment_file_is_skipped_only_when_not_found() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("missing");
+        let optional = |path: &std::path::Path| ProcessConfig {
+            environment_file: Some(format!("-{}", path.to_str().unwrap())),
+            ..Default::default()
+        };
+
+        SpawnRequest::from_config("opt", &optional(&missing), false)
+            .expect("a missing optional file is skipped");
+
+        let Err(err) = SpawnRequest::from_config("opt", &optional(dir.path()), false) else {
+            panic!("an unreadable optional file must fail the spawn");
+        };
+        assert!(format!("{err:#}").contains("failed to read environment file"));
+
+        let required = ProcessConfig {
+            environment_file: Some(missing.to_str().unwrap().to_string()),
+            ..Default::default()
+        };
+        assert!(SpawnRequest::from_config("req", &required, false).is_err());
+    }
+
+    /// A stalled optional environment file fails the spawn.
+    #[cfg(unix)]
+    #[test]
+    fn a_stalled_optional_environment_file_fails_the_spawn() {
+        let dir = tempfile::tempdir().unwrap();
+        let fifo = dir.path().join("env.fifo");
+        let c = std::ffi::CString::new(fifo.to_str().unwrap()).unwrap();
+        assert_eq!(unsafe { nix::libc::mkfifo(c.as_ptr(), 0o600) }, 0, "mkfifo");
+        let config = ProcessConfig {
+            environment_file: Some(format!("-{}", fifo.to_str().unwrap())),
+            ..Default::default()
+        };
+        let Err(err) = SpawnRequest::from_config("stalled", &config, false) else {
+            panic!("a stalled read must fail the spawn");
+        };
+        assert!(format!("{err:#}").contains("no result within"), "{err:#}");
     }
 
     fn par_config() -> ProcessConfig {

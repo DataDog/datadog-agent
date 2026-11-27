@@ -63,6 +63,7 @@ pub async fn shutdown_signal() {
     tokio::select! {
         result = tokio::signal::ctrl_c() => {
             result.expect("failed to register Ctrl+C handler");
+            crate::stop::request_stop();
             log::info!("received Ctrl+C");
         }
         _ = shutdown_notify().notified() => {
