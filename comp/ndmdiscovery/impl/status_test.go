@@ -7,7 +7,6 @@ package ndmdiscoveryimpl
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"testing"
 	"time"

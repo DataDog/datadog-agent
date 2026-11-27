@@ -6,7 +6,6 @@
 package ndmdiscoveryimpl
 
 import (
-	"context"
 	"testing"
 	"time"
 
