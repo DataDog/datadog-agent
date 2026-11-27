@@ -33,9 +33,10 @@ pkg/gpu/
 
 ### KMT (kernel matrix testing) and the `bpf` build tag
 
-- **What triggers KMT:** `pkg/gpu/probe/**` plus the `pkg/gpu` packages in the
-  dependency closure of the probe tests (`.system_probe_change_paths` in
-  `.gitlab-ci.yml`, which has the query to regenerate the list). Put any new package
+- **What triggers KMT:** `pkg/gpu/probe/**` plus `safenvml`, `containers` and
+  `testutil`, whose behavior the probe tests exercise (`.system_probe_change_paths`
+  in `.gitlab-ci.yml`, which has the query listing the full dependency closure and
+  explains the exclusions). Put any new package
   the probe needs, and any test helper that needs eBPF, under `probe/`; keep NVML
   and core-agent code out of it.
 - **What KMT runs:** only the `pkg/gpu/probe` package (`TEST_PACKAGES_LIST` in
