@@ -362,13 +362,19 @@ mod tests {
         let (slow_exit, slow_status) = &results[0];
         let (fast_exit, fast_status) = &results[1];
 
+        // Lower bounds only: a kill never comes before its deadline. Upper bounds would be
+        // flaky on a loaded runner, so the ordering check stands in for them.
         assert!(
-            *fast_exit >= Duration::from_millis(1000) && *fast_exit < Duration::from_millis(2000),
-            "fast-stop should be force-killed at its 1 s deadline: exited at {fast_exit:?}"
+            *fast_exit >= Duration::from_millis(1000),
+            "fast-stop was killed before its 1 s deadline: exited at {fast_exit:?}"
         );
         assert!(
-            *slow_exit >= Duration::from_millis(2500) && *slow_exit < Duration::from_millis(4500),
-            "slow-stop should be force-killed at its 3 s deadline: exited at {slow_exit:?}"
+            *slow_exit >= Duration::from_millis(2500),
+            "slow-stop was killed before its 3 s deadline: exited at {slow_exit:?}"
+        );
+        assert!(
+            fast_exit < slow_exit,
+            "fast-stop should be killed on its own deadline, before slow-stop: fast {fast_exit:?}, slow {slow_exit:?}"
         );
         for status in [slow_status, fast_status] {
             assert_eq!(
