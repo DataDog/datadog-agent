@@ -3122,7 +3122,7 @@ func TestDataPlanePreflightModeProfile(t *testing.T) {
 
 	wantTags := map[string][]string{
 		"data_plane.preflight_mode_result":           {"result"},
-		"data_plane.preflight_mode_finding":          {"finding", "source_file", "source_line"},
+		"data_plane.preflight_mode_finding":          {"finding", "source_file", "source_line", "spawn_stage", "spawn_error"},
 		"data_plane.preflight_mode_duration_seconds": nil,
 	}
 
