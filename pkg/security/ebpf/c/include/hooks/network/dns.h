@@ -195,6 +195,8 @@ TAIL_CALL_CLASSIFIER_FNC(dns_response, struct __sk_buff *skb) {
             fill_span_context(&map_elem->full_dns_response.span, &map_elem->full_dns_response.go_labels);
         }
         fill_network_context(&map_elem->full_dns_response.network, skb, pkt);
+        struct proc_cache_t *entry = get_proc_cache(map_elem->full_dns_response.process.pid);
+        fill_cgroup_context(entry, &map_elem->full_dns_response.cgroup);
         err = bpf_skb_load_bytes(skb, pkt->offset, &map_elem->full_dns_response.header, sizeof(struct dnshdr));
         header_id = map_elem->full_dns_response.header.id;
     }

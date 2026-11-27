@@ -970,6 +970,10 @@ func getInUpperLayer(f *model.FileFields) *bool {
 }
 
 func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode uint64, metadata *model.FileMetadata) *FileSerializer {
+	return newFileSerializerWithProcess(fe, e, nil, forceInode, metadata)
+}
+
+func newFileSerializerWithProcess(fe *model.FileEvent, e *model.Event, ps *model.Process, forceInode uint64, metadata *model.FileMetadata) *FileSerializer {
 	inode := fe.Inode
 	if forceInode > 0 {
 		inode = forceInode
@@ -1019,7 +1023,11 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode uint64, m
 	if fe.HashState == model.Done {
 		fs.Hashes = fe.Hashes
 	} else if e.IsAnomalyDetectionEvent() {
-		fs.Hashes = e.FieldHandlers.ResolveHashesFromEvent(e, fe)
+		if ps != nil {
+			fs.Hashes = e.FieldHandlers.ResolveHashes(model.ExecEventType, ps, fe)
+		} else {
+			fs.Hashes = e.FieldHandlers.ResolveHashesFromEvent(e, fe)
+		}
 		fs.HashState = fe.HashState.String()
 	}
 	return fs
@@ -1099,7 +1107,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			ForkFlags:       int(ps.ForkFlags),
 			Comm:            ps.Comm,
 			TTY:             ps.TTYName,
-			Executable:      newFileSerializer(&ps.FileEvent, e, 0, nil),
+			Executable:      newFileSerializerWithProcess(&ps.FileEvent, e, ps, 0, nil),
 			Argv0:           argv0,
 			Args:            argv,
 			ArgsTruncated:   argvTruncated,
@@ -1121,7 +1129,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 		psSerializer.Executable.Capabilities = newFileCapabilitiesSerializer(&ps.FileCapabilities)
 
 		if ps.HasInterpreter() {
-			psSerializer.Interpreter = newFileSerializer(&ps.LinuxBinprm.FileEvent, e, 0, nil)
+			psSerializer.Interpreter = newFileSerializerWithProcess(&ps.LinuxBinprm.FileEvent, e, ps, 0, nil)
 		}
 
 		credsSerializer := newCredentialsSerializer(&ps.Credentials)

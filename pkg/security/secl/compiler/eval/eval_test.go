@@ -2717,3 +2717,40 @@ func TestDictErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestArrayVariableCachedKeysInvalidation(t *testing.T) {
+	strVar := NewStringArrayVariable(nil, VariableOpts{Size: 10})
+	ctx := NewContext(&testEvent{})
+
+	assert.NoError(t, strVar.Set(ctx, []string{"a", "b"}))
+	vals, ok := strVar.GetValue()
+	assert.True(t, ok)
+	assert.ElementsMatch(t, []string{"a", "b"}, vals)
+
+	assert.NoError(t, strVar.Append(ctx, []string{"c"}))
+	vals, ok = strVar.GetValue()
+	assert.True(t, ok)
+	assert.ElementsMatch(t, []string{"a", "b", "c"}, vals)
+
+	assert.NoError(t, strVar.Set(ctx, "d"))
+	vals, ok = strVar.GetValue()
+	assert.True(t, ok)
+	assert.ElementsMatch(t, []string{"a", "b", "c", "d"}, vals)
+
+	intVar := NewIntArrayVariable(nil, VariableOpts{Size: 10, TTL: 20 * time.Millisecond})
+	assert.NoError(t, intVar.Set(ctx, []int{1, 2}))
+	intVals, ok := intVar.GetValue()
+	assert.True(t, ok)
+	assert.ElementsMatch(t, []int{1, 2}, intVals)
+
+	assert.NoError(t, intVar.Append(ctx, []int{3}))
+	intVals, ok = intVar.GetValue()
+	assert.True(t, ok)
+	assert.ElementsMatch(t, []int{1, 2, 3}, intVals)
+
+	time.Sleep(40 * time.Millisecond)
+	intVar.CleanupExpired()
+	intVals, ok = intVar.GetValue()
+	assert.False(t, ok)
+	assert.Empty(t, intVals)
+}

@@ -489,6 +489,7 @@ func deepCopyFileEvent(fieldToCopy FileEvent, c deepCopyContext) FileEvent {
 	copied.Hashes = deepCopystringArr(fieldToCopy.Hashes, c)
 	copied.IsBasenameStrResolved = fieldToCopy.IsBasenameStrResolved
 	copied.IsPathnameStrResolved = fieldToCopy.IsPathnameStrResolved
+	copied.IsPkgResolved = fieldToCopy.IsPkgResolved
 	copied.MountDetached = fieldToCopy.MountDetached
 	copied.MountOrigin = fieldToCopy.MountOrigin
 	copied.MountPath = fieldToCopy.MountPath

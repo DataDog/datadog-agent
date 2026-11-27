@@ -143,6 +143,19 @@ func (c *LRU[K, V]) KeysIter() iter.Seq[K] {
 	}
 }
 
+// AllNewestIter returns an iterator of (key, value) pairs from newest to oldest.
+func (c *LRU[K, V]) AllNewestIter() iter.Seq2[K, V] {
+	return func(yield func(K, V) bool) {
+		for ent := c.evictList.Front(); ent != nil; {
+			next := ent.NextEntry()
+			if !yield(ent.Key, ent.Value) {
+				return
+			}
+			ent = next
+		}
+	}
+}
+
 // Values returns a slice of the values in the cache, from oldest to newest.
 func (c *LRU[K, V]) Values() []V {
 	values := make([]V, len(c.items))

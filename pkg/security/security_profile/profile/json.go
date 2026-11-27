@@ -20,9 +20,8 @@ import (
 // EncodeJSON encodes an activity dump in the ProtoJSON format
 func (p *Profile) EncodeJSON(indent string) (*bytes.Buffer, error) {
 	p.Lock()
-	defer p.Unlock()
-
 	pad := profileToSecDumpProto(p)
+	p.Unlock()
 	defer pad.ReturnToVTPool()
 
 	opts := protojson.MarshalOptions{

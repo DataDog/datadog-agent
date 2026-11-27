@@ -584,6 +584,7 @@ type FileEvent struct {
 	// used to mark as already resolved, can be used in case of empty path
 	IsPathnameStrResolved bool `field:"-"`
 	IsBasenameStrResolved bool `field:"-"`
+	IsPkgResolved         bool `field:"-"`
 }
 
 // InvalidateDentryEvent defines a invalidate dentry event

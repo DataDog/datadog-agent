@@ -31,6 +31,7 @@ var DefaultStringCmpOpts = StringCmpOpts{}
 // StringValues describes a set of string values, either regex or scalar
 type StringValues struct {
 	scalars        []string
+	scalarMap      map[string]struct{}
 	stringMatchers []StringMatcher
 
 	// keep all the raw field data
@@ -72,6 +73,13 @@ func (s *StringValues) Compile(opts StringCmpOpts) error {
 		}
 	}
 
+	if len(s.scalars) > 8 {
+		s.scalarMap = make(map[string]struct{}, len(s.scalars))
+		for _, v := range s.scalars {
+			s.scalarMap[v] = struct{}{}
+		}
+	}
+
 	return nil
 }
 
@@ -89,6 +97,7 @@ func (s *StringValues) GetStringMatchers() []StringMatcher {
 func (s *StringValues) SetFieldValues(values ...FieldValue) error {
 	// reset internal caches
 	s.scalars = nil
+	s.scalarMap = nil
 	s.stringMatchers = nil
 
 	for _, value := range values {
@@ -105,9 +114,15 @@ func (s *StringValues) AppendScalarValue(value string) {
 
 // Matches returns whether the value matches the string values
 func (s *StringValues) Matches(value string) (bool, string) {
-	for _, v := range s.scalars {
-		if value == v {
-			return true, v
+	if s.scalarMap != nil {
+		if _, ok := s.scalarMap[value]; ok {
+			return true, value
+		}
+	} else {
+		for _, v := range s.scalars {
+			if value == v {
+				return true, v
+			}
 		}
 	}
 	for _, sm := range s.stringMatchers {

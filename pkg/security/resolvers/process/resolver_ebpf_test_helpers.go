@@ -68,6 +68,8 @@ func NewTestEBPFResolver(
 		spanCtxStats:                 newSpanCtxStats(),
 		otelProcCtxQueue:             make(chan uint32, otelProcCtxQueueSize),
 		otelProcCtxPending:           make(map[uint32]time.Time),
+		goLabelsQueue:                make(chan uint32, otelProcCtxQueueSize),
+		goLabelsPending:              make(map[uint32]struct{}),
 	}
 
 	for _, t := range metrics.AllTypesTags {

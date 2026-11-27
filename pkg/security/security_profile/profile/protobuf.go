@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	adprotov1 "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
@@ -242,8 +243,25 @@ func seccompTypeFromProto(t adprotov1.SeccompProfile_Type) securitycontext.Secco
 	}
 }
 
-// profileToSecDumpProto creates a protobuf SecDump object from the given Profile
-func profileToSecDumpProto(p *Profile) *adprotov1.SecDump {
+type sharedProfileProto struct {
+	metadata             *adprotov1.Metadata
+	tree                 []*adprotov1.ProcessActivityNode
+	mounts               []*adprotov1.MountNode
+	securityContexts     []*adprotov1.SecurityContextEntry
+	unattributedActivity *adprotov1.UnattributedActivity
+}
+
+func buildSharedProfileProto(p *Profile) sharedProfileProto {
+	return sharedProfileProto{
+		metadata:             mtdt.ToProto(&p.Metadata),
+		tree:                 activity_tree.ToProto(p.ActivityTree),
+		mounts:               activity_tree.MountsToProto(p.ActivityTree),
+		securityContexts:     securityContextsToProto(p.SecurityContexts),
+		unattributedActivity: activity_tree.UnattributedActivityToProto(p.ActivityTree),
+	}
+}
+
+func profileToSecDumpProtoWithShared(p *Profile, shared sharedProfileProto) *adprotov1.SecDump {
 	if p == nil {
 		return nil
 	}
@@ -253,15 +271,23 @@ func profileToSecDumpProto(p *Profile) *adprotov1.SecDump {
 		Host:                 p.Header.Host,
 		Service:              p.Header.Service,
 		Source:               p.Header.Source,
-		Metadata:             mtdt.ToProto(&p.Metadata),
+		Metadata:             shared.metadata,
 		Tags:                 p.getDumpTags(),
-		Tree:                 activity_tree.ToProto(p.ActivityTree),
-		SecurityContexts:     securityContextsToProto(p.SecurityContexts),
-		Mounts:               activity_tree.MountsToProto(p.ActivityTree),
-		UnattributedActivity: activity_tree.UnattributedActivityToProto(p.ActivityTree),
+		Tree:                 shared.tree,
+		SecurityContexts:     shared.securityContexts,
+		Mounts:               shared.mounts,
+		UnattributedActivity: shared.unattributedActivity,
 	}
 
 	return pad
+}
+
+// profileToSecDumpProto creates a protobuf SecDump object from the given Profile
+func profileToSecDumpProto(p *Profile) *adprotov1.SecDump {
+	if p == nil {
+		return nil
+	}
+	return profileToSecDumpProtoWithShared(p, buildSharedProfileProto(p))
 }
 
 // secDumpProtoToProfile converts a SecDump protobuf object to a Profile
@@ -287,9 +313,8 @@ func secDumpProtoToProfile(p *Profile, ad *adprotov1.SecDump) {
 // EncodeSecDumpProtobuf encodes a Profile to its SecDump protobuf binary representation
 func (p *Profile) EncodeSecDumpProtobuf() (*bytes.Buffer, error) {
 	p.Lock()
-	defer p.Unlock()
-
 	pad := profileToSecDumpProto(p)
+	p.Unlock()
 	defer pad.ReturnToVTPool()
 
 	raw, err := pad.MarshalVT()
@@ -359,8 +384,7 @@ func protoToState(eps adprotov1.EventProfileState) model.EventFilteringProfileSt
 	return model.NoProfile
 }
 
-// profileToSecurityProfileProto creates a protobuf SecurityProfile object from the given Profile
-func profileToSecurityProfileProto(p *Profile) (*adprotov1.SecurityProfile, error) {
+func profileToSecurityProfileProtoWithShared(p *Profile, shared sharedProfileProto) (*adprotov1.SecurityProfile, error) {
 	if p == nil {
 		return nil, errors.New("imput == nil")
 	}
@@ -370,14 +394,14 @@ func profileToSecurityProfileProto(p *Profile) (*adprotov1.SecurityProfile, erro
 	}
 
 	output := adprotov1.SecurityProfile{
-		Metadata:             mtdt.ToProto(&p.Metadata),
-		ProfileContexts:      make(map[string]*adprotov1.ProfileContext),
-		Tree:                 activity_tree.ToProto(p.ActivityTree),
-		Mounts:               activity_tree.MountsToProto(p.ActivityTree),
+		Metadata:             shared.metadata,
+		ProfileContexts:      make(map[string]*adprotov1.ProfileContext, len(p.versionContexts)),
+		Tree:                 shared.tree,
+		Mounts:               shared.mounts,
 		Selector:             cgroupModel.WorkloadSelectorToProto(&p.selector),
-		Disabled:             !p.isEnabled,
-		SecurityContexts:     securityContextsToProto(p.SecurityContexts),
-		UnattributedActivity: activity_tree.UnattributedActivityToProto(p.ActivityTree),
+		Disabled:             !p.isEnabled.Load(),
+		SecurityContexts:     shared.securityContexts,
+		UnattributedActivity: shared.unattributedActivity,
 	}
 
 	var syscallsByImageTagID map[uint64][]uint32
@@ -395,7 +419,7 @@ func profileToSecurityProfileProto(p *Profile) (*adprotov1.SecurityProfile, erro
 		outCtx := &adprotov1.ProfileContext{
 			FirstSeen:      ctx.FirstSeenNano,
 			LastSeen:       ctx.LastSeenNano,
-			EventTypeState: make(map[uint32]*adprotov1.EventTypeState),
+			EventTypeState: make(map[uint32]*adprotov1.EventTypeState, len(ctx.EventTypeState)),
 			Syscalls:       make([]uint32, len(syscalls)),
 			Tags:           make([]string, len(ctx.Tags)),
 		}
@@ -413,12 +437,118 @@ func profileToSecurityProfileProto(p *Profile) (*adprotov1.SecurityProfile, erro
 	return &output, nil
 }
 
+// profileToSecurityProfileProto creates a protobuf SecurityProfile object from the given Profile
+func profileToSecurityProfileProto(p *Profile) (*adprotov1.SecurityProfile, error) {
+	if p == nil {
+		return nil, errors.New("imput == nil")
+	}
+
+	if !p.selector.IsReady() {
+		return nil, errors.New("can't get profile selector, tags shouldn't be resolved yet")
+	}
+
+	return profileToSecurityProfileProtoWithShared(p, buildSharedProfileProto(p))
+}
+
+func (p *Profile) EncodeFormats(formats []config.StorageFormat, beforeEncode func()) (map[config.StorageFormat]*bytes.Buffer, map[config.StorageFormat]error) {
+	var needSecDump, needSecProfile bool
+	for _, format := range formats {
+		switch format {
+		case config.Protobuf, config.JSON:
+			needSecDump = true
+		case config.Profile:
+			needSecProfile = true
+		}
+	}
+
+	var (
+		pad          *adprotov1.SecDump
+		profileProto *adprotov1.SecurityProfile
+		profileErr   error
+	)
+
+	p.Lock()
+	if beforeEncode != nil {
+		beforeEncode()
+	}
+	if needSecDump || (needSecProfile && p.selector.IsReady()) {
+		shared := buildSharedProfileProto(p)
+		if needSecDump {
+			pad = profileToSecDumpProtoWithShared(p, shared)
+		}
+		if needSecProfile {
+			profileProto, profileErr = profileToSecurityProfileProtoWithShared(p, shared)
+		}
+	} else if needSecProfile {
+		profileProto, profileErr = profileToSecurityProfileProto(p)
+	}
+	p.Unlock()
+
+	if pad != nil {
+		defer pad.ReturnToVTPool()
+	}
+
+	encoded := make(map[config.StorageFormat]*bytes.Buffer, len(formats))
+	errs := make(map[config.StorageFormat]error)
+
+	for _, format := range formats {
+		if _, done := encoded[format]; done {
+			continue
+		}
+		if _, failed := errs[format]; failed {
+			continue
+		}
+
+		switch format {
+		case config.Profile:
+			if profileErr != nil {
+				errs[format] = fmt.Errorf("Error while encoding security dump: %v", profileErr)
+				continue
+			}
+			raw, err := profileProto.MarshalVT()
+			if err != nil {
+				errs[format] = fmt.Errorf("couldn't encode dump to `%s` format: %v", config.Profile, err)
+				continue
+			}
+			encoded[format] = bytes.NewBuffer(raw)
+		case config.Protobuf:
+			raw, err := pad.MarshalVT()
+			if err != nil {
+				errs[format] = fmt.Errorf("couldn't encode in protobuf: %v", err)
+				continue
+			}
+			encoded[format] = bytes.NewBuffer(raw)
+		case config.JSON:
+			opts := protojson.MarshalOptions{
+				EmitUnpopulated: true,
+				UseProtoNames:   true,
+			}
+			raw, err := opts.Marshal(pad)
+			if err != nil {
+				errs[format] = fmt.Errorf("couldn't encode in json: %v", err)
+				continue
+			}
+			encoded[format] = bytes.NewBuffer(raw)
+		case config.Dot:
+			buf, err := p.EncodeDOT()
+			if err != nil {
+				errs[format] = err
+				continue
+			}
+			encoded[format] = buf
+		default:
+			errs[format] = fmt.Errorf("couldn't encode activity dump [%s] as [%s]: unknown format", p.GetSelectorStr(), format)
+		}
+	}
+
+	return encoded, errs
+}
+
 // EncodeSecurityProfileProtobuf encodes a Profile to its SecurityProfile protobuf binary representation
 func (p *Profile) EncodeSecurityProfileProtobuf() (*bytes.Buffer, error) {
 	p.Lock()
-	defer p.Unlock()
-
 	profileProto, err := profileToSecurityProfileProto(p)
+	p.Unlock()
 	if err != nil {
 		return nil, fmt.Errorf("Error while encoding security dump: %v", err)
 	}
@@ -437,7 +567,7 @@ func protoToSecurityProfile(output *Profile, input *adprotov1.SecurityProfile) {
 
 	output.Metadata = mtdt.ProtoMetadataToMetadata(input.Metadata)
 	output.selector = cgroupModel.ProtoToWorkloadSelector(input.Selector)
-	output.isEnabled = !input.Disabled
+	output.isEnabled.Store(!input.Disabled)
 	output.SecurityContexts = protoToSecurityContexts(input.SecurityContexts)
 
 	for key, ctx := range input.ProfileContexts {

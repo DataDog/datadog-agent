@@ -30,7 +30,17 @@ func NewLabelSet(labels ...string) (LabelSet, error) {
 // from the usage of context values. This function also directly takes a map of labels, instead of incuring allocations
 // when converting from one format (LabelSet) to the other (map).
 func PprofDoWithoutContext(labelSet LabelSet, f func()) {
-	defer pprof.SetGoroutineLabels(context.Background())
-	pprof.SetGoroutineLabels(labelSet.innerCtx)
+	defer ResetPprofLabels()
+	SetPprofLabels(labelSet)
 	f()
+}
+
+// SetPprofLabels sets the goroutine pprof labels to labelSet without allocating a context.
+func SetPprofLabels(labelSet LabelSet) {
+	pprof.SetGoroutineLabels(labelSet.innerCtx)
+}
+
+// ResetPprofLabels clears the goroutine pprof labels.
+func ResetPprofLabels() {
+	pprof.SetGoroutineLabels(context.Background())
 }

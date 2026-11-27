@@ -546,6 +546,9 @@ func protoDecodeProtoSocket(sn *adproto.SocketNode, getIDFromImageTag func(strin
 		socketNode.Connect = append(socketNode.Connect, cn)
 	}
 
+	slices.SortFunc(socketNode.Bind, cmpBindNodes)
+	slices.SortFunc(socketNode.Connect, cmpConnectNodes)
+
 	return socketNode
 }
 

@@ -93,14 +93,14 @@ func seenBytes(b NodeBase) int64 {
 // fileEventStringsBytes counts every heap-allocated string carried by a model.FileEvent
 // (path/basename/filesystem/package metadata + hashes backing). Shared by the main exec
 // FileEvent and the LinuxBinprm interpreter FileEvent so both contribute the same way.
-func fileEventStringsBytes(fe *model.FileEvent) int64 {
+func fileEventStringsBytes(fe *model.FileEvent, hashes []string) int64 {
 	var n int64
 	n += int64(len(fe.PathnameStr))
 	n += int64(len(fe.BasenameStr))
 	n += int64(len(fe.Filesystem))
 	n += int64(len(fe.PkgName))
 	n += int64(len(fe.PkgVersion))
-	n += stringSliceBytes(fe.Hashes)
+	n += stringSliceBytes(hashes)
 	return n
 }
 
@@ -117,7 +117,7 @@ func fileInfoStringsBytes(fi *FileInfo) int64 {
 	n += int64(len(fi.PkgRelease))
 	n += int64(len(fi.PkgSrcVersion))
 	n += int64(len(fi.PkgSrcRelease))
-	n += stringSliceBytes(fi.Hashes)
+	n += stringSliceBytes(fi.accountedHashes(false))
 	return n
 }
 
@@ -127,7 +127,7 @@ func fileInfoStringsBytes(fi *FileInfo) int64 {
 // size() ignored.
 func processStringsBytes(p *ProcessInfo) int64 {
 	var n int64
-	n += fileEventStringsBytes(&p.FileEvent)
+	n += fileEventStringsBytes(&p.FileEvent, p.accountedHashes(false))
 
 	n += int64(len(p.Argv0))
 	n += int64(len(p.Comm))

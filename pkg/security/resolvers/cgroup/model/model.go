@@ -195,8 +195,8 @@ func (cgce *CacheEntry) SetAsDeleted() {
 
 // ContainsPID returns whether the cache entry contains the pid
 func (cgce *CacheEntry) ContainsPID(pid uint32) bool {
-	cgce.lock.Lock()
-	defer cgce.lock.Unlock()
+	cgce.lock.RLock()
+	defer cgce.lock.RUnlock()
 
 	_, exists := cgce.pids[pid]
 	return exists

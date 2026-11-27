@@ -42,6 +42,26 @@ type Rule struct {
 	ast       *ast.Rule
 }
 
+// PartialEvalState describes the compiled state of a rule's partial evaluator for a field set.
+type PartialEvalState uint8
+
+const (
+	// PartialEvalMissing indicates the rule does not reference any of the target fields.
+	PartialEvalMissing PartialEvalState = iota
+	// PartialEvalConstTrue indicates the projected rule folds to constant true.
+	PartialEvalConstTrue
+	// PartialEvalConstFalse indicates the projected rule folds to constant false.
+	PartialEvalConstFalse
+	// PartialEvalDynamic indicates the projected rule requires evaluating a dynamic BoolEvalFnc.
+	PartialEvalDynamic
+)
+
+type partialEvalEntry struct {
+	state   PartialEvalState
+	eval    BoolEvalFnc
+	missing error
+}
+
 // RuleEvaluator - Evaluation part of a Rule
 type RuleEvaluator struct {
 	Eval      BoolEvalFnc
@@ -54,7 +74,7 @@ type RuleEvaluator struct {
 	fieldValues map[Field][]FieldValue
 	fields      []Field
 
-	partialEvals map[string]BoolEvalFnc
+	partialEvals map[string]partialEvalEntry
 }
 
 // NewRule returns a new rule
@@ -87,6 +107,11 @@ func NewRule(id string, expression string, parsingContext *parser.ParsingContext
 }
 
 // partialKey identifies the partial of a set of fields.
+// PartialKey returns the lookup key for a partial evaluator over fields.
+func PartialKey(fields []Field) string {
+	return partialKey(fields)
+}
+
 func partialKey(fields []Field) string {
 	if len(fields) == 1 {
 		return fields[0]
@@ -96,8 +121,8 @@ func partialKey(fields []Field) string {
 
 // IsPartialAvailable checks if partial have been generated for the given Fields
 func (r *RuleEvaluator) IsPartialAvailable(fields ...Field) bool {
-	_, exists := r.partialEvals[partialKey(fields)]
-	return exists
+	entry, exists := r.partialEvals[partialKey(fields)]
+	return exists && entry.state != PartialEvalMissing
 }
 
 // PartialEval partially evaluation of the Rule with the given Fields.
@@ -106,19 +131,22 @@ func (r *RuleEvaluator) PartialEval(ctx *Context, fields ...Field) (bool, error)
 }
 
 func (r *RuleEvaluator) partialEval(ctx *Context, fields []Field, key string) (bool, error) {
-	eval, ok := r.partialEvals[key]
-	if !ok {
+	entry, ok := r.partialEvals[key]
+	if !ok || entry.state == PartialEvalMissing {
+		if entry.missing != nil {
+			return false, entry.missing
+		}
 		return false, &ErrFieldNotFound{Field: strings.Join(fields, ", ")}
 	}
 
-	return eval(ctx), nil
+	return entry.eval(ctx), nil
 }
 
-func (r *RuleEvaluator) setPartial(key string, partialEval BoolEvalFnc) {
+func (r *RuleEvaluator) setPartialEntry(key string, entry partialEvalEntry) {
 	if r.partialEvals == nil {
-		r.partialEvals = make(map[string]BoolEvalFnc)
+		r.partialEvals = make(map[string]partialEvalEntry)
 	}
-	r.partialEvals[key] = partialEval
+	r.partialEvals[key] = entry
 }
 
 // GetFields - Returns all the Field that the RuleEvaluator handles
@@ -138,28 +166,57 @@ func (r *Rule) GetFieldValues(field Field) []FieldValue {
 
 // PartialEval - Partial evaluation with the given Fields
 func (r *Rule) PartialEval(ctx *Context, fields ...Field) (bool, error) {
-	key := partialKey(fields)
-	if _, exists := r.evaluator.partialEvals[key]; !exists {
-		if err := r.genPartials(fields, key); err != nil {
-			return false, err
-		}
-	}
+	return r.PartialEvalWithKey(ctx, fields, partialKey(fields))
+}
 
-	return r.evaluator.partialEval(ctx, fields, key)
+func (r *Rule) resolvePartialEntry(fields []Field, key string) (partialEvalEntry, error) {
+	entry, exists := r.evaluator.partialEvals[key]
+	if !exists {
+		if err := r.genPartials(fields, key); err != nil {
+			return partialEvalEntry{}, err
+		}
+		entry = r.evaluator.partialEvals[key]
+	}
+	return entry, nil
+}
+
+// PartialEvalWithKey evaluates the partial evaluator for fields using a precomputed PartialKey.
+func (r *Rule) PartialEvalWithKey(ctx *Context, fields []Field, key string) (bool, error) {
+	entry, err := r.resolvePartialEntry(fields, key)
+	if err != nil {
+		return false, err
+	}
+	switch entry.state {
+	case PartialEvalMissing:
+		return false, entry.missing
+	case PartialEvalConstTrue:
+		return true, nil
+	case PartialEvalConstFalse:
+		return false, nil
+	default:
+		return entry.eval(ctx), nil
+	}
+}
+
+// GetPartialEvalState returns the compiled PartialEvalState and evaluator for fields using a precomputed key.
+func (r *Rule) GetPartialEvalState(fields []Field, key string) (PartialEvalState, BoolEvalFnc, error) {
+	entry, err := r.resolvePartialEntry(fields, key)
+	if err != nil {
+		return PartialEvalMissing, nil, err
+	}
+	if entry.state == PartialEvalMissing {
+		return PartialEvalMissing, nil, entry.missing
+	}
+	return entry.state, entry.eval, nil
 }
 
 // GetPartialEval - Returns the Partial RuleEvaluator for the given Fields
 func (r *Rule) GetPartialEval(fields ...Field) BoolEvalFnc {
-	key := partialKey(fields)
-	partial, exists := r.evaluator.partialEvals[key]
-	if !exists {
-		if err := r.genPartials(fields, key); err != nil {
-			return nil
-		}
-		partial = r.evaluator.partialEvals[key]
+	entry, err := r.resolvePartialEntry(fields, partialKey(fields))
+	if err != nil {
+		return nil
 	}
-
-	return partial
+	return entry.eval
 }
 
 // GetFields - Returns all the Field of the Rule including field of the Macro used
@@ -297,6 +354,10 @@ func (r *Rule) GenEvaluator(model Model) error {
 // pass.ProjectFields. A rule that uses none of the fields has no partial.
 func (r *Rule) genPartials(fields []Field, key string) error {
 	if !slices.ContainsFunc(fields, func(field Field) bool { return slices.Contains(r.GetFields(), field) }) {
+		r.evaluator.setPartialEntry(key, partialEvalEntry{
+			state:   PartialEvalMissing,
+			missing: &ErrFieldNotFound{Field: strings.Join(fields, ", ")},
+		})
 		return nil
 	}
 
@@ -317,13 +378,22 @@ func (r *Rule) genPartials(fields []Field, key string) error {
 		return NewTypeError(projected.Pos, reflect.Bool)
 	}
 
+	partialState := PartialEvalDynamic
 	if pEvalBool.EvalFnc == nil {
+		if pEvalBool.Value {
+			partialState = PartialEvalConstTrue
+		} else {
+			partialState = PartialEvalConstFalse
+		}
 		pEvalBool.EvalFnc = func(_ *Context) bool {
 			return pEvalBool.Value
 		}
 	}
 
-	r.evaluator.setPartial(key, pEvalBool.EvalFnc)
+	r.evaluator.setPartialEntry(key, partialEvalEntry{
+		state: partialState,
+		eval:  pEvalBool.EvalFnc,
+	})
 
 	return nil
 }

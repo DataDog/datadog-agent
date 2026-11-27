@@ -10,6 +10,7 @@ package probe
 
 import (
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -103,8 +104,11 @@ func (k *HashActionReport) PatchEvent(ev *serializers.EventSerializer) {
 		return
 	}
 
+	k.RLock()
+	defer k.RUnlock()
+
 	ev.FileEventSerializer.HashState = k.fileEvent.HashState.String()
-	ev.FileEventSerializer.Hashes = k.fileEvent.Hashes
+	ev.FileEventSerializer.Hashes = slices.Clone(k.fileEvent.Hashes)
 }
 
 // RawPacketActionReport defines a raw packet action reports

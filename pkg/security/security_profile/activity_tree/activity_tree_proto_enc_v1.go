@@ -11,17 +11,18 @@ package activitytree
 import (
 	"slices"
 	"time"
+	"unicode/utf8"
 
 	adproto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 	"golang.org/x/text/runes"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 // ToProto encodes an activity tree to its protobuf representation
 func ToProto(at *ActivityTree) []*adproto.ProcessActivityNode {
+	at.FlushPendingHashes()
 	out := make([]*adproto.ProcessActivityNode, 0, len(at.ProcessNodes))
 
 	for _, node := range at.ProcessNodes {
@@ -35,6 +36,7 @@ func UnattributedActivityToProto(at *ActivityTree) *adproto.UnattributedActivity
 	if at == nil || at.UnattributedActivity == nil {
 		return nil
 	}
+	at.FlushPendingHashes()
 
 	// pan isn't returned to the pool: its activity nodes now belong to the output
 	pan := processActivityNodeToProto(at.UnattributedActivity, at.GetTagFromID)
@@ -215,7 +217,7 @@ func processNodeToProto(p *ProcessInfo) *adproto.ProcessInfo {
 		Cookie64:    p.Cookie,
 		IsThread:    p.IsThread,
 		IsExecChild: p.IsExecExec,
-		File:        fileEventToProto(&p.FileEvent),
+		File:        processFileToProto(p),
 		Tty:         escape(p.TTYName),
 		Comm:        escape(p.Comm),
 
@@ -268,6 +270,21 @@ func fileInfoToProto(fi *FileInfo) *adproto.FileInfo {
 		return nil
 	}
 
+	hashState, hashes := fi.GetHashes()
+	pkgFields := struct {
+		epoch, srcEpoch     uint32
+		release, srcRelease string
+	}{
+		epoch:      uint32(fi.PkgEpoch),
+		srcEpoch:   uint32(fi.PkgSrcEpoch),
+		release:    fi.PkgRelease,
+		srcRelease: fi.PkgSrcRelease,
+	}
+	var hashesCopy []string
+	if len(hashes) > 0 {
+		hashesCopy = make([]string, len(hashes))
+		copy(hashesCopy, hashes)
+	}
 	pfi := adproto.FileInfoFromVTPool()
 	*pfi = adproto.FileInfo{
 		Uid:               fi.UID,
@@ -285,26 +302,40 @@ func fileInfoToProto(fi *FileInfo) *adproto.FileInfo {
 		Filesystem:        escape(fi.Filesystem),
 		PackageName:       fi.PkgName,
 		PackageVersion:    fi.PkgVersion,
-		PackageEpoch:      pointer.Ptr(uint32(fi.PkgEpoch)),
-		PackageRelease:    pointer.Ptr(fi.PkgRelease),
+		PackageEpoch:      &pkgFields.epoch,
+		PackageRelease:    &pkgFields.release,
 		PackageSrcVersion: fi.PkgSrcVersion,
-		PackageSrcEpoch:   pointer.Ptr(uint32(fi.PkgSrcEpoch)),
-		PackageSrcRelease: pointer.Ptr(fi.PkgSrcRelease),
-		Hashes:            make([]string, len(fi.Hashes)),
-		HashState:         adproto.HashState(fi.HashState),
+		PackageSrcEpoch:   &pkgFields.srcEpoch,
+		PackageSrcRelease: &pkgFields.srcRelease,
+		Hashes:            hashesCopy,
+		HashState:         adproto.HashState(hashState),
 	}
-	copy(pfi.Hashes, fi.Hashes)
 
 	return pfi
 }
 
-// fileEventToProto encodes the process' exec file, which is still held as a full
-// model.FileEvent, by projecting it onto the same slim FileInfo the encoder uses.
-func fileEventToProto(fe *model.FileEvent) *adproto.FileInfo {
-	if fe == nil {
+func processFileToProto(p *ProcessInfo) *adproto.FileInfo {
+	if p == nil {
 		return nil
 	}
-	return fileInfoToProto(newFileInfo(fe))
+	hashState, hashes := p.GetHashes()
+	fe := &p.FileEvent
+	fi := FileInfo{
+		FileFields:    fe.FileFields,
+		PathnameStr:   fe.PathnameStr,
+		BasenameStr:   fe.BasenameStr,
+		Filesystem:    fe.Filesystem,
+		PkgName:       fe.PkgName,
+		PkgVersion:    fe.PkgVersion,
+		PkgEpoch:      fe.PkgEpoch,
+		PkgRelease:    fe.PkgRelease,
+		PkgSrcVersion: fe.PkgSrcVersion,
+		PkgSrcEpoch:   fe.PkgSrcEpoch,
+		PkgSrcRelease: fe.PkgSrcRelease,
+		HashState:     hashState,
+		Hashes:        hashes,
+	}
+	return fileInfoToProto(&fi)
 }
 
 func fileActivityNodeToProto(fan *FileNode, tagIDToImageTag func(id uint64) string) *adproto.FileActivityNode {
@@ -457,42 +488,74 @@ func socketNodeToProto(sn *SocketNode, tagIDToImageTag func(id uint64) string) *
 		return nil
 	}
 
+	bindLen := len(sn.Bind)
+	connectLen := len(sn.Connect)
 	psn := &adproto.SocketNode{
-		Family:  sn.Family,
-		Bind:    make([]*adproto.BindNode, 0, len(sn.Bind)),
-		Connect: make([]*adproto.ConnectNode, 0, len(sn.Connect)),
+		Family: sn.Family,
+	}
+	if bindLen == 0 && connectLen == 0 {
+		return psn
 	}
 
+	totalSeen := 0
 	for _, bn := range sn.Bind {
-		pbn := &adproto.BindNode{
-			MatchedRules: make([]*adproto.MatchedRule, 0, len(bn.MatchedRules)),
-			Port:         uint32(bn.Port),
-			Ip:           bn.IP,
-			Protocol:     uint32(bn.Protocol),
-			NodeBase:     nodeBaseToProto(&bn.NodeBase, tagIDToImageTag),
-		}
-
-		for _, rule := range bn.MatchedRules {
-			pbn.MatchedRules = append(pbn.MatchedRules, matchedRuleToProto(rule))
-		}
-
-		psn.Bind = append(psn.Bind, pbn)
+		totalSeen += bn.SeenLen()
+	}
+	for _, cn := range sn.Connect {
+		totalSeen += cn.SeenLen()
 	}
 
-	for _, cn := range sn.Connect {
-		pcn := &adproto.ConnectNode{
-			MatchedRules: make([]*adproto.MatchedRule, 0, len(cn.MatchedRules)),
-			Port:         uint32(cn.Port),
-			Ip:           cn.IP,
-			Protocol:     uint32(cn.Protocol),
-			NodeBase:     nodeBaseToProto(&cn.NodeBase, tagIDToImageTag),
-		}
+	nodeBases := make([]adproto.NodeBase, bindLen+connectLen)
+	var timesBuf []adproto.ImageTagTimes
+	if totalSeen > 0 {
+		timesBuf = make([]adproto.ImageTagTimes, totalSeen)
+	}
+	nbIdx := 0
 
-		for _, rule := range cn.MatchedRules {
-			pcn.MatchedRules = append(pcn.MatchedRules, matchedRuleToProto(rule))
-		}
+	if bindLen > 0 {
+		psn.Bind = make([]*adproto.BindNode, bindLen)
+		bindVals := make([]adproto.BindNode, bindLen)
+		for i, bn := range sn.Bind {
+			pnb := &nodeBases[nbIdx]
+			nbIdx++
+			timesBuf = fillNodeBaseToProto(pnb, &bn.NodeBase, tagIDToImageTag, timesBuf)
 
-		psn.Connect = append(psn.Connect, pcn)
+			pbn := &bindVals[i]
+			pbn.Port = uint32(bn.Port)
+			pbn.Ip = bn.IP
+			pbn.Protocol = uint32(bn.Protocol)
+			pbn.NodeBase = pnb
+			if len(bn.MatchedRules) > 0 {
+				pbn.MatchedRules = make([]*adproto.MatchedRule, 0, len(bn.MatchedRules))
+				for _, rule := range bn.MatchedRules {
+					pbn.MatchedRules = append(pbn.MatchedRules, matchedRuleToProto(rule))
+				}
+			}
+			psn.Bind[i] = pbn
+		}
+	}
+
+	if connectLen > 0 {
+		psn.Connect = make([]*adproto.ConnectNode, connectLen)
+		connectVals := make([]adproto.ConnectNode, connectLen)
+		for i, cn := range sn.Connect {
+			pnb := &nodeBases[nbIdx]
+			nbIdx++
+			timesBuf = fillNodeBaseToProto(pnb, &cn.NodeBase, tagIDToImageTag, timesBuf)
+
+			pcn := &connectVals[i]
+			pcn.Port = uint32(cn.Port)
+			pcn.Ip = cn.IP
+			pcn.Protocol = uint32(cn.Protocol)
+			pcn.NodeBase = pnb
+			if len(cn.MatchedRules) > 0 {
+				pcn.MatchedRules = make([]*adproto.MatchedRule, 0, len(cn.MatchedRules))
+				for _, rule := range cn.MatchedRules {
+					pcn.MatchedRules = append(pcn.MatchedRules, matchedRuleToProto(rule))
+				}
+			}
+			psn.Connect[i] = pcn
+		}
 	}
 
 	return psn
@@ -524,28 +587,30 @@ func TimestampToProto(t *time.Time) uint64 {
 
 func copyAndEscape(in []string) []string {
 	out := make([]string, 0, len(in))
-	transformer := runes.ReplaceIllFormed()
 	for _, value := range in {
-		out = append(out, transformer.String(value))
+		out = append(out, escape(value))
 	}
 	return out
 }
 
 func escape(in string) string {
+	if utf8.ValidString(in) {
+		return in
+	}
 	transformer := runes.ReplaceIllFormed()
 	return transformer.String(in)
 }
 
-func nodeBaseToProto(nb *NodeBase, tagIDToImageTag func(id uint64) string) *adproto.NodeBase {
-	if nb == nil {
-		return nil
+func fillNodeBaseToProto(pnb *adproto.NodeBase, nb *NodeBase, tagIDToImageTag func(id uint64) string, timesBuf []adproto.ImageTagTimes) []adproto.ImageTagTimes {
+	pnb.LastAnomalySent = uint64(nb.lastAnomalySent)
+	seenLen := nb.SeenLen()
+	if seenLen == 0 {
+		return timesBuf
 	}
-
-	pnb := &adproto.NodeBase{
-		Seen:            make(map[string]*adproto.ImageTagTimes, nb.SeenLen()),
-		LastAnomalySent: uint64(nb.lastAnomalySent),
+	pnb.Seen = make(map[string]*adproto.ImageTagTimes, seenLen)
+	if len(timesBuf) < seenLen {
+		timesBuf = make([]adproto.ImageTagTimes, seenLen)
 	}
-
 	nb.EachSeen(func(id uint64, firstSeen, lastSeen int64) {
 		tag := tagIDToImageTag(id)
 		if tag == "" {
@@ -553,12 +618,22 @@ func nodeBaseToProto(nb *NodeBase, tagIDToImageTag func(id uint64) string) *adpr
 			// writing an empty key into the proto map.
 			return
 		}
-		pnb.Seen[tag] = &adproto.ImageTagTimes{
-			FirstSeen: uint64(firstSeen),
-			LastSeen:  uint64(lastSeen),
-		}
+		t := &timesBuf[0]
+		timesBuf = timesBuf[1:]
+		t.FirstSeen = uint64(firstSeen)
+		t.LastSeen = uint64(lastSeen)
+		pnb.Seen[tag] = t
 	})
+	return timesBuf
+}
 
+func nodeBaseToProto(nb *NodeBase, tagIDToImageTag func(id uint64) string) *adproto.NodeBase {
+	if nb == nil {
+		return nil
+	}
+
+	pnb := &adproto.NodeBase{}
+	fillNodeBaseToProto(pnb, nb, tagIDToImageTag, nil)
 	return pnb
 }
 

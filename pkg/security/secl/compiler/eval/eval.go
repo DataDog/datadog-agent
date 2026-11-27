@@ -349,6 +349,9 @@ func StringEqualsWrapper(a *StringEvaluator, b *StringEvaluator, state *State) (
 			if err != nil {
 				return nil, err
 			}
+			if eval == nil {
+				continue
+			}
 
 			if evaluator != nil {
 				or, err := Or(evaluator, eval, state)
@@ -392,6 +395,9 @@ func StringArrayContainsWrapper(a *StringEvaluator, b *StringArrayEvaluator, sta
 			if err != nil {
 				return nil, err
 			}
+			if eval == nil {
+				continue
+			}
 
 			if evaluator != nil {
 				or, err := Or(evaluator, eval, state)
@@ -433,6 +439,9 @@ func stringValuesContainsWrapper(a *StringEvaluator, b *StringValuesEvaluator, s
 			if err != nil {
 				return nil, err
 			}
+			if eval == nil {
+				continue
+			}
 
 			if evaluator != nil {
 				or, err := Or(evaluator, eval, state)
@@ -473,6 +482,9 @@ func stringArrayMatchesWrapper(a *StringArrayEvaluator, b *StringValuesEvaluator
 			eval, err := opOverride.StringArrayMatches(a, b, state)
 			if err != nil {
 				return nil, err
+			}
+			if eval == nil {
+				continue
 			}
 
 			if evaluator != nil {

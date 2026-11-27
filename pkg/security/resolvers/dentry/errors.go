@@ -123,3 +123,16 @@ func (err ErrDentryPathKeyNotFound) Error() string {
 	return fmt.Sprintf("dentry path key not found %d/%d/%d (depth=%d, caller=%s)",
 		err.PathKey.MountID, err.PathKey.Inode, err.PathKey.PathID, err.Depth, err.Caller)
 }
+
+type errDentryWithERPC struct {
+	mapErr  error
+	erpcErr error
+}
+
+func (e *errDentryWithERPC) Error() string {
+	return e.mapErr.Error() + " (erpc: " + e.erpcErr.Error() + ")"
+}
+
+func (e *errDentryWithERPC) Unwrap() []error {
+	return []error{e.mapErr, e.erpcErr}
+}

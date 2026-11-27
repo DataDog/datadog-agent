@@ -343,24 +343,23 @@ func CapEffCapEprm(pid uint32) (uint64, uint64, error) {
 func PidTTY(pid uint32) string {
 	fdPath := procPidPath(pid, "fd/0")
 
-	ttyPath, err := os.Readlink(fdPath)
-	if err != nil {
+	var buf [128]byte
+	n, err := unix.Readlink(fdPath, buf[:])
+	if err != nil || n < 5 || n >= len(buf) {
+		return ""
+	}
+	ttyBytes := buf[:n]
+
+	if string(ttyBytes) == "/dev/null" || string(ttyBytes[:4]) != "/dev" {
 		return ""
 	}
 
-	if ttyPath == "/dev/null" {
-		return ""
-	}
-
+	ttyPath := string(ttyBytes)
 	if strings.HasPrefix(ttyPath, "/dev/pts") {
 		return "pts" + path.Base(ttyPath)
 	}
 
-	if strings.HasPrefix(ttyPath, "/dev") {
-		return path.Base(ttyPath)
-	}
-
-	return ""
+	return path.Base(ttyPath)
 }
 
 // PidSID returns the session ID of the given pid from /proc/[pid]/stat

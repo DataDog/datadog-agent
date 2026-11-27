@@ -19,6 +19,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/cilium/ebpf"
@@ -2599,6 +2600,7 @@ func TestManagerV2_ActivityDumpCLI(t *testing.T) {
 		wg.Wait()
 	})
 }
+
 func TestManagerV2_cooldownExpiryHeap(t *testing.T) {
 	const cooldown = time.Minute
 	t0 := time.Now()
@@ -2682,4 +2684,53 @@ func TestManagerV2_cooldownExpiryHeap(t *testing.T) {
 		require.Len(t, m.cooldownExpiryHeap, 2)
 		assert.Same(t, other, m.cooldownExpiryHeap[0].node)
 	})
+}
+
+type countingContainerTagger struct {
+	calls int
+	tags  []string
+}
+
+func (c *countingContainerTagger) Tag(types.EntityID, types.TagCardinality) ([]string, error) {
+	c.calls++
+	return append([]string(nil), c.tags...), nil
+}
+
+func (c *countingContainerTagger) GlobalTags(types.TagCardinality) ([]string, error) {
+	return nil, nil
+}
+
+func TestManagerV2_CgroupTagCacheReusesResolvedTags(t *testing.T) {
+	m, _ := newInsertionTestManagerV2(t)
+	m.config.RuntimeSecurity.RuntimeEnabled = true
+
+	tagger := &countingContainerTagger{
+		tags: []string{"image_name:" + testImageName, "image_tag:v1"},
+	}
+	m.resolvers.TagsResolver = tags.NewResolver(0, tagger, m.resolvers.CGroupResolver, nil)
+
+	ev1 := newTestEventV2(model.ExecEventType, "v1", "known")
+	ev1.ProcessContext.Process.ContainerContext.Tags = nil
+	m.ProcessEvent(ev1)
+	assert.Equal(t, 1, tagger.calls)
+
+	ev2 := newTestEventV2(model.ExecEventType, "v1", "new")
+	ev2.ProcessContext.Process.ContainerContext.Tags = nil
+	m.ProcessEvent(ev2)
+	assert.Equal(t, 1, tagger.calls)
+	assert.Equal(t, unsafe.SliceData(ev1.ProcessContext.Process.ContainerContext.Tags), unsafe.SliceData(ev2.ProcessContext.Process.ContainerContext.Tags))
+
+	tagger.tags = []string{"image_name:" + testImageName, "image_tag:v2"}
+	m.onTagsUpdated()
+
+	ev3 := newTestEventV2(model.ExecEventType, "v2", "known")
+	ev3.ProcessContext.Process.ContainerContext.Tags = nil
+	m.ProcessEvent(ev3)
+	assert.Equal(t, 2, tagger.calls)
+	assert.Contains(t, ev3.ProcessContext.Process.ContainerContext.Tags, "image_tag:v2")
+
+	cgce := m.resolvers.CGroupResolver.GetCacheEntryContainerID(containerutils.ContainerID(testContainerID))
+	require.NotNil(t, cgce)
+	m.onCGroupDeleted(cgce)
+	assert.Empty(t, m.cgroupTagCache)
 }

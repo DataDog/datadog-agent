@@ -9,16 +9,21 @@
 package hash
 
 import (
+	"bytes"
 	"math"
+	"math/rand"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 
+	"github.com/glaslos/ssdeep"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/statsdclient"
 )
@@ -383,7 +388,7 @@ func TestSSDeepCaching(t *testing.T) {
 
 	// Verify SSDEEP is cached with MD5 as key
 	if resolver.ssdeepCache != nil {
-		ssdeepKey := SSDeepCacheKey{cheapHash: md5Hash1, inode: file.Inode, size: int64(size)}
+		ssdeepKey := SSDeepCacheKey{cheapHash: md5Hash1, size: int64(size)}
 		cached, ok := resolver.ssdeepCache.Get(ssdeepKey)
 		assert.True(t, ok, "SSDEEP should be cached with MD5 as key")
 		assert.Equal(t, ssdeepHash1, cached.ssdeepHash, "cached SSDEEP should match")
@@ -447,11 +452,284 @@ func TestSSDeepCaching(t *testing.T) {
 
 	// Verify new SSDEEP is cached with new MD5
 	if resolver.ssdeepCache != nil {
-		ssdeepKey := SSDeepCacheKey{cheapHash: md5Hash3, inode: file.Inode, size: int64(size)}
+		ssdeepKey := SSDeepCacheKey{cheapHash: md5Hash3, size: int64(size)}
 		cached, ok := resolver.ssdeepCache.Get(ssdeepKey)
 		assert.True(t, ok, "new SSDEEP should be cached with new MD5 as key")
 		assert.Equal(t, ssdeepHash3, cached.ssdeepHash, "cached SSDEEP should match new hash")
 	}
+}
+
+func TestCrossCgroupCacheHit(t *testing.T) {
+	client := statsdclient.NewStatsdClient()
+	pid := uint32(os.Getpid())
+
+	tmpFile, err := os.CreateTemp("", "cross_cgroup_cache_test")
+	require.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
+
+	_, err = tmpFile.Write(generateFileDataWithPattern(8192, 'b'))
+	require.NoError(t, err)
+	require.NoError(t, tmpFile.Close())
+
+	cfg := &config.RuntimeSecurityConfig{
+		HashResolverEnabled:        true,
+		HashResolverEventTypes:     []model.EventType{model.ExecEventType},
+		HashResolverHashAlgorithms: []model.HashAlgorithm{model.MD5, model.SSDEEP},
+		HashResolverMaxHashRate:    1,
+		HashResolverMaxFileSize:    math.MaxInt64,
+		HashResolverCacheSize:      100,
+	}
+
+	resolver, err := NewResolver(cfg, client, nil)
+	require.NoError(t, err)
+
+	newEvent := func(cgroupID string) *model.Event {
+		return &model.Event{
+			BaseEvent: model.BaseEvent{
+				FieldHandlers: &model.FakeFieldHandlers{},
+				Type:          uint32(model.ExecEventType),
+				ProcessContext: &model.ProcessContext{
+					Process: model.Process{
+						PIDContext: model.PIDContext{Pid: pid},
+						CGroup: model.CGroupContext{
+							CGroupID: containerutils.CGroupID(cgroupID),
+						},
+					},
+				},
+			},
+		}
+	}
+
+	file1 := &model.FileEvent{
+		FileFields:            model.FileFields{PathKey: model.PathKey{Inode: 4242, PathID: 1}},
+		PathnameStr:           tmpFile.Name(),
+		IsPathnameStrResolved: true,
+	}
+	hashes1 := resolver.ComputeHashesFromEvent(newEvent("cgroup-1"), file1, 0)
+	require.Equal(t, model.Done, file1.HashState)
+	require.Len(t, hashes1, 2)
+
+	file2 := &model.FileEvent{
+		FileFields:            model.FileFields{PathKey: model.PathKey{Inode: 4242, PathID: 2}},
+		PathnameStr:           tmpFile.Name(),
+		IsPathnameStrResolved: true,
+	}
+	hashes2 := resolver.ComputeHashesFromEvent(newEvent("cgroup-2"), file2, 0)
+	require.Equal(t, model.Done, file2.HashState)
+	assert.Equal(t, hashes1, hashes2)
+}
+
+func TestHashRateLimiterRejectsWhenExceeded(t *testing.T) {
+	client := statsdclient.NewStatsdClient()
+	pid := uint32(os.Getpid())
+
+	tmpDir := t.TempDir()
+	f1Path := tmpDir + "/file1"
+	f2Path := tmpDir + "/file2"
+	require.NoError(t, os.WriteFile(f1Path, []byte("file1"), 0o600))
+	require.NoError(t, os.WriteFile(f2Path, []byte("file2"), 0o600))
+
+	cfg := &config.RuntimeSecurityConfig{
+		HashResolverEnabled:        true,
+		HashResolverEventTypes:     []model.EventType{model.ExecEventType},
+		HashResolverHashAlgorithms: []model.HashAlgorithm{model.MD5},
+		HashResolverMaxHashRate:    1,
+		HashResolverMaxFileSize:    1 << 10,
+		HashResolverCacheSize:      100,
+	}
+
+	resolver, err := NewResolver(cfg, client, nil)
+	require.NoError(t, err)
+
+	ev := &model.Event{
+		BaseEvent: model.BaseEvent{
+			FieldHandlers: &model.FakeFieldHandlers{},
+			Type:          uint32(model.ExecEventType),
+			ProcessContext: &model.ProcessContext{
+				Process: model.Process{
+					PIDContext: model.PIDContext{Pid: pid},
+				},
+			},
+		},
+	}
+
+	file1 := &model.FileEvent{PathnameStr: f1Path, IsPathnameStrResolved: true}
+	hashes1 := resolver.ComputeHashesFromEvent(ev, file1, 0)
+	require.Equal(t, model.Done, file1.HashState)
+	require.Len(t, hashes1, 1)
+
+	file2 := &model.FileEvent{PathnameStr: f2Path, IsPathnameStrResolved: true}
+	hashes2 := resolver.ComputeHashesFromEvent(ev, file2, 0)
+	require.Equal(t, model.HashWasRateLimited, file2.HashState)
+	require.Empty(t, hashes2)
+}
+
+func TestSSDeepSkipsSmallFile(t *testing.T) {
+	client := statsdclient.NewStatsdClient()
+	pid := uint32(os.Getpid())
+
+	tmpFile, err := os.CreateTemp("", "ssdeep_small_file_test")
+	require.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
+
+	_, err = tmpFile.Write(generateFileDataWithPattern(minSSDeepFileSize, 'c'))
+	require.NoError(t, err)
+	require.NoError(t, tmpFile.Close())
+
+	cfg := &config.RuntimeSecurityConfig{
+		HashResolverEnabled:        true,
+		HashResolverEventTypes:     []model.EventType{model.ExecEventType},
+		HashResolverHashAlgorithms: []model.HashAlgorithm{model.MD5, model.SSDEEP},
+		HashResolverMaxHashRate:    math.MaxInt,
+		HashResolverMaxFileSize:    math.MaxInt64,
+		HashResolverCacheSize:      100,
+	}
+
+	resolver, err := NewResolver(cfg, client, nil)
+	require.NoError(t, err)
+
+	event := &model.Event{
+		BaseEvent: model.BaseEvent{
+			FieldHandlers: &model.FakeFieldHandlers{},
+			Type:          uint32(model.ExecEventType),
+			ProcessContext: &model.ProcessContext{
+				Process: model.Process{
+					PIDContext: model.PIDContext{Pid: pid},
+				},
+			},
+		},
+	}
+
+	file := &model.FileEvent{
+		PathnameStr:           tmpFile.Name(),
+		IsPathnameStrResolved: true,
+	}
+	hashes := resolver.ComputeHashesFromEvent(event, file, 0)
+	require.Equal(t, model.Done, file.HashState)
+	require.Len(t, hashes, 1)
+	assert.True(t, strings.HasPrefix(hashes[0], "md5:"))
+}
+
+func TestFastSSDeepHasherMatchesUpstream(t *testing.T) {
+	rng := rand.New(rand.NewSource(42))
+	cases := []struct {
+		name string
+		data []byte
+	}{
+		{
+			name: "patterned_8kb",
+			data: generateFileDataWithPattern(8192, 'a'),
+		},
+		{
+			name: "patterned_64kb",
+			data: generateFileDataWithPattern(65536, 'z'),
+		},
+		{
+			name: "random_10kb",
+			data: func() []byte {
+				b := make([]byte, 10240)
+				rng.Read(b)
+				return b
+			}(),
+		},
+		{
+			name: "random_256kb_with_runs",
+			data: func() []byte {
+				b := make([]byte, 256*1024)
+				rng.Read(b)
+				for i := 1000; i < len(b)-100; i += 4096 {
+					for j := 0; j < 32; j++ {
+						b[i+j] = 'X'
+					}
+				}
+				return b
+			}(),
+		},
+		{
+			name: "low_entropy_zeroes_8kb",
+			data: bytes.Repeat([]byte{0}, 8192),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			upstream := ssdeep.New()
+			_, err := upstream.Write(tc.data)
+			require.NoError(t, err)
+			want := upstream.Sum(nil)
+
+			fast := newFastSSDeepHasher()
+			for off := 0; off < len(tc.data); off += 1337 {
+				end := min(off+1337, len(tc.data))
+				_, err := fast.Write(tc.data[off:end])
+				require.NoError(t, err)
+			}
+			got := fast.Sum(nil)
+			assert.Equal(t, string(want), string(got))
+		})
+	}
+}
+
+func TestSSDeepCrossInodeAndNegativeCache(t *testing.T) {
+	client := statsdclient.NewStatsdClient()
+	pid := uint32(os.Getpid())
+
+	tmpFile1, err := os.CreateTemp("", "ssdeep_cross_inode_1")
+	require.NoError(t, err)
+	defer os.Remove(tmpFile1.Name())
+
+	tmpFile2, err := os.CreateTemp("", "ssdeep_cross_inode_2")
+	require.NoError(t, err)
+	defer os.Remove(tmpFile2.Name())
+
+	payload := generateFileDataWithPattern(8192, 'k')
+	_, err = tmpFile1.Write(payload)
+	require.NoError(t, err)
+	require.NoError(t, tmpFile1.Close())
+
+	_, err = tmpFile2.Write(payload)
+	require.NoError(t, err)
+	require.NoError(t, tmpFile2.Close())
+
+	cfg := &config.RuntimeSecurityConfig{
+		HashResolverEnabled:        true,
+		HashResolverEventTypes:     []model.EventType{model.ExecEventType},
+		HashResolverHashAlgorithms: []model.HashAlgorithm{model.SHA256, model.SSDEEP},
+		HashResolverMaxHashRate:    math.MaxInt,
+		HashResolverMaxFileSize:    math.MaxInt64,
+		HashResolverCacheSize:      100,
+	}
+
+	resolver, err := NewResolver(cfg, client, nil)
+	require.NoError(t, err)
+
+	event := &model.Event{
+		BaseEvent: model.BaseEvent{
+			FieldHandlers: &model.FakeFieldHandlers{},
+			Type:          uint32(model.ExecEventType),
+			ProcessContext: &model.ProcessContext{
+				Process: model.Process{
+					PIDContext: model.PIDContext{Pid: pid},
+				},
+			},
+		},
+	}
+
+	file1 := &model.FileEvent{
+		PathnameStr:           tmpFile1.Name(),
+		IsPathnameStrResolved: true,
+	}
+	file1.Inode = 1001
+	file2 := &model.FileEvent{
+		PathnameStr:           tmpFile2.Name(),
+		IsPathnameStrResolved: true,
+	}
+	file2.Inode = 2002
+
+	hashes1 := resolver.ComputeHashesFromEvent(event, file1, 0)
+	hashes2 := resolver.ComputeHashesFromEvent(event, file2, 0)
+	assert.Equal(t, hashes1, hashes2)
+	assert.Equal(t, 1, resolver.ssdeepCache.Len())
 }
 
 func BenchmarkHashFunctions(b *testing.B) {
@@ -689,4 +967,176 @@ func BenchmarkHashFunctions(b *testing.B) {
 			})
 		}
 	}
+}
+
+func TestComputeHashesFromEventAsyncAndFlush(t *testing.T) {
+	client := statsdclient.NewStatsdClient()
+	pid := uint32(os.Getpid())
+
+	tmpFile, err := os.CreateTemp("", "async_hash_test")
+	require.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
+
+	_, err = tmpFile.Write(generateFileDataWithPattern(8192, 'a'))
+	require.NoError(t, err)
+	require.NoError(t, tmpFile.Close())
+
+	cfg := &config.RuntimeSecurityConfig{
+		HashResolverEnabled:        true,
+		HashResolverEventTypes:     []model.EventType{model.ExecEventType},
+		HashResolverHashAlgorithms: []model.HashAlgorithm{model.SHA256, model.MD5, model.SSDEEP},
+		HashResolverMaxHashRate:    math.MaxInt,
+		HashResolverMaxFileSize:    math.MaxInt64,
+		HashResolverCacheSize:      100,
+		HashResolverReplace: map[string]string{
+			"/replaced/path": "sha256:replaceddigest",
+		},
+	}
+
+	resolver, err := NewResolver(cfg, client, nil)
+	require.NoError(t, err)
+
+	newEvent := func(evtType model.EventType) *model.Event {
+		return &model.Event{
+			BaseEvent: model.BaseEvent{
+				FieldHandlers: &model.FakeFieldHandlers{},
+				Type:          uint32(evtType),
+				ProcessContext: &model.ProcessContext{
+					Process: model.Process{
+						PIDContext: model.PIDContext{Pid: pid},
+					},
+				},
+			},
+		}
+	}
+
+	// Fast path 1: unconfigured event type resolves synchronously (async == false)
+	var fastState model.HashState
+	var fastAsync bool
+	unconfiguredFile := &model.FileEvent{PathnameStr: tmpFile.Name(), IsPathnameStrResolved: true}
+	resolver.ComputeHashesFromEventAsync(newEvent(model.FileOpenEventType), unconfiguredFile, 0, func(state model.HashState, _ []string, async bool) {
+		fastState = state
+		fastAsync = async
+	})
+	assert.False(t, fastAsync)
+	assert.Equal(t, model.EventTypeNotConfigured, fastState)
+
+	// Fast path 2: replace map resolves synchronously (async == false)
+	var replaceHashes []string
+	replaceFile := &model.FileEvent{PathnameStr: "/replaced/path", IsPathnameStrResolved: true}
+	resolver.ComputeHashesFromEventAsync(newEvent(model.ExecEventType), replaceFile, 0, func(state model.HashState, hashes []string, async bool) {
+		fastState = state
+		replaceHashes = hashes
+		fastAsync = async
+	})
+	assert.False(t, fastAsync)
+	assert.Equal(t, model.Done, fastState)
+	assert.Equal(t, []string{"sha256:replaceddigest"}, replaceHashes)
+
+	// Async path: real file is hashed on the background worker and synchronized by Flush()
+	var (
+		mu          sync.Mutex
+		asyncState  model.HashState
+		asyncHashes []string
+		wasAsync    bool
+	)
+	asyncFile := &model.FileEvent{PathnameStr: tmpFile.Name(), IsPathnameStrResolved: true}
+	resolver.ComputeHashesFromEventAsync(newEvent(model.ExecEventType), asyncFile, 0, func(state model.HashState, hashes []string, async bool) {
+		mu.Lock()
+		defer mu.Unlock()
+		asyncState = state
+		asyncHashes = hashes
+		wasAsync = async
+	})
+
+	resolver.Flush()
+
+	mu.Lock()
+	gotState := asyncState
+	gotHashes := asyncHashes
+	gotWasAsync := wasAsync
+	mu.Unlock()
+
+	assert.True(t, gotWasAsync)
+	assert.Equal(t, model.Done, gotState)
+	assert.Len(t, gotHashes, 3)
+
+	// Verify synchronous ComputeHashesFromEvent produces the exact same hashes from cache
+	syncFile := &model.FileEvent{PathnameStr: tmpFile.Name(), IsPathnameStrResolved: true}
+	syncHashes := resolver.ComputeHashesFromEvent(newEvent(model.ExecEventType), syncFile, 0)
+	assert.Equal(t, gotHashes, syncHashes)
+
+	// Fast path 3: cached file with matching Inode and MTime resolves synchronously (async == false)
+	_, _, mtime, fkey, err := getFileInfo(tmpFile.Name())
+	require.NoError(t, err)
+	cachedAsyncFile := &model.FileEvent{
+		PathnameStr:           tmpFile.Name(),
+		IsPathnameStrResolved: true,
+	}
+	cachedAsyncFile.Inode = fkey.inode
+	cachedAsyncFile.MTime = mtime
+	var cachedHashes []string
+	resolver.ComputeHashesFromEventAsync(newEvent(model.ExecEventType), cachedAsyncFile, 0, func(state model.HashState, hashes []string, async bool) {
+		fastState = state
+		cachedHashes = hashes
+		fastAsync = async
+	})
+	assert.False(t, fastAsync)
+	assert.Equal(t, model.Done, fastState)
+	assert.Equal(t, model.Done, cachedAsyncFile.HashState)
+	assert.Equal(t, gotHashes, cachedHashes)
+	assert.Equal(t, gotHashes, cachedAsyncFile.Hashes)
+}
+
+func TestConcurrentAsyncAndSyncComputeHashes(t *testing.T) {
+	client := statsdclient.NewStatsdClient()
+	pid := uint32(os.Getpid())
+
+	tmpFile, err := os.CreateTemp("", "concurrent_async_hash_test")
+	require.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
+
+	_, err = tmpFile.Write(generateFileDataWithPattern(8192, 'c'))
+	require.NoError(t, err)
+	require.NoError(t, tmpFile.Close())
+
+	cfg := &config.RuntimeSecurityConfig{
+		HashResolverEnabled:        true,
+		HashResolverEventTypes:     []model.EventType{model.ExecEventType},
+		HashResolverHashAlgorithms: []model.HashAlgorithm{model.SHA256, model.MD5, model.SSDEEP},
+		HashResolverMaxHashRate:    math.MaxInt,
+		HashResolverMaxFileSize:    math.MaxInt64,
+		HashResolverCacheSize:      100,
+	}
+
+	resolver, err := NewResolver(cfg, client, nil)
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	for range 16 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range 20 {
+				ev := &model.Event{
+					BaseEvent: model.BaseEvent{
+						FieldHandlers: &model.FakeFieldHandlers{},
+						Type:          uint32(model.ExecEventType),
+						ProcessContext: &model.ProcessContext{
+							Process: model.Process{
+								PIDContext: model.PIDContext{Pid: pid},
+							},
+						},
+					},
+				}
+				fe := &model.FileEvent{PathnameStr: tmpFile.Name(), IsPathnameStrResolved: true}
+				resolver.ComputeHashesFromEventAsync(ev, fe, 0, func(state model.HashState, hashes []string, _ bool) {
+					assert.Equal(t, model.Done, state)
+					assert.Len(t, hashes, 3)
+				})
+			}
+			resolver.Flush()
+		}()
+	}
+	wg.Wait()
 }
