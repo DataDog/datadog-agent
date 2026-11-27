@@ -4,13 +4,14 @@
 // Copyright 2026-present Datadog, Inc.
 
 use crate::config::{ProcessConfig, RestartPolicy};
+use crate::config_gate::GateOutcome;
 use crate::env::expand_env_vars;
 use crate::handle::ProcessHandle;
 use crate::platform;
 use crate::spawn::SpawnProfile;
 use crate::state::ProcessState;
 use anyhow::{Result, bail};
-use log::{info, warn};
+use log::{debug, info, warn};
 use std::collections::VecDeque;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -530,33 +531,110 @@ impl ManagedProcess {
         let mut reasons = Vec::new();
         if let Some(raw) = &self.config.condition_path_exists {
             let path = expand_env_vars(raw);
-            if !std::path::Path::new(&path).exists() {
+            let owned = std::path::PathBuf::from(&path);
+            let checked = crate::stop::bounded(std::path::Path::new(&path), move || {
+                #[cfg(test)]
+                crate::stop::testing::park_if_stalled(&owned);
+                owned.try_exists()
+            });
+            // Bounded-call errors and errors that `read_error_holds` accepts are a stall, logged
+            // when `log` is `HoldLog::Emit`. Any other error counts as missing.
+            let stall = match &checked {
+                Err(err) => Some(err),
+                Ok(Err(err)) if crate::config_gate::read_error_holds(err) => Some(err),
+                _ => None,
+            };
+            if let Some(err) = stall {
+                self.log_stalled_hold(
+                    "condition_path_exists",
+                    &path,
+                    err.kind(),
+                    &err.to_string(),
+                    log,
+                );
+                reasons.push(Self::SKIP_REASON_PATH_MISSING.to_string());
+            } else if !matches!(checked, Ok(Ok(true))) {
                 if log == HoldLog::Emit {
                     info!("[{}] condition_path_exists not met: {path}", self.name);
                 }
                 reasons.push(Self::SKIP_REASON_PATH_MISSING.to_string());
             }
         }
-        if !crate::config_gate::condition_config_any_met(&self.config.condition_config_any) {
-            if log == HoldLog::Emit {
-                info!(
-                    "[{}] condition_config_any not met: {}",
-                    self.name,
-                    crate::config_gate::condition_config_summary(&self.config.condition_config_any)
-                );
+        match crate::config_gate::condition_config_any_outcome(&self.config.condition_config_any) {
+            GateOutcome::Open => {}
+            GateOutcome::Closed => {
+                if log == HoldLog::Emit {
+                    info!(
+                        "[{}] condition_config_any not met: {}",
+                        self.name,
+                        crate::config_gate::condition_config_summary(
+                            &self.config.condition_config_any
+                        )
+                    );
+                }
+                reasons.push(Self::SKIP_REASON_CONFIG_GATE.to_string());
             }
-            reasons.push(Self::SKIP_REASON_CONFIG_GATE.to_string());
+            GateOutcome::Stalled(stall) => {
+                self.log_stalled_hold(
+                    "condition_config_any",
+                    &stall.path,
+                    stall.kind,
+                    &stall.detail,
+                    log,
+                );
+                reasons.push(Self::SKIP_REASON_CONFIG_GATE.to_string());
+            }
         }
-        if !crate::config_gate::condition_config_none_met(&self.config.condition_config_none) {
-            if log == HoldLog::Emit {
-                let vetoed = crate::config_gate::condition_config_summary(
-                    &self.config.condition_config_none,
-                );
-                info!("[{}] condition_config_none vetoed: {vetoed}", self.name);
+        match crate::config_gate::condition_config_none_outcome(&self.config.condition_config_none)
+        {
+            GateOutcome::Open => {}
+            GateOutcome::Closed => {
+                if log == HoldLog::Emit {
+                    let vetoed = crate::config_gate::condition_config_summary(
+                        &self.config.condition_config_none,
+                    );
+                    info!("[{}] condition_config_none vetoed: {vetoed}", self.name);
+                }
+                reasons.push(Self::SKIP_REASON_CONFIG_VETO.to_string());
             }
-            reasons.push(Self::SKIP_REASON_CONFIG_VETO.to_string());
+            GateOutcome::Stalled(stall) => {
+                self.log_stalled_hold(
+                    "condition_config_none",
+                    &stall.path,
+                    stall.kind,
+                    &stall.detail,
+                    log,
+                );
+                reasons.push(Self::SKIP_REASON_CONFIG_VETO.to_string());
+            }
         }
         reasons
+    }
+
+    /// Logs a hold caused by a file that did not answer, when `log` is `HoldLog::Emit`. A stop
+    /// that cut the read short logs at debug.
+    fn log_stalled_hold(
+        &self,
+        condition: &str,
+        path: &str,
+        kind: std::io::ErrorKind,
+        detail: &str,
+        log: HoldLog,
+    ) {
+        if log != HoldLog::Emit {
+            return;
+        }
+        if kind == std::io::ErrorKind::Interrupted {
+            debug!(
+                "[{}] {condition} held, read of {path} interrupted ({detail})",
+                self.name
+            );
+        } else {
+            warn!(
+                "[{}] {condition} held: {path} did not answer ({detail}). Holding until a reload reads the path again. A reload that comes while `stop::bounded` still refuses the path keeps the hold without a new read. An explicit start bypasses the hold",
+                self.name
+            );
+        }
     }
 
     #[must_use]
@@ -1520,6 +1598,24 @@ pub mod tests {
         assert_eq!(
             proc.evaluate_start_pass(),
             vec![ManagedProcess::SKIP_REASON_PATH_MISSING]
+        );
+    }
+
+    #[test]
+    fn test_start_pass_declines_when_condition_path_check_stalls() {
+        let dir = tempfile::tempdir().unwrap();
+        let gate = dir.path().join("ready");
+        std::fs::write(&gate, b"").unwrap();
+        let _stalled = crate::stop::testing::stall(&gate);
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.condition_path_exists = Some(gate.to_string_lossy().into_owned());
+        let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
+
+        assert_eq!(
+            proc.evaluate_start_pass(),
+            vec![ManagedProcess::SKIP_REASON_PATH_MISSING],
+            "the path exists, so only the stall can hold it"
         );
     }
 

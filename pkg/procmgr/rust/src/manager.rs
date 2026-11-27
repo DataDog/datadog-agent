@@ -875,8 +875,9 @@ impl ProcessManager {
     }
 
     /// Evaluates each selected process's start gate and spawns it unless a hold applies. Returns
-    /// `None` on a stop. `shutdown` and the stop flag are checked before each process, after the
-    /// gate read, and after each spawn. A FIFO gate can block the read until a writer releases it.
+    /// `None` if `shutdown` resolves first or the process-wide stop flag is set. It is polled
+    /// before each process and again after the gate read, and after each spawn. Gate reads and
+    /// path checks run under `stop::bounded`.
     async fn run_start_pass<F: Future<Output = ()>>(
         &self,
         procs: &mut [ManagedProcess],
@@ -920,8 +921,9 @@ impl ProcessManager {
         Some(decided)
     }
 
-    /// Start pass for create and reload. It ignores stops, so the pass visits every selected
-    /// process.
+    /// Start pass for create and reload. A stop request does not end it. Its gate reads and path
+    /// checks stay bounded, and one that gives up holds the process. Spawning itself runs to
+    /// completion.
     async fn run_start_pass_uninterrupted(
         &self,
         procs: &mut [ManagedProcess],

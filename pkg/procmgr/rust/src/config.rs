@@ -497,10 +497,10 @@ mod tests {
     }
 
     /// A regular config file whose read blocks, stalled through the `stop` test seam.
-    fn stalled_config(dir: &Path, name: &str) {
+    fn stalled_config(dir: &Path, name: &str) -> crate::stop::testing::StallGuard {
         let path = dir.join(name);
         fs::write(&path, "command: /usr/bin/true\n").unwrap();
-        crate::stop::testing::stall(&path);
+        crate::stop::testing::stall(&path)
     }
 
     /// A FIFO entry is invalid without being opened.
@@ -540,7 +540,7 @@ mod tests {
     #[test]
     fn a_stalled_config_file_is_invalid_at_startup() {
         let dir = tempfile::tempdir().unwrap();
-        stalled_config(dir.path(), "blocked.yaml");
+        let _stalled = stalled_config(dir.path(), "blocked.yaml");
         fs::write(dir.path().join("good.yaml"), "command: /usr/bin/true\n").unwrap();
 
         let catalog = YamlConfigLoader {

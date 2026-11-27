@@ -202,10 +202,9 @@ fn spawned_pid(daemon: &DaemonHandle, name: &str) -> u32 {
         .expect("pid is a number")
 }
 
-/// A SIGTERM during startup ends the daemon cleanly and starts nothing after the gate. The FIFO
-/// gate holds startup open until the test releases it after the signal. A process started before
-/// the gate is stopped during teardown. The library path for a stop before the runtime exists is
-/// covered by `tests/early_stop.rs`.
+/// A SIGTERM during startup ends the daemon cleanly and starts nothing after the blocked gate.
+/// A process started before the gate is stopped during teardown. The window before the runtime
+/// exists needs a PID 1 or exec-based test.
 #[cfg(unix)]
 #[test]
 fn test_cli_daemon_shutdown_during_startup_exits_cleanly() {
@@ -233,13 +232,12 @@ fn test_cli_daemon_shutdown_during_startup_exits_cleanly() {
                 test_helpers::true_cmd().0
             ),
         );
-    // The writer holds the gate FIFO open until released. Dropping it early would leave a daemon
-    // that has not opened the FIFO yet blocked forever.
+    // A helper thread opens the FIFO for writing. The blocking open returns once the daemon
+    // opens it for reading, and the daemon's gate read then blocks while the writer is open.
+    // Dropping it early would leave a daemon that has not opened yet blocked forever.
     let (opened_tx, opened_rx) = std::sync::mpsc::channel::<()>();
-    let mut gate_writer = FifoWriter::spawn(gate.clone(), opened_tx, |mut writer| {
-        // Opens the gate, so "gated" would start if the daemon ignored the stop.
-        let _ = std::io::Write::write_all(&mut writer, b"apm_config:\n  enabled: true\n");
-    });
+    // The writer is released only after the daemon exits, so the stop ends the gate read.
+    let mut gate_writer = FifoWriter::spawn(gate.clone(), opened_tx, |_writer| {});
     // Declared before the daemon, so on a panic the daemon is stopped before the child.
     let mut kill_earlier = KillGroupOnDrop(None);
     let socket = env.env_root().join("daemon.sock");
@@ -267,17 +265,17 @@ fn test_cli_daemon_shutdown_during_startup_exits_cleanly() {
     );
 
     daemon.send_signal(Signal::SIGTERM);
-    // Open the gate only after the watcher logs the signal, so the start pass sees the stop first.
     assert!(
         daemon.wait_for_log("received SIGTERM", Duration::from_secs(10)),
         "daemon did not record the stop request\n{}",
         daemon.captured_logs().join("\n")
     );
-    gate_writer.finish();
     let status = daemon
         .wait_for_exit(Duration::from_secs(10))
-        .expect("daemon did not exit after SIGTERM during the start pass");
-    // Disarm once the child is gone, so a failed assertion cannot signal a reused PID.
+        .expect("daemon did not exit after SIGTERM while the gate read was blocked");
+    gate_writer.finish();
+    // Disarm the group guard only once the child is confirmed gone, so a failed assertion below
+    // cannot signal a group whose PID may have been reused.
     let earlier_gone = wait_for_pid_gone(earlier_pid, Duration::from_secs(5));
     if earlier_gone {
         kill_earlier.disarm();
@@ -299,7 +297,6 @@ fn test_cli_daemon_shutdown_during_startup_exits_cleanly() {
         "stop signal should be logged once\n{}",
         daemon.captured_logs().join("\n")
     );
-    // The gate opened, so "gated" would have started without the check after the gate read.
     assert_eq!(
         daemon.count_log_matches("[gated] spawned"),
         0,
@@ -346,9 +343,8 @@ fn test_cli_daemon_startup_stop_keeps_critical_spawn_failure_exit_code() {
             ),
         );
     let (opened_tx, opened_rx) = std::sync::mpsc::channel::<()>();
-    let mut gate_writer = FifoWriter::spawn(gate.clone(), opened_tx, |mut writer| {
-        let _ = std::io::Write::write_all(&mut writer, b"apm_config:\n  enabled: true\n");
-    });
+    // The writer is released only after the daemon has exited, so the stop ends the gate read.
+    let mut gate_writer = FifoWriter::spawn(gate.clone(), opened_tx, |_writer| {});
     let socket = env.env_root().join("daemon.sock");
     let mut daemon = DaemonHandle::start(env.config_dir(), &socket);
     opened_rx
@@ -371,11 +367,11 @@ fn test_cli_daemon_startup_stop_keeps_critical_spawn_failure_exit_code() {
         "daemon did not record the stop request\n{}",
         daemon.captured_logs().join("\n")
     );
-    gate_writer.finish();
     let status = daemon
         .wait_for_exit(Duration::from_secs(10))
-        .expect("daemon did not exit after SIGTERM");
-    // 1 is the critical spawn failure exit code. The stop must not replace it with 0.
+        .expect("daemon did not exit after SIGTERM while the gate read was blocked");
+    gate_writer.finish();
+    // 1 is the critical spawn failure exit code. A stop must not replace it with 0.
     assert_eq!(
         status.code(),
         Some(1),
