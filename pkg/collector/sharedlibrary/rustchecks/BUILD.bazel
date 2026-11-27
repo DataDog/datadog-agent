@@ -1,33 +1,19 @@
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
 
-# Map of check name -> cdylib target for each Rust check we ship. Add an entry
-# here to ship a new check.
-ENABLED_CHECKS = {
-    "datasecurity": "//pkg/collector/sharedlibrary/rustchecks/checks/datasecurity:datasecurity_packaged",
-}
+# Packaging target of each Rust check we ship (see dd_rust_check in
+# rust_check.bzl). Add an entry here to ship a new check.
+ENABLED_CHECKS = [
+    "//pkg/collector/sharedlibrary/rustchecks/checks/datasecurity:datasecurity_package",
+]
 
-# Stage every enabled cdylib into checks.d with the loader naming convention
-# (libdatadog-agent-<check_name>.so). Root + root-group read/exec, no "other" —
-# group-readable so init containers can copy them on OpenShift, where
-# containers run with a random UID in the root group.
-#
-pkg_files(
+pkg_filegroup(
     name = "enabled_checks",
     # Rust shared-library checks are Linux-only; srcs resolves to [] elsewhere so
     # this composes as a no-op component of //packages/agent/product:conf_dir_files.
     srcs = select({
-        "@platforms//os:linux": ENABLED_CHECKS.values(),
+        "@platforms//os:linux": ENABLED_CHECKS,
         "//conditions:default": [],
-    }),
-    attributes = pkg_attributes(mode = "0550"),
-    prefix = "checks.d",
-    renames = select({
-        "@platforms//os:linux": {
-            target: "libdatadog-agent-" + check_name + ".so"
-            for check_name, target in ENABLED_CHECKS.items()
-        },
-        "//conditions:default": {},
     }),
     visibility = ["//visibility:public"],
 )
