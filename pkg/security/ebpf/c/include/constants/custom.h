@@ -14,6 +14,8 @@
 
 #define PATH_ID_HIGH_MAP_SIZE 16384 // mount part of the path id
 #define PATH_ID_LOW_MAP_SIZE 32768 // inode part of the path id
+#define PATH_ID_LOW_MASK 0xFFFF
+#define PATH_ID(high, low) ((u32)((high << 16) | (low & PATH_ID_LOW_MASK)))
 
 #define MAX_PERF_STR_BUFF_LEN 256
 #define MAX_STR_BUFF_LEN (1 << 15)

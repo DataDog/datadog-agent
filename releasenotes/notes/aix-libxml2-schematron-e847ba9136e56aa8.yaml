@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    On AIX, the embedded libxml2 is now built with Schematron support. This fixes
+    a bug which prevented the IBM WAS check from loading.

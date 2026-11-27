@@ -185,7 +185,7 @@ static __always_inline u16 _sk_family(struct sock *skp) {
 }
 
 #ifdef COMPILE_CORE
-// Readers for a BTF-typed sock pointer (a tp_btf argument): the verifier turns the sock_common
+// Readers for a BTF-typed sock pointer (a fentry/fexit/tp_btf argument): the verifier turns the sock_common
 // accesses into BPF_PROBE_MEM loads. inet_sk() fields lie past struct sock, where the verifier
 // rejects direct loads through a struct sock pointer, so those fallbacks stay probe reads.
 static __always_inline u16 read_sport_btf(struct sock *skp) {
@@ -253,7 +253,7 @@ static __always_inline int __read_conn_tuple_partial(conn_tuple_t* t, struct soc
     // Retrieve network namespace id first since addresses and ports may not be available for unconnected UDP
     // sends
     if (read_netns) {
-        t->netns = get_netns_from_sock(skp);
+        t->netns = BTF_OR_PROBE_READ(btf, get_netns_from_sock, skp);
     }
     u16 family = BTF_OR_PROBE_READ(btf, _sk_family, skp);
     // Retrieve addresses
@@ -346,6 +346,13 @@ static __maybe_unused __always_inline int read_conn_tuple_no_netns(conn_tuple_t*
 }
 
 #ifdef COMPILE_CORE
+// read_conn_tuple for a BTF-typed sock pointer: a fentry/fexit/tp_btf argument or return value, or a
+// pointer loaded directly from one. Pointers loaded from maps or with probe reads aren't BTF-typed.
+static __maybe_unused __always_inline int read_conn_tuple_btf(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
+    bpf_memset(t, 0, sizeof(conn_tuple_t));
+    return __read_conn_tuple_partial(t, skp, pid_tgid, type, true, true);
+}
+
 // read_conn_tuple_no_netns for a BTF-typed sock pointer.
 static __maybe_unused __always_inline int read_conn_tuple_no_netns_btf(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
     bpf_memset(t, 0, sizeof(conn_tuple_t));

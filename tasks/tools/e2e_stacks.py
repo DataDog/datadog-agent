@@ -7,21 +7,19 @@ from tasks.agent_ci_api import run
 from tasks.e2e_framework import tool
 
 
-def destroy_remote_stack_local(stack: str, ctx: Context | None = None):
-    # Runs in a multiprocessing pool, which only hands over the stack name, so the
-    # context is built here rather than passed in.
-    ctx = ctx or Context()
-
+def destroy_remote_stack_local(stack: str):
     res = tool.run_pulumi(
-        ctx,
-        f"destroy --remove --yes --stack {stack}",
+        "destroy",
+        "--remove",
+        "--yes",
+        "--stack",
+        stack,
         project_dir=False,
-        warn=True,
-        hide=True,
+        capture_output=True,
+        capture_stderr=True,
+        ignore_errors=True,
     )
-    if res is None:
-        return 1, "", "pulumi destroy produced no result", stack
-    return res.exited, res.stdout, res.stderr, stack
+    return res.returncode, res.stdout, res.stderr, stack
 
 
 def destroy_remote_stack_api(

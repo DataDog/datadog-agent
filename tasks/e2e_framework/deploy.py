@@ -3,7 +3,6 @@ import sys
 from typing import Any
 
 import boto3
-from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
@@ -36,7 +35,6 @@ def get_pipeline_commit_sha(pipeline_id: str) -> str | None:
 
 
 def deploy(
-    ctx: Context,
     scenario_name: str,
     config_path: str | None = None,
     app_key_required: bool = False,
@@ -56,9 +54,10 @@ def deploy(
     agent_env: str | None = None,
     helm_config: str | None = None,
     local_package: str | None = None,
-    pulumi_extra_args: str = "",
+    pulumi_extra_args: tuple[str, ...] = (),
     pulumi_env: dict[str, str] | None = None,
 ) -> str:
+    from pydantic import SecretStr
     from pydantic_core._pydantic_core import ValidationError
 
     from tasks.e2e_framework import config
@@ -95,15 +94,15 @@ def deploy(
     # Configure SSH keys for the different cloud providers
     privateKeyPassword = cfg.get_aws().privateKeyPassword
     if privateKeyPassword is not None:
-        flags["ddinfra:aws/defaultPrivateKeyPassword"] = privateKeyPassword
+        flags["ddinfra:aws/defaultPrivateKeyPassword"] = SecretStr(privateKeyPassword)
 
     privateKeyPassword = cfg.get_azure().privateKeyPassword
     if privateKeyPassword is not None:
-        flags["ddinfra:az/defaultPrivateKeyPassword"] = privateKeyPassword
+        flags["ddinfra:az/defaultPrivateKeyPassword"] = SecretStr(privateKeyPassword)
 
     privateKeyPassword = cfg.get_gcp().privateKeyPassword
     if privateKeyPassword is not None:
-        flags["ddinfra:gcp/defaultPrivateKeyPassword"] = privateKeyPassword
+        flags["ddinfra:gcp/defaultPrivateKeyPassword"] = SecretStr(privateKeyPassword)
 
     privateKeyPath = cfg.get_azure().privateKeyPath
     if privateKeyPath is not None:
@@ -134,7 +133,7 @@ def deploy(
         if commit_sha:
             flags["ddagent:commit_sha"] = commit_sha
 
-    flags["ddagent:apiKey"] = config.get_api_key(cfg)
+    flags["ddagent:apiKey"] = SecretStr(config.get_api_key(cfg))
 
     # When using fakeintake, enable dual shipping to send data to both fakeintake and Datadog
     # Otherwise pulumi will configure the agent to send data directly to fakeintake
@@ -150,10 +149,9 @@ def deploy(
             flags[f"{namespace}:{key}"] = value
 
     if app_key_required:
-        flags["ddagent:appKey"] = config.get_app_key(cfg)
+        flags["ddagent:appKey"] = SecretStr(config.get_app_key(cfg))
 
     return _deploy(
-        ctx,
         stack_name,
         flags,
         debug,
@@ -207,33 +205,34 @@ def check_s3_image_exists(_, pipeline_id: str, deploy_job: str):
 
 
 # creates a stack with the given stack_name if it doesn't already exists
-def _create_stack(ctx: Context, stack_name: str, log_flags: str, config_path: str | None):
-    if stack_name in tool.pulumi_stack_names(ctx, config_path=config_path):
+def _create_stack(stack_name: str, log_flags: list[str], config_path: str | None):
+    if stack_name in tool.pulumi_stack_names(config_path=config_path):
         return
 
-    tool.run_pulumi(ctx, f"{log_flags} stack init --no-select {stack_name}", config_path=config_path)
+    tool.run_pulumi(*log_flags, "stack", "init", "--no-select", stack_name, config_path=config_path)
 
 
 def _deploy(
-    ctx: Context,
     stack_name: str | None,
     flags: dict[str, Any],
     debug: bool | None,
     log_level: int | None,
     log_to_stderr: bool | None,
     config_path: str | None = None,
-    pulumi_extra_args: str = "",
+    pulumi_extra_args: tuple[str, ...] = (),
     pulumi_env: dict[str, str] | None = None,
 ) -> str:
+    from pydantic import SecretStr
+
     # get_stack_name normalizes the name, so destroy looks for the one deployed here
     stack_name = tool.get_stack_name(stack_name, flags["scenario"])
-    log_flags_array: list[str] = []
-    up_flags = ""
+    log_flags: list[str] = []
+    up_flags: list[str] = []
 
     # Building run func parameters
     for key, value in flags.items():
-        if value is not None:
-            up_flags += f' -c "{key}={value}"'
+        if value is not None and not isinstance(value, SecretStr):
+            up_flags += ["-c", f"{key}={value}"]
 
     should_log = debug or log_level is not None or log_to_stderr
     if log_level is None:
@@ -243,22 +242,32 @@ def _deploy(
         log_to_stderr = debug
     if should_log:
         if log_to_stderr:
-            log_flags_array.append("--logtostderr")
-        log_flags_array.append(f"-v {log_level}")
+            log_flags.append("--logtostderr")
+        log_flags += ["-v", str(log_level)]
         if debug:
-            up_flags += " --debug"
+            up_flags.append("--debug")
 
-    log_flags = " ".join(log_flags_array)
-    _create_stack(ctx, stack_name, log_flags, config_path)
-    extra = f" {pulumi_extra_args}" if pulumi_extra_args else ""
+    _create_stack(stack_name, log_flags, config_path)
+    for key, value in flags.items():
+        if isinstance(value, SecretStr):
+            tool.run_pulumi(
+                "config",
+                "set",
+                "--secret",
+                key,
+                stack=stack_name,
+                config_path=config_path,
+                input=value.get_secret_value(),
+            )
 
     tool.run_pulumi(
-        ctx,
-        f"{log_flags} up --yes{extra} {up_flags}",
+        *log_flags,
+        "up",
+        "--yes",
+        *pulumi_extra_args,
+        *up_flags,
         stack=stack_name,
         config_path=config_path,
         env=pulumi_env,
-        # disable pty when extra args are set (e.g. --non-interactive)
-        pty=not pulumi_extra_args,
     )
     return stack_name

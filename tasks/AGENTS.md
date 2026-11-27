@@ -106,8 +106,8 @@ passphrase (from `~/.test_infra_config.yaml` when the environment has none) and 
 `--ci` backend in one place:
 
 - **Secrets travel in `env=`, never in the command string** — argv is visible in `/proc`
-  and in `echo=True` traces. Invoke merges `env=` into the parent environment, so this
-  composes with ambient variables instead of replacing them.
+  and in the command line the `bazel` helper prints. It merges `env=` into the parent
+  environment, so this composes with ambient variables instead of replacing them.
 - **Cloud resource names come from `get_resource_owner_id()`**, not `getpass.getuser()`.
   It prefers `$REAL_USER` and appends `$WORKSPACE_NAME`, so two remote dev VMs owned by
   the same developer do not collide on stack or EC2 keypair names in the shared account.

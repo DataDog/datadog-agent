@@ -62,7 +62,6 @@ def create_vm(
     }
 
     full_stack_name = deploy(
-        ctx,
         scenario_name,
         config_path,
         stack_name=stack_name,
@@ -80,10 +79,10 @@ def create_vm(
         notify(ctx, "Your VM is now created")
 
     if add_known_host:
-        host = get_host(ctx, remote_hostname, scenario_name, stack_name)
+        host = get_host(remote_hostname, scenario_name, stack_name)
         add_known_host_func(ctx, host.address)
 
-    show_connection_message(ctx, remote_hostname, full_stack_name, interactive)
+    show_connection_message(remote_hostname, full_stack_name, interactive)
 
 
 @task(
@@ -103,10 +102,9 @@ def destroy_vm(
     Destroy a new virtual machine on aws.
     """
 
-    host = get_host(ctx, remote_hostname, scenario_name, stack_name)
+    host = get_host(remote_hostname, scenario_name, stack_name)
 
     destroy(
-        ctx,
         scenario_name=scenario_name,
         config_path=config_path,
         stack=stack_name,

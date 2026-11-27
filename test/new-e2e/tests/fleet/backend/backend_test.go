@@ -31,7 +31,7 @@ func TestGetReleasedImageTags(t *testing.T) {
 func TestCatalogPreviousMinorVersions(t *testing.T) {
 	var catalog Catalog
 	for _, version := range []string{
-		"7.86.2-2", "7.84.0-1", "7.86.0-1", "v7.86.2-1", "7.86.2-1",
+		"7.86.2-2", "7.84.0-1", "7.86.0-1", "v7.86.2-1", "7.86.2-1", "7.86.1-01",
 		"7.83.0-1", "v7.85.0-1", "7.90.0-1", "8.86.0-1",
 		"7.86.3-rc.1-1", "7.86.3-devel.git.123-1",
 	} {
@@ -48,13 +48,13 @@ func TestCatalogPreviousMinorVersions(t *testing.T) {
 		offset   int
 		versions []string
 	}{
-		{"N-1", 1, []string{"7.86.2-2", "7.86.2-1", "7.86.0-1"}},
+		{"N-1", 1, []string{"7.86.2-2", "7.86.2-1", "7.86.1-01", "7.86.0-1"}},
 		{"N-2", 2, []string{"v7.85.0-1"}},
 		{"N-3", 3, []string{"7.84.0-1"}},
 		{"N-4", 4, []string{"7.83.0-1"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			versions, err := catalog.PreviousMinorVersions(BranchStable, "datadog-agent", "v7.87.0-devel.git.123-1", tc.offset)
+			versions, err := catalog.PreviousMinorVersions(BranchStable, "datadog-agent", "7.87.0-devel.git.1099.0920558.pipeline.155663328-1", tc.offset)
 			require.NoError(t, err)
 			require.Equal(t, tc.versions, versions)
 		})

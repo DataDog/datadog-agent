@@ -1,13 +1,12 @@
 import getpass
 import importlib
-import os
 import re
 import shutil
 from pathlib import Path
 
 from invoke.context import Context
 
-from tasks.e2e_framework.tool import install_pulumi_plugins
+from tasks.libs.build.bazel import bazel
 from tasks.libs.common.status import Status
 from tasks.libs.common.utils import get_repo_root, is_installed
 from tasks.libs.types.arch import Arch
@@ -23,7 +22,6 @@ def get_requirements() -> list[Requirement]:
     return [
         Pulumi(),
         TestInfraDefinitionsRepo(),
-        PulumiPlugin(),
         DDA(),
         PythonDependencies(),
         KMTDirectoriesRequirement(),
@@ -36,42 +34,26 @@ def get_requirements() -> list[Requirement]:
 
 class Pulumi(Requirement):
     def _check_user_logged_in(self, ctx: Context) -> RequirementState:
-        pulumi_about_res = ctx.run("pulumi about", warn=True)
-        if pulumi_about_res is None or not pulumi_about_res.ok:
+        try:
+            pulumi_about = bazel("run", "@pulumi", "about", capture_output=True)
+        except SystemExit:
             return RequirementState(Status.FAIL, "pulumi is not installed correctly.")
 
-        match = re.search(r"^User +(.*)", pulumi_about_res.stdout, re.MULTILINE)
+        match = re.search(r"^User +(.*)", pulumi_about, re.MULTILINE)
         if match is not None and match.group(1) != "Unknown":
             return RequirementState(Status.OK, "pulumi is installed and logged in.")
 
         return RequirementState(Status.FAIL, "pulumi is not logged in.")
 
     def check(self, ctx: Context, fix: bool) -> RequirementState:
-        if shutil.which("pulumi") is None:
-            if Path("~/.pulumi/bin/pulumi").expanduser().exists():
-                return RequirementState(
-                    Status.FAIL,
-                    "pulumi installed in ~/.pulumi/bin but not in $PATH. Please add that path to your shell configuration",
-                )
-
-            if not fix:
-                return RequirementState(Status.FAIL, "pulumi is not installed.", fixable=True)
-
-            res = ctx.run("curl -fsSL https://get.pulumi.com | sh", warn=True)
-            if res is None or not res.ok:
-                return RequirementState(Status.FAIL, "pulumi installation failed.")
-
-            # Update PATH in this session so we can call the command
-            os.environ["PATH"] = f"{os.environ['PATH']}:{os.path.expanduser('~/.pulumi/bin')}"
-
         login_state = self._check_user_logged_in(ctx)
         if login_state.state != Status.OK:
             if not fix:
                 return login_state
 
             try:
-                ctx.run("pulumi login --local")
-            except Exception as e:
+                bazel("run", "@pulumi", "--", "login", "--local")
+            except SystemExit as e:
                 return RequirementState(Status.FAIL, f"pulumi login command failed: {e}")
 
             login_state = self._check_user_logged_in(ctx)
@@ -94,29 +76,6 @@ class TestInfraDefinitionsRepo(Requirement):
             f"e2e-framework directory not found at {repo_path}.",
             fixable=False,
         )
-
-
-class PulumiPlugin(Requirement):
-    dependencies: list[type[Requirement]] = [Pulumi, TestInfraDefinitionsRepo]
-
-    def check(self, ctx: Context, fix: bool) -> RequirementState:
-        test_infra_repo_run = os.path.join(TestInfraDefinitionsRepo.get_repo_path(), "run")
-
-        with ctx.cd(test_infra_repo_run):
-            res = ctx.run("pulumi --non-interactive plugin ls", warn=True)
-            # If there are more than 3 lines, then there are plugins installed. The other lines are headers/footers.
-            if res is not None and res.ok and len(res.stdout.splitlines()) > 3:
-                return RequirementState(Status.OK, "pulumi plugins installed.")
-
-            if not fix:
-                return RequirementState(Status.FAIL, "pulumi plugins not installed.", fixable=True)
-
-            try:
-                install_pulumi_plugins()
-            except SystemExit as e:
-                return RequirementState(Status.FAIL, f"pulumi plugins installation failed: {e}")
-
-        return RequirementState(Status.OK, "pulumi plugins installed.")
 
 
 class DDA(Requirement):

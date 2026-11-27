@@ -6,15 +6,11 @@ go_library(
     srcs = ["queue.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_benbjohnson_clock//:clock"],
 )
 
 dd_agent_go_test(
     name = "aggregatingqueue_test",
     srcs = ["queue_test.go"],
     embed = [":aggregatingqueue"],
-    deps = [
-        "@com_github_benbjohnson_clock//:clock",
-        "@com_github_stretchr_testify//assert",
-    ],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

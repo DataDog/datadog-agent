@@ -208,7 +208,7 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 					cgroupContext.CreatedAt = time.Unix(fileStatx.Mtime.Sec, int64(fileStatx.Mtime.Nsec))
 				} else if err = unix.Stat(cgroupPath, &fileStats); err == nil {
 					cgroupContext.CGroupFileInode = fileStats.Ino
-					cgroupContext.CreatedAt = time.Unix(fileStats.Mtim.Sec, int64(fileStats.Mtim.Nsec))
+					cgroupContext.CreatedAt = time.Unix(int64(fileStats.Mtim.Sec), int64(fileStats.Mtim.Nsec))
 				}
 				if err == nil {
 					return true, nil

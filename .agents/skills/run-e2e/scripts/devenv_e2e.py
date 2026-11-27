@@ -453,12 +453,11 @@ def install_config(instance: str) -> None:
 
 
 def ensure_pulumi_backend(instance: str) -> None:
-    """Select Pulumi's local backend and install its plugins inside the container.
+    """Select Pulumi's local backend and install its CLI and plugins inside the container.
 
-    The binary already comes from the base image, but $HOME is not a persistent volume,
-    so ~/.pulumi has to be re-established for each container.
+    $HOME is not a persistent volume, so ~/.pulumi has to be re-established for each container.
     """
-    if run(env_command(instance, "run", "--", "pulumi", "whoami")).returncode == 0:
+    if run(env_command(instance, "run", "--", "bazel", "run", "@pulumi", "whoami")).returncode == 0:
         print("Pulumi backend already configured.", file=sys.stderr)
         return
 
@@ -466,20 +465,7 @@ def ensure_pulumi_backend(instance: str) -> None:
     # --no-interactive keeps this to Pulumi only. The interactive path would run as the
     # container user `dd` and mint a second AWS keypair, which then makes every later
     # fresh container fail; see /.agents/skills/run-e2e/references/setup.md.
-    command = env_command(
-        instance,
-        "run",
-        "--",
-        "env",
-        # Otherwise a newer upstream Pulumi is treated as "not installed" and re-downloaded
-        # into the ephemeral home, where the image's copy shadows it anyway.
-        "PULUMI_SKIP_UPDATE_CHECK=true",
-        "dda",
-        "inv",
-        "--",
-        "e2e.setup",
-        "--no-interactive",
-    )
+    command = env_command(instance, "run", "--", "dda", "inv", "--", "e2e.setup", "--no-interactive")
     if run(command, capture=False).returncode != 0:
         fail(
             ERROR,
@@ -527,7 +513,21 @@ def check_aws(instance: str) -> None:
 def live_stacks(instance: str) -> list[str] | None:
     """Stacks the container still knows about, or None if they could not be listed."""
     result = run(
-        env_command(instance, "run", "--", "pulumi", "stack", "ls", "--all", "--project", PULUMI_PROJECT, "--json")
+        env_command(
+            instance,
+            "run",
+            "--",
+            "bazel",
+            "run",
+            "@pulumi",
+            "--",
+            "stack",
+            "ls",
+            "--all",
+            "--project",
+            PULUMI_PROJECT,
+            "--json",
+        )
     )
     if result.returncode != 0:
         return None

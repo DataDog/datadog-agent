@@ -27,7 +27,7 @@ type windowsSecretSuite struct {
 
 func TestWindowsSecretSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &windowsSecretSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault), ec2.WithInternetAccess())))))
+	e2e.Run(t, &windowsSecretSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault), ec2.WithInternetAccess())))))
 }
 
 func (v *windowsSecretSuite) TestAgentSecretExecDoesNotExist() {
@@ -72,7 +72,7 @@ host_aliases:
 
 	// We embed a script that file create the secret binary (C:\wrapper.bat) with the correct permissions
 	v.UpdateEnv(
-		awshost.Provisioner(
+		awshost.ProvisionerNoFakeIntake(
 			awshost.WithRunOptions(
 				ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 				ec2.WithAgentOptions(agentParams...)),

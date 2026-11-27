@@ -8,6 +8,7 @@
 package safenvml
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -41,6 +42,31 @@ func (d *safeDeviceImpl) GetBAR1MemoryInfo() (nvml.BAR1Memory, error) {
 	}
 	bar1Info, ret := d.nvmlDevice.GetBAR1MemoryInfo()
 	return bar1Info, NewNvmlAPIErrorOrNil("GetBAR1MemoryInfo", ret)
+}
+
+func (d *safeDeviceImpl) GetBoardPartNumber() (string, error) {
+	if err := d.lib.lookup(toNativeName("GetBoardPartNumber")); err != nil {
+		return "", err
+	}
+	partNumber, ret := d.nvmlDevice.GetBoardPartNumber()
+	return partNumber, NewNvmlAPIErrorOrNil("GetBoardPartNumber", ret)
+}
+
+func (d *safeDeviceImpl) GetC2cModeInfo() (nvml.C2cModeInfo_v1, error) {
+	if err := d.lib.lookup(toNativeName("GetC2cModeInfoV")); err != nil {
+		return nvml.C2cModeInfo_v1{}, err
+	}
+	return getC2cModeInfo(d.nvmlDevice.GetC2cModeInfoV().V1)
+}
+
+// getC2cModeInfo isolates the versioned NVML call, whose concrete handler
+// cannot be mocked.
+func getC2cModeInfo(getV1 func() (nvml.C2cModeInfo_v1, nvml.Return)) (nvml.C2cModeInfo_v1, error) {
+	info, ret := getV1()
+	if err := NewNvmlAPIErrorOrNil("GetC2cModeInfoV", ret); err != nil {
+		return nvml.C2cModeInfo_v1{}, err
+	}
+	return info, nil
 }
 
 func (d *safeDeviceImpl) GetClockInfo(clockType nvml.ClockType) (uint32, error) {
@@ -266,14 +292,6 @@ func (d *safeDeviceImpl) GetPlatformInfo() (nvml.PlatformInfo, error) {
 	return info, NewNvmlAPIErrorOrNil("GetPlatformInfo", ret)
 }
 
-func (d *safeDeviceImpl) GetNumaNodeId() (int, error) { //nolint:revive // Maintaining consistency with go-nvml API naming
-	if err := d.lib.lookup(toNativeName("GetNumaNodeId")); err != nil {
-		return 0, err
-	}
-	node, ret := d.nvmlDevice.GetNumaNodeId()
-	return node, NewNvmlAPIErrorOrNil("GetNumaNodeId", ret)
-}
-
 func (d *safeDeviceImpl) GetSerial() (string, error) {
 	if err := d.lib.lookup(toNativeName("GetSerial")); err != nil {
 		return "", err
@@ -403,6 +421,47 @@ func (d *safeDeviceImpl) GetNvLinkVersion(link int) (int, error) {
 	return int(version), NewNvmlAPIErrorOrNil("GetNvLinkVersion", ret)
 }
 
+func (d *safeDeviceImpl) GetNvLinkRemoteDeviceType(link int) (nvml.IntNvLinkDeviceType, error) {
+	if err := d.lib.lookup(toNativeName("GetNvLinkRemoteDeviceType")); err != nil {
+		return 0, err
+	}
+	deviceType, ret := d.nvmlDevice.GetNvLinkRemoteDeviceType(link)
+	return deviceType, NewNvmlAPIErrorOrNil("GetNvLinkRemoteDeviceType", ret)
+}
+
+func (d *safeDeviceImpl) GetNvLinkRemotePciInfo(link int) (nvml.PciInfo, error) {
+	if err := d.lib.lookup(toNativeName("GetNvLinkRemotePciInfo")); err != nil {
+		return nvml.PciInfo{}, err
+	}
+	info, ret := d.nvmlDevice.GetNvLinkRemotePciInfo(link)
+	return info, NewNvmlAPIErrorOrNil("GetNvLinkRemotePciInfo", ret)
+}
+
+func (d *safeDeviceImpl) GetP2PStatus(peer SafeDevice, capability nvml.GpuP2PCapsIndex) (nvml.GpuP2PStatus, error) {
+	if err := d.lib.lookup(toNativeName("GetP2PStatus")); err != nil {
+		return 0, err
+	}
+	peerHandle, err := nvmlHandleOf(peer)
+	if err != nil {
+		return 0, err
+	}
+	status, ret := d.nvmlDevice.GetP2PStatus(peerHandle, capability)
+	return status, NewNvmlAPIErrorOrNil("GetP2PStatus", ret)
+}
+
+// nvmlHandleOf returns the raw NVML handle behind a physical device. MIG devices are
+// rejected: P2P is a property of physical GPUs.
+func nvmlHandleOf(device SafeDevice) (nvml.Device, error) {
+	switch d := device.(type) {
+	case *safeDeviceImpl:
+		return d.nvmlDevice, nil
+	case *PhysicalDevice:
+		return nvmlHandleOf(d.SafeDevice)
+	default:
+		return nil, fmt.Errorf("cannot get an NVML handle from %T", device)
+	}
+}
+
 func (d *safeDeviceImpl) GetNvLinkErrorCounter(link int, counter nvml.NvLinkErrorCounter) (uint64, error) {
 	if err := d.lib.lookup(toNativeName("GetNvLinkErrorCounter")); err != nil {
 		return 0, err
@@ -441,6 +500,14 @@ func (d *safeDeviceImpl) GetMaxPcieLinkGeneration() (int, error) {
 	}
 	gen, ret := d.nvmlDevice.GetMaxPcieLinkGeneration()
 	return gen, NewNvmlAPIErrorOrNil("GetMaxPcieLinkGeneration", ret)
+}
+
+func (d *safeDeviceImpl) GetGpuMaxPcieLinkGeneration() (int, error) {
+	if err := d.lib.lookup(toNativeName("GetGpuMaxPcieLinkGeneration")); err != nil {
+		return 0, err
+	}
+	gen, ret := d.nvmlDevice.GetGpuMaxPcieLinkGeneration()
+	return gen, NewNvmlAPIErrorOrNil("GetGpuMaxPcieLinkGeneration", ret)
 }
 
 func (d *safeDeviceImpl) GetCurrPcieLinkWidth() (int, error) {

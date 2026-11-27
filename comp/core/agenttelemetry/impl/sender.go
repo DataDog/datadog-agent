@@ -170,12 +170,17 @@ type MetricPayload struct {
 
 // -------------------
 // Utilities
+// newTransport builds the transport of the sender client. Tests replace it to reach an in-memory intake.
+var newTransport = func(cfg config.Reader) http.RoundTripper {
+	// reusing core agent HTTP transport to benefit from proxy settings.
+	return httputils.CreateHTTPTransport(cfg)
+}
+
 func httpClientFactory(cfg config.Reader, timeout time.Duration) func() *http.Client {
 	return func() *http.Client {
 		return &http.Client{
-			Timeout: timeout,
-			// reusing core agent HTTP transport to benefit from proxy settings.
-			Transport: httputils.CreateHTTPTransport(cfg),
+			Timeout:   timeout,
+			Transport: newTransport(cfg),
 		}
 	}
 }

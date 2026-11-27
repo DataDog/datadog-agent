@@ -37,7 +37,7 @@ build do
     env["GOMODCACHE"] = gomodcache.to_path
   end
 
-  env['CGO_CFLAGS'] = "-I#{install_dir}/embedded/include"
+  env['CGO_CFLAGS'] = "-O2 -I#{install_dir}/embedded/include"
 
   if linux_target?
     # Temporary while we are still building with dda.
@@ -56,7 +56,7 @@ build do
     delete 'bin/agent/dist/datadog.yaml'
     delete 'bin/agent/dist/system-probe.yaml'
 
-    # Installs: bin/ and run/ dirs
+    # Installs: bin/, run/, LICENSES/ and sources/
     command "bazel run #{omnibazel_flags} -- " \
             "//packages/iot:install --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
     copy 'bin/agent', "#{install_dir}/bin/"

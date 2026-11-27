@@ -8,14 +8,24 @@ package backend
 
 import (
 	"compress/gzip"
+	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/textproto"
+	"net/url"
+	"strconv"
+	"strings"
+	"syscall"
+	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/cenkalti/backoff/v7"
 	"go.uber.org/atomic"
 
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -29,14 +39,22 @@ import (
 
 // protobufFormat is `config.Protobuf.String()`, this is temporary duplication to not have
 // to import the whole pkg/security/config package
-const protobufFormat = "protobuf"
+const (
+	protobufFormat        = "protobuf"
+	defaultMaxRetries     = 3
+	defaultRetryBaseDelay = 200 * time.Millisecond
+	defaultMaxRetryDelay  = 5 * time.Second
+	defaultRequestTimeout = 30 * time.Second
+)
 
 // ActivityDumpRemoteBackend is a remote backend that forwards dumps to the backend
 type ActivityDumpRemoteBackend struct {
 	endpoints        *logsconfig.Endpoints
 	tooLargeEntities *atomic.Uint64
 
-	client *http.Client
+	client         *http.Client
+	maxRetries     int
+	retryBaseDelay time.Duration
 }
 
 // NewActivityDumpRemoteBackend returns a new ActivityDumpRemoteBackend
@@ -51,8 +69,11 @@ func NewActivityDumpRemoteBackend() (*ActivityDumpRemoteBackend, error) {
 		tooLargeEntities: atomic.NewUint64(0),
 		client: &http.Client{
 			Transport: ddhttputil.CreateHTTPTransport(pkgconfigsetup.Datadog()),
+			Timeout:   defaultRequestTimeout,
 		},
-		endpoints: endpoints,
+		endpoints:      endpoints,
+		maxRetries:     defaultMaxRetries,
+		retryBaseDelay: defaultRetryBaseDelay,
 	}, nil
 }
 
@@ -88,6 +109,79 @@ func writeDump(writer *multipart.Writer, raw []byte) error {
 	return nil
 }
 
+func isRetryableStatusCode(code int) bool {
+	switch code {
+	case http.StatusRequestTimeout,
+		http.StatusTooManyRequests,
+		http.StatusInternalServerError,
+		http.StatusBadGateway,
+		http.StatusServiceUnavailable,
+		http.StatusGatewayTimeout:
+		return true
+	default:
+		return false
+	}
+}
+
+func isRetryableTransportError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		err = urlErr.Err
+	}
+	if errors.Is(err, context.Canceled) {
+		return false
+	}
+	var (
+		certVerifyErr  *tls.CertificateVerificationError
+		unknownAuthErr x509.UnknownAuthorityError
+		certInvalidErr x509.CertificateInvalidError
+		hostnameErr    x509.HostnameError
+		sysRootsErr    x509.SystemRootsError
+	)
+	if errors.As(err, &certVerifyErr) ||
+		errors.As(err, &unknownAuthErr) ||
+		errors.As(err, &certInvalidErr) ||
+		errors.As(err, &hostnameErr) ||
+		errors.As(err, &sysRootsErr) {
+		return false
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) && dnsErr.IsNotFound && !dnsErr.IsTemporary && !dnsErr.IsTimeout {
+		return false
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true
+	}
+	var errno syscall.Errno
+	return errors.As(err, &errno)
+}
+
+func parseRetryAfter(resp *http.Response, maxDelay time.Duration) (time.Duration, bool) {
+	if resp == nil {
+		return 0, false
+	}
+	raw := strings.TrimSpace(resp.Header.Get("Retry-After"))
+	if raw == "" {
+		return 0, false
+	}
+	secs, err := strconv.Atoi(raw)
+	if err != nil || secs <= 0 {
+		return 0, false
+	}
+	delay := time.Duration(secs) * time.Second
+	if delay > maxDelay {
+		delay = maxDelay
+	}
+	return delay, true
+}
+
 // sendToEndpoint streams the multipart body straight into the HTTP request instead of
 // materializing the whole gzipped payload in memory (encoding chain: protobuf dump -> multipart
 // -> gzip -> io.Pipe -> request body).
@@ -120,32 +214,67 @@ func (backend *ActivityDumpRemoteBackend) sendToEndpoint(url string, apiKey stri
 		return pr, nil
 	}
 
-	body, _ := newBody()
+	maxRetries := backend.maxRetries
+	if maxRetries <= 0 {
+		maxRetries = defaultMaxRetries
+	}
+	baseDelay := backend.retryBaseDelay
+	if baseDelay <= 0 {
+		baseDelay = defaultRetryBaseDelay
+	}
 
-	r, err := http.NewRequest("POST", url, body)
-	if err != nil {
-		// Unblock the writer goroutine, which is otherwise waiting on a reader for the pipe.
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = baseDelay
+	expBackoff.MaxInterval = defaultMaxRetryDelay
+
+	_, err := backoff.Retry(context.Background(), func() (struct{}, error) {
+		body, _ := newBody()
+
+		r, err := http.NewRequest("POST", url, body)
+		if err != nil {
+			// Unblock the writer goroutine, which is otherwise waiting on a reader for the pipe.
+			_ = body.Close()
+			return struct{}{}, backoff.Permanent(err)
+		}
+
+		r.GetBody = newBody
+		r.Header.Set("Content-Type", contentType)
+		r.Header.Set("dd-api-key", apiKey)
+		r.Header.Set("Content-Encoding", "gzip")
+
+		resp, err := backend.client.Do(r)
 		_ = body.Close()
-		return err
+		if err != nil {
+			if !isRetryableTransportError(err) {
+				return struct{}{}, backoff.Permanent(err)
+			}
+			return struct{}{}, err
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode == http.StatusAccepted {
+			return struct{}{}, nil
+		}
+		if resp.StatusCode == http.StatusRequestEntityTooLarge {
+			backend.tooLargeEntities.Inc()
+			return struct{}{}, backoff.Permanent(errors.New(resp.Status))
+		}
+		statusErr := errors.New(resp.Status)
+		if !isRetryableStatusCode(resp.StatusCode) {
+			return struct{}{}, backoff.Permanent(statusErr)
+		}
+		if retryAfter, ok := parseRetryAfter(resp, defaultMaxRetryDelay); ok {
+			return struct{}{}, backoff.RetryAfter(retryAfter, statusErr)
+		}
+		return struct{}{}, statusErr
+	},
+		backoff.WithBackOff(expBackoff),
+		backoff.WithMaxTries(uint(maxRetries+1)),
+		backoff.WithMaxElapsedTime(0),
+	)
+	if re := backoff.AsRetryError(err); re != nil {
+		return re.LastErr
 	}
-
-	r.GetBody = newBody
-	r.Header.Set("Content-Type", contentType)
-	r.Header.Set("dd-api-key", apiKey)
-	r.Header.Set("Content-Encoding", "gzip")
-
-	resp, err := backend.client.Do(r)
-	if err != nil {
-		return err
-	}
-	_ = resp.Body.Close()
-	if resp.StatusCode == http.StatusAccepted {
-		return nil
-	}
-	if resp.StatusCode == http.StatusRequestEntityTooLarge {
-		backend.tooLargeEntities.Inc()
-	}
-	return errors.New(resp.Status)
+	return err
 }
 
 // HandleActivityDump sends the activity dump to the remote backend
@@ -171,7 +300,7 @@ func (backend *ActivityDumpRemoteBackend) HandleActivityDump(imageName string, i
 		url := utils.GetEndpointURL(endpoint, "api/v2/secdump")
 
 		if err := backend.sendToEndpoint(url, endpoint.GetAPIKey(), header, data); err != nil {
-			seclog.Warnf("couldn't sent activity dump to [%s, dump size: %d]: %v", url, len(data), err)
+			seclog.Warnf("couldn't send activity dump to [%s, dump size: %d]: %v", url, len(data), err)
 		} else {
 			seclog.Infof("[%s] file for activity dump [image_name:%s image_tag:%s] successfully sent to [%s]", protobufFormat, imageName, imageTag, url)
 		}

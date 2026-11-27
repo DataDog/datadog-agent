@@ -1130,6 +1130,7 @@ type FieldHandlers interface {
 	ResolveProcessArgvScrubbed(ev *Event, e *Process) []string
 	ResolveProcessCmdArgv(ev *Event, e *Process) []string
 	ResolveProcessCreatedAt(ev *Event, e *Process) int
+	ResolveProcessEnv(ev *Event, e *Process) map[string]string
 	ResolveProcessEnvp(ev *Event, e *Process) []string
 	ResolveProcessEnvs(ev *Event, e *Process) []string
 	ResolveProcessEnvsTruncated(ev *Event, e *Process) bool
@@ -1369,6 +1370,9 @@ func (dfh *FakeFieldHandlers) ResolveProcessCmdArgv(ev *Event, e *Process) []str
 }
 func (dfh *FakeFieldHandlers) ResolveProcessCreatedAt(ev *Event, e *Process) int {
 	return int(e.CreatedAt)
+}
+func (dfh *FakeFieldHandlers) ResolveProcessEnv(ev *Event, e *Process) map[string]string {
+	return map[string]string(e.Env)
 }
 func (dfh *FakeFieldHandlers) ResolveProcessEnvp(ev *Event, e *Process) []string {
 	return []string(e.Envp)

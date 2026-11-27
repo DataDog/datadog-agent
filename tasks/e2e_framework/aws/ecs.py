@@ -77,17 +77,15 @@ def create_ecs(
     if interactive:
         tool.notify(ctx, "Your ECS cluster is now created")
 
-    _show_connection_message(ctx, config_path, full_stack_name, interactive)
+    _show_connection_message(config_path, full_stack_name, interactive)
 
 
-def _show_connection_message(
-    ctx: Context, config_path: str | None, full_stack_name: str, interactive: bool | None = True
-):
+def _show_connection_message(config_path: str | None, full_stack_name: str, interactive: bool | None = True):
     from pydantic import ValidationError
 
     from tasks.e2e_framework import config
 
-    outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
+    outputs = tool.get_stack_json_outputs(full_stack_name)
     cluster_name = outputs["dd-Cluster-ecs"]["clusterName"]
 
     try:
@@ -107,4 +105,4 @@ def destroy_ecs(ctx: Context, stack_name: str | None = None):
     """
     Destroy a ECS environment created with invoke aws.create-ecs.
     """
-    destroy(ctx, scenario_name=scenario_name, stack=stack_name)
+    destroy(scenario_name=scenario_name, stack=stack_name)

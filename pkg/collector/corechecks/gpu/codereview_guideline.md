@@ -1,6 +1,6 @@
 # GPU monitoring review guidelines
 
-Scope: `pkg/collector/corechecks/gpu/`, `pkg/gpu/`, and
+Scope: `pkg/collector/corechecks/gpu/`, `pkg/gpu/` (including `pkg/gpu/probe/`), and
 `cmd/system-probe/modules/gpu*`.
 
 ## Metric coverage: do not request new fakeintake E2E tests

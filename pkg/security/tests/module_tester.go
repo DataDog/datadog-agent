@@ -804,6 +804,7 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
 		"TestPoliciesDir":                         cfgDir,
+		"DisableFilters":                          opts.disableFilters,
 		"DisableApprovers":                        opts.disableApprovers,
 		"DisableDiscarders":                       opts.disableDiscarders,
 		"EnableSecurityProfile":                   opts.enableSecurityProfile,
@@ -812,6 +813,7 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		"SecurityProfileSampleRefreshPeriod":      opts.securityProfileSampleRefreshPeriod,
 		"SecurityProfileMaxImageTags":             opts.securityProfileMaxImageTags,
 		"EnableAnomalyDetection":                  opts.enableAnomalyDetection,
+		"AnomalyDetectionEventCooldown":           opts.anomalyDetectionEventCooldown,
 		"WorkloadProfileStorageDir":               workloadProfileStorageDir,
 		"WorkloadProfilePersistencePeriod":        opts.workloadProfilePersistencePeriod,
 		"WorkloadProfileEventTypes":               opts.workloadProfileEventTypes,
@@ -819,6 +821,7 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		"ProfilingStartupDelay":                   opts.profilingStartupDelay,
 		"ProfileReportingWaitPersistence":         opts.profileReportingWaitPersistence,
 		"EventSamplingOpenRateUnlimited":          opts.eventSamplingOpenRateUnlimited,
+		"DisableEventSampling":                    opts.disableEventSampling,
 		"ErpcDentryResolutionEnabled":             erpcDentryResolutionEnabled,
 		"MapDentryResolutionEnabled":              mapDentryResolutionEnabled,
 		"LogPatterns":                             logPatterns,

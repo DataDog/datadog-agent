@@ -78,7 +78,7 @@ class ParsedTitleTests(unittest.TestCase):
 
 class ClassifyPairTests(unittest.TestCase):
     def test_exact(self):
-        self.assertIs(classify_pair("go_e2e_test_binaries", "go_e2e_test_binaries"), MatchTier.EXACT)
+        self.assertIs(classify_pair("go_e2e_deps", "go_e2e_deps"), MatchTier.EXACT)
 
     def test_base_strips_parallel_suffix(self):
         tier = classify_pair('new-e2e-sbom: [--run "TestSBOMKubeadmCrioSuite"]', "new-e2e-sbom")
@@ -94,7 +94,7 @@ class ClassifyPairTests(unittest.TestCase):
         self.assertIs(classify_pair("new-e2e-containers-k8s-latest", "new-e2e-containers-k8s-oldest"), MatchTier.TOKEN)
 
     def test_none_when_nothing_lines_up(self):
-        self.assertIs(classify_pair("go_e2e_test_binaries", "docker_build_agent7_full_arm64"), MatchTier.NONE)
+        self.assertIs(classify_pair("go_e2e_deps", "docker_build_agent7_full_arm64"), MatchTier.NONE)
 
     def test_tiers_order_best_first(self):
         # The enum's ordering is load-bearing: cmd_search sorts on it directly and
@@ -127,7 +127,7 @@ class MatchAgainstTests(unittest.TestCase):
 
     def test_no_matches_when_title_did_not_parse(self):
         inc = make_incident(title="a human-written title")
-        self.assertEqual(inc.match_against(["go_e2e_test_binaries"]), {})
+        self.assertEqual(inc.match_against(["go_e2e_deps"]), {})
         self.assertIs(inc.best_tier, MatchTier.NONE)
 
     def test_best_tier_is_none_when_no_jobs_were_supplied(self):

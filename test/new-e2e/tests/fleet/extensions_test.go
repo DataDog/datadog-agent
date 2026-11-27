@@ -243,7 +243,7 @@ func (s *extensionsSuite) TestExtensionRestoredAfterExperimentRollback() {
 	// Switch to the staging registry so restoreAgentExtensions can find the stable OCI
 	// (7.78.0-beta-fleet-ext-1) during StopExperiment. The pipeline registry does not host
 	// the stable staging package.
-	s.setInstallerRegistryConfig("install.datad0g.com.internal.dda-testing.com")
+	s.setInstallerRegistryConfig("install.datad0g.com")
 
 	err = s.Backend.StopExperiment("datadog-agent")
 	s.Require().NoError(err)
@@ -298,7 +298,7 @@ func (s *extensionsSuite) TestDDOTExtension() {
 // If a URL is provided it uses that registry; otherwise it defaults to the pipeline registry.
 // If an installer registry URL is already present in the config it is replaced.
 func (s *extensionsSuite) setInstallerRegistryConfig(registryURL ...string) {
-	url := "installtesting.datad0g.com.internal.dda-testing.com"
+	url := "installtesting.datad0g.com"
 	if len(registryURL) > 0 && registryURL[0] != "" {
 		url = registryURL[0]
 	}
@@ -306,8 +306,8 @@ func (s *extensionsSuite) setInstallerRegistryConfig(registryURL ...string) {
 	case e2eos.LinuxFamily:
 		// Replace an existing installer registry URL or append the block if absent.
 		_, err := s.Env().RemoteHost.Execute(
-			`if grep -qE '^\s+url:.*dda-testing\.com' /etc/datadog-agent/datadog.yaml; then ` +
-				`sudo sed -i 's|^\(\s*url: \).*dda-testing\.com.*|\1` + url + `|' /etc/datadog-agent/datadog.yaml; ` +
+			`if grep -qE '^\s+url:\s+install(testing)?\.' /etc/datadog-agent/datadog.yaml; then ` +
+				`sudo sed -i 's|^\(\s*url:\s*\)install\(testing\)\?\..*|\1` + url + `|' /etc/datadog-agent/datadog.yaml; ` +
 				`else sudo sh -c 'printf "\ninstaller:\n  registry:\n    url: ` + url + `\n" >> /etc/datadog-agent/datadog.yaml'; ` +
 				`fi`)
 		s.Require().NoError(err)
@@ -315,8 +315,8 @@ func (s *extensionsSuite) setInstallerRegistryConfig(registryURL ...string) {
 		// Replace an existing installer registry URL or append the block if absent.
 		_, err := s.Env().RemoteHost.Execute(
 			`$f = 'C:\ProgramData\Datadog\datadog.yaml'; $c = Get-Content $f -Raw; ` +
-				`if ($c -match 'dda-testing\.com') { ` +
-				`$c = $c -replace '(?m)^(\s+url:\s+)\S+dda-testing\.com\S*', '${1}` + url + `'; ` +
+				`if ($c -match '(?m)^\s+url:\s+install(testing)?\.\S*') { ` +
+				`$c = $c -replace '(?m)^(\s+url:\s+)install(testing)?\.\S*', '${1}` + url + `'; ` +
 				`} else { ` +
 				"$c += \"`ninstaller:`n  registry:`n    url: " + url + "\"; " +
 				`} Set-Content $f -Value $c -NoNewline`)
@@ -343,7 +343,7 @@ func (s *extensionsSuite) getExtensionPath(pkg, version, extensionName string) s
 
 // getStagingAgentPackageURL returns the OCI URL for the staging agent package
 func (s *extensionsSuite) getStagingAgentPackageURL() string {
-	return "oci://install.datad0g.com.internal.dda-testing.com/agent-package:" + stagingAgentOCIVersion
+	return "oci://install.datad0g.com/agent-package:" + stagingAgentOCIVersion
 }
 
 // getAgentPackageURL returns the pipeline agent package OCI URL for E2E tests.
@@ -355,7 +355,7 @@ func getAgentPackageURL(t *testing.T, version string) string {
 			require.FailNow(t, "E2E_PIPELINE_ID environment variable not set")
 		}
 	}
-	return "oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-" + version
+	return "oci://installtesting.datad0g.com/agent-package:pipeline-" + version
 }
 
 // getDDOTAgentVersion returns the DDOT AgentVersion from the agent status.
