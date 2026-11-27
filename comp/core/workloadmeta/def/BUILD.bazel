@@ -19,6 +19,7 @@ go_library(
         "//comp/core/config",
         "//pkg/discovery/tracermetadata/model",
         "//pkg/languagedetection/languagemodels",
+        "//pkg/sbom/usage",
         "//pkg/util/containers/image",
         "//pkg/util/kubernetes",
         "//pkg/util/scrubber",

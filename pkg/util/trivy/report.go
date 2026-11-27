@@ -11,13 +11,17 @@ package trivy
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/bomconvert"
+	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/sbom/usage"
 	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
+	sbomio "github.com/aquasecurity/trivy/pkg/sbom/io"
 	"github.com/aquasecurity/trivy/pkg/types"
 )
 
@@ -28,16 +32,32 @@ type Report struct {
 	id         string
 	bom        *cyclonedx_v1_4.Bom
 	osFallback bool
+	usageIndex *usage.Index
 }
 
 type reportOptions struct {
 	dependencies    bool
 	simplifyBomRefs bool
 	osFallback      bool // the report lists the OS packages alone because the application scan ran out of time
+
+	// usageIndex builds the usage index of the SBOM, from a scan that started
+	// at scanStart.
+	usageIndex bool
+	scanStart  time.Time
 }
 
 func newReport(id string, report *types.Report, marshaler cyclonedx.Marshaler, opts reportOptions) (*Report, error) {
-	bom, err := marshaler.MarshalReport(context.TODO(), *report)
+	// The two steps of marshaler.MarshalReport, apart, so that the index
+	// reads the bom-ref of each package between them.
+	coreBOM, err := sbomio.NewEncoder(sbomio.WithBOMRef()).Encode(*report)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal report: %w", err)
+	}
+	var refs map[string][]string
+	if opts.usageIndex {
+		refs = componentRefs(coreBOM)
+	}
+	bom, err := marshaler.Marshal(context.TODO(), coreBOM)
 	if err != nil {
 		return nil, err
 	}
@@ -51,12 +71,19 @@ func newReport(id string, report *types.Report, marshaler cyclonedx.Marshaler, o
 		appendSBOMOSFallback(bom)
 	}
 
-	bom14 := bomconvert.ConvertBOM(bom, opts.simplifyBomRefs)
+	bom14, convertedRef := bomconvert.ConvertBOMWithRefs(bom, opts.simplifyBomRefs)
+
+	var index *usage.Index
+	if opts.usageIndex {
+		index = buildUsageIndex(report, refs, convertedRef, bom14.GetSerialNumber(), opts.scanStart, time.Now())
+		telemetry.SBOMUsageIndexSize.Observe(float64(index.Size()))
+	}
 
 	return &Report{
 		id:         id,
 		bom:        bom14,
 		osFallback: opts.osFallback,
+		usageIndex: index,
 	}, nil
 }
 
@@ -104,4 +131,13 @@ func (r *Report) ID() string {
 // the scan with application analyzers ran out of time.
 func (r *Report) OSFallback() bool {
 	return r != nil && r.osFallback
+}
+
+// UsageIndex returns the usage index of the SBOM of the report, nil when the
+// collector builds none.
+func (r *Report) UsageIndex() *usage.Index {
+	if r == nil {
+		return nil
+	}
+	return r.usageIndex
 }

@@ -24,6 +24,7 @@ import (
 func main() {
 	var fast bool
 	var analyzers []string
+	var usageIndex bool
 
 	var cpuprofile string
 	var closers []io.Closer
@@ -35,6 +36,7 @@ func main() {
 	rootCmd.PersistentFlags().BoolVar(&fast, "fast", false, "use fast mode")
 	rootCmd.PersistentFlags().StringSliceVar(&analyzers, "analyzers", nil, "analyzers to use")
 	rootCmd.PersistentFlags().StringVar(&cpuprofile, "cpuprofile", "", "write cpu profile to file")
+	rootCmd.PersistentFlags().BoolVar(&usageIndex, "usage-index", false, "build the usage index of the SBOM and print its size on stderr")
 	rootCmd.PersistentPreRunE = func(_ *cobra.Command, _ []string) error {
 		if cpuprofile != "" {
 			f, err := os.Create(cpuprofile)
@@ -65,7 +67,7 @@ func main() {
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			path := args[0]
-			return runScanFS(path, analyzers, fast)
+			return runScanFS(path, analyzers, fast, usageIndex)
 		},
 	}
 	rootCmd.AddCommand(fsCmd)
@@ -79,7 +81,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			return runScanDocker(imageMeta, analyzers, fast)
+			return runScanDocker(imageMeta, analyzers, fast, usageIndex)
 		},
 	}
 	rootCmd.AddCommand(dockerCmd)
@@ -94,7 +96,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			return runScanContainerd(imageMeta, analyzers, fast, containerdStrategy)
+			return runScanContainerd(imageMeta, analyzers, fast, containerdStrategy, usageIndex)
 		},
 	}
 	containerdCmd.Flags().StringVar(&containerdStrategy, "strategy", "image", "strategy to use (overlayfs or image)")
@@ -109,7 +111,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			return runScanCrio(imageMeta, analyzers, fast)
+			return runScanCrio(imageMeta, analyzers, fast, usageIndex)
 		},
 	}
 	rootCmd.AddCommand(crioCmd)

@@ -17,6 +17,7 @@ import (
 	"io/fs"
 	"os"
 	"slices"
+	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
@@ -119,6 +120,7 @@ func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, ctr ftyp
 		return nil, err
 	}
 
+	start := time.Now()
 	trivyReport, osFallback, err := scanWithOSFallback(ctx, imgMeta.ID, scanOptions, func(ctx context.Context, artifactOption artifact.Option) (*types.Report, error) {
 		return ddtrivy.ScanOverlays(ctx, artifactOption, trivycache.NewMemoryCache(), ctr)
 	})
@@ -126,5 +128,5 @@ func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, ctr ftyp
 		return nil, fmt.Errorf("unable to scan overlayfs image, err: %w", err)
 	}
 
-	return c.buildReport(trivyReport, imgMeta.ID, osFallback)
+	return c.buildReport(trivyReport, imgMeta.ID, osFallback, start)
 }

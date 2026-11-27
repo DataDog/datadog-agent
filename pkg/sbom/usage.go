@@ -57,12 +57,13 @@ func (s *UsageStream) Available(now time.Time, wait time.Duration) bool {
 	return !s.unserved && !failing
 }
 
-// usage is the state of the stream of runtime usage reports of the core agent.
-var usage UsageStream
+// stream is the state of the stream of runtime usage reports of the core
+// agent.
+var stream UsageStream
 
 // Usage returns the state of the stream of runtime usage reports from
 // system-probe, which the remote SBOM collector records and the sbom check
 // consults.
 func Usage() *UsageStream {
-	return &usage
+	return &stream
 }

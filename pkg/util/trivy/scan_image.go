@@ -11,6 +11,7 @@ package trivy
 import (
 	"context"
 	"fmt"
+	"time"
 
 	trivycache "github.com/aquasecurity/trivy/pkg/cache"
 	"github.com/aquasecurity/trivy/pkg/fanal/applier"
@@ -23,6 +24,7 @@ import (
 )
 
 func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, scanOptions sbom.ScanOptions) (*Report, error) {
+	start := time.Now()
 	trivyReport, osFallback, err := scanWithOSFallback(ctx, fanalImage.Name(), scanOptions, func(ctx context.Context, artifactOption artifact.Option) (*types.Report, error) {
 		cache := trivycache.NewMemoryCache()
 		imageArtifact, err := image2.NewArtifact(fanalImage, cache, artifactOption)
@@ -35,5 +37,5 @@ func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, scan
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
 
-	return c.buildReport(trivyReport, trivyReport.Metadata.ImageID, osFallback)
+	return c.buildReport(trivyReport, trivyReport.Metadata.ImageID, osFallback, start)
 }

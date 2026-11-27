@@ -16,6 +16,7 @@ go_library(
         "//comp/core/workloadmeta/def",
         "//pkg/config/model",
         "//pkg/sbom/types",
+        "//pkg/sbom/usage",
         "//pkg/util/log",
         "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
     ],
@@ -31,6 +32,7 @@ dd_agent_go_test(
     deps = [
         "//comp/core/workloadmeta/def",
         "//pkg/config/mock",
+        "//pkg/sbom/usage",
         "//pkg/util/log",
         "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
         "@com_github_stretchr_testify//assert",

@@ -16,6 +16,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/sbom/types"
+	"github.com/DataDog/datadog-agent/pkg/sbom/usage"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -144,6 +145,16 @@ func IsOSFallback(report Report) bool {
 	return ok && r.OSFallback()
 }
 
+// UsageIndexOf returns the usage index of the SBOM of report, which a report
+// gives with a UsageIndex method, nil for a report without one.
+func UsageIndexOf(report Report) *usage.Index {
+	r, ok := report.(interface{ UsageIndex() *usage.Index })
+	if !ok {
+		return nil
+	}
+	return r.UsageIndex()
+}
+
 // ScanOptionsFromConfigForContainers loads the scanning options from the configuration
 func ScanOptionsFromConfigForContainers(cfg config.Component) ScanOptions {
 	return ScanOptions{
@@ -186,6 +197,7 @@ func (result *ScanResult) ConvertScanResultToSBOM() *workloadmeta.SBOM {
 	status := workloadmeta.Success
 	reportedError := ""
 	var report *cyclonedx_v1_4.Bom
+	var index *usage.Index
 
 	if result.Error != nil {
 		// Unsupported images (e.g. nydus) are expected; the scanner already
@@ -197,6 +209,7 @@ func (result *ScanResult) ConvertScanResultToSBOM() *workloadmeta.SBOM {
 		reportedError = result.Error.Error()
 	} else {
 		report = result.Report.ToCycloneDX()
+		index = UsageIndexOf(result.Report)
 	}
 
 	sbom := &workloadmeta.SBOM{
@@ -207,6 +220,7 @@ func (result *ScanResult) ConvertScanResultToSBOM() *workloadmeta.SBOM {
 		Status:             status,
 		Error:              reportedError,
 		OSFallback:         result.Error == nil && IsOSFallback(result.Report),
+		UsageIndex:         index,
 	}
 
 	return sbom

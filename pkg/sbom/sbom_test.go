@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,6 +20,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/sbom/usage"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -240,6 +242,32 @@ func TestConvertScanResultToSBOMOSFallback(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.want, tt.result.ConvertScanResultToSBOM().OSFallback)
+		})
+	}
+}
+
+// indexedReport is a Report with a usage index.
+type indexedReport struct {
+	testReport
+	index *usage.Index
+}
+
+func (r indexedReport) UsageIndex() *usage.Index { return r.index }
+
+func TestConvertScanResultToSBOMUsageIndex(t *testing.T) {
+	index := new(usage.Builder).Build("urn:uuid:1", time.Time{}, time.Time{})
+	tests := []struct {
+		name   string
+		result ScanResult
+		want   *usage.Index
+	}{
+		{name: "indexed", result: ScanResult{Report: indexedReport{index: index}}, want: index},
+		{name: "report without the method", result: ScanResult{Report: testReport{}}},
+		{name: "failure", result: ScanResult{Error: errors.New("scan failed"), Report: indexedReport{index: index}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Same(t, tt.want, tt.result.ConvertScanResultToSBOM().UsageIndex)
 		})
 	}
 }
