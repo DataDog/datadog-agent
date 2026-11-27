@@ -14,9 +14,9 @@ import (
 	"mime/multipart"
 	"net"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -74,12 +74,26 @@ func (s FlareSource) WithFlareSourceTags(flareSource string, tags []string) Flar
 
 type flareBody struct {
 	*io.PipeReader
-	done <-chan struct{}
+	done     <-chan struct{}
+	deadline time.Time
+	release  func()
 }
 
-func (b *flareBody) release() {
+func newFlareBody(reader *io.PipeReader, done <-chan struct{}, deadline time.Time) *flareBody {
+	b := &flareBody{PipeReader: reader, done: done, deadline: deadline}
+	b.release = sync.OnceFunc(b.closeAndWait)
+	return b
+}
+
+// closeAndWait bounds the wait because closing the pipe cannot interrupt a stalled read of the archive.
+func (b *flareBody) closeAndWait() {
 	b.PipeReader.Close() //nolint:errcheck
-	<-b.done
+	timer := time.NewTimer(time.Until(b.deadline))
+	defer timer.Stop()
+	select {
+	case <-b.done:
+	case <-timer.C:
+	}
 }
 
 type responseBody struct {
@@ -93,7 +107,7 @@ func (b *responseBody) Close() error {
 	return err
 }
 
-func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname string, source FlareSource) *flareBody {
+func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname string, source FlareSource, deadline time.Time) *flareBody {
 	bodyReader, bodyWriter := io.Pipe()
 	done := make(chan struct{})
 
@@ -134,12 +148,14 @@ func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname stri
 			bodyWriter.CloseWithError(err) //nolint:errcheck
 			return
 		}
-		file, err := os.Open(archivePath)
+		file, err := openArchive(archivePath)
 		if err != nil {
 			bodyWriter.CloseWithError(err) //nolint:errcheck
 			return
 		}
 		defer file.Close()
+		// Ends a blocked read at the attempt deadline where the handle supports it; regular files on Unix do not.
+		file.SetReadDeadline(deadline) //nolint:errcheck
 
 		_, err = io.Copy(p, file)
 		if err != nil {
@@ -152,7 +168,7 @@ func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname stri
 		writer.WriteField("hostname", hostname)                       //nolint:errcheck
 	}()
 
-	return &flareBody{PipeReader: bodyReader, done: done}
+	return newFlareBody(bodyReader, done, deadline)
 }
 
 func readAndPostFlareFile(archivePath, caseID, email, hostname, url string, source FlareSource, client *http.Client, apiKey string) (*http.Response, error) {
@@ -175,15 +191,19 @@ func readAndPostFlareFile(archivePath, caseID, email, hostname, url string, sour
 	boundaryWriter := multipart.NewWriter(nil)
 	request.Header.Set("Content-Type", boundaryWriter.FormDataContentType())
 
+	timeout := client.Timeout
+	if timeout <= 0 {
+		timeout = httpTimeout
+	}
 	// Manually set the Body and ContentLenght. http.NewRequest doesn't do all of this
 	// for us, since a PipeReader is not one of the Reader types it knows how to handle.
-	body := getFlareReader(boundaryWriter.Boundary(), archivePath, caseID, email, hostname, source)
+	body := getFlareReader(boundaryWriter.Boundary(), archivePath, caseID, email, hostname, source, time.Now().Add(timeout))
 	request.Body = body
 
 	// -1 here means 'unknown' and makes this a 'chunked' request. See https://github.com/golang/go/issues/18117
 	request.ContentLength = -1
 
-	// Release the archive on Do error, otherwise when the response is closed: the transport may close the body late, and Windows cannot delete an open file.
+	// The transport may close the request body after Do returns, so release waits for the upload to close the archive.
 	resp, err := client.Do(request)
 	if err != nil {
 		body.release()

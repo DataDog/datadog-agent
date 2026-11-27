@@ -10,6 +10,8 @@ go_library(
         "perm_info_nix.go",
         "perm_info_win.go",
         "send_flare.go",
+        "send_flare_open_nix.go",
+        "send_flare_open_win.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/flare/helpers",
     visibility = ["//visibility:public"],
@@ -43,7 +45,9 @@ dd_agent_go_test(
         "builder_test.go",
         "perm_info_nix_test.go",
         "perm_info_win_test.go",
+        "send_flare_fifo_test.go",
         "send_flare_nix_test.go",
+        "send_flare_other_test.go",
         "send_flare_test.go",
         "send_flare_win_test.go",
     ],
@@ -59,5 +63,10 @@ dd_agent_go_test(
         "//pkg/version",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
 )

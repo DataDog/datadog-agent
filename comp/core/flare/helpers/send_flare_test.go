@@ -331,6 +331,68 @@ func TestReadAndPostFlareFileClosesArchiveWhenTransportClosesBodyLate(t *testing
 	}
 }
 
+// readPastFormFileHeader reads the multipart body until the archive's form part starts.
+func readPastFormFileHeader(r io.Reader) error {
+	var sent bytes.Buffer
+	buf := make([]byte, 512)
+	for !bytes.Contains(sent.Bytes(), []byte("application/octet-stream\r\n\r\n")) {
+		n, err := r.Read(buf)
+		sent.Write(buf[:n])
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// removeDuringUploadTransport removes the archive while the upload still has it open.
+type removeDuringUploadTransport struct {
+	path      string
+	removeErr error
+}
+
+func (rt *removeDuringUploadTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	defer req.Body.Close()
+	// Read past the form fields so the archive is open and still being uploaded.
+	if _, err := io.ReadFull(req.Body, make([]byte, 64<<10)); err != nil {
+		return nil, err
+	}
+	rt.removeErr = os.Remove(rt.path)
+	return nil, errors.New("connection reset")
+}
+
+func TestReadAndPostFlareFileArchiveCanBeRemovedDuringUpload(t *testing.T) {
+	archivePath := filepath.Join(t.TempDir(), "flare.zip")
+	require.NoError(t, os.WriteFile(archivePath, make([]byte, 1<<20), 0600))
+
+	rt := &removeDuringUploadTransport{path: archivePath}
+	resp, err := readAndPostFlareFile(archivePath, "12345", "test@example.com", "hostname", "http://flare.invalid/support/flare/12345", FlareSource{}, &http.Client{Transport: rt}, "test-api-key")
+	if resp != nil {
+		resp.Body.Close()
+	}
+	require.Error(t, err)
+	require.NoError(t, rt.removeErr, "the archive should be removable while it is being uploaded")
+	_, err = os.Stat(archivePath)
+	assert.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestFlareBodyReleaseStopsAtDeadline(t *testing.T) {
+	reader, _ := io.Pipe()
+	// The upload never finishes, as when a read of the archive blocks.
+	body := newFlareBody(reader, make(chan struct{}), time.Now())
+
+	released := make(chan struct{})
+	go func() {
+		body.release()
+		close(released)
+	}()
+	select {
+	case <-released:
+	case <-time.After(5 * time.Second):
+		assert.Fail(t, "release should return once the upload deadline has passed")
+	}
+}
+
 func TestAnalyzeResponse(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		r := &http.Response{
