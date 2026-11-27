@@ -2,6 +2,51 @@
 
 Scope: `pkg/security/`.
 
+Use concrete evidence from the diff: do not manufacture a finding merely because
+a category appears here, and do not rate a speculative concern as high severity
+without concrete evidence and a plausible execution path. Where applicable,
+label findings with the relevant risk class: `false negative`, `false positive`,
+`event loss`, `privilege/security boundary`, or `performance under load`.
+
+## Event-pipeline correctness
+
+- Verify that an event remains correct from collection (eBPF, ptracer, or audit)
+  through decoding, resolvers, SECL/rule evaluation, serialization, and
+  reporting.
+- Check timestamps, process/container identity, cgroup context, namespaces, file
+  paths, and event fields for consistency across the pipeline.
+- Look for silent event loss, duplicated events, incorrect ordering, or changes
+  that create false positives or false negatives.
+
+## Event field exposure
+
+- When event fields are added or changed, assess whether they should be
+  serialized in reported events and/or exposed to SECL rules so downstream
+  consumers can use them. Flag unjustified omissions, not intentional
+  internal-only or sensitive fields.
+- Check the applicable serializers, model tags, generated accessors, field
+  documentation, and tests for consistent types, naming, availability, and
+  backward compatibility. Do not require serialization or SECL exposure without
+  a concrete consumer need.
+
+## Policy and detection semantics
+
+- Review changes to rules, filters, discarders, suppression, activity dumps, and
+  security profiles for unintended changes in detection coverage.
+- Pay particular attention to bypasses caused by filtering too early, over-broad
+  discarder rules, or mismatched field semantics.
+- Verify backward compatibility of serialized event schemas, rule fields, remote
+  configuration, and persisted profiles when applicable.
+
+## Kernel, eBPF, and ptracer safety
+
+- Check all map lookups and kernel-derived pointers for nil checks, bounds,
+  alignment, endianness, and lifetime issues.
+- Identify verifier-risky changes, unbounded work in hot paths, unsafe map
+  access, architecture-specific assumptions, and incorrect per-CPU map handling.
+- Verify behavior on supported architectures and feature variants
+  (Linux/Windows, amd64/arm64, eBPF/eBPF-less) as applicable.
+
 ## New kernel constants need a BTFHub sync
 
 Kernels without BTF read offsets and struct sizes from the checked-in
@@ -28,3 +73,58 @@ Also flag a PR that adds a name to `BTFHubVsFallbackPossiblyMissingConstants`
 (`pkg/security/tests/constants_test.go`) instead of syncing the JSON files, and
 a new fallback value whose kernel-version boundaries aren't backed by the
 BTFHub data for the covered distributions.
+
+## Runtime safety and lifecycle
+
+- Look for goroutine, file descriptor, socket, pinned-map, or subscription
+  leaks.
+- Review start, stop, and reload paths for races, double cleanup, missed
+  cleanup, blocked shutdown, and use-after-close behavior.
+- Check concurrent access to caches, resolvers, probes, and reloaded policies.
+
+## Performance and resilience under load
+
+- Treat event handling as a hot path: flag avoidable allocations, locks,
+  blocking I/O, expensive path resolution, or repeated parsing per event.
+- Check boundedness of queues, caches, maps, telemetry labels, and retry loops.
+- Verify rate limiting and backpressure behavior: overload must not cause
+  unbounded memory use, prolonged event-loop stalls, or unexpected event loss.
+
+## Runtime observability
+
+- For new logic such as a cache or resolver, assess whether existing metrics
+  make its behavior diagnosable or whether useful new metrics are warranted (for
+  example hits/misses, evictions, occupancy, resolution failures, or latency).
+- Recommend metrics only for concrete operational questions not already covered;
+  keep label cardinality bounded and hot-path overhead low.
+
+## Cross-platform and generated artifacts
+
+- Check build tags and platform-specific files for missing implementations,
+  diverging behavior, or compilation regressions on supported platforms.
+- Verify that changes requiring generated serializers, easyjson output, protobuf
+  artifacts, or mocks update their generated counterparts.
+
+## Function comments and documentation
+
+- Review comments and docstrings on every added or modified function for
+  accuracy and concision; flag stale descriptions of behavior, parameters,
+  return values, and side effects.
+- Check that non-obvious intent, invariants, preconditions, and concurrency
+  assumptions are explained where needed. Do not demand comments that merely
+  restate self-explanatory code.
+
+## Test value and validation
+
+- Assess whether added or modified tests protect project-specific behavior,
+  contracts, edge cases, or plausible regressions, with assertions that would
+  catch a meaningful defect.
+- Flag redundant tests that only mirror the implementation or re-test a standard
+  collection, such as `Add`/`Get` wrappers that directly forward to an array
+  without adding a project-specific contract. Simple tests are still valuable
+  when they protect real project logic.
+- Identify the smallest relevant test command(s), including focused Go tests and,
+  when event semantics change, functional/integration security tests.
+- Explicitly call out meaningful missing coverage: kernel feature variants,
+  architecture coverage, reload paths, overload behavior, and regression tests
+  for false-positive/false-negative scenarios.

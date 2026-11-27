@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 func TestInsertFileEvent(t *testing.T) {
@@ -858,29 +859,82 @@ func TestProcessInfoMatches(t *testing.T) {
 func TestInsertionErrorType(t *testing.T) {
 	cause := errors.New("cause")
 	tests := []struct {
-		name       string
-		err        error
-		want       string
-		insertable bool
+		name string
+		err  error
+		want string
 	}{
-		{"broken lineage", &model.ErrProcessBrokenLineage{Err: cause}, InsertionErrorBrokenLineage, true},
-		{"broken lineage in the tree", ErrBrokenLineage, InsertionErrorBrokenLineage, false},
-		{"no process context", model.ErrNoProcessContext, InsertionErrorNoProcessContext, false},
-		{"path resolution", &path.ErrPathResolution{Err: cause}, InsertionErrorPathResolution, false},
-		{"wrapped path resolution", fmt.Errorf("wrapped: %w", &path.ErrPathResolution{Err: cause}), InsertionErrorPathResolution, false},
-		{"path resolution not critical", &path.ErrPathResolutionNotCritical{Err: cause}, InsertionErrorPathResolutionNotCritical, false},
-		{"path resolution wrapping a non critical one", &path.ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path: %w", &path.ErrPathResolutionNotCritical{Err: cause})}, InsertionErrorPathResolution, false},
-		{"dns decoding", model.ErrFailedDNSPacketDecoding, InsertionErrorDNSDecoding, false},
-		{"invalid generation type", fmt.Errorf("%w: %v", ErrInvalidGenerationType, 42), InsertionErrorInvalidGenerationType, false},
-		{"process node not created", ErrProcessNodeNotCreated, InsertionErrorProcessNodeNotCreated, false},
-		{"other", cause, InsertionErrorOther, false},
+		{"broken lineage", &model.ErrProcessBrokenLineage{Err: cause}, InsertionErrorBrokenLineage},
+		{"broken lineage in the tree", ErrBrokenLineage, InsertionErrorBrokenLineage},
+		{"no process context", model.ErrNoProcessContext, InsertionErrorNoProcessContext},
+		{"path resolution", &path.ErrPathResolution{Err: cause}, InsertionErrorPathResolution},
+		{"wrapped path resolution", fmt.Errorf("wrapped: %w", &path.ErrPathResolution{Err: cause}), InsertionErrorPathResolution},
+		{"path resolution not critical", &path.ErrPathResolutionNotCritical{Err: cause}, InsertionErrorPathResolutionNotCritical},
+		{"path resolution wrapping a non critical one", &path.ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path: %w", &path.ErrPathResolutionNotCritical{Err: cause})}, InsertionErrorPathResolution},
+		{"dns decoding", model.ErrFailedDNSPacketDecoding, InsertionErrorDNSDecoding},
+		{"invalid generation type", fmt.Errorf("%w: %v", ErrInvalidGenerationType, 42), InsertionErrorInvalidGenerationType},
+		{"process node not created", ErrProcessNodeNotCreated, InsertionErrorProcessNodeNotCreated},
+		{"other", cause, InsertionErrorOther},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := InsertionErrorType(tt.err)
 			assert.Equal(t, tt.want, got)
 			assert.Contains(t, InsertionErrorTypes, got)
-			assert.Equal(t, tt.insertable, IsInsertableEventError(tt.err))
+		})
+	}
+}
+
+func TestEventInsertionError(t *testing.T) {
+	brokenLineage := &model.ErrProcessBrokenLineage{Err: errors.New("missing parent")}
+	critical := &path.ErrPathResolution{Err: errors.New("dentry not found")}
+	notCritical := &path.ErrPathResolutionNotCritical{Err: errors.New("kernel mount")}
+	unknown := errors.New("unknown")
+
+	tests := []struct {
+		name      string
+		eventType model.EventType
+		setError  func(event *model.Event)
+		want      error
+	}{
+		{"no error", model.FileOpenEventType, func(*model.Event) {}, nil},
+		{"broken lineage", model.FileOpenEventType, func(event *model.Event) { event.Error = brokenLineage }, nil},
+		{"path of the opened file", model.FileOpenEventType, func(event *model.Event) {
+			event.SetPathResolutionError(&event.Open.File, critical)
+		}, critical},
+		{"path of the opened file hidden by a later error", model.FileOpenEventType, func(event *model.Event) {
+			event.SetPathResolutionError(&event.Open.File, critical)
+			event.SetPathResolutionError(&event.ProcessCacheEntry.LinuxBinprm.FileEvent, notCritical)
+		}, critical},
+		{"path of the binary of an exec hidden by a broken lineage", model.ExecEventType, func(event *model.Event) {
+			event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, critical)
+			event.Error = brokenLineage
+		}, critical},
+		{"path of another file", model.FileOpenEventType, func(event *model.Event) {
+			event.SetPathResolutionError(&event.ProcessCacheEntry.LinuxBinprm.FileEvent, critical)
+		}, nil},
+		{"path of the opened file on a kernel-internal mount", model.FileOpenEventType, func(event *model.Event) {
+			event.SetPathResolutionError(&event.Open.File, notCritical)
+		}, nil},
+		{"dentry path of the opened file on a kernel-internal mount", model.FileOpenEventType, func(event *model.Event) {
+			event.Open.File.SetPathnameStr("/")
+			event.SetPathResolutionError(&event.Open.File, notCritical)
+		}, notCritical},
+		{"path error of a dns event", model.DNSEventType, func(event *model.Event) {
+			event.SetPathResolutionError(&event.ProcessCacheEntry.LinuxBinprm.FileEvent, notCritical)
+		}, notCritical},
+		{"no process context", model.FileOpenEventType, func(event *model.Event) { event.Error = model.ErrNoProcessContext }, nil},
+		{"unknown error", model.FileOpenEventType, func(event *model.Event) { event.Error = unknown }, unknown},
+		{"dns decoding", model.DNSEventType, func(event *model.Event) { event.Error = model.ErrFailedDNSPacketDecoding }, model.ErrFailedDNSPacketDecoding},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event := model.NewFakeEvent()
+			event.Type = uint32(tt.eventType)
+			event.ProcessCacheEntry = model.NewPlaceholderProcessCacheEntry(42, 42, false)
+			event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
+			tt.setError(event)
+
+			assert.Equal(t, tt.want, EventInsertionError(event))
 		})
 	}
 }
@@ -1054,6 +1108,135 @@ func TestActivityTree_BrokenLineageCookiesAfterEviction(t *testing.T) {
 			assert.ErrorIs(t, err, ErrBrokenLineage)
 		})
 	}
+}
+
+func TestActivityTree_UnattributedActivity(t *testing.T) {
+	// the lineage of this entry breaks at its parent, inside of the container
+	parent := model.NewPlaceholderProcessCacheEntry(10, 10, false)
+	parent.ContainerContext.ContainerID = "123"
+	entry := model.NewPlaceholderProcessCacheEntry(11, 11, false)
+	entry.ContainerContext.ContainerID = "123"
+	entry.FileEvent.PathnameStr = "/bin/bar"
+	entry.FileEvent.Inode = 11
+	entry.FileEvent.MountID = 1
+	entry.Ancestor = parent
+	entry.Parent = &parent.Process
+
+	newEvent := func(eventType model.EventType, timestamp time.Time) *model.Event {
+		evt := &model.Event{
+			BaseEvent: model.BaseEvent{
+				Type:              uint32(eventType),
+				Timestamp:         timestamp,
+				FieldHandlers:     &model.FakeFieldHandlers{},
+				ProcessContext:    &entry.ProcessContext,
+				ProcessCacheEntry: entry,
+			},
+		}
+		evt.Syscalls.Syscalls = []model.Syscall{1, 2}
+		return evt
+	}
+
+	t.Run("disabled", func(t *testing.T) {
+		tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "test")
+
+		_, _, _, err := tree.Insert(newEvent(model.SyscallsEventType, time.Now()), true, "v1", Runtime, nil)
+		assert.ErrorIs(t, err, ErrBrokenLineage)
+		assert.Nil(t, tree.UnattributedActivity)
+	})
+
+	t.Run("network flows age out while recent activity keeps the bucket", func(t *testing.T) {
+		tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "test")
+		tree.KeepUnattributedActivity = true
+		flowEvent := newEvent(model.NetworkFlowMonitorEventType, time.Now().Add(-time.Hour))
+		flowEvent.NetworkFlowMonitor.Flows = []model.Flow{{L4Protocol: 6}}
+		_, _, _, err := tree.Insert(flowEvent, true, "v1", Runtime, nil)
+		require.NoError(t, err)
+		_, _, _, err = tree.Insert(newEvent(model.SyscallsEventType, time.Now()), true, "v1", Runtime, nil)
+		require.NoError(t, err)
+		require.NotNil(t, tree.UnattributedActivity)
+		require.Len(t, tree.UnattributedActivity.NetworkDevices, 1)
+		sizeBefore := tree.Stats.SizeBytes
+
+		tree.EvictUnusedNodes(time.Now().Add(-time.Minute), nil, "")
+
+		require.NotNil(t, tree.UnattributedActivity)
+		assert.Empty(t, tree.UnattributedActivity.NetworkDevices)
+		assert.Less(t, tree.Stats.SizeBytes, sizeBefore)
+	})
+
+	newFailedBind := func() *model.Event {
+		evt := newEvent(model.BindEventType, time.Now())
+		evt.Bind.AddrFamily = unix.AF_INET
+		evt.Bind.SyscallEvent.Retval = -1
+		return evt
+	}
+
+	t.Run("an event without activity leaves no bucket", func(t *testing.T) {
+		tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "test")
+		tree.KeepUnattributedActivity = true
+
+		_, _, _, err := tree.Insert(newFailedBind(), true, "v1", Runtime, nil)
+
+		assert.ErrorIs(t, err, ErrBrokenLineage)
+		assert.Nil(t, tree.UnattributedActivity)
+		assert.True(t, tree.IsEmpty())
+		assert.Zero(t, tree.Stats.SizeBytes)
+	})
+
+	t.Run("the bucket goes once its activity ages out", func(t *testing.T) {
+		tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "test")
+		tree.KeepUnattributedActivity = true
+		_, _, _, err := tree.Insert(newEvent(model.SyscallsEventType, time.Now().Add(-time.Hour)), true, "v1", Runtime, nil)
+		require.NoError(t, err)
+		_, _, _, err = tree.Insert(newFailedBind(), true, "v1", Runtime, nil)
+		require.NoError(t, err)
+		require.NotNil(t, tree.UnattributedActivity)
+
+		assert.Equal(t, 1, tree.EvictUnusedNodes(time.Now().Add(-time.Minute), nil, ""))
+		assert.Nil(t, tree.UnattributedActivity)
+	})
+
+	tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "test")
+	tree.KeepUnattributedActivity = true
+
+	_, _, _, err := tree.Insert(newEvent(model.ExecEventType, time.Now()), true, "v1", Runtime, nil)
+	assert.ErrorIs(t, err, ErrBrokenLineage, "an exec can't be kept without its process")
+	assert.Nil(t, tree.UnattributedActivity)
+
+	inserted, node, _, err := tree.Insert(newEvent(model.SyscallsEventType, time.Now()), true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.True(t, inserted)
+	require.NotNil(t, tree.UnattributedActivity)
+	assert.Same(t, tree.UnattributedActivity, node)
+	assert.Empty(t, tree.ProcessNodes)
+	assert.False(t, tree.IsEmpty())
+	assert.Equal(t, []uint32{1, 2}, tree.SyscallsByImageTagID()[tree.GetImageTagID("v1")])
+
+	graph := tree.PrepareGraphData("test", "", nil)
+	graphNode := graph.Nodes[utils.NewGraphID(utils.NewNodeIDFromPtr(node))]
+	require.NotNil(t, graphNode)
+	assert.Contains(t, graphNode.Label, "Unattributed activity")
+	assert.Len(t, graph.SubGraphs, 1, "its syscalls")
+
+	inserted, _, _, err = tree.Insert(newEvent(model.SyscallsEventType, time.Now()), true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.False(t, inserted, "the syscalls are already known")
+
+	tree.recomputeSizeBytes()
+	require.Positive(t, tree.Stats.SizeBytes)
+	tree.EvictImageTag("v1")
+	assert.Nil(t, tree.UnattributedActivity)
+	assert.True(t, tree.IsEmpty())
+	assert.Zero(t, tree.Stats.SizeBytes)
+
+	_, _, _, err = tree.Insert(newEvent(model.SyscallsEventType, time.Now().Add(-time.Hour)), true, "v2", Runtime, nil)
+	require.NoError(t, err)
+	require.NotNil(t, tree.UnattributedActivity)
+	tree.recomputeSizeBytes()
+	require.Positive(t, tree.Stats.SizeBytes)
+	assert.Equal(t, 1, tree.EvictUnusedNodes(time.Now().Add(-time.Minute), nil, ""), "the manager only purges its sample cookies when nodes are evicted")
+	assert.Nil(t, tree.UnattributedActivity)
+	assert.Zero(t, tree.Stats.SizeBytes)
 }
 
 func TestInsertReturnsActivityNodes(t *testing.T) {

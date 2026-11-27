@@ -39,6 +39,13 @@ type Device struct {
 	ModuleID           *uint8    `json:"gpu_module_id,omitempty"`
 	Platform           *Platform `json:"platform,omitempty"`
 	HostLink           *HostLink `json:"host_link,omitempty"`
+
+	// GPUPeers lists the host-local GPUs that are directly attached over NVLink or that report
+	// at least one supported P2P capability, ordered by UUID.
+	GPUPeers []GPUPeer `json:"gpu_peers,omitempty"`
+	// UnresolvedNVLinks lists the NVLink ports whose remote end is not a host-local GPU,
+	// ordered by port. Switch ports stay here until switch identities are published.
+	UnresolvedNVLinks []UnresolvedNVLink `json:"unresolved_nvlinks,omitempty"`
 }
 
 // Platform is the GPU's hardware platform placement.
@@ -57,4 +64,36 @@ type HostLink struct {
 	PCIeMaxBandwidthBytesPerSecond int64  `json:"pcie_max_bandwidth_bytes_per_second,omitempty"`
 	C2CLinkCount                   int    `json:"c2c_link_count,omitempty"`
 	C2CMaxBandwidthMbps            int64  `json:"c2c_max_bandwidth_mbps,omitempty"`
+}
+
+// GPUPeer describes another GPU of the same host from the point of view of one GPU.
+type GPUPeer struct {
+	UUID            string           `json:"gpu_uuid"`
+	P2PCapabilities *P2PCapabilities `json:"p2p_capabilities,omitempty"`
+	DirectNVLinks   []DirectNVLink   `json:"direct_nvlinks,omitempty"`
+}
+
+// P2PCapabilities holds the peer-to-peer capabilities of an ordered GPU pair: true is supported,
+// false is explicitly unsupported or disabled and absent is unknown.
+type P2PCapabilities struct {
+	Read    *bool `json:"read,omitempty"`
+	Write   *bool `json:"write,omitempty"`
+	Atomics *bool `json:"atomics,omitempty"`
+	NVLink  *bool `json:"nvlink,omitempty"`
+	PCI     *bool `json:"pci,omitempty"`
+}
+
+// DirectNVLink is one local NVLink port that terminates at a peer GPU.
+type DirectNVLink struct {
+	Port           int32  `json:"nvlink_port"`
+	RemotePCIBusID string `json:"remote_pci_bus_id,omitempty"`
+	Version        string `json:"version,omitempty"`
+}
+
+// UnresolvedNVLink is one local NVLink port without a resolved GPU or switch identity.
+type UnresolvedNVLink struct {
+	Port           int32  `json:"nvlink_port"`
+	RemoteType     string `json:"remote_type,omitempty"`
+	RemotePCIBusID string `json:"remote_pci_bus_id,omitempty"`
+	Version        string `json:"version,omitempty"`
 }

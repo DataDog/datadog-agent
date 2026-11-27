@@ -36,8 +36,9 @@ import (
 const directoryPerm = fs.FileMode(0750)
 
 type profileEntry struct {
-	selector  cgroupModel.WorkloadSelector
-	filePaths []string // a same profile can be stored using multiple file formats
+	selector   cgroupModel.WorkloadSelector
+	shortImage string
+	filePaths  []string // a same profile can be stored using multiple file formats
 }
 
 // Directory is a local storage for security profiles
@@ -198,8 +199,9 @@ func NewDirectory(directoryPath string, maxProfiles int) (*Directory, error) {
 		}
 
 		profiles.Add(pProto.Metadata.Name, &profileEntry{
-			selector:  cgroupModel.ProtoToWorkloadSelector(pProto.Selector),
-			filePaths: []string{file.path},
+			selector:   cgroupModel.ProtoToWorkloadSelector(pProto.Selector),
+			shortImage: profile.ShortImageFromProto(pProto),
+			filePaths:  []string{file.path},
 		})
 	}
 
@@ -262,15 +264,21 @@ func (d *Directory) Persist(request config.StorageRequest, p *profile.Profile, r
 
 	seclog.Infof("[%s] file for [%s] written at: [%s]", request.Format, p.GetSelectorStr(), filePath)
 
+	shortImage := p.ShortImage()
+
 	d.profilesLock.Lock()
 	entry, ok := d.profiles.Get(p.Metadata.Name)
 	if ok && !slices.Contains(entry.filePaths, filePath) { // the file can already exist if the profile was updated
 		entry.filePaths = append(entry.filePaths, filePath)
 	} else if !ok {
 		d.profiles.Add(p.Metadata.Name, &profileEntry{
-			selector:  *p.GetWorkloadSelector(),
-			filePaths: []string{filePath},
+			selector:   *p.GetWorkloadSelector(),
+			shortImage: shortImage,
+			filePaths:  []string{filePath},
 		})
+	}
+	if ok && shortImage != "" {
+		entry.shortImage = shortImage
 	}
 	d.profilesLock.Unlock()
 
@@ -344,6 +352,20 @@ func (d *Directory) SizesBySelector() map[cgroupModel.WorkloadSelector]int64 {
 		result[selector] += info.Size()
 	}
 
+	return result
+}
+
+// ShortImagesBySelector returns the short image of each stored profile that has one, keyed by workload selector
+func (d *Directory) ShortImagesBySelector() map[cgroupModel.WorkloadSelector]string {
+	d.profilesLock.RLock()
+	defer d.profilesLock.RUnlock()
+
+	result := make(map[cgroupModel.WorkloadSelector]string, d.profiles.Len())
+	for _, entry := range d.profiles.Values() {
+		if entry.shortImage != "" {
+			result[entry.selector] = entry.shortImage
+		}
+	}
 	return result
 }
 

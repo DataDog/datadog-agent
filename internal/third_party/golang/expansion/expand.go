@@ -1,14 +1,21 @@
+// Package expansion implements Kubernetes $(VAR) environment variable expansion.
 package expansion
 
 /*
 NOTE: The MappingFuncFor and Expand method in this 3rd party package have
 been modified. Changed functionality involves also returning a boolean
 indicating whether all the variables in the input were found in the provided context.
+ExpandWithLimit has been added to bound the size of the expanded output.
 */
 
 import (
 	"bytes"
+	"errors"
 )
+
+// ErrMaxLenExceeded is returned by ExpandWithLimit when the expanded value
+// would exceed the requested maximum length.
+var ErrMaxLenExceeded = errors.New("expanded value exceeds maximum length")
 
 const (
 	operator        = '$'
@@ -48,14 +55,39 @@ func MappingFuncFor(context ...map[string]string) func(string) (string, bool) {
 // Additionally, it returns the status of whether all nested variables
 // have a defined mapping value in the environment.
 func Expand(input string, mapping func(string) (string, bool)) (string, bool) {
+	expanded, allMappingsFound, _ := expand(input, mapping, -1)
+	return expanded, allMappingsFound
+}
+
+// ExpandWithLimit behaves like Expand but stops and returns ErrMaxLenExceeded
+// as soon as the expanded value would exceed maxLen bytes, so that
+// self-referencing inputs cannot grow the output without bound.
+func ExpandWithLimit(input string, mapping func(string) (string, bool), maxLen int) (string, bool, error) {
+	return expand(input, mapping, maxLen)
+}
+
+// expand implements Expand and ExpandWithLimit. A negative maxLen means no limit.
+func expand(input string, mapping func(string) (string, bool), maxLen int) (string, bool, error) {
 	var buf bytes.Buffer
 	checkpoint := 0
 	allMappingsFound := true
+
+	// write checks the limit before writing, so the buffer never grows past maxLen.
+	write := func(s string) bool {
+		if maxLen >= 0 && buf.Len()+len(s) > maxLen {
+			return false
+		}
+		buf.WriteString(s)
+		return true
+	}
+
 	for cursor := 0; cursor < len(input); cursor++ {
 		if input[cursor] == operator && cursor+1 < len(input) {
 			// Copy the portion of the input string since the last
 			// checkpoint into the buffer
-			buf.WriteString(input[checkpoint:cursor])
+			if !write(input[checkpoint:cursor]) {
+				return "", allMappingsFound, ErrMaxLenExceeded
+			}
 
 			// Attempt to read the variable name as defined by the
 			// syntax from the input string
@@ -72,10 +104,12 @@ func Expand(input string, mapping func(string) (string, bool)) (string, bool) {
 					allMappingsFound = false
 				}
 
-				buf.WriteString(mappedValue)
-			} else {
+				if !write(mappedValue) {
+					return "", allMappingsFound, ErrMaxLenExceeded
+				}
+			} else if !write(read) {
 				// Not a variable name; copy the read bytes into the buffer
-				buf.WriteString(read)
+				return "", allMappingsFound, ErrMaxLenExceeded
 			}
 
 			// Advance the cursor in the input string to account for
@@ -87,10 +121,13 @@ func Expand(input string, mapping func(string) (string, bool)) (string, bool) {
 		}
 	}
 
-	// Return the buffer and any remaining unwritten bytes in the
-	// input string. Also return whether any nested variables in
-	// the input string were not found in the environment.
-	return buf.String() + input[checkpoint:], allMappingsFound
+	// Write any remaining unwritten bytes in the input string. Also return
+	// whether any nested variables in the input string were not found in
+	// the environment.
+	if !write(input[checkpoint:]) {
+		return "", allMappingsFound, ErrMaxLenExceeded
+	}
+	return buf.String(), allMappingsFound, nil
 }
 
 // tryReadVariableName attempts to read a variable name from the input

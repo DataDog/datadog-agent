@@ -68,6 +68,9 @@ static __always_inline int resolve_dentry_tail_call(void *ctx, struct dentry_res
         ino_parent = get_dentry_ino_at(d_parent, dentry_d_inode_offset, inode_ino_offset);
         if (dentry != d_parent) {
             next_key.ino = ino_parent;
+            if (i == 0) {
+                next_key.path_id &= ~PATH_ID_LOW_MASK;
+            }
         } else {
             next_key.ino = 0;
             next_key.mount_id = 0;

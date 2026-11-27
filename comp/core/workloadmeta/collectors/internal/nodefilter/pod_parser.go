@@ -343,7 +343,14 @@ func extractEnvFromSpec(envSpec []corev1.EnvVar) map[string]string {
 		value := e.Value
 		ok := true
 		if value != "" {
-			value, ok = expansion.Expand(value, mappingFunc)
+			var err error
+			value, ok, err = expansion.ExpandWithLimit(value, mappingFunc, containers.MaxEnvVarValueLen)
+			if err != nil {
+				// Drop the variable so later references to it stay unresolved.
+				log.Debugf("ignoring env var %q: %s", e.Name, err)
+				delete(env, e.Name)
+				continue
+			}
 		}
 		if !ok {
 			continue

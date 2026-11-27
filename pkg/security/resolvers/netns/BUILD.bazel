@@ -10,6 +10,8 @@ go_library(
         "graph.go",
         "network_namespace.go",
         "resolver.go",
+        "settle.go",
+        "testing.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/resolvers/netns",
     visibility = ["//visibility:public"],
@@ -58,12 +60,14 @@ dd_agent_go_test(
         "blind_hooks_test.go",
         "errors_test.go",
         "resolver_test.go",
+        "settle_test.go",
     ],
     embed = [":netns"],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/security/metrics",
             "//pkg/security/probe/config",
+            "//pkg/security/proto/api",
             "//pkg/security/resolvers/tc",
             "//pkg/security/secl/model",
             "//pkg/security/tests/statsdclient",
@@ -79,6 +83,7 @@ dd_agent_go_test(
         "@rules_go//go/platform:linux": [
             "//pkg/security/metrics",
             "//pkg/security/probe/config",
+            "//pkg/security/proto/api",
             "//pkg/security/resolvers/tc",
             "//pkg/security/secl/model",
             "//pkg/security/tests/statsdclient",

@@ -295,6 +295,47 @@ func WithNVLinkStates(states []nvml.EnableState, stateErrors map[int]nvml.Return
 	)
 }
 
+// NVLinkRemote describes what a mocked NVLink port is attached to. A zero return code means
+// success.
+type NVLinkRemote struct {
+	Type nvml.IntNvLinkDeviceType
+	PCI  nvml.PciInfo
+
+	TypeReturn nvml.Return
+	PCIReturn  nvml.Return
+}
+
+// WithNVLinkRemotes configures the remote end of each NVLink port, keyed by local port. Ports
+// that are not listed return ERROR_NOT_SUPPORTED. Combine it with WithNVLinkStates (link count)
+// and WithCapabilities (NVLink generation).
+func WithNVLinkRemotes(remotes map[int]NVLinkRemote) NvmlDeviceOption {
+	return deviceOption(func(o *deviceOptions) {
+		o.nvlinkRemotes = remotes
+	})
+}
+
+// MockP2PStatus is a mocked GetP2PStatus result. A zero return code means success.
+type MockP2PStatus struct {
+	Status nvml.GpuP2PStatus
+	Return nvml.Return
+}
+
+// WithP2PStatuses configures GetP2PStatus results from this device towards each peer, keyed by
+// peer UUID and capability index. Anything not listed returns ERROR_NOT_SUPPORTED.
+func WithP2PStatuses(statuses map[string]map[nvml.GpuP2PCapsIndex]MockP2PStatus) NvmlDeviceOption {
+	return deviceOption(func(o *deviceOptions) {
+		o.p2pStatuses = statuses
+	})
+}
+
+// WithPCIInfo sets the PCI information returned by GetPciInfo, so multi-GPU tests can give each
+// device its own BDF.
+func WithPCIInfo(info nvml.PciInfo) NvmlDeviceOption {
+	return deviceOption(func(o *deviceOptions) {
+		o.pciInfo = &info
+	})
+}
+
 // WithC2CLinkCount configures the number of C2C links returned by field queries.
 func WithC2CLinkCount(count int) NvmlDeviceOption {
 	return deviceOption(func(o *deviceOptions) {
