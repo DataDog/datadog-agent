@@ -103,7 +103,9 @@ func failure(errs []error, err error) []error {
 }
 
 // scanPorts queries each local NVLink port. A port whose remote type cannot be read is not
-// reported; a remote address or version that cannot be read is left empty.
+// reported; a remote address or version that cannot be read, or that NVML answers with a
+// placeholder, is left empty. The port itself is still reported: on NVLink 5 that is the
+// whole topology the node can see, a port landing on a switch it cannot identify.
 func scanPorts(device *safenvml.PhysicalDevice) ([]nvlinkPort, []error) {
 	var ports []nvlinkPort
 	var errs []error
@@ -115,7 +117,9 @@ func scanPorts(device *safenvml.PhysicalDevice) ([]nvlinkPort, []error) {
 		}
 		port := nvlinkPort{link: link, remoteType: nvlinkRemoteType(deviceType)}
 		if info, err := device.GetNvLinkRemotePciInfo(link); err == nil {
-			port.remoteBDF = gpuutil.PCIInfoToBusID(info)
+			if !gpuutil.IsUnsetPCIInfo(info) {
+				port.remoteBDF = gpuutil.PCIInfoToBusID(info)
+			}
 		} else {
 			errs = failure(errs, err)
 		}
@@ -182,7 +186,9 @@ func buildPeering(self string, ports []nvlinkPort, p2p map[string]P2PCapabilitie
 
 	var result Peering
 	for _, port := range ports {
-		if peerUUID, ok := byBDF[port.remoteBDF]; ok && port.remoteType == nvlinkRemoteGPU && peerUUID != self {
+		// An empty remote address resolves to no peer: a port NVML would not name cannot be
+		// matched to a GPU of this host, so it stays unresolved.
+		if peerUUID, ok := byBDF[port.remoteBDF]; ok && port.remoteBDF != "" && port.remoteType == nvlinkRemoteGPU && peerUUID != self {
 			p := peer(peerUUID)
 			p.DirectNVLinks = append(p.DirectNVLinks, DirectNVLink{
 				Port: int32(port.link), RemotePCIBusID: port.remoteBDF, Version: port.version,
