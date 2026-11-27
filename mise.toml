@@ -14,7 +14,7 @@ idiomatic_version_file = false
 # mise tool stubs in the same way as DotSlash files.
 [tasks.dotagents]
 description = "Sentry dotagents CLI"
-run = "dotagents"
+run = "dotagents --project"
 
 [tasks.dotagents.tools]
 node = "26.13.1"

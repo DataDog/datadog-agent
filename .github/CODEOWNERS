@@ -47,6 +47,7 @@
 /.agents/skills/cws-iouring-coverage/           @DataDog/agent-security
 /.agents/skills/describe-functional-changes/    @DataDog/agent-devx
 /.agents/skills/explain-lading-config           @DataDog/single-machine-performance
+/.agents/skills/smp/                            @DataDog/single-machine-performance
 /.agents/skills/gpu-live-metric-validation/     @DataDog/accelerator-telemetry
 /.agents/skills/injector-dev                    @Datadog/container-platform
 /.agents/skills/quality-gate-size-analysis/     @DataDog/agent-build

@@ -1,6 +1,17 @@
 # dotagents declarations for this repo (https://github.com/getsentry/dotagents).
-# Run `mise run dotagents install` (or `sync`) to write each tool's MCP config.
-agents = ["claude", "codex", "cursor", "vscode", "opencode"]
+# Run `mise run dotagents install` to install or refresh shared agent tools.
+version = 1
+agents = ["claude", "codex", "cursor", "vscode", "opencode", "pi"]
+
+[trust]
+github_repos = ["ddoghq/claude-marketplace"]
+
+[[plugins]]
+name = "smp"
+source = "git@github.com:ddoghq/claude-marketplace.git"
+ref = "main"
+path = "smp"
+targets = ["claude", "codex", "cursor", "opencode", "pi"]
 
 [[mcp]]
 name = "api"

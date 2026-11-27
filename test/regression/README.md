@@ -7,6 +7,7 @@ The Regression Detector finds Agent performance changes with controlled experime
 * [Add an experiment and choose when it runs](experiment-selection-guide.md)
 * Install the SMP CLI with `dogbrew install smp`, then [run an experiment locally][smp-local]
 * [Understand the core Agent performance quality gates](container/quality_gates/README.md)
+* [Investigate SMP results with a coding agent](../../.agents/skills/smp/SKILL.md)
 * Ask `#single-machine-performance` for help
 
 ## How Agent CI selects experiments
