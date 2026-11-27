@@ -29,7 +29,9 @@ _DSO_FLAVORS = {
     "_ie": ["-ftls-model=initial-exec"],
     "_ld": ["-DOTEL_TLS_HIDDEN", "-ftls-model=local-dynamic"] + _TLS_ALT_DIALECT,
     "_ld_desc": ["-DOTEL_TLS_HIDDEN", "-ftls-model=local-dynamic"] + TLS_DIALECT,
-    "_big": ["-DOTEL_TLS_BIG"] + TLS_DIALECT,
+    # Keeps otel_thread_ctx_v1 at offset 0 of the TLS block, ahead of
+    # otel_tls_big: optimized builds emit the variables in another order.
+    "_big": ["-DOTEL_TLS_BIG", "-fno-toplevel-reorder"] + TLS_DIALECT,
 }
 
 def otel_tls_dsos(name):
