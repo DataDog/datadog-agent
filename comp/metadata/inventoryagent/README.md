@@ -38,7 +38,7 @@ The flag writes `inventories_full_configuration_enabled` under the `remote-confi
 `remote_configuration` layer of the payload) shows its effect:
 
 - The flag only applies while the setting comes from its default. A setting from any other source (configuration
-  file, environment variable, Fleet policies, infrastructure mode, `agent config set`, ...) wins over the flag.
+  file, environment variable, Fleet policies, infrastructure mode, ...) wins over the flag.
 - When the flag is removed from the remote configuration, or after a recovery, the `remote-config` value is unset and the
   setting goes back to its local value.
 - As for any configuration change, the payload is refreshed, still respecting `inventories_min_interval`.

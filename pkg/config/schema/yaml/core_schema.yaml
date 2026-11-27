@@ -1160,7 +1160,6 @@ properties:
       The setting `inventories_configuration_enabled` still takes precedence.
     tags:
     - template_section:Common
-    - full-agent-only:true
   metadata_ip_resolution_from_hostname:
     node_type: setting
     type: boolean
