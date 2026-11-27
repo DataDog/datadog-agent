@@ -2386,7 +2386,7 @@ const (
 	GPUSharingModeNone GPUSharingMode = "none"
 	// GPUSharingModeKAIFraction means that KAI Scheduler shares the GPU
 	// between workloads that each request a fraction of it.
-	GPUSharingModeKAIFraction GPUSharingMode = "kai_fraction"
+	GPUSharingModeKAIFraction GPUSharingMode = "kai-fraction"
 )
 
 // GPUShare is the share of a GPU assigned to a container that shares the GPU
