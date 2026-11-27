@@ -13,25 +13,12 @@ import (
 	"encoding/pem"
 	"testing"
 
+	rcmock "github.com/DataDog/datadog-agent/pkg/config/remote/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-type proofRCClient struct {
-	proof state.ConfigTUFProof
-}
-
-func (c *proofRCClient) Subscribe(string, func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
-}
-
-func (c *proofRCClient) GetConfigTUFProof(targetPath string) (state.ConfigTUFProof, bool) {
-	if targetPath != c.proof.TargetPath {
-		return state.ConfigTUFProof{}, false
-	}
-	return c.proof, true
-}
 
 func TestKeysManagerReturnsDirectorProofForKeyTarget(t *testing.T) {
 	const targetPath = "datadog/42/AP_RUNNER_KEYS/key-1/config"
@@ -45,12 +32,14 @@ func TestKeysManagerReturnsDirectorProofForKeyTarget(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	rcClient := &proofRCClient{proof: state.ConfigTUFProof{
+	wantProof := state.ConfigTUFProof{
 		Roots:      [][]byte{[]byte("root-2")},
 		Targets:    []byte("targets"),
 		TargetPath: targetPath,
 		TargetFile: rawKey,
-	}}
+	}
+	rcClient := rcmock.New()
+	rcClient.SetConfigTUFProof(wantProof)
 	manager := NewKeyManager(rcClient).(*keysManager)
 	manager.AgentConfigUpdateCallback(map[string]state.RawConfig{
 		targetPath: {
@@ -66,10 +55,10 @@ func TestKeysManagerReturnsDirectorProofForKeyTarget(t *testing.T) {
 	require.NotNil(t, key)
 	require.NotNil(t, proof)
 	assert.Equal(t, types.KeyTypeED25519, key.GetKeyType())
-	assert.Equal(t, rcClient.proof.Roots, proof.Roots)
-	assert.Equal(t, rcClient.proof.Targets, proof.Targets)
-	assert.Equal(t, rcClient.proof.TargetPath, proof.TargetPath)
-	assert.Equal(t, rcClient.proof.TargetFile, proof.TargetFile)
+	assert.Equal(t, wantProof.Roots, proof.Roots)
+	assert.Equal(t, wantProof.Targets, proof.Targets)
+	assert.Equal(t, wantProof.TargetPath, proof.TargetPath)
+	assert.Equal(t, wantProof.TargetFile, proof.TargetFile)
 }
 
 func TestEagerKeysManagerReturnsDirectorProofAfterProviderAttached(t *testing.T) {
@@ -84,12 +73,14 @@ func TestEagerKeysManagerReturnsDirectorProofAfterProviderAttached(t *testing.T)
 	})
 	require.NoError(t, err)
 
-	rcClient := &proofRCClient{proof: state.ConfigTUFProof{
+	wantProof := state.ConfigTUFProof{
 		Roots:      [][]byte{[]byte("root-2")},
 		Targets:    []byte("targets"),
 		TargetPath: targetPath,
 		TargetFile: rawKey,
-	}}
+	}
+	rcClient := rcmock.New()
+	rcClient.SetConfigTUFProof(wantProof)
 	manager, callback := NewKeyManagerWithCallback()
 	callback(map[string]state.RawConfig{
 		targetPath: {
@@ -106,5 +97,5 @@ func TestEagerKeysManagerReturnsDirectorProofAfterProviderAttached(t *testing.T)
 	key, proof := manager.GetKey("key-1")
 	require.NotNil(t, key)
 	require.NotNil(t, proof)
-	assert.Equal(t, rcClient.proof.TargetPath, proof.TargetPath)
+	assert.Equal(t, wantProof.TargetPath, proof.TargetPath)
 }

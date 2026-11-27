@@ -31,6 +31,7 @@ dd_agent_go_test(
     ],
     embed = [":task-verifier"],
     deps = [
+        "//pkg/config/remote/client/mock",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/types",
         "//pkg/proto/pbgo/privateactionrunner/privateactions",

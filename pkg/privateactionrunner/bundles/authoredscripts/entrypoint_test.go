@@ -9,31 +9,17 @@ import (
 	"net/http"
 	"testing"
 
+	rcmock "github.com/DataDog/datadog-agent/pkg/config/remote/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type entrypointTestRCClient struct {
-	product string
-	handler func(map[string]state.RawConfig, func(string, state.ApplyStatus))
-}
-
-func (c *entrypointTestRCClient) Subscribe(product string, handler func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
-	c.product = product
-	c.handler = handler
-}
-
-func (*entrypointTestRCClient) GetConfigTUFProof(string) (state.ConfigTUFProof, bool) {
-	return state.ConfigTUFProof{}, false
-}
-
 func TestAuthoredScriptsGetAction(t *testing.T) {
-	client := &entrypointTestRCClient{}
+	client := rcmock.New()
 	bundle, err := NewAuthoredScripts(client, http.DefaultClient)
 	require.NoError(t, err)
-	require.Equal(t, state.ProductUpdaterCatalogDD, client.product)
-	require.NotNil(t, client.handler)
+	require.True(t, client.Subscribed(state.ProductUpdaterCatalogDD))
 
 	handler := bundle.GetAction("addRepo")
 

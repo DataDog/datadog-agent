@@ -17,17 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	noopautoconfig "github.com/DataDog/datadog-agent/comp/core/autodiscovery/noopimpl"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	rcmock "github.com/DataDog/datadog-agent/pkg/config/remote/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-type mockedRcClient struct{}
-
-func (m *mockedRcClient) SubscribeAgentTask() {}
-
-func (m *mockedRcClient) Subscribe(data.Product, func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
-}
 
 type mockedAutodiscoveryActions struct {
 	autodiscovery.Component
@@ -76,7 +69,7 @@ func TestActionsController(t *testing.T) {
 
 	c := &actionsController{
 		ac:            getMockedAutodiscoveryActions(t, []integration.Config{kafkaConsumerCfg}),
-		rcclient:      &mockedRcClient{},
+		rcclient:      rcmock.NewComponent(),
 		configChanges: make(chan integration.ConfigChanges, 10),
 	}
 
@@ -160,7 +153,7 @@ func TestActionsControllerNoBootstrapServers(t *testing.T) {
 
 	c := &actionsController{
 		ac:            getMockedAutodiscoveryActions(t, []integration.Config{kafkaConsumerCfg}),
-		rcclient:      &mockedRcClient{},
+		rcclient:      rcmock.NewComponent(),
 		configChanges: make(chan integration.ConfigChanges, 10),
 	}
 
@@ -241,7 +234,7 @@ func TestNormalizeBootstrapServers(t *testing.T) {
 func TestActionsControllerNoMatchingKafkaConsumer(t *testing.T) {
 	c := &actionsController{
 		ac:            getMockedAutodiscoveryActions(t, []integration.Config{}),
-		rcclient:      &mockedRcClient{},
+		rcclient:      rcmock.NewComponent(),
 		configChanges: make(chan integration.ConfigChanges, 10),
 	}
 
@@ -285,7 +278,7 @@ func TestActionsControllerKeepsNumericTypes(t *testing.T) {
 
 	c := &actionsController{
 		ac:            getMockedAutodiscoveryActions(t, []integration.Config{kafkaConsumerCfg}),
-		rcclient:      &mockedRcClient{},
+		rcclient:      rcmock.NewComponent(),
 		configChanges: make(chan integration.ConfigChanges, 10),
 	}
 

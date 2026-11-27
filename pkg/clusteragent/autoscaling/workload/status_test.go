@@ -165,7 +165,7 @@ func TestConfigRetrieverRecordsRemoteConfigUpdate(t *testing.T) {
 	require.Contains(t, renderText(t), "No update received yet")
 
 	var applied []state.ApplyStatus
-	rcClient.triggerUpdate(
+	rcClient.Update(
 		data.ProductContainerAutoscalingSettings,
 		map[string]state.RawConfig{
 			"foo": buildRawConfig(t, data.ProductContainerAutoscalingSettings, 1, []byte("{")),

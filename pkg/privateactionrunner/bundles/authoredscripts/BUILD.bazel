@@ -32,6 +32,7 @@ dd_agent_go_test(
     ],
     embed = [":authoredscripts"],
     deps = [
+        "//pkg/config/remote/client/mock",
         "//pkg/remoteconfig/state",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

@@ -115,6 +115,7 @@ dd_agent_go_test(
         "//pkg/clusteragent/autoscaling/workload/model",
         "//pkg/clusteragent/patcher",
         "//pkg/config/mock",
+        "//pkg/config/remote/client/mock",
         "//pkg/config/remote/data",
         "//pkg/config/setup",
         "//pkg/remoteconfig/state",

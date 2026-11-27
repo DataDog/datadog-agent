@@ -26,13 +26,13 @@ import (
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	rcmock "github.com/DataDog/datadog-agent/pkg/config/remote/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	testopms "github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms/testing"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
 func TestStopFlushesTracesAfterDraining(t *testing.T) {
@@ -124,7 +124,7 @@ func testStopFlushesTracesAfterDraining(t *testing.T, executorMode bool) {
 				return nil, 0, nil
 			},
 		}
-		runner.workflowRunner, err = runners.NewWorkflowRunner(runnerConfig, cfg, telemetryTestRCClient{}, telemetryTestKeysManager{}, nil, opmsClient, nil, nil, nil, nil, nil, nil, nil)
+		runner.workflowRunner, err = runners.NewWorkflowRunner(runnerConfig, cfg, rcmock.New(), telemetryTestKeysManager{}, nil, opmsClient, nil, nil, nil, nil, nil, nil, nil)
 		require.NoError(t, err)
 		require.NoError(t, runner.workflowRunner.Start(context.Background()))
 		<-pollStarted
@@ -187,14 +187,6 @@ type telemetryTestTransport func(*http.Request) (*http.Response, error)
 
 func (f telemetryTestTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	return f(r)
-}
-
-type telemetryTestRCClient struct{}
-
-func (telemetryTestRCClient) Subscribe(string, func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
-}
-func (telemetryTestRCClient) GetConfigTUFProof(string) (state.ConfigTUFProof, bool) {
-	return state.ConfigTUFProof{}, false
 }
 
 type telemetryTestKeysManager struct{}
