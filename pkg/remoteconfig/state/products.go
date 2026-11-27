@@ -48,6 +48,8 @@ var validProducts = map[string]struct{}{
 	ProductK8SActions:                   {},
 	ProductNetworkPath:                  {},
 	ProductDataSecurityDBScanTasks:      {},
+	ProductLogsQuota:                    {},
+	ProductDebug:                        {},
 	ProductNDMConfig:                    {},
 }
 
@@ -68,6 +70,10 @@ const (
 	ProductAgentFailover = "AGENT_FAILOVER"
 	// ProductAgentTask is to receive agent task instruction, like a flare
 	ProductAgentTask = "AGENT_TASK"
+	// ProductLogsQuota is to receive log quota enforcement rules for the logs agent
+	ProductLogsQuota = "LOGS_QUOTA"
+	// ProductDebug is the staging-only product for Remote Config proofs of concept
+	ProductDebug = "DEBUG"
 	// ProductAPMSampling is the apm sampling product
 	ProductAPMSampling = "APM_SAMPLING"
 	// ProductAPMSemanticCoreDD is the employee-signed product that pushes
