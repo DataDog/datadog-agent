@@ -28,7 +28,6 @@ const (
 	macosBoundedPerl        = "perl -e 'alarm shift; exec @ARGV or die \"exec: $!\\n\"' "
 	macosProcmgrRPCTimeout  = "30"
 	macosProcmgrStopTimeout = "120"
-	// _dd-agent is in group daemon, so it can reach the socket, but it is not root.
 	macosCallerAuthAgentCLI = "sudo -u _dd-agent " + macosBoundedPerl + macosProcmgrRPCTimeout + " " + macosProcmgrCLI
 
 	macosProcmgrSocket = "/var/run/datadog-procmgrd/dd-procmgrd.sock"
@@ -109,8 +108,7 @@ func waitMacosSleepGone(client *common.MacOSTestClient, sleepArg string, timeout
 	}
 }
 
-// macosBoundSeconds bounds a remote probe by the time left before deadline. The 3 second floor gives a probe
-// near the deadline time to run, and keeps the Perl alarm from reaching 0.
+// macosBoundSeconds bounds a probe by the time left, floored at 3s so the Perl alarm is never 0.
 func macosBoundSeconds(deadline time.Time, limit int) string {
 	return strconv.Itoa(min(limit, max(3, int(time.Until(deadline).Seconds()))))
 }
@@ -151,7 +149,7 @@ func healMacosCallerAuthLeftovers(t *testing.T, client *common.MacOSTestClient) 
 			return
 		}
 	}
-	// Poll until dd-procmgrd answers, and with a marker until its listing is clean. Each attempt is bounded.
+	// Poll until dd-procmgrd answers, and with a marker until its listing is clean.
 	var list []struct {
 		Name string `json:"name"`
 	}

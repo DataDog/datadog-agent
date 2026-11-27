@@ -24,8 +24,8 @@ import (
 const (
 	// macosInstallerBinary is the installer the .dmg postinstall script runs to do the install.
 	macosInstallerBinary = "/opt/datadog-agent/embedded/bin/installer"
-	// macosProcmgrCLI talks to dd-procmgrd over its socket. Root is required for mutations; members of
-	// daemon can reach the 0660 root:daemon socket.
+	// macosProcmgrCLI talks to dd-procmgrd over its root:daemon 0660 socket. Mutations need root: _dd-agent is in
+	// group daemon, so it can connect but is not root.
 	macosProcmgrCLI         = "/opt/datadog-agent/embedded/bin/dd-procmgr"
 	macosPostinstallLogPath = "/opt/datadog-agent/logs/postinstall.log"
 	macosPreinstallLogPath  = "/opt/datadog-agent/logs/preinstall.log"
