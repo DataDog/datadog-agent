@@ -344,7 +344,7 @@ variables:
   KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-0b5f838a19d37fc61"
   RUN_E2E_TESTS: "auto" # Should be "off", "auto" or "on" it will change the trigger condition for new-e2e tests on branch != main
   RUN_KMT_TESTS: "auto" # Should be "auto" or "on". "on" forces all Kernel Matrix Testing jobs to run.
-  DISABLE_PRE_MERGE_TESTS_AGENT: "false" # Set to "true" to make E2E and KMT jobs manual on PR (branch) pipelines. Overridden by RUN_E2E_TESTS=on, RUN_KMT_TESTS=on, RUN_ALL_BUILDS=true, and by changes to test/e2e-framework.
+  DISABLE_PRE_MERGE_TESTS_AGENT: "false" # Set to "true" to make E2E and KMT jobs manual on PR (branch) pipelines. Overridden by RUN_E2E_TESTS=on and RUN_KMT_TESTS=on.
   RUN_UNIT_TESTS: "auto" # Should be "auto", "on", "off" it will change the trigger condition for unit tests on branch != main
   # skip known flaky tests by default
   GO_TEST_SKIP_FLAKE: "true"
@@ -465,26 +465,13 @@ variables:
 # Pre-merge test gating.
 # When DISABLE_PRE_MERGE_TESTS_AGENT is "true", E2E and KMT jobs become manual on PR/branch pipelines
 # (any pipeline that is not main, a release branch, a tag, or a triggered/deploy pipeline).
-# A "full pipeline" still runs everything: RUN_E2E_TESTS=on / RUN_KMT_TESTS=on / RUN_ALL_BUILDS=true.
+# A "full pipeline" still runs everything: RUN_E2E_TESTS=on / RUN_KMT_TESTS=on.
 # Changes to test/e2e-framework and fakeintake always trigger the E2E tests, see .on_e2e_infra_changes.
 .if_e2e_pr_disabled: &if_e2e_pr_disabled
-  if: $CI_COMMIT_BRANCH != "main" && $CI_COMMIT_BRANCH !~ /^[0-9]+\.[0-9]+\.x$/ && $CI_COMMIT_TAG == null && $CI_PIPELINE_SOURCE != "trigger" && $CI_PIPELINE_SOURCE != "pipeline" && $DEPLOY_AGENT != "true" && $DDR_WORKFLOW_ID == null && $RUN_ALL_BUILDS != "true" && $DISABLE_PRE_MERGE_TESTS_AGENT == "true" && $RUN_E2E_TESTS != "on"
-
-.kmt_test_definition_paths: &kmt_test_definition_paths
-  - test/new-e2e/system-probe/**/*
-  - test/new-e2e/scenarios/system-probe/**/*
-  - tasks/kmt.py
-  - tasks/kernel_matrix_testing/*
-
-.if_kmt_test_definition_changed: &if_kmt_test_definition_changed
-  if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
-  changes:
-    paths: *kmt_test_definition_paths
-    compare_to: $COMPARE_TO_BRANCH
-  when: on_success
+  if: $CI_COMMIT_BRANCH != "main" && $CI_COMMIT_BRANCH !~ /^[0-9]+\.[0-9]+\.x$/ && $CI_COMMIT_TAG == null && $CI_PIPELINE_SOURCE != "trigger" && $CI_PIPELINE_SOURCE != "pipeline" && $DEPLOY_AGENT != "true" && $DDR_WORKFLOW_ID == null && $DISABLE_PRE_MERGE_TESTS_AGENT == "true" && $RUN_E2E_TESTS != "on"
 
 .if_kmt_pr_disabled: &if_kmt_pr_disabled
-  if: $CI_COMMIT_BRANCH != "main" && $CI_COMMIT_BRANCH !~ /^[0-9]+\.[0-9]+\.x$/ && $CI_COMMIT_TAG == null && $CI_PIPELINE_SOURCE != "trigger" && $CI_PIPELINE_SOURCE != "pipeline" && $DEPLOY_AGENT != "true" && $DDR_WORKFLOW_ID == null && $RUN_ALL_BUILDS != "true" && $DISABLE_PRE_MERGE_TESTS_AGENT == "true" && $RUN_KMT_TESTS != "on"
+  if: $CI_COMMIT_BRANCH != "main" && $CI_COMMIT_BRANCH !~ /^[0-9]+\.[0-9]+\.x$/ && $CI_COMMIT_TAG == null && $CI_PIPELINE_SOURCE != "trigger" && $CI_PIPELINE_SOURCE != "pipeline" && $DEPLOY_AGENT != "true" && $DDR_WORKFLOW_ID == null && $DISABLE_PRE_MERGE_TESTS_AGENT == "true" && $RUN_KMT_TESTS != "on"
 
 .if_disable_unit_tests: &if_disable_unit_tests
   if: $RUN_UNIT_TESTS == "off"
@@ -954,7 +941,23 @@ workflow:
   - <<: *if_main_branch
     allow_failure: true
   - !reference [.except_light_pipeline]
-  - <<: *if_kmt_test_definition_changed
+  # Test definitions (KMT CI jobs, e2e framework used by KMT, KMT tooling) keep running automatically when the
+  # pre-merge tests are disabled. No explicit `when`: the jobs keep their own (e.g. `always` for cleanup).
+  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
+    changes:
+      paths:
+        - .gitlab/test/kernel_matrix_testing/security_agent.yml
+        - .gitlab/test/kernel_matrix_testing/common.yml
+        - .gitlab/build/source_test/ebpf.yml
+        - test/new-e2e/tests/cws/**/*
+        - test/new-e2e/system-probe/**/*
+        - test/new-e2e/scenarios/system-probe/**/*
+        - test/e2e-framework/testing/runner/**/*
+        - test/e2e-framework/testing/utils/**/*
+        - test/e2e-framework/scenarios/aws/microVMs/**/*
+        - tasks/kmt.py
+        - tasks/kernel_matrix_testing/*
+      compare_to: $COMPARE_TO_BRANCH
   - <<: *if_kmt_pr_disabled
     when: manual
     allow_failure: true
@@ -1019,7 +1022,22 @@ workflow:
 .on_system_probe_or_e2e_changes_or_manual:
   - <<: *if_main_branch
   - !reference [.except_light_pipeline]
-  - <<: *if_kmt_test_definition_changed
+  # Test definitions (KMT CI jobs, e2e framework used by KMT, KMT tooling) keep running automatically when the
+  # pre-merge tests are disabled. No explicit `when`: the jobs keep their own (e.g. `always` for cleanup).
+  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
+    changes:
+      paths:
+        - .gitlab/test/kernel_matrix_testing/system_probe.yml
+        - .gitlab/test/kernel_matrix_testing/common.yml
+        - .gitlab/build/source_test/ebpf.yml
+        - test/new-e2e/system-probe/**/*
+        - test/new-e2e/scenarios/system-probe/**/*
+        - test/e2e-framework/testing/runner/**/*
+        - test/e2e-framework/testing/utils/**/*
+        - test/e2e-framework/scenarios/aws/microVMs/**/*
+        - tasks/kmt.py
+        - tasks/kernel_matrix_testing/*
+      compare_to: $COMPARE_TO_BRANCH
   - <<: *if_kmt_pr_disabled
     when: manual
     allow_failure: true
@@ -1052,6 +1070,12 @@ workflow:
     when: never
   - !reference [.except_light_pipeline]
 
+# RUN_E2E_TESTS=off must always disable the tests, but some jobs ignored it on deploy/rc pipelines. To leave
+# today's behavior untouched, those jobs only honor it when DISABLE_PRE_MERGE_TESTS_AGENT is "true".
+.except_e2e_off_if_pre_merge_disabled:
+  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true" && $RUN_E2E_TESTS == "off"
+    when: never
+
 # Changes to the test infrastructure (fakeintake, e2e framework) always run the E2E tests, even with
 # DISABLE_PRE_MERGE_TESTS_AGENT=true. Always reference this right after .except_e2e_disabled so that
 # RUN_E2E_TESTS=off and light pipelines still win.
@@ -1078,9 +1102,37 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
-# For E2E jobs that normally run on every PR (so they have no path-based rules to build on):
-# stays automatic with DISABLE_PRE_MERGE_TESTS_AGENT unset, becomes manual on PRs when it is "true".
-# Reference it after .on_e2e_infra_changes and the job's own test-definition paths.
+# Light pipelines never run E2E. Same condition as .except_light_pipeline, but only when
+# DISABLE_PRE_MERGE_TESTS_AGENT is "true": for the rules that only exist with that option and that are written
+# before a job's .except_light_pipeline could apply to them.
+.except_e2e_light_if_pre_merge_disabled:
+  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true" && ($CI_COMMIT_BRANCH =~ /^mq-working-branch-/ || ($GIT_BASE_BRANCH != null && $GIT_BASE_BRANCH != "main" && $GIT_BASE_BRANCH !~ /^[67]\.[0-9]+\.x$/))
+    when: never
+
+# For E2E jobs that normally run on every PR and have no paths of their own: same as .on_e2e_infra_changes, but
+# only when DISABLE_PRE_MERGE_TESTS_AGENT is "true", so that nothing changes while it is not.
+.on_e2e_infra_changes_if_pre_merge_disabled:
+  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true" && $COMPARE_TO_BRANCH == "main"
+    changes:
+      <<: *fakeintake_server_paths
+      compare_to: $COMPARE_TO_BRANCH
+    variables:
+      E2E_FAKEINTAKE_IMAGE_OVERRIDE: "public.ecr.aws/datadog/fakeintake:v$CI_COMMIT_SHORT_SHA"
+    when: on_success
+  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
+    changes:
+      <<: *fakeintake_paths
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
+    changes:
+      paths:
+        - test/e2e-framework/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+# Manual on PRs when DISABLE_PRE_MERGE_TESTS_AGENT is "true" (a no-op otherwise).
+# Reference it after .on_e2e_infra_changes_if_pre_merge_disabled and the job's own test-definition paths.
 .on_e2e_pr_manual:
   - <<: *if_e2e_pr_disabled
     when: manual
@@ -1168,7 +1220,8 @@ workflow:
 .on_acfg_or_e2e_changes:
   - !reference [.except_e2e_disabled]
   - !reference [.on_e2e_infra_changes]
-  - changes:
+  - if: $DISABLE_PRE_MERGE_TESTS_AGENT == "true"
+    changes:
       paths:
         - test/new-e2e/tests/agent-configuration/**/*
       compare_to: $COMPARE_TO_BRANCH
@@ -1179,6 +1232,7 @@ workflow:
         - cmd/**/*
         - pkg/**/*
         - comp/**/*
+        - test/new-e2e/tests/agent-configuration//**/*   # kept as it was: this path never matched real files
       compare_to: $COMPARE_TO_BRANCH
 
 .on_process_or_e2e_changes:
