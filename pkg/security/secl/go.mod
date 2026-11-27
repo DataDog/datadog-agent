@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/security/secl
 go 1.26.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model v0.87.0-rc.1
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/charlievieth/strcase v0.0.6
 	github.com/cilium/ebpf v0.22.1-0.20260708150823-a5b2e206f9ed
