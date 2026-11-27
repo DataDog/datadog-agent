@@ -28,7 +28,7 @@ func TestNewRemoteCatalogSubscribesAndFailsClosed(t *testing.T) {
 	client := rcmock.New()
 	catalog, err := NewRemoteCatalog(client, testCatalogProduct)
 	require.NoError(t, err)
-	require.True(t, client.Subscribed(testCatalogProduct))
+	require.Equal(t, 1, client.Subscribers(testCatalogProduct))
 	requireCatalogNotReady(t, catalog)
 
 	ctx, cancel := context.WithCancel(context.Background())

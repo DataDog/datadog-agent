@@ -54,7 +54,7 @@ func (c *Client) SubscribeIgnoreExpiration(product string, cb func(update map[st
 func (c *Client) GetConfigs(product string) map[string]state.RawConfig {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.configs[product]
+	return maps.Clone(c.configs[product])
 }
 
 // UpdateApplyStatus records the apply status of a config path.
@@ -80,11 +80,11 @@ func (c *Client) GetConfigTUFProof(targetPath string) (state.ConfigTUFProof, boo
 
 // ---- Test helpers: the methods below do not exist on the real client. ----
 
-// Subscribed reports whether any callback is registered for the product.
-func (c *Client) Subscribed(product string) bool {
+// Subscribers returns the number of callbacks registered for the product.
+func (c *Client) Subscribers(product string) int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return len(c.callbacks[product]) > 0
+	return len(c.callbacks[product])
 }
 
 // ApplyStatuses returns a copy of every apply status recorded so far, by config path.
@@ -98,19 +98,19 @@ func (c *Client) ApplyStatuses() map[string]state.ApplyStatus {
 func (c *Client) SetConfigs(product string, configs map[string]state.RawConfig) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.configs[product] = configs
+	c.configs[product] = maps.Clone(configs)
 }
 
 // Update makes configs the current configs of the product and delivers them to every subscriber,
 // passing applyStateCallback as the apply status callback.
 func (c *Client) Update(product string, configs map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	c.mu.Lock()
-	c.configs[product] = configs
+	c.configs[product] = maps.Clone(configs)
 	callbacks := slices.Clone(c.callbacks[product])
 	c.mu.Unlock()
 
 	for _, cb := range callbacks {
-		cb(configs, applyStateCallback)
+		cb(maps.Clone(configs), applyStateCallback)
 	}
 }
 

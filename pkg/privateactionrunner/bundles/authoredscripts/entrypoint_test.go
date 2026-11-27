@@ -19,7 +19,7 @@ func TestAuthoredScriptsGetAction(t *testing.T) {
 	client := rcmock.New()
 	bundle, err := NewAuthoredScripts(client, http.DefaultClient)
 	require.NoError(t, err)
-	require.True(t, client.Subscribed(state.ProductUpdaterCatalogDD))
+	require.Positive(t, client.Subscribers(state.ProductUpdaterCatalogDD))
 
 	handler := bundle.GetAction("addRepo")
 

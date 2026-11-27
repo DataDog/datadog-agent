@@ -88,7 +88,7 @@ func TestNewRegistryWiresAuthoredScriptCatalog(t *testing.T) {
 	rcClient := rcmock.New()
 	registry, err := NewRegistry(&config.Config{AgentHTTPClient: http.DefaultClient}, rcClient, nil, nil, nil, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
-	require.True(t, rcClient.Subscribed(state.ProductUpdaterCatalogDD))
+	require.Positive(t, rcClient.Subscribers(state.ProductUpdaterCatalogDD))
 
 	bundle := registry.GetBundle("com.datadoghq.authoredscripts.echo")
 	require.NotNil(t, bundle)

@@ -20,7 +20,7 @@ import (
 
 func TestSubscribeAndUpdate(t *testing.T) {
 	c := New()
-	assert.False(t, c.Subscribed("P"))
+	assert.Zero(t, c.Subscribers("P"))
 
 	var got []map[string]state.RawConfig
 	c.Subscribe("P", func(u map[string]state.RawConfig, apply func(string, state.ApplyStatus)) {
@@ -32,8 +32,8 @@ func TestSubscribeAndUpdate(t *testing.T) {
 	c.SubscribeIgnoreExpiration("P", func(map[string]state.RawConfig, func(string, state.ApplyStatus)) {
 		got = append(got, nil)
 	})
-	assert.True(t, c.Subscribed("P"))
-	assert.False(t, c.Subscribed("Q"))
+	assert.Positive(t, c.Subscribers("P"))
+	assert.Zero(t, c.Subscribers("Q"))
 
 	cfgs := map[string]state.RawConfig{"a": {Config: []byte("x")}}
 	statuses := map[string]state.ApplyStatus{}
@@ -46,6 +46,25 @@ func TestSubscribeAndUpdate(t *testing.T) {
 	// without subscribers the configs are still recorded and the callback is not called
 	c.Update("Q", cfgs, func(string, state.ApplyStatus) { t.Fatal("unexpected apply status") })
 	assert.Equal(t, cfgs, c.GetConfigs("Q"))
+}
+
+func TestConfigsAreNotShared(t *testing.T) {
+	c := New()
+	cfgs := map[string]state.RawConfig{"a": {}}
+	c.SetConfigs("P", cfgs)
+
+	cfgs["b"] = state.RawConfig{}
+	got := c.GetConfigs("P")
+	assert.Len(t, got, 1)
+
+	got["c"] = state.RawConfig{}
+	assert.Len(t, c.GetConfigs("P"), 1)
+
+	var delivered map[string]state.RawConfig
+	c.Subscribe("P", func(u map[string]state.RawConfig, _ func(string, state.ApplyStatus)) { delivered = u })
+	c.Update("P", cfgs, nil)
+	delivered["d"] = state.RawConfig{}
+	assert.Len(t, c.GetConfigs("P"), 2)
 }
 
 func TestApplyStatusAndProof(t *testing.T) {
@@ -70,7 +89,7 @@ func TestComponent(t *testing.T) {
 
 	called := false
 	c.Subscribe(data.Product("P"), func(map[string]state.RawConfig, func(string, state.ApplyStatus)) { called = true })
-	require.True(t, c.Subscribed("P"))
+	require.Positive(t, c.Subscribers("P"))
 	c.Update("P", nil, func(string, state.ApplyStatus) {})
 	assert.True(t, called)
 }
@@ -93,7 +112,7 @@ func TestConcurrentUse(t *testing.T) {
 			defer wg.Done()
 			c.Update("P", map[string]state.RawConfig{"a": {}}, c.UpdateApplyStatus)
 			c.ApplyStatuses()
-			c.Subscribed("P")
+			c.Subscribers("P")
 		}()
 	}
 	wg.Wait()

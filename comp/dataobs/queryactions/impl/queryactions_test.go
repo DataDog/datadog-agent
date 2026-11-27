@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -30,7 +31,7 @@ func newMockRCClient() *rcmock.Component {
 // It returns a function that delivers an update to the subscription.
 func waitSubscribe(t *testing.T, rc *rcmock.Component) func(map[string]state.RawConfig, func(string, state.ApplyStatus)) {
 	t.Helper()
-	require.Eventually(t, func() bool { return rc.Subscribed(string(data.ProductDOQueryActions)) },
+	require.Eventually(t, func() bool { return rc.Subscribers(string(data.ProductDOQueryActions)) > 0 },
 		time.Second, 5*time.Millisecond, "timed out waiting for RC Subscribe call")
 	return func(update map[string]state.RawConfig, applyStatus func(string, state.ApplyStatus)) {
 		rc.Update(string(data.ProductDOQueryActions), update, applyStatus)
@@ -144,15 +145,18 @@ func TestStream_SubscribesImmediatelyWhenPostgresAvailable(t *testing.T) {
 
 func TestStream_NoPostgresAvailable_DoesNotSubscribeImmediately(t *testing.T) {
 	// Without postgres, Subscribe must not be called before the first ticker tick (10s).
-	c, rc := newStreamComponent(t, nil)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	synctest.Test(t, func(t *testing.T) {
+		c, rc := newStreamComponent(t, nil)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
-	c.Stream(ctx)
+		c.Stream(ctx)
 
-	time.Sleep(100 * time.Millisecond)
-	assert.False(t, rc.Subscribed(string(data.ProductDOQueryActions)),
-		"Subscribe should not be called immediately when no postgres integration is configured")
+		// Wait until every goroutine is blocked, so the stream had its chance to subscribe.
+		synctest.Wait()
+		assert.Zero(t, rc.Subscribers(string(data.ProductDOQueryActions)),
+			"Subscribe should not be called immediately when no postgres integration is configured")
+	})
 }
 
 // --- RC callback delivery tests ---

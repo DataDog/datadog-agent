@@ -2989,7 +2989,7 @@ func TestAutoinstrumentation(t *testing.T) {
 			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, false, nil, rcClient, ddiTargets)
 			require.NoError(t, err)
 			if len(test.remotePolicies) > 0 {
-				require.True(t, rcClient.Subscribed(state.ProductApmPolicies), "mutator must subscribe to RC policies")
+				require.Positive(t, rcClient.Subscribers(state.ProductApmPolicies), "mutator must subscribe to RC policies")
 				applied := rcClient.ApplyStatuses()
 				for path := range test.remotePolicies {
 					require.Contains(t, applied, path)

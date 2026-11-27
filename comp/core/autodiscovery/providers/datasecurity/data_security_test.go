@@ -238,7 +238,7 @@ func TestPostgresSSLMode(t *testing.T) {
 func TestControllerDoesNotSubscribeWithoutPostgres(t *testing.T) {
 	rc, _ := newTestController(t, nil)
 
-	assert.False(t, rc.Subscribed(string(data.ProductDataSecurityDBScanTasks)), "controller should not subscribe without a postgres integration")
+	assert.Zero(t, rc.Subscribers(string(data.ProductDataSecurityDBScanTasks)), "controller should not subscribe without a postgres integration")
 }
 
 func TestControllerUpdate(t *testing.T) {
@@ -348,7 +348,7 @@ func TestControllerUpdate(t *testing.T) {
 			rc, provider := newTestController(t, []integration.Config{postgresIntegration()})
 
 			// check if the controller subscribes to the correct product
-			require.True(t, rc.Subscribed(string(data.ProductDataSecurityDBScanTasks)), "controller should subscribe when a postgres integration is present")
+			require.Positive(t, rc.Subscribers(string(data.ProductDataSecurityDBScanTasks)), "controller should subscribe when a postgres integration is present")
 
 			streaming, ok := provider.(types.StreamingConfigProvider)
 			require.True(t, ok, "controller should be a streaming config provider")
