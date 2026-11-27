@@ -46,42 +46,10 @@ func (suite *k8sFilteringSuiteBase) SetupSuite() {
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
 }
 
-// TestWorkloadExcludeNoMetrics verifies that the container core check does not collect
-// telemetry for workloads that match the exclusion filter
-func (suite *k8sFilteringSuiteBase) TestWorkloadExcludeNoMetrics() {
-	// nginx workload in filtered namespace should never have metrics
-	suite.Never(func() bool {
-		metrics, err := suite.Fakeintake.FilterMetrics(
-			"container.cpu.usage",
-			fakeintake.WithTags[*aggregator.MetricSeries]([]string{
-				`kube_namespace:` + filteredNamespace,
-			}),
-		)
-		suite.NoError(err, "Error querying metrics")
-		return len(metrics) > 0
-	}, 1*time.Minute, 5*time.Second, "Metrics were found for a workload in a filtered namespace")
-}
-
-// TestWorkloadExcludeForAutodiscovery verifies that integrations are NOT auto-discovered
-// on workloads that match the exclusion filter, even for auto config enabled integrations
-func (suite *k8sFilteringSuiteBase) TestWorkloadExcludeForAutodiscovery() {
-	// redis workload is excluded and should not have auto-config metrics
-	suite.Never(func() bool {
-		metrics, err := suite.Fakeintake.FilterMetrics(
-			"redis.net.instantaneous_ops_per_sec",
-			fakeintake.WithTags[*aggregator.MetricSeries]([]string{
-				`container_name:` + filteredAppName,
-			}),
-		)
-		suite.NoError(err, "Error querying metrics")
-		return len(metrics) > 0
-	}, 1*time.Minute, 5*time.Second, "Metrics were found for filtered redis workload")
-}
-
-// TestUnfilteredWorkloadsHaveTelemetry confirms that workloads not matched by the exclude filter
-// continue to run and collect telemetry.
-func (suite *k8sFilteringSuiteBase) TestUnfilteredWorkloadsHaveTelemetry() {
-	// nginx workload in default namespace should have metrics
+// TestWorkloadFiltering checks container metrics collection and integration autodiscovery
+// against the configured workload exclusions.
+func (suite *k8sFilteringSuiteBase) TestWorkloadFiltering() {
+	// Confirm that the allowed nginx workload is emitting telemetry before observing exclusions.
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "container.memory.usage",
@@ -94,6 +62,28 @@ func (suite *k8sFilteringSuiteBase) TestUnfilteredWorkloadsHaveTelemetry() {
 			Tags:                 &[]string{},
 			AcceptUnexpectedTags: true,
 		},
+	})
+	if suite.T().Failed() {
+		return
+	}
+
+	suite.Run("excluded workloads emit no metrics", func() {
+		suite.Never(func() bool {
+			containerMetrics, err := suite.Fakeintake.FilterMetrics(
+				"container.cpu.usage",
+				fakeintake.WithTags[*aggregator.MetricSeries]([]string{"kube_namespace:" + filteredNamespace}),
+			)
+			suite.NoError(err, "Could not query container metrics")
+			if len(containerMetrics) > 0 {
+				return true
+			}
+			redisMetrics, err := suite.Fakeintake.FilterMetrics(
+				"redis.net.instantaneous_ops_per_sec",
+				fakeintake.WithTags[*aggregator.MetricSeries]([]string{"container_name:" + filteredAppName}),
+			)
+			suite.NoError(err, "Could not query Redis integration metrics")
+			return len(redisMetrics) > 0
+		}, time.Minute, 5*time.Second, "Metrics were found for an excluded workload")
 	})
 }
 
