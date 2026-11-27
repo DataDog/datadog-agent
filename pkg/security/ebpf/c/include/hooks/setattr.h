@@ -104,7 +104,7 @@ TAIL_CALL_FNC(dr_setattr_callback, ctx_t *ctx) {
     }
 
     apply_dentry_resolution_outcome(syscall, syscall->type);
-    if (syscall->state == DISCARDED) {
+    if (syscall->state == DISCARDED || syscall->resolver.ret < 0) {
         pop_syscall(syscall->resolver.event_type);
     }
 

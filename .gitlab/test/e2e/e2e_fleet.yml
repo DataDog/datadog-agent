@@ -27,10 +27,9 @@
     TARGETS: ./tests/fleet
 
 # Fleet e2e jobs are split by platform group (linux/windows) via E2E_FLEET_PLATFORM_GROUP.
-# Linux platforms are fast, so all their tests run in a single job. Windows is the
-# wall-clock bottleneck (slow MSI install/uninstall on every test), so each Windows
-# suite's test methods are sharded across two jobs (two VMs per platform) to roughly
-# halve its duration. Shard 1 runs an explicit subset; shard 2 runs the complement
+# Each Windows suite's test methods are sharded across two jobs (two VMs per
+# platform) to reduce the time spent on slow MSI install/uninstall operations.
+# Shard 1 runs an explicit subset; shard 2 runs the complement
 # (whole suite minus shard 1), so any newly added test still runs on Windows via shard 2.
 new-e2e-fleet-config:
   extends: .new_e2e_fleet_template
@@ -49,10 +48,12 @@ new-e2e-fleet-upgrade:
   timeout: 1h 25m
   parallel:
     matrix:
-      # TestFleetIntegrationPreservation is a separate Linux-only suite (provisions no
-      # Windows VMs), so it runs alongside TestFleetUpgrade only in the linux entry.
+      # These suites run sequentially in one test process. Give each its own job
+      # so integration preservation does not consume the upgrade timeout budget.
       - E2E_FLEET_PLATFORM_GROUP: linux
-        EXTRA_PARAMS: --run "TestFleetUpgrade$|TestFleetIntegrationPreservation$"
+        EXTRA_PARAMS: --run "TestFleetUpgrade$"
+      - E2E_FLEET_PLATFORM_GROUP: linux
+        EXTRA_PARAMS: --run "TestFleetIntegrationPreservation$"
       - E2E_FLEET_PLATFORM_GROUP: windows
         EXTRA_PARAMS: --run "TestFleetUpgrade$/.+/(TestUpgrade|TestIntegrationPreservationDebToOCI|TestUpgradeFailureHealth|TestPARScriptConfigPreservedOnUpgrade)$"
       - E2E_FLEET_PLATFORM_GROUP: windows
@@ -61,6 +62,19 @@ new-e2e-fleet-upgrade:
 # Upgrade every released patch in the historical window.
 new-e2e-fleet-upgrade-history:
   extends: .new_e2e_fleet_template
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.on_deploy]
+    # Keep main pushes manual before evaluating the path-based rules.
+    - !reference [.on_main_manual]
+    - !reference [.except_light_pipeline]
+    - changes:
+        paths:
+          - test/new-e2e/tests/fleet/**/*
+          - test/e2e-framework/**/*
+        compare_to: $COMPARE_TO_BRANCH
+      when: on_success
+    - !reference [.manual]
   timeout: 1h 25m
   variables:
     EXTRA_PARAMS: --run "^TestFleetUpgradeHistory$" --extra-flags=-test.parallel=4

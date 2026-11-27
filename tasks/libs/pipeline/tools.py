@@ -179,6 +179,7 @@ def trigger_agent_pipeline(
     kmt_tests=False,
     rc_build=False,
     run_flaky_tests=False,
+    variables: dict[str, str] | None = None,
 ) -> ProjectPipeline:
     """
     Trigger a pipeline on the datadog-agent repositories. Multiple options are available:
@@ -221,6 +222,8 @@ def trigger_agent_pipeline(
 
     if run_flaky_tests:
         args["GO_TEST_SKIP_FLAKE"] = "false"
+
+    args.update(variables or {})
 
     print(
         "Creating pipeline for datadog-agent on branch/tag {} with args:\n{}".format(  # noqa: FS002

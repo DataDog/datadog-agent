@@ -47,7 +47,7 @@ The default value for a setting node.
 
 - **Mandatory:** yes, for all setting nodes. Mutually exclusive with `platform_default` (one or the other must be specified).
 
-The value must match the `type` of the setting.
+The value must be a valid value of the setting (its `type`, `pattern`, `enum`, ...), as checked by the schema unit tests.
 
 ```yaml
 check_runners:
@@ -55,6 +55,10 @@ check_runners:
   type: number
   default: 4
 ```
+
+/// note
+The JSON Schema published for external tools (`dda inv schema.produce-jsonschema`) declares no `default`, like most published schemas. Declared defaults make IDEs insert every default when completing a section, and a default depending on the platform can't be expressed in a schema serving every platform. Instead, the default of each **public** setting is added at the end of its `description`, where IDEs show it on hover, e.g. `Default: 4.` (in plain text: IDEs don't render descriptions as Markdown). Settings that aren't public get nothing added. The schema embedded in the Agent keeps `default`.
+///
 
 #### Relative defaults
 
@@ -251,15 +255,17 @@ cel_workload_exclude:
 Marks a `string` setting whose values follow an Agent-specific syntax: `format: duration` or `format: url`.
 
 /// warning
-These are **custom Agent formats, not JSON Schema formats**. JSON Schema has no `url` format, and its `duration` means something else (see below). In the generated schemas, each format is **replaced by a regular expression**: the schema embedded in the Agent and the JSON Schema published for external tools (`dda inv schema.produce-jsonschema`) both turn `format: <name>` into `pattern: <regexp>`. The Agent, IDEs and any other validator therefore check these values the same way, with the same regexp.
+These are **custom Agent formats, not JSON Schema formats**. JSON Schema has no `url` format, and its `duration` means something else (see below). In the generated schemas, each format is **replaced by a regular expression**: the schema embedded in the Agent and the JSON Schema published for external tools (`dda inv schema.produce-jsonschema`) both turn `format: <name>` into `$ref: '#/$defs/<name>'`, a definition holding the regexp (`pattern`), written once per schema. The Agent, IDEs and any other validator therefore check these values the same way, with the same regexp.
 ///
 
+In the published JSON Schema, each definition also carries an error message (`patternErrorMessage`): VS Code and its YAML extension show it instead of the regexp when a value doesn't match, e.g. for a duration *Expected a duration: a number with a unit (ns, us, ms, s, m, h), such as 30s, 1m30s or 1.5h.* Other tools ignore this editor keyword and show their own message.
+
 - **Valid values:** `duration` or `url`, on a `string` setting only. `schema.lint` rejects any other format: it wouldn't be replaced, and most tools would silently not validate it.
-- **Why a format instead of a `pattern`:** the regexp of each format is written once, in `AGENT_FORMATS` (`tasks/schema/produce_byproduct.py`), so settings sharing a format never copy it.
+- **Why a format instead of a `pattern`:** the regexp of each format is written once, in `AGENT_FORMATS` (`tasks/schema/produce_byproduct.py`), and once in each generated schema, so settings sharing a format never copy it.
 
 **Adding a format:**
 
-1. Write its regexp in `tasks/schema/produce_byproduct.py` and register it in `AGENT_FORMATS`. Keep it linear-time (no nested repetition): IDEs use backtracking regex engines, and a regexp that backtracks catastrophically freezes them on invalid input. The schema tests check every registered regexp for this.
+1. Write its regexp in `tasks/schema/produce_byproduct.py` and register it in `AGENT_FORMATS`, with the error message IDEs show for a value that doesn't match: what's expected, and examples of valid values. Keep it linear-time (no nested repetition): IDEs use backtracking regex engines, and a regexp that backtracks catastrophically freezes them on invalid input. The schema tests check every registered regexp for this.
 2. Use `format: <name>` on string settings.
 3. Document it below.
 
@@ -297,7 +303,7 @@ JSON Schema also defines a `format: duration`, but as an [ISO 8601 duration](htt
 
 Marks a `string` setting holding the URL of an endpoint the Agent sends data to (`dd_url`, `logs_config.logs_dd_url`, ...).
 
-- **Valid values:** a host, or an `http://` or `https://` URL, with an optional port and path, e.g. `intake.datadoghq.com`, `https://app.datadoghq.com` or `https://proxy.example.com:443/logs`. An empty string is valid and means "unset": the Agent then builds the endpoint from `site`. Spaces, query strings and other schemes (`ftp://`, ...) are invalid.
+- **Valid values:** a host, or an `http://` or `https://` URL, e.g. `intake.datadoghq.com`, `https://app.datadoghq.com`, `https://proxy.example.com:443/logs`, `https://[::1]:8443` or `http://user:password@proxy:3128`. The host can be a name or a bracketed IPv6 address, followed by an optional port, path, query string and fragment. An empty string is valid and means "unset": the Agent then builds the endpoint from `site`. Spaces and other schemes (`ftp://`, ...) are invalid. The check is deliberately lax: rejecting a working URL is worse than accepting a bad one.
 - **Validation:** the generated schemas replace `format: url` with its regexp (`URL_PATTERN` in `tasks/schema/produce_byproduct.py`).
 
 ```yaml
@@ -371,7 +377,7 @@ Sets per-platform default value overrides. Mutually exclusive with `default` (On
 
 - **Available on:** setting nodes only.
 - **Mandatory:** yes, unless `default` is specified. `platform_default` must cover every platform — either by listing `linux`, `windows`, `darwin`, and `aix` explicitly, or by including an `other` catch-all.
-- **Validation:** values must match the `type` of the setting.
+- **Validation:** every value must be a valid value of the setting (its `type`, `pattern`, `enum`, ...), as checked by the schema unit tests.
 
 Supported platform keys: `linux`, `windows`, `darwin`, `aix`, `container`, `fargate`, `other`.
 
@@ -409,6 +415,14 @@ gui_port:
 /// note
 [Relative Path](keywords.md#relative-defaults) is also available for `platform_default`.
 ///
+
+In the JSON Schema published for external tools, the per-platform values of a **public** setting are added at the end of its `description` (see the note in [`default`](#default)), for example:
+
+```
+Default: 5002 on Windows and macOS, -1 elsewhere.
+```
+
+Settings that aren't public get nothing added.
 
 ---
 

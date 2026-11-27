@@ -67,6 +67,9 @@ BZIP2_VERSION="1.0.8"
 OPENSSL_VERSION="3.5.9"
 XZ_VERSION="5.8.4"
 LIBXML2_VERSION="2.15.4"    # built from source (AIX Toolbox also available but we build)
+LIBXML2_CONFIGURE_FLAGS="--without-python --with-schematron --disable-static"
+# Flags are part of the cache key so a flag change rebuilds libxml2
+LIBXML2_CACHE_KEY="${LIBXML2_VERSION}-$(echo "$LIBXML2_CONFIGURE_FLAGS" | cksum | cut -d' ' -f1)"
 LIBXSLT_VERSION="1.1.45"   # from AIX Toolbox (yum install libxslt-devel; source build fails on AIX)
 
 # These are sourced from AIX Toolbox (build from source fails on AIX)
@@ -106,7 +109,7 @@ lib_mark() {
 # after their first successful build. On subsequent clean builds, if the pinned
 # version matches, the archive is restored directly into $STAGING — no recompile.
 #
-# Cache key: $LIB_CACHE/<name>-<version>.tar.gz
+# Cache key: $LIB_CACHE/<name>-<version>.tar.gz (libxml2 adds a hash of its configure flags)
 # Format:    cpio archive (relative to $STAGING), gzip-compressed.
 #
 # Toolbox libraries (libffi, ncurses, readline, sqlite, libxslt) are not
@@ -459,9 +462,9 @@ else
 fi
 
 # ── libxml2 (build from source) ───────────────────────────────────────────────
-if lib_done libxml2 "$LIBXML2_VERSION"; then
+if lib_done libxml2 "$LIBXML2_CACHE_KEY"; then
     log "libxml2 ${LIBXML2_VERSION} already installed — skipping"
-elif lib_cache_restore libxml2 "$LIBXML2_VERSION"; then
+elif lib_cache_restore libxml2 "$LIBXML2_CACHE_KEY"; then
     :
 else
     CURRENT_LIB="libxml2-${LIBXML2_VERSION}"
@@ -476,16 +479,17 @@ else
     rm -rf "$BUILD_DIR/build/libxml2-${LIBXML2_VERSION}"
     extract_xz "$TARBALL" "$BUILD_DIR/build"
     cd "$BUILD_DIR/build/libxml2-${LIBXML2_VERSION}"
-    ./configure \
-        --prefix="$EMBEDDED" \
-        --without-python \
-        --disable-static
+    # shellcheck disable=SC2086
+    ./configure --prefix="$EMBEDDED" $LIBXML2_CONFIGURE_FLAGS
     make -j"$NPROC"
     make install DESTDIR="$STAGING"
-    lib_cache_save libxml2 "$LIBXML2_VERSION" "$_pre"
+    # lxml needs Schematron symbols from our libxml2
+    dump -X64 -Tv "$EMBEDDED_DESTDIR/lib/libxml2.so" | grep -q 'EXP.*xmlSchematronParse$' \
+        || { log "ERROR: libxml2.so does not export xmlSchematronParse"; exit 1; }
+    lib_cache_save libxml2 "$LIBXML2_CACHE_KEY" "$_pre"
     rm -f "$_pre"
     cd "$BUILD_DIR"
-    lib_mark libxml2 "$LIBXML2_VERSION"
+    lib_mark libxml2 "$LIBXML2_CACHE_KEY"
     log "libxml2 ${LIBXML2_VERSION} done"
     CURRENT_LIB=
 fi

@@ -1,14 +1,37 @@
 """LLVM/Clang toolchain for eBPF compilation."""
 
-load(":llvm_bpf.bzl", "llvm_bpf_toolchain")
-
 toolchain_type(
     name = "llvm_bpf_toolchain_type",
     visibility = ["//visibility:public"],
 )
 
-llvm_bpf_toolchain(
-    name = "no_llvm_bpf",
-    version = "unavailable",
-    visibility = ["//visibility:public"],
+toolchain(
+    name = "toolchain_amd64",
+    exec_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    toolchain = "@llvm_bpf_amd64//:llvm_bpf",
+    toolchain_type = ":llvm_bpf_toolchain_type",
+)
+
+toolchain(
+    name = "toolchain_arm64",
+    exec_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:arm64",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    toolchain = "@llvm_bpf_arm64//:llvm_bpf",
+    toolchain_type = ":llvm_bpf_toolchain_type",
+)
+
+alias(
+    name = "install",
+    actual = select({
+        "//:linux_x86_64": "@llvm_bpf_amd64//:install",
+        "//:linux_arm64": "@llvm_bpf_arm64//:install",
+    }),
+    tags = ["manual"],
 )

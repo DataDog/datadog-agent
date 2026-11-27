@@ -30,16 +30,9 @@ class Product:
     bazel_job: str
     omnibus_jobs: tuple[str, ...]
     formats: tuple[str, ...] = ('deb', 'rpm')
-    debug_package: bool = False
 
     def bazel_targets(self) -> list[str]:
-        targets = []
-        for package_format in self.formats:
-            target = f'{self.bazel_package}:{BAZEL_TARGETS[package_format]}'
-            targets.append(target)
-            if self.debug_package:
-                targets.append(f'{target}_dbg')
-        return targets
+        return [f'{self.bazel_package}:{BAZEL_TARGETS[package_format]}' for package_format in self.formats]
 
 
 PRODUCTS = {
@@ -48,7 +41,19 @@ PRODUCTS = {
         '//packages/agent/linux',
         bazel_job='bazel:package:linux-amd64',
         omnibus_jobs=('agent_deb-x64-a7', 'agent_rpm-x64-a7'),
-        debug_package=True,
+    ),
+    'iot': Product(
+        'datadog-iot-agent',
+        '//packages/iot',
+        bazel_job='bazel:package:iot:linux-amd64',
+        omnibus_jobs=('iot_agent_deb-x64', 'iot_agent_rpm-x64'),
+    ),
+    'heroku': Product(
+        'datadog-heroku-agent',
+        '//packages/heroku',
+        bazel_job='bazel:package:heroku:linux-amd64',
+        omnibus_jobs=('agent_heroku_deb-x64-a7',),
+        formats=('deb',),
     ),
 }
 ARCHITECTURES = {'amd64': {'deb': 'amd64', 'rpm': 'x86_64'}}
@@ -362,11 +367,3 @@ def check(ctx, omnibus_dir, bazel_dir, readelf):
     failed = [package for package in report['packages'] if 'error' in package]
     if failed:
         raise Exit(f'{len(failed)} packages could not be compared', code=1)
-
-
-@task(help={'product': f'Registered product to print the targets of: {", ".join(PRODUCTS)}'})
-def targets(_, product):
-    """Print a product's Bazel package targets to build for the parity check, debug packages included."""
-    if product not in PRODUCTS:
-        raise Exit(f'Unknown product {product}, expected one of: {", ".join(PRODUCTS)}', code=1)
-    print(' '.join(PRODUCTS[product].bazel_targets()))

@@ -478,6 +478,16 @@ func fabricHealthToSamples(info nvml.GpuFabricInfo_v3) []Sample {
 func pcieLinkMetrics(device ddnvml.Device) ([]Sample, uint64, error) {
 	var samplesOut []Sample
 
+	// On Grace Hopper and Grace Blackwell the GPU reaches its host CPU over NVLink-C2C
+	// and the PCIe link is only a sideband, which the driver negotiates down by design
+	// (Gen4 x1 of x16 max on GB200). Comparing current against max there reports every
+	// GPU as permanently degraded, hiding real PCIe degradations elsewhere, so the
+	// verdict is only given for GPUs attached over PCIe. An unknown C2C state counts as
+	// PCIe, like the host_link protocol fact. The current and max values are reported
+	// unchanged either way: only the degradation verdict differs.
+	c2c := device.GetDeviceInfo().HostLink.C2CEnabled
+	overPCIe := c2c == nil || !*c2c
+
 	currentWidth, err := device.GetCurrPcieLinkWidth()
 	if err != nil {
 		return samplesOut, 0, fmt.Errorf("get current PCIe link width: %w", err)
@@ -489,7 +499,7 @@ func pcieLinkMetrics(device ddnvml.Device) ([]Sample, uint64, error) {
 		return samplesOut, 0, fmt.Errorf("get max PCIe link width: %w", err)
 	}
 	samplesOut = append(samplesOut, &Metric{Name: "pci.link.width.max", Value: float64(maxWidth), Type: metrics.GaugeType})
-	samplesOut = append(samplesOut, &Metric{Name: "pci.link.width.degraded", Value: boolToFloat(currentWidth < maxWidth), Type: metrics.GaugeType})
+	samplesOut = append(samplesOut, &Metric{Name: "pci.link.width.degraded", Value: boolToFloat(overPCIe && currentWidth < maxWidth), Type: metrics.GaugeType})
 
 	currentGeneration, err := device.GetCurrPcieLinkGeneration()
 	if err != nil {
@@ -510,7 +520,7 @@ func pcieLinkMetrics(device ddnvml.Device) ([]Sample, uint64, error) {
 		return samplesOut, 0, fmt.Errorf("compute max PCIe link speed: %w", err)
 	}
 	samplesOut = append(samplesOut, &Metric{Name: "pci.link.speed.max", Value: maxSpeed, Type: metrics.GaugeType})
-	samplesOut = append(samplesOut, &Metric{Name: "pci.link.speed.degraded", Value: boolToFloat(currentSpeed < maxSpeed), Type: metrics.GaugeType})
+	samplesOut = append(samplesOut, &Metric{Name: "pci.link.speed.degraded", Value: boolToFloat(overPCIe && currentSpeed < maxSpeed), Type: metrics.GaugeType})
 	return samplesOut, 0, nil
 }
 

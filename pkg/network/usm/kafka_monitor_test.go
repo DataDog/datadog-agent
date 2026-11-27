@@ -66,8 +66,6 @@ type testContext struct {
 	serverPort string
 	// The address for the client to communicate with.
 	targetAddress string
-	// Clients that should be torn down at the end of the test
-	clients []*kafka.Client
 	// A dynamic map that allows extending the context easily between phases of the test.
 	extras map[string]interface{}
 }
@@ -226,7 +224,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					},
 				})
 				require.NoError(t, err)
-				ctx.clients = append(ctx.clients, client)
+				t.Cleanup(client.Client.Close)
 				require.NoError(t, client.CreateTopic(topicName))
 
 				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
@@ -275,7 +273,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					},
 				})
 				require.NoError(t, err)
-				ctx.clients = append(ctx.clients, client)
+				t.Cleanup(client.Client.Close)
 				require.NoError(t, client.CreateTopic(topicName))
 
 				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
@@ -313,7 +311,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					},
 				})
 				require.NoError(t, err)
-				ctx.clients = append(ctx.clients, client)
+				t.Cleanup(client.Client.Close)
 				require.NoError(t, client.CreateTopic(topicName))
 
 				numberOfIterations := 1000
@@ -354,7 +352,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					},
 				})
 				require.NoError(t, err)
-				ctx.clients = append(ctx.clients, client)
+				t.Cleanup(client.Client.Close)
 				require.NoError(t, client.CreateTopic(topicName))
 
 				record1 := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
@@ -404,7 +402,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					},
 				})
 				require.NoError(t, err)
-				ctx.clients = append(ctx.clients, client)
+				t.Cleanup(client.Client.Close)
 				require.NoError(t, client.CreateTopic(topicName))
 
 				record1 := &kgo.Record{Topic: topicName, Partition: 1, Value: []byte("Hello Kafka!")}
@@ -492,7 +490,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 							},
 						})
 						require.NoError(t, err)
-						ctx.clients = append(ctx.clients, client)
+						t.Cleanup(client.Client.Close)
 						require.NoError(t, client.CreateTopic(tt.topicName))
 
 						record := &kgo.Record{Topic: tt.topicName, Value: []byte("Hello Kafka!")}
@@ -534,11 +532,6 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 	cfg := getDefaultTestConfiguration(tls)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Cleanup(func() {
-				for _, client := range tt.context.clients {
-					client.Client.Close()
-				}
-			})
 			monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 			if tls && cfg.EnableGoTLSSupport {
 				utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)

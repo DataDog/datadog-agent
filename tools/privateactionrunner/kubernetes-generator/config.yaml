@@ -1,3 +1,12 @@
+admission:
+  apiGroup: admissionregistration
+  version: v1
+  copyrightYear: 2025
+  resources:
+    - MutatingWebhookConfiguration
+    - ValidatingAdmissionPolicy
+    - ValidatingAdmissionPolicyBinding
+    - ValidatingWebhookConfiguration
 apps:
   version: v1
   copyrightYear: 2025
@@ -7,6 +16,12 @@ apps:
     - Deployment
     - ReplicaSet
     - StatefulSet
+autoscaling:
+  version: v2
+  copyrightYear: 2026
+  listNamespaceRequired: true
+  resources:
+    - HorizontalPodAutoscaler
 batch:
   version: v1
   copyrightYear: 2025
@@ -45,3 +60,12 @@ networking:
     - IPAddress
     - NetworkPolicy
     - ServiceCIDR
+rbac:
+  version: v1
+  copyrightYear: 2026
+  listNamespaceRequired: true
+  resources:
+    - ClusterRole
+    - ClusterRoleBinding
+    - Role
+    - RoleBinding

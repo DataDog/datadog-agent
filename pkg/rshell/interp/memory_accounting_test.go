@@ -81,6 +81,32 @@ func TestVULN4760BraceExpansionBoundedBeforeCommandGate(t *testing.T) {
 	}
 }
 
+// TestBraceSequenceRepeatsBoundedBeforeExpansion pins that many near-cap
+// sequences in one word are rejected before any of them is materialized.
+func TestBraceSequenceRepeatsBoundedBeforeExpansion(t *testing.T) {
+	var stderr bytes.Buffer
+	start := time.Now()
+	_, alloc := runMeasured(t,
+		"echo "+strings.Repeat("{9223372036854759424..9223372036854775807}", 1000)+"\n", nil, &stderr,
+		interp.AllowedCommands([]string{"rshell:echo"}))
+
+	assert.Contains(t, stderr.String(), "brace expansion exceeds maximum word complexity")
+	assert.Less(t, alloc, uint64(maxAttackAllocBytes))
+	assert.Less(t, time.Since(start), 5*time.Second)
+}
+
+// TestBraceChainBoundedBeforeExpansion pins that a long chain of braces, whose
+// expansion holds a copy of the remaining parts per brace level, is rejected
+// before that memory is allocated.
+func TestBraceChainBoundedBeforeExpansion(t *testing.T) {
+	var stderr bytes.Buffer
+	_, alloc := runMeasured(t, "true "+strings.Repeat("{a..a}", 5000)+"\n", nil, &stderr,
+		interp.AllowedCommands([]string{"rshell:true"}))
+
+	assert.Contains(t, stderr.String(), "brace expansion exceeds maximum word complexity")
+	assert.Less(t, alloc, uint64(maxAttackAllocBytes))
+}
+
 // TestVULN5664UnquotedSplitBoundedBeforeExpansion pins that the field cap is
 // enforced on an upper bound before an unquoted word is split, not after the
 // expander has built every field. No command is allowed: the word is the

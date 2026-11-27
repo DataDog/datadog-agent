@@ -1,6 +1,6 @@
 """Toolchains for splitting stripped/debug outputs from binaries."""
 
-load(":configure.bzl", "linux_dd_strip_driver", "macos_dd_strip_driver", "windows_dd_strip_driver")
+load(":configure.bzl", "linux_dd_strip_driver", "linux_dd_strip_tree_driver", "macos_dd_strip_driver", "windows_dd_strip_driver")
 load(":toolchain.bzl", "dd_strip_toolchain")
 
 # Provides a strip/split driver executable accepting
@@ -14,9 +14,14 @@ linux_dd_strip_driver(
     name = "linux_driver",
 )
 
+linux_dd_strip_tree_driver(
+    name = "linux_tree_driver",
+)
+
 dd_strip_toolchain(
     name = "linux_dd_strip_toolchain",
     driver = ":linux_driver",
+    tree_driver = ":linux_tree_driver",
 )
 
 toolchain(
@@ -31,6 +36,7 @@ macos_dd_strip_driver(
     name = "macos_driver",
 )
 
+# macos provides no tree_driver: tree inputs pass through unsplit
 dd_strip_toolchain(
     name = "macos_dd_strip_toolchain",
     debug_is_directory = True,
@@ -49,6 +55,7 @@ windows_dd_strip_driver(
     name = "windows_driver",
 )
 
+# windows provides no tree_driver: tree inputs pass through unsplit
 dd_strip_toolchain(
     name = "windows_dd_strip_toolchain",
     driver = ":windows_driver",

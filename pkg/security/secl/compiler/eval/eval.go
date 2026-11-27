@@ -134,13 +134,15 @@ func wrapEvaluatorWithKey(evaluator interface{}, key *StringEvaluator, field Fie
 }
 
 func dictContains(keys interface{}, dict interface{}, all bool, keysPos ast.Position) (*BoolEvaluator, bool, error) {
+	// a single dictionary or one per element, evaluated without allocating
 	var (
+		single func(ctx *Context) map[string]string
 		dicts  func(ctx *Context) []map[string]string
 		weight int
 	)
 	switch dict := dict.(type) {
 	case *StringMapEvaluator:
-		dicts, weight = func(ctx *Context) []map[string]string { return []map[string]string{dict.EvalFnc(ctx)} }, dict.Weight
+		single, weight = dict.EvalFnc, dict.Weight
 	case *StringMapArrayEvaluator:
 		dicts, weight = dict.EvalFnc, dict.Weight
 	default:
@@ -149,6 +151,7 @@ func dictContains(keys interface{}, dict interface{}, all bool, keysPos ast.Posi
 
 	var (
 		values   *StringValues
+		keyOf    func(ctx *Context) string
 		keysOf   func(ctx *Context) []string
 		matchers []StringMatcher
 	)
@@ -159,7 +162,7 @@ func dictContains(keys interface{}, dict interface{}, all bool, keysPos ast.Posi
 			values.AppendFieldValue(FieldValue{Value: keys.Value, Type: keys.ValueType})
 			break
 		}
-		keysOf, weight = func(ctx *Context) []string { return []string{keys.EvalFnc(ctx)} }, weight+keys.Weight
+		keyOf, weight = keys.EvalFnc, weight+keys.Weight
 	case *StringValuesEvaluator:
 		values = &keys.Values
 	case *StringArrayEvaluator:
@@ -200,15 +203,39 @@ func dictContains(keys interface{}, dict interface{}, all bool, keysPos ast.Posi
 		return all
 	}
 
-	return &BoolEvaluator{Weight: weight, EvalFnc: func(ctx *Context) bool {
-		keys := keysOf(ctx)
-		for _, dict := range dicts(ctx) {
-			if holds(dict, keys) {
-				return true
-			}
+	var evalFnc BoolEvalFnc
+	switch {
+	case single != nil && keyOf != nil:
+		evalFnc = func(ctx *Context) bool {
+			_, ok := single(ctx)[keyOf(ctx)]
+			return ok
 		}
-		return false
-	}}, true, nil
+	case single != nil:
+		evalFnc = func(ctx *Context) bool {
+			return holds(single(ctx), keysOf(ctx))
+		}
+	case keyOf != nil:
+		evalFnc = func(ctx *Context) bool {
+			key := keyOf(ctx)
+			for _, dict := range dicts(ctx) {
+				if _, ok := dict[key]; ok {
+					return true
+				}
+			}
+			return false
+		}
+	default:
+		evalFnc = func(ctx *Context) bool {
+			keys := keysOf(ctx)
+			for _, dict := range dicts(ctx) {
+				if holds(dict, keys) {
+					return true
+				}
+			}
+			return false
+		}
+	}
+	return &BoolEvaluator{Weight: weight, EvalFnc: evalFnc}, true, nil
 }
 
 // fieldToEvaluator compiles a reference to a field.

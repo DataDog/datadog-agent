@@ -69,6 +69,7 @@ var interpAllowedSymbols = []string{
 	"runtime.GOOS",                // 🟢 current OS name constant; pure constant, no I/O.
 	"sort.Strings",                // 🟢 sorts exact systemd grant selectors deterministically in memory; no I/O.
 	"strconv.Itoa",                // 🟢 int-to-string conversion; pure function, no I/O.
+	"strconv.ParseInt",            // 🟢 parses brace sequence endpoints to bound their length; pure function, no I/O.
 	"strings.Builder",             // 🟢 efficient string concatenation; pure in-memory buffer, no I/O.
 	"strings.ContainsRune",        // 🟢 checks if a rune is in a string; pure function, no I/O.
 	"strings.NewReader",           // 🟢 wraps a string as an io.Reader; pure function, no I/O; used by ParseScript.
@@ -233,6 +234,7 @@ var interpPerModeSymbols = map[string][]string{
 		"runtime.GOOS",                // 🟢 current OS name constant; pure constant, no I/O.
 		"sort.Strings",                // 🟢 sorts exact systemd grant selectors deterministically in memory; no I/O.
 		"strconv.Itoa",                // 🟢 int-to-string conversion; pure function, no I/O.
+		"strconv.ParseInt",            // 🟢 parses brace sequence endpoints to bound their length; pure function, no I/O.
 		"strings.Builder",             // 🟢 efficient string concatenation; pure in-memory buffer, no I/O.
 		"strings.ContainsRune",        // 🟢 checks if a rune is in a string; pure function, no I/O.
 		"strings.NewReader",           // 🟢 wraps a string as an io.Reader; pure function, no I/O; used by ParseScript.

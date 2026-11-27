@@ -131,7 +131,7 @@ func extensionIsInServicePipeline(conf *confmap.Conf, comp component) bool {
 		if !ok {
 			return false
 		}
-		if componentName(extensionString) == comp.Name {
+		if isComponentType(extensionString, comp.Name) {
 			return true
 		}
 	}

@@ -222,6 +222,12 @@ func indexToEvaluator(node *ast.Index, opts *Opts, state *State) (interface{}, a
 	return evaluator, node.Pos, nil
 }
 
+// newDictionaryError returns the error of a dictionary compared whole, while it
+// is read at a key
+func newDictionaryError(pos ast.Position, field Field) error {
+	return NewError(pos, "dictionary field '%s' is read at a key: %s[\"KEY\"]", field, field)
+}
+
 // interpolationToEvaluator compiles a string with interpolations: its parts
 // are compiled, each converted to a string, and concatenated at evaluation.
 func interpolationToEvaluator(node *ast.Interpolation, opts *Opts, state *State) (interface{}, ast.Position, error) {
@@ -802,6 +808,8 @@ func compileArrayCompare(node *ast.ArrayCompareExpr, opts *Opts, state *State) (
 	case *BoolArrayEvaluator:
 		leftPos := node.Left.Position()
 		return nil, leftPos, NewTypeError(leftPos, reflect.Bool)
+	case *StringMapEvaluator, *StringMapArrayEvaluator:
+		return nil, node.Left.Position(), newDictionaryError(node.Left.Position(), left.(Evaluator).GetField())
 	default:
 		return nil, pos, NewTypeError(pos, reflect.Array)
 	}
@@ -1244,6 +1252,8 @@ func compileScalarCompare(node *ast.ScalarCompareExpr, opts *Opts, state *State)
 	case *CIDRValuesEvaluator:
 		leftPos := node.Left.Position()
 		return nil, leftPos, NewTypeError(leftPos, familyKinds[ast.IPFamily])
+	case *StringMapEvaluator, *StringMapArrayEvaluator:
+		return nil, node.Left.Position(), newDictionaryError(node.Left.Position(), left.(Evaluator).GetField())
 	}
 
 	return nil, ast.Position{}, NewError(ast.Position{}, "unknown entity '%s'", reflect.TypeOf(node))

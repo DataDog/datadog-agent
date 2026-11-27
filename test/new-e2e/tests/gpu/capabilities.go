@@ -207,38 +207,56 @@ type gpuK8sEnvironment struct {
 	RemoteHost *components.RemoteHost
 }
 
-// kubernetesCapabilities is an implementation of suiteCapabilities for the Kubernetes environment
-type kubernetesCapabilities struct {
-	suite          *e2e.BaseSuite[gpuK8sEnvironment]
+// kubernetesCapabilities is an implementation of suiteCapabilities for the Kubernetes environment.
+// It is generic over the suite environment, which only has to embed environments.Kubernetes (see
+// kube): gpuK8sEnvironment also carries the GPU host, whereas the Mokka suites have no GPU host.
+type kubernetesCapabilities[Env any] struct {
+	suite *e2e.BaseSuite[Env]
+	// kube returns the Kubernetes part of the suite environment.
+	kube func(*Env) *environments.Kubernetes
+	// gpuHost returns the host with the GPUs. It is nil when the environment has none.
+	gpuHost        func(*Env) *components.RemoteHost
 	containerToJob map[string]string // maps container ID to job name
+	// runtimeClassName is the RuntimeClass of the GPU workloads. It is empty when the cluster
+	// has no NVIDIA runtime, e.g. with Mokka, where GPUs are injected by an NRI plugin instead.
+	runtimeClassName string
 }
 
-var _ suiteCapabilities = &kubernetesCapabilities{}
+var _ suiteCapabilities = &kubernetesCapabilities[gpuK8sEnvironment]{}
+var _ suiteCapabilities = &kubernetesCapabilities[environments.Kubernetes]{}
+
+// k8sEnv returns the Kubernetes part of the suite environment.
+func (c *kubernetesCapabilities[Env]) k8sEnv() *environments.Kubernetes {
+	return c.kube(c.suite.Env())
+}
 
 // FakeIntake returns the FakeIntake component of the test environment
-func (c *kubernetesCapabilities) FakeIntake() *components.FakeIntake {
-	return c.suite.Env().FakeIntake
+func (c *kubernetesCapabilities[Env]) FakeIntake() *components.FakeIntake {
+	return c.k8sEnv().FakeIntake
 }
 
-func (c *kubernetesCapabilities) GPUHost() *components.RemoteHost {
-	return c.suite.Env().RemoteHost
+func (c *kubernetesCapabilities[Env]) GPUHost() *components.RemoteHost {
+	if c.gpuHost == nil {
+		return nil
+	}
+	return c.gpuHost(c.suite.Env())
 }
 
 // Agent returns the Agent client of the test environment, which communicates with the agent
 // running in a Kubernetes pod. It selects the first pod that runs the node agent, as in our e2e tests
 // we only have one node agent per cluster.
-func (c *kubernetesCapabilities) Agent() agentclient.Agent {
-	linuxAgent := c.suite.Env().Agent.LinuxNodeAgent
-	client, err := client.NewK8sAgentClient(c.suite, client.AgentSelectorAnyPod(linuxAgent), c.suite.Env().KubernetesCluster.KubernetesClient)
+func (c *kubernetesCapabilities[Env]) Agent() agentclient.Agent {
+	linuxAgent := c.k8sEnv().Agent.LinuxNodeAgent
+	client, err := client.NewK8sAgentClient(c.suite, client.AgentSelectorAnyPod(linuxAgent), c.k8sEnv().KubernetesCluster.KubernetesClient)
 	c.suite.Require().NoError(err)
 	return client
 }
 
 // QuerySysprobe sends a query to the sysprobe socket on the host using the
 // UNIX socket present in the agent container, shared with the sysprobe container.
-func (c *kubernetesCapabilities) QuerySysprobe(path string) (string, error) {
-	pods, err := c.suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), metav1.ListOptions{
-		LabelSelector: fields.OneTermEqualSelector(podSelectorField, c.suite.Env().Agent.LinuxNodeAgent.LabelSelectors[podSelectorField]).String(),
+func (c *kubernetesCapabilities[Env]) QuerySysprobe(path string) (string, error) {
+	pods, err := c.k8sEnv().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector(podSelectorField, c.k8sEnv().Agent.LinuxNodeAgent.LabelSelectors[podSelectorField]).String(),
 		Limit:         1,
 	})
 	if err != nil {
@@ -254,19 +272,22 @@ func (c *kubernetesCapabilities) QuerySysprobe(path string) (string, error) {
 	// --fail makes curl exit non-zero on an HTTP error status, so callers see a
 	// failed request instead of the error page as a successful response body.
 	cmd := []string{"curl", "-s", "--fail", "--unix-socket", "/var/run/sysprobe/sysprobe.sock", "http://unix/" + path}
-	stdout, stderr, err := c.suite.Env().KubernetesCluster.KubernetesClient.PodExec(agentNamespace, pod.Name, "agent", cmd)
+	stdout, stderr, err := c.k8sEnv().KubernetesCluster.KubernetesClient.PodExec(agentNamespace, pod.Name, "agent", cmd)
 	return stdout + " " + stderr, err
 }
 
 // RunContainerWorkloadWithGPUs runs a container workload with GPUs on the Kubernetes cluster
 // using a Kubernetes Job.
-func (c *kubernetesCapabilities) RunContainerWorkloadWithGPUs(image string, arguments ...string) (string, error) {
+func (c *kubernetesCapabilities[Env]) RunContainerWorkloadWithGPUs(image string, arguments ...string) (string, error) {
 	if c.containerToJob == nil {
 		c.containerToJob = make(map[string]string)
 	}
 
 	jobName := strings.ToLower("workload-" + common.RandString(5))
-	runtimeClassName := nvidiaRuntimeClassName
+	var runtimeClassName *string
+	if c.runtimeClassName != "" {
+		runtimeClassName = &c.runtimeClassName
+	}
 
 	jobSpec := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -289,13 +310,13 @@ func (c *kubernetesCapabilities) RunContainerWorkloadWithGPUs(image string, argu
 						},
 					},
 					RestartPolicy:    corev1.RestartPolicyNever,
-					RuntimeClassName: &runtimeClassName,
+					RuntimeClassName: runtimeClassName,
 				},
 			},
 		},
 	}
 
-	_, err := c.suite.Env().KubernetesCluster.Client().BatchV1().Jobs(jobNamespace).Create(context.Background(), jobSpec, metav1.CreateOptions{})
+	_, err := c.k8sEnv().KubernetesCluster.Client().BatchV1().Jobs(jobNamespace).Create(context.Background(), jobSpec, metav1.CreateOptions{})
 	if err != nil {
 		return "", fmt.Errorf("error starting container workload with GPUs: %w", err)
 	}
@@ -304,7 +325,7 @@ func (c *kubernetesCapabilities) RunContainerWorkloadWithGPUs(image string, argu
 	var pods *corev1.PodList // keep the list here so that we can return a good error message on timeout
 	maxTime := time.Now().Add(jobQueryTimeout)
 	for time.Now().Before(maxTime) {
-		pods, err = c.suite.Env().KubernetesCluster.Client().CoreV1().Pods(jobNamespace).List(context.Background(), metav1.ListOptions{
+		pods, err = c.k8sEnv().KubernetesCluster.Client().CoreV1().Pods(jobNamespace).List(context.Background(), metav1.ListOptions{
 			LabelSelector: fields.OneTermEqualSelector("job-name", jobName).String(), // job-name is the label automatically assigned by k8s to the pod running this job
 			Limit:         1,
 		})
@@ -337,22 +358,22 @@ func (c *kubernetesCapabilities) RunContainerWorkloadWithGPUs(image string, argu
 
 // CheckWorkloadErrors checks if a workload container has any errors.
 // For Kubernetes environments, it checks the Job status and returns an error if the job failed.
-func (c *kubernetesCapabilities) CheckWorkloadErrors(containerID string) error {
+func (c *kubernetesCapabilities[Env]) CheckWorkloadErrors(containerID string) error {
 	jobName, found := c.containerToJob[containerID]
 	if !found {
 		// Container ID not found in map, can't check status
 		return nil
 	}
 
-	return k8s.CheckJobErrors(context.Background(), c.suite.Env().KubernetesCluster.Client(), jobNamespace, jobName)
+	return k8s.CheckJobErrors(context.Background(), c.k8sEnv().KubernetesCluster.Client(), jobNamespace, jobName)
 }
 
-func (c *kubernetesCapabilities) GetRestartCount(component agentComponent) int {
+func (c *kubernetesCapabilities[Env]) GetRestartCount(component agentComponent) int {
 	container := agentComponentToContainer[component]
 
 	ctx := context.Background()
-	linuxPods, err := c.suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-		LabelSelector: fields.OneTermEqualSelector("app", c.suite.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
+	linuxPods, err := c.k8sEnv().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", c.k8sEnv().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
 	})
 	c.suite.Require().NoError(err)
 
@@ -369,7 +390,7 @@ func (c *kubernetesCapabilities) GetRestartCount(component agentComponent) int {
 }
 
 // ExpectedWorkloadTags returns tags that are expected to be present on workloads
-func (c *kubernetesCapabilities) ExpectedWorkloadTags() []string {
+func (c *kubernetesCapabilities[Env]) ExpectedWorkloadTags() []string {
 	// Kubernetes tag support not added yet
 	return nil
 }
