@@ -244,6 +244,16 @@ func TestGPUModuleMigGrEndpoint(t *testing.T) {
 	age(m, migGrMaxAge+time.Minute)
 	assert.Equal(t, http.StatusServiceUnavailable, get(router, "?uuid="+uuid).Code)
 
+	// Samples of MIG devices nobody asks about anymore (e.g. removed by a reconfiguration) are freed
+	lib, err := ddnvml.GetSafeNvmlLib()
+	require.NoError(t, err)
+	gone, err := lib.GpmSampleAlloc()
+	require.NoError(t, err)
+	m.migGrSamples["MIG-gone"] = migGrSample{sample: gone, at: time.Now().Add(-migGrMaxAge - time.Minute)}
+	age(m, 15*time.Second)
+	require.Equal(t, http.StatusOK, get(router, "?uuid="+uuid).Code)
+	assert.NotContains(t, m.migGrSamples, "MIG-gone")
+
 	// An NVML release drops the stored samples
 	m.dropMigGrSamples(true)
 	assert.Empty(t, m.migGrSamples)

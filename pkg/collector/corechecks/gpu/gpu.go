@@ -1176,22 +1176,33 @@ const migGrRequestTimeout = time.Second
 // migGrBackoff is how long the check stops asking system-probe for MIG gr_engine_active after a failed request
 const migGrBackoff = time.Minute
 
-// newMigGrEngineActiveReader returns a reader of MIG GPM GRAPHICS_UTIL from system-probe.
+// newMigGrEngineActiveReader returns a reader of MIG GPM GRAPHICS_UTIL from system-probe. Requests are sent one at a
+// time, so that with parallel collectors the timeout only covers the request itself, not the queue in system-probe.
 func newMigGrEngineActiveReader(client *sysprobeclient.CheckClient) func(string) (float64, error) {
+	var reqMu sync.Mutex
 	return newMigGrReader(func(uuid string) (float64, error) {
+		reqMu.Lock()
+		defer reqMu.Unlock()
 		ctx, cancel := context.WithTimeout(context.Background(), migGrRequestTimeout)
 		defer cancel()
 		return sysprobeclient.GetEndpointWithContext[float64](ctx, client, "/mig-gr?uuid="+url.QueryEscape(uuid), sysconfigtypes.GPUMonitoringModule)
 	}, time.Now)
 }
 
+// errMigGrRebaselined is returned for the first value after a failure: system-probe kept its baseline meanwhile, so
+// that value can cover the missed runs rather than the check interval.
+var errMigGrRebaselined = errors.New("system-probe MIG gr_engine_active value discarded after a failure, baseline re-established")
+
 // newMigGrReader wraps get with a backoff, so that a failing system-probe is not called for each device on each run.
 // The warm-up answer (503) is expected and never pauses. An error about one device (404, 500) pauses that device only;
-// any other error (system-probe unreachable or not started, timeout, endpoint disabled) pauses every device.
+// any other error (system-probe unreachable or not started, timeout, endpoint disabled) pauses every device. After a
+// failure, the first value of a device is discarded, since it can cover the time since the failure.
 func newMigGrReader(get func(uuid string) (float64, error), now func() time.Time) func(string) (float64, error) {
 	var mu sync.Mutex
-	var pausedAll time.Time
+	var pausedAll, failedAll time.Time
 	pausedDevice := make(map[string]time.Time)
+	failedDevice := make(map[string]time.Time)
+	lastValue := make(map[string]time.Time)
 	return func(uuid string) (float64, error) {
 		mu.Lock()
 		t := now()
@@ -1201,20 +1212,36 @@ func newMigGrReader(get func(uuid string) (float64, error), now func() time.Time
 			return 0, errors.New("system-probe MIG gr_engine_active paused after a failed request")
 		}
 		value, err := get(uuid)
+		mu.Lock()
+		defer mu.Unlock()
+		t = now()
 		if err == nil {
+			last, seen := lastValue[uuid]
+			// strictly after any failure recorded so far, so the next value is used
+			lastValue[uuid] = maxTime(t, maxTime(failedAll, failedDevice[uuid]).Add(time.Nanosecond))
+			if failed := maxTime(failedAll, failedDevice[uuid]); seen && !failed.IsZero() && !last.After(failed) {
+				return 0, errMigGrRebaselined
+			}
 			return value, nil
 		}
 		var statusErr *sysprobeclient.StatusCodeError
 		isStatus := errors.As(err, &statusErr)
-		mu.Lock()
-		defer mu.Unlock()
 		switch {
 		case isStatus && statusErr.StatusCode == http.StatusServiceUnavailable:
 		case isStatus && (statusErr.StatusCode == http.StatusNotFound || statusErr.StatusCode == http.StatusInternalServerError):
-			pausedDevice[uuid] = now().Add(migGrBackoff)
+			pausedDevice[uuid] = t.Add(migGrBackoff)
+			failedDevice[uuid] = t
 		default:
-			pausedAll = now().Add(migGrBackoff)
+			pausedAll = t.Add(migGrBackoff)
+			failedAll = t
 		}
 		return value, err
 	}
+}
+
+func maxTime(a, b time.Time) time.Time {
+	if a.After(b) {
+		return a
+	}
+	return b
 }

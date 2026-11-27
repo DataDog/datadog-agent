@@ -421,6 +421,13 @@ func (t *GPUMonitoringModule) migGrHandler(w http.ResponseWriter, req *http.Requ
 	}
 
 	now := time.Now()
+	// Free the samples of MIG devices nobody asked about for migGrMaxAge, e.g. removed by a MIG reconfiguration
+	for id, s := range t.migGrSamples {
+		if id != uuid && now.Sub(s.at) > migGrMaxAge {
+			_ = lib.GpmSampleFree(s.sample)
+			delete(t.migGrSamples, id)
+		}
+	}
 	prev, hasPrev := t.migGrSamples[uuid]
 	if hasPrev && now.Sub(prev.at) < migGrMinWindow {
 		http.Error(w, "previous GPM sample too recent", http.StatusServiceUnavailable)

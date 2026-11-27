@@ -2814,10 +2814,16 @@ func TestMigGrReaderBackoff(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, callsA, calls["a"], "paused")
 
+	// After the backoff, the first value of a device that had one before is discarded: system-probe kept its baseline
+	// during the pause, so that value can cover the missed runs
 	now = now.Add(migGrBackoff)
 	errs["b"] = nil
 	_, err = read("a")
+	require.ErrorIs(t, err, errMigGrRebaselined)
+	v, err = read("a")
 	require.NoError(t, err)
+	require.Equal(t, 42.0, v)
+	// A device without a previous value has nothing to discard
 	_, err = read("b")
 	require.NoError(t, err)
 }
