@@ -85,7 +85,8 @@ The code you are reading is **never executed alone**. Each action (install, remo
 stop / promote experiment, start / stop / promote config experiment, install / remove
 extensions…) runs a sequence of hooks, and **different hooks of the same action are executed by
 different versions of the installer**. Package hooks are defined in
-`installer/packages/` (see `installer/packages/AGENTS.md` for the exact matrix).
+`installer/packages/`; `installer/packages/README.md` documents which version runs each hook of
+every action.
 
 Example, upgrading from `vOld` to `vNew` with an experiment:
 
