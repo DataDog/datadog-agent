@@ -108,9 +108,7 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmd, args []string) ([]string, []stri
 		return cmd, args, false
 	}
 
-	changed := false
 	regexChanged := false
-	var wordReplacesIndexes []int
 
 	separator := "cmd_separator"
 	cmdline := append(cmd, separator)
@@ -141,10 +139,25 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmd, args []string) ([]string, []stri
 		newCmdline = append(newCmdline[:cmIndex], newCmdline[cmIndex+1:]...)
 	}
 
-	// preprocess, without the preprocessing we would need to strip until whitespaces.
-	// the first index can be skipped because it should be the program name.
-	for index := 1; index < len(newCmdline); index++ {
-		cmd := newCmdline[index]
+	firstParam := 0
+	if cmIndex > 0 {
+		firstParam = 1
+	}
+	changed := ds.scrubCommandTokens(newCmdline, firstParam)
+	if !(changed || regexChanged) {
+		return cmd, args, false
+	}
+	return newCmdline[:cmIndex], newCmdline[cmIndex:], true
+}
+
+func (ds *DataScrubber) scrubCommandTokens(cmdline []string, firstParam int) bool {
+	changed := false
+	var wordReplacesIndexes []int
+	// firstParam skips the executable when command is present. Scan every
+	// remaining token, including values that may themselves be sensitive options.
+	// Apply value replacements afterwards so those options remain recognizable.
+	for index := firstParam; index < len(cmdline); index++ {
+		cmd := cmdline[index]
 		lowerCmd := strings.ToLower(cmd)
 		for _, pattern := range ds.LiteralSensitivePatterns {
 			// if we found a word from the list,
@@ -159,7 +172,9 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmd, args []string) ([]string, []stri
 			// agent --password > /password/secret ==> agent > --password ******** /password/secret
 
 			if matchIndex >= 0 {
-				before := cmd[:matchIndex] // /etc/vaultd/ from /etc/vaultd/secret/haproxy-crt.pem
+				// Lowercasing can change UTF-8 byte lengths, so use the same
+				// string for matching and slicing the prefix.
+				before := lowerCmd[:matchIndex] // /etc/vaultd/ from /etc/vaultd/secret/haproxy-crt.pem
 				// skip paths /etc/vaultd/secrets/haproxy-crt.pem -> we don't want to match if one of the below chars are in before
 				if strings.ContainsAny(before, "/:=$") {
 					break
@@ -170,15 +185,14 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmd, args []string) ([]string, []stri
 				if v >= 0 {
 					// password:1234  password=1234 ==> password=****** || password:******
 					// password::::====1234 ==> password:******
-					newCmdline[index] = cmd[:v+1] + redactedSecret
+					cmdline[index] = cmd[:v+1] + redactedSecret
 					// replace from v to end of string with ********
 					break
 				} else { //nolint:revive // TODO(CAPP) Fix revive linter
 					// password 1234 password ******
 					nextReplacementIndex := index + 1
-					if nextReplacementIndex < len(newCmdline) {
+					if nextReplacementIndex < len(cmdline) {
 						wordReplacesIndexes = append(wordReplacesIndexes, nextReplacementIndex)
-						index++
 					}
 					break
 				}
@@ -188,20 +202,15 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmd, args []string) ([]string, []stri
 
 	for _, index := range wordReplacesIndexes {
 		// we only want to replace words, hence we jump to the next index and try to scrub that instead
-		for index < len(newCmdline) && newCmdline[index] == "" {
+		for index < len(cmdline) && cmdline[index] == "" {
 			index++
 		}
-		if index < len(newCmdline) {
-			newCmdline[index] = redactedSecret
+		if index < len(cmdline) {
+			cmdline[index] = redactedSecret
 		}
 	}
 
-	// if nothing changed, just return the input
-	if !(changed || regexChanged) {
-		return cmd, args, false
-	}
-
-	return newCmdline[:cmIndex], newCmdline[cmIndex:], changed || regexChanged
+	return changed
 }
 
 // AddCustomSensitiveWords adds custom sensitive words on the DataScrubber object

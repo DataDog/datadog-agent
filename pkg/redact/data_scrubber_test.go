@@ -50,6 +50,31 @@ func TestMatchNoMatchCommand(t *testing.T) {
 	}
 }
 
+func TestScrubSimpleCommandUnicode(t *testing.T) {
+	for name, tc := range map[string]struct {
+		args     []string
+		expected []string
+	}{
+		"lowercase expands prefix": {
+			args:     []string{"ȺȺȺȺȺȺȺȺȺpassword", "sensitive-value"},
+			expected: []string{"ȺȺȺȺȺȺȺȺȺpassword", redactedSecret},
+		},
+		"lowercase expands assignment prefix": {
+			args:     []string{"ȺȺȺȺȺȺȺȺȺpassword=sensitive-value"},
+			expected: []string{"ȺȺȺȺȺȺȺȺȺpassword=" + redactedSecret},
+		},
+		"lowercase contracts path prefix": {
+			args:     []string{"KKK/password", "ordinary-value"},
+			expected: []string{"KKK/password", "ordinary-value"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, args, _ := NewDefaultDataScrubber().ScrubSimpleCommand(nil, tc.args)
+			assert.Equal(t, tc.expected, args)
+		})
+	}
+}
+
 func TestKnownSafeEnvVars(t *testing.T) {
 	scrubber := NewDefaultDataScrubber()
 	assert.False(t, scrubber.ContainsSensitiveWord("DD_AUTH_TOKEN_FILE_PATH"))

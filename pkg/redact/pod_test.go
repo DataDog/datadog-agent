@@ -606,6 +606,38 @@ func getScrubCases() map[string]struct {
 				Env: []v1.EnvVar{{Name: "password", Value: "********"}},
 			},
 		},
+		"token env vars": {
+			input: v1.Container{
+				Env: []v1.EnvVar{
+					{Name: "TOKEN", Value: "sensitive-value"},
+					{Name: "HF_TOKEN", Value: "sensitive-value"},
+					{Name: "service_token", Value: "sensitive-value"},
+					{Name: "MAX_TOKENS", Value: "1024"},
+					{Name: "DD_AUTH_TOKEN_FILE_PATH", Value: "/var/run/datadog/token"},
+				},
+			},
+			expected: v1.Container{
+				Env: []v1.EnvVar{
+					{Name: "TOKEN", Value: redactedSecret},
+					{Name: "HF_TOKEN", Value: redactedSecret},
+					{Name: "service_token", Value: redactedSecret},
+					{Name: "MAX_TOKENS", Value: "1024"},
+					{Name: "DD_AUTH_TOKEN_FILE_PATH", Value: "/var/run/datadog/token"},
+				},
+			},
+		},
+		"entrypoint with sensitive assignment": {
+			input:    v1.Container{Args: []string{"--password=sensitive-value", "--port=8080"}},
+			expected: v1.Container{Args: []string{"--password=" + redactedSecret, "--port=8080"}},
+		},
+		"entrypoint with separate sensitive value": {
+			input:    v1.Container{Args: []string{"--password", "sensitive-value", "--port", "8080"}},
+			expected: v1.Container{Args: []string{"--password", redactedSecret, "--port", "8080"}},
+		},
+		"entrypoint with bare sensitive assignment": {
+			input:    v1.Container{Args: []string{"password=sensitive-value", "--port=8080"}},
+			expected: v1.Container{Args: []string{"password=" + redactedSecret, "--port=8080"}},
+		},
 		"sensitive env var set via ValueFrom": {
 			input: v1.Container{
 				Env: []v1.EnvVar{{
@@ -702,18 +734,18 @@ func getScrubCases() map[string]struct {
 		},
 		"sensitive arg no command": {
 			input: v1.Container{
-				Args: []string{"password", "--password", "afztyerbzio1234"},
+				Args: []string{"password", "--password", "sensitive-value"},
 			},
 			expected: v1.Container{
-				Args: []string{"password", "--password", "********"},
+				Args: []string{"password", redactedSecret, redactedSecret},
 			},
 		},
 		"sensitive arg joined": {
 			input: v1.Container{
-				Args: []string{"pwd pwd afztyerbzio1234 --password 1234"},
+				Args: []string{"pwd pwd sensitive-value --password sensitive-value"},
 			},
 			expected: v1.Container{
-				Args: []string{"pwd", "pwd", "********", "--password", "********"},
+				Args: []string{"pwd", redactedSecret, redactedSecret, "--password", redactedSecret},
 			},
 		},
 		"sensitive container": {
