@@ -78,6 +78,7 @@ type Tailer struct {
 	systemRenderContext    evtapi.EventRenderContextHandle
 	registry               auditor.Registry
 	publisherMetadataCache publishermetadatacache.Component
+	tagSnapshots           message.TagSnapshotter
 }
 
 // NewTailer returns a new tailer.
@@ -166,7 +167,7 @@ func (t *Tailer) forwardMessages() {
 			if msg.Origin != nil {
 				// Combine tags from multiple sources: parsing extra tags and source config tags
 				tags := append(msg.ParsingExtra.Tags, t.source.Config.Tags...)
-				msg.Origin.SetTags(tags)
+				msg.Origin.SetTagsWithSnapshot(tags, t.tagSnapshots.Get(t.source, nil, nil), tags[:len(msg.ParsingExtra.Tags)])
 			}
 
 			t.outputChan <- msg
