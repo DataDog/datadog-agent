@@ -32,6 +32,28 @@ func TestExecutorIdleTimeout(t *testing.T) {
 	}
 }
 
+func TestStopExecutorBeforeStartup(t *testing.T) {
+	runner := &PrivateActionRunner{startChan: make(chan struct{})}
+	require.NoError(t, runner.StopExecutor(context.Background()))
+	require.ErrorIs(t, runner.StartExecutor(context.Background()), context.Canceled)
+	require.NoError(t, runner.StopExecutor(context.Background()))
+}
+
+func TestStopExecutorCleansUpMetricsClientOnce(t *testing.T) {
+	metrics := &recordingMetricsClient{
+		flushErr: errors.New("flush failed"),
+		closeErr: errors.New("close failed"),
+	}
+	runner := newStartedRunnerForStopTest(metrics, true)
+	for range 2 {
+		err := runner.StopExecutor(context.Background())
+		assert.ErrorIs(t, err, metrics.flushErr)
+		assert.ErrorIs(t, err, metrics.closeErr)
+	}
+	assert.Equal(t, 1, metrics.flushCalls)
+	assert.Equal(t, 1, metrics.closeCalls)
+}
+
 func TestStopCleansUpMetricsClient(t *testing.T) {
 	tests := []struct {
 		name           string
