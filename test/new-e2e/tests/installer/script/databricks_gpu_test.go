@@ -60,7 +60,6 @@ func (s *installScriptDatabricksGPUSuite) TestDatabricksGPUDriverInstallScript()
 	s.Require().NoError(err)
 	s.Contains(string(appMonitoring), "DD_INJECT_NATIVE: always")
 	s.Contains(string(appMonitoring), "DD_GPU_ENABLED: true")
-	s.Contains(string(appMonitoring), "DD_TRACE_LOG_FILE: stderr")
 
 	// GPU Monitoring only: no Data Jobs Monitoring setup
 	state.AssertPathDoesNotExist("/opt/datadog-packages/datadog-apm-library-java")

@@ -143,6 +143,8 @@ func TestSetupTracerEnv(t *testing.T) {
 	t.Run("writes the tracer env and keeps existing lines", func(t *testing.T) {
 		t.Setenv("DD_SERVICE", "")
 		t.Setenv("DD_ENV", "")
+		t.Setenv("DD_TRACE_LOG_FILE", "")
+		t.Setenv("DD_TRACE_LOG_LEVEL", "")
 		path := filepath.Join(t.TempDir(), "spark-env.sh")
 		require.NoError(t, os.WriteFile(path, []byte("export FOO=bar"), 0644))
 
@@ -154,13 +156,14 @@ func TestSetupTracerEnv(t *testing.T) {
 			sparkEnvBlockStart+"\n"+
 			"export DD_INJECT_NATIVE='always'\n"+
 			"export DD_GPU_ENABLED='true'\n"+
-			"export DD_TRACE_LOG_FILE='stderr'\n"+
 			sparkEnvBlockEnd+"\n", string(content))
 	})
 
-	t.Run("passes DD_SERVICE and DD_ENV through", func(t *testing.T) {
+	t.Run("passes DD_SERVICE, DD_ENV and the log settings through", func(t *testing.T) {
 		t.Setenv("DD_SERVICE", "it's-a-service")
 		t.Setenv("DD_ENV", "prod")
+		t.Setenv("DD_TRACE_LOG_FILE", "stderr")
+		t.Setenv("DD_TRACE_LOG_LEVEL", "debug")
 		path := filepath.Join(t.TempDir(), "spark-env.sh")
 
 		require.NoError(t, setupTracerEnv(newSetup(), path))
@@ -169,6 +172,8 @@ func TestSetupTracerEnv(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, string(content), `export DD_SERVICE='it'\''s-a-service'`+"\n")
 		assert.Contains(t, string(content), "export DD_ENV='prod'\n")
+		assert.Contains(t, string(content), "export DD_TRACE_LOG_FILE='stderr'\n")
+		assert.Contains(t, string(content), "export DD_TRACE_LOG_LEVEL='debug'\n")
 	})
 
 	t.Run("rerun replaces the previous block", func(t *testing.T) {
@@ -208,6 +213,8 @@ func TestSetupTracerConfig(t *testing.T) {
 	t.Run("default", func(t *testing.T) {
 		t.Setenv("DD_SERVICE", "")
 		t.Setenv("DD_ENV", "")
+		t.Setenv("DD_TRACE_LOG_FILE", "")
+		t.Setenv("DD_TRACE_LOG_LEVEL", "")
 		s := newSetup()
 
 		setupTracerConfig(s)
@@ -216,19 +223,22 @@ func TestSetupTracerConfig(t *testing.T) {
 		assert.Equal(t, config.APMConfigurationDefault{
 			InjectNative: "always",
 			GPUEnabled:   config.BoolToPtr(true),
-			TraceLogFile: "stderr",
 		}, s.Config.ApplicationMonitoringYAML.Default)
 	})
 
-	t.Run("passes DD_SERVICE and DD_ENV through", func(t *testing.T) {
+	t.Run("passes DD_SERVICE, DD_ENV and the log settings through", func(t *testing.T) {
 		t.Setenv("DD_SERVICE", "my-service")
 		t.Setenv("DD_ENV", "prod")
+		t.Setenv("DD_TRACE_LOG_FILE", "/databricks/driver/logs/dd-trace-c.log")
+		t.Setenv("DD_TRACE_LOG_LEVEL", "debug")
 		s := newSetup()
 
 		setupTracerConfig(s)
 
 		assert.Equal(t, "my-service", s.Config.ApplicationMonitoringYAML.Default.Service)
 		assert.Equal(t, "prod", s.Config.ApplicationMonitoringYAML.Default.Env)
+		assert.Equal(t, "/databricks/driver/logs/dd-trace-c.log", s.Config.ApplicationMonitoringYAML.Default.TraceLogFile)
+		assert.Equal(t, "debug", s.Config.ApplicationMonitoringYAML.Default.TraceLogLevel)
 	})
 }
 

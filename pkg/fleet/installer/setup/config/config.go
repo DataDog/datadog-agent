@@ -346,6 +346,7 @@ type APMConfigurationDefault struct {
 	InjectNative                  string  `yaml:"DD_INJECT_NATIVE,omitempty"`
 	GPUEnabled                    *bool   `yaml:"DD_GPU_ENABLED,omitempty"`
 	TraceLogFile                  string  `yaml:"DD_TRACE_LOG_FILE,omitempty"`
+	TraceLogLevel                 string  `yaml:"DD_TRACE_LOG_LEVEL,omitempty"`
 	Service                       string  `yaml:"DD_SERVICE,omitempty"`
 	Env                           string  `yaml:"DD_ENV,omitempty"`
 }
