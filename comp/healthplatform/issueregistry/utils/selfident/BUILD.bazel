@@ -7,6 +7,7 @@ go_library(
         "docs.go",
         "selfident.go",
         "selfident_noop.go",
+        "test_helpers.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident",
     visibility = ["//visibility:public"],

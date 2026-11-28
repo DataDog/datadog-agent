@@ -12,8 +12,15 @@ package store
 // team: fleet-remediation
 
 import (
+	"errors"
+
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 )
+
+// ErrQueueFull is returned by ReportIssue when the store's mutation queue is
+// full, or the store is stopping, and the report was dropped. The drop is
+// counted in the health_platform.operations_dropped telemetry counter.
+var ErrQueueFull = errors.New("health platform queue is full; retry")
 
 // IssuesObserver holds the channels the store writes issue events into.
 // It is the extension point for reactive integrations — e.g. an MCP server
@@ -35,6 +42,11 @@ type Component interface {
 	// with the same issue.Id update the same instance (state machine: new →
 	// ongoing). issue.IssueName is used as the issue-type key for telemetry
 	// and persistence. Call ResolveIssue to mark an issue as resolved.
+	//
+	// ReportIssue never blocks: it validates issue, queues a copy and returns,
+	// so a query right after it may not reflect the report yet. Reports and
+	// resolutions apply in call order. Returns an error on invalid input, or
+	// ErrQueueFull when the queue is full and the report was dropped.
 	ReportIssue(issue *healthplatformpayload.Issue) error
 
 	// =========================================================================
@@ -53,10 +65,13 @@ type Component interface {
 	// =========================================================================
 
 	// ResolveIssue marks the issue with the given IssueId as resolved.
-	// No-op if no such issue is currently active.
+	// No-op if no such issue is currently active. Like ReportIssue, it queues
+	// the change and returns without waiting for it to apply; it is dropped,
+	// and counted, when the queue is full.
 	ResolveIssue(issueID string)
 
-	// ResolveAllIssues marks every active issue as resolved.
+	// ResolveAllIssues marks every active issue as resolved. Like ReportIssue,
+	// it queues the change and returns without waiting for it to apply.
 	ResolveAllIssues()
 
 	// GetActiveIssueIDsByIssueName returns the IDs of all currently active issues
