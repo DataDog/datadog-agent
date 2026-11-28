@@ -21,8 +21,11 @@ ENV GOPATH=/go
 
 # Set the working directory
 WORKDIR /workspace
-# Copy from the CI build context, no-op when doing a stand alone build
-COPY otel-* /workspace
+# Copy from the CI build context, no-op when doing a stand alone build.
+# secret-generic-connector is optional in the CI build context: the FIPS jobs don't provide
+# it, as their base image (the FIPS Agent image) already ships the FIPS build of it.
+# A single COPY so that it doesn't fail on builders rejecting a glob that matches nothing.
+COPY otel-* secret-generic-connector* /workspace/
 
 # APT mirror resilience in CI:
 # Ubuntu EC2 AMIs point apt at a single regional mirror (us-east-1) with no real
@@ -87,18 +90,25 @@ RUN \
         pip install dda && \
         dda self dep sync -f legacy-tasks && \
         invoke collector.generate && \
-        invoke otel-agent.build; \
+        invoke otel-agent.build && \
+        invoke secret-generic-connector.build; \
     else \
-        mkdir -p /workspace/datadog-agent/bin/otel-agent/dist && \
+        mkdir -p /workspace/datadog-agent/bin/otel-agent/dist /workspace/datadog-agent/bin/secret-generic-connector && \
         cp /workspace/otel-agent /workspace/datadog-agent/bin/otel-agent/ && \
-        cp /workspace/otel-config.yaml /workspace/datadog-agent/bin/otel-agent/dist/otel-config.yaml; \
-    fi
+        cp /workspace/otel-config.yaml /workspace/datadog-agent/bin/otel-agent/dist/otel-config.yaml && \
+        if [ -f /workspace/secret-generic-connector ]; then \
+            cp /workspace/secret-generic-connector /workspace/datadog-agent/bin/secret-generic-connector/; \
+        fi; \
+    fi && \
+    # Owned by root:root once copied. Executable by the root group, which holds the image's
+    # dd-agent user and the random UID OpenShift runs containers with.
+    chmod -R 0550 /workspace/datadog-agent/bin/secret-generic-connector/
 
 # ------------------------------
 # Inject the otel-agent in the base image
 # ------------------------------
 
-FROM $AGENT_BASE_IMAGE_TAG AS release
+FROM $AGENT_BASE_IMAGE_TAG AS release-common
 
 LABEL org.opencontainers.image.title="Otel Agent"
 # Copy the built OTel agent from the builder stage
@@ -115,3 +125,26 @@ ENV DOCKER_DD_AGENT=true
 
 ENTRYPOINT ["otel-agent"]
 CMD ["run", "--config", "file:/etc/datadog-agent/otel-config.yaml"]
+
+# ------------------------------
+# Final images: release-fips, built on the FIPS Agent image, and release (the default)
+#
+# secret-generic-connector is run to resolve ENC[] handles with secret_backend_type, from
+# the hard-coded path below. Each final stage checks that it is there and can start.
+# ------------------------------
+
+FROM release-common AS release-fips
+# Keep the FIPS connector the base image ships: never copy the one from the builder
+# stage, which is not a FIPS build when built from source.
+# The FIPS connector loads OpenSSL at runtime and, having no RPATH, gets the system
+# libcrypto, which can't enable FIPS mode on its own: the connector panics on start.
+# Point OpenSSL at the Agent's embedded configuration and FIPS provider, as the core
+# Agent does for itself when it initializes Python (pkg/collector/python/init.go), so
+# that the connector inherits them. otel-agent uses the embedded ones already.
+ENV OPENSSL_CONF=/opt/datadog-agent/embedded/ssl/openssl.cnf \
+    OPENSSL_MODULES=/opt/datadog-agent/embedded/lib/ossl-modules
+RUN /opt/datadog-agent/embedded/bin/secret-generic-connector --version
+
+FROM release-common AS release
+COPY --from=builder /workspace/datadog-agent/bin/secret-generic-connector/ /opt/datadog-agent/embedded/bin/
+RUN /opt/datadog-agent/embedded/bin/secret-generic-connector --version
