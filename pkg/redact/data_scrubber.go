@@ -43,7 +43,110 @@ var (
 	// cmdlineTokenizer tokenizes by capturing non-whitespace terms as tokens EX: "agent --secret" > ["agent", "--secret"]
 	// and non-whitespace terms followed by quotation enclosed subcomponents as tokens EX: "agent --pass="secret house"" > ["agent", "--pass="secret house""]
 	cmdlineTokenizer = regexp.MustCompile(`([^\s"']+("([^"]*)")*('([^']*)')*)`)
+
+	// knownSecretFormats are credentials recognized by their own format, so they are
+	// redacted even when the surrounding key or env var name gives no hint (e.g. a JWT
+	// in USER_IDENTITY). Only formats with a distinctive prefix are listed, so hashes
+	// and IDs are left alone. Most patterns are adapted from the gitleaks default rules
+	// (https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml, MIT).
+	// Each format lists literals every match contains: almost no value contains one,
+	// so checking them first skips the regex in the common case.
+	knownSecretFormats = []struct {
+		pattern string
+		markers []string
+	}{
+		{`\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]+`, []string{"eyJ"}},                                                                 // JWT
+		{`\bgh[pousr]_[A-Za-z0-9]{36,}`, []string{"ghp_", "gho_", "ghu_", "ghs_", "ghr_"}},                                                                // GitHub token
+		{`\bgithub_pat_[A-Za-z0-9_]{22,}`, []string{"github_pat_"}},                                                                                       // GitHub fine-grained token
+		{`\bglp[at]t-[A-Za-z0-9_-]{20,}`, []string{"glpat-", "glptt-"}},                                                                                   // GitLab personal and trigger tokens
+		{`\bxox[abposre]-[A-Za-z0-9-]{10,}`, []string{"xox"}},                                                                                             // Slack token
+		{`\bxapp-[0-9]+-[A-Za-z0-9-]{10,}`, []string{"xapp-"}},                                                                                            // Slack app token
+		{`\bnpm_[A-Za-z0-9]{36}`, []string{"npm_"}},                                                                                                       // npm token
+		{`\bsk-ant-(?:api03|admin01)-[A-Za-z0-9_-]{93}AA`, []string{"sk-ant-"}},                                                                           // Anthropic API key
+		{`\bsk-(?:(?:proj|svcacct|admin)-[A-Za-z0-9_-]{58,74}|[A-Za-z0-9]{20})T3BlbkFJ[A-Za-z0-9_-]{20,74}`, []string{"T3BlbkFJ"}},                        // OpenAI API key
+		{`\b(?:sk|rk)_(?:test|live|prod)_[A-Za-z0-9]{10,99}`, []string{"k_test_", "k_live_", "k_prod_"}},                                                  // Stripe key
+		{`\bSG\.[A-Za-z0-9=_.-]{66}`, []string{"SG."}},                                                                                                    // SendGrid API key
+		{`\bAIza[A-Za-z0-9_-]{35}`, []string{"AIza"}},                                                                                                     // Google API key
+		{`\b(?:hf|api_org)_[A-Za-z]{34}`, []string{"hf_", "api_org_"}},                                                                                    // Hugging Face token
+		{`\bhv[sb]\.[A-Za-z0-9_-]{90,300}`, []string{"hvs.", "hvb."}},                                                                                     // HashiCorp Vault token
+		{`\bdapi[a-f0-9]{32}(?:-[0-9])?`, []string{"dapi"}},                                                                                               // Databricks token
+		{`\bdo[opr]_v1_[a-f0-9]{64}`, []string{"_v1_"}},                                                                                                   // DigitalOcean token
+		{`\b(?:glsa_[A-Za-z0-9]{32}_[A-Fa-f0-9]{8}|glc_[A-Za-z0-9+/]{32,400}={0,3})`, []string{"glsa_", "glc_"}},                                          // Grafana token
+		{`\bsntry[us]_[A-Za-z0-9+/=_]{64,}`, []string{"sntryu_", "sntrys_"}},                                                                              // Sentry token
+		{`\blin_api_[A-Za-z0-9]{40}`, []string{"lin_api_"}},                                                                                               // Linear API key
+		{`\bNRAK-[A-Za-z0-9]{27}`, []string{"NRAK-"}},                                                                                                     // New Relic user API key
+		{`\bpypi-AgEIcHlwaS5vcmc[A-Za-z0-9_-]{50,1000}`, []string{"pypi-AgEIcHlwaS5vcmc"}},                                                                // PyPI upload token
+		{`\bshp(?:at|ca|pa|ss)_[a-fA-F0-9]{32}`, []string{"shpat_", "shpca_", "shppa_", "shpss_"}},                                                        // Shopify token
+		{`\bdp\.pt\.[A-Za-z0-9]{43}`, []string{"dp.pt."}},                                                                                                 // Doppler token
+		{`\bPMAK-[a-fA-F0-9]{24}-[a-fA-F0-9]{34}`, []string{"PMAK-"}},                                                                                     // Postman API key
+		{`\bATATT3[A-Za-z0-9_=-]{186}`, []string{"ATATT3"}},                                                                                               // Atlassian API token
+		{`\b[A-Za-z0-9_~.]{3}[0-9]Q~[A-Za-z0-9_~.-]{31,34}`, []string{"Q~"}},                                                                              // Azure AD client secret
+		{`-----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----[\s\S]*?-----END[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----`, []string{"PRIVATE KEY"}}, // PEM or PGP private key
+	}
+
+	knownSecretValues = compileKnownSecretFormats()
+
+	// uriCredentials matches the password in "scheme://user:password@host" (as the
+	// default agent scrubber does), but requires a scheme so image references such as
+	// "nginx:1.25@sha256:..." are kept. Passwords can't hold "/": RFC 3986 requires
+	// it to be percent-encoded.
+	uriCredentials = regexp.MustCompile(`(?i)\b([a-z][a-z0-9+.-]*://[^:\s/@"]*:)[^\s"@/]+@`)
+
+	// bearerCredentials matches the token in an HTTP "Authorization: Bearer <token>".
+	bearerCredentials = regexp.MustCompile(`(?i)(\bbearer\s+)[A-Za-z0-9._~+/=-]{8,}`)
 )
+
+// secretKind says which regex a marker calls for.
+type secretKind uint8
+
+const (
+	knownFormatSecret secretKind = 1 << iota
+	uriCredentialsSecret
+	bearerSecret
+)
+
+// secretMarkersByFirstByte indexes every marker by its first byte, so a value is
+// checked for all of them in a single pass.
+var secretMarkersByFirstByte [256][]struct {
+	text string
+	kind secretKind
+}
+
+// compileKnownSecretFormats builds one regex matching any known secret format, and
+// indexes the markers of every regex.
+func compileKnownSecretFormats() *regexp.Regexp {
+	addMarker := func(text string, kind secretKind) {
+		secretMarkersByFirstByte[text[0]] = append(secretMarkersByFirstByte[text[0]], struct {
+			text string
+			kind secretKind
+		}{text, kind})
+	}
+	patterns := make([]string, 0, len(knownSecretFormats))
+	for _, f := range knownSecretFormats {
+		patterns = append(patterns, f.pattern)
+		for _, m := range f.markers {
+			addMarker(m, knownFormatSecret)
+		}
+	}
+	addMarker("://", uriCredentialsSecret)
+	for _, m := range []string{"Bearer", "bearer", "BEARER"} {
+		addMarker(m, bearerSecret)
+	}
+	return regexp.MustCompile(strings.Join(patterns, "|"))
+}
+
+// secretKindsIn returns the kinds of secrets whose markers s contains.
+func secretKindsIn(s string) secretKind {
+	var kinds secretKind
+	for i := 0; i < len(s); i++ {
+		for _, m := range secretMarkersByFirstByte[s[i]] {
+			if strings.HasPrefix(s[i:], m.text) {
+				kinds |= m.kind
+			}
+		}
+	}
+	return kinds
+}
 
 // DataScrubber allows the agent to block cmdline arguments that match
 // a list of predefined and custom words
@@ -98,7 +201,27 @@ func (ds *DataScrubber) ScrubAnnotationValue(annotationValue string) string {
 			annotationValue = r.ReplaceAllString(annotationValue, fmt.Sprintf(`${before_value}"%s"`, redactedSecret))
 		}
 	}
-	return annotationValue
+	return ds.ScrubKnownSecretValues(annotationValue)
+}
+
+// ScrubKnownSecretValues replaces credentials recognized by their format (see
+// knownSecretFormats), URL passwords and bearer tokens with ********, keeping the
+// rest of the string: "Bearer eyJ..." becomes "Bearer ********".
+func (ds *DataScrubber) ScrubKnownSecretValues(s string) string {
+	kinds := secretKindsIn(s)
+	if kinds == 0 {
+		return s
+	}
+	if kinds&knownFormatSecret != 0 {
+		s = knownSecretValues.ReplaceAllLiteralString(s, redactedSecret)
+	}
+	if kinds&uriCredentialsSecret != 0 {
+		s = uriCredentials.ReplaceAllString(s, "${1}"+redactedSecret+"@")
+	}
+	if kinds&bearerSecret != 0 {
+		s = bearerCredentials.ReplaceAllString(s, "${1}"+redactedSecret)
+	}
+	return s
 }
 
 // ScrubSimpleCommand hides the argument value for any key which matches a "sensitive word" pattern.
