@@ -160,7 +160,7 @@ new-e2e-installer:
       - EXTRA_PARAMS: --run "TestPackages/agent_"
       - EXTRA_PARAMS: --run "TestPackages/apm_inject_"
       - EXTRA_PARAMS: --run "TestPackages/ddot_"
-      - EXTRA_PARAMS: --run "TestPackages/upgrade_scenario_"
+      # TestPackages/upgrade_scenario_ runs in new-e2e-installer-upgrade-scenario.
       - EXTRA_PARAMS: --run "TestPackageAgentFapolicyd"
 
 new-e2e-installer-ansible:
@@ -191,5 +191,33 @@ new-e2e-installer-ansible:
     matrix:
       - EXTRA_PARAMS: --run "TestPackages/agent_"
       - EXTRA_PARAMS: --run "TestPackages/apm_inject_"
-      - EXTRA_PARAMS: --run "TestPackages/upgrade_scenario_"
+      # TestPackages/upgrade_scenario_ runs in new-e2e-installer-ansible-upgrade-scenario.
       - EXTRA_PARAMS: --run "TestPackageAgentFapolicyd"
+
+# The upgrade scenarios are the largest installer matrix (about half of its VMs).
+# They run automatically on deploy pipelines (nightlies, RCs) and on branches that
+# change installer or e2e code, but are manual on ordinary main pushes.
+.new_e2e_installer_upgrade_scenario_rules:
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.on_deploy]
+    # Keep main pushes manual before evaluating the path-based rules.
+    - !reference [.on_main_manual]
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
+
+new-e2e-installer-upgrade-scenario:
+  extends:
+    - new-e2e-installer
+    - .new_e2e_installer_upgrade_scenario_rules
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestPackages/upgrade_scenario_"
+
+new-e2e-installer-ansible-upgrade-scenario:
+  extends:
+    - new-e2e-installer-ansible
+    - .new_e2e_installer_upgrade_scenario_rules
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run "TestPackages/upgrade_scenario_"
