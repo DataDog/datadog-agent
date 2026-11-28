@@ -28,6 +28,7 @@ type DBMAuroraListener struct {
 	newService   chan<- Service
 	delService   chan<- Service
 	stop         chan bool
+	done         chan struct{}
 	services     map[string]Service
 	config       aws.Config
 	awsRdsClient aws.RdsClient
@@ -82,12 +83,16 @@ func newDBMAuroraListener(config aws.Config, awsClient aws.RdsClient, ticks <-ch
 func (l *DBMAuroraListener) Listen(newSvc, delSvc chan<- Service) {
 	l.newService = newSvc
 	l.delService = delSvc
+	l.done = make(chan struct{})
 	go l.run()
 }
 
 // Stop stops the listener
 func (l *DBMAuroraListener) Stop() {
-	l.stop <- true
+	close(l.stop)
+	if l.done != nil {
+		<-l.done
+	}
 	if l.ticker != nil {
 		l.ticker.Stop()
 	}
@@ -95,6 +100,7 @@ func (l *DBMAuroraListener) Stop() {
 
 // run is the main loop for the aurora listener discovery
 func (l *DBMAuroraListener) run() {
+	defer close(l.done)
 	for {
 		l.discoverAuroraClusters()
 		select {
@@ -151,18 +157,30 @@ func (l *DBMAuroraListener) createService(entityID, clusterID string, instance a
 		log.Debugf("aurora service %v already exists but is not equal to the new service", svc)
 		// If the cached service is not equal to the new service then metadata has changed
 		// Delete the cached service first and then send the updated one to the newSvc channel.
-		l.delService <- existing
+		select {
+		case l.delService <- existing:
+		case <-l.stop:
+			return
+		}
 		delete(l.services, entityID)
 	}
 	log.Debugf("adding aurora service %v", svc)
 	l.services[entityID] = svc
-	l.newService <- svc
+	select {
+	case l.newService <- svc:
+	case <-l.stop:
+		return
+	}
 }
 
 func (l *DBMAuroraListener) deleteServices(entityIDs []string) {
 	for _, entityID := range entityIDs {
 		if svc, present := l.services[entityID]; present {
-			l.delService <- svc
+			select {
+			case l.delService <- svc:
+			case <-l.stop:
+				return
+			}
 			delete(l.services, entityID)
 		}
 	}

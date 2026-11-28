@@ -145,14 +145,22 @@ func (l *workloadmetaListenerImpl) AddService(svcID string, svc Service, parentS
 		}
 
 		log.Tracef("%s received an updated service '%s', removing the old one", l.name, svc.GetServiceID())
-		l.delService <- old
+		select {
+		case l.delService <- old:
+		case <-l.stop:
+			return
+		}
 		if l.telemetryStore != nil {
 			l.telemetryStore.WatchedResources.Dec(l.name, kind)
 		}
 	}
 
 	l.services[svcID] = svc
-	l.newService <- svc
+	select {
+	case l.newService <- svc:
+	case <-l.stop:
+		return
+	}
 	if l.telemetryStore != nil {
 		l.telemetryStore.WatchedResources.Inc(l.name, kind)
 	}
@@ -350,7 +358,11 @@ func (l *workloadmetaListenerImpl) removeService(svcID string) {
 	}
 
 	delete(l.services, svcID)
-	l.delService <- svc
+	select {
+	case l.delService <- svc:
+	case <-l.stop:
+		return
+	}
 	if l.telemetryStore != nil {
 		l.telemetryStore.WatchedResources.Dec(l.name, kindFromSvcID(svcID))
 	}

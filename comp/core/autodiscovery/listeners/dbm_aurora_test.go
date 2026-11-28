@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -449,56 +450,75 @@ func TestDBMAuroraListener(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			newSvc := make(chan Service, 10)
-			delSvc := make(chan Service, 10)
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-			mockConfig := configmock.New(t)
-			mockConfig.SetInTest("autodiscover_aurora_clusters", map[string]interface{}{"discovery_interval": tc.config.DiscoveryInterval, "query_timeout": tc.config.QueryTimeout, "region": tc.config.Region, "tags": tc.config.Tags, "dbm_tag": tc.config.DbmTag, "global_view_db_tag": tc.config.GlobalViewDbTag})
+			synctest.Test(t, func(t *testing.T) {
+				newSvc := make(chan Service, 10)
+				delSvc := make(chan Service, 10)
+				ctrl := gomock.NewController(t)
+				defer ctrl.Finish()
+				mockConfig := configmock.New(t)
+				mockConfig.SetInTest("autodiscover_aurora_clusters", map[string]interface{}{"discovery_interval": tc.config.DiscoveryInterval, "query_timeout": tc.config.QueryTimeout, "region": tc.config.Region, "tags": tc.config.Tags, "dbm_tag": tc.config.DbmTag, "global_view_db_tag": tc.config.GlobalViewDbTag})
 
-			mockAWSClient := aws.NewMockRdsClient(ctrl)
-			tc.rdsClientConfigurer(mockAWSClient)
-			ticks := make(chan time.Time, 1)
-			l := newDBMAuroraListener(tc.config, mockAWSClient, ticks)
-			if tc.initialServices != nil {
-				l.(*DBMAuroraListener).services = tc.initialServices
-			}
-			l.Listen(newSvc, delSvc)
-			// execute loop
-			for i := 0; i < tc.numDiscoveryIntervals; i++ {
-				ticks <- time.Now()
-			}
-
-			// shutdown service, and get output from channels
-			l.Stop()
-			close(newSvc)
-			close(delSvc)
-
-			// assert that the expected new services were created
-			createdServices := make([]*DBMAuroraService, 0)
-			for newService := range newSvc {
-				dbmAuroraService, ok := newService.(*DBMAuroraService)
-				if !ok {
-					require.Fail(t, "received service of incorrect type on service chan")
+				mockAWSClient := aws.NewMockRdsClient(ctrl)
+				tc.rdsClientConfigurer(mockAWSClient)
+				ticks := make(chan time.Time, 1)
+				l := newDBMAuroraListener(tc.config, mockAWSClient, ticks)
+				if tc.initialServices != nil {
+					l.(*DBMAuroraListener).services = tc.initialServices
 				}
-				createdServices = append(createdServices, dbmAuroraService)
-			}
-			assert.Equal(t, len(tc.expectedServices), len(createdServices))
-			assert.ElementsMatch(t, tc.expectedServices, createdServices)
-
-			// assert that the expected deleted services were created
-			deletedServices := make([]*DBMAuroraService, 0)
-			for delService := range delSvc {
-				dbmAuroraService, ok := delService.(*DBMAuroraService)
-				if !ok {
-					require.Fail(t, "received service of incorrect type on service chan")
+				l.Listen(newSvc, delSvc)
+				// execute loop
+				for i := 0; i < tc.numDiscoveryIntervals; i++ {
+					ticks <- time.Now()
 				}
-				deletedServices = append(deletedServices, dbmAuroraService)
-			}
-			assert.Equal(t, len(tc.expectedDelServices), len(deletedServices))
-			assert.ElementsMatch(t, tc.expectedDelServices, deletedServices)
+
+				synctest.Wait()
+
+				// shutdown service, and get output from channels
+				l.Stop()
+				close(newSvc)
+				close(delSvc)
+
+				// assert that the expected new services were created
+				createdServices := make([]*DBMAuroraService, 0)
+				for newService := range newSvc {
+					dbmAuroraService, ok := newService.(*DBMAuroraService)
+					if !ok {
+						require.Fail(t, "received service of incorrect type on service chan")
+					}
+					createdServices = append(createdServices, dbmAuroraService)
+				}
+				assert.Equal(t, len(tc.expectedServices), len(createdServices))
+				assert.ElementsMatch(t, tc.expectedServices, createdServices)
+
+				// assert that the expected deleted services were created
+				deletedServices := make([]*DBMAuroraService, 0)
+				for delService := range delSvc {
+					dbmAuroraService, ok := delService.(*DBMAuroraService)
+					if !ok {
+						require.Fail(t, "received service of incorrect type on service chan")
+					}
+					deletedServices = append(deletedServices, dbmAuroraService)
+				}
+				assert.Equal(t, len(tc.expectedDelServices), len(deletedServices))
+				assert.ElementsMatch(t, tc.expectedDelServices, deletedServices)
+			})
 		})
 	}
+}
+
+func TestDBMAuroraStopWithBlockedServiceSend(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		client := aws.NewMockRdsClient(gomock.NewController(t))
+		clusters := []types.DBCluster{{DBClusterIdentifier: awsaws.String("cluster")}}
+		client.EXPECT().GetAuroraClustersFromTags(gomock.Any(), gomock.Any()).Return(clusters, nil)
+		client.EXPECT().GetAuroraClusterEndpoints(gomock.Any(), clusters, gomock.Any()).Return(
+			[]aws.Instance{{ClusterID: "cluster", Engine: "aurora-postgresql"}}, nil)
+		listener := newDBMAuroraListener(aws.Config{QueryTimeout: 1}, client, make(chan time.Time))
+		listener.Listen(make(chan Service), make(chan Service))
+		synctest.Wait()
+		// With no receiver, Stop must unblock the service send.
+		listener.Stop()
+	})
 }
 
 func TestGetExtraAuroraConfig(t *testing.T) {
