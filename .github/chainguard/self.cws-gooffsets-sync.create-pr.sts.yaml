@@ -1,0 +1,16 @@
+issuer: https://token.actions.githubusercontent.com
+
+subject_pattern: repo:DataDog/datadog-agent:ref:refs/heads/.*
+
+claim_pattern:
+  event_name: (workflow_dispatch|schedule)
+  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/cws-gooffsets-sync\.yml@refs/heads/main
+  ref: refs/heads/.*
+  repository: DataDog/datadog-agent
+
+permissions:
+  contents: write
+  pull_requests: write
+  # Required when targeting a non-main branch: the new PR branch lags main under
+  # .github/workflows, which GitHub refuses to create without this (see #49532).
+  workflows: write
