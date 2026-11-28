@@ -8,10 +8,13 @@ package ssi
 import (
 	"context"
 	"fmt"
+	"slices"
+	"sort"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -213,7 +216,7 @@ func noInjection(container string) func(*corev1.Pod) bool {
 // (AgentPayload.IdxTracerPayloads). The convert-traces feature is enabled by
 // default, so real traffic now lands in IdxTracerPayloads, but checking both
 // keeps the helper correct regardless of the `disable-convert-traces` flag.
-func FindTracesForService(t *testing.T, intake *fakeintake.Client, serviceName string) int {
+func FindTracesForService(t require.TestingT, intake *fakeintake.Client, serviceName string) int {
 	serviceNameTag := "service:" + serviceName
 
 	// containerTagsMatch reports whether the given comma-separated container tags
@@ -246,6 +249,73 @@ func FindTracesForService(t *testing.T, intake *fakeintake.Client, serviceName s
 	}
 
 	return found
+}
+
+// RequireTracesForService fails the test if no tracer payload for serviceName reaches
+// the fake intake within a minute. On failure it logs what the intake received and
+// the APM env of the app pod.
+func RequireTracesForService(t *testing.T, intake *fakeintake.Client, pod *corev1.Pod, serviceName string) {
+	t.Helper()
+	if assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.NotZero(c, FindTracesForService(c, intake, serviceName))
+	}, 1*time.Minute, 10*time.Second, "did not find any traces at intake for DD_SERVICE %s", serviceName) {
+		return
+	}
+	t.Log(describeIntakeTraces(intake))
+	t.Log(describeAPMEnv(pod))
+	t.FailNow()
+}
+
+// describeIntakeTraces summarizes the tracer payloads at the fake intake as distinct
+// (container ID, _dd.tags.container) pairs.
+func describeIntakeTraces(intake *fakeintake.Client) string {
+	payloads, err := intake.GetTraces()
+	if err != nil {
+		return fmt.Sprintf("fake intake traces: error: %v", err)
+	}
+	seen := map[string]struct{}{}
+	add := func(containerID, tags string, ok bool) {
+		if !ok {
+			tags = "<none>"
+		}
+		seen[fmt.Sprintf("container_id=%q _dd.tags.container=%q", containerID, tags)] = struct{}{}
+	}
+	for _, payload := range payloads {
+		for _, tp := range payload.TracerPayloads {
+			tags, ok := tp.Tags["_dd.tags.container"]
+			add(tp.ContainerID, tags, ok)
+		}
+		for _, tp := range payload.IdxTracerPayloads {
+			tags, ok := idxStrAttr(tp.Strings, tp.Attributes, "_dd.tags.container")
+			add(idxStr(tp.Strings, tp.ContainerIDRef), tags, ok)
+		}
+	}
+	lines := make([]string, 0, len(seen))
+	for line := range seen {
+		lines = append(lines, "  "+line)
+	}
+	sort.Strings(lines)
+	return fmt.Sprintf("fake intake traces: %d payloads, distinct tracer payload origins:\n%s", len(payloads), strings.Join(lines, "\n"))
+}
+
+// describeAPMEnv lists the env vars that drive trace delivery in each container of the pod.
+func describeAPMEnv(pod *corev1.Pod) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "APM env of pod %s/%s:", pod.Namespace, pod.Name)
+	keys := []string{"DD_AGENT_HOST", "DD_TRACE_AGENT_URL", "DD_EXTERNAL_ENV", "DD_SERVICE"}
+	for _, c := range pod.Spec.Containers {
+		for _, e := range c.Env {
+			if !slices.Contains(keys, e.Name) {
+				continue
+			}
+			value := e.Value
+			if e.ValueFrom != nil {
+				value = e.ValueFrom.String()
+			}
+			fmt.Fprintf(&b, "\n  %s: %s=%s", c.Name, e.Name, value)
+		}
+	}
+	return b.String()
 }
 
 // idxStr resolves a string-table reference to its value. Reference 0 is the
