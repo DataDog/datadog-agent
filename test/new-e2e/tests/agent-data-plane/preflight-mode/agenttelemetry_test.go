@@ -112,7 +112,7 @@ func TestParseAgentTelemetryMetrics(t *testing.T) {
 			"agent_metadata": {"hostname": "h", "os": "linux"},
 			"data_plane.preflight_mode_duration_seconds": {"tags": {"emitter": "agent"}, "type": "gauge", "value": 181.5},
 			"data_plane.preflight_mode_finding": {
-				"tags": {"emitter": "agent", "finding": "spawn_failed", "source_file": "", "source_line": "", "spawn_error": "read_only", "spawn_stage": "workdir"},
+				"tags": {"emitter": "agent", "finding": "spawn_failed", "source_file": "", "source_line": "", "config_key": "", "worker_name": "", "spawn_error": "read_only", "spawn_stage": "workdir"},
 				"type": "counter",
 				"value": 1
 			},

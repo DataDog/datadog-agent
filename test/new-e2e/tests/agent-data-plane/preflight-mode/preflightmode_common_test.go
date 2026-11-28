@@ -89,12 +89,11 @@ const (
 // those whose value is empty for that finding.
 //
 // preflightModeFindingTagKeys must match the preserve_tags of data_plane.preflight_mode_finding
-// in comp/core/agenttelemetry/impl/defaultProfiles.yaml exactly. datadog-agent#61182 adds
-// config_key and worker_name to that list: whichever of #61182 and #61183 merges second must add
-// the other's keys here.
+// in comp/core/agenttelemetry/impl/defaultProfiles.yaml exactly, so a label added to that list
+// must be added here too.
 var (
 	preflightModeResultTagKeys   = []string{"emitter", "result"}
-	preflightModeFindingTagKeys  = []string{"emitter", "finding", "source_file", "source_line", "spawn_stage", "spawn_error"}
+	preflightModeFindingTagKeys  = []string{"emitter", "finding", "source_file", "source_line", "config_key", "worker_name", "spawn_stage", "spawn_error"}
 	preflightModeDurationTagKeys = []string{"emitter"}
 )
 

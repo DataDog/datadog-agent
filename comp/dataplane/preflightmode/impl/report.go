@@ -62,6 +62,10 @@ const (
 	// populated for the findings that come from an ADP log record. See sourceLocation.
 	labelSourceFile = "source_file"
 	labelSourceLine = "source_line"
+	// labelConfigKey and labelWorkerName carry what the record logged from that site is about,
+	// and are only populated for the few log sites listed in subjectTargets. See normalizeSubject.
+	labelConfigKey  = "config_key"
+	labelWorkerName = "worker_name"
 	// labelSpawnStage and labelSpawnError carry the step a spawn_failed run failed at and the
 	// class of the error, and are only populated for that finding. See spawnFailure.
 	labelSpawnStage = "spawn_stage"
@@ -78,7 +82,7 @@ const maxReportedLocations = 10
 
 // locationNone is the location reported for a finding that did not come from an ADP log record.
 //
-// The metric's label set is fixed, so every point carries both location labels whether or not
+// The metric's label set is fixed, so every point carries all the location labels whether or not
 // the finding has a location to put in them, and an empty value is how "not applicable" is
 // expressed. Deliberately not a placeholder string, which could not be told apart from a
 // location ADP actually reported.
@@ -156,9 +160,50 @@ func (o *outcome) reportedLocations(f finding) []sourceLocation {
 		return locations
 	}
 
+	return capLocations(locations, maxReportedLocations)
+}
+
+// capLocations keeps at most limit of locations and replaces each of the others with
+// locationOverflow, so the result still has one point per location observed.
+//
+// A log site comes before a subject: one compatibility check that rejects many keys logs them
+// all from one site, and it must not push a different site out of the budget. So the first
+// location seen at each distinct file and line is kept first, in first-seen order, and the budget
+// left over goes to the other subjects at those sites, again in first-seen order. The kept
+// locations stay in the order they were observed.
+func capLocations(locations []sourceLocation, limit int) []sourceLocation {
+	keep := make([]bool, len(locations))
+	kept := 0
+	sites := make(map[sourceLocation]struct{})
+	for i, loc := range locations {
+		site := sourceLocation{file: loc.file, line: loc.line}
+		if _, seen := sites[site]; seen || kept == limit {
+			continue
+		}
+		sites[site] = struct{}{}
+		keep[i] = true
+		kept++
+	}
+	for i := range locations {
+		if kept == limit {
+			break
+		}
+		if !keep[i] {
+			keep[i] = true
+			kept++
+		}
+	}
+
 	capped := make([]sourceLocation, 0, len(locations))
-	capped = append(capped, locations[:maxReportedLocations]...)
-	for range locations[maxReportedLocations:] {
+	var overflow int
+	for i, loc := range locations {
+		if keep[i] {
+			capped = append(capped, loc)
+		} else {
+			overflow++
+		}
+	}
+	for range overflow {
 		capped = append(capped, locationOverflow)
 	}
 	return capped
@@ -177,10 +222,13 @@ func (o *outcome) result() string {
 //
 // What reaches Datadog stays bounded: the result, finding, spawn stage and spawn error labels
 // come from constants, and the only values read out of ADP's output are the log site a finding
-// came from — a file path and a line number, which ADP's logger fills in from file!() and line!(), so they
-// are compile-time constants of its build rather than anything operator-controlled. Both are
+// came from — a file path and a line number, which ADP's logger fills in from file!() and
+// line!(), so they are compile-time constants of its build rather than anything
+// operator-controlled — and, for a few known log sites, the config key or worker name the record
+// names. Those come from closed, code-determined sets; see subjectTargets. All of them are
 // validated and the number of distinct locations per finding is capped, because cardinality here
-// is a cost paid by every Agent in the fleet. Nothing derived from a log *message* is shipped.
+// is a cost paid by every Agent in the fleet. Nothing derived from a log *message* is shipped,
+// and no configuration value is.
 type reporter struct {
 	log      logcomp.Component
 	result   telemetry.Counter
@@ -194,8 +242,8 @@ func newReporter(log logcomp.Component, tlm telemetry.Component) *reporter {
 		result: tlm.NewCounter(telemetrySubsystem, metricResult, []string{labelResult},
 			"Outcome of the most recent Agent Data Plane preflight-mode run"),
 		finding: tlm.NewCounter(telemetrySubsystem, metricFinding,
-			[]string{labelFinding, labelSourceFile, labelSourceLine, labelSpawnStage, labelSpawnError},
-			"Individual problems observed during an Agent Data Plane preflight-mode run, tagged with the Agent Data Plane source location that logged the problem where it has one, and with the stage and error class of a failure to start Agent Data Plane"),
+			[]string{labelFinding, labelSourceFile, labelSourceLine, labelConfigKey, labelWorkerName, labelSpawnStage, labelSpawnError},
+			"Individual problems observed during an Agent Data Plane preflight-mode run, tagged with the Agent Data Plane source location that logged the problem and the config key or worker name it names where it has them, and with the stage and error class of a failure to start Agent Data Plane"),
 		duration: tlm.NewGauge(telemetrySubsystem, metricDuration, nil,
 			"Wall-clock seconds the most recent Agent Data Plane preflight-mode run took"),
 	}
@@ -222,7 +270,7 @@ func (r *reporter) report(o *outcome) {
 		// while the count of runs that hit the finding at all comes from the result metric.
 		stage, class := o.spawnLabels(f)
 		for _, loc := range o.reportedLocations(f) {
-			r.finding.Inc(string(f), loc.file, loc.line, stage, class)
+			r.finding.Inc(string(f), loc.file, loc.line, loc.configKey, loc.workerName, stage, class)
 		}
 	}
 

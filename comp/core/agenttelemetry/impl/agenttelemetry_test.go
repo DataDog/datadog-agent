@@ -3208,9 +3208,10 @@ func TestAgentPerformanceProfilePreservesContainerTags(t *testing.T) {
 // The label allowlists matter just as much: an unlisted label is stripped and its
 // timeseries summed into the others, which would collapse every distinct finding into one
 // meaningless number — and for source_file/source_line, every log site a finding was
-// reported from into one. The matching tripwires on the producing side are
-// TestFindingsAreAllowlisted and TestTelemetryNamesAreStable in
-// comp/dataplane/preflightmode/impl.
+// reported from into one, and for config_key/worker_name, every key or worker a log site
+// named into one, and for spawn_stage/spawn_error, every way a spawn can fail into one. The
+// matching tripwires on the producing side are TestFindingsAreAllowlisted and
+// TestTelemetryNamesAreStable in comp/dataplane/preflightmode/impl.
 func TestDataPlanePreflightModeProfile(t *testing.T) {
 	cfg := configmock.NewFromYAML(t, defaultProfiles)
 	atCfg, err := parseConfig(cfg)
@@ -3228,7 +3229,7 @@ func TestDataPlanePreflightModeProfile(t *testing.T) {
 
 	wantTags := map[string][]string{
 		"data_plane.preflight_mode_result":           {"result"},
-		"data_plane.preflight_mode_finding":          {"finding", "source_file", "source_line", "spawn_stage", "spawn_error"},
+		"data_plane.preflight_mode_finding":          {"finding", "source_file", "source_line", "config_key", "worker_name", "spawn_stage", "spawn_error"},
 		"data_plane.preflight_mode_duration_seconds": nil,
 	}
 
@@ -3263,6 +3264,50 @@ func TestDataPlanePreflightModeProfile(t *testing.T) {
 	require.NotNil(t, profile.Metric.Exclude.ZeroMetric)
 	assert.True(t, *profile.Metric.Exclude.ZeroMetric,
 		"zero_metric exclusion is what keeps the recurring schedule from re-shipping the same run")
+}
+
+// TestDataPlanePreflightModeFindingExport runs the preflight finding metric through the real
+// default profile and the exporter, rather than only reading the allowlist. Two config keys
+// logged from the same site, and a supervisor finding, must reach the payload as separate
+// timeseries with their tags intact, alongside a spawn_failed finding carrying its spawn labels.
+func TestDataPlanePreflightModeFindingExport(t *testing.T) {
+	tel := makeTelMock(t)
+	finding := tel.NewCounter("data_plane", "preflight_mode_finding",
+		[]string{"finding", "source_file", "source_line", "config_key", "worker_name", "spawn_stage", "spawn_error"}, "")
+
+	const compat = "lib/agent-data-plane-config-system/src/compatibility.rs"
+	const supervisor = "lib/saluki-core/src/runtime/supervisor.rs"
+	finding.Inc("errors_in_log", compat, "59", "heroku_dyno", "", "", "")
+	finding.Inc("errors_in_log", compat, "59", "otlp_config.receiver.protocols.http.tls.cert_pem", "", "", "")
+	finding.Inc("errors_in_log", supervisor, "1421", "", "ctrl-pln/privileged-api", "", "")
+	finding.Inc("spawn_failed", "", "", "", "", "workdir", "read_only")
+
+	// No profiles are configured, so the default profiles apply.
+	s := &senderMock{}
+	r := newRunnerMock()
+	a := getTestAtel(t, tel, "agent_telemetry:\n  enabled: true\n", s, nil, r)
+	require.True(t, a.enabled)
+	a.start()
+	r.(*runnerMock).run()
+
+	var sent []*dto.Metric
+	for _, m := range s.sentMetrics {
+		if m.name == "data_plane.preflight_mode_finding" {
+			sent = append(sent, m.metrics...)
+		}
+	}
+	metrics := makeStableMetricMap(sent)
+	require.Len(t, metrics, 4, "each config key, worker and spawn failure must be its own timeseries")
+
+	key := func(f, file, line, configKey, workerName, stage, class string) string {
+		return "config_key:" + configKey + ":finding:" + f + ":source_file:" + file +
+			":source_line:" + line + ":spawn_error:" + class + ":spawn_stage:" + stage +
+			":worker_name:" + workerName + ":"
+	}
+	assert.Contains(t, metrics, key("errors_in_log", compat, "59", "heroku_dyno", "", "", ""))
+	assert.Contains(t, metrics, key("errors_in_log", compat, "59", "otlp_config.receiver.protocols.http.tls.cert_pem", "", "", ""))
+	assert.Contains(t, metrics, key("errors_in_log", supervisor, "1421", "", "ctrl-pln/privileged-api", "", ""))
+	assert.Contains(t, metrics, key("spawn_failed", "", "", "", "", "workdir", "read_only"))
 }
 
 func TestAgentTelemetryParseDefaultConfiguration(t *testing.T) {

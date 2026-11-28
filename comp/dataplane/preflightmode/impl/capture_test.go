@@ -48,6 +48,16 @@ const (
 	realWarnInvalidAPIKey = `{"timestamp":"2026-07-27T19:31:11.910356Z","level":"WARN","message":"Datadog API key is invalid.","endpoint":"https://1-4-0-adp.agent.datadoghq.com/","validation_endpoint":"https://api.datadoghq.com/","target":"saluki_components::common::datadog::validation","filename":"lib/saluki-components/src/common/datadog/validation.rs","line_number":286,"span":{"id":"dd_out","type":"forwarder","name":"component"}}`
 )
 
+// The fixtures below are verbatim output from agent-data-plane 1.7.1
+// (datadog/agent-data-plane:1.7.1), run with dogstatsd_metrics_stats_enable and heroku_dyno set.
+// ADP's configuration compatibility check logs the key of each setting it warns about or
+// rejects, and then refuses to start if it rejects any.
+const (
+	realWarnPartialKey = `{"timestamp":"2026-11-23T21:50:56.733437Z","level":"WARN","message":"Partially supported configuration key. See documentation for details. Proceeding.","key":"dogstatsd_metrics_stats_enable","target":"agent_data_plane_config_system::compatibility","filename":"lib/agent-data-plane-config-system/src/compatibility.rs","line_number":53}`
+
+	realErrorIncompatibleKey = `{"timestamp":"2026-11-23T21:50:56.733914Z","level":"ERROR","message":"Unsupported configuration key with non-default value. ADP cannot run safely with this setting.","key":"heroku_dyno","target":"agent_data_plane_config_system::compatibility","filename":"lib/agent-data-plane-config-system/src/compatibility.rs","line_number":59}`
+)
+
 // The standalone-mode warning as later ADP versions log it, captured verbatim from
 // registry.datadoghq.com/agent-data-plane:<version> run with the preflight mode configuration.
 // The message is unchanged, but ADP 1.8.0 moved the log site into the datadog-agent-runtime
@@ -414,7 +424,37 @@ func TestParseRecordRealRecords(t *testing.T) {
 			wantLevel:       levelError,
 			wantTarget:      "saluki_core::runtime::supervisor",
 			wantSigContains: "Failed to build source 'dsd_in'",
-			wantLocation:    sourceLocation{file: "lib/saluki-core/src/runtime/supervisor.rs", line: "938"},
+			wantLocation: sourceLocation{
+				file:       "lib/saluki-core/src/runtime/supervisor.rs",
+				line:       "938",
+				workerName: "primary",
+			},
+		},
+		{
+			name:            "WARN for a partially supported config key",
+			line:            realWarnPartialKey,
+			wantOK:          true,
+			wantLevel:       levelWarn,
+			wantTarget:      "agent_data_plane_config_system::compatibility",
+			wantSigContains: "Partially supported configuration key",
+			wantLocation: sourceLocation{
+				file:      "lib/agent-data-plane-config-system/src/compatibility.rs",
+				line:      "53",
+				configKey: "dogstatsd_metrics_stats_enable",
+			},
+		},
+		{
+			name:            "ERROR for an incompatible config key",
+			line:            realErrorIncompatibleKey,
+			wantOK:          true,
+			wantLevel:       levelError,
+			wantTarget:      "agent_data_plane_config_system::compatibility",
+			wantSigContains: "Unsupported configuration key",
+			wantLocation: sourceLocation{
+				file:      "lib/agent-data-plane-config-system/src/compatibility.rs",
+				line:      "59",
+				configKey: "heroku_dyno",
+			},
 		},
 	}
 
@@ -622,13 +662,102 @@ func TestCaptureKeepsOneRecordPerLogSite(t *testing.T) {
 	}, locationsOf(records, isError))
 }
 
+// TestParseRecordSubject covers the config key and worker name the log findings are tagged with.
+// Both are read out of ADP's output, so they are only kept from the log sites known to fill them
+// from a closed set, and only when the value looks like one.
+func TestParseRecordSubject(t *testing.T) {
+	const (
+		compat     = `"target":"agent_data_plane_config_system::compatibility"`
+		supervisor = `"target":"saluki_core::runtime::supervisor"`
+	)
+	tests := []struct {
+		name           string
+		fields         string
+		wantConfigKey  subjectField
+		wantWorkerName subjectField
+	}{
+		{
+			name:          "a config key from the compatibility check is kept",
+			fields:        compat + `,"key":"otlp_config.receiver.protocols.http.tls.cert_pem"`,
+			wantConfigKey: "otlp_config.receiver.protocols.http.tls.cert_pem",
+		},
+		{
+			// Before ADP 1.7 the compatibility check lived in the run command.
+			name:          "a config key from the pre-1.7 compatibility check is kept",
+			fields:        `"target":"agent_data_plane::cli::run","key":"heroku_dyno"`,
+			wantConfigKey: "heroku_dyno",
+		},
+		{
+			// "key" is a generic field name. Another log site could fill it with anything.
+			name:   "a key from any other target is dropped",
+			fields: `"target":"saluki_components::sources::dogstatsd","key":"heroku_dyno"`,
+		},
+		{
+			name:           "a nested worker name from the supervisor is kept",
+			fields:         supervisor + `,"worker_name":"ctrl-pln/privileged-api"`,
+			wantWorkerName: "ctrl-pln/privileged-api",
+		},
+		{
+			name:   "a worker name from any other target is dropped",
+			fields: `"target":"saluki_core::runtime::worker_state","worker_name":"primary"`,
+		},
+		{
+			name:   "a worker name is not a config key",
+			fields: compat + `,"worker_name":"primary"`,
+		},
+		{
+			// The field is only a tag, so a value of the wrong type must not cost us the record.
+			name:   "a subject that is not a string is dropped",
+			fields: compat + `,"key":{"nested":1}`,
+		},
+		{
+			name:          "a subject carrying tag punctuation is reported as unknown",
+			fields:        compat + `,"key":"not a key, with: punctuation"`,
+			wantConfigKey: sourceUnknown,
+		},
+		{
+			// Rejected rather than truncated: half a name still looks like a real one.
+			name:           "an overlong subject is reported as unknown",
+			fields:         supervisor + `,"worker_name":"` + strings.Repeat("x", maxSubjectLen+1) + `"`,
+			wantWorkerName: sourceUnknown,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := parseRecord(`{"level":"ERROR","message":"boom",` + tt.fields + `}`)
+			require.True(t, ok, "a record must never be lost over its subject")
+			assert.Equal(t, tt.wantConfigKey, got.ConfigKey)
+			assert.Equal(t, tt.wantWorkerName, got.WorkerName)
+		})
+	}
+}
+
+// TestCaptureKeepsOneRecordPerSubject pins why the subject is part of the location: ADP logs
+// every incompatible key from the same site, and each key is a separate problem to report.
+func TestCaptureKeepsOneRecordPerSubject(t *testing.T) {
+	other := strings.Replace(realErrorIncompatibleKey, `"key":"heroku_dyno"`, `"key":"use_dogstatsd"`, 1)
+
+	records, dropped := captureOf(t, realErrorIncompatibleKey, other, realErrorIncompatibleKey)
+	assert.Zero(t, dropped, "a duplicate loses no information, so it is not a drop")
+	withKey := func(key string) sourceLocation {
+		return sourceLocation{
+			file:      "lib/agent-data-plane-config-system/src/compatibility.rs",
+			line:      "59",
+			configKey: key,
+		}
+	}
+	assert.Equal(t, []sourceLocation{withKey("heroku_dyno"), withKey("use_dogstatsd")},
+		locationsOf(records, isError))
+}
+
 // TestLocationsOfIsFirstSeenOrder matters because the cap on how many locations a finding is
 // reported with keeps a prefix of this, and the earliest log sites are the explanatory ones.
 func TestLocationsOfIsFirstSeenOrder(t *testing.T) {
 	records, _ := captureOf(t, realWarnStandalone, realErrorSupervisor, realErrorDsdBind, realWarnInvalidAPIKey)
 
 	assert.Equal(t, []sourceLocation{
-		{file: "lib/saluki-core/src/runtime/supervisor.rs", line: "938"},
+		{file: "lib/saluki-core/src/runtime/supervisor.rs", line: "938", workerName: "primary"},
 		{file: "bin/agent-data-plane/src/main.rs", line: "195"},
 	}, locationsOf(records, isError))
 	// The standalone-mode warning is provoked by preflight mode itself, so it is not reported.

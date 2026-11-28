@@ -808,6 +808,14 @@ profiles:
       # empty. They are bounded on the producing side: the values come from ADP's `file!()`/`line!()` rather than
       # from any log message, and the number of distinct locations reported per finding is capped.
       #
+      # `config_key` and `worker_name` say what the problem is about, for the few log sites where the location alone
+      # cannot: the configuration key ADP's compatibility check warned about or rejected, and the name of the child
+      # that the supervisor reported as failed. Every other point carries them empty. They are bounded on the
+      # producing side too: each is only read from records logged by specific ADP modules, and those modules fill it
+      # from a closed set. Config keys come from ADP's generated configuration classifier and are never values.
+      # Worker names are string constants in ADP's source. See `subjectTargets` in
+      # `comp/dataplane/preflightmode/impl/capture.go`.
+      #
       # `spawn_stage` and `spawn_error` are the step a `spawn_failed` run failed at and the class of its error, and
       # are only populated for that finding. Both come from closed sets of constants, never from error text.
       - name: data_plane.preflight_mode_finding
@@ -815,6 +823,8 @@ profiles:
           - finding
           - source_file
           - source_line
+          - config_key
+          - worker_name
           - spawn_stage
           - spawn_error
       - name: data_plane.preflight_mode_duration_seconds
