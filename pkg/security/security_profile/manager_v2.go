@@ -17,8 +17,10 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	ebpfmanager "github.com/DataDog/ebpf-manager"
@@ -144,6 +146,16 @@ type persistenceMetrics struct {
 	persistedProfiles *atomic.Uint64
 }
 
+type resolvedCgroupCacheEntry struct {
+	tags        []string
+	tagsPtr     *string
+	tagsLen     int
+	imageTag    string
+	hasSelector bool
+	selector    cgroupModel.WorkloadSelector
+	workload    *tags.Workload
+}
+
 type ManagerV2 struct {
 	config        *config.Config
 	statsdClient  statsd.ClientInterface
@@ -188,6 +200,7 @@ type ManagerV2 struct {
 
 	// Track cgroups with resolved tags (for cgroups_resolved gauge)
 	resolvedCgroups     map[containerutils.CGroupID]struct{}
+	cgroupTagCache      map[containerutils.CGroupID]*resolvedCgroupCacheEntry
 	resolvedCgroupsLock sync.Mutex
 
 	// Pending profile removals (selector -> time when removal was queued)
@@ -369,6 +382,7 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpfM
 		eventFiltering:              make(map[eventFilteringEntry]*atomic.Uint64),
 		insertionErrors:             make(map[insertionErrorKey]*atomic.Uint64),
 		resolvedCgroups:             make(map[containerutils.CGroupID]struct{}),
+		cgroupTagCache:              make(map[containerutils.CGroupID]*resolvedCgroupCacheEntry),
 		pendingProfileRemovals:      make(map[cgroupModel.WorkloadSelector]time.Time),
 		sampleCookieMap:             cookieMap,
 		sampleRefreshReceived:       atomic.NewUint64(0),
@@ -639,6 +653,7 @@ func (m *ManagerV2) onCGroupDeleted(cgce *cgroupModel.CacheEntry) {
 	// Remove from resolvedCgroups
 	m.resolvedCgroupsLock.Lock()
 	delete(m.resolvedCgroups, cgroupID)
+	delete(m.cgroupTagCache, cgroupID)
 	m.resolvedCgroupsLock.Unlock()
 
 	var replacement *cgroupModel.CacheEntry
@@ -765,18 +780,30 @@ func (m *ManagerV2) persistProfile(p *profile.Profile) error {
 func (m *ManagerV2) persistProfileWithOptions(p *profile.Profile, localOnly bool, markSent bool) error {
 	enabled := p.IsEnabled()
 
-	// Group sibling files into patterns before encoding, even in
-	// directories below the insert-time fan-out threshold.
-	p.Lock()
-	if p.ActivityTree != nil {
-		p.ActivityTree.FinalizePatterns()
-		m.retargetSampleCookies(p, p.ActivityTree.Stats.TakeMovedNodes())
+	formats := make([]config.StorageFormat, 0, len(m.configuredStorageRequests))
+	for format, requests := range m.configuredStorageRequests {
+		for _, request := range requests {
+			if localOnly && request.Type != config.LocalStorage {
+				continue
+			}
+			// Avoid sending a disabled profile to the backend
+			if !enabled && request.Type != config.LocalStorage {
+				continue
+			}
+			formats = append(formats, format)
+			break
+		}
 	}
-	p.Unlock()
+
+	encoded, encodeErrs := p.EncodeFormats(formats, func() {
+		if p.ActivityTree != nil {
+			p.ActivityTree.FinalizePatterns()
+			m.retargetSampleCookies(p, p.ActivityTree.Stats.TakeMovedNodes())
+		}
+	})
 
 	var errs error
 	persistedAny := false
-	encoded := make(map[config.StorageFormat]*bytes.Buffer)
 	for format, requests := range m.configuredStorageRequests {
 		for _, request := range requests {
 			if localOnly && request.Type != config.LocalStorage {
@@ -787,17 +814,12 @@ func (m *ManagerV2) persistProfileWithOptions(p *profile.Profile, localOnly bool
 				continue
 			}
 
-			data, ok := encoded[format]
-			if !ok {
-				var err error
-				data, err = p.Encode(format)
-				if err != nil {
-					seclog.Errorf("couldn't encode profile [%s] to %s format: %v", p.GetSelectorStr(), format, err)
-					errs = errors.Join(errs, err)
-					break
-				}
-				encoded[format] = data
+			if err, hasErr := encodeErrs[format]; hasErr {
+				seclog.Errorf("couldn't encode profile [%s] to %s format: %v", p.GetSelectorStr(), format, err)
+				errs = errors.Join(errs, err)
+				break
 			}
+			data := encoded[format]
 
 			if err := m.persistProfileToStorage(p, request, data); err != nil {
 				errs = errors.Join(errs, err)
@@ -910,8 +932,27 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 	m.DrainPendingEvents()
 
 	// Try to resolve tags for this workload
-	workloadTags, err := m.resolvers.TagsResolver.ResolveWithErr(workloadID)
-	if isWorkloadTagsResolved(workloadTags, err) {
+	cgroupID := event.ProcessContext.Process.CGroup.CGroupID
+	workloadTags := event.ProcessContext.Process.ContainerContext.Tags
+	tagsResolved := false
+	var err error
+	if cgroupID != "" {
+		if cached := m.getCachedCgroupTagEntry(cgroupID); cached != nil {
+			if len(workloadTags) == 0 {
+				workloadTags = cached.tags
+				tagsResolved = true
+			} else if unsafe.SliceData(workloadTags) == cached.tagsPtr && len(workloadTags) == cached.tagsLen {
+				tagsResolved = true
+			}
+		}
+	}
+	if !tagsResolved {
+		if !isWorkloadTagsResolved(workloadTags, nil) {
+			workloadTags, err = m.resolvers.TagsResolver.ResolveWithErr(workloadID)
+		}
+		tagsResolved = isWorkloadTagsResolved(workloadTags, err)
+	}
+	if tagsResolved {
 		// Set resolved tags on the event for downstream processing
 		event.ProcessContext.Process.ContainerContext.Tags = workloadTags
 
@@ -923,7 +964,7 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 		created := m.queueEventForTagResolution(event, em)
 		if created {
 			if workloadTags, err := m.resolvers.TagsResolver.ResolveWithErr(workloadID); isWorkloadTagsResolved(workloadTags, err) {
-				m.drainPendingEventsForCgroup(event.ProcessContext.Process.CGroup.CGroupID, workloadTags)
+				m.drainPendingEventsForCgroup(cgroupID, workloadTags)
 			}
 		}
 	}
@@ -934,6 +975,9 @@ func isWorkloadTagsResolved(workloadTags []string, err error) bool {
 }
 
 func (m *ManagerV2) onTagsUpdated() {
+	m.resolvedCgroupsLock.Lock()
+	clear(m.cgroupTagCache)
+	m.resolvedCgroupsLock.Unlock()
 	if m.pendingProfiles.Load() == 0 {
 		return
 	}
@@ -1019,25 +1063,109 @@ func (m *ManagerV2) purgeStalePendingEvents(currentTimestamp time.Time) {
 // It also dequeues and processes any pending events for the same cgroup.
 func (m *ManagerV2) processEventWithResolvedTags(event *model.Event) {
 	cgroupID := event.ProcessContext.Process.CGroup.CGroupID
+	workloadTags := event.ProcessContext.Process.ContainerContext.Tags
 
 	// Track cgroups with resolved tags (for cgroups_resolved gauge)
-	m.recordResolvedCgroup(cgroupID, getWorkloadIDFromEvent(event))
+	m.recordResolvedCgroup(cgroupID, getWorkloadIDFromEvent(event), workloadTags)
 
-	m.drainPendingEventsForCgroup(cgroupID, event.ProcessContext.Process.ContainerContext.Tags)
+	m.drainPendingEventsForCgroup(cgroupID, workloadTags)
 
 	// Process the current event
 	m.onEventTagsResolved(event)
 }
 
-func (m *ManagerV2) recordResolvedCgroup(cgroupID containerutils.CGroupID, workloadID containerutils.WorkloadID) {
+func (m *ManagerV2) getCachedCgroupTagEntry(cgroupID containerutils.CGroupID) *resolvedCgroupCacheEntry {
+	m.resolvedCgroupsLock.Lock()
+	entry := m.cgroupTagCache[cgroupID]
+	m.resolvedCgroupsLock.Unlock()
+	return entry
+}
+
+func (m *ManagerV2) getMatchingCgroupTagEntry(event *model.Event) *resolvedCgroupCacheEntry {
+	cgroupID := event.ProcessContext.Process.CGroup.CGroupID
+	if cgroupID == "" {
+		return nil
+	}
+	eventTags := event.ProcessContext.Process.ContainerContext.Tags
+	tagsPtr := unsafe.SliceData(eventTags)
+	tagsLen := len(eventTags)
+	m.resolvedCgroupsLock.Lock()
+	entry := m.cgroupTagCache[cgroupID]
+	m.resolvedCgroupsLock.Unlock()
+	if entry != nil && entry.tagsPtr == tagsPtr && entry.tagsLen == tagsLen {
+		return entry
+	}
+	return nil
+}
+
+func (m *ManagerV2) buildResolvedCgroupCacheEntry(cacheEntry *cgroupModel.CacheEntry, workloadTags []string) *resolvedCgroupCacheEntry {
+	var imageName, imageTag string
+	for _, tag := range workloadTags {
+		if imageName == "" {
+			if name, ok := strings.CutPrefix(tag, "image_name:"); ok {
+				imageName = name
+				continue
+			}
+		}
+		if imageTag == "" {
+			if ver, ok := strings.CutPrefix(tag, "image_tag:"); ok {
+				imageTag = ver
+			}
+		}
+		if imageName != "" && imageTag != "" {
+			break
+		}
+	}
+	entry := &resolvedCgroupCacheEntry{
+		tags:     workloadTags,
+		tagsPtr:  unsafe.SliceData(workloadTags),
+		tagsLen:  len(workloadTags),
+		imageTag: imageTag,
+	}
+	if selector, err := cgroupModel.NewWorkloadSelector(imageName, "*"); err == nil {
+		entry.hasSelector = true
+		entry.selector = selector
+		if cacheEntry != nil {
+			entry.workload = &tags.Workload{
+				GCroupCacheEntry: cacheEntry,
+				Selector:         selector,
+				Tags:             workloadTags,
+			}
+		}
+	}
+	return entry
+}
+
+func (m *ManagerV2) recordResolvedCgroup(cgroupID containerutils.CGroupID, workloadID containerutils.WorkloadID, workloadTags []string) {
+	tagsPtr := unsafe.SliceData(workloadTags)
+	tagsLen := len(workloadTags)
 	m.resolvedCgroupsLock.Lock()
 	_, exists := m.resolvedCgroups[cgroupID]
+	if exists {
+		if entry := m.cgroupTagCache[cgroupID]; entry != nil && entry.tagsPtr == tagsPtr && entry.tagsLen == tagsLen {
+			m.resolvedCgroupsLock.Unlock()
+			return
+		}
+	}
 	m.resolvedCgroupsLock.Unlock()
-	if exists || !m.isWorkloadActive(workloadID) {
+	cacheEntry := m.getCacheEntryForWorkload(workloadID)
+	if cacheEntry == nil {
 		return
 	}
+	var entry *resolvedCgroupCacheEntry
+	if cgroupID != "" && tagsLen != 0 {
+		entry = m.buildResolvedCgroupCacheEntry(cacheEntry, workloadTags)
+	}
 	m.resolvedCgroupsLock.Lock()
-	m.resolvedCgroups[cgroupID] = struct{}{}
+	if !cacheEntry.IsDeleted() {
+		m.resolvedCgroups[cgroupID] = struct{}{}
+		if entry != nil {
+			if m.cgroupTagCache == nil {
+				m.cgroupTagCache = make(map[containerutils.CGroupID]*resolvedCgroupCacheEntry)
+			}
+			m.cgroupTagCache[cgroupID] = entry
+		}
+	}
 	m.resolvedCgroupsLock.Unlock()
 }
 
@@ -1055,7 +1183,7 @@ func (m *ManagerV2) drainPendingEventsForCgroup(cgroupID containerutils.CGroupID
 		return
 	}
 
-	m.recordResolvedCgroup(cgroupID, pendingEvents.workloadID)
+	m.recordResolvedCgroup(cgroupID, pendingEvents.workloadID, workloadTags)
 
 	latency := time.Since(pendingEvents.firstSeen)
 	if err := m.statsdClient.Distribution(metrics.MetricSecurityProfileV2TagResolutionLatency, latency.Seconds(), []string{}, 1.0); err != nil {
@@ -1331,7 +1459,7 @@ func deleteKernelSamples(sampleMap *ebpf.Map, cookies map[uint64]struct{}) error
 
 // onEventTagsResolved is called when an event has its tags resolved and is ready to be inserted into a profile
 func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
-	profile, inserted, activityNodes := m.insertEventIntoProfile(event)
+	profile, inserted, activityNodes, resolvedImageTag := m.insertEventIntoProfileWithTag(event)
 	now := event.ResolveEventTime()
 	if profile == nil || !m.shouldSendAnomalyDetection(profile, now) {
 		return
@@ -1341,12 +1469,11 @@ func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 		return
 	}
 
-	workloadID := getWorkloadIDFromEvent(event)
 	var imageTag string
-
 	if !event.ProcessContext.Process.ContainerContext.IsNull() {
-		imageTag = utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
+		imageTag = resolvedImageTag
 	} else if event.ProcessContext.Process.CGroup.IsResolved() {
+		workloadID := getWorkloadIDFromEvent(event)
 		tags, err := m.resolvers.TagsResolver.ResolveWithErr(workloadID)
 		if err != nil {
 			seclog.Errorf("failed to resolve tags for cgroup %s: %v", workloadID, err)
@@ -1373,6 +1500,7 @@ func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 		if !m.claimAnomalyEmission(profile, event.GetEventType(), inserted, activityNodes, now) {
 			return
 		}
+		event.ResolveFieldsForAD()
 		// Flag as an anomaly so the serializer emits the sampled syscall (mirrors the V1 path).
 		event.AddToFlags(model.EventFlagsAnomalyDetectionEvent)
 		m.sendAnomalyDetection(event)
@@ -1600,33 +1728,53 @@ func (m *ManagerV2) SendStats() error {
 // Returns the profile, whether the event added new data to the process tree, and the activity nodes the anomaly event
 // cooldown is tracked on.
 func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile, bool, []*activity_tree.NodeBase) {
+	secprof, inserted, activityNodes, _ := m.insertEventIntoProfileWithTag(event)
+	return secprof, inserted, activityNodes
+}
+
+func (m *ManagerV2) insertEventIntoProfileWithTag(event *model.Event) (*profile.Profile, bool, []*activity_tree.NodeBase, string) {
 	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
-		return nil, false, nil
+		return nil, false, nil, ""
 	}
 
-	// Build selector from event tags
-	selector, err := m.buildWorkloadSelector(event)
-	if err != nil {
-		return nil, false, nil
+	var (
+		selector cgroupModel.WorkloadSelector
+		workload *tags.Workload
+		imageTag string
+	)
+	if cached := m.getMatchingCgroupTagEntry(event); cached != nil {
+		if !cached.hasSelector {
+			return nil, false, nil, ""
+		}
+		selector = cached.selector
+		if cached.workload != nil && !cached.workload.GCroupCacheEntry.IsDeleted() {
+			workload = cached.workload
+		}
+		imageTag = cached.imageTag
+	} else {
+		var err error
+		selector, err = m.buildWorkloadSelector(event)
+		if err != nil {
+			return nil, false, nil, ""
+		}
+		workload = m.getOrCreateWorkload(event, selector, getWorkloadIDFromEvent(event))
+		imageTag = utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
 	}
-
-	workload := m.getOrCreateWorkload(event, selector, getWorkloadIDFromEvent(event))
 
 	// Get or create the profile for this workload
 	secprof, err := m.getOrCreateProfile(selector, event, workload)
 	if err != nil {
-		return nil, false, nil
+		return nil, false, nil, ""
 	}
 	if m.afterProfileLookup != nil {
 		m.afterProfileLookup()
 	}
 	if !secprof.IsEnabled() {
 		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
-		return nil, false, nil
+		return nil, false, nil, ""
 	}
 
 	// Use the current event's tag, not the profile's: a profile is shared across an image's tags.
-	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
 	if imageTag == "" {
 		seclog.Warnf("no image_tag for %s, falling back to 'latest'", secprof.GetSelectorStr())
 		imageTag = "latest"
@@ -1635,7 +1783,7 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	m.ensureVersionContext(secprof, imageTag, event.ProcessContext.Process.ContainerContext.Tags)
 
 	if workload != nil {
-		m.seedMountsForWorkload(secprof, workload, event)
+		m.seedMountsForWorkloadWithTag(secprof, workload, event, imageTag)
 	}
 
 	// Check if profile has reached max size. V2 uses its own knob evaluated against the
@@ -1645,7 +1793,7 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		secprof.Disable()
 		seclog.Infof("Activity dump of %s was stopped because it reached the maximum allowed size of %d.", secprof.GetSelectorStr(), int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()))
 		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
-		return nil, false, nil
+		return nil, false, nil, ""
 	}
 
 	// Same lock as FinalizePatterns, so an activity node can't be folded before its cookie exists.
@@ -1673,7 +1821,7 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		case event.Error != nil:
 			m.incrementEventWithError(event, insertionErrorDropped)
 		}
-		return nil, false, nil
+		return nil, false, nil, ""
 	}
 	switch {
 	case unattributed && event.Error == nil:
@@ -1687,7 +1835,7 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 
 	// the unattributed activity isn't compared with the activity of the processes, what is new there may not be new
 	// for the workload
-	return secprof, inserted && !unattributed, activityNodes
+	return secprof, inserted && !unattributed, activityNodes, imageTag
 }
 
 // registerSampleCookie maps the event's sample cookie to its nodes. Callers must hold prof's lock.
@@ -1801,21 +1949,26 @@ func cacheEntryMatchesWorkloadID(cacheEntry *cgroupModel.CacheEntry, workloadID 
 	}
 }
 
-func (m *ManagerV2) isWorkloadActive(workloadID containerutils.WorkloadID) bool {
-	return m.getCacheEntryForWorkload(workloadID) != nil
-}
-
 func (m *ManagerV2) addWorkloadInstance(prof *profile.Profile, workload *tags.Workload) bool {
 	if workload == nil {
 		return false
 	}
+
+	workloadID := workload.GetWorkloadID()
+	prof.InstancesLock.Lock()
+	for _, w := range prof.Instances {
+		if w.GetWorkloadID() == workloadID {
+			prof.InstancesLock.Unlock()
+			return false
+		}
+	}
+	prof.InstancesLock.Unlock()
 
 	prof.Lock()
 	defer prof.Unlock()
 	prof.InstancesLock.Lock()
 	defer prof.InstancesLock.Unlock()
 
-	workloadID := workload.GetWorkloadID()
 	for _, w := range prof.Instances {
 		if w.GetWorkloadID() == workloadID {
 			return false
@@ -1870,11 +2023,17 @@ func liveMountIDFromEvent(event *model.Event) uint32 {
 // namespace entered by the event's process. Later changes come from live mount
 // events.
 func (m *ManagerV2) seedMountsForWorkload(secprof *profile.Profile, workload *tags.Workload, event *model.Event) {
+	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
+	if imageTag == "" {
+		imageTag = "latest"
+	}
+	m.seedMountsForWorkloadWithTag(secprof, workload, event, imageTag)
+}
+
+func (m *ManagerV2) seedMountsForWorkloadWithTag(secprof *profile.Profile, workload *tags.Workload, event *model.Event, imageTag string) {
 	if workload == nil || !m.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.FileMountEventType) {
 		return
 	}
-
-	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
 	if imageTag == "" {
 		imageTag = "latest"
 	}
@@ -2265,13 +2424,11 @@ func (m *ManagerV2) evictUnusedNodes() {
 	containersOnly := !m.config.RuntimeSecurity.ActivityDumpTraceSystemdCgroups
 	filepathsInProcessCache := m.GetNodesInProcessCache(nil, containersOnly)
 
-	m.profilesLock.Lock()
-	defer m.profilesLock.Unlock()
-
-	for selector, profile := range m.profiles {
+	for _, profile := range m.snapshotProfiles() {
 		if profile == nil || !profile.IsEnabled() {
 			continue
 		}
+		selector := profile.GetWorkloadSelector()
 
 		profile.Lock()
 		if profile.ActivityTree == nil {

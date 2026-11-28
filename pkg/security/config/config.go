@@ -13,6 +13,7 @@ import (
 	"math"
 	"net/netip"
 	"slices"
+	"sync/atomic"
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -991,6 +992,15 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		return nil, err
 	}
 
+	var adMaxDumpSize atomic.Int64
+	adMaxDumpSize.Store(int64(max(pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.max_dump_size"), ADMinMaxDumSize) * (1 << 10)))
+	pkgconfigsetup.SystemProbe().OnUpdate(func(setting string, _ pkgconfigmodel.Source, _, _ any, _ uint64, _ pkgconfigmodel.Source) {
+		if setting == "runtime_security_config.activity_dump.max_dump_size" {
+			adMaxDumpSize.Store(int64(max(pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.max_dump_size"), ADMinMaxDumSize) * (1 << 10)))
+		}
+	})
+	v2MaxDumpSize := max(pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.v2.max_dump_size"), ADMinMaxDumSize) * (1 << 10)
+
 	rsConfig := &RuntimeSecurityConfig{
 		RuntimeEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enabled"),
 		FIMEnabled:     pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.fim_enabled"),
@@ -1056,8 +1066,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		ActivityDumpWorkloadDenyList:          pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.activity_dump.workload_deny_list"),
 		// activity dump dynamic fields
 		ActivityDumpMaxDumpSize: func() int {
-			mds := max(pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.max_dump_size"), ADMinMaxDumSize)
-			return mds * (1 << 10)
+			return int(adMaxDumpSize.Load())
 		},
 
 		// SBOM resolver
@@ -1118,8 +1127,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SecurityProfileSampleRefreshPeriod: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.v2.sample_refresh_period"),
 		SecurityProfileV2ExcludedImages:    pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.v2.excluded_images"),
 		SecurityProfileV2MaxDumpSize: func() int {
-			mds := max(pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.v2.max_dump_size"), ADMinMaxDumSize)
-			return mds * (1 << 10)
+			return v2MaxDumpSize
 		},
 		SecurityProfileV2MaxSyscallsEventsPerSecond:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.v2.max_syscalls_events_per_second"),
 		SecurityProfileV2PathPatternsEnabled:              pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.path_patterns.enabled"),

@@ -455,7 +455,11 @@ func (fh *EBPFFieldHandlers) ResolveAsync(ev *model.Event) bool {
 }
 
 func (fh *EBPFFieldHandlers) resolveSBOMFields(ev *model.Event, f *model.FileEvent) {
+	if f.IsPkgResolved {
+		return
+	}
 	if fh.resolvers.SBOMResolver == nil {
+		f.IsPkgResolved = true
 		return
 	}
 
@@ -464,7 +468,8 @@ func (fh *EBPFFieldHandlers) resolveSBOMFields(ev *model.Event, f *model.FileEve
 		return
 	}
 
-	if pkg := fh.resolvers.SBOMResolver.LookupPackage(ev.ProcessContext, f); pkg != nil {
+	pkg, resolved := fh.resolvers.SBOMResolver.LookupPackageWithStatus(ev.ProcessContext, f)
+	if pkg != nil {
 		f.PkgName = pkg.Name
 		f.PkgVersion = pkg.Version
 		f.PkgEpoch = pkg.Epoch
@@ -473,11 +478,12 @@ func (fh *EBPFFieldHandlers) resolveSBOMFields(ev *model.Event, f *model.FileEve
 		f.PkgSrcEpoch = pkg.SrcEpoch
 		f.PkgSrcRelease = pkg.SrcRelease
 	}
+	f.IsPkgResolved = resolved
 }
 
 // ResolvePackageName resolves the name of the package providing this file
 func (fh *EBPFFieldHandlers) ResolvePackageName(ev *model.Event, f *model.FileEvent) string {
-	if f.PkgName == "" {
+	if !f.IsPkgResolved && f.PkgName == "" {
 		fh.resolveSBOMFields(ev, f)
 	}
 	return f.PkgName
@@ -485,7 +491,7 @@ func (fh *EBPFFieldHandlers) ResolvePackageName(ev *model.Event, f *model.FileEv
 
 // ResolvePackageVersion resolves the version of the package providing this file
 func (fh *EBPFFieldHandlers) ResolvePackageVersion(ev *model.Event, f *model.FileEvent) string {
-	if f.PkgVersion == "" {
+	if !f.IsPkgResolved && f.PkgName == "" && f.PkgVersion == "" {
 		fh.resolveSBOMFields(ev, f)
 	}
 	return f.PkgVersion
@@ -493,7 +499,7 @@ func (fh *EBPFFieldHandlers) ResolvePackageVersion(ev *model.Event, f *model.Fil
 
 // ResolvePackageEpoch resolves the epoch of the package providing this file
 func (fh *EBPFFieldHandlers) ResolvePackageEpoch(ev *model.Event, f *model.FileEvent) int {
-	if f.PkgEpoch == 0 {
+	if !f.IsPkgResolved && f.PkgName == "" && f.PkgEpoch == 0 {
 		fh.resolveSBOMFields(ev, f)
 	}
 	return f.PkgEpoch
@@ -501,7 +507,7 @@ func (fh *EBPFFieldHandlers) ResolvePackageEpoch(ev *model.Event, f *model.FileE
 
 // ResolvePackageRelease resolves the release of the package providing this file
 func (fh *EBPFFieldHandlers) ResolvePackageRelease(ev *model.Event, f *model.FileEvent) string {
-	if f.PkgRelease == "" {
+	if !f.IsPkgResolved && f.PkgName == "" && f.PkgRelease == "" {
 		fh.resolveSBOMFields(ev, f)
 	}
 	return f.PkgRelease
@@ -509,7 +515,7 @@ func (fh *EBPFFieldHandlers) ResolvePackageRelease(ev *model.Event, f *model.Fil
 
 // ResolvePackageSourceVersion resolves the version of the source package of the package providing this file
 func (fh *EBPFFieldHandlers) ResolvePackageSourceVersion(ev *model.Event, f *model.FileEvent) string {
-	if f.PkgSrcVersion == "" {
+	if !f.IsPkgResolved && f.PkgName == "" && f.PkgSrcVersion == "" {
 		fh.resolveSBOMFields(ev, f)
 	}
 	return f.PkgSrcVersion
@@ -517,7 +523,7 @@ func (fh *EBPFFieldHandlers) ResolvePackageSourceVersion(ev *model.Event, f *mod
 
 // ResolvePackageSourceEpoch resolves the epoch of the source package of the package providing this file
 func (fh *EBPFFieldHandlers) ResolvePackageSourceEpoch(ev *model.Event, f *model.FileEvent) int {
-	if f.PkgSrcEpoch == 0 {
+	if !f.IsPkgResolved && f.PkgName == "" && f.PkgSrcEpoch == 0 {
 		fh.resolveSBOMFields(ev, f)
 	}
 	return f.PkgSrcEpoch
@@ -525,7 +531,7 @@ func (fh *EBPFFieldHandlers) ResolvePackageSourceEpoch(ev *model.Event, f *model
 
 // ResolvePackageSourceRelease resolves the release of the source package of the package providing this file
 func (fh *EBPFFieldHandlers) ResolvePackageSourceRelease(ev *model.Event, f *model.FileEvent) string {
-	if f.PkgSrcRelease == "" {
+	if !f.IsPkgResolved && f.PkgName == "" && f.PkgSrcRelease == "" {
 		fh.resolveSBOMFields(ev, f)
 	}
 	return f.PkgSrcRelease

@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"unsafe"
 
 	"github.com/spf13/cast"
 
@@ -118,6 +119,9 @@ type RuleSet struct {
 	logger log.Logger
 	pool   *eval.ContextPool
 
+	discarderPlansLock sync.RWMutex
+	discarderPlans     map[discarderPlanKey]*discarderPlan
+
 	// event collector, used for tests
 	eventCollector EventCollector
 
@@ -125,6 +129,24 @@ type RuleSet struct {
 	// their value from, the env marks of which are merged once all the rules are
 	// added, see propagateEnvKeys
 	variableReads map[string][]string
+}
+
+type discarderPlanKey struct {
+	rulesPtr **Rule
+	rulesLen int
+	key      string
+}
+
+type discarderRuleEval struct {
+	rule *Rule
+	eval eval.BoolEvalFnc
+}
+
+type discarderPlan struct {
+	blockedRule *Rule
+	blockedErr  error
+	hasRules    bool
+	evals       []discarderRuleEval
 }
 
 // ListRuleIDs returns the list of RuleIDs from the ruleset
@@ -679,10 +701,16 @@ func GetRuleEventType(rule *eval.Rule) (eval.EventType, error) {
 func (rs *RuleSet) WithExcludedRuleFromDiscarders(excludedRuleFromDiscarders map[eval.RuleID]bool, discarderFields ...eval.Field) {
 	rs.opts.ExcludedRuleFromDiscarders = excludedRuleFromDiscarders
 	rs.opts.ExcludedRuleDiscarderFields = discarderFields
+	rs.discarderPlansLock.Lock()
+	clear(rs.discarderPlans)
+	rs.discarderPlansLock.Unlock()
 }
 
 // AddRule creates the rule evaluator and adds it to the bucket of its events
 func (rs *RuleSet) AddRule(pRule *PolicyRule) (model.EventCategory, error) {
+	rs.discarderPlansLock.Lock()
+	clear(rs.discarderPlans)
+	rs.discarderPlansLock.Unlock()
 	if pRule.Def.Disabled {
 		return model.UnknownCategory, nil
 	}
@@ -1179,10 +1207,21 @@ func (rs *RuleSet) GetFieldValues(field eval.Field) []eval.FieldValue {
 	return values
 }
 
-// IsDiscarder partially evaluates an Event against a set of fields
-func (rs *RuleSet) IsDiscarder(ctx *eval.Context, fields []eval.Field, rules []*Rule) (bool, *Rule, error) {
-	var isDiscarder bool
+func (rs *RuleSet) getDiscarderPlan(fields []eval.Field, key string, rules []*Rule) *discarderPlan {
+	planKey := discarderPlanKey{
+		rulesPtr: unsafe.SliceData(rules),
+		rulesLen: len(rules),
+		key:      key,
+	}
 
+	rs.discarderPlansLock.RLock()
+	plan := rs.discarderPlans[planKey]
+	rs.discarderPlansLock.RUnlock()
+	if plan != nil {
+		return plan
+	}
+
+	built := &discarderPlan{}
 	for _, rule := range rules {
 		// ignore rule that can't generate discarders
 		if _, exists := rs.opts.ExcludedRuleFromDiscarders[rule.ID]; exists && !slices.ContainsFunc(fields, func(field eval.Field) bool {
@@ -1191,14 +1230,58 @@ func (rs *RuleSet) IsDiscarder(ctx *eval.Context, fields []eval.Field, rules []*
 			continue
 		}
 
-		isTrue, err := rule.PartialEval(ctx, fields...)
-		if err != nil || isTrue {
-			return false, rule, err
+		state, evalFnc, err := rule.GetPartialEvalState(fields, key)
+		if err != nil {
+			built.blockedRule = rule
+			built.blockedErr = err
+			break
 		}
 
-		isDiscarder = true
+		built.hasRules = true
+		switch state {
+		case eval.PartialEvalConstTrue:
+			if built.blockedRule == nil {
+				built.blockedRule = rule
+			}
+		case eval.PartialEvalConstFalse:
+		default:
+			if built.blockedRule == nil {
+				built.evals = append(built.evals, discarderRuleEval{
+					rule: rule,
+					eval: evalFnc,
+				})
+			}
+		}
 	}
-	return isDiscarder, nil, nil
+
+	rs.discarderPlansLock.Lock()
+	if rs.discarderPlans == nil {
+		rs.discarderPlans = make(map[discarderPlanKey]*discarderPlan)
+	}
+	rs.discarderPlans[planKey] = built
+	rs.discarderPlansLock.Unlock()
+
+	return built
+}
+
+// IsDiscarder partially evaluates an Event against a set of fields
+func (rs *RuleSet) IsDiscarder(ctx *eval.Context, fields []eval.Field, rules []*Rule) (bool, *Rule, error) {
+	if len(rules) == 0 {
+		return false, nil, nil
+	}
+
+	key := eval.PartialKey(fields)
+	plan := rs.getDiscarderPlan(fields, key, rules)
+	if plan.blockedRule != nil || !plan.hasRules {
+		return false, plan.blockedRule, plan.blockedErr
+	}
+
+	for i := range plan.evals {
+		if plan.evals[i].eval(ctx) {
+			return false, plan.evals[i].rule, nil
+		}
+	}
+	return true, nil, nil
 }
 
 func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) error {
@@ -1325,35 +1408,34 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	}
 
 	result := false
+	ev := event.(*model.Event)
 
-	resetEventEvalCtx := func() {
-		event.(*model.Event).RuleTags = nil
-	}
-	defer resetEventEvalCtx()
+	defer func() {
+		ev.RuleTags = nil
+		utils.ResetPprofLabels()
+	}()
 
 	for _, rule := range bucket.rules {
-		utils.PprofDoWithoutContext(rule.GetPprofLabels(), func() {
-			event := event.(*model.Event)
-			event.RuleTags = rule.PolicyRule.Def.ProductTags
+		utils.SetPprofLabels(rule.GetPprofLabels())
+		ev.RuleTags = rule.PolicyRule.Def.ProductTags
 
-			if rule.GetEvaluator().Eval(ctx) {
-				if rs.logger.IsTracing() {
-					rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
-				}
-
-				if err := rs.runSetActions(event, ctx, rule); err != nil {
-					rs.logger.Errorf("Error while executing 'set' actions: %s", err)
-				}
-
-				if err := rs.runLogActions(event, ctx, rule); err != nil {
-					rs.logger.Errorf("Error while executing 'log' actions: %s", err)
-				}
-
-				rs.NotifyRuleMatch(ctx, rule, event)
-				result = true
+		if rule.GetEvaluator().Eval(ctx) {
+			if rs.logger.IsTracing() {
+				rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, ev)
 			}
-			ctx.PerEvalReset()
-		})
+
+			if err := rs.runSetActions(ev, ctx, rule); err != nil {
+				rs.logger.Errorf("Error while executing 'set' actions: %s", err)
+			}
+
+			if err := rs.runLogActions(ev, ctx, rule); err != nil {
+				rs.logger.Errorf("Error while executing 'log' actions: %s", err)
+			}
+
+			rs.NotifyRuleMatch(ctx, rule, ev)
+			result = true
+		}
+		ctx.PerEvalReset()
 	}
 
 	// no-op in the general case, only used to collect events in functional tests

@@ -303,3 +303,57 @@ func TestSizeBytes_RecomputeIsIdempotent(t *testing.T) {
 
 	assert.Equal(t, first, second, "recomputeSizeBytes must be idempotent")
 }
+
+func TestAsyncSetHashesSizeInvarianceAndToProto(t *testing.T) {
+	tree := newSizeTestTree()
+	tagID := tree.GetOrInsertImageTag("v1")
+
+	root := &ProcessNode{
+		NodeBase: NewNodeBase(),
+		Files:    map[string]*FileNode{},
+		Process: ProcessInfo{
+			FileEvent: model.FileEvent{
+				PathnameStr: "/usr/bin/app",
+				BasenameStr: "app",
+			},
+			Argv0: "app",
+		},
+	}
+	root.AppendImageTagID(tagID, time.Now())
+	tree.ProcessNodes = []*ProcessNode{root}
+	tree.Stats.ProcessNodes = 1
+	tree.Stats.SizeBytes = root.size()
+
+	evt := newFileOpenEvent("/etc/app.conf")
+	root.InsertFileEvent(&evt.Open.File, evt, tagID, Runtime, tree.Stats, false, nil, nil)
+	leaf := root.Files["etc"].Children["app.conf"]
+	require.NotNil(t, leaf)
+
+	sizeBeforeAsync := tree.Stats.SizeBytes
+	rootSizeBefore := root.size()
+	leafSizeBefore := leaf.size()
+
+	// Simulate background worker completing hashes asynchronously after node insertion.
+	root.Process.SetHashes(model.Done, []string{"sha256:1111111111111111"}, true)
+	leaf.File.SetHashes(model.Done, []string{"sha256:2222222222222222"}, true)
+
+	// Until recomputeSizeBytes runs, node.size() must remain invariant so concurrent merges/evictions do not drift.
+	assert.Equal(t, rootSizeBefore, root.size())
+	assert.Equal(t, leafSizeBefore, leaf.size())
+
+	// Protobuf encoding must immediately expose the completed async hashes.
+	protoNodes := ToProto(tree)
+	require.Len(t, protoNodes, 1)
+	assert.Equal(t, []string{"sha256:1111111111111111"}, protoNodes[0].Process.File.Hashes)
+	require.Len(t, protoNodes[0].Files, 1)
+	require.Len(t, protoNodes[0].Files[0].Children, 1)
+	assert.Equal(t, []string{"sha256:2222222222222222"}, protoNodes[0].Files[0].Children[0].File.Hashes)
+
+	// Once recomputeSizeBytes runs, the async hashes are folded into canonical SizeBytes.
+	tree.recomputeSizeBytes()
+	assert.Greater(t, tree.Stats.SizeBytes, sizeBeforeAsync)
+
+	// Evicting the tag after recompute must subtract the full accounted size back to zero.
+	tree.EvictImageTag("v1")
+	assert.Equal(t, int64(0), tree.Stats.SizeBytes)
+}

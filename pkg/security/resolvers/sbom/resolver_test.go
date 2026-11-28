@@ -3235,3 +3235,97 @@ func TestTriggerScanRetriesOnFullChan(t *testing.T) {
 		}
 	})
 }
+
+func TestLookupDoesNotBlockWhileSBOMScanning(t *testing.T) {
+	r, sbom := newScanQueueResolver(t)
+	r.hostSBOM = NewSBOM("", nil, "")
+	t.Cleanup(r.hostSBOM.stop)
+
+	sbom.Lock()
+	defer sbom.Unlock()
+
+	r.hostSBOM.state.Store(pendingState)
+	r.hostSBOM.Lock()
+	defer r.hostSBOM.Unlock()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		pc := &model.ProcessContext{}
+		pc.ContainerContext.ContainerID = sbom.ContainerID
+		if pkg := r.LookupPackage(pc, &model.FileEvent{PathnameStr: "/usr/bin/bash", IsPathnameStrResolved: true}); pkg != nil {
+			t.Errorf("expected nil package while workload SBOM is scanning, got %+v", pkg)
+		}
+		if pkg := r.LookupPackage(&model.ProcessContext{}, &model.FileEvent{PathnameStr: "/usr/bin/bash", IsPathnameStrResolved: true}); pkg != nil {
+			t.Errorf("expected nil package while host SBOM is scanning, got %+v", pkg)
+		}
+		if v := r.HostPackageVersion("bash"); v != "" {
+			t.Errorf("expected empty version while host SBOM is scanning, got %q", v)
+		}
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("LookupPackage or HostPackageVersion blocked on SBOM write lock while state was pending")
+	}
+}
+
+func TestDeleteDoesNotBlockWhileSBOMScanning(t *testing.T) {
+	r, sbom := newScanQueueResolver(t)
+	sbom.Lock()
+	locked := true
+	defer func() {
+		if locked {
+			sbom.Unlock()
+		}
+	}()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		r.Delete(sbom.ContainerID)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Delete blocked on SBOM write lock while scan was holding it")
+	}
+
+	if r.getSBOM(sbom.ContainerID) != nil {
+		t.Fatal("expected SBOM to be removed from cache immediately")
+	}
+
+	locked = false
+	sbom.Unlock()
+
+	deadline := time.Now().Add(time.Second)
+	for sbom.state.Load() != stoppedState {
+		if time.Now().After(deadline) {
+			t.Fatal("expected SBOM to be stopped asynchronously after scan lock was released")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestCodeNameFastPath(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		want bool
+	}{
+		{"stat", false},
+		{"cgroup.procs", false},
+		{"config.yaml", false},
+		{"libc.so", true},
+		{"libc.so.6", true},
+		{"libcrypto.so.3.0_beta", true},
+		{"libc.so.foo", false},
+		{"module.pyc", true},
+		{"driver.ko.xz", true},
+	} {
+		if got := codeName(tc.name); got != tc.want {
+			t.Errorf("codeName(%q) = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}

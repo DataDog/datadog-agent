@@ -899,6 +899,8 @@ func TestSetProcessContextContainerPlaceholder(t *testing.T) {
 	}{
 		{"unresolved process", model.FileOpenEventType, false, containerID, model.ErrNoProcessContext},
 		{"DNS request of an unresolved process", model.DNSEventType, false, containerID, nil},
+		{"Full DNS response of an unresolved process", model.FullDNSResponseEventType, false, containerID, nil},
+		{"Short DNS response of an unresolved process", model.ShortDNSResponseEventType, false, containerID, nil},
 		{"kworker", model.FileOpenEventType, true, "", nil},
 	}
 	for _, tt := range tests {
@@ -914,6 +916,23 @@ func TestSetProcessContextContainerPlaceholder(t *testing.T) {
 			assert.True(t, model.GetPlaceholderProcessCacheEntry(event.PIDContext).ContainerContext.IsNull(), "the shared placeholder must not get the container")
 		})
 	}
+
+	t.Run("zero cgroup inode does not clobber resolved process cgroup", func(t *testing.T) {
+		pce := seedProcessCacheEntry(t, ebpfResolvers.ProcessResolver, 4242)
+		pce.PPid = 0
+		pce.CGroup = model.CGroupContext{
+			CGroupID:      containerutils.CGroupID("/docker/" + string(containerID)),
+			CGroupPathKey: model.PathKey{Inode: 4242, MountID: 1},
+		}
+		pce.ContainerContext.ContainerID = containerID
+
+		event := model.NewFakeEvent()
+		event.PIDContext = model.PIDContext{Pid: 4242, Tid: 4242}
+
+		require.True(t, p.setProcessContext(model.FileOpenEventType, event, model.CGroupContext{}))
+		assert.Equal(t, uint64(4242), event.ProcessCacheEntry.CGroup.CGroupPathKey.Inode)
+		assert.Equal(t, containerID, event.ProcessCacheEntry.ContainerContext.ContainerID)
+	})
 }
 
 // newV2DispatchTestProbe returns a probe dispatching events to v2 profiles, containerID running the my-app image

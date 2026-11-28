@@ -15,12 +15,15 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
+
+var hashStateMu sync.RWMutex
 
 // FileInfo is a slim, profile-local subset of model.FileEvent.
 type FileInfo struct {
@@ -38,8 +41,55 @@ type FileInfo struct {
 	PkgSrcEpoch   int
 	PkgSrcRelease string
 
-	HashState model.HashState
-	Hashes    []string
+	HashState              model.HashState
+	Hashes                 []string
+	unaccountedAsyncHashes bool
+}
+
+// SetHashes updates HashState and Hashes under hashStateMu so background hash completion
+// does not race with concurrent tree encoders or heap-size accounting.
+func (fi *FileInfo) SetHashes(state model.HashState, hashes []string, async bool) {
+	if fi == nil {
+		return
+	}
+	hashStateMu.Lock()
+	fi.HashState = state
+	fi.Hashes = hashes
+	if async && len(hashes) > 0 {
+		fi.unaccountedAsyncHashes = true
+	}
+	hashStateMu.Unlock()
+}
+
+// GetHashes returns HashState and Hashes safely.
+func (fi *FileInfo) GetHashes() (model.HashState, []string) {
+	if fi == nil {
+		return model.NoHash, nil
+	}
+	hashStateMu.RLock()
+	state, hashes := fi.HashState, fi.Hashes
+	hashStateMu.RUnlock()
+	return state, hashes
+}
+
+func (fi *FileInfo) accountedHashes(markAccounted bool) []string {
+	if fi == nil {
+		return nil
+	}
+	if markAccounted {
+		hashStateMu.Lock()
+		fi.unaccountedAsyncHashes = false
+		hashes := fi.Hashes
+		hashStateMu.Unlock()
+		return hashes
+	}
+	hashStateMu.RLock()
+	var hashes []string
+	if !fi.unaccountedAsyncHashes {
+		hashes = fi.Hashes
+	}
+	hashStateMu.RUnlock()
+	return hashes
 }
 
 // newFileInfo builds the slim FileInfo from a model.FileEvent, keeping only the fields
@@ -117,11 +167,18 @@ func (fn *FileNode) sizeWithoutChildren() int64 {
 
 // NewFileNode returns a new FileActivityNode instance
 func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, isPattern bool, imageTagID uint64, generationType NodeGenerationType, reducedFilePath string, resolvers *resolvers.EBPFResolvers) *FileNode {
-	// call resolver. Safeguard: the process context might be empty if from a snapshot.
-	if resolvers != nil && fileEvent != nil && event.ProcessContext != nil {
-		resolvers.HashResolver.ComputeHashesFromEvent(event, fileEvent, 0)
+	if fileEvent != nil && event != nil && generationType != Snapshot {
+		_ = event.FieldHandlers.ResolveFileFieldsUser(event, &fileEvent.FileFields)
+		_ = event.FieldHandlers.ResolveFileFieldsGroup(event, &fileEvent.FileFields)
+		_ = event.FieldHandlers.ResolveFileFieldsInUpperLayer(event, &fileEvent.FileFields)
+		_ = event.FieldHandlers.ResolvePackageName(event, fileEvent)
+		_ = event.FieldHandlers.ResolvePackageVersion(event, fileEvent)
+		_ = event.FieldHandlers.ResolvePackageEpoch(event, fileEvent)
+		_ = event.FieldHandlers.ResolvePackageRelease(event, fileEvent)
+		_ = event.FieldHandlers.ResolvePackageSourceVersion(event, fileEvent)
+		_ = event.FieldHandlers.ResolvePackageSourceEpoch(event, fileEvent)
+		_ = event.FieldHandlers.ResolvePackageSourceRelease(event, fileEvent)
 	}
-
 	fan := &FileNode{
 		Name:           name,
 		GenerationType: generationType,
@@ -135,6 +192,12 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, is
 		fan.File = newFileInfo(fileEvent)
 		fan.File.PathnameStr = reducedFilePath
 		fan.File.BasenameStr = name
+	}
+	// call resolver. Safeguard: the process context might be empty if from a snapshot.
+	if resolvers != nil && resolvers.HashResolver != nil && fileEvent != nil && event != nil && event.ProcessContext != nil {
+		resolvers.HashResolver.ComputeHashesFromEventAsync(event, fileEvent, 0, func(state model.HashState, hashes []string, async bool) {
+			fan.File.SetHashes(state, hashes, async)
+		})
 	}
 	fan.enrichFromEvent(event)
 	return fan
@@ -168,9 +231,10 @@ func (fn *FileNode) buildNodeRow(prefix string) string {
 		if len(fn.File.PkgName) != 0 {
 			pkg = fn.File.PkgName + ":" + fn.File.PkgVersion
 		}
+		_, hashes := fn.File.GetHashes()
 		out += "<TR>"
 		out += "<TD>open</TD>"
-		out += "<TD>" + strconv.Itoa(len(fn.File.Hashes)) + " hash(es)</TD>"
+		out += "<TD>" + strconv.Itoa(len(hashes)) + " hash(es)</TD>"
 		out += "<TD ALIGN=\"LEFT\">" + html.EscapeString(prefix+"/"+fn.Name) + "</TD>"
 		out += "<TD>" + html.EscapeString(pkg) + "</TD>"
 		out += "</TR>"

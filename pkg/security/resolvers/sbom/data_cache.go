@@ -8,6 +8,7 @@
 package sbom
 
 import (
+	"strings"
 	"sync"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
@@ -111,4 +112,28 @@ func (c *dataCache) lens() (used, unused int) {
 	defer c.mu.Unlock()
 
 	return len(c.used), c.unused.Len()
+}
+
+func (c *dataCache) hasWorkload(key workloadKey) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if u, ok := c.used[key]; ok && u.data != nil {
+		return true
+	}
+	if _, ok := c.unused.Peek(key); ok {
+		return true
+	}
+	prefix := string(key) + "@"
+	for k, u := range c.used {
+		if u.data != nil && strings.HasPrefix(string(k), prefix) {
+			return true
+		}
+	}
+	for _, k := range c.unused.Keys() {
+		if strings.HasPrefix(string(k), prefix) {
+			return true
+		}
+	}
+	return false
 }

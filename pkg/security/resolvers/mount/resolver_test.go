@@ -563,6 +563,128 @@ func TestGetPidProcfsZombieLeaderFallback(t *testing.T) {
 	assert.Equal(t, expectedNs, mounts[0].NamespaceInode)
 }
 
+func TestSyncPidNamespaceNewestFirstAndDeadPidEviction(t *testing.T) {
+	const targetNs = uint32(4026532900)
+
+	fakeProc := t.TempDir()
+	origProcFSRoot := kernel.ProcFSRoot
+	kernel.ProcFSRoot = func() string { return fakeProc }
+	t.Cleanup(func() {
+		kernel.ProcFSRoot = origProcFSRoot
+	})
+
+	writeFakeProcPid := func(pid uint32, nsIno uint32, mountInfo string) {
+		pidDir := filepath.Join(fakeProc, strconv.FormatUint(uint64(pid), 10))
+		require.NoError(t, os.MkdirAll(filepath.Join(pidDir, "ns"), 0o755))
+		require.NoError(t, os.Symlink(fmt.Sprintf("mnt:[%d]", nsIno), filepath.Join(pidDir, "ns", "mnt")))
+		require.NoError(t, os.WriteFile(filepath.Join(pidDir, "mountinfo"), []byte(mountInfo), 0o644))
+	}
+
+	mr, err := NewResolver(nil, nil, ResolverOpts{UseProcFS: true})
+	require.NoError(t, err)
+
+	for oldDeadPid := uint32(1000); oldDeadPid < 1010; oldDeadPid++ {
+		mr.SetPidMntNs(oldDeadPid, targetNs)
+	}
+
+	livePid := uint32(2000)
+	writeFakeProcPid(livePid, targetNs, ""+
+		"1 1 8:1 / / rw,relatime - ext4 /dev/sda1 rw\n"+
+		"900 1 0:55 / /mnt/work rw,relatime - tmpfs tmpfs rw\n")
+	mr.SetPidMntNs(livePid, targetNs)
+
+	for recentDeadPid := uint32(2001); recentDeadPid <= 2006; recentDeadPid++ {
+		mr.SetPidMntNs(recentDeadPid, targetNs)
+	}
+
+	exitedEventPid := uint32(2007)
+	mr.SetPidMntNs(exitedEventPid, targetNs)
+
+	mountPath, _, _, err := mr.ResolveMountPath(900, exitedEventPid)
+	require.NoError(t, err)
+	assert.Equal(t, "/mnt/work", mountPath)
+
+	_, stillHasExitedEventPid := mr.pidNs.Peek(exitedEventPid)
+	assert.False(t, stillHasExitedEventPid)
+	for recentDeadPid := uint32(2001); recentDeadPid <= 2006; recentDeadPid++ {
+		_, present := mr.pidNs.Peek(recentDeadPid)
+		assert.False(t, present)
+	}
+	_, stillHasLivePid := mr.pidNs.Peek(livePid)
+	assert.True(t, stillHasLivePid)
+}
+
+func TestSnapshotUsingListMountPreservedOnDeadPid(t *testing.T) {
+	fakeProc := t.TempDir()
+	origProcFSRoot := kernel.ProcFSRoot
+	kernel.ProcFSRoot = func() string { return fakeProc }
+	t.Cleanup(func() {
+		kernel.ProcFSRoot = origProcFSRoot
+	})
+
+	mr, err := NewResolver(nil, nil, ResolverOpts{UseProcFS: true})
+	require.NoError(t, err)
+	mr.opts.SnapshotUsingListMount = true
+
+	syncErr := mr.syncPidFunc()(999999)
+	require.Error(t, syncErr)
+	assert.True(t, mr.opts.SnapshotUsingListMount)
+}
+
+func TestNamespaceNegativeCacheSkipsRepeatedSyncsAcrossPids(t *testing.T) {
+	const targetNs = uint32(4026533100)
+
+	fakeProc := t.TempDir()
+	origProcFSRoot := kernel.ProcFSRoot
+	kernel.ProcFSRoot = func() string { return fakeProc }
+	t.Cleanup(func() {
+		kernel.ProcFSRoot = origProcFSRoot
+	})
+
+	writeFakeProcPid := func(pid uint32, nsIno uint32, mountInfo string) {
+		pidDir := filepath.Join(fakeProc, strconv.FormatUint(uint64(pid), 10))
+		require.NoError(t, os.RemoveAll(pidDir))
+		require.NoError(t, os.MkdirAll(filepath.Join(pidDir, "ns"), 0o755))
+		require.NoError(t, os.Symlink(fmt.Sprintf("mnt:[%d]", nsIno), filepath.Join(pidDir, "ns", "mnt")))
+		require.NoError(t, os.WriteFile(filepath.Join(pidDir, "mountinfo"), []byte(mountInfo), 0o644))
+	}
+
+	pid1 := uint32(3001)
+	pid2 := uint32(3002)
+	baseMountInfo := "1 1 8:1 / / rw,relatime - ext4 /dev/sda1 rw\n"
+	writeFakeProcPid(pid1, targetNs, baseMountInfo)
+	writeFakeProcPid(pid2, targetNs, baseMountInfo)
+
+	mr, err := NewResolver(nil, nil, ResolverOpts{UseProcFS: true})
+	require.NoError(t, err)
+	mr.SetPidMntNs(pid1, targetNs)
+	mr.SetPidMntNs(pid2, targetNs)
+
+	_, _, _, err = mr.ResolveMountPath(950, pid1)
+	require.Error(t, err)
+
+	writeFakeProcPid(pid2, targetNs, baseMountInfo+"950 1 0:60 / /mnt/late rw,relatime - tmpfs tmpfs rw\n")
+
+	_, _, _, err = mr.ResolveMountPath(950, pid2)
+	require.Error(t, err)
+	_, _, _, err = mr.ResolveMount(950, pid2)
+	require.Error(t, err)
+
+	require.NoError(t, mr.Insert(model.Mount{
+		MountID:        951,
+		NamespaceInode: targetNs,
+		ParentPathKey:  model.PathKey{MountID: 1},
+		FSType:         "tmpfs",
+		MountPointStr:  "/mnt/trigger",
+		RootStr:        "/",
+		Origin:         model.MountOriginEvent,
+	}))
+
+	mountPath, _, _, err := mr.ResolveMountPath(950, pid2)
+	require.NoError(t, err)
+	assert.Equal(t, "/mnt/late", mountPath)
+}
+
 func TestTrimMountRoot(t *testing.T) {
 	tests := []struct {
 		name string

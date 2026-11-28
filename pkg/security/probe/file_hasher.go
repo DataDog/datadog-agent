@@ -51,8 +51,19 @@ func (p *FileHasher) AddPendingReports(report *HashActionReport) {
 }
 
 func (p *FileHasher) hash(report *HashActionReport) {
-	p.resolver.HashFileEvent(report.eventType, report.cgroupID, report.pid, &report.fileEvent, report.maxFileSize)
-	report.resolved = true
+	if p.resolver == nil {
+		report.resolved = true
+		return
+	}
+	p.resolver.HashFileEventAsync(report.eventType, report.cgroupID, report.pid, &report.fileEvent, report.maxFileSize, func(state model.HashState, hashes []string, async bool) {
+		if async {
+			report.Lock()
+			defer report.Unlock()
+		}
+		report.fileEvent.HashState = state
+		report.fileEvent.Hashes = hashes
+		report.resolved = true
+	})
 }
 
 // FlushPendingReports flush pending reports
@@ -125,7 +136,9 @@ func (p *FileHasher) HashAndReport(rule *rules.Rule, action *rules.HashDefinitio
 		eventType:   ev.GetEventType(),
 	}
 	ev.ActionReports = append(ev.ActionReports, report)
+	p.Lock()
 	p.pendingReports = append(p.pendingReports, report)
+	p.Unlock()
 
 	return true
 }

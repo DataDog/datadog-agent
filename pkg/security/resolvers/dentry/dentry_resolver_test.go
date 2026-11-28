@@ -109,6 +109,11 @@ func TestComputeFilenameFromParts(t *testing.T) {
 	for _, entry := range entries {
 		t.Run(entry.name, func(t *testing.T) {
 			assert.Equal(t, entry.expected, computeFilenameFromParts(entry.parts))
+			strParts := make([]string, len(entry.parts))
+			for i, p := range entry.parts {
+				strParts[i] = string(p)
+			}
+			assert.Equal(t, entry.expected, computeFilenameFromStringParts(strParts))
 		})
 	}
 }

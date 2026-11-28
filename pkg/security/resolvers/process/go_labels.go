@@ -5,9 +5,11 @@
 
 //go:build linux
 
+// Package process holds process related files
 package process
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -16,6 +18,51 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
+
+func (p *EBPFResolver) queueGoLabels(pid uint32) {
+	if !p.config.SpanTrackingEnabled {
+		return
+	}
+	if p.goLabelsMap == nil {
+		p.reportSpanCtx(spanCtxStepGoLabels, pid, fmt.Errorf("%w: go_labels_procs map not available", errSpanCtxMapError))
+		return
+	}
+
+	p.goLabelsLock.Lock()
+	defer p.goLabelsLock.Unlock()
+
+	if _, pending := p.goLabelsPending[pid]; pending {
+		return
+	}
+
+	select {
+	case p.goLabelsQueue <- pid:
+		p.goLabelsPending[pid] = struct{}{}
+	default:
+		p.countSpanCtx(spanCtxStepGoLabels, spanCtxQueueFull)
+		seclog.Warnf("Go labels queue full, dropping pid %d", pid)
+	}
+}
+
+func (p *EBPFResolver) resolveGoLabelsLoop(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case pid := <-p.goLabelsQueue:
+			p.goLabelsLock.Lock()
+			delete(p.goLabelsPending, pid)
+			p.goLabelsLock.Unlock()
+
+			if !p.hasEntry(pid) {
+				p.countSpanCtx(spanCtxStepGoLabels, spanCtxNoProcessEntry)
+				continue
+			}
+			err := p.resolveGoLabels(pid)
+			p.reportSpanCtx(spanCtxStepGoLabels, pid, err)
+		}
+	}
+}
 
 // resolveGoLabels discovers the Go runtime offsets for pprof label reading
 // and pushes them to the go_labels_procs BPF map.

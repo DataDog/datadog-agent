@@ -242,9 +242,34 @@ func checkPidExists(sysFScGroupPath string, expectedPid uint32) (bool, error) {
 			return false, err
 		}
 	}
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	for scanner.Scan() {
-		if pid, err := strconv.ParseUint(strings.TrimSpace(scanner.Text()), 10, 32); err == nil && uint32(pid) == expectedPid {
+	for len(data) > 0 {
+		eol := bytes.IndexByte(data, '\n')
+		var line []byte
+		if eol < 0 {
+			line = data
+			data = nil
+		} else {
+			line = data[:eol]
+			data = data[eol+1:]
+		}
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 {
+			continue
+		}
+		var pid uint64
+		valid := true
+		for _, b := range line {
+			if b < '0' || b > '9' {
+				valid = false
+				break
+			}
+			pid = pid*10 + uint64(b-'0')
+			if pid > uint64(^uint32(0)) {
+				valid = false
+				break
+			}
+		}
+		if valid && uint32(pid) == expectedPid {
 			return true, nil
 		}
 	}

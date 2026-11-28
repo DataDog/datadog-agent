@@ -24,6 +24,9 @@ var (
 )
 
 func scrubKeyValues(s string) string {
+	if strings.IndexByte(s, '=') < 0 && strings.IndexByte(s, ':') < 0 {
+		return s
+	}
 	return keyValuePattern.ReplaceAllString(s, "${1}********")
 }
 
@@ -162,7 +165,7 @@ func maskSensitiveValues(patterns []procutil.DataScrubberPattern, line string) (
 // ScrubLine scrubs the line using the proc scrubber and the regex scrubber
 func (s *Scrubber) ScrubLine(line string) string {
 	line = scrubKeyValues(line)
-	if s.regexScrubber != nil {
+	if s != nil && s.regexScrubber != nil {
 		return s.regexScrubber.ScrubLine(line)
 	}
 	return line

@@ -709,6 +709,8 @@ func (r *Resolver) scanHost() error {
 		return err
 	}
 	kernelFiles := r.kernelFiles(hostRoot)
+	usrMerged := isUsrMerged(hostRoot)
+	data := newData(report, usrMerged)
 
 	r.hostSBOM.Lock()
 	rescan := r.hostSBOM.IsComputed()
@@ -723,8 +725,8 @@ func (r *Resolver) scanHost() error {
 	// scan of the core agent go out in full, and the hourly rescan of an
 	// unchanged host keeps its heartbeats.
 	changed := !rescan || !previous.holds(report)
-	r.hostSBOM.usrMerged = isUsrMerged(hostRoot)
-	r.hostSBOM.setReport(report)
+	r.hostSBOM.usrMerged = usrMerged
+	r.hostSBOM.data = data
 	r.hostSBOM.data.keepUsage(previous)
 	markRunningKernel(r.hostSBOM.data, kernelFiles)
 	r.hostSBOM.state.Store(computedState)
@@ -1161,7 +1163,10 @@ func holdsCode(file *model.FileEvent) bool {
 // codeName reports whether name is that of a shared library or ends with one
 // of codeSuffixes.
 func codeName(name string) bool {
-	if sharedLibrary.MatchString(name) {
+	if strings.IndexByte(name, '.') < 0 {
+		return false
+	}
+	if strings.Contains(name, ".so") && sharedLibrary.MatchString(name) {
 		return true
 	}
 	return slices.ContainsFunc(codeSuffixes, func(suffix string) bool {
@@ -1433,6 +1438,13 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 		return nil
 	}
 
+	if !sbom.IsComputed() {
+		r.queuePendingFileEvent(pc.ContainerContext.ContainerID, lookupPath, file.Mode, runsAsRoot(pc), file.MountID)
+		if !sbom.IsComputed() {
+			return nil
+		}
+	}
+
 	sbom.Lock()
 
 	// If the SBOM scan hasn't completed yet, queue this access so it is replayed once
@@ -1530,28 +1542,40 @@ func runs(pc *model.ProcessContext, file *model.FileEvent) bool {
 // events read it, for the files a process runs or opens as well as for the
 // target of a chmod or an unlink.
 func (r *Resolver) LookupPackage(pc *model.ProcessContext, file *model.FileEvent) *sbomtypes.Package {
-	return r.lookup(pc, file, false)
+	pkg, _ := r.LookupPackageWithStatus(pc, file)
+	return pkg
+}
+
+// LookupPackageWithStatus returns the package that owns file and whether the
+// workload's SBOM was computed at lookup time.
+func (r *Resolver) LookupPackageWithStatus(pc *model.ProcessContext, file *model.FileEvent) (*sbomtypes.Package, bool) {
+	return r.lookupWithStatus(pc, file, false)
 }
 
 // lookup returns the package owning file, or the package a use of file credits
 // when usage is set, and leaves its usage as it is.
 func (r *Resolver) lookup(pc *model.ProcessContext, file *model.FileEvent, usage bool) *sbomtypes.Package {
+	pkg, _ := r.lookupWithStatus(pc, file, usage)
+	return pkg
+}
+
+func (r *Resolver) lookupWithStatus(pc *model.ProcessContext, file *model.FileEvent, usage bool) (*sbomtypes.Package, bool) {
 	if !file.IsPathnameStrResolved || file.PathResolutionError != nil {
-		return nil
+		return nil, false
 	}
 
 	sbom := r.getSBOM(pc.ContainerContext.ContainerID)
-	if sbom == nil {
-		return nil
+	if sbom == nil || !sbom.IsComputed() {
+		return nil, false
 	}
 
 	sbom.RLock()
 	defer sbom.RUnlock()
 
 	if !sbom.IsComputed() {
-		return nil
+		return nil, false
 	}
-	return r.owner(sbom, pc.Pid, file.PathnameStr, usage)
+	return r.owner(sbom, pc.Pid, file.PathnameStr, usage), true
 }
 
 // owner returns the package of sbom owning path, or the one a use of it credits
@@ -1574,7 +1598,7 @@ func (r *Resolver) owner(sbom *SBOM, pid uint32, path string, usage bool) *sbomt
 // package stays as it is.
 func (r *Resolver) HostPackageVersion(path string) string {
 	sbom := r.getSBOM("")
-	if sbom == nil {
+	if sbom == nil || !sbom.IsComputed() {
 		return ""
 	}
 
@@ -1790,7 +1814,7 @@ func (r *Resolver) queueWorkload(sbom *SBOM) {
 	}
 
 	// check if this sbom has been scanned before
-	if r.acquireData(sbom, r.rootFingerprint(sbom)) {
+	if r.dataCache != nil && r.dataCache.hasWorkload(sbom.workloadKey) && r.acquireData(sbom, r.rootFingerprint(sbom)) {
 		sbom.state.Store(computedState)
 
 		r.sbomsCacheHit.Inc()
@@ -1898,11 +1922,17 @@ func (r *Resolver) Delete(id containerutils.ContainerID) {
 		r.deletePendingFileEvents(id)
 		return
 	}
-	sbom.Lock()
-	defer sbom.Unlock()
+	if sbom.TryLock() {
+		defer sbom.Unlock()
+		r.deleteSBOM(sbom)
+		return
+	}
 
-	// Remove this SBOM
-	r.deleteSBOM(sbom)
+	// A background scan holds sbom.Lock; remove the entry now so onSBOMEvicted
+	// stops it asynchronously once the scan finishes without blocking the event
+	// loop or holding sbomsLock during disk I/O.
+	seclog.Infof("deleting SBOM entry for '%s'", sbom.ContainerID)
+	r.sboms.Remove(sbom.ContainerID)
 }
 
 // deleteSBOM delete all data indexed by the provided container ID

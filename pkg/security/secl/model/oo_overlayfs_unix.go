@@ -15,6 +15,36 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
+func guardOverlayFSEvaluator(field eval.Field, evaluator *eval.BoolEvaluator, baseWeight int) *eval.BoolEvaluator {
+	if evaluator == nil || evaluator.EvalFnc == nil {
+		return evaluator
+	}
+	fileField := strings.TrimSuffix(field, ".path")
+	innerEval := evaluator.EvalFnc
+	evaluator.EvalFnc = func(ctx *eval.Context) bool {
+		ev := ctx.Event.(*Event)
+		fileEvent, err := ev.GetFileField(fileField)
+		if err != nil {
+			ev.Error = fmt.Errorf("could not get file field for `%s`: %w", field, err)
+			return false
+		}
+		path := ev.FieldHandlers.ResolveFilePath(ev, fileEvent)
+		if fileEvent.MountPath == "" || fileEvent.MountPath == "/" {
+			return false
+		}
+		if ev.FieldHandlers.ResolveFileFilesystem(ev, fileEvent) != "overlay" {
+			return false
+		}
+		mountPoint := strings.TrimRight(fileEvent.MountPath, "/")
+		if mountPoint == "" || !strings.HasPrefix(path, mountPoint) {
+			return false
+		}
+		return innerEval(ctx)
+	}
+	evaluator.Weight = baseWeight + 1
+	return evaluator
+}
+
 var (
 	overlayFSEvaluator = func(field eval.Field) *eval.StringEvaluator {
 		return &eval.StringEvaluator{
@@ -57,13 +87,13 @@ var (
 				if err != nil {
 					return nil, err
 				}
-				return eval.Or(baseEvaluator, overlayFSPathEvaluator, state)
+				return eval.Or(baseEvaluator, guardOverlayFSEvaluator(a.Field, overlayFSPathEvaluator, baseEvaluator.Weight), state)
 			} else if strings.HasSuffix(b.Field, ".file.path") {
 				overlayFSPathEvaluator, err := eval.GlobCmp.StringEquals(overlayFSEvaluator(b.Field), a, state)
 				if err != nil {
 					return nil, err
 				}
-				return eval.Or(baseEvaluator, overlayFSPathEvaluator, state)
+				return eval.Or(baseEvaluator, guardOverlayFSEvaluator(b.Field, overlayFSPathEvaluator, baseEvaluator.Weight), state)
 			}
 
 			return baseEvaluator, nil
@@ -79,7 +109,7 @@ var (
 				if err != nil {
 					return nil, err
 				}
-				return eval.Or(baseEvaluator, overlayFSPathEvaluator, state)
+				return eval.Or(baseEvaluator, guardOverlayFSEvaluator(a.Field, overlayFSPathEvaluator, baseEvaluator.Weight), state)
 			}
 
 			return baseEvaluator, nil
@@ -95,7 +125,7 @@ var (
 				if err != nil {
 					return nil, err
 				}
-				return eval.Or(baseEvaluator, overlayFSPathEvaluator, state)
+				return eval.Or(baseEvaluator, guardOverlayFSEvaluator(a.Field, overlayFSPathEvaluator, baseEvaluator.Weight), state)
 			}
 
 			return baseEvaluator, nil

@@ -206,7 +206,15 @@ type ActivityTree struct {
 	baseMountNSByCgroup     map[uint64]uint32
 	seededMountNamespaceIDs map[uint64]map[uint32]mountNamespaceSeedState
 
-	imageTagIDs []imageTagEntry
+	imageTagIDs        []imageTagEntry
+	flushPendingHashes func()
+}
+
+// FlushPendingHashes waits for any in-flight asynchronous hash computations associated with this tree.
+func (at *ActivityTree) FlushPendingHashes() {
+	if at != nil && at.flushPendingHashes != nil {
+		at.flushPendingHashes()
+	}
 }
 
 // imageTagEntry is a slot in the ActivityTree's image tag registry.
@@ -625,6 +633,29 @@ func (at *ActivityTree) Contains(event *model.Event, insertMissingProcesses bool
 	return !newEntry, err
 }
 
+func resolveEventFieldsForActivityTree(event *model.Event) {
+	_ = event.FieldHandlers.ResolveAsync(event)
+	_ = event.FieldHandlers.ResolveEventTimestamp(event, &event.BaseEvent)
+
+	switch event.GetEventType() {
+	case model.FileOpenEventType:
+		_ = event.FieldHandlers.ResolveFilePath(event, &event.Open.File)
+		_ = event.FieldHandlers.ResolveFileBasename(event, &event.Open.File)
+		_ = event.FieldHandlers.ResolveFileFilesystem(event, &event.Open.File)
+	case model.NetworkFlowMonitorEventType:
+		_ = event.FieldHandlers.ResolveNetworkDeviceIfName(event, &event.NetworkFlowMonitor.Device)
+	case model.CapabilitiesEventType:
+		_ = event.FieldHandlers.ResolveCapabilitiesAttempted(event, &event.CapabilitiesUsage)
+		_ = event.FieldHandlers.ResolveCapabilitiesAttemptedHostUserNS(event, &event.CapabilitiesUsage)
+		_ = event.FieldHandlers.ResolveCapabilitiesUsed(event, &event.CapabilitiesUsage)
+		_ = event.FieldHandlers.ResolveCapabilitiesUsedHostUserNS(event, &event.CapabilitiesUsage)
+	case model.FileMountEventType:
+		_ = event.FieldHandlers.ResolveMountPointPath(event, &event.Mount)
+		_ = event.FieldHandlers.ResolveMountSourcePath(event, &event.Mount)
+		_ = event.FieldHandlers.ResolveMountRootPath(event, &event.Mount)
+	}
+}
+
 // insertEvent inserts the event in the activity tree, returns true if the event generated a new entry in the tree.
 // The activity nodes are the ones Insert documents. A dry run of syscalls or capabilities returns
 // no nodes: those scans stop at the first value that is not already present.
@@ -642,6 +673,10 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		return false, nil, nil, err
 	}
 
+	if resolvers != nil && resolvers.HashResolver != nil {
+		at.flushPendingHashes = resolvers.HashResolver.Flush
+	}
+
 	node, newProcessNode, err := at.createProcessNode(event.ProcessCacheEntry, imageTagID, generationType, !insertMissingProcesses /*dryRun*/, resolvers)
 	unattributed := errors.Is(err, ErrBrokenLineage) && at.canBeUnattributed(event, dryRun, insertMissingProcesses)
 	if err != nil && !unattributed {
@@ -653,7 +688,7 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		return false, nil, nil, ErrProcessNodeNotCreated
 	}
 
-	event.ResolveFieldsForAD()
+	resolveEventFieldsForActivityTree(event)
 
 	if err := at.eventInsertionError(event); err != nil {
 		return false, nil, nil, err
@@ -914,6 +949,9 @@ func (at *ActivityTree) lineageLeavesSelector(entry *model.ProcessCacheEntry) bo
 }
 
 func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, imageTag string, generationType NodeGenerationType, dryRun bool, resolvers *resolvers.EBPFResolvers) (*ProcessNode, bool, error) {
+	if resolvers != nil && resolvers.HashResolver != nil {
+		at.flushPendingHashes = resolvers.HashResolver.Flush
+	}
 	var imageTagID uint64
 	if dryRun {
 		// dry-run must not mutate the registry; if the tag is unknown it stays unknown (ID 0)
@@ -1299,6 +1337,7 @@ func (at *ActivityTree) TagAllNodes(imageTag string, timestamp time.Time) {
 // recomputeSizeBytes walks the full tree and resets Stats.SizeBytes to the accurate current value.
 // Called from ComputeActivityTreeStats and TagAllNodes to correct any accumulated drift.
 func (at *ActivityTree) recomputeSizeBytes() {
+	at.FlushPendingHashes()
 	var total int64
 	openList := make([]*ProcessNode, len(at.ProcessNodes), len(at.ProcessNodes)+1)
 	copy(openList, at.ProcessNodes)
@@ -1308,6 +1347,8 @@ func (at *ActivityTree) recomputeSizeBytes() {
 	for len(openList) > 0 {
 		pn := openList[len(openList)-1]
 		openList = openList[:len(openList)-1]
+		_ = pn.Process.accountedHashes(true)
+		markFileTreeHashesAccounted(pn.Files)
 		total += pn.size() + processNodeOwnActivitySize(pn)
 		openList = append(openList, pn.Children...)
 	}
@@ -1315,6 +1356,15 @@ func (at *ActivityTree) recomputeSizeBytes() {
 		total += mn.size()
 	}
 	at.Stats.SizeBytes = total
+}
+
+func markFileTreeHashesAccounted(files map[string]*FileNode) {
+	for _, fn := range files {
+		if fn.File != nil {
+			_ = fn.File.accountedHashes(true)
+		}
+		markFileTreeHashesAccounted(fn.Children)
+	}
 }
 
 // fileSubtreeSizeBytes recursively sums the size of a FileNode and all its descendants.

@@ -16,7 +16,10 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"os"
 	"runtime"
+	"sync"
+	"syscall"
 
 	"github.com/go-delve/delve/pkg/goversion"
 	"go.opentelemetry.io/ebpf-profiler/libpf/pfelf"
@@ -63,6 +66,45 @@ func (l Layout) TLSOffset() int32 {
 	return l.tlsOffset
 }
 
+const maxLayoutCacheEntries = 256
+
+type layoutCacheKey struct {
+	dev       uint64
+	ino       uint64
+	mtimeSec  int64
+	mtimeNsec int64
+	size      int64
+}
+
+type layoutCacheEntry struct {
+	layout Layout
+	tlsErr error
+	err    error
+}
+
+var (
+	layoutCacheMu sync.RWMutex
+	layoutCache   = make(map[layoutCacheKey]layoutCacheEntry, maxLayoutCacheEntries)
+)
+
+func statLayoutCacheKey(exePath string) (layoutCacheKey, bool) {
+	info, err := os.Stat(exePath)
+	if err != nil {
+		return layoutCacheKey{}, false
+	}
+	st, ok := info.Sys().(*syscall.Stat_t)
+	if !ok || st.Ino == 0 {
+		return layoutCacheKey{}, false
+	}
+	return layoutCacheKey{
+		dev:       uint64(st.Dev),
+		ino:       st.Ino,
+		mtimeSec:  int64(st.Mtim.Sec),
+		mtimeNsec: int64(st.Mtim.Nsec),
+		size:      st.Size,
+	}, true
+}
+
 // ResolveLayout resolves the layout of the Go executable at exePath.
 //
 // tlsErr is a non-fatal error: the TLS offset could not be decoded, and the
@@ -70,6 +112,32 @@ func (l Layout) TLSOffset() int32 {
 // conventional offset on amd64, 0 on arm64). A 0 offset means "g is not in
 // TLS", and the readers fall back to the g register where the ABI has one.
 func ResolveLayout(exePath string) (layout Layout, tlsErr error, err error) {
+	cacheKey, canCache := statLayoutCacheKey(exePath)
+	if canCache {
+		layoutCacheMu.RLock()
+		cached, ok := layoutCache[cacheKey]
+		layoutCacheMu.RUnlock()
+		if ok {
+			return cached.layout, cached.tlsErr, cached.err
+		}
+	}
+
+	layout, tlsErr, err = resolveLayoutUncached(exePath)
+	if canCache && (err == nil || errors.Is(err, ErrNotGo) || errors.Is(err, ErrUnsupported) || errors.Is(err, ErrMalformed)) {
+		layoutCacheMu.Lock()
+		if len(layoutCache) >= maxLayoutCacheEntries {
+			for k := range layoutCache {
+				delete(layoutCache, k)
+				break
+			}
+		}
+		layoutCache[cacheKey] = layoutCacheEntry{layout: layout, tlsErr: tlsErr, err: err}
+		layoutCacheMu.Unlock()
+	}
+	return layout, tlsErr, err
+}
+
+func resolveLayoutUncached(exePath string) (layout Layout, tlsErr error, err error) {
 	elfFile, err := pfelf.Open(exePath)
 	if err != nil {
 		return Layout{}, nil, fmt.Errorf("failed to open ELF: %w", err)

@@ -9,14 +9,19 @@ package eval
 import (
 	"errors"
 	"strings"
+
+	"github.com/charlievieth/strcase"
 )
 
 // Glob describes file glob object
 type Glob struct {
 	pattern         string
+	literalPrefix   string
+	literalSuffix   string
 	prefix          []patternElement
 	suffix          []patternElement
 	isScalar        bool
+	isPrefixOnly    bool
 	caseInsensitive bool
 	normalizePaths  bool
 }
@@ -168,6 +173,29 @@ func (g *Glob) Matches(filename string) bool {
 		return g.pattern == filename
 	}
 
+	if g.literalPrefix != "" {
+		if g.caseInsensitive {
+			if !strcase.HasPrefix(filename, g.literalPrefix) {
+				return false
+			}
+		} else if !strings.HasPrefix(filename, g.literalPrefix) {
+			return false
+		}
+		if g.isPrefixOnly {
+			return true
+		}
+	}
+
+	if g.literalSuffix != "" {
+		if g.caseInsensitive {
+			if !strcase.HasSuffix(filename, g.literalSuffix) {
+				return false
+			}
+		} else if !strings.HasSuffix(filename, g.literalSuffix) {
+			return false
+		}
+	}
+
 	if len(g.prefix) > 0 && !g.matchesPrefix(filename) {
 		return false
 	} else if len(g.suffix) > 0 && !g.matchesSuffix(filename) {
@@ -206,11 +234,22 @@ func NewGlob(pattern string, caseInsensitive bool, normalizePaths bool) (*Glob, 
 		}
 	}
 
+	starIdx := strings.IndexByte(pattern, '*')
 	g := &Glob{
 		pattern:         pattern,
-		isScalar:        !strings.Contains(pattern, "*"),
+		isScalar:        starIdx < 0,
 		caseInsensitive: caseInsensitive,
 		normalizePaths:  normalizePaths,
+	}
+
+	if starIdx > 0 {
+		g.literalPrefix = pattern[:starIdx]
+		if starIdx == len(pattern)-2 && strings.HasSuffix(pattern, "/**") {
+			g.isPrefixOnly = true
+		}
+		if lastStar := strings.LastIndexByte(pattern, '*'); lastStar < len(pattern)-1 {
+			g.literalSuffix = pattern[lastStar+1:]
+		}
 	}
 
 	if pos == -1 {

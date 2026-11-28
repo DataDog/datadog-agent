@@ -9,6 +9,8 @@
 package activitytree
 
 import (
+	"cmp"
+	"slices"
 	"time"
 	"unsafe"
 
@@ -178,6 +180,34 @@ func (sn *SocketNode) evictBeforeTimestamp(before time.Time) (bool, int64) {
 	return len(sn.Bind) == 0 && len(sn.Connect) == 0, removed
 }
 
+func cmpBindNodeKey(n *BindNode, port, protocol uint16, ip string) int {
+	if c := cmp.Compare(n.Port, port); c != 0 {
+		return c
+	}
+	if c := cmp.Compare(n.Protocol, protocol); c != 0 {
+		return c
+	}
+	return cmp.Compare(n.IP, ip)
+}
+
+func cmpBindNodes(a, b *BindNode) int {
+	return cmpBindNodeKey(a, b.Port, b.Protocol, b.IP)
+}
+
+func cmpConnectNodeKey(n *ConnectNode, port, protocol uint16, ip string) int {
+	if c := cmp.Compare(n.Port, port); c != 0 {
+		return c
+	}
+	if c := cmp.Compare(n.Protocol, protocol); c != 0 {
+		return c
+	}
+	return cmp.Compare(n.IP, ip)
+}
+
+func cmpConnectNodes(a, b *ConnectNode) int {
+	return cmpConnectNodeKey(a, b.Port, b.Protocol, b.IP)
+}
+
 // InsertBindEvent inserts a bind event inside a socket node. When a new BindNode is
 // created the caller-provided stats is charged its size, keeping Stats.SizeBytes honest
 // for bind-heavy workloads where the previous accounting only charged the socket once
@@ -185,17 +215,19 @@ func (sn *SocketNode) evictBeforeTimestamp(before time.Time) (bool, int64) {
 // every other Insert*Event method.
 func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, imageTagID uint64, generationType NodeGenerationType, rules []*model.MatchedRule, stats *Stats, dryRun bool) (bool, *NodeBase) {
 	evtIP := utils.GetIPStringFromIPNet(evt.Addr.IPNet)
-	for _, n := range sn.Bind {
-		if evt.Addr.Port == n.Port && evtIP == n.IP && evt.Protocol == n.Protocol {
-			if !dryRun {
-				n.MatchedRules = model.AppendMatchedRule(n.MatchedRules, rules)
-			}
-			if imageTagID == 0 || n.HasImageTag(imageTagID) {
-				return false, &n.NodeBase
-			}
-			n.AppendImageTagID(imageTagID, event.ResolveEventTime())
+	idx, found := slices.BinarySearchFunc(sn.Bind, evtIP, func(n *BindNode, ip string) int {
+		return cmpBindNodeKey(n, evt.Addr.Port, evt.Protocol, ip)
+	})
+	if found {
+		n := sn.Bind[idx]
+		if !dryRun {
+			n.MatchedRules = model.AppendMatchedRule(n.MatchedRules, rules)
+		}
+		if imageTagID == 0 || n.HasImageTag(imageTagID) {
 			return false, &n.NodeBase
 		}
+		n.AppendImageTagID(imageTagID, event.ResolveEventTime())
+		return false, &n.NodeBase
 	}
 
 	if !dryRun {
@@ -209,7 +241,7 @@ func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, 
 		node.NodeBase = NewNodeBase()
 
 		node.AppendImageTagID(imageTagID, event.ResolveEventTime())
-		sn.Bind = append(sn.Bind, node)
+		sn.Bind = slices.Insert(sn.Bind, idx, node)
 		stats.SizeBytes += bindSize(node)
 		return true, &node.NodeBase
 	}
@@ -230,17 +262,19 @@ func NewSocketNode(family string, generationType NodeGenerationType) *SocketNode
 // created the caller-provided stats is charged its size, keeping Stats.SizeBytes honest.
 func (sn *SocketNode) InsertConnectEvent(evt *model.ConnectEvent, event *model.Event, imageTagID uint64, generationType NodeGenerationType, rules []*model.MatchedRule, stats *Stats, dryRun bool) (bool, *NodeBase) {
 	evtIP := utils.GetIPStringFromIPNet(evt.Addr.IPNet)
-	for _, n := range sn.Connect {
-		if evt.Addr.Port == n.Port && evtIP == n.IP && evt.Protocol == n.Protocol {
-			if !dryRun {
-				n.MatchedRules = model.AppendMatchedRule(n.MatchedRules, rules)
-			}
-			if imageTagID == 0 || n.HasImageTag(imageTagID) {
-				return false, &n.NodeBase
-			}
-			n.AppendImageTagID(imageTagID, event.ResolveEventTime())
+	idx, found := slices.BinarySearchFunc(sn.Connect, evtIP, func(n *ConnectNode, ip string) int {
+		return cmpConnectNodeKey(n, evt.Addr.Port, evt.Protocol, ip)
+	})
+	if found {
+		n := sn.Connect[idx]
+		if !dryRun {
+			n.MatchedRules = model.AppendMatchedRule(n.MatchedRules, rules)
+		}
+		if imageTagID == 0 || n.HasImageTag(imageTagID) {
 			return false, &n.NodeBase
 		}
+		n.AppendImageTagID(imageTagID, event.ResolveEventTime())
+		return false, &n.NodeBase
 	}
 
 	if !dryRun {
@@ -254,7 +288,7 @@ func (sn *SocketNode) InsertConnectEvent(evt *model.ConnectEvent, event *model.E
 		node.NodeBase = NewNodeBase()
 
 		node.AppendImageTagID(imageTagID, event.ResolveEventTime())
-		sn.Connect = append(sn.Connect, node)
+		sn.Connect = slices.Insert(sn.Connect, idx, node)
 		stats.ConnectNodes++
 		stats.SizeBytes += connectSize(node)
 		return true, &node.NodeBase

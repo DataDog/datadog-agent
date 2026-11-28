@@ -47,9 +47,9 @@ func (r *Resolver) ResolveDentryFilePath(e *model.FileFields) (string, error) {
 	pathStr, err := r.dentryResolver.Resolve(e.PathKey, !e.HasHardLinks(), fileCaller(e))
 	if err != nil {
 		if _, mountErr := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(mountErr, mount.ErrMountKernelID) {
-			return pathStr, &ErrPathResolutionNotCritical{Err: fmt.Errorf("dentry resolution failed (mount_id=%d invalid: %w): %w", e.MountID, mountErr, err)}
+			return pathStr, &ErrPathResolutionNotCritical{Err: err}
 		}
-		return pathStr, &ErrPathResolution{Err: fmt.Errorf("dentry resolution failed: %w", err)}
+		return pathStr, &ErrPathResolution{Err: err}
 	}
 
 	return pathStr, nil
@@ -63,7 +63,11 @@ func (r *Resolver) ResolveMountAttributes(e *model.FileEvent, pidCtx *model.PIDC
 
 	mnt, _, _, err := r.mountResolver.ResolveMount(e.MountID, pidCtx.Pid)
 	if err != nil {
-		return fmt.Errorf("mount attribute resolution failed (mount_id=%d, pid=%d): %w", e.MountID, pidCtx.Pid, err)
+		e.MountVisibilityResolved = true
+		if e.Filesystem == "" {
+			e.Filesystem = model.UnknownFS
+		}
+		return err
 	}
 
 	e.MountVisibilityResolved = true

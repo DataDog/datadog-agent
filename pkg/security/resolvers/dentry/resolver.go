@@ -321,7 +321,8 @@ func (dr *Resolver) ResolveFromCache(pathKey model.PathKey, caller Caller) (stri
 	var path PathEntry
 	var err error
 	depth := int64(0)
-	filenameParts := make([][]byte, 0, 128)
+	var partsBuf [64]string
+	filenameParts := partsBuf[:0]
 
 	entry := counterEntry{
 		resolutionType: metrics.CacheTag,
@@ -340,7 +341,7 @@ func (dr *Resolver) ResolveFromCache(pathKey model.PathKey, caller Caller) (stri
 
 		// Don't append dentry name if this is the root dentry (i.d. name == '/')
 		if len(path.Name) != 0 && path.Name[0] != '\x00' && path.Name[0] != '/' {
-			filenameParts = append(filenameParts, []byte(path.Name))
+			filenameParts = append(filenameParts, path.Name)
 		}
 
 		if path.Parent.Inode == 0 {
@@ -355,7 +356,27 @@ func (dr *Resolver) ResolveFromCache(pathKey model.PathKey, caller Caller) (stri
 		dr.hitsCounters[entry].Add(depth)
 	}
 
-	return computeFilenameFromParts(filenameParts), err
+	return computeFilenameFromStringParts(filenameParts), err
+}
+
+func computeFilenameFromStringParts(parts []string) string {
+	if len(parts) == 0 {
+		return "/"
+	}
+
+	prealloc := 0
+	for _, part := range parts {
+		prealloc += len(part) + 1
+	}
+
+	var builder strings.Builder
+	builder.Grow(prealloc)
+
+	for i := len(parts) - 1; i >= 0; i-- {
+		builder.WriteByte('/')
+		builder.WriteString(parts[i])
+	}
+	return builder.String()
 }
 
 func computeFilenameFromParts(parts [][]byte) string {
@@ -376,7 +397,7 @@ func computeFilenameFromParts(parts [][]byte) string {
 	for i := 0; i < len(parts); i++ {
 		j := len(parts) - 1 - i
 
-		builder.WriteRune('/')
+		builder.WriteByte('/')
 		builder.Write(parts[j])
 	}
 	return builder.String()
@@ -555,35 +576,42 @@ func (dr *Resolver) cacheEntries(keys []model.PathKey, names [][]byte) error {
 	}
 
 	for i, k := range keys {
-		cacheEntry := PathEntry{
-			Name: string(names[i]),
-		}
+		var parent model.PathKey
 		if len(keys) > i+1 {
-			cacheEntry.Parent = keys[i+1]
+			parent = keys[i+1]
+		}
+		if existing, exists := dr.cache.Get(k.MountID, k); exists && existing.Parent == parent && existing.Name == string(names[i]) {
+			continue
 		}
 
-		dr.cacheInode(k, cacheEntry)
+		dr.cacheInode(k, PathEntry{
+			Parent: parent,
+			Name:   string(names[i]),
+		})
 	}
 
 	return nil
 }
 
-func (dr *Resolver) computeSegmentCount() int {
+func (dr *Resolver) computeSegmentCount(challenge uint32) int {
 	count := 0
 	i := 0
-	for i < dr.erpcSegmentSize {
+	for i < dr.erpcSegmentSize-17 {
+		if challenge != binary.NativeEndian.Uint32(dr.erpcSegment[i+12:i+16]) {
+			break
+		}
 		i += 16 // skip the path key
 
-		if i < dr.erpcSegmentSize {
-			if dr.erpcSegment[i] == '/' {
-				break
-			}
-
-			// skip the segment
-			i += bytes.IndexByte(dr.erpcSegment[i:], 0)
+		if dr.erpcSegment[i] == 0 || dr.erpcSegment[i] == '/' {
+			break
 		}
 
-		i++ // skip the null terminator
+		// skip the segment
+		nul := bytes.IndexByte(dr.erpcSegment[i:], 0)
+		if nul < 0 {
+			break
+		}
+		i += nul + 1 // skip the null terminator
 		count++
 	}
 	return count
@@ -609,7 +637,7 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool, caller Ca
 		return "", fmt.Errorf("unable to resolve the path of mountID `%d` and inode `%d` with eRPC: %w", pathKey.MountID, pathKey.Inode, err)
 	}
 
-	segmentCount := dr.computeSegmentCount()
+	segmentCount := dr.computeSegmentCount(challenge)
 	dr.prepareBuffersWithCapacity(segmentCount)
 
 	i := 0
@@ -701,7 +729,7 @@ func (dr *Resolver) Resolve(pathKey model.PathKey, cache bool, caller Caller) (s
 	if err != nil && !errors.As(err, &truncatedERPC) && dr.config.MapDentryResolutionEnabled {
 		path, err = dr.ResolveFromMap(pathKey, cache, caller)
 		if err != nil && erpcErr != nil {
-			err = fmt.Errorf("%w (erpc: %w)", err, erpcErr)
+			err = &errDentryWithERPC{mapErr: err, erpcErr: erpcErr}
 		}
 	}
 	return path, err

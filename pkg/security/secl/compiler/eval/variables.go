@@ -9,9 +9,11 @@ package eval
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jellydator/ttlcache/v3"
@@ -656,17 +658,52 @@ func NewIPVariable(value net.IPNet, opts VariableOpts) *IPVariable {
 	}
 }
 
+type cachedSlice[T any] struct {
+	values     []T
+	validUntil int64
+}
+
+func loadOrComputeKeys[K comparable](cache *ttlcache.Cache[K, bool], ttl time.Duration, ptr *atomic.Pointer[cachedSlice[K]]) []K {
+	if cached := ptr.Load(); cached != nil && (ttl <= 0 || time.Now().UnixNano() < cached.validUntil) {
+		return cached.values
+	}
+	if ttl <= 0 {
+		keys := cache.Keys()
+		keys = keys[:len(keys):len(keys)]
+		ptr.Store(&cachedSlice[K]{values: keys})
+		return keys
+	}
+	items := cache.Items()
+	keys := make([]K, 0, len(items))
+	validUntil := int64(math.MaxInt64)
+	for k, item := range items {
+		keys = append(keys, k)
+		if exp := item.ExpiresAt(); !exp.IsZero() {
+			if ns := exp.UnixNano(); ns < validUntil {
+				validUntil = ns
+			}
+		}
+	}
+	ptr.Store(&cachedSlice[K]{values: keys, validUntil: validUntil})
+	return keys
+}
+
 // StringArrayVariable describes a mutable string array variable
 type StringArrayVariable struct {
-	isSet bool
-	LRU   *ttlcache.Cache[string, bool]
-	opts  VariableOpts
+	isSet  bool
+	LRU    *ttlcache.Cache[string, bool]
+	opts   VariableOpts
+	cached atomic.Pointer[cachedSlice[string]]
 }
 
 // GetValue returns the variable value
 func (m *StringArrayVariable) GetValue() (interface{}, bool) {
-	keys := m.LRU.Keys()
+	keys := m.keys()
 	return keys, len(keys) != 0 && m.isSet
+}
+
+func (m *StringArrayVariable) keys() []string {
+	return loadOrComputeKeys(m.LRU, m.opts.TTL, &m.cached)
 }
 
 func (m *StringArrayVariable) set(_ *Context, values interface{}) error {
@@ -676,6 +713,7 @@ func (m *StringArrayVariable) set(_ *Context, values interface{}) error {
 	for _, v := range values.([]string) {
 		m.LRU.Set(v, true, ttlcache.DefaultTTL)
 	}
+	m.cached.Store(nil)
 	return nil
 }
 
@@ -700,6 +738,7 @@ func (m *StringArrayVariable) Append(_ *Context, value interface{}) error {
 	default:
 		return errAppendNotSupported
 	}
+	m.cached.Store(nil)
 	m.isSet = true
 	return nil
 }
@@ -708,7 +747,7 @@ func (m *StringArrayVariable) Append(_ *Context, value interface{}) error {
 func (m *StringArrayVariable) GetEvaluator() interface{} {
 	return &StringArrayEvaluator{
 		EvalFnc: func(*Context) []string {
-			return m.LRU.Keys()
+			return m.keys()
 		},
 	}
 }
@@ -721,6 +760,7 @@ func (m *StringArrayVariable) GetVariableOpts() VariableOpts {
 // SetVariableOpts sets the variable VariableOpts
 func (m *StringArrayVariable) SetVariableOpts(opts VariableOpts) {
 	m.opts = opts
+	m.cached.Store(nil)
 }
 
 // CleanupExpired cleans up expired values from the variable
@@ -728,6 +768,7 @@ func (m *StringArrayVariable) SetVariableOpts(opts VariableOpts) {
 // as expired entries are already not returned by the LRU.Keys() method
 func (m *StringArrayVariable) CleanupExpired() {
 	m.LRU.DeleteExpired()
+	m.cached.Store(nil)
 }
 
 // NewStringArrayVariable returns a new mutable string array variable
@@ -748,15 +789,20 @@ func NewStringArrayVariable(value []string, opts VariableOpts) *StringArrayVaria
 
 // IntArrayVariable describes a mutable integer array variable
 type IntArrayVariable struct {
-	isSet bool
-	LRU   *ttlcache.Cache[int, bool]
-	opts  VariableOpts
+	isSet  bool
+	LRU    *ttlcache.Cache[int, bool]
+	opts   VariableOpts
+	cached atomic.Pointer[cachedSlice[int]]
 }
 
 // GetValue returns the variable value
 func (m *IntArrayVariable) GetValue() (interface{}, bool) {
-	keys := m.LRU.Keys()
+	keys := m.keys()
 	return keys, len(keys) != 0 && m.isSet
+}
+
+func (m *IntArrayVariable) keys() []int {
+	return loadOrComputeKeys(m.LRU, m.opts.TTL, &m.cached)
 }
 
 func (m *IntArrayVariable) set(_ *Context, values interface{}) error {
@@ -767,6 +813,7 @@ func (m *IntArrayVariable) set(_ *Context, values interface{}) error {
 	for _, v := range values.([]int) {
 		m.LRU.Set(v, true, ttlcache.DefaultTTL)
 	}
+	m.cached.Store(nil)
 
 	return nil
 }
@@ -792,6 +839,7 @@ func (m *IntArrayVariable) Append(_ *Context, value interface{}) error {
 	default:
 		return errAppendNotSupported
 	}
+	m.cached.Store(nil)
 	m.isSet = true
 	return nil
 }
@@ -800,7 +848,7 @@ func (m *IntArrayVariable) Append(_ *Context, value interface{}) error {
 func (m *IntArrayVariable) GetEvaluator() interface{} {
 	return &IntArrayEvaluator{
 		EvalFnc: func(*Context) []int {
-			return m.LRU.Keys()
+			return m.keys()
 		},
 	}
 }
@@ -813,6 +861,7 @@ func (m *IntArrayVariable) GetVariableOpts() VariableOpts {
 // SetVariableOpts sets the variable VariableOpts
 func (m *IntArrayVariable) SetVariableOpts(opts VariableOpts) {
 	m.opts = opts
+	m.cached.Store(nil)
 }
 
 // CleanupExpired cleans up expired values from the variable
@@ -820,6 +869,7 @@ func (m *IntArrayVariable) SetVariableOpts(opts VariableOpts) {
 // as expired entries are already not returned by the LRU.Keys() method
 func (m *IntArrayVariable) CleanupExpired() {
 	m.LRU.DeleteExpired()
+	m.cached.Store(nil)
 }
 
 // NewIntArrayVariable returns a new mutable integer array variable

@@ -68,6 +68,45 @@ type ProcessInfo struct {
 
 	Envs          []string
 	EnvsTruncated bool
+
+	unaccountedAsyncHashes bool
+}
+
+// SetHashes updates FileEvent.HashState and FileEvent.Hashes under hashStateMu so background
+// hash completion does not race with concurrent tree encoders or heap-size accounting.
+func (pi *ProcessInfo) SetHashes(state model.HashState, hashes []string, async bool) {
+	hashStateMu.Lock()
+	pi.FileEvent.HashState = state
+	pi.FileEvent.Hashes = hashes
+	if async && len(hashes) > 0 {
+		pi.unaccountedAsyncHashes = true
+	}
+	hashStateMu.Unlock()
+}
+
+// GetHashes returns FileEvent.HashState and FileEvent.Hashes safely.
+func (pi *ProcessInfo) GetHashes() (model.HashState, []string) {
+	hashStateMu.RLock()
+	state, hashes := pi.FileEvent.HashState, pi.FileEvent.Hashes
+	hashStateMu.RUnlock()
+	return state, hashes
+}
+
+func (pi *ProcessInfo) accountedHashes(markAccounted bool) []string {
+	if markAccounted {
+		hashStateMu.Lock()
+		pi.unaccountedAsyncHashes = false
+		hashes := pi.FileEvent.Hashes
+		hashStateMu.Unlock()
+		return hashes
+	}
+	hashStateMu.RLock()
+	var hashes []string
+	if !pi.unaccountedAsyncHashes {
+		hashes = pi.FileEvent.Hashes
+	}
+	hashStateMu.RUnlock()
+	return hashes
 }
 
 // newProcessInfo builds the slim ProcessInfo from a model.Process. Args and envs are
@@ -137,12 +176,14 @@ func newProcessInfo(p *model.Process, resolver *sprocess.EBPFResolver) ProcessIn
 
 // ToModelProcess rebuilds a model.Process from the slim ProcessInfo.
 func (pi *ProcessInfo) ToModelProcess(containerID containerutils.ContainerID) model.Process {
+	fe := pi.FileEvent
+	fe.HashState, fe.Hashes = pi.GetHashes()
 	return model.Process{
 		PIDContext:       model.PIDContext{Pid: pi.Pid, Tid: pi.Tid, PPid: pi.PPid},
 		Cookie:           pi.Cookie,
 		IsThread:         pi.IsThread,
 		IsExecExec:       pi.IsExecExec,
-		FileEvent:        pi.FileEvent,
+		FileEvent:        fe,
 		CGroup:           pi.CGroup,
 		ContainerContext: model.ContainerContext{ContainerID: containerID},
 		TTYName:          pi.TTYName,
@@ -212,13 +253,8 @@ func (pn *ProcessNode) hasActivity() bool {
 
 // NewProcessNode returns a new ProcessNode instance
 func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) *ProcessNode {
-	// call the callback to resolve additional fields before copying them
 	var processResolver *sprocess.EBPFResolver
 	if resolvers != nil {
-		resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.FileEvent, 0)
-		if entry.ProcessContext.HasInterpreter() {
-			resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.LinuxBinprm.FileEvent, 0)
-		}
 		processResolver = resolvers.ProcessResolver
 	}
 	node := &ProcessNode{
@@ -226,6 +262,14 @@ func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGeneratio
 		GenerationType: generationType,
 	}
 	node.NodeBase = NewNodeBase()
+	if resolvers != nil && resolvers.HashResolver != nil {
+		resolvers.HashResolver.ComputeHashesAsync(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.FileEvent, 0, func(state model.HashState, hashes []string, async bool) {
+			node.Process.SetHashes(state, hashes, async)
+		})
+		if entry.ProcessContext.HasInterpreter() {
+			resolvers.HashResolver.ComputeHashesAsync(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.LinuxBinprm.FileEvent, 0, nil)
+		}
+	}
 
 	return node
 }
@@ -276,13 +320,14 @@ func (pn *ProcessNode) getNodeLabel(args string) string {
 		builder.WriteString("<TR><TD>Package</TD><TD>" + pn.Process.FileEvent.PkgName + ":" + pn.Process.FileEvent.PkgVersion + "</TD></TR>")
 	}
 	// add hashes
-	if len(pn.Process.FileEvent.Hashes) > 0 {
-		builder.WriteString("<TR><TD>Hashes</TD><TD>" + pn.Process.FileEvent.Hashes[0] + "</TD></TR>")
-		for _, h := range pn.Process.FileEvent.Hashes {
+	hashState, hashes := pn.Process.GetHashes()
+	if len(hashes) > 0 {
+		builder.WriteString("<TR><TD>Hashes</TD><TD>" + hashes[0] + "</TD></TR>")
+		for _, h := range hashes {
 			builder.WriteString("<TR><TD></TD><TD>" + h + "</TD></TR>")
 		}
 	} else {
-		builder.WriteString("<TR><TD>Hash state</TD><TD>" + pn.Process.FileEvent.HashState.String() + "</TD></TR>")
+		builder.WriteString("<TR><TD>Hash state</TD><TD>" + hashState.String() + "</TD></TR>")
 	}
 	builder.WriteString("</TABLE>>")
 	return builder.String()

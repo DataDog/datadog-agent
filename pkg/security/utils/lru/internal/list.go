@@ -31,6 +31,14 @@ func (e *Entry[K, V]) PrevEntry() *Entry[K, V] {
 	return nil
 }
 
+// NextEntry returns the next list element or nil.
+func (e *Entry[K, V]) NextEntry() *Entry[K, V] {
+	if n := e.next; e.list != nil && n != &e.list.root {
+		return n
+	}
+	return nil
+}
+
 // LruList represents a doubly linked list.
 // The zero Value for LruList is an empty list ready to use.
 type LruList[K comparable, V any] struct {
@@ -52,6 +60,14 @@ func NewList[K comparable, V any]() *LruList[K, V] { return new(LruList[K, V]).I
 // Length returns the number of elements of list l.
 // The complexity is O(1).
 func (l *LruList[K, V]) Length() int { return l.len }
+
+// Front returns the first element of list l or nil if the list is empty.
+func (l *LruList[K, V]) Front() *Entry[K, V] {
+	if l.len == 0 {
+		return nil
+	}
+	return l.root.next
+}
 
 // Back returns the last element of list l or nil if the list is empty.
 func (l *LruList[K, V]) Back() *Entry[K, V] {

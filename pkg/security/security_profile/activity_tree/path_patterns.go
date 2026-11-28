@@ -719,11 +719,19 @@ func directoryMembers(children map[string]*FileNode, members []tokenizedName) []
 }
 
 type compiledPattern struct {
-	parts []templatePart
+	parts  []templatePart
+	pieces []string
 	// specificity orders matching patterns; higher wins.
 	specificity int
 	// directoryOnly patterns only match directories.
 	directoryOnly bool
+}
+
+func (p *compiledPattern) piecesOf() []string {
+	if p.pieces == nil {
+		p.pieces = templatePieces(p.parts)
+	}
+	return p.pieces
 }
 
 func compilePattern(template string) *compiledPattern {
@@ -1044,13 +1052,15 @@ func foldCoveredPatterns(children map[string]*FileNode, stats *Stats) int {
 		return 0
 	}
 	sort.Strings(patterns)
+	nodes := make([]*FileNode, len(patterns))
+	for i, name := range patterns {
+		nodes[i] = children[name]
+	}
 	folded := 0
-	for _, name := range patterns {
-		narrow := children[name]
+	for i, narrow := range nodes {
 		var broad *FileNode
-		for _, other := range patterns {
-			b := children[other]
-			if b == nil || b == narrow || !patternCovers(b, narrow) {
+		for j, b := range nodes {
+			if b == nil || i == j || !patternCovers(b, narrow) {
 				continue
 			}
 			if broad == nil || b.matcher().specificity > broad.matcher().specificity {
@@ -1062,7 +1072,8 @@ func foldCoveredPatterns(children map[string]*FileNode, stats *Stats) int {
 		}
 		sizeBefore := stringMapBytes(children) + fileSubtreeSizeBytes(broad) + fileSubtreeSizeBytes(narrow)
 		broad.mergeInto(narrow, stats)
-		delete(children, name)
+		delete(children, patterns[i])
+		nodes[i] = nil
 		folded++
 		if stats != nil {
 			stats.FileNodes--
@@ -1080,7 +1091,7 @@ func patternCovers(broad, narrow *FileNode) bool {
 	if b.specificity >= n.specificity || (b.directoryOnly && !n.directoryOnly) {
 		return false
 	}
-	bp, np := templatePieces(broad.Name), templatePieces(narrow.Name)
+	bp, np := b.piecesOf(), n.piecesOf()
 	if len(bp) != len(np) {
 		return false
 	}
@@ -1092,10 +1103,9 @@ func patternCovers(broad, narrow *FileNode) bool {
 	return true
 }
 
-// templatePieces splits a template on the separators of its literal parts,
-// keeping the separators.
-func templatePieces(template string) []string {
-	parts, _ := parseTemplate(template)
+// templatePieces splits parsed template parts on the separators of their
+// literal parts, keeping the separators.
+func templatePieces(parts []templatePart) []string {
 	var (
 		out []string
 		cur strings.Builder

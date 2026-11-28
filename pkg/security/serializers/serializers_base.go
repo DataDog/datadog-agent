@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 // ContainerContextSerializer serializes a container context to JSON
@@ -614,16 +613,8 @@ func isEnvValueHidden(opts eval.VariableOpts, scrubber *utils.Scrubber) bool {
 func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string, secScrubber *utils.Scrubber) (variables Variables) {
 	if rule != nil && rule.Opts != nil && rule.Opts.VariableStore != nil {
 		store := rule.Opts.VariableStore
+		var ctx *eval.Context
 		for name, variable := range store.Variables {
-			// do not serialize hardcoded variables like process.pid
-			if _, found := model.SECLVariables[name]; found {
-				continue
-			}
-
-			if slices.Contains(bundled.InternalVariables[:], name) {
-				continue
-			}
-
 			if (prefix != "" && !strings.HasPrefix(name, prefix)) ||
 				(prefix == "" && strings.Contains(name, ".")) {
 				continue
@@ -635,6 +626,16 @@ func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string, secScr
 			if opts.Private || isEnvValueHidden(opts, secScrubber) {
 				continue
 			}
+
+			// do not serialize hardcoded variables like process.pid
+			if _, found := model.SECLVariables[name]; found {
+				continue
+			}
+
+			if slices.Contains(bundled.InternalVariables[:], name) {
+				continue
+			}
+
 			filterEnv := func(value string) string {
 				if opts.EnvFiltered {
 					return secScrubber.FilterEnv(value)
@@ -644,7 +645,10 @@ func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string, secScr
 
 			evaluator := variable.GetEvaluator()
 			if evaluator, ok := evaluator.(eval.Evaluator); ok {
-				value := evaluator.Eval(eval.NewContext(e))
+				if ctx == nil {
+					ctx = eval.NewContext(e)
+				}
+				value := evaluator.Eval(ctx)
 				if variables == nil {
 					variables = Variables{}
 				}
@@ -654,14 +658,20 @@ func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string, secScr
 					case []string:
 						scrubbedValues := make([]string, 0, len(value))
 						for _, elem := range value {
-							if scrubbed, err := scrubber.ScrubString(filterEnv(elem)); err == nil {
-								scrubbedValues = append(scrubbedValues, scrubbed)
+							filtered := filterEnv(elem)
+							if filtered == "" {
+								scrubbedValues = append(scrubbedValues, "")
+								continue
 							}
+							scrubbedValues = append(scrubbedValues, secScrubber.ScrubLine(filtered))
 						}
 						variables[trimmedName] = scrubbedValues
 					case string:
-						if scrubbed, err := scrubber.ScrubString(filterEnv(value)); err == nil {
-							variables[trimmedName] = scrubbed
+						filtered := filterEnv(value)
+						if filtered == "" {
+							variables[trimmedName] = ""
+						} else {
+							variables[trimmedName] = secScrubber.ScrubLine(filtered)
 						}
 					default:
 						variables[trimmedName] = value
