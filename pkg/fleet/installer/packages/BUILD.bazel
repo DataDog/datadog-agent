@@ -82,6 +82,7 @@ go_library(
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/config",
             "//pkg/fleet/installer/msi",
             "//pkg/fleet/installer/packages/exec",
             "//pkg/fleet/installer/packages/processmanager",

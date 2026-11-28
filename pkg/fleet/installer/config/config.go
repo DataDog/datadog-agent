@@ -72,6 +72,38 @@ type State struct {
 	ExperimentDeploymentID string
 }
 
+// WaitForExperimentRemoval waits until the experiment in progress when it is called is no
+// longer recorded, because it was removed or replaced. It returns an error if that doesn't
+// happen within the timeout.
+func (d *Directories) WaitForExperimentRemoval(ctx context.Context, timeout, interval time.Duration) error {
+	state, err := d.GetState()
+	if err != nil {
+		return fmt.Errorf("error getting state: %w", err)
+	}
+	experimentID := state.ExperimentDeploymentID
+	if experimentID == "" {
+		return nil
+	}
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+			return fmt.Errorf("experiment %s still in progress after %s", experimentID, timeout)
+		case <-ticker.C:
+			state, err := d.GetState()
+			// Reading the state can fail while the experiment directory is being removed.
+			if err == nil && state.ExperimentDeploymentID != experimentID {
+				return nil
+			}
+		}
+	}
+}
+
 // Operations is the list of operations to perform on the configs.
 type Operations struct {
 	DeploymentID   string          `json:"deployment_id"`

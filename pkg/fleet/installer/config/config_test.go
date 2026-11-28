@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1522,4 +1523,43 @@ init_config:
 			assert.Equal(t, "info", readYAML(t, filepath.Join(tmpDir, "datadog.yaml"))["log_level"])
 		})
 	}
+}
+
+func TestWaitForExperimentRemoval(t *testing.T) {
+	setup := func(t *testing.T, experimentID string) *Directories {
+		d := &Directories{StablePath: t.TempDir(), ExperimentPath: t.TempDir()}
+		if experimentID != "" {
+			require.NoError(t, os.WriteFile(filepath.Join(d.ExperimentPath, deploymentIDFile), []byte(experimentID), 0640))
+		}
+		return d
+	}
+
+	t.Run("no experiment", func(t *testing.T) {
+		d := setup(t, "")
+		assert.NoError(t, d.WaitForExperimentRemoval(context.Background(), time.Minute, time.Millisecond))
+	})
+
+	t.Run("experiment removed", func(t *testing.T) {
+		d := setup(t, "config-1")
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			_ = os.RemoveAll(d.ExperimentPath)
+		}()
+		assert.NoError(t, d.WaitForExperimentRemoval(context.Background(), time.Minute, 10*time.Millisecond))
+	})
+
+	t.Run("experiment replaced", func(t *testing.T) {
+		d := setup(t, "config-1")
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			_ = os.WriteFile(filepath.Join(d.ExperimentPath, deploymentIDFile), []byte("config-2"), 0640)
+		}()
+		assert.NoError(t, d.WaitForExperimentRemoval(context.Background(), time.Minute, 10*time.Millisecond))
+	})
+
+	t.Run("experiment kept", func(t *testing.T) {
+		d := setup(t, "config-1")
+		err := d.WaitForExperimentRemoval(context.Background(), 50*time.Millisecond, 10*time.Millisecond)
+		assert.ErrorContains(t, err, "experiment config-1 still in progress")
+	})
 }

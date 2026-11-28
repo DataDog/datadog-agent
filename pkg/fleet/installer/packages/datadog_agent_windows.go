@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
@@ -67,7 +68,10 @@ var datadogAgentPackage = hooks{
 
 const (
 	watchdogStopEventName = "Global\\DatadogInstallerStop"
-	oldInstallerDir       = "C:\\ProgramData\\Datadog Installer"
+	// configExperimentRemovalTimeout bounds how long the services restart waits for
+	// remove-config-experiment to restore the stable config.
+	configExperimentRemovalTimeout = 2 * time.Minute
+	oldInstallerDir                = "C:\\ProgramData\\Datadog Installer"
 )
 
 // getExtensionStoragePath returns the path where extension lists should be stored.
@@ -939,7 +943,11 @@ func restoreStableConfigFromExperiment(ctx context.Context) error {
 }
 
 // preStopConfigExperimentDatadogAgent stops the watchdog, sets the fleet_policies_dir to stable,
-// and launches a new process to stop the experiment in the background.
+// and launches a new process to restart the Agent services in the background once the stable
+// config is restored.
+//
+// The process is launched before remove-config-experiment changes anything, so if the launch
+// fails the experiment is kept and the stop can be retried.
 func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
 	// set watchdog stop to make sure the watchdog stops
 	// don't care if it fails cause we will proceed with the stop anyway
@@ -956,10 +964,24 @@ func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
 	return launchPackageCommandInBackground(ctx.Context, getenv(), "preStopConfigExperimentBackground")
 }
 
-// preStopConfigExperimentDatadogAgentBackground restarts the Agent services.
+// preStopConfigExperimentDatadogAgentBackground restarts the Agent services once
+// remove-config-experiment has restored the stable config.
+//
+// The experiment is applied in place, so restarting the services before the restore
+// could leave the Agent running with the experiment config.
 func preStopConfigExperimentDatadogAgentBackground(ctx context.Context) error {
+	dirs := &config.Directories{
+		StablePath:     paths.AgentConfigDir,
+		ExperimentPath: paths.AgentConfigDirExp,
+	}
+	err := dirs.WaitForExperimentRemoval(ctx, configExperimentRemovalTimeout, time.Second)
+	if err != nil {
+		// Restart anyway, so the services don't stay stopped if the restore failed.
+		log.Warnf("restarting Agent services before the config experiment was removed: %s", err)
+	}
+
 	// Start the agent service to pick up the stable config
-	err := windowssvc.NewWinServiceManager().RestartAgentServices(ctx)
+	err = windowssvc.NewWinServiceManager().RestartAgentServices(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to start agent service: %w", err)
 	}
