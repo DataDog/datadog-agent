@@ -1,6 +1,6 @@
 load("@rules_cc//cc:defs.bzl", "cc_library")
-load("@rules_rust//rust:defs.bzl", "rust_shared_library", "rust_test")
-load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
+load("@rules_rust//rust:defs.bzl", "rust_test")
+load("//pkg/collector/sharedlibrary/rustchecks:rust_check.bzl", "dd_rust_check")
 
 # Rust shared-library checks are Linux-only.
 _LINUX = ["@platforms//os:linux"]
@@ -16,7 +16,7 @@ cc_library(
 )
 
 # cdylib loaded by the shared-library check loader.
-rust_shared_library(
+dd_rust_check(
     name = "datasecurity",
     srcs = glob(["src/**/*.rs"]),
     # Cargo renames `dd-sensitive-data-scanner` to `dd_sds`.
@@ -32,7 +32,6 @@ rust_shared_library(
     ],
     # Use the Bazel proto crate instead of the cargo build-script path (src/proto.rs).
     rustc_flags = ["--cfg=bazel"],
-    target_compatible_with = _LINUX,
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/collector/sharedlibrary/rustchecks/core:shlib_core",
@@ -48,16 +47,6 @@ rust_shared_library(
         "@crates//:prost",
         "@crates//:serde",
     ],
-)
-
-# Shipped artifact: the cdylib with its rpath set to the Agent's embedded lib
-# dir. Patched after linking so $(INSTALL_DIR) stays out of the compile action.
-rewrite_rpath(
-    name = "datasecurity_packaged",
-    inputs = [":datasecurity"],
-    target_compatible_with = _LINUX,
-    use_relative_rpaths = False,
-    visibility = ["//visibility:public"],
 )
 
 # Unit tests embedded in the crate sources (run with `bazel test`).
