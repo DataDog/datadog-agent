@@ -10,6 +10,8 @@ package tests
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -31,11 +33,15 @@ var (
 		ID:         "test_open_capture_enoent",
 		Expression: `open.syscall.path == "{{.Root}}/does-not-exist" && open.retval == ENOENT`,
 	}
+	renameEnoentRule = &rules.RuleDefinition{
+		ID:         "test_rename_capture_enoent",
+		Expression: `rename.syscall.path == "{{.Root}}/does-not-exist" && rename.syscall.destination.path == "{{.Root}}/does-not-exist-dst" && rename.retval == ENOENT`,
+	}
 )
 
 // TestCaptureAllSyscallErrors verifies that with
 // runtime_security_config.syscalls.capture_all_errors.enabled set to true,
-// chmod() and open() syscalls failing with ENOENT (normally filtered by
+// chmod(), open(), and rename() syscalls failing with ENOENT (normally filtered by
 // IS_UNHANDLED_ERROR) still produce events in userspace.
 var _ = declare(TestCaptureAllSyscallErrors, testOpts{
 	captureAllSyscallErrorsEnabled: true,
@@ -47,6 +53,7 @@ func TestCaptureAllSyscallErrors(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		chmodEnoentRule,
 		openEnoentRule,
+		renameEnoentRule,
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -61,6 +68,7 @@ func TestCaptureAllSyscallErrors(t *testing.T) {
 	}
 
 	path := filepath.Join(test.Root(), "does-not-exist")
+	dstPath := filepath.Join(test.Root(), "does-not-exist-dst")
 
 	t.Run("chmod-enoent", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -95,6 +103,23 @@ func TestCaptureAllSyscallErrors(t *testing.T) {
 			assert.Equal(t, test.Root(), event.Open.File.PathnameStr)
 		}, "test_open_capture_enoent")
 	})
+	t.Run("rename-enoent", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			err := os.Rename(path, dstPath)
+			if !errors.Is(err, syscall.ENOENT) {
+				err := fmt.Errorf("should fail with ENOENT: %w", err)
+				t.Error(err)
+				return err
+			}
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rename_capture_enoent")
+			assert.Equal(t, "rename", event.GetType(), "wrong event type")
+			assert.Equal(t, -int64(syscall.ENOENT), event.Rename.Retval, "wrong retval")
+			assert.Equal(t, "", event.Rename.Old.PathnameStr)
+			assert.Equal(t, "", event.Rename.New.PathnameStr)
+		}, "test_rename_capture_enoent")
+	})
 
 }
 
@@ -104,6 +129,7 @@ func TestCaptureAllSyscallErrorsDisabledByDefault(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		chmodEnoentRule,
 		openEnoentRule,
+		renameEnoentRule,
 	}
 
 	// captureAllSyscallErrorsEnabled is intentionally left at its zero value (false)
@@ -119,6 +145,7 @@ func TestCaptureAllSyscallErrorsDisabledByDefault(t *testing.T) {
 	}
 
 	path := filepath.Join(test.Root(), "does-not-exist")
+	dstPath := filepath.Join(test.Root(), "does-not-exist-dst")
 
 	t.Run("chmod-enoent-dropped", func(t *testing.T) {
 		_ = test.GetSignal(t, func() error {
@@ -138,6 +165,20 @@ func TestCaptureAllSyscallErrorsDisabledByDefault(t *testing.T) {
 			return nil
 		}, func(_ *model.Event, rule *rules.Rule) {
 			t.Errorf("unexpected event for open ENOENT (rule %q): the kernel should have dropped it", rule.ID)
+		})
+	})
+
+	t.Run("rename-enoent-dropped", func(t *testing.T) {
+		_ = test.GetSignal(t, func() error {
+			err := os.Rename(path, dstPath)
+			if !errors.Is(err, syscall.ENOENT) {
+				err := fmt.Errorf("should fail with ENOENT: %w", err)
+				t.Error(err)
+				return err
+			}
+			return nil
+		}, func(_ *model.Event, rule *rules.Rule) {
+			t.Errorf("unexpected event for rename ENOENT (rule %q): the kernel should have dropped it", rule.ID)
 		})
 	})
 }

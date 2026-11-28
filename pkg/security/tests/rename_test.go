@@ -555,6 +555,10 @@ func TestRenameFolderFailed(t *testing.T) {
 			Expression: `open.file.path == "{{.Root}}/failed-rename-work/src-dir"`,
 		},
 		{
+			ID:         "test_rule_failed_rename_before_vfs",
+			Expression: `rename.syscall.path == "{{.Root}}/failed-rename-work/src-dir" && rename.syscall.destination.path == "{{.Root}}/failed-rename-noexec/sub/dst-dir" && rename.retval == EACCES`,
+		},
+		{
 			ID:         "test_rule_failed_rename_dir",
 			Expression: `rename.file.path == "{{.Root}}/failed-rename-work/src-dir" && rename.file.destination.path == "{{.Root}}/failed-rename-ro/dst-dir" && rename.retval == EACCES`,
 		},
@@ -567,6 +571,14 @@ func TestRenameFolderFailed(t *testing.T) {
 	defer test.CloseTest()
 
 	if err := os.Chmod(test.Root(), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(syscallTester, 0755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -633,20 +645,31 @@ func TestRenameFolderFailed(t *testing.T) {
 	}, "test_rule_open_src_dir")
 
 	// 2. Rename failing with EACCES during path lookup before vfs_rename.
-	cmdBefore := exec.Command("mv", srcDir, path.Join(noExecDir, "sub", "dst-dir"))
-	cmdBefore.SysProcAttr = &syscall.SysProcAttr{
-		Credential: &syscall.Credential{Uid: 98, Gid: 99},
-	}
-	_ = cmdBefore.Run()
+	test.WaitSignalFromRule(t, func() error {
+		cmdBefore := exec.Command(syscallTester, "rename", srcDir, path.Join(noExecDir, "sub", "dst-dir"))
+		cmdBefore.SysProcAttr = &syscall.SysProcAttr{
+			Credential: &syscall.Credential{Uid: 98, Gid: 99},
+		}
+		if err := cmdBefore.Run(); err == nil {
+			return errors.New("expected rename before vfs_rename to fail with EACCES")
+		}
+		return nil
+	}, func(event *model.Event, _ *rules.Rule) {
+		assert.Equal(t, "rename", event.GetType(), "wrong event type")
+		assertFieldEqual(t, event, "rename.file.path", "")
+		assertFieldEqual(t, event, "rename.file.destination.path", "")
+	}, "test_rule_failed_rename_before_vfs")
 
 	// 3. Rename failing with EACCES inside vfs_rename.
 	dstDir := path.Join(roDir, "dst-dir")
 	test.WaitSignalFromRule(t, func() error {
-		cmdInside := exec.Command("mv", srcDir, dstDir)
+		cmdInside := exec.Command(syscallTester, "rename", srcDir, dstDir)
 		cmdInside.SysProcAttr = &syscall.SysProcAttr{
 			Credential: &syscall.Credential{Uid: 98, Gid: 99},
 		}
-		_ = cmdInside.Run()
+		if err := cmdInside.Run(); err == nil {
+			return errors.New("expected rename inside vfs_rename to fail with EACCES")
+		}
 		return nil
 	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "rename", event.GetType(), "wrong event type")

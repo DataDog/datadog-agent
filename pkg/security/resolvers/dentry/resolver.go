@@ -405,15 +405,6 @@ func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool, caller Cal
 		var pathLeaf model.PathLeaf
 		pathKey.Write(keyBuffer)
 		err := dr.pathnames.Lookup(keyBuffer, &pathLeaf)
-		if err != nil && depth > 0 && pathKey.PathID != leafKey.PathID && (pathKey.PathID>>16) == (leafKey.PathID>>16) {
-			altKey := pathKey
-			altKey.PathID = leafKey.PathID
-			altKey.Write(keyBuffer)
-			if altErr := dr.pathnames.Lookup(keyBuffer, &pathLeaf); altErr == nil {
-				pathKey = altKey
-				err = nil
-			}
-		}
 		if err != nil {
 			if (cache || caller == CallerFileHardLink) && depth > 0 {
 				canonicalKey := pathKey
