@@ -24,11 +24,12 @@ import (
 const (
 	// macosInstallerBinary is the installer the .dmg postinstall script runs to do the install.
 	macosInstallerBinary = "/opt/datadog-agent/embedded/bin/installer"
-	// macosProcmgrCLI talks to dd-procmgrd over its socket. It runs as root because the socket
-	// is mode 0660 and owned by root:daemon.
+	// macosProcmgrCLI talks to dd-procmgrd over its root:daemon 0660 socket. Mutations need root: _dd-agent is in
+	// group daemon, so it can connect but is not root.
 	macosProcmgrCLI         = "/opt/datadog-agent/embedded/bin/dd-procmgr"
 	macosPostinstallLogPath = "/opt/datadog-agent/logs/postinstall.log"
 	macosPreinstallLogPath  = "/opt/datadog-agent/logs/preinstall.log"
+	macosProcmgrLogPath     = "/opt/datadog-agent/logs/launchd_procmgr.log"
 
 	macosInstallDir        = "/opt/datadog-agent"
 	macosProcessesDir      = macosInstallDir + "/processes.d"
@@ -94,10 +95,12 @@ func macosReadRemoteFile(t require.TestingT, client *common.MacOSTestClient, pat
 }
 
 // macosLogLaunchDaemonDiagnostics logs what is needed to understand a LaunchDaemon failure: the
-// tail of the postinstall log, the job definitions on disk and what launchd reports for each job.
+// tail of the postinstall and procmgr logs, the job definitions on disk and launchd's view of each job.
 func macosLogLaunchDaemonDiagnostics(t *testing.T, client *common.MacOSTestClient) {
 	out, _ := client.Execute("sudo tail -n 100 " + macosPostinstallLogPath + " 2>&1")
 	t.Logf("tail of %s:\n%s", macosPostinstallLogPath, out)
+	out, _ = client.Execute("sudo tail -n 100 " + macosProcmgrLogPath + " 2>&1")
+	t.Logf("tail of %s:\n%s", macosProcmgrLogPath, out)
 	out, _ = client.Execute("ls -le /Library/LaunchDaemons/ " + macosInstallerBinary + "* 2>&1")
 	t.Logf("job definitions and installer:\n%s", out)
 	for _, label := range append(append(append([]string{}, macosStableLaunchDaemons...), macosInstallerLaunchDaemon), macosUnexpectedLaunchDaemons...) {
@@ -164,9 +167,10 @@ func assertMacosStableLaunchDaemons(t *testing.T, client *common.MacOSTestClient
 
 // assertMacosProcmgrAnswers checks dd-procmgrd lists the shipped entries, all skipped and none
 // running. auto_start_false must be the only skip reason: a missing binary would add path_missing.
-func assertMacosProcmgrAnswers(t *testing.T, client *common.MacOSTestClient, expected int) {
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		out, err := client.Execute("sudo " + macosProcmgrCLI + " status --json")
+// It returns false when a non-fatal check failed; fatal checks stop the caller.
+func assertMacosProcmgrAnswers(t *testing.T, client *common.MacOSTestClient, expected int) bool {
+	ready := assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		out, err := client.Execute(macosBoundedProcmgrCommand(macosProcmgrRPCTimeout, "status --json"))
 		if !assert.NoError(c, err, "dd-procmgr status failed:\n%s", out) {
 			return
 		}
@@ -188,10 +192,10 @@ func assertMacosProcmgrAnswers(t *testing.T, client *common.MacOSTestClient, exp
 	}, 60*time.Second, 2*time.Second)
 
 	if expected != 1 {
-		return
+		return ready
 	}
 
-	out, err := client.Execute("sudo " + macosProcmgrCLI + " list --json")
+	out, err := client.Execute(macosBoundedProcmgrCommand(macosProcmgrRPCTimeout, "list --json"))
 	require.NoError(t, err, "dd-procmgr list failed:\n%s", out)
 	var list []struct {
 		Name        string   `json:"name"`
@@ -200,19 +204,20 @@ func assertMacosProcmgrAnswers(t *testing.T, client *common.MacOSTestClient, exp
 	}
 	require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(out)), &list), "dd-procmgr list output:\n%s", out)
 	require.Len(t, list, 1, "dd-procmgr list output:\n%s", out)
-	assert.Equal(t, macosSysprobeProcess, list[0].Name)
-	assert.Equal(t, "Skipped", list[0].State)
-	assert.Equal(t, []string{"auto_start_false"}, list[0].SkipReasons)
+	ok := assert.Equal(t, macosSysprobeProcess, list[0].Name) && ready
+	ok = assert.Equal(t, "Skipped", list[0].State) && ok
+	ok = assert.Equal(t, []string{"auto_start_false"}, list[0].SkipReasons) && ok
 
-	out, err = client.Execute("sudo " + macosProcmgrCLI + " describe " + macosSysprobeProcess + " --json")
+	out, err = client.Execute(macosBoundedProcmgrCommand(macosProcmgrRPCTimeout, "describe "+macosSysprobeProcess+" --json"))
 	require.NoError(t, err, "dd-procmgr describe failed:\n%s", out)
 	var detail struct {
 		Command string   `json:"command"`
 		Args    []string `json:"args"`
 	}
 	require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(out)), &detail), "dd-procmgr describe output:\n%s", out)
-	assert.Equal(t, macosInstallDir+"/embedded/bin/system-probe", detail.Command)
-	assert.Equal(t, []string{"run", "-c", macosInstallDir + "/etc"}, detail.Args)
+	ok = assert.Equal(t, macosInstallDir+"/embedded/bin/system-probe", detail.Command) && ok
+	ok = assert.Equal(t, []string{"run", "-c", macosInstallDir + "/etc"}, detail.Args) && ok
+	return ok
 }
 
 // assertMacosProcmgrCatalogFiles checks the owner and mode of the install root, processes.d,
