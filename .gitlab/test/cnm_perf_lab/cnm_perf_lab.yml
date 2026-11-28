@@ -1,0 +1,60 @@
+---
+# CNM agent performance lab
+# Owned by: cloud-network-monitoring
+#
+# Runs the CNM agent perf lab (ddoghq/system-probe-test-environments, k8s/cnm-perf-lab) on its driver instance in
+# agent-sandbox: an EKS cluster with fixed-rate network load, system-probe CPU and eBPF cost per agent variant, then
+# teardown. CI runners can't reach the cluster's private API endpoint, so the job only starts the driver, hands it the
+# run over SSM through the role ddbuild-cnm-perf-lab-ci, follows it, and sends the aggregated means to Datadog. The
+# driver destroys the cluster and powers itself off when the run ends. Manual for now; see `dda inv cnm-perf-lab.run`.
+
+cnm-perf-lab:
+  stage: e2e
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  rules:
+    - !reference [.on_dev_branches]
+    - !reference [.manual]
+  needs: []
+  # A full run (both tracer modes, Latin square) takes about 3 h; the driver's own limits stop it by 6 h
+  timeout: 6h 30m
+  interruptible: false
+  # One driver: runs queue rather than overlap, and a retry would start a second multi-hour run
+  resource_group: cnm-perf-lab
+  retry: 0
+  id_tokens:
+    # A job's own id_tokens replace the default ones: keep the CI identities token.
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
+    # Exchanged with dd-sts for the lab's staging API key (policy datadog-agent-cnm-perf-lab in dd-source)
+    DD_STS_OIDC_TOKEN:
+      aud: dd-sts
+  variables:
+    CNM_PERF_LAB_MODE: smoke # or rounds
+    # release: A = latest 7.x GA, B = the anchor release, C = main's nightly, each pinned to a digest at the start.
+    # lab: the lab's own variant builds. CNM_PERF_LAB_REF_A, _B or _C (an image ref) overrides a release slot.
+    CNM_PERF_LAB_VARIANTS: release
+    # Keep time for after_script within the job timeout: Runner skips it when the script uses the whole budget
+    RUNNER_SCRIPT_TIMEOUT: 6h20m
+    RUNNER_AFTER_SCRIPT_TIMEOUT: 5m
+  before_script:
+    - dda self dep sync -f legacy-tasks
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+    # dd-sts's shared org 2 staging API key, for the lab's agents; the run task puts it in the driver's secret for the
+    # length of the run
+    - >-
+      CNM_PERF_LAB_STAGING_API_KEY=$(curl -sSf --max-time 30 -H "Authorization: Bearer $DD_STS_OIDC_TOKEN"
+      "https://dd-sts.us1.ddbuild.io/sts/datadog/exchange?policy=datadog-agent-cnm-perf-lab"
+      | python3 -c 'import json,sys;k=json.load(sys.stdin).get("api_key");isinstance(k,str) and k or sys.exit("dd-sts returned no api_key");print(k)')
+      || exit $?; export CNM_PERF_LAB_STAGING_API_KEY
+  script:
+    - dda inv -- -e cnm-perf-lab.run --mode "$CNM_PERF_LAB_MODE" --variants "$CNM_PERF_LAB_VARIANTS"
+  after_script:
+    # Only acts if the run is still going (job cancelled or timed out): the driver then cleans up on its own
+    - dda inv -- -e cnm-perf-lab.cancel || true
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - cnm-perf-lab-results/
+      - cnm-perf-lab-refs.txt

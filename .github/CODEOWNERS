@@ -181,6 +181,7 @@
 /.gitlab/windows/build/binary_build/windows.yml                           @DataDog/agent-build @DataDog/windows-products
 /.gitlab/build/source_test/codeql_scan.yml                                @DataDog/sdlc-security
 /.gitlab/test/benchmarks/                                                 @DataDog/agent-devx @DataDog/apm-ecosystems-performance @DataDog/agent-apm
+/.gitlab/test/cnm_perf_lab/                                               @DataDog/cloud-network-monitoring @DataDog/agent-devx
 /.gitlab/test/logs_tokenizer_benchmark.yml                                @DataDog/agent-log-pipelines
 /.gitlab/distribute/                                                      @DataDog/container-integrations @DataDog/agent-delivery
 /.gitlab/deploy/deploy_packages/                                          @DataDog/agent-delivery
@@ -1055,6 +1056,7 @@
 /tasks/logs_tokenizer.py                                        @DataDog/agent-log-pipelines
 /tasks/unit_tests/anomalydetection*.py                          @DataDog/agent-anomaly-detection
 /tasks/unit_tests/logs_tokenizer*.py                            @DataDog/agent-log-pipelines
+/tasks/unit_tests/cnm_perf_lab_tests.py                         @DataDog/cloud-network-monitoring
 /tasks/loader.py                                                @DataDog/agent-runtimes
 /tasks/go_deps.py                                               @DataDog/agent-runtimes
 /tasks/gotest.py                                                @DataDog/agent-devx @DataDog/agent-build
@@ -1077,6 +1079,7 @@
 /tasks/cluster_agent_cloudfoundry.py                            @DataDog/agent-integrations
 /tasks/cluster_agent.py                                         @DataDog/container-platform
 /tasks/cluster_agent_helpers.py                                 @DataDog/container-platform
+/tasks/cnm_perf_lab.py                                          @DataDog/cloud-network-monitoring
 /tasks/devcontainer.py                                          @DataDog/agent-devx @DataDog/container-platform
 /tasks/skaffold.py                                              @DataDog/agent-devx @DataDog/container-platform
 /tasks/new_e2e_tests.py                                         @DataDog/agent-devx

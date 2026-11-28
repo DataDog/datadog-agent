@@ -23,6 +23,7 @@ from tasks import (
     claude,
     cluster_agent,
     cluster_agent_cloudfoundry,
+    cnm_perf_lab,
     code_review,
     collector,
     components,
@@ -223,6 +224,7 @@ ns.add_collection(claude)
 ns.add_collection(code_review)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
+ns.add_collection(cnm_perf_lab)
 ns.add_collection(components)
 ns.add_collection(coverage)
 ns.add_collection(debugging)

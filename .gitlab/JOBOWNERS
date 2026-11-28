@@ -244,6 +244,7 @@ new-e2e-process*                        @DataDog/container-experiences
 new-e2e-ssi*                            @DataDog/injection-platform
 # --- Networking ---
 new-e2e-npm*                            @DataDog/cloud-network-monitoring
+cnm-perf-lab                            @DataDog/cloud-network-monitoring
 new-e2e-netpath*                        @DataDog/network-path
 new-e2e-ndm-netflow*                    @DataDog/ndm-integrations
 new-e2e-ndm-snmp*                       @DataDog/network-device-monitoring-core
