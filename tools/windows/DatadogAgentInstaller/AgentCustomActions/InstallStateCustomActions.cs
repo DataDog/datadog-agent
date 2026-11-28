@@ -40,7 +40,7 @@ namespace Datadog.AgentCustomActions
                     _registryServices.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey);
                 if (subkey != null)
                 {
-                    LoadAgentUserProperty(subkey);
+                    LoadAgentUserProperty(subkey, Constants.AgentServiceName);
                     RegistryValueProperty(_session, "PROJECTLOCATION", subkey, "InstallPath");
                     RegistryValueProperty(_session, "APPLICATIONDATADIRECTORY", subkey, "ConfigRoot");
                     RegistryValueProperty(_session, ConfigureUserCustomActions.KeepRightsPropertyName, subkey, KeepRightsRegistryValueName);

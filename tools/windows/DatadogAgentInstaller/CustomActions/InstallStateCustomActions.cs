@@ -19,6 +19,12 @@ namespace Datadog.CustomActions
         // operator's opt-out without it being re-supplied on the command line.
         protected const string KeepRightsRegistryValueName = "keepRights";
 
+        /// <summary>
+        /// Set when the stored Agent account was not used because the Agent service is missing or runs as another account.
+        /// </summary>
+        // Public and declared in the Agent installer project so it reaches the execute sequence from the UI sequence.
+        public const string StoredAgentUserMismatchPropertyName = "DDAGENTUSER_STORED_MISMATCH";
+
         protected readonly ISession _session;
         protected readonly IRegistryServices _registryServices;
         protected readonly IServiceController _serviceController;
@@ -98,8 +104,12 @@ namespace Datadog.CustomActions
         /// This function will combine the registry properties if they exist.
         /// Preference is given to creds provided on the command line and the agent user dialog.
         /// For UI installs it ensures that the agent user dialog is pre-populated.
+        /// When <c>serviceName</c> is set, the stored account is used only if that service is installed and
+        /// runs as it. Otherwise the default local ddagentuser account is used if the service runs as it,
+        /// else DDAGENTUSER_NAME is left unset and <c>StoredAgentUserMismatchPropertyName</c> is set so that
+        /// the install asks for the account.
         /// </remarks>
-        protected void LoadAgentUserProperty(IRegistryKey subkey)
+        protected void LoadAgentUserProperty(IRegistryKey subkey, string serviceName = null)
         {
             // handle user input property
             RegistryProperty(_session, "DDAGENTUSER_NAME",
@@ -107,16 +117,132 @@ namespace Datadog.CustomActions
                 {
                     var domain = subkey.GetValue("installedDomain")?.ToString();
                     var user = subkey.GetValue("installedUser")?.ToString();
-                    if (!string.IsNullOrEmpty(domain) && !string.IsNullOrEmpty(user))
+                    if (string.IsNullOrEmpty(domain) || string.IsNullOrEmpty(user))
                     {
-                        return $"{domain}\\{user}";
+                        return string.Empty;
                     }
 
+                    var account = $"{domain}\\{user}";
+                    string serviceAccount = null;
+                    bool runsAsAccount;
+                    try
+                    {
+                        runsAsAccount = serviceName == null || ServiceRunsAsAccount(serviceName, account, out serviceAccount);
+                    }
+                    catch (Exception e)
+                    {
+                        _session.Log($"Could not compare stored account {account} with the {serviceName} service account: {e}");
+                        runsAsAccount = false;
+                    }
+
+                    if (runsAsAccount)
+                    {
+                        return account;
+                    }
+
+                    // An install without a stored account uses this default, so keeping it changes nothing.
+                    var defaultAccount = $"{Environment.MachineName}\\ddagentuser";
+                    if (string.Equals(serviceAccount, defaultAccount, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(serviceAccount, ".\\ddagentuser", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _session.Log($"Using the {serviceName} service account {defaultAccount}");
+                        return defaultAccount;
+                    }
+
+                    _session[StoredAgentUserMismatchPropertyName] = "true";
                     return string.Empty;
                 });
             // also separately store the registry values for use in rollback
             RegistryValueProperty(_session, "DDAGENT_installedDomain", subkey, "installedDomain");
             RegistryValueProperty(_session, "DDAGENT_installedUser", subkey, "installedUser");
+        }
+
+        /// <summary>
+        /// Returns true if the service is installed and its logon account is <c>account</c>.
+        /// </summary>
+        /// <remarks>
+        /// Only administrators can change a service's logon account.
+        /// </remarks>
+        private bool ServiceRunsAsAccount(string serviceName, string account, out string serviceAccount)
+        {
+            using var serviceKey = _registryServices.OpenRegistryKey(Registries.LocalMachine,
+                $@"SYSTEM\CurrentControlSet\Services\{serviceName}");
+            serviceAccount = serviceKey?.GetValue("ObjectName")?.ToString();
+            if (string.IsNullOrEmpty(serviceAccount))
+            {
+                _session.Log($"Stored account {account} found but the {serviceName} service is not installed");
+                return false;
+            }
+
+            if (IsSameAccount(account, serviceAccount))
+            {
+                return true;
+            }
+
+            _session.Log(
+                $"Stored account {account} does not match the {serviceName} service account {serviceAccount}");
+            return false;
+        }
+
+        private bool IsSameAccount(string storedAccount, string serviceAccount)
+        {
+            if (string.Equals(storedAccount, serviceAccount, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (!_nativeMethods.LookupAccountName(storedAccount, out var storedUser, out var storedDomain,
+                    out var storedSid, out _))
+            {
+                return false;
+            }
+
+            var storedName = $"{storedDomain}\\{storedUser}";
+            var builtIn = BuiltInServiceAccount(serviceAccount);
+            if (builtIn != null)
+            {
+                // Stored built-in names are localized; the SID is not.
+                return string.Equals(storedName, builtIn.Item1, StringComparison.OrdinalIgnoreCase) ||
+                       (storedSid != null && storedSid.Equals(new SecurityIdentifier(builtIn.Item2, null)));
+            }
+
+            // The service manager writes local accounts as .\user, which LookupAccountName does not accept.
+            if (serviceAccount.StartsWith(".\\"))
+            {
+                serviceAccount = $"{Environment.MachineName}{serviceAccount.Substring(1)}";
+            }
+
+            if (!_nativeMethods.LookupAccountName(serviceAccount, out var serviceUser, out var serviceDomain,
+                    out var serviceSid, out _))
+            {
+                return false;
+            }
+
+            return string.Equals(storedName, $"{serviceDomain}\\{serviceUser}", StringComparison.OrdinalIgnoreCase) ||
+                   (storedSid != null && storedSid.Equals(serviceSid));
+        }
+
+        /// <summary>
+        /// Returns the English name and SID type of a built-in account named as the service manager names it, or null.
+        /// </summary>
+        private static Tuple<string, WellKnownSidType> BuiltInServiceAccount(string account)
+        {
+            switch (account.ToUpperInvariant())
+            {
+                case "LOCALSYSTEM":
+                case "NT AUTHORITY\\SYSTEM":
+                    return Tuple.Create("NT AUTHORITY\\SYSTEM", WellKnownSidType.LocalSystemSid);
+                case "LOCALSERVICE":
+                case "NT AUTHORITY\\LOCALSERVICE":
+                case "NT AUTHORITY\\LOCAL SERVICE":
+                    return Tuple.Create("NT AUTHORITY\\LOCAL SERVICE", WellKnownSidType.LocalServiceSid);
+                case "NETWORKSERVICE":
+                case "NT AUTHORITY\\NETWORKSERVICE":
+                case "NT AUTHORITY\\NETWORK SERVICE":
+                    return Tuple.Create("NT AUTHORITY\\NETWORK SERVICE", WellKnownSidType.NetworkServiceSid);
+                default:
+                    return null;
+            }
         }
 
         protected void StoreAgentUserInRegistry(IRegistryKey subkey)
@@ -238,10 +364,19 @@ namespace Datadog.CustomActions
                     out _,
                     out _,
                     out var securityIdentifier,
-                    out _);
+                    out var nameUse);
                 if (!userFound || securityIdentifier == null)
                 {
                     throw new Exception($"Could not find account for user {accountName}.");
+                }
+
+                // Accept users and the built-in service accounts, never groups such as Everyone.
+                var isBuiltInServiceAccount = securityIdentifier.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
+                                              securityIdentifier.IsWellKnown(WellKnownSidType.LocalServiceSid) ||
+                                              securityIdentifier.IsWellKnown(WellKnownSidType.NetworkServiceSid);
+                if (nameUse != SID_NAME_USE.SidTypeUser && !isBuiltInServiceAccount)
+                {
+                    throw new Exception($"{accountName} is not a user account.");
                 }
 
                 session.Log($"Found previous agent user {accountName} ({securityIdentifier})");

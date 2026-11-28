@@ -75,9 +75,11 @@
   <ItemGroup>
     <Compile Include="APM\ApmConfigTests.cs" />
     <Compile Include="ConfigTrustTests.cs" />
+    <Compile Include="ConfigureUserCustomActions\ConfigureRegistryPermissionsTests.cs" />
     <Compile Include="ConfigureUserCustomActions\ConfigureUserAccountRightsTests.cs" />
     <Compile Include="ConfigureUserCustomActions\ConfigureUserCustomActionsTestSetup.cs" />
     <Compile Include="ConfigureUserCustomActions\ConfigureUserGroupsTests.cs" />
+    <Compile Include="ConfigureUserCustomActions\UninstallUserTests.cs" />
     <Compile Include="InstallState\InstallStateTests.cs" />
     <Compile Include="InstallState\InstallStateTestSetup.cs" />
     <Compile Include="ProcessUserCustomActions\BaseProcessUserCustomActionsDomainTests.cs" />
