@@ -102,8 +102,6 @@ func (v *vmSuiteWithArch) TestWithArch() {
 }
 
 func (v *vmSuiteWithUserData) TestWithUserdata() {
-	v.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(ec2.WithoutAgent(), ec2.WithEC2InstanceOptions(ec2.WithUserData("#!/bin/bash\ntouch "+userDataPath)))))
-
 	output, err := v.Env().RemoteHost.Execute("ls " + userDataPath)
 	require.NoError(v.T(), err)
 	require.Equal(v.T(), userDataPath+"\n", output)
