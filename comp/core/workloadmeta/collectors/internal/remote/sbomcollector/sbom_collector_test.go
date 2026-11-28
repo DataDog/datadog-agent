@@ -29,6 +29,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
@@ -1036,4 +1037,23 @@ func TestUsageStream(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, usage.Available(time.Now(), wait), "a report brings usage back")
 	})
+}
+
+// TestCredentialsFollowSocketFamily checks that the collector dials the command
+// socket of system-probe with TLS on a TCP address alone, as the server takes
+// it.
+func TestCredentialsFollowSocketFamily(t *testing.T) {
+	for _, tc := range []struct {
+		socket string
+		tls    bool
+	}{
+		{socket: "/opt/datadog-agent/run/runtime-security.sock"},
+		{socket: "vsock:5678"},
+		{socket: "localhost:3335", tls: true},
+	} {
+		spCfg := configmock.NewSystemProbe(t)
+		spCfg.Set("runtime_security_config.cmd_socket", tc.socket, model.SourceFile)
+		handler := &streamHandler{systemProbeConfig: spCfg, ipc: ipcmock.New(t)}
+		assert.Equal(t, tc.tls, handler.Credentials().Info().SecurityProtocol == "tls", "socket %s", tc.socket)
+	}
 }

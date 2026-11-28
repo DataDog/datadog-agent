@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -106,6 +107,7 @@ func (s *stream) Recv() (interface{}, error) {
 type streamHandler struct {
 	agentConfig       model.Reader
 	systemProbeConfig model.Reader
+	ipc               ipc.Component
 	pending           *pendingReports
 	usage             *sbompkg.UsageStream
 }
@@ -488,7 +490,7 @@ func forgetRemovedImages(ctx context.Context, store workloadmeta.Component) {
 func NewCollector(ipc ipc.Component) (workloadmeta.CollectorProvider, error) {
 	cfg := pkgconfigsetup.Datadog() //nolint:depguard
 	// TODO(components): make sure StreamHandler uses the config component not pkg/config
-	handler := &streamHandler{agentConfig: cfg, systemProbeConfig: pkgconfigsetup.SystemProbe(), usage: sbompkg.Usage()}
+	handler := &streamHandler{agentConfig: cfg, systemProbeConfig: pkgconfigsetup.SystemProbe(), ipc: ipc, usage: sbompkg.Usage()}
 	// A report waits only for an image SBOM that the runtime collectors scan.
 	if cfg.GetBool("container_image.enabled") && cfg.GetBool("sbom.container_image.enabled") {
 		handler.pending = newPendingReports()
@@ -543,7 +545,13 @@ func (s *streamHandler) Address() string {
 	return mainSocket
 }
 
+// Credentials returns the credentials of the command socket of system-probe,
+// which takes TLS and the IPC token on a TCP address, as
+// pkg/security/utils/grpc chooses by the family the address names.
 func (s *streamHandler) Credentials() credentials.TransportCredentials {
+	if family, _ := socket.GetSocketAddress(s.Address()); family == "tcp" && s.ipc != nil {
+		return credentials.NewTLS(s.ipc.GetTLSClientConfig())
+	}
 	return insecure.NewCredentials()
 }
 
