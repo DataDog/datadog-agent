@@ -241,7 +241,7 @@ func (es *EntityStore) startCleanupInBackground(ctx context.Context) {
 			case <-ticker.C:
 				es.purgeInactiveEntities(defaultExpireInterval)
 			case <-ctx.Done():
-				break
+				return
 			}
 		}
 	}()
