@@ -21,6 +21,7 @@ struct path_leaf_t {
 };
 
 struct process_path_key_t {
+    u64 cgroup_id;
     u32 ppid;
     u32 padding;
     struct path_key_t process_path_key;

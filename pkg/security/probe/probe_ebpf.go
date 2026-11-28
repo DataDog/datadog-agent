@@ -3551,6 +3551,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingEnabledFor(model.FileOpenEventType)),
 		},
 		manager.ConstantEditor{
+			Name:  "event_sampling_open_host_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SBOMResolverUsageEnabled && p.config.RuntimeSecurity.SBOMResolverHostEnabled),
+		},
+		manager.ConstantEditor{
 			Name:  "event_sampling_open_rate",
 			Value: uint64(p.config.RuntimeSecurity.EventSamplingOpenRate),
 		},

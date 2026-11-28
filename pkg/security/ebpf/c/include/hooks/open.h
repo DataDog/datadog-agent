@@ -76,9 +76,12 @@ HOOK_SYSCALL_ENTRY4(openat2, int, dirfd, const char *, filename, struct openat2_
     return trace__sys_openat(ctx, filename, how.flags, how.mode);
 }
 
-static __always_inline int handle_open(ctx_t *ctx, struct path *path) {
+static __always_inline int handle_open(ctx_t *ctx, struct path *path, u8 from_terminate_walk) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
-    if (!syscall || syscall->open.dentry) {
+    if (!syscall) {
+        return 0;
+    }
+    if (syscall->open.dentry && !syscall->open.from_terminate_walk) {
         return 0;
     }
 
@@ -97,13 +100,21 @@ static __always_inline int handle_open(ctx_t *ctx, struct path *path) {
         return 0;
     }
 
+    if (syscall->open.from_terminate_walk) {
+        syscall->resolver.flags = 0;
+        syscall->resolver.ret = 0;
+        syscall->sample_cookie = 0;
+        __builtin_memset(&syscall->open.file, 0, sizeof(syscall->open.file));
+    }
+
     syscall->open.dentry = dentry;
+    syscall->open.from_terminate_walk = from_terminate_walk;
     syscall->open.file.path_key = path_key;
 
     set_file_inode(dentry, &syscall->open.file, PATH_ID_INVALIDATE_TYPE_NONE);
 
     approve_syscall(syscall, open_approvers);
-    if (syscall->policy.mode == ACCEPT && approve_open_sample(syscall->open.dentry, &syscall->open.file, syscall) == SAMPLED) {
+    if (!from_terminate_walk && syscall->policy.mode == ACCEPT && approve_open_sample(syscall->open.dentry, &syscall->open.file, syscall) == SAMPLED) {
         syscall->resolver.flags |= RESOLVER_FLAG_SAMPLED;
     }
 
@@ -141,7 +152,7 @@ static __always_inline int handle_truncate_path(ctx_t *ctx, struct path *path) {
     if (path == NULL) {
         return 0;
     }
-    return handle_open(ctx, path);
+    return handle_open(ctx, path, 0);
 }
 
 HOOK_ENTRY("do_truncate")
@@ -162,13 +173,13 @@ int hook_do_truncate(ctx_t *ctx) {
     if (f == NULL) {
         return 0;
     }
-    return handle_open(ctx, get_file_f_path_addr(f));
+    return handle_open(ctx, get_file_f_path_addr(f), 0);
 }
 
 HOOK_ENTRY("vfs_truncate")
 int hook_vfs_truncate(ctx_t *ctx) {
     struct path *path = (struct path *)CTX_PARM1(ctx);
-    return handle_open(ctx, path);
+    return handle_open(ctx, path, 0);
 }
 
 HOOK_ENTRY("security_file_truncate")
@@ -177,25 +188,25 @@ int hook_security_file_truncate(ctx_t *ctx) {
     if (f == NULL) {
         return 0;
     }
-    return handle_open(ctx, get_file_f_path_addr(f));
+    return handle_open(ctx, get_file_f_path_addr(f), 0);
 }
 
 HOOK_ENTRY("security_path_truncate")
 int hook_security_path_truncate(ctx_t *ctx) {
     struct path *path = (struct path *)CTX_PARM1(ctx);
-    return handle_open(ctx, path);
+    return handle_open(ctx, path, 0);
 }
 
 HOOK_ENTRY("vfs_open")
 int hook_vfs_open(ctx_t *ctx) {
     struct path *path = (struct path *)CTX_PARM1(ctx);
-    return handle_open(ctx, path);
+    return handle_open(ctx, path, 0);
 }
 
 HOOK_ENTRY("terminate_walk")
 int hook_terminate_walk(ctx_t *ctx) {
     struct path *path = (struct path *)CTX_PARM1(ctx);
-    return handle_open(ctx, path);
+    return handle_open(ctx, path, 1);
 }
 
 HOOK_ENTRY("do_dentry_open")

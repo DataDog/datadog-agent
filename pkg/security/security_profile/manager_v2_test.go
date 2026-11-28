@@ -2599,6 +2599,7 @@ func TestManagerV2_ActivityDumpCLI(t *testing.T) {
 		wg.Wait()
 	})
 }
+
 func TestManagerV2_cooldownExpiryHeap(t *testing.T) {
 	const cooldown = time.Minute
 	t0 := time.Now()
@@ -2682,4 +2683,170 @@ func TestManagerV2_cooldownExpiryHeap(t *testing.T) {
 		require.Len(t, m.cooldownExpiryHeap, 2)
 		assert.Same(t, other, m.cooldownExpiryHeap[0].node)
 	})
+}
+
+func TestManagerV2_isCGroupExclusionEnabled(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		cfg      config.RuntimeSecurityConfig
+		expected bool
+	}{
+		{
+			name:     "disabled when v2 and sampling disabled",
+			cfg:      config.RuntimeSecurityConfig{},
+			expected: false,
+		},
+		{
+			name: "disabled when only exec and dns enabled without sampling",
+			cfg: config.RuntimeSecurityConfig{
+				SecurityProfileEnabled:   true,
+				SecurityProfileV2Enabled: true,
+				SecurityProfileV2EventTypes: []model.EventType{
+					model.ExecEventType,
+					model.DNSEventType,
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "enabled when syscalls v2 enabled",
+			cfg: config.RuntimeSecurityConfig{
+				SecurityProfileEnabled:   true,
+				SecurityProfileV2Enabled: true,
+				SecurityProfileV2EventTypes: []model.EventType{
+					model.SyscallsEventType,
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "enabled when open event sampling enabled",
+			cfg: config.RuntimeSecurityConfig{
+				SecurityProfileEnabled:   true,
+				SecurityProfileV2Enabled: true,
+				SecurityProfileV2EventTypes: []model.EventType{
+					model.FileOpenEventType,
+				},
+				EventSamplingOpenEnabled: true,
+			},
+			expected: true,
+		},
+		{
+			name: "enabled when connect event sampling enabled",
+			cfg: config.RuntimeSecurityConfig{
+				SecurityProfileEnabled:   true,
+				SecurityProfileV2Enabled: true,
+				SecurityProfileV2EventTypes: []model.EventType{
+					model.ConnectEventType,
+				},
+				EventSamplingConnectEnabled: true,
+			},
+			expected: true,
+		},
+		{
+			name: "enabled when bind event sampling enabled",
+			cfg: config.RuntimeSecurityConfig{
+				SecurityProfileEnabled:   true,
+				SecurityProfileV2Enabled: true,
+				SecurityProfileV2EventTypes: []model.EventType{
+					model.BindEventType,
+				},
+				EventSamplingBindEnabled: true,
+			},
+			expected: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := &ManagerV2{config: &config.Config{RuntimeSecurity: &tc.cfg}}
+			assert.Equal(t, tc.expected, m.isCGroupExclusionEnabled())
+		})
+	}
+}
+
+func TestManagerV2_isUnexpectedHostSample(t *testing.T) {
+	baseCfg := config.RuntimeSecurityConfig{
+		SecurityProfileEnabled:   true,
+		SecurityProfileV2Enabled: true,
+		SecurityProfileV2EventTypes: []model.EventType{
+			model.ExecEventType,
+			model.SyscallsEventType,
+			model.FileOpenEventType,
+			model.ConnectEventType,
+			model.BindEventType,
+		},
+		EventSamplingOpenEnabled:    true,
+		EventSamplingConnectEnabled: true,
+		EventSamplingBindEnabled:    true,
+	}
+
+	hostOpenCfg := baseCfg
+	hostOpenCfg.SBOMResolverUsageEnabled = true
+	hostOpenCfg.SBOMResolverHostEnabled = true
+
+	for _, tc := range []struct {
+		name     string
+		cfg      config.RuntimeSecurityConfig
+		event    *model.Event
+		expected bool
+	}{
+		{
+			name:     "exec event on host is not a sample",
+			cfg:      baseCfg,
+			event:    &model.Event{BaseEvent: model.BaseEvent{Type: uint32(model.ExecEventType)}},
+			expected: false,
+		},
+		{
+			name:     "syscalls event on host is an unexpected sample",
+			cfg:      baseCfg,
+			event:    &model.Event{BaseEvent: model.BaseEvent{Type: uint32(model.SyscallsEventType)}},
+			expected: true,
+		},
+		{
+			name:     "unsampled open event on host is not a sample",
+			cfg:      baseCfg,
+			event:    &model.Event{BaseEvent: model.BaseEvent{Type: uint32(model.FileOpenEventType)}},
+			expected: false,
+		},
+		{
+			name: "sampled open event on host is an unexpected sample when host SBOM disabled",
+			cfg:  baseCfg,
+			event: &model.Event{
+				BaseEvent: model.BaseEvent{Type: uint32(model.FileOpenEventType)},
+				Open:      model.OpenEvent{SampleCookie: 42},
+			},
+			expected: true,
+		},
+		{
+			name: "sampled open event on host is expected when host SBOM enabled",
+			cfg:  hostOpenCfg,
+			event: &model.Event{
+				BaseEvent: model.BaseEvent{Type: uint32(model.FileOpenEventType)},
+				Open:      model.OpenEvent{SampleCookie: 42},
+			},
+			expected: false,
+		},
+		{
+			name: "sampled connect event on host is an unexpected sample",
+			cfg:  baseCfg,
+			event: &model.Event{
+				BaseEvent: model.BaseEvent{Type: uint32(model.ConnectEventType)},
+				Connect:   model.ConnectEvent{SampleCookie: 42},
+			},
+			expected: true,
+		},
+		{
+			name: "sampled bind event on host is an unexpected sample",
+			cfg:  baseCfg,
+			event: &model.Event{
+				BaseEvent: model.BaseEvent{Type: uint32(model.BindEventType)},
+				Bind:      model.BindEvent{SampleCookie: 42},
+			},
+			expected: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := &ManagerV2{config: &config.Config{RuntimeSecurity: &tc.cfg}}
+			assert.Equal(t, tc.expected, m.isUnexpectedHostSample(tc.event))
+		})
+	}
 }
