@@ -114,6 +114,14 @@ func (v *LinuxFIPSComplianceSuite) TestReportsFIPSStatusMetrics() {
 		metrics, err = v.Env().FakeIntake.Client().FilterMetrics("e2e.fips_ssl", fakeintakeclient.WithMetricValueHigherThan(0))
 		assert.NoError(c, err)
 		assert.Greater(c, len(metrics), 0, "no 'e2e.fips_ssl' with value higher than 0 yet")
+
+		metrics, err = v.Env().FakeIntake.Client().FilterMetrics("e2e.fips_confluent_kafka", fakeintakeclient.WithMetricValueHigherThan(0))
+		assert.NoError(c, err)
+		assert.Greater(c, len(metrics), 0, "no 'e2e.fips_confluent_kafka' with value higher than 0 yet")
+
+		metrics, err = v.Env().FakeIntake.Client().FilterMetrics("e2e.fips_aerospike", fakeintakeclient.WithMetricValueHigherThan(0))
+		assert.NoError(c, err)
+		assert.Greater(c, len(metrics), 0, "no 'e2e.fips_aerospike' with value higher than 0 yet")
 	}, 5*time.Minute, 10*time.Second)
 }
 
