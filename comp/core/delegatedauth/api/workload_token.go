@@ -68,6 +68,11 @@ func GetWorkloadToken(ctx context.Context, cfg pkgconfigmodel.Reader, provider c
 		// Never forward a cloud proof to a redirect target or change this POST to GET.
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}
+	if isBearerProof(proof) {
+		if err := hardenForBearerProof(endpoint, transport, client); err != nil {
+			return "", err
+		}
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("request workload token: %w", err)

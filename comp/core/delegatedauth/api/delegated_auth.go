@@ -9,6 +9,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,8 +26,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Nil uses the system roots; tests replace it to trust httptest servers.
+var oidcExchangeRootCAs *x509.CertPool
+
 const (
 	authorizationType = "Delegated"
+	oidcProofPrefix   = "oidc-"
 
 	contentTypeHeader   = "Content-Type"
 	authorizationHeader = "Authorization"
@@ -142,6 +147,24 @@ func checkDelegatedAuthRedirect(req *http.Request, via []*http.Request) error {
 	return nil
 }
 
+func isBearerProof(proof string) bool {
+	return strings.HasPrefix(proof, oidcProofPrefix)
+}
+
+// hardenForBearerProof applies to every exchange that sends an oidc- proof, whose workload JWT is a replayable bearer credential.
+func hardenForBearerProof(endpoint string, transport *http.Transport, client *http.Client) error {
+	if parsed, err := url.Parse(endpoint); err != nil || parsed.Scheme != "https" || parsed.Host == "" {
+		return errors.New("custom OIDC delegated auth requires an HTTPS endpoint")
+	}
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	if transport.TLSClientConfig.InsecureSkipVerify {
+		log.Warn("skip_ssl_validation is ignored for custom OIDC delegated auth; the workload token is only sent to a verified endpoint")
+	}
+	transport.TLSClientConfig.InsecureSkipVerify = false
+	transport.TLSClientConfig.RootCAs = oidcExchangeRootCAs
+	return nil
+}
+
 // GetAPIKey performs the cloud auth exchange and returns an API key.
 // The delegatedAuthProof contains the signed AWS request which includes the org id.
 //
@@ -165,6 +188,11 @@ func GetAPIKey(ctx context.Context, cfg pkgconfigmodel.Reader, delegatedAuthProo
 	}
 	if targetSite != "" {
 		client.CheckRedirect = checkDelegatedAuthRedirect
+	}
+	if isBearerProof(delegatedAuthProof) {
+		if err := hardenForBearerProof(url, transport, client); err != nil {
+			return nil, err
+		}
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer([]byte("")))
 	if err != nil {
