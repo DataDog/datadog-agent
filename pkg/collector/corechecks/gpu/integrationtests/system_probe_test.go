@@ -58,6 +58,7 @@ gpu_monitoring:
   # Only the eBPF probes are validated, see systemProbeConfigFeatures.
   prm_endpoint_enabled: false
   driver_events_enabled: false
+  mig_gr_endpoint_enabled: false
 `
 
 // systemProbeDatadogConfig is the core Agent configuration system-probe reads. There is no core

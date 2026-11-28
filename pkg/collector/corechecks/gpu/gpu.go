@@ -13,6 +13,8 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -83,6 +85,7 @@ type Check struct {
 	deviceCache         ddnvml.DeviceCache               // deviceCache is a cache of GPU devices
 	spCache             *nvidia.SystemProbeCache         // spCache holds system-probe GPU process metrics
 	prmCache            *nvidia.PRMCache                 // prmCache holds system-probe privileged NVLink metrics
+	migGrEngineActive   func(string) (float64, error)    // migGrEngineActive reads MIG GPM GRAPHICS_UTIL from system-probe
 	gpuConfig           *gpuconfig.Config                // gpuConfig is shared with the system-probe GPU module
 	deviceEvtGatherer   *nvidia.DeviceEventsGatherer     // deviceEvtGatherer asynchronously listens for device events and gathers them
 	stateChanges        *nvidia.StateChangesGatherer     // stateChanges reads the watched values every second and keeps the events of their changes
@@ -269,12 +272,16 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 
 	c.spCache = nil
 	c.prmCache = nil
+	c.migGrEngineActive = nil
 	c.driverEventsEnabled = false
 	c.sysprobeData = newSysprobeDataTracker()
 	var driverEventsSource nvidia.DriverEventsSource
 	if c.gpuConfig.Enabled {
-		if c.gpuConfig.EnableEBPFProbes || c.gpuConfig.PRMEndpointEnabled || c.gpuConfig.DriverEventsEnabled {
+		if c.gpuConfig.EnableEBPFProbes || c.gpuConfig.PRMEndpointEnabled || c.gpuConfig.DriverEventsEnabled || c.gpuConfig.MigGrEndpointEnabled {
 			client := nvidia.NewSystemProbeClient()
+			if c.gpuConfig.MigGrEndpointEnabled {
+				c.migGrEngineActive = newMigGrEngineActiveReader(client)
+			}
 			if c.gpuConfig.EnableEBPFProbes {
 				log.Info("GPU monitoring probe is enabled in system-probe, creating ebpf collectors for all devices")
 				c.spCache = nvidia.NewSystemProbeCache(client)
@@ -333,6 +340,7 @@ func (c *Check) ensureInitCollectors() error {
 		StateChangesGatherer: c.stateChanges,
 		SystemProbeCache:     c.spCache,
 		PRMCache:             c.prmCache,
+		MigGrEngineActive:    c.migGrEngineActive,
 		NodeUnschedulable:    c.nodeUnschedulable,
 		Telemetry:            c.telemetry.collectorTelemetry,
 		Workloadmeta:         c.wmeta,
@@ -1160,4 +1168,92 @@ func (c *Check) updateDeviceCountTelemetry(devices []ddnvml.Device) {
 		tags := append([]string{string(mode)}, nvidia.DeviceTelemetryTags(device)...)
 		c.telemetry.metrics.deviceCount.Inc(tags...)
 	}
+}
+
+// migGrRequestTimeout bounds each /mig-gr request, so that a slow system-probe delays a check run by little
+const migGrRequestTimeout = time.Second
+
+// migGrBackoff is how long the check stops asking system-probe for MIG gr_engine_active after a failed request
+const migGrBackoff = time.Minute
+
+// newMigGrEngineActiveReader returns a reader of MIG GPM GRAPHICS_UTIL from system-probe. Calls run one at a time, so
+// that with parallel collectors the timeout only covers the request itself, not the queue in system-probe, and a queued
+// call sees a pause recorded by the call before it instead of sending its own request.
+func newMigGrEngineActiveReader(client *sysprobeclient.CheckClient) func(string) (float64, error) {
+	read := newMigGrReader(func(uuid string) (float64, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), migGrRequestTimeout)
+		defer cancel()
+		return sysprobeclient.GetEndpointWithContext[float64](ctx, client, "/mig-gr?uuid="+url.QueryEscape(uuid), sysconfigtypes.GPUMonitoringModule)
+	}, time.Now)
+	var mu sync.Mutex
+	return func(uuid string) (float64, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		return read(uuid)
+	}
+}
+
+// errMigGrRebaselined is returned for the first value after a failure: system-probe kept its baseline meanwhile, so
+// that value can cover the missed runs rather than the check interval.
+var errMigGrRebaselined = errors.New("system-probe MIG gr_engine_active value discarded: its baseline may predate this check interval")
+
+// newMigGrReader wraps get with a backoff, so that a failing system-probe is not called for each device on each run.
+// The warm-up answer (202, baseline stored), a request too close to the previous one (429) and an NVML release window
+// in system-probe (425, during a GPU reset or MIG reconfiguration) are expected and never pause. An error about one device (404, 500) pauses that device only;
+// any other error (system-probe unreachable or not started, timeout, NVML unavailable there (503), endpoint disabled)
+// pauses every device. After a
+// failure, or when system-probe answers a value without this reader having seen it store the baseline (left by an
+// earlier Agent process or a manual check), the value is discarded, since it can cover more than the check interval.
+func newMigGrReader(get func(uuid string) (float64, error), now func() time.Time) func(string) (float64, error) {
+	var mu sync.Mutex
+	var pausedAll, failedAll time.Time
+	pausedDevice := make(map[string]time.Time)
+	failedDevice := make(map[string]time.Time)
+	// baselined is when system-probe last stored a sample of the device: with a value or with the warm-up 202
+	baselined := make(map[string]time.Time)
+	return func(uuid string) (float64, error) {
+		mu.Lock()
+		t := now()
+		paused := t.Before(pausedAll) || t.Before(pausedDevice[uuid])
+		mu.Unlock()
+		if paused {
+			return 0, errors.New("system-probe MIG gr_engine_active paused after a failed request")
+		}
+		value, err := get(uuid)
+		mu.Lock()
+		defer mu.Unlock()
+		t = now()
+		failed := maxTime(failedAll, failedDevice[uuid])
+		// Strictly after any failure recorded so far, so that the value after this new baseline is used
+		newBaseline := maxTime(t, failed.Add(time.Nanosecond))
+		if err == nil {
+			last, seen := baselined[uuid]
+			baselined[uuid] = newBaseline
+			if !seen || (!failed.IsZero() && !last.After(failed)) {
+				return 0, errMigGrRebaselined
+			}
+			return value, nil
+		}
+		var statusErr *sysprobeclient.StatusCodeError
+		isStatus := errors.As(err, &statusErr)
+		switch {
+		case isStatus && statusErr.StatusCode == http.StatusAccepted:
+			baselined[uuid] = newBaseline
+		case isStatus && (statusErr.StatusCode == http.StatusTooManyRequests || statusErr.StatusCode == http.StatusTooEarly):
+		case isStatus && (statusErr.StatusCode == http.StatusNotFound || statusErr.StatusCode == http.StatusInternalServerError):
+			pausedDevice[uuid] = t.Add(migGrBackoff)
+			failedDevice[uuid] = t
+		default:
+			pausedAll = t.Add(migGrBackoff)
+			failedAll = t
+		}
+		return value, err
+	}
+}
+
+func maxTime(a, b time.Time) time.Time {
+	if a.After(b) {
+		return a
+	}
+	return b
 }

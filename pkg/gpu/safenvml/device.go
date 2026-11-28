@@ -105,6 +105,10 @@ type SafeDevice interface {
 	// core-agent deployments. Returns an error if the driver does not support
 	// the versioned GPU instance profile info API.
 	GetMIGInstanceProfileName(gpuInstanceID int) (string, error)
+	// CheckGpuInstanceAccess looks up the GPU instance with the given ID, which only succeeds when the caller holds the
+	// MIG config capability or CAP_SYS_ADMIN: a NO_PERMISSION error means it holds neither. Only meaningful when called
+	// on the parent physical device of a MIG device.
+	CheckGpuInstanceAccess(gpuInstanceID int) error
 	// GetGpuFabricInfo returns the NVLink fabric information for the device.
 	GetGpuFabricInfo() (nvml.GpuFabricInfo_v2, error)
 	// GetGpuFabricInfoV3 returns the NVLink fabric information with the health summary. On drivers

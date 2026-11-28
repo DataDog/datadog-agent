@@ -327,3 +327,132 @@ func TestGPMCollectorSMActiveSources(t *testing.T) {
 		})
 	}
 }
+
+// withMIGGraphicsUtilNeedsSystemProbe makes the MIG GPM collectors of the test see the Agent as lacking (or holding) the
+// MIG config capability.
+func withMIGGraphicsUtilNeedsSystemProbe(t *testing.T, needed bool) {
+	original := migGraphicsUtilNeedsSystemProbe
+	migGraphicsUtilNeedsSystemProbe = func(*ddnvml.MIGDevice) bool { return needed }
+	t.Cleanup(func() { migGraphicsUtilNeedsSystemProbe = original })
+}
+
+func TestGPMCollectorMIGUsesSystemProbeGrEngineActive(t *testing.T) {
+	withMIGGraphicsUtilNeedsSystemProbe(t, true)
+	mockLib := nvmltestutil.SetupMockNVML(t,
+		testutil.WithGpmSupport(true),
+		testutil.WithGpmMetricValues(map[nvml.GpmMetricId]testutil.MockGpmMetricValue{
+			nvml.GPM_METRIC_GRAPHICS_UTIL: {Value: 0, Return: nvml.SUCCESS},
+		}),
+	)
+	migDevice := &ddnvml.MIGDevice{
+		DeviceInfo:    ddnvml.DeviceInfo{UUID: "MIG-test"},
+		Parent:        nvmltestutil.PhysicalDevice(t, mockLib, 0),
+		MIGInstanceID: 1,
+	}
+
+	for _, tc := range []struct {
+		name     string
+		spErr    error
+		expected float64
+	}{
+		{name: "system-probe value", expected: 73},
+		{name: "fallback on error", spErr: assert.AnError, expected: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			collector, err := newGPMCollectorWithMetrics(migDevice, map[nvml.GpmMetricId]gpmMetric{
+				nvml.GPM_METRIC_GRAPHICS_UTIL: {name: "gr_engine_active", metricType: metrics.GaugeType},
+			}, &CollectorDependencies{MigGrEngineActive: func(uuid string) (float64, error) {
+				assert.Equal(t, "MIG-test", uuid)
+				return 73, tc.spErr
+			}})
+			require.NoError(t, err)
+
+			samples, err := collector.Collect()
+			require.NoError(t, err)
+			got := requireMetrics(t, samples)
+			require.Len(t, got, 2) // gr_engine_active and its sm_active alias
+			for _, metric := range got {
+				assert.Equal(t, tc.expected, metric.Value, metric.Name)
+			}
+		})
+	}
+}
+
+func TestGPMCollectorMIGAsksSystemProbeWhenLocalGPMFails(t *testing.T) {
+	withMIGGraphicsUtilNeedsSystemProbe(t, true)
+	failLocal := false
+	mockLib := nvmltestutil.SetupMockNVML(t,
+		testutil.WithGpmSupport(true),
+		testutil.WithGpmMetricValues(map[nvml.GpmMetricId]testutil.MockGpmMetricValue{
+			nvml.GPM_METRIC_GRAPHICS_UTIL: {Value: 0, Return: nvml.SUCCESS},
+		}),
+		testutil.WithDeviceOptions(0, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+			original := device.GpmMigSampleGetFunc
+			device.GpmMigSampleGetFunc = func(id int, sample nvml.GpmSample) nvml.Return {
+				if failLocal {
+					return nvml.ERROR_UNKNOWN
+				}
+				return original(id, sample)
+			}
+		})),
+	)
+	migDevice := &ddnvml.MIGDevice{
+		DeviceInfo:    ddnvml.DeviceInfo{UUID: "MIG-test"},
+		Parent:        nvmltestutil.PhysicalDevice(t, mockLib, 0),
+		MIGInstanceID: 1,
+	}
+	calls := 0
+	collector, err := newGPMCollectorWithMetrics(migDevice, map[nvml.GpmMetricId]gpmMetric{
+		nvml.GPM_METRIC_GRAPHICS_UTIL: {name: "gr_engine_active", metricType: metrics.GaugeType},
+	}, &CollectorDependencies{MigGrEngineActive: func(string) (float64, error) {
+		calls++
+		return 73, nil
+	}})
+	require.NoError(t, err)
+
+	// system-probe is asked even when the local GPM read fails, so that its window stays one check interval
+	failLocal = true
+	_, err = collector.Collect()
+	require.Error(t, err)
+	assert.Equal(t, 1, calls)
+
+	// The next run uses its own system-probe value
+	failLocal = false
+	samples, err := collector.Collect()
+	require.NoError(t, err)
+	assert.Equal(t, 2, calls)
+	for _, metric := range requireMetrics(t, samples) {
+		assert.Equal(t, 73.0, metric.Value, metric.Name)
+	}
+}
+
+func TestGPMCollectorMIGWithCapabilityDoesNotAskSystemProbe(t *testing.T) {
+	withMIGGraphicsUtilNeedsSystemProbe(t, false)
+	mockLib := nvmltestutil.SetupMockNVML(t,
+		testutil.WithGpmSupport(true),
+		testutil.WithGpmMetricValues(map[nvml.GpmMetricId]testutil.MockGpmMetricValue{
+			nvml.GPM_METRIC_GRAPHICS_UTIL: {Value: 0, Return: nvml.SUCCESS},
+		}),
+	)
+	migDevice := &ddnvml.MIGDevice{
+		DeviceInfo:    ddnvml.DeviceInfo{UUID: "MIG-test"},
+		Parent:        nvmltestutil.PhysicalDevice(t, mockLib, 0),
+		MIGInstanceID: 1,
+	}
+	calls := 0
+	collector, err := newGPMCollectorWithMetrics(migDevice, map[nvml.GpmMetricId]gpmMetric{
+		nvml.GPM_METRIC_GRAPHICS_UTIL: {name: "gr_engine_active", metricType: metrics.GaugeType},
+	}, &CollectorDependencies{MigGrEngineActive: func(string) (float64, error) {
+		calls++
+		return 73, nil
+	}})
+	require.NoError(t, err)
+
+	// The Agent reads the value itself (e.g. toolkit CDI mode): an idle 0 is reported as is, system-probe is not asked
+	samples, err := collector.Collect()
+	require.NoError(t, err)
+	for _, metric := range requireMetrics(t, samples) {
+		assert.Equal(t, 0.0, metric.Value, metric.Name)
+	}
+	assert.Zero(t, calls)
+}

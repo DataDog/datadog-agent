@@ -47,6 +47,9 @@ type Config struct {
 	DriverEventsEnabled bool
 	// PRMEndpointEnabled indicates whether the privileged PRM endpoint should be exposed.
 	PRMEndpointEnabled bool
+	// MigGrEndpointEnabled indicates whether system-probe serves, and the core agent uses, the GPM GRAPHICS_UTIL of
+	// MIG devices read with system-probe's privileges.
+	MigGrEndpointEnabled bool
 	// ScanProcessesInterval is the interval at which the probe scans for new or terminated processes.
 	ScanProcessesInterval time.Duration
 	// InitialProcessSync indicates whether the probe should sync the process list on startup.
@@ -199,6 +202,7 @@ func New() *Config {
 		EnableEBPFProbes:               spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enable_ebpf_probes")),
 		DriverEventsEnabled:            spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "driver_events_enabled")),
 		PRMEndpointEnabled:             spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "prm_endpoint_enabled")),
+		MigGrEndpointEnabled:           spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "mig_gr_endpoint_enabled")),
 		ConfigureCgroupPerms:           spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "configure_cgroup_perms")),
 		EnableFatbinParsing:            spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "enable_fatbin_parsing")),
 		KernelCacheQueueSize:           spCfg.GetInt(sysconfig.FullKeyPath(consts.GPUNS, "fatbin_request_queue_size")),

@@ -32,6 +32,7 @@ type gpmCollector struct {
 	emitLegacySMActive       bool
 	emitGrEngineSMActive     bool
 	grEngineSMActivePriority MetricPriority
+	migGrEngineActive        func(uuid string) (float64, error) // only for MIG devices, see CollectorDependencies
 }
 
 type gpmMetric struct {
@@ -149,6 +150,13 @@ func newGPMCollectorWithMetrics(device ddnvml.Device, metricsToCollect map[nvml.
 
 	if len(collector.metricsToCollect) == 0 {
 		return nil, errUnsupportedDevice
+	}
+
+	// Use system-probe only when this Agent cannot read GRAPHICS_UTIL itself: without the MIG config capability or
+	// CAP_SYS_ADMIN, NVML returns 0 for it on MIG devices. With it (e.g. toolkit CDI mode), nothing changes.
+	if _, collectsGraphicsUtil := collector.metricsToCollect[nvml.GPM_METRIC_GRAPHICS_UTIL]; isMig && collectsGraphicsUtil &&
+		deps != nil && deps.MigGrEngineActive != nil && migGraphicsUtilNeedsSystemProbe(migDevice) {
+		collector.migGrEngineActive = deps.MigGrEngineActive
 	}
 
 	return collector, nil
@@ -272,6 +280,13 @@ func (c *gpmCollector) Name() CollectorName {
 }
 
 func (c *gpmCollector) Collect() ([]Sample, error) {
+	// Ask system-probe first, on every run whatever happens to the local GPM read, so that its window stays one
+	// check interval
+	remoteGraphicsUtil, remoteErr := 0.0, errors.New("system-probe not used")
+	if c.migGrEngineActive != nil {
+		remoteGraphicsUtil, remoteErr = c.migGrEngineActive(c.device.GetDeviceInfo().UUID)
+	}
+
 	err := c.collectSample()
 	if err != nil {
 		return nil, fmt.Errorf("failed to collect GPM sample: %w", err)
@@ -304,10 +319,20 @@ func (c *gpmCollector) Collect() ([]Sample, error) {
 			continue
 		}
 
+		value := metric.Value
+		// Without the MIG config capability the local GRAPHICS_UTIL is 0: use the value read by system-probe
+		if c.migGrEngineActive != nil && nvml.GpmMetricId(metric.MetricId) == nvml.GPM_METRIC_GRAPHICS_UTIL {
+			if remoteErr == nil {
+				value = remoteGraphicsUtil
+			} else {
+				log.Debugf("using local GPM GRAPHICS_UTIL for MIG device %s: %v", c.device.GetDeviceInfo().UUID, remoteErr)
+			}
+		}
+
 		samples = append(samples, &Metric{
 			baseSample: baseSample{priority: High}, // All GPM metrics have priority over other collectors
 			Name:       metricData.name,
-			Value:      metric.Value,
+			Value:      value,
 			Type:       metricData.metricType,
 		})
 		if c.emitLegacySMActive && nvml.GpmMetricId(metric.MetricId) == nvml.GPM_METRIC_SM_UTIL {
@@ -322,11 +347,25 @@ func (c *gpmCollector) Collect() ([]Sample, error) {
 			samples = append(samples, &Metric{
 				baseSample: baseSample{priority: c.grEngineSMActivePriority},
 				Name:       "sm_active",
-				Value:      metric.Value,
+				Value:      value,
 				Type:       metricData.metricType,
 			})
 		}
 	}
 
 	return samples, errors.Join(errs...)
+}
+
+// migGraphicsUtilNeedsSystemProbe returns true unless this Agent holds the MIG config capability or CAP_SYS_ADMIN, which
+// its GPM GRAPHICS_UTIL of MIG devices needs: looking up the device's GPU instance succeeds (or finds it gone) only with
+// them, and fails with NO_PERMISSION without. Any other error also uses system-probe, whose failures fall back to the
+// local value anyway. It is a variable so that tests can replace it.
+var migGraphicsUtilNeedsSystemProbe = func(device *ddnvml.MIGDevice) bool {
+	err := device.Parent.CheckGpuInstanceAccess(device.MIGInstanceID)
+	var nvmlErr *ddnvml.NvmlAPIError
+	if err == nil || (errors.As(err, &nvmlErr) && nvmlErr.NvmlErrorCode == nvml.ERROR_NOT_FOUND) {
+		return false
+	}
+	log.Infof("reading gr_engine_active of MIG device %s through system-probe: this Agent cannot read it without the MIG config capability (%v)", device.UUID, err)
+	return true
 }

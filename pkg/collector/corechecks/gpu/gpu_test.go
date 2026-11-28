@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 	"strconv"
 	"strings"
@@ -45,6 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	mock_containers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
@@ -2772,4 +2774,90 @@ func TestDeviceCountTelemetrySharingModes(t *testing.T) {
 	check.updateDeviceCountTelemetry(nil)
 	_, err = tm.GetGaugeMetric(CheckName, "device_total")
 	require.ErrorContains(t, err, "not found")
+}
+
+func TestMigGrReaderBackoff(t *testing.T) {
+	now := time.Unix(1000, 0)
+	errs := map[string]error{}
+	calls := map[string]int{}
+	read := newMigGrReader(func(uuid string) (float64, error) {
+		calls[uuid]++
+		return 42, errs[uuid]
+	}, func() time.Time { return now })
+
+	// The warm-up answer (baseline stored) never pauses
+	errs["a"] = &sysprobeclient.StatusCodeError{StatusCode: http.StatusAccepted}
+	_, err := read("a")
+	require.Error(t, err)
+	errs["a"] = nil
+	v, err := read("a")
+	require.NoError(t, err)
+	require.Equal(t, 42.0, v)
+
+	// An error about one device pauses that device only
+	errs["b"] = &sysprobeclient.StatusCodeError{StatusCode: http.StatusNotFound}
+	_, err = read("b")
+	require.Error(t, err)
+	_, err = read("b")
+	require.Error(t, err)
+	require.Equal(t, 1, calls["b"], "paused")
+	_, err = read("a")
+	require.NoError(t, err)
+
+	// Any other error pauses every device, until the backoff expires
+	errs["a"] = sysprobeclient.ErrNotStartedYet
+	_, err = read("a")
+	require.Error(t, err)
+	errs["a"] = nil
+	callsA := calls["a"]
+	_, err = read("a")
+	require.Error(t, err)
+	require.Equal(t, callsA, calls["a"], "paused")
+
+	// After the backoff, the first value of a device that had one before is discarded: system-probe kept its baseline
+	// during the pause, so that value can cover the missed runs
+	now = now.Add(migGrBackoff)
+	errs["b"] = nil
+	_, err = read("a")
+	require.ErrorIs(t, err, errMigGrRebaselined)
+	v, err = read("a")
+	require.NoError(t, err)
+	require.Equal(t, 42.0, v)
+	// A value without having seen system-probe store its baseline is discarded: that baseline may be old
+	_, err = read("b")
+	require.ErrorIs(t, err, errMigGrRebaselined)
+	_, err = read("b")
+	require.NoError(t, err)
+
+	// A device that only got the warm-up answer has a baseline in system-probe: discard its first value after a failure
+	errs["c"] = &sysprobeclient.StatusCodeError{StatusCode: http.StatusAccepted}
+	_, err = read("c")
+	require.Error(t, err)
+	errs["c"] = sysprobeclient.ErrNotStartedYet
+	_, err = read("c")
+	require.Error(t, err)
+	now = now.Add(migGrBackoff)
+	errs["c"] = nil
+	_, err = read("c")
+	require.ErrorIs(t, err, errMigGrRebaselined)
+	v, err = read("c")
+	require.NoError(t, err)
+	require.Equal(t, 42.0, v)
+
+	// A request too close to the previous one (429) or an NVML release window (425) does not pause; system-probe
+	// failing (503) pauses every device
+	errs["d"] = &sysprobeclient.StatusCodeError{StatusCode: http.StatusTooManyRequests}
+	_, err = read("d")
+	require.Error(t, err)
+	errs["d"] = &sysprobeclient.StatusCodeError{StatusCode: http.StatusTooEarly}
+	_, err = read("d")
+	require.Error(t, err)
+	require.Equal(t, 2, calls["d"], "not paused")
+	errs["d"] = &sysprobeclient.StatusCodeError{StatusCode: http.StatusServiceUnavailable}
+	_, err = read("d")
+	require.Error(t, err)
+	callsC := calls["c"]
+	_, err = read("c")
+	require.Error(t, err)
+	require.Equal(t, callsC, calls["c"], "paused")
 }
