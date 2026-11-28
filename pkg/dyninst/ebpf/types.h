@@ -257,6 +257,9 @@ typedef enum sm_opcode {
   SM_OP_INIT_FILTER_MAP_LOOP = 65,
   SM_OP_EMIT_FILTER_MAP_ELEMENT = 66,
   SM_OP_FILTER_MAP_ADVANCE = 67,
+  // Marks a split condition's handler as running without arming
+  // condition_eval_error, since split conditions skip CONDITION_BEGIN.
+  SM_OP_CONDITION_ENTER = 68,
 } sm_opcode_t;
 
 // cmp_op_t identifies which comparison SM_OP_EXPR_CMP_BASE /

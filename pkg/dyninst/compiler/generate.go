@@ -454,8 +454,8 @@ func (g *generator) addEventHandler(
 //
 // Split-event-kind conditions are signalled by condition.IsSplit (set by
 // irgen when building either the entry-side driver or the return-side AST
-// replay). In that case the implicit ConditionBeginOp prelude is skipped
-// — the per-leaf record/load ops manage condition_eval_error directly.
+// replay). In that case ConditionEnterOp replaces the ConditionBeginOp
+// prelude — the per-leaf record/load ops manage condition_eval_error directly.
 // When the Expression has LeafBodies (the entry-side driver emits them;
 // the return-side replay does not), this also generates one
 // ProcessConditionLeaf sub-function per body before emitting the main
@@ -482,7 +482,9 @@ func (g *generator) addConditionHandler(
 		InjectionPC:   injectionPC,
 	}
 	ops := make([]Op, 0, 5+len(condition.Operations))
-	if !condition.IsSplit {
+	if condition.IsSplit {
+		ops = append(ops, ConditionEnterOp{})
+	} else {
 		ops = append(ops, ConditionBeginOp{})
 	}
 	ops = append(ops, ExprPrepareOp{})
