@@ -14,6 +14,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -142,6 +143,53 @@ func TestPodParser_Parse(t *testing.T) {
 		cmp.Equal(expected, parsed, opt),
 		cmp.Diff(expected, parsed, opt),
 	)
+}
+
+func TestPodParser_ParseInitContainers(t *testing.T) {
+	parser, err := NewPodParser(nil)
+	require.NoError(t, err)
+
+	alwaysRestart := corev1.ContainerRestartPolicyAlways
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "init-pod", UID: "uid-1"},
+		Spec: corev1.PodSpec{
+			InitContainers: []corev1.Container{
+				{
+					Name:          "sidecar",
+					RestartPolicy: &alwaysRestart,
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("100m"),
+							corev1.ResourceMemory: resource.MustParse("64Mi"),
+						},
+					},
+					ResizePolicy: []corev1.ContainerResizePolicy{
+						{ResourceName: corev1.ResourceCPU, RestartPolicy: corev1.RestartContainer},
+					},
+				},
+				{
+					Name: "migrate",
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU: resource.MustParse("200m"),
+						},
+					},
+				},
+			},
+			Containers: []corev1.Container{{Name: "app"}},
+		},
+	}
+
+	parsed := parser.Parse(pod).(*workloadmeta.KubernetesPod)
+	require.Len(t, parsed.InitContainers, 2)
+	assert.Equal(t, "sidecar", parsed.InitContainers[0].Name)
+	assert.Equal(t, string(corev1.ContainerRestartPolicyAlways), parsed.InitContainers[0].RestartPolicy)
+	assert.Equal(t, string(corev1.RestartContainer), parsed.InitContainers[0].ResizePolicy.CPURestartPolicy)
+	if assert.NotNil(t, parsed.InitContainers[0].Resources.CPURequest) {
+		assert.Equal(t, float64(10), *parsed.InitContainers[0].Resources.CPURequest)
+	}
+	assert.Equal(t, "migrate", parsed.InitContainers[1].Name)
+	assert.Empty(t, parsed.InitContainers[1].RestartPolicy)
 }
 
 func TestResizeConditionsFromPodConditions(t *testing.T) {

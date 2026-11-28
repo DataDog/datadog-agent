@@ -574,11 +574,12 @@ func (c ContainerAllocatedResource) String() string {
 // OrchestratorContainer is a reference to a Container with
 // orchestrator-specific data attached to it.
 type OrchestratorContainer struct {
-	ID           string
-	Name         string
-	Image        ContainerImage
-	Resources    ContainerResources    `proto:"ignore"`
-	ResizePolicy ContainerResizePolicy `proto:"ignore"`
+	ID            string
+	Name          string
+	Image         ContainerImage
+	Resources     ContainerResources    `proto:"ignore"`
+	ResizePolicy  ContainerResizePolicy `proto:"ignore"`
+	RestartPolicy string                `proto:"ignore"`
 }
 
 // String returns a string representation of OrchestratorContainer.
@@ -588,6 +589,9 @@ func (o OrchestratorContainer) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "ID:", o.ID)
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Image:", o.Image.Name)
+		if o.RestartPolicy != "" {
+			_, _ = fmt.Fprintln(&sb, "RestartPolicy:", o.RestartPolicy)
+		}
 		_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
 		_, _ = fmt.Fprint(&sb, o.Resources.String(true))
 		_, _ = fmt.Fprint(&sb, o.ResizePolicy.String())

@@ -9,6 +9,8 @@ package workload
 
 import (
 	"fmt"
+	"iter"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -46,6 +48,11 @@ const inPlaceResizeSupportedCacheTTL = 15 * time.Minute
 // signal that an existing limit must be actively deleted from the live pod. Negative
 // quantities are never valid Kubernetes resource values, making the intent unambiguous.
 var removeLimitSentinel = resource.MustParse("-1")
+
+// isRemoveLimit reports whether q is removeLimitSentinel.
+func isRemoveLimit(q resource.Quantity) bool {
+	return q.Cmp(removeLimitSentinel) == 0
+}
 
 // isInPlaceResizeSupported checks whether the API server exposes the pods/resize
 // subresource, which requires InPlacePodVerticalScaling to be enabled. The result
@@ -262,7 +269,7 @@ func shouldTriggerRollout(
 // - The new limit is higher than the current limit
 // - The pod has a limit but the recommendation removes it (no limit = unlimited)
 //
-// opts must reflect the current autoscaler state so that apply-time transformations (e.g. burstable
+// recommendation must be the constrained values, so that apply-time transformations (e.g. burstable
 // CPU limit removal) are accounted for before comparing against pod limits.
 //
 // Performance: Uses early exit - returns as soon as any pod with lower limits is found.
@@ -276,28 +283,32 @@ func hasLimitIncrease(
 		return false
 	}
 
-	// recommendationLimits holds pre-computed limits from a recommendation for efficient comparison
+	// recommendationLimits holds pre-computed limits from a recommendation for efficient comparison.
+	// An omitted limit leaves the pod limit unchanged, so it stays 0 and never counts as an increase.
+	// removeLimitSentinel removes the limit, which is stored as the maximum value: no limit means
+	// unlimited, which is greater than any finite limit.
 	type recommendationLimits struct {
-		cpuLimit    float64 // Percentage (100 = 1 core), 0 if not set
-		memoryLimit uint64  // Bytes, 0 if not set
-		hasCPU      bool    // true if recommendation specifies a non-zero CPU limit
-		hasMemory   bool    // true if recommendation specifies a memory limit
+		cpuLimit    float64 // Percentage (100 = 1 core)
+		memoryLimit uint64  // Bytes
 	}
 
 	// Pre-compute recommendation limits once.
-	// In burstable mode applyVerticalConstraints sets the CPU limit to removeLimitSentinel (-1),
-	// so cpuLimit.Sign() < 0 and hasCPU stays false.
-	// Case 2 below then detects the transition (pod has CPU limit, reco removes it).
 	recoLimits := make(map[string]recommendationLimits, len(recommendation.ContainerResources))
 	for _, recoContainer := range recommendation.ContainerResources {
 		limits := recommendationLimits{}
-		if cpuLimit := recoContainer.Limits.Cpu(); cpuLimit != nil && cpuLimit.Sign() > 0 {
-			limits.cpuLimit = cpuLimit.AsApproximateFloat64() * 100 // Convert to percentage
-			limits.hasCPU = true
+		if cpuLimit, ok := recoContainer.Limits[corev1.ResourceCPU]; ok {
+			if isRemoveLimit(cpuLimit) {
+				limits.cpuLimit = math.Inf(1)
+			} else if cpuLimit.Sign() > 0 {
+				limits.cpuLimit = cpuLimit.AsApproximateFloat64() * 100 // Convert to percentage
+			}
 		}
-		if memLimit := recoContainer.Limits.Memory(); memLimit != nil && !memLimit.IsZero() {
-			limits.memoryLimit = uint64(memLimit.Value())
-			limits.hasMemory = true
+		if memLimit, ok := recoContainer.Limits[corev1.ResourceMemory]; ok {
+			if isRemoveLimit(memLimit) {
+				limits.memoryLimit = math.MaxUint64
+			} else if memLimit.Sign() > 0 {
+				limits.memoryLimit = uint64(memLimit.Value())
+			}
 		}
 		recoLimits[recoContainer.Name] = limits
 	}
@@ -311,31 +322,18 @@ func hasLimitIncrease(
 			continue
 		}
 
-		// Check each container in this pod
-		for _, container := range pod.Containers {
+		// Check regular containers and sidecar init containers in this pod.
+		for container := range resizableContainers(pod) {
 			reco, ok := recoLimits[container.Name]
 			if !ok {
 				continue
 			}
 
-			// Case 1: Recommendation has higher CPU limit than pod
-			if reco.hasCPU && container.Resources.CPULimit != nil && reco.cpuLimit > *container.Resources.CPULimit {
+			// The recommendation sets a higher limit than the pod's, or removes it.
+			if container.Resources.CPULimit != nil && reco.cpuLimit > *container.Resources.CPULimit {
 				return true
 			}
-
-			// Case 2: Recommendation removes CPU limit (pod has limit, reco doesn't)
-			// No limit = unlimited, which is greater than any finite limit
-			if !reco.hasCPU && container.Resources.CPULimit != nil {
-				return true
-			}
-
-			// Case 3: Recommendation has higher Memory limit than pod
-			if reco.hasMemory && container.Resources.MemoryLimit != nil && reco.memoryLimit > *container.Resources.MemoryLimit {
-				return true
-			}
-
-			// Case 4: Recommendation removes Memory limit (pod has limit, reco doesn't)
-			if !reco.hasMemory && container.Resources.MemoryLimit != nil {
+			if container.Resources.MemoryLimit != nil && reco.memoryLimit > *container.Resources.MemoryLimit {
 				return true
 			}
 		}
@@ -349,7 +347,7 @@ func hasLimitIncrease(
 // burstable mode, or per-container when ControlledValues is CPURequestsRemoveLimitsMemoryRequestsAndLimits —
 // it stores removeLimitSentinel (-1) on that container's CPU limit so that:
 //   - the ResourcesHash changes when the removal is toggled (triggering pod re-patches)
-//   - hasLimitIncrease sees cpuLimit.Sign() <= 0 and correctly identifies the transition as a limit increase
+//   - hasLimitIncrease sees the sentinel and correctly identifies the transition as a limit increase
 //   - patchContainerResources removes the CPU limit from the pod when it encounters the sentinel
 func applyVerticalConstraints(verticalRecs *model.VerticalScalingValues, constraints *datadoghqcommon.DatadogPodAutoscalerConstraints, burstable bool) (limitErr, err error) {
 	if verticalRecs == nil {
@@ -472,10 +470,10 @@ func applyVerticalConstraints(verticalRecs *model.VerticalScalingValues, constra
 		// live pod. Done after clamping/invariant so the sentinel value is never altered (both
 		// skip negative quantities). This has three effects:
 		//   1. The ResourcesHash changes when removal is toggled (pods get re-patched).
-		//   2. hasLimitIncrease sees cpuLimit.Sign() <= 0, correctly identifying the transition
+		//   2. hasLimitIncrease sees the sentinel, correctly identifying the transition
 		//      to "no limit" as a limit increase (unlimited > any finite limit).
-		//   3. patchContainerResources sees Sign() < 0 and removes the CPU limit from the running
-		//      pod instead of setting it (an absent entry would mean "leave untouched").
+		//   3. patchContainerResources and buildContainerResourcePatch see the sentinel and remove
+		//      the CPU limit from the pod instead of setting it (an absent entry would mean "leave untouched").
 		if removeCPULimit {
 			if cr.Limits == nil {
 				cr.Limits = corev1.ResourceList{}
@@ -632,7 +630,7 @@ func clampResourceList(rl corev1.ResourceList, minAllowed, maxAllowed corev1.Res
 	}
 	modified := false
 	for name, qty := range rl {
-		if qty.Cmp(removeLimitSentinel) == 0 { // preserve the remove-limit sentinel as-is
+		if isRemoveLimit(qty) { // preserve the remove-limit sentinel as-is
 			continue
 		}
 		clamped := false
@@ -698,15 +696,17 @@ func shouldFallbackToRollout(toEvict []classifiedPod, hasInfeasible bool, podAut
 //
 // pods is the current live pod list for the workload, used to check whether runtime values are already
 // applied so we avoid triggering unnecessary rollouts (e.g. when only CPU changed).
-func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal, pods []*workloadmeta.KubernetesPod) bool {
+// nonSidecarInit is findNonSidecarInitContainers(pods).
+func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal, pods []*workloadmeta.KubernetesPod, nonSidecarInit map[string]struct{}) bool {
 	if !pkgconfigsetup.Datadog().GetBool("autoscaling.workload.in_place_vertical_scaling.enabled") {
 		return true
 	}
 	// Runtime values are env vars that can only be applied to new pods via the
 	// admission webhook — they cannot be updated on a running container via pods/resize.
-	// Force the rollout path only when the recommended value differs from what is already on the pods.
+	// Exclude non-sidecar init containers because they run only on new pods.
 	if sv := autoscalerInternal.ScalingValues(); sv.Vertical != nil {
-		if hash, hasRuntime := computeRuntimeRecommendationID(sv.Vertical.ContainerResources); hasRuntime {
+		actionable := filterActionableContainerResources(sv.Vertical.ContainerResources, nonSidecarInit)
+		if hash, hasRuntime := computeRuntimeRecommendationID(actionable); hasRuntime {
 			if !runtimeRecommendationIDApplied(hash, pods) {
 				return true
 			}
@@ -790,7 +790,7 @@ func getPodResizeStatus(pod *workloadmeta.KubernetesPod, recommendationID string
 }
 
 // isDisruptiveResize reports whether the recommendation changes a resource whose RestartContainer
-// policy would restart a container. Other resizes happen in place and are never throttled.
+// policy restarts a regular or sidecar init container. Other resizes happen in place and are not throttled.
 func isDisruptiveResize(pod *workloadmeta.KubernetesPod, recommendation *model.VerticalScalingValues) bool {
 	if recommendation == nil {
 		return false
@@ -799,7 +799,7 @@ func isDisruptiveResize(pod *workloadmeta.KubernetesPod, recommendation *model.V
 	for _, cr := range recommendation.ContainerResources {
 		recoByName[cr.Name] = cr
 	}
-	for _, c := range pod.Containers {
+	for c := range resizableContainers(pod) {
 		cr, ok := recoByName[c.Name]
 		if !ok {
 			continue
@@ -877,7 +877,10 @@ func allowedDisruptions(configured int, alreadyDisrupted int) int {
 	return max(0, tolerance-alreadyDisrupted)
 }
 
-func fromAutoscalerToContainerResourcePatches(autoscalerInternal *model.PodAutoscalerInternal, pod *workloadmeta.KubernetesPod) []workloadpatcher.ContainerResourcePatch {
+func fromAutoscalerToContainerResourcePatches(
+	autoscalerInternal *model.PodAutoscalerInternal,
+	pod *workloadmeta.KubernetesPod,
+) (containers []workloadpatcher.ContainerResourcePatch, initContainers []workloadpatcher.ContainerResourcePatch) {
 	containersResources := autoscalerInternal.ScalingValues().Vertical.ContainerResources
 
 	// Build a map from container name to container resources.
@@ -886,34 +889,49 @@ func fromAutoscalerToContainerResourcePatches(autoscalerInternal *model.PodAutos
 		recoByName[cr.Name] = cr
 	}
 
-	burstable := autoscalerInternal.IsBurstable()
-
-	// Build the list of patches ordered to API server pod container order.
-	patches := make([]workloadpatcher.ContainerResourcePatch, 0, len(containersResources))
+	// Build regular container patches in API server pod container order.
+	containers = make([]workloadpatcher.ContainerResourcePatch, 0, len(pod.Containers))
 	for _, c := range pod.Containers {
 		cr, ok := recoByName[c.Name]
 		if !ok {
 			continue
 		}
-		patch := workloadpatcher.ContainerResourcePatch{
-			Name:     cr.Name,
-			Requests: resourceListToStringMap(cr.Requests),
-			Limits:   resourceListToStringMap(cr.Limits),
-		}
-		// pods/resize rejects removeLimitSentinel (-1), so negative limits are sent as deletions.
-		for name, qty := range cr.Limits {
-			if qty.Sign() < 0 {
-				delete(patch.Limits, string(name))
-				patch.LimitsToDelete = append(patch.LimitsToDelete, string(name))
-			}
-		}
-		if burstable && !slices.Contains(patch.LimitsToDelete, string(corev1.ResourceCPU)) {
-			delete(patch.Limits, string(corev1.ResourceCPU)) // don't re-set CPU limit
-			patch.LimitsToDelete = append(patch.LimitsToDelete, string(corev1.ResourceCPU))
-		}
-		patches = append(patches, patch)
+		containers = append(containers, buildContainerResourcePatch(cr))
 	}
-	return patches
+
+	// Build sidecar init container patches in API server pod initContainer order.
+	// Skip non-sidecar init containers because they do not run after pod startup.
+	for _, c := range pod.InitContainers {
+		if !isSidecarInitContainer(c) {
+			continue
+		}
+		cr, ok := recoByName[c.Name]
+		if !ok {
+			continue
+		}
+		initContainers = append(initContainers, buildContainerResourcePatch(cr))
+	}
+
+	return containers, initContainers
+}
+
+// buildContainerResourcePatch converts constrained container resources to a pods/resize patch.
+// Burstable mode needs no special case: applyVerticalConstraints already stamped removeLimitSentinel
+// on the CPU limit.
+func buildContainerResourcePatch(cr datadoghqcommon.DatadogPodAutoscalerContainerResources) workloadpatcher.ContainerResourcePatch {
+	patch := workloadpatcher.ContainerResourcePatch{
+		Name:     cr.Name,
+		Requests: resourceListToStringMap(cr.Requests),
+		Limits:   resourceListToStringMap(cr.Limits),
+	}
+	// pods/resize rejects removeLimitSentinel (-1), so it is sent as a deletion.
+	for name, qty := range cr.Limits {
+		if isRemoveLimit(qty) {
+			delete(patch.Limits, string(name))
+			patch.LimitsToDelete = append(patch.LimitsToDelete, string(name))
+		}
+	}
+	return patch
 }
 
 // resourceListToStringMap converts a corev1.ResourceList to the string map expected by
@@ -927,4 +945,101 @@ func resourceListToStringMap(rl corev1.ResourceList) map[string]string {
 		m[string(name)] = qty.String()
 	}
 	return m
+}
+
+func findNonSidecarInitContainers(pods []*workloadmeta.KubernetesPod) map[string]struct{} {
+	var nonSidecarInit map[string]struct{}
+	for _, pod := range pods {
+		if pod.DeletionTimestamp != nil {
+			continue
+		}
+		for _, c := range pod.InitContainers {
+			if isSidecarInitContainer(c) {
+				continue
+			}
+			if nonSidecarInit == nil {
+				nonSidecarInit = make(map[string]struct{})
+			}
+			nonSidecarInit[c.Name] = struct{}{}
+		}
+	}
+	if len(nonSidecarInit) == 0 {
+		return nil
+	}
+	// A name that any live pod runs as a regular or sidecar container is still actionable.
+	for _, pod := range pods {
+		if pod.DeletionTimestamp != nil {
+			continue
+		}
+		for c := range resizableContainers(pod) {
+			delete(nonSidecarInit, c.Name)
+		}
+		if len(nonSidecarInit) == 0 {
+			return nil
+		}
+	}
+	return nonSidecarInit
+}
+
+// filterActionableContainerResources drops the resources of the given non-sidecar init containers.
+// It returns resources unchanged, without copying, when none of them is excluded.
+func filterActionableContainerResources(
+	resources []datadoghqcommon.DatadogPodAutoscalerContainerResources,
+	nonSidecarInit map[string]struct{},
+) []datadoghqcommon.DatadogPodAutoscalerContainerResources {
+	excluded := func(cr datadoghqcommon.DatadogPodAutoscalerContainerResources) bool {
+		_, ok := nonSidecarInit[cr.Name]
+		return ok
+	}
+	if len(nonSidecarInit) == 0 || !slices.ContainsFunc(resources, excluded) {
+		return resources
+	}
+	return slices.DeleteFunc(slices.Clone(resources), excluded)
+}
+
+// actionableRecommendation returns the container resources that apply to running pods (all but
+// the non-sidecar init containers) and the recommendation ID that covers them. The ID is
+// recommendationID unless some, but not all, containers are excluded, in which case it is the
+// hash of the actionable resources. The resources are returned even when hashing fails.
+// The controller and the admission webhook both call it so they stamp the same ID on pods.
+func actionableRecommendation(
+	resources []datadoghqcommon.DatadogPodAutoscalerContainerResources,
+	recommendationID string,
+	nonSidecarInit map[string]struct{},
+) ([]datadoghqcommon.DatadogPodAutoscalerContainerResources, string, error) {
+	actionable := filterActionableContainerResources(resources, nonSidecarInit)
+	if len(actionable) == 0 || len(actionable) == len(resources) {
+		return actionable, recommendationID, nil
+	}
+	hash, err := autoscaling.ObjectHash(actionable)
+	if err != nil {
+		return actionable, "", fmt.Errorf("failed to compute actionable resources hash: %w", err)
+	}
+	return actionable, hash, nil
+}
+
+// resizableContainers yields the pod's regular containers, then its sidecar init containers:
+// the containers that keep running after startup and can be resized in place.
+func resizableContainers(pod *workloadmeta.KubernetesPod) iter.Seq[workloadmeta.OrchestratorContainer] {
+	return func(yield func(workloadmeta.OrchestratorContainer) bool) {
+		for _, c := range pod.Containers {
+			if !yield(c) {
+				return
+			}
+		}
+		for _, c := range pod.InitContainers {
+			if isSidecarInitContainer(c) && !yield(c) {
+				return
+			}
+		}
+	}
+}
+
+func isSidecarInitContainer(c workloadmeta.OrchestratorContainer) bool {
+	return c.RestartPolicy == string(corev1.ContainerRestartPolicyAlways)
+}
+
+// isSidecarInitContainerSpec is isSidecarInitContainer for a pod spec init container.
+func isSidecarInitContainerSpec(c *corev1.Container) bool {
+	return c.RestartPolicy != nil && *c.RestartPolicy == corev1.ContainerRestartPolicyAlways
 }

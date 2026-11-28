@@ -158,6 +158,7 @@ func Test_CollectEventsWithMinimalPod(t *testing.T) {
 
 func Test_MinimalPodDeepCopy(t *testing.T) {
 	runtimeClassName := "test-runtime"
+	alwaysRestart := corev1.ContainerRestartPolicyAlways
 
 	original := &MinimalPod{
 		TypeMeta: metav1.TypeMeta{
@@ -185,6 +186,25 @@ func Test_MinimalPodDeepCopy(t *testing.T) {
 			ResourceVersion: "12345",
 		},
 		Spec: MinimalPodSpec{
+			InitContainers: []MinimalContainer{
+				{
+					Name:          "sidecar-init",
+					Image:         "envoyproxy/envoy:latest",
+					RestartPolicy: &alwaysRestart,
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU: *resource.NewMilliQuantity(50, resource.DecimalSI),
+						},
+					},
+					ResizePolicy: []corev1.ContainerResizePolicy{
+						{ResourceName: corev1.ResourceCPU, RestartPolicy: corev1.NotRequired},
+					},
+				},
+				{
+					Name:  "setup-init",
+					Image: "busybox:latest",
+				},
+			},
 			Containers: []MinimalContainer{
 				{
 					Name:  "test-container-1",
@@ -257,6 +277,12 @@ func Test_MinimalPodDeepCopy(t *testing.T) {
 	copiedPod.Spec.Containers[0].Image = "rayproject/ray:latest"
 	assert.NotEqual(t, copiedPod.Spec.Containers[0].Image, original.Spec.Containers[0].Image)
 
+	copiedPod.Spec.InitContainers[0].Name = "modified-init"
+	assert.NotEqual(t, copiedPod.Spec.InitContainers[0].Name, original.Spec.InitContainers[0].Name)
+
+	*copiedPod.Spec.InitContainers[0].RestartPolicy = corev1.ContainerRestartPolicy("Never")
+	assert.Equal(t, corev1.ContainerRestartPolicyAlways, *original.Spec.InitContainers[0].RestartPolicy)
+
 	copiedPod.Status.PodIP = "10.0.0.2"
 	assert.NotEqual(t, copiedPod.Status.PodIP, original.Status.PodIP)
 }
@@ -265,6 +291,7 @@ func Test_MinimalPodDeepCopy(t *testing.T) {
 // the same output as the full podParser.
 func Test_ParsersProduceSameOutput(t *testing.T) {
 	runtimeClassName := "test-runtime"
+	alwaysRestart := corev1.ContainerRestartPolicyAlways
 
 	fullPod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -287,6 +314,34 @@ func Test_ParsersProduceSameOutput(t *testing.T) {
 			},
 		},
 		Spec: corev1.PodSpec{
+			InitContainers: []corev1.Container{
+				{
+					Name:          "sidecar-init",
+					Image:         "envoyproxy/envoy:v1",
+					RestartPolicy: &alwaysRestart,
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("50m"),
+							corev1.ResourceMemory: resource.MustParse("64Mi"),
+						},
+						Limits: corev1.ResourceList{
+							corev1.ResourceMemory: resource.MustParse("128Mi"),
+						},
+					},
+					ResizePolicy: []corev1.ContainerResizePolicy{
+						{ResourceName: corev1.ResourceMemory, RestartPolicy: corev1.RestartContainer},
+					},
+				},
+				{
+					Name:  "regular-init",
+					Image: "busybox:latest",
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU: resource.MustParse("25m"),
+						},
+					},
+				},
+			},
 			Containers: []corev1.Container{
 				{
 					Name: "container-1",
@@ -359,6 +414,20 @@ func Test_ParsersProduceSameOutput(t *testing.T) {
 	minimalPod := &MinimalPod{
 		ObjectMeta: fullPod.ObjectMeta,
 		Spec: MinimalPodSpec{
+			InitContainers: []MinimalContainer{
+				{
+					Name:          "sidecar-init",
+					Image:         fullPod.Spec.InitContainers[0].Image,
+					RestartPolicy: fullPod.Spec.InitContainers[0].RestartPolicy,
+					Resources:     fullPod.Spec.InitContainers[0].Resources,
+					ResizePolicy:  fullPod.Spec.InitContainers[0].ResizePolicy,
+				},
+				{
+					Name:      "regular-init",
+					Image:     fullPod.Spec.InitContainers[1].Image,
+					Resources: fullPod.Spec.InitContainers[1].Resources,
+				},
+			},
 			Containers: []MinimalContainer{
 				{
 					Name:      "container-1",
@@ -394,6 +463,17 @@ func Test_ParsersProduceSameOutput(t *testing.T) {
 	minimalParserResult := minimalParser.Parse(minimalPod)
 
 	assert.Equal(t, fullParserResult, minimalParserResult)
+
+	// The minimal informer decodes API JSON: check that the MinimalPod JSON tags decode the same
+	// fields, including initContainers and their restartPolicy.
+	// Both pods are decoded from the same JSON so that their timestamps compare equal.
+	raw, err := json.Marshal(fullPod)
+	require.NoError(t, err)
+	var decodedFullPod corev1.Pod
+	require.NoError(t, json.Unmarshal(raw, &decodedFullPod))
+	var decodedMinimalPod MinimalPod
+	require.NoError(t, json.Unmarshal(raw, &decodedMinimalPod))
+	assert.Equal(t, fullParser.Parse(&decodedFullPod), minimalParser.Parse(&decodedMinimalPod))
 }
 
 // Exercise the API-server parsers rather than constructing image-bearing workloadmeta pods.

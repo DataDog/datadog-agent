@@ -118,11 +118,6 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 	}
 	autoscalerInternal.SetConstrainedVerticalScaling(constrainedVertical, limitErr)
 
-	// recommendationID is the constrained hash; in burstable mode applyVerticalConstraints
-	// already stamped a CPU-limit zero sentinel on each container, so the hash naturally
-	// differs from non-burstable — no extra suffix required.
-	recommendationID := constrainedVertical.ResourcesHash
-
 	// Get the pods for the pod owner
 	pods := u.podWatcher.GetPodsForOwner(target)
 	if len(pods) == 0 {
@@ -130,6 +125,33 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 		log.Debugf("No pods found for autoscaler: %s, gvk: %s, name: %s", autoscalerInternal.ID(), targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name)
 		return autoscaling.ProcessResult{Requeue: true, RequeueAfter: rolloutCheckRequeueDelay}, nil
 	}
+
+	// Non-sidecar init containers run only on new pods, so they need no action on running pods.
+	nonSidecarInit := findNonSidecarInitContainers(pods)
+	actionableResources, actionableID, err := actionableRecommendation(constrainedVertical.ContainerResources, constrainedVertical.ResourcesHash, nonSidecarInit)
+	if err != nil {
+		autoscalerInternal.SetConstrainedVerticalScaling(nil, nil)
+		autoscalerInternal.UpdateFromVerticalAction(nil, autoscaling.NewConditionError(autoscaling.ConditionReasonRecommendationError, err))
+		return autoscaling.NoRequeue, err
+	}
+	if len(actionableResources) == 0 && len(constrainedVertical.ContainerResources) > 0 {
+		var activePods int32
+		for _, pod := range pods {
+			if pod.DeletionTimestamp == nil {
+				activePods++
+			}
+		}
+		autoscalerInternal.SetScaledReplicas(activePods)
+		autoscalerInternal.UpdateFromVerticalAction(nil, nil)
+		return autoscaling.NoRequeue, nil
+	}
+	// The autoscaler stores constrainedVertical by pointer, so the status reports this ID too.
+	constrainedVertical.ResourcesHash = actionableID
+
+	// recommendationID is the constrained actionable hash; in burstable mode applyVerticalConstraints
+	// already stamped removeLimitSentinel on each container's CPU limit, so the hash naturally
+	// differs from non-burstable — no extra suffix required.
+	recommendationID := constrainedVertical.ResourcesHash
 
 	// Compute pods per resourceHash and per owner (needed by the rollout path).
 	podsPerRecommendationID := make(map[string]int32)
@@ -177,7 +199,7 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 		return autoscaling.NoRequeue, nil
 	}
 
-	return u.syncInternal(ctx, podAutoscaler, autoscalerInternal, target, targetGVK, recommendationID, pods, podsPerRecommendationID, podsPerDirectOwner, podsByResizeStatus)
+	return u.syncInternal(ctx, podAutoscaler, autoscalerInternal, target, targetGVK, recommendationID, pods, nonSidecarInit, podsPerRecommendationID, podsPerDirectOwner, podsByResizeStatus)
 }
 
 // syncInternal is the internal implementation of the vertical controller.
@@ -189,6 +211,7 @@ func (u *verticalController) syncInternal(
 	targetGVK schema.GroupVersionKind,
 	recommendationID string,
 	pods []*workloadmeta.KubernetesPod,
+	nonSidecarInit map[string]struct{},
 	podsPerRecommendationID map[string]int32,
 	podsPerDirectOwner map[string]int32,
 	podsByResizeStatus map[PodResizeStatus][]classifiedPod,
@@ -197,7 +220,7 @@ func (u *verticalController) syncInternal(
 	// Fall back to rollout if in-place scaling is not enabled via config, if
 	// TriggerRollout mode is explicitly set, or if the API server does not
 	// support in-place resize (pods/resize subresource unavailable).
-	if isRolloutRequired(autoscalerInternal, pods) || !u.isInPlaceResizeSupported() {
+	if isRolloutRequired(autoscalerInternal, pods, nonSidecarInit) || !u.isInPlaceResizeSupported() {
 		switch targetGVK.Kind {
 		case k8sutil.DeploymentKind:
 			return u.syncDeploymentKind(ctx, podAutoscaler, autoscalerInternal, target, targetGVK, recommendationID, pods, podsPerRecommendationID, podsPerDirectOwner)
@@ -413,9 +436,16 @@ func (u *verticalController) syncInternal(
 func (u *verticalController) patchInPlace(ctx context.Context, autoscalerInternal *model.PodAutoscalerInternal, pod *workloadmeta.KubernetesPod, recommendationID string) error {
 	patchTarget := workloadpatcher.PodTarget(pod.Namespace, pod.Name)
 
-	// Patch spec.containers[*].resources via the pods/resize subresource.
-	containersResourcePatches := fromAutoscalerToContainerResourcePatches(autoscalerInternal, pod)
-	intent := workloadpatcher.NewPatchIntent(patchTarget).With(workloadpatcher.SetContainerResources(containersResourcePatches))
+	// Patch regular and sidecar init container resources via the pods/resize subresource.
+	// Apply skips the call when the intent has no operation.
+	containersPatches, initContainersPatches := fromAutoscalerToContainerResourcePatches(autoscalerInternal, pod)
+	intent := workloadpatcher.NewPatchIntent(patchTarget)
+	if len(containersPatches) > 0 {
+		intent.With(workloadpatcher.SetContainerResources(containersPatches))
+	}
+	if len(initContainersPatches) > 0 {
+		intent.With(workloadpatcher.SetInitContainerResources(initContainersPatches))
+	}
 	_, err := u.patchClient.Apply(ctx, intent, workloadpatcher.PatchOptions{Caller: "vpa", Subresource: "resize", PatchType: types.StrategicMergePatchType})
 	if err != nil {
 		return fmt.Errorf("failed to patch pod %s/%s resources in place, will evict: %w", pod.Namespace, pod.Name, err)

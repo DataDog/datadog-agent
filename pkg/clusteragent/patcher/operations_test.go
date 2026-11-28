@@ -219,6 +219,49 @@ func TestSetContainerResources(t *testing.T) {
 	})
 }
 
+func TestSetInitContainerResources(t *testing.T) {
+	t.Run("sidecar init container resources", func(t *testing.T) {
+		op := SetInitContainerResources([]ContainerResourcePatch{
+			{
+				Name:           "sidecar",
+				Requests:       map[string]string{"cpu": "100m", "memory": "128Mi"},
+				Limits:         map[string]string{"memory": "256Mi"},
+				LimitsToDelete: []string{"cpu"},
+			},
+		})
+
+		result := op.build()
+		spec := result["spec"].(map[string]interface{})
+		_, hasContainers := spec["containers"]
+		assert.False(t, hasContainers)
+
+		initContainers := spec["initContainers"].([]interface{})
+		require.Len(t, initContainers, 1)
+		c0 := initContainers[0].(map[string]interface{})
+		assert.Equal(t, "sidecar", c0["name"])
+		resources := c0["resources"].(map[string]interface{})
+		assert.Equal(t, "100m", resources["requests"].(map[string]interface{})["cpu"])
+		limits := resources["limits"].(map[string]interface{})
+		assert.Equal(t, "256Mi", limits["memory"])
+		assert.Nil(t, limits["cpu"])
+	})
+
+	t.Run("merged with SetContainerResources in one PatchIntent", func(t *testing.T) {
+		intent := NewPatchIntent(PodTarget("default", "my-pod")).
+			With(SetContainerResources([]ContainerResourcePatch{
+				{Name: "app", Requests: map[string]string{"cpu": "500m"}},
+			})).
+			With(SetInitContainerResources([]ContainerResourcePatch{
+				{Name: "sidecar", Requests: map[string]string{"cpu": "100m"}},
+			}))
+
+		patchBytes, err := intent.Build()
+		require.NoError(t, err)
+		assert.Contains(t, string(patchBytes), `"containers":[{"name":"app"`)
+		assert.Contains(t, string(patchBytes), `"initContainers":[{"name":"sidecar"`)
+	})
+}
+
 func TestEmptyOperations(t *testing.T) {
 	t.Run("empty metadata annotations", func(t *testing.T) {
 		op := SetMetadataAnnotations(map[string]interface{}{})
