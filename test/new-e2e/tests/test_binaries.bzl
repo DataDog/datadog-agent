@@ -4,6 +4,7 @@ TEST_BINARIES = {
     "//test/new-e2e/tests/agent-configuration/sgc-embedded:sgc-embedded_test": "tests-agent-configuration-sgc-embedded.test",
     "//test/new-e2e/tests/agent-configuration:agent-configuration_test": "tests-agent-configuration.test",
     "//test/new-e2e/tests/agent-data-plane/preflight-mode:preflight-mode_test": "tests-agent-data-plane-preflight-mode.test",
+    "//test/new-e2e/tests/agent-data-plane/windows-startup:windows-startup_test": "tests-agent-data-plane-windows-startup.test",
     "//test/new-e2e/tests/agent-devx/pre-test:pre-test_test": "tests-agent-devx-pre-test.test",
     "//test/new-e2e/tests/agent-devx:agent-devx_test": "tests-agent-devx.test",
     "//test/new-e2e/tests/agent-health:agent-health_test": "tests-agent-health.test",
