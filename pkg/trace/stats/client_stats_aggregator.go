@@ -69,6 +69,8 @@ type ClientStatsAggregator struct {
 	mu     sync.Mutex
 
 	statsd statsd.ClientInterface
+
+	peerK8sClusterUIDTag peerK8sClusterUIDTag
 }
 
 // NewClientStatsAggregator initializes a new aggregator ready to be started
@@ -195,6 +197,7 @@ func (a *ClientStatsAggregator) add(now time.Time, p *pb.ClientStatsPayload) {
 
 	// populate container tags data on the payload
 	a.setVersionDataFromContainerTags(p)
+	a.addPeerK8sScope(p)
 	p.ProcessTagsHash = processTagsHash(p.ProcessTags)
 	// compute the PayloadAggregationKey, common for all buckets within the payload
 	payloadAggKey := newPayloadAggregationKey(p.Env, p.Hostname, p.Version, p.ContainerID, p.GitCommitSha, p.ImageTag, p.Lang, p.ProcessTagsHash, p.Service)
@@ -255,6 +258,27 @@ func (a *ClientStatsAggregator) setVersionDataFromContainerTags(p *pb.ClientStat
 			if p.Version == "" {
 				p.Version = appVersion
 			}
+		}
+	}
+}
+
+// addPeerK8sScope adds the peer.k8s.* tags to the peer tags of the payload's grouped stats.
+func (a *ClientStatsAggregator) addPeerK8sScope(p *pb.ClientStatsPayload) {
+	clusterUIDTag := a.peerK8sClusterUIDTag.get(a.conf)
+	if clusterUIDTag == "" {
+		return
+	}
+	scope := newPeerK8sScope(clusterUIDTag)
+	for _, b := range p.Stats {
+		if b == nil {
+			continue
+		}
+		for _, gs := range b.Stats {
+			if gs == nil {
+				continue
+			}
+			// the payload's slices are not ours to modify
+			gs.PeerTags = scope.appendTagsCopy(gs.PeerTags)
 		}
 	}
 }
