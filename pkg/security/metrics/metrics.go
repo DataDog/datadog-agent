@@ -317,53 +317,21 @@ var (
 	// Activity dump metrics
 
 	// MetricActivityDumpEventProcessed is the name of the metric used to count the number of events processed while
-	// creating an activity dump.
-	// Tags: event_type, tree_type
+	// updating a security profile's activity tree.
+	// Tags: tree_type
 	MetricActivityDumpEventProcessed = newRuntimeMetric(".activity_dump.event.processed")
-	// MetricActivityDumpEventAdded is the name of the metric used to count the number of events that were added to an
-	// activity dump.
-	// Tags: event_type, tree_type
+	// MetricActivityDumpEventAdded is the name of the metric used to count the number of events that were added to a
+	// security profile's activity tree.
+	// Tags: tree_type, event_type, generation_type ('runtime', 'snapshot', 'profile_drift', 'workload_warmup', 'unknown')
 	MetricActivityDumpEventAdded = newRuntimeMetric(".activity_dump.event.added")
-	// MetricActivityDumpEventDropped is the name of the metric used to count the number of events that were dropped from an
-	// activity dump.
-	// Tags: event_type, reason, tree_type
+	// MetricActivityDumpEventDropped is the name of the metric used to count the number of events that were dropped from a
+	// security profile's activity tree.
+	// Tags: tree_type, event_type, reason ('event_type', 'invalid_root_node', 'bind_family', 'connect_family', 'broken_event', 'unknown')
 	MetricActivityDumpEventDropped = newRuntimeMetric(".activity_dump.event.dropped")
-	// MetricActivityDumpSizeInBytes is the name of the metric used to report the size of the generated activity dumps in
-	// bytes
-	// Tags: format, storage_type, compression
-	MetricActivityDumpSizeInBytes = newRuntimeMetric(".activity_dump.size_in_bytes")
-	// MetricActivityDumpPersistedDumps is the name of the metric used to reported the number of dumps that were persisted
-	// Tags: format, storage_type, compression
-	MetricActivityDumpPersistedDumps = newRuntimeMetric(".activity_dump.persisted_dumps")
-	// MetricActivityDumpActiveDumps is the name of the metric used to report the number of active dumps
-	// Tags: -
-	MetricActivityDumpActiveDumps = newRuntimeMetric(".activity_dump.active_dumps")
-	// MetricActivityDumpActiveDumpSizeInMemory is the size of an activity dump in memory
-	// Tags: dump_index
-	MetricActivityDumpActiveDumpSizeInMemory = newRuntimeMetric(".activity_dump.size_in_memory")
-	// MetricActivityDumpEntityTooLarge is the name of the metric used to report the number of active dumps that couldn't
-	// be sent because they are too big
+	// MetricActivityDumpEntityTooLarge is the name of the metric used to report the number of security profiles that
+	// couldn't be sent to remote storage because they are too big
 	// Tags: format, compression
 	MetricActivityDumpEntityTooLarge = newAgentMetric(".activity_dump.entity_too_large")
-	// MetricActivityDumpEmptyDropped is the name of the metric used to report the number of activity dumps dropped because they were empty
-	// Tags: -
-	MetricActivityDumpEmptyDropped = newRuntimeMetric(".activity_dump.empty_dump_dropped")
-	// MetricActivityDumpDropMaxDumpReached is the name of the metric used to report that an activity dump was dropped because the maximum amount of dumps for a workload was reached
-	// Tags: -
-	MetricActivityDumpDropMaxDumpReached = newRuntimeMetric(".activity_dump.drop_max_dump_reached")
-	// MetricActivityDumpNotYetProfiledWorkload is the name of the metric used to report the count of workload not yet profiled
-	// Tags: -
-	MetricActivityDumpNotYetProfiledWorkload = newAgentMetric(".activity_dump.not_yet_profiled_workload")
-	// MetricActivityDumpWorkloadDenyListHits is the name of the metric used to report the count of dumps that were dismissed because their workload is in the deny list
-	// Tags: -
-	MetricActivityDumpWorkloadDenyListHits = newRuntimeMetric(".activity_dump.workload_deny_list_hits")
-	// MetricActivityDumpLocalStorageCount is the name of the metric used to count the number of dumps stored locally
-	// Tags: -
-	MetricActivityDumpLocalStorageCount = newAgentMetric(".activity_dump.local_storage.count")
-	// MetricActivityDumpLocalStorageDeleted is the name of the metric used to track the deletion of workload entries in
-	// the local storage.
-	// Tags: -
-	MetricActivityDumpLocalStorageDeleted = newAgentMetric(".activity_dump.local_storage.deleted")
 
 	// SBOM resolver metrics
 
@@ -427,28 +395,6 @@ var (
 	// the max dump size stays tracked until it is removed.
 	// Tags: profile_image_name, profile_short_image (omitted when the short image is unknown)
 	MetricSecurityProfileProfiles = newRuntimeMetric(".security_profile.profiles")
-	// MetricSecurityProfileCacheLen is the name of the metric used to report the size of the Security Profile cache
-	// Tags: -
-	MetricSecurityProfileCacheLen = newRuntimeMetric(".security_profile.cache.len")
-	// MetricSecurityProfileCacheHit is the name of the metric used to report the count of Security Profile cache hits
-	// Tags: -
-	MetricSecurityProfileCacheHit = newRuntimeMetric(".security_profile.cache.hit")
-	// MetricSecurityProfileCacheMiss is the name of the metric used to report the count of Security Profile cache misses
-	// Tags: -
-	MetricSecurityProfileCacheMiss = newRuntimeMetric(".security_profile.cache.miss")
-	// MetricSecurityProfileEventFiltering is the name of the metric used to report the count of Security Profile event filtered
-	// Tags: event_type, profile_state ('no_profile', 'unstable', 'unstable_event_type', 'stable', 'auto_learning', 'workload_warmup'), in_profile ('true', 'false' or none)
-	MetricSecurityProfileEventFiltering = newRuntimeMetric(".security_profile.evaluation.hit")
-	// MetricSecurityProfileDirectoryProviderCount is the name of the metric used to track the count of profiles in the cache
-	// of the Profile directory provider
-	// Tags: -
-	MetricSecurityProfileDirectoryProviderCount = newAgentMetric(".activity_dump.directory_provider.count")
-	// MetricSecurityProfileEvictedVersions is the name of the metric used to track the evicted profile versions
-	// Tags: image_name, image_tag
-	MetricSecurityProfileEvictedVersions = newAgentMetric(".security_profile.evicted_versions")
-	// MetricSecurityProfileVersions is the name of the metric used to track the number of versions a profile can have
-	// Tags: security_profile_image_name
-	MetricSecurityProfileVersions = newAgentMetric(".security_profile.versions")
 
 	// Hash resolver metrics
 

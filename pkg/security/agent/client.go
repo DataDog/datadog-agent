@@ -46,10 +46,8 @@ type RuntimeSecurityEventClient struct {
 type SecurityModuleCmdClientWrapper interface {
 	DumpDiscarders() (string, error)
 	DumpProcessCache(withArgs bool, format string) (string, error)
-	GenerateActivityDump(request *api.ActivityDumpParams) (*api.ActivityDumpMessage, error)
 	ListActivityDumps() (*api.ActivityDumpListMessage, error)
 	StopActivityDump(name, container, cgroup string) (*api.ActivityDumpStopMessage, error)
-	GenerateEncoding(request *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error)
 	DumpNetworkNamespace(snapshotInterfaces bool) (*api.DumpNetworkNamespaceMessage, error)
 	GetConfig() (*api.SecurityConfigMessage, error)
 	GetStatus() (*api.Status, error)
@@ -57,7 +55,7 @@ type SecurityModuleCmdClientWrapper interface {
 	ReloadPolicies() (*api.ReloadPoliciesResultMessage, error)
 	GetRuleSetReport() (*api.GetRuleSetReportMessage, error)
 	GetLoadedPolicies(includeBundled bool) (*api.GetLoadedPoliciesMessage, error)
-	ListSecurityProfiles(includeCache bool) (*api.SecurityProfileListMessage, error)
+	ListSecurityProfiles() (*api.SecurityProfileListMessage, error)
 	SaveSecurityProfile(name string, tag string) (*api.SecurityProfileSaveMessage, error)
 	Close()
 }
@@ -87,11 +85,6 @@ func (c *RuntimeSecurityCmdClient) ListActivityDumps() (*api.ActivityDumpListMes
 	return c.apiClient.ListActivityDumps(context.Background(), &api.ActivityDumpListParams{})
 }
 
-// GenerateActivityDump send a dump activity request
-func (c *RuntimeSecurityCmdClient) GenerateActivityDump(request *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
-	return c.apiClient.DumpActivity(context.Background(), request)
-}
-
 // StopActivityDump stops an active dump if it exists
 func (c *RuntimeSecurityCmdClient) StopActivityDump(name, container, cgroup string) (*api.ActivityDumpStopMessage, error) {
 	return c.apiClient.StopActivityDump(context.Background(), &api.ActivityDumpStopParams{
@@ -99,11 +92,6 @@ func (c *RuntimeSecurityCmdClient) StopActivityDump(name, container, cgroup stri
 		ContainerID: container,
 		CGroupID:    cgroup,
 	})
-}
-
-// GenerateEncoding sends a transcoding request
-func (c *RuntimeSecurityCmdClient) GenerateEncoding(request *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
-	return c.apiClient.TranscodingRequest(context.Background(), request)
 }
 
 // DumpNetworkNamespace sends a network namespace cache dump request
@@ -163,10 +151,8 @@ func (c *RuntimeSecurityCmdClient) GetLoadedPolicies(includeBundled bool) (*api.
 }
 
 // ListSecurityProfiles lists the profiles held in memory by the Security Profile manager
-func (c *RuntimeSecurityCmdClient) ListSecurityProfiles(includeCache bool) (*api.SecurityProfileListMessage, error) {
-	return c.apiClient.ListSecurityProfiles(context.Background(), &api.SecurityProfileListParams{
-		IncludeCache: includeCache,
-	})
+func (c *RuntimeSecurityCmdClient) ListSecurityProfiles() (*api.SecurityProfileListMessage, error) {
+	return c.apiClient.ListSecurityProfiles(context.Background(), &api.SecurityProfileListParams{})
 }
 
 // SaveSecurityProfile saves the requested security profile to disk

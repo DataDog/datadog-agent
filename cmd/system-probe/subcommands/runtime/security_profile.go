@@ -31,10 +31,9 @@ import (
 type securityProfileCliParams struct {
 	*command.GlobalParams
 
-	includeCache bool
-	file         string
-	imageName    string
-	imageTag     string
+	file      string
+	imageName string
+	imageTag  string
 }
 
 func securityProfileCommands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -120,24 +119,17 @@ func listSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 		},
 	}
 
-	securityProfileListCmd.Flags().BoolVar(
-		&cliParams.includeCache,
-		"include-cache",
-		false,
-		"defines if the profiles in the Security Profile manager LRU cache should be returned",
-	)
-
 	return []*cobra.Command{securityProfileListCmd}
 }
 
-func listSecurityProfiles(_ log.Component, _ config.Component, _ secrets.Component, ipc ipc.Component, args *securityProfileCliParams) error {
+func listSecurityProfiles(_ log.Component, _ config.Component, _ secrets.Component, ipc ipc.Component, _ *securityProfileCliParams) error {
 	client, err := secagent.NewRuntimeSecurityCmdClient(ipc)
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
 	defer client.Close()
 
-	output, err := client.ListSecurityProfiles(args.includeCache)
+	output, err := client.ListSecurityProfiles()
 	if err != nil {
 		return fmt.Errorf("unable to send request to system-probe: %w", err)
 	}

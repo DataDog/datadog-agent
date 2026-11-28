@@ -22,9 +22,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
-	"go.uber.org/atomic"
-
-	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -51,9 +48,6 @@ type Directory struct {
 	profilesLock sync.RWMutex
 	// profiles is a LRU cache that keeps track of profiles stored by the directory. Profiles are indexed by their name.
 	profiles *simplelru.LRU[string, *profileEntry]
-
-	// stats
-	deletedCount *atomic.Uint64
 }
 
 func createDir(dir string) error {
@@ -124,7 +118,6 @@ type profileFile struct {
 
 // NewDirectory creates a new Directory instance, loading the existing profiles from the provided directory path
 func NewDirectory(directoryPath string, maxProfiles int) (*Directory, error) {
-	deletedCount := atomic.NewUint64(0)
 	profiles, err := simplelru.NewLRU[string, *profileEntry](maxProfiles, func(deletedName string, entry *profileEntry) {
 		// This callback is expected to be called with profilesLock write-lock held
 		for _, filePath := range entry.filePaths {
@@ -132,8 +125,6 @@ func NewDirectory(directoryPath string, maxProfiles int) (*Directory, error) {
 				seclog.Errorf("failed to remove file [%s] for profile %s: %v", deletedName, filePath, err)
 			}
 		}
-
-		deletedCount.Inc()
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LRU cache: %w", err)
@@ -214,7 +205,6 @@ func NewDirectory(directoryPath string, maxProfiles int) (*Directory, error) {
 		directoryPath: directoryPath,
 		maxProfiles:   maxProfiles,
 		profiles:      profiles,
-		deletedCount:  deletedCount,
 	}, nil
 }
 
@@ -377,21 +367,6 @@ func (d *Directory) ShortImagesBySelector() map[cgroupModel.WorkloadSelector]str
 // GetStorageType returns the storage type
 func (d *Directory) GetStorageType() config.StorageType {
 	return config.LocalStorage
-}
-
-// SendTelemetry sends telemetry for the current storage
-func (d *Directory) SendTelemetry(sender statsd.ClientInterface) {
-	d.profilesLock.RLock()
-	// send the count of dumps stored locally
-	if count := d.profiles.Len(); count > 0 {
-		_ = sender.Gauge(metrics.MetricActivityDumpLocalStorageCount, float64(count), nil, 1.0)
-	}
-	d.profilesLock.RUnlock()
-
-	// send the count of recently deleted dumps
-	if count := d.deletedCount.Swap(0); count > 0 {
-		_ = sender.Count(metrics.MetricActivityDumpLocalStorageDeleted, int64(count), nil, 1.0)
-	}
 }
 
 func compressWithGZip(filename string, rawBuf []byte) (*bytes.Buffer, error) {

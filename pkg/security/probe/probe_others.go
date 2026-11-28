@@ -111,7 +111,7 @@ func (p *Probe) IsCapabilitiesMonitoringEnabled() bool {
 
 // IsActivityDumpEnabled returns whether activity dump is enabled
 func (p *Probe) IsActivityDumpEnabled() bool {
-	return p.Config.RuntimeSecurity.ActivityDumpEnabled
+	return p.Config.RuntimeSecurity.SecurityProfileV2Enabled
 }
 
 // StatsPollingInterval returns polling interval duration

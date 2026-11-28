@@ -133,7 +133,6 @@ runtime_security_config:
     host:
       enabled: {{ .HostSBOMEnabled }}
   activity_dump:
-    enabled: false
 {{if .WorkloadProfileStorageDir}}
     local_storage:
       output_directory: {{ .WorkloadProfileStorageDir }}
@@ -145,7 +144,6 @@ runtime_security_config:
 {{end}}
 {{end}}
   security_profile:
-    enabled: {{ .EnableSecurityProfile }}
 {{if gt .SecurityProfileMaxImageTags 0}}
     max_image_tags: {{ .SecurityProfileMaxImageTags }}
 {{end}}
