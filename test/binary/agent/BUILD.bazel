@@ -1,0 +1,63 @@
+load("@rules_itest//:itest.bzl", "itest_service", "service_test")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+itest_service(
+    name = "fakeintake",
+    args = [
+        "-port=$${PORT}",
+        "-remoteconfig=false",
+    ],
+    autoassign_port = True,
+    exe = "//test/fakeintake/cmd/server",
+    http_health_check_address = "http://127.0.0.1:$${PORT}/fakeintake/health",
+    hygienic = False,
+)
+
+itest_service(
+    name = "agent",
+    args = [
+        "run",
+        "-c",
+        "$(rootpath agent.yaml)",
+    ],
+    data = ["agent.yaml"],
+    env = {
+        "DD_AUTH_TOKEN_FILE_PATH": "$${TMPDIR}/auth_token",
+        "DD_CMD_PORT": "$${@@//test/binary/agent:agent.cmd}",
+        "DD_DD_URL": "http://127.0.0.1:$${@@//test/binary/agent:fakeintake}",
+        "DD_EXPVAR_PORT": "$${@@//test/binary/agent:agent.expvar}",
+        "DD_IPC_CERT_FILE_PATH": "$${TMPDIR}/ipc_cert.pem",
+        "DD_LOG_FILE": "$${TMPDIR}/agent.log",
+        "DD_RUN_PATH": "$${TMPDIR}",
+        # The agent's rpath only finds rtloader in its own runfiles tree, which Bazel creates for
+        # top-level targets only. Services run from the test's runfiles root, which has a copy.
+        "LD_LIBRARY_PATH": "rtloader",
+    },
+    exe = "//cmd/agent",
+    hygienic = False,
+    named_ports = [
+        "cmd",
+        "expvar",
+    ],
+    deps = [":fakeintake"],
+)
+
+dd_agent_go_test(
+    name = "agent_test",
+    srcs = ["agent_running_test.go"],
+    tags = ["manual"],
+    deps = [
+        "//test/fakeintake/aggregator",
+        "//test/fakeintake/client",
+        "@com_github_datadog_agent_payload_v5//gogen",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+service_test(
+    name = "agent_running_test",
+    services = [":agent"],
+    target_compatible_with = ["@platforms//os:linux"],
+    test = ":agent_test",
+)
