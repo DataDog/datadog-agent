@@ -6,6 +6,7 @@
 package scheduler
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -14,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 )
 
 func makeConfig(name string) integration.Config {
@@ -131,4 +133,209 @@ func TestController(t *testing.T) {
 		synctest.Wait()
 		s3.reset()
 	})
+}
+
+type exclusionAwareScheduler struct {
+	scheduler
+	scope    workloadfilter.Scope
+	excluded []bool
+}
+
+func (s *exclusionAwareScheduler) Schedule(configs []integration.Config) {
+	s.scheduler.Schedule(configs)
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	for _, config := range configs {
+		s.excluded = append(s.excluded, config.HasFilter(s.scope))
+	}
+}
+
+func (s *exclusionAwareScheduler) ExclusionScope() workloadfilter.Scope {
+	return s.scope
+}
+
+func TestControllerExclusionChange(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ms := NewControllerAndStart()
+
+		metrics := &exclusionAwareScheduler{scope: workloadfilter.MetricsFilter}
+		logs := &exclusionAwareScheduler{scope: workloadfilter.LogsFilter}
+		plain := &scheduler{}
+		ms.Register("metrics", metrics, false)
+		ms.Register("logs", logs, false)
+		ms.Register("plain", plain, false)
+
+		included := makeConfig("one")
+		ms.ApplyChanges(integration.ConfigChanges{Schedule: []integration.Config{included}})
+		synctest.Wait()
+		metrics.reset()
+		metrics.excluded = nil
+		logs.reset()
+		plain.reset()
+
+		excluded := included
+		excluded.MetricsExcluded = true
+		ms.ApplyChanges(integration.ConfigChanges{
+			Unschedule: []integration.Config{included},
+			Schedule:   []integration.Config{excluded},
+		})
+		synctest.Wait()
+
+		assert.Equal(t, []event{{false, "one"}, {true, "one"}}, metrics.events)
+		assert.Equal(t, []bool{true}, metrics.excluded)
+		assert.Empty(t, logs.events)
+		assert.Empty(t, plain.events)
+
+		// A scheduler registered afterwards replays the excluded config.
+		late := &exclusionAwareScheduler{scope: workloadfilter.MetricsFilter}
+		ms.Register("late", late, true)
+		assert.Equal(t, []bool{true}, late.excluded)
+
+		ms.Stop()
+	})
+}
+
+func TestControllerExclusionChangeAfterStop(t *testing.T) {
+	ms := NewController()
+	excluded := makeConfig("one")
+	excluded.MetricsExcluded = true
+
+	assert.NotPanics(t, func() {
+		ms.applyExclusionChange(Digest(excluded.FastDigest()), &excluded)
+	})
+}
+
+func TestControllerExclusionTransitions(t *testing.T) {
+	setExcluded := func(cfg *integration.Config, scope workloadfilter.Scope, excluded bool) {
+		if scope == workloadfilter.MetricsFilter {
+			cfg.MetricsExcluded = excluded
+		} else {
+			cfg.LogsExcluded = excluded
+		}
+	}
+
+	for _, scope := range []workloadfilter.Scope{workloadfilter.MetricsFilter, workloadfilter.LogsFilter} {
+		for _, fromExcluded := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/from_excluded=%t", scope, fromExcluded), func(t *testing.T) {
+				synctest.Test(t, func(t *testing.T) {
+					ms := NewControllerAndStart()
+					defer ms.Stop()
+
+					metrics := &exclusionAwareScheduler{scope: workloadfilter.MetricsFilter}
+					logs := &exclusionAwareScheduler{scope: workloadfilter.LogsFilter}
+					ms.Register("metrics", metrics, false)
+					ms.Register("logs", logs, false)
+
+					before := makeConfig("one")
+					setExcluded(&before, scope, fromExcluded)
+					ms.ApplyChanges(integration.ConfigChanges{Schedule: []integration.Config{before}})
+					synctest.Wait()
+					for _, s := range []*exclusionAwareScheduler{metrics, logs} {
+						s.reset()
+						s.excluded = nil
+					}
+
+					after := before
+					setExcluded(&after, scope, !fromExcluded)
+					ms.ApplyChanges(integration.ConfigChanges{
+						Unschedule: []integration.Config{before},
+						Schedule:   []integration.Config{after},
+					})
+					synctest.Wait()
+
+					target, other := metrics, logs
+					if scope == workloadfilter.LogsFilter {
+						target, other = logs, metrics
+					}
+					assert.Equal(t, []event{{false, "one"}, {true, "one"}}, target.events)
+					assert.Equal(t, []bool{!fromExcluded}, target.excluded)
+					assert.Empty(t, other.events)
+				})
+			})
+		}
+	}
+}
+
+// filteringScheduler tracks active configs the way the check and logs
+// schedulers do: it skips configs excluded for its scope on both Schedule and
+// Unschedule.
+type filteringScheduler struct {
+	scope      workloadfilter.Scope
+	active     map[string]bool
+	onSchedule func()
+}
+
+func (s *filteringScheduler) Schedule(configs []integration.Config) {
+	for _, c := range configs {
+		if !c.HasFilter(s.scope) {
+			s.active[c.Name] = true
+		}
+	}
+	if s.onSchedule != nil {
+		s.onSchedule()
+	}
+}
+
+func (s *filteringScheduler) Unschedule(configs []integration.Config) {
+	for _, c := range configs {
+		if !c.HasFilter(s.scope) {
+			delete(s.active, c.Name)
+		}
+	}
+}
+
+func (s *filteringScheduler) Stop() {}
+
+func (s *filteringScheduler) ExclusionScope() workloadfilter.Scope {
+	return s.scope
+}
+
+func TestControllerDeletionDuringExclusionChange(t *testing.T) {
+	ms := NewController()
+	sch := &filteringScheduler{scope: workloadfilter.MetricsFilter, active: map[string]bool{}}
+	ms.Register("metrics", sch, false)
+
+	included := makeConfig("one")
+	ms.ApplyChanges(integration.ConfigChanges{Schedule: []integration.Config{included}})
+	ms.processNextWorkItem()
+	assert.True(t, sch.active["one"])
+
+	excluded := included
+	excluded.MetricsExcluded = true
+	sch.onSchedule = func() {
+		sch.onSchedule = nil
+		ms.ApplyChanges(integration.ConfigChanges{Unschedule: []integration.Config{excluded}})
+	}
+	ms.ApplyChanges(integration.ConfigChanges{
+		Unschedule: []integration.Config{included},
+		Schedule:   []integration.Config{excluded},
+	})
+	ms.processNextWorkItem() // exclusion change; the deletion lands meanwhile
+	ms.processNextWorkItem() // the deletion
+
+	assert.Empty(t, ms.scheduledConfigs)
+	assert.Equal(t, 0, ms.queue.Len())
+}
+
+func TestControllerDeletionSupersedesPendingLogsExclusion(t *testing.T) {
+	ms := NewController()
+	logs := &filteringScheduler{scope: workloadfilter.LogsFilter, active: map[string]bool{}}
+	ms.Register("logs", logs, false)
+
+	included := makeConfig("one")
+	ms.ApplyChanges(integration.ConfigChanges{Schedule: []integration.Config{included}})
+	ms.processNextWorkItem()
+	assert.True(t, logs.active["one"])
+
+	excluded := included
+	excluded.LogsExcluded = true
+	ms.ApplyChanges(integration.ConfigChanges{
+		Unschedule: []integration.Config{included},
+		Schedule:   []integration.Config{excluded},
+	})
+	ms.ApplyChanges(integration.ConfigChanges{Unschedule: []integration.Config{excluded}})
+	ms.processNextWorkItem()
+
+	assert.Empty(t, logs.active)
+	assert.Empty(t, ms.scheduledConfigs)
 }

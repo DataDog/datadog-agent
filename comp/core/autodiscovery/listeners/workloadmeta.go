@@ -144,11 +144,10 @@ func (l *workloadmetaListenerImpl) AddService(svcID string, svc Service, parentS
 			return
 		}
 
-		log.Tracef("%s received an updated service '%s', removing the old one", l.name, svc.GetServiceID())
-		l.delService <- old
-		if l.telemetryStore != nil {
-			l.telemetryStore.WatchedResources.Dec(l.name, kind)
-		}
+		log.Tracef("%s received an updated service '%s', replacing the old one", l.name, svc.GetServiceID())
+		l.services[svcID] = svc
+		l.newService <- &ServiceUpdate{Service: svc, Old: old}
+		return
 	}
 
 	l.services[svcID] = svc

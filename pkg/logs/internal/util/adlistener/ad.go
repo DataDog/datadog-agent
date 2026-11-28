@@ -10,6 +10,7 @@ import (
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 )
 
 // ADListener implements comp/core/autodiscovery/scheduler.Scheduler.
@@ -30,7 +31,7 @@ type ADListener struct {
 	schedule, unschedule func([]integration.Config)
 }
 
-var _ scheduler.Scheduler = &ADListener{}
+var _ scheduler.ExclusionAwareScheduler = &ADListener{}
 
 // NewADListener creates a new ADListener, proxying schedule and unschedule calls to
 // the given functions.
@@ -65,4 +66,9 @@ func (l *ADListener) Schedule(configs []integration.Config) {
 // Unschedule implements comp/core/autodiscovery/scheduler.Scheduler#Unschedule.
 func (l *ADListener) Unschedule(configs []integration.Config) {
 	l.unschedule(configs)
+}
+
+// ExclusionScope implements scheduler.ExclusionAwareScheduler.
+func (l *ADListener) ExclusionScope() workloadfilter.Scope {
+	return workloadfilter.LogsFilter
 }

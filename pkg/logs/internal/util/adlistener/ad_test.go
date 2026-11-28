@@ -8,6 +8,7 @@ package adlistener
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -16,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -57,4 +59,9 @@ func TestListenersGetScheduleCalls(t *testing.T) {
 	// wait for each of the two listeners to get notified
 	<-got1
 	<-got2
+}
+
+func TestListenerExclusionScope(t *testing.T) {
+	l := NewADListener("test", nil, func([]integration.Config) {}, func([]integration.Config) {})
+	assert.Equal(t, workloadfilter.LogsFilter, l.ExclusionScope())
 }

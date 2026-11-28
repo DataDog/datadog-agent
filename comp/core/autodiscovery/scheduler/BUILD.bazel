@@ -14,6 +14,7 @@ go_library(
     deps = [
         "//comp/core/autodiscovery/common/types",
         "//comp/core/autodiscovery/integration",
+        "//comp/core/workloadfilter/def",
         "//pkg/status/health",
         "//pkg/util/log",
         "@com_github_mohae_deepcopy//:deepcopy",
@@ -28,6 +29,7 @@ dd_agent_go_test(
     embed = [":scheduler"],
     deps = [
         "//comp/core/autodiscovery/integration",
+        "//comp/core/workloadfilter/def",
         "@com_github_stretchr_testify//assert",
     ],
 )

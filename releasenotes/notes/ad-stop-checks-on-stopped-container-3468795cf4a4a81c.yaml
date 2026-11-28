@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    Autodiscovery now reliably stops the checks of a container that stops
+    while its pod keeps running. Previously the checks could keep running
+    and failing until the container was removed.
+  - |
+    Autodiscovery now applies a change to a running container's metrics or
+    logs exclusion, for example from an exclusion annotation added to a live
+    pod, without restarting the container's other collection.

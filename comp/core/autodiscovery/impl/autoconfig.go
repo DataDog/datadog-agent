@@ -275,7 +275,11 @@ func (ac *AutoConfig) serviceListening() {
 			return
 		case <-ac.healthListening.C: // To be considered healthy
 		case svc := <-ac.newService:
-			ac.processNewService(svc)
+			if update, ok := svc.(*listeners.ServiceUpdate); ok {
+				ac.processUpdatedService(update.Old, update.Service)
+			} else {
+				ac.processNewService(svc)
+			}
 		case svc := <-ac.delService:
 			ac.processDelService(svc)
 		case <-ac.refreshConfig:
@@ -780,6 +784,13 @@ func (ac *AutoConfig) processNewService(svc listeners.Service) {
 // processDelService takes a service, stops its associated checks, and updates the cache
 func (ac *AutoConfig) processDelService(svc listeners.Service) {
 	ac.cfgMgr.processDelService(svc)
+}
+
+// processUpdatedService replaces a service in one batch, so a config resolved
+// identically for both services stays scheduled instead of being unscheduled
+// and scheduled again.
+func (ac *AutoConfig) processUpdatedService(old, svc listeners.Service) {
+	ac.cfgMgr.processUpdatedService(old, svc)
 }
 
 // processRefreshConfig takes a secret origin and matches it against an active config. If found
