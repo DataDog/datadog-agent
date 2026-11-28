@@ -7,8 +7,30 @@
 #include "helpers/network/utils.h"
 #include "helpers/network/flow.h"
 
-HOOK_ENTRY("security_sk_classify_flow")
-int hook_security_sk_classify_flow(ctx_t *ctx) {
+extern void bpf_local_irq_restore(long unsigned int *flags__irq_flag) __weak __ksym;
+extern void bpf_local_irq_save(long unsigned int *flags__irq_flag) __weak __ksym;
+
+static __always_inline int kernel_supports_bpf_irq_protection() {
+    u64 x;
+    LOAD_CONSTANT("kernel_supports_bpf_irq_protection", x);
+
+    return x;
+}
+
+#define IRQ_PROTECTED_CALL(call_func) \
+    ({                                              \
+    u64 irq = kernel_supports_bpf_irq_protection(); \
+    unsigned long flags = 0;                        \
+    if (irq)                                        \
+        bpf_local_irq_save(&flags);                 \
+                                                    \
+    call_func;                                      \
+                                                    \
+    if (irq)                                        \
+        bpf_local_irq_restore(&flags);              \
+    })
+
+static __always_inline int handle_security_sk_classify_flow(ctx_t *ctx) {
     struct sock *sk = (struct sock *)CTX_PARM1(ctx);
     struct flowi *fl = (struct flowi *)CTX_PARM2(ctx);
     struct pid_route_t key = {};
@@ -154,6 +176,13 @@ int hook_security_sk_classify_flow(ctx_t *ctx) {
         bpf_printk("|--> new flow registered ! %d, %lu", value.pid, key.netns);
         #endif
     }
+    return 0;
+}
+
+HOOK_ENTRY("security_sk_classify_flow")
+int hook_security_sk_classify_flow(ctx_t *ctx) {
+    IRQ_PROTECTED_CALL(handle_security_sk_classify_flow(ctx));
+
     return 0;
 }
 
@@ -425,9 +454,7 @@ int hook_sk_common_release(ctx_t *ctx) {
     return 0;
 }
 
-// for externally-initiate socket cleanup (TCP RST for example)
-HOOK_ENTRY("inet_csk_destroy_sock")
-int hook_inet_csk_destroy_sock(ctx_t *ctx) {
+static __always_inline int handle_inet_csk_destroy_sock(ctx_t *ctx) {
     struct sock *sk = (struct sock *)CTX_PARM1(ctx);
 
     #if defined(DEBUG_NETWORK_FLOW)
@@ -438,6 +465,14 @@ int hook_inet_csk_destroy_sock(ctx_t *ctx) {
         return 0;
     }
     handle_sk_release(sk);
+    return 0;
+}
+
+// for externally-initiate socket cleanup (TCP RST for example)
+HOOK_ENTRY("inet_csk_destroy_sock")
+int hook_inet_csk_destroy_sock(ctx_t *ctx) {
+    IRQ_PROTECTED_CALL(handle_inet_csk_destroy_sock(ctx));
+
     return 0;
 }
 
@@ -477,10 +512,7 @@ int hook_inet_release(ctx_t *ctx) {
     return 0;
 }
 
-// make sure we delete entries before the relevant port is removed from the socket
-// Note: this hook point can be called in the context of a kworker
-HOOK_ENTRY("inet_put_port")
-int hook_inet_put_port(ctx_t *ctx) {
+static __always_inline int handle_inet_put_port(ctx_t *ctx) {
     struct sock *sk = (struct sock *)CTX_PARM1(ctx);
 
     #if defined(DEBUG_NETWORK_FLOW)
@@ -494,11 +526,15 @@ int hook_inet_put_port(ctx_t *ctx) {
     return 0;
 }
 
-// In case we don't have access to SK_STORAGE maps, we need to cleanup our internal socket metadata storage on socket
-// deletion.
+// make sure we delete entries before the relevant port is removed from the socket
 // Note: this hook point can be called in the context of a kworker
-HOOK_ENTRY("sk_destruct")
-int hook_sk_destruct(ctx_t *ctx) {
+HOOK_ENTRY("inet_put_port")
+int hook_inet_put_port(ctx_t *ctx) {
+    IRQ_PROTECTED_CALL(handle_inet_put_port(ctx));
+    return 0;
+}
+
+static __always_inline int handle_sk_destruct(ctx_t *ctx) {
     struct sock *sk = (struct sock *)CTX_PARM1(ctx);
 
     #if defined(DEBUG_NETWORK_FLOW)
@@ -511,6 +547,16 @@ int hook_sk_destruct(ctx_t *ctx) {
 
     // delete internal storage
     delete_sock_meta(sk);
+    return 0;
+}
+
+// In case we don't have access to SK_STORAGE maps, we need to cleanup our internal socket metadata storage on socket
+// deletion.
+// Note: this hook point can be called in the context of a kworker
+HOOK_ENTRY("sk_destruct")
+int hook_sk_destruct(ctx_t* ctx) {
+    IRQ_PROTECTED_CALL(handle_sk_destruct(ctx));
+
     return 0;
 }
 

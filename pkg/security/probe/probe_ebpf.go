@@ -3455,6 +3455,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.isSKStorageSupported()),
 		},
 		manager.ConstantEditor{
+			Name:  "kernel_supports_bpf_irq_protection",
+			Value: utils.BoolTouint64(p.isBPFIRQProtectionSupported()),
+		},
+		manager.ConstantEditor{
 			Name:  "is_network_flow_monitor_enabled",
 			Value: utils.BoolTouint64(p.config.Probe.NetworkFlowMonitorEnabled),
 		},
@@ -3671,6 +3675,12 @@ func (p *EBPFProbe) isSKStorageSupported() bool {
 	}
 
 	return p.kernelVersion.HasSKStorageInTracingPrograms()
+}
+
+func (p *EBPFProbe) isBPFIRQProtectionSupported() bool {
+	missing, err := ksyms.VerifyKernelFuncs("bpf_local_irq_save", "bpf_local_irq_restore")
+
+	return err == nil && len(missing) == 0
 }
 
 // IsSkLookupPidResolutionSupported reports whether the TC classifiers can resolve packet pids via
