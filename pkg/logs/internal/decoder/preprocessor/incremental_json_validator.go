@@ -72,7 +72,7 @@ func (d *IncrementalJSONValidator) Write(s []byte) JSONState {
 			}
 			// If we're not in an object, we can't have a valid JSON message
 			if d.objCount == 0 {
-				isValid = false
+				return Invalid
 			}
 		}
 

@@ -648,7 +648,7 @@ func validateAdaptiveSamplerConfig(c preprocessor.AdaptiveSamplerConfig) preproc
 
 // clampBurstSize floors burstSize at 1, avoiding negative starting credits.
 func clampBurstSize(burstSize float64) float64 {
-	if burstSize <= 0 {
+	if burstSize < 1 {
 		return 1
 	}
 	return burstSize

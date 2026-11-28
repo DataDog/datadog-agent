@@ -934,3 +934,20 @@ func TestStructuredContent(t *testing.T) {
 
 	assert.Len(t, outputChan, 0)
 }
+
+func TestFramerPreservesUpstreamTruncationFlag(t *testing.T) {
+	gotTruncated := []bool{}
+	outputFn := func(msg *message.Message, _ int) {
+		gotTruncated = append(gotTruncated, msg.ParsingExtra.IsTruncated)
+	}
+	fr := NewFramer(outputFn, NoFraming, 100)
+
+	// A producer (e.g. the Windows event tailer in raw mode) may truncate a
+	// message before it reaches the framer; that signal must survive framing.
+	truncated := message.NewMessage([]byte("event...TRUNCATED..."), nil, "", 0)
+	truncated.ParsingExtra.IsTruncated = true
+	fr.Process(truncated)
+	fr.Process(message.NewMessage([]byte("next event"), nil, "", 0))
+
+	require.Equal(t, []bool{true, false}, gotTruncated)
+}

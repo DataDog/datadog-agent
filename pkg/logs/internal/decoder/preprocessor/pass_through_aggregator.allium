@@ -77,12 +77,16 @@ surface PassThroughAggregation {
     @guarantee Determinism
         -- The Aggregator contract's Determinism invariant holds:
         -- process and the flush / is_empty observations are pure
-        -- functions of (line_limit, should_truncate, msg, tokens).
+        -- functions of (line_limit, should_truncate, msg, tokens)
+        -- plus the agent-wide logs_config.tag_truncated_logs
+        -- setting. That setting is read at call time (not
+        -- captured at construction) and only decides whether the
+        -- truncation-reason tag is appended (TagOnTruncation).
         -- The label argument is ignored — see LabelIgnored — and
         -- therefore does not feature in the determinism predicate.
-        -- The aggregator branches only on inputs and on
-        -- should_truncate; it has no other internal state and
-        -- reads no clocks or randomness.
+        -- The aggregator branches only on inputs, on
+        -- should_truncate and on that setting; it has no other
+        -- internal state and reads no clocks or randomness.
 
     @guarantee ByteConservation
         -- The Aggregator contract's ByteConservation invariant

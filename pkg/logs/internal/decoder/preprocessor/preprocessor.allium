@@ -41,12 +41,14 @@
 --        ↓
 --     PreprocessorOutput
 --
---   Concrete configurations (auto-multiline + combining, regex
---   multi-line, detection-only, default pass-through) live in
---   their own composing spec modules. Each declares the
---   fulfillers occupying each component slot and a surface that
---   `fulfils Preprocessor` and `demands` the corresponding
---   component contracts.
+--   Concrete configurations are auto-multiline + combining,
+--   regex multi-line and default pass-through. A composing spec
+--   module declares the fulfillers occupying each component slot
+--   and a surface that `fulfils Preprocessor` and `demands` the
+--   corresponding component contracts. Only
+--   auto_multiline_combining_pipeline.allium exists today; the
+--   regex multi-line and pass-through configurations have no
+--   composing spec yet.
 -- Includes: PreprocessorInput value, PreprocessorOutput value,
 --   Preprocessor contract.
 -- Excludes:
@@ -128,10 +130,15 @@ contract Preprocessor {
     flush: Sequence<PreprocessorOutput>
 
     @invariant EndToEndDeterminism
-        -- The pipeline as a whole is deterministic given the
-        -- five component fulfillers' states: equal input
-        -- sequences produce equal output sequences. Composes
-        -- from each component contract's Determinism invariant:
+        -- The pipeline as a whole is deterministic given equal
+        -- component state and equal clock/environment signals
+        -- observed by the Sampler: equal input sequences produce
+        -- equal output sequences. The qualification matters
+        -- because AdaptiveSampler reads the wall clock and
+        -- runtime signals (the IsSourceDisabled callback, the
+        -- smart-severity level) in addition to its own state.
+        -- Composes from each component contract's Determinism
+        -- invariant:
         -- each stage is pure given its own state, and the
         -- inter-stage handoffs are direct (the output of one
         -- stage's operation is the input of the next). Pipeline-
@@ -166,8 +173,11 @@ contract Preprocessor {
     @invariant EndToEndTokenForwarding
         -- The tokens carried on each PreprocessorOutput.tokens
         -- are the tokens produced by the Tokenization stage for
-        -- the FIRST line of the message's aggregate (after the
-        -- JSONAggregator has joined any JSON fragments). They
+        -- the FIRST line of the message's aggregate (tokens are
+        -- computed after the JSONAggregator and
+        -- StackTraceAggregator joins; for a stack-trace-combined
+        -- message they are the tokens of the combined content,
+        -- up to the tokenizer's max_input_bytes). They
         -- are forwarded unchanged through Labeler / Aggregator /
         -- Sampler — none of those stages recomputes or modifies
         -- tokens. Composes from Aggregator's leader-tokens
@@ -178,8 +188,8 @@ contract Preprocessor {
     @invariant EndToEndDropOrEmit
         -- Each PreprocessorInput is either:
         --   (a) contributed to exactly one PreprocessorOutput
-        --       via aggregation at JSONAggregator and/or
-        --       Aggregator, OR
+        --       via aggregation at JSONAggregator,
+        --       StackTraceAggregator and/or Aggregator, OR
         --   (b) dropped at the Sampler stage.
         -- Messages are never silently lost in the JSONAggregator
         -- / Tokenization / Labeler / Aggregator chain — those
@@ -243,7 +253,15 @@ contract Preprocessor {
         --       max_input_bytes; the full produced (tokens,
         --       indices) pair flows to the aggregator and
         --       sampler (step c, d) unchanged.
-        --    b. Labeler.label(content, label_tokens,
+        --    b. Choose the label. The Labeler is skipped in two
+        --       cases:
+        --       - a message already combined upstream
+        --         (IsMultiLine, e.g. by StackTraceAggregator)
+        --         gets no_aggregate, so the Aggregator emits it
+        --         standalone;
+        --       - a message with empty content gets aggregate,
+        --         so a blank line folds into the current group.
+        --       Otherwise, Labeler.label(content, label_tokens,
         --       label_indices) — yields one of {start_group,
         --       aggregate, no_aggregate}. label_tokens /
         --       label_indices are the PREFIX of the step-3a
@@ -277,7 +295,8 @@ contract Preprocessor {
         --    intermediate messages.
         -- 2. For each yielded message: run steps 2 and 3a-d
         --    above (pumping through StackTraceAggregator, then
-        --    Tokenization / Labeler / Aggregator / Sampler).
+        --    Tokenization / Labeler / Aggregator / Sampler, with
+        --    the same step-3b Labeler skip cases).
         -- 3. StackTraceAggregator.Flush — yields any buffered
         --    stack trace still being accumulated. For each
         --    yielded message: run steps 3a-d above.
@@ -297,3 +316,9 @@ contract Preprocessor {
         -- component contracts' "not safe for concurrent use"
         -- guidance).
 }
+
+------------------------------------------------------------
+-- Open Questions
+------------------------------------------------------------
+
+open question "PreprocessorOutputTokens: PreprocessorOutput models a tokens field, but Process/Flush push *message.Message (no tokens) to the output channel; tokens stop at the Sampler. Is PreprocessorOutput.tokens intentional modelling, or should it be dropped and EndToEndTokenForwarding restated as 'the tokens supplied to the Sampler'?"

@@ -22,10 +22,15 @@
 --   crosses line_limit (splitting a logical multi-line stream
 --   into multiple emissions). What it does NOT do is byte-level
 --   trimming or marker-byte decoration within an emission — each
---   emission carries its full buffer byte-for-byte, and
---   downstream consumers (typically the SingleLineHandler)
---   handle marker decoration and byte-limit enforcement on the
---   received content.
+--   emission carries its full buffer byte-for-byte, and the
+--   downstream consumer handles marker decoration and
+--   byte-limit enforcement on the received content. That
+--   consumer is the decoder's configured line handler (see
+--   buildLineHandler in decoder.go): a preprocessor handler
+--   (PassThroughAggregator by default, RegexAggregator for user
+--   multi_line rules, CombiningAggregator for auto multi-line)
+--   or, under legacy auto-multiline, a SingleLineHandler or
+--   MultiLineHandler.
 --
 --   The SingleLineParser sibling type in the same file is a
 --   stateless pass-through that performs no truncation
@@ -52,11 +57,13 @@
 --     a time-based emission trigger orthogonal to truncation.
 --   - The embedded parser (Parser interface). Each
 --     MultiLineParser instance composes a parser; the
---     parser's behaviour is independent of truncation.
+--     parser's behaviour is independent of truncation,
+--     except that parsers preserve the upstream IsTruncated
+--     flag on the messages they hand to the MultiLineParser.
 --   - The downstream LineHandler. The MultiLineParser emits
---     to a LineHandler (typically SingleLineHandler in path
---     A); the downstream handler's behaviour is described
---     in its own surface spec.
+--     to the decoder's configured line handler (see Scope);
+--     the downstream handler's behaviour is described in its
+--     own surface spec.
 --   - The rawDataLen tracking. Used for restart-positioning
 --     of the tailer; orthogonal to truncation.
 --   - The literal byte value of the truncation marker. The
@@ -98,15 +105,17 @@ entity MultiLineParser {
     -- last_input_upstream_truncated:
     --                           the IsTruncated flag carried
     --                           by the MOST RECENT parsed
-    --                           input message. Overwritten on
-    --                           every process call (the
-    --                           accumulator stores only the
-    --                           last parsed message as
-    --                           bufferedMsg). Captures
-    --                           upstream-side truncation only
-    --                           for the last contributor to
-    --                           the current accumulation
-    --                           cycle.
+    --                           input message for the selected
+    --                           stream. Overwritten on every
+    --                           process call for that stream
+    --                           (each stream's state stores
+    --                           only its last parsed message
+    --                           as bufferedMsg); inputs on
+    --                           other streams do not affect
+    --                           it. Captures upstream-side
+    --                           truncation only for the last
+    --                           contributor to the stream's
+    --                           current accumulation cycle.
     line_limit: Integer
     buffered_content_len: Integer
     is_buffer_truncated: Boolean
@@ -137,9 +146,9 @@ surface MultiLineParserTruncation {
         -- message's ParsingExtra.IsTruncated flag, and (2)
         -- forcing an emission boundary when the accumulated
         -- buffer crosses line_limit (see
-        -- BufferOverflowForcesEmission). Downstream consumers
-        -- (typically the SingleLineHandler) handle marker
-        -- decoration when needed.
+        -- BufferOverflowForcesEmission). The decoder's
+        -- configured line handler downstream (see Scope)
+        -- handles marker decoration when needed.
 
     @guarantee BufferOverflowMarksTruncated
         -- During a process call, after the parsed input's
@@ -170,10 +179,12 @@ surface MultiLineParserTruncation {
         -- of two sources:
         --   - last_input_upstream_truncated (the
         --     IsTruncated flag of the MOST RECENT parsed
-        --     input — bufferedMsg is overwritten on every
-        --     process call, so this is the truncation flag
-        --     of the LAST contributor to the buffer, not
-        --     a logical-OR across all contributors).
+        --     input for the selected stream — that stream's
+        --     bufferedMsg is overwritten on every process
+        --     call for the stream, so this is the truncation
+        --     flag of the LAST contributor to the buffer, not
+        --     a logical-OR across all contributors; inputs
+        --     on other streams do not affect it).
         --   - is_buffer_truncated (the accumulator's
         --     internal over-buffer-limit flag set during
         --     accumulation).
@@ -186,9 +197,12 @@ surface MultiLineParserTruncation {
         -- final one) carried ParsingExtra.IsTruncated=true,
         -- that flag is LOST at emission unless the
         -- accumulator's own is_buffer_truncated is also
-        -- set. This is a consequence of bufferedMsg being
-        -- overwritten on every process call: only the
-        -- last input's upstream flag survives to emission.
+        -- set. This is a consequence of the stream's
+        -- bufferedMsg being overwritten on every process
+        -- call for that stream: only the last same-stream
+        -- input's upstream flag survives to emission.
+        -- Inputs on other streams neither overwrite nor
+        -- contribute to it.
 
     @guarantee EmissionCarriesFullBuffer
         -- The emitted message's content is the FULL
@@ -202,9 +216,9 @@ surface MultiLineParserTruncation {
         -- forcing emission (see BufferOverflowForcesEmission)
         -- — this is a message-boundary cut, not a byte-level
         -- cut. Downstream consumers responsible for enforcing
-        -- a hard byte limit on emitted content (typically the
-        -- SingleLineHandler's Truncatable behaviour) must do
-        -- their own check on the received content.
+        -- a hard byte limit on emitted content (the decoder's
+        -- configured line handler; see Scope) must do their
+        -- own check on the received content.
 
     @guarantee NoCarryOverBetweenEmissions
         -- The is_buffer_truncated flag, the
@@ -248,8 +262,8 @@ surface MultiLineParserTruncation {
         --
         -- The MultiLineParser sits between the framer
         -- (which produces parser-tagged frames) and the
-        -- downstream LineHandler (typically the
-        -- SingleLineHandler) in the legacy decoder pipeline.
+        -- decoder's configured line handler (see Scope) in
+        -- decoders whose parser supports partial lines.
         -- Its
         -- inputs are parser-tagged messages, each
         -- carrying ParsingExtra.IsPartial set or unset according
@@ -270,6 +284,6 @@ surface MultiLineParserTruncation {
         -- does NOT byte-trim content within an emission
         -- or decorate with marker bytes; both byte-level
         -- decoration and downstream byte-limit enforcement
-        -- lie with the SingleLineHandler that consumes
-        -- this surface's emissions.
+        -- lie with the configured line handler that
+        -- consumes this surface's emissions.
 }

@@ -3,9 +3,10 @@
 
 -- Scope: The MultiLineHandler at
 --   pkg/logs/internal/decoder/multiline_handler.go. The
---   MultiLineHandler is the regex-driven aggregator in the
---   legacy decoder pipeline: it combines consecutive log lines
---   into a single
+--   MultiLineHandler is the regex-driven aggregator of the
+--   legacy auto-multiline path (user-configured multi_line
+--   rules use the preprocessor RegexAggregator instead): it
+--   combines consecutive log lines into a single
 --   multi-line message, emitting on regex pattern boundaries
 --   (lines matching newContentRe start a new group) or on
 --   buffer overflow. Carries truncation state across emissions
@@ -15,9 +16,12 @@
 --
 --   The MultiLineHandler does NOT declare fulfilment of the
 --   Truncatable contract. It conforms to most of Truncatable's
---   invariants (PassThroughUnderThreshold, TailMarkerOnOverThreshold
---   at the buffer level, HeadMarkerOnCarryover, CarryoverConsumed,
---   TagOnTruncation with reason="multiline_regex", MarkerLiteral)
+--   invariants — PassThroughUnderThreshold,
+--   TailMarkerOnOverThreshold at the buffer level (with a >=
+--   boundary, not >), HeadMarkerOnCarryover (only when no
+--   pattern-boundary sendBuffer or flush() discards the carry
+--   first), CarryoverConsumed, TagOnTruncation with
+--   reason="multiline_regex", MarkerLiteral —
 --   but it DEVIATES from UpstreamFlagPropagation: the input
 --   message's ParsingExtra.IsTruncated flag is IGNORED by the
 --   handler. Only buffer-overflow during accumulation triggers
@@ -67,9 +71,12 @@
 ------------------------------------------------------------
 
 entity MultiLineHandler {
-    -- A configured MultiLineHandler instance. One per
-    -- legacy decoder pipeline using regex-based multi-line
-    -- aggregation.
+    -- A configured MultiLineHandler instance. Built only on
+    -- the legacy auto-multiline path: directly when a
+    -- previously detected pattern exists
+    -- (getLegacyAutoMultilineHandler in decoder.go), or by
+    -- LegacyAutoMultilineHandler once it detects a pattern.
+    -- User multi_line rules use RegexAggregator instead.
     --
     -- line_limit:               byte threshold at which the
     --                           accumulated buffer triggers a
@@ -80,15 +87,24 @@ entity MultiLineHandler {
     -- should_truncate:          carry-over signal. Set true
     --                           at the end of a process call
     --                           that resulted in a
-    --                           buffer-overflow emission;
-    --                           consumed at the start of the
+    --                           buffer-overflow emission.
+    --                           Cleared by the deferred reset
+    --                           of every sendBuffer: if the
+    --                           next process call runs a
+    --                           pattern-boundary sendBuffer
+    --                           (input matches newContentRe,
+    --                           or pattern_matched_once is
+    --                           false), or flush() runs in
+    --                           between, the carry is
+    --                           discarded. Otherwise it is
+    --                           consumed after the
+    --                           pattern-boundary check of the
     --                           next process call (and
     --                           immediately reset to false
-    --                           there). When consumed as
-    --                           true, causes the next
-    --                           emission's accumulated buffer
-    --                           to begin with the head
-    --                           truncation marker.
+    --                           there); when consumed as
+    --                           true, the new accumulation
+    --                           cycle's buffer begins with
+    --                           the head truncation marker.
     -- is_buffer_truncated:      per-emission tracking. Set
     --                           true when EITHER the head
     --                           marker is written to the
@@ -200,24 +216,40 @@ surface MultiLineHandling {
         -- content), the handler writes the truncation
         -- marker to the buffer (tail position), sets
         -- is_buffer_truncated=true, calls sendBuffer
-        -- immediately, and sets should_truncate=true to
-        -- carry the truncation into the next emission.
+        -- immediately, and then sets should_truncate=true
+        -- as a carry for the next process call. The carry
+        -- reaches the next emission only under the
+        -- conditions in HeadMarkerOnCarryover; a
+        -- pattern-boundary sendBuffer or flush() discards
+        -- it.
         -- The forced emission within process is the
         -- per-buffer-overflow tail-marker emission.
 
     @guarantee HeadMarkerOnCarryover
-        -- When should_truncate is true at the start of a
+        -- The head marker is written only when
+        -- should_truncate is true at the start of a
         -- process call (the previous emission was
-        -- tail-truncated), and after the input is
-        -- accepted into the buffer (post any pattern-match
-        -- sendBuffer), the handler writes the truncation
-        -- marker to the buffer BEFORE the input's content
-        -- bytes (head position relative to the new
-        -- accumulation cycle). is_buffer_truncated is set
-        -- to true at this point. The eventual emission of
-        -- this buffer (whether via pattern match,
-        -- buffer overflow, or flush) will carry the head
-        -- marker.
+        -- tail-truncated) AND no pattern-boundary
+        -- sendBuffer runs in this call (the input does
+        -- not match newContentRe and pattern_matched_once
+        -- is already true). Then the handler writes the
+        -- truncation marker to the buffer BEFORE the
+        -- input's content bytes (head position relative
+        -- to the new accumulation cycle).
+        -- is_buffer_truncated is set to true at this
+        -- point. The eventual emission of this buffer
+        -- (whether via pattern match, buffer overflow, or
+        -- flush) will carry the head marker.
+        --
+        -- If a sendBuffer runs first (pattern match, or
+        -- pre-match mode while pattern_matched_once is
+        -- false), or flush() runs between the two process
+        -- calls, sendBuffer's deferred reset clears
+        -- should_truncate before it is captured: the
+        -- carry is discarded, no head marker is written,
+        -- and the cycle this input starts is not marked
+        -- truncated (IsTruncated=false) unless it
+        -- overflows itself.
 
     @guarantee CarryoverConsumed
         -- After any pattern-boundary sendBuffer (the
@@ -226,7 +258,11 @@ surface MultiLineHandling {
         -- BEFORE the current line is appended to the
         -- buffer, the should_truncate field's value is
         -- captured locally as isTruncated and then
-        -- should_truncate is reset to false. The reset
+        -- should_truncate is reset to false. If a
+        -- pattern-boundary sendBuffer ran in this call,
+        -- its deferred reset has already cleared
+        -- should_truncate, so the captured value is false
+        -- (see HeadMarkerOnCarryover). The reset
         -- happens BEFORE the buffer-overflow check; if
         -- this call's accumulation causes overflow,
         -- should_truncate is re-set to true at that
@@ -306,10 +342,12 @@ surface MultiLineHandling {
         -- sendBuffer applies bytes.TrimSpace to the
         -- accumulated buffer bytes before copying them
         -- to the emission's content. Leading and
-        -- trailing whitespace in the buffer (including
-        -- the EscapedLineFeed separator bytes IF they
-        -- happen to land at a boundary) is removed
-        -- from the emission. The `...TRUNCATED...`
+        -- trailing whitespace in the buffer is removed
+        -- from the emission. The EscapedLineFeed
+        -- separator is a literal backslash followed by
+        -- 'n', not whitespace, so it is NOT removed even
+        -- when it lands at a boundary (e.g. when the last
+        -- accumulated line is empty). The `...TRUNCATED...`
         -- marker bytes are NOT whitespace and are not
         -- trimmed; head and tail markers remain at the
         -- emission's content boundaries.
@@ -346,11 +384,14 @@ surface MultiLineHandling {
 
     @guarantee FlushDrainsBuffer
         -- A flush() call invokes sendBuffer directly,
-        -- producing an emission if the buffer is
-        -- non-empty and following all standard
-        -- truncation-flag and tag semantics. Flush on
-        -- an empty buffer is a no-op
-        -- (NoEmissionOnEmptyBuffer).
+        -- producing an emission if the trimmed buffer is
+        -- non-empty OR linesLen > 0, and following all
+        -- standard truncation-flag and tag semantics.
+        -- Flush when the trimmed buffer is empty and
+        -- linesLen is zero is a no-op
+        -- (NoEmissionOnEmptyBuffer), apart from the
+        -- deferred reset clearing any pending
+        -- should_truncate carry.
 
     @guidance
         -- Configuration immutability: h.line_limit and
@@ -364,7 +405,7 @@ surface MultiLineHandling {
         -- unambiguous.
         --
         -- The MultiLineHandler is the regex-driven
-        -- aggregator of the legacy decoder pipeline. Its
+        -- aggregator of the legacy auto-multiline path. Its
         -- per-call flow is:
         --
         -- 1. Stop the flush timer if buffer is
@@ -378,6 +419,8 @@ surface MultiLineHandling {
         --      - Else: continue.
         -- 3. Carry-over capture: isTruncated =
         --    should_truncate; should_truncate = false.
+        --    (Already false if step 2 called sendBuffer,
+        --    whose deferred reset clears it.)
         -- 4. Append to buffer:
         --      - linesLen += input.RawDataLen
         --      - h.msg = input
@@ -415,3 +458,11 @@ surface MultiLineHandling {
         --         h.multi_line_tag_value.
         --       - outputFn(h.msg).
 }
+
+------------------------------------------------------------
+-- Open Questions
+------------------------------------------------------------
+
+open question "PreMatchCarryDiscarded: while the pattern has never matched, each line is emitted alone and a buffer-overflow carry is discarded by the next call's sendBuffer, so the remainder of a cut line is emitted without a head marker and with IsTruncated=false. SingleLineHandler would mark that remainder. Should pre-match mode honour the carry like SingleLineHandler (as #46831 promised 'matching SingleLineHandler'), or is dropping it accepted?"
+
+open question "InclusiveLimitBoundary: MultiLineHandler (and MultiLineParser) flush/truncate when the buffer reaches line_limit (>=), while SingleLineHandler/PassThroughAggregator switched to > in AGNTLOG-79 so content exactly at the limit is not marked truncated. Should MultiLineHandler and MultiLineParser adopt the > boundary?"

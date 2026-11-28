@@ -47,15 +47,42 @@
 --   - Decoder configuration resolution and per-source sampler
 --     instantiation.
 --   - Message framing, parsing, and raw content handling.
---   - Telemetry counter emissions (dropped, kept, new_patterns,
---     evictions, protected). Observability only, no behavioural
---     effect.
---   - Include/exclude per-source filtering (the Include, Exclude
---     and IncludeConfigured options on AdaptiveSamplerConfig).
+--   - Telemetry counter emissions (dropped, bytes_dropped,
+--     tag_bytes_dropped, kept, outcomes, new_patterns, evictions,
+--     protected). Observability only, no behavioural effect.
+--   - Messages with no content (empty raw bytes, or a structured
+--     message without structured content). process returns them
+--     untouched before any rule fires, so they never occupy a
+--     pattern table slot.
+--   - Disabled sources. When the source is listed in
+--     logs_config.experimental_adaptive_sampling.disabled_sources
+--     (checked per message, so it tracks source swaps and config
+--     updates), process returns the message untouched before any
+--     rule fires.
+--   - Include/exclude filtering (the Include, Exclude and
+--     IncludeConfigured options on AdaptiveSamplerConfig, resolved
+--     from the global logs_config.experimental_adaptive_sampling
+--     include / exclude lists with optional per-source overrides).
 --     These gate whether a log enters the sampler's rule
 --     machinery at all and are orthogonal to the rule set in this
 --     module. Spec coverage of the filter machinery is a known
 --     gap, tracked for a follow-up.
+--   - Smart severity profiles
+--     (logs_config.experimental_adaptive_sampling.smart_severity_profiles).
+--     When enabled, before each message with content the sampler
+--     reads the externally published anomaly severity level and,
+--     if it differs from the last applied level, swaps rate_limit,
+--     burst_size and a pass_through flag to that level's profile.
+--     Escalation to a higher level (including the first published
+--     level above Low) and leaving pass_through both reset every
+--     entry's credits to the new burst_size; leaving pass_through
+--     also zeroes every entry's sampled_count. De-escalation leaves
+--     credits untouched until the next refill clamps them to the
+--     new burst_size. While pass_through is active, every message
+--     matching an existing pattern is emitted and no credit is
+--     spent. The rules below (EmitMatchingLog and DropMatchingLog
+--     in particular), CreditsCapped and SteadyStateRateBound
+--     describe the profiles-disabled behaviour only.
 
 use "../../../tokenizer/tokenizer.allium" as tokenizer
 use "./sampler.allium" as sampler
@@ -139,8 +166,12 @@ config {
     -- token sequences to be considered the same pattern. Range (0, 1].
     match_threshold: Decimal = 0.9
 
-    -- Maximum bytes of the log message's first line to tokenize.
-    -- Bytes beyond this offset are ignored by the tokenizer.
+    -- Minimum tokenizer window, in bytes of the log message's
+    -- first line. This is a floor, not a cap: the effective window
+    -- is the larger of this value and
+    -- auto_multi_line.tokenizer_max_input_bytes (each optionally
+    -- overridden per source). Bytes beyond the effective window
+    -- are ignored by the tokenizer.
     tokenizer_max_input_bytes: Integer = 2048
 
     -- When true, logs that would be dropped are emitted with
@@ -160,7 +191,7 @@ config {
     -- AdaptiveSampling surface's @guidance for the predicate's
     -- scope. When false, severity has no effect on sampling
     -- decisions and the standard 4 rules apply uniformly.
-    protect_important_logs: Boolean = false
+    protect_important_logs: Boolean = true
 }
 
 ------------------------------------------------------------
@@ -350,10 +381,13 @@ rule EvictAndRegisterPattern {
 
     @guidance
         -- When multiple entries share the minimum match_count, the
-        -- implementation evicts the last entry in sorted order. Among
-        -- equally-cold patterns this is the most recently inserted one,
-        -- since new entries append to the tail and only bubble forward
-        -- when their match_count exceeds a predecessor's.
+        -- implementation evicts the last entry in sorted order. New
+        -- entries append to the tail, and a matched entry moves
+        -- forward only past predecessors with a strictly smaller
+        -- match_count, so among equally-cold patterns the evicted
+        -- entry is the one that most recently reached the minimum
+        -- match_count. For match_count = 1 that is the most recently
+        -- inserted entry.
         --
         -- Eviction discards all state for the victim, including its
         -- sampled_count. Suppressed log counts for that pattern
@@ -375,13 +409,19 @@ invariant TableBounded {
 }
 
 invariant CreditsCapped {
+    -- Holds only while smart severity profiles are disabled (see
+    -- Excludes): de-escalation lowers burst_size but leaves each
+    -- entry's credits above it until that entry's next refill.
     for entry in PatternEntries:
         entry.credits <= config.burst_size
 }
 
 invariant CreditsNonNegative {
-    -- credits start at burst_size - 1 >= 0 (burst_size validated >= 1).
-    -- Refill only adds; decrement floors at capped_credits - 1 >= 0.
+    -- credits start at burst_size - 1 >= 0 (burst_size, including
+    -- each smart severity profile's, is clamped to >= 1 at
+    -- construction; values below 1 become 1). Refill only adds
+    -- (given rate_limit >= 0, see Open Questions); decrement floors
+    -- at capped_credits - 1 >= 0.
     for entry in PatternEntries:
         entry.credits >= 0.0
 }
@@ -433,6 +473,13 @@ surface AdaptiveSampling {
         -- are deterministic functions of pre-state and inputs.
         -- The seconds_elapsed, is_match, is_important, max_by
         -- and min_by primitives are pure.
+        --
+        -- Alongside the clock that supplies now, two environment
+        -- signals are injected inputs read per message: the
+        -- external severity level (read only when smart severity
+        -- profiles are enabled) and the source-disabled flag.
+        -- process is deterministic given these, not independent
+        -- of them.
 
     @guarantee Totality
         -- The Sampler contract's Totality invariant holds: every
@@ -453,13 +500,15 @@ surface AdaptiveSampling {
         -- guard, making them mutually exclusive with
         -- ImportantLogBypass.
         --
-        -- Scope caveat: per Excludes, the include / exclude /
-        -- include_configured filter machinery on
-        -- AdaptiveSamplerConfig gates whether a message enters
-        -- the rule machinery at all. A message that the filter
-        -- rejects is emitted without firing any rule (a
-        -- short-circuit ahead of the 5 rules). Totality
-        -- describes the rule-machinery branch only.
+        -- Scope caveat: per Excludes, three checks run ahead of
+        -- the 5 rules and gate whether a message enters the rule
+        -- machinery at all: the message has no content, the
+        -- source is disabled (listed in disabled_sources), or
+        -- the include / exclude / include_configured filter
+        -- machinery on AdaptiveSamplerConfig rejects it. A
+        -- message caught by any of these is emitted untouched
+        -- without firing any rule. Totality describes the
+        -- rule-machinery branch only.
 
     @guarantee ContentBytePassthrough
         -- The Sampler contract's ContentBytePassthrough invariant
@@ -507,10 +556,11 @@ surface AdaptiveSampling {
         -- currently-tracked pattern is ALWAYS emitted. Guaranteed
         -- by RegisterNewPattern and EvictAndRegisterPattern, both
         -- of which have unconditional `ensures: LogEmitted(...)`
-        -- clauses. (Follows structurally from burst_size >= 1,
-        -- validated at construction, which ensures the new
-        -- pattern's initial credit budget allows the first emit
-        -- without consulting credit balance.)
+        -- clauses. (Follows structurally from burst_size >= 1 —
+        -- burst_size is clamped at construction, values below 1
+        -- becoming 1 — which ensures the new pattern's initial
+        -- credit budget allows the first emit without consulting
+        -- credit balance.)
 
     @guarantee SteadyStateRateBound
         -- Over an interval of T seconds, the count of emitted
@@ -526,6 +576,12 @@ surface AdaptiveSampling {
         -- the pattern-table rules. Messages flowing through
         -- ImportantLogBypass are not counted against any
         -- pattern's rate limit — see ImportantLogProtection.
+        --
+        -- The bound holds only while smart severity profiles are
+        -- disabled (see Excludes). With profiles enabled, an
+        -- escalation or leaving pass_through resets every entry's
+        -- credits to the new burst_size, and pass_through emits
+        -- matching messages without spending credit.
 
     @guarantee ImportantLogProtection
         -- When config.protect_important_logs is true, a message
@@ -590,4 +646,6 @@ surface AdaptiveSampling {
 -- Open Questions
 ------------------------------------------------------------
 
-open question "match_threshold has no construction-time validation. A value of 0 would match everything regardless of token content, defeating pattern discrimination. The UserSamples path (user_samples.go) already enforces a (0, 1] range; the same validation needs to be added in NewAdaptiveSampler when match_threshold becomes user-configurable. Until then this is a latent foot-gun for anyone wiring up a custom AdaptiveSamplerConfig."
+open question "match_threshold is user-configurable (global logs_config.experimental_adaptive_sampling.match_threshold and the per-source override) but is not validated in validateAdaptiveSamplerConfig or NewAdaptiveSampler. A value <= 0 collapses all non-empty logs into the hottest pattern's bucket; a value > 1 prevents any non-empty log from matching, so every log registers a new pattern. This spec states the range (0, 1]; the AdaptiveSamplerConfig doc comment states [0, 1]. Should 0 be allowed, and should out-of-range values be rejected or fall back to the default (as UserSamples skips them)?"
+
+open question "rate_limit (global and smart-severity profile rate limits) is not validated; a negative value makes refill subtract credits, violating CreditsNonNegative. Should rate_limit be constrained to >= 0 and validated/clamped like burst_size?"

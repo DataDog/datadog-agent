@@ -9,11 +9,15 @@
 --   source that Truncatable consumes via its upstream_truncated
 --   input. NOT fulfilled by any whole module today: the framer at
 --   pkg/logs/internal/framer is the canonical upstream signal
---   source and its limit-enforcing matchers conform per-emission,
---   but the framer as a whole DECLINES fulfils TruncationDetector
---   because its non-enforcing matchers (dockerStreamMatcher,
---   noFramingMatcher) emit found frames regardless of size with
---   wasTruncated = false. See framer.allium for the per-framing
+--   source, but only its newline matchers (oneByteNewLineMatcher,
+--   twoByteNewLineMatcher) conform per-emission, and only when the
+--   frame terminator is in the buffer. syslogFrameMatcher does not
+--   conform: it keeps overflow state across calls and strips the
+--   MSG-LEN header before applying the limit. The non-enforcing
+--   matchers (dockerStreamMatcher, noFramingMatcher) emit found
+--   frames regardless of size with wasTruncated = false. The
+--   framer as a whole therefore DECLINES fulfils
+--   TruncationDetector. See framer.allium for the per-framing
 --   @guarantees that capture actual observable behaviour.
 -- Includes: The TruncationDetector contract, the DetectionResult
 --   value type, the byte-boundary cut semantics, the flag-only
@@ -115,18 +119,32 @@ contract TruncationDetector {
         -- "cut at hard limit + flag" operation.
         --
         -- The framer at pkg/logs/internal/framer composes this
-        -- contract with non-conforming matcher behaviour: its
-        -- limit-enforcing matchers (oneByteNewLineMatcher,
-        -- twoByteNewLineMatcher, syslogFrameMatcher) and its
-        -- buffer-overflow force-cut fallback conform to this
-        -- contract on a per-emission basis, while its
-        -- non-enforcing matchers (dockerStreamMatcher,
-        -- noFramingMatcher) do NOT — they emit found frames
-        -- regardless of size with wasTruncated=false. The
-        -- framer as a whole therefore does not declare
-        -- fulfilment of this contract; see framer.allium for
-        -- the per-framing @guarantees that capture the actual
-        -- observable behaviour.
+        -- contract with non-conforming matcher behaviour. Its
+        -- newline matchers (oneByteNewLineMatcher,
+        -- twoByteNewLineMatcher) conform on a per-emission
+        -- basis when the frame terminator is in the buffer.
+        -- Its buffer-overflow force-cut fallback conforms
+        -- except when the frame terminator has not yet arrived
+        -- (see framer.allium open question
+        -- ForceCutPendingTerminator).
+        --
+        -- syslogFrameMatcher does NOT conform: it keeps
+        -- overflow state (overflow, octetRemaining) across
+        -- calls, and strips the MSG-LEN header before applying
+        -- the limit. An octet-counted frame that crosses the
+        -- limit across reads yields a truncated first chunk
+        -- shorter than the threshold, even when the declared
+        -- body is at or under the threshold
+        -- (TestSyslogOctetCountedStraddlesLimit asserts this
+        -- deliberately).
+        --
+        -- The non-enforcing matchers (dockerStreamMatcher,
+        -- noFramingMatcher) do NOT conform either — they emit
+        -- found frames regardless of size with
+        -- wasTruncated=false. The framer as a whole therefore
+        -- does not declare fulfilment of this contract; see
+        -- framer.allium for the per-framing @guarantees that
+        -- capture the actual observable behaviour.
         --
         -- The MultiLineParser at
         -- pkg/logs/internal/decoder/line_parser.go is a

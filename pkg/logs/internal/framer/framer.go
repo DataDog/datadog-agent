@@ -299,7 +299,9 @@ func (fr *Framer) emitFrame(input *message.Message, content []byte, rawDataLen i
 	copy(owned, content)
 
 	parsingExtra := input.ParsingExtra
-	parsingExtra.IsTruncated = isTruncated
+	// Keep a truncation signal set by the producer (e.g. Windows event raw mode)
+	// in addition to the framer's own per-frame detection.
+	parsingExtra.IsTruncated = isTruncated || input.ParsingExtra.IsTruncated
 
 	c := &message.Message{
 		MessageContent: message.MessageContent{

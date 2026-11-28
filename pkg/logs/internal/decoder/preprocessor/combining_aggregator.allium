@@ -75,15 +75,29 @@ entity CombiningAggregator {
     --
     -- Internal state (recomputed during processing):
     --
-    -- bucket_empty:         true when no buffered lines are
-    --                       awaiting combination. Mirrors the
+    -- bucket_empty:         true when the bucket's accumulated raw
+    --                       length (the sum of the held lines'
+    --                       raw_data_len) is zero. Mirrors the
     --                       Aggregator contract's is_empty
     --                       observable. Initially true; becomes
-    --                       false when a line is added to the
-    --                       bucket; resets to true after every
-    --                       flush (combined emission), explode
-    --                       (individual emissions), or external
-    --                       flush call.
+    --                       false when a line with non-zero raw
+    --                       length is added to the bucket; resets
+    --                       to true after every flush (combined
+    --                       emission), explode (individual
+    --                       emissions), or external flush call.
+    --                       A line with raw length 0 does not
+    --                       make the bucket non-empty. While the
+    --                       bucket counts as empty, a
+    --                       flush_bucket or explode_bucket
+    --                       discards such held lines without
+    --                       emitting them, and no separator
+    --                       follows them (a separator is written
+    --                       only after non-zero accumulated raw
+    --                       length). If instead an aggregate line
+    --                       with non-zero raw length is added
+    --                       first, the held lines are emitted
+    --                       with it — see open question
+    --                       ZeroRawLengthLeader.
     -- bucket_lines_count:   the number of input lines currently
     --                       contributing to the buffered bucket.
     --                       Drives the multi-line tagging decision
@@ -93,7 +107,10 @@ entity CombiningAggregator {
     -- bucket_content_len:   the predicted byte length of the
     --                       combined content if flushed now —
     --                       the running sum of contributing line
-    --                       lengths plus one separator per gap.
+    --                       lengths plus one separator per gap
+    --                       (counted only once the accumulated
+    --                       raw length is non-zero, as in
+    --                       flush_bucket step 2).
     --                       Used by the wouldOverflowBucket
     --                       predicate to decide between
     --                       combination and explosion.
@@ -146,21 +163,26 @@ surface CombiningAggregation {
         -- bytes joined by the escaped-line-feed separator, with
         -- optional truncation markers prepended and / or
         -- appended. An exploded emission's content is one
-        -- contributing line's bytes, processed by the same
-        -- single-line truncation flow as PassThroughAggregator
-        -- (trim, prepend on carry, append on overflow). The
-        -- aggregator introduces no other bytes. The separator and
-        -- the truncation marker are the only well-known marker
-        -- byte sequences the aggregator may add.
+        -- contributing line's bytes, processed by the emit_single
+        -- truncation flow (trim, prepend on carry, append on
+        -- overflow or upstream truncation). This is similar in
+        -- shape to PassThroughAggregator's flow but not the same:
+        -- emit_single measures overflow on the trimmed content
+        -- length, whereas PassThroughAggregator measures the
+        -- untrimmed length. The aggregator introduces no other
+        -- bytes. The separator and the truncation marker are the
+        -- only well-known marker byte sequences the aggregator
+        -- may add.
 
     @guarantee FlushDrainsBuffer
         -- The Aggregator contract's FlushDrainsBuffer invariant
         -- holds: after flush returns, bucket_empty is true,
         -- bucket_lines_count and bucket_content_len are zero.
         -- A flush call on an empty bucket returns an empty
-        -- sequence and changes no observable state. The
-        -- should_truncate carry is NOT reset by flush — it
-        -- follows the emission sequence.
+        -- sequence and changes no observable state (it only
+        -- discards held zero-raw-length lines, per
+        -- bucket_empty). The should_truncate carry is NOT reset
+        -- by flush — it follows the emission sequence.
 
     @guarantee IsEmptyConsistency
         -- The Aggregator contract's IsEmptyConsistency invariant
@@ -202,10 +224,11 @@ surface CombiningAggregation {
         -- A process call with the no_aggregate label flushes any
         -- buffered bucket (as a combined emission if non-empty)
         -- and then emits the current line as a single-line
-        -- message. The call produces 1 or 2 emissions:
+        -- message. The call produces 0, 1 or 2 emissions:
         -- (bucket-flush if non-empty) followed by (current line
-        -- as single-line). The current line is never buffered
-        -- under no_aggregate.
+        -- as single-line, unless its raw length is 0, in which
+        -- case it is discarded per bucket_empty). The current
+        -- line is never buffered under no_aggregate.
 
     @guarantee NoAggregateResetsCarry
         -- A process call with the no_aggregate label resets
@@ -296,8 +319,12 @@ surface CombiningAggregation {
         --
         -- A combined emission of exactly one line (a flushed
         -- bucket containing just one start_group) does NOT
-        -- receive the multi-line tag, and is_multi_line is not
-        -- set.
+        -- receive the multi-line tag, and the aggregator does
+        -- not set is_multi_line. It never clears the flag either:
+        -- a line already combined upstream (for example by the
+        -- StackTraceAggregator, which the preprocessor labels
+        -- no_aggregate) arrives with is_multi_line set and keeps
+        -- it on its single-line emission.
 
     @guarantee TruncationTagging
         -- When an emission's content has the truncation marker
@@ -355,8 +382,9 @@ surface CombiningAggregation {
         -- bucket.flush() is invoked from MANY code paths,
         -- not only combined emissions:
         --   - Normal combined emission (lineCount > 1) at
-        --     pattern-boundary, start_group flush of the
-        --     prior bucket, or external flush().
+        --     no_aggregate flush of the prior bucket,
+        --     start_group flush of the prior bucket, or
+        --     external flush().
         --   - The noAggregate label's own single-line emit
         --     (the prior bucket is flushed, then msg is
         --     added to the now-empty bucket and flushed
@@ -376,9 +404,10 @@ surface CombiningAggregation {
         -- emission's IsTruncated may still propagate from
         -- the bucket leader's pre-emit state by in-place
         -- mutation (the leader's pointer is reused for the
-        -- emitted message), but no marker decoration is
-        -- applied unless the buffer itself crossed
-        -- line_limit during accumulation.
+        -- emitted message), but no tail marker is appended
+        -- unless bucket_content_len reached line_limit during
+        -- accumulation. A head marker is still prepended when
+        -- the should_truncate carry is set.
         --
         -- This is a DEVIATION from the Truncatable contract's
         -- UpstreamFlagPropagation invariant.
@@ -457,10 +486,14 @@ surface CombiningAggregation {
         -- 3. If label = aggregate AND bucket_empty:
         --    a. Add msg to the bucket.
         --    b. Flush the bucket via flush_bucket — emits as a
-        --       single-line message. The carry is honoured: if
+        --       single-line message, or nothing if msg's raw
+        --       length is 0. The carry is honoured: if
         --       should_truncate was set from a prior emission,
         --       this emission's content gets the marker
-        --       prepended.
+        --       prepended. Zero-raw-length lines already held
+        --       (see bucket_empty) are not discarded here: they
+        --       are emitted with msg, the first of them as leader
+        --       (see open question ZeroRawLengthLeader).
         --    Return collected.
         --
         -- 4. If label = start_group:
@@ -468,9 +501,15 @@ surface CombiningAggregation {
         --       via flush_bucket.
         --    b. Add msg to the (now empty) bucket.
         --    c. If msg.raw_data_len >= line_limit: flush the
-        --       bucket via flush_bucket — the start_group is
-        --       itself oversized and emits immediately as a
-        --       single-line truncated message.
+        --       bucket immediately via flush_bucket. The gate is
+        --       the raw length, which also counts bytes outside
+        --       the content (the line delimiter, a container
+        --       header), but flush_bucket appends a tail marker
+        --       only if the content length reaches line_limit.
+        --       So the line is emitted as a single-line message
+        --       with a tail marker if its content length >=
+        --       line_limit, and otherwise unmarked (apart from a
+        --       head marker from the should_truncate carry).
         --    d. Otherwise leave the bucket holding the
         --       start_group line and wait for subsequent
         --       aggregate or boundary calls.
@@ -494,24 +533,38 @@ surface CombiningAggregation {
         --
         -- flush_bucket procedure (called when the bucket may or
         -- may not be empty; emits the combined bucket if any):
-        --   1. If bucket_empty: reset bucket state (no-op
-        --      semantically — bucket already empty) and return
+        --   1. If bucket_empty: discard any held lines (all of
+        --      raw length 0), reset bucket state and return
         --      without emitting.
-        --   2. Build content = concat(bucket.lines, separator =
-        --      escaped_line_feed), trimmed of leading/trailing
-        --      whitespace.
+        --   2. Build content = concat(bucket.lines), writing the
+        --      escaped_line_feed separator before a line only
+        --      when the lines before it have non-zero
+        --      accumulated raw length, then trimmed of
+        --      leading/trailing whitespace.
         --   3. Determine truncated_reason: "single_line" if
         --      bucket_lines_count = 1, "auto_multiline" if > 1.
         --   4. Apply apply_truncation with shouldTruncate =
         --      (bucket_content_len >= line_limit) — the rare
         --      "combined bucket itself reaches the limit" path.
-        --   5. Set msg.is_multi_line = (bucket_lines_count > 1).
+        --   5. If bucket_lines_count > 1: set msg.is_multi_line
+        --      to true. Otherwise leave it as received — the
+        --      flag is never cleared, so a leader already marked
+        --      multi-line upstream keeps it.
         --   6. If bucket_lines_count > 1 AND tag_multi_line_logs:
         --      append the "auto_multiline" multi-line source tag.
         --   7. Emit (msg, leader_tokens). leader_tokens are the
         --      tokens of the FIRST line in the bucket.
+        --   7a. The emitted message's raw length is the sum of
+        --       the contributing lines' raw lengths, and its
+        --       checkpoint length the sum of their checkpoint
+        --       lengths (replacing the leader's own values). This
+        --       is load-bearing: file tailers advance their
+        --       offset checkpoint by these lengths, so the
+        --       emission must account for every contributing
+        --       line's source bytes.
         --   8. Reset bucket state (lines, content_len,
-        --      lines_count, original_data_len). should_truncate
+        --      lines_count, original_data_len,
+        --      checkpoint_data_len). should_truncate
         --      is NOT reset by this procedure — it follows the
         --      emission sequence.
         --
@@ -527,7 +580,7 @@ surface CombiningAggregation {
         --   1. Trim leading and trailing whitespace from
         --      msg.content.
         --   2. Apply apply_truncation with shouldTruncate =
-        --      (length(content) > line_limit OR
+        --      (length(trimmed content) > line_limit OR
         --       msg.is_truncated upstream).
         --   3. The truncation-reason value is "single_line".
         --   4. Emit (msg, that line's tokens).
@@ -558,3 +611,9 @@ surface CombiningAggregation {
         -- emissions across all paths — combined, exploded,
         -- single — and is reset only by NoAggregateResetsCarry.
 }
+
+------------------------------------------------------------
+-- Open Questions
+------------------------------------------------------------
+
+open question "ZeroRawLengthLeader: a zero-raw-length start_group line held while the bucket counts as empty becomes the leader of the next aggregate-on-empty emission, so one input line is emitted with is_multi_line set, the auto_multiline tag, and the empty line's tokens. No production source of raw_data_len = 0 is known (the framer counts the delimiter). Is this intended, or should zero-length lines count as buffered content (or be dropped when added)?"

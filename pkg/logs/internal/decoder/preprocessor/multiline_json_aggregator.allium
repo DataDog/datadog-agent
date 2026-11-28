@@ -17,8 +17,9 @@
 --   - The JSONAggregator contract itself. It lives in
 --     json_aggregator.allium and is imported here to declare
 --     fulfilment.
---   - Upstream message framing and aggregator selection
---     (json_detector.go, combining_aggregator.go)
+--   - Upstream message framing (pkg/logs/internal/framer) and
+--     aggregator selection (buildLineHandler in
+--     pkg/logs/internal/decoder/decoder.go)
 --   - Other JSON-aggregation strategies. NoopJSONAggregator is a
 --     trivial pass-through whose behaviour is described at the
 --     JSONAggregator contract level — its fulfiller is either
@@ -78,9 +79,8 @@ contract IncrementalJSONValidator {
         -- alone:
         --   (a) A genuine parse error — the accumulated bytes
         --       are unrecoverable, and any extension also
-        --       returns is_invalid_object true. Examples: a
-        --       top-level array (per TopLevelArrayInvalid),
-        --       or malformed syntax mid-parse.
+        --       returns is_invalid_object true. Example:
+        --       malformed syntax mid-parse.
         --   (b) A strict prefix of a valid JSON value whose
         --       leading token has not yet been completed.
         --       Examples: an unclosed string "\"foo", a
@@ -97,6 +97,15 @@ contract IncrementalJSONValidator {
         -- (a) is terminal and flushing is correct; (b) will
         -- eventually stabilise or complete on subsequent
         -- writes.
+        --
+        -- The aggregator resets the validator after every
+        -- is_invalid_object result (FlushOnInvalid), so it
+        -- never extends bytes the validator has already
+        -- rejected. Whether a given Invalid would later recover
+        -- is therefore unobservable through the aggregator; the
+        -- validator on its own may return is_complete_object on
+        -- a later write after rejecting a top-level array
+        -- (e.g. "[" then "{}").
 
     @invariant Determinism
         -- Both predicates are deterministic: the same input
@@ -119,14 +128,17 @@ contract IncrementalJSONValidator {
         -- tokens. The quirk is latent in normal operation:
         -- FastPathEmit's is_valid_json check (RFC 8259-wide)
         -- catches every single-message scalar before it
-        -- reaches the validator, so the only path to a scalar
-        -- being validated is a degenerate buffered sequence
-        -- where preceding bytes are not valid JSON. In that
-        -- case json.Compact on the joined bytes fails inside
-        -- EmitAggregated and the aggregator falls through to
-        -- the same flush behaviour the validator would have
-        -- requested directly. Spec consumers should not rely
-        -- on the validator to reject top-level scalars.
+        -- reaches the validator. From an empty buffer, a
+        -- top-level scalar reaches the validator only as part
+        -- of a message that is not valid JSON on its own
+        -- (e.g. "1 2"); EmitAggregated emits such a message
+        -- verbatim. From a non-empty buffer, a top-level
+        -- scalar can only trail the closing brace of the
+        -- buffered object (e.g. "{\"a\":1" then "} 2"); the
+        -- combined bytes are not valid JSON, compaction
+        -- fails, and FlushOnInvalid emits the buffer
+        -- unmodified. Spec consumers should not rely on the
+        -- validator to reject top-level scalars.
 }
 
 ------------------------------------------------------------
@@ -174,7 +186,7 @@ config {
     -- this bound, the buffer plus the new message are flushed
     -- unmodified. The default reflects the upstream pipeline's
     -- per-message size policy.
-    max_content_size: Integer = 1000000
+    max_content_size: Integer = 900000
 }
 
 ------------------------------------------------------------
@@ -254,23 +266,27 @@ rule BufferIncomplete {
 }
 
 -- Buffered path, complete: the would-be-aggregated bytes form
--- a complete top-level JSON object. The combined content is
--- compacted (insignificant whitespace removed) and emitted as
--- a single message; the buffer is cleared. When two or more
--- fragments contributed to the result and tag_complete_json
--- is enabled, the emitted message carries the aggregated JSON
--- tag.
+-- a complete top-level JSON object per the validator and, when
+-- two or more fragments contribute, the combined bytes are
+-- valid JSON. The combined content is compacted (insignificant
+-- whitespace removed) and emitted as a single message; the
+-- buffer is cleared. A single contributing message is emitted
+-- verbatim. When two or more fragments contributed to the
+-- result and tag_complete_json is enabled, the emitted message
+-- carries the aggregated JSON tag.
 
 rule EmitAggregated {
     when: MessageReceived(msg)
     requires: not (aggregation.is_empty and is_valid_json(msg.content))
     requires: aggregation.buffered_size + msg.raw_data_len <= config.max_content_size
     requires: is_complete_object(extend_bytes(aggregation.buffered_bytes, msg.content))
+    requires: aggregation.is_empty or is_valid_json(extend_bytes(aggregation.buffered_bytes, msg.content))
 
     let combined_count = aggregation.buffered.count + 1
     let combined_bytes = extend_bytes(aggregation.buffered_bytes, msg.content)
     let combined_raw_size = aggregation.buffered_size + msg.raw_data_len
     let was_aggregation = combined_count > 1
+    let output_content = if was_aggregation: compact(combined_bytes) else: msg.content
     let output_tags =
         if config.tag_complete_json and was_aggregation:
             tags_with_aggregated_marker(msg.tags)
@@ -281,7 +297,7 @@ rule EmitAggregated {
         for f in aggregation.buffered:
             not exists f
     ensures: MessageDelivered(
-        content: compact(combined_bytes),
+        content: output_content,
         raw_data_len: combined_raw_size,
         tags: output_tags
     )
@@ -291,27 +307,32 @@ rule EmitAggregated {
         -- JSON object. tags_with_aggregated_marker appends the
         -- opaque "complete JSON" tag (literal value defined by
         -- the implementation, not part of this contract). When
-        -- exactly one fragment was buffered (combined_count =
-        -- 1, which arises when the incoming message alone
-        -- completes the validator without taking the fast
-        -- path) the implementation skips compaction and emits
-        -- the message bytes directly; the spec captures this
-        -- as compact applied to a single complete object,
-        -- which is byte-equivalent except for whitespace
-        -- elision.
+        -- combined_count = 1 the buffer was empty, so the
+        -- incoming message completed the validator without
+        -- being valid JSON on its own (otherwise FastPathEmit
+        -- would have taken it), for example several values on
+        -- one line such as {"a":1}{"b":2}. Compaction would
+        -- fail on such bytes, so the message is emitted
+        -- verbatim.
 }
 
 -- Buffered path, invalid: the would-be-aggregated bytes are
--- not a valid (or in-progress) top-level JSON object. The
--- buffer plus the incoming message are emitted in arrival
--- order, unmodified; the buffer is cleared. No compaction,
--- no tag.
+-- not a valid (or in-progress) top-level JSON object, or the
+-- validator reports them complete but, with a non-empty
+-- buffer, the combined bytes are not valid JSON so compaction
+-- fails (e.g. "{\"a\":1" then "}{\"b\":2}"). The buffer plus
+-- the incoming message are emitted in arrival order,
+-- unmodified; the buffer is cleared. No compaction, no tag.
 
 rule FlushOnInvalid {
     when: MessageReceived(msg)
     requires: not (aggregation.is_empty and is_valid_json(msg.content))
     requires: aggregation.buffered_size + msg.raw_data_len <= config.max_content_size
-    requires: is_invalid_object(extend_bytes(aggregation.buffered_bytes, msg.content))
+    requires:
+        is_invalid_object(extend_bytes(aggregation.buffered_bytes, msg.content))
+        or (is_complete_object(extend_bytes(aggregation.buffered_bytes, msg.content))
+            and not aggregation.is_empty
+            and not is_valid_json(extend_bytes(aggregation.buffered_bytes, msg.content)))
 
     ensures:
         for f in aggregation.buffered:
@@ -518,3 +539,11 @@ surface JSONAggregation {
 --
 -- Anchored in: TestJSONAggregator_MidTokenSplitFallsBackToFlushOnInvalid
 -- (pkg/logs/internal/decoder/preprocessor/json_aggregator_test.go).
+
+------------------------------------------------------------
+-- Open Questions
+------------------------------------------------------------
+
+open question "BlankLineInsideObject: IncrementalJSONValidator returns Invalid for any write that contains no JSON token (empty line, whitespace-only line, lone ',' or ':') even while a top-level object is open, so pretty-printed JSON containing a blank line is flushed unaggregated. This contradicts the 'union of all bytes since the last reset' observability claim and Determinism. Should such lines keep aggregation going (BufferIncomplete) or abort it (FlushOnInvalid, as today)?"
+
+open question "MidTokenSplitWithJSONv2: MidTokenSplitNotAggregated relies on encoding/json v1 behaviour (Incomplete then Invalid). With Go 1.27's default json v2 implementation the same input yields Incomplete then Complete and is aggregated, so TestJSONAggregator_MidTokenSplitFallsBackToFlushOnInvalid will fail on upgrade. Should the fallback be guaranteed (requires a code change) or relaxed to 'may aggregate or fall back'?"
