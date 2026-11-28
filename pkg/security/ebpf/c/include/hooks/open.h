@@ -14,8 +14,18 @@
 // pid_tgid == 0 selects SYNC_SYSCALL with the current task; a non-zero pid_tgid
 // switches the syscall to ASYNC_SYSCALL and identifies the owner thread.
 static __always_inline int trace__sys_openat2(void *ctx, const char *path, int flags, umode_t mode, u64 pid_tgid) {
-    if (is_discarded_by_pid() || is_auid_discarder(EVENT_OPEN)) {
+    if (is_discarded_by_pid()) {
         return 0;
+    }
+
+    u32 resolver_flags = 0;
+    if (is_auid_discarder(EVENT_OPEN)) {
+        // The event is discarded for the rules, but the workload profiles still need it:
+        // flag it instead of dropping it, the sampler decides in handle_open if it reaches user space.
+        if (!is_open_sampling_enabled()) {
+            return 0;
+        }
+        resolver_flags = RESOLVER_FLAG_WORKLOAD_PROFILE_ONLY;
     }
 
     struct policy_t policy = fetch_policy(EVENT_OPEN);
@@ -23,6 +33,9 @@ static __always_inline int trace__sys_openat2(void *ctx, const char *path, int f
         .type = EVENT_OPEN,
         .policy = policy,
         .async = pid_tgid ? ASYNC_SYSCALL : SYNC_SYSCALL,
+        .resolver = {
+            .flags = resolver_flags,
+        },
         .open = {
             .flags = flags,
             .mode = mode & S_IALLUGO,
@@ -102,16 +115,22 @@ static __always_inline int handle_open(ctx_t *ctx, struct path *path) {
 
     set_file_inode(dentry, &syscall->open.file, PATH_ID_INVALIDATE_TYPE_NONE);
 
-    approve_syscall(syscall, open_approvers);
-    if (syscall->policy.mode == ACCEPT && approve_open_sample(syscall->open.dentry, &syscall->open.file, syscall) == SAMPLED) {
-        syscall->resolver.flags |= RESOLVER_FLAG_SAMPLED;
+    u8 profile_only = syscall->resolver.flags & RESOLVER_FLAG_WORKLOAD_PROFILE_ONLY;
+    if (profile_only) {
+        approve_open_profile_only(syscall);
+    } else {
+        approve_syscall(syscall, open_approvers);
+        if (syscall->policy.mode == ACCEPT && approve_open_sample(syscall->open.dentry, &syscall->open.file, syscall) == SAMPLED) {
+            syscall->resolver.flags |= RESOLVER_FLAG_SAMPLED;
+        }
     }
 
     // the runtime itself opens cgroupfs paths during cgroup resolution; those reads
     // must not be promoted to INTERNAL events or they would feed the resolver in a loop.
     u8 is_cgroupfs = is_cgroup2fs(syscall->open.dentry) && !is_runtime_request();
 
-    if (syscall->state != ACCEPTED && syscall->state != APPROVED && is_cgroupfs) {
+    // an event reserved to the workload profiles is never promoted to INTERNAL: it only reaches user space if sampled
+    if (!profile_only && syscall->state != ACCEPTED && syscall->state != APPROVED && is_cgroupfs) {
         syscall->state = INTERNAL;
     }
 
