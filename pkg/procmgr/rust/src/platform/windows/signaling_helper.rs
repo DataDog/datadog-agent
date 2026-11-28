@@ -33,6 +33,7 @@
 //! contain it too. Creation is synchronous, like ordinary workload creation;
 //! observing the report is asynchronous and does not wait for helper exit.
 
+use crate::clock::Clock;
 use std::ffi::OsString;
 use std::io::Write;
 use std::os::windows::io::FromRawHandle;
@@ -281,7 +282,7 @@ pub(crate) struct SignalingHelper {
 enum HelperBackend {
     Process(HelperProcess),
     #[cfg(test)]
-    Injected(Option<Report>),
+    Injected(Option<Result<Report, String>>),
 }
 
 /// Initiate Windows graceful signaling using the original process identity.
@@ -294,14 +295,25 @@ pub(crate) fn send_graceful_stop(
     launch_helper(target, job, LaunchOptions::default())
 }
 
-/// Resolve delivery in the daemon's waiting phase. This bounds only the helper
-/// operation; the caller retains its existing workload grace and force-kill waits.
+/// What the helper's report established within a stop's wait.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Delivery {
+    /// CTRL_BREAK was generated for the original target.
+    Generated,
+    /// No signal was generated: signaling failed, or the target had already exited.
+    Failed,
+    /// No usable report arrived or it was unreadable, so delivery is unknown.
+    Unreported,
+}
+
+/// Waits for the helper's report, returning no later than `timeout` (capped at 2 s).
 pub(crate) async fn wait_for_graceful_stop(
     helper: &mut SignalingHelper,
     name: &str,
     timeout: Duration,
-) -> bool {
-    let deadline = tokio::time::Instant::now() + timeout.min(Duration::from_secs(2));
+    clock: &Clock,
+) -> Delivery {
+    let deadline = clock.now() + timeout.min(Duration::from_secs(2));
     loop {
         let observation = helper.observe();
         if let Some(exit) = observation.exit
@@ -316,11 +328,11 @@ pub(crate) async fn wait_for_graceful_stop(
                         "[{name}] CTRL_BREAK event generated for original target {}",
                         report.target_pid
                     );
-                    true
+                    Delivery::Generated
                 }
                 Ok(report) if report.outcome == Outcome::AlreadyExited => {
                     log::info!("[{name}] original target already exited before signaling");
-                    false
+                    Delivery::Failed
                 }
                 Ok(report) => {
                     log::warn!(
@@ -328,20 +340,22 @@ pub(crate) async fn wait_for_graceful_stop(
                         report.stage,
                         report.error
                     );
-                    false
+                    Delivery::Failed
                 }
                 Err(error) => {
-                    log::warn!("[{name}] signaling failure or timeout: {error}");
-                    false
+                    log::warn!("[{name}] signaling helper failed, delivery unknown: {error}");
+                    Delivery::Unreported
                 }
             };
         }
-        let now = tokio::time::Instant::now();
+        let now = clock.now();
         if now >= deadline {
             log::warn!("[{name}] signaling helper report timed out");
-            return false;
+            return Delivery::Unreported;
         }
-        tokio::time::sleep_until((now + Duration::from_millis(10)).min(deadline)).await;
+        clock
+            .sleep((now + Duration::from_millis(10)).min(deadline) - now)
+            .await;
     }
 }
 
@@ -367,7 +381,7 @@ impl SignalingHelper {
     #[cfg(test)]
     pub(crate) fn test_report(outcome: Outcome) -> Self {
         Self {
-            backend: HelperBackend::Injected(Some(Report {
+            backend: HelperBackend::Injected(Some(Ok(Report {
                 outcome,
                 stage: if outcome == Outcome::Failed {
                     Stage::Attachment
@@ -376,7 +390,15 @@ impl SignalingHelper {
                 },
                 error: if outcome == Outcome::Failed { 5 } else { 0 },
                 target_pid: 42,
-            })),
+            }))),
+        }
+    }
+
+    /// A helper whose report is present but cannot be read.
+    #[cfg(test)]
+    pub(crate) fn test_report_error(message: &str) -> Self {
+        Self {
+            backend: HelperBackend::Injected(Some(Err(message.to_owned()))),
         }
     }
 
@@ -384,7 +406,7 @@ impl SignalingHelper {
         match &mut self.backend {
             #[cfg(test)]
             HelperBackend::Injected(report) => HelperObservation {
-                report: report.map(Ok),
+                report: report.clone(),
                 exit: None,
             },
             HelperBackend::Process(helper) => {
@@ -649,13 +671,44 @@ mod tests {
     async fn wait_stage_resolves_delivery_without_a_workload_deadline_policy() {
         for outcome in [Outcome::Generated, Outcome::AlreadyExited, Outcome::Failed] {
             let mut helper = SignalingHelper::test_report(outcome);
+            let expected = if outcome == Outcome::Generated {
+                Delivery::Generated
+            } else {
+                Delivery::Failed
+            };
             assert_eq!(
-                wait_for_graceful_stop(&mut helper, "delivery-test", Duration::from_secs(90)).await,
-                outcome == Outcome::Generated
+                wait_for_graceful_stop(
+                    &mut helper,
+                    "delivery-test",
+                    Duration::from_secs(90),
+                    &Clock::Real
+                )
+                .await,
+                expected
             );
         }
         let mut unreported = SignalingHelper::test_unreported();
-        assert!(!wait_for_graceful_stop(&mut unreported, "delivery-test", Duration::ZERO).await);
+        assert_eq!(
+            wait_for_graceful_stop(
+                &mut unreported,
+                "delivery-test",
+                Duration::ZERO,
+                &Clock::Real
+            )
+            .await,
+            Delivery::Unreported
+        );
+        let mut unreadable = SignalingHelper::test_report_error("report read failed");
+        assert_eq!(
+            wait_for_graceful_stop(
+                &mut unreadable,
+                "delivery-test",
+                Duration::from_secs(90),
+                &Clock::Real
+            )
+            .await,
+            Delivery::Unreported
+        );
     }
 
     #[tokio::test]
@@ -670,7 +723,10 @@ mod tests {
             },
         )
         .unwrap();
-        assert!(!wait_for_graceful_stop(&mut helper, "hung-helper", Duration::ZERO).await);
+        assert_eq!(
+            wait_for_graceful_stop(&mut helper, "hung-helper", Duration::ZERO, &Clock::Real).await,
+            Delivery::Unreported
+        );
         let HelperBackend::Process(process) = &helper.backend else {
             panic!("expected native helper");
         };

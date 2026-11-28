@@ -6,6 +6,7 @@
 pub mod agent_yaml;
 #[cfg(test)]
 mod aio_catalog;
+mod clock;
 pub mod command;
 pub mod config;
 pub mod config_gate;

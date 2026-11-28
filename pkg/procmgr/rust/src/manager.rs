@@ -50,6 +50,8 @@ pub struct ProcessManager {
     /// Indices into the `processes` Vec in dependency-resolved startup order.
     /// Recomputed on config reload so that indices stay in sync with the Vec.
     startup_order: Arc<RwLock<Vec<usize>>>,
+    /// Per index, the indices that depend on it. Kept in sync with `startup_order`.
+    startup_dependents: Arc<RwLock<Vec<Vec<usize>>>>,
     config_loader: Arc<dyn ConfigLoader>,
     uuid_gen: Arc<dyn UuidGenerator>,
     shutting_down: Arc<AtomicBool>,
@@ -74,6 +76,7 @@ impl ProcessManager {
             processes: Arc::new(RwLock::new(processes)),
             invalid: Arc::new(RwLock::new(invalid)),
             startup_order: Arc::new(RwLock::new(startup_result.order)),
+            startup_dependents: Arc::new(RwLock::new(startup_result.dependents)),
             config_loader,
             uuid_gen,
             shutting_down: Arc::new(AtomicBool::new(false)),
@@ -824,14 +827,16 @@ impl ProcessManager {
     async fn update_startup_order(&self) -> Vec<String> {
         let result = recompute_startup_order(&self.processes.read().await);
         *self.startup_order.write().await = result.order;
+        *self.startup_dependents.write().await = result.dependents;
         result.warnings
     }
 
     async fn shutdown(&self) {
         let n = self.processes.read().await.len();
         let ordered = self.startup_order.read().await.clone();
-        // Reverse dependency order for processes in the graph, then append
-        // cycle-excluded indices so a running omittee is still stopped.
+        let dependents = self.startup_dependents.read().await.clone();
+        // Reversed startup order, with cycle-excluded indices appended so a running
+        // omittee is still stopped.
         let mut order: Vec<usize> = ordered.iter().copied().rev().collect();
         let in_order: HashSet<usize> = ordered.into_iter().collect();
         for idx in 0..n {
@@ -840,7 +845,7 @@ impl ProcessManager {
             }
         }
         let mut procs = self.processes.write().await;
-        shutdown::shutdown_ordered(&mut procs, &order).await;
+        shutdown::shutdown_ordered(&mut procs, &order, &dependents).await;
     }
 
     fn run_start_pass(
@@ -966,6 +971,7 @@ fn resolve_index(
 /// as the Vec, the returned indices can be used directly for indexing into it.
 struct StartupOrderResult {
     order: Vec<usize>,
+    dependents: Vec<Vec<usize>>,
     warnings: Vec<String>,
 }
 
@@ -1031,6 +1037,7 @@ fn recompute_startup_order(procs: &[ManagedProcess]) -> StartupOrderResult {
     debug!("startup order: {}", names.join(" -> "));
     StartupOrderResult {
         order: result.order,
+        dependents: result.dependents,
         warnings: result.warnings,
     }
 }
@@ -2174,6 +2181,15 @@ mod tests {
             vec!["svc-a", "svc-b"],
             "runtime process with after-dep should appear in startup order"
         );
+
+        let dependents = mgr.startup_dependents.read().await;
+        let idx = |name: &str| procs.iter().position(|p| p.name() == name).unwrap();
+        assert_eq!(
+            dependents[idx("svc-a")],
+            vec![idx("svc-b")],
+            "svc-b should be the dependent of svc-a after handle_create"
+        );
+        assert!(dependents[idx("svc-b")].is_empty());
         Ok(())
     }
 
@@ -2541,6 +2557,62 @@ mod tests {
             names,
             vec!["svc-b", "svc-api"],
             "startup order should be recomputed with dependency constraints"
+        );
+
+        // svc-api starts after svc-b, so it is svc-b's dependent.
+        let dependents = mgr.startup_dependents.read().await;
+        let idx = |name: &str| procs.iter().position(|p| p.name() == name).unwrap();
+        assert_eq!(
+            dependents[idx("svc-b")],
+            vec![idx("svc-api")],
+            "svc-api should be the dependent of svc-b after the reload"
+        );
+        assert!(dependents[idx("svc-api")].is_empty());
+        Ok(())
+    }
+
+    /// `svc-db` must stop only after its dependent `svc-app`, through `ProcessManager::shutdown`.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_shutdown_stops_dependency_after_dependent() -> anyhow::Result<()> {
+        let dir = tempfile::tempdir()?;
+        let app_done = dir.path().join("app.done").display().to_string();
+        let db_ordered = dir.path().join("db.ordered");
+        let db_ready = dir.path().join("db.ready");
+        let app_ready = dir.path().join("app.ready");
+
+        let db_script = format!(
+            "trap 'if [ -e \"{app_done}\" ]; then touch \"{}\"; fi; exit 0' TERM; touch \"{}\"; while :; do sleep 0.05; done",
+            db_ordered.display(),
+            db_ready.display()
+        );
+        let app_script = format!(
+            "trap 'sleep 0.3; touch \"{app_done}\"; exit 0' TERM; touch \"{}\"; while :; do sleep 0.05; done",
+            app_ready.display()
+        );
+        let db = ProcessDefinition {
+            name: "svc-db".to_string(),
+            config: test_helpers::make_config("/bin/sh", vec!["-c".into(), db_script]),
+        };
+        let mut app_config = test_helpers::make_config("/bin/sh", vec!["-c".into(), app_script]);
+        app_config.after = vec!["svc-db".to_string()];
+        let app = ProcessDefinition {
+            name: "svc-app".to_string(),
+            config: app_config,
+        };
+
+        let mgr = ProcessManager::new(loader(vec![db, app]), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.start(&exit_tx).await;
+        let timeout = std::time::Duration::from_secs(10);
+        test_helpers::wait_for_file(&db_ready, timeout).await;
+        test_helpers::wait_for_file(&app_ready, timeout).await;
+
+        mgr.shutdown().await;
+
+        assert!(
+            db_ordered.exists(),
+            "svc-db was stopped before its dependent svc-app had finished stopping"
         );
         Ok(())
     }
