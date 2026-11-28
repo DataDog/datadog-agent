@@ -5,7 +5,7 @@
 .new_e2e_fleet_template:
   extends: .new_e2e_template
   rules:
-    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.on_installer_tests_or_e2e_changes]
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
@@ -107,7 +107,7 @@ new-e2e-installer-script:
   # 23 min (p99), and failed tests need time to be retried.
   timeout: 35m
   rules:
-    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.on_installer_tests_or_e2e_changes]
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
@@ -130,7 +130,7 @@ new-e2e-installer-script:
 new-e2e-installer:
   extends: .new_e2e_template
   rules:
-    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.on_installer_tests_or_e2e_changes]
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
@@ -166,7 +166,7 @@ new-e2e-installer:
 new-e2e-installer-ansible:
   extends: .new_e2e_template
   rules:
-    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.on_installer_tests_or_e2e_changes]
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]

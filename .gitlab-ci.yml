@@ -997,7 +997,10 @@ workflow:
 
 # New E2E related rules
 
-.on_e2e_main_release_or_rc: # This rule is used as a base for all new-e2e rules
+# Base for all new-e2e rules, minus config schema changes. Use it directly only for the heaviest
+# matrixes (fleet, installer, Windows installer), which config schema changes rarely affect but which
+# use a large share of the E2E infrastructure (IPs). main, release branches and RC tags still run them.
+.on_e2e_main_release_or_rc_except_config_schema:
   - <<: *if_disable_e2e_tests
     when: never
   - !reference [.except_light_pipeline]
@@ -1026,7 +1029,6 @@ workflow:
     when: on_success
   - changes:
       paths:
-        - pkg/config/schema/**/* # incident-60254
         - .gitlab/test/e2e/*.yml
         - bazel/rules/go_shim/**/* # Runs bazelified Go tools
         - internal/tools/**/* # Go tools: gotestsum, etc. (incident-59251/59255/59256/59257/59258)
@@ -1034,6 +1036,13 @@ workflow:
         - test/new-e2e/go.mod
         - flakes.yaml
         - release.json
+      compare_to: $COMPARE_TO_BRANCH
+
+.on_e2e_main_release_or_rc: # This rule is used as a base for all new-e2e rules
+  - !reference [.on_e2e_main_release_or_rc_except_config_schema]
+  - changes:
+      paths:
+        - pkg/config/schema/**/* # incident-60254
       compare_to: $COMPARE_TO_BRANCH
 
 .dynamic_tests:
@@ -1045,8 +1054,10 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
+# Windows installer test matrix: not triggered by config schema changes alone, see
+# .on_e2e_main_release_or_rc_except_config_schema.
 .on_e2e_or_windows_installer_changes:
-  - !reference [.on_e2e_main_release_or_rc]
+  - !reference [.on_e2e_main_release_or_rc_except_config_schema]
   - <<: *if_windows_installer_changes
     when: on_success
 
@@ -1113,10 +1124,11 @@ workflow:
       paths: *security_agent_change_paths
       compare_to: $COMPARE_TO_BRANCH
 
+# Used by the deploy/QA jobs the installer tests need, so they keep running whenever any e2e job may.
 .on_installer_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
-      paths:
+      paths: &installer_change_paths
         - .gitlab/build/packaging/**/* # https://github.com/DataDog/datadog-agent/pull/56690
         - .gitlab/windows/build/packaging/**/* # https://github.com/DataDog/datadog-agent/pull/56690
         - .gitlab/deploy/**/*
@@ -1130,6 +1142,15 @@ workflow:
         - test/new-e2e/tests/installer/**/*
         - tasks/installer.py
         - tools/windows/DatadogAgentInstaller/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+# Fleet and installer test matrixes: not triggered by config schema changes alone, see
+# .on_e2e_main_release_or_rc_except_config_schema.
+.on_installer_tests_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc_except_config_schema]
+  - changes:
+      paths: *installer_change_paths
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
