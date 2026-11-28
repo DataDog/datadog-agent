@@ -1,0 +1,6 @@
+---
+security:
+  - |
+    Private Action Runner: ``runCommand`` and ``runRemediationCommand`` now stop
+    an rshell script after 10 minutes when the task sets no timeout. A task
+    timeout, when set, still applies instead.
