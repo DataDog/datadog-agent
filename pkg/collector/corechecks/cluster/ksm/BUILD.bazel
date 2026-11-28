@@ -60,8 +60,10 @@ dd_agent_go_test(
     name = "ksm_test",
     srcs = [
         "kubernetes_state_aggregators_test.go",
+        "kubernetes_state_bench_test.go",
         "kubernetes_state_label_joins_test.go",
         "kubernetes_state_string_cache_test.go",
+        "kubernetes_state_tags_test.go",
         "kubernetes_state_telemetry_test.go",
         "kubernetes_state_test.go",
         "kubernetes_state_transformers_test.go",
@@ -79,6 +81,7 @@ dd_agent_go_test(
         "//comp/core/tagger/fx-mock",
         "//comp/core/tagger/mock",
         "//comp/core/tagger/types",
+        "//comp/core/workloadmeta/collectors/util",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//comp/core/workloadmeta/mock",

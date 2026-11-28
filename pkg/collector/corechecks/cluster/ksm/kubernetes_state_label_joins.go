@@ -8,6 +8,7 @@
 package ksm
 
 import (
+	"maps"
 	"slices"
 	"strings"
 
@@ -66,6 +67,11 @@ type joinsConfig struct {
 
 type labelJoiner struct {
 	metricsToJoin map[string]metricToJoin
+	// joins are the values of metricsToJoin, which getLabelsToAdd goes through
+	// for every series: ranging over a slice is cheaper than over a map.
+	joins []metricToJoin
+	// labelsToAdd is the buffer that getLabelsToAdd reuses for every series.
+	labelsToAdd []label
 }
 
 // argoRolloutLabelName is the KSM-normalized name of the rollouts-pod-template-hash label.
@@ -105,6 +111,7 @@ func newLabelJoiner(config map[string]*joinsConfig) *labelJoiner {
 
 	return &labelJoiner{
 		metricsToJoin: metricsToJoin,
+		joins:         slices.Collect(maps.Values(metricsToJoin)),
 	}
 }
 
@@ -263,10 +270,13 @@ func (lj *labelJoiner) getLabelsToAddOne(inputLabels ksmstore.Labels, config *jo
 	*labelsToAdd = append(*labelsToAdd, node.labelsToAdd...)
 }
 
-func (lj *labelJoiner) getLabelsToAdd(inputLabels ksmstore.Labels) (labelsToAdd []label) {
-	for _, metricToJoin := range lj.metricsToJoin {
+// getLabelsToAdd returns the labels that the label joins add to a series of
+// inputLabels. The result is only valid until the next call, which reuses it.
+func (lj *labelJoiner) getLabelsToAdd(inputLabels ksmstore.Labels) []label {
+	labelsToAdd := lj.labelsToAdd[:0]
+	for _, metricToJoin := range lj.joins {
 		lj.getLabelsToAddOne(inputLabels, metricToJoin.config, metricToJoin.tree, &labelsToAdd)
 	}
-
-	return
+	lj.labelsToAdd = labelsToAdd
+	return labelsToAdd
 }
