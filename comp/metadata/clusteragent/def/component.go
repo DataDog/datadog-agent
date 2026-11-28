@@ -14,4 +14,8 @@ import "net/http"
 type Component interface {
 	// WritePayloadAsJSON writes the payload as JSON to the response writer. It is used by cluster-agent metadata endpoint.
 	WritePayloadAsJSON(w http.ResponseWriter, _ *http.Request)
+	// SetRCClientID records the ID of this cluster-agent's Remote Config client, reported as
+	// `rc_client_id` in the metadata payload so the backend can target this replica (e.g. for
+	// flares). The RC client is built after the component, so it is set once it exists.
+	SetRCClientID(id string)
 }

@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    The Cluster Agent metadata payload now reports ``rc_client_id``, the ID
+    of the replica's Remote Configuration client, so that Fleet Automation
+    can target a specific Cluster Agent replica (for example to request a
+    flare). The field is empty when Remote Configuration is disabled.
