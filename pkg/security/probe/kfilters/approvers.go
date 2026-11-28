@@ -256,6 +256,23 @@ func Basename(parent bool) rules.ApproverModel {
 	})
 }
 
+// Extension approves the extensions of the files on the suffix of their
+// basename, an extension being everything from the basename's last '.'. Like the
+// rule comparison, it adds the leading dot a value may omit (`"yml"` is `".yml"`).
+var Extension = rules.ApproverModel(func(c rules.Comparison) ([]rules.Approver, bool) {
+	ext, ok := c.Equal()
+	if !ok {
+		return nil, false
+	}
+	if !strings.HasPrefix(ext, ".") {
+		ext = "." + ext
+	}
+	if len(ext) < patternAffixSize {
+		return nil, false
+	}
+	return approvers(basename{key: basenameApprover{kind: leafBasenameSuffix, value: ext[len(ext)-patternAffixSize:]}})
+})
+
 // Bits approves the flags having one of some bits set. With zero, it approves
 // the flags having none set, `field == 0`.
 func Bits(table string, weight int, zero bool) rules.ApproverModel {

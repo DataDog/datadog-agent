@@ -267,6 +267,57 @@ func TestFilterOpenBasenameSuffixApprover(t *testing.T) {
 	}
 }
 
+func TestFilterOpenExtensionApprover(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// without the leading dot, which the rule comparison adds
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.file.extension == "yaml"`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withDynamicOpts(dynamicTestOpts{disableBundledRules: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	var fd1, fd2 int
+	var testFile1, testFile2 string
+
+	testFile1, _, err = test.Path("test-oea-1.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile1)
+
+	if err := waitForOpenProbeEvent(test, func() error {
+		fd1, err = openTestFile(test, testFile1, syscall.O_CREAT)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd1)
+	}, testFile1); err != nil {
+		t.Fatal(err)
+	}
+
+	testFile2, _, err = test.Path("test-oea-2.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile2)
+
+	if err := waitForOpenProbeEvent(test, func() error {
+		fd2, err = openTestFile(test, testFile2, syscall.O_CREAT)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd2)
+	}, testFile2); err == nil {
+		t.Fatal("shouldn't get an event")
+	}
+}
+
 func TestFilterOpenParentBasenameApprover(t *testing.T) {
 	SkipIfNotAvailable(t)
 

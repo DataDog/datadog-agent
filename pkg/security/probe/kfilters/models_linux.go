@@ -12,16 +12,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-// fileApprovers approves the paths and the names of the files of an event type
-// on their basename, and the paths on the basename of their parent directory
-// with parent.
+// fileApprovers approves the paths, the names and the extensions of the files of
+// an event type on their basename, and the paths on the basename of their parent
+// directory with parent.
 func fileApprovers(event model.EventType, parent bool, files ...string) rules.ApproverModel {
 	var models []rules.ApproverModel
 	for _, file := range files {
 		prefix := event.String() + "." + file
 		models = append(models,
 			rules.On(Basename(parent), prefix+".path"),
-			rules.On(Basename(false), prefix+".name"))
+			rules.On(Basename(false), prefix+".name"),
+			rules.On(Extension, prefix+".extension"))
 	}
 	return rules.Any(models...)
 }
