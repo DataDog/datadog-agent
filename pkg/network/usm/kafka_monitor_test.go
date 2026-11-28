@@ -485,7 +485,6 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 							DialFn:        dialFn,
 							CustomOptions: []kgo.Opt{
 								kgo.MaxVersions(version),
-								kgo.ConsumeTopics(tt.topicName),
 								kgo.ClientID("test-client"),
 							},
 						})
@@ -497,6 +496,11 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 						ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
 						defer cancel()
 						require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+
+						// fetch once instead of consuming, whose background fetches would count in later sub-tests
+						fetch := generateFetchRequest(expectedAPIVersionFetch, tt.topicName)
+						_, err = fetch.RequestWith(ctxTimeout, client.Client)
+						require.NoError(t, err)
 
 						var telemetryMap *kafka.RawKernelTelemetry
 						require.EventuallyWithT(t, func(collect *assert.CollectT) {
