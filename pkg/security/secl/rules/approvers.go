@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/pass"
 )
 
 // Approvers are just filter values indexed by field
@@ -301,12 +300,7 @@ func ruleApprovers(rule *Rule, model ApproverModel) (FilterValues, bool, error) 
 		return nil, false, errors.New("rule not compiled")
 	}
 
-	normalized, err := pass.Run(tree, pass.NegationNormalForm(), pass.FoldBools())
-	if err != nil {
-		return nil, false, err
-	}
-
-	approvers, ok := approversOf(normalized.(*ast.Rule).Root, model)
+	approvers, ok := approversOf(tree.Root, model)
 	return approvers, ok, nil
 }
 

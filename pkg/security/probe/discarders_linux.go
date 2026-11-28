@@ -222,7 +222,7 @@ func getParentDiscarderFnc(rs *rules.RuleSet, eventType model.EventType, field e
 
 	var canMatch []func(dir, overlayDir string) bool
 	for _, rule := range bucket.GetRules() {
-		below, err := canMatchBelow(rule.GetResolvedAst().Root, field, true)
+		below, err := canMatchBelow(rule.GetResolvedAst().Root, field)
 		if below == nil || err != nil {
 			return nil, err
 		}
@@ -233,21 +233,26 @@ func getParentDiscarderFnc(rs *rules.RuleSet, eventType model.EventType, field e
 	}, nil
 }
 
-// canMatchBelow returns whether the expression can be true below a directory,
-// or false when it is under an odd number of negations. Only the comparisons of
-// the field in a positive position are decided.
-func canMatchBelow(node ast.Node, field eval.Field, positive bool) (func(dir, overlayDir string) bool, error) {
+// canMatchBelow returns whether the expression, in negation normal form, can be
+// true below a directory. Only the comparisons of the field and the false
+// literal are decided, a negated comparison being undecided.
+func canMatchBelow(node ast.Node, field eval.Field) (func(dir, overlayDir string) bool, error) {
 	switch n := node.(type) {
+	case *ast.Literal:
+		if n.Value.Kind() == ast.Bool && !ast.BoolVal(n.Value) {
+			// never true, below any directory
+			return func(_, _ string) bool { return false }, nil
+		}
 	case *ast.LogicalExpr:
-		left, err := canMatchBelow(n.Left, field, positive)
+		left, err := canMatchBelow(n.Left, field)
 		if err != nil {
 			return nil, err
 		}
-		right, err := canMatchBelow(n.Right, field, positive)
+		right, err := canMatchBelow(n.Right, field)
 		if err != nil {
 			return nil, err
 		}
-		if (n.Op == ast.LogicalAnd) == positive {
+		if n.Op == ast.LogicalAnd {
 			if left == nil {
 				return right, nil
 			}
@@ -260,22 +265,18 @@ func canMatchBelow(node ast.Node, field eval.Field, positive bool) (func(dir, ov
 			return nil, nil
 		}
 		return func(dir, overlayDir string) bool { return left(dir, overlayDir) || right(dir, overlayDir) }, nil
-	case *ast.UnaryExpr:
-		if n.Op == ast.UnaryNot {
-			return canMatchBelow(n.Operand, field, !positive)
-		}
 	case *ast.ScalarCompareExpr:
 		left, right := n.Left, n.Right
 		if n.Op == ast.ScalarEqual && !isFieldRef(left, field) {
 			left, right = right, left
 		}
 		literal, ok := right.(*ast.Literal)
-		if ok && positive && isFieldRef(left, field) && (n.Op == ast.ScalarEqual || n.Op == ast.ScalarMatch) {
+		if ok && isFieldRef(left, field) && (n.Op == ast.ScalarEqual || n.Op == ast.ScalarMatch) {
 			return literalBelow(literal, n.Op == ast.ScalarMatch)
 		}
 	case *ast.ArrayCompareExpr:
 		array, ok := n.Right.(*ast.Array)
-		if !ok || !positive || !isFieldRef(n.Left, field) || n.Op != ast.ArrayIn {
+		if !ok || !isFieldRef(n.Left, field) || n.Op != ast.ArrayIn {
 			return nil, nil
 		}
 		members := make([]func(dir, overlayDir string) bool, 0, len(array.Members))

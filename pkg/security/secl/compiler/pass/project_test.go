@@ -25,10 +25,11 @@ func TestProjectField(t *testing.T) {
 		{`open.file.path == "/a" || process.uid == 0`, "open.file.path", `true`},
 		{`process.uid == 0`, "open.file.path", `true`},
 
-		// an unknown leaf under a negation is false
+		// negations
 		{`!(open.file.path == "/a" && process.uid == 0)`, "open.file.path", `true`},
-		{`!(open.file.path == "/a" || process.uid == 0)`, "open.file.path", `(! (== open.file.path "/a"))`},
-		{`!!(open.file.path == "/a" && process.uid == 0)`, "open.file.path", `(! (! (== open.file.path "/a")))`},
+		{`!(open.file.path == "/a" || process.uid == 0)`, "open.file.path", `(!= open.file.path "/a")`},
+		{`!!(open.file.path == "/a" && process.uid == 0)`, "open.file.path", `(== open.file.path "/a")`},
+		{`!(open.file.path < "/a" || process.uid == 0)`, "open.file.path", `(! (< open.file.path "/a"))`},
 		{`!process.is_kworker && open.file.name == "a"`, "open.file.name", `(== open.file.name "a")`},
 
 		// a leaf is kept or replaced as a whole
@@ -50,7 +51,7 @@ func TestProjectField(t *testing.T) {
 			require.NoError(t, err)
 			original := ast.Sprint(rule)
 
-			projected, err := Run(rule, ResolveIdents(testLookup), ResolveFields(nil), ProjectFields([]string{test.field}), FoldBools())
+			projected, err := Run(rule, ResolveIdents(testLookup), ResolveFields(nil), NegationNormalForm(), ProjectFields([]string{test.field}), FoldBools())
 			require.NoError(t, err)
 			require.Equal(t, test.expected, ast.Sprint(projected))
 			require.Equal(t, original, ast.Sprint(rule), "the parsed tree is left unchanged")
@@ -74,7 +75,7 @@ func TestProjectFieldSet(t *testing.T) {
 			rule, err := parser.ParseRule(test.expr)
 			require.NoError(t, err)
 
-			projected, err := Run(rule, ResolveIdents(testLookup), ResolveFields(nil), ProjectFields([]string{"open.file.path", "open.file.name"}), FoldBools())
+			projected, err := Run(rule, ResolveIdents(testLookup), ResolveFields(nil), NegationNormalForm(), ProjectFields([]string{"open.file.path", "open.file.name"}), FoldBools())
 			require.NoError(t, err)
 			require.Equal(t, test.expected, ast.Sprint(projected))
 		})
@@ -94,7 +95,7 @@ func TestProjectFieldMacros(t *testing.T) {
 	rule, err := parser.ParseRule(`is_root && process.name == "sh"`)
 	require.NoError(t, err)
 
-	projected, err := Run(rule, ResolveIdents(lookup), ResolveFields(nil), ProjectFields([]string{"open.file.path"}), FoldBools())
+	projected, err := Run(rule, ResolveIdents(lookup), ResolveFields(nil), NegationNormalForm(), ProjectFields([]string{"open.file.path"}), FoldBools())
 	require.NoError(t, err)
 	require.Equal(t, `{is_root (== open.file.path "/a")}`, ast.Sprint(projected))
 }
