@@ -51,6 +51,7 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_pod_container_status_restarts_total":                                                 "container.restarts",
 		"kube_pod_container_status_running":                                                        "container.running",
 		"kube_pod_status_ready":                                                                    "pod.ready",
+		"kube_pod_status_unready":                                                                  "pod.unready",
 		"kube_pod_status_scheduled":                                                                "pod.scheduled",
 		"kube_pod_spec_volumes_persistentvolumeclaims_readonly":                                    "pod.volumes.persistentvolumeclaims_readonly",
 		"kube_pod_status_unschedulable":                                                            "pod.unschedulable",
