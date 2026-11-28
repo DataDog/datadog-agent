@@ -57,9 +57,14 @@ var CollectorPriorities = make(map[string]types.CollectorPriority)
 // WorkloadMetaCollector collects tags from the metadata in the workloadmeta
 // store.
 type WorkloadMetaCollector struct {
-	store        workloadmeta.Component
+	store        *trackingStore
 	cfg          config.Component
 	children     map[types.EntityID]map[types.EntityID]struct{}
+	dependencies *dependencyIndex
+	// lastEvents has the last set event of the entities that can be re-tagged
+	// without an event of their own. They're re-tagged from what that event
+	// had: for a partial unset, the entity as it was before the removal.
+	lastEvents   map[workloadmeta.EntityID]workloadmeta.Event
 	tagProcessor taggerdef.Processor
 
 	containerEnvAsTags              map[string]string
@@ -253,9 +258,11 @@ func (c *WorkloadMetaCollector) stream(ctx context.Context) {
 func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store workloadmeta.Component, p taggerdef.Processor) *WorkloadMetaCollector {
 	c := &WorkloadMetaCollector{
 		tagProcessor:                      p,
-		store:                             store,
+		store:                             &trackingStore{Component: store},
 		cfg:                               cfg,
 		children:                          make(map[types.EntityID]map[types.EntityID]struct{}),
+		dependencies:                      newDependencyIndex(),
+		lastEvents:                        make(map[workloadmeta.EntityID]workloadmeta.Event),
 		staticTags:                        make(map[string][]string),
 		collectEC2ResourceTags:            cfg.GetBool("ecs_collect_resource_tags_ec2"),
 		collectPersistentVolumeClaimsTags: cfg.GetBool("kubernetes_persistent_volume_claims_as_tags"),
