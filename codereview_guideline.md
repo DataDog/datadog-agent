@@ -3,7 +3,7 @@ Focus on issues that impact correctness, performance, security, maintainability,
 Flag only actionable issues introduced by the pull request.
 When you flag an issue, provide a short, direct explanation and cite the affected file and line range.
 Prioritize severe issues and avoid nit-level comments unless they block understanding of the diff.
-After listing findings, produce an overall correctness verdict ("patch is correct" or "patch is incorrect") with a concise justification.
+After listing findings, produce an overall correctness verdict ("patch is correct" or "patch is incorrect") with a concise justification. Missing test coverage counts toward this verdict as described in "Test requirements (blocking)".
 Ensure that file citations and line numbers are exactly correct using the tools available; if they are incorrect your comments will be rejected.
 
 ## Project-specific review checklist
@@ -12,16 +12,50 @@ The following are areas of particular concern for this codebase. They highlight
 project-specific risks that have led to production bugs in the Datadog Agent.
 Apply them in addition to the general review guidance above.
 
-### E2E coverage with fakeintake
-The E2E framework (`test/new-e2e/`) uses fakeintake, a mock Datadog intake that
-captures metrics, logs, traces, and check runs. When a change affects
-user-visible behavior (new metrics, changed log output, modified payloads),
-check whether an E2E test asserts the expected data arrives in fakeintake. Unit
-tests alone are not sufficient for validating the agent's end-to-end data
-pipeline.
+### Test requirements (blocking)
+A change that alters Agent behavior is incomplete without a test that would
+fail if that behavior broke. An unmet requirement below is a correctness
+finding: report it and give the verdict "patch is incorrect".
 
-When a PR creates a new E2E test, use the `e2e-audit` skill to verify that its
-assertions require the deployed Agent or its real environment.
+For each behavior the PR adds or changes, name the failure a test must catch
+and pick the cheapest level that still catches it. Ask what the test would stop
+validating if its dependencies were replaced, not whether mocks are possible:
+
+- **Unit**: isolated logic (parsing, validation, transformations, defaults,
+  error handling).
+- **Integration**: a boundary that can be kept locally: components wired with
+  `fx.Test`, a local fakeintake or `httptest` server, a real local daemon.
+- **E2E** (`test/new-e2e/`): the deployed Agent or its real environment is part
+  of the behavior: packaging, installation, permissions, service lifecycle,
+  cross-process communication, kernel/OS/cloud/orchestrator behavior, or data
+  reaching fakeintake when the real assembly, configuration or forwarding path
+  is what can break.
+
+The `e2e-audit` skill applies these criteria in depth; use it when it is
+available.
+
+Report "patch is incorrect" when the PR:
+
+1. Fixes a bug without a test that fails before the fix and passes after it.
+2. Adds or changes observable behavior (a metric, tag, log line, payload field,
+   config setting, CLI output, API response) with no test asserting it at any
+   level.
+3. Changes a deployed boundary listed under E2E, with no E2E test covering it
+   and neither the `qa/rc-required` label nor a QA plan in the PR description
+   that exercises the deployed boundary.
+4. Adds an E2E test as the only coverage of logic that a unit or integration
+   test could check: the lower-level test is required, and the E2E test must
+   keep at least one assertion that needs the deployed boundary.
+
+Existing tests count: if a test already on the base branch would fail when the
+changed behavior breaks, say which one and do not require another. No test is
+required for changes with no behavior change: refactors already covered by
+tests, docs, comments, CI configuration that does not affect packaging, test
+code, and generated code.
+
+Each finding names the untested behavior, the failure it would miss, the level
+required, and where the test belongs (package or test file). Do not ask for a
+higher level than that failure needs.
 
 ### Branch-conditional CI creates blind spots
 Most E2E tests only run on `main`, release branches (`N.N.x`), and RC tags —

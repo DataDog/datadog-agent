@@ -300,7 +300,7 @@ Ships on Linux (amd64, arm64), Windows (amd64), and macOS (amd64, arm64), plus c
 
 ## Review guidelines
 
-See `codereview_guideline.md` in this directory for the full project-specific review checklist (E2E coverage, CI blind spots, multi-platform divergence, concurrency, graceful degradation, stale docs, Go-specific rules). Load it when reviewing any PR against this repo.
+See `codereview_guideline.md` in this directory for the full project-specific review checklist (test requirements, CI blind spots, multi-platform divergence, concurrency, graceful degradation, stale docs, Go-specific rules). Load it when reviewing any PR against this repo.
 
 ## Keeping AI context accurate
 
