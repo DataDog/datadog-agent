@@ -11,7 +11,7 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
+	"testing/synctest"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
@@ -53,6 +53,7 @@ func TestBaseTailer_run_erroredContainer(t *testing.T) {
 
 	tailerStarted := atomic.NewInt32(0)
 	tailerStopped := atomic.NewInt32(0)
+	thirdStart := make(chan struct{})
 
 	// emulate a.Start(), but with fake tryStartTailer and stopTailer
 	go b.run(
@@ -61,9 +62,10 @@ func TestBaseTailer_run_erroredContainer(t *testing.T) {
 			if tailerStarted.Inc() < 3 {
 				// have the tailer fail after starting successfully
 				go func() {
-					time.Sleep(10 * time.Millisecond)
 					erroredContainerID <- "abcd"
 				}()
+			} else {
+				close(thirdStart)
 			}
 			return &containerTailerPkg.Tailer{}, erroredContainerID, nil
 		},
@@ -72,9 +74,7 @@ func TestBaseTailer_run_erroredContainer(t *testing.T) {
 		})
 
 	// wait until the inner tailer has started a third time due to two errors
-	for tailerStarted.Load() < 3 {
-		time.Sleep(1 * time.Millisecond)
-	}
+	<-thirdStart
 
 	// stop the tailer
 	b.Stop()
@@ -91,12 +91,15 @@ func TestBaseTailer_run_canStopWithError(t *testing.T) {
 
 	tailerStarted := atomic.NewInt32(0)
 	tailerStopped := atomic.NewInt32(0)
+	started := make(chan struct{})
 
 	// emulate dst.Start(), but with fake tryStartTailer and stopTailer
 	erroredContainerID := make(chan string)
 	go b.run(
 		func() (*containerTailerPkg.Tailer, chan string, error) {
-			tailerStarted.Inc()
+			if tailerStarted.Inc() == 1 {
+				close(started)
+			}
 			return &containerTailerPkg.Tailer{}, erroredContainerID, nil
 		},
 		func(*containerTailerPkg.Tailer) {
@@ -109,9 +112,7 @@ func TestBaseTailer_run_canStopWithError(t *testing.T) {
 		})
 
 	// wait until the inner tailer has started
-	for tailerStarted.Load() < 1 {
-		time.Sleep(1 * time.Millisecond)
-	}
+	<-started
 
 	// stop the tailer - this should not block.
 	b.Stop()
@@ -122,72 +123,74 @@ func TestBaseTailer_run_canStopWithError(t *testing.T) {
 }
 
 func TestBaseTailer_run_error_starting(t *testing.T) {
-	backoffInitialDuration = 1 * time.Millisecond
-	defer func() { backoffInitialDuration = 1 * time.Second }()
+	// The backoff delays are waited on the bubble's fake clock: no need to shorten them.
+	synctest.Test(t, func(t *testing.T) {
+		a := &APITailer{}
+		a.ctx, a.cancel = context.WithCancel(context.Background())
+		a.stopped = make(chan struct{})
 
-	a := &APITailer{}
-	a.ctx, a.cancel = context.WithCancel(context.Background())
-	a.stopped = make(chan struct{})
+		tailerStarted := atomic.NewInt32(0)
+		tailerStopped := atomic.NewInt32(0)
+		thirdStart := make(chan struct{})
 
-	tailerStarted := atomic.NewInt32(0)
-	tailerStopped := atomic.NewInt32(0)
+		// emulate dst.Start(), but with fake tryStartTailer and stopTailer
+		go a.run(
+			func() (*containerTailerPkg.Tailer, chan string, error) {
+				if tailerStarted.Inc() < 3 {
+					return nil, nil, errors.New("uhoh")
+				}
+				close(thirdStart)
+				// real tailers always return a channel; run closes it on stop
+				return &containerTailerPkg.Tailer{}, make(chan string), nil
+			},
+			func(*containerTailerPkg.Tailer) {
+				tailerStopped.Inc()
+			})
 
-	// emulate dst.Start(), but with fake tryStartTailer and stopTailer
-	go a.run(
-		func() (*containerTailerPkg.Tailer, chan string, error) {
-			if tailerStarted.Inc() < 3 {
-				return nil, nil, errors.New("uhoh")
-			}
-			return &containerTailerPkg.Tailer{}, nil, nil
-		},
-		func(*containerTailerPkg.Tailer) {
-			tailerStopped.Inc()
-		})
+		// wait until the inner tailer has started a third time due to two errors
+		<-thirdStart
 
-	// wait until the inner tailer has started a third time due to two errors
-	for tailerStarted.Load() < 3 {
-		time.Sleep(1 * time.Millisecond)
-	}
+		// stop the tailer
+		a.Stop()
 
-	// stop the tailer
-	a.Stop()
-
-	// check that the tailer was started three times (successful the third time)
-	require.Equal(t, int32(3), tailerStarted.Load())
-	// .. and subsequently stopped once
-	require.Equal(t, int32(1), tailerStopped.Load())
+		// check that the tailer was started three times (successful the third time)
+		require.Equal(t, int32(3), tailerStarted.Load())
+		// .. and subsequently stopped once
+		require.Equal(t, int32(1), tailerStopped.Load())
+	})
 }
 
 func TestBaseTailer_run_error_starting_expires(t *testing.T) {
-	backoffInitialDuration = 1 * time.Millisecond
-	backoffMaxDuration = 10 * time.Millisecond
-	defer func() {
-		backoffInitialDuration = 1 * time.Second
-		backoffMaxDuration = 60 * time.Second
-	}()
+	// The backoff delays are waited on the bubble's fake clock: no need to shorten them.
+	synctest.Test(t, func(t *testing.T) {
+		b := base{}
+		b.ctx, b.cancel = context.WithCancel(context.Background())
+		b.stopped = make(chan struct{})
 
-	b := base{}
-	b.ctx, b.cancel = context.WithCancel(context.Background())
-	b.stopped = make(chan struct{})
+		tailerStarted := atomic.NewInt32(0)
+		tailerStopped := atomic.NewInt32(0)
 
-	tailerStarted := atomic.NewInt32(0)
-	tailerStopped := atomic.NewInt32(0)
+		// emulate dst.Start(), but with fake tryStartTailer and stopTailer
+		go b.run(
+			func() (*containerTailerPkg.Tailer, chan string, error) {
+				tailerStarted.Inc()
+				return nil, nil, errors.New("uhoh")
+			},
+			func(*containerTailerPkg.Tailer) {
+				tailerStopped.Inc()
+			})
 
-	// emulate dst.Start(), but with fake tryStartTailer and stopTailer
-	go b.run(
-		func() (*containerTailerPkg.Tailer, chan string, error) {
-			tailerStarted.Inc()
-			return nil, nil, errors.New("uhoh")
-		},
-		func(*containerTailerPkg.Tailer) {
-			tailerStopped.Inc()
-		})
+		// wait until the tailer stops itself after giving up
+		<-b.stopped
 
-	// wait until the tailer stops itself after giving up
-	<-b.stopped
-
-	// check that the tailer was started five times (with delays of 1 + 2 + 4 + 8ms between)
-	require.Equal(t, int32(5), tailerStarted.Load())
-	// .. and never succeeded, so never started
-	require.Equal(t, int32(0), tailerStopped.Load())
+		// check that the tailer was started once, then once after each backoff delay
+		// (initial duration, doubling) up to the maximum one
+		expectedStarts := int32(1)
+		for d := backoffInitialDuration; d <= backoffMaxDuration; d *= 2 {
+			expectedStarts++
+		}
+		require.Equal(t, expectedStarts, tailerStarted.Load())
+		// .. and never succeeded, so never started
+		require.Equal(t, int32(0), tailerStopped.Load())
+	})
 }
