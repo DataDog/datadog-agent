@@ -135,8 +135,6 @@ func defaultInterpretersConfig() interpreterconfig.Config {
 	cfg := interpreterconfig.AllInterpreters()
 	// Disable Go symbolization by default because we do Go symbolization remotely.
 	cfg.Go.Symbolization = interpreter.BaseConfig{Disabled: true}
-	// Disable Go labels by default; enable them with interpreters.go.labels.disabled: false.
-	cfg.Go.Labels = interpreter.BaseConfig{Disabled: true}
 	// CRuby has lots of Ruby->native->Ruby transitions which runs out of ebpf tail calls very fast
 	// and captures only a small part of the stack. This config fixes this by skipping native frames
 	// (and tail calls) for Ruby methods implemented in C. Leaf native frames are still captured.
