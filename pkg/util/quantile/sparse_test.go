@@ -80,7 +80,7 @@ func TestReset(t *testing.T) {
 			switch {
 			case s.bins.Len() != nbins:
 				t.Fatalf("s.bins.Len() != nbins. got:%d, want:%d", s.bins.Len(), nbins)
-			case s.count != nbins:
+			case s.count != uint64(nbins):
 				t.Fatalf("s.count != nbins. got:%d, want:%d", s.count, nbins)
 			case int(s.Basic.Cnt) != nbins:
 				t.Fatalf("s.Basic.Cnt != nbins. got:%d, want:%d", s.Basic.Cnt, nbins)
@@ -208,7 +208,7 @@ func TestRank(t *testing.T) {
 		//  rank(.50) = 50
 		//  rank(.99) = 99
 		//  ...
-		cnt := 101
+		cnt := uint64(101)
 
 		for p := float64(0); p <= 100; p++ {
 			q := p / 100.0
