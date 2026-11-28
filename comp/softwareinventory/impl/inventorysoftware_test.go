@@ -12,7 +12,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -140,7 +142,9 @@ func (tf *testFixture) sut() *softwareInventoryTestHelper {
 		// No-op: don't actually sleep in tests
 	}
 
-	provides, err := newWithClient(tf.reqs, tf.sysProbeClient, noopSleep)
+	provides, err := newWithClient(tf.reqs, tf.sysProbeClient, noopSleep, func() (string, error) {
+		return "", nil
+	})
 	require.NoError(tf.t, err)
 
 	is := provides.Comp.(*softwareInventory)
@@ -271,4 +275,72 @@ func TestSendPayloadSetsIngestionTimestamp(t *testing.T) {
 	require.NotNil(t, capturedMsg, "expected SendEventPlatformEvent to be called")
 	assert.Greater(t, capturedMsg.IngestionTimestamp, int64(0),
 		"IngestionTimestamp must be set to a valid non-zero value (nanoseconds since epoch)")
+}
+
+func TestSerialNumberCollectionCycles(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		serial string
+		err    error
+	}{
+		{name: "available", serial: "SERIAL"},
+		{name: "missing"},
+		{name: "error", err: errors.New("hardware unavailable")},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				f := newFixtureWithData(t, true, []software.Entry{{DisplayName: "TestApp"}})
+				messages := make(chan *message.Message, 2)
+				f.eventPlatformMock.ExpectedCalls = nil
+				f.eventPlatformMock.On("SendEventPlatformEvent", mock.Anything, eventplatform.EventTypeSoftwareInventory).
+					Run(func(args mock.Arguments) { messages <- args.Get(0).(*message.Message) }).Return(nil)
+				var calls atomic.Int32
+				is := &softwareInventory{
+					log: f.reqs.Log, sysProbeClient: f.sysProbeClient,
+					eventPlatform: f.reqs.EventPlatform, hostname: "test-host",
+					sleepFunc: func(time.Duration) {}, interval: 10 * time.Minute,
+					getSerialNumber: func() (string, error) {
+						if calls.Add(1) == 1 {
+							return tt.serial, tt.err
+						}
+						return "SERIAL", nil
+					},
+				}
+				ctx, cancel := context.WithCancel(context.Background())
+				done := make(chan struct{})
+				go func() {
+					defer close(done)
+					is.startSoftwareInventoryCollection(ctx)
+				}()
+				defer func() { cancel(); <-done }()
+
+				for cycle := range 2 {
+					synctest.Wait()
+					want := "SERIAL"
+					if cycle == 0 {
+						want = tt.serial
+					}
+					var payload map[string]interface{}
+					require.NoError(t, json.Unmarshal((<-messages).GetContent(), &payload))
+					require.Equal(t, "test-host", payload["hostname"])
+					require.NotEmpty(t, payload["host_software"])
+					if want == "" {
+						require.NotContains(t, payload, "serial_number")
+					} else {
+						require.Equal(t, want, payload["serial_number"])
+					}
+					w := httptest.NewRecorder()
+					is.writePayloadAsJSON(w, nil)
+					require.Equal(t, http.StatusOK, w.Code)
+					var endpointPayload map[string]interface{}
+					require.NoError(t, json.Unmarshal(w.Body.Bytes(), &endpointPayload))
+					require.Equal(t, payload, endpointPayload)
+					require.Equal(t, int32(cycle+1), calls.Load(), "payload reads must not collect hardware information")
+					if cycle == 0 {
+						time.Sleep(is.interval)
+					}
+				}
+			})
+		})
+	}
 }

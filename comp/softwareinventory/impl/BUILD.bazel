@@ -27,6 +27,7 @@ go_library(
         "//comp/forwarder/eventplatform/def",
         "//comp/softwareinventory/def",
         "//pkg/inventory/software",
+        "//pkg/inventory/systeminfo",
         "//pkg/logs/message",
         "//pkg/serializer",
         "//pkg/serializer/marshaler",
