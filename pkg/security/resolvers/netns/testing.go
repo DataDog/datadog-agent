@@ -7,8 +7,15 @@
 
 package netns
 
+import "time"
+
 // FlushNamespaces runs the periodic flush of the network namespaces now. With TCX links, the host snapshot it requests
 // runs asynchronously, on the TC classifier loop.
 func (nr *Resolver) FlushNamespaces() {
 	nr.manualFlushNamespaces()
+}
+
+// LonelyNamespaceTimeout returns how long a namespace without devices waits before the flush snapshots it
+func LonelyNamespaceTimeout() time.Duration {
+	return lonelyNamespaceTimeout
 }

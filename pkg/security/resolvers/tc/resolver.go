@@ -297,35 +297,24 @@ func (tcr *Resolver) CleanupNetworkNamespace(namespaceID uint32, m *manager.Mana
 	}
 }
 
-// FlushInactiveProbes detaches and deletes inactive probes. This function returns a map containing the count of interfaces
-// per network namespace (ignoring the interfaces that are lazily deleted).
-func (tcr *Resolver) FlushInactiveProbes(m *manager.Manager, isLazy func(string) bool) map[uint32]int {
+// FlushInactiveProbes detaches and deletes inactive probes. This function returns a map containing the count of active
+// probes per network namespace, only counting the probes of the interfaces for which keepsNetNS returns true.
+func (tcr *Resolver) FlushInactiveProbes(m *manager.Manager, keepsNetNS func(netlink.Link) bool) map[uint32]int {
 	tcr.probesLock.Lock()
 	defer tcr.probesLock.Unlock()
 	tcr.Lock()
 	defer tcr.Unlock()
 
-	probesCountNoLazyDeletion := make(map[uint32]int)
-
-	var linkName string
+	probesCount := make(map[uint32]int)
 	for tcKey, entry := range tcr.programs {
 		if !entry.probe.IsTCFilterActive() {
 			tcr.detachInactiveHook(tcKey, entry, m)
-		} else {
-			link, err := entry.probe.ResolveLink()
-			if err == nil {
-				linkName = link.Attrs().Name
-			} else {
-				linkName = ""
-			}
-			// ignore interfaces that are lazily deleted
-			if link.Attrs().HardwareAddr.String() != "" && !isLazy(linkName) {
-				probesCountNoLazyDeletion[tcKey.NetNS]++
-			}
+		} else if link, err := entry.probe.ResolveLink(); err == nil && keepsNetNS(link) {
+			probesCount[tcKey.NetNS]++
 		}
 	}
 
-	return probesCountNoLazyDeletion
+	return probesCount
 }
 
 // ResolveNetworkDeviceIfName resolves network device name

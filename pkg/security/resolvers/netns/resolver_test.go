@@ -9,6 +9,7 @@ package netns
 
 import (
 	"context"
+	"net"
 	"os"
 	"sync"
 	"testing"
@@ -18,6 +19,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vishvananda/netlink"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
@@ -88,6 +90,34 @@ func TestTCProbesLockOrder(t *testing.T) {
 	case <-done:
 	case <-time.After(30 * time.Second):
 		t.Fatal("the network namespace and TC resolvers deadlocked")
+	}
+}
+
+func TestKeepsNetworkNamespace(t *testing.T) {
+	nr := &Resolver{config: &config.Config{NetworkLazyInterfacePrefixes: []string{"lo", "dummy"}}}
+	withMAC := func(name string) netlink.LinkAttrs {
+		a := attrs(name, 2)
+		a.HardwareAddr = net.HardwareAddr{0x02, 0x42, 0xac, 0x11, 0x00, 0x02}
+		return a
+	}
+
+	for _, test := range []struct {
+		name     string
+		device   netlink.Link
+		expected bool
+	}{
+		{name: "veth", device: &netlink.Veth{LinkAttrs: withMAC("eth0")}, expected: true},
+		{name: "netkit_l3", device: &netlink.Netkit{LinkAttrs: attrs("eth0", 2)}, expected: true},
+		{name: "netkit_l2", device: &netlink.Netkit{LinkAttrs: withMAC("eth0")}, expected: true},
+		{name: "loopback", device: &netlink.Device{LinkAttrs: attrs("lo", 1)}, expected: false},
+		{name: "dummy", device: &netlink.Dummy{LinkAttrs: withMAC("dummy0")}, expected: false},
+		{name: "ipip_fallback", device: &netlink.Iptun{LinkAttrs: attrs("tunl0", 3)}, expected: false},
+		{name: "sit_fallback", device: &netlink.Sittun{LinkAttrs: attrs("sit0", 4)}, expected: false},
+		{name: "ip6tnl_fallback", device: &netlink.Ip6tnl{LinkAttrs: attrs("ip6tnl0", 5)}, expected: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.expected, nr.keepsNetworkNamespace(test.device))
+		})
 	}
 }
 
