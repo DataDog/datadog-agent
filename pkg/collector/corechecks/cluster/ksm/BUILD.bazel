@@ -8,6 +8,7 @@ go_library(
         "kubernetes_state_aggregators.go",
         "kubernetes_state_defaults.go",
         "kubernetes_state_label_joins.go",
+        "kubernetes_state_string_cache.go",
         "kubernetes_state_telemetry.go",
         "kubernetes_state_transformers.go",
         "stub.go",
@@ -60,6 +61,7 @@ dd_agent_go_test(
     srcs = [
         "kubernetes_state_aggregators_test.go",
         "kubernetes_state_label_joins_test.go",
+        "kubernetes_state_string_cache_test.go",
         "kubernetes_state_telemetry_test.go",
         "kubernetes_state_test.go",
         "kubernetes_state_transformers_test.go",

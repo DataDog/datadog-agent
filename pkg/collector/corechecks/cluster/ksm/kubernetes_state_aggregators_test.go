@@ -36,31 +36,31 @@ func Test_counterAggregator(t *testing.T) {
 			allowedLabels: []string{"foo"},
 			metrics: []ksmstore.DDMetric{
 				{
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"foo": "foo1",
 						"bar": "bar1",
-					},
+					}),
 					Val: 1,
 				},
 				{
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"foo": "foo1",
 						"bar": "bar2",
-					},
+					}),
 					Val: 2,
 				},
 				{
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"foo": "foo2",
 						"bar": "bar1",
-					},
+					}),
 					Val: 4,
 				},
 				{
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"foo": "foo2",
 						"bar": "bar2",
-					},
+					}),
 					Val: 8,
 				},
 			},
@@ -83,67 +83,67 @@ func Test_counterAggregator(t *testing.T) {
 			allowedLabels: []string{"foo", "bar"},
 			metrics: []ksmstore.DDMetric{
 				{
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"foo": "foo1",
 						"bar": "bar1",
 						"baz": "baz1",
-					},
+					}),
 					Val: 1,
 				},
 				{
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"foo": "foo1",
 						"bar": "bar1",
 						"baz": "baz2",
-					},
+					}),
 					Val: 2,
 				},
 				{
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"foo": "foo1",
 						"bar": "bar2",
 						"baz": "baz1",
-					},
+					}),
 					Val: 4,
 				},
 				{
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"foo": "foo1",
 						"bar": "bar2",
 						"baz": "baz2",
-					},
+					}),
 					Val: 8,
 				},
 				{
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"foo": "foo2",
 						"bar": "bar1",
 						"baz": "baz1",
-					},
+					}),
 					Val: 16,
 				},
 				{
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"foo": "foo2",
 						"bar": "bar1",
 						"baz": "baz2",
-					},
+					}),
 					Val: 32,
 				},
 				{
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"foo": "foo2",
 						"bar": "bar2",
 						"baz": "baz1",
-					},
+					}),
 					Val: 64,
 				},
 				{
-					Labels: map[string]string{
+					Labels: ksmstore.LabelsFromMap(map[string]string{
 						"foo": "foo2",
 						"bar": "bar2",
 						"baz": "baz2",
-					},
+					}),
 					Val: 128,
 				},
 			},
@@ -199,10 +199,10 @@ func Test_lastCronJobAggregator(t *testing.T) {
 	// jobStartTime builds a kube_job_{complete,failed}_start_time metric
 	jobStartTime := func(jobName string, startTime float64) ksmstore.DDMetric {
 		return ksmstore.DDMetric{
-			Labels: map[string]string{
+			Labels: ksmstore.LabelsFromMap(map[string]string{
 				"namespace": "foo",
 				"job_name":  jobName,
-			},
+			}),
 			Val: startTime,
 		}
 	}

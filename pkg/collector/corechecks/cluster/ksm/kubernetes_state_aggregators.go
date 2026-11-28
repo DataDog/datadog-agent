@@ -153,7 +153,7 @@ func (a *sumValuesAggregator) accumulate(metric ksmstore.DDMetric) {
 			break
 		}
 
-		labelValues[i] = metric.Labels[allowedLabel]
+		labelValues[i] = metric.Labels.Get(allowedLabel)
 	}
 
 	a.accumulator[labelValues] += metric.Val
@@ -167,14 +167,14 @@ func (a *countObjectsAggregator) accumulate(metric ksmstore.DDMetric) {
 			break
 		}
 
-		labelValues[i] = metric.Labels[allowedLabel]
+		labelValues[i] = metric.Labels.Get(allowedLabel)
 	}
 
 	a.accumulator[labelValues]++
 }
 
 func (a *resourceAggregator) accumulate(metric ksmstore.DDMetric) {
-	resource := renameResource(metric.Labels["resource"])
+	resource := renameResource(metric.Labels.Get("resource"))
 
 	if _, ok := a.accumulators[resource]; !ok {
 		return
@@ -187,7 +187,7 @@ func (a *resourceAggregator) accumulate(metric ksmstore.DDMetric) {
 			break
 		}
 
-		labelValues[i] = metric.Labels[allowedLabel]
+		labelValues[i] = metric.Labels.Get(allowedLabel)
 	}
 
 	if _, ok := a.accumulators[resource]; ok {
@@ -208,12 +208,12 @@ func (a *lastCronJobFailedAggregator) accumulate(metric ksmstore.DDMetric) {
 // breaks ties, because Jobs created outside the CronJob controller (e.g. by
 // `kubectl create job --from=cronjob/...` or Argo CD) can carry any suffix.
 func (a *lastCronJobAggregator) accumulate(metric ksmstore.DDMetric, state servicecheck.ServiceCheckStatus) {
-	namespace, found := metric.Labels["namespace"]
+	namespace, found := metric.Labels.Lookup("namespace")
 	if !found {
 		return
 	}
 
-	jobName, found := metric.Labels["job_name"]
+	jobName, found := metric.Labels.Lookup("job_name")
 	if !found {
 		return
 	}
@@ -239,14 +239,7 @@ func (a *lastCronJobAggregator) accumulate(metric ksmstore.DDMetric, state servi
 func (a *counterAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
 	for labelValues, count := range a.accumulator {
 
-		labels := make(map[string]string)
-		for i, allowedLabel := range a.allowedLabels {
-			if allowedLabel == "" {
-				break
-			}
-
-			labels[allowedLabel] = labelValues[i]
-		}
+		labels := aggregatedLabels(a.allowedLabels, labelValues)
 
 		hostname, tags := k.hostnameAndTags(a.ksmMetricName, labels, labelJoiner, labelsMapperOverride(a.ksmMetricName))
 
@@ -260,14 +253,7 @@ func (a *resourceAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoine
 	for _, resource := range a.allowedResources {
 		metricName := fmt.Sprintf("%s%s.%s_%s", ksmMetricPrefix, a.ddMetricPrefix, resource, a.ddMetricSuffix)
 		for labelValues, count := range a.accumulators[resource] {
-			labels := make(map[string]string)
-			for i, allowedLabel := range a.allowedLabels {
-				if allowedLabel == "" {
-					break
-				}
-
-				labels[allowedLabel] = labelValues[i]
-			}
+			labels := aggregatedLabels(a.allowedLabels, labelValues)
 
 			hostname, tags := k.hostnameAndTags(a.ksmMetricName, labels, labelJoiner, labelsMapperOverride(a.ksmMetricName))
 			sender.Gauge(metricName, count, hostname, tags)
@@ -288,10 +274,7 @@ func (a *lastCronJobAggregator) flush(sender sender.Sender, k *KSMCheck, labelJo
 	for cronjob, state := range a.accumulator {
 		hostname, tags := k.hostnameAndTags(
 			"",
-			map[string]string{
-				"namespace": cronjob.namespace,
-				"cronjob":   cronjob.name,
-			},
+			cronJobLabels(cronjob.namespace, cronjob.name),
 			labelJoiner,
 			nil,
 		)
@@ -468,4 +451,25 @@ func defaultMetricAggregators() map[string]metricAggregator {
 			[]string{"cpu", "memory", "gpu", "mig"},
 		),
 	}
+}
+
+// aggregatedLabels returns the labels of an aggregated series: the allowed
+// labels of the aggregator, with the values of the series.
+func aggregatedLabels(allowedLabels []string, labelValues [maxNumberOfAllowedLabels]string) ksmstore.Labels {
+	n := 0
+	for n < len(allowedLabels) && allowedLabels[n] != "" {
+		n++
+	}
+	// There are as many keys as values, so NewLabels can't fail.
+	labels, _ := ksmstore.NewLabels(allowedLabels[:n], labelValues[:n:n])
+	return labels
+}
+
+var cronJobLabelKeys = []string{"namespace", "cronjob"}
+
+// cronJobLabels returns the labels of the series of a cron job.
+func cronJobLabels(namespace, name string) ksmstore.Labels {
+	// There are as many keys as values, so NewLabels can't fail.
+	labels, _ := ksmstore.NewLabels(cronJobLabelKeys, []string{namespace, name})
+	return labels
 }

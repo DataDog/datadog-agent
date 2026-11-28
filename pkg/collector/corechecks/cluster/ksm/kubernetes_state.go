@@ -337,9 +337,15 @@ type KSMConfig struct {
 // KSMCheck wraps the config and the metric stores needed to run the check
 type KSMCheck struct {
 	core.CheckBase
-	agentConfig                model.Config
-	instance                   *KSMConfig
-	tagCache                   map[string]map[string]string
+	agentConfig model.Config
+	instance    *KSMConfig
+	// tagCache and hostnameCache keep the tags and the hostnames of the series
+	// across runs, so that the aggregator shares them (see stringCache).
+	tagCache      stringCache[tagCacheKey]
+	hostnameCache stringCache[string]
+	// metricNames maps KSM metric names to the Datadog metric names of
+	// metricNamesMapper, with their prefix, built once rather than per series.
+	metricNames                map[string]string
 	allStores                  [][]cache.Store
 	telemetry                  *telemetryCache
 	tagger                     tagger.Component
@@ -967,10 +973,11 @@ func (k *KSMCheck) Run() error {
 		log.Tracef("Current leader: %q, running kube-state-metrics core check", leader)
 	}
 
-	// Reset the tag cache at the start of each run
-	k.resetTagCache()
-
 	defer sender.Commit()
+	// Only the runs that commit end a run of the caches, like they end one of
+	// the aggregator contexts: a run that isn't the leader keeps them, as the
+	// aggregator keeps its contexts.
+	defer k.endStringCachesRun()
 
 	labelJoiner := newLabelJoiner(k.instance.labelJoins)
 	for _, stores := range k.allStores {
@@ -1080,15 +1087,11 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 				}
 				continue
 			}
-			metricPrefix := ksmMetricPrefix
-			if ddname, found := k.metricNamesMapper[metricFamily.Name]; found && strings.HasPrefix(ddname, "customresource.") {
-				metricPrefix = metricPrefix[:len(metricPrefix)-1] + "_"
-			}
-			if ddname, found := k.metricNamesMapper[metricFamily.Name]; found {
+			if ddname, found := k.ddMetricName(metricFamily.Name); found {
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
 					hostname, tagList := k.hostnameAndTags(metricFamily.Name, m.Labels, labelJoiner, lMapperOverride)
-					sender.Gauge(metricPrefix+ddname, m.Val, hostname, tagList)
+					sender.Gauge(ddname, m.Val, hostname, tagList)
 				}
 				continue
 			}
@@ -1115,19 +1118,19 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 // hostnameAndTags returns the tags and the hostname for a metric based on the metric name and labels and the check configuration.
 //
 // This function must always return a "fresh" slice of tags, that will not be accessed after return.
-func (k *KSMCheck) hostnameAndTags(metricName string, labels map[string]string, labelJoiner *labelJoiner, lMapperOverride map[string]string) (string, []string) {
+func (k *KSMCheck) hostnameAndTags(metricName string, labels ksmstore.Labels, labelJoiner *labelJoiner, lMapperOverride map[string]string) (string, []string) {
 	hostname := ""
 
 	labelsToAdd := labelJoiner.getLabelsToAdd(labels)
 
 	// generate a dedicated tags slice. The +1 is for the kube_autoscaler_kind
 	// tag, which is added separately
-	tagList := make([]string, 0, len(labels)+len(labelsToAdd)+1)
+	tagList := make([]string, 0, labels.Len()+len(labelsToAdd)+1)
 
 	ownerKind, ownerName, resourceNamespace := "", "", ""
 	isArgoRollout := false
 
-	for key, value := range labels {
+	for key, value := range labels.All() {
 
 		if key == namespaceKey {
 			resourceNamespace = value
@@ -1144,11 +1147,7 @@ func (k *KSMCheck) hostnameAndTags(metricName string, labels map[string]string, 
 			tag, hostTag := k.buildTag(key, value, lMapperOverride)
 			tagList = append(tagList, tag)
 			if hostTag != "" {
-				if k.clusterNameRFC1123 != "" {
-					hostname = hostTag + "-" + k.clusterNameRFC1123
-				} else {
-					hostname = hostTag
-				}
+				hostname = k.hostname(hostTag)
 			}
 		}
 	}
@@ -1171,22 +1170,15 @@ func (k *KSMCheck) hostnameAndTags(metricName string, labels map[string]string, 
 			tag, hostTag := k.buildTag(label.key, label.value, lMapperOverride)
 			tagList = append(tagList, tag)
 			if hostTag != "" {
-				if k.clusterNameRFC1123 != "" {
-					hostname = hostTag + "-" + k.clusterNameRFC1123
-				} else {
-					hostname = hostTag
-				}
+				hostname = k.hostname(hostTag)
 			}
 		}
 	}
 
-	owners, deploymentName := ownerTags(ownerKind, ownerName)
-	if len(owners) != 0 {
-		tagList = append(tagList, owners...)
-	}
+	tagList, deploymentName := k.appendOwnerTags(tagList, ownerKind, ownerName)
 
 	if isArgoRollout && deploymentName != "" {
-		tagList = append(tagList, tags.KubeArgoRollout+":"+deploymentName)
+		tagList = append(tagList, k.cachedTag(tags.KubeArgoRollout, deploymentName))
 	}
 
 	var namespaceTags []string
@@ -1207,7 +1199,7 @@ func (k *KSMCheck) hostnameAndTags(metricName string, labels map[string]string, 
 	if k.isRunningOnNodeAgent && k.instance.PodCollectionMode == nodeKubeletPodCollection {
 		// Node agents don't have autoscaled workload entities, but they have
 		// the autoscaler kinds of their pods in workloadmeta
-		if uid := labels[uidKey]; uid != "" {
+		if uid := labels.Get(uidKey); uid != "" {
 			tagList = append(tagList, k.podAutoscalerTags[uid]...)
 		} else {
 			// Aggregated series have no uid. They get the tags of their owner.
@@ -1280,7 +1272,7 @@ func autoscalerTagsFromPods(pods []*workloadmeta.KubernetesPod) (autoscalerTagsB
 // autoscaledWorkloads appends to dst the workloads whose kube_autoscaler_kind
 // tags a metric gets, and returns the result. Only pod, container, ReplicaSet,
 // Deployment and StatefulSet metrics get those tags.
-func autoscaledWorkloads(dst []autoscaledWorkload, metricName string, labels map[string]string, namespace, ownerKind, ownerName string, isArgoRollout bool) []autoscaledWorkload {
+func autoscaledWorkloads(dst []autoscaledWorkload, metricName string, labels ksmstore.Labels, namespace, ownerKind, ownerName string, isArgoRollout bool) []autoscaledWorkload {
 	workload := func(kind workloadmeta.AutoscalerTargetKind, name string) autoscaledWorkload {
 		return autoscaledWorkload{kind: kind, namespace: namespace, name: name}
 	}
@@ -1314,7 +1306,7 @@ func autoscaledWorkloads(dst []autoscaledWorkload, metricName string, labels map
 			// join adds the Argo Rollout label to them when the pod has it
 			// (ensureArgoRolloutLabelJoin makes sure it's joined). Without
 			// it, the pod's ReplicaSet belongs to a Deployment.
-			if labels[podKey] != "" {
+			if labels.Get(podKey) != "" {
 				return append(dst, workload(workloadmeta.AutoscalerTargetDeployment, name))
 			}
 			// Aggregated metrics have no pod label
@@ -1340,7 +1332,7 @@ func autoscaledWorkloads(dst []autoscaledWorkload, metricName string, labels map
 		// kube_replicaset_labels join adds the Argo Rollout label to them when
 		// the ReplicaSet has it. Without it, the ReplicaSet belongs to a
 		// Deployment.
-		if name := kubernetes.ParseDeploymentForReplicaSet(labels[replicaSetKey]); name != "" {
+		if name := kubernetes.ParseDeploymentForReplicaSet(labels.Get(replicaSetKey)); name != "" {
 			if isArgoRollout {
 				return append(dst, workload(workloadmeta.AutoscalerTargetArgoRollout, name))
 			}
@@ -1348,12 +1340,12 @@ func autoscaledWorkloads(dst []autoscaledWorkload, metricName string, labels map
 		}
 
 	case strings.HasPrefix(metricName, "kube_deployment_"):
-		if name := labels[deploymentKey]; name != "" {
+		if name := labels.Get(deploymentKey); name != "" {
 			return append(dst, workload(workloadmeta.AutoscalerTargetDeployment, name))
 		}
 
 	case strings.HasPrefix(metricName, "kube_statefulset_"):
-		if name := labels[statefulSetKey]; name != "" {
+		if name := labels.Get(statefulSetKey); name != "" {
 			return append(dst, workload(workloadmeta.AutoscalerTargetStatefulSet, name))
 		}
 	}
@@ -1396,24 +1388,60 @@ func (k *KSMCheck) buildTag(key, value string, lMapperOverride map[string]string
 		hostname = value
 	}
 
-	// Memoize the built tag per (resolved key, value)
-	valueCache, found := k.tagCache[key]
-	if !found {
-		valueCache = make(map[string]string)
-		k.tagCache[key] = valueCache
-	}
-	if tag, found = valueCache[value]; found {
-		return
+	return k.cachedTag(key, value), hostname
+}
+
+// cachedTag returns the key:value tag, built once for as long as the runs use
+// it.
+func (k *KSMCheck) cachedTag(key, value string) string {
+	cacheKey := tagCacheKey{key: key, value: value}
+	if tag, found := k.tagCache.get(cacheKey); found {
+		return tag
 	}
 
-	var sb strings.Builder
-	sb.Grow(len(key) + 1 + len(value))
-	sb.WriteString(key)
-	sb.WriteByte(':')
-	sb.WriteString(value)
-	tag = sb.String()
-	valueCache[value] = tag
-	return
+	tag := key + ":" + value
+	// The key of the entry is made of parts of the tag, rather than of key and
+	// value, which may be the strings of an object that a later update of the
+	// object replaces: the cache would keep them as long as the tag.
+	k.tagCache.put(tagCacheKey{key: tag[:len(key)], value: tag[len(key)+1:]}, tag)
+	return tag
+}
+
+// hostname returns the hostname of the series of the host or node hostTag:
+// hostTag, suffixed with the cluster name when it is known.
+func (k *KSMCheck) hostname(hostTag string) string {
+	if k.clusterNameRFC1123 == "" {
+		return hostTag
+	}
+	if hostname, found := k.hostnameCache.get(hostTag); found {
+		return hostname
+	}
+	hostname := hostTag + "-" + k.clusterNameRFC1123
+	// Keyed by a part of hostname, rather than by hostTag: see cachedTag
+	k.hostnameCache.put(hostname[:len(hostTag)], hostname)
+	return hostname
+}
+
+// ddMetricName returns the Datadog metric name of the KSM metric ksmName
+// configured in metricNamesMapper, with its prefix.
+func (k *KSMCheck) ddMetricName(ksmName string) (string, bool) {
+	if name, found := k.metricNames[ksmName]; found {
+		return name, true
+	}
+	ddname, found := k.metricNamesMapper[ksmName]
+	if !found {
+		return "", false
+	}
+	metricPrefix := ksmMetricPrefix
+	if strings.HasPrefix(ddname, "customresource.") {
+		metricPrefix = metricPrefix[:len(metricPrefix)-1] + "_"
+	}
+	name := metricPrefix + ddname
+	if k.metricNames == nil {
+		k.metricNames = make(map[string]string)
+	}
+	k.metricNames[ksmName] = name
+	return name, true
 }
 
 // mergeLabelsMapper adds extra label mappings to the configured labels mapper
@@ -1604,10 +1632,12 @@ func (k *KSMCheck) configurePodCollection(builder *kubestatemetrics.Builder, col
 	}
 }
 
-// resetTagCache discards the tag cache so tag keys that are no longer in use
-// do not accumulate over the check's lifetime
-func (k *KSMCheck) resetTagCache() {
-	k.tagCache = make(map[string]map[string]string)
+// endStringCachesRun drops the cached tags and hostnames that the last runs
+// didn't use, so that those of deleted objects do not accumulate over the
+// check's lifetime
+func (k *KSMCheck) endStringCachesRun() {
+	k.tagCache.endRun()
+	k.hostnameCache.endRun()
 }
 
 // processTelemetry accumulates the telemetry metric values, it can be called multiple times
@@ -1702,7 +1732,6 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Compone
 		CheckBase:                  base,
 		agentConfig:                pkgconfigsetup.Datadog(),
 		instance:                   instance,
-		tagCache:                   make(map[string]map[string]string),
 		telemetry:                  newTelemetryCache(),
 		tagger:                     tagger,
 		isCLCRunner:                helper.IsCLCRunner(pkgconfigsetup.Datadog()),
@@ -1713,6 +1742,10 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Compone
 		rolloutTracker:             customresources.NewRolloutTracker(),
 		namespaceTagsErrorLogLimit: log.NewLogLimit(10, 10*time.Minute),
 	}
+	// The cached strings live as long as the aggregator contexts that share them
+	keepRuns := pkgconfigsetup.Datadog().GetInt("check_sampler_bucket_commits_count_expiry")
+	k.tagCache = newStringCache[tagCacheKey](keepRuns)
+	k.hostnameCache = newStringCache[string](keepRuns)
 
 	// Initialize metricTransformers after k is created since it needs a reference to k
 	k.metricTransformers = defaultMetricTransformers(k)
@@ -1852,31 +1885,31 @@ func (k *KSMCheck) buildAllowedMetricsSet() options.MetricSet {
 	return allowedMetrics
 }
 
-// ownerTags returns kube_<kind> tags based on given kind and name, along with the resolved Deployment name.
+// appendOwnerTags appends to tagList the kube_<kind> tags based on given kind and name, and returns them along with the resolved Deployment name.
 // If the owner is a replicaset, it tries to get the kube_deployment tag and Deployment name in addition to kube_replica_set.
 // If the owner is a job, it tries to get the kube_cronjob tag in addition to kube_job.
-func ownerTags(kind, name string) ([]string, string) {
+func (k *KSMCheck) appendOwnerTags(tagList []string, kind, name string) ([]string, string) {
 	if kind == "" || name == "" {
-		return nil, ""
+		return tagList, ""
 	}
 
 	tagKey, err := kubetags.GetTagForKubernetesKind(kind)
 	if err != nil {
-		return nil, ""
+		return tagList, ""
 	}
 
 	switch kind {
 	case kubernetes.JobKind:
 		if cronjob, _ := kubernetes.ParseCronJobForJob(name); cronjob != "" {
-			return []string{tagKey + ":" + name, tags.KubeCronjob + ":" + cronjob}, ""
+			return append(tagList, k.cachedTag(tagKey, name), k.cachedTag(tags.KubeCronjob, cronjob)), ""
 		}
 	case kubernetes.ReplicaSetKind:
 		if deployment := kubernetes.ParseDeploymentForReplicaSet(name); deployment != "" {
-			return []string{tagKey + ":" + name, tags.KubeDeployment + ":" + deployment}, deployment
+			return append(tagList, k.cachedTag(tagKey, name), k.cachedTag(tags.KubeDeployment, deployment)), deployment
 		}
 	}
 
-	return []string{tagKey + ":" + name}, ""
+	return append(tagList, k.cachedTag(tagKey, name)), ""
 }
 
 var (

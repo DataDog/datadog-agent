@@ -8,7 +8,8 @@
 package store
 
 import (
-	"errors"
+	"maps"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -68,54 +69,174 @@ func TestExtract(t *testing.T) {
 			assert.Equal(t, metricName, metricFam.Name)
 			assert.Equal(t, storeName, metricFam.Type)
 			for _, metric := range metricFam.ListMetrics {
-				assert.Equal(t, idsToAdd[string(uid)], metric.Labels["node"])
+				assert.Equal(t, idsToAdd[string(uid)], metric.Labels.Get("node"))
 			}
 		}
 
 	}
 }
 
-func TestBuildTags(t *testing.T) {
+func TestNewLabels(t *testing.T) {
 	tests := []struct {
 		name     string
-		in       *metric.Metric
+		keys     []string
+		values   []string
 		expected map[string]string
 		err      error
 	}{
 		{
-			name: "no errors",
-			in: &metric.Metric{
-				LabelValues: []string{"foo", "cafe"},
-				LabelKeys:   []string{"bar", "ole"},
-			},
-			expected: map[string]string{
-				"bar": "foo",
-				"ole": "cafe",
-			},
-			err: nil,
+			name:     "no errors",
+			keys:     []string{"bar", "ole"},
+			values:   []string{"foo", "cafe"},
+			expected: map[string]string{"bar": "foo", "ole": "cafe"},
 		},
 		{
-			name: "error",
-			in: &metric.Metric{
-				LabelValues: []string{"foo", "cafe"},
-				LabelKeys:   []string{"bar", "ole", "toolong"},
-			},
+			name:     "error",
+			keys:     []string{"bar", "ole", "toolong"},
+			values:   []string{"foo", "cafe"},
 			expected: map[string]string{},
-			err:      errors.New("LabelKeys and LabelValues not same size"),
+			err:      errLabelsLength,
+		},
+		{
+			name:     "repeated key keeps its last value",
+			keys:     []string{"bar", "ole", "bar"},
+			values:   []string{"foo", "cafe", "baz"},
+			expected: map[string]string{"bar": "baz", "ole": "cafe"},
+		},
+		{
+			name:     "no labels",
+			expected: map[string]string{},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			m, err := buildTags(test.in)
-			if err != nil {
-				assert.Error(t, err, test.err)
-			}
-			assert.Len(t, m, len(test.expected))
+			labels, err := NewLabels(test.keys, test.values)
+			assert.ErrorIs(t, err, test.err)
+			assert.Equal(t, len(test.expected), labels.Len())
+			assert.Equal(t, test.expected, maps.Collect(labels.All()))
 			for k, v := range test.expected {
-				assert.Equal(t, m[k], v)
+				value, found := labels.Lookup(k)
+				assert.True(t, found)
+				assert.Equal(t, v, value)
+				assert.Equal(t, v, labels.Get(k))
 			}
+			_, found := labels.Lookup("missing")
+			assert.False(t, found)
+			assert.Empty(t, labels.Get("missing"))
 		})
 	}
+}
+
+func TestLabelsAll(t *testing.T) {
+	labels, err := NewLabels([]string{"b", "a", "c"}, []string{"2", "1", "3"})
+	require.NoError(t, err)
+
+	var keys, values []string
+	for k, v := range labels.All() {
+		keys = append(keys, k)
+		values = append(values, v)
+	}
+	assert.Equal(t, []string{"b", "a", "c"}, keys)
+	assert.Equal(t, []string{"2", "1", "3"}, values)
+
+	// Stopping the iteration early must not panic.
+	for range labels.All() {
+		break
+	}
+}
+
+func TestKeysInternerKeepsRecentKeys(t *testing.T) {
+	ki := keysInterner{}
+	intern := func(keys ...string) []string {
+		return ki.intern("kube_pod_labels", Labels{keys: keys, values: make([]string, len(keys))}).keys
+	}
+	a := intern("namespace", "pod", "label_app")
+	b := intern("namespace", "pod", "label_team")
+
+	// Interleaved series of two workloads keep sharing their keys
+	assert.Same(t, &a[0], &intern("namespace", "pod", "label_app")[0])
+	assert.Same(t, &b[0], &intern("namespace", "pod", "label_team")[0])
+
+	// The oldest keys make room for new ones
+	for i := range maxRecentKeys {
+		intern("namespace", "pod", strconv.Itoa(i))
+	}
+	assert.NotSame(t, &a[0], &intern("namespace", "pod", "label_app")[0])
+	assert.Len(t, ki, 1)
+}
+
+func TestStoreDeduplicatesKeys(t *testing.T) {
+	genFunc := func(interface{}) []metric.FamilyInterface {
+		return []metric.FamilyInterface{&metric.Family{
+			Name: "kube_pod_labels",
+			Metrics: []*metric.Metric{{
+				LabelKeys:   []string{"namespace", "label_app", "label_app"},
+				LabelValues: []string{"default", "first", "last"},
+				Value:       1,
+			}},
+		}}
+	}
+
+	ms := NewMetricsStore(genFunc, "*v1.Pod")
+	// Twice, as the keys of the second series aren't new to the store
+	for _, uid := range []types.UID{"pod-a", "pod-b"} {
+		require.NoError(t, ms.Add(&v1.Pod{ObjectMeta: metav1.ObjectMeta{UID: uid}}))
+		labels := ms.metrics[uid][0].ListMetrics[0].Labels
+		assert.Equal(t, map[string]string{"namespace": "default", "label_app": "last"}, maps.Collect(labels.All()))
+		assert.Equal(t, 2, labels.Len())
+	}
+}
+
+func TestFilterMetrics(t *testing.T) {
+	metrics := []DDMetric{{Val: 1}, {Val: 2}, {Val: 3}}
+
+	all := filterMetrics(metrics, GetAllMetrics)
+	assert.Same(t, &metrics[0], &all[0])
+	assert.Equal(t, len(all), cap(all))
+
+	odd := filterMetrics(metrics, func(m DDMetric) bool { return int(m.Val)%2 == 1 })
+	assert.Equal(t, []DDMetric{{Val: 1}, {Val: 3}}, odd)
+
+	assert.Empty(t, filterMetrics(metrics, func(DDMetric) bool { return false }))
+}
+
+func TestLabelsFromMap(t *testing.T) {
+	labels := LabelsFromMap(map[string]string{"b": "2", "a": "1"})
+	assert.Equal(t, Labels{keys: []string{"a", "b"}, values: []string{"1", "2"}}, labels)
+	assert.Equal(t, 0, LabelsFromMap(nil).Len())
+}
+
+func TestStoreSharesLabelKeys(t *testing.T) {
+	genFunc := func(obj interface{}) []metric.FamilyInterface {
+		o, err := meta.Accessor(obj)
+		require.NoError(t, err)
+		return []metric.FamilyInterface{&metric.Family{
+			Name: "kube_pod_info",
+			Metrics: []*metric.Metric{{
+				// A fresh slice for every object, as the generators of
+				// kube-state-metrics return.
+				LabelKeys:   []string{"namespace", "pod"},
+				LabelValues: []string{o.GetNamespace(), o.GetName()},
+				Value:       1,
+			}},
+		}}
+	}
+
+	ms := NewMetricsStore(genFunc, "*v1.Pod")
+	for _, name := range []string{"pod-a", "pod-b"} {
+		require.NoError(t, ms.Add(&v1.Pod{ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: "default",
+			UID:       types.UID(name),
+		}}))
+	}
+
+	a := ms.metrics["pod-a"][0].ListMetrics[0].Labels
+	b := ms.metrics["pod-b"][0].ListMetrics[0].Labels
+	assert.Equal(t, "pod-a", a.Get("pod"))
+	assert.Equal(t, "pod-b", b.Get("pod"))
+	// Both series share the same keys.
+	assert.Same(t, &a.keys[0], &b.keys[0])
 }
 
 func TestPush(t *testing.T) {
@@ -137,7 +258,7 @@ func TestPush(t *testing.T) {
 						ListMetrics: []DDMetric{
 							{
 								Val:    1,
-								Labels: map[string]string{"foo": "bar"},
+								Labels: LabelsFromMap(map[string]string{"foo": "bar"}),
 							},
 						},
 					},
@@ -153,9 +274,9 @@ func TestPush(t *testing.T) {
 						ListMetrics: []DDMetric{
 							{
 								Val: 1,
-								Labels: map[string]string{
+								Labels: LabelsFromMap(map[string]string{
 									"foo": "bar",
-								},
+								}),
 							},
 						},
 					},
@@ -179,7 +300,7 @@ func TestPush(t *testing.T) {
 						ListMetrics: []DDMetric{
 							{
 								Val:    1,
-								Labels: map[string]string{"foo": "bar"},
+								Labels: LabelsFromMap(map[string]string{"foo": "bar"}),
 							},
 						},
 					},
@@ -191,11 +312,11 @@ func TestPush(t *testing.T) {
 						ListMetrics: []DDMetric{
 							{
 								Val:    1,
-								Labels: map[string]string{"bar": "baz"},
+								Labels: LabelsFromMap(map[string]string{"bar": "baz"}),
 							},
 							{
 								Val:    2,
-								Labels: map[string]string{"cafe": "ole"},
+								Labels: LabelsFromMap(map[string]string{"cafe": "ole"}),
 							},
 						},
 					},
@@ -211,9 +332,9 @@ func TestPush(t *testing.T) {
 						ListMetrics: []DDMetric{
 							{
 								Val: 1,
-								Labels: map[string]string{
+								Labels: LabelsFromMap(map[string]string{
 									"foo": "bar",
-								},
+								}),
 							},
 						},
 					},
@@ -225,15 +346,15 @@ func TestPush(t *testing.T) {
 						ListMetrics: []DDMetric{
 							{
 								Val: 1,
-								Labels: map[string]string{
+								Labels: LabelsFromMap(map[string]string{
 									"bar": "baz",
-								},
+								}),
 							},
 							{
 								Val: 2,
-								Labels: map[string]string{
+								Labels: LabelsFromMap(map[string]string{
 									"cafe": "ole",
-								},
+								}),
 							},
 						},
 					},
@@ -250,7 +371,7 @@ func TestPush(t *testing.T) {
 						ListMetrics: []DDMetric{
 							{
 								Val:    1,
-								Labels: map[string]string{"foo": "bar"},
+								Labels: LabelsFromMap(map[string]string{"foo": "bar"}),
 							},
 						},
 					},
@@ -262,7 +383,7 @@ func TestPush(t *testing.T) {
 						ListMetrics: []DDMetric{
 							{
 								Val:    1,
-								Labels: map[string]string{"foo": "bar"},
+								Labels: LabelsFromMap(map[string]string{"foo": "bar"}),
 							},
 						},
 					},
@@ -278,9 +399,9 @@ func TestPush(t *testing.T) {
 						ListMetrics: []DDMetric{
 							{
 								Val: 1,
-								Labels: map[string]string{
+								Labels: LabelsFromMap(map[string]string{
 									"foo": "bar",
-								},
+								}),
 							},
 						},
 					},
@@ -297,7 +418,7 @@ func TestPush(t *testing.T) {
 						ListMetrics: []DDMetric{
 							{
 								Val:    1,
-								Labels: map[string]string{"foo": "bar"},
+								Labels: LabelsFromMap(map[string]string{"foo": "bar"}),
 							},
 						},
 					},
@@ -309,7 +430,7 @@ func TestPush(t *testing.T) {
 						ListMetrics: []DDMetric{
 							{
 								Val:    2,
-								Labels: map[string]string{"foo": "bar"},
+								Labels: LabelsFromMap(map[string]string{"foo": "bar"}),
 							},
 						},
 					},
@@ -325,9 +446,9 @@ func TestPush(t *testing.T) {
 						ListMetrics: []DDMetric{
 							{
 								Val: 1,
-								Labels: map[string]string{
+								Labels: LabelsFromMap(map[string]string{
 									"foo": "bar",
-								},
+								}),
 							},
 						},
 					},
@@ -345,7 +466,7 @@ func TestPush(t *testing.T) {
 						ListMetrics: []DDMetric{
 							{
 								Val:    1,
-								Labels: map[string]string{"foo": "bar"},
+								Labels: LabelsFromMap(map[string]string{"foo": "bar"}),
 							},
 						},
 					},
@@ -357,7 +478,7 @@ func TestPush(t *testing.T) {
 						ListMetrics: []DDMetric{
 							{
 								Val:    2,
-								Labels: map[string]string{"foo": "bar"},
+								Labels: LabelsFromMap(map[string]string{"foo": "bar"}),
 							},
 						},
 					},
@@ -373,9 +494,9 @@ func TestPush(t *testing.T) {
 						ListMetrics: []DDMetric{
 							{
 								Val: 1,
-								Labels: map[string]string{
+								Labels: LabelsFromMap(map[string]string{
 									"foo": "bar",
-								},
+								}),
 							},
 						},
 					},

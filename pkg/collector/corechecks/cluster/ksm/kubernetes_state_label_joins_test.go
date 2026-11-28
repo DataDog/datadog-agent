@@ -40,11 +40,11 @@ func Test_labelJoiner(t *testing.T) {
 						Name: "kube_pod_info",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{
+								Labels: ksmstore.LabelsFromMap(map[string]string{
 									"foo_key":  "foo_value1",
 									"qux_key":  "qux_value1",
 									"quux_key": "quux_value1",
-								},
+								}),
 							},
 						},
 					},
@@ -54,11 +54,11 @@ func Test_labelJoiner(t *testing.T) {
 						Name: "kube_pod_info",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{
+								Labels: ksmstore.LabelsFromMap(map[string]string{
 									"foo_key":  "foo_value2",
 									"qux_key":  "qux_value2",
 									"quux_key": "quux_value2",
-								},
+								}),
 							},
 						},
 					},
@@ -100,12 +100,12 @@ func Test_labelJoiner(t *testing.T) {
 						Name: "kube_pod_info",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{
+								Labels: ksmstore.LabelsFromMap(map[string]string{
 									"foo_key":  "foo_value1",
 									"bar_key":  "bar_value1",
 									"qux_key":  "qux_value1",
 									"quux_key": "quux_value1",
-								},
+								}),
 							},
 						},
 					},
@@ -115,12 +115,12 @@ func Test_labelJoiner(t *testing.T) {
 						Name: "kube_pod_info",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{
+								Labels: ksmstore.LabelsFromMap(map[string]string{
 									"foo_key":  "foo_value2",
 									"bar_key":  "bar_value2",
 									"qux_key":  "qux_value2",
 									"quux_key": "quux_value2",
-								},
+								}),
 							},
 						},
 					},
@@ -130,12 +130,12 @@ func Test_labelJoiner(t *testing.T) {
 						Name: "kube_pod_info",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{
+								Labels: ksmstore.LabelsFromMap(map[string]string{
 									"foo_key":  "foo_value1",
 									"bar_key":  "bar_value2",
 									"qux_key":  "qux_value12",
 									"quux_key": "quux_value12",
-								},
+								}),
 							},
 						},
 					},
@@ -210,13 +210,13 @@ func Test_labelJoiner(t *testing.T) {
 						Name: "kube_pod_info",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{
+								Labels: ksmstore.LabelsFromMap(map[string]string{
 									"foo_key":  "foo_value1",
 									"bar_key":  "bar_value1",
 									"baz_key":  "baz_value1",
 									"qux_key":  "qux_value1",
 									"quux_key": "quux_value1",
-								},
+								}),
 							},
 						},
 					},
@@ -226,13 +226,13 @@ func Test_labelJoiner(t *testing.T) {
 						Name: "kube_pod_info",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{
+								Labels: ksmstore.LabelsFromMap(map[string]string{
 									"foo_key":  "foo_value2",
 									"bar_key":  "bar_value2",
 									"baz_key":  "baz_value2",
 									"qux_key":  "qux_value2",
 									"quux_key": "quux_value2",
-								},
+								}),
 							},
 						},
 					},
@@ -242,13 +242,13 @@ func Test_labelJoiner(t *testing.T) {
 						Name: "kube_pod_info",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{
+								Labels: ksmstore.LabelsFromMap(map[string]string{
 									"foo_key":  "foo_value1",
 									"bar_key":  "bar_value1",
 									"baz_key":  "baz_value2",
 									"qux_key":  "qux_value12",
 									"quux_key": "quux_value12",
-								},
+								}),
 							},
 						},
 					},
@@ -337,11 +337,11 @@ func Test_labelJoiner(t *testing.T) {
 						Name: "kube_pod_info",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{
+								Labels: ksmstore.LabelsFromMap(map[string]string{
 									"foo_key":  "foo_value",
 									"qux_key":  "qux_value1",
 									"quux_key": "quux_value1",
-								},
+								}),
 							},
 						},
 					},
@@ -351,11 +351,11 @@ func Test_labelJoiner(t *testing.T) {
 						Name: "kube_pod_info",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{
+								Labels: ksmstore.LabelsFromMap(map[string]string{
 									"foo_key":  "foo_value",
 									"qux_key":  "qux_value2",
 									"quux_key": "quux_value2",
-								},
+								}),
 							},
 						},
 					},
@@ -395,10 +395,10 @@ func Test_labelJoiner(t *testing.T) {
 						Name: "kube_pod_info",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{
+								Labels: ksmstore.LabelsFromMap(map[string]string{
 									"foo_key": "foo_value1",
 									"qux_key": "qux_value1",
-								},
+								}),
 							},
 						},
 					},
@@ -408,10 +408,10 @@ func Test_labelJoiner(t *testing.T) {
 						Name: "kube_pod_info",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{
+								Labels: ksmstore.LabelsFromMap(map[string]string{
 									"foo_key": "foo_value2",
 									"qux_key": "",
-								},
+								}),
 							},
 						},
 					},
@@ -451,9 +451,9 @@ func Test_labelJoiner(t *testing.T) {
 						Name: "kube_namespace_annotations",
 						ListMetrics: []ksmstore.DDMetric{
 							{
-								Labels: map[string]string{
+								Labels: ksmstore.LabelsFromMap(map[string]string{
 									"namespace": "default",
-								},
+								}),
 							},
 						},
 					},
@@ -476,7 +476,7 @@ func Test_labelJoiner(t *testing.T) {
 			labelJoiner := newLabelJoiner(tt.config)
 			labelJoiner.insertFamilies(tt.families)
 			for _, expected := range tt.expected {
-				assert.ElementsMatch(t, labelJoiner.getLabelsToAdd(expected.inputLabels), expected.labelsToAdd)
+				assert.ElementsMatch(t, labelJoiner.getLabelsToAdd(ksmstore.LabelsFromMap(expected.inputLabels)), expected.labelsToAdd)
 			}
 		})
 	}

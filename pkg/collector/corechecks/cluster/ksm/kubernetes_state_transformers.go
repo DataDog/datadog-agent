@@ -152,14 +152,14 @@ func nodeConditionTransformer(s sender.Sender, name string, metric ksmstore.DDMe
 		return
 	}
 
-	condition, found := metric.Labels["condition"]
+	condition, found := metric.Labels.Lookup("condition")
 	if !found {
 		log.Debugf("Couldn't find 'condition' label, ignoring service check for metric '%s'", name)
 		return
 	}
 
 	s.Gauge(ksmMetricPrefix+"node.by_condition", metric.Val, hostname, tags)
-	statusLabel, found := metric.Labels["status"]
+	statusLabel, found := metric.Labels.Lookup("status")
 	if !found {
 		log.Debugf("Couldn't find 'status' label, ignoring service check for metric '%s'", name)
 		return
@@ -188,7 +188,7 @@ func nodeConditionTransformer(s sender.Sender, name string, metric ksmstore.DDMe
 		return
 	}
 
-	node, found := metric.Labels["node"]
+	node, found := metric.Labels.Lookup("node")
 	if !found {
 		log.Debugf("Couldn't find 'node' label, ignoring service check for metric '%s'", name)
 		return
@@ -303,7 +303,7 @@ func initcontainerWaitingReasonTransformer(s sender.Sender, _ string, metric ksm
 
 // containerWaitingReasonTransformer validates the container waiting reasons for metric kube_pod_container_status_waiting_reason
 func submitContainerWaitingReasonTransformer(s sender.Sender, metric ksmstore.DDMetric, hostname string, tags []string, contType crs.ContainerType) {
-	if reason, found := metric.Labels["reason"]; found {
+	if reason, found := metric.Labels.Lookup("reason"); found {
 		// Filtering according to the reason here is paramount to limit cardinality
 		if _, allowed := allowedWaitingReasons[strings.ToLower(reason)]; allowed {
 			s.Gauge(ksmMetricPrefix+string(contType)+".status_report.count.waiting", metric.Val, hostname, tags)
@@ -327,7 +327,7 @@ func initcontainerTerminatedReasonTransformer(s sender.Sender, _ string, metric 
 
 // submitContainerTerminatedReasonTransformer validates the container waiting reasons for metric kube_pod_container_status_terminated_reason
 func submitContainerTerminatedReasonTransformer(s sender.Sender, metric ksmstore.DDMetric, hostname string, tags []string, contType crs.ContainerType) {
-	if reason, found := metric.Labels["reason"]; found {
+	if reason, found := metric.Labels.Lookup("reason"); found {
 		// Filtering according to the reason here is paramount to limit cardinality
 		if _, allowed := allowedTerminatedReasons[strings.ToLower(reason)]; allowed {
 			s.Gauge(ksmMetricPrefix+string(contType)+".status_report.count.terminated", metric.Val, hostname, tags)
@@ -345,7 +345,7 @@ func containerResourceRequestsTransformer(s sender.Sender, name string, metric k
 // kube_pod_container_effective_resource_requests instead so they can account
 // for in-place vertical scaling without producing duplicate series.
 func containerSpecResourceRequestsTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
-	resource := metric.Labels["resource"]
+	resource := metric.Labels.Get("resource")
 	if resource == "cpu" || resource == "memory" {
 		return
 	}
@@ -371,7 +371,7 @@ func initContainerResourceLimitsTransformer(s sender.Sender, name string, metric
 // submitContainerResourceMetric can be called by container resource metric transformers to submit resource-specific metrics
 // metricSuffix can be either requested or limit
 func submitContainerResourceMetric(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, metricSuffix string, contType crs.ContainerType) {
-	resource, found := metric.Labels["resource"]
+	resource, found := metric.Labels.Lookup("resource")
 	if !found {
 		log.Debugf("Couldn't find 'resource' label, ignoring resource metric '%s'", name)
 		return
@@ -399,7 +399,7 @@ func nodeCapacityTransformer(s sender.Sender, name string, metric ksmstore.DDMet
 // submitNodeResourceMetric can be called by node resource metric transformers to submit resource-specific metrics
 // metricSuffix can be either allocatable or capacity
 func submitNodeResourceMetric(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, metricSuffix string) {
-	resource, found := metric.Labels["resource"]
+	resource, found := metric.Labels.Lookup("resource")
 	if !found {
 		log.Debugf("Couldn't find 'resource' label, ignoring resource metric '%s'", name)
 		return
@@ -574,12 +574,12 @@ func jobMetric(s sender.Sender, metric ksmstore.DDMetric, metricName string, hos
 
 // resourcequotaTransformer generates dedicated metrics per resource per type from the kube_resourcequota metric
 func resourcequotaTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
-	resource, found := metric.Labels["resource"]
+	resource, found := metric.Labels.Lookup("resource")
 	if !found {
 		log.Debugf("Couldn't find 'resource' label, ignoring metric '%s'", name)
 		return
 	}
-	quotaType, found := metric.Labels["type"]
+	quotaType, found := metric.Labels.Lookup("type")
 	if !found {
 		log.Debugf("Couldn't find 'type' label, ignoring metric '%s'", name)
 		return
@@ -602,7 +602,7 @@ var constraintsMapper = map[string]string{
 
 // limitrangeTransformer generates dedicated metrics per resource per type from the kube_limitrange metric
 func limitrangeTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
-	constraintLabel, found := metric.Labels["constraint"]
+	constraintLabel, found := metric.Labels.Lookup("constraint")
 	if !found {
 		log.Debugf("Couldn't find 'constraint' label, ignoring metric '%s'", name)
 		return
@@ -612,7 +612,7 @@ func limitrangeTransformer(s sender.Sender, name string, metric ksmstore.DDMetri
 		log.Debugf("Constraint '%s' unsupported for metric '%s'", constraint, name)
 		return
 	}
-	resource, found := metric.Labels["resource"]
+	resource, found := metric.Labels.Lookup("resource")
 	if !found {
 		log.Debugf("Couldn't find 'resource' label, ignoring metric '%s'", name)
 		return
@@ -660,7 +660,7 @@ func removeSecretTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric
 // so both address_available and address_not_ready still report instead of
 // going sparse.
 func endpointAddressTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
-	ready, found := metric.Labels["ready"]
+	ready, found := metric.Labels.Lookup("ready")
 	if !found {
 		return
 	}
@@ -684,7 +684,7 @@ func endpointAddressTransformer(s sender.Sender, _ string, metric ksmstore.DDMet
 // Per the Kubernetes API, a nil Ready condition means the endpoint is ready,
 // and KSM surfaces nil as an empty string — treat it as "true".
 func endpointSliceEndpointsTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
-	ready := metric.Labels["ready"]
+	ready := metric.Labels.Get("ready")
 	tags = lo.Filter(tags, func(x string, _ int) bool { return !strings.HasPrefix(x, "ready:") })
 	switch ready {
 	case "true", "":
@@ -702,8 +702,8 @@ func (k *KSMCheck) transformKubeDeploymentRolloutDurationWithTracker(s sender.Se
 		return
 	}
 
-	namespace, hasNamespace := metric.Labels["namespace"]
-	deploymentName, hasDeployment := metric.Labels["deployment"]
+	namespace, hasNamespace := metric.Labels.Lookup("namespace")
+	deploymentName, hasDeployment := metric.Labels.Lookup("deployment")
 
 	if !hasNamespace || !hasDeployment {
 		return
@@ -721,8 +721,8 @@ func (k *KSMCheck) transformKubeStatefulSetRolloutDurationWithTracker(s sender.S
 		return
 	}
 
-	namespace, hasNamespace := metric.Labels["namespace"]
-	statefulSetName, hasStatefulSet := metric.Labels["statefulset"]
+	namespace, hasNamespace := metric.Labels.Lookup("namespace")
+	statefulSetName, hasStatefulSet := metric.Labels.Lookup("statefulset")
 
 	if !hasNamespace || !hasStatefulSet {
 		return
@@ -740,8 +740,8 @@ func (k *KSMCheck) transformKubeDaemonSetRolloutDurationWithTracker(s sender.Sen
 		return
 	}
 
-	namespace, hasNamespace := metric.Labels["namespace"]
-	daemonSetName, hasDaemonSet := metric.Labels["daemonset"]
+	namespace, hasNamespace := metric.Labels.Lookup("namespace")
+	daemonSetName, hasDaemonSet := metric.Labels.Lookup("daemonset")
 
 	if !hasNamespace || !hasDaemonSet {
 		return
