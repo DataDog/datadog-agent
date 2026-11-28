@@ -1,0 +1,58 @@
+version: 2
+
+points:
+  - name: smp-command-failed
+    description: Captured SMP command failed
+    scope: turn
+    severity: warn
+    confidence: high
+    emit: metric
+    match:
+      tool: [Bash, bash, Shell, shell, exec_command, functions.exec_command, run_shell, terminal]
+      command: '(?i)(?:^|[;&|]\s*)(?:[A-Z_][A-Z0-9_]*=\S+\s+)*(?:[\w./-]*/)?smp(?:\s|$)'
+      success: false
+
+  - name: smp-capability-question
+    description: Developer asked about an SMP capability
+    scope: turn
+    severity: info
+    confidence: medium
+    emit: metric
+    match:
+      prompt: '(?i)\b(?:does|can)\s+smp\b[^.!?\n]{0,200}\b(?:support|do|compare|run|show|export|analyze)\b'
+
+  - name: smp-expressed-wish
+    description: Developer expressed a wish about SMP
+    scope: turn
+    severity: info
+    confidence: medium
+    emit: metric
+    match:
+      prompt: '(?i)\b(?:i|we)\s+wish\s+smp\b'
+
+  - name: smp-agent-claimed-limit
+    description: Agent claimed an SMP limit that needs review
+    scope: turn
+    severity: info
+    confidence: medium
+    emit: metric
+    match:
+      response: '(?i)\bsmp\b[^.!?\n]{0,160}\b(?:cannot|can.t|does not|doesn.t|unsupported|not supported|lacks)\b'
+
+measures:
+  - name: smp-command-failures
+    scope: turn
+    metric_kind: count
+    count: {point: smp-command-failed}
+  - name: smp-capability-questions
+    scope: turn
+    metric_kind: count
+    count: {point: smp-capability-question}
+  - name: smp-expressed-wishes
+    scope: turn
+    metric_kind: count
+    count: {point: smp-expressed-wish}
+  - name: smp-agent-claimed-limits
+    scope: turn
+    metric_kind: count
+    count: {point: smp-agent-claimed-limit}
