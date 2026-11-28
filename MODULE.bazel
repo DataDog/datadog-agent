@@ -6,7 +6,7 @@ http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_
 
 env_vars = use_repo_rule("//bazel/repo:env_vars.bzl", "env_vars")
 
-# Environment values available for packaging.
+# Environment values available for packaging. test
 env_vars(
     name = "agent_volatile",
     # Each variable needs a justification. Every time you use one, the
