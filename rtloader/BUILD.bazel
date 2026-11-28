@@ -74,7 +74,6 @@ pkg_files(
 
 dd_cc_packaged(
     name = "rtloader_pkg",
-    data = [":rtloader_header_embedded_files"],
     dest_dir = "embedded/lib",
     input = ":datadog-agent-rtloader",
     version = VERSION,
@@ -280,7 +279,10 @@ pkg_filegroup(
 
 pkg_filegroup(
     name = "python_env_files",
-    srcs = [":python_env_transitive"],
+    srcs = [
+        ":python_env_transitive",
+        ":rtloader_header_embedded_files",
+    ],
 )
 
 pkg_install(

@@ -295,8 +295,13 @@ dd_cc_packaged(
     name = "libcrypto_shared_pkg",
     # Unix-only in practice: the Windows payload is installed by :windows_pkg
     # below, with plain pkg_* rules.
-    data = [":_openssl_files"] + select({
-        "@@//bazel/platforms:fips": [":_fips_extra_files"],
+    # Only FIPS Unix needs supplementary ssl/ files from :_openssl_files;
+    # C headers are not shipped in final packages.
+    data = select({
+        "@@//bazel/platforms:fips": [
+            ":_fips_extra_files",
+            ":_openssl_files",
+        ],
         "//conditions:default": [],
     }),
     dest_dir = "embedded/lib",
@@ -362,9 +367,23 @@ pkg_filegroup(
     srcs = [":_openssl_bin_win"] + select({
         ":fips_windows": [
             ":_fips_extra_files",
-            ":_openssl_files",
             ":_openssl_lib_win",
         ],
+        "//conditions:default": [],
+    }),
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//visibility:public"],
+)
+
+# Build-time OpenSSL files (headers and import libraries) for FIPS Windows,
+# installed by @cpython//:install for Omnibus's cryptography source build.
+# Headers under embedded3/include/openssl are deleted by datadog-agent-finalize.rb
+# and excluded by agent.rb before final packaging (import libraries under
+# embedded3/lib remain untouched in Omnibus and are omitted from :windows_pkg).
+pkg_filegroup(
+    name = "windows_fips_build_files",
+    srcs = select({
+        ":fips_windows": [":_openssl_files"],
         "//conditions:default": [],
     }),
     target_compatible_with = ["@platforms//os:windows"],
@@ -416,8 +435,10 @@ filegroup(
 )
 
 # Strip executables, shared libs, engines, and modules from the openssl install
-# tree so that _openssl_files contains only the supplementary files (headers,
-# pkgconfig, ssl/, and on Windows the import libs needed for FIPS source builds).
+# tree so that _openssl_files contains only supplementary files:
+# - On FIPS Unix: ssl/ configuration files (C headers, pkgconfig, and cmake are excluded).
+# - On FIPS Windows: headers and import libs needed at build time for the Omnibus
+#   cryptography source build (consumed only via :windows_fips_build_files).
 # copy_to_directory is used because pkg_files label-based excludes cannot exclude
 # TreeArtifacts produced by out_data_dirs (engines, modules, ssl/).
 copy_to_directory(
@@ -433,15 +454,18 @@ copy_to_directory(
         # installed via installed_executables; fips.so comes from openssl_fips
         "lib/ossl-modules/**",
     ] + select({
-        # On Windows, lib/*.lib are import libraries needed for building against
-        # OpenSSL (e.g., the FIPS cryptography source build). DLLs are already
-        # excluded via bin/** above.
+        # On Windows, headers and lib/*.lib import libraries are needed at build time
+        # for the FIPS cryptography source build (via :windows_fips_build_files).
+        # DLLs are already excluded via bin/** above.
         "@platforms//os:windows": [],
-        # On Unix, exclude shared/static libs; they are handled by
-        # libssl_shared_pkg / libcrypto_shared_pkg.
+        # On Unix, exclude C headers, build metadata, and shared/static libs
+        # (handled by libssl_shared_pkg / libcrypto_shared_pkg), leaving only ssl/.
         "//conditions:default": [
+            "include/**",
+            "lib/cmake/**",
             "lib/libssl*",
             "lib/libcrypto*",
+            "lib/pkgconfig/**",
         ],
     }),
     root_paths = ["openssl"],

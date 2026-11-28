@@ -5,7 +5,7 @@ load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
 package(default_package_metadata = [":package_metadata"])
 
@@ -283,12 +283,6 @@ dd_agent_expand_template(
 )
 
 pkg_files(
-    name = "hdr_files",
-    srcs = glob(["include/rpm/*.h"]),
-    prefix = "embedded/include/rpm",
-)
-
-pkg_files(
     name = "misc_files",
     srcs = [
         ":gen_rpmpopt",
@@ -308,23 +302,10 @@ dd_cc_packaged(
 dd_cc_packaged(
     name = "rpm_pkg",
     data = [
-        ":hdr_files",
         ":misc_files",
     ],
     dest_dir = "embedded/lib",
     input = ":rpm",
     version = "10.2.1",
     visibility = ["//visibility:public"],
-)
-
-pkg_filegroup(
-    name = "all_files",
-    srcs = [
-        ":hdr_files",
-        ":misc_files",
-    ],
-    visibility = [
-        "@@//deps/openscap:__pkg__",
-        "@@//packages:__subpackages__",
-    ],
 )

@@ -3,7 +3,6 @@ load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 XSLT_VERSION = "1.1.45"
 
@@ -121,15 +120,8 @@ cc_shared_library(
     deps = [":libxslt"],
 )
 
-pkg_files(
-    name = "xslt_headers",
-    srcs = _PUBLIC_XSLT_HDRS,
-    prefix = "embedded/include/libxslt",
-)
-
 dd_cc_packaged(
     name = "xslt_pkg",
-    data = [":xslt_headers"],
     dest_dir = "embedded/lib",
     input = ":xslt",
     version = XSLT_VERSION,
@@ -197,29 +189,10 @@ cc_shared_library(
     deps = [":libexslt"],
 )
 
-pkg_files(
-    name = "exslt_headers",
-    srcs = _PUBLIC_EXSLT_HDRS,
-    prefix = "embedded/include/libexslt",
-)
-
 dd_cc_packaged(
     name = "exslt_pkg",
-    data = [":exslt_headers"],
     dest_dir = "embedded/lib",
     input = ":exslt",
     version = "0.8.25",
     visibility = ["//visibility:public"],
-)
-
-pkg_filegroup(
-    name = "all_files",
-    srcs = [
-        ":exslt_headers",
-        ":xslt_headers",
-    ],
-    visibility = [
-        "@@//deps/openscap:__pkg__",
-        "@@//packages:__subpackages__",
-    ],
 )

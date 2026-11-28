@@ -4,7 +4,6 @@ load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(default_package_metadata = [":package_metadata"])
 
@@ -208,21 +207,8 @@ cc_shared_library(
     ],
 )
 
-pkg_files(
-    name = "headers_files",
-    srcs = PUBLIC_HEADERS,
-    prefix = "embedded/include/xmlsec1/xmlsec",
-)
-
-pkg_files(
-    name = "openssl_headers_files",
-    srcs = PUBLIC_OPENSSL_HEADERS,
-    prefix = "embedded/include/xmlsec1/xmlsec/openssl",
-)
-
 dd_cc_packaged(
     name = "xmlsec1_pkg",
-    data = [":headers_files"],
     dest_dir = "embedded/lib",
     input = ":xmlsec1",
     version = SO_VERSION,
@@ -231,21 +217,8 @@ dd_cc_packaged(
 
 dd_cc_packaged(
     name = "xmlsec1-openssl_pkg",
-    data = [":openssl_headers_files"],
     dest_dir = "embedded/lib",
     input = ":xmlsec1-openssl",
     version = SO_VERSION,
     visibility = ["//visibility:public"],
-)
-
-pkg_filegroup(
-    name = "all_files",
-    srcs = [
-        ":headers_files",
-        ":openssl_headers_files",
-    ],
-    visibility = [
-        "@@//deps/openscap:__pkg__",
-        "@@//packages:__subpackages__",
-    ],
 )

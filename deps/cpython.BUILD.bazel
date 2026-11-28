@@ -299,9 +299,7 @@ pkg_filegroup(
         "@platforms//os:windows": [
             # python_win is built via MSBuild (not cc_shared_library), so there
             # are no dynamic_deps edges to walk from python_pkg: pull in the
-            # Windows OpenSSL payload (embedded3/include/openssl/,
-            # embedded3/lib/*.lib, ...) explicitly, required for FIPS
-            # cryptography source builds.
+            # Windows OpenSSL runtime payload explicitly.
             "@openssl//:windows_pkg",
             ":install_files_win",
         ],
@@ -318,7 +316,13 @@ pkg_filegroup(
 pkg_install(
     name = "install",
     srcs = select({
-        "@platforms//os:windows": [":all_files"],
+        "@platforms//os:windows": [
+            ":all_files",
+            # Build-time OpenSSL headers/import libs for Omnibus's FIPS Windows
+            # cryptography source build (headers under embedded3/include/openssl
+            # are removed by datadog-agent-finalize.rb).
+            "@openssl//:windows_fips_build_files",
+        ],
         "//conditions:default": [":runtime_deps"],
     }),
 )

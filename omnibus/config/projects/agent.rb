@@ -275,8 +275,12 @@ resources_path "#{Omnibus::Config.project_root}/resources/agent"
 exclude '\.git*'
 exclude 'bundler\/git'
 
-# Exclude headers that are not needed in the final package
+# Exclude build-time headers that are not needed in the final package
 exclude "embedded/include/systemd"
+exclude "embedded/include/datadog_agent_rtloader.h"
+exclude "embedded/include/rtloader_types.h"
+exclude "embedded/include/rtloader_mem.h"
+exclude "embedded3/include/openssl"
 
 if windows_target?
   FORBIDDEN_SYMBOLS = [
