@@ -137,7 +137,9 @@ func (mr *Resolver) syncPidProcfs(pid uint32) error {
 	mounts := []*model.Mount{}
 
 	err := GetPidProcfs(kernel.ProcFSRoot(), pid, func(sm *model.Mount) {
-		mr.mounts.Remove(sm.MountID)
+		if existing, ok := mr.mounts.Get(sm.MountID); ok && existing != nil {
+			mr.delete(existing)
+		}
 		mounts = append(mounts, sm)
 	})
 
@@ -156,7 +158,9 @@ func (mr *Resolver) syncPidListmount(pid uint32) error {
 	mounts := []*model.Mount{}
 
 	err := GetPidListmount(kernel.ProcFSRoot(), pid, func(sm *model.Mount) {
-		mr.mounts.Remove(sm.MountID)
+		if existing, ok := mr.mounts.Get(sm.MountID); ok && existing != nil {
+			mr.delete(existing)
+		}
 		mounts = append(mounts, sm)
 	})
 
@@ -427,28 +431,34 @@ func (mr *Resolver) InsertMoved(m model.Mount) error {
 	return nil
 }
 
+func sameMountInstance(a, b *model.Mount) bool {
+	return a.MountIDUnique == 0 || b.MountIDUnique == 0 || a.MountIDUnique == b.MountIDUnique
+}
+
 func (mr *Resolver) insert(m *model.Mount) {
 	if mr.minMountID > m.MountID {
 		mr.minMountID = m.MountID
 	}
 
-	invalidateChildrenPath := false
-	// Remove the previous one if exists
 	if m.Origin != model.MountOriginProcfs {
-		if prev, ok := mr.mounts.Get(m.MountID); prev != nil && ok {
-			if prev.ParentPathKey != m.ParentPathKey {
-				invalidateChildrenPath = true
-			}
-			m.Children = prev.Children
-			prev.Children = []uint32{}
-			mr.delete(prev)
-		}
-
 		// if we're inserting a mount from a kernel event (!= procfs) that isn't the root fs
 		// then remove the leading slash from the mountpoint
 		if len(m.Path) == 0 && m.MountPointStr != "/" {
 			m.MountPointStr = strings.TrimPrefix(m.MountPointStr, "/")
 		}
+	}
+
+	invalidateChildrenPath := false
+	if prev, ok := mr.mounts.Get(m.MountID); prev != nil && ok {
+		if sameMountInstance(prev, m) {
+			if m.Origin != model.MountOriginProcfs && m.Origin != model.MountOriginListmount &&
+				(prev.ParentPathKey != m.ParentPathKey || prev.MountPointStr != m.MountPointStr) {
+				invalidateChildrenPath = true
+			}
+			m.Children = prev.Children
+		}
+		prev.Children = []uint32{}
+		mr.delete(prev)
 	}
 
 	// Update the list of children of the parent
@@ -462,25 +472,27 @@ func (mr *Resolver) insert(m *model.Mount) {
 		mr.dangling.Add(m.MountID, m)
 	}
 
-	if invalidateChildrenPath {
-		mr.walkMountSubtree(m, func(child *model.Mount) {
-			child.Path = ""
-		})
-	}
-
 	// check if this mount has any dangling children
-	if m.Origin != model.MountOriginProcfs {
-		start := len(m.Children)
-		for danglingElem := range mr.dangling.ValuesIter() {
-			if danglingElem.ParentPathKey.MountID == m.MountID {
+	var reattached []uint32
+	for danglingElem := range mr.dangling.ValuesIter() {
+		if danglingElem.ParentPathKey.MountID == m.MountID {
+			reattached = append(reattached, danglingElem.MountID)
+			if !slices.Contains(m.Children, danglingElem.MountID) {
 				m.Children = append(m.Children, danglingElem.MountID)
 			}
 		}
+	}
 
-		// remove appended from dangling list
-		for i := start; i < len(m.Children); i++ {
-			mr.dangling.Remove(m.Children[i])
-		}
+	for _, childID := range reattached {
+		mr.dangling.Remove(childID)
+	}
+
+	if invalidateChildrenPath {
+		mr.walkMountSubtree(m, func(child *model.Mount) {
+			if child.MountID != m.MountID {
+				child.Path = ""
+			}
+		})
 	}
 
 	mr.mounts.Add(m.MountID, m)
