@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    On Kubernetes nodes with NVIDIA GPUs, the orchestrator pod check now sends
+    the node's GPUs as listed by the NVIDIA kernel driver in procfs (device
+    minor, UUID, model and PCI bus ID) with its Pod manifests. This lets
+    Kubernetes Explorer resolve index-based GPU device IDs, such as those
+    allocated by the GKE device plugin, to GPU UUIDs without GPU Monitoring.
