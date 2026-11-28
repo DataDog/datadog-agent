@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Kubernetes client logs emitted by the Datadog Agent and Cluster Agent now
+    report the actual calling file and function instead of ``klog.go``.
