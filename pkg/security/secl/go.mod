@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model v0.0.0-00010101000000-000000000000
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/charlievieth/strcase v0.0.6
-	github.com/cilium/ebpf v0.22.1-0.20260708150823-a5b2e206f9ed
+	github.com/cilium/ebpf v0.22.1-0.20261119135504-862b60f0fc93
 	github.com/cloudflare/cbpfc v0.0.0-20260219140841-0661ad29132c
 	github.com/google/go-cmp v0.7.0
 	github.com/google/gopacket v1.1.19
@@ -28,11 +28,9 @@ require (
 )
 
 require (
-	github.com/go-quicktest/qt v1.102.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/rogpeppe/go-internal v1.16.0 // indirect
 	github.com/tinylib/msgp v1.6.5 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
