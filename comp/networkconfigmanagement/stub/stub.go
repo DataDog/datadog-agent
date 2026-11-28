@@ -17,6 +17,7 @@ import (
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/ioscmd"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
 
@@ -54,6 +55,9 @@ func (s *NCMStub) ReportConfig(_ context.Context, _ string, _ sender.Sender) err
 func (s *NCMStub) RollbackConfig(_ context.Context, _, _, _ string) (*types.PushResult, types.TypedError) {
 	return nil, s.GetError()
 }
+func (s *NCMStub) RunIOSCommands(_ context.Context, _ string, _ ioscmd.CommandBlock) ([]*types.CommandResult, types.TypedError) {
+	return nil, s.GetError()
+}
 func (s *NCMStub) SetMaxReportInterval(_ time.Duration) {}
 
 // GetConfigEndpointHandler implements [networkconfigmanagement.Component].
@@ -65,5 +69,10 @@ func (s *NCMStub) GetConfigEndpointHandler() http.HandlerFunc {
 
 // RollbackEndpointHandler implements [networkconfigmanagement.Component].
 func (s *NCMStub) RollbackEndpointHandler() http.HandlerFunc {
+	return s.GetConfigEndpointHandler()
+}
+
+// RunIOSCommandsEndpointHandler implements [networkconfigmanagement.Component].
+func (s *NCMStub) RunIOSCommandsEndpointHandler() http.HandlerFunc {
 	return s.GetConfigEndpointHandler()
 }
