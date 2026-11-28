@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    APM : Repair invalid UTF-8 in strings received through the v1.0 trace protocol
+    to prevent trace payloads from being rejected when a string contains a
+    truncated multi-byte character.

@@ -446,6 +446,15 @@ func unmarshalAnyValue(bts []byte, strings *StringTable, depth int) (value *AnyV
 	return
 }
 
+// readUTF8StringBytes repairs invalid UTF-8 using the same rune replacement as the v0.4 decoder.
+func readUTF8StringBytes(bts []byte) (s string, o []byte, err error) {
+	s, o, err = msgp.ReadStringBytes(bts)
+	if err == nil && !utf8.ValidString(s) {
+		s = repairUTF8(s)
+	}
+	return
+}
+
 // UnmarshalStreamingString unmarshals a streaming string from a byte stream, updating the strings slice with new strings
 // For streaming string details see pkg/trace/api/version.go for details
 func UnmarshalStreamingString(bts []byte, strings *StringTable) (index uint32, o []byte, err error) {
@@ -455,12 +464,15 @@ func UnmarshalStreamingString(bts []byte, strings *StringTable) (index uint32, o
 	}
 	if isString(bts) {
 		var s string
-		s, o, err = msgp.ReadStringBytes(bts)
+		s, o, err = readUTF8StringBytes(bts)
 		if err != nil {
 			err = msgp.WrapError(err, "Failed to read streaming string as a string")
 			return
 		}
-		index = strings.Add(s)
+		if s != "" {
+			// Inline strings define new wire indices, even if repair makes their values equal.
+			index = strings.addWire(s)
+		}
 	} else {
 		index, o, err = msgp.ReadUint32Bytes(bts)
 		if err != nil {
@@ -471,6 +483,7 @@ func UnmarshalStreamingString(bts []byte, strings *StringTable) (index uint32, o
 			err = fmt.Errorf("Streaming string referenced an unseen string index %d (string table length: %d)", index, strings.Len())
 			return
 		}
+		index = strings.resolveWire(index)
 	}
 	return
 }
@@ -503,12 +516,14 @@ func harvestUnknownFieldStringsDepth(bts []byte, strings *StringTable, depth int
 	switch msgp.NextType(bts) {
 	case msgp.StrType:
 		var s string
-		s, o, err = msgp.ReadStringBytes(bts)
+		s, o, err = readUTF8StringBytes(bts)
 		if err != nil {
 			err = msgp.WrapError(err, "Failed to read string in unknown field")
 			return
 		}
-		strings.Add(s)
+		if s != "" {
+			strings.addWire(s)
+		}
 	case msgp.ArrayType:
 		var sz uint32
 		sz, o, err = limitedReadArrayHeaderBytes(bts)

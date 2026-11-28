@@ -49,6 +49,7 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//require",
         "@com_github_tinylib_msgp//msgp",
         "@com_github_vmihailenco_msgpack_v5//:msgpack",
+        "@org_golang_google_protobuf//proto",
         "@org_golang_google_protobuf//reflect/protoreflect",
     ],
 )
