@@ -72,6 +72,11 @@ func main() {
 
 	objectFiles := make(map[string]string)
 	directory := os.Getenv("DD_SYSTEM_PROBE_BPF_DIR")
+	if *lineComplexity {
+		if lineInfoDir := os.Getenv("DD_SYSTEM_PROBE_BPF_LINE_INFO_DIR"); lineInfoDir != "" {
+			directory = lineInfoDir
+		}
+	}
 	if directory == "" {
 		log.Fatalf("DD_SYSTEM_PROBE_BPF_DIR env var not set")
 	}

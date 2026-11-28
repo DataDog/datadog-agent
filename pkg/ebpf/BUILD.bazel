@@ -7,6 +7,7 @@ load("@bazel_lib//lib:expand_template.bzl", "expand_template")
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_object_group")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # Hand-written: rules_go respects //go:build ignore, so strip it before compiling.
@@ -87,7 +88,7 @@ test_suite(
 )
 
 # Shipped eBPF assets (stripped objects).
-filegroup(
+ebpf_object_group(
     name = "prebuilt_objects",
     srcs = [
         "//pkg/network/ebpf/c/prebuilt:conntrack.stripped",
@@ -104,7 +105,7 @@ filegroup(
     visibility = ["//visibility:public"],
 )
 
-filegroup(
+ebpf_object_group(
     name = "prebuilt_test_objects",
     srcs = [
         "//pkg/network/ebpf/c/prebuilt:usm_events_test.stripped",
@@ -112,7 +113,7 @@ filegroup(
     visibility = ["//visibility:public"],
 )
 
-filegroup(
+ebpf_object_group(
     name = "co_re_objects",
     srcs = [
         "//cmd/system-probe/subcommands/ebpf/testdata:btf_test.stripped",
@@ -143,7 +144,7 @@ filegroup(
 
 # DEBUG=1 variants of the ebpf_program_suite programs, staged only by
 # `dda inv system-probe.object-files --debug`.
-filegroup(
+ebpf_object_group(
     name = "prebuilt_debug_objects",
     srcs = [
         "//pkg/network/ebpf/c/prebuilt:conntrack-debug.stripped",
@@ -156,7 +157,7 @@ filegroup(
     ],
 )
 
-filegroup(
+ebpf_object_group(
     name = "co_re_debug_objects",
     srcs = [
         "//pkg/collector/corechecks/ebpf/c/runtime:ebpf-debug.stripped",
@@ -208,6 +209,62 @@ filegroup(
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "prebuilt_objects_with_line_info",
+    srcs = [":prebuilt_objects"],
+    output_group = "with_line_info",
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "prebuilt_test_objects_with_line_info",
+    srcs = [":prebuilt_test_objects"],
+    output_group = "with_line_info",
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "co_re_objects_with_line_info",
+    srcs = [":co_re_objects"],
+    output_group = "with_line_info",
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "prebuilt_debug_objects_with_line_info",
+    srcs = [":prebuilt_debug_objects"],
+    output_group = "with_line_info",
+)
+
+filegroup(
+    name = "co_re_debug_objects_with_line_info",
+    srcs = [":co_re_debug_objects"],
+    output_group = "with_line_info",
+)
+
+# Linux-only, so ebpf_test stays analyzable on other platforms.
+filegroup(
+    name = "stripped_ebpf_test_objects",
+    srcs = select({
+        "@platforms//os:linux": [
+            ":co_re_objects",
+            ":prebuilt_objects",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+filegroup(
+    name = "line_info_ebpf_test_objects",
+    srcs = select({
+        "@platforms//os:linux": [
+            ":co_re_objects_with_line_info",
+            ":prebuilt_objects_with_line_info",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 # Linux-only, so ebpf_test stays analyzable on other platforms.
@@ -303,6 +360,67 @@ pkg_files(
     }),
     attributes = pkg_attributes(mode = "755"),
     prefix = "pkg/ebpf/kernelbugs/c",
+)
+
+pkg_files(
+    name = "install_prebuilt_objects_with_line_info",
+    srcs = [
+        ":prebuilt_objects_with_line_info",
+        ":prebuilt_test_objects_with_line_info",
+    ],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = select({
+        ":ebpf_aarch64": "pkg/ebpf/bytecode/build/line-info/arm64",
+        "//conditions:default": "pkg/ebpf/bytecode/build/line-info/x86_64",
+    }),
+)
+
+pkg_files(
+    name = "install_co_re_objects_with_line_info",
+    srcs = [":co_re_objects_with_line_info"],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = select({
+        ":ebpf_aarch64": "pkg/ebpf/bytecode/build/line-info/arm64/co-re",
+        "//conditions:default": "pkg/ebpf/bytecode/build/line-info/x86_64/co-re",
+    }),
+)
+
+pkg_install(
+    name = "install_line_info_object_files",
+    srcs = [
+        ":install_co_re_objects_with_line_info",
+        ":install_prebuilt_objects_with_line_info",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+pkg_files(
+    name = "install_prebuilt_debug_objects_with_line_info",
+    srcs = [":prebuilt_debug_objects_with_line_info"],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = select({
+        ":ebpf_aarch64": "pkg/ebpf/bytecode/build/line-info/arm64",
+        "//conditions:default": "pkg/ebpf/bytecode/build/line-info/x86_64",
+    }),
+)
+
+pkg_files(
+    name = "install_co_re_debug_objects_with_line_info",
+    srcs = [":co_re_debug_objects_with_line_info"],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = select({
+        ":ebpf_aarch64": "pkg/ebpf/bytecode/build/line-info/arm64/co-re",
+        "//conditions:default": "pkg/ebpf/bytecode/build/line-info/x86_64/co-re",
+    }),
+)
+
+pkg_install(
+    name = "install_debug_line_info_object_files",
+    srcs = [
+        ":install_co_re_debug_objects_with_line_info",
+        ":install_prebuilt_debug_objects_with_line_info",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 pkg_install(
@@ -497,6 +615,7 @@ dd_agent_go_test(
     name = "ebpf_test",
     srcs = [
         "btf_cache_test.go",
+        "btf_line_info_strip_test.go",
         "btf_test.go",
         "cache_test.go",
         "co_re_telemetry_test.go",
@@ -512,10 +631,18 @@ dd_agent_go_test(
         "rc_btf_test.go",
         "time_test.go",
     ],
-    data = glob(["testdata/**"]) + [":debug_ebpf_programs"],
+    data = glob(["testdata/**"]) + [
+        ":debug_ebpf_programs",
+        ":line_info_ebpf_test_objects",
+        ":stripped_ebpf_test_objects",
+    ],
     embed = [":ebpf"],
     env = select({
-        "@platforms//os:linux": {"PRINTK_PATCHER_TEST_ASSETS": "$(rlocationpaths :debug_ebpf_programs)"},
+        "@platforms//os:linux": {
+            "LINE_INFO_EBPF_TEST_ASSETS": "$(rlocationpaths :line_info_ebpf_test_objects)",
+            "PRINTK_PATCHER_TEST_ASSETS": "$(rlocationpaths :debug_ebpf_programs)",
+            "STRIPPED_EBPF_TEST_ASSETS": "$(rlocationpaths :stripped_ebpf_test_objects)",
+        },
         "//conditions:default": {},
     }),
     gotags_sets = [["bpf"]],
@@ -537,6 +664,7 @@ dd_agent_go_test(
             "//pkg/util/kernel",
             "@com_github_cilium_ebpf//:ebpf",
             "@com_github_cilium_ebpf//asm",
+            "@com_github_cilium_ebpf//btf",
             "@com_github_cilium_ebpf//features",
             "@com_github_cilium_ebpf//rlimit",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
@@ -557,6 +685,7 @@ dd_agent_go_test(
             "//pkg/util/kernel",
             "@com_github_cilium_ebpf//:ebpf",
             "@com_github_cilium_ebpf//asm",
+            "@com_github_cilium_ebpf//btf",
             "@com_github_cilium_ebpf//features",
             "@com_github_cilium_ebpf//rlimit",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",

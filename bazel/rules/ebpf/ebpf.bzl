@@ -203,27 +203,42 @@ def _ebpf_prog_impl(ctx):
     return [DefaultInfo(files = depset([obj_file]))]
 
 def _stripped_ebpf_impl(ctx):
-    """Strip debug info, LBB symbols and .BTF.ext relocations from an eBPF object file."""
+    """Strip debug info, LBB symbols, .BTF.ext relocations, and .BTF.ext line_info from an eBPF object file."""
     toolchain = ctx.toolchains[_TOOLCHAIN_TYPE]
     if not toolchain:
         fail("LLVM BPF toolchain is not available")
 
     src = ctx.file.src
 
-    # Original basename so the object can be shipped without renaming.
-    out = ctx.actions.declare_file("stripped/" + src.basename)
+    # Intermediate output retaining .BTF.ext line_info for verifier source-map tooling.
+    with_line_info = ctx.actions.declare_file("with_line_info/" + src.basename)
 
     ctx.actions.run(
         inputs = [src],
-        outputs = [out],
+        outputs = [with_line_info],
         executable = toolchain.llvm_bpf.llvm_strip,
-        arguments = ["-g", "-w", "-N", "LBB*", "--remove-section=.rel.BTF.ext", "-o", out.path, src.path],
+        arguments = ["-g", "-w", "-N", "LBB*", "--remove-section=.rel.BTF.ext", "-o", with_line_info.path, src.path],
         mnemonic = "EbpfStrip",
         progress_message = "Stripping eBPF %{label}",
         toolchain = _TOOLCHAIN_TYPE,
     )
 
-    return [DefaultInfo(files = depset([out]))]
+    # Original basename so the object can be shipped without renaming.
+    out = ctx.actions.declare_file("stripped/" + src.basename)
+
+    ctx.actions.run(
+        inputs = [with_line_info],
+        outputs = [out],
+        executable = ctx.executable._strip_btf_line_info,
+        arguments = ["--input", with_line_info.path, "--output", out.path],
+        mnemonic = "EbpfStripBtfLineInfo",
+        progress_message = "Stripping .BTF.ext line_info from %{label}",
+    )
+
+    return [
+        DefaultInfo(files = depset([out])),
+        OutputGroupInfo(with_line_info = depset([with_line_info])),
+    ]
 
 _stripped_ebpf = rule(
     implementation = _stripped_ebpf_impl,
@@ -233,8 +248,37 @@ _stripped_ebpf = rule(
             allow_single_file = [".o"],
             doc = "The unstripped eBPF object file to strip.",
         ),
+        "_strip_btf_line_info": attr.label(
+            default = "//bazel/rules/ebpf:strip_btf_line_info",
+            executable = True,
+            cfg = "exec",
+            doc = "Tool that strips .BTF.ext line_info records while preserving func_info and core_relo.",
+        ),
     },
     toolchains = [_TOOLCHAIN],
+)
+
+def _ebpf_object_group_impl(ctx):
+    default_files = depset(transitive = [src[DefaultInfo].files for src in ctx.attr.srcs])
+    with_line_info = depset(transitive = [
+        src[OutputGroupInfo].with_line_info
+        for src in ctx.attr.srcs
+        if OutputGroupInfo in src and hasattr(src[OutputGroupInfo], "with_line_info")
+    ])
+    return [
+        DefaultInfo(files = default_files),
+        OutputGroupInfo(with_line_info = with_line_info),
+    ]
+
+ebpf_object_group = rule(
+    implementation = _ebpf_object_group_impl,
+    attrs = {
+        "srcs": attr.label_list(
+            allow_files = [".o"],
+            doc = "Stripped eBPF object targets whose default and with_line_info outputs are grouped.",
+        ),
+    },
+    doc = "Groups stripped eBPF object targets while forwarding their with_line_info output group.",
 )
 
 _ebpf_prog = rule(
@@ -368,7 +412,7 @@ ebpf_program_suite = macro(
 
     Generates:
       - {name}: normal build (unstripped)
-      - {name}.stripped: stripped variant (debug info + LBB symbols removed)
+      - {name}.stripped: stripped variant (debug info, LBB symbols, and .BTF.ext line_info removed)
       - {name}-debug: build with DEBUG=1 (unstripped)
       - {name}-debug.stripped: stripped debug variant
     """,

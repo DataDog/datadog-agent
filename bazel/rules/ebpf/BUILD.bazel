@@ -18,6 +18,21 @@ py_test(
     main = "clang_with_unused_inputs_test.py",
 )
 
+py_binary(
+    name = "strip_btf_line_info",
+    srcs = ["strip_btf_line_info.py"],
+    visibility = ["//visibility:private"],
+)
+
+py_test(
+    name = "strip_btf_line_info_test",
+    srcs = [
+        "strip_btf_line_info.py",
+        "strip_btf_line_info_test.py",
+    ],
+    main = "strip_btf_line_info_test.py",
+)
+
 string_flag(
     name = "target_arch",
     build_setting_default = "",

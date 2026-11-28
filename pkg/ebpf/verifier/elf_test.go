@@ -29,7 +29,10 @@ import (
 
 func TestGetSourceMap(t *testing.T) {
 	objectFiles := make(map[string]string)
-	directory := ddebpf.NewConfig().BPFDir
+	directory := os.Getenv("DD_SYSTEM_PROBE_BPF_LINE_INFO_DIR")
+	if directory == "" {
+		directory = ddebpf.NewConfig().BPFDir
+	}
 	err := filepath.WalkDir(directory, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err

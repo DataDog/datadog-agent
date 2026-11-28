@@ -81,6 +81,7 @@ from tasks.system_probe import (
     check_for_ninja,
     compute_go_parallelism,
     get_ebpf_build_dir,
+    get_ebpf_line_info_build_dir,
     get_ebpf_runtime_dir,
     get_sysprobe_test_buildtags,
     get_test_timeout,
@@ -780,6 +781,14 @@ def ninja_copy_ebpf_files(
     to_copy = [(p, output / p.relative_to(build_dir)) for p in build_dir.glob("**/*.o") if filter(p)]
     to_copy += [(p, output / "runtime" / p.relative_to(runtime_dir)) for p in runtime_dir.glob("**/*.c") if filter(p)]
 
+    if component == "system-probe":
+        line_info_dir = get_ebpf_line_info_build_dir(arch).absolute()
+        if line_info_dir.is_dir():
+            line_info_output = root / line_info_dir.relative_to(Path.cwd().absolute())
+            to_copy += [
+                (p, line_info_output / p.relative_to(line_info_dir)) for p in line_info_dir.glob("**/*.o") if filter(p)
+            ]
+
     for source, target in to_copy:
         nw.build(inputs=[os.fspath(source)], outputs=[os.fspath(target)], rule="copyfiles", variables={"mode": "-m744"})
 
@@ -1017,9 +1026,9 @@ def build_target_packages(filter_packages: list[str], build_tags: list[str]):
     return [pkg for pkg in all_packages if os.path.relpath(pkg) in filter_packages]
 
 
-def build_object_files(ctx, arch: Arch):
+def build_object_files(ctx, arch: Arch, *, line_info: bool = False):
     info("[+] Building eBPF object files via Bazel...")
-    bazel_build_ebpf(ctx, arch, verify=True)
+    bazel_build_ebpf(ctx, arch, verify=True, line_info=line_info)
 
 
 def compute_package_dependencies(ctx: Context, packages: list[str], build_tags: list[str]) -> dict[str, set[str]]:
@@ -1088,7 +1097,7 @@ def kmt_sysprobe_prepare(
     if go_root:
         go_path = os.path.join(go_root, "bin", "go")
 
-    build_object_files(ctx, arch)
+    build_object_files(ctx, arch, line_info=True)
 
     info("[+] Computing Go dependencies for test packages...")
     build_tags = get_sysprobe_test_buildtags(False, False)

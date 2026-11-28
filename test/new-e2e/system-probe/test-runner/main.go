@@ -208,11 +208,12 @@ func createDir(d string) error {
 	return nil
 }
 
-func collectEnvVars(testConfig *testConfig, bpfDir string) []string {
+func collectEnvVars(testConfig *testConfig, bpfDir, lineInfoDir string) []string {
 	var env []string
 	env = append(env, baseEnv...)
 	env = append(env,
 		"DD_SYSTEM_PROBE_BPF_DIR="+bpfDir,
+		"DD_SYSTEM_PROBE_BPF_LINE_INFO_DIR="+lineInfoDir,
 	)
 
 	if testConfig.extraEnv != "" {
@@ -265,8 +266,9 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		return fmt.Errorf("getEBPFBuildDir: %w", err)
 	}
 	bpfDir := filepath.Join(testConfig.testDirRoot, buildDir)
+	lineInfoDir := filepath.Join(testConfig.testDirRoot, "pkg/ebpf/bytecode/build/line-info", filepath.Base(buildDir))
 
-	envVars := collectEnvVars(testConfig, bpfDir)
+	envVars := collectEnvVars(testConfig, bpfDir, lineInfoDir)
 
 	var testContainer *testContainer
 	if testConfig.InContainerImage != "" {

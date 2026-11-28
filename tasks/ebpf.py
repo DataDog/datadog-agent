@@ -45,6 +45,7 @@ from .system_probe import (
     build_cws_object_files,
     build_object_files,
     get_ebpf_build_dir,
+    get_ebpf_line_info_build_dir,
     is_root,
 )
 
@@ -162,13 +163,15 @@ def collect_verification_stats(
 ):
     sudo = "sudo -E" if not is_root() else ""
     if not skip_object_files:
-        build_object_files(ctx, debug=debug_build)
+        build_object_files(ctx, debug=debug_build, line_info=line_complexity)
         build_cws_object_files(ctx)
 
     ctx.run("go build -tags bpf pkg/ebpf/verifier/calculator/main.go")
 
     arch = Arch.local()
     env = {"DD_SYSTEM_PROBE_BPF_DIR": f"./{get_ebpf_build_dir(arch)}"}
+    if line_complexity:
+        env["DD_SYSTEM_PROBE_BPF_LINE_INFO_DIR"] = f"./{get_ebpf_line_info_build_dir(arch)}"
 
     # ensure all files are object files
     for f in filter_file or []:
