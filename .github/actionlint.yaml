@@ -1,0 +1,4 @@
+# The pinned actionlint release predates this hosted runner label.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04

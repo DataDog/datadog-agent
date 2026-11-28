@@ -8,6 +8,10 @@ invoke_unit_tests:
   needs: []
   rules:
     - !reference [.on_invoke_tasks_changes]
+    - changes:
+        paths:
+          - tools/ci/changed-files.sh
+        compare_to: $COMPARE_TO_BRANCH
   script:
     - dda self dep sync -f legacy-tasks -f legacy-kernel-matrix-testing
     - dda inv -- -e invoke-unit-tests.run

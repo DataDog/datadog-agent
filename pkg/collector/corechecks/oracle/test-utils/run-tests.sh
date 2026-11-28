@@ -1,3 +1,4 @@
+#!/bin/sh
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https://www.datadoghq.com/).
@@ -29,12 +30,14 @@ then
   files="$files/*.cfg"
 fi
 
-cd $GOPATH/src/github.com/DataDog/datadog-agent
+cd "$GOPATH/src/github.com/DataDog/datadog-agent" || exit
 
 for f in $files
 do
   echo "Starting tests for $f"
-  . $f
+  # The configuration file is supplied by the caller.
+  # shellcheck source=/dev/null
+  . "$f"
   go clean -testcache
 
   # Tests are running sequentially for the predictability of the memory leak test

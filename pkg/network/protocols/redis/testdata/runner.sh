@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Log the commands and their output for better debugging.
+# shell-check-no-set-x: allow - Trace test container initialization for debugging.
 set -x
 
 # Create a directory to store the configuration files

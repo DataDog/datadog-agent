@@ -143,6 +143,8 @@ dda inv install-shellcheck --destination <path>
 
 (by default, the shellcheck binary is installed in `/usr/local/bin`).
 
+The `dda inv pre-commit.check-shellcheck` adapter snapshots selected scripts and tracked configuration. If the applicable `.shellcheckrc` or `shellcheckrc` enables external sources, it also copies staged files beneath that configuration's directory. Place the configuration above all required source files; dependencies outside that source context are not discovered automatically. ShellCheck resolves imports and directives within the snapshot.
+
 ### Skipping `pre-commit`
 
 If you want to skip `pre-commit` for a specific commit you can add `--no-verify` to the `git commit` command.
