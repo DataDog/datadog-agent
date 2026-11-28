@@ -1041,3 +1041,57 @@ func sameExceptName(t *testing.T, a, b pmetric.Metric) {
 	bb.SetName("🙂")
 	require.Equal(t, aa, bb)
 }
+
+func TestRenameKongGenAIMetrics(t *testing.T) {
+	makeSum := func(name string) pmetric.Metric {
+		m := pmetric.NewMetric()
+		m.SetName(name)
+		m.SetEmptySum()
+		return m
+	}
+	makeHistogram := func(name string) pmetric.Metric {
+		m := pmetric.NewMetric()
+		m.SetName(name)
+		m.SetEmptyHistogram()
+		return m
+	}
+
+	tests := []struct {
+		name      string
+		metric    pmetric.Metric
+		scopeName string
+		wantName  string
+	}{
+		{
+			name:      "kong-internal sum gen_ai.client.token.usage is renamed",
+			metric:    makeSum("gen_ai.client.token.usage"),
+			scopeName: "kong-internal",
+			wantName:  "kong.gen_ai.client.token.usage",
+		},
+		{
+			name:      "kong-internal histogram gen_ai.client.token.usage is kept",
+			metric:    makeHistogram("gen_ai.client.token.usage"),
+			scopeName: "kong-internal",
+			wantName:  "gen_ai.client.token.usage",
+		},
+		{
+			name:      "non-kong scope sum gen_ai.client.token.usage is kept",
+			metric:    makeSum("gen_ai.client.token.usage"),
+			scopeName: "other-scope",
+			wantName:  "gen_ai.client.token.usage",
+		},
+		{
+			name:      "other kong-internal metrics are kept",
+			metric:    makeSum("kong.gen_ai.llm.cost"),
+			scopeName: "kong-internal",
+			wantName:  "kong.gen_ai.llm.cost",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			renameKongGenAIMetrics(tt.metric, tt.scopeName)
+			assert.Equal(t, tt.wantName, tt.metric.Name())
+		})
+	}
+}

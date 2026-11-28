@@ -624,6 +624,7 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 				if t.cfg.withOTelPrefix {
 					renameMetrics(md)
 				}
+				renameKongGenAIMetrics(md, scopeName)
 
 				err := t.mapToDDFormat(ctx, md, consumer, additionalTags, host, scopeName, rattrs)
 				if err != nil {
