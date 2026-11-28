@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/lifecycle"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -89,7 +90,9 @@ func Register(cfg *sysconfigtypes.Config, httpMux *http.ServeMux, factories []*F
 		var err error
 		var module Module
 		withModule(factory.Name, func() {
+			start := time.Now()
 			module, err = factory.Fn(cfg, deps)
+			lifecycle.Default().RecordComponent(lifecycle.StageModuleStart, string(factory.Name), time.Since(start))
 		})
 
 		// In case a module failed to be started, do not make the whole `system-probe` abort.
@@ -182,7 +185,10 @@ func Close() {
 		if ok {
 			currentRouter.Unregister()
 		}
+		lifecycle.Default().ComponentStopping(string(name))
+		start := time.Now()
 		mod.Close()
+		lifecycle.Default().RecordComponent(lifecycle.StageModuleStop, string(name), time.Since(start))
 		delete(l.modules, name)
 	})
 }

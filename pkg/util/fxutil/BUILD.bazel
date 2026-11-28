@@ -21,6 +21,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/def",
+        "//pkg/util/fxutil/lifecycle",
         "//pkg/util/fxutil/logging",
         "//pkg/util/option",
         "@com_github_spf13_cobra//:cobra",

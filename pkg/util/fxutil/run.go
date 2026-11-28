@@ -8,8 +8,11 @@ package fxutil
 import (
 	"context"
 	"errors"
+	"time"
 
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/lifecycle"
 )
 
 // Run runs an fx.App using the supplied options, returning any errors.
@@ -28,7 +31,10 @@ func Run(opts ...fx.Option) error {
 		[]fx.Option{TemporaryAppTimeouts()},
 		opts...,
 	)
+	recorder := lifecycle.Default()
+	recorder.BeforeFxNew()
 	app := fx.New(opts...)
+	recorder.FxConstructed()
 
 	if err := app.Err(); err != nil {
 		return err
@@ -37,11 +43,15 @@ func Run(opts ...fx.Option) error {
 	startCtx, cancel := context.WithTimeout(context.Background(), app.StartTimeout())
 	defer cancel()
 
+	startBegin := time.Now()
 	if err := app.Start(startCtx); err != nil {
+		recorder.BeginStop(lifecycle.TriggerError)
 		return errors.Join(UnwrapIfErrArgumentsFailed(err), stopApp(app))
 	}
+	recorder.FxStarted(startBegin)
 
 	<-app.Done()
+	recorder.BeginStop(lifecycle.TriggerSignal)
 
 	return stopApp(app)
 }
