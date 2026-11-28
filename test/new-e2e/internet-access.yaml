@@ -260,6 +260,10 @@ entries:
   function: TestSBOMEKSSuite
   status: debt
   reason: Deploys the upstream Argo Rollouts chart without image overrides; mirror its images internally before removing this exception.
+- file: test/new-e2e/tests/sbom/host_win_test.go
+  function: TestSBOMHostWindowsVulnerabilitiesSuite
+  status: justified
+  reason: 'No fakeintake: tests check the vulnerabilities the real Datadog backend matches from the host SBOM.'
 - file: test/new-e2e/tests/cws/kind_test.go
   function: TestKindSuite
   status: justified
