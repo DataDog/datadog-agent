@@ -243,3 +243,13 @@ func TestNewAPIError(t *testing.T) {
 		})
 	}
 }
+
+func TestNoDataErrorClassification(t *testing.T) {
+	err := NewNoDataError("no samples")
+	assert.ErrorIs(t, err, ErrNoData)
+	assert.ErrorIs(t, err, NewProcessingError("no samples"))
+	var processing *ProcessingError
+	assert.ErrorAs(t, err, &processing)
+	assert.Equal(t, "no samples", err.Error())
+	assert.NotErrorIs(t, NewProcessingError("multiple series"), ErrNoData)
+}

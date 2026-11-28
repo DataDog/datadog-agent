@@ -1,0 +1,13 @@
+---
+fixes:
+  - |
+    Keep external metric queries with empty results in the regular polling batch
+    instead of applying exponential error backoff. Sparse metrics can recover on
+    the next poll when new samples arrive. Missing data remains invalid and is
+    never substituted with zero; other processing and API errors retain their
+    existing retry behavior.
+  - |
+    For sparse external metric series, use the latest non-null sample when it
+    is separated from the previous sample by more than one rollup interval and
+    is at least two intervals old. Continuous series retain penultimate-sample
+    selection. Sample timestamps and maximum-age checks are unchanged.

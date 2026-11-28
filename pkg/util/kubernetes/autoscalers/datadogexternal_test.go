@@ -131,7 +131,7 @@ func TestDatadogExternalQuery(t *testing.T) {
 				"another.metric{foo:empty}": {
 					Valid:     false,
 					Timestamp: testTime.Unix(),
-					Error:     NewProcessingError("only null values found in API response (4 points), check data is available in the last 300 seconds (interval was 2)"),
+					Error:     NewNoDataError("only null values found in API response (4 points), check data is available in the last 300 seconds (interval was 2)"),
 				},
 			},
 			nil,
@@ -477,6 +477,51 @@ func TestQueryExternalMetricRejectsMultiExpressionQueriesRegardlessOfOrder(t *te
 			require.True(t, points[validQueries[0]].Valid)
 			require.Equal(t, 20.0, points[validQueries[1]].Value)
 			require.True(t, points[validQueries[1]].Valid)
+		})
+	}
+}
+
+// Sparse samples must retain their actual timestamp, including when stale.
+func TestDatadogExternalQuerySparseSamples(t *testing.T) {
+	const query = "avg:queue.duration{pool:test}.rollup(avg,15).fill(null)"
+	for _, tc := range []struct {
+		name                  string
+		interval              *int
+		previous, latest, now int64
+		latestValue           float64
+		wantLatest            bool
+	}{
+		{"dense", pointer.Ptr(15), 960, 975, 1020, 400, false},
+		{"sparse settled high", pointer.Ptr(15), 780, 975, 1005, 400, true},
+		{"sparse settled low", pointer.Ptr(15), 780, 975, 1005, 0.2, true},
+		{"sparse unsettled", pointer.Ptr(15), 780, 975, 1004, 400, false},
+		{"unknown interval", nil, 780, 975, 1020, 400, false},
+		{"zero interval", pointer.Ptr(0), 780, 975, 1020, 400, false},
+		{"stale sample keeps timestamp", pointer.Ptr(15), 780, 975, 1200, 400, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			configmock.New(t)
+			dd := datadogclientmock.New(t).Comp
+			dd.SetQueryMetricsFunc(func(int64, int64, string) ([]datadog.Series, error) {
+				return []datadog.Series{{
+					Metric: pointer.Ptr("queue.duration"), Scope: pointer.Ptr("pool:test"),
+					QueryIndex: pointer.Ptr(0), Interval: tc.interval,
+					Points: []datadog.DataPoint{
+						makePoints(int(tc.previous*1000), 2),
+						makePartialPoints(int((tc.previous + 15) * 1000)),
+						{pointer.Ptr(float64(tc.latest * 1000)), pointer.Ptr(tc.latestValue)},
+						makePartialPoints(int((tc.latest + 15) * 1000)),
+					},
+				}}, nil
+			})
+			p := Processor{datadogClient: dd}
+			points, err := p.queryDatadogExternal(time.Unix(tc.now, 0), []string{query}, 10*time.Minute)
+			require.NoError(t, err)
+			want := Point{Timestamp: tc.previous, Value: 2, Valid: true}
+			if tc.wantLatest {
+				want.Timestamp, want.Value = tc.latest, tc.latestValue
+			}
+			assert.Equal(t, want, points[query])
 		})
 	}
 }
