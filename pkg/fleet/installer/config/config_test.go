@@ -19,6 +19,16 @@ import (
 	"go.yaml.in/yaml/v2" // not v3 due to lenient duplicate mapping-key handling
 )
 
+// configFileMode is the mode a written configuration file is expected to have. macOS gives every
+// configuration file the mode the installer's .dmg set-up gives the tree, whatever the Linux spec
+// says.
+func configFileMode(linuxMode os.FileMode) os.FileMode {
+	if runtime.GOOS == "darwin" {
+		return 0660
+	}
+	return linuxMode
+}
+
 func TestOperationApply_Patch(t *testing.T) {
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "datadog.yaml")
@@ -55,7 +65,7 @@ func TestOperationApply_Patch(t *testing.T) {
 	if runtime.GOOS != "windows" {
 		stat, err := os.Stat(filePath)
 		assert.NoError(t, err)
-		assert.Equal(t, os.FileMode(0640), stat.Mode().Perm())
+		assert.Equal(t, configFileMode(0640), stat.Mode().Perm())
 	}
 }
 
@@ -874,7 +884,7 @@ func TestOperationApply_ApplicationMonitoringPermissions(t *testing.T) {
 	if runtime.GOOS != "windows" {
 		stat, err := os.Stat(filePath)
 		assert.NoError(t, err)
-		assert.Equal(t, os.FileMode(0644), stat.Mode().Perm(), "application_monitoring.yaml should be world-readable (0644)")
+		assert.Equal(t, configFileMode(0644), stat.Mode().Perm(), "application_monitoring.yaml should be world-readable (0644)")
 	}
 }
 
@@ -1097,7 +1107,7 @@ func TestOperationApply_JQ(t *testing.T) {
 	if runtime.GOOS != "windows" {
 		stat, err := os.Stat(filePath)
 		assert.NoError(t, err)
-		assert.Equal(t, os.FileMode(0640), stat.Mode().Perm())
+		assert.Equal(t, configFileMode(0640), stat.Mode().Perm())
 	}
 }
 

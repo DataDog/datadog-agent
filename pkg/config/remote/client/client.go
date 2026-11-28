@@ -172,6 +172,7 @@ type Options struct {
 	clusterName          string
 	clusterID            string
 	skipTufVerification  bool
+	clientID             string
 }
 
 var defaultOptions = Options{pollInterval: 5 * time.Second}
@@ -302,6 +303,13 @@ func WithAgent(name, version string) func(opts *Options) {
 	return func(opts *Options) { opts.agentName, opts.agentVersion = name, version }
 }
 
+// WithClientID makes the client use id as its identifier instead of a random one. Use it for a
+// client that must stay the same one across restarts of its process. id must be a valid client ID
+// (see ValidClientID); an empty id keeps the random default.
+func WithClientID(id string) func(opts *Options) {
+	return func(opts *Options) { opts.clientID = id }
+}
+
 // WithUpdater specifies that this client is an updater
 func WithUpdater() func(opts *Options) {
 	return func(opts *Options) {
@@ -345,9 +353,14 @@ func newClient(cf ConfigFetcher, opts ...func(opts *Options)) (*Client, error) {
 	installerState := &atomic.Value{}
 	installerState.Store(&pbgo.ClientUpdater{})
 
+	id := options.clientID
+	if id == "" {
+		id = generateID()
+	}
+
 	return &Client{
 		Options:          options,
-		ID:               generateID(),
+		ID:               id,
 		startupSync:      sync.Once{},
 		ctx:              ctx,
 		closeFn:          cloneFn,
@@ -824,6 +837,25 @@ var (
 	idSize     = 21
 	idAlphabet = []rune("_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 )
+
+// GenerateClientID creates a random client ID, of the form NewClient gives a client that has none.
+func GenerateClientID() string {
+	return generateID()
+}
+
+// ValidClientID reports whether id has the form of a client ID: exactly idSize characters of the
+// ID alphabet.
+func ValidClientID(id string) bool {
+	if len(id) != idSize {
+		return false
+	}
+	for _, c := range id {
+		if !slices.Contains(idAlphabet, c) {
+			return false
+		}
+	}
+	return true
+}
 
 // generateID creates a new random ID for a new client instance
 func generateID() string {

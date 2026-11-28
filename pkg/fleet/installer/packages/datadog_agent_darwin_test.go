@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -74,13 +75,19 @@ func stubUninstall(t *testing.T) *[][]string {
 	t.Helper()
 
 	var commands [][]string
-	originalLayout, originalCommand := defaultUninstallLayout, hostCommand
+	originalLayout, originalCommand, originalAgentCommand := defaultUninstallLayout, hostCommand, agentCommand
 	defaultUninstallLayout = uninstallLayout{}
 	hostCommand = func(_ context.Context, name string, args ...string) ([]byte, error) {
 		commands = append(commands, append([]string{name}, args...))
 		return nil, nil
 	}
-	t.Cleanup(func() { defaultUninstallLayout, hostCommand = originalLayout, originalCommand })
+	agentCommand = func(_ context.Context, _, _ int, name string, args ...string) ([]byte, error) {
+		commands = append(commands, append([]string{name}, args...))
+		return nil, nil
+	}
+	t.Cleanup(func() {
+		defaultUninstallLayout, hostCommand, agentCommand = originalLayout, originalCommand, originalAgentCommand
+	})
 	return &commands
 }
 
@@ -112,7 +119,7 @@ func stubProcmgrCatalog(t *testing.T, calls *[][]string) *catalogStub {
 	return stub
 }
 
-func launchctlCalls(calls [][]string) [][]string {
+func launchdOnlyCalls(calls [][]string) [][]string {
 	return slices.DeleteFunc(slices.Clone(calls), func(c []string) bool {
 		return len(c) > 0 && (c[0] == catalogWriteCall || c[0] == catalogRemoveCall)
 	})
@@ -148,7 +155,22 @@ func stubInstallerState(t *testing.T) string {
 		packagesRoot, ensureInstallerDataDir, agentUserExists = originalRoot, originalEnsure, originalUserExists
 	})
 	stubDmgLayout(t)
+	stubExperimentState(t)
 	return root
+}
+
+// stubExperimentState points a configuration experiment's state (its deadline, the unit
+// supervisor's target and status, and the deployed configuration) at temporary paths, and stops
+// no real helper process, so a hook test never acts on the host's own experiment.
+func stubExperimentState(t *testing.T) {
+	t.Helper()
+
+	stubDeadlinePath(t)
+	stubUnitsState(t)
+	stubConfigExperimentDirs(t)
+	original := stopSurvivingHelpers
+	stopSurvivingHelpers = func(context.Context) error { return nil }
+	t.Cleanup(func() { stopSurvivingHelpers = original })
 }
 
 // stubDmgLayout points the .dmg install steps at a temporary install, with the example
@@ -371,12 +393,17 @@ func TestDatadogAgentPackageHasPreRemove(t *testing.T) {
 
 // TestPreRemoveUnloadsTheStableSet covers what `installer prerm --upgrade datadog-agent dmg` does
 // for the .dmg's preinstall script: it runs through RunHook, as the command does, unloads every
-// stable job in the reverse of the order they are loaded in, and removes their definitions.
+// stable job in the reverse of the order they are loaded in, after any experiment job, and removes
+// their definitions.
 func TestPreRemoveUnloadsTheStableSet(t *testing.T) {
 	calls := stubLaunchd(t)
 	dir := stubJobDir(t)
 	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, label+".plist"), []byte(label), 0o644))
+	}
+	// A configuration experiment's jobs, left by an experiment running when the install started.
+	for _, label := range configExperimentJobs {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, label+"-exp.plist"), []byte(label), 0o644))
 	}
 	ctx := testHookContext(t)
 	ctx.Hook = "preRemove"
@@ -391,7 +418,12 @@ func TestPreRemoveUnloadsTheStableSet(t *testing.T) {
 			bootedOut = append(bootedOut, args[1])
 		}
 	}
-	var expected []string
+	// The unit supervisor goes first, so it does not read the experiment jobs going away as a
+	// failure; then the experiment set, so no -exp job outlives the configuration it reads.
+	expected := []string{"system/" + unitSupervisorJob}
+	for _, label := range slices.Backward(configExperimentJobs) {
+		expected = append(expected, "system/"+label+"-exp")
+	}
 	for _, label := range slices.Backward(agentLaunchdJobs.LaunchdJobsStable) {
 		expected = append(expected, "system/"+label)
 	}
@@ -474,6 +506,39 @@ func TestPreRemoveReportsAFailedBootoutOnUninstall(t *testing.T) {
 	assert.FileExists(t, filepath.Join(dir, failing+".plist"), "the job that could not be unloaded keeps its definition")
 }
 
+// TestUninstallStopsAConfigExperimentFirst pins that an uninstall stops a configuration
+// experiment's watchers and clears its deadline before it unloads the experiment jobs: a watcher
+// left running would read those jobs going away as a crash and load the stable jobs back on a host
+// being uninstalled. An upgrade leaves that to the .dmg's preinstall script.
+func TestUninstallStopsAConfigExperimentFirst(t *testing.T) {
+	for _, upgrade := range []bool{false, true} {
+		calls := stubLaunchd(t)
+		stubJobDir(t)
+		stubUninstall(t)
+		stubDeadlinePath(t)
+		require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
+		stoppedAt := -1
+		originalStop := stopSurvivingHelpers
+		stopSurvivingHelpers = func(context.Context) error { stoppedAt = len(*calls); return nil }
+		t.Cleanup(func() { stopSurvivingHelpers = originalStop })
+		ctx := testHookContext(t)
+		ctx.PackageType = PackageTypeDMG
+		ctx.Upgrade = upgrade
+
+		require.NoError(t, preRemoveDatadogAgent(ctx))
+
+		token, err := experimentDeadline().Read()
+		require.NoError(t, err)
+		if upgrade {
+			assert.Equal(t, -1, stoppedAt, "an upgrade leaves the watchers to the preinstall script")
+			assert.NotEmpty(t, token, "an upgrade leaves the deadline to the preinstall script")
+			continue
+		}
+		assert.Equal(t, 0, stoppedAt, "the watchers must be stopped before any job is unloaded")
+		assert.Empty(t, token, "the deadline must be cleared")
+	}
+}
+
 // TestPreRemoveIsIdempotent pins that the pre-remove succeeds on a host with nothing installed, and
 // behaves the same whatever the package type and whether it is an upgrade.
 func TestPreRemoveIsIdempotent(t *testing.T) {
@@ -481,6 +546,7 @@ func TestPreRemoveIsIdempotent(t *testing.T) {
 		for _, upgrade := range []bool{true, false} {
 			calls := stubLaunchd(t)
 			dir := stubJobDir(t)
+			stubExperimentState(t)
 			ctx := testHookContext(t)
 			ctx.PackageType = packageType
 			ctx.Upgrade = upgrade
@@ -533,6 +599,95 @@ func TestLoadStableJobKeepsTheOldDefinitionWhenBootoutFails(t *testing.T) {
 	}
 }
 
+// stableJobs are the launchd jobs that run normally, in the order they are loaded.
+var stableJobs = agentLaunchdJobs.LaunchdJobsStable
+
+// experimentJobs are the jobs an experiment runs under, by full label.
+var experimentJobs = func() []string {
+	labels := make([]string, 0, len(configExperimentJobs))
+	for _, label := range configExperimentJobs {
+		labels = append(labels, label+string(launchd.Experiment))
+	}
+	return labels
+}()
+
+// TestPostInstallDMGCollapsesALeftoverExperiment pins that an install never leaves both job sets
+// behind: whatever is left of a configuration experiment -- its watcher, its deadline, its jobs,
+// including the experiment installer daemon, and its configuration directory -- is discarded
+// before the stable set is loaded.
+func TestPostInstallDMGCollapsesALeftoverExperiment(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	stubInstallerState(t)
+	layout := defaultDmgLayout
+	stubDeadlinePath(t)
+	stopped := 0
+	originalStop := stopSurvivingHelpers
+	stopSurvivingHelpers = func(context.Context) error { stopped++; return nil }
+	t.Cleanup(func() { stopSurvivingHelpers = originalStop })
+	require.NoError(t, os.MkdirAll(layout.expConfDir(), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(layout.expConfDir(), ".deployment-id"), []byte("experiment-1"), 0o640))
+	require.NoError(t, experimentDeadline().Write(configExperimentDeadlineWindow))
+	for _, label := range experimentJobs {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, label+".plist"), []byte("leftover"), 0o644))
+	}
+	ctx := testHookContext(t)
+	ctx.PackageType = PackageTypeDMG
+
+	require.NoError(t, postInstallDMG(ctx))
+
+	assert.Equal(t, 1, stopped, "surviving watchers, hand-overs and hand-backs must be stopped before the jobs they drive go away")
+	token, err := experimentDeadline().Read()
+	require.NoError(t, err)
+	assert.Empty(t, token)
+	target, err := os.Readlink(layout.expConfDir())
+	require.NoError(t, err, "the experiment configuration was not discarded")
+	assert.Equal(t, layout.confDir(), target)
+	for _, label := range experimentJobs {
+		assert.NoFileExists(t, filepath.Join(dir, label+".plist"))
+		assert.Contains(t, launchctlCalls(*calls, "bootout"), "system/"+label)
+	}
+	// The experiment jobs are all gone before the first stable job is loaded.
+	lastExperimentBootout, firstStableBootstrap := -1, -1
+	for i, args := range *calls {
+		target := strings.Join(args, " ")
+		if args[0] == "bootout" && strings.Contains(target, "-exp") {
+			lastExperimentBootout = i
+		}
+		if args[0] == "bootstrap" && firstStableBootstrap < 0 {
+			firstStableBootstrap = i
+		}
+	}
+	require.NotEqual(t, -1, firstStableBootstrap)
+	assert.Less(t, lastExperimentBootout, firstStableBootstrap)
+}
+
+// TestPostInstallDMGDiscardsTheExperimentWhenTheSetUpFails pins that an install over a host that was
+// running a configuration experiment discards its configuration even when the rest of the set-up
+// fails: its deadline and supervisor are gone, so nothing else would ever end it.
+func TestPostInstallDMGDiscardsTheExperimentWhenTheSetUpFails(t *testing.T) {
+	stubLaunchd(t)
+	stubJobDir(t)
+	stubInstallerState(t)
+	layout := defaultDmgLayout
+	stubDeadlinePath(t)
+	originalStop := stopSurvivingHelpers
+	stopSurvivingHelpers = func(context.Context) error { return nil }
+	t.Cleanup(func() { stopSurvivingHelpers = originalStop })
+	require.NoError(t, os.MkdirAll(layout.expConfDir(), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(layout.expConfDir(), ".deployment-id"), []byte("experiment-1"), 0o640))
+	// A fresh configuration with no example to start from: setUpConfig fails.
+	require.NoError(t, os.Remove(filepath.Join(layout.confDir(), "datadog.yaml.example")))
+	ctx := testHookContext(t)
+	ctx.PackageType = PackageTypeDMG
+
+	require.Error(t, postInstallDMG(ctx))
+
+	target, err := os.Readlink(layout.expConfDir())
+	require.NoError(t, err, "the experiment configuration was not discarded")
+	assert.Equal(t, layout.confDir(), target)
+}
+
 // TestPostInstallDMGCreatesTheInstallerStateFirst pins that the installer's root-owned directories
 // are created before any job is loaded, so the installer daemon never starts without them.
 func TestPostInstallDMGCreatesTheInstallerStateFirst(t *testing.T) {
@@ -543,7 +698,7 @@ func TestPostInstallDMGCreatesTheInstallerStateFirst(t *testing.T) {
 	ensured := false
 	ensureInstallerDataDir = func() error {
 		ensured = true
-		callsWhenEnsured = len(launchctlCalls(*calls))
+		callsWhenEnsured = len(launchdOnlyCalls(*calls))
 		return nil
 	}
 	ctx := testHookContext(t)
@@ -593,7 +748,7 @@ func TestPostInstallDMGLeavesTheJobsUnloadedWithoutTheAgentsAccount(t *testing.T
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "_dd-agent does not exist")
-	assert.Empty(t, launchctlCalls(*calls), "launchd was called without the Agent's account")
+	assert.Empty(t, launchdOnlyCalls(*calls), "launchd was called without the Agent's account")
 	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
 		assert.NoFileExists(t, filepath.Join(dir, label+".plist"))
 	}
@@ -765,6 +920,7 @@ func TestGarbageCollectionKeepsTheInstallRoot(t *testing.T) {
 func TestUninstallRemovesTheInstall(t *testing.T) {
 	stubLaunchd(t)
 	stubJobDir(t)
+	stubExperimentState(t)
 	commands := stubUninstall(t)
 	current, err := user.Current()
 	require.NoError(t, err)
@@ -874,7 +1030,7 @@ func TestPostInstallDMGWritesTheCatalogBeforeLoadingProcmgr(t *testing.T) {
 
 	write := callIndex(*calls, catalogWriteCall, defaultDmgLayout.installDir)
 	require.NotEqual(t, -1, write, "the catalog was not written to %s", defaultDmgLayout.installDir)
-	bootout := callIndex(*calls, "bootout", "system/"+procmgrLabel)
+	bootout := callIndex(*calls, "bootout", "system/"+procmgrJob)
 	require.NotEqual(t, -1, bootout)
 	assert.Less(t, write, bootout)
 	assertLoaded(t, *calls, dir)

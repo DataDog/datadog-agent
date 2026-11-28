@@ -3,30 +3,40 @@
 <plist version="1.0">
     <dict>
         <key>Label</key>
-        <string>com.datadoghq.sysprobe</string>
+        <string>com.datadoghq.sysprobe{{if not .Stable}}-exp{{end}}</string>
+{{- /* Only the stable set starts at load and is relaunched by launchd: a reboot mid-experiment
+       brings back only the stable set. The experiment job is never relaunched: a failed exit of it
+       fails the experiment, and the unit supervisor starts the stable set again. A clean exit, as
+       when its feature is off, leaves it down. */}}
         <key>RunAtLoad</key>
-        <true/>
+        <{{if .Stable}}true{{else}}false{{end}}/>
+{{- if .Stable}}
         <key>KeepAlive</key>
         <dict>
             <key>SuccessfulExit</key>
             <false/>
         </dict>
+{{- end}}
         <key>EnvironmentVariables</key>
         <dict>
             <key>DD_LOG_TO_CONSOLE</key>
             <string>false</string>
+{{- if not .Stable}}
+            <key>DD_INVENTORIES_FIRST_RUN_DELAY</key>
+            <string>5</string>
+{{- end}}
         </dict>
         <key>ProgramArguments</key>
         <array>
-            <string>{{.ProgramDir}}/embedded/bin/system-probe</string>
+            <string>{{.InstallDir}}/embedded/bin/system-probe</string>
             <string>run</string>
             <string>-c</string>
             <string>{{.EtcDir}}</string>
         </array>
         <key>StandardOutPath</key>
-        <string>{{.LogDir}}/launchd_sysprobe.log</string>
+        <string>{{.InstallDir}}/logs/launchd_sysprobe{{if not .Stable}}-exp{{end}}.log</string>
         <key>StandardErrorPath</key>
-        <string>{{.LogDir}}/launchd_sysprobe.log</string>
+        <string>{{.InstallDir}}/logs/launchd_sysprobe{{if not .Stable}}-exp{{end}}.log</string>
         <key>ExitTimeOut</key>
         <integer>10</integer>
         {{- /* system-probe needs privileges the Agent account does not have. */}}

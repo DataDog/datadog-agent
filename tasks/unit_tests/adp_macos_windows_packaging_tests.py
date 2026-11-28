@@ -107,6 +107,110 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         self.assertLess(supported, handoff)
         self.assertLess(handoff, fallback)
 
+    def test_preinst_kills_every_detached_experiment_process(self):
+        # An upgrade must not leave a detached configuration experiment process (the watchers, the
+        # relay that starts the second one, or the installer daemon hand-back) swapping jobs back in
+        # while the binaries it runs are replaced.
+        preinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/preinst").read_text()
+        pkill = next(line for line in preinst.splitlines() if "pkill -9 -f" in line and "package-command" in line)
+        for command in ("watchConfigExperiment", "startSupervisorRelay", "handBackInstaller"):
+            self.assertIn(command, pkill)
+
+    def test_preinst_stops_the_unit_supervisor_first(self):
+        # The unit supervisor starts and stops a configuration experiment's jobs: it is booted out
+        # before the installer daemons and the jobs go, or it would read them going away as a failure.
+        preinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/preinst").read_text()
+        supervisor = preinst.index("launchctl bootout system/com.datadoghq.supervisor")
+        daemons = preinst.index("launchctl bootout system/com.datadoghq.installer ")
+        self.assertLess(supervisor, daemons)
+
+    def test_uninstall_without_installer_stops_the_unit_supervisor_first(self):
+        # As in the preinstall: the unit supervisor goes before any job, and its definition is removed.
+        uninstall = (REPO_ROOT / "cmd/agent/macos/uninstall_mac_os.sh").read_text()
+        start = uninstall.find("uninstall_without_installer() {")
+        end = uninstall.find("\n}\n", start)
+        self.assertNotEqual(start, -1)
+        body = uninstall[start:end]
+        supervisor = body.find("launchctl bootout system/com.datadoghq.supervisor")
+        self.assertNotEqual(supervisor, -1)
+        self.assertLess(supervisor, body.find("launchctl bootout system/com.datadoghq.installer-exp"))
+        self.assertIn("rm -f /Library/LaunchDaemons/com.datadoghq.supervisor.plist", body)
+
+    def test_uninstall_without_installer_stops_the_unit_supervisor_again_after_the_daemons(self):
+        # An installer command a daemon ran may start the unit supervisor again until the daemons
+        # are gone: the supervisor is stopped once more after waiting for them, before any Agent job.
+        uninstall = (REPO_ROOT / "cmd/agent/macos/uninstall_mac_os.sh").read_text()
+        start = uninstall.find("uninstall_without_installer() {")
+        end = uninstall.find("\n}\n", start)
+        self.assertNotEqual(start, -1)
+        body = uninstall[start:end]
+        calls = [i for i, line in enumerate(body.splitlines()) if line.strip() == "stop_unit_supervisor"]
+        self.assertEqual(len(calls), 2, "the supervisor is stopped before and after the installer daemons")
+        lines = body.splitlines()
+        daemons = next(i for i, line in enumerate(lines) if "launchctl bootout system/com.datadoghq.installer " in line)
+        wait = next(
+            i
+            for i, line in enumerate(lines)
+            if "for label in com.datadoghq.installer-exp com.datadoghq.installer;" in line
+        )
+        first_job = next(
+            i for i, line in enumerate(lines) if "launchctl bootout system/com.datadoghq.agent-exp" in line
+        )
+        self.assertLess(calls[0], daemons)
+        self.assertLess(daemons, wait)
+        self.assertLess(wait, calls[1])
+        self.assertLess(calls[1], first_job)
+        self.assertNotIn("watchConfigExperiment", body)
+
+    def test_preinst_stops_the_unit_supervisor_again_after_the_daemons(self):
+        # As in the uninstall script: the supervisor is stopped once more once the installer daemons
+        # are gone, before the installed version tears down the Agent's jobs.
+        preinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/preinst").read_text()
+        lines = preinst.splitlines()
+        calls = [i for i, line in enumerate(lines) if line.strip() == "stop_unit_supervisor"]
+        daemons = [i for i, line in enumerate(lines) if line.strip() == "stop_installer_daemons"]
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(len(daemons), 2)
+        self.assertLess(calls[0], daemons[0])
+        self.assertLess(daemons[-1], calls[1])
+
+    def test_stop_unit_supervisor_clears_its_target_and_waits_for_it(self):
+        # bootout returns while the supervisor is still in its SIGTERM grace: its target is cleared
+        # first so it stands down, and the job is waited for before anything else is stopped.
+        for script in ("omnibus/package-scripts/agent-dmg/preinst", "cmd/agent/macos/uninstall_mac_os.sh"):
+            with self.subTest(script=script):
+                text = (REPO_ROOT / script).read_text()
+                start = text.find("stop_unit_supervisor() {")
+                self.assertNotEqual(start, -1)
+                body = text[start : text.find("\n    }\n", start)]
+                clear = body.find("rm -f /opt/datadog-packages/run/units-target")
+                bootout = body.find("launchctl bootout system/com.datadoghq.supervisor")
+                wait = body.find("launchctl print system/com.datadoghq.supervisor")
+                self.assertNotEqual(clear, -1)
+                self.assertNotEqual(wait, -1)
+                self.assertLess(clear, bootout)
+                self.assertLess(bootout, wait)
+
+    def test_uninstall_without_installer_removes_the_experiment_jobs(self):
+        # When the installer can't uninstall, the script still removes a configuration experiment's
+        # jobs, before the stable ones, so none is left registered against binaries that are gone.
+        uninstall = (REPO_ROOT / "cmd/agent/macos/uninstall_mac_os.sh").read_text()
+        start = uninstall.find("uninstall_without_installer() {")
+        end = uninstall.find("\n}\n", start)
+        self.assertNotEqual(start, -1)
+        body = uninstall[start:end]
+        first_stable_bootout = body.find("launchctl bootout system/com.datadoghq.procmgr")
+        for label in (
+            "com.datadoghq.installer-exp",
+            "com.datadoghq.agent-exp",
+            "com.datadoghq.sysprobe-exp",
+            "com.datadoghq.data-plane-exp",
+        ):
+            bootout = body.find(f"launchctl bootout system/{label} ")
+            self.assertNotEqual(bootout, -1, label)
+            self.assertLess(bootout, first_stable_bootout, label)
+            self.assertIn(f"rm -f /Library/LaunchDaemons/{label}.plist", body)
+
     def test_windows_fips_packaging_does_not_expect_adp_sidecar_dlls(self):
         agent_installer = (
             REPO_ROOT / "tools/windows/DatadogAgentInstaller/WixSetup/Datadog Agent/AgentInstaller.cs"

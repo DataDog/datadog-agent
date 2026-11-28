@@ -27,6 +27,7 @@ go_library(
 dd_agent_go_test(
     name = "client_test",
     srcs = [
+        "client_id_test.go",
         "recovery_test.go",
         "tuf_proof_test.go",
     ],

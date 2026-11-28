@@ -3,9 +3,15 @@
 <plist version="1.0">
     <dict>
         <key>Label</key>
-        <string>com.datadoghq.installer</string>
+        <string>com.datadoghq.installer{{if not .Stable}}-exp{{end}}</string>
+{{- /* Only the stable daemon starts at load and is relaunched by launchd: a reboot
+       mid-experiment brings back only the stable daemon, which reports the experiment for Fleet
+       to stop. The experiment daemon is never relaunched: any exit of it, clean or not, fails the
+       experiment, and the unit supervisor starts the stable set again. It is replaced by the stable
+       daemon when the experiment ends. */}}
         <key>RunAtLoad</key>
-        <true/>
+        <{{if .Stable}}true{{else}}false{{end}}/>
+{{- if .Stable}}
 {{- /* SuccessfulExit false: a clean exit is respected, so the daemon can exit 0 when it is not
        enabled without launchd relaunching it, while a crash is relaunched. */}}
         <key>KeepAlive</key>
@@ -13,25 +19,27 @@
             <key>SuccessfulExit</key>
             <false/>
         </dict>
+{{- end}}
         <key>EnvironmentVariables</key>
         <dict>
             <key>DD_LOG_TO_CONSOLE</key>
             <string>false</string>
         </dict>
-{{- /* The pidfile goes in the Agent's run directory, next to the daemon's socket, as on Linux. */}}
+{{- /* The daemon runs as root, so its pidfile goes in the root-only state directory rather than the
+       Agent's run directory, which belongs to the Agent's account. */}}
         <key>ProgramArguments</key>
         <array>
-            <string>{{.ProgramDir}}/embedded/bin/installer</string>
+            <string>{{.InstallDir}}/embedded/bin/installer</string>
             <string>run</string>
             <string>-c</string>
             <string>{{.EtcDir}}</string>
             <string>-p</string>
-            <string>{{.RunDir}}/installer.pid</string>
+            <string>/opt/datadog-packages/run/installer.pid</string>
         </array>
         <key>StandardOutPath</key>
-        <string>{{.LogDir}}/launchd_installer.log</string>
+        <string>{{.InstallDir}}/logs/launchd_installer{{if not .Stable}}-exp{{end}}.log</string>
         <key>StandardErrorPath</key>
-        <string>{{.LogDir}}/launchd_installer.log</string>
+        <string>{{.InstallDir}}/logs/launchd_installer{{if not .Stable}}-exp{{end}}.log</string>
         <key>ExitTimeOut</key>
         <integer>10</integer>
         <key>UserName</key>

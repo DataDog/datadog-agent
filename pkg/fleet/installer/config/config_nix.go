@@ -9,15 +9,14 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -28,11 +27,11 @@ const (
 func (d *Directories) GetState() (State, error) {
 	stablePath := filepath.Join(d.StablePath, deploymentIDFile)
 	experimentPath := filepath.Join(d.ExperimentPath, deploymentIDFile)
-	stableDeploymentID, err := os.ReadFile(stablePath)
+	stableDeploymentID, err := readDeploymentID(stablePath)
 	if err != nil && !os.IsNotExist(err) {
 		return State{}, err
 	}
-	experimentDeploymentID, err := os.ReadFile(experimentPath)
+	experimentDeploymentID, err := readDeploymentID(experimentPath)
 	if err != nil && !os.IsNotExist(err) {
 		return State{}, err
 	}
@@ -40,6 +39,10 @@ func (d *Directories) GetState() (State, error) {
 	experimentExists := len(experimentDeploymentID) > 0
 	// If experiment is symlinked to stable, it means the experiment is not installed.
 	if stableExists && experimentExists && isSameFile(stablePath, experimentPath) {
+		experimentDeploymentID = nil
+	}
+	// Nor is it when the experiment path holds what a promote left of the previous stable directory.
+	if experimentExists && experimentSuperseded(d.ExperimentPath) {
 		experimentDeploymentID = nil
 	}
 	return State{
@@ -50,39 +53,33 @@ func (d *Directories) GetState() (State, error) {
 
 // WriteExperiment writes the experiment to the directories.
 func (d *Directories) WriteExperiment(ctx context.Context, operations Operations) error {
-	err := paths.RemoveAll(ctx, d.ExperimentPath)
-	if err != nil {
-		return err
-	}
-	err = copyDirectory(ctx, d.StablePath, d.ExperimentPath)
-	if err != nil {
-		return err
-	}
-
-	operations.FileOperations = append(buildOperationsFromLegacyInstaller(d.StablePath), operations.FileOperations...)
-
-	err = operations.Apply(ctx, d.ExperimentPath)
-	if err != nil {
-		return err
-	}
-	err = os.WriteFile(filepath.Join(d.ExperimentPath, deploymentIDFile), []byte(operations.DeploymentID), 0640)
-	if err != nil {
-		return err
-	}
-	return nil
+	return d.stageExperiment(ctx, func(dir string) error {
+		if migrateLegacyLayout {
+			operations.FileOperations = append(buildOperationsFromLegacyInstaller(d.StablePath), operations.FileOperations...)
+		}
+		err := operations.Apply(ctx, dir)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(filepath.Join(dir, deploymentIDFile), []byte(operations.DeploymentID), 0640)
+	})
 }
 
 // PromoteExperiment promotes the experiment to the stable.
-func (d *Directories) PromoteExperiment(_ context.Context) error {
+func (d *Directories) PromoteExperiment(ctx context.Context) error {
 	_, err := os.Stat(d.ExperimentPath)
 	if err != nil {
 		return err
 	}
-	err = replaceConfigDirectory(d.StablePath, d.ExperimentPath)
+	err = exchangeDirectories(d.StablePath, d.ExperimentPath)
+	if errors.Is(err, errors.ErrUnsupported) {
+		return replaceConfigDirectory(d.StablePath, d.ExperimentPath)
+	}
 	if err != nil {
 		return err
 	}
-	return nil
+	// The exchange leaves the previous stable directory at the experiment path.
+	return d.RemoveExperiment(ctx)
 }
 
 // RemoveExperiment removes the experiment from the directories.
@@ -101,7 +98,7 @@ func (d *Directories) RemoveExperiment(ctx context.Context) error {
 // copyDirectory copies a directory from source to target.
 // It preserves the directory structure and file permissions.
 func copyDirectory(ctx context.Context, sourcePath, targetPath string) error {
-	cmd := telemetry.CommandContext(ctx, "cp", "-a", sourcePath, targetPath)
+	cmd := telemetry.CommandContext(ctx, cpPath, "-a", sourcePath, targetPath)
 	return cmd.Run()
 }
 
@@ -141,25 +138,5 @@ func replaceConfigDirectory(oldDir, newDir string) (err error) {
 	if err != nil {
 		return fmt.Errorf("could not rename new directory: %w", err)
 	}
-	return nil
-}
-
-// setFileOwnershipAndPermissions sets the ownership and permissions for a file based on its configFileSpec.
-// If the user doesn't exist (e.g., in tests) or if we don't have permission
-// to change ownership, the function logs a warning and continues without failing.
-func setFileOwnershipAndPermissions(ctx context.Context, root *os.Root, path string, spec *configFileSpec) error {
-	// Set file permissions
-	if spec.mode != 0 {
-		if err := root.Chmod(path, spec.mode); err != nil {
-			return fmt.Errorf("error setting file permissions for %s: %w", path, err)
-		}
-	}
-
-	// Set file ownership
-	err := file.Chown(ctx, filepath.Join(root.Name(), path), spec.owner, spec.group)
-	if err != nil {
-		log.Warnf("error setting file ownership for %s: %v", path, err)
-	}
-
 	return nil
 }

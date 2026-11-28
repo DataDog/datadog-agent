@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+    <dict>
+        <key>Label</key>
+        <string>com.datadoghq.supervisor</string>
+{{- /* The unit supervisor gives the configuration experiment's jobs the semantics of their Linux
+       units (unit_supervisor_darwin.go). It never starts at load: a reboot mid-experiment comes back
+       on the stable jobs only, as on Linux, where the experiment units are not enabled. A hook
+       kickstarts it. KeepAlive Crashed relaunches it after a crash, and unlike SuccessfulExit it
+       does not imply RunAtLoad. KeepAlive PathState keeps it alive while the busy marker a hook
+       writes exists, so a supervisor killed by SIGKILL is relaunched; /var/run is emptied at boot,
+       so a reboot mid-experiment still comes back on the stable jobs only. */}}
+        <key>RunAtLoad</key>
+        <false/>
+        <key>KeepAlive</key>
+        <dict>
+            <key>Crashed</key>
+            <true/>
+            <key>PathState</key>
+            <dict>
+                <key>/var/run/com.datadoghq.supervisor.busy</key>
+                <true/>
+            </dict>
+        </dict>
+        <key>EnvironmentVariables</key>
+        <dict>
+            <key>DD_LOG_TO_CONSOLE</key>
+            <string>false</string>
+            <key>GOTRACEBACK</key>
+            <string>crash</string>
+        </dict>
+        <key>ProgramArguments</key>
+        <array>
+            <string>{{.InstallDir}}/embedded/bin/installer</string>
+            <string>package-command</string>
+            <string>datadog-agent</string>
+            <string>superviseUnits</string>
+        </array>
+        <key>StandardOutPath</key>
+        <string>{{.InstallDir}}/logs/launchd_supervisor.log</string>
+        <key>StandardErrorPath</key>
+        <string>{{.InstallDir}}/logs/launchd_supervisor.log</string>
+        <key>ExitTimeOut</key>
+        <integer>10</integer>
+        <key>UserName</key>
+        <string>root</string>
+        <key>GroupName</key>
+        <string>admin</string>
+    </dict>
+</plist>

@@ -31,12 +31,16 @@ type remoteConfig struct {
 	client remoteConfigClient
 }
 
-func newRemoteConfig(rcFetcher client.ConfigFetcher) (*remoteConfig, error) {
+// newRemoteConfig creates the remote config client. A non-empty clientID is the client's ID, so
+// that daemons that replace one another on a host stay the same client for Fleet; an empty one
+// gives the client a random ID.
+func newRemoteConfig(rcFetcher client.ConfigFetcher, clientID string) (*remoteConfig, error) {
 	client, err := client.NewClient(
 		rcFetcher,
 		client.WithUpdater(),
 		client.WithProducts(state.ProductUpdaterCatalogDD),
 		client.WithoutTufVerification(),
+		client.WithClientID(clientID),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create rc client: %w", err)
