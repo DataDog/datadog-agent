@@ -303,11 +303,12 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 	var fakeIntake *fakeintakeComp.Fakeintake
 
 	if params.fakeintakeOptions != nil {
-		fakeIntake, err = fakeintakeComp.NewLocalDockerFakeintake(&localEnv, "fakeintake")
+		var hostFakeIntake *fakeintakeComp.Fakeintake
+		fakeIntake, hostFakeIntake, err = fakeintakeComp.NewLocalKindFakeintake(&localEnv, "fakeintake", kindCluster)
 		if err != nil {
 			return err
 		}
-		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
+		err = hostFakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
 		if err != nil {
 			return err
 		}
