@@ -1,12 +1,11 @@
 """nfsiostat - remote repo side build file"""
 
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@nfsiostat_constants//:constants.bzl", "URL", "VERSION")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_license//rules:license.bzl", "license")
 
 package(default_package_metadata = [":package_metadata"])
-
-VERSION = "2.1.1"
 
 package_metadata(
     name = "package_metadata",
@@ -14,7 +13,7 @@ package_metadata(
         ":license",
     ],
     purl = purl_for_generic(
-        download_url = "https://mirrors.edge.kernel.org/pub/linux/utils/nfs-utils/{version}/nfs-utils-{version}.tar.gz",
+        download_url = URL,
         package = "nfsiostat",
         version = VERSION,
     ),

@@ -1,6 +1,19 @@
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
+constants_repo = use_repo_rule("//bazel/repo:constants_repo.bzl", "constants_repo")
+
 VERSION = "2.1.1"
+
+URL = "https://mirrors.edge.kernel.org/pub/linux/utils/nfs-utils/{version}/nfs-utils-{version}.tar.gz".format(version = VERSION)
+
+# Read by the overlay BUILD file for the package_metadata purl.
+constants_repo(
+    name = "nfsiostat_constants",
+    items = {
+        "URL": URL,
+        "VERSION": VERSION,
+    },
+)
 
 http_archive(
     name = "nfsiostat",
@@ -9,7 +22,5 @@ http_archive(
     },
     sha256 = "381bb3f6aa4b314538db0bcfb242da855c2eb36e2059cf61aa498c0220684363",
     strip_prefix = "nfs-utils-{version}".format(version = VERSION),
-    url = "https://mirrors.edge.kernel.org/pub/linux/utils/nfs-utils/{version}/nfs-utils-{version}.tar.gz".format(
-        version = VERSION,
-    ),
+    url = URL,
 )
