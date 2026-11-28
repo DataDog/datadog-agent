@@ -47,6 +47,11 @@ const (
 
 var globalClusterAgentClient *DCAClient
 
+// globalClusterAgentClientMu guards creating and publishing
+// globalClusterAgentClient, so that concurrent first callers share one client
+// and none observes it before its retrier is configured.
+var globalClusterAgentClientMu sync.Mutex
+
 type metadataNames []string
 
 // Metadata represents the metadata of a kubernetes resource including its name, namespace, annotations and labels
@@ -119,6 +124,11 @@ type DCAClient struct {
 	clusterAgentAPIClient  *http.Client
 	leaderClient           *leaderClient
 
+	// initAttemptMu serializes init attempts. The retrier releases its own lock
+	// while an attempt runs, so concurrent first callers would otherwise run
+	// init concurrently, each failure advancing the backoff for one burst.
+	initAttemptMu sync.Mutex
+
 	// reconnectHandlerOnce ensures startReconnectHandler is only ever started once for
 	// this DCAClient, even if init() runs concurrently (e.g. via overlapping retries).
 	reconnectHandlerOnce sync.Once
@@ -127,26 +137,40 @@ type DCAClient struct {
 // resetGlobalClusterAgentClient is a helper to remove the current DCAClient global
 // It is ONLY to be used for tests
 func resetGlobalClusterAgentClient() {
+	globalClusterAgentClientMu.Lock()
+	defer globalClusterAgentClientMu.Unlock()
 	globalClusterAgentClient = nil
 }
 
 // GetClusterAgentClient returns or init the DCAClient
 func GetClusterAgentClient() (*DCAClient, error) {
-	if globalClusterAgentClient == nil {
-		globalClusterAgentClient = &DCAClient{}
-		globalClusterAgentClient.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
+	globalClusterAgentClientMu.Lock()
+	client := globalClusterAgentClient
+	if client == nil {
+		// Configure the retrier before publishing the client, so no caller
+		// can use one whose retrier is not set up yet.
+		client = &DCAClient{}
+		client.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
 			Name:              "clusterAgentClient",
-			AttemptMethod:     globalClusterAgentClient.init,
+			AttemptMethod:     client.init,
 			Strategy:          retry.Backoff,
 			InitialRetryDelay: 1 * time.Second,
 			MaxRetryDelay:     5 * time.Minute,
 		})
+		globalClusterAgentClient = client
 	}
-	if err := globalClusterAgentClient.initRetry.TriggerRetry(); err != nil {
+	globalClusterAgentClientMu.Unlock()
+
+	// Attempts are serialized per client, outside the global lock: a caller
+	// arriving during an attempt waits for it, then sees its outcome.
+	client.initAttemptMu.Lock()
+	err := client.initRetry.TriggerRetry()
+	client.initAttemptMu.Unlock()
+	if err != nil {
 		log.Debugf("Cluster Agent init error: %v", err)
 		return nil, err
 	}
-	return globalClusterAgentClient, nil
+	return client, nil
 }
 
 func (c *DCAClient) init() error {
