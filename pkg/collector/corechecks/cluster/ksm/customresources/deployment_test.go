@@ -9,6 +9,7 @@ package customresources
 
 import (
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -60,49 +61,50 @@ func TestDeploymentRolloutFactory_MetricFamilyGenerators(t *testing.T) {
 }
 
 func TestDeploymentRolloutGeneration_OngoingRollout(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
 
-	client := &apiserver.APIClient{
-		InformerCl: fake.NewSimpleClientset(),
-	}
-	tracker := NewRolloutTracker()
-	factory := NewDeploymentRolloutFactory(client, tracker)
+		client := &apiserver.APIClient{
+			InformerCl: fake.NewSimpleClientset(),
+		}
+		tracker := NewRolloutTracker()
+		factory := NewDeploymentRolloutFactory(client, tracker)
 
-	// Create deployment with ongoing rollout (generation != observed generation)
-	replicas := int32(3)
-	deployment := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       "test-deployment",
-			Namespace:  "default",
-			Generation: 5,
-		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: &replicas,
-		},
-		Status: appsv1.DeploymentStatus{
-			ObservedGeneration: 4, // Different from Generation indicates ongoing rollout
-			ReadyReplicas:      2, // Less than desired replicas
-		},
-	}
+		// Create deployment with ongoing rollout (generation != observed generation)
+		replicas := int32(3)
+		deployment := &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       "test-deployment",
+				Namespace:  "default",
+				Generation: 5,
+			},
+			Spec: appsv1.DeploymentSpec{
+				Replicas: &replicas,
+			},
+			Status: appsv1.DeploymentStatus{
+				ObservedGeneration: 4, // Different from Generation indicates ongoing rollout
+				ReadyReplicas:      2, // Less than desired replicas
+			},
+		}
 
-	generators := factory.MetricFamilyGenerators()
-	require.Len(t, generators, 1)
+		generators := factory.MetricFamilyGenerators()
+		require.Len(t, generators, 1)
 
-	// Generate metrics
-	metricFamily := generators[0].Generate(deployment)
+		// Generate metrics
+		metricFamily := generators[0].Generate(deployment)
 
-	// Should return dummy metric with value 1 for ongoing rollout
-	require.Len(t, metricFamily.Metrics, 1)
-	metric := metricFamily.Metrics[0]
-	assert.Equal(t, 1.0, metric.Value)
-	assert.Equal(t, []string{"namespace", "deployment"}, metric.LabelKeys)
-	assert.Equal(t, []string{"default", "test-deployment"}, metric.LabelValues)
+		// Should return dummy metric with value 1 for ongoing rollout
+		require.Len(t, metricFamily.Metrics, 1)
+		metric := metricFamily.Metrics[0]
+		assert.Equal(t, 1.0, metric.Value)
+		assert.Equal(t, []string{"namespace", "deployment"}, metric.LabelKeys)
+		assert.Equal(t, []string{"default", "test-deployment"}, metric.LabelValues)
 
-	// Verify deployment was stored in tracker (indirectly by checking if rollout duration can be retrieved)
-	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		// Verify deployment was stored in tracker (indirectly by checking if rollout duration can be retrieved)
+		time.Sleep(time.Millisecond) // fake clock: instant, guarantees a non-zero duration
 		duration := tracker.GetRolloutDuration("default", "test-deployment")
 		assert.Greater(t, duration, 0.0, "Rollout duration should be greater than 0 for ongoing rollout")
-	}, 5*time.Second, 100*time.Millisecond)
 
+	})
 }
 
 func TestDeploymentRolloutGeneration_CompletedRollout(t *testing.T) {
