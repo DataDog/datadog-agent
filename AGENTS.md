@@ -128,6 +128,14 @@ eBPF programs, runtime-compilation bundles, and cgo godefs are built with Bazel 
 
 ## Testing Strategy
 
+Put each assertion in the cheapest test category that still catches the failure it exists for:
+a unit test, then an integration test (real components wired with fx, a local fakeintake),
+and E2E only when the installed Agent or its real environment is part of the behavior.
+A kernel-specific failure is an integration test run on the kernel matrix, and an assertion that
+needs only the built binaries on one machine stays E2E until binary tests have an agreed home.
+The criteria are in `doc/guidelines/testing/test-categories.md`: read it before choosing where a
+test goes. To choose the level and write the test, use the `/write-test` skill.
+
 ### Unit Tests
 Go tests run via `dda inv test --targets=<package>` (see the `dda inv` table above) or `bazel test //pkg/... //comp/...`; Python checks use pytest.
 Both go through Bazel, so a new package has no test target until `bazel run //:gazelle -- <dir>` generates its `BUILD.bazel`.

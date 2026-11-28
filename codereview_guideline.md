@@ -12,13 +12,17 @@ The following are areas of particular concern for this codebase. They highlight
 project-specific risks that have led to production bugs in the Datadog Agent.
 Apply them in addition to the general review guidance above.
 
-### E2E coverage with fakeintake
-The E2E framework (`test/new-e2e/`) uses fakeintake, a mock Datadog intake that
-captures metrics, logs, traces, and check runs. When a change affects
-user-visible behavior (new metrics, changed log output, modified payloads),
-check whether an E2E test asserts the expected data arrives in fakeintake. Unit
-tests alone are not sufficient for validating the agent's end-to-end data
-pipeline.
+### Data pipeline coverage with fakeintake
+Fakeintake is a mock Datadog intake that captures metrics, logs, traces, and
+check runs. When a change affects user-visible behavior (new metrics, changed
+log output, modified payloads), check whether a test asserts the expected data
+arrives in fakeintake: an integration test wiring the real components with a
+local fakeintake, or an E2E test (`test/new-e2e/`) when the installed Agent or
+its real environment is part of the behavior. An assertion that needs only the
+built binaries on one machine stays E2E until binary tests have an agreed home.
+The criteria are in
+`doc/guidelines/testing/test-categories.md`. Unit tests alone are not
+sufficient for validating the agent's data pipeline.
 
 When a PR creates a new E2E test, use the `e2e-audit` skill to verify that its
 assertions require the deployed Agent or its real environment.

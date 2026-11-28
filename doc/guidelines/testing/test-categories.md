@@ -1,282 +1,135 @@
-# Test Categories
-
-The Datadog Agent employs a comprehensive testing strategy with four distinct categories of tests, each serving a specific purpose in ensuring code quality, functionality, and reliability. This document serves as both a reference guide and decision-making framework for choosing the appropriate test type.
-
-## Unit Tests
-
-**Purpose**: Validate individual functions, methods, or small code units in isolation.
-
-**When to Use Unit Tests**:
-
-- Testing pure functions with predictable inputs/outputs.
-- Validating business logic without external dependencies.
-- Testing error handling and edge cases.
-- Verifying data transformations and calculations.
-- When you can mock all external dependencies effectively.
+# Test categories
 
-**Criteria**:
+Every test pays for the boundary it keeps real: a unit test pays milliseconds, an E2E test pays a cloud VM and tens of minutes. Put each assertion in the cheapest category that still catches the failure it exists for, and keep the expensive categories for failures nothing cheaper can catch. This page is the set of criteria for that choice. The <<<repo(".agents/skills/e2e-audit/SKILL.md", "`e2e-audit`")>>> and <<<repo(".agents/skills/write-test/SKILL.md", "`write-test`")>>> skills apply it, and reviewers can apply it by hand.
 
-- **Speed**: Must execute in milliseconds (< 100ms per test).
-- **Isolation**: No network calls, file system access, or external services.
-- **Deterministic**: Same input always produces same output.
-- **Independent**: Can run in any order without affecting other tests.
+## Choosing a category
 
-**Examples**:
-```go
-// Testing metric aggregation logic
-func TestMetricAggregator_Sum(t *testing.T) {
-    aggregator := NewMetricAggregator()
-    aggregator.Add("cpu.usage", 10.0)
-    aggregator.Add("cpu.usage", 15.0)
-    assert.Equal(t, 25.0, aggregator.Sum("cpu.usage"))
-}
+| The failure you need to catch | Category |
+| --- | --- |
+| Code gives a wrong answer for known inputs | [Unit](#unit) |
+| Two of our components disagree, and everything outside them can be faked or run locally | [Integration](#integration) |
+| A real local dependency, such as a daemon, driver, or hardware, behaves differently from our fake | [Integration](#integration), against the real dependency |
+| The binary we built misbehaves as a program on one machine | [Binary test](#binary-test) |
+| The failure appears only when the installed Agent runs in a real environment | [E2E](#e2e) |
+| The failure appears only on some kernels | [Integration](#integration), on the [kernel axis](#environment-axes) |
+| The failure appears only on some distros or package formats | [E2E](#e2e), on the [platform axis](#environment-axes) |
 
-// Testing configuration parsing
-func TestConfig_ParseYAML(t *testing.T) {
-    yamlData := `api_key: test123`
-    config, err := ParseYAML([]byte(yamlData))
-    assert.NoError(t, err)
-    assert.Equal(t, "test123", config.APIKey)
-}
-```
-
-**Common Patterns**:
-
-- Mock external dependencies using interfaces.
-- Test both happy path and error conditions.
-- Use table-driven tests for multiple input scenarios.
-- Focus on business logic rather than implementation details.
-
----
-
-## Integration Tests
-
-**Purpose**: Test the interaction between multiple components or validate functionality that requires external services.
-
-**When to Use Integration Tests**:
-
-- Testing database interactions and queries.
-- Validating API client implementations.
-- Testing component interactions within the same service.
-- Verifying configuration loading from actual files.
-- When external services are required but controllable.
-
-**Criteria**:
-
-- **Moderate Speed**: Should complete within seconds (< 30s per test).
-- **Controlled Dependencies**: Use real services but in test environments.
-- **CI Compatible**: Must work in both local and CI environments.
-- **Platform Aware**: Should work on all supported platforms or skip gracefully.
-- **Cleanup**: Must clean up resources after execution.
-
-**Examples**:
-```go
-// Testing database integration
-func TestMetricStore_SaveAndRetrieve(t *testing.T) {
-    db := setupTestDB(t) // Creates isolated test database
-    defer cleanupTestDB(t, db)
-
-    store := NewMetricStore(db)
-    metric := &Metric{Name: "test.metric", Value: 42.0}
-
-    err := store.Save(metric)
-    assert.NoError(t, err)
-
-    retrieved, err := store.Get("test.metric")
-    assert.NoError(t, err)
-    assert.Equal(t, metric.Value, retrieved.Value)
-}
-
-// Testing HTTP client integration
-func TestDatadogClient_SubmitMetrics(t *testing.T) {
-    server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        assert.Equal(t, "POST", r.Method)
-        assert.Contains(t, r.Header.Get("Content-Type"), "application/json")
-        w.WriteHeader(http.StatusOK)
-    }))
-    defer server.Close()
-
-    client := NewDatadogClient(server.URL, "test-key")
-    err := client.SubmitMetrics([]Metric{{Name: "test", Value: 1.0}})
-    assert.NoError(t, err)
-}
-```
+## How to decide
 
-**Requirements**:
-
-- Use test containers or in-memory databases when possible.
-- Implement proper setup/teardown procedures.
-- Handle network timeouts and retries gracefully.
-- Skip tests when required services are unavailable.
+Analyze observable claims and failure modes, not test files or individual `assert` and `require` calls. Group the checks that validate the same contract into one assertion, including implicit claims such as a successful installation, startup, or command execution.
 
----
+Do not ask only whether an assertion *can* be made with mocks. Ask what the assertion would stop validating if its dependencies were replaced. Two questions usually settle it:
 
-## System Tests
+1. **Which components must the test keep real?** List the hops the behavior flows through, from where its input enters to where its output is observed. When they are all our own code and can run in one process, the assertion is an integration test at most.
+1. **Do those components depend on the platform?** Platform-specific code that builds and runs on a CI runner, such as a `_windows.go` file or a registry read, is still testable in a unit or integration test on that platform's unit test job. Only a dependency on the deployed system, such as the service manager, the installed package, or its permissions, pushes the assertion higher. A dependency on the kernel puts it on the [kernel axis](#environment-axes) instead.
 
-**Purpose**: Validate how multiple Agent components work together as a cohesive system, testing inter-component communication and workflows.
+When reviewing, ask three questions of each test:
 
-**When to Use System Tests**:
+1. What failure does this test catch?
+1. What is the cheapest category that still catches it?
+1. If the same claim is also tested in a more expensive category, what does that test catch that the cheaper one does not?
 
-- Testing complete data pipelines (collection → processing → forwarding).
-- Validating component startup and shutdown sequences.
-- Testing configuration changes and reloads.
-- Verifying metric collection from actual system resources.
-- Testing cross-component communication (e.g., DogStatsD → Forwarder).
+## Unit
 
-**Criteria**:
+**Owns:** a wrong answer from code whose inputs are known: parsers, aggregators, config validation, encoding, state machines, tag computation.
 
-- **Realistic Environment**: Uses actual Agent binaries and configurations.
-- **Component Integration**: Tests multiple Agent components together.
-- **Moderate Isolation**: May use real system resources but in controlled manner.
-- **Execution Time**: Should complete within minutes (< 5 minutes per test).
-- **Environment Specific**: May require specific OS features or permissions.
+**Use when** the behavior is isolated logic that does not require a real component graph, process, or external dependency. Unit tests run in-process with `dda inv test`, in milliseconds, with no network or sleeps, and in any order.
 
-**Examples**:
-```go
-// Testing DogStatsD metric forwarding pipeline
-func TestDogStatsDMetricPipeline(t *testing.T) {
-    // Start Agent with test configuration
-    agent := startTestAgent(t, &Config{
-        DogStatsDPort: 8125,
-        APIKey: "test-key",
-        FlushInterval: time.Second,
-    })
-    defer agent.Stop()
+**Does not catch:** wiring between components, the assembled binary, the kernel, the package, or the deployed configuration.
 
-    // Send metric via DogStatsD
-    conn, err := net.Dial("udp", "localhost:8125")
-    require.NoError(t, err)
-    defer conn.Close()
+**Avoid:** mocking so much that the test restates the implementation, and kernel-independent tests that run once per kernel because they share a package with kernel tests.
 
-    _, err = conn.Write([]byte("test.metric:42|g"))
-    require.NoError(t, err)
+## Integration
 
-    // Verify metric was processed and forwarded
-    assert.Eventually(t, func() bool {
-        return agent.GetMetricCount("test.metric") > 0
-    }, 5*time.Second, 100*time.Millisecond)
-}
+**Owns:** two of our components disagreeing through their real interfaces, or our code disagreeing with a real local dependency.
 
-// Testing configuration reload
-func TestAgentConfigReload(t *testing.T) {
-    configFile := writeTestConfig(t, &Config{LogLevel: "info"})
-    agent := startTestAgent(t, configFile)
-    defer agent.Stop()
+**Use when** the important boundary can be preserved locally: components wired for real with `fxutil.Test`, an HTTP client against a local server, configuration merged from real files, `DD_*` environment variables, and fleet policies by the real config components, a local fakeintake, or a real local daemon, driver, or hardware. A real local dependency does not by itself require E2E. Integration tests are still Go tests, and take seconds.
 
-    // Update configuration
-    updateTestConfig(t, configFile, &Config{LogLevel: "debug"})
+An integration test is only as good as what it keeps real:
 
-    // Trigger reload
-    err := agent.ReloadConfig()
-    require.NoError(t, err)
+- Use the real `fx` module of every hop the behavior flows through. Mock only dependencies outside the boundary, and be able to say why each one is outside. A mock on the very boundary the test exists to check makes the test pointless.
+- Feed the input the way production does. Write configuration to real files and load it with the real config components rather than the config mocks, which skip the Agent's post-load fixups.
+- Capture the output where it becomes observable: an in-process fakeintake for payloads, the component's provider for status, diagnose, or flare output.
 
-    // Verify new configuration is active
-    assert.Equal(t, "debug", agent.GetLogLevel())
-}
-```
+`dda inv test` leaves out the test targets tagged for a local dependency (the `tagset_*` filters in <<<repo("bazel/configs/go_tests.bazelrc")>>>). Such a test runs in CI only in a job that selects its tag on a runner that provides the dependency.
 
-**Characteristics**:
+The `write-test` skill's <<<repo(".agents/skills/write-test/references/integration.md", "integration reference")>>> has the wiring patterns, and <<<repo("comp/healthplatform/invalidconfig_payload_integration_test.go")>>> is a worked example: it replaced a nine-scenario E2E suite with the same scenarios and golden payloads, in seconds.
 
-- May spawn actual Agent processes.
-- Tests real configuration files and command-line arguments.
-- Validates inter-process communication.
-- Can test Python integration and bindings.
+**Does not catch:** anything that only appears in a shipped binary or a running service, or kernel behavior that differs from the kernel the test runs on.
 
----
+### Testing through Fx
 
-## E2E (End-to-End) Tests
+Most Agent code is an Fx component, and the component graph is what lets a change be validated end to end without a binary:
 
-**Purpose**: Validate complete user workflows in production-like environments with real infrastructure managed by
-Pulumi, and external services.
+- **The graph shows what a change reaches.** A component's `Requires` struct lists what it consumes, and the importers of its `def` package are what consume it. For a set of changed paths, <<<repo(".agents/skills/write-test/scripts/map_components.py")>>> lists the components reached, their consumers, and the `fx` modules and mocks that wire them. Those are the hops an integration test keeps real.
+- **Tests reuse production wiring.** `fxutil.Test[T]` starts the same `fx` modules and bundles the binaries start, so one test can follow a behavior from where its input enters, such as a config file, a socket, or a check, to where its output is observed, such as fakeintake, status, or flare. A missing or duplicate dependency fails the test at start, as it would fail the binary.
+- **Mocks mark the boundary.** Replace a real `fx` module with its `mock` or `fx-mock` only for components outside the boundary.
 
-**When to Use E2E Tests**:
+| Question | Helper | Category |
+| --- | --- | --- |
+| Does this component compute the right result? | Its constructor with mocked `Requires`, no Fx | Unit |
+| Can this bundle or command build its graph? Does the command build the right parameters from its flags? | `fxutil.TestBundle`, `fxutil.TestOneShotSubcommand`, `fxutil.TestRun` | Unit |
+| Do these components start and agree when wired for real? | `fxutil.Test[T]` with real `fx` modules | Integration |
+| Does the assembled binary start, serve, and answer its CLI? | None: no helper runs a whole binary | Binary test |
 
-- Testing complete deployment scenarios.
-- Validating Agent behavior in different operating systems.
-- Testing Kubernetes integration and autodiscovery.
-- Verifying cloud provider integrations (AWS, Azure, GCP).
-- Testing upgrade and rollback procedures.
-- Validating security configurations and compliance.
+`fxutil.TestOneShotSubcommand` parses a command line, checks the parameters the command builds from it, and validates the command's real graph, `agent run` included, with `fx.ValidateApp`. It skips the command body and starts only what its verify function and the command's own `fx.Invoke` options request. `fxutil.Test[T]` builds and starts every component `T` requests, so a component that fails when it starts is caught by an integration test that requests it. A failure that needs the whole assembled binary, or a CLI talking to a running Agent, still needs a binary test.
 
-**Criteria**:
+Configuration merging is an integration test: real files, `DD_*` variables, and fleet policies go through the real config module the way the binary loads them. A binary test keeps what only the running binary shows, such as the configuration other processes receive from the core Agent.
 
-- **Production-Like Environment**: Uses real infrastructure (VMs, containers, cloud services).
-- **Complete Workflows**: Tests entire user journeys from installation to data delivery.
-- **Extended Duration**: May run for hours to test long-running scenarios.
-- **Infrastructure Dependencies**: Requires provisioned environments (Pulumi, Terraform).
-- **Comprehensive Coverage**: Tests all supported platforms and configurations.
+## Binary test
 
-**Example**:
+**Owns:** the binary we built misbehaving as a program, on one machine: starting and stopping, CLI output against a running Agent, or two of our binaries talking over local sockets and files, such as the configuration other processes sync from the core Agent.
 
-More examples can be found in the <<<repo("test/new-e2e/examples", "examples")>>> directory.
-```go
-package examples
+**Use when** the assertion needs the built binaries running, but not the installed package, the service manager, a specific kernel, a cloud API, or an orchestrator. Such a test starts the built binaries in a temporary directory with a local configuration and fakeintake, and takes minutes.
 
-import (
-	"testing"
+**Harness: TBD.** None has been agreed yet; only the trace-agent has its own: <<<repo("cmd/trace-agent/test")>>> builds the `trace-agent` binary, runs it with a test configuration against a fake backend, and runs in CI as `trace_agent_integration_tests`. The other Agent binaries have none. Until a harness is agreed, an assertion that belongs here stays in E2E, unless an integration test preserves the same failure. The `e2e-audit` skill marks such assertions as binary-test candidates, which records what binary tests would need to cover.
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
-)
+**Does not catch:** the installed package, permissions it creates, service-manager behavior, other kernels, or cloud APIs.
 
-type vmSuite struct {
-	e2e.BaseSuite[environments.Host]
-}
+**Avoid:** re-testing parser branches through the binary, and depending on paths that only the package creates.
 
-// TestVMSuite runs tests for the VM interface to ensure its implementation is correct.
-func TestVMSuite(t *testing.T) {
-	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake())}
+## E2E
 
-	e2e.Run(t, &vmSuite{}, suiteParams...)
-}
+**Owns:** a failure that appears only when the installed Agent runs in a real environment.
 
-func (v *vmSuite) TestExecute() {
-	vm := v.Env().RemoteHost
+**Use when** the deployed Agent or its real environment is part of the behavior being validated. This includes boundaries such as:
 
-	out, err := vm.Execute("whoami")
-	v.Require().NoError(err)
-	v.Require().NotEmpty(out)
-}
-```
+- installation, packaging, permissions, or configuration merged from the installed package's files;
+- service lifecycle under the real service manager, or cross-process communication and CLI behavior that need the installed Agent rather than the built binaries alone (see [Binary test](#binary-test));
+- operating-system, cloud, container-orchestrator, or network behavior that cannot be represented faithfully by a local dependency, and kernel behavior that kernel matrix testing cannot reproduce;
+- user-visible data reaching fakeintake when the installed Agent's assembly, configuration, encoding, or forwarding path is material to the test; a built binary sending to a local fakeintake is a [binary test](#binary-test).
 
-**Infrastructure Examples**:
+A behavior is not E2E-worthy merely because the current test reaches it through SSH, a CLI, or remote infrastructure. If those layers add no relevant coverage, use a cheaper category. Signs that an E2E test belongs in a cheaper category:
 
-- **Container Orchestration**: Testing in Kubernetes, Docker Swarm, ECS.
-- **Operating Systems**: Validating on Ubuntu, CentOS, Windows Server, macOS.
-- **Cloud Integrations**: Testing AWS EC2, Azure VMs, GCP Compute Engine.
-- **Network Configurations**: Testing with firewalls, load balancers, service meshes.
+- most of its time goes into provisioning and restarting the Agent, not into the behavior under test;
+- it waits with long `EventuallyWithT` windows, or watches a fixed time to prove that something did not happen;
+- its scenarios differ only in configuration or input files;
+- asked whether the behavior depends on the platform, the answer is no.
 
-**Test Scenarios**:
+E2E tests live in <<<repo("test/new-e2e")>>>. Each suite provisions its own VM, cluster, or ECS environment with Pulumi, and a run takes 10 to 40 minutes. <<<repo("test/new-e2e/codereview_guideline.md")>>> has the reliability rules and time budgets.
 
-- Fresh installation and first-time setup.
-- Agent updates and version migrations.
-- High-availability and failover scenarios.
-- Performance under load and resource constraints.
-- Security configurations and compliance validation.
+**Does not catch:** every kernel, every distro, or every branch of a parser. Those belong lower or on an axis.
 
----
+**Avoid:** asserting logic already covered lower down with nothing added, one suite per edge case, and tests that read another test's payloads from a shared fakeintake.
 
-## Choosing the Right Test Type
+## Environment axes
 
-Use this decision tree to determine the appropriate test category:
+Running the same tests on many kernels or distros does not make them a higher category; it multiplies the cost of the category they belong to. Put a test on an axis only when its result can change with that environment.
 
-1. **Can you test it with mocked dependencies?** → **Unit Test**
-1. **Does it require external services but limited scope?** → **Integration Test**
-1. **Does it test multiple Agent components together?** → **System Test**
-1. **Does it require production-like infrastructure?** → **E2E Test**
+- **Kernel axis:** kernel matrix testing runs Go test packages in micro VMs, once per kernel. It owns failures that exist only on some kernels: a verifier rejection, a missing hook, a changed struct offset. A costly kernel-independent test in those packages belongs in the regular unit test jobs instead.
+- **Platform axis:** E2E install suites on real distro images. They own failures that exist only for some distros or package formats: a missing systemd unit, wrong permissions, a broken upgrade path. Do not repeat product feature tests per distro when only the installation differs.
 
-**Speed vs Coverage Trade-off**:
+## Layered coverage
 
-- **Unit Tests**: Maximum speed, narrow coverage.
-- **Integration Tests**: Fast execution, moderate coverage.
-- **System Tests**: Moderate speed, broad coverage.
-- **E2E Tests**: Slower execution, maximum coverage.
+Testing a claim in two categories is useful when the cheaper test preserves its failure mode: it gives faster pull request feedback, more deterministic failures, and easier debugging. Do not treat that duplication as waste by itself.
 
-**Execution Context**:
+After accounting for the cheaper coverage, reevaluate what the expensive test uniquely validates. Repeating an assertion through the deployed Agent can still be valuable when it catches assembly, configuration, packaging, lifecycle, or forwarding failures that the cheaper test cannot. If nearly all material assertions have equivalent cheaper coverage and the E2E test preserves no meaningful additional boundary, remove it: its feedback no longer justifies its provisioning, runtime, and maintenance cost. Base that decision on residual failure coverage, not on the number of duplicated assertions.
 
-- **Unit + Integration**: Run on every commit (CI/CD pipeline).
-- **System**: Run on pull requests and nightly builds.
-- **E2E**: Run on releases and scheduled intervals.
+## Other checks
 
-Remember: A well-tested codebase uses all four categories strategically. Start with unit tests for core logic, add integration tests for external dependencies, use system tests for component interactions, and implement E2E tests for critical user workflows.
+Some questions are not about behavior and belong to dedicated checks rather than any category above:
+
+- **Static checks:** is this a valid program, schema, or generated file? Linters, generated-code checks, dependency diffs.
+- **Artifact verification:** is the artifact we ship right before anyone runs it? Files inventory, binary and package size, static quality gates.
+- **Performance:** did latency, CPU, memory, or throughput move? Benchmarks and the regression detector in <<<repo("test/regression")>>>.
+- **Fuzzing:** does a parser accept or crash on input nobody wrote a case for?
