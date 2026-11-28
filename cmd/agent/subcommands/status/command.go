@@ -67,12 +67,16 @@ The --list flag can be used to list all available status sections.`,
 			// BundleParams field for AD.
 			os.Setenv("DD_AUTOCONFIG_FROM_ENVIRONMENT", "false")
 
+			// Logs are written to stdout, so don't let DD_LOG_LEVEL turn them on when
+			// stdout must hold only the JSON status. --log_level still applies.
+			logLevelFromEnv := !cliParams.jsonStatus && !cliParams.prettyPrintJSON
+
 			return fxutil.OneShot(statusCmd,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams:            log.ForOneShot(command.LoggerName, cliParams.logLevelDefaultOff.Value(), true)}),
+					LogParams:            log.ForOneShot(command.LoggerName, cliParams.logLevelDefaultOff.Value(), logLevelFromEnv)}),
 				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)

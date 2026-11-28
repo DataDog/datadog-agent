@@ -39,3 +39,27 @@ func TestComponentStatusCommand(t *testing.T) {
 			require.Equal(t, false, cliParams.jsonStatus)
 		})
 }
+
+func TestStatusCommandLogLevelFromEnv(t *testing.T) {
+	defer os.Unsetenv("DD_AUTOCONFIG_FROM_ENVIRONMENT") // undo os.Setenv by RunE
+	t.Setenv("DD_LOG_LEVEL", "info")
+
+	tests := []struct {
+		args          []string
+		expectedLevel string
+	}{
+		{[]string{"status"}, "info"},
+		{[]string{"status", "-j"}, "off"},
+		{[]string{"status", "-p"}, "off"},
+		{[]string{"status", "-j", "--log_level", "debug"}, "debug"},
+	}
+	for _, tt := range tests {
+		fxutil.TestOneShotSubcommand(t,
+			Commands(&command.GlobalParams{}),
+			tt.args,
+			statusCmd,
+			func(_ *cliParams, params core.BundleParams) {
+				require.Equal(t, tt.expectedLevel, params.LogParams.LogLevelFn(nil), "args: %v", tt.args)
+			})
+	}
+}
