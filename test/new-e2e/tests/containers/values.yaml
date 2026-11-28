@@ -1,6 +1,9 @@
 datadog:
   namespaceLabelsAsTags:
     related_team: team
+  kubernetesResourcesLabelsAsTags:
+    pods:
+      rollouts-pod-template-hash: rollout_hash
   kubernetesResourcesAnnotationsAsTags:
     pods:
       x-service-name: service

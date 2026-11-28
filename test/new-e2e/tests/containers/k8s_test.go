@@ -975,6 +975,24 @@ func (suite *k8sSuite) TestArgoRollout() {
 			AcceptUnexpectedTags: true,
 		},
 	})
+
+	// rollouts-pod-template-hash is mapped to rollout_hash in labels-as-tags
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "kubernetes_state.pod.ready",
+			Tags: []string{
+				`^kube_namespace:workload-argo-rollout-nginx$`,
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^kube_argo_rollout:nginx-rollout$`,
+				`^rollout_hash:[[:alnum:]]+$`,
+				`^kube_namespace:workload-argo-rollout-nginx$`,
+			},
+			AcceptUnexpectedTags: true,
+		},
+	})
 }
 
 func (suite *k8sSuite) TestCPU() {

@@ -71,9 +71,13 @@ type labelJoiner struct {
 // argoRolloutLabelName is the KSM-normalized name of the rollouts-pod-template-hash label.
 const argoRolloutLabelName = "label_rollouts_pod_template_hash"
 
+// argoRolloutLabelFamilies are the label joins argoRolloutLabelName is read from.
+var argoRolloutLabelFamilies = []string{"kube_pod_labels", "kube_replicaset_labels"}
+
 type metricToJoin struct {
-	config *joinsConfig
-	tree   *node
+	config               *joinsConfig
+	tree                 *node
+	keepArgoRolloutLabel bool
 }
 
 type label struct {
@@ -90,15 +94,18 @@ func newLabelJoiner(config map[string]*joinsConfig) *labelJoiner {
 	metricsToJoin := make(map[string]metricToJoin)
 
 	for key, joinsConfig := range config {
+		keepArgoRolloutLabel := slices.Contains(argoRolloutLabelFamilies, key)
 		if len(joinsConfig.labelsToMatch) > 0 {
 			metricsToJoin[key] = metricToJoin{
-				config: joinsConfig,
-				tree:   newInnerNode(),
+				config:               joinsConfig,
+				tree:                 newInnerNode(),
+				keepArgoRolloutLabel: keepArgoRolloutLabel,
 			}
 		} else {
 			metricsToJoin[key] = metricToJoin{
-				config: joinsConfig,
-				tree:   newLeafNode(),
+				config:               joinsConfig,
+				tree:                 newLeafNode(),
+				keepArgoRolloutLabel: keepArgoRolloutLabel,
 			}
 		}
 	}
@@ -147,7 +154,18 @@ func resolveTag(labelName string, config *joinsConfig) string {
 	)
 }
 
-func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *joinsConfig, tree *node) {
+// appendLabel appends the joined label. If keepArgoRolloutLabel is set, a
+// renamed Argo Rollout label is also kept under its KSM name, which
+// hostnameAndTags uses to detect Argo Rollouts.
+func appendLabel(labels []label, ksmLabel, tagKey, value string, keepArgoRolloutLabel bool) []label {
+	labels = append(labels, label{tagKey, value})
+	if keepArgoRolloutLabel && ksmLabel == argoRolloutLabelName && tagKey != argoRolloutLabelName {
+		labels = append(labels, label{argoRolloutLabelName, value})
+	}
+	return labels
+}
+
+func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *joinsConfig, tree *node, keepArgoRolloutLabel bool) {
 	current := tree
 
 	// Parse the tree from the root to the leaf and add missing nodes on the way.
@@ -183,10 +201,9 @@ func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *joinsConfi
 			isALabelToMatch := slices.Contains(config.labelsToMatch, labelName)
 			if !isALabelToMatch {
 				if ddTagKey, found := config.labelsToGet[labelName]; found {
-					current.labelsToAdd = append(current.labelsToAdd, label{ddTagKey, labelValue})
+					current.labelsToAdd = appendLabel(current.labelsToAdd, labelName, ddTagKey, labelValue, keepArgoRolloutLabel)
 				} else if config.wildcardTemplate != "" {
-					resolvedTagKey := resolveTag(labelName, config)
-					current.labelsToAdd = append(current.labelsToAdd, label{resolvedTagKey, labelValue})
+					current.labelsToAdd = appendLabel(current.labelsToAdd, labelName, resolveTag(labelName, config), labelValue, keepArgoRolloutLabel)
 				} else {
 					current.labelsToAdd = append(current.labelsToAdd, label{labelName, labelValue})
 				}
@@ -200,7 +217,7 @@ func (lj *labelJoiner) insertMetric(metric ksmstore.DDMetric, config *joinsConfi
 		for labelToGet, ddTagKey := range config.labelsToGet {
 			labelValue, found := metric.Labels[labelToGet]
 			if found && labelValue != "" {
-				current.labelsToAdd = append(current.labelsToAdd, label{ddTagKey, labelValue})
+				current.labelsToAdd = appendLabel(current.labelsToAdd, labelToGet, ddTagKey, labelValue, keepArgoRolloutLabel)
 			}
 		}
 	}
@@ -219,7 +236,7 @@ func (lj *labelJoiner) insertFamily(metricFamily ksmstore.DDMetricsFam) {
 	}
 
 	for _, metric := range metricFamily.ListMetrics {
-		lj.insertMetric(metric, metricToJoin.config, metricToJoin.tree)
+		lj.insertMetric(metric, metricToJoin.config, metricToJoin.tree, metricToJoin.keepArgoRolloutLabel)
 	}
 }
 

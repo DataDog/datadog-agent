@@ -1476,11 +1476,13 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 
 func TestKSMCheck_hostnameAndTagsArgoRollout(t *testing.T) {
 	tests := []struct {
-		name             string
-		ownerKind        string
-		ownerName        string
-		argoRolloutLabel string
-		expectedTags     []string
+		name                      string
+		ownerKind                 string
+		ownerName                 string
+		argoRolloutLabel          string
+		namespaceArgoRolloutLabel string
+		labelsAsTags              map[string]map[string]string
+		expectedTags              []string
 	}{
 		{
 			name:             "Argo Rollout pod",
@@ -1496,6 +1498,36 @@ func TestKSMCheck_hostnameAndTagsArgoRollout(t *testing.T) {
 			},
 		},
 		{
+			name:             "Argo Rollout pod with rollouts-pod-template-hash in labels as tags",
+			ownerKind:        kubernetes.ReplicaSetKind,
+			ownerName:        "my-rollout-7f59c78c9b",
+			argoRolloutLabel: "7f59c78c9b",
+			labelsAsTags:     map[string]map[string]string{"pod": {"rollouts-pod-template-hash": "rollouts-pod-template-hash"}},
+			expectedTags: []string{
+				"kube_namespace:default",
+				"pod_name:my-rollout-7f59c78c9b-abcde",
+				"kube_replica_set:my-rollout-7f59c78c9b",
+				"kube_deployment:my-rollout",
+				"kube_argo_rollout:my-rollout",
+				"rollouts-pod-template-hash:7f59c78c9b",
+			},
+		},
+		{
+			name:             "Argo Rollout pod with renamed rollouts-pod-template-hash tag",
+			ownerKind:        kubernetes.ReplicaSetKind,
+			ownerName:        "my-rollout-7f59c78c9b",
+			argoRolloutLabel: "7f59c78c9b",
+			labelsAsTags:     map[string]map[string]string{"pod": {"rollouts-pod-template-hash": "rollout_hash"}},
+			expectedTags: []string{
+				"kube_namespace:default",
+				"pod_name:my-rollout-7f59c78c9b-abcde",
+				"kube_replica_set:my-rollout-7f59c78c9b",
+				"kube_deployment:my-rollout",
+				"kube_argo_rollout:my-rollout",
+				"rollout_hash:7f59c78c9b",
+			},
+		},
+		{
 			name:      "Deployment pod",
 			ownerKind: kubernetes.ReplicaSetKind,
 			ownerName: "my-deployment-7f59c78c9b",
@@ -1504,6 +1536,20 @@ func TestKSMCheck_hostnameAndTagsArgoRollout(t *testing.T) {
 				"pod_name:my-rollout-7f59c78c9b-abcde",
 				"kube_replica_set:my-deployment-7f59c78c9b",
 				"kube_deployment:my-deployment",
+			},
+		},
+		{
+			name:                      "Deployment pod in a namespace with rollouts-pod-template-hash in labels as tags",
+			ownerKind:                 kubernetes.ReplicaSetKind,
+			ownerName:                 "my-deployment-7f59c78c9b",
+			namespaceArgoRolloutLabel: "7f59c78c9b",
+			labelsAsTags:              map[string]map[string]string{"namespace": {"rollouts-pod-template-hash": "rollout_hash"}},
+			expectedTags: []string{
+				"kube_namespace:default",
+				"pod_name:my-rollout-7f59c78c9b-abcde",
+				"kube_replica_set:my-deployment-7f59c78c9b",
+				"kube_deployment:my-deployment",
+				"rollout_hash:7f59c78c9b",
 			},
 		},
 		{
@@ -1529,10 +1575,12 @@ func TestKSMCheck_hostnameAndTagsArgoRollout(t *testing.T) {
 			config := &KSMConfig{
 				LabelsMapper: defaultLabelsMapper(),
 				LabelJoins:   defaultLabelJoins(),
+				LabelsAsTags: tt.labelsAsTags,
 			}
 			fakeTagger := taggerfxmock.SetupFakeTagger(t)
 			check := newKSMCheck(core.NewCheckBase(CheckName), config, fakeTagger, nil)
 			check.processLabelJoins()
+			check.processLabelsAsTags()
 
 			labelJoiner := newLabelJoiner(config.labelJoins)
 			labelJoiner.insertFamily(ksmstore.DDMetricsFam{
@@ -1552,6 +1600,15 @@ func TestKSMCheck_hostnameAndTagsArgoRollout(t *testing.T) {
 					createdByNameKey: tt.ownerName,
 				}}},
 			})
+			if tt.namespaceArgoRolloutLabel != "" {
+				labelJoiner.insertFamily(ksmstore.DDMetricsFam{
+					Name: "kube_namespace_labels",
+					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{
+						namespaceKey:         namespace,
+						argoRolloutLabelName: tt.namespaceArgoRolloutLabel,
+					}}},
+				})
+			}
 
 			_, actualTags := check.hostnameAndTags("kube_pod_status_ready", map[string]string{
 				namespaceKey: namespace,
