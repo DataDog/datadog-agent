@@ -122,6 +122,7 @@ single_version_override(
     patches = [
         # Additional -L directory so -static links find real glibc archives; upstream proposal pending
         "//bazel/patches:llvm/0001-glibc-additional-library-search-directory.patch",
+        "//bazel/patches:llvm/0002-fpu-vfpv3-d16.patch",  # hermeticbuild/hermetic-llvm#1003, drop on the next release
     ],
     version = "0.8.27",
 )
@@ -433,6 +434,10 @@ llvm_toolchain.exec(
 llvm_toolchain.target(
     arch = "aarch64",
     os = "macos",
+)
+llvm_toolchain.target(
+    arch = "armv7",
+    os = "linux",
 )
 llvm_toolchain.target(
     arch = "x86_64",

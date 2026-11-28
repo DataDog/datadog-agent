@@ -1,0 +1,28 @@
+diff --git a/constraints/fpu/BUILD.bazel b/constraints/fpu/BUILD.bazel
+index 2787a61..8744a21 100644
+--- a/constraints/fpu/BUILD.bazel
++++ b/constraints/fpu/BUILD.bazel
+@@ -15,6 +15,11 @@ constraint_value(
+     constraint_setting = ":fpu",
+ )
+ 
++constraint_value(
++    name = "vfpv3-d16",
++    constraint_setting = ":fpu",
++)
++
+ constraint_value(
+     name = "vfpv4-d16",
+     constraint_setting = ":fpu",
+diff --git a/toolchain/args/BUILD.bazel b/toolchain/args/BUILD.bazel
+index 394f46d..6ccde3f 100644
+--- a/toolchain/args/BUILD.bazel
++++ b/toolchain/args/BUILD.bazel
+@@ -74,6 +74,7 @@ cc_args(
+         ],
+         "//conditions:default": [],
+     }) + select({
++        "//constraints/fpu:vfpv3-d16": ["-mfpu=vfpv3-d16"],
+         "//constraints/fpu:vfpv4-d16": ["-mfpu=vfpv4-d16"],
+         "//conditions:default": [],
+     }),
