@@ -30,6 +30,9 @@ lint_changed_files:
       dda inv -- -e pre-commit.check-shellcheck "${CHANGED_FILES_ARGS[@]}" || status=1
       echo 'Checking changed Go formatting'
       dda inv -- -e pre-commit.check-go-fmt "${CHANGED_FILES_ARGS[@]}" || status=1
+      echo 'Checking changed C and C++ formatting'
+      clang-format --version || status=1
+      dda inv -- -e pre-commit.check-clang-format "${CHANGED_FILES_ARGS[@]}" || status=1
       exit "$status"
 
 lint_repository:
