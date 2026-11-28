@@ -12,6 +12,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"net"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -199,4 +200,27 @@ func TestSendMessagesLoopDropsOversizedMessages(t *testing.T) {
 			assert.Empty(t, ctx.msgDataChan)
 		})
 	}
+}
+
+func TestInitCtxCommonSetsHelloPID(t *testing.T) {
+	t.Setenv("ECS_CONTAINER_METADATA_URI_V4", "")
+	t.Setenv(EnvPasswdPathOverride, "")
+	t.Setenv(EnvGroupPathOverride, "")
+
+	ctx := &CWSPtracerCtx{opts: &Opts{mode: ebpfless.WrappedMode}}
+	require.NoError(t, ctx.initCtxCommon())
+	defer ctx.cancelFnc()
+
+	require.NotNil(t, ctx.helloMsg)
+	require.NotNil(t, ctx.helloMsg.Hello)
+	assert.EqualValues(t, os.Getpid(), ctx.helloMsg.Hello.PID)
+	assert.Equal(t, ebpfless.WrappedMode, ctx.helloMsg.Hello.Mode)
+
+	data, err := msgpack.Marshal(ctx.helloMsg)
+	require.NoError(t, err)
+	var decoded ebpfless.Message
+	require.NoError(t, msgpack.Unmarshal(data, &decoded))
+	require.NotNil(t, decoded.Hello)
+	assert.EqualValues(t, os.Getpid(), decoded.Hello.PID)
+	assert.Equal(t, ebpfless.WrappedMode, decoded.Hello.Mode)
 }

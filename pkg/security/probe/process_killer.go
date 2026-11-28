@@ -536,8 +536,8 @@ func (p *ProcessKiller) FlushPendingReports() {
 
 		now := time.Now()
 
-		// for kills that are performed, we wait for 2sec until we send the event with report
-		if report.Status == KillActionStatusPerformed && now.After(report.KilledAt.Add(killActionFlushDelay)) {
+		// for kills that are performed (or partially performed), we wait for 2sec until we send the event with report
+		if (report.Status == KillActionStatusPerformed || report.Status == KillActionStatusPartiallyPerformed) && now.After(report.KilledAt.Add(killActionFlushDelay)) {
 			report.resolved = true
 			return true
 		}
