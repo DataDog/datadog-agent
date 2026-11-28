@@ -201,6 +201,11 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 			return fmt.Errorf("several WithMokka installations are named %q: give each one its own mokka.WithName", mokkaParams.Name)
 		}
 		mokkaNames[mokkaParams.Name] = struct{}{}
+		// The GPU Operator deploys its device plugin on every node Mokka runs on: on the nodes of
+		// another installation, it would compete with that installation's device plugin, or operator.
+		if mokkaParams.GPUOperator != nil && len(params.mokkaInstallations) > 1 {
+			return errors.New("mokka.WithGPUOperator must be used in the only WithMokka installation: the operator manages every Mokka node")
+		}
 		mokkaComp, err := mokka.NewInstallation(&awsEnv, mokkaParams, kubeProvider)
 		if err != nil {
 			return err

@@ -135,6 +135,13 @@ injects it into containers with an NRI plugin. The reusable pieces live in the e
 
 - `components/kubernetes/mokka`: installs the `nvml-mock` chart (pinned version) and the NVIDIA
   device plugin, so nodes advertise `nvidia.com/gpu`.
+- `mokka.WithGPUOperator(...)`: deploys the NVIDIA GPU Operator (pinned version) instead of the
+  standalone device plugin, following [NVIDIA's overlay](https://nvidia.github.io/k8s-test-infra/guides/gpu-operator/).
+  Its GPU Feature Discovery labels the nodes (`nvidia.com/gpu.*`), and
+  `mokka.WithGPUOperatorDevicePluginConfig` sets the device plugin config, e.g. time-slicing.
+  It must be the only `WithMokka` installation: the operator deploys its device plugin on every
+  Mokka node, so it can't share the cluster with another GPU pool. With the operator, the
+  devices are injected through CDI, so `NVIDIA_VISIBLE_DEVICES` is `void` in GPU containers.
 - `kindvm.WithMokka(...)`: installs it before the Agent and adds `mokka.AgentHelmValues()`
   (the `nvml-mock.nvidia.com/devices` pod annotation, and an empty `gpuMonitoring.runtimeClassName`).
   Call it once per GPU pool (`mokka.WithName`, `mokka.WithNodeSelector`) to mix profiles.

@@ -9,7 +9,8 @@
 // Mokka stages a mock driver (libnvidia-ml, /dev/nvidiaN, sysfs) on each selected node and
 // injects it, through an NRI plugin, into containers that are allocated GPUs or whose pod
 // carries the [DevicesAnnotation]. On top of it this package deploys the NVIDIA device plugin,
-// so that nodes advertise nvidia.com/gpu and workloads can request GPUs.
+// so that nodes advertise nvidia.com/gpu and workloads can request GPUs, or, with
+// [WithGPUOperator], the NVIDIA GPU Operator, which also runs GPU Feature Discovery.
 //
 // Mokka does not execute CUDA: it covers what goes through NVML and the Kubernetes API
 // (inventory, NVML metrics, GPU allocation, tagging, fault injection), not eBPF/CUDA tracing.
@@ -17,6 +18,7 @@ package mokka
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
@@ -29,14 +31,19 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 )
 
-// Component is a Mokka installation: the nvml-mock Helm release and the NVIDIA device plugin.
-// Depend on it (e.g. with utils.PulumiDependsOn) before deploying the Agent or GPU workloads:
-// the NRI plugin only injects the mock driver into containers created after it is running.
+// Component is a Mokka installation: the nvml-mock Helm release and either the NVIDIA device
+// plugin or the NVIDIA GPU Operator. Depend on it (e.g. with utils.PulumiDependsOn) before
+// deploying the Agent or GPU workloads: the NRI plugin only injects the mock driver into
+// containers created after it is running.
 type Component struct {
 	pulumi.ResourceState
 
-	Release      *helm.Release
+	Release *helm.Release
+	// DevicePlugin is the standalone device plugin, nil with WithGPUOperator.
 	DevicePlugin *appsv1.DaemonSet
+	// GPUOperator is the GPU Operator release, nil without WithGPUOperator. The release is ready
+	// once the operator runs: its operands (device plugin, GPU Feature Discovery) start after it.
+	GPUOperator *helm.Release
 }
 
 // NewInstallation installs Mokka and the NVIDIA device plugin on the cluster behind kubeProvider.
@@ -65,9 +72,19 @@ func NewInstallation(e config.Env, params *Params, kubeProvider *kubernetes.Prov
 		return nil, fmt.Errorf("mokka: nvml-mock release: %w", err)
 	}
 
-	comp.DevicePlugin, err = newDevicePlugin(e, params, append(opts, pulumi.DependsOn([]pulumi.Resource{comp.Release}))...)
-	if err != nil {
-		return nil, fmt.Errorf("mokka: device plugin: %w", err)
+	// Mokka sets up the container runtime and stages the mock driver that the device plugin, or
+	// the operator's operands, read: they must come after it.
+	dependsOnRelease := append(slices.Clone(opts), pulumi.DependsOn([]pulumi.Resource{comp.Release}))
+	if params.GPUOperator != nil {
+		comp.GPUOperator, err = newGPUOperator(e, params, dependsOnRelease...)
+		if err != nil {
+			return nil, fmt.Errorf("mokka: GPU Operator: %w", err)
+		}
+	} else {
+		comp.DevicePlugin, err = newDevicePlugin(e, params, dependsOnRelease...)
+		if err != nil {
+			return nil, fmt.Errorf("mokka: device plugin: %w", err)
+		}
 	}
 
 	if err := e.Ctx().RegisterResourceOutputs(comp, pulumi.Map{
@@ -148,6 +165,77 @@ func newDevicePlugin(e config.Env, params *Params, opts ...pulumi.ResourceOption
 			},
 		},
 	}, opts...)
+}
+
+// newGPUOperator deploys the NVIDIA GPU Operator on the mock driver.
+func newGPUOperator(e config.Env, params *Params, opts ...pulumi.ResourceOption) (*helm.Release, error) {
+	operator := params.GPUOperator
+	return helm.NewRelease(e.Ctx(), e.CommonNamer().ResourceName(params.Name, "gpu-operator"), &helm.ReleaseArgs{
+		Name:            pulumi.String(params.Name + "-gpu-operator"),
+		Namespace:       pulumi.String(operator.Namespace),
+		CreateNamespace: pulumi.Bool(true),
+		Chart:           pulumi.String("gpu-operator"),
+		RepositoryOpts:  helm.RepositoryOptsArgs{Repo: pulumi.String(operator.ChartRepository)},
+		Version:         pulumi.String(operator.Version),
+		Values:          gpuOperatorValues(operator),
+		Timeout:         pulumi.Int(600),
+	}, opts...)
+}
+
+// devicePluginConfigName is the ConfigMap holding the device plugin configuration of the GPU
+// Operator, and devicePluginConfigKey the key of the configuration in it.
+const (
+	devicePluginConfigName = "mokka-device-plugin-config"
+	devicePluginConfigKey  = "default"
+)
+
+// gpuOperatorValues returns the GPU Operator chart values that make it run on Mokka. They follow
+// NVIDIA's overlay (https://nvidia.github.io/k8s-test-infra/guides/gpu-operator/): Mokka is the
+// driver and sets up the container runtime, so the operator must not install either, and the
+// devices are injected through the CDI spec Mokka generates. Operands the tests do not need
+// (DCGM, the node status exporter, the MIG manager) are disabled.
+func gpuOperatorValues(operator *GPUOperatorParams) pulumi.Map {
+	env := func(name, value string) pulumi.Array {
+		return pulumi.Array{pulumi.Map{"name": pulumi.String(name), "value": pulumi.String(value)}}
+	}
+	disabled := pulumi.Map{"enabled": pulumi.Bool(false)}
+
+	devicePlugin := pulumi.Map{"enabled": pulumi.Bool(true)}
+	if operator.DevicePluginConfig != "" {
+		devicePlugin["config"] = pulumi.Map{
+			"create":  pulumi.Bool(true),
+			"name":    pulumi.String(devicePluginConfigName),
+			"default": pulumi.String(devicePluginConfigKey),
+			"data":    pulumi.Map{devicePluginConfigKey: pulumi.String(operator.DevicePluginConfig)},
+		}
+	}
+
+	return pulumi.Map{
+		"driver":             disabled,
+		"toolkit":            disabled,
+		"dcgm":               disabled,
+		"dcgmExporter":       disabled,
+		"nodeStatusExporter": disabled,
+		"migManager":         disabled,
+		"mig":                pulumi.Map{"strategy": pulumi.String("none")},
+		"cdi":                pulumi.Map{"enabled": pulumi.Bool(true), "default": pulumi.Bool(true)},
+		"devicePlugin":       devicePlugin,
+		// GFD reads the machine type from the DMI product name by default, which is "kind" on
+		// kind nodes: Mokka writes the profile's machine type to a file of its own.
+		"gfd": pulumi.Map{
+			"enabled": pulumi.Bool(true),
+			"env":     env("GFD_MACHINE_TYPE_FILE", "/etc/nvml-mock/machine-type"),
+		},
+		"validator": pulumi.Map{
+			// The /dev/char symlinks step runs modprobe nvidia, which cannot work on a mock driver.
+			"driver": pulumi.Map{"env": env("DISABLE_DEV_CHAR_SYMLINK_CREATION", "true")},
+			// Copied to the toolkit-validation init container of every operand: without it, the
+			// container does not get the mock driver mounts, and the operands wait forever.
+			"toolkit": pulumi.Map{"env": env("NVIDIA_VISIBLE_DEVICES", "all")},
+			// The CUDA validation launches a kernel, and Mokka does not execute CUDA.
+			"cuda": pulumi.Map{"env": env("WITH_WORKLOAD", "false")},
+		},
+	}
 }
 
 // AgentHelmValues returns the Datadog Helm chart values needed for the node Agent to see
