@@ -274,6 +274,11 @@ func GetClientConfig(timeout time.Duration, qps float32, burst int) (*rest.Confi
 
 	if pkgconfigsetup.Datadog().GetBool("kubernetes_apiserver_use_protobuf") {
 		clientConfig.ContentType = "application/vnd.kubernetes.protobuf"
+	} else {
+		// TEST ONLY: since client-go v0.33 (k8s.io bump of #37844), the typed clients of
+		// built-in types decode protobuf whenever ContentType is left unset. Setting it
+		// brings back the JSON decoding the Agent had before.
+		clientConfig.ContentType = "application/json"
 	}
 
 	clientConfig.Timeout = timeout
