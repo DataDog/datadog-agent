@@ -14,34 +14,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/clock"
 
+	rcmock "github.com/DataDog/datadog-agent/pkg/config/remote/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
-type rcCallbackFunc func(map[string]state.RawConfig, func(string, state.ApplyStatus))
-
-type mockRCClient struct {
-	subscribers map[string][]rcCallbackFunc
-}
-
-func (m *mockRCClient) SubscribeIgnoreExpiration(product string, callback func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
-	if m.subscribers == nil {
-		m.subscribers = make(map[string][]rcCallbackFunc)
-	}
-	m.subscribers[product] = append(m.subscribers[product], callback)
-}
-
-func (m *mockRCClient) triggerUpdate(product string, update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	callbacks := m.subscribers[product]
-
-	for _, callback := range callbacks {
-		callback(update, applyStateCallback)
-	}
-}
-
-func newMockConfigRetriever(t *testing.T, isLeader func() bool, store *store, clock clock.WithTicker) (*ConfigRetriever, *mockRCClient) {
+func newMockConfigRetriever(t *testing.T, isLeader func() bool, store *store, clock clock.WithTicker) (*ConfigRetriever, *rcmock.Client) {
 	t.Helper()
 
-	mockRCClient := &mockRCClient{}
+	mockRCClient := rcmock.New()
 
 	cr, err := NewConfigRetriever(context.Background(), clock, store, isLeader, mockRCClient)
 	assert.NoError(t, err)

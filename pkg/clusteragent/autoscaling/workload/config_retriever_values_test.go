@@ -59,7 +59,7 @@ func TestConfigRetriverAutoscalingValuesFollower(t *testing.T) {
 
 	// New Autoscaling values received, should store values in state
 	stateCallbackCalled := 0
-	mockRCClient.triggerUpdate(
+	mockRCClient.Update(
 		data.ProductContainerAutoscalingValues,
 		map[string]state.RawConfig{
 			"foo1": buildAutoscalingValuesRawConfig(t, 1, value1),
@@ -254,7 +254,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 
 	// Trigger update from Autoscaling values
 	stateCallbackCalled := 0
-	mockRCClient.triggerUpdate(
+	mockRCClient.Update(
 		data.ProductContainerAutoscalingValues,
 		map[string]state.RawConfig{
 			"foo1": buildAutoscalingValuesRawConfig(t, 1, value1),
@@ -403,7 +403,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 
 	// Trigger update
 	stateCallbackCalled = 0
-	mockRCClient.triggerUpdate(
+	mockRCClient.Update(
 		data.ProductContainerAutoscalingValues,
 		map[string]state.RawConfig{
 			"foo1": buildAutoscalingValuesRawConfig(t, 10, value1),
@@ -519,7 +519,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 
 	// Receive some incorrect values, should keep old values
 	stateCallbackCalled = 0
-	mockRCClient.triggerUpdate(
+	mockRCClient.Update(
 		data.ProductContainerAutoscalingValues,
 		map[string]state.RawConfig{
 			"foo1": buildRawConfig(t, data.ProductContainerAutoscalingValues, 11, []byte(`{"foo"}`)),
@@ -633,7 +633,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 
 	// Deactvating autoscaling values, should clean-up values that are not present anymore (value1, value2)
 	stateCallbackCalled = 0
-	mockRCClient.triggerUpdate(
+	mockRCClient.Update(
 		data.ProductContainerAutoscalingValues,
 		map[string]state.RawConfig{
 			"foo2": buildAutoscalingValuesRawConfig(t, 21, value2),
@@ -735,7 +735,7 @@ func TestConfigRetriverAutoscalingValuesReconcile(t *testing.T) {
 
 	// New Autoscaling values received, should store values in state but not update the store
 	stateCallbackCalled := 0
-	mockRCClient.triggerUpdate(
+	mockRCClient.Update(
 		data.ProductContainerAutoscalingValues,
 		map[string]state.RawConfig{
 			"foo1": buildAutoscalingValuesRawConfig(t, 1, value1),
@@ -761,7 +761,7 @@ func TestConfigRetriverAutoscalingValuesReconcile(t *testing.T) {
 	isLeader = true
 	callbackTimestamp := testClock.Now()
 	stateCallbackCalled = 0
-	mockRCClient.triggerUpdate(
+	mockRCClient.Update(
 		data.ProductContainerAutoscalingValues,
 		map[string]state.RawConfig{
 			"foo1": buildAutoscalingValuesRawConfig(t, 2, value1),

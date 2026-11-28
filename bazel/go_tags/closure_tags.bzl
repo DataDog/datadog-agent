@@ -1223,6 +1223,7 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/pkg/config/nodetreemodel": ["test"],
     "github.com/DataDog/datadog-agent/pkg/config/remote/api": ["grpcnotrace", "test"],
     "github.com/DataDog/datadog-agent/pkg/config/remote/client": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "requirefips", "serverless", "test"],
+    "github.com/DataDog/datadog-agent/pkg/config/remote/client/mock": ["test"],
     "github.com/DataDog/datadog-agent/pkg/config/remote/flare": ["test"],
     "github.com/DataDog/datadog-agent/pkg/config/remote/meta": ["test"],
     "github.com/DataDog/datadog-agent/pkg/config/remote/service": ["grpcnotrace", "test"],

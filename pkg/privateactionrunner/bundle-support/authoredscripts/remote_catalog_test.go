@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"testing"
 
+	rcmock "github.com/DataDog/datadog-agent/pkg/config/remote/client/mock"
 	fleetcatalog "github.com/DataDog/datadog-agent/pkg/fleet/catalog"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/stretchr/testify/require"
@@ -23,29 +24,11 @@ const (
 	testCatalogDigest  = "ea7829a6ebdaa464eb4fbfff4c72e6e63176df58a430a4b0b8dfb66f0e57149c"
 )
 
-type testCatalogRCClient struct {
-	product        string
-	handler        func(map[string]state.RawConfig, func(string, state.ApplyStatus))
-	subscribeCount int
-}
-
-func (c *testCatalogRCClient) Subscribe(product string, handler func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
-	c.product = product
-	c.handler = handler
-	c.subscribeCount++
-}
-
-func (*testCatalogRCClient) GetConfigTUFProof(string) (state.ConfigTUFProof, bool) {
-	return state.ConfigTUFProof{}, false
-}
-
 func TestNewRemoteCatalogSubscribesAndFailsClosed(t *testing.T) {
-	client := &testCatalogRCClient{}
+	client := rcmock.New()
 	catalog, err := NewRemoteCatalog(client, testCatalogProduct)
 	require.NoError(t, err)
-	require.Equal(t, 1, client.subscribeCount)
-	require.Equal(t, testCatalogProduct, client.product)
-	require.NotNil(t, client.handler)
+	require.Equal(t, 1, client.Subscribers(testCatalogProduct))
 	requireCatalogNotReady(t, catalog)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -59,12 +42,12 @@ func TestNewRemoteCatalogSubscribesAndFailsClosed(t *testing.T) {
 func TestNewRemoteCatalogValidatesDependencies(t *testing.T) {
 	_, err := NewRemoteCatalog(nil, testCatalogProduct)
 	require.Error(t, err)
-	_, err = NewRemoteCatalog(&testCatalogRCClient{}, "")
+	_, err = NewRemoteCatalog(rcmock.New(), "")
 	require.Error(t, err)
 }
 
 func TestRemoteCatalogAppliesAndReplacesSnapshot(t *testing.T) {
-	client := &testCatalogRCClient{}
+	client := rcmock.New()
 	catalog, err := NewRemoteCatalog(client, testCatalogProduct)
 	require.NoError(t, err)
 
@@ -105,7 +88,7 @@ func TestRemoteCatalogAppliesAndReplacesSnapshot(t *testing.T) {
 
 func TestRemoteCatalogLooksUpExecutionFQNOnly(t *testing.T) {
 	const publicFQN = "com.datadoghq.helm.addRepo"
-	client := &testCatalogRCClient{}
+	client := rcmock.New()
 	catalog, err := NewRemoteCatalog(client, testCatalogProduct)
 	require.NoError(t, err)
 
@@ -125,7 +108,7 @@ func TestRemoteCatalogLooksUpExecutionFQNOnly(t *testing.T) {
 }
 
 func TestRemoteCatalogRejectsInvalidSnapshotWithoutReplacing(t *testing.T) {
-	client := &testCatalogRCClient{}
+	client := rcmock.New()
 	catalog, err := NewRemoteCatalog(client, testCatalogProduct)
 	require.NoError(t, err)
 	valid := validRemotePackage()
@@ -183,7 +166,7 @@ func TestRemoteCatalogSelectsLatestCompatiblePackage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := &testCatalogRCClient{}
+			client := rcmock.New()
 			catalog, err := NewRemoteCatalog(client, testCatalogProduct)
 			require.NoError(t, err)
 
@@ -205,7 +188,7 @@ func TestRemoteCatalogSelectsLatestCompatiblePackage(t *testing.T) {
 }
 
 func TestRemoteCatalogSelectsLatestIndependentlyForEachPackage(t *testing.T) {
-	client := &testCatalogRCClient{}
+	client := rcmock.New()
 	catalog, err := NewRemoteCatalog(client, testCatalogProduct)
 	require.NoError(t, err)
 
@@ -259,7 +242,7 @@ func TestRemoteCatalogRejectsAmbiguousSnapshotWithoutReplacing(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := &testCatalogRCClient{}
+			client := rcmock.New()
 			catalog, err := NewRemoteCatalog(client, testCatalogProduct)
 			require.NoError(t, err)
 
@@ -302,13 +285,14 @@ func remotePackageVersion(version, digest string) fleetcatalog.Package {
 	}
 }
 
-func applyRemoteCatalog(t *testing.T, client *testCatalogRCClient, catalog fleetcatalog.Catalog) state.ApplyStatus {
+func applyRemoteCatalog(t *testing.T, client *rcmock.Client, catalog fleetcatalog.Catalog) state.ApplyStatus {
 	t.Helper()
 	payload, err := json.Marshal(catalog)
 	require.NoError(t, err)
 
 	var status state.ApplyStatus
-	client.handler(
+	client.Update(
+		testCatalogProduct,
 		map[string]state.RawConfig{"catalog": {Config: payload}},
 		func(_ string, applied state.ApplyStatus) { status = applied },
 	)

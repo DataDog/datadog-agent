@@ -55,7 +55,7 @@ func TestConfigRetriverAutoscalingSettingsFollower(t *testing.T) {
 
 	// New Autoscaling settings received, should do nothing
 	stateCallbackCalled := 0
-	mockRCClient.triggerUpdate(
+	mockRCClient.Update(
 		data.ProductContainerAutoscalingSettings,
 		map[string]state.RawConfig{
 			"foo1": buildAutoscalingSettingsRawConfig(t, 1,
@@ -156,7 +156,7 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 
 	// New Autoscaling settings received
 	stateCallbackCalled := 0
-	mockRCClient.triggerUpdate(
+	mockRCClient.Update(
 		data.ProductContainerAutoscalingSettings,
 		map[string]state.RawConfig{
 			"foo1": buildAutoscalingSettingsRawConfig(t, 1, settingsList1),
@@ -217,7 +217,7 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 	object3Spec.ApplyPolicy = nil
 
 	stateCallbackCalled = 0
-	mockRCClient.triggerUpdate(
+	mockRCClient.Update(
 		data.ProductContainerAutoscalingSettings,
 		map[string]state.RawConfig{
 			"foo1": buildAutoscalingSettingsRawConfig(t, 1, settingsList1),  // Version unchanged
@@ -260,7 +260,7 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 
 	// invalid update received, keeping old settings
 	stateCallbackCalled = 0
-	mockRCClient.triggerUpdate(
+	mockRCClient.Update(
 		data.ProductContainerAutoscalingSettings,
 		map[string]state.RawConfig{
 			"foo2": buildRawConfig(t, data.ProductContainerAutoscalingSettings, 12, []byte(`{"foo"}`)),
@@ -353,7 +353,7 @@ func TestConfigRetrieverAutoscalingSettingOldVersions(t *testing.T) {
 
 	// New Autoscaling settings received
 	stateCallbackCalled := 0
-	mockRCClient.triggerUpdate(
+	mockRCClient.Update(
 		data.ProductContainerAutoscalingSettings,
 		map[string]state.RawConfig{
 			"foo1": buildAutoscalingSettingsRawConfig(t, 1, settingsList1),
@@ -442,7 +442,7 @@ func TestConfigRetrieverAutoscalingSettingOldVersions(t *testing.T) {
 
 	// New Autoscaling settings received (version 2)
 	stateCallbackCalled = 0
-	mockRCClient.triggerUpdate(
+	mockRCClient.Update(
 		data.ProductContainerAutoscalingSettings,
 		map[string]state.RawConfig{
 			"foo1": buildAutoscalingSettingsRawConfig(t, 2, settingsList1),
@@ -501,7 +501,7 @@ func TestConfigRetriverAutoscalingSettingsReconcile(t *testing.T) {
 	// New Autoscaling settings received, should not update store as we are not the leader
 	callbackTimestamp := testClock.Now()
 	stateCallbackCalled := 0
-	mockRCClient.triggerUpdate(
+	mockRCClient.Update(
 		data.ProductContainerAutoscalingSettings,
 		map[string]state.RawConfig{
 			"foo1": buildAutoscalingSettingsRawConfig(t, 1,

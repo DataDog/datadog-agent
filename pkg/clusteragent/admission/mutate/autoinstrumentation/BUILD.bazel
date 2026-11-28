@@ -112,6 +112,7 @@ dd_agent_go_test(
         "//pkg/clusteragent/instrumentation/handlers",
         "//pkg/config/mock",
         "//pkg/config/model",
+        "//pkg/config/remote/client/mock",
         "//pkg/gpu/config",
         "//pkg/languagedetection/languagemodels",
         "//pkg/remoteconfig/state",

@@ -83,6 +83,7 @@ dd_agent_go_test(
         "kubelet",
     ]],
     deps = [
+        "//pkg/config/remote/client/mock",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/types",
         "//pkg/remoteconfig/state",

@@ -27,7 +27,7 @@ dd_agent_go_test(
         "//comp/core/autodiscovery/def",
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/noopimpl",
-        "//pkg/config/remote/data",
+        "//pkg/config/remote/client/mock",
         "//pkg/remoteconfig/state",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",

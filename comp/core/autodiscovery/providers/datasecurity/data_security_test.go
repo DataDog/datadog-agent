@@ -19,26 +19,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	noopautoconfig "github.com/DataDog/datadog-agent/comp/core/autodiscovery/noopimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
+	rcmock "github.com/DataDog/datadog-agent/pkg/config/remote/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-// mockedRcClient captures the product and callback the controller registers so the test can
-// drive updates through the same callback the controller subscribes with, rather than calling
-// the unexported update method directly.
-type mockedRcClient struct {
-	product  data.Product
-	callback func(map[string]state.RawConfig, func(string, state.ApplyStatus))
-}
-
-func (m *mockedRcClient) SubscribeAgentTask() {}
-
-func (m *mockedRcClient) Subscribe(product data.Product, callback func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
-	m.product = product
-	// callback is the controller's update method, which RC would normally invoke on each config change.
-	m.callback = callback
-}
 
 type mockedAutodiscovery struct {
 	autodiscovery.Component
@@ -205,8 +190,8 @@ func postgresIntegration() integration.Config {
 
 // newTestController builds a controller with the given autodiscovery configs and returns the mock
 // RC client it subscribes through along with the provider.
-func newTestController(t *testing.T, adConfigs []integration.Config) (*mockedRcClient, types.ConfigProvider) {
-	rc := &mockedRcClient{}
+func newTestController(t *testing.T, adConfigs []integration.Config) (*rcmock.Component, types.ConfigProvider) {
+	rc := rcmock.NewComponent()
 	provider := NewController(getMockedAutodiscovery(t, adConfigs), rc, false)
 	return rc, provider
 }
@@ -253,7 +238,7 @@ func TestPostgresSSLMode(t *testing.T) {
 func TestControllerDoesNotSubscribeWithoutPostgres(t *testing.T) {
 	rc, _ := newTestController(t, nil)
 
-	assert.Nil(t, rc.callback, "controller should not subscribe without a postgres integration")
+	assert.Zero(t, rc.Subscribers(string(data.ProductDataSecurityDBScanTasks)), "controller should not subscribe without a postgres integration")
 }
 
 func TestControllerUpdate(t *testing.T) {
@@ -362,11 +347,8 @@ func TestControllerUpdate(t *testing.T) {
 			// can drive the update through the callback it registered.
 			rc, provider := newTestController(t, []integration.Config{postgresIntegration()})
 
-			// rc.callback is equal to update method the controller subscribes with
-			require.NotNil(t, rc.callback, "controller should subscribe when a postgres integration is present")
-
 			// check if the controller subscribes to the correct product
-			assert.Equal(t, data.ProductDataSecurityDBScanTasks, rc.product)
+			require.Positive(t, rc.Subscribers(string(data.ProductDataSecurityDBScanTasks)), "controller should subscribe when a postgres integration is present")
 
 			streaming, ok := provider.(types.StreamingConfigProvider)
 			require.True(t, ok, "controller should be a streaming config provider")
@@ -380,7 +362,7 @@ func TestControllerUpdate(t *testing.T) {
 			updateStatus := map[string]state.ApplyStatus{}
 			for i, remoteConfig := range tt.remoteConfigs {
 				// simulate an RC update carrying the full set of active scan tasks
-				rc.callback(remoteConfig, func(path string, status state.ApplyStatus) {
+				rc.Update(string(data.ProductDataSecurityDBScanTasks), remoteConfig, func(path string, status state.ApplyStatus) {
 					updateStatus[path] = status
 				})
 

@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	instrumentationhandlers "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation/handlers"
+	rcmock "github.com/DataDog/datadog-agent/pkg/config/remote/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/ssi"
@@ -38,29 +39,6 @@ const (
 )
 
 var defaultContainerNames = []string{defaultTestContainer}
-
-type mockRemoteConfigClient struct {
-	configs  map[string]state.RawConfig
-	applied  map[string]state.ApplyStatus
-	onUpdate func(map[string]state.RawConfig, func(string, state.ApplyStatus))
-}
-
-func (c *mockRemoteConfigClient) GetConfigs(product string) map[string]state.RawConfig {
-	if product == state.ProductApmPolicies {
-		return c.configs
-	}
-	return nil
-}
-
-func (c *mockRemoteConfigClient) UpdateApplyStatus(path string, status state.ApplyStatus) {
-	c.applied[path] = status
-}
-
-func (c *mockRemoteConfigClient) Subscribe(product string, cb func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
-	if product == state.ProductApmPolicies {
-		c.onUpdate = cb
-	}
-}
 
 func ddiTarget(cr types.NamespacedName, enabled bool, tracerVersions map[string]string, tracerConfigs []corev1.EnvVar) ssi.DDIAPMConfig {
 	return ssi.DDIAPMConfig{
@@ -3006,17 +2984,16 @@ func TestAutoinstrumentation(t *testing.T) {
 				}
 			}
 
-			rcClient := &mockRemoteConfigClient{
-				configs: test.remotePolicies,
-				applied: make(map[string]state.ApplyStatus),
-			}
+			rcClient := rcmock.New()
+			rcClient.SetConfigs(state.ProductApmPolicies, test.remotePolicies)
 			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, false, nil, rcClient, ddiTargets)
 			require.NoError(t, err)
 			if len(test.remotePolicies) > 0 {
-				require.NotNil(t, rcClient.onUpdate, "mutator must subscribe to RC policies")
+				require.Positive(t, rcClient.Subscribers(state.ProductApmPolicies), "mutator must subscribe to RC policies")
+				applied := rcClient.ApplyStatuses()
 				for path := range test.remotePolicies {
-					require.Contains(t, rcClient.applied, path)
-					require.Equal(t, state.ApplyStateAcknowledged, rcClient.applied[path].State, rcClient.applied[path].Error)
+					require.Contains(t, applied, path)
+					require.Equal(t, state.ApplyStateAcknowledged, applied[path].State, applied[path].Error)
 				}
 			}
 

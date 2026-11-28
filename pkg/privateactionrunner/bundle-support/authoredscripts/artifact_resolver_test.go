@@ -17,6 +17,7 @@ import (
 	"sync"
 	"testing"
 
+	rcmock "github.com/DataDog/datadog-agent/pkg/config/remote/client/mock"
 	fleetcatalog "github.com/DataDog/datadog-agent/pkg/fleet/catalog"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/stretchr/testify/assert"
@@ -115,7 +116,7 @@ func TestArtifactResolverResolveRepairsInvalidArtifact(t *testing.T) {
 }
 
 func TestArtifactResolverFollowsRemoteCatalogSelection(t *testing.T) {
-	client := &testCatalogRCClient{}
+	client := rcmock.New()
 	catalog, err := NewRemoteCatalog(client, testCatalogProduct)
 	require.NoError(t, err)
 	materializer := &testPackageMaterializer{materializationID: "test-layout"}

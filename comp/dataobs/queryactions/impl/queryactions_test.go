@@ -9,10 +9,12 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	rcmock "github.com/DataDog/datadog-agent/pkg/config/remote/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/stretchr/testify/assert"
@@ -20,39 +22,24 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// mockRCClient implements rcclient.Component for tests.
-// Subscribe stores the callback in a buffered channel so tests can retrieve and
-// invoke it synchronously, without spawning goroutines or relying on timers.
-type mockRCClient struct {
-	subscribedCh chan func(map[string]state.RawConfig, func(string, state.ApplyStatus))
+// newMockRCClient returns a fake rcclient.Component.
+func newMockRCClient() *rcmock.Component {
+	return rcmock.NewComponent()
 }
 
-func (m *mockRCClient) SubscribeAgentTask() {}
-
-func (m *mockRCClient) Subscribe(_ data.Product, fn func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
-	m.subscribedCh <- fn
-}
-
-func newMockRCClient() *mockRCClient {
-	return &mockRCClient{
-		subscribedCh: make(chan func(map[string]state.RawConfig, func(string, state.ApplyStatus)), 1),
-	}
-}
-
-// waitSubscribe blocks until Subscribe is called or the test times out.
-func waitSubscribe(t *testing.T, rc *mockRCClient) func(map[string]state.RawConfig, func(string, state.ApplyStatus)) {
+// waitSubscribe blocks until the component subscribes to RC or the test times out.
+// It returns a function that delivers an update to the subscription.
+func waitSubscribe(t *testing.T, rc *rcmock.Component) func(map[string]state.RawConfig, func(string, state.ApplyStatus)) {
 	t.Helper()
-	select {
-	case fn := <-rc.subscribedCh:
-		return fn
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for RC Subscribe call")
-		return nil
+	require.Eventually(t, func() bool { return rc.Subscribers(string(data.ProductDOQueryActions)) > 0 },
+		time.Second, 5*time.Millisecond, "timed out waiting for RC Subscribe call")
+	return func(update map[string]state.RawConfig, applyStatus func(string, state.ApplyStatus)) {
+		rc.Update(string(data.ProductDOQueryActions), update, applyStatus)
 	}
 }
 
 // newStreamComponent builds a minimal component wired for Stream() tests.
-func newStreamComponent(t *testing.T, postgresConfigs []integration.Config) (*component, *mockRCClient) {
+func newStreamComponent(t *testing.T, postgresConfigs []integration.Config) (*component, *rcmock.Component) {
 	t.Helper()
 	rc := newMockRCClient()
 	c := &component{
@@ -158,18 +145,18 @@ func TestStream_SubscribesImmediatelyWhenPostgresAvailable(t *testing.T) {
 
 func TestStream_NoPostgresAvailable_DoesNotSubscribeImmediately(t *testing.T) {
 	// Without postgres, Subscribe must not be called before the first ticker tick (10s).
-	c, rc := newStreamComponent(t, nil)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	synctest.Test(t, func(t *testing.T) {
+		c, rc := newStreamComponent(t, nil)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
-	c.Stream(ctx)
+		c.Stream(ctx)
 
-	select {
-	case <-rc.subscribedCh:
-		t.Fatal("Subscribe should not be called immediately when no postgres integration is configured")
-	case <-time.After(100 * time.Millisecond):
-		// Correct: no subscription within the polling window.
-	}
+		// Wait until every goroutine is blocked, so the stream had its chance to subscribe.
+		synctest.Wait()
+		assert.Zero(t, rc.Subscribers(string(data.ProductDOQueryActions)),
+			"Subscribe should not be called immediately when no postgres integration is configured")
+	})
 }
 
 // --- RC callback delivery tests ---
