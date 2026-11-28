@@ -27,7 +27,7 @@ func validateNode(ctx context.Context, node syntax.Node, remediationMode bool) e
 	// Bound the AST nesting depth before the recursive syntax.Walk below (and
 	// before any recursive execution) so that neither can overflow the stack.
 	// See [MaxNestingDepth]. This is iterative and cannot itself overflow.
-	if err := checkNestingDepth(node); err != nil {
+	if err := checkNestingDepthOnce(node); err != nil {
 		return err
 	}
 	var err error
