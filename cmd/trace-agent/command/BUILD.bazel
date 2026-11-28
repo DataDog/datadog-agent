@@ -25,7 +25,10 @@ go_library(
 
 dd_agent_go_test(
     name = "command_test",
-    srcs = ["deprecated_test.go"],
+    srcs = [
+        "command_test.go",
+        "deprecated_test.go",
+    ],
     embed = [":command"],
     deps = ["@com_github_stretchr_testify//assert"],
 )
