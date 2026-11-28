@@ -65,6 +65,7 @@ func Start(ctx context.Context, logger logComp.Component, datadogConfig config.C
 		if injector == nil {
 			return
 		}
+		injector.admissionEnabled = datadogConfig.GetBool("admission_controller.enabled")
 
 		logger.Infof("Starting appsec proxy injector with config: %#v", injector.config)
 		for typ, pattern := range injector.patterns {
@@ -125,7 +126,8 @@ type securityInjector struct {
 	recorder  record.EventRecorder
 	patterns  map[appsecconfig.ProxyType]appsecconfig.InjectionPattern
 
-	leaderSub leaderNotifier
+	leaderSub        leaderNotifier
+	admissionEnabled bool
 }
 
 // newSecurityInjector initializes and returns a new patcher with a dynamic k8s client
@@ -208,6 +210,12 @@ func (si *securityInjector) run(ctx context.Context, proxyType appsecconfig.Prox
 			si.logger.Errorf("injection not possible for proxy type %q: %s", proxyType, err)
 		}
 		return
+	}
+
+	// Sidecar mode works through the admission webhook, which only runs with the admission controller
+	if pattern.Mode() != appsecconfig.InjectionModeSidecar || si.admissionEnabled {
+		enabledGauge.Set(1, string(proxyType), string(pattern.Mode()))
+		defer enabledGauge.Delete(string(proxyType), string(pattern.Mode()))
 	}
 
 	leaderNotifChange, isLeader := si.leaderSub()

@@ -21,4 +21,13 @@ var (
 		"Counts the appsec injector work-item attempts (retries included) for the watched resources",
 		telemetry.DefaultOptions,
 	)
+
+	// enabledGauge shows where the injector runs, which the counters only show once it processes a change
+	enabledGauge = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
+		"appsec_injector",
+		"enabled",
+		[]string{"proxy_type", "mode"},
+		"Set to 1 for each proxy type the appsec injector runs for",
+		telemetry.DefaultOptions,
+	)
 )

@@ -12,12 +12,16 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -30,22 +34,22 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/istio"
-	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // mockInjectionPattern implements the InjectionPattern interface for testing
 type mockInjectionPattern struct {
-	resource             schema.GroupVersionResource
-	namespace            string
-	injectionPossibleErr error
-	addedErr             error
-	deletedErr           error
-	addedCalls           int
-	deletedCalls         int
+	resource              schema.GroupVersionResource
+	namespace             string
+	injectionPossibleErr  error
+	onIsInjectionPossible func()
+	addedErr              error
+	deletedErr            error
+	addedCalls            int
+	deletedCalls          int
 }
 
 func (m *mockInjectionPattern) Mode() appsecconfig.InjectionMode {
@@ -53,6 +57,9 @@ func (m *mockInjectionPattern) Mode() appsecconfig.InjectionMode {
 }
 
 func (m *mockInjectionPattern) IsInjectionPossible(context.Context) error {
+	if m.onIsInjectionPossible != nil {
+		m.onIsInjectionPossible()
+	}
 	return m.injectionPossibleErr
 }
 
@@ -687,13 +694,112 @@ func TestRun_logsNotApplicableSkipAtInfo(t *testing.T) {
 	pattern := &mockInjectionPattern{
 		injectionPossibleErr: fmt.Errorf("gke-gateway supports external mode only: %w", appsecconfig.ErrInjectionNotApplicable),
 	}
+	reportedDuringCheck := true
+	pattern.onIsInjectionPossible = func() {
+		_, reportedDuringCheck = enabledGaugeValue(t, appsecconfig.ProxyTypeGKEGateway, appsecconfig.InjectionModeExternal)
+	}
 
 	// When
 	injector.run(context.Background(), appsecconfig.ProxyTypeGKEGateway, pattern)
 
-	// Then the skip is reported at info level, never as a failure
+	// Then the skip is reported at info level, never as a failure, and never as enabled
 	require.Zero(t, logger.errorfCalls)
 	require.Equal(t, 1, logger.infofCalls)
+	require.False(t, reportedDuringCheck)
+	_, reported := enabledGaugeValue(t, appsecconfig.ProxyTypeGKEGateway, appsecconfig.InjectionModeExternal)
+	require.False(t, reported)
+}
+
+func TestRun_reportsEnabledGaugeWhileRunning(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		pattern          appsecconfig.InjectionPattern
+		admissionEnabled bool
+		wantReported     bool
+	}{
+		{name: "external mode", pattern: &mockInjectionPattern{}, wantReported: true},
+		{name: "sidecar mode with admission controller", pattern: &mockSidecarInjectionPattern{}, admissionEnabled: true, wantReported: true},
+		{name: "sidecar mode without admission controller", pattern: &mockSidecarInjectionPattern{}, wantReported: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Given an injector that is not the leader, and signals when run first checks leadership
+			injector := newMockSecurityInjector(context.Background(),
+				dynamicfake.NewSimpleDynamicClient(runtime.NewScheme()),
+				logmock.New(t),
+				appsecconfig.Config{},
+			)
+			injector.admissionEnabled = tc.admissionEnabled
+			waiting := make(chan struct{})
+			var once sync.Once
+			injector.leaderSub = func() (<-chan struct{}, func() bool) {
+				return make(chan struct{}), func() bool {
+					once.Do(func() { close(waiting) })
+					return false
+				}
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			done := make(chan struct{})
+			t.Cleanup(func() {
+				cancel()
+				<-done
+			})
+			mode := tc.pattern.Mode()
+
+			// When it runs for a proxy type
+			go func() {
+				defer close(done)
+				injector.run(ctx, appsecconfig.ProxyTypeEnvoyGateway, tc.pattern)
+			}()
+			select {
+			case <-waiting:
+			case <-time.After(10 * time.Second):
+				t.Fatal("run did not check leadership")
+			}
+
+			// Then the gauge is 1 while it runs, even as a non-leader, unless sidecar mode has no webhook
+			value, reported := enabledGaugeValue(t, appsecconfig.ProxyTypeEnvoyGateway, mode)
+			require.Equal(t, tc.wantReported, reported)
+			if tc.wantReported {
+				require.Equal(t, 1.0, value)
+			}
+
+			// And it is removed once run stops
+			cancel()
+			select {
+			case <-done:
+			case <-time.After(10 * time.Second):
+				t.Fatal("run did not stop after cancel")
+			}
+			_, reported = enabledGaugeValue(t, appsecconfig.ProxyTypeEnvoyGateway, mode)
+			require.False(t, reported)
+		})
+	}
+}
+
+// enabledGaugeValue returns the appsec_injector.enabled value of a proxy type in a mode, and
+// whether it is reported at all
+func enabledGaugeValue(t *testing.T, proxyType appsecconfig.ProxyType, mode appsecconfig.InjectionMode) (float64, bool) {
+	t.Helper()
+
+	families, err := telemetryimpl.GetCompatComponent().Gather(telemetry.NoFilter)
+	require.NoError(t, err)
+
+	for _, family := range families {
+		if family.GetName() != "appsec_injector__enabled" {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			tags := make(map[string]string)
+			for _, label := range metric.GetLabel() {
+				tags[label.GetName()] = label.GetValue()
+			}
+			if tags["proxy_type"] == string(proxyType) && tags["mode"] == string(mode) {
+				return metric.GetGauge().GetValue(), true
+			}
+		}
+	}
+
+	return 0, false
 }
 
 func TestRun_logsGenuineFailureAtError(t *testing.T) {
