@@ -72,6 +72,20 @@ properties:
     default: []
     items:
       type: string
+  gpu_devices:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        env_vars:
+        - DD_ORCHESTRATOR_EXPLORER_GPU_DEVICES_ENABLED
+        description: |
+          Sends the node's GPUs, as listed by NVML, with the Pod manifests collected by the orchestrator pod check.
+          Starts the NVML workloadmeta collector without GPU Monitoring (gpu.enabled). Requires the NVML library
+          and the GPU devices in the Agent container.
   helm_releases:
     node_type: section
     type: object

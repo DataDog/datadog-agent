@@ -136,6 +136,9 @@ type K8sProcessorContext struct {
 	HostName   string
 	SystemInfo *model.SystemInfo
 	NodeName   string
+	// GPUDevices lists the node's GPUs by device minor, so the backend can
+	// resolve index-based device IDs (for example nvidia0) to GPU UUIDs.
+	GPUDevices []*model.NodeGPUDevice
 }
 
 // ECSProcessorContext holds ECS resource processing attributes

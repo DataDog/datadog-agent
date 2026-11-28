@@ -57,7 +57,29 @@ func TestStartDisabledWhenGPUMonitoringDisabled(t *testing.T) {
 	c := newCollector(nil, config.NewMock(t), noopsimpl.NewComponent())
 	err := c.Start(context.Background(), nil)
 
-	require.Equal(t, dderrors.NewDisabled(componentName, "GPU monitoring is disabled"), err)
+	require.Equal(t, dderrors.NewDisabled(componentName, "GPU monitoring and orchestrator GPU device collection are disabled"), err)
+}
+
+func TestStartEnabledForOrchestratorGPUDevices(t *testing.T) {
+	env.SetFeatures(t, env.NVML)
+
+	cfg := config.NewMock(t)
+	cfg.SetInTest("orchestrator_explorer.enabled", true)
+	cfg.SetInTest("orchestrator_explorer.gpu_devices.enabled", true)
+	c := newCollector(nil, cfg, noopsimpl.NewComponent())
+
+	require.NoError(t, c.Start(context.Background(), nil))
+}
+
+func TestStartDisabledForOrchestratorGPUDevicesWithoutOrchestrator(t *testing.T) {
+	env.SetFeatures(t, env.NVML)
+
+	cfg := config.NewMock(t)
+	cfg.SetInTest("orchestrator_explorer.enabled", false)
+	cfg.SetInTest("orchestrator_explorer.gpu_devices.enabled", true)
+	c := newCollector(nil, cfg, noopsimpl.NewComponent())
+
+	require.Error(t, c.Start(context.Background(), nil))
 }
 
 func TestPullInvalidatesDeviceCacheWhileNVMLReleased(t *testing.T) {

@@ -2609,6 +2609,11 @@ type GPU struct {
 	// of containers. It is the index nvidia-smi or amd-smi reports, -1 when unknown.
 	Index int
 
+	// MinorNumber is the N in the physical device's /dev/nvidiaN node, which
+	// index-based device plugins (e.g. GKE's nvidiaN/vgpuM) use as device ID.
+	// -1 when the driver doesn't expose it, 0 for MIG devices.
+	MinorNumber int
+
 	// Architecture contains the architecture of the GPU (e.g., Pascal, Volta, etc.). Optional, can be empty.
 	Architecture string
 

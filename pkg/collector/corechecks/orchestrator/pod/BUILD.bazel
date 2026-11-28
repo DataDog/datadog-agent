@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "pod",
     srcs = [
+        "gpu_devices.go",
         "pod.go",
         "stub.go",
     ],
@@ -40,7 +41,10 @@ go_library(
 
 dd_agent_go_test(
     name = "pod_test",
-    srcs = ["pod_test.go"],
+    srcs = [
+        "gpu_devices_test.go",
+        "pod_test.go",
+    ],
     data = ["//pkg/collector/corechecks/orchestrator:testdata"],
     embed = [":pod"],
     gotags_sets = [[
@@ -69,6 +73,7 @@ dd_agent_go_test(
         "//pkg/util/kubernetes/kubelet",
         "//pkg/util/log",
         "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",
         "@org_uber_go_fx//:fx",
