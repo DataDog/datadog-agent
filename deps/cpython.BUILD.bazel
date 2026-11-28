@@ -697,20 +697,29 @@ dd_cc_packaged(
     mode = "0755",
 )
 
-# The excludes mirror what upstream's libinstall (Makefile.pre.in) leaves out.
-# Re-check them when bumping the CPython version.
+STDLIB_SRCS = glob(
+    ["Lib/**"],
+    exclude = [
+        # Mirror upstream's libinstall (Makefile.pre.in). Re-check when bumping CPython.
+        "Lib/**/__pycache__/**",
+        "Lib/__phello__/ham/**",
+        "Lib/test/**",
+        "Lib/venv/scripts/nt/**",
+        # Unused interactive/GUI/documentation stdlib modules omitted from the embedded Python.
+        # _pyrepl is intentionally kept: Lib/pydoc.py imports _pyrepl.pager at top level
+        # (used by shipped wheels such as kubernetes.watch) and CPython 3.13's interactive
+        # TTY startup invokes _pyrepl without fallback.
+        "Lib/idlelib/**",
+        "Lib/pydoc_data/**",
+        "Lib/tkinter/**",
+        "Lib/turtle.py",
+        "Lib/turtledemo/**",
+    ],
+)
+
 pkg_files(
     name = "stdlib_files",
-    srcs = glob(
-        ["Lib/**"],
-        exclude = [
-            "Lib/**/__pycache__/**",
-            "Lib/__phello__/ham/**",
-            "Lib/idlelib/idle_test/**",
-            "Lib/test/**",
-            "Lib/venv/scripts/nt/**",
-        ],
-    ),
+    srcs = STDLIB_SRCS,
     prefix = "embedded/lib/python{}".format(PYTHON_MAJOR_MINOR),
     strip_prefix = strip_prefix.from_pkg("Lib"),
     target_compatible_with = UNIX_ONLY,
@@ -825,16 +834,7 @@ copy_to_directory(
         "LICENSE",
         ":shared_modules",
         ":sysconfigdata",
-    ] + glob(
-        ["Lib/**"],
-        exclude = [
-            "Lib/**/__pycache__/**",
-            "Lib/__phello__/ham/**",
-            "Lib/idlelib/idle_test/**",
-            "Lib/test/**",
-            "Lib/venv/scripts/nt/**",
-        ],
-    ),
+    ] + STDLIB_SRCS,
     out = "unix/lib/python{}".format(PYTHON_MAJOR_MINOR),
     replace_prefixes = select({
         condition: {

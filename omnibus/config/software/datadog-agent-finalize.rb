@@ -68,6 +68,10 @@ build do
             # pip is already installed in site-packages (~1.8 MiB)
             delete File.join(emb3, "Lib", "ensurepip")
 
+            # Interactive pydoc help topics (~576 KiB); idlelib, tkinter, turtle.py, and
+            # turtledemo are already omitted by PC/layout/main.py (no --include-idle/--include-tcltk).
+            delete File.join(emb3, "Lib", "pydoc_data")
+
             # Unit tests bundled with the embedded packages
             Dir.glob(File.join(emb3, "Lib", "site-packages", "**", "{test,tests}")).each do |dir|
                 delete dir if File.directory?(dir)
