@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "instrumentation",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/instrumentation",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/common/types",
+        "//comp/instrumentation/apm/def",
+        "//comp/instrumentation/apm/fx",
+        "//comp/instrumentation/checks/def",
+        "//comp/instrumentation/checks/fx",
+        "//comp/instrumentation/common",
+        "//comp/instrumentation/controller/fx",
+        "//comp/instrumentation/logs/def",
+        "//comp/instrumentation/logs/fx",
+        "//pkg/clusteragent/instrumentation",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+dd_agent_go_test(
+    name = "instrumentation_test",
+    srcs = ["bundle_test.go"],
+    embed = [":instrumentation"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
+    include_default = False,
+    deps = [
+        "//comp/core/telemetry/mock",
+        "//pkg/util/fxutil",
+    ],
+)

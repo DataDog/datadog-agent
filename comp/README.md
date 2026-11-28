@@ -417,6 +417,28 @@ Package hostprofiler implements the "host-profiler" bundle,
 
 Package collector defines the host profiler collector component.
 
+## [comp/instrumentation](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/instrumentation) (Component Bundle)
+
+*Datadog Team*: container-platform
+
+Package instrumentation provides the DatadogInstrumentation controller and product handlers.
+
+### [comp/instrumentation/apm](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/instrumentation/apm)
+
+Package apm defines the DatadogInstrumentation apm handler component.
+
+### [comp/instrumentation/checks](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/instrumentation/checks)
+
+Package checks defines the DatadogInstrumentation checks handler component.
+
+### [comp/instrumentation/controller](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/instrumentation/controller)
+
+Package controller defines the DatadogInstrumentation reconciliation component.
+
+### [comp/instrumentation/logs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/instrumentation/logs)
+
+Package logs defines the DatadogInstrumentation logs handler component.
+
 ## [comp/kubeactions](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/kubeactions) (Component Bundle)
 
 *Datadog Team*: container-integrations
