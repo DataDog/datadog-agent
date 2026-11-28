@@ -26,7 +26,6 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
@@ -46,14 +45,10 @@ type Requires struct {
 	Telemetry    telemetry.Component
 	Hostname     hostnameinterface.Component
 	RemoteIssues remotedef.Component
-	// Workloadmeta resolves this agent's own DaemonSet/cluster identity (see
-	// selfident). Optional because only selfident's kubeapiserver build reads
-	// it: on flavors without that tag (iot, heroku, the cloudfoundry cluster
-	// agent, serverless-init) selfident is a no-op that ignores it entirely, so
-	// requiring it would make those binaries depend on a component they have no
-	// use for. Every binary that wires this bundle happens to provide it today,
-	// so in practice it is non-nil wherever it is actually read.
-	Workloadmeta workloadmeta.Component `optional:"true"`
+	// SelfIdent resolves this agent's own DaemonSet/cluster identity. It is the
+	// single shared resolver provided by the bundle (see selfident), so the
+	// store and the issue registry share one instance per process.
+	SelfIdent *selfident.SelfIdent
 }
 
 // Provides defines the output of the health-platform component
@@ -268,7 +263,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 	reqs.Log.Info("Creating health platform component")
 
 	agentFlavor := flavor.GetFlavor()
-	selfIdent := selfident.New(reqs.Workloadmeta)
 	isKubernetes := configenv.IsKubernetes()
 	persistOnKubernetes := reqs.Config.GetBool("health_platform.persist_on_kubernetes")
 	persistRemotelyOnKubernetes := reqs.Config.GetBool("health_platform.persist_remotely_on_kubernetes")
@@ -295,7 +289,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		telemetry:        reqs.Telemetry,
 		hostnameProvider: reqs.Hostname,
 		agentFlavor:      agentFlavor,
-		selfIdent:        selfIdent,
+		selfIdent:        reqs.SelfIdent,
 
 		issues:       make(map[string]*storedIssue),
 		issuesByName: make(map[string][]string),

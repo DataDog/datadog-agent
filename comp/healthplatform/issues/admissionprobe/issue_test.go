@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	healthplatform "github.com/DataDog/agent-payload/v5/healthplatform"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	"github.com/stretchr/testify/require"
 )
 
@@ -77,7 +76,7 @@ func TestBuildIssue_Extra(t *testing.T) {
 }
 
 func TestNewModule(t *testing.T) {
-	m := NewModule(issues.ModuleDeps{})
+	m := &admissionProbeModule{template: &AdmissionProbeIssue{}}
 	assert.Equal(t, IssueName, m.IssueName())
 	issue, err := m.BuildIssue(map[string]string{})
 	require.NoError(t, err)

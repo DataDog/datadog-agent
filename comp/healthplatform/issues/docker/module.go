@@ -16,13 +16,28 @@ import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func init() {
-	issues.RegisterModuleFactory(NewModule)
-	issues.RegisterModuleFactory(NewSocketUnavailableModule)
+// Requires defines the dependencies for the issue module.
+type Requires struct {
+	compdef.In
+	Hostname hostnameinterface.Component
+}
+
+// Provides defines the issue modules contributed to the registry.
+type Provides struct {
+	compdef.Out
+	Permission  issues.Module `group:"healthplatform_issue"`
+	Unavailable issues.Module `group:"healthplatform_issue"`
+}
+
+// Module provides the issue modules to the health platform registry.
+func Module() fxutil.Module {
+	return fxutil.Component(fxutil.ProvideComponentConstructor(newModules))
 }
 
 // Docker Socket Permission issue identity.
@@ -77,11 +92,11 @@ type dockerPermissionsModule struct {
 	checker  *checker
 }
 
-// NewModule creates a new Docker permissions issue module
-func NewModule(deps issues.ModuleDeps) issues.Module {
-	return &dockerPermissionsModule{
-		template: NewDockerPermissionIssue(),
-		checker:  newChecker(deps.Hostname),
+func newModules(reqs Requires) Provides {
+	chk := newChecker(reqs.Hostname)
+	return Provides{
+		Permission:  &dockerPermissionsModule{template: NewDockerPermissionIssue(), checker: chk},
+		Unavailable: &dockerSocketUnavailableModule{template: NewDockerSocketUnavailableIssue()},
 	}
 }
 
@@ -118,13 +133,6 @@ func (m *dockerPermissionsModule) BuiltInStartupHealthCheck() *runnerdef.BuiltIn
 // dockerSocketUnavailableModule registers the "Docker Socket Unavailable" template but contributes no check of its own; dockerPermissionsModule's shared Check() reports under both.
 type dockerSocketUnavailableModule struct {
 	template *DockerSocketUnavailableIssue
-}
-
-// NewSocketUnavailableModule creates a new Docker socket unavailable issue module.
-func NewSocketUnavailableModule(issues.ModuleDeps) issues.Module {
-	return &dockerSocketUnavailableModule{
-		template: NewDockerSocketUnavailableIssue(),
-	}
 }
 
 func (m *dockerSocketUnavailableModule) IssueName() string {

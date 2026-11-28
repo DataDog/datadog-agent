@@ -13,33 +13,31 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 )
 
-// No issue modules are imported here, so GetAllModules returns an empty slice.
-// These tests verify that NewComponent() wires the inner registry correctly and that all
-// Component methods delegate to it without panicking on an empty registry.
+// An empty issue group yields an empty registry; all component methods must delegate safely.
 
 func TestNewReturnsValidComponent(t *testing.T) {
-	comp := NewComponent(Requires{Config: config.NewMock(t)})
+	comp := NewComponent(Requires{Log: logmock.New(t)})
 	assert.NotNil(t, comp)
 }
 
 func TestGetTemplateReturnsFalseForUnknown(t *testing.T) {
-	comp := NewComponent(Requires{Config: config.NewMock(t)})
+	comp := NewComponent(Requires{Log: logmock.New(t)})
 	_, ok := comp.GetTemplate("unknown-type")
 	assert.False(t, ok)
 }
 
 func TestGetBuiltInPeriodicHealthChecksEmptyRegistry(t *testing.T) {
-	comp := NewComponent(Requires{Config: config.NewMock(t)})
+	comp := NewComponent(Requires{Log: logmock.New(t)})
 	checks := comp.GetBuiltInPeriodicHealthChecks()
 	require.NotNil(t, checks)
 	assert.Empty(t, checks)
 }
 
 func TestGetBuiltInStartupHealthChecksEmptyRegistry(t *testing.T) {
-	comp := NewComponent(Requires{Config: config.NewMock(t)})
+	comp := NewComponent(Requires{Log: logmock.New(t)})
 	checks := comp.GetBuiltInStartupHealthChecks()
 	require.NotNil(t, checks)
 	assert.Empty(t, checks)
