@@ -85,6 +85,10 @@ correct (`UbuntuDefault = Ubuntu2204`, `WindowsServerDefault = WindowsServer2025
 There is no generic runtime install: `PackageManager.RuntimeInstallDocker` 
 (Docker and docker-compose) is the only one, for GCP, Azure and local VMs, 
 and it fails on AWS. Add new dependencies to the AMI instead.
+A suite's host comes only from these code options: `awshost.Provisioner` ignores the
+`ddinfra:osDescriptor` / `ddinfra:osImageID` config keys, which only `ec2.VMRun`
+(`dda inv aws.create-vm`) reads through `ec2.ParamsFromEnvironment`. `UpdateEnv` takes a new
+provisioner, so options that aren't repeated there fall back to the defaults.
 Descriptors resolve through `resources/aws/platforms.json` via `aws.GetAMI`. See
 `doc/how-to/test/e2e/custom-amis.md` and
 `doc/how-to/test/e2e/dependencies.md`.
@@ -159,6 +163,14 @@ Use `agentparams` to configure the agent on provisioned infrastructure:
 - `WithSystemProbeConfig(yaml)` — system-probe config
 - `WithFile(path, content, useSudo)` — place arbitrary files on the host
 
+The Agent version defaults to the latest nightly. `agentparams.NewParams` overrides that default
+from the config, in increasing precedence: `E2E_PIPELINE_ID`, `ddagent:localPackage`
+(`--local-package`), `ddagent:version`. Explicit options (`WithPipeline`, `WithVersion`,
+`WithLatest`, `WithLocalPackage`) are applied after the defaults and override all of them. A local
+package goes through `HostAgent.directInstallInstallation`, which copies the file to the host and
+installs it with the package manager, skipping the install script. `GetPackagePath` picks it by
+extension, architecture and FIPS flavor.
+
 For `environments.DockerHost`, use `dockeragentparams.WithAgentServiceEnvVariable`
 or `AgentServiceEnvironment` for environment variables that must be visible
 inside the Agent container. `dockeragentparams.WithEnvironmentVariables` only
@@ -217,6 +229,19 @@ State serialization and persistence belong to the caller that owns that state.
 The stock environments are highly customizable via provisioner options (OS,
 agent config, with/without fakeintake, etc.) — explore the `With*` options on
 each provisioner before creating a custom environment.
+
+Each fakeintake is an ECS Fargate task, so it costs one IP in the CI subnets for the whole life
+of the stack. When no assertion reads `Env().FakeIntake`, opt out with
+`ProvisionerNoFakeIntake` or the scenario's `WithoutFakeIntake()`, and use the same choice in
+every `UpdateEnv` of the suite: switching back and forth destroys and re-creates the Fargate
+task. A suite that opts out must not depend on the intake answering. Without a fakeintake the
+Agent talks to the real Datadog endpoints, which CI test VMs can't reach (`dial tcp ...:443: i/o
+timeout`), even though they can from agent-sandbox. Anything that blocks on those calls can then
+pass locally and fail in CI. For example, `datadog-agent secret refresh` rotates the API key and
+validates it synchronously: without a fakeintake it takes about 30 s in CI, so the CLI's
+`server_timeout` (30 s) expires, and the error is reported as `tls: bad record MAC`. Search the
+suite for calls that trigger outbound traffic (API key rotation, Remote Config, flares sent with
+`--send`) before you remove its fakeintake.
 
 When that's not enough, common advanced patterns:
 

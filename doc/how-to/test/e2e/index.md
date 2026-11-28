@@ -86,6 +86,24 @@ The `e2e.*` Invoke tasks will **NOT WORK** in a workspace provisioned in `eu-wes
 - Stacks, EC2 key pairs and SSH keys are named after `$REAL_USER` and `$WORKSPACE_NAME`, not the OS user (which is `bits` for everyone on a workspace). Two workspaces owned by the same developer therefore get their own key pair and their own stacks, and `dda inv aws.destroy-vm` only ever sees the stacks created from that workspace.
 - Workspaces are headless, so desktop notifications and the "copy to clipboard" prompts are skipped automatically. The connection command or password is printed instead.
 
+/// warning | Processes that didn't start from an SSH login
+The workspace's settings (`REAL_USER`, `WORKSPACE_NAME`, `AWS_VAULT_BACKEND=pass`, …) are in `/etc/environment`, which is only loaded when you log in over SSH. A process started some other way, such as an AI agent session or an IDE task, may not have them. The `e2e.*` tasks then fail in confusing ways: keypairs and stacks are named after `bits`, which every workspace shares, and `aws-vault` fails with `Specified keyring backend not available`. Check with `echo $WORKSPACE_NAME`, and if it's empty, load the file first:
+
+```bash
+set -a; . /etc/environment; set +a
+```
+///
+
+#### Using a keypair created on another machine
+
+The keypair name depends on the machine you ran `dda inv e2e.setup` on. If you already have one from your laptop, you can reuse it on the workspace instead of creating a new one:
+
+1. Copy its `.pem` and `.pub` files from the laptop's `~/.ssh/` to the workspace's `~/.ssh/`.
+1. Copy `configParams.aws.privateKeyPassword` too: `e2e.setup` encrypts the private keys it creates with a random passphrase and stores it in `~/.test_infra_config.yaml`.
+1. Set `configParams.aws.keyPairName`, `privateKeyPath`, `publicKeyPath` and `privateKeyPassword` in the workspace's `~/.test_infra_config.yaml`, then run `dda inv e2e.setup --team=<github-team>` to fill in the rest. It reports `✓ AWS keypair '<name>' present on disk and in AWS`.
+
+`e2e.setup` refuses to continue when AWS has a keypair with the expected name but its private key isn't on the machine (`AWS already has keypair ... local private/public key files ... are missing`). To check which AWS keypair a local key belongs to, compare the public keys: `aws ec2 describe-key-pairs --include-public-key` returns them.
+
 ## See Also
 
 - [Test Categories](../../../guidelines/testing/test-categories.md) - Understanding different test types

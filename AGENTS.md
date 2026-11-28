@@ -91,6 +91,8 @@ Run these checks on the final tree before each push, and commit the files that t
    when tidy changes a file.
 3. `bazel run //bazel/buildifier:test` when the change touches Bazel files (see [Linting](#linting)).
 4. `dda inv test --targets=<package>` and `dda inv linter.go` for each changed package or module.
+5. When the change alters behavior an existing E2E suite covers, propose running that suite locally
+   before the push (see [When to run an E2E test locally](#when-to-run-an-e2e-test-locally)).
 
 ## Key Components
 
@@ -146,6 +148,31 @@ Kernel code needs a Linux kernel to test, and results hold only for the build mo
 - Use `/write-e2e` skill or read those docs directly to write new E2E tests
 - Run locally: `dda inv new-e2e-tests.run --targets=./tests/<area>/...`, or use the `/run-e2e`
   skill, which runs the test in a `dda env dev` sandbox and triages setup failures
+
+#### When to run an E2E test locally
+
+In CI, an E2E job only runs after the branch is pushed and packaged, and on a PR only when its
+`rules: changes` paths match (otherwise it is manual), so a local run is the way to get E2E
+feedback before pushing. Propose one when the change alters behavior a suite asserts on a
+deployed Agent: packaging and install contents, service or process lifecycle,
+CLI output, merged configuration, cross-process communication, or payloads reaching fakeintake.
+Skip it for changes a unit or integration test fully covers (the `e2e-audit` skill makes that
+call). To find the suite, look in `.gitlab/test/e2e/*.yml` for the job whose `rules: changes`
+paths match the change, and use its `TARGETS` and `EXTRA_PARAMS`.
+
+- A run costs cloud resources and time, and may need the user to complete an AWS SSO login, so
+  get their yes first. The `run-e2e` skill covers the confirmation, the run and the report.
+- By default the run installs a pipeline's packages for your commit, or else the latest
+  nightly, not your working tree. To test unpushed Agent code, build it with Bazel
+  (`bazel build //packages/agent/linux:debian`) and pass `--local-package`, even though releases
+  still ship from omnibus. The package architecture must match the test host.
+  `doc/how-to/test/e2e/running.md` has the steps, the suites that can't use a local package
+  (install-script, installer, fleet, container suites), and how to follow a run.
+- A local pass doesn't replace the suite's CI job. CI installs the Agent the PR's pipeline
+  builds, which can behave differently from a nightly or a release, so wait for that job to
+  succeed before calling a change validated.
+- On a Datadog workspace, if `$WORKSPACE_NAME` is empty, load `/etc/environment` first
+  (`set -a; . /etc/environment; set +a`), or resources are named after the shared `bits` user.
 
 **One-time E2E setup — AI agents must run it non-interactively.** Never launch the
 interactive setup (it blocks on prompts an agent cannot answer). Instead:
