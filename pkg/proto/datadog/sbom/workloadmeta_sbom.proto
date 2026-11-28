@@ -12,6 +12,44 @@ message SBOMMessage {
     string Kind = 2;
     // ID is the ID for this entity, in a format specific to the entity Kind.
     string ID = 3;
+    // Usage is the runtime usage of the files of the workload, in place of
+    // Data.
+    SBOMUsage Usage = 4;
+}
+
+// SBOMUsage is the runtime usage of the files of a workload, as
+// pkg/sbom/usage.Report holds it: the keys of the files that ran, in
+// increasing order, with the last time each ran and its flags.
+message SBOMUsage {
+    // Version is the version of the keys and of the fields, which a receiver
+    // checks before it reads the rest.
+    uint32 Version = 1;
+    repeated fixed64 Keys = 2;
+    // LastSeen holds a time in unix seconds for each key.
+    repeated int64 LastSeen = 3;
+    // Flags holds a byte of flags for each key.
+    bytes Flags = 4;
+    // ObservedSince is when the recording of the workload started, in unix
+    // seconds.
+    int64 ObservedSince = 5;
+    // Truncated reports that the recorder reached its bound of keys.
+    bool Truncated = 6;
+    uint32 KeyKind = 7;
+    string ImageID = 8;
+    repeated string ContainerIDs = 9;
+    repeated SBOMReplacedBuild Replaced = 10;
+}
+
+// SBOMReplacedBuild is the usage of a build of a host file before a package
+// replaced it.
+message SBOMReplacedBuild {
+    fixed64 Key = 1;
+    // ReplacedAt and LastSeen are in unix seconds.
+    int64 ReplacedAt = 2;
+    int64 LastSeen = 3;
+    uint32 Flags = 4;
+    // StillRunning reports that a process still runs the replaced build.
+    bool StillRunning = 5;
 }
 
 service SBOMCollector {
