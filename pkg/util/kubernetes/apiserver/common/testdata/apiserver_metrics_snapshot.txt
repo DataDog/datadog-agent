@@ -124,3 +124,13 @@ apiserver_storage_objects{resource="capacitybuffers.autoscaling.x-k8s.io"} 0
 apiserver_storage_objects{resource="capacityquotas.autoscaling.x-k8s.io"} 3
 apiserver_storage_objects{resource="cassandrabackups.medusa.k8ssandra.io"} 0
 apiserver_storage_objects{resource="cassandradatacenters.cassandra.datastax.com"} 129
+# HELP apiserver_resource_objects [ALPHA] Number of stored objects at the time of last check split by kind. In case of a fetching error, the value will be -1.
+# TYPE apiserver_resource_objects gauge
+apiserver_resource_objects{group="",resource="pods"} 129
+apiserver_resource_objects{group="apps",resource="deployments"} 42
+# HELP apiserver_resource_size_estimate_bytes [BETA] Estimated size of stored objects in database. Estimate is based on sum of last observed sizes of serialized objects. In case of a fetching error, the value will be -1.
+# TYPE apiserver_resource_size_estimate_bytes gauge
+apiserver_resource_size_estimate_bytes{group="",resource="pods"} 1.048576e+06
+apiserver_resource_size_estimate_bytes{group="apps",resource="deployments"} 172032
+apiserver_resource_size_estimate_bytes{group="kueue.x-k8s.io",resource="admissionchecks"} 8192
+apiserver_resource_size_estimate_bytes{group="flink.datadoghq.com",resource="bluegreenflinkdeployments"} -1

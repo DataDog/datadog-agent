@@ -197,6 +197,31 @@ func TestSubmitStorageObjectsMetrics(t *testing.T) {
 	}
 }
 
+func TestSubmitResourceSizeEstimateMetrics(t *testing.T) {
+	family := &prometheus.MetricFamily{
+		Name: resourceSizeEstimateMetricName,
+		Type: "GAUGE",
+		Samples: []prometheus.Sample{
+			{Metric: prometheus.Metric{"group": "", "resource": "pods"}, Value: 4096},
+			{Metric: prometheus.Metric{"group": "example.com", "resource": "widgets"}, Value: 512},
+			{Metric: prometheus.Metric{"group": "apps", "resource": "deployments"}, Value: -1},
+		},
+	}
+
+	tagger := taggerfxmock.SetupFakeTagger(t)
+	kubeASCheck := NewKubeASCheck(core.NewCheckBase(CheckName), &KubeASConfig{}, tagger)
+	mocked := mocksender.NewMockSender(t, kubeASCheck.ID())
+
+	mocked.On("Gauge", "kube_apiserver.resource_size_estimate_bytes", 4096.0, "", []string{"resource:pods"})
+	mocked.On("Gauge", "kube_apiserver.resource_size_estimate_bytes", 512.0, "", []string{"resource:widgets.example.com", "group:example.com"})
+
+	submitResourceSizeEstimateMetrics(mocked, family)
+
+	// The -1 sample (size unknown) must be skipped.
+	mocked.AssertNumberOfCalls(t, "Gauge", 2)
+	mocked.AssertExpectations(t)
+}
+
 func TestAPIServerClientTimeout(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest("kubernetes_apiserver_client_timeout", 27)

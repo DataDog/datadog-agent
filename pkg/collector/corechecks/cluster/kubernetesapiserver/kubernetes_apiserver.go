@@ -50,6 +50,7 @@ const (
 	KubeControlPaneCheck               = "kube_apiserver_controlplane.up"
 	storageObjectsMetricName           = "apiserver_storage_objects"
 	legacyStorageObjectsMetricName     = "etcd_object_counts"
+	resourceSizeEstimateMetricName     = "apiserver_resource_size_estimate_bytes"
 	eventTokenKey                      = "event"
 	componentStatusMaxVersionString    = "v1.35.0"
 	maxEventCardinality                = 300
@@ -362,7 +363,7 @@ func (k *KubeASCheck) Run() error {
 		k.sendAPIResourceMetrics(sender, clusterResources)
 	}
 
-	k.sendStorageObjectsMetrics(sender)
+	k.sendStorageMetrics(sender)
 
 	return nil
 }
@@ -648,40 +649,51 @@ func (k *KubeASCheck) sendAPIResourceMetrics(sender sender.Sender, resources map
 	}
 }
 
-// sendStorageObjectsMetrics scrapes the API server's own /metrics endpoint for
-// apiserver_storage_objects or the legacy etcd_object_counts metric. They report the
-// number of objects of each resource type (including CRDs) currently held in the
-// underlying storage. Unlike the rest of this check, this reflects cluster-wide storage
-// state rather than the state of whichever API server node happened to answer the request,
-// so it is safe to treat as a single, cluster-level data point emitted once per leader run.
+// sendStorageMetrics scrapes the API server's own /metrics endpoint once for:
+//   - apiserver_storage_objects (or the legacy etcd_object_counts): the number of objects of
+//     each resource type (including CRDs) currently held in the underlying storage;
+//   - apiserver_resource_size_estimate_bytes: the estimated total size of those objects. It is
+//     only exposed by recent Kubernetes versions (or older ones with the
+//     SizeBasedListCostEstimate feature gate enabled).
+//
+// Unlike the rest of this check, these reflect cluster-wide storage state rather than the
+// state of whichever API server node happened to answer the request, so they are safe to
+// treat as single, cluster-level data points emitted once per leader run.
 //
 // The API server's /metrics endpoint is not guaranteed to be reachable in every
-// environment (e.g. restrictive network policies), so any failure here is
-// best-effort: it is logged and does not fail the check.
-func (k *KubeASCheck) sendStorageObjectsMetrics(sender sender.Sender) {
+// environment (e.g. restrictive network policies), and any of these metrics may be absent,
+// so this is best-effort: failures are logged and do not fail the check.
+func (k *KubeASCheck) sendStorageMetrics(sender sender.Sender) {
 	ctx, cancel := context.WithTimeout(context.Background(), apiServerClientTimeout())
 	defer cancel()
 
-	family, err := apiservercommon.FetchAPIServerMetricFamily(
+	families, err := apiservercommon.FetchAPIServerMetricFamilies(
 		ctx,
 		k.ac.Cl.Discovery(),
 		storageObjectsMetricName,
 		legacyStorageObjectsMetricName,
+		resourceSizeEstimateMetricName,
 	)
 	if err != nil {
-		log.Debugf("Could not collect %s from the API server's /metrics endpoint: %s", storageObjectsMetricName, err)
+		log.Debugf("Could not collect storage metrics from the API server's /metrics endpoint: %s", err)
 		return
 	}
-	if family == nil {
+
+	if family := apiservercommon.FindMetricFamily(families, storageObjectsMetricName, legacyStorageObjectsMetricName); family != nil {
+		submitStorageObjectsMetrics(sender, family)
+	} else {
 		log.Debugf(
 			"Metrics %s and %s not found in the API server's /metrics endpoint",
 			storageObjectsMetricName,
 			legacyStorageObjectsMetricName,
 		)
-		return
 	}
 
-	submitStorageObjectsMetrics(sender, family)
+	if family := apiservercommon.FindMetricFamily(families, resourceSizeEstimateMetricName); family != nil {
+		submitResourceSizeEstimateMetrics(sender, family)
+	} else {
+		log.Debugf("Metric %s not found in the API server's /metrics endpoint", resourceSizeEstimateMetricName)
+	}
 }
 
 func apiServerClientTimeout() time.Duration {
@@ -694,6 +706,34 @@ func submitStorageObjectsMetrics(sender sender.Sender, family *prometheus.Metric
 	for _, sample := range family.Samples {
 		tags := []string{"resource:" + sample.Metric["resource"]}
 		sender.Gauge("kube_apiserver.storage_objects", sample.Value, "", tags)
+	}
+}
+
+// submitResourceSizeEstimateMetrics emits one kube_apiserver.resource_size_estimate_bytes gauge
+// per sample of apiserver_resource_size_estimate_bytes.
+//
+// Kubernetes labels this metric with separate group and resource labels, whereas
+// apiserver_storage_objects uses a single "<resource>.<group>" label. The resource tag is
+// rebuilt in the latter format so both metrics can be joined on it; a non-core group is also
+// kept as its own tag. Samples with a negative value are skipped: Kubernetes reports -1 when the
+// size could not be fetched or estimated, which is not a size.
+func submitResourceSizeEstimateMetrics(sender sender.Sender, family *prometheus.MetricFamily) {
+	for _, sample := range family.Samples {
+		if sample.Value < 0 {
+			continue
+		}
+
+		group := sample.Metric["group"]
+		resource := sample.Metric["resource"]
+
+		var tags []string
+		if group == "" {
+			// Core API group (e.g. pods)
+			tags = []string{"resource:" + resource}
+		} else {
+			tags = []string{"resource:" + resource + "." + group, "group:" + group}
+		}
+		sender.Gauge("kube_apiserver.resource_size_estimate_bytes", sample.Value, "", tags)
 	}
 }
 

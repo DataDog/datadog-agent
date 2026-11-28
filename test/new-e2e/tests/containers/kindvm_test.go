@@ -367,6 +367,52 @@ func (suite *kindSuite) TestControlPlane() {
 		})
 	}
 
+	// apiserver_resource_size_estimate_bytes is exposed by default starting in Kubernetes 1.34,
+	// where the SizeBasedListCostEstimate feature gate is beta and enabled by default.
+	if k8sVersion.AtLeast(utilversion.MajorMinor(1, 34)) {
+		// Core API group: the resource tag is the bare resource name.
+		suite.testMetric(&testMetricArgs{
+			Filter: testMetricFilterArgs{
+				Name: "kube_apiserver.resource_size_estimate_bytes",
+				Tags: []string{
+					`^resource:pods$`,
+				},
+			},
+			Expect: testMetricExpectArgs{
+				Tags: &[]string{
+					`^resource:pods$`,
+				},
+				Value: &testMetricExpectValueArgs{
+					Min: 1,
+					Max: 1024 * 1024 * 1024,
+				},
+				AcceptUnexpectedTags: true,
+			},
+		})
+
+		// Named API group: the resource tag is "<resource>.<group>", matching
+		// kube_apiserver.storage_objects, and the group is also its own tag.
+		suite.testMetric(&testMetricArgs{
+			Filter: testMetricFilterArgs{
+				Name: "kube_apiserver.resource_size_estimate_bytes",
+				Tags: []string{
+					`^resource:deployments\.apps$`,
+				},
+			},
+			Expect: testMetricExpectArgs{
+				Tags: &[]string{
+					`^resource:deployments\.apps$`,
+					`^group:apps$`,
+				},
+				Value: &testMetricExpectValueArgs{
+					Min: 1,
+					Max: 1024 * 1024 * 1024,
+				},
+				AcceptUnexpectedTags: true,
+			},
+		})
+	}
+
 	// Test `kube_controller_manager` check is properly working
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
