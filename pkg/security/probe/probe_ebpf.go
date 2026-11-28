@@ -2099,7 +2099,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 				seclog.Tracef("failed to decode DNS request: %s (offset %d, len %d, data %s)", err, offset, len(data), string(data[offset:]))
 				return false
 			}
-			seclog.Warnf("failed to decode DNS request: %s", err)
+			seclog.Debugf("failed to decode DNS request: %s", err)
 			event.Error = model.ErrFailedDNSPacketDecoding
 			event.FailedDNS = model.FailedDNSEvent{
 				Payload: trimRightZeros(data[offset:]),
@@ -2120,7 +2120,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			offset += read
 
 			if err := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err != nil {
-				seclog.Warnf("failed to decode the full DNS response: %s", err)
+				seclog.Debugf("failed to decode the full DNS response: %s", err)
 				event.Error = model.ErrFailedDNSPacketDecoding
 				event.FailedDNS = model.FailedDNSEvent{
 					Payload: trimRightZeros(data[offset:]),
