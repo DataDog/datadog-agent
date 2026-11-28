@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -131,48 +132,54 @@ func TestMultiDevicePluginClient(t *testing.T) {
 }
 
 func TestCachedDevicePluginClient(t *testing.T) {
-	mockClient := &mockDevicePluginClient{
-		devices: []*devicepluginv1beta1.Device{{ID: "device1", Health: devicepluginv1beta1.Healthy}},
-	}
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := &mockDevicePluginClient{
+			devices: []*devicepluginv1beta1.Device{{ID: "device1", Health: devicepluginv1beta1.Healthy}},
+		}
 
-	cacheTimeout := 1 * time.Second
-	cachedClient, err := NewCachedDevicePluginClient(mockClient, cacheTimeout)
-	require.NoError(t, err)
-	t.Cleanup(cachedClient.Close)
+		cacheTimeout := 1 * time.Second
+		cachedClient, err := NewCachedDevicePluginClient(mockClient, cacheTimeout)
+		require.NoError(t, err)
+		t.Cleanup(cachedClient.Close)
 
-	// First call should hit the underlying client
-	require.NoError(t, cachedClient.Refresh(t.Context()))
-	devices, err := cachedClient.ListDevices(t.Context())
-	require.NoError(t, err)
-	require.Len(t, devices, 1)
-	assert.Equal(t, "device1", devices[0].ID)
+		// First call should hit the underlying client
+		require.NoError(t, cachedClient.Refresh(t.Context()))
+		devices, err := cachedClient.ListDevices(t.Context())
+		require.NoError(t, err)
+		require.Len(t, devices, 1)
+		assert.Equal(t, "device1", devices[0].ID)
 
-	// Second call within timeout should return cached result
-	lastRefreshTime := mockClient.lastRefreshTime
-	lastListDevicesTime := mockClient.lastListDevicesTime
-	mockClient.devices = append(mockClient.devices, &devicepluginv1beta1.Device{ID: "device2", Health: devicepluginv1beta1.Healthy})
+		// Second call within timeout should return cached result. Let some virtual
+		// time elapse so that a call reaching the underlying client would stamp a
+		// different time than the first one.
+		time.Sleep(cacheTimeout / 2)
+		lastRefreshTime := mockClient.lastRefreshTime
+		lastListDevicesTime := mockClient.lastListDevicesTime
+		mockClient.devices = append(mockClient.devices, &devicepluginv1beta1.Device{ID: "device2", Health: devicepluginv1beta1.Healthy})
 
-	require.NoError(t, cachedClient.Refresh(t.Context()))
-	devices, err = cachedClient.ListDevices(t.Context())
-	require.NoError(t, err)
-	require.Len(t, devices, 1)
-	assert.Equal(t, "device1", devices[0].ID)
-	assert.Equal(t, lastListDevicesTime, mockClient.lastListDevicesTime)
-	assert.Equal(t, lastRefreshTime, mockClient.lastRefreshTime)
+		require.NoError(t, cachedClient.Refresh(t.Context()))
+		devices, err = cachedClient.ListDevices(t.Context())
+		require.NoError(t, err)
+		require.Len(t, devices, 1)
+		assert.Equal(t, "device1", devices[0].ID)
+		assert.Equal(t, lastListDevicesTime, mockClient.lastListDevicesTime)
+		assert.Equal(t, lastRefreshTime, mockClient.lastRefreshTime)
 
-	// After timeout, should hit the underlying client again
-	time.Sleep(cacheTimeout)
-	lastRefreshTime = mockClient.lastRefreshTime
-	lastListDevicesTime = mockClient.lastListDevicesTime
+		// After timeout, should hit the underlying client again
+		// The cache expires strictly after the timeout (counted from the first call).
+		time.Sleep(cacheTimeout/2 + time.Nanosecond)
+		lastRefreshTime = mockClient.lastRefreshTime
+		lastListDevicesTime = mockClient.lastListDevicesTime
 
-	require.NoError(t, cachedClient.Refresh(t.Context()))
-	devices, err = cachedClient.ListDevices(t.Context())
-	require.NoError(t, err)
-	require.Len(t, devices, 2)
-	assert.Equal(t, "device1", devices[0].ID)
-	assert.Equal(t, "device2", devices[1].ID)
-	assert.Less(t, lastListDevicesTime, mockClient.lastListDevicesTime)
-	assert.Less(t, lastRefreshTime, mockClient.lastRefreshTime)
+		require.NoError(t, cachedClient.Refresh(t.Context()))
+		devices, err = cachedClient.ListDevices(t.Context())
+		require.NoError(t, err)
+		require.Len(t, devices, 2)
+		assert.Equal(t, "device1", devices[0].ID)
+		assert.Equal(t, "device2", devices[1].ID)
+		assert.Less(t, lastListDevicesTime, mockClient.lastListDevicesTime)
+		assert.Less(t, lastRefreshTime, mockClient.lastRefreshTime)
+	})
 }
 
 type mockDevicePluginServer struct {
