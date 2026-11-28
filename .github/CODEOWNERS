@@ -21,6 +21,7 @@
 /.claude/rules/bazel.md                         @DataDog/agent-build
 /.claude/rules/msi.md                           @DataDog/windows-products
 /.claude/rules/ndm-testing.md                   @DataDog/network-device-monitoring-core @DataDog/ndm-integrations
+/.claude/rules/network-path-testing.md          @DataDog/network-path
 /.claude/rules/systemd.md                       @DataDog/agent-runtimes
 /.claude/rules/system-probe-testing.md          @DataDog/ebpf-platform @DataDog/cloud-network-monitoring
 /.cursor/rules/bazel-buildifier.mdc             @DataDog/agent-build
