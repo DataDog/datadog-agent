@@ -47,7 +47,7 @@ func TestPersistentVolumeHandlers_BeforeCacheCheck(t *testing.T) {
 	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
 	handlers := NewPersistentVolumeHandlers(tagger)
 
-	skip := handlers.EnrichModel(ctx, resource, resourceModel)
+	skip := handlers.BeforeCacheCheck(ctx, resource, resourceModel)
 	assert.False(t, skip)
 	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
 }
@@ -117,16 +117,16 @@ func TestPersistentVolumeHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify raw informer references are returned
+	// Verify deep copy was made
 	resource1, ok := resources[0].(*corev1.PersistentVolume)
 	assert.True(t, ok)
 	assert.Equal(t, "test-pv", resource1.Name)
-	assert.Same(t, pv1, resource1) // ResourceList returns raw informer references
+	assert.NotSame(t, pv1, resource1) // Should be a copy
 
 	resource2, ok := resources[1].(*corev1.PersistentVolume)
 	assert.True(t, ok)
 	assert.Equal(t, "pv2", resource2.Name)
-	assert.Same(t, pv2, resource2) // ResourceList returns raw informer references
+	assert.NotSame(t, pv2, resource2) // Should be a copy
 }
 
 func TestPersistentVolumeHandlers_ResourceUID(t *testing.T) {
@@ -446,14 +446,4 @@ func createTestPersistentVolume() *corev1.PersistentVolume {
 			Reason:  "test",
 		},
 	}
-}
-
-func TestPersistentVolumeHandlers_CloneResource(t *testing.T) {
-	handlers := &PersistentVolumeHandlers{}
-	original := createTestPersistentVolume()
-	cloned := handlers.CloneResource(original)
-	clonedTyped, ok := cloned.(*corev1.PersistentVolume)
-	assert.True(t, ok)
-	assert.NotSame(t, original, clonedTyped)
-	assert.Equal(t, original, clonedTyped)
 }
