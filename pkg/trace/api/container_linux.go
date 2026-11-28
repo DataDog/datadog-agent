@@ -70,14 +70,7 @@ func connContext(ctx context.Context, c net.Conn) context.Context {
 	return context.WithValue(ctx, ucredKey{}, ucred)
 }
 
-// noCgroupsProvider is a fallback IDProvider that only looks in the http header for a container ID.
-type noCgroupsProvider struct{}
-
-func (i *noCgroupsProvider) GetContainerID(_ context.Context, h http.Header) string {
-	return h.Get(header.ContainerID)
-}
-
-// NewIDProvider initializes an IDProvider instance using the provided procRoot to perform cgroups lookups in linux environments.
+// NewIDProvider initializes an IDProvider instance that resolves container IDs from origin detection data in linux environments.
 func NewIDProvider(procRoot string, containerIDFromOriginInfo func(originInfo origindetection.OriginInfo) (string, error)) IDProvider {
 	// taken from pkg/util/containers/metrics/system.collector_linux.go
 	var hostPrefix string
@@ -93,8 +86,8 @@ func NewIDProvider(procRoot string, containerIDFromOriginInfo func(originInfo or
 	)
 
 	if err != nil {
-		log.Warnf("Failed to identify cgroups version due to err: %v. APM data may be missing containerIDs for applications running in containers. This will prevent spans from being associated with container tags.", err)
-		return &noCgroupsProvider{}
+		log.Debugf("Failed to identify cgroups version due to err: %v. Container IDs are still resolved from origin detection headers.", err)
+		return &cgroupIDProvider{containerIDFromOriginInfo: containerIDFromOriginInfo}
 	}
 	cgroupController := ""
 	if reader.CgroupVersion() == 1 {
