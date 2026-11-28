@@ -65,7 +65,7 @@ All of these run on macOS, Linux, and Windows; none need a Linux kernel.
 
 ## Pull requests
 
-Label with `team/network-device-monitoring-core` or `team/ndm-integrations`, matching the owner in
+Label with `team/network-device-monitoring-core` or `team/network-device-monitoring-integrations`, matching the owner in
 `.github/CODEOWNERS`.
 
 ## Keeping these instructions current

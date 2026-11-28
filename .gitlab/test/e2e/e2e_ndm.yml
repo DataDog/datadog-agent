@@ -46,7 +46,7 @@ new-e2e-ndm-netflow:
     - qa_agent_linux
   variables:
     TARGETS: ./tests/ndm/netflow
-    TEAM: ndm-integrations
+    TEAM: network-device-monitoring-integrations
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-ndm-snmp:
