@@ -29,7 +29,6 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 //go:embed status_templates
@@ -922,9 +921,9 @@ func (d *delegatedAuthComponent) writeAPIKeyToTarget(instance *authInstance, api
 		// This will trigger OnUpdate callbacks for any components listening to this config
 		d.config.Set(instance.apiKeyConfigKey, apiKey, pkgconfigmodel.SourceAgentRuntime)
 		if isFallback {
-			log.Infof("Using fallback API key for '%s' (delegated auth unavailable), ending with: %s", instance.apiKeyConfigKey, scrubber.HideKeyExceptLastChars(apiKey))
+			log.Infof("Using fallback API key for '%s' (delegated auth unavailable)", instance.apiKeyConfigKey)
 		} else {
-			log.Infof("Updated config key '%s' with new delegated API key ending with: %s", instance.apiKeyConfigKey, scrubber.HideKeyExceptLastChars(apiKey))
+			log.Infof("Updated config key '%s' with new delegated API key", instance.apiKeyConfigKey)
 		}
 		return nil
 	}
@@ -979,9 +978,9 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInst
 		return fmt.Errorf("%w: %s", errWritebackBlocked, configKey)
 	}
 	if isFallback {
-		log.Infof("Using fallback API key for additional endpoint '%s' at '%s' (delegated auth unavailable), ending with: %s", domain, configKey, scrubber.HideKeyExceptLastChars(apiKey))
+		log.Infof("Using fallback API key for additional endpoint '%s' at '%s' (delegated auth unavailable)", domain, configKey)
 	} else {
-		log.Infof("Updated additional endpoint '%s' with new delegated API key ending with: %s", domain, scrubber.HideKeyExceptLastChars(apiKey))
+		log.Infof("Updated additional endpoint '%s' with new delegated API key", domain)
 	}
 	return nil
 }
@@ -1032,9 +1031,9 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *auth
 	}
 
 	if isFallback {
-		log.Infof("Using fallback API key for additional endpoint entry at '%s' (delegated auth unavailable), ending with: %s", configKey, scrubber.HideKeyExceptLastChars(apiKey))
+		log.Infof("Using fallback API key for additional endpoint entry at '%s' (delegated auth unavailable)", configKey)
 	} else {
-		log.Infof("Updated additional endpoint entry at '%s' with new delegated API key ending with: %s", configKey, scrubber.HideKeyExceptLastChars(apiKey))
+		log.Infof("Updated additional endpoint entry at '%s' with new delegated API key", configKey)
 	}
 	return nil
 }

@@ -490,6 +490,24 @@ func TestHealthInvalidAPIKeyTriggersSecretRefresh(t *testing.T) {
 	assert.True(t, triggered, "secrets.Refresh(false) should be called when API key is invalid")
 }
 
+func TestInvalidAPIKeyWarningOmitsKeyCharacters(t *testing.T) {
+	const apiKey = "0123456789abcdef0123456789ab0a1b"
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer ts.Close()
+
+	log := newLevelRecorder(t)
+	fh := forwarderHealth{log: log, config: configmock.New(t), secrets: secretsmock.New(t)}
+	fh.init()
+	fh.keysPerAPIEndpoint = map[string][]string{ts.URL: {apiKey}}
+	assert.False(t, fh.checkValidAPIKey())
+
+	out := log.output()
+	assert.Contains(t, out, "an api_key for domain "+ts.URL+" is invalid")
+	assert.NotContains(t, out, apiKey[len(apiKey)-4:])
+}
+
 // TestUpdateAPIKeyAfterSetBaseDomain verifies health cache correctness after key rotation with a mutated resolver domain.
 func TestUpdateAPIKeyAfterSetBaseDomain(t *testing.T) {
 	originalDomain := "https://app.datadoghq.com."
