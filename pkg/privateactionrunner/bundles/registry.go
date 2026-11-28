@@ -57,6 +57,7 @@ import (
 	com_datadoghq_mongodb "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/mongodb"
 	com_datadoghq_remoteaction "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction"
 	com_datadoghq_remoteaction_datadogagent "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/datadogagent"
+	com_datadoghq_remoteaction_integrations "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/integrations"
 	com_datadoghq_remoteaction_internal "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/internalactions"
 	com_datadoghq_remoteaction_networkconfigmanagement "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/networkconfigmanagement"
 	com_datadoghq_remoteaction_networkdevices "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/networkdevices"
@@ -126,6 +127,7 @@ func NewRegistry(configuration *config.Config, rcClient rcclient.Client, tracero
 			"com.datadoghq.mongodb":                              com_datadoghq_mongodb.NewMongoDB(),
 			"com.datadoghq.remoteaction":                         com_datadoghq_remoteaction.NewRemoteAction(configuration),
 			"com.datadoghq.remoteaction.datadogagent":            com_datadoghq_remoteaction_datadogagent.NewAgent(ipcClient),
+			"com.datadoghq.remoteaction.integrations":            com_datadoghq_remoteaction_integrations.NewIntegrations(ipcClient),
 			"com.datadoghq.remoteaction.internal":                com_datadoghq_remoteaction_internal.NewInternal(encryptionStore),
 			"com.datadoghq.remoteaction.networkconfigmanagement": com_datadoghq_remoteaction_networkconfigmanagement.NewNetworkConfigManagement(ipcClient),
 			"com.datadoghq.remoteaction.networkdevices":          com_datadoghq_remoteaction_networkdevices.NewNetworkDevices(encryptionStore, ipcClient),

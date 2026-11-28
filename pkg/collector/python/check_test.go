@@ -11,6 +11,11 @@ import (
 	"testing"
 )
 
+// RUN-01 / RUN-04: Go-to-C boundary conformance only.
+func TestRemoteQueryBridge(t *testing.T) {
+	testRemoteQueryBridge(t)
+}
+
 func TestRunCheck(t *testing.T) {
 	testRunCheck(t)
 }

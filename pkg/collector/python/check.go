@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -69,7 +70,7 @@ type PythonCheck struct {
 	initConfig     string
 	instanceConfig string
 	haSupported    bool
-	cancelled      bool
+	cancelled      atomic.Bool
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
@@ -104,7 +105,7 @@ func (c *PythonCheck) runCheckImpl(commitMetrics bool) error {
 	}
 	defer gstate.unlock()
 
-	if c.cancelled {
+	if c.cancelled.Load() {
 		return fmt.Errorf("check %s is already cancelled", c.ModuleName)
 	}
 
@@ -170,11 +171,12 @@ func (c *PythonCheck) Cancel() {
 	}
 	defer gstate.unlock()
 
+	// Set admission state before cancel releases the GIL to wait for active runs.
+	c.cancelled.Store(true)
 	C.cancel_check(rtloader, c.instance)
 	if err := getRtLoaderError(); err != nil {
 		log.Warnf("failed to cancel check %s: %s", c.id, err)
 	}
-	c.cancelled = true
 }
 
 // String representation (for debug and logging)

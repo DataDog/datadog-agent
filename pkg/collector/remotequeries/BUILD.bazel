@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "remotequeries",
+    srcs = [
+        "request.go",
+        "service.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/remotequeries",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/check",
+        "//pkg/config/model",
+        "//pkg/privateactionrunner/adapters/config",
+    ],
+)
+
+dd_agent_go_test(
+    name = "remotequeries_test",
+    srcs = [
+        "request_test.go",
+        "service_test.go",
+    ],
+    embed = [":remotequeries"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+        "//pkg/collector/check/stub",
+        "@com_github_stretchr_testify//require",
+    ],
+)
