@@ -649,6 +649,7 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/comp/logs-library/pipeline": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/logs-library/pipeline/mock": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/logs-library/processor": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
+    "github.com/DataDog/datadog-agent/comp/logs-library/routing": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/logs-library/sender": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/logs-library/sender/http": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/logs-library/sender/tcp": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],

@@ -85,6 +85,7 @@ type Destination struct {
 	contentType         string
 	host                string
 	client              *httputils.ResetClient
+	clientFactory       func() *http.Client
 	destinationsContext *client.DestinationsContext
 	protocol            config.IntakeProtocol
 	origin              config.IntakeOrigin
@@ -103,6 +104,10 @@ type Destination struct {
 
 	// Secrets
 	secrets secrets.Component
+
+	// Optional terminal-loss output channel (set before Start) to distinguish
+	// permanent HTTP rejection from actual delivery success.
+	terminalLossOutput chan *message.Payload
 
 	// Telemetry
 	expVars         *expvar.Map
@@ -142,6 +147,25 @@ func NewDestination(endpoint config.Endpoint,
 		secretsComp)
 }
 
+// SetTerminalLossOutput configures an optional output channel for permanent HTTP
+// rejections so callers can distinguish terminal loss from delivery success.
+// Also disables automatic HTTP redirect following so 3xx responses cannot be
+// rewritten to bodyless GET requests that falsely satisfy reliable checkpoints.
+// Must be called before Start.
+func (d *Destination) SetTerminalLossOutput(output chan *message.Payload) {
+	d.terminalLossOutput = output
+	if output != nil && d.clientFactory != nil {
+		baseFactory := d.clientFactory
+		d.client = httputils.NewResetClient(d.endpoint.ConnectionResetInterval, func() *http.Client {
+			c := baseFactory()
+			c.CheckRedirect = func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			}
+			return c
+		})
+	}
+}
+
 func newDestination(endpoint config.Endpoint,
 	contentType string,
 	destinationsContext *client.DestinationsContext,
@@ -174,13 +198,15 @@ func newDestination(endpoint config.Endpoint,
 	metrics.DestinationLogsDropped.Set(endpoint.Host, &expvar.Int{})
 
 	workerPool := newDefaultWorkerPool(minConcurrency, maxConcurrency, destMeta)
+	clientFactory := httpClientFactory(cfg, timeoutOverride)
 
 	return &Destination{
 		host:                endpoint.Host,
 		url:                 buildURL(endpoint),
 		endpoint:            endpoint,
 		contentType:         contentType,
-		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(cfg, timeoutOverride)),
+		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, clientFactory),
+		clientFactory:       clientFactory,
 		destinationsContext: destinationsContext,
 		workerPool:          workerPool,
 		wg:                  sync.WaitGroup{},
@@ -346,6 +372,10 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			// Permanent error, increment the logs dropped metric
 			metrics.DestinationLogsDropped.Add(d.host, payload.Count())
 			metrics.TlmLogsDropped.Add(float64(payload.Count()), d.host)
+			if d.terminalLossOutput != nil {
+				d.terminalLossOutput <- payload
+				return result
+			}
 		} else {
 			metrics.LogsSent.Add(payload.Count())
 			metrics.TlmLogsSent.Add(float64(payload.Count()))
@@ -438,10 +468,20 @@ func (d *Destination) unconditionalSendWithContext(ctx context.Context, payload 
 	defer resp.Body.Close()
 	response, err := io.ReadAll(resp.Body)
 	if err != nil {
-		// the read failed because the server closed or terminated the connection
-		// *after* serving the request.
-		log.Debugf("Server closed or terminated the connection after serving the request with err %v", err)
-		return err
+		if d.terminalLossOutput == nil {
+			// Preserve exact pre-existing legacy and base-group behavior outside
+			// routed endpoint-filtering outcome mode.
+			log.Debugf("Server closed or terminated the connection after serving the request with err %v", err)
+			return err
+		}
+		if errors.Is(err, context.Canceled) || ctx.Err() == context.Canceled {
+			return context.Canceled
+		}
+		if resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
+			log.Debugf("Server closed or terminated the connection after serving the request with err %v", err)
+			return client.NewRetryableError(err)
+		}
+		log.Debugf("Response body read failed for HTTP status %d: %v", resp.StatusCode, err)
 	}
 	log.Tracef("Log payload sent to %s. Response resolved with protocol %s in %d ms", d.url, resp.Proto, latency)
 
@@ -461,6 +501,8 @@ func (d *Destination) unconditionalSendWithContext(ctx context.Context, payload 
 		resp.StatusCode == http.StatusRequestEntityTooLarge {
 		tlmDropped.Inc()
 		return fmt.Errorf("%w: %s", errClient, resp.Status)
+	} else if d.terminalLossOutput != nil && (resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices) {
+		return client.NewRetryableError(fmt.Errorf("%w: %s", errServer, resp.Status))
 	} else if resp.StatusCode > http.StatusBadRequest {
 		return client.NewRetryableError(fmt.Errorf("%w: %s", errServer, resp.Status))
 	}

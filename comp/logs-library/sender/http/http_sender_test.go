@@ -104,6 +104,7 @@ func TestHttpDestinationFactory(t *testing.T) {
 				1,
 				10,
 				secretsnoopimpl.NewComponent().Comp,
+				nil,
 			)
 
 			// Test 1: Verify first call creates destinations

@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Add a Go API for per-endpoint log filtering. This change adds no Agent settings and leaves existing log delivery unchanged.

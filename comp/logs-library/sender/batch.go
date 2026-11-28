@@ -33,9 +33,17 @@ type batch struct {
 	serverlessMeta ServerlessMeta
 
 	// Telemetry
-	pipelineMonitor metrics.PipelineMonitor
-	utilization     metrics.UtilizationMonitor
-	instanceID      string
+	pipelineMonitor   metrics.PipelineMonitor
+	utilization       metrics.UtilizationMonitor
+	instanceID        string
+	terminalLoss      func([]*message.MessageMetadata)
+	skipSourceLatency bool
+}
+
+func (b *batch) reportLoss(metas []*message.MessageMetadata) {
+	if b.terminalLoss != nil && len(metas) != 0 {
+		b.terminalLoss(metas)
+	}
 }
 
 func makeBatch(
@@ -88,12 +96,13 @@ func (b *batch) resetBatch() {
 }
 
 func (b *batch) processMessage(m *message.Message, outputChan chan *message.Payload) {
-	if m.Origin != nil {
+	if !b.skipSourceLatency && m.Origin != nil {
 		m.Origin.LogSource.LatencyStats.Add(m.GetLatency())
 	}
 	added, err := b.addMessage(m)
 	if err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
+		b.reportLoss(b.buffer.GetMessages())
 		b.resetBatch()
 		return
 	}
@@ -110,12 +119,14 @@ func (b *batch) processMessage(m *message.Message, outputChan chan *message.Payl
 		added, err = b.addMessage(m)
 		if err != nil {
 			log.Warn("Encoding failed - dropping payload", err)
+			b.reportLoss(b.buffer.GetMessages())
 			b.resetBatch()
 			return
 		}
 		if !added {
 			log.Warnf("Dropped message in pipeline=%s reason=too-large ContentLength=%d ContentSizeLimit=%d", b.pipelineName, len(m.GetContent()), b.buffer.ContentSizeLimit())
 			tlmDroppedTooLarge.Inc(b.pipelineName)
+			b.reportLoss([]*message.MessageMetadata{&m.MessageMetadata})
 		}
 
 	}
@@ -145,6 +156,7 @@ func (b *batch) flushBuffer(outputChan chan *message.Payload, reason string) {
 	b.utilization.Start()
 	if err := b.serializer.Finish(b.writeCounter); err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
+		b.reportLoss(b.buffer.GetMessages())
 		b.resetBatch()
 		b.utilization.Stop()
 		return
@@ -167,6 +179,7 @@ func (b *batch) sendMessages(messagesMetadata []*message.MessageMetadata, output
 	b.compressor = nil // prevent double-free from defer resetBatch
 	if err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
+		b.reportLoss(messagesMetadata)
 		b.utilization.Stop()
 		return
 	}

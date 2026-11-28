@@ -106,6 +106,7 @@ func (s *worker) run() {
 
 	reliableDestinations := buildDestinationSenders(s.config, s.destinations.Reliable, reliableOutputChan, s.bufferSize)
 	unreliableDestinations := buildDestinationSenders(s.config, s.destinations.Unreliable, noopSink, s.bufferSize)
+	_, routedOutcomes := s.sink.(OutcomeSink)
 	continueLoop := true
 	for continueLoop {
 		select {
@@ -139,11 +140,28 @@ func (s *worker) run() {
 				}
 
 				if !sent {
-					// Throttle the poll loop while waiting for a send to succeed
-					// This will only happen when all reliable destinations
-					// are blocked so logs have no where to go.
-					time.Sleep(100 * time.Millisecond)
+					if !routedOutcomes {
+						time.Sleep(100 * time.Millisecond)
+						continue
+					}
+					// Throttle the poll loop while waiting for a send to succeed,
+					// but remain responsive to worker.stop() so a permanently
+					// disabled sole reliable destination cannot hang shutdown.
+					timer := time.NewTimer(100 * time.Millisecond)
+					select {
+					case <-timer.C:
+					case <-s.done:
+						timer.Stop()
+						continueLoop = false
+					}
+					if !continueLoop {
+						break
+					}
 				}
+			}
+			if !continueLoop {
+				s.utilization.Stop()
+				break
 			}
 
 			for i, destSender := range reliableDestinations {

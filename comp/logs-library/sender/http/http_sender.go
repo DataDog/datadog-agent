@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -47,6 +48,11 @@ func NewHTTPSender(
 		maxWorkerConcurrency,
 	)
 
+	var terminalLossChan chan *message.Payload
+	if outcomeSink, ok := sink.(sender.OutcomeSink); ok && outcomeSink != nil {
+		terminalLossChan = outcomeSink.TerminalLossChannel()
+	}
+
 	destinationFactory := httpDestinationFactory(
 		endpoints,
 		destinationsCtx,
@@ -59,6 +65,7 @@ func NewHTTPSender(
 		minWorkerConcurrency,
 		maxWorkerConcurrency,
 		secretsComp,
+		terminalLossChan,
 	)
 
 	return sender.NewSender(
@@ -85,6 +92,7 @@ func httpDestinationFactory(
 	minConcurrency int,
 	maxConcurrency int,
 	secretsComp secrets.Component,
+	terminalLossChan chan *message.Payload,
 ) sender.DestinationFactory {
 	return func(instanceID string) *client.Destinations {
 		reliable := []client.Destination{}
@@ -94,7 +102,11 @@ func httpDestinationFactory(
 			if serverlessMeta.IsEnabled() {
 				reliable = append(reliable, http.NewSyncDestination(endpoint, contentyType, destinationsContext, serverlessMeta.SenderDoneChan(), destMeta, cfg))
 			} else {
-				reliable = append(reliable, http.NewDestination(endpoint, contentyType, destinationsContext, true, destMeta, cfg, minConcurrency, maxConcurrency, pipelineMonitor, instanceID, secretsComp))
+				dest := http.NewDestination(endpoint, contentyType, destinationsContext, true, destMeta, cfg, minConcurrency, maxConcurrency, pipelineMonitor, instanceID, secretsComp)
+				if terminalLossChan != nil {
+					dest.SetTerminalLossOutput(terminalLossChan)
+				}
+				reliable = append(reliable, dest)
 			}
 		}
 		for i, endpoint := range endpoints.GetUnReliableEndpoints() {

@@ -7,6 +7,7 @@
 package message
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"strconv"
@@ -79,6 +80,12 @@ type MessageMetadata struct {
 	Origin             *Origin
 	Status             string
 	IngestionTimestamp int64 // In nanoseconds
+	// routingToken identifies the original source record in an injected routed
+	// pipeline. It is copied with a batch but never serialized into an intake.
+	routingToken uint64
+	// routingBarrier is used only by injected provider flush markers. Markers
+	// never enter a batch or an intake payload.
+	routingBarrier *routingBarrier
 	// RawDataLen tracks the original size of the message content before any trimming/transformation.
 	// This is used when calculating the tailer offset - so this will NOT always be equal to `len(Content)`
 	// This is also used to track the original content size before the message is processed and encoded later
@@ -98,6 +105,45 @@ type MessageMetadata struct {
 	ParsingExtra
 	// Extra information for Serverless Logs messages
 	ServerlessExtra
+}
+
+// routingBarrier is allocated only for flush markers. Setters replace this
+// state so metadata copies preserve their independent channel and context values.
+type routingBarrier struct {
+	done chan struct{}
+	ctx  context.Context
+}
+
+// RoutingToken returns the internal source record identity, if one was set.
+func (m *MessageMetadata) RoutingToken() uint64 { return m.routingToken }
+
+// SetRoutingToken sets the internal identity before a record enters processors.
+func (m *MessageMetadata) SetRoutingToken(token uint64) { m.routingToken = token }
+
+// RoutingBarrier returns the internal flush marker acknowledgement channel.
+func (m *MessageMetadata) RoutingBarrier() chan struct{} {
+	if m.routingBarrier == nil {
+		return nil
+	}
+	return m.routingBarrier.done
+}
+
+// SetRoutingBarrier marks an internal flush barrier before pipeline dispatch.
+func (m *MessageMetadata) SetRoutingBarrier(done chan struct{}) {
+	m.routingBarrier = &routingBarrier{done: done, ctx: m.RoutingBarrierContext()}
+}
+
+// SetRoutingBarrierContext lets dispatch abandon a cancelled flush's wait.
+func (m *MessageMetadata) SetRoutingBarrierContext(ctx context.Context) {
+	m.routingBarrier = &routingBarrier{done: m.RoutingBarrier(), ctx: ctx}
+}
+
+// RoutingBarrierContext returns the originating flush context, if any.
+func (m *MessageMetadata) RoutingBarrierContext() context.Context {
+	if m.routingBarrier == nil {
+		return nil
+	}
+	return m.routingBarrier.ctx
 }
 
 // MessageContent contains the message and possibly the tailer internal representation
