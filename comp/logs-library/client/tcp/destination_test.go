@@ -123,11 +123,15 @@ func TestConnectivityDiagnoseOperationFail(t *testing.T) {
 
 type mockConn struct {
 	net.TCPConn
+	writeCalled bool
 }
 
 func (c *mockConn) Write(_ []byte) (n int, err error) {
+	c.writeCalled = true
 	return 0, errors.New("write error")
 }
+
+func (c *mockConn) SetWriteDeadline(time.Time) error { return nil }
 
 func (c *mockConn) Close() (err error) {
 	return nil
@@ -140,7 +144,8 @@ func TestNoRetryAndWriteError(t *testing.T) {
 
 	dest := NewDestination(endpoint, false, client.NewDestinationsContext(), false, statusinterface.NewStatusProviderMock())
 	output := make(chan *message.Payload, 1)
-	dest.conn = &mockConn{}
+	conn := &mockConn{}
+	dest.conn = conn
 
 	// Connection resets prompted a panic on earlier code versions, make sure that wasn't reintroduced.
 	dest.connCreationTime = time.Now().Add(-2 * time.Second)
@@ -151,4 +156,5 @@ func TestNoRetryAndWriteError(t *testing.T) {
 	assert.Equal(t, "1", drops.String())
 	assert.Empty(t, output)
 	assert.Nil(t, dest.conn)
+	assert.True(t, conn.writeCalled)
 }
