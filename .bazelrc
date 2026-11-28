@@ -142,6 +142,8 @@ common:cache:edge --config=cache:frontend
 # Developer cache config, kept as `--config=cache` for backward compatibility
 common:cache --config=cache:frontend
 common:cache --noremote_upload_local_results
+# zstd over ByteStream, ~2.5-4.7x fewer bytes downloaded; CI excluded (frontend CPU)
+common:cache --remote_cache_compression
 
 # Remote execution config: run Linux x86_64 actions on the Buildbarn agent pool, from any host (e.g. macOS).
 # Target selection is not affected: actions that do not support the Linux x86_64 execution platform fail instead of
