@@ -55,3 +55,15 @@ var nativeOTelHistogramsGate = featuregate.GlobalRegistry().MustRegister(
 	featuregate.StageAlpha,
 	featuregate.WithRegisterDescription("Send OTel histograms from DDOT in the native V3 format instead of converting them to DDSketch."),
 )
+
+// metricMetadataGate, when enabled, submits the descriptions and units of OTLP
+// metrics to the Datadog metric metadata API. It needs api::app_key.
+//
+// Disabled by default (Alpha). Enable via
+//
+//	--feature-gates=+datadog.serializerexporter.SubmitMetricMetadata
+var metricMetadataGate = featuregate.GlobalRegistry().MustRegister(
+	"datadog.serializerexporter.SubmitMetricMetadata",
+	featuregate.StageAlpha,
+	featuregate.WithRegisterDescription("Submit OTLP metric descriptions and units to the Datadog metric metadata API. Needs api::app_key."),
+)

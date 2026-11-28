@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "metadata",
+    srcs = ["submitter.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter/internal/metadata",
+    visibility = [
+        "//comp/otelcol/otlp/components/exporter/serializerexporter:__subpackages__",
+        "@com_github_datadog_datadog_agent_comp_otelcol_otlp_components_exporter_serializerexporter//:__subpackages__",
+    ],
+    deps = [
+        "@com_github_cenkalti_backoff_v7//:backoff",
+        "@com_github_hashicorp_golang_lru_v2//simplelru",
+        "@io_opentelemetry_go_collector_component//:component",
+        "@io_opentelemetry_go_collector_config_confighttp//:confighttp",
+        "@org_golang_x_time//rate",
+        "@org_uber_go_zap//:zap",
+    ],
+)
+
+dd_agent_go_test(
+    name = "metadata_test",
+    srcs = ["submitter_test.go"],
+    embed = [":metadata"],
+    deps = [
+        "@com_github_cenkalti_backoff_v7//:backoff",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
+        "@io_opentelemetry_go_collector_config_confighttp//:confighttp",
+        "@org_golang_x_time//rate",
+    ],
+)

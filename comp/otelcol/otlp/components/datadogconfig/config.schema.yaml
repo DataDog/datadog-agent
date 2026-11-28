@@ -3,6 +3,9 @@ $defs:
     description: APIConfig defines the API configuration options
     type: object
     properties:
+      app_key:
+        description: AppKey is the Datadog application key.
+        $ref: go.opentelemetry.io/collector/config/configopaque.string
       fail_on_invalid_key:
         description: FailOnInvalidKey states whether to exit at startup on invalid API key. The default value is false.
         type: boolean

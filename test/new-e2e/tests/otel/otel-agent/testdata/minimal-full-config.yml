@@ -11,6 +11,7 @@ connectors:
 exporters:
   datadog:
     api:
+      app_key: "[REDACTED]"
       fail_on_invalid_key: false
       key: "[REDACTED]"
       site: datadoghq.com

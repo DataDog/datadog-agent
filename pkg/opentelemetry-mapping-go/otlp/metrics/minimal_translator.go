@@ -226,6 +226,10 @@ func (t *minimalTranslator) mapToDDFormat(ctx context.Context, md pmetric.Metric
 		)
 		return nil
 	}
+	// Summaries are only sent as suffixed metrics.
+	if t.cfg.withMetricMetadata && md.Type() != pmetric.MetricTypeSummary {
+		consumeMetricMetadata(consumer, t.unitMapper, md)
+	}
 	switch md.Type() {
 	case pmetric.MetricTypeGauge:
 		t.mapper.MapNumberMetrics(ctx, consumer, baseDims, Gauge, md.Gauge().DataPoints())
