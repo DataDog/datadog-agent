@@ -32,6 +32,13 @@ checks:
       # The machine has 12GiB free.
       upper_bound: 1.2GiB
 
+  - name: memory_usage_p99_quantile_gate
+    description: "p99 quantile gate on memory usage"
+    quantile_bounds:
+      series: total_pss_bytes
+      quantile: 0.99
+      upper_bound: 1.2GiB
+
   - name: missed_bytes
     description: "Available bytes not polled by log Agent"
     bounds:
