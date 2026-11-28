@@ -25,6 +25,11 @@ type IssuesObserver struct {
 }
 
 // Component is the health platform store component interface.
+// All methods have a caller return-time budget of less than 100 ms at p99,
+// including when identity resolution or persistence is unavailable. Mutations
+// must use bounded buffering and count dropped events on saturation rather than
+// wait for queue space. The store implementation's stress tests enforce this
+// contract; it does not bound eventual processing or persistence latency.
 type Component interface {
 	// RegisterIssuesObserver registers a state-change listener. Multiple observers
 	// may be registered. Observers registered before OnStart also receive
