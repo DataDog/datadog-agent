@@ -9,12 +9,9 @@ Fetch the Jira issue **$ARGUMENTS** from the Datadog Atlassian instance and use 
 
 ## Step 1: Gather Jira issue data
 
-Use the Atlassian MCP tools to fetch the issue. **Only request the fields you need** to avoid huge responses:
+Use the Atlassian MCP tools to fetch the issue:
 
-1. Call `mcp__atlassian__getJiraIssue` with:
-   - `cloudId`: `datadoghq.atlassian.net`
-   - `issueIdOrKey`: `$ARGUMENTS`
-   - `fields`: `["summary", "description", "status", "assignee", "issuetype", "comment", "priority"]`
+1. Call `mcp__atlassian__get_issue` with `issue_key`: `$ARGUMENTS`. The tool takes no field list; it returns the server's default set of issue fields.
 2. Extract the **title** (summary), **description**, **status**, **assignee**, and **comments** from the response.
 
 If the issue cannot be found, stop and inform the user.
