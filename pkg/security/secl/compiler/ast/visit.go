@@ -49,6 +49,60 @@ func Any(n Node, cond func(Node) bool) bool {
 	return do(n)
 }
 
+// MaxDepth is the depth of the deepest tree the compiler accepts. The passes
+// and the compilation walk a tree recursively, its depth bounding the stack they
+// use. A chain of operators, `a || b || c`, is as deep as it is long.
+const MaxDepth = 10000
+
+// TooDeep returns a node of the tree rooted at n deeper than maxDepth, the root
+// being at depth 1, and whether there is one. It doesn't recurse, it walks trees
+// too deep to be walked recursively.
+func TooDeep(n Node, maxDepth int) (Node, bool) {
+	// next is the index of the next part of an interpolation to visit
+	type entry struct {
+		node  Node
+		depth int
+		next  int
+	}
+	var (
+		stack      []entry
+		childDepth int
+	)
+	push := func(x Node) bool {
+		if x != nil {
+			stack = append(stack, entry{x, childDepth, 0})
+		}
+		return false
+	}
+	childDepth = 1
+	push(n)
+	// keep the stack proportional to the depth: an array or an interpolation
+	// can have as many members or parts as the policy has room for
+	for len(stack) > 0 {
+		top := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		if top.depth > maxDepth {
+			return top.node, true
+		}
+		childDepth = top.depth + 1
+		switch node := top.node.(type) {
+		case *Array:
+			// its members are leaves
+			if len(node.Members) > 0 && childDepth > maxDepth {
+				return node.Members[0], true
+			}
+		case *Interpolation:
+			if top.next < len(node.Parts) {
+				stack = append(stack, entry{node, top.depth, top.next + 1})
+				push(node.Parts[top.next])
+			}
+		default:
+			DoChildren(top.node, push)
+		}
+	}
+	return nil, false
+}
+
 // Copy returns a shallow copy of n: the copy shares the children of n.
 func Copy[N Node](n N) N {
 	return n.copy().(N)

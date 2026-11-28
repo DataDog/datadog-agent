@@ -5,6 +5,7 @@ go_library(
     name = "pass",
     srcs = [
         "bools.go",
+        "depth.go",
         "fields.go",
         "idents.go",
         "nnf.go",

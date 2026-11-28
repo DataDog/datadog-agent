@@ -7,6 +7,8 @@
 package parser
 
 import (
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -674,4 +676,119 @@ func TestSyntaxErrors(t *testing.T) {
 			require.Equal(t, test.expected, errs.Format(test.expr))
 		})
 	}
+}
+
+func TestDepthLimit(t *testing.T) {
+	nest := func(open, inner, close string, n int) string {
+		return strings.Repeat(open, n) + inner + strings.Repeat(close, n)
+	}
+	chain := func(op string, n int) string {
+		return `a == 1` + strings.Repeat(" "+op+" a == 1", n)
+	}
+
+	accepted := map[string]string{
+		"parentheses": nest("(", `a == 1`, ")", 500),
+		"negations":   nest("!", `a`, "", 500),
+		"subscripts":  nest("a[", `0`, "]", 500) + ` == 1`,
+		"or chain":    chain("||", 9000),
+		"and chain":   chain("&&", 9000),
+		"sum":         `a == 1` + strings.Repeat(" + 1", 9000),
+		"mixed":       nest("!(", chain("||", 300), ")", 300),
+		"selectors":   `a` + strings.Repeat(".b", 9000) + ` == 1`,
+	}
+	for name, expr := range accepted {
+		t.Run("accepted "+name, func(t *testing.T) {
+			_, err := parseRule(expr)
+			require.NoError(t, err)
+			_, err = parseMacro(expr)
+			require.NoError(t, err)
+		})
+	}
+
+	rejected := map[string]string{
+		"parentheses":   nest("(", `a == 1`, ")", 2000),
+		"negations":     nest("!", `a`, "", 2000),
+		"signs":         nest("- ", `a`, "", 2000) + ` == 1`,
+		"subscripts":    nest("a[", `0`, "]", 2000) + ` == 1`,
+		"or chain":      chain("||", 11000),
+		"and chain":     chain("&&", 11000),
+		"sum":           `a == 1` + strings.Repeat(" + 1", 11000),
+		"mixed":         nest("!(", chain("||", 600), ")", 600),
+		"selectors":     `a` + strings.Repeat(".b", 11000) + ` == 1`,
+		"name in array": `a in [b` + strings.Repeat(".c", 11000) + `]`,
+		"nested names in array": `a in [` + strings.Repeat("b[", 20) + `0` +
+			strings.Repeat("]"+strings.Repeat(".c", 600), 20) + `]`,
+	}
+	for name, expr := range rejected {
+		t.Run("rejected "+name, func(t *testing.T) {
+			_, err := parseRule(expr)
+			require.ErrorContains(t, err, "expression too deep")
+			_, err = parseMacro(expr)
+			require.ErrorContains(t, err, "expression too deep")
+		})
+	}
+}
+
+func TestDepthLimitWideNodes(t *testing.T) {
+	rule := func(expr string) ast.Node {
+		rule, err := parseRule(expr)
+		require.NoError(t, err)
+		return rule.Root
+	}
+	array := func(n int) ast.Node {
+		members := make([]string, n)
+		for i := range members {
+			members[i] = strconv.Itoa(i)
+		}
+		return rule(`a in [` + strings.Join(members, ", ") + `]`)
+	}
+	interpolation := func(n int) ast.Node {
+		return rule(`a == "` + strings.Repeat("${v}", n) + `%{b.c}"`)
+	}
+
+	// `a in [...]` is 3 levels deep, its members being the deepest
+	root := array(3)
+	node, ok := ast.TooDeep(root, 2)
+	require.True(t, ok)
+	require.IsType(t, &ast.Literal{}, node)
+	_, ok = ast.TooDeep(root, 3)
+	require.False(t, ok)
+
+	// `a == "${v}%{b.c}"` is 4 levels deep, `b` in its last part being the deepest
+	root = interpolation(1)
+	node, ok = ast.TooDeep(root, 3)
+	require.True(t, ok)
+	require.IsType(t, &ast.Ident{}, node)
+	_, ok = ast.TooDeep(root, 4)
+	require.False(t, ok)
+
+	allocs := func(root ast.Node) float64 {
+		return testing.AllocsPerRun(10, func() { ast.TooDeep(root, ast.MaxDepth) })
+	}
+	require.Equal(t, allocs(array(1)), allocs(array(100000)), "checking an array allocates per member")
+	require.Equal(t, allocs(interpolation(1)), allocs(interpolation(100000)), "checking an interpolation allocates per part")
+}
+
+func TestIPv6Lookahead(t *testing.T) {
+	first := func(src string) Token {
+		var errs ErrorList
+		return newScanner("", src, &errs).next()
+	}
+
+	// the longest IPv6
+	longest := "ffff:ffff:ffff:ffff:ffff:ffff:255.255.255.255"
+	require.Equal(t, Token{Kind: IP, Text: longest, Pos: ast.Position{Line: 1, Column: 1}}, first(longest+" == a"))
+
+	// a run of hexadecimal digits and dots longer than any IPv6 is a name,
+	// whatever follows it
+	name := "a" + strings.Repeat(".b", 100)
+	for _, src := range []string{name + " == 1", name + ":1 == 1"} {
+		tok := first(src)
+		require.Equal(t, Ident, tok.Kind, src)
+		require.Equal(t, "a", tok.Text, src)
+	}
+
+	rule, err := parseRule(name + ` == 1`)
+	require.NoError(t, err)
+	require.Equal(t, name, ast.Sprint(rule.Root.(*ast.ScalarCompareExpr).Left))
 }
