@@ -38,70 +38,21 @@ var (
 
 				// return the original path if no overlay fs
 				// this will cause a non-matching path to be evaluated twice
-				// because of the OR operator used in OverlayFSPathname
+				// because the field value and this extra input are both compared
 				return path
 			},
 		}
 	}
 
-	// OverlayFSPathname handles path evaluations when the file is accessed through an overlayfs mountpoint
+	// OverlayFSPathname handles path evaluations when the file is accessed through an overlayfs mountpoint:
+	// the path relative to the mountpoint is compared too, with patterns as globs
 	OverlayFSPathname = &eval.OpOverrides{
-		StringEquals: func(a *eval.StringEvaluator, b *eval.StringEvaluator, state *eval.State) (*eval.BoolEvaluator, error) {
-			baseEvaluator, err := eval.GlobCmp.StringEquals(a, b, state)
-			if err != nil {
-				return nil, err
+		GlobPatterns: true,
+		ExtraInputs: func(field eval.Field) []*eval.StringEvaluator {
+			if !strings.HasSuffix(field, ".file.path") {
+				return nil
 			}
-
-			if strings.HasSuffix(a.Field, ".file.path") {
-				overlayFSPathEvaluator, err := eval.GlobCmp.StringEquals(overlayFSEvaluator(a.Field), b, state)
-				if err != nil {
-					return nil, err
-				}
-				return eval.Or(baseEvaluator, overlayFSPathEvaluator, state)
-			} else if strings.HasSuffix(b.Field, ".file.path") {
-				overlayFSPathEvaluator, err := eval.GlobCmp.StringEquals(overlayFSEvaluator(b.Field), a, state)
-				if err != nil {
-					return nil, err
-				}
-				return eval.Or(baseEvaluator, overlayFSPathEvaluator, state)
-			}
-
-			return baseEvaluator, nil
-		},
-		StringValuesContains: func(a *eval.StringEvaluator, b *eval.StringValuesEvaluator, state *eval.State) (*eval.BoolEvaluator, error) {
-			baseEvaluator, err := eval.GlobCmp.StringValuesContains(a, b, state)
-			if err != nil {
-				return nil, err
-			}
-
-			if strings.HasSuffix(a.Field, ".file.path") {
-				overlayFSPathEvaluator, err := eval.GlobCmp.StringValuesContains(overlayFSEvaluator(a.Field), b, state)
-				if err != nil {
-					return nil, err
-				}
-				return eval.Or(baseEvaluator, overlayFSPathEvaluator, state)
-			}
-
-			return baseEvaluator, nil
-		},
-		StringArrayContains: func(a *eval.StringEvaluator, b *eval.StringArrayEvaluator, state *eval.State) (*eval.BoolEvaluator, error) {
-			baseEvaluator, err := eval.GlobCmp.StringArrayContains(a, b, state)
-			if err != nil {
-				return nil, err
-			}
-
-			if strings.HasSuffix(a.Field, ".file.path") {
-				overlayFSPathEvaluator, err := eval.GlobCmp.StringArrayContains(overlayFSEvaluator(a.Field), b, state)
-				if err != nil {
-					return nil, err
-				}
-				return eval.Or(baseEvaluator, overlayFSPathEvaluator, state)
-			}
-
-			return baseEvaluator, nil
-		},
-		StringArrayMatches: func(a *eval.StringArrayEvaluator, b *eval.StringValuesEvaluator, state *eval.State) (*eval.BoolEvaluator, error) {
-			return eval.GlobCmp.StringArrayMatches(a, b, state)
+			return []*eval.StringEvaluator{overlayFSEvaluator(field)}
 		},
 	}
 )

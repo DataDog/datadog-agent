@@ -16,40 +16,11 @@ var (
 		return "." + pattern, nil
 	}
 
-	// ExtensionCmp normalizes file extension values by stripping a leading dot,
-	// allowing rules to use either ".txt" or "txt" to match the same extension.
+	// ExtensionCmp prefixes the rule's extension values with a dot, as resolved
+	// extensions keep theirs, allowing rules to use either ".txt" or "txt".
 	ExtensionCmp = &OpOverrides{
-		StringEquals: func(a *StringEvaluator, b *StringEvaluator, state *State) (*BoolEvaluator, error) {
-			if a.Field != "" {
-				a.StringCmpOpts.Sanitize = extensionSanitizer
-			} else if b.Field != "" {
-				b.StringCmpOpts.Sanitize = extensionSanitizer
-			}
-
-			return StringEquals(a, b, state)
-		},
-		StringValuesContains: func(a *StringEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
-			if a.Field != "" {
-				a.StringCmpOpts.Sanitize = extensionSanitizer
-			}
-
-			return StringValuesContains(a, b, state)
-		},
-		StringArrayContains: func(a *StringEvaluator, b *StringArrayEvaluator, state *State) (*BoolEvaluator, error) {
-			if a.Field != "" {
-				a.StringCmpOpts.Sanitize = extensionSanitizer
-			} else if b.Field != "" {
-				b.StringCmpOpts.Sanitize = extensionSanitizer
-			}
-
-			return StringArrayContains(a, b, state)
-		},
-		StringArrayMatches: func(a *StringArrayEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
-			if a.Field != "" {
-				a.StringCmpOpts.Sanitize = extensionSanitizer
-			}
-
-			return StringArrayMatches(a, b, state)
+		StringCmpOpts: StringCmpOpts{
+			Sanitize: extensionSanitizer,
 		},
 	}
 )

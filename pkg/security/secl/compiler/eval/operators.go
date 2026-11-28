@@ -11,14 +11,6 @@ import (
 	"strings"
 )
 
-// OpOverrides defines operator override functions
-type OpOverrides struct {
-	StringEquals         func(a *StringEvaluator, b *StringEvaluator, state *State) (*BoolEvaluator, error)
-	StringValuesContains func(a *StringEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error)
-	StringArrayContains  func(a *StringEvaluator, b *StringArrayEvaluator, state *State) (*BoolEvaluator, error)
-	StringArrayMatches   func(a *StringArrayEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error)
-}
-
 // Unary evaluator
 func Unary(a *BoolEvaluator, state *State) (*BoolEvaluator, error) {
 	if a.Field != "" {
@@ -507,6 +499,12 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, state *Sta
 
 // StringValuesContains evaluates a string against values
 func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
+	return stringValuesContains(a, b, state, false)
+}
+
+// stringValuesContains evaluates a string against values, compiling them with
+// the comparison options of the string unless they already are
+func stringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, state *State, compiled bool) (*BoolEvaluator, error) {
 	if a.Field != "" {
 		for _, value := range b.Values.fieldValues {
 			if err := state.UpdateFieldValues(a.Field, value); err != nil {
@@ -515,8 +513,10 @@ func StringValuesContains(a *StringEvaluator, b *StringValuesEvaluator, state *S
 		}
 	}
 
-	if err := b.Compile(a.StringCmpOpts); err != nil {
-		return nil, err
+	if !compiled {
+		if err := b.Compile(a.StringCmpOpts); err != nil {
+			return nil, err
+		}
 	}
 
 	if a.EvalFnc != nil && b.EvalFnc != nil {

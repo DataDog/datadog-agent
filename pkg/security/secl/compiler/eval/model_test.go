@@ -8,7 +8,6 @@ package eval
 
 import (
 	"container/list"
-	"errors"
 	"fmt"
 	"net"
 	"reflect"
@@ -44,11 +43,8 @@ type testProcess struct {
 	array     []*testItem
 	createdAt int64
 
-	// overridden values
-	orName        string
-	orNameValues  func() *StringValues
-	orArray       []*testItem
-	orArrayValues func() *StringValues
+	// overridden value
+	orName string
 }
 
 type testOpen struct {
@@ -543,59 +539,18 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID, offset int) (Eva
 			Field: field,
 			OpOverrides: []*OpOverrides{
 				{
-					StringValuesContains: func(a *StringEvaluator, _ *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
-						evaluator := StringValuesEvaluator{
-							EvalFnc: func(ctx *Context) *StringValues {
-								return ctx.Event.(*testEvent).process.orNameValues()
-							},
+					// only `==` with a static value, matching the upper-cased value
+					EqualsOnly: true,
+					StaticEquals: func(field Field, value string, _ *State) (*BoolEvaluator, error) {
+						if field != "process.or_name" {
+							return nil, fmt.Errorf("unexpected field `%s`", field)
 						}
-
-						return StringValuesContains(a, &evaluator, state)
-					},
-					StringEquals: func(a *StringEvaluator, _ *StringEvaluator, state *State) (*BoolEvaluator, error) {
-						evaluator := StringValuesEvaluator{
-							EvalFnc: func(ctx *Context) *StringValues {
-								return ctx.Event.(*testEvent).process.orNameValues()
+						value = strings.ToUpper(value)
+						return &BoolEvaluator{
+							EvalFnc: func(ctx *Context) bool {
+								return ctx.Event.(*testEvent).process.orName == value
 							},
-						}
-
-						return StringValuesContains(a, &evaluator, state)
-					},
-				},
-			}}, nil
-
-	case "process.or_array.value":
-
-		return &StringArrayEvaluator{
-			EvalFnc: func(ctx *Context) []string {
-				var values []string
-
-				for _, el := range ctx.Event.(*testEvent).process.orArray {
-					values = append(values, el.value)
-				}
-
-				return values
-			},
-			Field: field,
-			OpOverrides: []*OpOverrides{
-				{
-					StringArrayContains: func(_ *StringEvaluator, b *StringArrayEvaluator, state *State) (*BoolEvaluator, error) {
-						evaluator := StringValuesEvaluator{
-							EvalFnc: func(ctx *Context) *StringValues {
-								return ctx.Event.(*testEvent).process.orArrayValues()
-							},
-						}
-
-						return StringArrayMatches(b, &evaluator, state)
-					},
-					StringArrayMatches: func(a *StringArrayEvaluator, _ *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
-						evaluator := StringValuesEvaluator{
-							EvalFnc: func(ctx *Context) *StringValues {
-								return ctx.Event.(*testEvent).process.orArrayValues()
-							},
-						}
-
-						return StringArrayMatches(a, &evaluator, state)
+						}, nil
 					},
 				},
 			}}, nil
@@ -656,64 +611,30 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID, offset int) (Eva
 			OpOverrides: []*OpOverrides{
 				{
 					// Title case comparison
-					StringEquals: func(a *StringEvaluator, b *StringEvaluator, state *State) (*BoolEvaluator, error) {
-						baseEvaluator, err := StringEquals(a, b, state)
-						if err != nil {
-							return nil, err
+					ExtraInputs: func(field Field) []*StringEvaluator {
+						if field != "event.title" {
+							return nil
 						}
-
-						titleStringEvaluator := &StringEvaluator{
+						return []*StringEvaluator{{
 							EvalFnc: func(ctx *Context) string {
 								return cases.Title(language.English).String(ctx.Event.(*testEvent).title)
 							},
 							Field: field,
-						}
-
-						var titleEvaluator *BoolEvaluator
-						var errTitleEvaluator error
-						if a.Field == "event.title" {
-							titleEvaluator, errTitleEvaluator = StringEquals(titleStringEvaluator, b, state)
-						} else if b.Field == "event.title" {
-							titleEvaluator, errTitleEvaluator = StringEquals(titleStringEvaluator, a, state)
-						} else {
-							return nil, errors.New("at least one evaluator must be event.title")
-						}
-						if errTitleEvaluator != nil {
-							return nil, errTitleEvaluator
-						}
-
-						return Or(baseEvaluator, titleEvaluator, state)
+						}}
 					},
 				},
 				{
 					// Upper case comparison
-					StringEquals: func(a *StringEvaluator, b *StringEvaluator, state *State) (*BoolEvaluator, error) {
-						baseEvaluator, err := StringEquals(a, b, state)
-						if err != nil {
-							return nil, err
+					ExtraInputs: func(field Field) []*StringEvaluator {
+						if field != "event.title" {
+							return nil
 						}
-
-						upperCaseStringEvaluator := &StringEvaluator{
+						return []*StringEvaluator{{
 							EvalFnc: func(ctx *Context) string {
 								return strings.ToUpper(ctx.Event.(*testEvent).title)
 							},
 							Field: field,
-						}
-
-						var upperEvaluator *BoolEvaluator
-						var errUpperEvaluator error
-						if a.Field == "event.title" {
-							upperEvaluator, errUpperEvaluator = StringEquals(upperCaseStringEvaluator, b, state)
-						} else if b.Field == "event.title" {
-							upperEvaluator, errUpperEvaluator = StringEquals(upperCaseStringEvaluator, a, state)
-						} else {
-							return nil, errors.New("at least one evaluator must be event.title")
-						}
-						if errUpperEvaluator != nil {
-							return nil, errUpperEvaluator
-						}
-
-						return Or(baseEvaluator, upperEvaluator, state)
+						}}
 					},
 				},
 			},
@@ -890,10 +811,6 @@ func (e *testEvent) GetFieldMetadata(field Field) (string, reflect.Kind, string,
 		return "", reflect.Int, "int", false, nil
 
 	case "process.or_name":
-
-		return "", reflect.String, "string", false, nil
-
-	case "process.or_array.value":
 
 		return "", reflect.String, "string", false, nil
 
