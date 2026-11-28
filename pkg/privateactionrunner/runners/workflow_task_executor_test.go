@@ -9,7 +9,9 @@ import (
 	"context"
 	"errors"
 	"math"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -408,6 +410,81 @@ func TestWorkflowRunnerPublishesFailureWhenTaskPreparationFails(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for runner loop to stop")
 	}
+}
+
+func TestWorkflowRunnerDoesNotDequeueWhilePoolIsFull(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		var dequeueCount atomic.Int32
+		shutdown := make(chan struct{})
+		runner := &WorkflowRunner{
+			config: &config.Config{
+				LoopInterval: time.Second,
+				MaxAttempts:  1,
+			},
+			opmsClient: &testopms.FakeOpmsClient{
+				DequeueTaskFn: func(_ context.Context) (*types.Task, time.Duration, error) {
+					dequeueCount.Add(1)
+					return nil, 0, nil
+				},
+			},
+			sem:             make(chan struct{}, 1),
+			shutdownChannel: shutdown,
+		}
+		runner.sem <- struct{}{}
+		done := make(chan struct{})
+		go func() {
+			runner.run(context.Background())
+			close(done)
+		}()
+
+		synctest.Wait()
+		assert.Zero(t, dequeueCount.Load(), "dequeued a task while the pool was full")
+
+		<-runner.sem
+		synctest.Wait()
+		assert.EqualValues(t, 1, dequeueCount.Load())
+
+		// A second dequeue proves the empty dequeue released its slot.
+		time.Sleep(runner.config.LoopInterval)
+		synctest.Wait()
+		assert.EqualValues(t, 2, dequeueCount.Load())
+
+		close(shutdown)
+		<-done
+	})
+}
+
+func TestWorkflowRunnerStopsWhileWaitingForPoolSlot(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		var dequeueCount atomic.Int32
+		shutdown := make(chan struct{})
+		runner := &WorkflowRunner{
+			config: &config.Config{
+				LoopInterval: time.Hour,
+				MaxAttempts:  1,
+			},
+			opmsClient: &testopms.FakeOpmsClient{
+				DequeueTaskFn: func(_ context.Context) (*types.Task, time.Duration, error) {
+					dequeueCount.Add(1)
+					return nil, 0, nil
+				},
+			},
+			sem:             make(chan struct{}, 1),
+			shutdownChannel: shutdown,
+		}
+		runner.sem <- struct{}{}
+		done := make(chan struct{})
+		go func() {
+			runner.run(context.Background())
+			close(done)
+		}()
+
+		synctest.Wait()
+		assert.Zero(t, dequeueCount.Load(), "dequeued a task while the pool was full")
+
+		close(shutdown)
+		<-done
+	})
 }
 
 func TestWorkflowRunner_StartHeartbeat_StopsOnJobNotFound(t *testing.T) {
