@@ -197,25 +197,45 @@ func AcquireIdleInstance(ctx context.Context, region, profile, leaseBucket strin
 	return "", "", "", fmt.Errorf("%w in pool of %d", errPoolExhausted, len(pool))
 }
 
+// ReleaseResult reports what RevertAndRelease did to the instance's root volume.
+type ReleaseResult struct {
+	// Reverted is true when the root volume was replaced from the baseline image
+	// before the lease was released.
+	Reverted bool
+	// SkipReason explains why the revert was intentionally skipped when Reverted is
+	// false (persistent lease, dev mode).
+	SkipReason string
+}
+
+// ErrNoBaselineImage reports a non-persistent lease without an imageId: the instance
+// cannot be reverted, so it must not be released for another run to reuse.
+var ErrNoBaselineImage = errors.New("lease has no baseline image to revert to")
+
 // RevertAndRelease reverts instanceID's root volume to the lease's current baseline
 // image and releases the lease, conditioned on leaseToken matching the lease
-// object's current ETag. The revert is skipped in dev mode or for a persistent lease.
-func RevertAndRelease(ctx context.Context, region, profile, leaseBucket, instanceID, leaseToken string, devMode bool) error {
+// object's current ETag. The revert is intentionally skipped in dev mode or for a
+// persistent lease; the result says whether it happened.
+//
+// If the instance needs a revert but cannot get one (the lease has no imageId, the
+// baseline image no longer exists, or the revert fails), the lease is left untouched
+// and held, and an error is returned. Releasing it would hand a dirty instance to
+// the next run; leaving it held lets the pool maintenance job reset or rebuild it.
+func RevertAndRelease(ctx context.Context, region, profile, leaseBucket, instanceID, leaseToken string, devMode bool) (ReleaseResult, error) {
 	s3Client, err := newS3Client(ctx, region, profile)
 	if err != nil {
-		return err
+		return ReleaseResult{}, err
 	}
 
 	key := leasePrefix + instanceID
 	getOut, err := s3Client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(leaseBucket), Key: aws.String(key)})
 	if err != nil {
-		return fmt.Errorf("failed to read lease record for instance %s: %w", instanceID, err)
+		return ReleaseResult{}, fmt.Errorf("failed to read lease record for instance %s: %w", instanceID, err)
 	}
 	var current leaseRecord
 	decodeErr := json.NewDecoder(getOut.Body).Decode(&current)
 	getOut.Body.Close()
 	if decodeErr != nil {
-		return fmt.Errorf("failed to decode lease record for instance %s: %w", instanceID, decodeErr)
+		return ReleaseResult{}, fmt.Errorf("failed to decode lease record for instance %s: %w", instanceID, decodeErr)
 	}
 
 	// Check ownership before touching the disk. The conditional write at the end would
@@ -223,28 +243,51 @@ func RevertAndRelease(ctx context.Context, region, profile, leaseBucket, instanc
 	// would destroy the disk of whichever run now holds the lease. This narrows that race
 	// without closing it: the check and CreateReplaceRootVolumeTask are not atomic.
 	if currentToken := aws.ToString(getOut.ETag); currentToken != leaseToken {
-		return fmt.Errorf("lease for instance %s changed hands (token %s, current %s): refusing to revert or release",
+		return ReleaseResult{}, fmt.Errorf("lease for instance %s changed hands (token %s, current %s): refusing to revert or release",
 			instanceID, leaseToken, currentToken)
 	}
 
-	imageID := current.ImageID
-	if imageID != "" && !current.Persistent && !devMode {
-		ec2Client, err := NewEC2Client(ctx, region, profile)
-		if err != nil {
-			return err
-		}
-
-		if revertErr := revertRootVolume(ctx, ec2Client, instanceID, imageID); revertErr != nil {
-			if errors.Is(revertErr, errImageUnresolvable) {
-				fmt.Printf("WARNING: baseline image %s for instance %s is no longer resolvable, skipping revert: %v\n", imageID, instanceID, revertErr)
-				imageID = "" // baseline no longer resolvable: skip revert, clear it, still release
-			} else {
-				return fmt.Errorf("failed to revert root volume for instance %s: %w", instanceID, revertErr)
-			}
-		}
+	skipReason, err := revertSkipReason(current, devMode)
+	if err != nil {
+		return ReleaseResult{}, fmt.Errorf("instance %s: %w: keeping the lease held so the instance is not reused without a reset", instanceID, err)
 	}
 
-	return releaseLease(ctx, s3Client, leaseBucket, instanceID, leaseToken, statusIdle, imageID, current.Persistent)
+	result := ReleaseResult{SkipReason: skipReason}
+	if skipReason == "" {
+		ec2Client, err := NewEC2Client(ctx, region, profile)
+		if err != nil {
+			return ReleaseResult{}, err
+		}
+
+		if revertErr := revertRootVolume(ctx, ec2Client, instanceID, current.ImageID); revertErr != nil {
+			// Never clear the imageId or release here: the lease keeps pointing at the
+			// baseline so pool maintenance can reset the instance, or rebuild it if the
+			// image is gone.
+			return ReleaseResult{}, fmt.Errorf("failed to revert root volume for instance %s: keeping the lease held so the instance is not reused without a reset: %w", instanceID, revertErr)
+		}
+		result.Reverted = true
+	}
+
+	if err := releaseLease(ctx, s3Client, leaseBucket, instanceID, leaseToken, statusIdle, current.ImageID, current.Persistent); err != nil {
+		return ReleaseResult{}, err
+	}
+	return result, nil
+}
+
+// revertSkipReason reports why releasing current may skip the root volume revert, or
+// "" when a revert from current.ImageID is required first. It fails with
+// ErrNoBaselineImage when a revert is required but the lease has no image to revert to.
+func revertSkipReason(current leaseRecord, devMode bool) (string, error) {
+	switch {
+	case current.Persistent:
+		return "persistent lease", nil
+	case devMode:
+		return "dev mode", nil
+	case current.ImageID == "":
+		return "", ErrNoBaselineImage
+	default:
+		return "", nil
+	}
 }
 
 // RevertInPlace reverts instanceID's root volume to the lease's current baseline
@@ -297,29 +340,52 @@ func RevertInPlace(ctx context.Context, region, profile, leaseBucket, instanceID
 }
 
 // errImageUnresolvable marks a revertRootVolume failure caused by imageID no longer
-// resolving to an existing AMI/snapshot, as opposed to an actual revert failure.
+// resolving to an existing AMI/snapshot, as opposed to a transient or API failure.
 var errImageUnresolvable = errors.New("baseline image no longer resolvable")
 
 // revertRootVolume resolves imageID to its root EBS snapshot and replaces
 // instanceID's root volume with it, blocking until the replacement completes.
 func revertRootVolume(ctx context.Context, client *awsec2.Client, instanceID, imageID string) error {
-	snapshotID, resolveErr := resolveSnapshotID(ctx, client, imageID)
-	if resolveErr != nil {
-		return fmt.Errorf("%w: %s: %w", errImageUnresolvable, imageID, resolveErr)
+	snapshotID, err := resolveSnapshotID(ctx, client, imageID)
+	if err != nil {
+		return err
 	}
 	return replaceRootVolume(ctx, client, instanceID, snapshotID)
 }
 
-// resolveSnapshotID returns the root EBS snapshot ID backing imageID.
+// resolveSnapshotID returns the root EBS snapshot ID backing imageID. It fails with
+// errImageUnresolvable only when the image itself is gone or has no root snapshot;
+// any other DescribeImages failure (throttling, permissions, ...) is returned as is.
 func resolveSnapshotID(ctx context.Context, client *awsec2.Client, imageID string) (string, error) {
 	out, err := client.DescribeImages(ctx, &awsec2.DescribeImagesInput{ImageIds: []string{imageID}})
 	if err != nil {
+		if isImageNotFound(err) {
+			return "", fmt.Errorf("%w: image %s does not exist: %w", errImageUnresolvable, imageID, err)
+		}
 		return "", fmt.Errorf("failed to describe image %s: %w", imageID, err)
 	}
-	if len(out.Images) == 0 || len(out.Images[0].BlockDeviceMappings) == 0 || out.Images[0].BlockDeviceMappings[0].Ebs == nil || out.Images[0].BlockDeviceMappings[0].Ebs.SnapshotId == nil {
-		return "", fmt.Errorf("image %s has no root snapshot", imageID)
+	if len(out.Images) == 0 {
+		return "", fmt.Errorf("%w: image %s does not exist", errImageUnresolvable, imageID)
 	}
-	return *out.Images[0].BlockDeviceMappings[0].Ebs.SnapshotId, nil
+	mappings := out.Images[0].BlockDeviceMappings
+	if len(mappings) == 0 || mappings[0].Ebs == nil || mappings[0].Ebs.SnapshotId == nil {
+		return "", fmt.Errorf("%w: image %s has no root snapshot", errImageUnresolvable, imageID)
+	}
+	return *mappings[0].Ebs.SnapshotId, nil
+}
+
+// isImageNotFound reports whether err is EC2's answer for an AMI ID that does not
+// exist (deregistered, or never existed).
+func isImageNotFound(err error) bool {
+	var apiErr apiError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	switch apiErr.ErrorCode() {
+	case "InvalidAMIID.NotFound", "InvalidAMIID.Unavailable":
+		return true
+	}
+	return false
 }
 
 // replaceRootVolume creates a replace-root-volume task for instanceID from
