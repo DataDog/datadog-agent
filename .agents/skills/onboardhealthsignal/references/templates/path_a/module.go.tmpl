@@ -1,0 +1,46 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright __YEAR__-present Datadog, Inc.
+
+// Package __PKG__ reports __ISSUE_NAME__ issues to the Agent Health platform.
+package __PKG__
+
+import (
+__MODULE_IMPORTS__
+)
+
+const (
+	// IssueName is the human-readable issue name and the template registry key.
+	IssueName = "__ISSUE_NAME__"
+	// IssueType is IssueName lowercased with spaces replaced by underscores (hyphens kept).
+	IssueType = "__ISSUE_TYPE__"
+	// IssueID is the stable instance ID prefix; callers append a per-host/instance suffix.
+	IssueID = "__ISSUE_ID__"
+)
+__CHECKSOURCE_CONST__
+func init() {
+	issues.RegisterModuleFactory(NewModule)
+}
+
+type __MODULE_STRUCT__ struct {
+__MODULE_FIELDS__}
+
+// NewModule creates the __ISSUE_NAME__ health issue module.
+func NewModule(deps issues.ModuleDeps) issues.Module {
+__MODULE_CTOR__
+}
+
+func (m *__MODULE_STRUCT__) IssueName() string {
+	return IssueName
+}
+
+func (m *__MODULE_STRUCT__) IssueType() string {
+	return IssueType
+}
+
+func (m *__MODULE_STRUCT__) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
+	return __TYPE_STRUCT__{}.BuildIssue(context)
+}
+
+__CHECK_METHODS__

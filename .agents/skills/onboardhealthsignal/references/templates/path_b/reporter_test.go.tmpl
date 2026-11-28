@@ -1,0 +1,187 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright __YEAR__-present Datadog, Inc.
+
+package __OWNER_PKG__
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"testing"
+
+	healthplatform "github.com/DataDog/agent-payload/v5/healthplatform"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	healthissue "__ISSUE_IMPORT_PATH__"
+)
+
+type fake__REPORTER__Store struct {
+	reported  []*healthplatform.Issue
+	resolved  []string
+	active    []string
+	reportErr error
+}
+
+func (f *fake__REPORTER__Store) ReportIssue(issue *healthplatform.Issue) error {
+	if f.reportErr != nil {
+		return f.reportErr
+	}
+	f.reported = append(f.reported, issue)
+	return nil
+}
+
+func (f *fake__REPORTER__Store) ResolveIssue(id string) { f.resolved = append(f.resolved, id) }
+
+func (f *fake__REPORTER__Store) GetActiveIssueIDsByIssueName(string) []string { return f.active }
+
+type fake__REPORTER__Logger struct{ warnings []string }
+
+func (l *fake__REPORTER__Logger) Warnf(format string, params ...interface{}) error {
+	l.warnings = append(l.warnings, fmt.Sprintf(format, params...))
+	return nil
+}
+
+func failOnHostname() (string, error) { return "", errors.New("no hostname") }
+
+func Test__REPORTER__ReportsOnDetect(t *testing.T) {
+	store := &fake__REPORTER__Store{}
+	r := New__REPORTER__(store, "node-a", nil)
+
+	r.Observe(true, __SAMPLE_CONTEXT__)
+
+	require.Len(t, store.reported, 1)
+	issue := store.reported[0]
+	assert.Contains(t, issue.Id, healthissue.IssueID+":")
+	assert.Equal(t, healthissue.IssueName, issue.IssueName)
+	assert.Equal(t, healthissue.IssueType, issue.IssueType)
+	assert.NotEmpty(t, issue.Title)
+
+	r.Observe(true, __SAMPLE_CONTEXT__)
+	assert.Len(t, store.reported, 1, "an unchanged condition must not report again")
+
+	r.Observe(true, map[string]string{"changed": "yes"})
+	assert.Len(t, store.reported, 2, "a changed context reports again")
+}
+
+func Test__REPORTER__ResolvesOnClear(t *testing.T) {
+	store := &fake__REPORTER__Store{}
+	r := New__REPORTER__(store, "node-a", nil)
+	r.Observe(true, __SAMPLE_CONTEXT__)
+	id := store.reported[0].Id
+	store.resolved = nil
+
+	r.Observe(false, nil)
+
+	assert.Equal(t, []string{id}, store.resolved)
+	r.Observe(false, nil)
+	assert.Equal(t, []string{id}, store.resolved, "an already clear condition must not resolve again")
+}
+
+func Test__REPORTER__ResolvesIDsPersistedUnderAnotherID(t *testing.T) {
+	store := &fake__REPORTER__Store{active: []string{healthissue.IssueID + ":previous-host"}}
+	r := New__REPORTER__(store, "node-a", nil)
+
+	r.Observe(true, __SAMPLE_CONTEXT__)
+
+	assert.Contains(t, store.resolved, healthissue.IssueID+":previous-host")
+	assert.NotContains(t, store.resolved, store.reported[0].Id, "the current ID stays active")
+}
+
+func Test__REPORTER__ResolveAllWhenTheOwnerIsDisabled(t *testing.T) {
+	store := &fake__REPORTER__Store{active: []string{healthissue.IssueID + ":a", healthissue.IssueID + ":b"}}
+	r := New__REPORTER__(store, "node-a", nil)
+
+	r.ResolveAll()
+
+	assert.ElementsMatch(t, []string{healthissue.IssueID + ":a", healthissue.IssueID + ":b"}, store.resolved)
+}
+
+func Test__REPORTER__IDsAreHashedAndScopedPerHost(t *testing.T) {
+	a := new__REPORTER__(&fake__REPORTER__Store{}, "node-a", nil, failOnHostname)
+	b := new__REPORTER__(&fake__REPORTER__Store{}, "node-b", nil, failOnHostname)
+	again := new__REPORTER__(&fake__REPORTER__Store{}, "node-a", nil, failOnHostname)
+
+	assert.NotEqual(t, a.id, b.id)
+	assert.Equal(t, a.id, again.id)
+	assert.NotContains(t, a.id, "node-a", "the host name is hashed, not embedded")
+	assert.Regexp(t, `^`+healthissue.IssueID+`:[0-9a-f]{16}$`, a.id)
+}
+
+func Test__REPORTER__EmptyHostnameFallsBackToTheOSHostname(t *testing.T) {
+	viaFallback := new__REPORTER__(&fake__REPORTER__Store{}, "", nil, func() (string, error) { return "os-host", nil })
+	explicit := new__REPORTER__(&fake__REPORTER__Store{}, "os-host", nil, failOnHostname)
+	unknown := new__REPORTER__(&fake__REPORTER__Store{}, "", nil, failOnHostname)
+	emptyHash := new__REPORTER__(&fake__REPORTER__Store{}, "unknown-host", nil, failOnHostname)
+
+	// If the fallback were removed these would all hash the empty string and the first assertion would fail.
+	assert.Equal(t, explicit.id, viaFallback.id, "an empty hostname must use the OS hostname")
+	assert.Equal(t, emptyHash.id, unknown.id, "with no hostname at all the ID still scopes to a fixed placeholder")
+	assert.NotEqual(t, viaFallback.id, unknown.id)
+}
+
+func Test__REPORTER__CancelledScanNeitherReportsNorResolves(t *testing.T) {
+	store := &fake__REPORTER__Store{}
+	r := New__REPORTER__(store, "node-a", nil)
+	r.Observe(true, __SAMPLE_CONTEXT__)
+	store.reported, store.resolved = nil, nil
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	r.ObserveScan(ctx, false, nil)
+
+	assert.Empty(t, store.resolved, "a cancelled scan carries no information, so it must not resolve")
+	assert.Empty(t, store.reported)
+
+	r.ObserveScan(context.Background(), false, nil)
+	assert.Len(t, store.resolved, 1, "the next completed scan still resolves: the cancelled one left the state alone")
+}
+
+func Test__REPORTER__LogsAndRetriesWhenTheStoreRejectsAReport(t *testing.T) {
+	store := &fake__REPORTER__Store{reportErr: errors.New("store unavailable")}
+	logger := &fake__REPORTER__Logger{}
+	r := New__REPORTER__(store, "node-a", logger)
+
+	r.Observe(true, __SAMPLE_CONTEXT__)
+	require.Len(t, logger.warnings, 1)
+	assert.Contains(t, logger.warnings[0], "cannot report")
+
+	store.reportErr = nil
+	r.Observe(true, __SAMPLE_CONTEXT__)
+	assert.Len(t, store.reported, 1, "a failed report is retried on the next observation")
+}
+
+func Test__REPORTER__LogsWhenTheIssueCannotBeBuilt(t *testing.T) {
+	store := &fake__REPORTER__Store{}
+	logger := &fake__REPORTER__Logger{}
+	r := New__REPORTER__(store, "node-a", logger)
+	r.build = func(map[string]string) (*healthplatform.Issue, error) { return nil, errors.New("boom") }
+
+	r.Observe(true, __SAMPLE_CONTEXT__)
+
+	assert.Empty(t, store.reported)
+	require.Len(t, logger.warnings, 1)
+	assert.Contains(t, logger.warnings[0], "cannot build")
+}
+
+func Test__REPORTER__NilStoreAndNilReporterAreNoOps(t *testing.T) {
+	assert.Nil(t, New__REPORTER__(nil, "node-a", nil))
+	var r *__REPORTER__
+	assert.NotPanics(t, func() {
+		r.Observe(true, __SAMPLE_CONTEXT__)
+		r.ObserveScan(context.Background(), true, __SAMPLE_CONTEXT__)
+		r.ResolveAll()
+	})
+}
+
+// Wiring test recipe. The tests above cover the reporter in isolation; they cannot prove the owner
+// calls it. In the owner's own test package, drive the real detection site with a fake store:
+//   - attach: build the owner with the fake store as its optional dependency and a source that
+//     triggers the condition; Eventually the store has the issue with the per-host ID.
+//   - clear: remove the cause (for example delete a file); Eventually the store resolved that ID.
+//   - nil store: build the owner without a store; the same flow must not panic and reports nothing.
+//   - disabled hook: build the owner disabled with active issues in the store; the disable path
+//     must call ResolveAll and the store must show them resolved.
+// Then mutate the wiring (delete the Observe call, delete the ResolveAll call) and confirm these tests fail.
