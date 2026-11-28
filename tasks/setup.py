@@ -17,7 +17,7 @@ from tasks import vscode
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.status import Status
-from tasks.libs.common.utils import is_linux, is_windows, running_in_pyapp
+from tasks.libs.common.utils import is_linux, is_windows, join_command, running_in_pyapp
 
 
 @dataclass
@@ -175,37 +175,39 @@ def pre_commit(ctx, interactive=True):
 
         return Status.FAIL, message
 
-    try:
-        # Some dd-hooks can mess up with pre-commit
-        hooks_path = ctx.run("git config --global core.hooksPath", hide=True).stdout.strip()
-        ctx.run("git config --global --unset core.hooksPath", hide=True)
-    except Exception:
-        hooks_path = ""
-
-    if running_in_pyapp():
-        import shutil
-
-        # We use a custom version that use deva instead of dda inv directly, that requires the venv to be loaded
-        from pre_commit import update_pyapp_file
-
-        config_file = update_pyapp_file()
-        if not shutil.which("dda"):
-            status = Status.WARN
-            if shutil.which("devagent"):
-                message = "`devagent` has been renamed `dda`. Please, rename your binary, no need to download the new version."
-            else:
-                message = "`dda` is not in your PATH"
-    else:
-        config_file = ".pre-commit-config.yaml"
-
-    # Uninstall in case someone switch from one config to the other
-    ctx.run("pre-commit uninstall", hide=True)
-    ctx.run("pre-commit clean", hide=True)
-    # build-vcs avoids errors when getting go dependencies
-    ctx.run(f"GOFLAGS=-buildvcs=false pre-commit install --config {config_file}", hide=True)
-
+    # Temporarily clear dd-hooks' global path so pre-commit can install repository hooks.
+    result = ctx.run("git config --global core.hooksPath", hide=True, warn=True)
+    hooks_path = result.stdout.strip() if result.ok else ""
     if hooks_path:
-        ctx.run(f"git config --global core.hooksPath {hooks_path}", hide=True)
+        ctx.run("git config --global --unset core.hooksPath", hide=True)
+    try:
+        if running_in_pyapp():
+            import shutil
+
+            from tasks.pre_commit import update_pyapp_file
+
+            config_file = update_pyapp_file()
+            if not shutil.which("dda"):
+                status = Status.WARN
+                if shutil.which("devagent"):
+                    message = "`devagent` has been renamed `dda`. Please, rename your binary, no need to download the new version."
+                else:
+                    message = "`dda` is not in your PATH"
+        else:
+            config_file = ".pre-commit-config.yaml"
+
+        # Remove both the old default pre-push hook and the previous pre-commit configuration.
+        ctx.run("pre-commit uninstall --hook-type pre-push", hide=True)
+        ctx.run("pre-commit uninstall --hook-type pre-commit", hide=True)
+        ctx.run("pre-commit clean", hide=True)
+        ctx.run(
+            join_command(["pre-commit", "install", "--hook-type", "pre-commit", "--config", config_file]),
+            hide=True,
+            env={"GOFLAGS": "-buildvcs=false"},
+        )
+    finally:
+        if hooks_path:
+            ctx.run(join_command(["git", "config", "--global", "core.hooksPath", hooks_path]), hide=True)
 
     if interactive:
         if message:
