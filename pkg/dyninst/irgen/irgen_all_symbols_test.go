@@ -65,6 +65,17 @@ func TestIRGenAllProbes(t *testing.T) {
 			continue
 		}
 		t.Run(pkg, func(t *testing.T) {
+			// The sample program yields ~220k probes per configuration. Running
+			// those configurations in parallel repeatedly runs out of memory on
+			// the KMT arm64 centos_7.9 and centos_8 micro-VMs, sometimes taking
+			// down gotestsum along with the test. A 64KiB page size is what
+			// singles out those VMs, but it is not shown to be the cause: on a
+			// 64KiB-page el8 arm64 VM, this test used less memory than on a
+			// 4KiB-page one. The test only analyzes prebuilt binaries, so the
+			// 4KiB-page hosts keep the same coverage.
+			if pkg == "sample" && os.Getpagesize() > 4096 {
+				t.Skipf("skipping on a host with %d-byte pages: runs out of memory on these KMT VMs", os.Getpagesize())
+			}
 			for _, cfg := range cfgs {
 				t.Run(cfg.String(), func(t *testing.T) {
 					t.Parallel()
