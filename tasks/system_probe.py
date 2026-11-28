@@ -21,7 +21,7 @@ from invoke.tasks import task
 from tasks.bazel import bazel_build_with_bindir
 from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from tasks.flavor import FipsBackend
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import bazel, build_binary_with_bazel
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.color import color_message
 from tasks.libs.common.go import go_build
@@ -39,6 +39,8 @@ from tasks.schema.generate import schema_codegen
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
+
+BAZEL_TARGET = "//cmd/system-probe:system-probe"
 
 BPF_TAG = "bpf"
 BUNDLE_TAG = "ebpf_bindata"
@@ -178,6 +180,7 @@ def build(
     static=False,
     fips_backend=FipsBackend.none,
     glibc=True,
+    enable_bazel=False,
 ):
     """
     Build the system-probe
@@ -196,6 +199,7 @@ def build(
         static=static,
         fips_backend=fips_backend,
         glibc=glibc,
+        enable_bazel=enable_bazel,
     )
 
 
@@ -223,8 +227,32 @@ def build_sysprobe_binary(
     fips_backend=FipsBackend.none,
     static=False,
     glibc=True,
+    enable_bazel=False,
 ) -> None:
     arch_obj = Arch.from_str(arch)
+
+    if enable_bazel:
+        if race:
+            raise NotImplementedError("--enable-bazel does not support --race.")
+        if bundle_ebpf:
+            raise NotImplementedError("--enable-bazel does not support --bundle-ebpf.")
+        if strip_binary:
+            raise NotImplementedError("--enable-bazel does not support --strip-binary.")
+        if static:
+            raise NotImplementedError("--enable-bazel does not support --static.")
+        if not glibc:
+            raise NotImplementedError("--enable-bazel does not support --no-glibc.")
+        if arch_obj.is_cross_compiling():
+            raise NotImplementedError("--enable-bazel does not support cross-compilation.")
+        if is_windows:
+            raise NotImplementedError("--enable-bazel does not support Windows yet (no PDB output).")
+
+        bazel_args = [f"--//:install_dir={install_path}"] if install_path else []
+        # abspath so a bare filename (e.g. --binary=system-probe) has a directory to create.
+        build_binary_with_bazel(
+            BAZEL_TARGET, args=bazel_args, bin_path=os.path.abspath(binary), fips_backend=fips_backend
+        )
+        return
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
