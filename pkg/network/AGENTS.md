@@ -19,3 +19,20 @@ The general rules are in `pkg/ebpf/AGENTS.md`. For network probes, also:
 
 A fuller guide to load-testing CNM probes (probe layers, the traffic that drives each one, and the
 surrounding kernel's concurrency) is future work.
+
+## Keeping these instructions current
+
+When you work out something non-obvious that cost real effort and isn't written down here or in
+`pkg/ebpf/AGENTS.md`, propose adding it: a test or build command, a kernel- or build-mode-specific
+failure and its fix, or a debugging step. Also flag anything you found wrong or stale.
+
+- **Verify it first.** Check the command, flag, or behavior against the code or tooling. If you
+  can't verify it, don't add it; tell the user what's unconfirmed.
+- **Keep it short and imperative,** in the style of the surrounding section. No narrative, dates,
+  or issue numbers.
+- **Keep it generic.** This is a public repository: no internal URLs, hostnames, chat channels,
+  internal repository names, or customer names. Personal setup (accounts, machine paths, local
+  workarounds) goes in your local, uncommitted instructions instead.
+- **Ship it as its own pull request.** Don't fold it into the change you're working on. Tell the
+  user what you'd add and where, and suggest a small separate pull request so it's reviewed on its
+  own.
