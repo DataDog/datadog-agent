@@ -44,7 +44,7 @@ require (
 	github.com/jackc/pgx/v5 v5.13.0
 	github.com/kr/pretty v0.3.1
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.55.0
-	github.com/pulumi/pulumi-awsx/sdk/v3 v3.14.0
+	github.com/pulumi/pulumi-awsx/sdk/v3 v3.15.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.3
 	github.com/pulumi/pulumi/sdk/v3 v3.277.0
 	github.com/samber/lo v1.53.0
