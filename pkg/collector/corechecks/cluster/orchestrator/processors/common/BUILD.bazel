@@ -1,12 +1,60 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "common",
-    srcs = ["base.go"],
+    srcs = [
+        "base.go",
+        "model.go",
+        "typed.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/types",
+        "//comp/core/workloadmeta/collectors/util",
         "//pkg/collector/corechecks/cluster/orchestrator/processors",
+        "//pkg/collector/corechecks/cluster/orchestrator/util",
+        "//pkg/redact",
+        "//pkg/util/log",
         "@com_github_datadog_agent_payload_v5//process",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_apimachinery//pkg/types",
+    ],
+)
+
+dd_agent_go_test(
+    name = "common_test",
+    srcs = [
+        "model_test.go",
+        "typed_test.go",
+    ],
+    embed = [":common"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
+    include_default = False,
+    deps = [
+        "//comp/core/tagger/types",
+        "//comp/core/workloadmeta/collectors/util",
+        "//pkg/collector/corechecks/cluster/orchestrator/processors",
+        "//pkg/collector/corechecks/cluster/orchestrator/processorstest",
+        "//pkg/orchestrator/config",
+        "//pkg/redact",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//apps/v1:apps",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_api//rbac/v1:rbac",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_apimachinery//pkg/types",
     ],
 )

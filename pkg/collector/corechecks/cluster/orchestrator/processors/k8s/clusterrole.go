@@ -10,159 +10,32 @@ package k8s
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	wmutil "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
-	"github.com/DataDog/datadog-agent/pkg/redact"
 
 	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 // ClusterRoleHandlers implements the Handlers interface for Kubernetes ClusterRoles.
-type ClusterRoleHandlers struct {
-	common.BaseHandlers
-	tagger tagger.Component
-}
+type ClusterRoleHandlers = common.ModelHandlers[*rbacv1.ClusterRole, *model.ClusterRole]
 
 // NewClusterRoleHandlers creates a new ClusterRoleHandlers.
 func NewClusterRoleHandlers(tagger tagger.Component) *ClusterRoleHandlers {
-	return &ClusterRoleHandlers{tagger: tagger}
-}
-
-// EnrichModel is a handler called before cache lookup.
-//
-//nolint:revive
-func (h *ClusterRoleHandlers) EnrichModel(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
-	r := resource.(*rbacv1.ClusterRole)
-	m := resourceModel.(*model.ClusterRole)
-
-	entityID := taggertypes.NewEntityID(
-		taggertypes.KubernetesMetadata,
-		string(wmutil.GenerateKubeMetadataEntityID(ctx.GetCollectorGroup(), ctx.GetCollectorName(), "", r.Name)),
-	)
-	taggerTags, err := h.tagger.Tag(entityID, taggertypes.HighCardinality)
-	if err != nil {
-		log.Debugf("Could not retrieve tags for clusterrole %s: %s", r.Name, err)
-		return
-	}
-
-	m.Tags = append(m.Tags, taggerTags...)
-	return
-}
-
-// AfterMarshalling is a handler called after resource marshalling.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *ClusterRoleHandlers) AfterMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
-	m := resourceModel.(*model.ClusterRole)
-	m.Yaml = yaml
-	return
-}
-
-// BeforeMarshalling is a handler called before resource marshalling.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *ClusterRoleHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
-	r := resource.(*rbacv1.ClusterRole)
-	r.Kind = ctx.GetKind()
-	r.APIVersion = ctx.GetAPIVersion()
-	return
-}
-
-// BuildMessageBody is a handler called to build a message body out of a list of
-// extracted resources.
-func (h *ClusterRoleHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
-	pctx := ctx.(*processors.K8sProcessorContext)
-	models := make([]*model.ClusterRole, 0, len(resourceModels))
-
-	for _, m := range resourceModels {
-		models = append(models, m.(*model.ClusterRole))
-	}
-
-	return &model.CollectorClusterRole{
-		ClusterName:  pctx.Cfg.KubeClusterName,
-		ClusterId:    pctx.ClusterID,
-		GroupId:      pctx.MsgGroupID,
-		GroupSize:    int32(groupSize),
-		ClusterRoles: models,
-		Tags:         util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
-		AgentVersion: ctx.GetAgentVersion(),
-	}
-}
-
-// ExtractResource is a handler called to extract the resource model out of a raw resource.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *ClusterRoleHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
-	r := resource.(*rbacv1.ClusterRole)
-	return k8sTransformers.ExtractClusterRole(ctx, r)
-}
-
-// ResourceList is a handler called to convert a list passed as a generic
-// interface to a list of generic interfaces.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *ClusterRoleHandlers) ResourceList(ctx processors.ProcessorContext, list interface{}) (resources []interface{}) {
-	resourceList := list.([]*rbacv1.ClusterRole)
-	resources = make([]interface{}, 0, len(resourceList))
-
-	for _, resource := range resourceList {
-		resources = append(resources, resource)
-	}
-
-	return resources
-}
-
-// CloneResource returns a deep copy of the resource.
-//
-//nolint:revive
-func (h *ClusterRoleHandlers) CloneResource(resource interface{}) interface{} {
-	return resource.(*rbacv1.ClusterRole).DeepCopy()
-}
-
-// ResourceVersionFromRaw returns the resource version from the raw resource.
-//
-//nolint:revive
-func (h *ClusterRoleHandlers) ResourceVersionFromRaw(_ processors.ProcessorContext, resource interface{}) string {
-	return resource.(*rbacv1.ClusterRole).ResourceVersion
-}
-
-// ResourceUID is a handler called to retrieve the resource UID.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *ClusterRoleHandlers) ResourceUID(ctx processors.ProcessorContext, resource interface{}) types.UID {
-	return resource.(*rbacv1.ClusterRole).UID
-}
-
-// ResourceVersion is a handler called to retrieve the resource version.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *ClusterRoleHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
-	return resource.(*rbacv1.ClusterRole).ResourceVersion
-}
-
-// GetMetadataTags returns the tags in the metadata model.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *ClusterRoleHandlers) GetMetadataTags(ctx processors.ProcessorContext, resourceMetadataModel interface{}) []string {
-	m, ok := resourceMetadataModel.(*model.ClusterRole)
-	if !ok {
-		return nil
-	}
-	return m.Tags
-}
-
-// ScrubBeforeExtraction is a handler called to redact the raw resource before
-// it is extracted as an internal resource model.
-//
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (h *ClusterRoleHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
-	r := resource.(*rbacv1.ClusterRole)
-	redact.RemoveSensitiveAnnotationsAndLabels(r.Annotations, r.Labels)
+	return common.NewModelHandlers(tagger, common.ModelSpec[*rbacv1.ClusterRole, *model.ClusterRole]{
+		Extract: k8sTransformers.ExtractClusterRole,
+		Tags:    func(m *model.ClusterRole) *[]string { return &m.Tags },
+		YAML:    func(m *model.ClusterRole) *[]byte { return &m.Yaml },
+		Entity:  common.ClusterMetadataEntity[*rbacv1.ClusterRole],
+		Message: func(h common.MessageHeader, models []*model.ClusterRole) model.MessageBody {
+			return &model.CollectorClusterRole{
+				ClusterName:  h.ClusterName,
+				ClusterId:    h.ClusterID,
+				GroupId:      h.GroupID,
+				GroupSize:    h.GroupSize,
+				ClusterRoles: models,
+				Tags:         h.Tags,
+				AgentVersion: h.AgentVersion,
+			}
+		},
+	})
 }
