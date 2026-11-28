@@ -75,6 +75,8 @@ kubectl apply -f operator/network-policy.yaml
 
 If your cluster uses Cilium, apply [`operator/cilium-network-policy.yaml`](operator/cilium-network-policy.yaml) instead of [`operator/network-policy.yaml`](operator/network-policy.yaml).
 
+If your existing network policy already allows the traffic the Collector needs, skip the last `kubectl apply` command.
+
 The provided manifests configure the required capabilities and seccomp profile automatically. An init container installs the seccomp profile onto each node, so no manual seccomp setup is required.
 
 After you apply the manifests, the OpenTelemetry Operator reconciles the Custom Resource and rolls out an OpenTelemetry Collector DaemonSet with the Host Profiler. Wait for that rollout to complete before verifying profiles.
