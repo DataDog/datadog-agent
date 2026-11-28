@@ -656,3 +656,16 @@ func (c *fakeDockerClient) ContainerLogs(context.Context, string, dockerclient.C
 	c.counter++
 	return entry.reader, entry.err
 }
+
+func TestBuildMessageMessageTagsAliasEncodedTags(t *testing.T) {
+	source := sources.NewLogSource("foo", &config.LogsConfig{Tags: []string{"env:prod"}})
+	tailer := &Tailer{ContainerID: "test", Source: source, tagProvider: tag.NewLocalProvider([]string{"container_name:a"})}
+	output := message.NewMessageWithParsingExtra([]byte("hello"), message.NewOrigin(source), message.StatusInfo, 0,
+		message.ParsingExtra{Tags: []string{"stream:stdout"}})
+
+	built := buildMessage(tailer, output)
+	output.ParsingExtra.Tags[0] = "stream:stderr"
+	require.NoError(t, message.CheckTagSnapshot(built.Origin))
+	_, msgTags, _, _ := built.Origin.TagSnapshot()
+	assert.Equal(t, []string{"stream:stdout"}, msgTags)
+}

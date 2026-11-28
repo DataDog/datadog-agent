@@ -879,3 +879,29 @@ func TestWaitForRotationDrain(t *testing.T) {
 		})
 	}
 }
+
+func TestForwardMessagesMessageTagsAliasEncodedTags(t *testing.T) {
+	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Tags: []string{"env:prod"}})
+	dec := decoder.NewMockDecoder()
+	outputChan := make(chan *message.Message, 1)
+	tailer := NewTailer(&TailerOptions{
+		OutputChan:      outputChan,
+		File:            NewFile("/tmp/x.log", source, false),
+		Decoder:         dec,
+		Info:            status.NewInfoRegistry(),
+		CapacityMonitor: metrics.NewNoopPipelineMonitor("").GetCapacityMonitor("", ""),
+		Registry:        auditor.NewMockRegistry(),
+		FileOpener:      opener.NewFileOpener(),
+	})
+	parsingTags := []string{"stream:stdout"}
+	dec.OutputChan() <- message.NewMessageWithParsingExtra([]byte("hello"), nil, message.StatusInfo, 0,
+		message.ParsingExtra{Tags: parsingTags})
+	close(dec.OutputChan())
+	tailer.forwardMessages()
+
+	msg := <-outputChan
+	parsingTags[0] = "stream:stderr"
+	require.NoError(t, message.CheckTagSnapshot(msg.Origin))
+	_, msgTags, _, _ := msg.Origin.TagSnapshot()
+	require.Equal(t, []string{"stream:stdout"}, msgTags)
+}

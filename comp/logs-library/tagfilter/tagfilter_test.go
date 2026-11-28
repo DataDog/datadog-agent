@@ -85,6 +85,19 @@ func TestMatchingUsesASCIICaseFolding(t *testing.T) {
 	require.Empty(t, report.Rejected)
 	assert.False(t, f.Retains("city:MÜNCHEN"))
 	assert.True(t, f.Retains("city:münchen"), "non-ASCII casing must be compared exactly")
+
+	long := strings.Repeat("k", 100)
+	f, report = Compile(nil, []string{long + ":*"})
+	require.Empty(t, report.Rejected)
+	assert.False(t, f.Retains(strings.ToUpper(long)+":v"))
+}
+
+func TestRetainsUppercaseKeyDoesNotAllocate(t *testing.T) {
+	f, _ := Compile(nil, []string{"team:*"})
+	assert.Zero(t, testing.AllocsPerRun(100, func() {
+		f.Retains("Team:infra")
+		f.Retains("Other:x")
+	}))
 }
 
 func TestIncludeOnlyRemovesNothing(t *testing.T) {

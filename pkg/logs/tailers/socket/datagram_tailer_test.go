@@ -113,6 +113,7 @@ func TestDatagramTailer_Syslog_SourceHostTag(t *testing.T) {
 		}
 	}
 	assert.True(t, found, "expected source_host tag, got tags: %v", tags)
+	assert.NoError(t, message.CheckTagSnapshot(msg.Origin))
 
 	tailer.Stop()
 }
