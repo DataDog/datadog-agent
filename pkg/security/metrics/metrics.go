@@ -392,6 +392,27 @@ var (
 	// Tags: -
 	MetricSBOMResolverEnrichedSBOMForwardDropped = newRuntimeMetric(".sbom_resolver.enriched_sbom_forward_dropped")
 
+	// SBOM usage recorder metrics
+
+	// MetricSBOMUsageWorkloads is the name of the metric used to report the count of workloads whose usage is recorded
+	// Tags: -
+	MetricSBOMUsageWorkloads = newRuntimeMetric(".sbom_usage.workloads")
+	// MetricSBOMUsageKeys is the name of the metric used to report the count of the keys of the files that ran, across workloads
+	// Tags: -
+	MetricSBOMUsageKeys = newRuntimeMetric(".sbom_usage.keys")
+	// MetricSBOMUsageTruncatedWorkloads is the name of the metric used to report the count of workloads that reached their bound of keys
+	// Tags: -
+	MetricSBOMUsageTruncatedWorkloads = newRuntimeMetric(".sbom_usage.truncated_workloads")
+	// MetricSBOMUsagePendingRecords is the name of the metric used to report the count of records waiting for the workload and the root mount of their container
+	// Tags: -
+	MetricSBOMUsagePendingRecords = newRuntimeMetric(".sbom_usage.pending_records")
+	// MetricSBOMUsageDroppedOpens is the name of the metric used to report the number of opens of host files dropped at the bound of those waiting to settle
+	// Tags: -
+	MetricSBOMUsageDroppedOpens = newRuntimeMetric(".sbom_usage.dropped_opens")
+	// MetricSBOMUsageDriftedContainers is the name of the metric used to report the count of containers whose package databases changed since the recorder first read them
+	// Tags: -
+	MetricSBOMUsageDriftedContainers = newRuntimeMetric(".sbom_usage.drifted_containers")
+
 	// CGroup resolver metrics
 
 	// MetricCGroupResolverActiveCGroups is the name of the metric used to report the count of cgroups kept in memory
