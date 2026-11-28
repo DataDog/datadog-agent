@@ -59,6 +59,7 @@ int uprobe__tls_protocol_dispatcher_kafka(struct pt_regs *ctx) {
 // GO TLS PROBES
 
 // func (c *Conn) Write(b []byte) (int, error)
+// Processed on entry, before the data reaches the socket, so that a request is always processed before its response.
 SEC("uprobe/crypto/tls.(*Conn).Write")
 int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Write) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -77,8 +78,6 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Write) {
         return 0;
     }
 
-    // Read the parameters to make the partial call data
-    // (since the parameters might not be live by the time the return probe is hit).
     go_tls_write_args_data_t call_data = {0};
     if (read_location(ctx, &od->write_conn_pointer, sizeof(call_data.conn_pointer), &call_data.conn_pointer)) {
         log_debug("[go-tls-write] failed reading conn pointer for pid %llu", pid);
@@ -95,7 +94,34 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Write) {
         return 0;
     }
 
+    // The prologue of a Go function restarts it after growing its stack, firing this probe again for the same call.
+    go_tls_write_args_data_t *seen = bpf_map_lookup_elem(&go_tls_write_args, &call_key);
+    if (seen != NULL && seen->conn_pointer == call_data.conn_pointer && seen->b_data == call_data.b_data &&
+        seen->b_len == call_data.b_len) {
+        return 0;
+    }
     bpf_map_update_with_telemetry(go_tls_write_args, &call_key, &call_data, BPF_ANY);
+
+    if (call_data.b_len == 0) {
+        return 0;
+    }
+
+    conn_tuple_t *t = conn_tup_from_tls_conn(od, (void*)call_data.conn_pointer);
+    if (t == NULL) {
+        log_debug("[go-tls-write] failed getting conn tup from tls conn for pid %llu", pid);
+        return 0;
+    }
+
+    char *buffer_ptr = (char*)call_data.b_data;
+    log_debug("[go-tls-write] processing %s", buffer_ptr);
+    conn_tuple_t copy = {0};
+    bpf_memcpy(&copy, t, sizeof(conn_tuple_t));
+    // We want to guarantee write-TLS hooks generates the same connection tuple, while read-TLS hooks generate
+    // the inverse direction, thus we're normalizing the tuples into a client <-> server direction, and then flipping it
+    // to the server <-> client direction.
+    normalize_tuple(&copy);
+    flip_tuple(&copy);
+    tls_process(ctx, &copy, buffer_ptr, call_data.b_len, GO);
     return 0;
 }
 
@@ -119,58 +145,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Write__return) {
         return 0;
     }
 
-    uint64_t bytes_written = 0;
-    if (read_location(ctx, &od->write_return_bytes, sizeof(bytes_written), &bytes_written)) {
-        bpf_map_delete_elem(&go_tls_write_args, &call_key);
-        log_debug("[go-tls-write-return] failed reading write return bytes location for pid %llu", pid);
-        return 0;
-    }
-
-    if (bytes_written <= 0) {
-        bpf_map_delete_elem(&go_tls_write_args, &call_key);
-        log_debug("[go-tls-write-return] write returned non-positive for amount of bytes written for pid: %llu", pid);
-        return 0;
-    }
-
-    uint64_t err_ptr = 0;
-    if (read_location(ctx, &od->write_return_error, sizeof(err_ptr), &err_ptr)) {
-        bpf_map_delete_elem(&go_tls_write_args, &call_key);
-        log_debug("[go-tls-write-return] failed reading write return error location for pid %llu", pid);
-        return 0;
-    }
-
-    // check if err != nil
-    if (err_ptr != 0) {
-        bpf_map_delete_elem(&go_tls_write_args, &call_key);
-        log_debug("[go-tls-write-return] error in write for pid %llu: data will be ignored", pid);
-        return 0;
-    }
-
-    go_tls_write_args_data_t *call_data_ptr = bpf_map_lookup_elem(&go_tls_write_args, &call_key);
-    if (call_data_ptr == NULL) {
-        bpf_map_delete_elem(&go_tls_write_args, &call_key);
-        log_debug("[go-tls-write-return] no write information in write-return for pid %llu", pid);
-        return 0;
-    }
-
-    conn_tuple_t *t = conn_tup_from_tls_conn(od, (void*)call_data_ptr->conn_pointer);
-    if (t == NULL) {
-        log_debug("[go-tls-write-return] failed getting conn tup from tls conn for pid %llu", pid);
-        bpf_map_delete_elem(&go_tls_write_args, &call_key);
-        return 0;
-    }
-
-    char *buffer_ptr = (char*)call_data_ptr->b_data;
-    log_debug("[go-tls-write] processing %s", buffer_ptr);
     bpf_map_delete_elem(&go_tls_write_args, &call_key);
-    conn_tuple_t copy = {0};
-    bpf_memcpy(&copy, t, sizeof(conn_tuple_t));
-    // We want to guarantee write-TLS hooks generates the same connection tuple, while read-TLS hooks generate
-    // the inverse direction, thus we're normalizing the tuples into a client <-> server direction, and then flipping it
-    // to the server <-> client direction.
-    normalize_tuple(&copy);
-    flip_tuple(&copy);
-    tls_process(ctx, &copy, buffer_ptr, bytes_written, GO);
     return 0;
 }
 
