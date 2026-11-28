@@ -281,3 +281,39 @@ func TestShippedProcmgrConfigFilesIncludesDarwin(t *testing.T) {
 		assert.Contains(t, shipped, name)
 	}
 }
+
+func TestInstallerUnitsCarryProcessManagerValue(t *testing.T) {
+	for _, unitType := range []UnitType{UnitTypeOCI, UnitTypeDebRpm} {
+		for _, ambiantCapabilitiesSupported := range []bool{true, false} {
+			for _, unit := range []string{"datadog-agent-installer.service", "datadog-agent-installer-exp.service"} {
+				t.Run(fmt.Sprintf("%s/%s/ambiantCapabilitiesSupported=%t", unitType, unit, ambiantCapabilitiesSupported), func(t *testing.T) {
+					systemd, err := GetSystemdUnit(unit, unitType, ambiantCapabilitiesSupported)
+					require.NoError(t, err)
+					assert.Equal(t, 1, strings.Count(string(systemd), `Environment="DD_PROCESS_MANAGER_ENABLED=false"`))
+
+					procmgr, err := GetProcmgrUnit(unit, unitType, ambiantCapabilitiesSupported)
+					require.NoError(t, err)
+					assert.Equal(t, 1, strings.Count(string(procmgr), `Environment="DD_PROCESS_MANAGER_ENABLED=true"`))
+				})
+			}
+		}
+	}
+}
+
+func TestProcmgrInstallerUnitsMatchSystemd(t *testing.T) {
+	for _, unitType := range []UnitType{UnitTypeOCI, UnitTypeDebRpm} {
+		for _, ambiantCapabilitiesSupported := range []bool{true, false} {
+			for _, unit := range []string{"datadog-agent-installer.service", "datadog-agent-installer-exp.service"} {
+				t.Run(fmt.Sprintf("%s/%s/ambiantCapabilitiesSupported=%t", unitType, unit, ambiantCapabilitiesSupported), func(t *testing.T) {
+					systemd, err := GetSystemdUnit(unit, unitType, ambiantCapabilitiesSupported)
+					require.NoError(t, err)
+					procmgr, err := GetProcmgrUnit(unit, unitType, ambiantCapabilitiesSupported)
+					require.NoError(t, err)
+					assert.Equal(t,
+						strings.Replace(string(systemd), "DD_PROCESS_MANAGER_ENABLED=false", "DD_PROCESS_MANAGER_ENABLED=true", 1),
+						string(procmgr))
+				})
+			}
+		}
+	}
+}

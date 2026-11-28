@@ -9,12 +9,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -78,6 +80,7 @@ type installerStatusLegacy struct {
 
 const (
 	unknownAgentImageVersion = "7.52.1-1"
+	installerUnitXP          = "datadog-agent-installer-exp.service"
 )
 
 func testUpgradeScenario(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite {
@@ -113,6 +116,9 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessful() {
 		"datadog-agent-trace.service",
 		"datadog-agent-installer.service",
 	)
+	s.assertInstallerUnitRecords(installerUnit, "true")
+	s.Require().True(s.host.ProcmgrEnabled(), "process manager should be enabled on a default install")
+	s.host.WaitForUnitActive(s.T(), procmgrUnit)
 	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
 	s.setCatalog(s.testCatalog())
@@ -656,4 +662,103 @@ func (s *upgradeScenarioSuite) executeAgentGoldenPath() {
 	timestamp = s.host.LastJournaldTimestamp()
 	s.promoteExperiment(datadogAgent)
 	s.assertSuccessfulAgentPromoteExperiment(timestamp, s.pipelineAgentVersion)
+}
+
+func (s *upgradeScenarioSuite) TestUpgradeKeepsProcessManagerOptOut() {
+	if s.installMethod != InstallMethodInstallScript {
+		s.T().Skip("The Ansible install method may not forward DD_PROCESS_MANAGER_ENABLED")
+	}
+
+	defer s.Purge()
+	s.runInstallScriptAsRootWithOptOut()
+	s.host.WaitForUnitActive(s.T(),
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-installer.service",
+	)
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
+	s.assertProcessManagerOptOut(installerUnit, procmgrUnit, "false")
+
+	s.setCatalog(s.testCatalog())
+	timestamp := s.host.LastJournaldTimestamp()
+	_, err := s.startExperiment(datadogAgent, s.pipelineAgentVersion)
+	require.NoError(s.T(), err)
+	s.assertSuccessfulAgentStartExperiment(timestamp, s.pipelineAgentVersion)
+	s.host.WaitForUnitActive(s.T(), installerUnitXP)
+	s.assertProcessManagerOptOut(installerUnitXP, procmgrUnitXP, "false")
+
+	timestamp = s.host.LastJournaldTimestamp()
+	_, err = s.promoteExperiment(datadogAgent)
+	require.NoError(s.T(), err)
+	s.assertSuccessfulAgentPromoteExperiment(timestamp, s.pipelineAgentVersion)
+	s.host.WaitForUnitActive(s.T(), installerUnit)
+	s.assertProcessManagerOptOut(installerUnit, procmgrUnit, "false")
+}
+
+// Run as root so DD_PROCESS_MANAGER_ENABLED reaches the package postinst.
+func (s *upgradeScenarioSuite) runInstallScriptAsRootWithOptOut() {
+	// bugfix for https://major.io/p/systemd-in-fedora-22-failed-to-restart-service-access-denied/
+	if s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version {
+		s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reexec")
+	}
+	// The install script writes this file unprivileged on apt hosts and never removes it.
+	// fs.protected_regular then stops any other user, root included, from reopening it in /tmp.
+	// Remove it before the root run, and again afterwards so the root-owned copy (and the
+	// root-owned install log in the test user's home) do not break later non-root runs.
+	const installScriptLeftovers = `sudo rm -f /tmp/policy-do-not-start-service-rc.d "$HOME/ddagent-install.log"`
+	s.Env().RemoteHost.MustExecute(installScriptLeftovers)
+	defer func() { _, _ = s.Env().RemoteHost.Execute(installScriptLeftovers) }()
+	_, err := s.Env().RemoteHost.Execute(
+		`sudo -E env DD_REMOTE_UPDATES=true DD_PROCESS_MANAGER_ENABLED=false bash -c "$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh)"`,
+		client.WithEnvVariables(InstallScriptEnv(s.arch)),
+	)
+	require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s", s.installerDiagnostics())
+}
+
+func (s *upgradeScenarioSuite) assertProcessManagerOptOut(installer, procmgr, value string) {
+	s.assertInstallerUnitRecords(installer, value)
+	s.assertInstallerDaemonRuns(installer, value)
+	s.assertUnitNotActive(procmgr)
+}
+
+func (s *upgradeScenarioSuite) assertInstallerUnitRecords(unit, value string) {
+	environment := s.Env().RemoteHost.MustExecute("sudo systemctl show -p Environment " + unit)
+	want := "DD_PROCESS_MANAGER_ENABLED=" + value
+	if !strings.Contains(environment, want) {
+		s.T().Fatalf("%s does not record %s\n%s", unit, want, s.installerDiagnostics())
+	}
+}
+
+func (s *upgradeScenarioSuite) assertInstallerDaemonRuns(unit, value string) {
+	var environ string
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		out, err := s.Env().RemoteHost.Execute("sudo systemctl show -p MainPID " + unit)
+		require.NoError(c, err)
+		pid := strings.TrimPrefix(strings.TrimSpace(out), "MainPID=")
+		require.Regexp(c, `^[1-9][0-9]*$`, pid)
+		environ, err = s.Env().RemoteHost.Execute(`sudo sh -c 'tr "\000" "\n" < /proc/"$1"/environ' _ ` + pid)
+		require.NoError(c, err)
+	}, time.Minute, time.Second)
+
+	want := "DD_PROCESS_MANAGER_ENABLED=" + value
+	if !slices.Contains(strings.Split(environ, "\n"), want) {
+		s.T().Fatalf("the running %s does not have %s\n%s", unit, want, s.installerDiagnostics())
+	}
+}
+
+// "|| true" keeps the state: Execute returns empty output on a non-zero exit.
+func (s *upgradeScenarioSuite) assertUnitNotActive(unit string) {
+	state := strings.TrimSpace(s.Env().RemoteHost.MustExecute("systemctl is-active " + unit + " || true"))
+	if state != "inactive" && state != "unknown" {
+		s.T().Fatalf("%s has unexpected state %q while the process manager is opted out\n%s", unit, state, s.installerDiagnostics())
+	}
+}
+
+func (s *upgradeScenarioSuite) installerDiagnostics() string {
+	return fmt.Sprintf("/tmp/datadog-installer-stdout.log:\n%s\n/tmp/datadog-installer-stderr.log:\n%s\njournalctl -u datadog-agent-installer:\n%s\njournalctl -u datadog-agent-installer-exp:\n%s",
+		s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log || true"),
+		s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log || true"),
+		s.Env().RemoteHost.MustExecute("sudo journalctl -u datadog-agent-installer --no-pager || true"),
+		s.Env().RemoteHost.MustExecute("sudo journalctl -u datadog-agent-installer-exp --no-pager || true"),
+	)
 }
