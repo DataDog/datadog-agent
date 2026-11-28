@@ -741,11 +741,12 @@ _BAZEL_RUNTIME_GEN_TARGETS = [
 ]
 
 
-def ebpf_bazel_flags(arch: Arch) -> list[str]:
-    """Return extra Bazel flags needed for eBPF cross-compilation."""
-    if arch.is_cross_compiling():
-        return [f"--//bazel/rules/ebpf:target_arch={arch.gcc_arch}"]
-    return []
+def ebpf_install_target(target: str, arch: Arch) -> str:
+    """Return the install target that stages objects for `arch`.
+
+    `--platforms` would build the installer for `arch` too, and it could not run here.
+    """
+    return f"{target}_{arch.bazel_cpu}" if arch.is_cross_compiling() else target
 
 
 def _bazel_install(
@@ -784,13 +785,13 @@ def bazel_build_ebpf(
     With debug, the <name>-debug.o variants are built and installed as well.
     """
     install_targets = [install_target, _EBPF_DEBUG_INSTALL_TARGET] if debug else [install_target]
+    install_targets = [ebpf_install_target(target, arch) for target in install_targets]
     targets = [*install_targets, *extra_targets]
     if verify:
         targets.append("//pkg/ebpf:verify_generated_files")
-    extra_flags = ebpf_bazel_flags(arch)
-    bazel("test" if verify else "build", *extra_flags, *targets, fips_backend=fips_backend)
+    bazel("test" if verify else "build", *targets, fips_backend=fips_backend)
     for target in install_targets:
-        _bazel_install(ctx, target, os.getcwd(), *extra_flags, fips_backend=fips_backend)
+        _bazel_install(ctx, target, os.getcwd(), fips_backend=fips_backend)
 
 
 # Paths under bazel-bin -> repo-relative destinations (also removed by clean_object_files).
@@ -864,7 +865,6 @@ def build_object_files(
     build_dir = get_ebpf_build_dir(arch_obj)
     runtime_dir = get_ebpf_runtime_dir()
 
-    arch_flags = ebpf_bazel_flags(arch_obj)
     stale_debug = [] if debug or is_windows else _staged_debug_objects()
 
     if not is_windows:
@@ -893,13 +893,12 @@ def build_object_files(
             ctx,
             "//bazel/toolchains/llvm_bpf:install",
             "/opt/datadog-agent/embedded/bin",
-            *arch_flags,
             sudo=needs_sudo,
             fips_backend=fips_backend,
         )
 
     if is_windows:
-        bazel_build_windows_resources(ctx, verify=True, extra_flags=arch_flags, fips_backend=fips_backend)
+        bazel_build_windows_resources(ctx, verify=True, fips_backend=fips_backend)
 
     validate_object_file_metadata(ctx, build_dir, verbose=False)
 

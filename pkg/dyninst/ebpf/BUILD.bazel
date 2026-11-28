@@ -1,3 +1,5 @@
+load("@bazel_lib//lib:copy_file.bzl", "copy_file")
+load("@bazel_lib//lib:transitions.bzl", "platform_transition_filegroup")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_prog")
 
@@ -41,30 +43,64 @@ ebpf_prog(
 # can fit on x86_64 and overflow on aarch64. Frame sizes are compiler output,
 # so building both here lets the budget be checked from any host instead of
 # waiting for an arm64 KMT job to fail to load the program.
-[
-    ebpf_prog(
-        name = "dyninst_event%s.%s" % (suffix, arch),
-        src = "event.c",
-        core = True,
-        debug = debug,
-        extra_flags = ["-Ipkg/dyninst/ebpf"] + extra,
-        target_arch = arch,
-        visibility = ["//visibility:public"],
-        deps = [
-            ":dyninst_ebpf_headers",
-            "//pkg/ebpf/c:ebpf_c_headers",
-        ],
-    )
-    for arch in [
-        "x86_64",
-        "aarch64",
-    ]
-    for suffix, debug, extra in [
-        ("", False, []),
-        (
-            "-debug",
-            True,
-            ["-DDYNINST_DEBUG=1"],
-        ),
-    ]
-]
+# The copies give each architecture its own output name: transitioned outputs
+# keep the basename of their source, and the test needs one rootpath per arch.
+platform_transition_filegroup(
+    name = "dyninst_event.x86_64_transitioned",
+    srcs = [":dyninst_event"],
+    target_compatible_with = ["@platforms//os:linux"],
+    target_platform = "//bazel/platforms:linux_x86_64",
+)
+
+copy_file(
+    name = "dyninst_event.x86_64",
+    src = ":dyninst_event.x86_64_transitioned",
+    out = "dyninst_event.x86_64.o",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)
+
+platform_transition_filegroup(
+    name = "dyninst_event.aarch64_transitioned",
+    srcs = [":dyninst_event"],
+    target_compatible_with = ["@platforms//os:linux"],
+    target_platform = "//bazel/platforms:linux_arm64",
+)
+
+copy_file(
+    name = "dyninst_event.aarch64",
+    src = ":dyninst_event.aarch64_transitioned",
+    out = "dyninst_event.aarch64.o",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)
+
+platform_transition_filegroup(
+    name = "dyninst_event-debug.x86_64_transitioned",
+    srcs = [":dyninst_event-debug"],
+    target_compatible_with = ["@platforms//os:linux"],
+    target_platform = "//bazel/platforms:linux_x86_64",
+)
+
+copy_file(
+    name = "dyninst_event-debug.x86_64",
+    src = ":dyninst_event-debug.x86_64_transitioned",
+    out = "dyninst_event-debug.x86_64.o",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)
+
+platform_transition_filegroup(
+    name = "dyninst_event-debug.aarch64_transitioned",
+    srcs = [":dyninst_event-debug"],
+    target_compatible_with = ["@platforms//os:linux"],
+    target_platform = "//bazel/platforms:linux_arm64",
+)
+
+copy_file(
+    name = "dyninst_event-debug.aarch64",
+    src = ":dyninst_event-debug.aarch64_transitioned",
+    out = "dyninst_event-debug.aarch64.o",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)
