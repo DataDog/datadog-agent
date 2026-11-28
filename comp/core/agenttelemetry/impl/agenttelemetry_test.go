@@ -705,10 +705,10 @@ func TestRun(t *testing.T) {
 		totalProfiles += len(job.profiles)
 	}
 	fmt.Println(totalProfiles)
-	// Default config has 24 profiles total (par-phone-home, checks, logs-and-metrics, intake-routing, database, synthetics, connectivity, forwarder_stats, csi-driver, agent-performance, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, gpu, cluster-agent, injector, ebpf, autodiscovery-discovery-probe, data-plane-preflight-mode, config-schema, troubleshooting).
+	// Default config has 26 profiles total (par-phone-home, checks, logs-and-metrics, intake-routing, database, synthetics, connectivity, forwarder_stats, csi-driver, agent-performance, service-discovery, runtime-started, runtime-running, hostname, rtloader, otlp, procmgr, gpu, datadog-instrumentation, cluster-agent, injector, ebpf, autodiscovery-discovery-probe, data-plane-preflight-mode, config-schema, troubleshooting).
 	// troubleshooting is scheduled like any other profile; it is skipped at
 	// collection time while its remote flag is off.
-	assert.Equal(t, 25, totalProfiles)
+	assert.Equal(t, 26, totalProfiles)
 }
 
 func TestReportMetricBasic(t *testing.T) {
@@ -3154,19 +3154,21 @@ func TestDefaultProfilesExportAppsecInjectorWatchedChangesReasons(t *testing.T) 
 	assert.Equal(t, map[string]float64{"Forbidden": 1, "Invalid": 2}, byReason)
 }
 
-func TestInstrumentationControllerMetricsInClusterAgentProfile(t *testing.T) {
+func TestInstrumentationControllerMetricsInDatadogInstrumentationProfile(t *testing.T) {
 	cfg, err := parseConfig(configmock.NewFromYAML(t, defaultProfiles))
 	require.NoError(t, err)
 
 	var profile *Profile
 	for _, candidate := range cfg.Profiles {
-		if candidate.Name == "cluster-agent" {
+		if candidate.Name == "datadog-instrumentation" {
 			profile = candidate
 			break
 		}
 	}
 	require.NotNil(t, profile)
 	require.NotNil(t, profile.Metric)
+	require.NotNil(t, profile.Metric.Exclude.ZeroMetric)
+	assert.False(t, *profile.Metric.Exclude.ZeroMetric)
 
 	metrics := make(map[string][]string, len(profile.Metric.Metrics))
 	for _, metric := range profile.Metric.Metrics {

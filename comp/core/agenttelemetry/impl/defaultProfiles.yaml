@@ -554,6 +554,20 @@ profiles:
     start_after: 60
     iterations: 0
     period: 900
+- name: datadog-instrumentation
+  metric:
+    exclude:
+      zero_metric: false
+    metrics:
+      - name: instrumentation_controller.resources
+      - name: instrumentation_controller.reconciliations
+        preserve_tags:
+          - section
+          - status
+    schedule:
+      start_after: 30
+      iterations: 0
+      period: 900
 - name: cluster-agent
   metric:
     exclude:
@@ -602,11 +616,6 @@ profiles:
       - name: language_detection_patcher.patches
         preserve_tags:
           - owner_kind
-          - status
-      - name: instrumentation_controller.resources
-      - name: instrumentation_controller.reconciliations
-        preserve_tags:
-          - section
           - status
       - name: metadata_streaming.history_resyncs
       - name: workloadmeta.stored_entities
