@@ -894,6 +894,12 @@ Package recorder defines middleware and writer contracts for recording observer 
 Package reporter defines the reporter component contracts.
 Concrete reporters are provided through the `anomalydetection_reporters` Fx group.
 
+### [comp/apmattach](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/apmattach)
+
+*Datadog Team*: injection-platform
+
+Package apmattach attaches the APM tracer to JVMs that were running before SSI was installed.
+
 ### [comp/autoscaling/datadogclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient)
 
 *Datadog Team*: container-integrations

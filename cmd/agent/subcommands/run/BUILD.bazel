@@ -56,6 +56,7 @@ go_library(
         "//comp/api/api/def",
         "//comp/api/commonendpoints/fx",
         "//comp/api/grpcserver/fx-agent",
+        "//comp/apmattach/fx",
         "//comp/collector/collector/def",
         "//comp/collector/collector/impl",
         "//comp/connectivitychecker/fx",
