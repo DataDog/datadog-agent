@@ -174,6 +174,13 @@ func (p *privateCredentialResolver) ResolveCredentials(ctx context.Context, task
 			return nil, err
 		}
 		return &privateconnection.PrivateCredentials{Tokens: credentialTokens, Type: privateconnection.TokenAuthType, HttpDetails: details}, nil
+	case privateactionspb.CredentialsType_OAUTH2_USER_TOKEN:
+		// Nothing to resolve: the token is a secret input of the task. The
+		// connection's base URL still scopes where that token may go.
+		if details.BaseURL == "" {
+			return nil, errors.New("a user OAuth2 connection requires a base URL")
+		}
+		return &privateconnection.PrivateCredentials{Type: privateconnection.UserOAuth2TokenAuthType, HttpDetails: details}, nil
 	}
 	return nil, fmt.Errorf("unsupported credential type: %s", connInfo.CredentialsType)
 }

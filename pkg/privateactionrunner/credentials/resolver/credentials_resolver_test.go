@@ -470,6 +470,33 @@ func TestResolveCredentialsTokenAuthPlainText(t *testing.T) {
 	assert.Equal(t, "header-value", credentials.HttpDetails.Headers[0].Value)
 }
 
+func TestResolveUserOAuth2TokenConnection(t *testing.T) {
+	resolver, err := NewPrivateCredentialResolver(nil)
+	require.NoError(t, err)
+	conn := &privateactionspb.ConnectionInfo{
+		CredentialsType: privateactionspb.CredentialsType_OAUTH2_USER_TOKEN,
+		Tokens: []*privateactionspb.ConnectionToken{
+			privateconnection.NewPlainTextToken([]string{"base_url"}, "https://mcp.internal"),
+		},
+	}
+
+	credentials, err := resolver.ResolveCredentials(context.Background(), credentialTask(conn, types.Attributes{}))
+	require.NoError(t, err)
+	assert.Equal(t, privateconnection.UserOAuth2TokenAuthType, credentials.Type)
+	assert.Empty(t, credentials.Tokens)
+	assert.Equal(t, "https://mcp.internal", credentials.HttpDetails.BaseURL)
+}
+
+func TestResolveUserOAuth2TokenConnectionNeedsBaseURL(t *testing.T) {
+	resolver, err := NewPrivateCredentialResolver(nil)
+	require.NoError(t, err)
+	conn := &privateactionspb.ConnectionInfo{CredentialsType: privateactionspb.CredentialsType_OAUTH2_USER_TOKEN}
+
+	credentials, err := resolver.ResolveCredentials(context.Background(), credentialTask(conn, types.Attributes{}))
+	require.ErrorContains(t, err, "requires a base URL")
+	assert.Nil(t, credentials)
+}
+
 func credentialTask(conn *privateactionspb.ConnectionInfo, attributes types.Attributes) *types.Task {
 	attributes.ConnectionInfo = conn
 	task := &types.Task{}

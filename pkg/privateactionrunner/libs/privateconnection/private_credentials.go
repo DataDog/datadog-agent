@@ -14,6 +14,9 @@ type AuthType string
 const (
 	TokenAuthType AuthType = "Token Auth"
 	BasicAuthType AuthType = "Basic Auth"
+	// UserOAuth2TokenAuthType connections hold no credentials on the runner:
+	// the user's access token arrives sealed with each task.
+	UserOAuth2TokenAuthType AuthType = "User OAuth2 Token"
 )
 
 type PrivateCredentials struct {

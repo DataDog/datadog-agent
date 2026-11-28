@@ -109,7 +109,7 @@ func NewRegistry(configuration *config.Config, rcClient rcclient.Client, tracero
 			"com.datadoghq.gitlab.repositoryfiles":            com_datadoghq_gitlab_repository_files.NewGitlabRepositoryFiles(),
 			"com.datadoghq.gitlab.tags":                       com_datadoghq_gitlab_tags.NewGitlabTags(),
 			"com.datadoghq.gitlab.users":                      com_datadoghq_gitlab_users.NewGitlabUsers(),
-			"com.datadoghq.http":                              com_datadoghq_http.NewHttpBundle(configuration),
+			"com.datadoghq.http":                              com_datadoghq_http.NewHttpBundle(configuration, encryptionStore),
 			"com.datadoghq.jenkins":                           com_datadoghq_jenkins.NewJenkins(configuration),
 			"com.datadoghq.kubernetes.admissionregistration":  com_datadoghq_kubernetes_admissionregistration.NewKubernetesAdmissionregistration(),
 			"com.datadoghq.kubernetes.apiextensions":          com_datadoghq_kubernetes_apiextensions.NewKubernetesApiExtensions(),

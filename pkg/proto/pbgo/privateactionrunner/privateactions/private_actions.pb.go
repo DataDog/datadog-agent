@@ -127,6 +127,9 @@ const (
 	CredentialsType_BASIC_AUTH           CredentialsType = 2
 	CredentialsType_OAUTH2               CredentialsType = 3
 	CredentialsType_CONNECTION_TOKENS_V2 CredentialsType = 5
+	// No credentials on the runner: the user's access token arrives sealed with
+	// the task, as a secret Authorization header.
+	CredentialsType_OAUTH2_USER_TOKEN CredentialsType = 6
 )
 
 // Enum value maps for CredentialsType.
@@ -137,6 +140,7 @@ var (
 		2: "BASIC_AUTH",
 		3: "OAUTH2",
 		5: "CONNECTION_TOKENS_V2",
+		6: "OAUTH2_USER_TOKEN",
 	}
 	CredentialsType_value = map[string]int32{
 		"UNSPECIFIED":          0,
@@ -144,6 +148,7 @@ var (
 		"BASIC_AUTH":           2,
 		"OAUTH2":               3,
 		"CONNECTION_TOKENS_V2": 5,
+		"OAUTH2_USER_TOKEN":    6,
 	}
 )
 
@@ -1138,7 +1143,7 @@ const file_datadog_privateactionrunner_private_actions_proto_rawDesc = "" +
 	"\bHashType\x12\x15\n" +
 	"\x11HASH_TYPE_UNKNOWN\x10\x00\x12\n" +
 	"\n" +
-	"\x06SHA256\x10\x01*h\n" +
+	"\x06SHA256\x10\x01*\x7f\n" +
 	"\x0fCredentialsType\x12\x0f\n" +
 	"\vUNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
@@ -1147,7 +1152,8 @@ const file_datadog_privateactionrunner_private_actions_proto_rawDesc = "" +
 	"BASIC_AUTH\x10\x02\x12\n" +
 	"\n" +
 	"\x06OAUTH2\x10\x03\x12\x18\n" +
-	"\x14CONNECTION_TOKENS_V2\x10\x05BTZRgithub.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactionsb\x06proto3"
+	"\x14CONNECTION_TOKENS_V2\x10\x05\x12\x15\n" +
+	"\x11OAUTH2_USER_TOKEN\x10\x06BTZRgithub.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactionsb\x06proto3"
 
 var (
 	file_datadog_privateactionrunner_private_actions_proto_rawDescOnce sync.Once

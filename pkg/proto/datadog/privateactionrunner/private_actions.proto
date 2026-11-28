@@ -135,4 +135,7 @@ enum CredentialsType {
   BASIC_AUTH = 2;
   OAUTH2 = 3;
   CONNECTION_TOKENS_V2 = 5;
+  // No credentials on the runner: the user's access token arrives sealed with
+  // the task, as a secret Authorization header.
+  OAUTH2_USER_TOKEN = 6;
 }
