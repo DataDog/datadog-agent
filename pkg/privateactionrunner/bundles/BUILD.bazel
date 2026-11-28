@@ -44,6 +44,7 @@ go_library(
         "//pkg/privateactionrunner/bundles/helm",
         "//pkg/privateactionrunner/bundles/http",
         "//pkg/privateactionrunner/bundles/jenkins",
+        "//pkg/privateactionrunner/bundles/kafka",
         "//pkg/privateactionrunner/bundles/kubernetes/admission",
         "//pkg/privateactionrunner/bundles/kubernetes/apiextensions",
         "//pkg/privateactionrunner/bundles/kubernetes/apps",
