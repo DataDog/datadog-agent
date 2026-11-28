@@ -1937,9 +1937,22 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 			regexp.MustCompile(`^kube_service:nginx$`),
 		}
 
+		// The container state transition is enriched with the tags of the bare
+		// container ID, so a matching kube_namespace tag also proves the ID is
+		// normalized: a prefixed ID would resolve no tagger entity.
+		expectedContainerEventTags := []*regexp.Regexp{
+			regexp.MustCompile(`^container_name:nginx$`),
+			regexp.MustCompile(`^kube_namespace:workload-nginx$`),
+			regexp.MustCompile(`^pod_name:` + regexp.QuoteMeta(nginxPod.Name) + `$`),
+		}
+
 		foundPodEvent := false
 		foundPodEventWithTags := false
 		var lastTagsErr error
+
+		foundContainerTransition := false
+		foundContainerTransitionWithTags := false
+		var lastContainerTagsErr error
 
 		for _, event := range events {
 			if podEvent := event.GetPod(); podEvent != nil && types.UID(podEvent.GetPodUID()) == nginxPod.UID && event.GetEventType() == contlcycle.Event_Delete {
@@ -1952,10 +1965,37 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 					lastTagsErr = err
 				}
 			}
+
+			ctr := event.GetContainer()
+			if ctr == nil || event.GetEventType() != contlcycle.Event_Transition {
+				continue
+			}
+			transition := ctr.GetTransition()
+			if transition == nil || ctr.GetOwner().GetOwnerUID() != string(nginxPod.UID) ||
+				transition.GetNewState().GetKind() != contlcycle.ContainerStateKind_CONTAINER_STATE_KIND_RUNNING {
+				continue
+			}
+
+			foundContainerTransition = true
+			assert.Equalf(c, "nginx", ctr.GetContainerName(), "Container state transition of pod %s/%s has an unexpected container name", nginxPod.Namespace, nginxPod.Name)
+			assert.Equalf(c, contlcycle.ObjectKind_Pod, ctr.GetOwner().GetOwnerType(), "Container state transition of pod %s/%s has an unexpected owner type", nginxPod.Namespace, nginxPod.Name)
+			assert.NotEmptyf(c, ctr.GetContainerID(), "Container state transition of pod %s/%s has no container ID", nginxPod.Namespace, nginxPod.Name)
+			assert.NotContainsf(c, ctr.GetContainerID(), "://", "Container state transition of pod %s/%s carries a non-normalized container ID: %s", nginxPod.Namespace, nginxPod.Name, ctr.GetContainerID())
+			assert.Equalf(c, contlcycle.ContainerKind_CONTAINER_KIND_REGULAR, transition.GetContainerKind(), "Container state transition of pod %s/%s has an unexpected container kind", nginxPod.Namespace, nginxPod.Name)
+			// The kubelet polls the CRI, so a skipped state cannot prove a missed intermediate.
+			assert.Equalf(c, contlcycle.MissedIntermediate_MISSED_INTERMEDIATE_UNKNOWABLE, transition.GetMissedIntermediate(), "Container state transition of pod %s/%s has an unexpected missed-intermediate value", nginxPod.Namespace, nginxPod.Name)
+
+			if err := assertTags(event.GetTags(), expectedContainerEventTags, nil, true); err == nil {
+				foundContainerTransitionWithTags = true
+			} else {
+				lastContainerTagsErr = err
+			}
 		}
 
 		assert.Truef(c, foundPodEvent, "Failed to find the pod lifecycle event for pod %s/%s", nginxPod.Namespace, nginxPod.Name)
 		assert.Truef(c, foundPodEventWithTags, "Pod lifecycle event for pod %s/%s does not carry the expected dd_tags: %v", nginxPod.Namespace, nginxPod.Name, lastTagsErr)
+		assert.Truef(c, foundContainerTransition, "Failed to find the terminated container state transition for pod %s/%s", nginxPod.Namespace, nginxPod.Name)
+		assert.Truef(c, foundContainerTransitionWithTags, "Container state transition of pod %s/%s does not carry the expected dd_tags: %v", nginxPod.Namespace, nginxPod.Name, lastContainerTagsErr)
 	}, 2*time.Minute, 10*time.Second, "Failed to find the pod lifecycle event for pod %s/%s", nginxPod.Namespace, nginxPod.Name)
 }
 
