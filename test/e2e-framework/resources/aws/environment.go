@@ -537,3 +537,13 @@ func (e *Environment) EKSReadOnlySSORole() string {
 func (e *Environment) GetCommonEnvironment() *config.CommonEnvironment {
 	return e.CommonEnvironment
 }
+
+// DDInfraEksRolePermissionsBoundary is the config key for EKSRolePermissionsBoundary
+const DDInfraEksRolePermissionsBoundary = "aws/eks/rolePermissionsBoundary"
+
+// EKSRolePermissionsBoundary is the ARN of a managed policy to set as the permissions boundary of every IAM role
+// created for an EKS cluster, for accounts that only let the deploying principal create roles under a boundary.
+// Empty (the default) sets none.
+func (e *Environment) EKSRolePermissionsBoundary() string {
+	return e.GetStringWithDefault(e.InfraConfig, DDInfraEksRolePermissionsBoundary, "")
+}

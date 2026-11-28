@@ -14,6 +14,8 @@ import (
 const (
 	EC2ServicePrincipal = "ec2.amazonaws.com"
 	EKSServicePrincipal = "eks.amazonaws.com"
+	// EKSFargatePodsServicePrincipal runs Fargate pods
+	EKSFargatePodsServicePrincipal = "eks-fargate-pods.amazonaws.com"
 )
 
 func GetAWSPrincipalAssumeRole(e aws.Environment, serviceName []string) (*iam.GetPolicyDocumentResult, error) {
