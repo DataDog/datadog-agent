@@ -163,10 +163,13 @@ func (s *baselineSuite) TestAgentRunning() {
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		series, err := s.Env().FakeIntake.Client().FilterMetrics(agentRunningMetric)
 		require.NoError(c, err)
-		require.NotEmpty(c, series, "no %s series has reached the intake yet", agentRunningMetric)
+		// Every Agent reports this gauge, and Agents of other stacks can keep flushing to an
+		// address this fakeintake now holds, so only this Agent's series are checked. A wrong
+		// host on this Agent's series leaves none and still fails.
+		series = slices.DeleteFunc(series, func(m *aggregator.MetricSeries) bool { return seriesHost(m) != hostname })
+		require.NotEmpty(c, series, "no %s series from host %s has reached the intake yet", agentRunningMetric, hostname)
 		for _, m := range series {
 			assert.Equal(c, metricspb.MetricPayload_GAUGE, m.Type)
-			assert.Equal(c, hostname, seriesHost(m))
 			assert.True(c, slices.ContainsFunc(m.Tags, func(t string) bool { return strings.HasPrefix(t, "version:") }),
 				"%s must carry the Agent version tag, got %v", agentRunningMetric, m.Tags)
 			for _, p := range m.Points {

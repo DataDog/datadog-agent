@@ -32,6 +32,8 @@ Every test in a suite ships to the same fakeintake, and the framework does not r
 
 Write assertions on the assumption that `FilterMetrics` returns your test's payloads. Where that assumption needs enforcing, reset in `BeforeTest` rather than tagging payloads and filtering on the tag — a test author should not have to label metrics to find them again.
 
+A reset does not stop other Agents from writing to your fakeintake. Agents from other stacks, including other CI projects, can keep flushing to an address your fakeintake now holds. Metrics every Agent emits, such as `datadog.agent.running`, can therefore arrive with a foreign host. When asserting on those, keep only the series whose host is `Agent.Client.Hostname()` and require at least one, rather than asserting that every series carries your host.
+
 ## Working in this tree
 
 Use the `write-e2e` skill (`.agents/skills/write-e2e/`) to author or extend a test: it covers scoping from a diff, environment and cloud choice, fakeintake assertions, and GitLab wiring. `run-e2e` and `run-windows-e2e` cover running tests that already exist.
