@@ -49,6 +49,17 @@ else
   fi
 fi
 
+# The named host platform is also the default target platform: hermetic-llvm leaves glibc unconstrained on
+# @platforms//host, so without it Linux builds lose the glibc/libstdc++ floors. With
+# --experimental_platform_in_output_dir it also yields the same bazel-out paths as a macOS --config=rbe build
+# for Linux; with the platform exec_properties, both then share cache keys.
+if [ "$(uname -s)" = Linux ]; then
+  case "$(uname -m)" in
+    aarch64) extra_args+=(--config=linux_arm64) ;;
+    x86_64) extra_args+=(--config=linux_x86_64) ;;
+  esac
+fi
+
 # Local developer remote cache selection (CI selects its own endpoint above).
 if [ -z "${CI-}" ]; then
   remote_cache_select="$(dirname "$0")/../bazel/tools/remote-cache-select.sh"

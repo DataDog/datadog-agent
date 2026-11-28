@@ -116,6 +116,8 @@ cc_shared_library(
     dynamic_deps = ["@libxml2//:xml2_pkg"],
     user_link_flags = [
         "-Wl,--version-script=$(execpath libxslt/libxslt.syms)",
+        # libxslt.syms lists debugger and profiler symbols this build leaves out.
+        "-Wl,--undefined-version",
     ],
     visibility = ["//visibility:public"],
     deps = [":libxslt"],

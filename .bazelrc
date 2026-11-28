@@ -103,6 +103,10 @@ common:linux --per_file_copt=external/.*[.]c$@-Werror=implicit-function-declarat
 common:linux --host_per_file_copt=external/.*@-Wno-all,-Wno-attribute-warning,-Wno-deprecated-declarations,-Wno-stringop-overflow,-Wno-attributes,-Wno-alloc-size-larger-than
 common:linux --host_per_file_copt=external/.*[.]c$@-Werror=implicit-function-declaration,-Werror=implicit-int,-Werror=int-conversion,-Werror=incompatible-pointer-types
 common --@llvm//runtimes/glibc:glibc_additional_library_search_directory=//bazel/toolchains/glibc_static # -static links; hermetic-llvm ships glibc stubs only
+# Selected by tools/bazel from the host CPU. Named platforms keep output paths and action keys host-independent.
+# Only the host platform is set: it is also the default target platform, so any explicit --platforms still wins.
+common:linux_arm64 --host_platform=//bazel/platforms:linux_arm64
+common:linux_x86_64 --host_platform=//bazel/platforms:linux_x86_64
 
 # macOS config ---------------------------------------------------------------------------------------------------------
 common:macos --experimental_use_llvm_covmap # gcov's runtime is missing in foreign_cc links (CPython's _ctypes)
@@ -152,8 +156,6 @@ build:rbe --jobs=100
 build:rbe --noremote_local_fallback
 build:rbe --noremote_upload_local_results
 build:rbe --platforms=//bazel/platforms:linux_x86_64
-build:rbe --remote_default_exec_properties=ISA=x86-64
-build:rbe --remote_default_exec_properties=OSFamily=Linux
 build:rbe --remote_download_minimal
 build:rbe --remote_executor=grpcs://buildbarn-frontend-datadog-agent.us1.ddbuild.io:443
 build:rbe --remote_timeout=900
