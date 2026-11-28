@@ -1,0 +1,17 @@
+# Issued to: rapid-agent-devx/datadog-agent-ci-automation-worker on us1.ddbuild.staging.dog
+issuer: https://vault.us1.ddbuild.staging.dog/v1/identity/oidc
+
+# ddtool auth whois --datacenter us1.ddbuild.staging.dog rapid-agent-devx-datadog-agent-ci-automation-worker --format json | jq -r .id
+subject: 0774ada1-797a-167d-e43a-216188fc6c42
+
+permissions:
+  # Push the branches of revert PRs
+  contents: write
+  # Open and close revert PRs, request reviews on them
+  pull_requests: write
+  # Label revert PRs and comment on the PR that broke CI
+  issues: write
+  # Read check runs on the revert PR and the base branch
+  checks: read
+  # Read commit statuses on the revert PR and the base branch
+  statuses: read
