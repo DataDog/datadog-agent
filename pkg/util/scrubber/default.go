@@ -6,6 +6,9 @@
 package scrubber
 
 import (
+	"bytes"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"math/bits"
 	"regexp"
@@ -74,6 +77,16 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		Repl:  []byte(`************************************$1`),
 
 		LastUpdated: parseVersion("7.78.5"),
+	}
+
+	// Custom OIDC delegated-auth proof: "oidc-" + a JWS compact token (RFC 7515). Hostnames such as
+	// oidc-a.b.example.com share the shape, so only redact when the first part is a JWS header.
+	oidcProofReplacer := Replacer{
+		Regex:    regexp.MustCompile(`\boidc-[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]*`),
+		Hints:    []string{"oidc-"},
+		ReplFunc: scrubOIDCProof,
+
+		LastUpdated: parseVersion("7.87.0"),
 	}
 
 	// replacers are check one by one in order. We first try to scrub 64 bytes token, keeping the last 5 digit. If
@@ -369,6 +382,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		hintedAPIKeyReplacer,
 		hintedAPPKeyReplacer,
 		prefixedAPPKeyReplacer,
+		oidcProofReplacer,
 		hintedBearerReplacer,
 		hintedBearerInvalidReplacer,
 		httpHeaderKeyReplacer,
@@ -714,4 +728,17 @@ func GetStrippedKeys() []string {
 // ClearStrippedKeys forgets the keys recorded by the default scrubber.
 func ClearStrippedKeys() {
 	DefaultScrubber.ClearStrippedKeys()
+}
+
+func scrubOIDCProof(match []byte) []byte {
+	header, _, _ := bytes.Cut(bytes.TrimPrefix(match, []byte("oidc-")), []byte("."))
+	raw, err := base64.RawURLEncoding.DecodeString(string(header))
+	if err != nil {
+		return match
+	}
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(raw, &fields) != nil || fields["alg"] == nil {
+		return match
+	}
+	return []byte("oidc-" + defaultReplacement)
 }
