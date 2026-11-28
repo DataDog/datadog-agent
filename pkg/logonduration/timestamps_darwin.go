@@ -21,8 +21,6 @@ import (
 	"errors"
 	"time"
 	"unsafe"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // unixFloatToTime converts a float64 Unix timestamp to time.Time with nanosecond precision.
@@ -86,35 +84,5 @@ func IsFileVaultEnabled() (bool, error) {
 // GetLoginTimestamps collects all login-related timestamps from the system.
 // This is the main entry point for the system-probe module.
 func GetLoginTimestamps() LoginTimestamps {
-	result := LoginTimestamps{}
-
-	// Check FileVault status first (needed for login window query)
-	if fv, err := IsFileVaultEnabled(); err == nil {
-		result.FileVaultEnabled = fv
-	} else {
-		log.Warnf("logonduration: failed to check FileVault status: %v", err)
-	}
-
-	// Get login window time via CGO to OSLogStore (query depends on FileVault status)
-	if lwt, err := GetLoginWindowTime(result.FileVaultEnabled); err == nil {
-		result.LoginWindowTime = lwt
-	} else {
-		log.Warnf("logonduration: failed to get login window time: %v", err)
-	}
-
-	// Get login time via CGO to OSLogStore
-	if lt, err := GetLoginTime(); err == nil {
-		result.LoginTime = lt
-	} else {
-		log.Warnf("logonduration: failed to get login time: %v", err)
-	}
-
-	// Get desktop ready time via CGO to OSLogStore (Dock checkin with launchservicesd)
-	if drt, err := GetDesktopReadyTime(); err == nil {
-		result.DesktopReadyTime = drt
-	} else {
-		log.Warnf("logonduration: failed to get desktop ready time: %v", err)
-	}
-
-	return result
+	return collectLoginTimestamps(timestampQueries{IsFileVaultEnabled, GetLoginWindowTime, GetLoginTime, GetDesktopReadyTime})
 }
