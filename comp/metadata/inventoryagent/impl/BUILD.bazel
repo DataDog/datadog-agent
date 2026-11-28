@@ -5,6 +5,7 @@ go_library(
     name = "impl",
     srcs = [
         "inventoryagent.go",
+        "remoteflag.go",
         "status.go",
     ],
     embedsrcs = [
@@ -35,6 +36,7 @@ go_library(
         "//pkg/config/fetcher/tracers",
         "//pkg/config/model",
         "//pkg/fips",
+        "//pkg/remoteflags",
         "//pkg/serializer",
         "//pkg/serializer/marshaler",
         "//pkg/util/ecs/metadata",
@@ -49,6 +51,7 @@ dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "inventoryagent_test.go",
+        "remoteflag_test.go",
     ],
     embed = [":impl"],
     deps = [
@@ -71,7 +74,9 @@ dd_agent_go_test(
         "//pkg/config/model",
         "//pkg/ebpf/prebuilt",
         "//pkg/fips",
+        "//pkg/remoteflags",
         "//pkg/serializer",
+        "//pkg/serializer/marshaler",
         "//pkg/serializer/mocks",
         "//pkg/system-probe/config",
         "//pkg/util/flavor",
@@ -81,6 +86,7 @@ dd_agent_go_test(
         "//pkg/util/uuid",
         "//pkg/version",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
         "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",
     ],

@@ -7,6 +7,7 @@ package inventoryagentimpl
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -23,6 +24,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
@@ -45,7 +47,9 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/fips"
+	pkgremoteflags "github.com/DataDog/datadog-agent/pkg/remoteflags"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	sysprobecfg "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -1268,3 +1272,59 @@ func TestGetProvidedConfiguration(t *testing.T) {
 	assert.Contains(t, payload.Metadata, "cli_configuration")
 	assert.Contains(t, payload.Metadata, "source_local_configuration")
 }
+
+// TestSubmittedPayloadFullConfiguration checks the payload handed to the serializer by Collect, with the
+// setting loaded from datadog.yaml (file source) and the remote flag delivered through the handler the
+// component registers.
+func TestSubmittedPayloadFullConfiguration(t *testing.T) {
+	tests := []struct {
+		name     string
+		yaml     string
+		dropFlag *bool
+		wantFull bool
+	}{
+		{name: "default", wantFull: true},
+		{name: "setting disabled", yaml: "inventories_full_configuration_enabled: false\n", wantFull: false},
+		{name: "remote flag drop", dropFlag: pointer(true), wantFull: false},
+		{name: "remote flag drop, setting enabled in file", yaml: "inventories_full_configuration_enabled: true\n", dropFlag: pointer(true), wantFull: true},
+		{name: "remote flag keep, setting disabled in file", yaml: "inventories_full_configuration_enabled: false\n", dropFlag: pointer(false), wantFull: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf := config.NewMockFromYAML(t, "inventories_first_run_delay: 0\ninventories_configuration_enabled: true\n"+tt.yaml)
+
+			var sent marshaler.JSONMarshaler
+			s := serializermock.NewMetricSerializer(t)
+			s.On("SendMetadata", mock.Anything).Run(func(args mock.Arguments) {
+				sent = args.Get(0).(marshaler.JSONMarshaler)
+			}).Return(nil).Once()
+
+			p := getProvides(t, nil, nil,
+				fx.Decorate(func() config.Component { return conf }),
+				fx.Decorate(func() serializer.MetricSerializer { return s }),
+			)
+			if tt.dropFlag != nil {
+				require.NoError(t, p.Subscriber.Handlers()[0].OnChange(pkgremoteflags.FlagValue(*tt.dropFlag)))
+			}
+
+			p.Comp.(*inventoryagent).Collect(context.Background())
+			require.NotNil(t, sent, "no payload submitted")
+
+			raw, err := sent.MarshalJSON()
+			require.NoError(t, err)
+			var payload struct {
+				Metadata map[string]any `json:"agent_metadata"`
+			}
+			require.NoError(t, json.Unmarshal(raw, &payload))
+
+			assert.Contains(t, payload.Metadata, "provided_configuration")
+			if tt.wantFull {
+				assert.Contains(t, payload.Metadata, "full_configuration")
+			} else {
+				assert.NotContains(t, payload.Metadata, "full_configuration")
+			}
+		})
+	}
+}
+
+func pointer[T any](v T) *T { return &v }

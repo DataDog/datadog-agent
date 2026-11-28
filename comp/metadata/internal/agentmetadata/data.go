@@ -157,8 +157,10 @@ func (ia *Data) getConfigs(data agentMetadata) {
 				}
 			}
 		}
-		if yaml, err := ia.marshalAndScrub(flareScrubber, ia.conf.AllSettingsWithoutSecrets()); err == nil {
-			data["full_configuration"] = yaml
+		if ia.conf.GetBool("inventories_full_configuration_enabled") {
+			if yaml, err := ia.marshalAndScrub(flareScrubber, ia.conf.AllSettingsWithoutSecrets()); err == nil {
+				data["full_configuration"] = yaml
+			}
 		}
 	}
 }

@@ -1148,6 +1148,15 @@ properties:
     tags:
     - template_section:Common
     - full-agent-only:true
+  inventories_full_configuration_enabled:
+    node_type: setting
+    type: boolean
+    default: true
+    description: |-
+      When set to false, the `full_configuration` entry is omitted from the
+      agent metadata payload sent to Datadog.
+
+      The setting `inventories_configuration_enabled` still takes precedence.
   metadata_ip_resolution_from_hostname:
     node_type: setting
     type: boolean
