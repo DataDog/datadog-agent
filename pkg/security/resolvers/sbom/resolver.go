@@ -1413,9 +1413,10 @@ func (r *Resolver) getSBOM(containerID containerutils.ContainerID) *SBOM {
 // ResolvePackage returns the package that owns file, which the process of pc
 // runs or opens, and records the access as usage of the package. The path of
 // file must be resolved. It returns nil for a file procfs names with
-// deletedSuffix, after recording its usage.
+// deletedSuffix, after recording its usage, and for the placeholder of a
+// process the probe could not resolve, whose zero credentials read as root.
 func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEvent) *sbomtypes.Package {
-	if !file.IsPathnameStrResolved || file.PathResolutionError != nil {
+	if !file.IsPathnameStrResolved || file.PathResolutionError != nil || isPlaceholder(pc) {
 		return nil
 	}
 
@@ -1512,6 +1513,14 @@ func (r *Resolver) latches(d *Data, previous, now time.Time) bool {
 	return false
 }
 
+// isPlaceholder reports whether pc is the placeholder the probe gives the event
+// of a process it could not resolve. The placeholder holds the container of the
+// cgroup the kernel reports, with zero credentials and an empty name, so the
+// gates on the name and the root flag would misread it.
+func isPlaceholder(pc *model.ProcessContext) bool {
+	return pc.Source == model.ProcessCacheEntryFromPlaceholder
+}
+
 // runsAsRoot reports whether a process runs as root, by its real or effective
 // UID, as a setuid-root binary run by another user does.
 func runsAsRoot(pc *model.ProcessContext) bool {
@@ -1596,7 +1605,7 @@ func (r *Resolver) HostPackageVersion(path string) string {
 // waited settleDelay, and only if the file is still at its path then and holds
 // code. An open arriving while maxOpened opens wait is dropped.
 func (r *Resolver) ResolveOpen(pc *model.ProcessContext, file *model.FileEvent) {
-	if !holdsCode(file) || readsCode(pc) {
+	if isPlaceholder(pc) || !holdsCode(file) || readsCode(pc) {
 		return
 	}
 	if pc.ContainerContext.ContainerID != "" {
