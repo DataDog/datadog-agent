@@ -547,3 +547,34 @@ func getCRScrubCases() map[string]struct {
 	}
 	return tests
 }
+
+func TestScrubUnstructured(t *testing.T) {
+	r := &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "example.com/v1",
+		"kind":       "Widget",
+		"metadata": map[string]interface{}{
+			"name": "app",
+			"annotations": map[string]interface{}{
+				kubectlLastAppliedConfigAnnotation: "applied",
+				"settings":                         `{"password":"sensitive-value"}`,
+			},
+			"labels": map[string]interface{}{consulOriginalPodAnnotation: "original", "app": "web"},
+		},
+		"spec": map[string]interface{}{"password": "sensitive-value", "port": "8080"},
+	}}
+	ScrubUnstructured(r, NewDefaultDataScrubber())
+	assert.Equal(t, "app", r.GetName())
+	assert.Equal(t, "Widget", r.GetKind())
+	assert.Equal(t, map[string]string{
+		kubectlLastAppliedConfigAnnotation: redactedAnnotationValue,
+		"settings":                         `{"password":"********"}`,
+	}, r.GetAnnotations())
+	assert.Equal(t, map[string]string{consulOriginalPodAnnotation: redactedAnnotationValue, "app": "web"}, r.GetLabels())
+	assert.Equal(t, map[string]interface{}{"password": redactedSecret, "port": "8080"}, r.Object["spec"])
+}
+
+func TestScrubUnstructuredWithoutMetadata(t *testing.T) {
+	r := &unstructured.Unstructured{Object: map[string]interface{}{"spec": map[string]interface{}{"port": "8080"}}}
+	ScrubUnstructured(r, NewDefaultDataScrubber())
+	assert.Equal(t, map[string]interface{}{"spec": map[string]interface{}{"port": "8080"}}, r.Object)
+}
