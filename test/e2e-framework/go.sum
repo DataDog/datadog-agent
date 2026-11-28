@@ -92,8 +92,6 @@ github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.12 h1:uvX2yaL+aMjkmnrLPPlR/zwjoKF
 github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.12/go.mod h1:dicT+2eNhHHqGkxHO7LoXw3QghIUGuzgdmFqaSTopgI=
 github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.92.2 h1:EgZ2zXnUAlPTkSvUicRCR5bBHm5ws9pGidRgmwCRQ9U=
 github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.92.2/go.mod h1:LvyCX/2B66WkJ3qgeD2QGZtQaCInPQxZcFOAenHJz2s=
-github.com/aws/aws-sdk-go-v2/service/ec2 v1.349.0 h1:30gjdtdFyjtXYz//o8mtR/yA3gVmOO6JhKVQHfS9XUs=
-github.com/aws/aws-sdk-go-v2/service/ec2 v1.349.0/go.mod h1:uMJiOkxaT3pV+LAeAvEaXToZ2x3nEnN53HnPdj+pcNo=
 github.com/aws/aws-sdk-go-v2/service/ec2 v1.350.0 h1:EjAV+HmAnHedN+iYZF+b4SQYtMGlMdjURLbZc3q32fs=
 github.com/aws/aws-sdk-go-v2/service/ec2 v1.350.0/go.mod h1:uMJiOkxaT3pV+LAeAvEaXToZ2x3nEnN53HnPdj+pcNo=
 github.com/aws/aws-sdk-go-v2/service/ecr v1.69.0 h1:6O9n+vB3+aToEoMdK3/jx7t+U31wHot3Cj5S4sVFpp8=
@@ -114,8 +112,6 @@ github.com/aws/aws-sdk-go-v2/service/s3 v1.116.0 h1:0/glEMW6lLpeGOq7tDKn3314ookb
 github.com/aws/aws-sdk-go-v2/service/s3 v1.116.0/go.mod h1:8NhAIBVYkVHq0hIbbzujdoou0VkKwMdG+De9e5oX6qI=
 github.com/aws/aws-sdk-go-v2/service/signin v1.14.0 h1:bIEk1HfTd3MGzvDa5YOQUodGr96D9+UTnmBLBB8ZJ10=
 github.com/aws/aws-sdk-go-v2/service/signin v1.14.0/go.mod h1:LdwHjKqPE9VCC7sTlWcOAizZx3ZJYjmfwC/EW2tIIAE=
-github.com/aws/aws-sdk-go-v2/service/ssm v1.83.0 h1:bzCFEGNhq3kWMlHHsbTwD83Qz3nlMRt6mael+OjHvOA=
-github.com/aws/aws-sdk-go-v2/service/ssm v1.83.0/go.mod h1:0SFlytwGtgihEA6ZQxy6SgXHYUGhq9gkeMZD71+Pi38=
 github.com/aws/aws-sdk-go-v2/service/ssm v1.84.0 h1:Q4FS3JxCPXVROe6xMRlF59V5QzDQmWpsokkzmuIqPCk=
 github.com/aws/aws-sdk-go-v2/service/ssm v1.84.0/go.mod h1:0SFlytwGtgihEA6ZQxy6SgXHYUGhq9gkeMZD71+Pi38=
 github.com/aws/aws-sdk-go-v2/service/sso v1.39.5 h1:ANAoa+qt3/9kXnvQVgUyxcTzhzZf4DqaBS+M2DQrELU=
