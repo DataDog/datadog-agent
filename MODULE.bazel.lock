@@ -894,13 +894,13 @@
         "pulumi-resource-aws-v7.55.0-windows-amd64.tar.gz": "sha1-MTqmuC7xgq+wolLVgxc7WPV9sJM=",
         "pulumi-resource-aws-v7.55.0-windows-arm64.tar.gz": "sha1-HNhRIptWyRVJSn2kKou6j8mmH9U="
       },
-      "https://github.com/pulumi/pulumi-awsx/releases/download/v3.14.0/pulumi-awsx_3.14.0_checksums.txt": {
-        "pulumi-resource-awsx-v3.14.0-darwin-amd64.tar.gz": "sha1-P0MQywWdpR0fyb7kbN4kGaBSs5s=",
-        "pulumi-resource-awsx-v3.14.0-darwin-arm64.tar.gz": "sha1-yOoAUWWekkBFHB/lgIf5oOdyFG8=",
-        "pulumi-resource-awsx-v3.14.0-linux-amd64.tar.gz": "sha1-atBO07DmV1L1HHDXTn4y6P9ZAss=",
-        "pulumi-resource-awsx-v3.14.0-linux-arm64.tar.gz": "sha1-vmQP432RgtcP8LqIcB6dTrpPQY0=",
-        "pulumi-resource-awsx-v3.14.0-windows-amd64.tar.gz": "sha1-djnixMQJvd18VjY7XUrPBlhPiZo=",
-        "pulumi-resource-awsx-v3.14.0-windows-arm64.tar.gz": "sha1-dt2qesROBpOYQ6HF1C26KvziqsE="
+      "https://github.com/pulumi/pulumi-awsx/releases/download/v3.15.0/pulumi-awsx_3.15.0_checksums.txt": {
+        "pulumi-resource-awsx-v3.15.0-darwin-amd64.tar.gz": "sha1-+c9GLSBrSz27vcGIGXRqEwU/fPI=",
+        "pulumi-resource-awsx-v3.15.0-darwin-arm64.tar.gz": "sha1-is4Um2xBqscHUAlSeclbQ0qW3Vg=",
+        "pulumi-resource-awsx-v3.15.0-linux-amd64.tar.gz": "sha1-U3qPH7vs5Zoalh21TVcZYkdwAt4=",
+        "pulumi-resource-awsx-v3.15.0-linux-arm64.tar.gz": "sha1-0MFNCUJ2WFHpdPE+tbSdEPJf14M=",
+        "pulumi-resource-awsx-v3.15.0-windows-amd64.tar.gz": "sha1-JJHcaKW2yB6o1TqNJjmY4aVU0Ao=",
+        "pulumi-resource-awsx-v3.15.0-windows-arm64.tar.gz": "sha1-GqgsOQk2VakeVzdt+VFIiFOArUA="
       },
       "https://github.com/pulumi/pulumi-azure-native/releases/download/v3.32.0/pulumi-azure-native_3.32.0_checksums.txt": {
         "pulumi-resource-azure-native-v3.32.0-darwin-amd64.tar.gz": "sha1-d1Byu4Dj90vP9ssAMlvOi8/b2bg=",
@@ -1017,7 +1017,7 @@
         "name": "aws",
         "url": "https://github.com/pulumi/pulumi-aws"
       },
-      "https://registry.npmjs.org/@pulumi/awsx/3.14.0": {
+      "https://registry.npmjs.org/@pulumi/awsx/3.15.0": {
         "dependencies": {
           "@pulumi/aws": "v7.53.0",
           "@pulumi/docker": "v4.6.0",
