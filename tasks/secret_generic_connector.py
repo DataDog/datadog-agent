@@ -33,9 +33,12 @@ def build(
     fips_backend=FipsBackend.none,
     arch_suffix=False,
     enable_bazel=False,
+    install_path="/opt/datadog-agent",
 ):
     """
     Build the secret-generic-connector binary.
+
+    install_path is where the Agent is installed. Linux msgo FIPS builds load OpenSSL from its embedded/lib.
     """
     if enable_bazel:
         if output_bin:
@@ -75,6 +78,10 @@ def build(
             ldflags += " -s -w"
         else:
             ldflags += " -w"
+
+    target_os = env.get("GOOS") or os.getenv("GOOS") or platform.system().lower()
+    if fips_backend == FipsBackend.msgo and target_os == "linux" and install_path:
+        ldflags += f" -r {install_path}/embedded/lib"  # OpenSSL is dlopen'ed from there at runtime
 
     # gcflags: -l disables inlining to reduce binary size.
     # get_build_flags() only sets gcflags for DELVE/NO_GO_OPT, and both already disable inlining,
