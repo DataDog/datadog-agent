@@ -395,7 +395,7 @@ func (p *Provider) ignoreMetricByLabel(metric *prometheus.Sample, metricName str
 func (p *Provider) metricNameWithNamespace(metricName string) string {
 	nameWithNamespace := metricName
 	if p.Config.Namespace != "" {
-		nameWithNamespace = strings.TrimSuffix(p.Config.Namespace, ".") + "." + metricName
+		nameWithNamespace = fmt.Sprintf("%s.%s", strings.TrimSuffix(p.Config.Namespace, "."), metricName)
 	}
 	return nameWithNamespace
 }
