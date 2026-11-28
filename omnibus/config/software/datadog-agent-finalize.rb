@@ -61,15 +61,16 @@ build do
         end
 
         # Size cleanups for the Windows embedded Python (embedded3), mirroring
-        # the ones done above for the Linux/macOS embedded Python.
+        # the ones done below for the Linux embedded Python.
         if windows_target?
             emb3 = File.join(install_dir, "embedded3")
+            site_packages = File.join(emb3, "Lib", "site-packages")
 
             # pip is already installed in site-packages (~1.8 MiB)
             delete File.join(emb3, "Lib", "ensurepip")
 
-            # Unit tests bundled with the embedded packages
-            Dir.glob(File.join(emb3, "Lib", "site-packages", "**", "{test,tests}")).each do |dir|
+            # Unit tests and test helpers bundled with the embedded packages
+            Dir.glob(File.join(site_packages, "**", "{test,tests,testing}")).each do |dir|
                 delete dir if File.directory?(dir)
             end
 
@@ -79,9 +80,21 @@ build do
             end
 
             # Build-time-only files: C headers, Cython declarations, static libraries (~1.1 MiB)
-            delete File.join(emb3, "Lib", "site-packages", "lxml", "includes")
-            delete File.join(emb3, "Lib", "site-packages", "win32", "libs")
-            delete File.join(emb3, "Lib", "site-packages", "win32com", "libs")
+            delete File.join(site_packages, "lxml", "includes")
+            delete File.join(site_packages, "win32", "libs")
+            delete File.join(site_packages, "win32com", "libs")
+
+            # Build-time C/Cython sources and headers (keep cffi/*.h which cffi/recompiler.py reads dynamically)
+            Dir.glob(File.join(site_packages, "**", "*.{c,h,hpp,pxd,pxi,pyx}")).each do |file|
+                next if file.tr("\\", "/").downcase.include?("/site-packages/cffi/")
+                delete file if File.file?(file)
+            end
+
+            # Type-checker stubs (keep datadog_checks/**/*.pyi which lazy_loader.attach_stub reads at runtime)
+            Dir.glob(File.join(site_packages, "**", "*.pyi")).each do |file|
+                next if file.tr("\\", "/").downcase.include?("/site-packages/datadog_checks/")
+                delete file if File.file?(file)
+            end
         end
 
         # TODO: Rather than move these, let's install them to the right place to start
@@ -141,12 +154,6 @@ build do
             # cleanup clutter
             delete "#{install_dir}/etc"
 
-            # The prerm and preinst scripts of the package will use this list to detect which files
-            # have been setup by the installer, this way, on removal, we'll be able to delete only files
-            # which have not been created by the package.
-            command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.installed_by_pkg.txt"
-            command "find . -path './embedded/lib/python*/site-packages/*' | sort >> #{install_dir}/embedded/.installed_by_pkg.txt", cwd: install_dir
-
             # removing the doc from the embedded folder to reduce package size by ~3MB
             delete "#{install_dir}/embedded/share/doc"
 
@@ -175,9 +182,27 @@ build do
             # removing ensurepip from the embedded Python to reduce package size by ~1.8MB
             delete "#{install_dir}/embedded/lib/python*/ensurepip"
 
-            # Drop bundled unit-test directories from embedded Python wheels/deps (not used at agent runtime).
-            # Deepest paths first so nested tests/ trees are removed safely.
-            command "find #{install_dir}/embedded/lib -path '*/site-packages/*' -depth -type d -name tests -exec rm -rf {} +"
+            # Drop build-time C/Cython headers from lxml (mirrors Windows cleanup)
+            delete "#{install_dir}/embedded/lib/python*/site-packages/lxml/includes"
+
+            # Drop bundled unit-test and test-helper directories from embedded Python wheels/deps
+            # (not used at agent runtime). Deepest paths first so nested trees are removed safely.
+            command "find #{install_dir}/embedded/lib -depth -path '*/site-packages/*' -type d \\( -name test -o -name tests -o -name testing \\) -exec rm -rf {} +"
+
+            # Drop build-time C/Cython sources and headers from embedded Python wheels
+            # (keep cffi/*.h which cffi/recompiler.py reads dynamically).
+            command "find #{install_dir}/embedded/lib -path '*/site-packages/*' ! -path '*/site-packages/cffi/*' -type f \\( -name '*.c' -o -name '*.h' -o -name '*.hpp' -o -name '*.pxd' -o -name '*.pxi' -o -name '*.pyx' \\) -exec rm -f {} +"
+
+            # Drop type-checker stubs from embedded Python wheels
+            # (keep datadog_checks/**/*.pyi which lazy_loader.attach_stub reads at runtime).
+            command "find #{install_dir}/embedded/lib -path '*/site-packages/*' ! -path '*/site-packages/datadog_checks/*' -type f -name '*.pyi' -exec rm -f {} +"
+
+            # The prerm and preinst scripts of the package will use this list to detect which files
+            # have been setup by the installer, this way, on removal, we'll be able to delete only files
+            # which have not been created by the package.
+            # Generated after site-packages cleanup so it only lists shipped files.
+            command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.installed_by_pkg.txt"
+            command "find . -path './embedded/lib/python*/site-packages/*' | sort >> #{install_dir}/embedded/.installed_by_pkg.txt", cwd: install_dir
 
             # Remove debug eBPF object files — they enable bpf_trace_printk logging
             # and are only useful for local development, not deployed environments.
