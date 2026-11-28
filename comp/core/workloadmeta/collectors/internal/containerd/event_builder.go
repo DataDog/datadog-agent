@@ -23,6 +23,8 @@ import (
 
 var errNoContainer = errors.New("no container")
 
+var errExecProcessExit = errors.New("exec process exit")
+
 // buildCollectorEvent generates a CollectorEvent from a containerdevents.Envelope
 func (c *collector) buildCollectorEvent(
 	containerdEvent *containerdevents.Envelope,
@@ -44,6 +46,10 @@ func (c *collector) buildCollectorEvent(
 		exited := &events.TaskExit{}
 		if err := proto.Unmarshal(containerdEvent.Event.GetValue(), exited); err != nil {
 			return workloadmeta.CollectorEvent{}, err
+		}
+
+		if exited.ID != "" && exited.ID != exited.ContainerID {
+			return workloadmeta.CollectorEvent{}, errExecProcessExit
 		}
 
 		c.cacheExitInfo(containerID, pointer.Ptr(int64(exited.ExitStatus)), exited.ExitedAt.AsTime())

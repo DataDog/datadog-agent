@@ -310,6 +310,52 @@ func TestBuildCollectorEvent(t *testing.T) {
 	}
 }
 
+func TestBuildCollectorEventExecProcessExit(t *testing.T) {
+	containerID := "10"
+	namespace := "test_namespace"
+
+	container := mockedContainer{
+		mockID: func() string {
+			return containerID
+		},
+	}
+
+	execExitEvent, err := proto.Marshal(&events.TaskExit{
+		ContainerID: containerID,
+		ID:          "exec-1",
+		ExitStatus:  1,
+	})
+	assert.NoError(t, err)
+
+	initExitEvent, err := proto.Marshal(&events.TaskExit{
+		ContainerID: containerID,
+		ID:          containerID,
+		ExitStatus:  137,
+	})
+	assert.NoError(t, err)
+
+	client := containerdClient(&container)
+	c := &collector{containerdClient: &client, contToExitInfo: make(map[string]*exitInfo)}
+
+	_, err = c.buildCollectorEvent(&containerdevents.Envelope{
+		Namespace: namespace,
+		Topic:     TaskExitTopic,
+		Event:     &types.Any{TypeUrl: "containerd.events.TaskExit", Value: execExitEvent},
+	}, containerID, &container, nil)
+	assert.ErrorIs(t, err, errExecProcessExit)
+	assert.Nil(t, c.getExitInfo(containerID))
+
+	_, err = c.buildCollectorEvent(&containerdevents.Envelope{
+		Namespace: namespace,
+		Topic:     TaskExitTopic,
+		Event:     &types.Any{TypeUrl: "containerd.events.TaskExit", Value: initExitEvent},
+	}, containerID, nil, nil)
+	assert.ErrorIs(t, err, errNoContainer)
+	if assert.NotNil(t, c.getExitInfo(containerID)) {
+		assert.Equal(t, int64(137), *c.getExitInfo(containerID).exitCode)
+	}
+}
+
 // containerdClient returns a mockedContainerdClient set up for the tests in this file.
 func containerdClient(container containerd.Container) fake.MockedContainerdClient {
 	labels := map[string]string{"some_label": "some_val"}

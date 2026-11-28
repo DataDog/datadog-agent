@@ -361,6 +361,10 @@ func (c *collector) handleContainerEvent(ctx context.Context, containerdEvent *c
 			return nil
 		}
 
+		if errors.Is(err, errExecProcessExit) {
+			return nil
+		}
+
 		return fmt.Errorf("cannot build collector event: %w", err)
 	}
 

@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    The containerd workloadmeta collector now ignores task exit events of
+    exec processes, such as exec liveness and readiness probes. Before, the
+    Agent rebuilt the container from containerd after every exec and could
+    log the same image lookup warning each time.
