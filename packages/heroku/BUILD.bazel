@@ -39,12 +39,11 @@ dd_agent_pkg_mklink(
     target = "{install_dir}/bin/agent/agent",
 )
 
-pkg_files(
+agent_binary_for_package(
     name = "trace_agent_binary",
-    srcs = ["//cmd/trace-agent:trace-agent-heroku"],
-    attributes = pkg_attributes(mode = "755"),
+    patch_rpath = True,
     prefix = "embedded/bin",
-    renames = {"//cmd/trace-agent:trace-agent-heroku": "trace-agent"},
+    target = "//cmd/trace-agent:trace-agent-heroku",
 )
 
 # The systemd service needs a trace-loader, but nothing is traced through it.
