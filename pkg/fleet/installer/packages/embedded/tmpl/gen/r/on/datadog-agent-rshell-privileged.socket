@@ -1,7 +1,13 @@
 [Unit]
+# Starting after the Agent must not also order this socket before sockets.target.
+DefaultDependencies=no
+Requires=sysinit.target
+After=sysinit.target
+Before=shutdown.target
+Conflicts=shutdown.target
 Description=Datadog rshell privileged helper socket
-After=datadog-agent.service datadog-agent-action.service
-BindsTo=datadog-agent.service datadog-agent-action.service
+After=datadog-agent.service
+BindsTo=datadog-agent.service
 Conflicts=datadog-agent-rshell-privileged-exp.socket
 ConditionPathExists=/opt/datadog-packages/datadog-agent/stable/embedded/bin/rshell
 
@@ -15,4 +21,4 @@ DirectoryMode=0750
 RemoveOnStop=yes
 
 [Install]
-WantedBy=sockets.target datadog-agent-action.service
+WantedBy=sockets.target datadog-agent.service
