@@ -1,0 +1,76 @@
+{
+  "issueName": "Log Data Lost After Rotation",
+  "title": "Lost 4.2 MB of logs from 3 sources in the last 24 hours",
+  "description": "Logs from 3 sources never reached Datadog: 4 log rotations closed a file before the Agent finished reading it. Most affected: nginx/web 4.0 MB, redis/cache 200 kB, kafka/queue 512 B.",
+  "category": "logs_pipeline",
+  "location": "logs-agent",
+  "severity": "ISSUE_SEVERITY_HIGH",
+  "source": "logs",
+  "extra": {
+    "bytes_missed_24h": 4200512,
+    "last_loss_at": "2026-11-16T10:00:00Z",
+    "rotation_count_24h": 4,
+    "source_count": 3,
+    "source_service_pairs_omitted": 0,
+    "sources": [
+      {
+        "bytes": 4000000,
+        "rotations": 2,
+        "service": "web",
+        "source": "nginx"
+      },
+      {
+        "bytes": 200000,
+        "rotations": 1,
+        "service": "cache",
+        "source": "redis"
+      },
+      {
+        "bytes": 512,
+        "rotations": 1,
+        "service": "queue",
+        "source": "kafka"
+      }
+    ]
+  },
+  "remediation": {
+    "summary": "Give the Agent more time to finish reading rotated files, and relieve any saturation in the logs pipeline.",
+    "steps": [
+      {
+        "order": 1,
+        "text": "Run `sudo datadog-agent status` and note any saturated component in the Logs Agent Backpressure section."
+      },
+      {
+        "order": 2,
+        "text": "Raise `logs_config.close_timeout` (DD_LOGS_CONFIG_CLOSE_TIMEOUT) above its 60 second default to give the tailer longer to finish a rotated file."
+      },
+      {
+        "order": 3,
+        "text": "If a `destination_reliable_N` or `worker` row is saturated, check the Agent log for failed or retried submissions and resolve any proxy, DNS, authentication, or connectivity errors."
+      },
+      {
+        "order": 4,
+        "text": "If the `strategy` row is saturated, set `logs_config.use_compression` to false or raise `logs_config.pipelines`."
+      },
+      {
+        "order": 5,
+        "text": "If the `processor` row is saturated, scope global `logs_config.processing_rules` to the affected source, or set `logs_config.auto_multi_line_detection` to false."
+      },
+      {
+        "order": 6,
+        "text": "If the Agent still cannot keep up, drop unneeded logs with an `exclude_at_match` processing rule, or reduce the volume written to the file between rotations."
+      },
+      {
+        "order": 7,
+        "text": "Re-run `sudo datadog-agent status` under representative log volume and confirm no new rotation warnings appear in the Agent log."
+      }
+    ]
+  },
+  "tags": [
+    "logs",
+    "file-tailing",
+    "rotation",
+    "data-loss"
+  ],
+  "issueType": "log_data_lost_after_rotation"
+}
