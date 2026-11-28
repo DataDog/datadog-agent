@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Cluster Agent flares requested through Remote Configuration now remove
+    their local archive from the temporary directory when the upload fails,
+    not only when it succeeds.

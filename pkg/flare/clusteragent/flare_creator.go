@@ -50,12 +50,16 @@ func (c *Creator) Send(flarePath string, caseID string, email string, source fla
 	if err != nil {
 		return response, err
 	}
-	if removeErr := os.Remove(flarePath); removeErr != nil {
-		log.Warnf("Could not remove local flare archive %s: %v", flarePath, removeErr)
+	removeFlareArchive(flarePath)
+	return response, nil
+}
+
+func removeFlareArchive(flarePath string) {
+	if err := os.Remove(flarePath); err != nil {
+		log.Warnf("Could not remove local flare archive %s: %v", flarePath, err)
 	} else {
 		log.Infof("Removed local flare archive %s", flarePath)
 	}
-	return response, nil
 }
 
 func createIdentifiedDCAArchive(cfg pkgconfigmodel.Reader, flareArgs flaretypes.FlareArgs, statusComp status.Component, diagnoseComp diagnose.Component, ipcComp ipc.Component) (string, error) {

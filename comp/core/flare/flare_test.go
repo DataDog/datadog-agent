@@ -433,6 +433,105 @@ func TestSendKeepsArchiveWhenKeepArchiveAfterSend(t *testing.T) {
 	assert.NoError(t, statErr, "flare archive should be kept when KeepArchiveAfterSend is true")
 }
 
+func TestSendKeepsArchiveWhenSendFails(t *testing.T) {
+	tmpDir := t.TempDir()
+	archivePath := filepath.Join(tmpDir, "flare.zip")
+	require.NoError(t, os.WriteFile(archivePath, []byte("fake flare"), 0600))
+
+	origSendTo := sendToFunc
+	defer func() { sendToFunc = origSendTo }()
+	sendToFunc = func(_ model.Reader, _ string, _ string, _ string, _ string, _ string, _ helpers.FlareSource) (string, error) {
+		return "", errors.New("upload failed")
+	}
+
+	comp := getFlareComponent(t, Params{}, nil)
+	_, err := comp.Send(archivePath, "case1", "test@example.com", helpers.NewLocalFlareSource())
+	require.Error(t, err)
+
+	assert.FileExists(t, archivePath, "a locally requested flare archive should be kept when the upload fails")
+}
+
+func TestAgentTaskFlareArchiveRemovedAfterUpload(t *testing.T) {
+	// Use the real builder so that each task writes an actual archive to the temporary directory.
+	testCfg := map[string]interface{}{
+		"site": "localhost",
+	}
+
+	scenarios := []struct {
+		name    string
+		sendErr error
+	}{
+		{name: "upload succeeds"},
+		{name: "upload fails", sendErr: errors.New("upload failed")},
+	}
+
+	origSendTo := sendToFunc
+	t.Cleanup(func() { sendToFunc = origSendTo })
+
+	for _, s := range scenarios {
+		t.Run(s.name, func(t *testing.T) {
+			flareComp := getFlare(t, testCfg)
+			flareComp.providers = nil
+
+			var archivePaths []string
+			sendToFunc = func(_ model.Reader, archivePath, _, _, _, _ string, _ helpers.FlareSource) (string, error) {
+				require.FileExists(t, archivePath)
+				t.Cleanup(func() { os.Remove(archivePath) })
+				archivePaths = append(archivePaths, archivePath)
+				return "", s.sendErr
+			}
+
+			for _, uuid := range []string{"uuid-1", "uuid-2", "uuid-3"} {
+				atc, err := rcclienttypes.ParseConfigAgentTask([]byte(`{"args":{"case_id":"1","user_handle":"u@d.com"},"task_type":"flare","uuid":"`+uuid+`"}`), state.Metadata{})
+				require.NoError(t, err)
+
+				processed, taskErr := flareComp.onAgentTaskEvent(rcclienttypes.TaskFlare, atc)
+				assert.True(t, processed)
+				if s.sendErr != nil {
+					assert.ErrorIs(t, taskErr, s.sendErr)
+				} else {
+					assert.NoError(t, taskErr)
+				}
+			}
+
+			require.Len(t, archivePaths, 3)
+			for _, archivePath := range archivePaths {
+				assert.NoFileExists(t, archivePath)
+			}
+		})
+	}
+}
+
+func TestAgentTaskFlareArchiveRemovedWhenCaseIDIsNotAValidURLPath(t *testing.T) {
+	// Point the temporary directory at an empty one so any archive left behind is visible.
+	tmpDir := t.TempDir()
+	t.Setenv("TMPDIR", tmpDir)
+	t.Setenv("TMP", tmpDir)
+	t.Setenv("TEMP", tmpDir)
+	if filepath.Clean(os.TempDir()) != filepath.Clean(tmpDir) {
+		// GetTempPath2 ignores TMP and TEMP for processes running as SYSTEM.
+		t.Skipf("os.TempDir() is %q, not the overridden %q", os.TempDir(), tmpDir)
+	}
+
+	origSendTo := sendToFunc
+	t.Cleanup(func() { sendToFunc = origSendTo })
+	sendToFunc = nil
+
+	flareComp := getFlare(t, map[string]interface{}{"site": "localhost"})
+	flareComp.providers = nil
+
+	atc, err := rcclienttypes.ParseConfigAgentTask([]byte(`{"args":{"case_id":"12%","user_handle":"u@d.com"},"task_type":"flare","uuid":"uuid-1"}`), state.Metadata{})
+	require.NoError(t, err)
+
+	processed, taskErr := flareComp.onAgentTaskEvent(rcclienttypes.TaskFlare, atc)
+	assert.True(t, processed)
+	require.ErrorContains(t, taskErr, "invalid URL escape")
+
+	entries, err := os.ReadDir(tmpDir)
+	require.NoError(t, err)
+	assert.Empty(t, entries, "the flare archive should be removed when the upload cannot start")
+}
+
 func runFlareTestScenarios(t *testing.T, testCfg map[string]interface{}, scenarios []struct {
 	name        string
 	task        string

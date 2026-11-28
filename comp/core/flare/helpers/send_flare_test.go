@@ -14,6 +14,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -271,6 +273,121 @@ func TestFlareHasRightForm(t *testing.T) {
 				assert.Equal(t, av.String(), lastRequest.FormValue("agent_version"))
 			}
 		})
+	}
+}
+
+// lateCloseTransport leaves the request body open after RoundTrip returns, which the
+// RoundTripper contract allows and net/http's transport does.
+type lateCloseTransport struct {
+	err  error
+	body io.Closer
+}
+
+func (rt *lateCloseTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	rt.body = req.Body
+	// Read past the form fields so the archive is open and still being uploaded.
+	if _, err := io.ReadFull(req.Body, make([]byte, 64<<10)); err != nil {
+		return nil, err
+	}
+	if rt.err != nil {
+		return nil, rt.err
+	}
+	return &http.Response{
+		StatusCode: http.StatusBadRequest,
+		Status:     "400 Bad Request",
+		Header:     http.Header{},
+		Body:       io.NopCloser(strings.NewReader("Bad Request")),
+	}, nil
+}
+
+func assertUploadOver(t *testing.T, rt *lateCloseTransport) {
+	t.Helper()
+	body, ok := rt.body.(*flareBody)
+	require.True(t, ok, "the request body should be the flare body")
+	select {
+	case <-body.done:
+	default:
+		assert.Fail(t, "the upload should be over when the call returns")
+	}
+}
+
+func TestReadAndPostFlareFileClosesArchiveWhenTransportClosesBodyLate(t *testing.T) {
+	testCases := []struct {
+		name         string
+		transportErr error
+	}{
+		{name: "response before the upload completes"},
+		{name: "transport error", transportErr: errors.New("connection reset")},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			archivePath := filepath.Join(t.TempDir(), "flare.zip")
+			require.NoError(t, os.WriteFile(archivePath, make([]byte, 1<<20), 0600))
+
+			rt := &lateCloseTransport{err: tc.transportErr}
+			resp, err := readAndPostFlareFile(archivePath, "12345", "test@example.com", "hostname", "http://flare.invalid/support/flare/12345", FlareSource{}, &http.Client{Transport: rt}, "test-api-key")
+			if tc.transportErr != nil {
+				require.ErrorIs(t, err, tc.transportErr)
+			} else {
+				require.NoError(t, err)
+				_, err = analyzeResponse(resp, "test-api-key")
+				require.ErrorContains(t, err, "HTTP 400")
+				resp.Body.Close()
+			}
+
+			assertUploadOver(t, rt)
+			assertArchiveClosed(t, archivePath)
+			rt.body.Close()
+		})
+	}
+}
+
+// removeDuringUploadTransport removes the archive while the upload still has it open.
+type removeDuringUploadTransport struct {
+	path      string
+	removeErr error
+}
+
+func (rt *removeDuringUploadTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	defer req.Body.Close()
+	// Read past the form fields so the archive is open and still being uploaded.
+	if _, err := io.ReadFull(req.Body, make([]byte, 64<<10)); err != nil {
+		return nil, err
+	}
+	rt.removeErr = os.Remove(rt.path)
+	return nil, errors.New("connection reset")
+}
+
+func TestReadAndPostFlareFileArchiveCanBeRemovedDuringUpload(t *testing.T) {
+	archivePath := filepath.Join(t.TempDir(), "flare.zip")
+	require.NoError(t, os.WriteFile(archivePath, make([]byte, 1<<20), 0600))
+
+	rt := &removeDuringUploadTransport{path: archivePath}
+	resp, err := readAndPostFlareFile(archivePath, "12345", "test@example.com", "hostname", "http://flare.invalid/support/flare/12345", FlareSource{}, &http.Client{Transport: rt}, "test-api-key")
+	if resp != nil {
+		resp.Body.Close()
+	}
+	require.Error(t, err)
+	require.NoError(t, rt.removeErr, "the archive should be removable while it is being uploaded")
+	_, err = os.Stat(archivePath)
+	assert.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestFlareBodyReleaseStopsAtDeadline(t *testing.T) {
+	reader, _ := io.Pipe()
+	// The upload never finishes, as when a read of the archive blocks.
+	body := newFlareBody(reader, make(chan struct{}), time.Now())
+
+	released := make(chan struct{})
+	go func() {
+		body.release()
+		close(released)
+	}()
+	select {
+	case <-released:
+	case <-time.After(5 * time.Second):
+		assert.Fail(t, "release should return once the upload deadline has passed")
 	}
 }
 

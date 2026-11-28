@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Flares requested through Remote Configuration now remove their local
+    archive from the temporary directory when the upload fails, not only
+    when it succeeds. Flares requested from the CLI, GUI, or systray still
+    keep the archive when the upload fails.
