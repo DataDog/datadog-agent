@@ -1323,6 +1323,87 @@ func TestFilterOpenAUIDDiscarderApproverOnly(t *testing.T) {
 	}, "test_rule_auid")
 }
 
+// TestFilterOpenAUIDApproverOverBasename checks that an open approved both by a basename and by an auid approver
+// bypasses the leaf discarder of its file, which is discovered without the approver-only rule.
+func TestFilterOpenAUIDApproverOverBasename(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_auid",
+			Expression: `open.file.path != "/tmp/test-auid-never" && process.auid == 1012`,
+		},
+		{
+			ID:         "test_rule_basename",
+			Expression: `open.file.path == "{{.Root}}/other/test-auid-basename"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, withDynamicOpts(dynamicTestOpts{disableBundledRules: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// the test root is bind mounted in the container: the discarder and the opens have to be on the same mount
+	testFile, _, err := test.Path("test-auid-basename")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(testFile, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile)
+
+	cmdWrapper, err := test.StartADocker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cmdWrapper.stop()
+
+	// an open approved by the basename, matching no rule: the leaf discarder of the file is discovered on it
+	if err := test.GetEventDiscarder(t, func() error {
+		return cmdWrapper.Command("cat", []string{testFile}, []string{}).Run()
+	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+		if event == nil || eventType != "open" || field != "open.file.path" {
+			return false
+		}
+		v, _ := event.GetFieldValue("open.file.path")
+		return v == testFile
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	test.WaitSignalFromRule(t, func() error {
+		args := []string{
+			"-login-uid-test",
+			"-login-uid-event-type", "open",
+			"-login-uid-path", testFile,
+			"-login-uid-value", "1012",
+		}
+		return cmdWrapper.Command(goSyscallTester, args, []string{}).Run()
+	}, func(event *model.Event, _ *rules.Rule) {
+		assertFieldEqual(t, event, "open.file.path", testFile)
+	}, "test_rule_auid")
+}
+
 func TestFilterDiscarderMask(t *testing.T) {
 	SkipIfNotAvailable(t)
 
