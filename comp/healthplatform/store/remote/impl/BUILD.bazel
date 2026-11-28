@@ -17,12 +17,16 @@ go_library(
         "//pkg/util/flavor",
         "//pkg/util/http",
         "//pkg/version",
+        "@com_github_cenkalti_backoff_v7//:backoff",
     ],
 )
 
 dd_agent_go_test(
     name = "impl_test",
-    srcs = ["remote_test.go"],
+    srcs = [
+        "remote_retry_test.go",
+        "remote_test.go",
+    ],
     embed = [":impl"],
     deps = [
         "//comp/core/config",

@@ -30,6 +30,8 @@ issues = {
         }
     ],
 }
+# Fail one restoration per Agent type to exercise production startup retries.
+fail_next_request = {"node": True, "cluster": True}
 requests = []
 
 
@@ -74,14 +76,21 @@ class Handler(BaseHTTPRequestHandler):
             "received_at": datetime.now(timezone.utc).isoformat(),
         }
         with lock:
+            if not api_key_present:
+                status_code = 401
+            elif agent_type not in issues:
+                status_code = 400
+            elif fail_next_request[agent_type]:
+                fail_next_request[agent_type] = False
+                status_code = 503
+            else:
+                status_code = 200
+            request["status_code"] = status_code
             requests.append(request)
             response_issues = list(issues.get(agent_type, []))
 
-        if not api_key_present:
-            self._json(401, {"error": "missing API key"})
-            return
-        if agent_type not in issues:
-            self._json(400, {"error": "unknown agent_type"})
+        if status_code != 200:
+            self._json(status_code, {"error": "remote issue snapshot unavailable"})
             return
 
         self._json(

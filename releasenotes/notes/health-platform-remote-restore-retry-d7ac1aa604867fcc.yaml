@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Kubernetes Agents now retry transient failures when restoring Agent Health
+    issues at startup, allowing brief backend interruptions to recover before
+    issue reconciliation. Retries share a bounded startup time budget.

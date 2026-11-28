@@ -47,6 +47,7 @@ type remoteBackendIssue struct {
 }
 
 type remoteBackendRequest struct {
+	StatusCode          int    `json:"status_code"`
 	ResourceID          string `json:"resource_id"`
 	AgentType           string `json:"agent_type"`
 	APIKeyPresent       bool   `json:"api_key_present"`
@@ -80,6 +81,15 @@ func (suite *admissionProbeSuite) TestRemotePersistenceReconciliation() {
 	startup := suite.remotePersistenceStartup
 
 	suite.T().Run("StartupReconciliation", func(t *testing.T) {
+		// The fixture rejects the first request for each Agent type. Reaching
+		// reconciliation must require a successful production retry.
+		requests := suite.getRemoteBackendRequests(t)
+		for _, agentType := range []string{"node", "cluster"} {
+			agentRequests := filterRemoteBackendRequests(requests, agentType)
+			require.GreaterOrEqual(t, len(agentRequests), 2, "%s Agent did not retry restoration", agentType)
+			assert.Equal(t, 503, agentRequests[0].StatusCode)
+			assert.Equal(t, 200, agentRequests[1].StatusCode)
+		}
 		assertRemoteBackendRequest(t, startup.nodeRequest, startup.nodeResourceID, "node")
 		assertRemoteBackendRequest(t, startup.clusterRequest, startup.clusterResourceID, "cluster")
 		assertIssueState(t, startup.nodeStaleIssue, staleNodeIssueID, healthplatform.IssueState_ISSUE_STATE_RESOLVED)
@@ -314,6 +324,7 @@ print(urllib.request.urlopen(request, context=ssl._create_unverified_context()).
 }
 
 func assertRemoteBackendRequest(t require.TestingT, request remoteBackendRequest, resourceID, agentType string) {
+	assert.Equal(t, 200, request.StatusCode)
 	assert.Equal(t, resourceID, request.ResourceID)
 	assert.Equal(t, agentType, request.AgentType)
 	assert.True(t, request.APIKeyPresent)
@@ -335,7 +346,7 @@ func assertIssueState(t testing.TB, issue *healthplatform.Issue, issueID string,
 
 func findRemoteBackendRequest(requests []remoteBackendRequest, resourceID, agentType string) (remoteBackendRequest, bool) {
 	for _, request := range requests {
-		if request.ResourceID == resourceID && request.AgentType == agentType {
+		if request.ResourceID == resourceID && request.AgentType == agentType && request.StatusCode == 200 {
 			return request, true
 		}
 	}
