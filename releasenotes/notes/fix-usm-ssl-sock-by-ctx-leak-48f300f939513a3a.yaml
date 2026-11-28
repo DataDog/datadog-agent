@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixes an issue in USM where native TLS (OpenSSL, GnuTLS) monitoring could
+    stop capturing traffic from multi-threaded TLS clients after running for a
+    while. This issue was introduced in Agent 7.74.0.
