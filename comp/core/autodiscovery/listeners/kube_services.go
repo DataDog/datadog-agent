@@ -42,6 +42,7 @@ type KubeServiceListener struct {
 	promInclAnnot     types.PrometheusAnnotations
 	newService        chan<- Service
 	delService        chan<- Service
+	updService        chan<- ServiceUpdate
 	targetAllServices bool
 	m                 sync.RWMutex
 	filterStore       workloadfilter.Component
@@ -106,10 +107,11 @@ func NewKubeServiceListener(options ServiceListernerDeps) (ServiceListener, erro
 }
 
 // Listen starts watching service events
-func (l *KubeServiceListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
+func (l *KubeServiceListener) Listen(newSvc, delSvc chan<- Service, updSvc chan<- ServiceUpdate) {
 	// setup the I/O channels
 	l.newService = newSvc
 	l.delService = delSvc
+	l.updService = updSvc
 
 	if _, err := l.informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    l.added,
@@ -178,8 +180,7 @@ func (l *KubeServiceListener) updated(old, obj interface{}) {
 		return
 	}
 	if servicesDiffer(castedObj, castedOld) || l.promInclAnnot.AnnotationsDiffer(castedObj.GetAnnotations(), castedOld.GetAnnotations()) {
-		l.removeService(castedObj)
-		l.createService(castedObj)
+		l.updateService(castedObj)
 	}
 }
 
@@ -251,6 +252,26 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service) {
 	if l.telemetryStore != nil {
 		l.telemetryStore.WatchedResources.Inc(kubeServicesName, telemetry.ResourceKubeService)
 	}
+}
+
+func (l *KubeServiceListener) updateService(ksvc *v1.Service) {
+	l.m.RLock()
+	old, found := l.services[ksvc.UID]
+	l.m.RUnlock()
+
+	if !found || l.shouldIgnore(ksvc) {
+		l.removeService(ksvc)
+		l.createService(ksvc)
+		return
+	}
+
+	svc := processService(ksvc, l.filterStore)
+
+	l.m.Lock()
+	l.services[ksvc.UID] = svc
+	l.m.Unlock()
+
+	l.updService <- ServiceUpdate{Old: old, New: svc}
 }
 
 func processService(ksvc *v1.Service, filterStore workloadfilter.Component) *KubeServiceService {

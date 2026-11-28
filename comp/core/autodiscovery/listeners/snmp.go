@@ -124,7 +124,7 @@ func NewSNMPListener(ServiceListernerDeps) (ServiceListener, error) {
 }
 
 // Listen periodically refreshes devices
-func (l *SNMPListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
+func (l *SNMPListener) Listen(newSvc, delSvc chan<- Service, _ chan<- ServiceUpdate) {
 	// setup the I/O channels
 	l.newService = newSvc
 	l.delService = delSvc

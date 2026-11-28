@@ -844,6 +844,7 @@ func newEndpointsTestListener(t *testing.T, svc *v1.Service, kep *v1.Endpoints) 
 		filterStore:     workloadfilterfxmock.SetupMockFilter(t),
 		newService:      newCh,
 		delService:      delCh,
+		updService:      make(chan ServiceUpdate, 10),
 	}
 	return l, svcIndexer, newCh, delCh
 }
@@ -882,4 +883,35 @@ func TestEndpointsServiceUpdatedPrometheusAnnotations(t *testing.T) {
 
 		require.Len(t, newCh, 2, "endpoint services should be emitted when scrape annotation value changes")
 	})
+}
+
+func TestSendEndpointsUpdate(t *testing.T) {
+	newSvc := make(chan Service, 4)
+	delSvc := make(chan Service, 4)
+	updSvc := make(chan ServiceUpdate, 4)
+
+	kept := &KubeEndpointService{entity: "kube_endpoint_uid://default/svc/10.0.0.1"}
+	gone := &KubeEndpointService{entity: "kube_endpoint_uid://default/svc/10.0.0.2"}
+	keptNew := &KubeEndpointService{entity: kept.entity, tags: []string{"env:staging"}}
+	added := &KubeEndpointService{entity: "kube_endpoint_uid://default/svc/10.0.0.3"}
+
+	sendEndpointsUpdate(newSvc, delSvc, updSvc, []*KubeEndpointService{kept, gone}, []*KubeEndpointService{keptNew, added})
+	close(newSvc)
+	close(delSvc)
+	close(updSvc)
+
+	var deleted, sent []Service
+	for svc := range delSvc {
+		deleted = append(deleted, svc)
+	}
+	for svc := range newSvc {
+		sent = append(sent, svc)
+	}
+	assert.Equal(t, []Service{gone}, deleted)
+	assert.Equal(t, []Service{added}, sent)
+	var updated []ServiceUpdate
+	for update := range updSvc {
+		updated = append(updated, update)
+	}
+	assert.Equal(t, []ServiceUpdate{{Old: kept, New: keptNew}}, updated)
 }

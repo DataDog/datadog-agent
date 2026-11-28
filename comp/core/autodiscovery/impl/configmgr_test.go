@@ -858,3 +858,46 @@ func TestDelConfigsBatchDoesNotLeakContainerCollectAll(t *testing.T) {
 		})
 	}
 }
+
+func TestProcessUpdatedService(t *testing.T) {
+	tpl := integration.Config{Name: "redis", ADIdentifiers: []string{"redis"}, Instances: []integration.Data{integration.Data(`{}`)}}
+
+	for _, tc := range []struct {
+		name            string
+		metricsExcluded bool
+		batches         int
+	}{
+		{name: "same exclusion", batches: 1},
+		{name: "metrics exclusion changed", metricsExcluded: true, batches: 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var published []integration.ConfigChanges
+			cm := newReconcilingConfigManager(&MockSecretResolver{}, nil, nil, nil, nil, func(changes integration.ConfigChanges, _ map[checkid.ID]checkid.ID) {
+				published = append(published, changes)
+			})
+
+			old := &dummyService{ID: "redis-1", ADIdentifiers: []string{"redis"}}
+			svc := &dummyService{ID: "redis-1", ADIdentifiers: []string{"redis"}, MetricsExcluded: tc.metricsExcluded}
+			cm.processNewConfig(tpl)
+			cm.processNewService(old)
+			published = nil
+
+			cm.processUpdatedService(old, svc)
+
+			require.Len(t, published, tc.batches)
+			var unscheduled, scheduled []integration.Config
+			for _, changes := range published {
+				unscheduled = append(unscheduled, changes.Unschedule...)
+				scheduled = append(scheduled, changes.Schedule...)
+			}
+			require.Len(t, unscheduled, 1)
+			require.Len(t, scheduled, 1)
+			assert.False(t, unscheduled[0].MetricsExcluded)
+			assert.Equal(t, tc.metricsExcluded, scheduled[0].MetricsExcluded)
+			if tc.batches == 2 {
+				assert.Len(t, published[0].Unschedule, 1)
+				assert.Len(t, published[1].Schedule, 1)
+			}
+		})
+	}
+}

@@ -53,6 +53,7 @@ type KubeEndpointSlicesListener struct {
 	promInclAnnot      types.PrometheusAnnotations
 	newService         chan<- Service
 	delService         chan<- Service
+	updService         chan<- ServiceUpdate
 	targetAllEndpoints bool
 	serviceTracker     types.ServiceTracker
 	m                  sync.RWMutex
@@ -94,10 +95,11 @@ func NewKubeEndpointSlicesListener(options ServiceListernerDeps) (ServiceListene
 }
 
 // Listen starts watching service and endpointslice events
-func (l *KubeEndpointSlicesListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
+func (l *KubeEndpointSlicesListener) Listen(newSvc, delSvc chan<- Service, updSvc chan<- ServiceUpdate) {
 	// setup the I/O channels
 	l.newService = newSvc
 	l.delService = delSvc
+	l.updService = updSvc
 
 	if _, err := l.endpointSliceInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    l.endpointSliceAdded,
@@ -174,9 +176,15 @@ func (l *KubeEndpointSlicesListener) endpointSliceUpdated(old, obj interface{}) 
 		return
 	}
 
-	if l.endpointSlicesDiffer(slice, oldSlice) {
+	// A slice deleted and recreated under the same name can arrive as an update.
+	if oldSlice.UID != slice.UID {
 		l.removeServiceFromSlice(oldSlice)
 		l.createServiceFromSlice(slice)
+		return
+	}
+
+	if l.endpointSlicesDiffer(slice, oldSlice) {
+		l.updateServiceFromSlice(slice)
 	}
 }
 
@@ -215,22 +223,19 @@ func (l *KubeEndpointSlicesListener) serviceUpdated(old, obj interface{}) {
 	}
 }
 
-// createServiceFromSlice processes a single EndpointSlice and creates KubeEndpointServices for its endpoints
-func (l *KubeEndpointSlicesListener) createServiceFromSlice(slice *discv1.EndpointSlice) {
-	if slice == nil {
-		return
-	}
-
+// endpointsFromSlice returns the KubeEndpointServices for the endpoints of a
+// slice, and false if the slice must not be emitted.
+func (l *KubeEndpointSlicesListener) endpointsFromSlice(slice *discv1.EndpointSlice) ([]*KubeEndpointService, string, bool) {
 	serviceName, ok := slice.Labels[kubernetesServiceNameLabel]
 	if !ok || serviceName == "" {
 		log.Tracef("EndpointSlice %s/%s missing %s label; skipping", slice.Namespace, slice.Name, kubernetesServiceNameLabel)
-		return
+		return nil, "", false
 	}
 
 	if !l.shouldEmitSlice(slice) {
 		// The corresponding service is neither targeted by AD, tracked by an external
 		// source (e.g. a DatadogInstrumentation CR), nor AD-annotated.
-		return
+		return nil, "", false
 	}
 
 	serviceKey := fmt.Sprintf("%s/%s", slice.Namespace, serviceName)
@@ -242,7 +247,19 @@ func (l *KubeEndpointSlicesListener) createServiceFromSlice(slice *discv1.Endpoi
 		tags = []string{}
 	}
 
-	eps := processEndpointSlice(slice, tags, l.filterStore)
+	return processEndpointSlice(slice, tags, l.filterStore), serviceKey, true
+}
+
+// createServiceFromSlice processes a single EndpointSlice and creates KubeEndpointServices for its endpoints
+func (l *KubeEndpointSlicesListener) createServiceFromSlice(slice *discv1.EndpointSlice) {
+	if slice == nil {
+		return
+	}
+
+	eps, serviceKey, ok := l.endpointsFromSlice(slice)
+	if !ok {
+		return
+	}
 
 	l.m.Lock()
 	// Store endpoints by slice UID for granular updates
@@ -265,6 +282,41 @@ func (l *KubeEndpointSlicesListener) createServiceFromSlice(slice *discv1.Endpoi
 			l.telemetryStore.WatchedResources.Inc(kubeEndpointSlicesName, telemetry.ResourceKubeEndpoint)
 		}
 	}
+}
+
+// updateServiceFromSlice replaces the endpoints previously emitted for a slice
+// with its current ones.
+func (l *KubeEndpointSlicesListener) updateServiceFromSlice(slice *discv1.EndpointSlice) {
+	if slice == nil {
+		return
+	}
+
+	eps, serviceKey, emit := l.endpointsFromSlice(slice)
+
+	l.m.Lock()
+	old := l.endpointsBySlice[slice.UID]
+	if emit {
+		l.endpointsBySlice[slice.UID] = eps
+		l.sliceToService[slice.UID] = serviceKey
+	} else {
+		delete(l.endpointsBySlice, slice.UID)
+		delete(l.sliceToService, slice.UID)
+	}
+	l.m.Unlock()
+
+	if l.telemetryStore != nil {
+		if len(old) == 0 && len(eps) > 0 {
+			l.telemetryStore.WatchedResources.Inc(kubeEndpointSlicesName, telemetry.ResourceKubeService)
+		}
+		for range old {
+			l.telemetryStore.WatchedResources.Dec(kubeEndpointSlicesName, telemetry.ResourceKubeEndpoint)
+		}
+		for range eps {
+			l.telemetryStore.WatchedResources.Inc(kubeEndpointSlicesName, telemetry.ResourceKubeEndpoint)
+		}
+	}
+
+	sendEndpointsUpdate(l.newService, l.delService, l.updService, old, eps)
 }
 
 // removeServiceFromSlice removes all endpoints from a specific slice
@@ -309,10 +361,8 @@ func (l *KubeEndpointSlicesListener) processServiceUpdate(serviceNamespace, serv
 	}
 
 	// When service metadata changes, we need to update ALL slices
-	// Remove and recreate all endpoints for this service
 	for _, slice := range allSlices {
-		l.removeServiceFromSlice(slice)
-		l.createServiceFromSlice(slice)
+		l.updateServiceFromSlice(slice)
 	}
 }
 

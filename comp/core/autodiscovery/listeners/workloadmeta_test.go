@@ -45,7 +45,7 @@ type testWorkloadmetaListener struct {
 }
 
 // Listen is not implemented
-func (l *testWorkloadmetaListener) Listen(_ chan<- Service, _ chan<- Service) {
+func (l *testWorkloadmetaListener) Listen(_, _ chan<- Service, _ chan<- ServiceUpdate) {
 	panic("not implemented")
 }
 

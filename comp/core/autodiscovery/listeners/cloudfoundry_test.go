@@ -76,7 +76,7 @@ func TestCloudFoundryListener(t *testing.T) {
 		stop:          make(chan bool),
 		services:      map[string]Service{},
 	}
-	cfl.Listen(newSvc, delSvc)
+	cfl.Listen(newSvc, delSvc, nil)
 	defer cfl.Stop()
 
 	for _, tc := range []struct {

@@ -92,6 +92,7 @@ type AutoConfig struct {
 	healthListening          *health.Handle
 	newService               chan listeners.Service
 	delService               chan listeners.Service
+	updService               chan listeners.ServiceUpdate
 	refreshConfig            chan struct{}
 	refreshConfigMu          sync.Mutex
 	pendingSecretRefreshes   map[string]struct{}
@@ -227,6 +228,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		healthListening:          health.RegisterLiveness("ad-servicelistening"),
 		newService:               make(chan listeners.Service),
 		delService:               make(chan listeners.Service),
+		updService:               make(chan listeners.ServiceUpdate),
 		refreshConfig:            make(chan struct{}, 1),
 		pendingSecretRefreshes:   make(map[string]struct{}),
 		store:                    newStore(),
@@ -276,6 +278,8 @@ func (ac *AutoConfig) serviceListening() {
 		case <-ac.healthListening.C: // To be considered healthy
 		case svc := <-ac.newService:
 			ac.processNewService(svc)
+		case update := <-ac.updService:
+			ac.processUpdatedService(update.Old, update.New)
 		case svc := <-ac.delService:
 			ac.processDelService(svc)
 		case <-ac.refreshConfig:
@@ -657,7 +661,7 @@ func (ac *AutoConfig) initListenerCandidates() bool {
 			// Init successful, let's start listening
 			log.Infof("%s listener successfully started", name)
 			ac.listeners = append(ac.listeners, listener)
-			listener.Listen(ac.newService, ac.delService)
+			listener.Listen(ac.newService, ac.delService, ac.updService)
 			delete(ac.listenerCandidates, name)
 		case retry.IsErrWillRetry(err):
 			// Log an info and keep in candidates
@@ -780,6 +784,13 @@ func (ac *AutoConfig) processNewService(svc listeners.Service) {
 // processDelService takes a service, stops its associated checks, and updates the cache
 func (ac *AutoConfig) processDelService(svc listeners.Service) {
 	ac.cfgMgr.processDelService(svc)
+}
+
+// processUpdatedService replaces a service in one batch, so a config resolved
+// identically for both services stays scheduled instead of being unscheduled
+// and scheduled again.
+func (ac *AutoConfig) processUpdatedService(old, svc listeners.Service) {
+	ac.cfgMgr.processUpdatedService(old, svc)
 }
 
 // processRefreshConfig takes a secret origin and matches it against an active config. If found

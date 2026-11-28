@@ -62,7 +62,7 @@ func TestSNMPListener(t *testing.T) {
 			testChan <- job
 		}
 	}
-	snmpListener.Listen(newSvc, delSvc)
+	snmpListener.Listen(newSvc, delSvc, nil)
 
 	job := <-testChan
 
@@ -119,7 +119,7 @@ func TestSNMPListenerSubnets(t *testing.T) {
 		workerFunc:     testWorker,
 	}
 
-	l.Listen(newSvc, delSvc)
+	l.Listen(newSvc, delSvc, nil)
 
 	subnets := make(map[string]bool)
 	entities := make(map[string]bool)
@@ -159,7 +159,7 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 			testChan <- job
 		}
 	}
-	snmpListener.Listen(newSvc, delSvc)
+	snmpListener.Listen(newSvc, delSvc, nil)
 
 	job := <-testChan
 
@@ -917,7 +917,7 @@ func TestListenCreatesService(t *testing.T) {
 
 	newSvc := make(chan Service, 10)
 	delSvc := make(chan Service, 10)
-	l.Listen(newSvc, delSvc)
+	l.Listen(newSvc, delSvc, nil)
 
 	services := collectServices(t, newSvc, 1, 5*time.Second)
 	svc := services[0]
@@ -954,7 +954,7 @@ func TestListenMultipleSubnets(t *testing.T) {
 
 	newSvc := make(chan Service, 10)
 	delSvc := make(chan Service, 10)
-	l.Listen(newSvc, delSvc)
+	l.Listen(newSvc, delSvc, nil)
 
 	services := collectServices(t, newSvc, 2, 5*time.Second)
 
@@ -985,7 +985,7 @@ func TestListenMultipleAuthFirstMatch(t *testing.T) {
 
 	newSvc := make(chan Service, 10)
 	delSvc := make(chan Service, 10)
-	l.Listen(newSvc, delSvc)
+	l.Listen(newSvc, delSvc, nil)
 
 	services := collectServices(t, newSvc, 1, 5*time.Second)
 	community, _ := services[0].GetExtraConfig("community")
@@ -1013,7 +1013,7 @@ func TestListenMultipleAuthFirstMatchWithDeduplication(t *testing.T) {
 
 	newSvc := make(chan Service, 10)
 	delSvc := make(chan Service, 10)
-	l.Listen(newSvc, delSvc)
+	l.Listen(newSvc, delSvc, nil)
 
 	services := collectServices(t, newSvc, 1, 5*time.Second)
 	community, _ := services[0].GetExtraConfig("community")
@@ -1037,7 +1037,7 @@ func TestListenMultipleAuthSecondMatch(t *testing.T) {
 
 	newSvc := make(chan Service, 10)
 	delSvc := make(chan Service, 10)
-	l.Listen(newSvc, delSvc)
+	l.Listen(newSvc, delSvc, nil)
 
 	services := collectServices(t, newSvc, 1, 5*time.Second)
 	community, _ := services[0].GetExtraConfig("community")
@@ -1054,7 +1054,7 @@ func TestListenUnreachable(t *testing.T) {
 
 	newSvc := make(chan Service, 10)
 	delSvc := make(chan Service, 10)
-	l.Listen(newSvc, delSvc)
+	l.Listen(newSvc, delSvc, nil)
 
 	// /30 has 4 IPs; with 1 worker processing sequentially, allow time for all
 	noMoreServices(t, newSvc, 3*time.Second)
@@ -1076,7 +1076,7 @@ func TestListenDeduplication(t *testing.T) {
 
 	newSvc := make(chan Service, 10)
 	delSvc := make(chan Service, 10)
-	l.Listen(newSvc, delSvc)
+	l.Listen(newSvc, delSvc, nil)
 
 	services := collectServices(t, newSvc, 1, 5*time.Second)
 	assert.Equal(t, "192.168.0.0", services[0].deviceIP)
@@ -1098,7 +1098,7 @@ func TestListenDeduplicationDifferentDevices(t *testing.T) {
 
 	newSvc := make(chan Service, 10)
 	delSvc := make(chan Service, 10)
-	l.Listen(newSvc, delSvc)
+	l.Listen(newSvc, delSvc, nil)
 
 	services := collectServices(t, newSvc, 2, 5*time.Second)
 	ips := []string{services[0].deviceIP, services[1].deviceIP}

@@ -158,7 +158,7 @@ func (l *workloadmetaListenerImpl) AddService(svcID string, svc Service, parentS
 	}
 }
 
-func (l *workloadmetaListenerImpl) Listen(newSvc chan<- Service, delSvc chan<- Service) {
+func (l *workloadmetaListenerImpl) Listen(newSvc, delSvc chan<- Service, _ chan<- ServiceUpdate) {
 	l.newService = newSvc
 	l.delService = delSvc
 

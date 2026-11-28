@@ -47,6 +47,7 @@ type KubeEndpointsListener struct {
 	promInclAnnot      types.PrometheusAnnotations
 	newService         chan<- Service
 	delService         chan<- Service
+	updService         chan<- ServiceUpdate
 	targetAllEndpoints bool
 	m                  sync.RWMutex
 	filterStore        workloadfilter.Component
@@ -100,10 +101,11 @@ func NewKubeEndpointsListener(options ServiceListernerDeps) (ServiceListener, er
 }
 
 // Listen starts watching service and endpoint events
-func (l *KubeEndpointsListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
+func (l *KubeEndpointsListener) Listen(newSvc, delSvc chan<- Service, updSvc chan<- ServiceUpdate) {
 	// setup the I/O channels
 	l.newService = newSvc
 	l.delService = delSvc
+	l.updService = updSvc
 
 	if _, err := l.endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    l.endpointsAdded,
@@ -189,8 +191,7 @@ func (l *KubeEndpointsListener) endpointsUpdated(old, obj interface{}) {
 		return
 	}
 	if l.endpointsDiffer(castedObj, castedOld) {
-		l.removeService(castedObj)
-		l.createService(castedObj, true)
+		l.updateService(castedObj, true)
 	}
 }
 
@@ -222,9 +223,7 @@ func (l *KubeEndpointsListener) serviceUpdated(old, obj interface{}) {
 
 	// Detect changes of AD labels for standard tags if the Service is annotated
 	if isServiceAnnotated(castedObj, kubeEndpointsID) && (standardTagsDigest(castedOld.GetLabels()) != standardTagsDigest(castedObj.GetLabels())) {
-		kep := l.endpointsForService(castedObj)
-		l.removeService(kep)
-		l.createService(kep, false)
+		l.updateService(l.endpointsForService(castedObj), false)
 	}
 }
 
@@ -343,6 +342,80 @@ func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, checkServiceAnn
 		l.newService <- ep
 		if telemetryStorePresent {
 			l.telemetryStore.WatchedResources.Inc(kubeEndpointsName, telemetry.ResourceKubeEndpoint)
+		}
+	}
+}
+
+func (l *KubeEndpointsListener) updateService(kep *v1.Endpoints, checkServiceAnnotations bool) {
+	if kep == nil {
+		return
+	}
+
+	var eps []*KubeEndpointService
+	ignored := checkServiceAnnotations && l.shouldIgnore(kep)
+	if !ignored {
+		tags, err := l.getStandardTagsForEndpoints(kep)
+		if err != nil {
+			log.Debugf("Couldn't get standard tags for %s/%s: %v", kep.Namespace, kep.Name, err)
+			tags = []string{}
+		}
+		eps = processEndpoints(kep, tags, l.filterStore)
+	}
+
+	l.m.Lock()
+	old, found := l.endpoints[kep.UID]
+	if ignored {
+		delete(l.endpoints, kep.UID)
+	} else {
+		l.endpoints[kep.UID] = eps
+	}
+	l.m.Unlock()
+
+	if l.telemetryStore != nil {
+		if found {
+			l.telemetryStore.WatchedResources.Dec(kubeEndpointsName, telemetry.ResourceKubeService)
+		}
+		if !ignored {
+			l.telemetryStore.WatchedResources.Inc(kubeEndpointsName, telemetry.ResourceKubeService)
+		}
+		for range old {
+			l.telemetryStore.WatchedResources.Dec(kubeEndpointsName, telemetry.ResourceKubeEndpoint)
+		}
+		for range eps {
+			l.telemetryStore.WatchedResources.Inc(kubeEndpointsName, telemetry.ResourceKubeEndpoint)
+		}
+	}
+
+	sendEndpointsUpdate(l.newService, l.delService, l.updService, old, eps)
+}
+
+// sendEndpointsUpdate sends a ServiceUpdate for each endpoint found in both
+// old and eps, and a deletion or a new service for the others.
+func sendEndpointsUpdate(newService, delService chan<- Service, updService chan<- ServiceUpdate, old, eps []*KubeEndpointService) {
+	oldByID := make(map[string]*KubeEndpointService, len(old))
+	for _, ep := range old {
+		oldByID[ep.GetServiceID()] = ep
+	}
+	kept := make(map[string]struct{}, len(eps))
+	for _, ep := range eps {
+		if _, found := oldByID[ep.GetServiceID()]; found {
+			kept[ep.GetServiceID()] = struct{}{}
+		}
+	}
+
+	for _, ep := range old {
+		if _, found := kept[ep.GetServiceID()]; !found {
+			log.Debugf("Deleting AD service: %s", ep.entity)
+			delService <- ep
+		}
+	}
+	for _, ep := range eps {
+		if prev, found := oldByID[ep.GetServiceID()]; found {
+			log.Debugf("Updating AD service: %s", ep.entity)
+			updService <- ServiceUpdate{Old: prev, New: ep}
+		} else {
+			log.Debugf("Creating a new AD service: %s", ep.entity)
+			newService <- ep
 		}
 	}
 }

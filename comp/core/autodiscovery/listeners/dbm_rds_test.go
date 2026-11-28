@@ -24,13 +24,14 @@ import (
 
 func TestDBMRdsListener(t *testing.T) {
 	testCases := []struct {
-		name                  string
-		config                map[string]interface{}
-		numDiscoveryIntervals int
-		initialServices       map[string]Service
-		rdsClientConfigurer   mockRdsClientConfigurer
-		expectedServices      []*DBMRdsService
-		expectedDelServices   []*DBMRdsService
+		name                     string
+		config                   map[string]interface{}
+		numDiscoveryIntervals    int
+		initialServices          map[string]Service
+		rdsClientConfigurer      mockRdsClientConfigurer
+		expectedServices         []*DBMRdsService
+		expectedDelServices      []*DBMRdsService
+		expectedReplacedServices []*DBMRdsService
 	}{
 		{
 			name: "GetRdsInstancesFromTags context deadline exceeded produces no services",
@@ -281,8 +282,8 @@ func TestDBMRdsListener(t *testing.T) {
 					},
 				},
 			},
-			// The original service should be deleted
-			expectedDelServices: []*DBMRdsService{
+			// The original service should be replaced
+			expectedReplacedServices: []*DBMRdsService{
 				{
 					adIdentifier: dbmPostgresADIdentifier, entityID: "36740c31448ee889",
 					checkName: "postgres", region: "us-east-1",
@@ -344,6 +345,7 @@ func TestDBMRdsListener(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			newSvc := make(chan Service, 10)
 			delSvc := make(chan Service, 10)
+			updSvc := make(chan ServiceUpdate, 10)
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 			mockConfig := configmock.New(t)
@@ -358,7 +360,7 @@ func TestDBMRdsListener(t *testing.T) {
 			if tc.initialServices != nil {
 				l.(*DBMRdsListener).services = tc.initialServices
 			}
-			l.Listen(newSvc, delSvc)
+			l.Listen(newSvc, delSvc, updSvc)
 			// execute loop
 			for i := 0; i < tc.numDiscoveryIntervals; i++ {
 				ticks <- time.Now()
@@ -368,9 +370,15 @@ func TestDBMRdsListener(t *testing.T) {
 			l.Stop()
 			close(newSvc)
 			close(delSvc)
+			close(updSvc)
 
 			// assert that the expected new services were created
 			createdServices := make([]*DBMRdsService, 0)
+			replacedServices := make([]*DBMRdsService, 0)
+			for update := range updSvc {
+				replacedServices = append(replacedServices, update.Old.(*DBMRdsService))
+				createdServices = append(createdServices, update.New.(*DBMRdsService))
+			}
 			for newService := range newSvc {
 				dbmRdsService, ok := newService.(*DBMRdsService)
 				if !ok {
@@ -380,6 +388,7 @@ func TestDBMRdsListener(t *testing.T) {
 			}
 			assert.Equal(t, len(tc.expectedServices), len(createdServices))
 			assert.ElementsMatch(t, tc.expectedServices, createdServices)
+			assert.ElementsMatch(t, tc.expectedReplacedServices, replacedServices)
 
 			// assert that the expected deleted services were created
 			deletedServices := make([]*DBMRdsService, 0)

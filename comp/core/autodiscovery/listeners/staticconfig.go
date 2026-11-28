@@ -31,7 +31,7 @@ func NewStaticConfigListener(ServiceListernerDeps) (ServiceListener, error) {
 }
 
 // Listen starts the goroutine to detect checks based on the config
-func (l *StaticConfigListener) Listen(newSvc chan<- Service, _ chan<- Service) {
+func (l *StaticConfigListener) Listen(newSvc, _ chan<- Service, _ chan<- ServiceUpdate) {
 	l.newService = newSvc
 
 	go l.createServices()
