@@ -221,6 +221,8 @@ Use when the condition can only change at restart (filesystem layout, config sch
 
 Use when the condition can change while the agent is running (connectivity, remote endpoint). Return a `*runnerdef.BuiltInPeriodicHealthCheck` with an explicit `Interval`. Use `Interval: 0` to fall back to the scheduler's default.
 
+The scheduler runs the first tick at startup, and that tick resolves every issue restored from a previous run that it doesn't report again. If the check can't judge yet (it relies on in-process state that starts empty, like `clusteragentunreachable`), return `runnerdef.ErrNotReady` until it can: the scheduler then keeps the restored issues, and logs at debug level instead of warning.
+
 ### `IssueNames` — usually leave it unset
 
 `Registry.RegisterModule` appends the owning module's own `module.IssueName()` to `IssueNames` — it does not overwrite the slice. Most modules should still leave `IssueNames` unset and let that auto-append handle it; setting it to your own module's name is redundant.

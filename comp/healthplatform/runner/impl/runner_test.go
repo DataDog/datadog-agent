@@ -96,6 +96,18 @@ func TestRunFnError(t *testing.T) {
 	assert.Equal(t, 1, count)
 }
 
+func TestRunFnNotReady(t *testing.T) {
+	r, store := newTestRunner(t)
+
+	ids, err := r.Run("mycomp", func() ([]runnerdef.IssueReport, error) {
+		return nil, runnerdef.ErrNotReady
+	})
+	assert.ErrorIs(t, err, runnerdef.ErrNotReady)
+	assert.Empty(t, ids)
+	count, _ := store.GetAllIssues()
+	assert.Equal(t, 0, count)
+}
+
 func TestRunFnPanic(t *testing.T) {
 	r, store := newTestRunner(t)
 

@@ -7,6 +7,7 @@
 package runnerimpl
 
 import (
+	"errors"
 	"fmt"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
@@ -58,7 +59,10 @@ func (r *runner) Run(source string, fn runnerdef.HealthCheckFunc) (issueIDs []st
 	}()
 
 	reports, err := fn()
-	if err != nil {
+	if errors.Is(err, runnerdef.ErrNotReady) {
+		r.log.Debugf("health check %s is not ready yet", source)
+		retErr = err
+	} else if err != nil {
 		r.log.Warnf("health check %s returned error: %v", source, err)
 		retErr = err
 	}
