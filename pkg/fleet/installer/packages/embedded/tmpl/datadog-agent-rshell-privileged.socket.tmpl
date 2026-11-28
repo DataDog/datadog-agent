@@ -1,4 +1,13 @@
 [Unit]
+# No default dependencies: they would order this socket before sockets.target,
+# but it is ordered after the agent services, which start after basic.target and
+# so after sockets.target. systemd breaks that cycle at boot by dropping a start
+# job. The other default dependencies are kept explicitly below.
+DefaultDependencies=no
+Requires=sysinit.target
+After=sysinit.target
+Before=shutdown.target
+Conflicts=shutdown.target
 {{- if .Stable}}
 Description=Datadog rshell privileged helper socket
 After=datadog-agent.service datadog-agent-action.service
