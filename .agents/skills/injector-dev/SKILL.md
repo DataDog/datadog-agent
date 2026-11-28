@@ -44,6 +44,12 @@ it identically at any time.
   export DD_APP_KEY="<your-app-key>"
   ```
 
+  To supply credentials through **dd-auth v2**, request an ingestion API key:
+  `DD_AUTH_API_KEY=true dd-auth --domain dddev.datadoghq.com -- injector-dev apply -f scenario.yaml`.
+  The default PAT-only authentication does not provide the Agent's ingestion key.
+  Wrapping the command also supports older injector-dev builds without automatic
+  dd-auth fallback; an apply can otherwise succeed with empty credentials.
+
 > If you already have colima and/or minikube running, shut them down before
 > using `injector-dev` to avoid conflicts.
 
