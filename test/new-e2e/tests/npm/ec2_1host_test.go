@@ -29,14 +29,18 @@ type hostHttpbinEnv struct {
 }
 type ec2VMSuite struct {
 	e2e.BaseSuite[hostHttpbinEnv]
+	npmToolsSource string // set by the provisioner, see pullNPMToolsImage
 }
 
-func hostDockerHttpbinEnvProvisioner(opt ...ec2.Option) provisioners.PulumiEnvRunFunc[hostHttpbinEnv] {
+// hostDockerHttpbinEnvProvisioner provisions the environment and stores in npmToolsSource the
+// apps-npm-tools image the suite pulls.
+func hostDockerHttpbinEnvProvisioner(npmToolsSource *string, opt ...ec2.Option) provisioners.PulumiEnvRunFunc[hostHttpbinEnv] {
 	return func(ctx *pulumi.Context, env *hostHttpbinEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
 			return err
 		}
+		*npmToolsSource = apps.Image(&awsEnv, "apps-npm-tools")
 		opts := []ec2.Option{
 			ec2.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)),
 		}
@@ -79,7 +83,7 @@ func TestEC2VMSuite(t *testing.T) {
 	t.Parallel()
 	s := &ec2VMSuite{}
 
-	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(), nil))}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(&s.npmToolsSource), nil))}
 
 	// Source of our E2E CI images test/new-e2e/tests/agent-platform/platforms.json
 	// Other VM image can be used, our E2E CI images test/new-e2e/tests/agent-platform/platforms.json
@@ -96,7 +100,7 @@ func (v *ec2VMSuite) SetupSuite() {
 	v.Env().RemoteHost.Reconnect()
 
 	// prefetch docker image locally
-	v.Env().RemoteHost.MustExecute("docker pull ghcr.io/datadog/apps-npm-tools:" + apps.Version)
+	pullNPMToolsImage(v.Env().RemoteHost, v.npmToolsSource)
 }
 
 // BeforeTest will be called before each test
@@ -139,7 +143,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
 	// generate a connection
-	v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " curl " + testURL)
+	v.Env().RemoteHost.MustExecute("docker run --rm " + npmToolsImage + " curl " + testURL)
 
 	test1HostFakeIntakeNPM(&v.BaseSuite, v.Env().FakeIntake)
 }
@@ -164,7 +168,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM600cnxBucket_DockerRequests() {
 
 	test1HostFakeIntakeNPM600cnxBucket(&v.BaseSuite, v.Env().FakeIntake, v.Env().HTTPBinHost.Address, func() {
 		// generate connections
-		v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " ab -n 1500 -c 600 " + testURL)
+		v.Env().RemoteHost.MustExecute("docker run --rm " + npmToolsImage + " ab -n 1500 -c 600 " + testURL)
 	})
 }
 
@@ -186,8 +190,8 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
 	// generate connections
-	v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " curl " + testURL)
-	v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " dig @8.8.8.8 www.google.ch")
+	v.Env().RemoteHost.MustExecute("docker run --rm " + npmToolsImage + " curl " + testURL)
+	v.Env().RemoteHost.MustExecute("docker run --rm " + npmToolsImage + " dig @8.8.8.8 www.google.ch")
 
 	test1HostFakeIntakeNPMTCPUDPDNS(&v.BaseSuite, v.Env().FakeIntake)
 }
@@ -198,7 +202,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_ResolvConf_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + ":8080/"
 
 	// generate a connection from a Docker container
-	v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " curl " + testURL)
+	v.Env().RemoteHost.MustExecute("docker run --rm " + npmToolsImage + " curl " + testURL)
 
 	test1HostFakeIntakeNPMResolvConf(&v.BaseSuite, v.Env().FakeIntake)
 }

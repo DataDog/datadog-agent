@@ -8,6 +8,7 @@ go_library(
         "config.go",
         "dockercompose_httpbin.go",
         "dockercompose_tcp_congestion.go",
+        "npm_tools_image.go",
         "test_helpers.go",
     ],
     data = [

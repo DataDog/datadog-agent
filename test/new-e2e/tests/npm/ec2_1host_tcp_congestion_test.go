@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -43,14 +44,18 @@ const tcpCongestionNetPrefix = "192.168.48."
 
 type ec2TCPCongestionSuite struct {
 	e2e.BaseSuite[environments.Host]
+	npmToolsSource string // set by the provisioner, see pullNPMToolsImage
 }
 
-func tcpCongestionEnvProvisioner() provisioners.PulumiEnvRunFunc[environments.Host] {
+// tcpCongestionEnvProvisioner provisions the environment and stores in npmToolsSource the
+// apps-npm-tools image the suite pulls.
+func tcpCongestionEnvProvisioner(npmToolsSource *string) provisioners.PulumiEnvRunFunc[environments.Host] {
 	return func(ctx *pulumi.Context, env *environments.Host) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
 			return err
 		}
+		*npmToolsSource = apps.Image(&awsEnv, "apps-npm-tools")
 		params := ec2.GetParams(
 			ec2.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)),
 			ec2.WithDocker(),
@@ -63,9 +68,10 @@ func tcpCongestionEnvProvisioner() provisioners.PulumiEnvRunFunc[environments.Ho
 // network perturbations and verifying the agent reports the corresponding signals.
 func TestEC2TCPCongestionSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &ec2TCPCongestionSuite{}, []e2e.SuiteOption{
+	s := &ec2TCPCongestionSuite{}
+	e2e.Run(t, s, []e2e.SuiteOption{
 		e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner(
-			"tcpCongestion", tcpCongestionEnvProvisioner(), nil,
+			"tcpCongestion", tcpCongestionEnvProvisioner(&s.npmToolsSource), nil,
 		)),
 	}...)
 }
@@ -78,6 +84,7 @@ func (v *ec2TCPCongestionSuite) SetupSuite() {
 
 	// Docker and docker-compose are pre-baked into the AWS e2e AMI; ec2.WithDocker()
 	// in the provisioner wires up the docker.Manager.
+	pullNPMToolsImage(host, v.npmToolsSource)
 	// Write compose file and start containers.
 	host.MustExecute(fmt.Sprintf("mkdir -p /tmp/tcp-congestion && cat > /tmp/tcp-congestion/docker-compose.yaml << 'EOFCOMPOSE'\n%sEOFCOMPOSE", dockerTCPCongestionCompose()))
 	host.MustExecute("cd /tmp/tcp-congestion && docker-compose up -d")
