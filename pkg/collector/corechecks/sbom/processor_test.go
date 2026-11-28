@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strconv"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/CycloneDX/cyclonedx-go"
@@ -39,6 +40,7 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	pkgconfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -48,6 +50,7 @@ import (
 )
 
 func TestProcessEvents(t *testing.T) {
+	ensureBubbleGlobals(t) // also fixes the hostname used below and by the processors
 	hname, _ := hostname.Get(context.TODO())
 	sbomGenerationTime := time.Now()
 
@@ -656,74 +659,70 @@ func TestProcessEvents(t *testing.T) {
 		"sbom.container_image.enabled":                  true,
 		"sbom.container_image.allow_missing_repodigest": true,
 	})
-	wmeta := fxutil.Test[option.Option[workloadmeta.Component]](t, fx.Options(
-		core.MockBundle(),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
-	_, err := sbomscanner.CreateGlobalScanner(cfg, wmeta)
-	assert.Nil(t, err)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			SBOMsSent := atomic.NewInt32(0)
+			ensureBubbleGlobals(t)
+			synctest.Test(t, func(t *testing.T) {
+				SBOMsSent := atomic.NewInt32(0)
 
-			workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-				fx.Provide(func() log.Component { return logmock.New(t) }),
-				fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
-				fx.Supply(context.Background()),
-				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-			))
+				workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+					fx.Provide(func() log.Component { return logmock.New(t) }),
+					fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
+					fx.Supply(context.Background()),
+					workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+				))
 
-			sender := mocksender.NewMockSender(t, "")
-			sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {
-				SBOMsSent.Inc()
-			})
-
-			fakeTagger := taggerfxmock.SetupFakeTagger(t)
-			mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
-
-			// Define a max size of 1 for the queue. With a size > 1, it's difficult to
-			// control the number of events sent on each call.
-			p, err := newProcessor(workloadmetaStore, mockFilterStore, sender, fakeTagger, cfg, 1, 50*time.Millisecond, time.Second)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			for _, ev := range test.inputEvents {
-				switch ev.Type {
-				case workloadmeta.EventTypeSet:
-					workloadmetaStore.Set(ev.Entity)
-				case workloadmeta.EventTypeUnset:
-					workloadmetaStore.Unset(ev.Entity)
-				}
-			}
-
-			p.processContainerImagesEvents(workloadmeta.EventBundle{
-				Events: test.inputEvents,
-				Ch:     make(chan struct{}),
-			})
-
-			p.stop()
-
-			// The queue is processing the events in a different go routine and might
-			// need some time
-			assert.Eventually(t, func() bool {
-				return SBOMsSent.Load() == int32(len(test.expectedSBOMs))
-			}, 1*time.Second, 5*time.Millisecond)
-
-			envVarEnv := cfg.GetString("env")
-
-			for _, expectedSBOM := range test.expectedSBOMs {
-				encoded, err := proto.Marshal(&model.SBOMPayload{
-					Version:  1,
-					Host:     hname,
-					Source:   &sourceAgent,
-					Entities: []*model.SBOMEntity{expectedSBOM},
-					DdEnv:    &envVarEnv,
+				sender := mocksender.NewMockSender(t, "")
+				sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {
+					SBOMsSent.Inc()
 				})
-				assert.Nil(t, err)
-				sender.AssertEventPlatformEvent(t, encoded, eventplatform.EventTypeContainerSBOM)
-			}
+
+				fakeTagger := taggerfxmock.SetupFakeTagger(t)
+				mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
+
+				// Define a max size of 1 for the queue. With a size > 1, it's difficult to
+				// control the number of events sent on each call.
+				p, err := newProcessor(workloadmetaStore, mockFilterStore, sender, fakeTagger, cfg, 1, 50*time.Millisecond, time.Second)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				for _, ev := range test.inputEvents {
+					switch ev.Type {
+					case workloadmeta.EventTypeSet:
+						workloadmetaStore.Set(ev.Entity)
+					case workloadmeta.EventTypeUnset:
+						workloadmetaStore.Unset(ev.Entity)
+					}
+				}
+
+				p.processContainerImagesEvents(workloadmeta.EventBundle{
+					Events: test.inputEvents,
+					Ch:     make(chan struct{}),
+				})
+
+				p.stop()
+
+				// The queue is processing the events in a different goroutine.
+				// Wait for it to be done with them.
+				synctest.Wait()
+				assert.Equal(t, int32(len(test.expectedSBOMs)), SBOMsSent.Load())
+
+				envVarEnv := cfg.GetString("env")
+
+				for _, expectedSBOM := range test.expectedSBOMs {
+					encoded, err := proto.Marshal(&model.SBOMPayload{
+						Version:  1,
+						Host:     hname,
+						Source:   &sourceAgent,
+						Entities: []*model.SBOMEntity{expectedSBOM},
+						DdEnv:    &envVarEnv,
+					})
+					assert.Nil(t, err)
+					sender.AssertEventPlatformEvent(t, encoded, eventplatform.EventTypeContainerSBOM)
+				}
+			})
 		})
 	}
 }
@@ -856,93 +855,107 @@ func TestInUseFlagAccuracy(t *testing.T) {
 		mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
 		// Queue size 1 so each entity becomes its own event, matching the assertion style.
 		p, err := newProcessor(store, mockFilterStore, sender, fakeTagger, cfg, 1, 50*time.Millisecond, time.Second)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		return p, sender, counter, store
 	}
 
 	// Test 1: container removal and image SBOM update in the same bundle
 	t.Run("container removed in the same bundle as the image SBOM", func(t *testing.T) {
-		p, sender, counter, store := newTestSetup(t)
+		ensureBubbleGlobals(t)
+		synctest.Test(t, func(t *testing.T) {
+			p, sender, counter, store := newTestSetup(t)
 
-		// Establish initial state: running container.
-		store.Set(imageEntity)
-		store.Set(runningContainer)
-		p.processContainerImagesEvents(makeBundle(
-			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: imageEntity},
-			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: runningContainer},
-		))
-		// Wait for the single SBOM from the setup phase (inUse=true).
-		assert.Eventually(t, func() bool { return counter.Load() == 1 }, time.Second, 5*time.Millisecond)
-		counter.Store(0)
+			// Establish initial state: running container.
+			store.Set(imageEntity)
+			store.Set(runningContainer)
+			p.processContainerImagesEvents(makeBundle(
+				workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: imageEntity},
+				workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: runningContainer},
+			))
+			// Wait for the single SBOM from the setup phase (inUse=true).
+			synctest.Wait()
+			assert.Equal(t, int32(1), counter.Load())
+			counter.Store(0)
 
-		// The container is removed AND a fresh SBOM arrives in the same bundle.
-		// The order the two events are handled in must not matter: the store
-		// has already dropped the container by the time the bundle arrives.
-		store.Unset(runningContainer)
-		store.Set(rescannedImageEntity)
-		p.processContainerImagesEvents(makeBundle(
-			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: rescannedImageEntity},
-			workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: runningContainer},
-		))
-		p.stop()
+			// The container is removed AND a fresh SBOM arrives in the same bundle.
+			// The order the two events are handled in must not matter: the store
+			// has already dropped the container by the time the bundle arrives.
+			store.Unset(runningContainer)
+			store.Set(rescannedImageEntity)
+			p.processContainerImagesEvents(makeBundle(
+				workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: rescannedImageEntity},
+				workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: runningContainer},
+			))
+			p.stop()
 
-		assert.Eventually(t, func() bool { return counter.Load() == 1 }, time.Second, 5*time.Millisecond)
+			synctest.Wait()
+			assert.Equal(t, int32(1), counter.Load())
 
-		assertSBOMSent(t, sender, makeExpectedSBOM(false, 2))
+			assertSBOMSent(t, sender, makeExpectedSBOM(false, 2))
+		})
 	})
 
 	// Test 2: container transitions stopped then image SBOM updates
 	t.Run("stopped container does not keep inUse=true", func(t *testing.T) {
-		p, sender, counter, store := newTestSetup(t)
+		ensureBubbleGlobals(t)
+		synctest.Test(t, func(t *testing.T) {
+			p, sender, counter, store := newTestSetup(t)
 
-		// Step 1: image + running container → one SBOM with inUse=true.
-		store.Set(imageEntity)
-		store.Set(runningContainer)
-		p.processContainerImagesEvents(makeBundle(
-			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: imageEntity},
-			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: runningContainer},
-		))
-		assert.Eventually(t, func() bool { return counter.Load() == 1 }, time.Second, 5*time.Millisecond)
-		counter.Store(0)
+			// Step 1: image + running container → one SBOM with inUse=true.
+			store.Set(imageEntity)
+			store.Set(runningContainer)
+			p.processContainerImagesEvents(makeBundle(
+				workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: imageEntity},
+				workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: runningContainer},
+			))
+			synctest.Wait()
+			assert.Equal(t, int32(1), counter.Load())
+			counter.Store(0)
 
-		// Step 2: container stops (Running=false) and a new image SBOM arrives.
-		// The stopped container must no longer count as a user of the image.
-		store.Set(stoppedContainer)
-		store.Set(rescannedImageEntity)
-		p.processContainerImagesEvents(makeBundle(
-			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: stoppedContainer},
-			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: rescannedImageEntity},
-		))
-		p.stop()
+			// Step 2: container stops (Running=false) and a new image SBOM arrives.
+			// The stopped container must no longer count as a user of the image.
+			store.Set(stoppedContainer)
+			store.Set(rescannedImageEntity)
+			p.processContainerImagesEvents(makeBundle(
+				workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: stoppedContainer},
+				workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: rescannedImageEntity},
+			))
+			p.stop()
 
-		assert.Eventually(t, func() bool { return counter.Load() == 1 }, time.Second, 5*time.Millisecond)
+			synctest.Wait()
+			assert.Equal(t, int32(1), counter.Load())
 
-		assertSBOMSent(t, sender, makeExpectedSBOM(false, 2))
+			assertSBOMSent(t, sender, makeExpectedSBOM(false, 2))
+		})
 	})
 
 	// Test 3: containerd-style image ID (raw sha256, not repo digest)
 	t.Run("container names its image by config digest", func(t *testing.T) {
-		p, sender, counter, store := newTestSetup(t)
+		ensureBubbleGlobals(t)
+		synctest.Test(t, func(t *testing.T) {
+			p, sender, counter, store := newTestSetup(t)
 
-		// Container uses the raw image config digest as its Image.ID (containerd style).
-		containerdContainer := &workloadmeta.Container{
-			EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
-			Image:    workloadmeta.ContainerImage{ID: imageID}, // raw sha256, not repo digest
-			State:    workloadmeta.ContainerState{Running: true},
-		}
+			// Container uses the raw image config digest as its Image.ID (containerd style).
+			containerdContainer := &workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+				Image:    workloadmeta.ContainerImage{ID: imageID}, // raw sha256, not repo digest
+				State:    workloadmeta.ContainerState{Running: true},
+			}
 
-		store.Set(imageEntity)
-		store.Set(containerdContainer)
-		p.processContainerImagesEvents(makeBundle(
-			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: imageEntity},
-			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: containerdContainer},
-		))
-		p.stop()
+			store.Set(imageEntity)
+			store.Set(containerdContainer)
+			p.processContainerImagesEvents(makeBundle(
+				workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: imageEntity},
+				workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: containerdContainer},
+			))
+			p.stop()
 
-		// The image is matched by its ID rather than by a repo digest.
-		assert.Eventually(t, func() bool { return counter.Load() == 1 }, time.Second, 5*time.Millisecond)
+			// The image is matched by its ID rather than by a repo digest.
+			synctest.Wait()
+			assert.Equal(t, int32(1), counter.Load())
 
-		assertSBOMSent(t, sender, makeExpectedSBOM(true, 1))
+			assertSBOMSent(t, sender, makeExpectedSBOM(true, 1))
+		})
 	})
 
 	// Test 4: on Kubernetes the merged container entity names its image by
@@ -951,72 +964,82 @@ func TestInUseFlagAccuracy(t *testing.T) {
 	// registers the container under both spellings but only ever removes it
 	// from the last one, leaving the image in use forever.
 	t.Run("image ID changing shape does not leave the image in use", func(t *testing.T) {
-		p, sender, counter, store := newTestSetup(t)
+		ensureBubbleGlobals(t)
+		synctest.Test(t, func(t *testing.T) {
+			p, sender, counter, store := newTestSetup(t)
 
-		// The runtime is the only source: Image.ID is the config digest.
-		runtimeOnly := &workloadmeta.Container{
-			EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
-			Image:    workloadmeta.ContainerImage{ID: imageID},
-			State:    workloadmeta.ContainerState{Running: true},
-		}
+			// The runtime is the only source: Image.ID is the config digest.
+			runtimeOnly := &workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID},
+				Image:    workloadmeta.ContainerImage{ID: imageID},
+				State:    workloadmeta.ContainerState{Running: true},
+			}
 
-		store.Set(imageEntity)
-		store.Set(runtimeOnly)
-		p.processContainerImagesEvents(makeBundle(
-			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: imageEntity},
-			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: runtimeOnly},
-		))
+			store.Set(imageEntity)
+			store.Set(runtimeOnly)
+			p.processContainerImagesEvents(makeBundle(
+				workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: imageEntity},
+				workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: runtimeOnly},
+			))
 
-		// The kubelet describes the container too and wins the merge, so
-		// Image.ID becomes the repo digest.
-		store.Set(runningContainer)
-		p.processContainerImagesEvents(makeBundle(
-			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: runningContainer},
-		))
+			// The kubelet describes the container too and wins the merge, so
+			// Image.ID becomes the repo digest.
+			store.Set(runningContainer)
+			p.processContainerImagesEvents(makeBundle(
+				workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: runningContainer},
+			))
 
-		assert.Eventually(t, func() bool { return counter.Load() == 1 }, time.Second, 5*time.Millisecond)
-		counter.Store(0)
+			synctest.Wait()
+			assert.Equal(t, int32(1), counter.Load())
+			counter.Store(0)
 
-		// The container goes away and a fresh SBOM arrives for the image.
-		store.Unset(runningContainer)
-		store.Set(rescannedImageEntity)
-		p.processContainerImagesEvents(makeBundle(
-			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: rescannedImageEntity},
-			workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: runningContainer},
-		))
-		p.stop()
+			// The container goes away and a fresh SBOM arrives for the image.
+			store.Unset(runningContainer)
+			store.Set(rescannedImageEntity)
+			p.processContainerImagesEvents(makeBundle(
+				workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: rescannedImageEntity},
+				workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: runningContainer},
+			))
+			p.stop()
 
-		assert.Eventually(t, func() bool { return counter.Load() == 1 }, time.Second, 5*time.Millisecond)
+			synctest.Wait()
+			assert.Equal(t, int32(1), counter.Load())
 
-		assertSBOMSent(t, sender, makeExpectedSBOM(false, 2))
+			assertSBOMSent(t, sender, makeExpectedSBOM(false, 2))
+		})
 	})
 
 	// Test 5: workloadmeta drops a whole event bundle when a subscriber is too
 	// slow to read it, so the container removal is never delivered. The state
 	// of the store is still the truth.
 	t.Run("missed container event does not leave the image in use", func(t *testing.T) {
-		p, sender, counter, store := newTestSetup(t)
+		ensureBubbleGlobals(t)
+		synctest.Test(t, func(t *testing.T) {
+			p, sender, counter, store := newTestSetup(t)
 
-		store.Set(imageEntity)
-		store.Set(runningContainer)
-		p.processContainerImagesEvents(makeBundle(
-			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: imageEntity},
-			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: runningContainer},
-		))
-		assert.Eventually(t, func() bool { return counter.Load() == 1 }, time.Second, 5*time.Millisecond)
-		counter.Store(0)
+			store.Set(imageEntity)
+			store.Set(runningContainer)
+			p.processContainerImagesEvents(makeBundle(
+				workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: imageEntity},
+				workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: runningContainer},
+			))
+			synctest.Wait()
+			assert.Equal(t, int32(1), counter.Load())
+			counter.Store(0)
 
-		// The container is removed but the event never reaches the check.
-		store.Unset(runningContainer)
-		store.Set(rescannedImageEntity)
-		p.processContainerImagesEvents(makeBundle(
-			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: rescannedImageEntity},
-		))
-		p.stop()
+			// The container is removed but the event never reaches the check.
+			store.Unset(runningContainer)
+			store.Set(rescannedImageEntity)
+			p.processContainerImagesEvents(makeBundle(
+				workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: rescannedImageEntity},
+			))
+			p.stop()
 
-		assert.Eventually(t, func() bool { return counter.Load() == 1 }, time.Second, 5*time.Millisecond)
+			synctest.Wait()
+			assert.Equal(t, int32(1), counter.Load())
 
-		assertSBOMSent(t, sender, makeExpectedSBOM(false, 2))
+			assertSBOMSent(t, sender, makeExpectedSBOM(false, 2))
+		})
 	})
 
 	// Test 6: a periodic refresh emits SBOMs without an event bundle behind it,
@@ -1025,41 +1048,47 @@ func TestInUseFlagAccuracy(t *testing.T) {
 	// reported in use has to follow, or the container that starts the image
 	// again looks like one that changes nothing and is never reported.
 	t.Run("container starting an image a refresh reported idle is reported", func(t *testing.T) {
-		p, sender, counter, store := newTestSetup(t)
+		ensureBubbleGlobals(t)
+		synctest.Test(t, func(t *testing.T) {
+			p, sender, counter, store := newTestSetup(t)
 
-		store.Set(imageEntity)
-		store.Set(runningContainer)
-		p.processContainerImagesEvents(makeBundle(
-			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: imageEntity},
-			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: runningContainer},
-		))
-		assert.Eventually(t, func() bool { return counter.Load() == 1 }, time.Second, 5*time.Millisecond)
-		counter.Store(0)
+			store.Set(imageEntity)
+			store.Set(runningContainer)
+			p.processContainerImagesEvents(makeBundle(
+				workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: imageEntity},
+				workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: runningContainer},
+			))
+			synctest.Wait()
+			assert.Equal(t, int32(1), counter.Load())
+			counter.Store(0)
 
-		// The container goes away and the bundle saying so is dropped, so the
-		// refresh is what reports inUse=false. It is rescanned meanwhile, which
-		// tells the payloads emitted before and after this point apart.
-		store.Unset(runningContainer)
-		store.Set(rescannedImageEntity)
+			// The container goes away and the bundle saying so is dropped, so the
+			// refresh is what reports inUse=false. It is rescanned meanwhile, which
+			// tells the payloads emitted before and after this point apart.
+			store.Unset(runningContainer)
+			store.Set(rescannedImageEntity)
 
-		refresher := newBatchRefresher(time.Hour, store, p)
-		defer refresher.stop()
-		refresher.step()
+			refresher := newBatchRefresher(time.Hour, store, p)
+			defer refresher.stop()
+			refresher.step()
 
-		assert.Eventually(t, func() bool { return counter.Load() == 1 }, time.Second, 5*time.Millisecond)
-		assertSBOMSent(t, sender, makeExpectedSBOM(false, 2))
-		counter.Store(0)
+			synctest.Wait()
+			assert.Equal(t, int32(1), counter.Load())
+			assertSBOMSent(t, sender, makeExpectedSBOM(false, 2))
+			counter.Store(0)
 
-		// A container starts the image again.
-		store.Set(runningContainer)
-		p.processContainerImagesEvents(makeBundle(
-			workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: runningContainer},
-		))
-		p.stop()
+			// A container starts the image again.
+			store.Set(runningContainer)
+			p.processContainerImagesEvents(makeBundle(
+				workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: runningContainer},
+			))
+			p.stop()
 
-		assert.Eventually(t, func() bool { return counter.Load() == 1 }, time.Second, 5*time.Millisecond)
+			synctest.Wait()
+			assert.Equal(t, int32(1), counter.Load())
 
-		assertSBOMSent(t, sender, makeExpectedSBOM(true, 2))
+			assertSBOMSent(t, sender, makeExpectedSBOM(true, 2))
+		})
 	})
 }
 
@@ -1106,17 +1135,25 @@ func TestCorruptedSBOM(t *testing.T) {
 		sent.Inc()
 	})
 
-	p, err := newProcessor(store, workloadfilterfxmock.SetupMockFilter(t), sender, taggerfxmock.SetupFakeTagger(t), cfg, 1, 50*time.Millisecond, time.Second)
-	assert.Nil(t, err)
+	ensureBubbleGlobals(t)
+	synctest.Test(t, func(t *testing.T) {
+		p, err := newProcessor(store, workloadfilterfxmock.SetupMockFilter(t), sender, taggerfxmock.SetupFakeTagger(t), cfg, 1, 50*time.Millisecond, time.Second)
+		require.NoError(t, err)
 
-	store.Set(imageEntity)
-	p.processContainerImagesEvents(workloadmeta.EventBundle{
-		Events: []workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: imageEntity}},
-		Ch:     make(chan struct{}),
+		store.Set(imageEntity)
+		p.processContainerImagesEvents(workloadmeta.EventBundle{
+			Events: []workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: imageEntity}},
+			Ch:     make(chan struct{}),
+		})
+		p.stop()
+
+		// Let the queue goroutine process everything, then let the retention
+		// time elapse: nothing must have been sent.
+		synctest.Wait()
+		time.Sleep(100 * time.Millisecond)
+		synctest.Wait()
+		assert.Zero(t, sent.Load())
 	})
-	p.stop()
-
-	assert.Never(t, func() bool { return sent.Load() > 0 }, 100*time.Millisecond, 5*time.Millisecond)
 }
 
 func mustCompressSBOM(t *testing.T, sbom *workloadmeta.SBOM) *workloadmeta.CompressedSBOM {
@@ -1545,12 +1582,14 @@ func notify(p *processor, store workloadmetamock.Mock, events ...workloadmeta.Ev
 	p.processContainerImagesEvents(workloadmeta.EventBundle{Events: events, Ch: make(chan struct{})})
 }
 
+// receiveSBOM and assertNoSBOM must be called from a synctest bubble.
 func receiveSBOM(t *testing.T, sent <-chan *model.SBOMEntity) *model.SBOMEntity {
 	t.Helper()
+	synctest.Wait()
 	select {
 	case entity := <-sent:
 		return entity
-	case <-time.After(time.Second):
+	default:
 		t.Fatal("no SBOM went out")
 		return nil
 	}
@@ -1558,10 +1597,14 @@ func receiveSBOM(t *testing.T, sent <-chan *model.SBOMEntity) *model.SBOMEntity 
 
 func assertNoSBOM(t *testing.T, sent <-chan *model.SBOMEntity) {
 	t.Helper()
+	// Let the retention time of the queue elapse, and the queue goroutine
+	// process everything it was given.
+	time.Sleep(200 * time.Millisecond)
+	synctest.Wait()
 	select {
 	case entity := <-sent:
 		t.Fatalf("SBOM %s went out", entity.GetId())
-	case <-time.After(200 * time.Millisecond):
+	default:
 	}
 }
 
@@ -1579,118 +1622,142 @@ func TestImageSBOMWaitsForUsage(t *testing.T) {
 	}
 
 	t.Run("the merged usage sends the SBOM", func(t *testing.T) {
-		p, store, sent := newImageGraceProcessor(t)
-		runGraceImage(store)
+		ensureBubbleGlobals(t)
+		synctest.Test(t, func(t *testing.T) {
+			p, store, sent := newImageGraceProcessor(t)
+			runGraceImage(store)
 
-		notify(p, store, set(graceImage(t, workloadmeta.Success, debPackage())))
-		assertNoSBOM(t, sent)
+			notify(p, store, set(graceImage(t, workloadmeta.Success, debPackage())))
+			assertNoSBOM(t, sent)
 
-		notify(p, store, set(graceImage(t, workloadmeta.Success, used)))
-		entity := receiveSBOM(t, sent)
-		assert.True(t, entity.GetInUse())
-		assert.True(t, sbom.IsEnriched(entity.GetCyclonedx()), "the SBOM goes out with its usage")
-		assertNoSBOM(t, sent)
+			notify(p, store, set(graceImage(t, workloadmeta.Success, used)))
+			entity := receiveSBOM(t, sent)
+			assert.True(t, entity.GetInUse())
+			assert.True(t, sbom.IsEnriched(entity.GetCyclonedx()), "the SBOM goes out with its usage")
+			assertNoSBOM(t, sent)
+		})
 	})
 
 	t.Run("an SBOM of the OS packages alone goes out at once", func(t *testing.T) {
-		p, store, sent := newImageGraceProcessor(t)
-		runGraceImage(store)
+		ensureBubbleGlobals(t)
+		synctest.Test(t, func(t *testing.T) {
+			p, store, sent := newImageGraceProcessor(t)
+			runGraceImage(store)
 
-		fallback := graceImage(t, workloadmeta.Success, debPackage())
-		fallback.SBOM.OSFallback = true
-		notify(p, store, set(fallback))
-		assert.False(t, sbom.IsEnriched(receiveSBOM(t, sent).GetCyclonedx()))
+			fallback := graceImage(t, workloadmeta.Success, debPackage())
+			fallback.SBOM.OSFallback = true
+			notify(p, store, set(fallback))
+			assert.False(t, sbom.IsEnriched(receiveSBOM(t, sent).GetCyclonedx()))
 
-		// The full SBOM that replaces it waits for its usage.
-		notify(p, store, set(graceImage(t, workloadmeta.Success, debPackage())))
-		assertNoSBOM(t, sent)
+			// The full SBOM that replaces it waits for its usage.
+			notify(p, store, set(graceImage(t, workloadmeta.Success, debPackage())))
+			assertNoSBOM(t, sent)
 
-		notify(p, store, set(graceImage(t, workloadmeta.Success, used)))
-		assert.True(t, sbom.IsEnriched(receiveSBOM(t, sent).GetCyclonedx()), "the full SBOM goes out with its usage")
+			notify(p, store, set(graceImage(t, workloadmeta.Success, used)))
+			assert.True(t, sbom.IsEnriched(receiveSBOM(t, sent).GetCyclonedx()), "the full SBOM goes out with its usage")
+		})
 	})
 
 	t.Run("the wait ends without usage", func(t *testing.T) {
-		p, store, sent := newImageGraceProcessor(t)
-		runGraceImage(store)
+		ensureBubbleGlobals(t)
+		synctest.Test(t, func(t *testing.T) {
+			p, store, sent := newImageGraceProcessor(t)
+			runGraceImage(store)
 
-		notify(p, store, set(graceImage(t, workloadmeta.Success, debPackage())))
-		p.releaseExpiredHolds(time.Now())
-		assertNoSBOM(t, sent)
+			notify(p, store, set(graceImage(t, workloadmeta.Success, debPackage())))
+			p.releaseExpiredHolds(time.Now())
+			assertNoSBOM(t, sent)
 
-		p.releaseExpiredHolds(time.Now().Add(usageGracePeriod))
-		entity := receiveSBOM(t, sent)
-		assert.True(t, entity.GetInUse())
-		assert.False(t, sbom.IsEnriched(entity.GetCyclonedx()))
+			p.releaseExpiredHolds(time.Now().Add(usageGracePeriod))
+			entity := receiveSBOM(t, sent)
+			assert.True(t, entity.GetInUse())
+			assert.False(t, sbom.IsEnriched(entity.GetCyclonedx()))
 
-		notify(p, store, set(graceImage(t, workloadmeta.Success, debPackage())))
-		receiveSBOM(t, sent)
+			notify(p, store, set(graceImage(t, workloadmeta.Success, debPackage())))
+			receiveSBOM(t, sent)
+		})
 	})
 
 	t.Run("a refresh leaves the waiting SBOM alone", func(t *testing.T) {
-		p, store, sent := newImageGraceProcessor(t)
-		runGraceImage(store)
+		ensureBubbleGlobals(t)
+		synctest.Test(t, func(t *testing.T) {
+			p, store, sent := newImageGraceProcessor(t)
+			runGraceImage(store)
 
-		img := graceImage(t, workloadmeta.Success, debPackage())
-		notify(p, store, set(img))
-		p.processImageSBOM(img, runningImages(store))
-		assertNoSBOM(t, sent)
+			img := graceImage(t, workloadmeta.Success, debPackage())
+			notify(p, store, set(img))
+			p.processImageSBOM(img, runningImages(store))
+			assertNoSBOM(t, sent)
+		})
 	})
 
 	t.Run("an unset image stops waiting", func(t *testing.T) {
-		p, store, sent := newImageGraceProcessor(t)
-		runGraceImage(store)
+		ensureBubbleGlobals(t)
+		synctest.Test(t, func(t *testing.T) {
+			p, store, sent := newImageGraceProcessor(t)
+			runGraceImage(store)
 
-		img := graceImage(t, workloadmeta.Success, debPackage())
-		notify(p, store, set(img))
-		notify(p, store, workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: img})
-		p.releaseExpiredHolds(time.Now().Add(usageGracePeriod))
-		assertNoSBOM(t, sent)
+			img := graceImage(t, workloadmeta.Success, debPackage())
+			notify(p, store, set(img))
+			notify(p, store, workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: img})
+			p.releaseExpiredHolds(time.Now().Add(usageGracePeriod))
+			assertNoSBOM(t, sent)
+		})
 	})
 
 	t.Run("an image sent unused waits once a container runs it", func(t *testing.T) {
-		p, store, sent := newImageGraceProcessor(t)
+		ensureBubbleGlobals(t)
+		synctest.Test(t, func(t *testing.T) {
+			p, store, sent := newImageGraceProcessor(t)
 
-		notify(p, store, set(graceImage(t, workloadmeta.Success, debPackage())))
-		assert.False(t, receiveSBOM(t, sent).GetInUse())
+			notify(p, store, set(graceImage(t, workloadmeta.Success, debPackage())))
+			assert.False(t, receiveSBOM(t, sent).GetInUse())
 
-		notify(p, store, set(runGraceImage(store)))
-		assertNoSBOM(t, sent)
+			notify(p, store, set(runGraceImage(store)))
+			assertNoSBOM(t, sent)
 
-		notify(p, store, set(graceImage(t, workloadmeta.Success, used)))
-		entity := receiveSBOM(t, sent)
-		assert.True(t, entity.GetInUse())
-		assert.True(t, sbom.IsEnriched(entity.GetCyclonedx()), "the first SBOM in use goes out with its usage")
+			notify(p, store, set(graceImage(t, workloadmeta.Success, used)))
+			entity := receiveSBOM(t, sent)
+			assert.True(t, entity.GetInUse())
+			assert.True(t, sbom.IsEnriched(entity.GetCyclonedx()), "the first SBOM in use goes out with its usage")
+		})
 	})
 
 	t.Run("an image left unused during the wait waits again", func(t *testing.T) {
-		p, store, sent := newImageGraceProcessor(t)
-		container := runGraceImage(store)
+		ensureBubbleGlobals(t)
+		synctest.Test(t, func(t *testing.T) {
+			p, store, sent := newImageGraceProcessor(t)
+			container := runGraceImage(store)
 
-		notify(p, store, set(graceImage(t, workloadmeta.Success, debPackage())))
-		assertNoSBOM(t, sent)
+			notify(p, store, set(graceImage(t, workloadmeta.Success, debPackage())))
+			assertNoSBOM(t, sent)
 
-		store.Unset(container)
-		p.releaseExpiredHolds(time.Now().Add(usageGracePeriod))
-		assert.False(t, receiveSBOM(t, sent).GetInUse(), "the wait ends with the image unused")
+			store.Unset(container)
+			p.releaseExpiredHolds(time.Now().Add(usageGracePeriod))
+			assert.False(t, receiveSBOM(t, sent).GetInUse(), "the wait ends with the image unused")
 
-		notify(p, store, set(runGraceImage(store)))
-		assertNoSBOM(t, sent)
+			notify(p, store, set(runGraceImage(store)))
+			assertNoSBOM(t, sent)
 
-		notify(p, store, set(graceImage(t, workloadmeta.Success, used)))
-		entity := receiveSBOM(t, sent)
-		assert.True(t, entity.GetInUse())
-		assert.True(t, sbom.IsEnriched(entity.GetCyclonedx()), "the SBOM in use goes out with its usage")
+			notify(p, store, set(graceImage(t, workloadmeta.Success, used)))
+			entity := receiveSBOM(t, sent)
+			assert.True(t, entity.GetInUse())
+			assert.True(t, sbom.IsEnriched(entity.GetCyclonedx()), "the SBOM in use goes out with its usage")
+		})
 	})
 
 	t.Run("an image sent in use goes out at once", func(t *testing.T) {
-		p, store, sent := newImageGraceProcessor(t)
-		runGraceImage(store)
+		ensureBubbleGlobals(t)
+		synctest.Test(t, func(t *testing.T) {
+			p, store, sent := newImageGraceProcessor(t)
+			runGraceImage(store)
 
-		notify(p, store, set(graceImage(t, workloadmeta.Success, used)))
-		receiveSBOM(t, sent)
+			notify(p, store, set(graceImage(t, workloadmeta.Success, used)))
+			receiveSBOM(t, sent)
 
-		notify(p, store, set(graceImage(t, workloadmeta.Success, debPackage())))
-		assert.False(t, sbom.IsEnriched(receiveSBOM(t, sent).GetCyclonedx()), "a rescan after the first SBOM in use goes out at once")
+			notify(p, store, set(graceImage(t, workloadmeta.Success, debPackage())))
+			assert.False(t, sbom.IsEnriched(receiveSBOM(t, sent).GetCyclonedx()), "a rescan after the first SBOM in use goes out at once")
+		})
 	})
 
 	t.Run("an SBOM goes out at once while usage cannot come", func(t *testing.T) {
@@ -1736,13 +1803,16 @@ func TestImageSBOMWaitsForUsage(t *testing.T) {
 		{name: "already enriched", inUse: true, img: graceImage(t, workloadmeta.Success, used)},
 	} {
 		t.Run(tt.name+" goes out at once", func(t *testing.T) {
-			p, store, sent := newImageGraceProcessor(t)
-			if tt.inUse {
-				runGraceImage(store)
-			}
+			ensureBubbleGlobals(t)
+			synctest.Test(t, func(t *testing.T) {
+				p, store, sent := newImageGraceProcessor(t)
+				if tt.inUse {
+					runGraceImage(store)
+				}
 
-			notify(p, store, set(tt.img))
-			receiveSBOM(t, sent)
+				notify(p, store, set(tt.img))
+				receiveSBOM(t, sent)
+			})
 		})
 	}
 }
@@ -1875,29 +1945,58 @@ func TestImageSBOMHidesUnobservedDuringWindow(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		since   time.Time
+		age     time.Duration // how long ago the usage started to be recorded
 		wantZsh string
 	}{
-		{name: "window open", since: time.Now(), wantZsh: ""},
-		{name: "window closed", since: time.Now().Add(-2 * time.Hour), wantZsh: "0"},
+		{name: "window open", age: 0, wantZsh: ""},
+		{name: "window closed", age: 2 * time.Hour, wantZsh: "0"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p, store, sent := newImageGraceProcessor(t)
-			p.imageUsageWindow = time.Hour
+			ensureBubbleGlobals(t)
+			synctest.Test(t, func(t *testing.T) {
+				p, store, sent := newImageGraceProcessor(t)
+				p.imageUsageWindow = time.Hour
 
-			img := merged(tt.since)
-			notify(p, store, workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: img})
-			entity := receiveSBOM(t, sent)
-			assert.Equal(t, "1700000000", lastSeenRunning(entity.GetCyclonedx(), "bash"))
-			assert.Equal(t, tt.wantZsh, lastSeenRunning(entity.GetCyclonedx(), "zsh"))
+				img := merged(time.Now().Add(-tt.age))
+				notify(p, store, workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: img})
+				entity := receiveSBOM(t, sent)
+				assert.Equal(t, "1700000000", lastSeenRunning(entity.GetCyclonedx(), "bash"))
+				assert.Equal(t, tt.wantZsh, lastSeenRunning(entity.GetCyclonedx(), "zsh"))
 
-			stored, err := store.GetImage(img.ID)
-			require.NoError(t, err)
-			bom, err := sbomutil.UncompressSBOM(stored.SBOM)
-			require.NoError(t, err)
-			assert.Equal(t, "0", lastSeenRunning(bom.CycloneDXBOM, "zsh"), "the stored SBOM keeps what the report says")
+				stored, err := store.GetImage(img.ID)
+				require.NoError(t, err)
+				bom, err := sbomutil.UncompressSBOM(stored.SBOM)
+				require.NoError(t, err)
+				assert.Equal(t, "0", lastSeenRunning(bom.CycloneDXBOM, "zsh"), "the stored SBOM keeps what the report says")
+			})
 		})
 	}
+}
+
+// ensureBubbleGlobals initializes, outside of any synctest bubble, the global
+// state whose background goroutines never stop (the hostname drift checker and
+// the workqueue of the global SBOM scanner). Created inside a bubble, they
+// would prevent synctest.Test from returning.
+func ensureBubbleGlobals(t *testing.T) {
+	t.Helper()
+
+	// Resolve the hostname from the configuration so that no provider is probed.
+	pkgconfigmock.New(t).SetInTest("hostname", "test-hostname")
+	_, _ = hostname.Get(context.TODO())
+
+	if sbomscanner.GetGlobalScanner() != nil {
+		return
+	}
+	cfg := configcomp.NewMockWithOverrides(t, map[string]interface{}{
+		"sbom.cache_directory":         t.TempDir(),
+		"sbom.container_image.enabled": true,
+	})
+	wmeta := fxutil.Test[option.Option[workloadmeta.Component]](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	_, err := sbomscanner.CreateGlobalScanner(cfg, wmeta)
+	require.NoError(t, err)
 }

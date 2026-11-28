@@ -45,6 +45,21 @@ import (
 
 // TestMain makes the done channel of the Agent's main context, which
 // workloadmeta stores share, outside every synctest bubble.
+// receiveScanResult returns the next scan result. In a synctest bubble, a result
+// that never comes fails the test once the virtual-time deadline is reached
+// (the fake clock moves past the whole backoff schedule while the scanner is
+// idle), instead of deadlocking the bubble.
+func receiveScanResult(t *testing.T, resultCh <-chan sbom.ScanResult, what string) sbom.ScanResult {
+	t.Helper()
+	select {
+	case res := <-resultCh:
+		return res
+	case <-time.After(10 * time.Second):
+		t.Fatalf("no %s result received", what)
+		return sbom.ScanResult{}
+	}
+}
+
 func TestMain(m *testing.M) {
 	ctx, _ := common.GetMainCtxCancel()
 	ctx.Done()
@@ -112,23 +127,6 @@ func TestEnoughDiskSpace(t *testing.T) {
 
 // Test retry handling in case of an error
 func TestRetryLogic_Error(t *testing.T) {
-	// Create a workload meta global store
-	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
-		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
-
-	// Store the image
-	imageID := "id"
-	workloadmetaStore.Set(&workloadmeta.ContainerImageMetadata{
-		EntityID: workloadmeta.EntityID{
-			ID:   imageID,
-			Kind: workloadmeta.KindContainerImageMetadata,
-		},
-	})
-
 	for _, tt := range []struct {
 		name string
 		st   collectors.ScanType
@@ -143,51 +141,71 @@ func TestRetryLogic_Error(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := configmock.New(t)
+			synctest.Test(t, func(t *testing.T) {
+				cfg := configmock.New(t)
 
-			// Create a mock collector
-			collName := "mock"
-			mockCollector := collectors.NewMockCollector()
-			resultCh := make(chan sbom.ScanResult, 1)
-			errorResult := sbom.ScanResult{Error: errors.New("scan error")}
-			expectedResult := sbom.ScanResult{Report: mockReport{id: imageID}}
-			mockCollector.On("Options").Return(sbom.ScanOptions{})
-			mockCollector.On("Scan", mock.Anything, mock.Anything).Return(errorResult).Twice()
-			mockCollector.On("Scan", mock.Anything, mock.Anything).Return(expectedResult).Once()
-			mockCollector.On("Channel").Return(resultCh)
-			shutdown := mockCollector.On("Shutdown")
-			shutdown.After(5 * time.Second)
-			mockCollector.On("Type").Return(tt.st)
+				// Create a workload meta global store
+				workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+					fx.Provide(func() log.Component { return logmock.New(t) }),
+					fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
+					fx.Supply(context.Background()),
+					workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+				))
 
-			// Set up the configuration as the default one is too slow
-			cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
-			cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
+				// Store the image
+				imageID := "id"
+				workloadmetaStore.Set(&workloadmeta.ContainerImageMetadata{
+					EntityID: workloadmeta.EntityID{
+						ID:   imageID,
+						Kind: workloadmeta.KindContainerImageMetadata,
+					},
+				})
 
-			// Create a scanner and start it
-			scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
-			ctx, cancel := context.WithCancel(context.Background())
-			scanner.Start(ctx)
+				// Create a mock collector
+				collName := "mock"
+				mockCollector := collectors.NewMockCollector()
+				resultCh := make(chan sbom.ScanResult, 1)
+				errorResult := sbom.ScanResult{Error: errors.New("scan error")}
+				expectedResult := sbom.ScanResult{Report: mockReport{id: imageID}}
+				mockCollector.On("Options").Return(sbom.ScanOptions{})
+				mockCollector.On("Scan", mock.Anything, mock.Anything).Return(errorResult).Twice()
+				mockCollector.On("Scan", mock.Anything, mock.Anything).Return(expectedResult).Once()
+				mockCollector.On("Channel").Return(resultCh)
+				mockCollector.On("Shutdown")
+				mockCollector.On("Type").Return(tt.st)
 
-			// Enqueue a scan request for container images
-			err := scanner.Scan(sbom.ScanRequest(&scanRequest{collectorName: collName, id: imageID, scanRequestType: sbom.ScanFilesystemType}))
-			assert.NoError(t, err)
+				// Set up the configuration as the default one is too slow
+				cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
+				cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
 
-			// Assert error results
-			res := <-resultCh
-			assert.Equal(t, errorResult.Error, res.Error)
-			res = <-resultCh
-			assert.Equal(t, errorResult.Error, res.Error)
-			// Assert expected result
-			res = <-resultCh
-			assert.Equal(t, expectedResult.Report, res.Report)
+				// Create a scanner and start it
+				scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel() // also stops the scanner if an assertion below fails early
+				scanner.Start(ctx)
 
-			// Make sure we don't receive anything afterward
-			select {
-			case res := <-resultCh:
-				t.Errorf("unexpected result received %v", res)
-			case <-time.After(time.Second):
-			}
-			cancel()
+				// Enqueue a scan request for container images
+				err := scanner.Scan(sbom.ScanRequest(&scanRequest{collectorName: collName, id: imageID, scanRequestType: sbom.ScanFilesystemType}))
+				assert.NoError(t, err)
+
+				// Assert error results
+				res := receiveScanResult(t, resultCh, "first error")
+				assert.Equal(t, errorResult.Error, res.Error)
+				res = receiveScanResult(t, resultCh, "second error")
+				assert.Equal(t, errorResult.Error, res.Error)
+				// Assert expected result
+				res = receiveScanResult(t, resultCh, "expected")
+				assert.Equal(t, expectedResult.Report, res.Report)
+
+				// Make sure we don't receive anything afterward
+				select {
+				case res := <-resultCh:
+					t.Errorf("unexpected result received %v", res)
+				case <-time.After(time.Second):
+				}
+				cancel()
+				synctest.Wait()
+			})
 		})
 	}
 }
@@ -195,83 +213,62 @@ func TestRetryLogic_Error(t *testing.T) {
 // TestRetryLogic_NotSupported checks that a scan reported as unsupported is
 // delivered once and then dropped, not retried.
 func TestRetryLogic_NotSupported(t *testing.T) {
-	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
-		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
+	synctest.Test(t, func(t *testing.T) {
+		workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+			fx.Provide(func() log.Component { return logmock.New(t) }),
+			fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
+			fx.Supply(context.Background()),
+			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		))
 
-	imageID := "id"
-	workloadmetaStore.Set(&workloadmeta.ContainerImageMetadata{
-		EntityID: workloadmeta.EntityID{
-			ID:   imageID,
-			Kind: workloadmeta.KindContainerImageMetadata,
-		},
+		imageID := "id"
+		workloadmetaStore.Set(&workloadmeta.ContainerImageMetadata{
+			EntityID: workloadmeta.EntityID{
+				ID:   imageID,
+				Kind: workloadmeta.KindContainerImageMetadata,
+			},
+		})
+
+		cfg := configmock.New(t)
+		collName := "mock"
+		mockCollector := collectors.NewMockCollector()
+		resultCh := make(chan sbom.ScanResult, 1)
+		unsupported := sbom.ScanResult{Error: fmt.Errorf("%w: nydus", sbom.ErrScanNotSupported)}
+		mockCollector.On("Options").Return(sbom.ScanOptions{})
+		mockCollector.On("Scan", mock.Anything, mock.Anything).Return(unsupported)
+		mockCollector.On("Channel").Return(resultCh)
+		mockCollector.On("Shutdown")
+		mockCollector.On("Type").Return(collectors.ContainerImageScanType)
+
+		// Keep the backoff short so a mistaken retry would show up quickly.
+		cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
+		cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
+
+		scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		scanner.Start(ctx)
+
+		err := scanner.Scan(sbom.ScanRequest(&scanRequest{collectorName: collName, id: imageID, scanRequestType: sbom.ScanFilesystemType}))
+		assert.NoError(t, err)
+
+		res := receiveScanResult(t, resultCh, "scan")
+		assert.ErrorIs(t, res.Error, sbom.ErrScanNotSupported)
+
+		// A retried scan would deliver a second result within the backoff window.
+		select {
+		case res := <-resultCh:
+			t.Errorf("unsupported scan was retried, unexpected result: %v", res)
+		case <-time.After(time.Second):
+		}
+		mockCollector.AssertNumberOfCalls(t, "Scan", 1)
 	})
-
-	cfg := configmock.New(t)
-	collName := "mock"
-	mockCollector := collectors.NewMockCollector()
-	resultCh := make(chan sbom.ScanResult, 1)
-	unsupported := sbom.ScanResult{Error: fmt.Errorf("%w: nydus", sbom.ErrScanNotSupported)}
-	mockCollector.On("Options").Return(sbom.ScanOptions{})
-	mockCollector.On("Scan", mock.Anything, mock.Anything).Return(unsupported)
-	mockCollector.On("Channel").Return(resultCh)
-	shutdown := mockCollector.On("Shutdown")
-	shutdown.After(5 * time.Second)
-	mockCollector.On("Type").Return(collectors.ContainerImageScanType)
-
-	// Keep the backoff short so a mistaken retry would show up quickly.
-	cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
-	cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
-
-	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	scanner.Start(ctx)
-
-	err := scanner.Scan(sbom.ScanRequest(&scanRequest{collectorName: collName, id: imageID, scanRequestType: sbom.ScanFilesystemType}))
-	assert.NoError(t, err)
-
-	res := <-resultCh
-	assert.ErrorIs(t, res.Error, sbom.ErrScanNotSupported)
-
-	// A retried scan would deliver a second result within the backoff window.
-	select {
-	case res := <-resultCh:
-		t.Errorf("unsupported scan was retried, unexpected result: %v", res)
-	case <-time.After(time.Second):
-	}
-	mockCollector.AssertNumberOfCalls(t, "Scan", 1)
 }
 
 // TestRetryLogic_OSFallback checks that a scan listing the OS packages alone
 // is delivered and then retried, except the host scan, which waits for its
 // periodic refresh.
 func TestRetryLogic_OSFallback(t *testing.T) {
-	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
-		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
-
-	imageID := "id"
-	workloadmetaStore.Set(&workloadmeta.ContainerImageMetadata{
-		EntityID: workloadmeta.EntityID{
-			ID:   imageID,
-			Kind: workloadmeta.KindContainerImageMetadata,
-		},
-	})
-	workloadmetaStore.Set(&workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			ID:   imageID,
-			Kind: workloadmeta.KindContainer,
-		},
-		State: workloadmeta.ContainerState{Running: true},
-	})
-
 	for _, tt := range []struct {
 		name        string
 		st          collectors.ScanType
@@ -293,115 +290,144 @@ func TestRetryLogic_OSFallback(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := configmock.New(t)
-			collName := "mock"
-			mockCollector := collectors.NewMockCollector()
-			resultCh := make(chan sbom.ScanResult, 1)
-			fallbackResult := sbom.ScanResult{Report: mockReport{id: imageID, osFallback: true}}
-			fullResult := sbom.ScanResult{Report: mockReport{id: imageID}}
-			mockCollector.On("Options").Return(sbom.ScanOptions{})
-			mockCollector.On("Scan", mock.Anything, mock.Anything).Return(fallbackResult).Once()
-			mockCollector.On("Scan", mock.Anything, mock.Anything).Return(fullResult).Once()
-			mockCollector.On("Channel").Return(resultCh)
-			shutdown := mockCollector.On("Shutdown")
-			shutdown.After(5 * time.Second)
-			mockCollector.On("Type").Return(tt.st)
+			synctest.Test(t, func(t *testing.T) {
+				cfg := configmock.New(t)
 
-			// Keep the backoff short so that the retry shows up quickly.
-			cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
-			cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
+				workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+					fx.Provide(func() log.Component { return logmock.New(t) }),
+					fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
+					fx.Supply(context.Background()),
+					workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+				))
 
-			scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			scanner.Start(ctx)
+				imageID := "id"
+				workloadmetaStore.Set(&workloadmeta.ContainerImageMetadata{
+					EntityID: workloadmeta.EntityID{
+						ID:   imageID,
+						Kind: workloadmeta.KindContainerImageMetadata,
+					},
+				})
+				workloadmetaStore.Set(&workloadmeta.Container{
+					EntityID: workloadmeta.EntityID{
+						ID:   imageID,
+						Kind: workloadmeta.KindContainer,
+					},
+					State: workloadmeta.ContainerState{Running: true},
+				})
 
-			err := scanner.Scan(sbom.ScanRequest(&scanRequest{collectorName: collName, id: imageID, scanRequestType: sbom.ScanFilesystemType}))
-			assert.NoError(t, err)
+				collName := "mock"
+				mockCollector := collectors.NewMockCollector()
+				resultCh := make(chan sbom.ScanResult, 1)
+				fallbackResult := sbom.ScanResult{Report: mockReport{id: imageID, osFallback: true}}
+				fullResult := sbom.ScanResult{Report: mockReport{id: imageID}}
+				mockCollector.On("Options").Return(sbom.ScanOptions{})
+				mockCollector.On("Scan", mock.Anything, mock.Anything).Return(fallbackResult).Once()
+				mockCollector.On("Scan", mock.Anything, mock.Anything).Return(fullResult).Once()
+				mockCollector.On("Channel").Return(resultCh)
+				mockCollector.On("Shutdown")
+				mockCollector.On("Type").Return(tt.st)
 
-			res := <-resultCh
-			assert.Equal(t, fallbackResult.Report, res.Report)
-			if tt.wantRetried {
+				// Keep the backoff short so that the retry shows up quickly.
+				cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
+				cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
+
+				scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				scanner.Start(ctx)
+
+				err := scanner.Scan(sbom.ScanRequest(&scanRequest{collectorName: collName, id: imageID, scanRequestType: sbom.ScanFilesystemType}))
+				assert.NoError(t, err)
+
+				res := receiveScanResult(t, resultCh, "scan")
+				assert.Equal(t, fallbackResult.Report, res.Report)
+				if tt.wantRetried {
+					select {
+					case res := <-resultCh:
+						assert.Equal(t, fullResult.Report, res.Report)
+					case <-time.After(5 * time.Second):
+						t.Fatal("the scan listing the OS packages alone was not retried")
+					}
+				}
+
 				select {
 				case res := <-resultCh:
-					assert.Equal(t, fullResult.Report, res.Report)
-				case <-time.After(5 * time.Second):
-					t.Fatal("the scan listing the OS packages alone was not retried")
+					t.Errorf("unexpected result received %v", res)
+				case <-time.After(time.Second):
 				}
-			}
-
-			select {
-			case res := <-resultCh:
-				t.Errorf("unexpected result received %v", res)
-			case <-time.After(time.Second):
-			}
+			})
 		})
 	}
 }
 
 func TestRetryLogic_ImageDeleted(t *testing.T) {
-	cfg := configmock.New(t)
+	synctest.Test(t, func(t *testing.T) {
+		cfg := configmock.New(t)
 
-	// Create a workload meta global store
-	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
-		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
+		// Create a workload meta global store
+		workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+			fx.Provide(func() log.Component { return logmock.New(t) }),
+			fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
+			fx.Supply(context.Background()),
+			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		))
 
-	// Store the image
-	imageID := "id"
-	img := &workloadmeta.ContainerImageMetadata{
-		EntityID: workloadmeta.EntityID{
-			ID:   imageID,
-			Kind: workloadmeta.KindContainerImageMetadata,
-		},
-	}
-	workloadmetaStore.Set(img)
-
-	// Create a mock collector
-	collName := "mock"
-	mockCollector := collectors.NewMockCollector()
-	resultCh := make(chan sbom.ScanResult, 1)
-	errorResult := sbom.ScanResult{Error: errors.New("scan error")}
-	mockCollector.On("Options").Return(sbom.ScanOptions{})
-	mockCollector.On("Scan", mock.Anything, mock.Anything).Return(errorResult).Twice()
-	mockCollector.On("Channel").Return(resultCh)
-	shutdown := mockCollector.On("Shutdown")
-	mockCollector.On("Type").Return(collectors.ContainerImageScanType)
-
-	// Set up the configuration as the default one is too slow
-	cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
-	cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
-
-	// Create a scanner and start it
-	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
-	ctx, cancel := context.WithCancel(context.Background())
-	scanner.Start(ctx)
-
-	// Enqueue a scan request for container images
-	err := scanner.Scan(sbom.ScanRequest(&scanRequest{collectorName: collName, id: imageID, scanRequestType: sbom.ScanFilesystemType}))
-	assert.NoError(t, err)
-
-	// Assert error results
-	res := <-resultCh
-	assert.Equal(t, errorResult.Error, res.Error)
-
-	// Stop retrying after the image is unset
-	workloadmetaStore.Unset(img)
-	assert.Eventually(t, func() bool {
-		select {
-		case res := <-resultCh:
-			assert.Equal(t, errorResult.Error, res.Error)
-			return false
-		case <-time.After(time.Second):
-			return true
+		// Store the image
+		imageID := "id"
+		img := &workloadmeta.ContainerImageMetadata{
+			EntityID: workloadmeta.EntityID{
+				ID:   imageID,
+				Kind: workloadmeta.KindContainerImageMetadata,
+			},
 		}
-	}, 5*time.Second, 200*time.Millisecond)
-	cancel()
-	// Ensure the collector is stopped
-	shutdown.WaitUntil(time.After(5 * time.Second))
+		workloadmetaStore.Set(img)
+
+		// Create a mock collector
+		collName := "mock"
+		mockCollector := collectors.NewMockCollector()
+		resultCh := make(chan sbom.ScanResult, 1)
+		errorResult := sbom.ScanResult{Error: errors.New("scan error")}
+		mockCollector.On("Options").Return(sbom.ScanOptions{})
+		mockCollector.On("Scan", mock.Anything, mock.Anything).Return(errorResult).Twice()
+		mockCollector.On("Channel").Return(resultCh)
+		mockCollector.On("Shutdown")
+		mockCollector.On("Type").Return(collectors.ContainerImageScanType)
+
+		// Set up the configuration as the default one is too slow
+		cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
+		cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
+
+		// Create a scanner and start it
+		scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel() // also stops the scanner if an assertion below fails early
+		scanner.Start(ctx)
+
+		// Enqueue a scan request for container images
+		err := scanner.Scan(sbom.ScanRequest(&scanRequest{collectorName: collName, id: imageID, scanRequestType: sbom.ScanFilesystemType}))
+		assert.NoError(t, err)
+
+		// Assert error results
+		res := receiveScanResult(t, resultCh, "scan")
+		assert.Equal(t, errorResult.Error, res.Error)
+
+		// Stop retrying after the image is unset
+		workloadmetaStore.Unset(img)
+		// An in-flight retry may still deliver a result, but then nothing more
+		// may arrive for a full second.
+		for quiet := false; !quiet; {
+			select {
+			case res := <-resultCh:
+				assert.Equal(t, errorResult.Error, res.Error)
+			case <-time.After(time.Second):
+				quiet = true
+			}
+		}
+		cancel()
+		// Ensure the collector is stopped
+		synctest.Wait()
+		mockCollector.AssertCalled(t, "Shutdown")
+	})
 }
 
 // TestPerformScanReturnsWhenContextEnds checks that a scan waiting for the
@@ -501,12 +527,13 @@ func TestRetryLogic_ContainerStopped(t *testing.T) {
 
 		scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
 		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel() // also stops the scanner if an assertion below fails early
 		scanner.Start(ctx)
 
 		for _, id := range []string{"missing", "stopped", "running"} {
 			assert.NoError(t, scanner.Scan(&scanRequest{collectorName: collName, id: id, scanRequestType: sbom.ScanFilesystemType}))
 		}
-		res := <-resultCh
+		res := receiveScanResult(t, resultCh, "scan")
 		assert.Equal(t, errorResult.Error, res.Error)
 
 		// The retries end once the container stops.
@@ -543,7 +570,7 @@ func TestProcessScanAttachesImage(t *testing.T) {
 	imgMeta := &workloadmeta.ContainerImageMetadata{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "id"}}
 	scanner.processScan(context.Background(), &scanRequest{collectorName: "mock", id: "id"}, imgMeta, collector)
 
-	result := <-resultCh
+	result := receiveScanResult(t, resultCh, "scan")
 	assert.EqualError(t, result.Error, "scan error")
 	assert.Same(t, imgMeta, result.ImgMeta)
 }
@@ -587,6 +614,7 @@ func TestRetryChannelFull(t *testing.T) {
 		// Create a scanner and start it
 		scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
 		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel() // also stops the scanner if an assertion below fails early
 		scanner.Start(ctx)
 
 		// Enqueue a scan request for container images
@@ -597,7 +625,7 @@ func TestRetryChannelFull(t *testing.T) {
 		time.Sleep(sendTimeout + 50*time.Millisecond)
 
 		// Make sure we recover
-		res := <-resultCh
+		res := receiveScanResult(t, resultCh, "scan")
 		assert.Equal(t, expectedResult.Report, res.Report)
 
 		// Make sure we don't receive anything afterward
@@ -742,62 +770,64 @@ func TestImageScanPublishedSBOM(t *testing.T) {
 		{name: "overtaken by a full SBOM", overtaken: true, result: osOnlyResult, wantScans: 1},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-				fx.Provide(func() log.Component { return logmock.New(t) }),
-				fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
-				fx.Supply(context.Background()),
-				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-			))
-			image := func(s *workloadmeta.CompressedSBOM) *workloadmeta.ContainerImageMetadata {
-				return &workloadmeta.ContainerImageMetadata{
-					EntityID: workloadmeta.EntityID{ID: "id", Kind: workloadmeta.KindContainerImageMetadata},
-					SBOM:     s,
+			synctest.Test(t, func(t *testing.T) {
+				store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+					fx.Provide(func() log.Component { return logmock.New(t) }),
+					fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
+					fx.Supply(context.Background()),
+					workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+				))
+				image := func(s *workloadmeta.CompressedSBOM) *workloadmeta.ContainerImageMetadata {
+					return &workloadmeta.ContainerImageMetadata{
+						EntityID: workloadmeta.EntityID{ID: "id", Kind: workloadmeta.KindContainerImageMetadata},
+						SBOM:     s,
+					}
 				}
-			}
-			store.Set(image(tt.published))
+				store.Set(image(tt.published))
 
-			var scans atomic.Int32
-			resultCh := make(chan sbom.ScanResult, 10)
-			mockCollector := collectors.NewMockCollector()
-			mockCollector.On("Options").Return(sbom.ScanOptions{})
-			mockCollector.On("Scan", mock.Anything, mock.Anything).Return(tt.result).Run(func(mock.Arguments) {
-				scans.Add(1)
-				if tt.overtaken {
-					store.Set(image(full))
+				var scans atomic.Int32
+				resultCh := make(chan sbom.ScanResult, 10)
+				mockCollector := collectors.NewMockCollector()
+				mockCollector.On("Options").Return(sbom.ScanOptions{})
+				mockCollector.On("Scan", mock.Anything, mock.Anything).Return(tt.result).Run(func(mock.Arguments) {
+					scans.Add(1)
+					if tt.overtaken {
+						store.Set(image(full))
+					}
+				})
+				mockCollector.On("Channel").Return(resultCh)
+				mockCollector.On("Shutdown")
+				mockCollector.On("Type").Return(collectors.ContainerImageScanType)
+
+				cfg := configmock.New(t)
+				cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
+				cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
+				scanner := NewScanner(cfg, map[string]collectors.Collector{"mock": mockCollector}, option.New[workloadmeta.Component](store))
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				scanner.Start(ctx)
+
+				require.NoError(t, scanner.Scan(sbom.ScanRequest(&scanRequest{collectorName: "mock", id: "id", scanRequestType: sbom.ScanFilesystemType})))
+				for range tt.wantSent {
+					select {
+					case <-resultCh:
+					case <-time.After(5 * time.Second):
+						t.Fatal("no scan result")
+					}
+				}
+				if tt.wantScans > 1 {
+					assert.Eventually(t, func() bool { return int(scans.Load()) >= tt.wantScans }, 5*time.Second, 50*time.Millisecond, "the scan was not retried")
+				}
+
+				select {
+				case res := <-resultCh:
+					t.Errorf("unexpected result received %v", res)
+				case <-time.After(time.Second):
+				}
+				if tt.wantScans <= 1 {
+					assert.Equal(t, tt.wantScans, int(scans.Load()), "scans")
 				}
 			})
-			mockCollector.On("Channel").Return(resultCh)
-			mockCollector.On("Shutdown")
-			mockCollector.On("Type").Return(collectors.ContainerImageScanType)
-
-			cfg := configmock.New(t)
-			cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
-			cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
-			scanner := NewScanner(cfg, map[string]collectors.Collector{"mock": mockCollector}, option.New[workloadmeta.Component](store))
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			scanner.Start(ctx)
-
-			require.NoError(t, scanner.Scan(sbom.ScanRequest(&scanRequest{collectorName: "mock", id: "id", scanRequestType: sbom.ScanFilesystemType})))
-			for range tt.wantSent {
-				select {
-				case <-resultCh:
-				case <-time.After(5 * time.Second):
-					t.Fatal("no scan result")
-				}
-			}
-			if tt.wantScans > 1 {
-				assert.Eventually(t, func() bool { return int(scans.Load()) >= tt.wantScans }, 5*time.Second, 50*time.Millisecond, "the scan was not retried")
-			}
-
-			select {
-			case res := <-resultCh:
-				t.Errorf("unexpected result received %v", res)
-			case <-time.After(time.Second):
-			}
-			if tt.wantScans <= 1 {
-				assert.Equal(t, tt.wantScans, int(scans.Load()), "scans")
-			}
 		})
 	}
 }
