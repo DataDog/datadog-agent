@@ -22,6 +22,8 @@ const (
 	pinnedAgentMinorVersion = "86.0"
 	pinnedAgentVersion      = "7.86.0-1"
 	pinnedCTracerVersion    = "0.39.0"
+	// 0.73.0 is the first injector that loads the C tracer from datadog-apm-library-c
+	databricksGPUApmInjectVersion = "0.74.1"
 )
 
 type installScriptDatabricksGPUSuite struct {
@@ -41,7 +43,7 @@ func testDatabricksGPUScript(os e2eos.Descriptor, arch e2eos.Architecture) insta
 func (s *installScriptDatabricksGPUSuite) TestDatabricksGPUDriverInstallScript() {
 	s.RunInstallScript(s.url, "DB_IS_DRIVER=TRUE")
 	state := s.host.State()
-	injectPath := "/opt/datadog-packages/datadog-apm-inject/" + databricksApmInjectVersion
+	injectPath := "/opt/datadog-packages/datadog-apm-inject/" + databricksGPUApmInjectVersion
 
 	// The Agent and the C tracer are not pinned: the script installs the
 	// latest Agent 7 and the latest 0.x C tracer.
@@ -53,6 +55,11 @@ func (s *installScriptDatabricksGPUSuite) TestDatabricksGPUDriverInstallScript()
 	state.AssertDirExists(cTracerStable, 0755, "root", "root")
 
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
+	state.AssertFileExists("/etc/datadog-agent/application_monitoring.yaml", 0644, "dd-agent", "dd-agent")
+	appMonitoring, err := s.host.ReadFile("/etc/datadog-agent/application_monitoring.yaml")
+	s.Require().NoError(err)
+	s.Contains(string(appMonitoring), "DD_INJECT_NATIVE: always")
+	s.Contains(string(appMonitoring), "DD_GPU_ENABLED: true")
 
 	// GPU Monitoring only: no Data Jobs Monitoring setup
 	state.AssertPathDoesNotExist("/opt/datadog-packages/datadog-apm-library-java")

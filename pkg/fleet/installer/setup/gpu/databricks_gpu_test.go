@@ -8,6 +8,8 @@ package gpu
 import (
 	"context"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -128,6 +130,201 @@ func TestSetupDatabricksHostTags(t *testing.T) {
 
 			assert.Equal(t, tt.wantTags, s.Config.DatadogYAML.Tags)
 			assert.Equal(t, tt.wantExtraTags, s.Config.DatadogYAML.ExtraTags)
+		})
+	}
+}
+
+func TestSetupTracerEnv(t *testing.T) {
+	newSetup := func() *common.Setup {
+		span, _ := telemetry.StartSpanFromContext(context.Background(), "test")
+		return &common.Setup{Span: span, Out: &common.Output{}}
+	}
+
+	t.Run("writes the tracer env and keeps existing lines", func(t *testing.T) {
+		t.Setenv("DD_SERVICE", "")
+		t.Setenv("DD_ENV", "")
+		t.Setenv("DD_TRACE_LOG_FILE", "")
+		t.Setenv("DD_TRACE_LOG_LEVEL", "")
+		path := filepath.Join(t.TempDir(), "spark-env.sh")
+		require.NoError(t, os.WriteFile(path, []byte("export FOO=bar"), 0644))
+
+		require.NoError(t, setupTracerEnv(newSetup(), path))
+
+		content, err := os.ReadFile(path)
+		require.NoError(t, err)
+		assert.Equal(t, "export FOO=bar\n"+
+			sparkEnvBlockStart+"\n"+
+			"export DD_INJECT_NATIVE='always'\n"+
+			"export DD_GPU_ENABLED='true'\n"+
+			sparkEnvBlockEnd+"\n", string(content))
+	})
+
+	t.Run("passes DD_SERVICE, DD_ENV and the log settings through", func(t *testing.T) {
+		t.Setenv("DD_SERVICE", "it's-a-service")
+		t.Setenv("DD_ENV", "prod")
+		t.Setenv("DD_TRACE_LOG_FILE", "stderr")
+		t.Setenv("DD_TRACE_LOG_LEVEL", "debug")
+		path := filepath.Join(t.TempDir(), "spark-env.sh")
+
+		require.NoError(t, setupTracerEnv(newSetup(), path))
+
+		content, err := os.ReadFile(path)
+		require.NoError(t, err)
+		assert.Contains(t, string(content), `export DD_SERVICE='it'\''s-a-service'`+"\n")
+		assert.Contains(t, string(content), "export DD_ENV='prod'\n")
+		assert.Contains(t, string(content), "export DD_TRACE_LOG_FILE='stderr'\n")
+		assert.Contains(t, string(content), "export DD_TRACE_LOG_LEVEL='debug'\n")
+	})
+
+	t.Run("rerun replaces the previous block", func(t *testing.T) {
+		t.Setenv("DD_ENV", "")
+		path := filepath.Join(t.TempDir(), "spark-env.sh")
+		require.NoError(t, os.WriteFile(path, []byte("export FOO=bar\n"), 0644))
+
+		t.Setenv("DD_SERVICE", "first")
+		require.NoError(t, setupTracerEnv(newSetup(), path))
+		t.Setenv("DD_SERVICE", "second")
+		require.NoError(t, setupTracerEnv(newSetup(), path))
+
+		content, err := os.ReadFile(path)
+		require.NoError(t, err)
+		assert.Equal(t, 1, strings.Count(string(content), sparkEnvBlockStart))
+		assert.NotContains(t, string(content), "first")
+		assert.Contains(t, string(content), "export DD_SERVICE='second'\n")
+		assert.True(t, strings.HasPrefix(string(content), "export FOO=bar\n"+sparkEnvBlockStart))
+	})
+
+	t.Run("skips when the Spark conf directory is missing", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "missing", "spark-env.sh")
+
+		require.NoError(t, setupTracerEnv(newSetup(), path))
+
+		_, err := os.Stat(path)
+		assert.True(t, os.IsNotExist(err))
+	})
+}
+
+func TestSetupTracerConfig(t *testing.T) {
+	newSetup := func() *common.Setup {
+		span, _ := telemetry.StartSpanFromContext(context.Background(), "test")
+		return &common.Setup{Span: span, Out: &common.Output{}}
+	}
+
+	t.Run("default", func(t *testing.T) {
+		t.Setenv("DD_SERVICE", "")
+		t.Setenv("DD_ENV", "")
+		t.Setenv("DD_TRACE_LOG_FILE", "")
+		t.Setenv("DD_TRACE_LOG_LEVEL", "")
+		s := newSetup()
+
+		setupTracerConfig(s)
+
+		require.NotNil(t, s.Config.ApplicationMonitoringYAML)
+		assert.Equal(t, config.APMConfigurationDefault{
+			InjectNative: "always",
+			GPUEnabled:   config.BoolToPtr(true),
+		}, s.Config.ApplicationMonitoringYAML.Default)
+	})
+
+	t.Run("passes DD_SERVICE, DD_ENV and the log settings through", func(t *testing.T) {
+		t.Setenv("DD_SERVICE", "my-service")
+		t.Setenv("DD_ENV", "prod")
+		t.Setenv("DD_TRACE_LOG_FILE", "/databricks/driver/logs/dd-trace-c.log")
+		t.Setenv("DD_TRACE_LOG_LEVEL", "debug")
+		s := newSetup()
+
+		setupTracerConfig(s)
+
+		assert.Equal(t, "my-service", s.Config.ApplicationMonitoringYAML.Default.Service)
+		assert.Equal(t, "prod", s.Config.ApplicationMonitoringYAML.Default.Env)
+		assert.Equal(t, "/databricks/driver/logs/dd-trace-c.log", s.Config.ApplicationMonitoringYAML.Default.TraceLogFile)
+		assert.Equal(t, "debug", s.Config.ApplicationMonitoringYAML.Default.TraceLogLevel)
+	})
+}
+
+func TestSetupDatabricksEnv(t *testing.T) {
+	tests := []struct {
+		name       string
+		workspace  string
+		ddEnv      string
+		currentEnv string
+		expected   string
+	}{
+		{name: "defaults to the normalized workspace", workspace: "My Workspace", expected: "my_workspace"},
+		{name: "DD_ENV wins", workspace: "My Workspace", ddEnv: "prod", expected: ""},
+		{name: "keeps the env of a previous install", workspace: "My Workspace", currentEnv: "staging", expected: ""},
+		{name: "no workspace", expected: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("DATABRICKS_WORKSPACE", tt.workspace)
+			t.Setenv("DD_ENV", tt.ddEnv)
+			dir := t.TempDir()
+			if tt.currentEnv != "" {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "datadog.yaml"), []byte("env: "+tt.currentEnv+"\n"), 0640))
+			}
+			span, _ := telemetry.StartSpanFromContext(context.Background(), "test")
+			s := &common.Setup{Span: span, Out: &common.Output{}}
+
+			setupDatabricksEnv(s, dir)
+
+			assert.Equal(t, tt.expected, s.Config.DatadogYAML.Env)
+		})
+	}
+}
+
+func TestNormalizeWorkspaceName(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "lowercase and sanitize spaces",
+			input:    "Example Workspace",
+			expected: "example_workspace",
+		},
+		{
+			name:     "trim quotes",
+			input:    "\"example_workspace\"",
+			expected: "example_workspace",
+		},
+		{
+			name:     "dedupe underscores",
+			input:    "example___workspace",
+			expected: "example_workspace",
+		},
+		{
+			name:     "remove leading and trailing underscores and other special characters except for colons and slash",
+			input:    "_!:_/example_workspace!!",
+			expected: ":_/example_workspace",
+		},
+		{
+			name:     "remove leading digits",
+			input:    "___123_[]workspace123",
+			expected: "workspace123",
+		},
+		{
+			name:     "allow  numbers if surrounded by alpha and non-ascii characters",
+			input:    "___123_workspàce123workspacé",
+			expected: "workspàce123workspacé",
+		},
+		{
+			name:     "truncate to 200 characters",
+			input:    strings.Repeat("a", 250),
+			expected: strings.Repeat("a", 200),
+		},
+		{
+			name:     "complex real-world case",
+			input:    "\"___Example@Workspace#123!!___\"",
+			expected: "example_workspace_123",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := normalizeWorkspaceName(tt.input)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }

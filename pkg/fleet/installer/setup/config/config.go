@@ -343,6 +343,12 @@ type APMConfigurationDefault struct {
 	RumClientToken                string  `yaml:"DD_RUM_CLIENT_TOKEN,omitempty"`
 	RumRemoteConfigurationID      string  `yaml:"DD_RUM_REMOTE_CONFIGURATION_ID,omitempty"`
 	RumSite                       string  `yaml:"DD_RUM_SITE,omitempty"`
+	InjectNative                  string  `yaml:"DD_INJECT_NATIVE,omitempty"`
+	GPUEnabled                    *bool   `yaml:"DD_GPU_ENABLED,omitempty"`
+	TraceLogFile                  string  `yaml:"DD_TRACE_LOG_FILE,omitempty"`
+	TraceLogLevel                 string  `yaml:"DD_TRACE_LOG_LEVEL,omitempty"`
+	Service                       string  `yaml:"DD_SERVICE,omitempty"`
+	Env                           string  `yaml:"DD_ENV,omitempty"`
 }
 
 // DelayedAgentRestartConfig represents the config to restart the agent with a delay at the end of the install
