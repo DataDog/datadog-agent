@@ -86,14 +86,53 @@ pub fn stderr_inheritable() -> bool {
     true
 }
 
-/// Wait for a shutdown trigger (SIGTERM or SIGINT).
-pub async fn shutdown_signal() {
+/// Installs SIGTERM and SIGINT handlers that only record the stop request. Call it first in
+/// `main`. As PID 1 an unhandled SIGTERM is discarded, and tokio chains to this handler.
+pub fn install_early_stop_handler() {
+    extern "C" fn on_stop(signal: nix::libc::c_int) {
+        crate::stop::request_stop(signal);
+    }
+    let action = nix::sys::signal::SigAction::new(
+        nix::sys::signal::SigHandler::Handler(on_stop),
+        nix::sys::signal::SaFlags::SA_RESTART,
+        nix::sys::signal::SigSet::empty(),
+    );
+    for sig in [Signal::SIGTERM, Signal::SIGINT] {
+        // SAFETY: the handler only performs lock-free atomic operations, which are async-signal-safe.
+        if let Err(err) = unsafe { nix::sys::signal::sigaction(sig, &action) } {
+            // The logger is not set up yet this early.
+            eprintln!("dd-procmgrd: failed to install early {sig} handler: {err}");
+        }
+    }
+}
+
+/// Waits for SIGTERM or SIGINT. Handlers install on this call, not on the first poll. Call it
+/// inside the tokio runtime. A stop already recorded by [`install_early_stop_handler`] resolves
+/// the future on the watcher task, so the first poll may still be pending.
+pub fn shutdown_signal() -> impl std::future::Future<Output = ()> {
     use tokio::signal::unix::{SignalKind, signal};
     let mut sigterm = signal(SignalKind::terminate()).expect("failed to register SIGTERM handler");
     let mut sigint = signal(SignalKind::interrupt()).expect("failed to register SIGINT handler");
-    tokio::select! {
-        _ = sigterm.recv() => { log::info!("received SIGTERM"); }
-        _ = sigint.recv() => { log::info!("received SIGINT"); }
+    // On a multi-thread runtime the watcher runs on a worker thread, so it logs a stop while the
+    // main thread is blocked.
+    let (mut done_tx, done_rx) = tokio::sync::oneshot::channel::<()>();
+    tokio::spawn(async move {
+        // A stop recorded before registration never reaches the streams.
+        if crate::stop::stop_requested_flag() {
+            crate::stop::log_received(crate::stop::stop_signal_name());
+        } else {
+            tokio::select! {
+                biased;
+                _ = sigterm.recv() => { crate::stop::log_received("SIGTERM"); }
+                _ = sigint.recv() => { crate::stop::log_received("SIGINT"); }
+                // The returned future was dropped. Nobody waits for this signal.
+                _ = done_tx.closed() => {}
+            }
+        }
+        let _ = done_tx.send(());
+    });
+    async move {
+        let _ = done_rx.await;
     }
 }
 
