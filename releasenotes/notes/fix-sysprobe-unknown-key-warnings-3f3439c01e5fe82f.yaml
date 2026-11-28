@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix false unknown configuration warnings emitted by the core Agent when
+    collecting system-probe inventory metadata.
