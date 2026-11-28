@@ -300,12 +300,40 @@ func RevertInPlace(ctx context.Context, region, profile, leaseBucket, instanceID
 // resolving to an existing AMI/snapshot, as opposed to an actual revert failure.
 var errImageUnresolvable = errors.New("baseline image no longer resolvable")
 
+// errImageNotFound marks an image that EC2 reports as missing or without a root snapshot.
+var errImageNotFound = errors.New("image not found")
+
+// isImageNotFound reports whether err proves the baseline image is unusable, as opposed to
+// a failure that may be transient or caused by the caller's own access.
+//
+// InvalidAMIID.NotFound and InvalidAMIID.Unavailable are deliberately not definitive: EC2
+// also returns them when the caller cannot see a private AMI (for example after its launch
+// permissions change). For those, the lease is kept with its imageId and the release fails;
+// test-infra-cleaner's pool maintenance, which runs as the AMI owner, then resets the stale
+// runner and falls back to a full rotation if the AMI is really gone.
+func isImageNotFound(err error) bool {
+	if errors.Is(err, errImageNotFound) {
+		return true
+	}
+	var apiErr apiError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	return apiErr.ErrorCode() == "InvalidAMIID.Malformed"
+}
+
 // revertRootVolume resolves imageID to its root EBS snapshot and replaces
 // instanceID's root volume with it, blocking until the replacement completes.
 func revertRootVolume(ctx context.Context, client *awsec2.Client, instanceID, imageID string) error {
 	snapshotID, resolveErr := resolveSnapshotID(ctx, client, imageID)
 	if resolveErr != nil {
-		return fmt.Errorf("%w: %s: %w", errImageUnresolvable, imageID, resolveErr)
+		// Only a definitive answer means the baseline is unusable. Any other error
+		// (throttling, permissions, network, or a NotFound that may be an access issue)
+		// must not clear imageId, or the lease permanently loses the image it is reset from.
+		if isImageNotFound(resolveErr) {
+			return fmt.Errorf("%w: %s: %w", errImageUnresolvable, imageID, resolveErr)
+		}
+		return fmt.Errorf("failed to resolve baseline image %s: %w", imageID, resolveErr)
 	}
 	return replaceRootVolume(ctx, client, instanceID, snapshotID)
 }
@@ -317,7 +345,7 @@ func resolveSnapshotID(ctx context.Context, client *awsec2.Client, imageID strin
 		return "", fmt.Errorf("failed to describe image %s: %w", imageID, err)
 	}
 	if len(out.Images) == 0 || len(out.Images[0].BlockDeviceMappings) == 0 || out.Images[0].BlockDeviceMappings[0].Ebs == nil || out.Images[0].BlockDeviceMappings[0].Ebs.SnapshotId == nil {
-		return "", fmt.Errorf("image %s has no root snapshot", imageID)
+		return "", fmt.Errorf("%w: image %s has no root snapshot", errImageNotFound, imageID)
 	}
 	return *out.Images[0].BlockDeviceMappings[0].Ebs.SnapshotId, nil
 }
