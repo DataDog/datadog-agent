@@ -39,6 +39,40 @@ func TestPrivilegedRshellUnitsUseProtectedPolicyAndConfiguredSocket(t *testing.T
 	assert.NotContains(t, experimentSocket, "rshell-privileged-exp.sock")
 }
 
+// TestProcmgrUnitsStopOnlyTheDaemonWithEnoughTimeout checks that the procmgr units signal only
+// dd-procmgrd on stop (KillMode=mixed), so it can stop its processes in dependency order, and
+// that TimeoutStopSec covers a chain of dependent processes (TimeoutStopSec=360).
+func TestProcmgrUnitsStopOnlyTheDaemonWithEnoughTimeout(t *testing.T) {
+	for _, tc := range []struct {
+		name                         string
+		stableData, expData          installerTemplateData
+		ambiantCapabilitiesSupported bool
+	}{
+		{"oci", stableDataOCI, expDataOCI, true},
+		{"debrpm", stableDataDebRpm, expDataDebRpm, true},
+		{"oci-nc", stableDataOCI, expDataOCI, false},
+		{"debrpm-nc", stableDataDebRpm, expDataDebRpm, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			units := unitSetProcmgr(tc.stableData, tc.expData, tc.ambiantCapabilitiesSupported)
+			for _, unit := range []string{"datadog-agent-procmgr.service", "datadog-agent-procmgr-exp.service"} {
+				content := string(units[unit])
+				serviceStart := strings.Index(content, "\n[Service]\n")
+				if !assert.NotEqual(t, -1, serviceStart, "%s has no [Service] section", unit) {
+					continue
+				}
+				// KillMode and TimeoutStopSec are only honored in [Service], so stop at the next section header.
+				service := content[serviceStart:]
+				if end := strings.Index(service[1:], "\n["); end != -1 {
+					service = service[:end+2]
+				}
+				assert.Contains(t, service, "\nKillMode=mixed\n", "%s must signal only dd-procmgrd on stop", unit)
+				assert.Contains(t, service, "\nTimeoutStopSec=360\n", "%s must allow the dependency chain to stop", unit)
+			}
+		})
+	}
+}
+
 //go:embed gen
 var genFS embed.FS
 
