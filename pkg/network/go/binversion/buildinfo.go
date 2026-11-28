@@ -103,16 +103,9 @@ func ReadElfBuildInfo(elfFile *safeelf.File) (vers string, err error) {
 		return "", err
 	}
 
-	for {
-		i := bytes.Index(data, buildInfoMagic)
-		if i < 0 || len(data)-i < buildInfoSize {
-			return "", ErrNotGoExe
-		}
-		if i%buildInfoAlign == 0 && len(data)-i >= buildInfoSize {
-			data = data[i:]
-			break
-		}
-		data = data[(i+buildInfoAlign-1)&^buildInfoAlign:]
+	data, err = findBuildInfo(data)
+	if err != nil {
+		return "", err
 	}
 
 	// Decode the blob.
@@ -149,6 +142,19 @@ func ReadElfBuildInfo(elfFile *safeelf.File) (vers string, err error) {
 	}
 
 	return vers, nil
+}
+
+func findBuildInfo(data []byte) ([]byte, error) {
+	for {
+		i := bytes.Index(data, buildInfoMagic)
+		if i < 0 || len(data)-i < buildInfoSize {
+			return nil, ErrNotGoExe
+		}
+		if i%buildInfoAlign == 0 {
+			return data[i:], nil
+		}
+		data = data[(i+buildInfoAlign-1)&^(buildInfoAlign-1):]
+	}
 }
 
 func decodeString(data []byte) (s string, rest []byte) {
