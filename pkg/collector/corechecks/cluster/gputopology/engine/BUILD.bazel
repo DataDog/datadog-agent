@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "engine",
+    srcs = [
+        "doc.go",
+        "engine.go",
+        "nodes.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/gputopology/engine",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/gpu"],
+)
+
+dd_agent_go_test(
+    name = "engine_test",
+    srcs = ["engine_test.go"],
+    embed = [":engine"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
