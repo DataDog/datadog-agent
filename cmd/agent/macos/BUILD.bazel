@@ -4,7 +4,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "macos",
     srcs = ["scripts.go"],
-    embedsrcs = ["uninstall_mac_os.sh"],
+    embedsrcs = [
+        "install_mac_os.sh",
+        "uninstall_mac_os.sh",
+    ],
     importpath = "github.com/DataDog/datadog-agent/cmd/agent/macos",
     visibility = ["//visibility:public"],
 )

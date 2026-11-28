@@ -1,0 +1,2136 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package fleet
+
+import (
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/nacl/box"
+
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/local/host/byohost"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/fakeintake/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/agent"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/backend"
+	fleethost "github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/host"
+)
+
+// configMacOSSuite covers Fleet configuration-experiment *behavior* on macOS: starting, promoting,
+// stopping and rolling back a config experiment, and the on-disk/launchd state that results.
+//
+// Unlike configSuite (Linux/Windows), every state change here goes through Remote Config via
+// fakeintake -- never the installer daemon's local CLI (backend.Backend's runDaemonCommand). That
+// CLI path skips the verifyState reconciliation that only Remote Config exercises. Consequently
+// this suite does not embed suite.FleetSuite or use its Backend: FleetSuite's dispatch methods are
+// CLI-only by design, and this suite never calls them.
+//
+// The suite installs the Agent itself (see SetupSuite) rather than relying on the provisioner's
+// agent install, because it needs the Agent *and* the installer daemon pointed at fakeintake for
+// Remote Config, which the provisioner only arranges for its own install.
+type configMacOSSuite struct {
+	e2e.BaseSuite[environments.Host]
+
+	Agent *agent.Agent
+	Host  *fleethost.Host
+
+	// stableConfigBaseline is stableConfigFingerprint of the configuration SetupSuite archived.
+	stableConfigBaseline string
+}
+
+func newConfigMacOSSuite() e2e.Suite[environments.Host] {
+	return &configMacOSSuite{}
+}
+
+// TestFleetConfigMacOS runs the macOS Fleet configuration-behavior suite.
+func TestFleetConfigMacOS(t *testing.T) {
+	// LOCAL_VM targets a pre-existing macOS host (a local machine or another box reachable over
+	// SSH) instead of provisioning a real AWS Dedicated Host. Its fakeintake serves Remote Config,
+	// which every state change in this suite goes through.
+	if provisioner, ok := byohost.LocalVMProvisioner(t, byohost.WithRemoteConfig(), byohost.WithDescriptorName("macos-fleet-config-byo-host.json")); ok {
+		e2e.Run(t, newConfigMacOSSuite(), e2e.WithProvisioner(provisioner))
+		return
+	}
+
+	extraConfigMap := runner.ConfigMap{}
+	// Pulumi needs to pick a smaller subnet subset on macOS; only settable via the configmap.
+	// Without this, RandomSubnets() can pick an AZ (e.g. us-east-1d) that doesn't support
+	// mac1.metal/mac2.metal, and Dedicated Host allocation fails with UnsupportedHostConfiguration.
+	extraConfigMap.Set("ddinfra:aws/useMacosCompatibleSubnets", "true", false)
+	e2e.Run(t, newConfigMacOSSuite(), e2e.WithProvisioner(
+		awshost.Provisioner(
+			awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.MacOSDefault), ec2.WithInternetAccess()), ec2.WithoutAgent()),
+			awshost.WithExtraConfigParams(extraConfigMap),
+		),
+	))
+}
+
+// SetupSuite provisions the suite's helpers, installs the Agent, and unlocks Remote Config task
+// delivery once.
+//
+// The provisioner brings up a bare host (ec2.WithoutAgent()) and installation happens here,
+// through agent.Agent.Install's macOS path (installMacOSPipeline,
+// test/new-e2e/tests/fleet/agent/install.go): the plain .dmg install a customer runs, plus the two
+// pieces of configuration the provisioner's agentparams-driven install would otherwise have
+// supplied -- remote_updates, without which the installer daemon exits immediately, and the
+// remote_configuration block pointing both the Agent and the daemon at this suite's fakeintake.
+//
+// Set agent.MacOSLocalDMGEnvVar to install a .dmg built from the working tree instead of a pipeline
+// build; the assertion below is the reason to bother, since what it checks ships inside the .dmg.
+func (s *configMacOSSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
+	defer s.CleanupOnSetupFailure()
+
+	s.Agent = agent.New(s.T, s.Env())
+	s.Host = fleethost.New(s.Env())
+
+	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithRemoteConfig())
+
+	// Asserts the shipped .dmg gave the Agent its package entry, which the whole suite depends on:
+	// InstallConfigExperiment reads the package's repository unconditionally, and
+	// ConfigAndPackageStates enumerates every registered package to answer /status. Nothing here
+	// creates it -- `installer postinst datadog-agent dmg` does (linkPackageEntry) -- so a failure
+	// means that regressed, not that the suite is misconfigured.
+	_, err := s.Env().RemoteHost.Execute(
+		"test -L /opt/datadog-packages/datadog-agent/stable && test -L /opt/datadog-packages/datadog-agent/experiment")
+	require.NoError(s.T(), err, "the .dmg install did not give the Agent its package entry "+
+		"(linkPackageEntry has not run); no configuration experiment can start")
+
+	// fakeintake belongs to the stack, not to the run, so in dev mode (a reused stack) its RC store
+	// still holds every config and task the previous run pushed. The daemon replays all of them on
+	// its first poll, which both re-deploys whatever that run last experimented with and marks this
+	// run's tasks as already executed where the ids collide. Clear the store before pushing
+	// anything, and restart the daemon so it polls a clean repository with no executedRequests
+	// memory of its own.
+	s.resetRemoteConfig()
+	_, err = s.Env().RemoteHost.Execute("sudo launchctl kickstart -k system/com.datadoghq.installer")
+	require.NoError(s.T(), err)
+	s.waitForDaemon()
+
+	// A macOS pool host is reused across runs and is not re-imaged, so it can arrive with an
+	// experiment left deployed by a run that died mid-test -- and the .dmg install on top does not
+	// clear it. Every start_experiment_config the suite then pushes is refused, because the daemon
+	// already has a deployment. Roll it back here so the suite starts from the state a fresh host
+	// would be in.
+	//
+	// etc-exp is not the authority for this check: a host has already been seen reporting a stale
+	// experiment_config_version while etc-exp was resting, so the config repository's own record
+	// is what has to be clear, not just the symlink.
+	if !s.etcExpResting() || s.packageState(s.readStatus()).ExperimentConfigVersion != "" {
+		s.T().Log("the host arrived with a configuration experiment deployed; rolling it back")
+		s.restoreResting()
+		require.True(s.T(), s.etcExpResting(), "could not return the host to the resting state")
+		require.Empty(s.T(), s.packageState(s.readStatus()).ExperimentConfigVersion,
+			"the daemon still reports a deployed configuration experiment")
+	}
+
+	// Unlocks UPDATER_TASK delivery for the life of the daemon process. Any oci:// URL with a
+	// well-formed sha256 digest satisfies validatePackage; the package is never fetched.
+	require.NoError(s.T(), s.fakeintake().RCAddConfig("42", "UPDATER_CATALOG_DD", "catalog-001", "catalog",
+		[]byte(`{"packages":[{"package":"datadog-agent","version":"0.0.0",`+
+			`"url":"oci://install.datadoghq.com/agent-package@sha256:`+strings.Repeat("0", 64)+`"}]}`)))
+
+	s.saveStableConfigBaseline()
+}
+
+func (s *configMacOSSuite) fakeintake() *client.Client {
+	return s.Env().FakeIntake.Client()
+}
+
+// resetRemoteConfig removes every config stored on fakeintake, so the daemon polls a repository
+// holding only what this run puts there. Deleting them all -- rather than just this suite's
+// products -- is deliberate: anything left behind is by definition from a run that is over.
+func (s *configMacOSSuite) resetRemoteConfig() {
+	configs, err := s.fakeintake().RCListConfigs()
+	require.NoError(s.T(), err)
+	for _, config := range configs {
+		key := strings.Join([]string{config.OrgID, config.Product, config.ConfigID, config.ConfigName}, "/")
+		require.NoError(s.T(), s.fakeintake().RCDeleteConfig(key), "could not delete the leftover config %s", key)
+	}
+	if len(configs) > 0 {
+		s.T().Logf("cleared %d Remote Config entries left on fakeintake by a previous run", len(configs))
+	}
+}
+
+// clearPendingUpdaterTasks removes every UPDATER_TASK still sitting on fakeintake, so a daemon
+// restart does not see (and redeliver) a task issued before the simulated crash.
+//
+// fakeintake keeps a pushed UPDATER_TASK assigned until it is explicitly deleted, mirroring a real
+// Remote Config backend's targets. In production that deletion happens once the backend observes the
+// client's applied status; this test's RC poll interval is seconds, so a real crash-and-restart cycle
+// -- which plays out over minutes, long after the backend would have settled the task -- is
+// compressed here into a gap too short for that to happen naturally. Left unhandled, a task this
+// test already applied (start_experiment_config) gets redelivered right after restart and
+// verifyState lets it re-apply, because a successful revert leaves the daemon's state exactly
+// matching that task's pre-state. That is a test-timing artifact of the fast local loop, not a
+// product bug: a real backend would not still be offering this task minutes after it first applied.
+func (s *configMacOSSuite) clearPendingUpdaterTasks() {
+	configs, err := s.fakeintake().RCListConfigs()
+	require.NoError(s.T(), err)
+	for _, config := range configs {
+		if config.Product != "UPDATER_TASK" {
+			continue
+		}
+		key := strings.Join([]string{config.OrgID, config.Product, config.ConfigID, config.ConfigName}, "/")
+		require.NoError(s.T(), s.fakeintake().RCDeleteConfig(key), "could not delete the pending task %s", key)
+	}
+}
+
+// --- Remote Config plumbing -------------------------------------------------------------------
+//
+// The shapes below mirror pkg/fleet/daemon/remote_config.go's installerConfig/remoteAPIRequest/
+// expectedState/experimentTaskParams exactly (those types are unexported, so they can't be
+// imported). backend.FileOperation is reused as-is: its JSON tags (file_op/file_path/patch/
+// transform/arguments) already match installerConfigFileOperation's wire format byte for byte.
+
+var macOSTaskCounter atomic.Int64
+
+// runToken distinguishes this run's Remote Config ids from any other run's.
+//
+// The counter alone is not enough: it restarts at 1 every run, while fakeintake and its RC store
+// survive a reused stack, so "task-rc-1" from a previous run and this run's are the same id --
+// which is exactly what UPDATER_TASK deduplication keys on (remote_config.go's executedRequests).
+// resetRemoteConfig clears the store as well, and the two together mean a leftover can neither be
+// replayed nor be mistaken for something this run pushed.
+var runToken = strconv.FormatInt(time.Now().UnixNano(), 36)
+
+// nextID returns a fresh, monotonically increasing id, unique to this run.
+func nextID(prefix string) string {
+	return fmt.Sprintf("%s-%s-%d", prefix, runToken, macOSTaskCounter.Add(1))
+}
+
+type installerConfigData struct {
+	ID             string                  `json:"id"`
+	FileOperations []backend.FileOperation `json:"file_operations"`
+}
+
+type expectedState struct {
+	InstallerVersion string `json:"installer_version"`
+	Stable           string `json:"stable"`
+	Experiment       string `json:"experiment"`
+	StableConfig     string `json:"stable_config"`
+	ExperimentConfig string `json:"experiment_config"`
+	ClientID         string `json:"client_id"`
+}
+
+type encryptedSecret struct {
+	Key            string `json:"key"`
+	EncryptedValue string `json:"encrypted_value"`
+}
+
+type experimentTaskParams struct {
+	Version          string            `json:"version"`
+	EncryptedSecrets []encryptedSecret `json:"encrypted_secrets"`
+}
+
+type updaterTaskData struct {
+	ID            string                `json:"id"`
+	PackageName   string                `json:"package_name"`
+	Method        string                `json:"method"`
+	ExpectedState expectedState         `json:"expected_state"`
+	Params        *experimentTaskParams `json:"params,omitempty"`
+}
+
+// tryReadStatus reads the installer daemon's local API /status, for use inside polling loops
+// where a transient failure should be retried, not fail the test outright.
+func (s *configMacOSSuite) tryReadStatus() (backend.RemoteConfigState, error) {
+	out, err := s.Env().RemoteHost.Execute(
+		`sudo curl -sS -H 'Content-Type: application/json' --unix-socket /opt/datadog-agent/run/installer.sock http://installer/status`)
+	if err != nil {
+		return backend.RemoteConfigState{}, err
+	}
+	var status backend.RemoteConfigState
+	if err := json.Unmarshal([]byte(out), &status); err != nil {
+		return backend.RemoteConfigState{}, fmt.Errorf("unmarshal /status output %q: %w", out, err)
+	}
+	return status, nil
+}
+
+// waitForDaemon blocks until the installer daemon answers on its socket again.
+//
+// launchctl kickstart returns as soon as launchd has been told to restart the job, not when the
+// daemon is serving, so the socket is briefly absent afterwards and the next read fails with
+// "curl: (7) Failed to connect to installer port 80" rather than with anything about the state
+// being asked for.
+func (s *configMacOSSuite) waitForDaemon() {
+	s.readStatus()
+}
+
+// readStatus is tryReadStatus for reads outside a polling loop.
+//
+// It retries until the daemon answers: a start, stop or promote swaps the installer daemon between
+// its stable and experiment jobs shortly after reporting the outcome, and for the ExitTimeOut of
+// the job it leaves no daemon is listening on the socket.
+func (s *configMacOSSuite) readStatus() backend.RemoteConfigState {
+	var status backend.RemoteConfigState
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		var err error
+		status, err = s.tryReadStatus()
+		assert.NoError(c, err)
+	}, 60*time.Second, 2*time.Second, "the installer daemon did not answer on its socket")
+	return status
+}
+
+func (s *configMacOSSuite) packageState(status backend.RemoteConfigState) backend.RemoteConfigStatePackage {
+	require.Len(s.T(), status.Packages, 1, "expected exactly one package in remote config state")
+	return status.Packages[0]
+}
+
+// currentExpectedState builds an expected_state that matches the daemon's real state right now, so
+// a task built from it passes verifyState. /status's values must be copied verbatim -- including
+// the literal "empty" stable_config_version substitution -- never translated, since verifyState
+// compares them byte for byte.
+func (s *configMacOSSuite) currentExpectedState() expectedState {
+	pkg := s.packageState(s.readStatus())
+	return expectedState{
+		Stable:           pkg.StableVersion,
+		Experiment:       pkg.ExperimentVersion,
+		StableConfig:     pkg.StableConfigVersion,
+		ExperimentConfig: pkg.ExperimentConfigVersion,
+		ClientID:         "disable-client-id-check",
+	}
+}
+
+// Like Fleet's backend, it appends a merge patch setting config_id to the deployment ID in
+// datadog.yaml, which the installer daemon then reports as the running configuration
+// (CreateConfig in dd-source's installer_config_client.go).
+func (s *configMacOSSuite) pushInstallerConfig(deploymentID string, fileOps []backend.FileOperation) {
+	configID, err := json.Marshal(map[string]string{"config_id": deploymentID})
+	require.NoError(s.T(), err)
+	fileOps = append(append([]backend.FileOperation{}, fileOps...), backend.FileOperation{
+		FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: configID,
+	})
+	data, err := json.Marshal(installerConfigData{ID: deploymentID, FileOperations: fileOps})
+	require.NoError(s.T(), err)
+	require.NoError(s.T(), s.fakeintake().RCAddConfig("42", "INSTALLER_CONFIG", "cfg-"+deploymentID, "config", data))
+}
+
+// pushTask pushes an UPDATER_TASK under a fresh id and returns that id.
+func (s *configMacOSSuite) pushTask(method string, expected expectedState, params *experimentTaskParams) string {
+	taskID := nextID("task-rc")
+	data, err := json.Marshal(updaterTaskData{
+		ID:            taskID,
+		PackageName:   "datadog-agent",
+		Method:        method,
+		ExpectedState: expected,
+		Params:        params,
+	})
+	require.NoError(s.T(), err)
+	require.NoError(s.T(), s.fakeintake().RCAddConfig("42", "UPDATER_TASK", taskID, "task", data))
+	return taskID
+}
+
+// pushTaskUntilExecuted pushes an UPDATER_TASK and returns it as /status reports it once the daemon
+// has finished executing it, successfully or not.
+//
+// It re-pushes under a fresh id for the same reason pushTaskUntil does: a task that arrives before
+// its INSTALLER_CONFIG fails with "not found in available configs", which is the push race and not
+// an outcome of the task itself.
+func (s *configMacOSSuite) pushTaskUntilExecuted(method string, params *experimentTaskParams, description string) backend.RemoteConfigStateTask {
+	const (
+		attempts = 3
+		perTry   = 25 * time.Second
+	)
+	for attempt := 1; attempt <= attempts; attempt++ {
+		taskID := s.pushTask(method, s.currentExpectedState(), params)
+		var task *backend.RemoteConfigStateTask
+		s.waitForPackageState(func(pkg backend.RemoteConfigStatePackage) bool {
+			if pkg.Task == nil || pkg.Task.ID != taskID {
+				return false
+			}
+			if pkg.Task.State != backend.TaskStateDone && pkg.Task.State != backend.TaskStateError {
+				return false
+			}
+			task = pkg.Task
+			return true
+		}, perTry)
+		switch {
+		case task == nil:
+			s.T().Logf("%s: the daemon did not execute the task within %s (attempt %d/%d)", description, perTry, attempt, attempts)
+		case task.Error != nil && strings.Contains(task.Error.Message, "not found in available configs"):
+			s.T().Logf("%s: the task arrived before its config (attempt %d/%d); pushing it again under a new id", description, attempt, attempts)
+		default:
+			s.clearPendingUpdaterTasks()
+			return *task
+		}
+	}
+	require.FailNow(s.T(), description+": the daemon never finished executing the task")
+	return backend.RemoteConfigStateTask{}
+}
+
+// pushTaskExpectingFailure is pushTaskUntilExecuted for a task the daemon is expected to fail.
+func (s *configMacOSSuite) pushTaskExpectingFailure(method string, params *experimentTaskParams, description string) backend.RemoteConfigStateTask {
+	task := s.pushTaskUntilExecuted(method, params, description)
+	require.Equal(s.T(), backend.TaskStateError, task.State, "%s: the task succeeded, but it was expected to fail", description)
+	return task
+}
+
+// pushTaskUntil pushes an UPDATER_TASK and waits for the daemon's own state to satisfy applied,
+// re-pushing under a fresh id if it does not.
+//
+// The re-push is not slow-host paranoia. The suite writes the INSTALLER_CONFIG and the task that
+// references it back to back, so a poll landing between the two hands the daemon a task whose
+// config it has not fetched yet; it refuses that task ("could not get config: config version ...
+// not found in available configs") and then records the id in executedRequests
+// (pkg/fleet/daemon/remote_config.go), so it never reconsiders it once the config does arrive. A
+// task under a new id is the only way forward, and this race is a normal outcome of the push
+// ordering rather than a rare one.
+//
+// The expected_state is rebuilt per attempt, since a refused task leaves the state untouched but a
+// partially applied one does not.
+func (s *configMacOSSuite) pushTaskUntil(method string, params *experimentTaskParams,
+	applied func(backend.RemoteConfigStatePackage) bool, description string) {
+	const (
+		attempts = 3
+		perTry   = 25 * time.Second
+	)
+	for attempt := 1; attempt <= attempts; attempt++ {
+		s.pushTask(method, s.currentExpectedState(), params)
+		if s.waitForPackageState(applied, perTry) {
+			// See clearPendingUpdaterTasks: every start, stop and promote restarts the installer
+			// daemon, and the new process has no memory of the task it just applied.
+			s.clearPendingUpdaterTasks()
+			return
+		}
+		s.T().Logf("%s: the daemon did not apply the task within %s (attempt %d/%d); pushing it again under a new id",
+			description, perTry, attempt, attempts)
+	}
+	require.FailNow(s.T(), description+": the daemon never applied the task")
+}
+
+// waitForPackageState polls the daemon's /status until applied accepts the package state, and
+// reports whether it did. It is deliberately non-fatal: pushTaskUntil treats a timeout as a reason
+// to push again, not as a test failure.
+func (s *configMacOSSuite) waitForPackageState(applied func(backend.RemoteConfigStatePackage) bool, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for {
+		// /status is read straight through rather than via packageState, whose require.Len would turn
+		// a transient read into a failure in the middle of a poll loop.
+		if status, err := s.tryReadStatus(); err == nil && len(status.Packages) == 1 && applied(status.Packages[0]) {
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(2 * time.Second)
+	}
+}
+
+// startConfigExperimentRC pushes the INSTALLER_CONFIG carrying fileOps under deploymentID, then a
+// start_experiment_config task referencing it, and waits for the daemon to report the experiment
+// live.
+func (s *configMacOSSuite) startConfigExperimentRC(deploymentID string, fileOps []backend.FileOperation, secrets map[string]string) {
+	var encryptedSecrets []encryptedSecret
+	if len(secrets) > 0 {
+		pubKeyRaw, err := base64.StdEncoding.DecodeString(s.readStatus().SecretsPubKey)
+		require.NoError(s.T(), err)
+		require.Len(s.T(), pubKeyRaw, 32, "unexpected secrets public key length")
+		var pubKey [32]byte
+		copy(pubKey[:], pubKeyRaw)
+		for key, value := range secrets {
+			enc, err := box.SealAnonymous(nil, []byte(value), &pubKey, rand.Reader)
+			require.NoError(s.T(), err)
+			encryptedSecrets = append(encryptedSecrets, encryptedSecret{Key: key, EncryptedValue: base64.StdEncoding.EncodeToString(enc)})
+		}
+	}
+
+	s.pushInstallerConfig(deploymentID, fileOps)
+	s.pushTaskUntil("start_experiment_config",
+		&experimentTaskParams{Version: deploymentID, EncryptedSecrets: encryptedSecrets},
+		func(pkg backend.RemoteConfigStatePackage) bool { return pkg.ExperimentConfigVersion == deploymentID },
+		"start_experiment_config "+deploymentID)
+}
+
+func (s *configMacOSSuite) promoteConfigExperimentRC() {
+	before := s.currentExpectedState()
+	s.pushTaskUntil("promote_experiment_config", nil, func(pkg backend.RemoteConfigStatePackage) bool {
+		// The promoted experiment becomes the stable configuration, and nothing is left deployed.
+		return pkg.StableConfigVersion == before.ExperimentConfig && pkg.ExperimentConfigVersion == ""
+	}, "promote_experiment_config "+before.ExperimentConfig)
+}
+
+func (s *configMacOSSuite) stopConfigExperimentRC() {
+	before := s.currentExpectedState()
+	s.pushTaskUntil("stop_experiment_config", nil, func(pkg backend.RemoteConfigStatePackage) bool {
+		// A stop rolls the experiment back, so the stable configuration is the one it already was.
+		return pkg.StableConfigVersion == before.StableConfig && pkg.ExperimentConfigVersion == ""
+	}, "stop_experiment_config "+before.ExperimentConfig)
+}
+
+// requireFailedOnHost waits for the end state of an experiment that failed on the host after its
+// start was reported -- the unit supervisor's OnFailure, as on Linux: every job back on its stable
+// job, the stable installer daemon included, the deadline cleared, and the experiment still deployed
+// and reported, with the stable daemon's config_id as the running configuration. That is what makes
+// Fleet's health check fail and roll the experiment back with a stop.
+func (s *configMacOSSuite) requireFailedOnHost(deploymentID string) {
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		for label, loaded := range s.launchdLabelsLoaded(experimentLabels()...) {
+			assert.False(c, loaded, "%s should be unloaded by the revert", label)
+		}
+		assert.NotEmpty(c, s.jobPID("com.datadoghq.agent"), "the stable Agent should be running again")
+		assert.True(c, s.stableInstallerDaemonLoaded(), "the stable installer daemon should be back")
+		status, err := s.tryReadStatus()
+		if assert.NoError(c, err) && assert.Len(c, status.Packages, 1) {
+			pkg := status.Packages[0]
+			assert.Equal(c, deploymentID, pkg.ExperimentConfigVersion, "the failed experiment should still be reported, for Fleet to stop")
+			assert.NotEqual(c, deploymentID, pkg.RunningConfigVersion, "the stable daemon should report the stable configuration as running")
+		}
+	}, 90*time.Second, 5*time.Second)
+	require.False(s.T(), s.etcExpResting(), "the failed experiment's configuration should be kept for Fleet's stop")
+	require.False(s.T(), s.pathExists(experimentDeadlinePath), "the revert should clear the deadline")
+}
+
+// stopFailedExperimentRC sends the stop Fleet sends once its health check fails, and checks it
+// clears the failed experiment without restarting the stable jobs, which are already back.
+func (s *configMacOSSuite) stopFailedExperimentRC() {
+	agentPID := s.jobPID("com.datadoghq.agent")
+	s.stopConfigExperimentRC()
+	require.True(s.T(), s.etcExpResting(), "the stop should discard the failed experiment's configuration")
+	require.False(s.T(), s.pathExists(experimentDeadlinePath), "the stop should leave no deadline")
+	require.Equal(s.T(), agentPID, s.jobPID("com.datadoghq.agent"), "the stop must not restart the stable Agent")
+}
+
+// requireUnfinishedOnHost waits for the state a shutdown leaves an experiment in when the unit
+// supervisor did not get to fail it first: the host back on the stable job set, as launchd starts it
+// at boot, no supervisor, and the experiment still deployed and reported, with the stable daemon's config_id as
+// the running configuration, for Fleet's health check to stop. Nothing at start settles it, so the
+// deadline the previous daemon left is still there.
+func (s *configMacOSSuite) requireUnfinishedOnHost(deploymentID string) {
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		assert.NotEmpty(c, s.jobPID("com.datadoghq.agent"), "the stable Agent should be running")
+		assert.True(c, s.stableInstallerDaemonLoaded(), "the stable installer daemon should be running")
+		status, err := s.tryReadStatus()
+		if assert.NoError(c, err) && assert.Len(c, status.Packages, 1) {
+			pkg := status.Packages[0]
+			assert.Equal(c, deploymentID, pkg.ExperimentConfigVersion, "the unfinished experiment should still be reported, for Fleet to stop")
+			assert.NotEqual(c, deploymentID, pkg.RunningConfigVersion, "the stable daemon should report the stable configuration as running")
+		}
+	}, 90*time.Second, 5*time.Second)
+	require.Zero(s.T(), s.supervisorCount(), "nothing should start the unit supervisor on a daemon start")
+	require.False(s.T(), s.etcExpResting(), "the experiment's configuration should be kept for Fleet's stop")
+	require.True(s.T(), s.pathExists(experimentDeadlinePath), "the deadline the shutdown left should still be there")
+}
+
+// stopUnfinishedExperimentRC sends Fleet's stop for an experiment a shutdown left unfinished, and
+// checks it ends it without restarting the stable Agent launchd already started: the experiment
+// configuration discarded, the deadline cleared, and every experiment job, the experiment daemon's
+// included, unloaded and its definition removed.
+func (s *configMacOSSuite) stopUnfinishedExperimentRC() {
+	agentPID := s.jobPID("com.datadoghq.agent")
+	s.stopConfigExperimentRC()
+	require.True(s.T(), s.etcExpResting(), "the stop should discard the experiment's configuration")
+	require.False(s.T(), s.pathExists(experimentDeadlinePath), "the stop should clear the deadline")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		for label, loaded := range s.launchdLabelsLoaded(experimentLabels()...) {
+			assert.False(c, loaded, "%s should be unloaded by the stop", label)
+		}
+	}, 30*time.Second, 2*time.Second)
+	require.False(s.T(), s.pathExists("/Library/LaunchDaemons/"+installerDaemonExperimentLabel+".plist"),
+		"the experiment daemon's definition should be removed")
+	require.Equal(s.T(), agentPID, s.jobPID("com.datadoghq.agent"), "the stop must not restart the stable Agent")
+}
+
+// --- host-state helpers ------------------------------------------------------------------------
+
+// etcExpResting reports whether no configuration experiment is deployed on disk, as the installer
+// lays it out (pkg/fleet/installer/config/config_nix.go): RemoveExperiment leaves a symlink to the
+// stable configuration, a real directory means something is deployed, and an absent path also
+// counts as resting -- the install does not create etc-exp, only RemoveExperiment does, so a host
+// that has never run an experiment has nothing there at all.
+//
+// -L is tested before -e so that a dangling symlink reads as a symlink rather than as absent.
+func (s *configMacOSSuite) etcExpResting() bool {
+	out, err := s.Env().RemoteHost.Execute(
+		"if [ -L /opt/datadog-agent/etc-exp ]; then echo symlink; " +
+			"elif [ -e /opt/datadog-agent/etc-exp ]; then echo directory; else echo absent; fi")
+	require.NoError(s.T(), err)
+	state := strings.TrimSpace(out)
+	return state == "symlink" || state == "absent"
+}
+
+// requireResting requires that nothing is deployed, both on disk and in what the daemon reports,
+// and that the stable installer daemon is the one running.
+//
+// The daemon's report is polled because it can trail the disk: after a unit supervisor revert, /status only
+// catches up at the daemon's next state refresh. The daemon itself is polled because a stop or
+// promote hands it back asynchronously, after reporting its outcome.
+func (s *configMacOSSuite) requireResting() {
+	require.True(s.T(), s.etcExpResting(), "host must be resting (etc-exp a symlink or absent) before this test starts")
+	require.Eventually(s.T(), s.stableInstallerDaemonLoaded, 60*time.Second, 2*time.Second,
+		"host must be resting (the stable installer daemon running, its experiment job gone) before this test starts")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		status, err := s.tryReadStatus()
+		if !assert.NoError(c, err) || !assert.Len(c, status.Packages, 1) {
+			return
+		}
+		assert.Empty(c, status.Packages[0].ExperimentConfigVersion, "the daemon must not report a deployed experiment")
+	}, 30*time.Second, 2*time.Second, "host must be resting (no experiment reported by the daemon) before this test starts")
+}
+
+// restoreResting rolls back a deployed configuration experiment, best effort.
+//
+// The rollback goes through the installer rather than by deleting etc-exp by hand, so the config
+// repository's state and the launchd jobs follow the configuration back. It has to be
+// remove-config-experiment and not the daemon's stop-config-experiment: the .dmg ships the
+// standalone installer (pkg/fleet/installer/commands), which on macOS carries the config-experiment
+// commands but none of the daemon subcommands (cmd/installer/subcommands/daemon), so
+// stop-config-experiment does not exist on the host at all.
+func (s *configMacOSSuite) restoreResting() {
+	out, err := s.Env().RemoteHost.Execute(
+		"sudo /opt/datadog-agent/embedded/bin/installer remove-config-experiment datadog-agent")
+	if err != nil {
+		s.T().Logf("could not roll back the deployed configuration experiment: %v (%s)", err, out)
+		return
+	}
+	if !s.etcExpResting() {
+		s.T().Log("a configuration experiment is still deployed after remove-config-experiment")
+	}
+	// The command hands the installer daemon back from a detached process, after it exits.
+	if !assert.Eventually(s.T(), s.stableInstallerDaemonLoaded, 60*time.Second, 2*time.Second) {
+		s.T().Log("the stable installer daemon did not come back after remove-config-experiment")
+	}
+}
+
+// dumpDiagnostics logs what a failed configuration-experiment test needs to be explained: the
+// state the daemon reports, and what it logged while reaching it. Nothing in a Remote Config
+// failure is visible from the test side -- a task the daemon refuses is indistinguishable from one
+// it never received -- so the daemon's own log is the only place the reason exists.
+func (s *configMacOSSuite) dumpDiagnostics() {
+	if status, err := s.tryReadStatus(); err == nil {
+		s.T().Logf("installer daemon state: %+v", status)
+	} else {
+		s.T().Logf("could not read the installer daemon state: %v", err)
+	}
+	// The uptane store logs one line per key on every poll, which is thousands of lines saying
+	// nothing about why a task was refused; drop them or they crowd out the reason entirely.
+	if out, err := s.Env().RemoteHost.Execute(
+		"sudo grep -v transactional_store.go /opt/datadog-agent/logs/updater.log | tail -n 100"); err == nil {
+		s.T().Logf("last 100 lines of updater.log:\n%s", out)
+	} else {
+		s.T().Logf("could not read the installer daemon log: %v", err)
+	}
+}
+
+// AfterTest returns the host to the resting state, so that one failure costs one test instead of
+// the whole suite: every test starts with requireResting, and a test that fails between start and
+// stop leaves the experiment deployed -- which then fails that precondition in every test
+// scheduled after it. Subtests get the same through runIsolated.
+func (s *configMacOSSuite) AfterTest(suiteName, testName string) {
+	// First: dumpDiagnostics reads /status and restoreResting runs an installer command, and both
+	// wait on an installer lock a failed test may have left held.
+	s.releaseInstallerLock()
+	s.BaseSuite.AfterTest(suiteName, testName)
+	s.returnToResting(testName)
+}
+
+// returnToResting logs diagnostics when the current test failed, rolls back an experiment it left
+// deployed, and puts back the stable configuration it changed. The installer lock must already be
+// released.
+func (s *configMacOSSuite) returnToResting(testName string) {
+	if s.T().Failed() {
+		s.dumpDiagnostics()
+	}
+	if !s.etcExpResting() {
+		s.T().Logf("%s left a configuration experiment deployed; rolling it back to restore the resting state", testName)
+		s.restoreResting()
+	}
+	s.resetStableConfig()
+}
+
+const stableConfigBaselinePath = "/var/tmp/e2e-fleet-etc-baseline.tar"
+
+// saveStableConfigBaseline archives the stable configuration the suite starts from, so that
+// resetStableConfig can put it back after every test.
+//
+// Without it, every promote leaves its change in stable configuration for the rest of the run, and
+// each test runs against whatever the tests before it promoted.
+func (s *configMacOSSuite) saveStableConfigBaseline() {
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(
+		"sudo tar --acls --xattrs -cpf %[1]s -C /opt/datadog-agent etc && sudo chmod 600 %[1]s", stableConfigBaselinePath))
+	require.NoError(s.T(), err, "could not archive the stable configuration")
+	s.stableConfigBaseline = s.stableConfigFingerprint()
+}
+
+// stableConfigFingerprint is a checksum over the path and content of every file in the stable
+// configuration directory.
+func (s *configMacOSSuite) stableConfigFingerprint() string {
+	out, err := s.Env().RemoteHost.Execute(
+		`sudo sh -c 'cd /opt/datadog-agent/etc && find . -type f -print0 | sort -z | xargs -0 shasum | shasum'`)
+	require.NoError(s.T(), err)
+	return strings.TrimSpace(out)
+}
+
+// resetStableConfig puts back the stable configuration archived by saveStableConfigBaseline, when
+// a test changed it.
+//
+// The daemon reads its stable config version from etc/.deployment-id, which is put back along with
+// etc, so the daemon is restarted to report it. Its pending UPDATER_TASKs are
+// cleared first: a restarted daemon has no memory of the tasks it already executed, and an early
+// task whose expected_state matches the restored configuration again would be re-applied.
+func (s *configMacOSSuite) resetStableConfig() {
+	if s.stableConfigBaseline == "" || s.stableConfigFingerprint() == s.stableConfigBaseline {
+		return
+	}
+	s.T().Log("the test changed the stable configuration; restoring the suite's baseline")
+	s.clearPendingUpdaterTasks()
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`sudo sh -c 'set -e; cd /opt/datadog-agent; `+
+		`rm -rf .e2e-etc-restore; mkdir .e2e-etc-restore; tar --acls --xattrs -xpf %s -C .e2e-etc-restore; `+
+		`rm -rf etc; mv .e2e-etc-restore/etc etc; rmdir .e2e-etc-restore'`, stableConfigBaselinePath))
+	require.NoError(s.T(), err, "could not restore the stable configuration")
+	for _, label := range append(append([]string{}, swappableJobLabels...), "com.datadoghq.installer") {
+		_, err := s.Env().RemoteHost.Execute("sudo launchctl kickstart -k system/" + label)
+		require.NoError(s.T(), err, "could not restart %s on the restored configuration", label)
+	}
+	s.waitForDaemon()
+	require.Equal(s.T(), s.stableConfigBaseline, s.stableConfigFingerprint(), "the restored stable configuration differs from the baseline")
+}
+
+// launchdLabelsLoaded returns which of the given labels currently appear in `launchctl list`.
+//
+// Labels are matched exactly against the list's label column: a substring match would count
+// com.datadoghq.agent as loaded while only com.datadoghq.agent-exp is.
+func (s *configMacOSSuite) launchdLabelsLoaded(labels ...string) map[string]bool {
+	out, err := s.Env().RemoteHost.Execute("sudo launchctl list | grep datadoghq || true")
+	require.NoError(s.T(), err)
+	listed := map[string]bool{}
+	for line := range strings.SplitSeq(out, "\n") {
+		if fields := strings.Fields(line); len(fields) > 0 {
+			listed[fields[len(fields)-1]] = true
+		}
+	}
+	loaded := make(map[string]bool, len(labels))
+	for _, label := range labels {
+		loaded[label] = listed[label]
+	}
+	return loaded
+}
+
+// swappableJobLabels are the agent jobs, which an experiment swaps synchronously. The installer
+// daemon is swapped too, but asynchronously (see stableInstallerDaemonLoaded), so tests assert on it
+// separately.
+var swappableJobLabels = []string{"com.datadoghq.agent", "com.datadoghq.sysprobe", "com.datadoghq.data-plane"}
+
+const installerDaemonLabel = "com.datadoghq.installer"
+
+const installerDaemonExperimentLabel = installerDaemonLabel + "-exp"
+
+// stableInstallerDaemonLoaded reports whether the installer daemon is back on its stable job, with
+// its experiment job gone.
+//
+// The installer daemon is swapped asynchronously, by a detached process, once the installer
+// command that started, stopped or promoted the experiment has exited. So this is polled: the
+// daemon's state can report the outcome before the daemon itself has been swapped.
+func (s *configMacOSSuite) stableInstallerDaemonLoaded() bool {
+	loaded := s.launchdLabelsLoaded(installerDaemonLabel, installerDaemonExperimentLabel)
+	return loaded[installerDaemonLabel] && !loaded[installerDaemonExperimentLabel]
+}
+
+// requireInstallerDaemon waits for the installer daemon to run on the given job, and the other one
+// to be gone, then for it to answer on its socket.
+func (s *configMacOSSuite) requireInstallerDaemon(running, gone string) {
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		loaded := s.launchdLabelsLoaded(running, gone)
+		assert.True(c, loaded[running], "%s should be loaded", running)
+		assert.False(c, loaded[gone], "%s should no longer be loaded", gone)
+	}, 60*time.Second, 2*time.Second)
+	s.waitForDaemon()
+}
+
+func experimentLabels() []string {
+	labels := make([]string, len(swappableJobLabels))
+	for i, label := range swappableJobLabels {
+		labels[i] = label + "-exp"
+	}
+	return labels
+}
+
+// updaterLogEIOCount counts occurrences of the bootout/bootstrap race's signature in the installer
+// daemon's log, so a test can assert it never grows.
+func (s *configMacOSSuite) updaterLogEIOCount() int {
+	return s.remoteCount(`sudo grep -cE 'Bootstrap failed|Input/output error' /opt/datadog-agent/logs/updater.log || true`)
+}
+
+// remoteCount runs command on the host and returns the number it prints, or 0 when it prints none.
+func (s *configMacOSSuite) remoteCount(command string) int {
+	out, err := s.Env().RemoteHost.Execute(command)
+	require.NoError(s.T(), err)
+	count := 0
+	_, _ = fmt.Sscanf(strings.TrimSpace(out), "%d", &count)
+	return count
+}
+
+func (s *configMacOSSuite) readFile(path string) string {
+	out, err := s.Env().RemoteHost.Execute("sudo cat " + path)
+	require.NoError(s.T(), err)
+	return out
+}
+
+const (
+	installerSocketPath    = "/opt/datadog-agent/run/installer.sock"
+	experimentDeadlinePath = "/opt/datadog-packages/run/experiment-deadline"
+	// installerPIDPath is the root installer daemon's pidfile.
+	installerPIDPath = "/opt/datadog-packages/run/installer.pid"
+)
+
+// jobPID returns the pid launchd reports for label, or "" when the job is not loaded or has no
+// running process.
+func (s *configMacOSSuite) jobPID(label string) string {
+	out, err := s.Env().RemoteHost.Execute(
+		"sudo launchctl print system/" + label + ` 2>/dev/null | awk '$1 == "pid" && $2 == "=" { print $3; exit }' || true`)
+	require.NoError(s.T(), err)
+	return strings.TrimSpace(out)
+}
+
+// pathExists reports whether path exists on the host, without following a final symlink.
+func (s *configMacOSSuite) pathExists(path string) bool {
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf("sudo test -e %[1]s || sudo test -L %[1]s", path))
+	return err == nil
+}
+
+// readPlist returns the launchd job definition at path, converted to JSON by plutil.
+func (s *configMacOSSuite) readPlist(path string) map[string]any {
+	out, err := s.Env().RemoteHost.Execute("sudo plutil -convert json -o - " + path)
+	require.NoError(s.T(), err, "could not read %s", path)
+	var plist map[string]any
+	require.NoError(s.T(), json.Unmarshal([]byte(out), &plist), "could not parse %s", path)
+	return plist
+}
+
+// remoteNow returns the host's clock, so that times written by the daemon are compared against the
+// clock that wrote them rather than the test runner's.
+func (s *configMacOSSuite) remoteNow() time.Time {
+	out, err := s.Env().RemoteHost.Execute(`date -u +%Y-%m-%dT%H:%M:%SZ`)
+	require.NoError(s.T(), err)
+	now, err := time.Parse(time.RFC3339, strings.TrimSpace(out))
+	require.NoError(s.T(), err)
+	return now
+}
+
+// inode returns the inode number of path, not following a final symlink.
+func (s *configMacOSSuite) inode(path string) string {
+	out, err := s.Env().RemoteHost.Execute("sudo stat -f %i " + path)
+	require.NoError(s.T(), err)
+	return strings.TrimSpace(out)
+}
+
+func experimentPlistPath(label string) string {
+	return "/Library/LaunchDaemons/" + label + "-exp.plist"
+}
+
+// unitSupervisorLabel is the launchd job that supervises a configuration experiment
+// (pkg/fleet/installer/packages/unit_supervisor_darwin.go): it starts and stops the experiment jobs
+// with the semantics the Linux experiment units have, and reverts the experiment when the
+// experiment Agent exits or the experiment times out.
+const unitSupervisorLabel = "com.datadoghq.supervisor"
+
+// supervisorBusyPath is the unit supervisor's busy marker: launchd keeps the supervisor alive while
+// it exists (KeepAlive PathState in com.datadoghq.supervisor.plist).
+const supervisorBusyPath = "/var/run/com.datadoghq.supervisor.busy"
+
+// supervisorProcessPattern matches the unit supervisor's process.
+const supervisorProcessPattern = "package-command datadog-agent superviseUnits"
+
+func (s *configMacOSSuite) supervisorRunning() bool {
+	return s.supervisorCount() > 0
+}
+
+// supervisorCount returns how many unit supervisor processes are running.
+func (s *configMacOSSuite) supervisorCount() int {
+	return s.remoteCount("pgrep -f '" + supervisorProcessPattern + "' | wc -l")
+}
+
+// supervisorPID returns the pid of the unit supervisor, or "" when none is running.
+func (s *configMacOSSuite) supervisorPID() string {
+	out, err := s.Env().RemoteHost.Execute("pgrep -f '" + supervisorProcessPattern + "' | head -n 1 || true")
+	require.NoError(s.T(), err)
+	return strings.TrimSpace(out)
+}
+
+// requireSupervisorRunning waits for the unit supervisor to supervise the experiment.
+func (s *configMacOSSuite) requireSupervisorRunning(why string) {
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		assert.True(c, s.supervisorRunning(), "the unit supervisor should supervise the experiment: %s", why)
+	}, 60*time.Second, 2*time.Second)
+}
+
+// requireSupervisorExits waits for the unit supervisor to be gone. It exits once the experiment
+// ends: a stop or promote it applied, or a revert.
+func (s *configMacOSSuite) requireSupervisorExits(after string) {
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		assert.Zero(c, s.supervisorCount(), "the unit supervisor should exit once its experiment is %s", after)
+	}, 90*time.Second, 5*time.Second)
+}
+
+// requireSingleSupervisor waits for exactly one unit supervisor to supervise the experiment, and
+// returns its pid.
+func (s *configMacOSSuite) requireSingleSupervisor() string {
+	var supervisor string
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		assert.Equal(c, 1, s.supervisorCount(), "exactly one unit supervisor should supervise the experiment")
+		supervisor = s.supervisorPID()
+	}, 60*time.Second, 2*time.Second)
+	return supervisor
+}
+
+// detachedProcessPattern matches every process a configuration experiment runs besides the jobs it
+// swaps: the unit supervisor, and the detached helpers earlier builds ran (the watchers, the relay
+// that launched the second one, and the hand-back).
+const detachedProcessPattern = "package-command datadog-agent (superviseUnits|watchConfigExperiment|startSupervisorRelay|handBackInstaller)"
+
+// --- shared test helpers -----------------------------------------------------------------------
+
+// logLevelPatch is the experiment most tests deploy when what it changes does not matter: a
+// merge patch setting datadog.yaml's log_level.
+func logLevelPatch(level string) []backend.FileOperation {
+	return []backend.FileOperation{
+		{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "` + level + `"}`)},
+	}
+}
+
+// sysprobePatch enables system-probe's network tracer, so its experiment job has a module to run.
+//
+// network_config.enabled is used rather than runtime_security_config.enabled because it maps to
+// NetworkTracerModule, which has a real factory on macOS (network_tracer_darwin.go).
+// EventMonitorModule (what runtime_security_config.enabled maps to) has no darwin factory -- only
+// eventmonitor_linux.go and eventmonitor_windows.go exist -- so enabling it makes system-probe exit
+// immediately with "no module could be loaded".
+func sysprobePatch() backend.FileOperation {
+	return backend.FileOperation{FileOperationType: backend.FileOperationMergePatch, FilePath: "/system-probe.yaml",
+		Patch: []byte(`{"network_config": {"enabled": true}}`)}
+}
+
+// runIsolated runs fn as a subtest, then returns the host to the resting state as AfterTest does
+// between top-level tests. AfterTest only runs once per top-level test, so without this a subtest
+// that fails mid-experiment would fail the requireResting of every sibling after it.
+func (s *configMacOSSuite) runIsolated(name string, fn func()) {
+	s.Run(name, func() {
+		defer func() {
+			s.releaseInstallerLock()
+			s.returnToResting(name)
+		}()
+		fn()
+	})
+}
+
+// allJobLabels are the stable labels of every job a configuration experiment swaps, the installer
+// daemon included.
+func allJobLabels() []string {
+	return append(append([]string{}, swappableJobLabels...), installerDaemonLabel)
+}
+
+// requireDeadlineArmed requires the persisted deadline of a live experiment
+// (pkg/fleet/installer/packages/launchd/supervisor.go, config_experiment_darwin.go): root's, and
+// configExperimentDeadlineWindow (50 minutes) after started. It is what the unit supervisor judges
+// the experiment window by (the Linux unit's EXPERIMENT_TIMEOUT).
+func (s *configMacOSSuite) requireDeadlineArmed(started time.Time) {
+	perms, err := s.Host.GetFilePermissions(experimentDeadlinePath)
+	require.NoError(s.T(), err, "a live experiment should have a deadline")
+	require.Equal(s.T(), [3]string{"644", "root", "wheel"}, [3]string{perms.Mode, perms.Owner, perms.Group},
+		"the deadline should be root:wheel 0644, so the experiment's own account cannot rewrite it")
+
+	deadline, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(s.readFile(experimentDeadlinePath)))
+	require.NoError(s.T(), err, "the deadline should hold an RFC 3339 time")
+	require.WithinRange(s.T(), deadline, started.Add(49*time.Minute), s.remoteNow().Add(51*time.Minute),
+		"the deadline should be 50 minutes after the start")
+}
+
+// requireExperimentJobDefinitions pins the experiment job set in
+// pkg/fleet/installer/packages/embedded/tmpl/gen/darwin: each -exp job runs the same program as its
+// stable twin, under the same account, reading etc-exp instead of etc; it is never relaunched by
+// launchd (no KeepAlive) and never started at boot (RunAtLoad false); and its definition is written
+// root:wheel 0644.
+func (s *configMacOSSuite) requireExperimentJobDefinitions() {
+	for _, label := range allJobLabels() {
+		path := experimentPlistPath(label)
+		perms, err := s.Host.GetFilePermissions(path)
+		require.NoError(s.T(), err)
+		require.Equal(s.T(), [3]string{"644", "root", "wheel"}, [3]string{perms.Mode, perms.Owner, perms.Group},
+			"%s should be root:wheel 0644", path)
+
+		experiment := s.readPlist(path)
+		stable := s.readPlist("/Library/LaunchDaemons/" + label + ".plist")
+		require.NotContains(s.T(), experiment, "KeepAlive", "%s must not be relaunched by launchd", path)
+		require.Equal(s.T(), false, experiment["RunAtLoad"], "%s must not start at boot", path)
+		require.Equal(s.T(), stable["UserName"], experiment["UserName"], "%s should run as its stable twin's account", path)
+		require.Equal(s.T(), stable["GroupName"], experiment["GroupName"], "%s should run as its stable twin's group", path)
+
+		experimentArgs, ok := experiment["ProgramArguments"].([]any)
+		require.True(s.T(), ok, "%s should have ProgramArguments", path)
+		// Mapping etc-exp back to etc must give exactly the stable job's command line: the same
+		// program, with only the configuration directory swapped. The installer daemon included: the
+		// unit supervisor, not the job, supervises the experiment.
+		var mapped []any
+		var readsExperiment bool
+		for _, arg := range experimentArgs {
+			str, _ := arg.(string)
+			readsExperiment = readsExperiment || strings.Contains(str, "/opt/datadog-agent/etc-exp")
+			mapped = append(mapped, strings.ReplaceAll(str, "/opt/datadog-agent/etc-exp", "/opt/datadog-agent/etc"))
+		}
+		require.True(s.T(), readsExperiment, "%s should read its configuration from etc-exp", path)
+		require.Equal(s.T(), stable["ProgramArguments"], mapped, "%s should run its stable twin's program on etc-exp", path)
+
+		env, _ := experiment["EnvironmentVariables"].(map[string]any)
+		require.NotContains(s.T(), env, "DD_FLEET_POLICIES_DIR", "%s must not point policies outside the configuration directory", path)
+		if label == "com.datadoghq.agent" {
+			require.Equal(s.T(), "/opt/datadog-agent/etc-exp/conf.d", env["DD_CONFD_PATH"], "%s should load checks from etc-exp", path)
+		}
+		require.NotContains(s.T(), env, "DD_INSTALLER_EXPERIMENT_DAEMON", "%s has no use for the experiment-daemon marker", path)
+	}
+}
+
+// requireExperimentJobsRemoved requires that every experiment job definition is gone, from disk
+// and from launchd, once the experiment has ended.
+func (s *configMacOSSuite) requireExperimentJobsRemoved() {
+	for _, label := range allJobLabels() {
+		require.False(s.T(), s.pathExists(experimentPlistPath(label)), "%s should be removed once the experiment ends", experimentPlistPath(label))
+		_, err := s.Env().RemoteHost.Execute("sudo launchctl print system/" + label + "-exp")
+		require.Error(s.T(), err, "%s-exp should be gone from launchd once the experiment ends", label)
+	}
+}
+
+// --- Set 1: experiment lifecycle -----------------------------------------------------------------
+
+// TestConfigPromoteLifecycleMacOS follows one experiment from start to promote, and pins what each
+// phase leaves on the host:
+//
+//   - live: the Agent reads the experiment; etc-exp is a real directory; the installer daemon runs
+//     on its experiment job, reporting the deployment as the running configuration; one unit
+//     supervisor runs; the deadline is armed; the -exp job set
+//     is the one the embedded templates define (requireExperimentJobDefinitions); and etc-exp's
+//     .deployment-id names the deployment.
+//   - promoted: the Agent still reads the promoted value; etc-exp rests on etc again; the stable
+//     installer daemon is back, restarted, and reports the promoted deployment as running and
+//     stable; promote moved the experiment directory itself onto etc rather than copying it
+//     (config_darwin.go's exchangeDirectories -- the unit tests tell the atomic swap apart from a
+//     pair of renames), with etc's .deployment-id naming the deployment and no .superseded marker
+//     left behind; the deadline is cleared and the unit supervisor exits once it has restarted the
+//     stable jobs (unit_supervisor_darwin.go); and the stable job definitions
+//     written back (restoreStableJobs) are byte-identical to the ones the install wrote
+//     (installStableJobs), since both come from the same embedded template.
+func (s *configMacOSSuite) TestConfigPromoteLifecycleMacOS() {
+	s.requireResting()
+	require.False(s.T(), s.pathExists(experimentDeadlinePath), "a resting host should have no deadline")
+	const stableAgentPlistPath = "/Library/LaunchDaemons/com.datadoghq.agent.plist"
+	stableAgentPlist := s.readFile(stableAgentPlistPath)
+	stableDaemonPID := s.jobPID(installerDaemonLabel)
+	require.NotEmpty(s.T(), stableDaemonPID, "the installer daemon should be running")
+
+	deploymentID := nextID("cfg-promote")
+	started := s.remoteNow()
+	s.startConfigExperimentRC(deploymentID, logLevelPatch("debug"), nil)
+
+	config, err := s.Agent.Configuration()
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), "debug", config["log_level"])
+	require.False(s.T(), s.etcExpResting(), "etc-exp should be a real directory during the experiment")
+	s.requireInstallerDaemon(installerDaemonExperimentLabel, installerDaemonLabel)
+	// installer-exp runs on etc-exp, whose config_id is the deployment.
+	require.True(s.T(), s.waitForPackageState(func(pkg backend.RemoteConfigStatePackage) bool {
+		return pkg.RunningConfigVersion == deploymentID
+	}, 60*time.Second), "the experiment daemon should report the experiment as the running configuration")
+	s.requireSingleSupervisor()
+	s.requireDeadlineArmed(started)
+	s.requireExperimentJobDefinitions()
+	experimentInode := s.inode("/opt/datadog-agent/etc-exp")
+	require.Equal(s.T(), deploymentID, strings.TrimSpace(s.readFile("/opt/datadog-agent/etc-exp/.deployment-id")),
+		"etc-exp should hold the deployment's ID")
+
+	s.promoteConfigExperimentRC()
+
+	config, err = s.Agent.Configuration()
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), "debug", config["log_level"])
+	require.True(s.T(), s.etcExpResting(), "etc-exp should be a symlink again after promotion")
+	s.requireInstallerDaemon(installerDaemonLabel, installerDaemonExperimentLabel)
+	require.NotEqual(s.T(), stableDaemonPID, s.jobPID(installerDaemonLabel), "the stable daemon should have been restarted")
+	require.False(s.T(), s.pathExists(experimentPlistPath(installerDaemonLabel)), "the experiment daemon's definition should be removed")
+	// The stable daemon now runs on the promoted configuration.
+	require.True(s.T(), s.waitForPackageState(func(pkg backend.RemoteConfigStatePackage) bool {
+		return pkg.RunningConfigVersion == deploymentID
+	}, 60*time.Second), "the stable daemon should report the promoted configuration as running")
+	require.Equal(s.T(), deploymentID, s.packageState(s.readStatus()).StableConfigVersion,
+		"the daemon should report the promoted deployment as stable")
+	require.Equal(s.T(), experimentInode, s.inode("/opt/datadog-agent/etc"), "promote should move the experiment directory onto etc")
+	require.Equal(s.T(), deploymentID, strings.TrimSpace(s.readFile("/opt/datadog-agent/etc/.deployment-id")),
+		"etc should hold the promoted deployment's ID")
+	require.False(s.T(), s.pathExists("/opt/datadog-agent/etc/.superseded"), "the promote should leave no .superseded marker")
+	require.False(s.T(), s.pathExists(experimentDeadlinePath), "the deadline should be cleared once the experiment is promoted")
+	s.requireSupervisorExits("promoted")
+	require.Equal(s.T(), stableAgentPlist, s.readFile(stableAgentPlistPath),
+		"the stable job definition must not drift across a config-experiment cycle")
+}
+
+// TestConfigStopRollbackMacOS follows one experiment from start to stop, and pins that a stop rolls
+// it back without touching the stable configuration: the Agent reads the prior value again, etc-exp
+// rests on etc, stable_config_version never moves, during the experiment or after it, and the
+// stable configuration is byte-for-byte what it was. The stable installer daemon is back and
+// reports the stable configuration as running, the deadline is cleared, every -exp job is gone from
+// disk and from launchd, and the unit supervisor exits once it has applied the stop.
+func (s *configMacOSSuite) TestConfigStopRollbackMacOS() {
+	s.requireResting()
+
+	before, err := s.Agent.Configuration()
+	require.NoError(s.T(), err)
+	previousLogLevel := before["log_level"]
+	initialStableConfigVersion := s.packageState(s.readStatus()).StableConfigVersion
+	stableFingerprint := s.stableConfigFingerprint()
+
+	deploymentID := nextID("cfg-stop")
+	s.startConfigExperimentRC(deploymentID, logLevelPatch("debug"), nil)
+	config, err := s.Agent.Configuration()
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), "debug", config["log_level"])
+	require.False(s.T(), s.etcExpResting(), "etc-exp should be a real directory during the experiment")
+	require.Equal(s.T(), initialStableConfigVersion, s.packageState(s.readStatus()).StableConfigVersion,
+		"stable_config_version must not change during an experiment")
+	require.True(s.T(), s.pathExists(experimentDeadlinePath), "a live experiment should have a deadline")
+	s.requireInstallerDaemon(installerDaemonExperimentLabel, installerDaemonLabel)
+	s.requireSingleSupervisor()
+
+	s.stopConfigExperimentRC()
+
+	config, err = s.Agent.Configuration()
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), previousLogLevel, config["log_level"], "stopping must revert to the prior stable config")
+	require.True(s.T(), s.etcExpResting(), "etc-exp should be a symlink again after the stop")
+	require.Equal(s.T(), initialStableConfigVersion, s.packageState(s.readStatus()).StableConfigVersion,
+		"stable_config_version must be back to its prior value after the stop")
+	require.True(s.T(), s.waitForPackageState(func(pkg backend.RemoteConfigStatePackage) bool {
+		return pkg.RunningConfigVersion != deploymentID
+	}, 60*time.Second), "the stable daemon should report the stable configuration as running after the stop")
+	require.Equal(s.T(), stableFingerprint, s.stableConfigFingerprint(), "stop must leave the stable configuration untouched")
+	s.requireInstallerDaemon(installerDaemonLabel, installerDaemonExperimentLabel)
+	require.False(s.T(), s.pathExists(experimentDeadlinePath), "the deadline should be cleared once the experiment is stopped")
+	s.requireExperimentJobsRemoved()
+	s.requireSupervisorExits("stopped")
+}
+
+// --- Set 2: configuration content and ownership --------------------------------------------------
+
+// TestConfigContentAppliedMacOS pins that every kind of Fleet file operation reaches the jobs that
+// read it, during the experiment and once it is promoted: a jq transform rewriting a tag the stable
+// configuration holds, a SEC[...] placeholder resolved from the task's encrypted secrets, an
+// integration configuration in conf.d that the Agent loads, and a system-probe.yaml change that
+// system-probe's job runs on. The files the operations write take macOS's ownership model,
+// _dd-agent:admin mode 0660 -- the ownership the installer's .dmg set-up gives the configuration
+// tree, not Linux's dd-agent/dd-agent -- in etc-exp and again in etc after the promote.
+func (s *configMacOSSuite) TestConfigContentAppliedMacOS() {
+	s.requireResting()
+
+	// The jq transform below rewrites tags the stable configuration holds, so they are promoted first.
+	s.startConfigExperimentRC(nextID("cfg-content-seed"), []backend.FileOperation{
+		{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml",
+			Patch: []byte(`{"tags": ["env:staging", "team:fleet", "service:installer"]}`)},
+	}, nil)
+	s.promoteConfigExperimentRC()
+
+	s.startConfigExperimentRC(nextID("cfg-content"), []backend.FileOperation{
+		{FileOperationType: backend.FileOperationJQ, FilePath: "/datadog.yaml",
+			Transform: `.tags|=map(if(.==$old)then($new)else(.)end)`,
+			Arguments: []byte(`{"old":"env:staging","new":"env:prod"}`)},
+		{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "SEC[log_level]"}`)},
+		{FileOperationType: backend.FileOperationMergePatch, FilePath: "/conf.d/nginx.yaml",
+			Patch: []byte(`{"init_config": {}, "instances": [{"nginx_status_url": "http://localhost:8080/nginx_status"}]}`)},
+		sysprobePatch(),
+	}, map[string]string{"log_level": "warn"})
+	s.requireConfigContent("/opt/datadog-agent/etc-exp", "com.datadoghq.sysprobe-exp")
+
+	s.promoteConfigExperimentRC()
+	s.requireConfigContent("/opt/datadog-agent/etc", "com.datadoghq.sysprobe")
+}
+
+// requireConfigContent requires that TestConfigContentAppliedMacOS's experiment is what the jobs
+// run on, with its files in dir, and system-probe running as sysprobeLabel.
+func (s *configMacOSSuite) requireConfigContent(dir, sysprobeLabel string) {
+	config, err := s.Agent.Configuration()
+	require.NoError(s.T(), err)
+	raw, ok := config["tags"].([]any)
+	require.True(s.T(), ok, "tags should be a list")
+	tags := make([]string, len(raw))
+	for i, tag := range raw {
+		tags[i], ok = tag.(string)
+		require.True(s.T(), ok)
+	}
+	require.ElementsMatch(s.T(), []string{"env:prod", "team:fleet", "service:installer"}, tags, "the jq transform should have replaced the tag")
+	require.Equal(s.T(), "warn", config["log_level"], "the secret placeholder should resolve to the task's secret")
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		assert.True(c, s.launchdLabelsLoaded(sysprobeLabel)[sysprobeLabel], "%s should be loaded", sysprobeLabel)
+		status, err := s.Agent.Status()
+		if !assert.NoError(c, err) {
+			return
+		}
+		assert.NotEmpty(c, status.AgentMetadata.AgentVersion)
+		_, loaded := status.RunnerStats.Checks["nginx"]
+		assert.True(c, loaded, "the nginx check should be loaded from %s/conf.d", dir)
+	}, 60*time.Second, 5*time.Second)
+
+	for _, path := range []string{dir + "/datadog.yaml", dir + "/conf.d/nginx.yaml"} {
+		perms, err := s.Host.GetFilePermissions(path)
+		require.NoError(s.T(), err)
+		require.Equal(s.T(), [3]string{"660", "_dd-agent", "admin"}, [3]string{perms.Mode, perms.Owner, perms.Group},
+			"%s should be _dd-agent:admin 0660", path)
+	}
+}
+
+// socketRequestAs calls the installer daemon's local API as user and returns the HTTP status code it
+// answered with.
+func (s *configMacOSSuite) socketRequestAs(user, method, path string) string {
+	out, err := s.Env().RemoteHost.Execute(fmt.Sprintf(
+		`sudo -u %s curl -sS -o /dev/null -w '%%{http_code}' -X %s -H 'Content-Type: application/json' --unix-socket %s http://installer%s`,
+		user, method, installerSocketPath, path))
+	require.NoError(s.T(), err, "%s should be able to connect to the installer socket", user)
+	return strings.TrimSpace(out)
+}
+
+// TestConfigOwnershipMacOS pins who owns what around a configuration experiment:
+//
+//   - the installer daemon's socket (pkg/fleet/daemon/local_api_unix.go): the daemon runs as root
+//     and hands it to _dd-agent, mode 0700, so the Agent's account reaches the local API as it does
+//     on Linux, and no other account can connect;
+//   - the root installer's own state: the daemon's pidfile is root's, in the root-only state
+//     directory, and the Agent's run directory does not hold it;
+//   - the experiment's tree (pkg/fleet/installer/config/config_darwin.go's stageExperiment): a
+//     /bin/cp -a copy of etc that keeps every unpatched entry's mode, owner, group and explicit ACL
+//     entries, with a root-owned .deployment-id naming the deployment, while the files a Fleet
+//     operation writes take the installer's .dmg set-up _dd-agent:admin 0660.
+func (s *configMacOSSuite) TestConfigOwnershipMacOS() {
+	s.requireResting()
+
+	// The configuration experiment state root acts on is kept in a directory that is root's
+	// alone, unlike the Agent's run directory the socket is in.
+	stateDir, err := s.Host.GetFilePermissions(filepath.Dir(experimentDeadlinePath))
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), [3]string{"755", "root", "wheel"}, [3]string{stateDir.Mode, stateDir.Owner, stateDir.Group},
+		"the configuration experiment state directory should be root:wheel 0755")
+
+	perms, err := s.Host.GetFilePermissions(installerSocketPath)
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), "_dd-agent", perms.Owner, "the installer socket should be handed to the Agent's account")
+	require.Equal(s.T(), "700", perms.Mode, "the installer socket must be owner-only")
+	// The socket's mode is what keeps everyone else out: they cannot connect at all.
+	_, err = s.Env().RemoteHost.Execute(fmt.Sprintf(
+		`sudo -u nobody curl -sS -o /dev/null -H 'Content-Type: application/json' --unix-socket %s http://installer/status`,
+		installerSocketPath))
+	require.Error(s.T(), err, "an account other than root and _dd-agent must not be able to connect to the installer socket")
+	require.Equal(s.T(), "200", s.socketRequestAs("root", "GET", "/status"), "root should be able to read the daemon's status")
+	require.Equal(s.T(), "200", s.socketRequestAs("_dd-agent", "GET", "/status"),
+		"the Agent's account should be able to read the daemon's status")
+
+	// The experiment also writes a check configuration in a folder the stable configuration does not
+	// have, which the installer creates.
+	ownershipOps := append(logLevelPatch("debug"), backend.FileOperation{
+		FileOperationType: backend.FileOperationMergePatch, FilePath: "/conf.d/e2e_ownership.d/conf.yaml", Patch: []byte(`{"instances":[{}]}`),
+	})
+	s.startConfigExperimentRC(nextID("cfg-ownership"), ownershipOps, nil)
+	// The start is reported before the installer daemon is handed over to its experiment job, and
+	// the pidfile is briefly absent between the stable daemon exiting and the experiment daemon
+	// writing it.
+	s.requireInstallerDaemon(installerDaemonExperimentLabel, installerDaemonLabel)
+	perms, err = s.Host.GetFilePermissions(installerPIDPath)
+	require.NoError(s.T(), err, "%s should exist", installerPIDPath)
+	require.Equal(s.T(), [3]string{"644", "root", "wheel"}, [3]string{perms.Mode, perms.Owner, perms.Group},
+		"%s should be root:wheel 0644", installerPIDPath)
+	perms, err = s.Host.GetFilePermissions("/opt/datadog-agent/etc-exp/.deployment-id")
+	require.NoError(s.T(), err, "etc-exp should hold the deployment's ID")
+	require.Equal(s.T(), [2]string{"640", "root"}, [2]string{perms.Mode, perms.Owner}, "etc-exp's .deployment-id should be root's, 0640")
+	for _, path := range []string{"/opt/datadog-agent/run/installer.pid", "/opt/datadog-agent/etc-exp/.superseded"} {
+		require.False(s.T(), s.pathExists(path), "%s should not exist", path)
+	}
+
+	// One line per entry with its type, mode, uid and gid, followed by its explicit ACL entries, for
+	// every entry the experiment did not write. Timestamps and sizes are left out: a copy does not
+	// keep the former, and the comparison is about metadata rather than content. Inherited entries
+	// are left out: cp -a does not copy them, and in etc they only repeat the access the tree's owner
+	// has. The deployment ID is the experiment's own, and the check folder exists only in the
+	// experiment.
+	metadata := func(dir string) string {
+		out, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`sudo sh -c 'cd %s && `+
+			`find . -mindepth 1 ! -path ./datadog.yaml ! -path ./.deployment-id ! -path ./.superseded ! -path "./conf.d/e2e_ownership.d*" | sort | while read -r f; do `+
+			`printf "%%s %%s\n" "$f" "$(stat -f "%%HT %%Lp %%u %%g" "$f")"; ls -lde "$f" | tail -n +2 | grep -v " inherited " | sed "s/^ *[0-9]*: //"; done'`, dir))
+		require.NoError(s.T(), err)
+		return out
+	}
+	stable := metadata("/opt/datadog-agent/etc")
+	require.NotEmpty(s.T(), strings.TrimSpace(stable), "the stable configuration should hold more than datadog.yaml")
+	require.Equal(s.T(), stable, metadata("/opt/datadog-agent/etc-exp"),
+		"the experiment should keep the mode, owner, group and ACL of every entry it did not write")
+	perms, err = s.Host.GetFilePermissions("/opt/datadog-agent/etc-exp/datadog.yaml")
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), [3]string{"660", "_dd-agent", "admin"}, [3]string{perms.Mode, perms.Owner, perms.Group},
+		"a file the experiment wrote should be _dd-agent:admin 0660")
+	// A folder the experiment created belongs to the Agent's account, like every other folder of the
+	// tree.
+	perms, err = s.Host.GetFilePermissions("/opt/datadog-agent/etc-exp/conf.d/e2e_ownership.d")
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), [2]string{"_dd-agent", "admin"}, [2]string{perms.Owner, perms.Group},
+		"a folder the experiment created should be _dd-agent:admin")
+
+	s.stopConfigExperimentRC()
+}
+
+// --- Set 3: failures and crash reverts -----------------------------------------------------------
+
+// TestConfigFailureCrashMacOS pins that an experiment whose Agent refuses to start is put back on
+// the stable jobs at once, and rolled back by Fleet's stop, with the bad value never reaching the
+// stable configuration.
+//
+// The experiment sets log_level to an unresolvable ENC[...] placeholder, which agent-exp rejects at
+// startup ("unknown log level"). The start itself succeeds, and the unit
+// supervisor (unit_supervisor_darwin.go) reverts every job on the exit, as OnFailure does on Linux. It keeps the experiment
+// deployed and reported, with the stable daemon's config_id as the running configuration, so
+// Fleet's health check fails and Fleet sends a stop; this test sends that stop itself.
+// TestExperimentJobCrashRevertsMacOS covers a crash of jobs that did start.
+func (s *configMacOSSuite) TestConfigFailureCrashMacOS() {
+	s.requireResting()
+
+	before, err := s.Agent.Configuration()
+	require.NoError(s.T(), err)
+	stableFingerprint := s.stableConfigFingerprint()
+	rejectionsBefore := s.agentExpLogLevelRejections()
+
+	deploymentID := nextID("cfg-crash")
+	s.startConfigExperimentRC(deploymentID, logLevelPatch("ENC[invalid_secret]"), nil)
+	s.requireFailedOnHost(deploymentID)
+	// Agent Data Plane reads the same log level and may exit first, before agent-exp logs its own
+	// refusal, so the count only corroborates.
+	s.T().Logf("agent-exp log level refusals: %d before, %d after", rejectionsBefore, s.agentExpLogLevelRejections())
+
+	s.stopFailedExperimentRC()
+	config, err := s.Agent.Configuration()
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), before["log_level"], config["log_level"],
+		"an unresolvable secret placeholder must not survive the rollback")
+	require.Equal(s.T(), stableFingerprint, s.stableConfigFingerprint(), "the rollback must leave the stable configuration untouched")
+}
+
+// agentExpLogLevelRejections counts how many times agent-exp has refused TestConfigFailureCrashMacOS's
+// log level. launchd-exp.log outlives a test, so callers compare counts rather than look for a match.
+func (s *configMacOSSuite) agentExpLogLevelRejections() int {
+	return s.remoteCount(`sudo grep -c 'unknown log level: enc\[invalid_secret\]' /opt/datadog-agent/logs/launchd-exp.log 2>/dev/null || true`)
+}
+
+// TestExperimentJobCrashRevertsMacOS covers a crash of any job in a live experiment, with the
+// unit supervisor's failure rule (exitFailsExperiment in
+// pkg/fleet/installer/packages/config_experiment_pids_darwin.go): a crash of any experiment job
+// fails the experiment. Every job goes back to stable, the installer daemon included, no job is
+// relaunched, and the experiment is kept for Fleet's stop, which this test sends itself. Unlike the
+// Linux units, where the other jobs are Restart=on-failure, a crash of a job other than the Agent
+// fails the experiment too. Each subtest crashes a different job:
+//
+//   - agent: launchd does not relaunch the crashed experiment Agent, and the revert removes the
+//     experiment job definitions;
+//   - sysprobe: a SIGKILL'd job is a failed exit, and fails the experiment;
+//   - installer-daemon: the experiment daemon is essential, so its exit fails the experiment, and
+//     the stable daemon takes over;
+//   - agent-before-supervised: the Agent fails right after the start, possibly before the unit
+//     supervisor has moved the installer daemon over; either way the supervisor reverts.
+func (s *configMacOSSuite) TestExperimentJobCrashRevertsMacOS() {
+	s.runIsolated("agent", func() {
+		s.requireResting()
+		before, err := s.Agent.Configuration()
+		require.NoError(s.T(), err)
+
+		deploymentID := nextID("cfg-agent-crash")
+		s.startConfigExperimentRC(deploymentID, logLevelPatch("debug"), nil)
+		var crashedPID string
+		require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+			crashedPID = s.jobPID("com.datadoghq.agent-exp")
+			assert.NotEmpty(c, crashedPID, "the experiment Agent should be running")
+		}, 30*time.Second, 2*time.Second)
+		_, err = s.Env().RemoteHost.Execute("sudo kill -9 " + crashedPID)
+		require.NoError(s.T(), err)
+
+		// Until the revert removes the job, launchd must not have started another process for it.
+		for range 5 {
+			pid := s.jobPID("com.datadoghq.agent-exp")
+			require.True(s.T(), pid == "" || pid == crashedPID, "launchd relaunched the crashed experiment Agent as pid %s", pid)
+			time.Sleep(time.Second)
+		}
+
+		s.requireFailedOnHost(deploymentID)
+		require.False(s.T(), s.pathExists(experimentPlistPath("com.datadoghq.agent")), "the revert should remove the experiment job definitions")
+		s.waitForDaemon()
+		config, err := s.Agent.Configuration()
+		require.NoError(s.T(), err)
+		require.Equal(s.T(), before["log_level"], config["log_level"], "the stable Agent should read the stable configuration")
+		s.stopFailedExperimentRC()
+	})
+
+	s.runIsolated("sysprobe", func() {
+		s.requireResting()
+		deploymentID := nextID("cfg-sysprobe-crash")
+		s.startConfigExperimentRC(deploymentID, []backend.FileOperation{sysprobePatch()}, nil)
+		s.requireInstallerDaemon(installerDaemonExperimentLabel, installerDaemonLabel)
+		s.requireSingleSupervisor()
+		var pid string
+		require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+			pid = s.jobPID("com.datadoghq.sysprobe-exp")
+			assert.NotEmpty(c, pid, "the experiment sysprobe should be running")
+		}, 60*time.Second, 2*time.Second)
+
+		_, err := s.Env().RemoteHost.Execute("sudo launchctl kill SIGKILL system/com.datadoghq.sysprobe-exp")
+		require.NoError(s.T(), err, "sending SIGKILL to the experiment sysprobe job should succeed")
+
+		s.requireFailedAfterJobCrash("com.datadoghq.sysprobe", pid, deploymentID)
+		s.stopFailedExperimentRC()
+	})
+
+	s.runIsolated("installer-daemon", func() {
+		s.requireResting()
+		deploymentID := nextID("cfg-daemon-crash")
+		s.startConfigExperimentRC(deploymentID, logLevelPatch("debug"), nil)
+		s.requireInstallerDaemon(installerDaemonExperimentLabel, installerDaemonLabel)
+		s.requireSingleSupervisor()
+		pid := s.jobPID(installerDaemonExperimentLabel)
+		require.NotEmpty(s.T(), pid, "the experiment daemon should be running")
+
+		// See clearPendingUpdaterTasks: a restarted daemon has no memory of the tasks it executed.
+		s.clearPendingUpdaterTasks()
+		_, err := s.Env().RemoteHost.Execute("sudo kill -9 " + pid)
+		require.NoError(s.T(), err)
+
+		s.requireFailedAfterJobCrash(installerDaemonLabel, pid, deploymentID)
+		s.stopFailedExperimentRC()
+	})
+
+	s.runIsolated("agent-before-supervised", func() {
+		s.requireResting()
+		deploymentID := nextID("cfg-early-crash")
+		s.startConfigExperimentRC(deploymentID, logLevelPatch("debug"), nil)
+		s.clearPendingUpdaterTasks()
+		_, err := s.Env().RemoteHost.Execute("sudo launchctl kill SIGKILL system/com.datadoghq.agent-exp")
+		require.NoError(s.T(), err)
+
+		s.requireFailedOnHost(deploymentID)
+		s.requireSupervisorExits("reverted the crashed experiment")
+		s.stopFailedExperimentRC()
+	})
+}
+
+// requireFailedAfterJobCrash checks that the crash of the experiment job label (without its -exp
+// suffix), whose process was crashedPID, failed the experiment: launchd does not relaunch the job,
+// every job is back on stable with the experiment job definitions removed, the unit supervisor
+// exits, and the stable daemon answers.
+func (s *configMacOSSuite) requireFailedAfterJobCrash(label, crashedPID, deploymentID string) {
+	experimentLabel := label + "-exp"
+	// Until the revert removes the job, launchd must not have started another process for it.
+	for range 5 {
+		pid := s.jobPID(experimentLabel)
+		require.True(s.T(), pid == "" || pid == crashedPID, "%s was relaunched as pid %s", experimentLabel, pid)
+		time.Sleep(time.Second)
+	}
+	s.requireFailedOnHost(deploymentID)
+	require.False(s.T(), s.pathExists(experimentPlistPath(label)), "the revert should remove the %s job definition", experimentLabel)
+	s.requireSupervisorExits("failed the experiment after " + experimentLabel + " crashed")
+	s.waitForDaemon()
+}
+
+// TestRejectedTasksLeaveNoTraceMacOS pins that a task the daemon fails leaves the host exactly as it
+// was:
+//
+//   - a start the installer rejects (pkg/fleet/installer/config/config_nix.go's WriteExperiment),
+//     here a file operation on a path that is not allowed (config.go): nothing is published to
+//     etc-exp, no scratch directory is left behind, no job is swapped and no deadline is armed;
+//   - version tasks, which fail on macOS rather than being reported as done. The daemon executes
+//     them like any other task; they fail on the catalog lookup or the download, and a version
+//     experiment that got further would be refused by the Agent package's preStartExperiment hook
+//     (pkg/fleet/installer/packages/datadog_agent_darwin.go).
+func (s *configMacOSSuite) TestRejectedTasksLeaveNoTraceMacOS() {
+	s.requireResting()
+
+	stableFingerprint := s.stableConfigFingerprint()
+	stableAgentPID := s.jobPID("com.datadoghq.agent")
+	require.NotEmpty(s.T(), stableAgentPID, "the stable Agent should be running before the test starts")
+
+	deploymentID := nextID("cfg-rejected")
+	s.pushInstallerConfig(deploymentID, []backend.FileOperation{
+		{FileOperationType: backend.FileOperationMergePatch, FilePath: "/not-allowed.yaml", Patch: []byte(`{"log_level": "debug"}`)},
+	})
+	task := s.pushTaskExpectingFailure("start_experiment_config", &experimentTaskParams{Version: deploymentID},
+		"start_experiment_config "+deploymentID)
+	require.NotNil(s.T(), task.Error, "the failed task should carry its error")
+	require.Contains(s.T(), task.Error.Message, "not allowed", "the task should fail on the disallowed path, not for another reason")
+
+	require.True(s.T(), s.etcExpResting(), "a rejected start must not publish etc-exp")
+	out, err := s.Env().RemoteHost.Execute("ls -A /opt/datadog-agent | grep '^\\.datadog-config-incoming' || true")
+	require.NoError(s.T(), err)
+	require.Empty(s.T(), strings.TrimSpace(out), "a rejected start must not leave its scratch directory behind")
+	require.False(s.T(), s.pathExists(experimentDeadlinePath), "a rejected start must not arm a deadline")
+	for label, loaded := range s.launchdLabelsLoaded(experimentLabels()...) {
+		require.False(s.T(), loaded, "a rejected start must not load %s", label)
+	}
+	require.Equal(s.T(), stableAgentPID, s.jobPID("com.datadoghq.agent"), "a rejected start must not restart the stable Agent")
+	require.Equal(s.T(), stableFingerprint, s.stableConfigFingerprint(), "a rejected start must not touch the stable configuration")
+	require.Empty(s.T(), s.packageState(s.readStatus()).ExperimentConfigVersion, "a rejected start must not be reported as deployed")
+
+	before := s.packageState(s.readStatus())
+	packagesBefore, err := s.Env().RemoteHost.Execute("ls -A /opt/datadog-packages/datadog-agent")
+	require.NoError(s.T(), err)
+	for _, method := range []string{"install_package", "start_experiment"} {
+		s.pushTaskExpectingFailure(method, &experimentTaskParams{Version: "0.0.0"}, method+" on macOS")
+
+		after := s.packageState(s.readStatus())
+		require.Equal(s.T(), before.StableVersion, after.StableVersion, "a failed %s must not change the stable version", method)
+		require.Equal(s.T(), before.ExperimentVersion, after.ExperimentVersion, "a failed %s must not start a version experiment", method)
+	}
+	packagesAfter, err := s.Env().RemoteHost.Execute("ls -A /opt/datadog-packages/datadog-agent")
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), packagesBefore, packagesAfter, "a failed task must not install anything")
+	for label, loaded := range s.launchdLabelsLoaded(experimentLabels()...) {
+		require.False(s.T(), loaded, "a failed task must not load %s", label)
+	}
+}
+
+// --- Set 4: launchd bootout/bootstrap race regression --------------------------------------------
+
+// TestLaunchdBootoutBootstrapRaceRegressionMacOS regression-tests the fix in
+// pkg/fleet/installer/packages/launchd/launchd.go's Bootout: rapid, back-to-back RC-driven
+// start/stop cycles must never leave a job booted out.
+//
+// It also guards the unit supervisor (unit_supervisor_darwin.go) against outliving its requests:
+// each stop must leave it exited, or the cycles here would leave it acting on a later experiment
+// with a stale request.
+func (s *configMacOSSuite) TestLaunchdBootoutBootstrapRaceRegressionMacOS() {
+	s.requireResting()
+	eioBefore := s.updaterLogEIOCount()
+
+	const cycles = 5
+	for i := range cycles {
+		deploymentID := nextID(fmt.Sprintf("cfg-race-%d", i))
+		s.startConfigExperimentRC(deploymentID, []backend.FileOperation{
+			{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"tags": ["fleet_exp:race"]}`)},
+		}, nil)
+		loaded := s.launchdLabelsLoaded(experimentLabels()...)
+		for _, label := range experimentLabels() {
+			require.True(s.T(), loaded[label], "cycle %d: %s should be loaded", i, label)
+		}
+
+		s.stopConfigExperimentRC()
+		loadedStable := s.launchdLabelsLoaded(swappableJobLabels...)
+		for _, label := range swappableJobLabels {
+			require.True(s.T(), loadedStable[label], "cycle %d: %s should be loaded again", i, label)
+		}
+	}
+
+	require.Equal(s.T(), eioBefore, s.updaterLogEIOCount(),
+		"no Bootstrap failed/Input-output error should appear across %d rapid start/stop cycles", cycles)
+	s.requireSupervisorExits(fmt.Sprintf("stopped, after %d cycles", cycles))
+}
+
+// --- Set 5: shutdown, boot and upgrade mid-experiment --------------------------------------------
+
+const installerDaemonPlistPath = "/Library/LaunchDaemons/com.datadoghq.installer.plist"
+
+// killAllServicesSimulatingShutdown simulates an abrupt shutdown (crash, power loss, kill -9)
+// during a live configuration experiment: every swappable job, in both variants, and the unit
+// supervisor (unit_supervisor_darwin.go), booted out so launchd does not relaunch it, are taken
+// down. The installer daemon itself, in both variants, is
+// booted out rather than sent a plain kill, so that the stable job's KeepAlive stanza
+// (RunAtLoad+KeepAlive.SuccessfulExit: false in com.datadoghq.installer.plist.tmpl) cannot race
+// this helper by respawning it before the caller is ready -- bringing the daemon back up is always
+// a separate, explicit restartInstallerDaemon call, which starts the stable daemon as a reboot
+// would.
+//
+// Only the stable job set is restarted here, mirroring what launchd starts at boot: the experiment
+// job set and the unit supervisor stay down, and the experiment is left for Fleet's stop to end.
+func (s *configMacOSSuite) killAllServicesSimulatingShutdown() {
+	// The unit supervisor dies with the host: booted out, so launchd does not relaunch it, and so it
+	// does not revert the experiment under the test. Its busy marker goes too, as /var/run is emptied
+	// at boot: launchd keeps the supervisor alive while it exists. Any helper an earlier build left
+	// dies too.
+	_, _ = s.Env().RemoteHost.Execute("sudo rm -f " + supervisorBusyPath)
+	_, _ = s.Env().RemoteHost.Execute("sudo launchctl bootout system/" + unitSupervisorLabel + " || true")
+	_, _ = s.Env().RemoteHost.Execute("sudo pkill -SIGKILL -f '" + detachedProcessPattern + "' || true")
+
+	_, err := s.Env().RemoteHost.Execute("sudo launchctl bootout system/com.datadoghq.installer || true")
+	require.NoError(s.T(), err, "booting out the installer daemon should succeed")
+	_, err = s.Env().RemoteHost.Execute("sudo launchctl bootout system/" + installerDaemonExperimentLabel + " || true")
+	require.NoError(s.T(), err, "booting out the experiment installer daemon should succeed")
+
+	for _, label := range append(append([]string{}, swappableJobLabels...), experimentLabels()...) {
+		_, _ = s.Env().RemoteHost.Execute("sudo launchctl kill SIGKILL system/" + label + " || true")
+	}
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		out, err := s.Env().RemoteHost.Execute("pgrep -f '" + detachedProcessPattern + "' || true")
+		assert.NoError(c, err)
+		assert.Empty(c, strings.TrimSpace(out), "the detached installer processes should be gone")
+	}, 30*time.Second, 2*time.Second)
+
+	// The kill loop above only ever reaches a *running* job: by the time this method runs, an
+	// active experiment has already had configExperiment.Start bootout the stable set entirely
+	// (pkg/fleet/installer/packages/config_experiment_darwin.go), leaving only the -exp variants
+	// loaded. So the stable definitions must be reloaded from disk here, the same bootstrap+
+	// enable+kickstart sequence restartInstallerDaemon uses below -- a plain kickstart would fail
+	// with "Could not find service" against a label launchd has never heard of.
+	for _, label := range swappableJobLabels {
+		plistPath := "/Library/LaunchDaemons/" + label + ".plist"
+		_, err := s.Env().RemoteHost.Execute("sudo launchctl bootstrap system " + plistPath)
+		require.NoError(s.T(), err, "bootstrapping the stable %s job should succeed", label)
+		_, err = s.Env().RemoteHost.Execute("sudo launchctl enable system/" + label)
+		require.NoError(s.T(), err, "enabling the stable %s job should succeed", label)
+		_, err = s.Env().RemoteHost.Execute("sudo launchctl kickstart -k system/" + label)
+		require.NoError(s.T(), err, "restarting the stable %s job should succeed", label)
+	}
+}
+
+// restartInstallerDaemon brings the installer daemon back up after killAllServicesSimulatingShutdown
+// booted it out, mirroring the bootstrap+enable+kickstart sequence launchd.JobSet.Start uses for the
+// job sets it owns: bootout leaves no cached definition behind, so a plain kickstart would fail with
+// "no such process" until the definition is reloaded from disk.
+func (s *configMacOSSuite) restartInstallerDaemon() {
+	_, err := s.Env().RemoteHost.Execute("sudo launchctl bootstrap system " + installerDaemonPlistPath)
+	require.NoError(s.T(), err, "bootstrapping the installer daemon should succeed")
+	_, err = s.Env().RemoteHost.Execute("sudo launchctl enable system/com.datadoghq.installer")
+	require.NoError(s.T(), err, "enabling the installer daemon should succeed")
+	_, err = s.Env().RemoteHost.Execute("sudo launchctl kickstart -k system/com.datadoghq.installer")
+	require.NoError(s.T(), err, "kickstarting the installer daemon should succeed")
+	s.waitForDaemon()
+}
+
+// TestUnfinishedExperimentWaitsForFleetMacOS covers an experiment the host comes back to without the
+// unit supervisor to settle it. Nothing at daemon start brings the experiment back or discards it:
+// the host runs the stable job set and goes on reporting the experiment, with the stable
+// configuration running, and Fleet's stop ends it without restarting the stable Agent. Each subtest
+// leaves it unfinished a different way:
+//
+//   - abrupt-shutdown: a crash or power loss mid-experiment, which leaves the deadline in place and
+//     no supervisor. Nothing at start reads the deadline, so it does not matter whether it has
+//     passed;
+//   - orphan-without-deadline: the same, with no deadline left to bound the experiment -- a host
+//     that went down after a stop cleared the deadline but before the installer discarded the
+//     configuration.
+func (s *configMacOSSuite) TestUnfinishedExperimentWaitsForFleetMacOS() {
+	s.runIsolated("abrupt-shutdown", func() {
+		s.requireResting()
+		deploymentID := nextID("cfg-shutdown")
+		s.startConfigExperimentRC(deploymentID, []backend.FileOperation{sysprobePatch()}, nil)
+		s.requireInstallerDaemon(installerDaemonExperimentLabel, installerDaemonLabel)
+		s.requireSupervisorRunning("the experiment is live")
+
+		s.killAllServicesSimulatingShutdown()
+		require.False(s.T(), s.supervisorRunning(), "the unit supervisor must be gone before the daemon starts")
+		// See clearPendingUpdaterTasks: the start task pushed above would otherwise be redelivered to
+		// the restarted daemon.
+		s.clearPendingUpdaterTasks()
+		s.restartInstallerDaemon()
+
+		s.requireUnfinishedOnHost(deploymentID)
+		s.requireInstallerDaemon(installerDaemonLabel, installerDaemonExperimentLabel)
+		s.stopUnfinishedExperimentRC()
+	})
+
+	s.runIsolated("orphan-without-deadline", func() {
+		s.requireResting()
+		deploymentID := nextID("cfg-orphan")
+		s.startConfigExperimentRC(deploymentID, logLevelPatch("debug"), nil)
+		s.requireInstallerDaemon(installerDaemonExperimentLabel, installerDaemonLabel)
+		s.requireSingleSupervisor()
+
+		s.killAllServicesSimulatingShutdown()
+		_, err := s.Env().RemoteHost.Execute("sudo rm -f " + experimentDeadlinePath)
+		require.NoError(s.T(), err)
+		s.clearPendingUpdaterTasks()
+		s.restartInstallerDaemon()
+
+		require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+			status, err := s.tryReadStatus()
+			if assert.NoError(c, err) && assert.Len(c, status.Packages, 1) {
+				pkg := status.Packages[0]
+				assert.Equal(c, deploymentID, pkg.ExperimentConfigVersion, "the orphan should still be reported, for Fleet to stop")
+				assert.NotEqual(c, deploymentID, pkg.RunningConfigVersion, "the stable daemon should report the stable configuration as running")
+			}
+		}, 60*time.Second, 5*time.Second)
+		require.False(s.T(), s.etcExpResting(), "nothing at daemon start should discard the orphan")
+		require.Zero(s.T(), s.supervisorCount(), "nothing should start the unit supervisor on a daemon start")
+
+		s.stopUnfinishedExperimentRC()
+	})
+}
+
+// agentLaunchdLabels are every launchd job the Agent installs in the system domain: the unit
+// supervisor, and each stable job and its experiment twin, the installer daemon's included.
+func agentLaunchdLabels() []string {
+	labels := append([]string{unitSupervisorLabel}, allJobLabels()...)
+	for _, label := range allJobLabels() {
+		labels = append(labels, label+"-exp")
+	}
+	return labels
+}
+
+// processGrace is how long a shutdown leaves processes to exit after SIGTERM before it kills them:
+// the ExitTimeOut every Agent job definition sets, plus room for the processes to exit.
+const processGrace = 20 * time.Second
+
+// simulateGracefulShutdown does to the Agent what shutdown(8) does, without taking the host down:
+// every Agent process is sent SIGTERM at once, and whatever has not exited once the grace is over is
+// killed, leaving nothing of the Agent loaded in launchd, as on a host that is powered off.
+//
+// The launchd jobs, the unit supervisor's included, are taken down with bootout, which is launchd's
+// own shutdown of a job: SIGTERM, then SIGKILL after the job's ExitTimeOut, and no relaunch through
+// KeepAlive. Helper processes an earlier build left have no job, so they are signalled directly, as
+// launchd signals every remaining process. The supervisor may fail the experiment on the way down
+// and load stable jobs again; a second bootout takes those down too, since nothing it starts
+// outlives a real shutdown.
+func (s *configMacOSSuite) simulateGracefulShutdown() {
+	var bootouts strings.Builder
+	for _, label := range agentLaunchdLabels() {
+		fmt.Fprintf(&bootouts, "launchctl bootout system/%s >/dev/null 2>&1 & ", label)
+	}
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`sudo sh -c '%s pkill -TERM -f "%s"; wait; true'`,
+		bootouts.String(), detachedProcessPattern))
+	require.NoError(s.T(), err, "shutting the Agent's jobs down should succeed")
+
+	deadline := time.Now().Add(processGrace)
+	for time.Now().Before(deadline) && s.remoteCount("pgrep -f '"+detachedProcessPattern+"' | wc -l") > 0 {
+		time.Sleep(time.Second)
+	}
+	_, _ = s.Env().RemoteHost.Execute("sudo pkill -KILL -f '" + detachedProcessPattern + "' || true")
+	_, err = s.Env().RemoteHost.Execute("sudo sh -c '" + bootouts.String() + " wait; true'")
+	require.NoError(s.T(), err, "taking down the jobs loaded during the grace should succeed")
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		for label, loaded := range s.launchdLabelsLoaded(agentLaunchdLabels()...) {
+			assert.False(c, loaded, "%s should not be loaded once the host is down", label)
+		}
+		assert.Zero(c, s.remoteCount("pgrep -f '"+detachedProcessPattern+"' | wc -l"),
+			"no detached Agent process should outlive the shutdown")
+	}, 30*time.Second, 2*time.Second)
+}
+
+// simulateBoot does what launchd does with the Agent at boot: it loads every Agent job definition
+// on disk, and starts only those whose RunAtLoad is set. That is bootstrap's own behavior, so no job
+// is kickstarted: the stable jobs start, and the -exp jobs a live experiment left defined are loaded
+// without starting.
+func (s *configMacOSSuite) simulateBoot() {
+	for _, label := range agentLaunchdLabels() {
+		path := "/Library/LaunchDaemons/" + label + ".plist"
+		if !s.pathExists(path) {
+			continue
+		}
+		_, err := s.Env().RemoteHost.Execute("sudo launchctl bootstrap system " + path)
+		require.NoError(s.T(), err, "loading %s at boot should succeed", path)
+	}
+	s.waitForDaemon()
+}
+
+// TestBootMidExperimentWaitsForFleetMacOS shuts the host down gracefully in the middle of an
+// experiment and boots it again, both simulated: shutdown(8) and launchd's boot are reproduced on
+// the Agent's processes and jobs (simulateGracefulShutdown, simulateBoot) while the host itself
+// stays up. A real reboot would take down the suite's fakeintake on a LOCAL_VM host, where it runs
+// as a container on the host itself (byohost.LocalVMProvisioner) with its Remote Config store in
+// memory, and this suite drives every state change through it.
+//
+// The host boots on the stable job set, the stable installer daemon running, and reports the
+// experiment. The -exp jobs still defined are loaded without running, since their RunAtLoad is
+// false. On the way down the unit supervisor may see the experiment Agent exit before its own
+// SIGTERM, and fail the experiment, or not; either way Fleet's stop ends it without restarting any job launchd started at boot, and
+// unloads the experiment jobs, the experiment daemon's included.
+func (s *configMacOSSuite) TestBootMidExperimentWaitsForFleetMacOS() {
+	s.requireResting()
+
+	deploymentID := nextID("cfg-boot")
+	s.startConfigExperimentRC(deploymentID, logLevelPatch("debug"), nil)
+	s.requireInstallerDaemon(installerDaemonExperimentLabel, installerDaemonLabel)
+	s.requireSupervisorRunning("the experiment is live")
+	s.clearPendingUpdaterTasks()
+
+	s.simulateGracefulShutdown()
+	outcome := "left unfinished: the unit supervisor did not fail it before the jobs went down"
+	if !s.pathExists(experimentDeadlinePath) {
+		outcome = "failed by the unit supervisor, which saw the experiment Agent exit first"
+	}
+	s.T().Logf("on shutdown the experiment was %s", outcome)
+	s.simulateBoot()
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		status, err := s.tryReadStatus()
+		if assert.NoError(c, err) && assert.Len(c, status.Packages, 1) {
+			assert.Equal(c, deploymentID, status.Packages[0].ExperimentConfigVersion, "the experiment should still be reported, for Fleet to stop")
+		}
+		assert.NotEmpty(c, s.jobPID("com.datadoghq.agent"), "the stable Agent should start at boot")
+	}, 90*time.Second, 5*time.Second)
+	require.NotEmpty(s.T(), s.jobPID(installerDaemonLabel), "the stable installer daemon should be the one running")
+	for _, label := range allJobLabels() {
+		if !s.pathExists(experimentPlistPath(label)) {
+			continue
+		}
+		require.True(s.T(), s.launchdLabelsLoaded(label + "-exp")[label+"-exp"], "%s-exp should be loaded at boot", label)
+		require.Empty(s.T(), s.jobPID(label+"-exp"), "%s-exp must not start at boot", label)
+	}
+	require.Equal(s.T(), "1", s.jobRuns("com.datadoghq.agent"), "nothing should restart the stable Agent launchd started at boot")
+	require.Zero(s.T(), s.supervisorCount(), "nothing should start the unit supervisor on a daemon start")
+
+	s.stopUnfinishedExperimentRC()
+	require.Equal(s.T(), "1", s.jobRuns("com.datadoghq.agent"), "the stop must not restart the stable Agent launchd started at boot")
+}
+
+// jobRuns returns how many times launchd has started the job since it was loaded, as launchctl
+// print reports it.
+func (s *configMacOSSuite) jobRuns(label string) string {
+	out, err := s.Env().RemoteHost.Execute(
+		"sudo launchctl print system/" + label + ` 2>/dev/null | awk '$1 == "runs" && $2 == "=" { print $3; exit }' || true`)
+	require.NoError(s.T(), err)
+	return strings.TrimSpace(out)
+}
+
+// TestUpgradeMidExperimentClearsDeadlineMacOS regression-tests the .dmg install over a live
+// configuration experiment: the installed version's pre-remove takes the -exp jobs down, and
+// `installer postinst datadog-agent dmg` removes the experiment's deadline (removeOldInstallFiles)
+// and collapses etc-exp back onto etc (restExperimentConfig). A deadline left behind would outlive
+// the experiment the upgrade discarded.
+//
+// The upgrade is a reinstall of the same .dmg over the running host, which is what runs the
+// preinstall script's existing-installation path. It is the slowest test in the suite for that
+// reason.
+func (s *configMacOSSuite) TestUpgradeMidExperimentClearsDeadlineMacOS() {
+	s.requireResting()
+
+	s.startConfigExperimentRC(nextID("cfg-upgrade"), logLevelPatch("debug"), nil)
+	_, err := s.Env().RemoteHost.Execute("sudo test -f " + experimentDeadlinePath)
+	require.NoError(s.T(), err, "a live experiment should have a deadline")
+
+	// See clearPendingUpdaterTasks: the reinstall drops the daemon's Remote Config state, so without
+	// this the start_experiment_config task above is redelivered and deploys the experiment again.
+	s.clearPendingUpdaterTasks()
+
+	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithRemoteConfig())
+	s.waitForDaemon()
+
+	_, err = s.Env().RemoteHost.Execute("sudo test ! -e " + experimentDeadlinePath)
+	require.NoError(s.T(), err, "the upgrade must clear the deadline of the experiment it discarded")
+	require.True(s.T(), s.etcExpResting(), "the upgrade should collapse etc-exp back onto etc")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		assert.Empty(c, s.packageState(s.readStatus()).ExperimentConfigVersion,
+			"the daemon must not report the discarded experiment")
+		for label, loaded := range s.launchdLabelsLoaded(experimentLabels()...) {
+			assert.False(c, loaded, "%s must not be loaded after the upgrade", label)
+		}
+		loaded := s.launchdLabelsLoaded("com.datadoghq.agent")
+		assert.True(c, loaded["com.datadoghq.agent"], "the stable Agent job should be running after the upgrade")
+		assert.True(c, s.stableInstallerDaemonLoaded(), "only the stable installer daemon should run after the upgrade")
+	}, 60*time.Second, 5*time.Second)
+	s.requireSupervisorExits("discarded by the upgrade")
+}
+
+// --- Set 6: stops that lose their supervisor or their command ------------------------------------
+
+// TestStopEdgeCasesMacOS covers stops that do not find the experiment in its simple state. Each
+// subtest ends with the stable installer daemon back and nothing half switched:
+//
+//   - no-supervisor: the unit supervisor is killed mid-experiment. Killing it must not end the
+//     experiment, and the stop, which starts the supervisor again when none runs, still ends it;
+//   - command-dies: the experiment daemon, and the stop command it runs, die once the stop has asked
+//     the supervisor for the stable jobs. The supervisor puts every job back, starts the stable
+//     daemon in place of the dead experiment one, and the experiment is left deployed -- the
+//     installer never got to discard it -- for Fleet's next stop.
+func (s *configMacOSSuite) TestStopEdgeCasesMacOS() {
+	s.runIsolated("no-supervisor", func() {
+		s.requireResting()
+		s.startConfigExperimentRC(nextID("cfg-no-supervisor"), logLevelPatch("debug"), nil)
+		s.requireInstallerDaemon(installerDaemonExperimentLabel, installerDaemonLabel)
+		supervisor := s.requireSingleSupervisor()
+		_, err := s.Env().RemoteHost.Execute("sudo kill -9 " + supervisor)
+		require.NoError(s.T(), err)
+		require.Eventually(s.T(), func() bool { return s.supervisorPID() != supervisor }, 30*time.Second, time.Second,
+			"the killed supervisor should be gone")
+		require.False(s.T(), s.etcExpResting(), "killing the supervisor must not end the experiment")
+		require.NotEmpty(s.T(), s.jobPID("com.datadoghq.agent-exp"), "killing the supervisor must not stop the experiment Agent")
+		s.T().Logf("supervisor relaunched by launchd after SIGKILL: %t", s.supervisorRunning())
+
+		s.stopConfigExperimentRC()
+		s.requireInstallerDaemon(installerDaemonLabel, installerDaemonExperimentLabel)
+		require.True(s.T(), s.etcExpResting(), "the stop should discard the experiment")
+		require.False(s.T(), s.pathExists(experimentDeadlinePath), "the stop should clear the deadline")
+		s.requireSupervisorExits("stopped")
+	})
+
+	s.runIsolated("command-dies", func() {
+		s.requireResting()
+		deploymentID := nextID("cfg-mid-stop-crash")
+		s.startConfigExperimentRC(deploymentID, logLevelPatch("debug"), nil)
+		s.requireInstallerDaemon(installerDaemonExperimentLabel, installerDaemonLabel)
+		s.requireSingleSupervisor()
+		// The experiment daemon has just been swapped in; wait for its own report before pushing.
+		require.True(s.T(), s.waitForPackageState(func(pkg backend.RemoteConfigStatePackage) bool {
+			return pkg.ExperimentConfigVersion == deploymentID && pkg.RunningConfigVersion == deploymentID
+		}, 60*time.Second), "the experiment daemon should report the experiment as running")
+
+		// Kill the experiment daemon and its stop command as soon as the stop asks the unit
+		// supervisor for the stable jobs, from a background shell on the host, so the kill lands
+		// inside the stop, while the supervisor restores the Agent jobs. The shell gives up without
+		// killing anything after 120 s: a kill that fires later would hit whatever runs then.
+		_, err := s.Env().RemoteHost.Execute(`sudo sh -c 'nohup sh -c "` +
+			`end=\$((\$(date +%s) + 120)); hit=0; ` +
+			`while [ \$(date +%s) -lt \$end ]; do grep -q ^stable ` + unitsTargetPath + ` 2>/dev/null && hit=1 && break; sleep 0.01; done; ` +
+			`[ \$hit = 1 ] && pkill -9 -f \"installer remove-config-experiment\"; [ \$hit = 1 ] && launchctl kill SIGKILL system/` + installerDaemonExperimentLabel +
+			`" >/dev/null 2>&1 &'`)
+		require.NoError(s.T(), err)
+		s.pushStopUntilRequested()
+
+		require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+			for label, loaded := range s.launchdLabelsLoaded(experimentLabels()...) {
+				assert.False(c, loaded, "%s should be unloaded", label)
+			}
+			assert.NotEmpty(c, s.jobPID("com.datadoghq.agent"), "the stable Agent should be running")
+			assert.True(c, s.stableInstallerDaemonLoaded(), "the stable installer daemon should be back")
+			status, err := s.tryReadStatus()
+			if assert.NoError(c, err) && assert.Len(c, status.Packages, 1) {
+				assert.Equal(c, deploymentID, status.Packages[0].ExperimentConfigVersion, "the experiment should still be reported, for Fleet to stop")
+			}
+		}, 90*time.Second, 5*time.Second)
+		require.False(s.T(), s.etcExpResting(), "the experiment's configuration should be kept for Fleet's stop")
+		s.requireSupervisorExits("finished the interrupted stop")
+
+		// See clearPendingUpdaterTasks: the killed stop is never reported as done.
+		s.clearPendingUpdaterTasks()
+		agentPID := s.jobPID("com.datadoghq.agent")
+		s.stopConfigExperimentRC()
+		require.True(s.T(), s.etcExpResting(), "the stop should discard the experiment's configuration")
+		require.False(s.T(), s.pathExists(experimentDeadlinePath), "the stop should leave no deadline")
+		require.Equal(s.T(), agentPID, s.jobPID("com.datadoghq.agent"), "the stop must not restart the stable Agent")
+	})
+}
+
+// pushStopUntilRequested pushes a stop and waits for its hook to ask the unit supervisor for the
+// stable jobs, re-pushing under a fresh id if it does not, as pushTaskUntil does. A restarted daemon
+// subscribes to UPDATER_TASK only once its first catalog is applied (pkg/fleet/daemon/remote_config.go),
+// and a task already in the Remote Config version it first fetched is not delivered until the next
+// one: the experiment daemon, just swapped in, misses a stop pushed then. pushTaskUntil cannot be
+// used, since the stop it waits for is killed before the daemon reports anything.
+func (s *configMacOSSuite) pushStopUntilRequested() {
+	const attempts, perTry = 3, 25 * time.Second
+	for attempt := 1; attempt <= attempts; attempt++ {
+		s.pushTask("stop_experiment_config", s.currentExpectedState(), nil)
+		requested := func() bool {
+			out, err := s.Env().RemoteHost.Execute("sudo cat " + unitsTargetPath + " 2>/dev/null || true")
+			return err == nil && strings.HasPrefix(strings.TrimSpace(out), "stable ")
+		}
+		for end := time.Now().Add(perTry); time.Now().Before(end); time.Sleep(time.Second) {
+			if requested() {
+				return
+			}
+		}
+		s.T().Logf("stop_experiment_config: the daemon did not run the stop within %s (attempt %d/%d); pushing it again under a new id",
+			perTry, attempt, attempts)
+	}
+	require.FailNow(s.T(), "stop_experiment_config: the daemon never ran the stop")
+}
+
+// unitsTargetPath is the unit supervisor's target file, which a hook writes to ask for a change.
+const unitsTargetPath = "/opt/datadog-packages/run/units-target"
+
+// --- Set 7: supervisor revert serialized with installer commands ---------------------------------
+
+const (
+	// installerLockPath is the installer's package database. Every installer command holds an
+	// exclusive flock(2) on it for its whole run, and the unit supervisor takes it before reverting
+	// (failExperiment in pkg/fleet/installer/packages/unit_supervisor_darwin.go).
+	installerLockPath = "/opt/datadog-packages/packages.db"
+	// installerLockHolderPID and installerLockHeldMarker belong to holdInstallerLock's stand-in
+	// for a running installer command.
+	installerLockHolderPID  = "/tmp/dd-e2e-installer-lock.pid"
+	installerLockHeldMarker = "/tmp/dd-e2e-installer-lock.held"
+)
+
+// holdInstallerLock stands in for a long-running installer command: it takes the same exclusive
+// flock(2) bbolt takes on the package database (go.etcd.io/bbolt's flock, LOCK_EX), from a
+// background process, and returns once the lock is held. The returned function releases it.
+//
+// Callers defer the release, so it runs before AfterTest or runIsolated's cleanup, whose
+// diagnostics and rollback wait on the lock too. Both also release it, in case a test ends without
+// its defer running.
+//
+// While it is held, every installer command and the daemon's state refresh wait on it -- including
+// the state check the daemon runs before executing a Remote Config task -- so a test must neither
+// read the daemon's /status nor push a task until it has released it.
+func (s *configMacOSSuite) holdInstallerLock() (release func()) {
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(
+		`sudo rm -f %[2]s && sudo sh -c '/usr/bin/perl -e '"'"'use Fcntl qw(:flock); `+
+			`open(my $f, "<", "%[1]s") or die $!; flock($f, LOCK_EX) or die $!; `+
+			`open(my $m, ">", "%[2]s") or die $!; close $m; sleep 600;'"'"' </dev/null >/dev/null 2>&1 & echo $! > %[3]s'`,
+		installerLockPath, installerLockHeldMarker, installerLockHolderPID))
+	require.NoError(s.T(), err, "starting the installer lock holder should succeed")
+	require.Eventually(s.T(), func() bool { return s.pathExists(installerLockHeldMarker) },
+		30*time.Second, 500*time.Millisecond, "the lock holder should take the installer lock")
+	return s.releaseInstallerLock
+}
+
+// releaseInstallerLock stops holdInstallerLock's lock holder, if one is running. Idempotent.
+func (s *configMacOSSuite) releaseInstallerLock() {
+	out, err := s.Env().RemoteHost.Execute(fmt.Sprintf(
+		`sudo sh -c 'if [ -f %[1]s ]; then kill $(cat %[1]s) 2>/dev/null; fi; rm -f %[1]s %[2]s'`,
+		installerLockHolderPID, installerLockHeldMarker))
+	if err != nil {
+		s.T().Logf("could not release the installer lock: %v (%s)", err, out)
+	}
+}
+
+// startExperimentAndCrashIt deploys a configuration experiment that sets log_level to debug, holds
+// the installer lock, and kills the experiment Agent, so the unit supervisor is left wanting to revert
+// while an installer command is "running". It returns the deployment ID, the expected state from
+// before the lock was taken, and the lock's release function, which the caller defers.
+func (s *configMacOSSuite) startExperimentAndCrashIt(prefix string) (string, expectedState, func()) {
+	deploymentID := nextID(prefix)
+	s.startConfigExperimentRC(deploymentID, []backend.FileOperation{
+		{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)},
+	}, nil)
+	var pid string
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		pid = s.jobPID("com.datadoghq.agent-exp")
+		assert.NotEmpty(c, pid, "the experiment Agent should be running")
+	}, 30*time.Second, 2*time.Second)
+	// The unit supervisor moves the installer daemon over once the start command exits, which must
+	// be done before the lock is taken: the revert is what this sets up to wait on, not the swap.
+	s.requireInstallerDaemon(installerDaemonExperimentLabel, installerDaemonLabel)
+	s.requireSingleSupervisor()
+	// Read before the lock is taken: the daemon's /status waits on it.
+	expected := s.currentExpectedState()
+
+	release := s.holdInstallerLock()
+	_, err := s.Env().RemoteHost.Execute("sudo kill -9 " + pid)
+	require.NoError(s.T(), err)
+	return deploymentID, expected, release
+}
+
+// requireExperimentStillDeployed requires, for the whole of window, that the experiment the
+// unit supervisor wants to revert is left in place: its deadline, its directory and its job definitions.
+func (s *configMacOSSuite) requireExperimentStillDeployed(window time.Duration) {
+	for end := time.Now().Add(window); time.Now().Before(end); time.Sleep(3 * time.Second) {
+		require.True(s.T(), s.pathExists(experimentDeadlinePath), "the unit supervisor reverted while an installer command held the lock")
+		require.False(s.T(), s.etcExpResting(), "the unit supervisor discarded the experiment while an installer command held the lock")
+		require.True(s.T(), s.pathExists(experimentPlistPath("com.datadoghq.agent")), "the unit supervisor removed the experiment jobs while an installer command held the lock")
+	}
+}
+
+// requireConfigurationIntact requires the end state every serialized outcome shares: nothing
+// deployed, the stable Agent running, and a stable configuration that is whole and is the one
+// wantLogLevel names.
+func (s *configMacOSSuite) requireConfigurationIntact(wantLogLevel any) {
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		assert.True(c, s.etcExpResting(), "etc-exp should rest on etc again")
+		assert.False(c, s.pathExists(experimentDeadlinePath), "the deadline should be cleared")
+		assert.False(c, s.pathExists(experimentPlistPath("com.datadoghq.agent")), "the experiment job definitions should be removed")
+		assert.NotEmpty(c, s.jobPID("com.datadoghq.agent"), "the stable Agent should be running")
+	}, 2*time.Minute, 5*time.Second)
+	require.Contains(s.T(), s.readFile("/opt/datadog-agent/etc/datadog.yaml"), "api_key",
+		"the stable configuration should still be whole")
+	config, err := s.Agent.Configuration()
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), wantLogLevel, config["log_level"], "the stable Agent should read the expected configuration")
+}
+
+// TestSupervisorRevertSerializedWithInstallerMacOS pins the unit supervisor's serialization with
+// installer commands (failExperiment): a revert the supervisor decides on takes the installer lock first, so
+// it never acts on the configuration under a running command. Each subtest crashes the experiment
+// Agent while the lock is held (startExperimentAndCrashIt):
+//
+//   - waits-for-command: the revert waits for the command's lock instead of acting on the
+//     configuration under it, then goes ahead once the command has finished and the experiment is
+//     still pending;
+//   - racing-promote: the race the serialization closes, a supervisor revert and a promote of the same
+//     experiment, both pending at once. Without the lock the two could interleave on the
+//     configuration directories -- the revert deleting through a handle on etc-exp while the
+//     promote swaps it into etc -- and leave no copy of either configuration. With it they run one
+//     after the other, and either order is a valid end: the promote first asks for the stable jobs
+//     under the lock, the supervisor sees its target changed and does not revert, and the promoted
+//     configuration is the stable one; the supervisor first puts the jobs back and keeps the
+//     experiment for Fleet's stop (failExperiment), and the promote then promotes it, as on
+//     Linux, whose revert also leaves the experiment configuration in place. Both are left waiting
+//     on the held lock and released together, so either may win. The promote is the installer
+//     command the daemon would run for a promote_experiment_config task, started on the host
+//     directly: the daemon checks the package state before executing a task, and that check waits
+//     on the held lock too, so a task would never get as far as the promote.
+func (s *configMacOSSuite) TestSupervisorRevertSerializedWithInstallerMacOS() {
+	s.runIsolated("waits-for-command", func() {
+		s.requireResting()
+		before, err := s.Agent.Configuration()
+		require.NoError(s.T(), err)
+
+		deploymentID, _, release := s.startExperimentAndCrashIt("cfg-supervisor-waits")
+		defer release()
+
+		// Without the lock the unit supervisor reverts within seconds of the crash.
+		s.requireExperimentStillDeployed(30 * time.Second)
+
+		release()
+
+		s.requireFailedOnHost(deploymentID)
+		s.stopFailedExperimentRC()
+		s.requireConfigurationIntact(before["log_level"])
+	})
+
+	s.runIsolated("racing-promote", func() {
+		s.requireResting()
+		before, err := s.Agent.Configuration()
+		require.NoError(s.T(), err)
+
+		deploymentID, expected, release := s.startExperimentAndCrashIt("cfg-supervisor-promote-race")
+		defer release()
+		stableConfigBefore := expected.StableConfig
+
+		const promoteLog = "/tmp/dd-e2e-promote.log"
+		_, err = s.Env().RemoteHost.Execute(fmt.Sprintf(
+			`sudo sh -c '/opt/datadog-agent/embedded/bin/installer promote-config-experiment datadog-agent </dev/null >%s 2>&1 &'`,
+			promoteLog))
+		require.NoError(s.T(), err, "starting the promote should succeed")
+		require.Eventually(s.T(), func() bool {
+			out, err := s.Env().RemoteHost.Execute("pgrep -f 'installer [p]romote-config-experiment' || true")
+			return err == nil && strings.TrimSpace(out) != ""
+		}, 30*time.Second, time.Second, "the promote should be running, waiting for the installer lock")
+		s.requireExperimentStillDeployed(10 * time.Second)
+
+		release()
+
+		require.Eventually(s.T(), func() bool {
+			out, err := s.Env().RemoteHost.Execute("pgrep -f 'installer [p]romote-config-experiment' || true")
+			return err == nil && strings.TrimSpace(out) == ""
+		}, 3*time.Minute, 2*time.Second, "the promote should finish once the lock is released")
+		if out, err := s.Env().RemoteHost.Execute("cat " + promoteLog + " || true"); err == nil {
+			s.T().Logf("promote output:\n%s", out)
+		}
+
+		var stableConfig string
+		require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+			status, err := s.tryReadStatus()
+			if !assert.NoError(c, err) || !assert.Len(c, status.Packages, 1) {
+				return
+			}
+			pkg := status.Packages[0]
+			assert.Empty(c, pkg.ExperimentConfigVersion, "nothing should be deployed once both have run")
+			stableConfig = pkg.StableConfigVersion
+		}, 3*time.Minute, 5*time.Second)
+
+		switch stableConfig {
+		case deploymentID:
+			s.T().Log("the promote ran, before or after the supervisor's revert; either way the configuration is whole")
+			s.requireConfigurationIntact("debug")
+		case stableConfigBefore:
+			// Only possible if the promote failed after the supervisor reverted.
+			s.T().Log("the supervisor won the installer lock and reverted; the promote did not promote")
+			s.requireConfigurationIntact(before["log_level"])
+		default:
+			require.Failf(s.T(), "unexpected stable configuration", "got %q, want %q (promoted) or %q (reverted)",
+				stableConfig, deploymentID, stableConfigBefore)
+		}
+	})
+}
