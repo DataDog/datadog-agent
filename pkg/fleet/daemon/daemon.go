@@ -740,11 +740,10 @@ func (d *daemonImpl) verifyState(ctx context.Context, request remoteAPIRequest) 
 		return fmt.Errorf("could not get installer config state: %w", err)
 	}
 
-	installerVersionEqual := request.ExpectedState.InstallerVersion == "" || version.AgentVersion == request.ExpectedState.InstallerVersion
 	packageVersionEqual := s.Stable == request.ExpectedState.Stable && s.Experiment == request.ExpectedState.Experiment
 	configVersionEqual := c.Stable == request.ExpectedState.StableConfig && c.Experiment == request.ExpectedState.ExperimentConfig
 	clientIDEqual := d.clientID == request.ExpectedState.ClientID || request.ExpectedState.ClientID == disableClientIDCheck
-	if installerVersionEqual && (!packageVersionEqual || !configVersionEqual || !clientIDEqual) {
+	if !packageVersionEqual || !configVersionEqual || !clientIDEqual {
 		log.Infof(
 			"remote request %s not executed as state does not match: expected %v, got package: %v, config: %v, client id: %s",
 			request.ID, request.ExpectedState, s, c, d.clientID,

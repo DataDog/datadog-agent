@@ -486,6 +486,147 @@ func TestRemoteRequestClientIDCheckDisabled(t *testing.T) {
 	i.pm.AssertExpectations(t)
 }
 
+func TestRemoteRequestStateMismatchWithOtherInstallerVersion(t *testing.T) {
+	const (
+		pkgName           = "test-package"
+		stableVersion     = "0.0.1"
+		experimentVersion = "1.0.0"
+		experimentURL     = "oci://example.com/test-package@sha256:5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"
+		otherInstaller    = "0.0.0-other-installer"
+		configVersion     = "config-1"
+	)
+	require.NotEqual(t, version.AgentVersion, otherInstaller)
+	clientID := newTestRemoteConfigClient(t).GetClientID()
+	versionParamsJSON, err := json.Marshal(experimentTaskParams{Version: experimentVersion})
+	require.NoError(t, err)
+	configParamsJSON, err := json.Marshal(experimentTaskParams{Version: configVersion})
+	require.NoError(t, err)
+
+	pmMock := func(i *testInstaller) *mock.Mock { return &i.pm.Mock }
+	bmMock := func(i *testInstaller) *mock.Mock { return &i.bm.Mock }
+	methods := []struct {
+		method     string
+		params     json.RawMessage
+		sideEffect func(i *testInstaller) *mock.Mock
+		callName   string
+		callArgs   []interface{}
+	}{
+		{methodUninstallPackage, nil, pmMock, "Remove", []interface{}{mock.Anything, pkgName}},
+		{methodStartExperiment, versionParamsJSON, bmMock, "InstallExperiment", []interface{}{mock.Anything, mock.Anything, experimentURL}},
+		{methodStopExperiment, nil, pmMock, "RemoveExperiment", []interface{}{mock.Anything, pkgName}},
+		{methodPromoteExperiment, nil, pmMock, "PromoteExperiment", []interface{}{mock.Anything, pkgName}},
+		{methodStartConfigExperiment, configParamsJSON, pmMock, "InstallConfigExperiment", []interface{}{mock.Anything, pkgName, mock.Anything, mock.Anything}},
+		{methodStopConfigExperiment, nil, pmMock, "RemoveConfigExperiment", []interface{}{mock.Anything, pkgName}},
+		{methodPromoteConfigExperiment, nil, pmMock, "PromoteConfigExperiment", []interface{}{mock.Anything, pkgName}},
+	}
+
+	matching := expectedState{Stable: stableVersion, StableConfig: stableVersion, ClientID: clientID}
+	mismatches := []struct {
+		name     string
+		expected expectedState
+		state    repository.State
+	}{
+		{
+			name:     "package",
+			expected: expectedState{Stable: "9.9.9", StableConfig: stableVersion, ClientID: clientID},
+			state:    repository.State{Stable: stableVersion},
+		},
+		{
+			name:     "config",
+			expected: expectedState{Stable: stableVersion, StableConfig: "other-config", ClientID: clientID},
+			state:    repository.State{Stable: stableVersion},
+		},
+		{
+			name:     "experiment",
+			expected: expectedState{Stable: stableVersion, Experiment: experimentVersion, StableConfig: stableVersion, ClientID: clientID},
+			state:    repository.State{Stable: stableVersion},
+		},
+		{
+			name:     "experiment config",
+			expected: expectedState{Stable: stableVersion, StableConfig: stableVersion, ExperimentConfig: "other-config", ClientID: clientID},
+			state:    repository.State{Stable: stableVersion},
+		},
+		{
+			name:     "client id",
+			expected: expectedState{Stable: stableVersion, StableConfig: stableVersion, ClientID: "another-client-id"},
+			state:    repository.State{Stable: stableVersion},
+		},
+		{
+			// State left after the daemon restarted as the experiment version: the
+			// experiment is now set and the request was issued to the previous process.
+			name:     "redelivered after restart into experiment",
+			expected: expectedState{Stable: stableVersion, StableConfig: stableVersion, ClientID: "previous-client-id"},
+			state:    repository.State{Stable: stableVersion, Experiment: experimentVersion},
+		},
+	}
+
+	for _, m := range methods {
+		for _, mm := range mismatches {
+			for _, installerVersion := range []string{version.AgentVersion, otherInstaller} {
+				t.Run(m.method+"/"+mm.name+"/installer_version="+installerVersion, func(t *testing.T) {
+					i := newTestInstaller(t)
+					defer i.Stop()
+					i.rcc.SubmitCatalog(catalog{Packages: []Package{{
+						Name: pkgName, Version: experimentVersion, URL: experimentURL, Platform: runtime.GOOS, Arch: runtime.GOARCH,
+					}}})
+					require.NoError(t, i.handleConfigsUpdate(map[string]installerConfig{configVersion: {ID: configVersion}}))
+
+					expected := mm.expected
+					expected.InstallerVersion = installerVersion
+					i.pm.On("State", mock.Anything, pkgName).Return(mm.state, nil)
+					i.pm.On("ConfigState", mock.Anything, pkgName).Return(repository.State{Stable: stableVersion}, nil)
+					sideEffect := m.sideEffect(i)
+					sideEffect.On(m.callName, m.callArgs...).Return(nil).Maybe()
+
+					i.rcc.SubmitRequest(remoteAPIRequest{
+						ID:            "request-" + m.method,
+						Method:        m.method,
+						Package:       pkgName,
+						ExpectedState: expected,
+						Params:        m.params,
+					})
+					i.requestsWG.Wait()
+
+					sideEffect.AssertNotCalled(t, m.callName, m.callArgs...)
+					tasks, err := i.taskDB.GetTasksState()
+					require.NoError(t, err)
+					assert.Equal(t, pbgo.TaskState_INVALID_STATE, tasks[pkgName].State)
+				})
+			}
+		}
+
+		t.Run(m.method+"/matching state/installer_version="+otherInstaller, func(t *testing.T) {
+			i := newTestInstaller(t)
+			defer i.Stop()
+			i.rcc.SubmitCatalog(catalog{Packages: []Package{{
+				Name: pkgName, Version: experimentVersion, URL: experimentURL, Platform: runtime.GOOS, Arch: runtime.GOARCH,
+			}}})
+			require.NoError(t, i.handleConfigsUpdate(map[string]installerConfig{configVersion: {ID: configVersion}}))
+
+			expected := matching
+			expected.InstallerVersion = otherInstaller
+			i.pm.On("State", mock.Anything, pkgName).Return(repository.State{Stable: stableVersion}, nil)
+			i.pm.On("ConfigState", mock.Anything, pkgName).Return(repository.State{Stable: stableVersion}, nil)
+			sideEffect := m.sideEffect(i)
+			sideEffect.On(m.callName, m.callArgs...).Return(nil).Once()
+
+			i.rcc.SubmitRequest(remoteAPIRequest{
+				ID:            "request-" + m.method,
+				Method:        m.method,
+				Package:       pkgName,
+				ExpectedState: expected,
+				Params:        m.params,
+			})
+			i.requestsWG.Wait()
+
+			sideEffect.AssertExpectations(t)
+			tasks, err := i.taskDB.GetTasksState()
+			require.NoError(t, err)
+			assert.Equal(t, pbgo.TaskState_DONE, tasks[pkgName].State)
+		})
+	}
+}
+
 func TestRefreshStateRunningVersions(t *testing.T) {
 	// Setup test state
 	testPackageStates := map[string]repository.State{

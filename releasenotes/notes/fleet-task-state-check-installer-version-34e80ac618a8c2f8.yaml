@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Remote Agent Management tasks other than package installation now always
+    go through the package version, configuration version and client ID
+    checks, whatever installer version the task names. Previously, a task
+    naming a different installer version skipped these checks.
