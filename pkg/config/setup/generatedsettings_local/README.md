@@ -28,5 +28,5 @@ change a setting, edit the schema (see `doc/how-to/agent-schema/settings.md`).
   resolvable on a fresh checkout, before codegen has run. Update it only when the
   generated code starts depending on a new module.
 
-The committed snapshot in `../generatedsettings` is refreshed automatically by
-release automation. Do not refresh it in your PRs (see its README).
+The committed snapshot in `../generatedsettings` is regenerated automatically by
+release automation for every RC and final version. Do not refresh it in your PRs (see its README).

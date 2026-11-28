@@ -253,8 +253,8 @@ def codegen_snapshot(_):
     Refresh the committed pkg/config/setup/generatedsettings snapshot from the current schema.
 
     External consumers of pkg/config/setup build against this snapshot, at the version their go.mod requires.
-    In-repo builds never use it. Release automation runs this task after each Agent release; do not run it and
-    commit the result in regular PRs. doc.go, go.mod and go.sum are copied from the in-repo copy,
+    In-repo builds never use it. Release automation runs this task for every RC and final version, through
+    `release.update-generatedsettings`; do not run it and commit the result in regular PRs. doc.go, go.mod and go.sum are copied from the in-repo copy,
     whose go.mod and go.sum `dda inv tidy` keeps up to date.
     """
     core_schema = resolve_schema(CORE_SCHEMA_MAIN_FILE)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 import sys
+import tempfile
 import unittest
 from collections import OrderedDict
 from contextlib import contextmanager
@@ -1189,3 +1190,98 @@ class TestIsQualification(unittest.TestCase):
         self.assertFalse(release.is_qualification(self.c, "6.53.x", output=True))
         print_mock.assert_called_with("false")
         assert print_mock.call_count == 1
+
+
+@patch('tasks.release.agent_context', new=MagicMock())
+@patch('tasks.release._update_generatedsettings_readme')
+class TestUpdateGeneratedSettings(unittest.TestCase):
+    branch = "7.87.0-rc.2/update-release-json-01a1fcb3-80c5-7af9-9ae5-c35e4192ac50_227"
+    codegen = "dda inv -- -e schema.codegen-snapshot"
+    add = "git add --all pkg/config/setup/generatedsettings"
+
+    def test_invalid_branch(self, readme_mock):
+        for branch in ["main", "7.87.x", "7.87.0-rc.2/refresh-config-templates-abc", "x/7.87.0/update-release-json-a"]:
+            with self.subTest(branch=branch), self.assertRaises(Exit):
+                release.update_generatedsettings(MockContext(), branch)
+        readme_mock.assert_not_called()
+
+    @patch('os.path.isdir', new=MagicMock(return_value=False))
+    def test_branch_without_snapshot(self, readme_mock):
+        c = MockContext(run={})
+        release.update_generatedsettings(c, self.branch)
+        c.run.assert_not_called()
+        readme_mock.assert_not_called()
+
+    @patch('os.path.isdir', new=MagicMock(return_value=True))
+    @patch('tasks.release.get_staged_files', new=MagicMock(return_value=iter([])))
+    @patch('tasks.release.GithubAPI')
+    def test_up_to_date(self, github_mock, readme_mock):
+        c = MockContext(run={self.codegen: Result(), self.add: Result()})
+        release.update_generatedsettings(c, self.branch)
+        c.run.assert_has_calls([call(self.codegen), call(self.add)])
+        readme_mock.assert_called_once_with("pkg/config/setup/generatedsettings", "7.87.0-rc.2")
+        github_mock.assert_not_called()
+
+    @patch('os.path.isdir', new=MagicMock(return_value=True))
+    @patch(
+        'tasks.release.get_staged_files',
+        new=MagicMock(return_value=iter(["pkg/config/setup/generatedsettings/all_settings.go"])),
+    )
+    @patch('tasks.release.running_in_ci', new=MagicMock(return_value=True))
+    @patch('tasks.release.create_tree', new=MagicMock(return_value={"base_tree": "abc", "tree": []}))
+    @patch.dict(os.environ, {"GITHUB_REPOSITORY": "DataDog/datadog-agent-test"})
+    @patch('tasks.release.GithubAPI')
+    def test_commit_in_ci(self, github_mock, _):
+        c = MockContext(run={self.codegen: Result(), self.add: Result()})
+        release.update_generatedsettings(c, self.branch)
+        github_mock.assert_called_once_with(repository="DataDog/datadog-agent-test")
+        github_mock.return_value.commit_and_push_signed.assert_called_once_with(
+            self.branch,
+            "Regenerate the pkg/config/setup/generatedsettings snapshot for 7.87.0-rc.2",
+            {"base_tree": "abc", "tree": []},
+        )
+
+
+class TestSetGeneratedSettingsReadmeVersion(unittest.TestCase):
+    block = (
+        "<!-- agent-version:start -->\n"
+        "This snapshot was last regenerated from the config schema of Agent `7.87.0-rc.2`.\n"
+        "<!-- agent-version:end -->"
+    )
+
+    def test_replaces_block(self):
+        readme = (
+            "# generatedsettings\n\n<!-- agent-version:start -->\nThis snapshot has not been regenerated yet.\n"
+            "<!-- agent-version:end -->\n\nThis directory is a committed snapshot.\n"
+        )
+        self.assertEqual(
+            release.set_generatedsettings_readme_version(readme, "7.87.0-rc.2"),
+            f"# generatedsettings\n\n{self.block}\n\nThis directory is a committed snapshot.\n",
+        )
+
+    def test_adds_block_under_title(self):
+        # The README of release branches cut before the version block existed
+        readme = "# generatedsettings (committed snapshot)\n\nThis directory is a committed snapshot.\n"
+        self.assertEqual(
+            release.set_generatedsettings_readme_version(readme, "7.87.0-rc.2"),
+            f"# generatedsettings (committed snapshot)\n\n{self.block}\n\nThis directory is a committed snapshot.\n",
+        )
+
+    def test_idempotent(self):
+        readme = "# generatedsettings\n\nThis directory is a committed snapshot.\n"
+        once = release.set_generatedsettings_readme_version(readme, "7.87.0-rc.2")
+        self.assertEqual(release.set_generatedsettings_readme_version(once, "7.87.0-rc.2"), once)
+
+
+class TestUpdateGeneratedSettingsReadme(unittest.TestCase):
+    def test_creates_missing_readme(self):
+        # Release branches cut before the README existed, e.g. 7.86.x
+        with tempfile.TemporaryDirectory() as snapshot_dir:
+            release._update_generatedsettings_readme(snapshot_dir, "7.86.1-rc.1")
+            with open(os.path.join(snapshot_dir, "README.md")) as f:
+                self.assertEqual(
+                    f.read(),
+                    "# generatedsettings (committed snapshot)\n\n<!-- agent-version:start -->\n"
+                    "This snapshot was last regenerated from the config schema of Agent `7.86.1-rc.1`.\n"
+                    "<!-- agent-version:end -->\n",
+                )

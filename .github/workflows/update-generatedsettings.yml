@@ -1,0 +1,62 @@
+name: Update generatedsettings
+# The agent release workflow finds the run it dispatched by the correlation ID in the run name.
+run-name: "Update generatedsettings on ${{ inputs.branch }} [${{ inputs.correlation_id }}]"
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Release PR branch to regenerate the snapshot on (for example 7.86.0-rc.1/update-release-json-<id>)"
+        required: true
+        type: string
+      correlation_id:
+        description: "ID set by the caller to find this run"
+        required: false
+        type: string
+        default: ""
+
+permissions: {}
+
+jobs:
+  update_generatedsettings:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write # This is required for getting the required OIDC token from GitHub
+    environment:
+      name: main
+    steps:
+      - name: Check branch name
+        env:
+          BRANCH: ${{ inputs.branch }}
+        run: |
+          if [[ ! "$BRANCH" =~ ^7\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?/update-release-json-[A-Za-z0-9._-]+$ ]]; then
+            echo "Invalid branch: $BRANCH (expected 7.X.Y[-rc.N]/update-release-json-<id>)" >&2
+            exit 1
+          fi
+
+      - uses: DataDog/dd-octo-sts-action@c85802a58e202b7e764b5441e4378c76043c8108 # v1.0.5
+        id: octo-sts
+        with:
+          # The release tests run this workflow in a copy of this repository.
+          scope: ${{ github.repository }}
+          policy: self.update-generatedsettings.commit
+
+      # The task clones the branch on its own, with the git config of this checkout. No credentials
+      # are kept: the task commits with the GitHub API.
+      - name: Checkout the main branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
+
+      - name: Update generatedsettings
+        env:
+          GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
+          BRANCH: ${{ inputs.branch }}
+        run: dda inv -- -e release.update-generatedsettings --branch "$BRANCH"
