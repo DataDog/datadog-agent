@@ -25,6 +25,25 @@ py_test(
     ],
 )
 
+py_library(
+    name = "go_licenses_lib",
+    srcs = ["go_licenses.py"],
+    deps = ["@py_dev_requirements//pyyaml"],
+)
+
+py_binary(
+    name = "go_licenses",
+    srcs = ["go_licenses.py"],
+    visibility = ["//visibility:private"],
+    deps = ["@py_dev_requirements//pyyaml"],
+)
+
+py_test(
+    name = "go_licenses_test",
+    srcs = ["go_licenses_test.py"],
+    deps = [":go_licenses_lib"],
+)
+
 py_binary(
     name = "write_version_manifest",
     srcs = ["write_version_manifest.py"],
