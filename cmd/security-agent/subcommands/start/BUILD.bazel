@@ -58,6 +58,7 @@ go_library(
         "//pkg/util/coredump",
         "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",
+        "//pkg/util/fxutil/logging",
         "//pkg/util/profiling",
         "//pkg/util/startstop",
         "//pkg/version",

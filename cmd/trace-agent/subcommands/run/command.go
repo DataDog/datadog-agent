@@ -46,6 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 )
 
 // MakeCommand returns the run subcommand for the 'trace-agent' command.
@@ -123,6 +124,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		trace.Bundle(),
 		ipcfx.ModuleReadWrite(),
 		configsyncfx.Module(configsync.NewDefaultParams()),
+		logging.EnableFxLoggingOnDebug[log.Component](),
 		fxinstrumentation.Module(),
 		remoteagentfx.Module(),
 		fx.Supply(configstreamconsumer.NewParams("trace-agent", cliParams.ConfPath)),
