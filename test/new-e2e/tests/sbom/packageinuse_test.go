@@ -242,9 +242,9 @@ type usageOnlyKubeadmSuite struct {
 }
 
 // packageInUseProvisioner provisions the RHEL 10 single-node kubeadm cluster of
-// TestSBOMKubeadmSuite with the SBOM workloads, and the Agent with
-// packageInUseHelmValues and helmValues. The fake intake keeps an hour of SBOMs,
-// and each query reads them all.
+// TestSBOMKubeadmSuite with the SBOM workloads and the SBOM targets that run
+// their application, and the Agent with packageInUseHelmValues and helmValues.
+// The fake intake keeps an hour of SBOMs, and each query reads them all.
 func packageInUseProvisioner(helmValues string) provisioners.TypedProvisioner[environments.Kubernetes] {
 	return provkubeadm.Provisioner(
 		provkubeadm.WithRunOptions(
@@ -254,8 +254,8 @@ func packageInUseProvisioner(helmValues string) provisioners.TypedProvisioner[en
 				scenec2.WithOS(e2eos.RedHat10),
 				scenec2.WithInstanceType("t3.2xlarge"),
 			),
-			scenkubeadm.WithFakeintakeOptions(fakeintake.WithCPU(2048), fakeintake.WithMemory(4096), fakeintake.WithRetentionPeriod(sbomHostRetentionPeriod)),
-			scenkubeadm.WithDeploySBOMWorkloads(),
+			scenkubeadm.WithFakeintakeOptions(fakeintake.WithCPU(4096), fakeintake.WithMemory(8192), fakeintake.WithRetentionPeriod(sbomHostRetentionPeriod)),
+			scenkubeadm.WithDeploySBOMApps(),
 			scenkubeadm.WithAgentOptions(
 				kubernetesagentparams.WithDualShipping(),
 				kubernetesagentparams.WithTimeout(900),
@@ -328,6 +328,29 @@ func (s *packageInUseSuite) assertUsageOnlyDeployment() {
 		assert.Falsef(c, strings.Contains(log, "event monitoring cws consumer initialized"), "system-probe logged the CWS consumer")
 		assert.NotEmpty(c, hostScans(c, log), "system-probe logged no scan of the host packages through the root of init")
 	}, 5*time.Minute, 10*time.Second, "system-probe never ran the usage enrichment alone")
+}
+
+// TestApplicationTargets checks the SBOMs of the targets that run their
+// application, which the usage of application packages starts from: the jars
+// of Tomcat, and the Debian packages the distroless image lists in status.d
+// alone.
+func (s *packageInUseSuite) TestApplicationTargets() {
+	for _, tc := range []struct{ repo, purl string }{
+		{"tomcat", "pkg:maven/"},
+		{"python3-debian12", "pkg:deb/debian/"},
+	} {
+		s.Run(tc.repo, func() {
+			s.EventuallyWithTf(func(c *assert.CollectT) {
+				sboms := s.repoUsageSBOMs(c, tc.repo)
+				require.NotEmptyf(c, sboms, "no %s SBOM yet", tc.repo)
+				newest := lo.MaxBy(sboms, func(a, b usageSBOM) bool { return a.collected.After(b.collected) })
+				s.T().Logf("PKG-IN-USE[%s] application: %d components in the newest of %d SBOMs", tc.repo, len(newest.components), len(sboms))
+				assert.Truef(c, hasComponentWithPurlPrefix(newest.components, tc.purl), "the %s SBOM lists no %s component", tc.repo, tc.purl)
+				// 15m: run on its own, the subtest waits out the first scans of
+				// the images, which land ~10-15m into the run.
+			}, 15*time.Minute, 30*time.Second, "the %s SBOM never listed %s components", tc.repo, tc.purl)
+		})
+	}
 }
 
 // TestPackageInUse drives the full not-in-use -> in-use -> stale -> security ->

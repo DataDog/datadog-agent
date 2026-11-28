@@ -29,6 +29,9 @@ type RunParams struct {
 	// deploySBOMWorkloads deploys the SBOM target workloads (node, golang-alpine,
 	// ubi9, python) so the Agent has real container images to scan.
 	deploySBOMWorkloads bool
+	// deploySBOMApps deploys the SBOM targets that run their application as
+	// well, for the usage of their application packages.
+	deploySBOMApps bool
 
 	// containerRuntime selects the node CRI. The zero value is containerd.
 	containerRuntime kubeComp.ContainerRuntime
@@ -119,6 +122,12 @@ func WithoutFakeIntake() RunOption {
 // WithDeploySBOMWorkloads deploys the SBOM target workloads.
 func WithDeploySBOMWorkloads() RunOption {
 	return func(p *RunParams) error { p.deploySBOMWorkloads = true; return nil }
+}
+
+// WithDeploySBOMApps deploys the SBOM target workloads and the SBOM targets
+// that run their application.
+func WithDeploySBOMApps() RunOption {
+	return func(p *RunParams) error { p.deploySBOMWorkloads, p.deploySBOMApps = true, true; return nil }
 }
 
 // WithContainerRuntime selects the node container runtime (containerd by default, or CRI-O).

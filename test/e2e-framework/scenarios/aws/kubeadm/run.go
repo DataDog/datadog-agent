@@ -109,7 +109,11 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 		if dependsOnDDAgent != nil {
 			extraOpts = append(extraOpts, dependsOnDDAgent)
 		}
-		if _, err := sbomtargets.K8sAppDefinition(&awsEnv, kubeProvider, extraOpts...); err != nil {
+		var apps []sbomtargets.App
+		if params.deploySBOMApps {
+			apps = sbomtargets.Apps
+		}
+		if _, err := sbomtargets.K8sAppDefinition(&awsEnv, kubeProvider, apps, extraOpts...); err != nil {
 			return err
 		}
 	}
