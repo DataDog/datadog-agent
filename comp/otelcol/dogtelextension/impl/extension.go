@@ -23,7 +23,6 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	dogtelmetrics "github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension/impl/metrics"
 	agentmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -47,8 +46,8 @@ type dogtelExtension struct {
 	// Build info for metric tags
 	buildInfo component.BuildInfo
 
-	// Metadata components (created by extension)
-	metadataRunner runner.Component
+	// Sends the host aliases (see host_aliases.go)
+	hostAliases *hostAliasesSender
 
 	// Tagger gRPC server
 	taggerServer     *grpc.Server
@@ -89,10 +88,13 @@ func (e *dogtelExtension) Start(_ context.Context, _ component.Host) error {
 		}
 	}
 
-	// Start metadata collection if enabled
-	metadataEnabled := e.config.EnableMetadataCollection != nil && *e.config.EnableMetadataCollection
-	if metadataEnabled && e.metadataRunner != nil {
-		e.log.Info("Metadata collection is enabled")
+	// Send the host aliases unless metadata collection is disabled. The
+	// extension's enable_metadata_collection setting is applied to this agent
+	// setting at startup (cmd/otel-agent/config).
+	metadataEnabled := e.coreConfig.GetBool("enable_metadata_collection")
+	if metadataEnabled {
+		e.hostAliases = newHostAliasesSender(e.coreConfig, e.log, e.hostname, e.serializer, e.workloadmeta)
+		e.hostAliases.start()
 	}
 
 	e.log.Infof("dogtelextension started successfully (tagger_port=%d, metadata_enabled=%t)",
@@ -159,10 +161,9 @@ func (e *dogtelExtension) Shutdown(_ context.Context) error {
 	// Stop tagger server gracefully
 	e.stopTaggerServer()
 
-	// Stop metadata collection
-	if e.metadataRunner != nil {
-		// Metadata runner stops via its own lifecycle hooks
-		e.log.Debug("Metadata runner will stop via FX lifecycle")
+	// Stop sending the host aliases
+	if e.hostAliases != nil {
+		e.hostAliases.stop()
 	}
 
 	e.log.Info("dogtelextension shutdown complete")

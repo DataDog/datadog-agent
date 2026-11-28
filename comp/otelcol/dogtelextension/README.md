@@ -118,22 +118,15 @@ Supports secrets resolution when running in standalone mode (`DD_OTEL_STANDALONE
 
 **Note:** Secrets are configured at the otel-agent level, not within the extension itself. See configuration section below.
 
-### 5. Host Metadata Submission
-**Status:** ✅ Implemented via FX modules in otel-agent.
+### 5. Host Aliases Submission
+The extension sends a host metadata payload (`/intake/`) with the otel-agent's hostname and its host aliases, computed as the core Agent computes them: the cloud provider's instance identifiers (e.g. the EC2 instance ID), the `host_aliases` setting, and `<node>-<cluster>` on Kubernetes. This ties the otel-agent's own hostname to the other names telemetry carries for the same host. For example, on EKS Auto Mode nodes, whose node name is the instance ID, the otel-agent names its host `<instance ID>-<cluster>` like the core Agent does, while the OTLP mapping names the host of telemetry with an EC2 `host.id` after the instance ID alone. Without the alias, they would be two hosts.
 
-Host metadata collection is enabled through FX modules added to otel-agent startup in [cmd/otel-agent/subcommands/run/command.go](../../../cmd/otel-agent/subcommands/run/command.go):
+The payload carries nothing else: no system information, Agent version, or host tags. The backend keeps one alias set per host and replaces it with each host metadata payload, and it overwrites each metadata field with the latest value it receives, whichever agent sent it. Restricting the payload to the hostname and aliases, which every otel-agent on a node computes the same way, keeps several otel-agents on one node (e.g. a daemonset pod and a cluster or gateway collector) from overwriting each other.
 
-```go
-runnerimpl.Module(),      // Metadata scheduler and submission
-hostimpl.Module(),         // Host metadata (V5 payload)
-inventoryhostimpl.Module(), // Inventory host metadata
-```
-
-This provides:
-- Host metadata (OS, hostname, cloud provider info, agent version)
-- Inventory metadata (installed packages, system configuration)
-- Scheduled submission to Datadog API (every 5 minutes by default)
-- Controlled by `enable_metadata_collection` config in datadog.yaml
+- **Schedule:** like the core Agent's host metadata: at startup, then 5, 15, and every 30 minutes, adjustable with `metadata_interval` or the `host` entry of `metadata_providers`.
+- **Core Agent on the same Kubernetes node:** the extension sends nothing while workloadmeta lists a running pod on the node with the `agent.datadoghq.com/component: agent` label, which the Datadog Helm chart and Operator set on node Agent pods. That Agent sends the host's aliases with its full host metadata, and a second sender would make the host's alias set flip between the two payloads. On Kubernetes, the extension also waits for workloadmeta to list the node's pods before its first payload.
+- **Nothing to tie:** the extension sends nothing when no alias differs from the hostname, e.g. outside any cloud provider, or when the hostname is the instance ID itself.
+- Disabled by `enable_metadata_collection: false`, in the extension config or in datadog.yaml (`DD_ENABLE_METADATA_COLLECTION=false`).
 
 ## Configuration
 
@@ -156,9 +149,9 @@ extensions:
     tagger_max_message_size: 4194304  # Max gRPC message size in bytes (default: 4MB)
     tagger_max_concurrent_sync: 5     # Max concurrent sync connections (default: 5)
 
-    # Metadata collection (via FX modules in otel-agent)
-    enable_metadata_collection: true  # Informational flag (default: true)
-    metadata_interval: 300            # Interval in seconds (default: 300)
+    # Host aliases submission (see "Host Aliases Submission")
+    enable_metadata_collection: true  # Sets datadog.yaml's enable_metadata_collection (default: true)
+    metadata_interval: 1800           # Steady-state interval in seconds (default: the Agent's 1800)
 
     # K8s tag enrichment collector selection (default: nodefilter)
     use_kubelet_collector: false      # Set to true to opt in to the kubelet collector (default: false)
@@ -174,7 +167,7 @@ service:
 
 - **`DD_OTEL_STANDALONE`** (REQUIRED): Must be set to `true` to enable this extension
   - Enables standalone mode with full secrets resolution
-  - Enables metadata collection via FX modules
+  - Enables host aliases submission
   - Activates dogtelextension functionalities
 
 ## Deployment Modes
@@ -190,7 +183,7 @@ service:
 - **dogtelextension:** ✅ **ENABLE THIS EXTENSION**
 - **Secrets:** Full secrets resolution enabled
 - **Tagger:** Runs tagger server for other agents
-- **Metadata:** Collected via FX modules (runner, host, inventoryhost)
+- **Metadata:** The extension sends the host aliases, unless a core Agent runs on the same Kubernetes node
 - **Workload detection:** Provided by workloadmeta component
 - **Use case:** otel-agent running independently without core agent
 
@@ -331,14 +324,14 @@ DD_OTEL_STANDALONE=true ./bin/otel-agent/otel-agent \
 - ✅ K8s tag enrichment via local tagger (nodefilter, or kubelet as an opt-in, + container runtime collectors)
 - ✅ Workload detection integration
 - ✅ Conditional secrets (via otel-agent config)
-- ✅ Host metadata submission (via FX modules in otel-agent)
+- ✅ Host aliases submission
+- ❌ Full host metadata and inventories (system information, Agent version, host tags)
 - ❌ System metrics collection (deferred to Phase 2)
 
 ### Future Enhancements (Phase 2)
 - System checks integration (CPU, memory, disk, load, uptime, io)
 - Collector component with demultiplexer
 - Check scheduler
-- Direct metadata collection within extension (alternative to current FX-based approach)
 
 ## Troubleshooting
 
@@ -358,13 +351,11 @@ DD_OTEL_STANDALONE=true ./bin/otel-agent/otel-agent \
 - Check logs for TLS/authentication errors
 - Ensure IPC component is properly initialized
 
-### Metadata Collection Not Working
+### Host Aliases Not Sent
 - **First:** Ensure `DD_OTEL_STANDALONE=true` is set
-- Metadata collection only runs in standalone mode
-- Verify metadata modules are loaded in otel-agent startup (check for conditional FX modules)
-- Check logs for "Starting metadata runner" or metadata-related errors
-- Verify `enable_metadata_collection: true` in datadog.yaml
-- Check that serializer and hostname components are available
+- Host aliases are only sent in standalone mode, and not when `enable_metadata_collection` is false
+- Check the logs for "Not sending host aliases" (the reason follows) or "Unable to send host aliases"
+- With debug logs, "Sending host aliases" lists the aliases sent
 
 ### Secrets Not Resolving
 - **First:** Ensure `DD_OTEL_STANDALONE=true` is set

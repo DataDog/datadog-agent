@@ -463,7 +463,7 @@ func serviceAccountCan(s utils.OTelTestSuite, namespace, name string, access aut
 	return review.Status.Allowed
 }
 
-func getPodByAppLabel(s *dogtelCoexistTestSuite, namespace, appLabel string) corev1.Pod {
+func getPodByAppLabel(s utils.OTelTestSuite, namespace, appLabel string) corev1.Pod {
 	res, err := s.Env().KubernetesCluster.Client().CoreV1().Pods(namespace).List(context.Background(), metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", appLabel).String(),
 	})

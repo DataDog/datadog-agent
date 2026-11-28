@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    In standalone mode (``DD_OTEL_STANDALONE=true``), the OTel Agent now reports the
+    host aliases of its host, as the core Agent does, so that its own telemetry and the
+    telemetry it forwards land on the same host. For example, on EKS Auto Mode nodes
+    the OTel Agent named its host ``<instance ID>-<cluster name>`` while the telemetry
+    of the node was named after the instance ID alone, showing each node as two hosts.
+    The ``dogtel`` extension sends only the hostname and its aliases, and sends nothing
+    while a core Agent pod deployed by the Datadog Helm chart or Operator runs on the
+    same Kubernetes node, since that Agent reports them.
