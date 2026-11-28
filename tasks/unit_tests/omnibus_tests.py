@@ -391,6 +391,30 @@ class TestRpathEdit(unittest.TestCase):
             mock.call('patchelf --force-rpath --set-rpath \\$ORIGIN/other/path/embedded/lib some/file'),
         ]
 
+    def test_rpath_edit_linux_preserves_origin_wheel_rpaths(self):
+        self.mock_ctx.set_result_for(
+            'run',
+            r"find some/path -type f -exec file --mime-type \{\} \+",
+            Result("some/file:application/x-sharedlib"),
+        )
+        self.mock_ctx.set_result_for(
+            'run',
+            'objdump -x some/file | grep "RPATH"',
+            Result("  RPATH                $ORIGIN:$ORIGIN/../confluent_kafka.libs:some/path/embedded/lib\n"),
+        )
+        self.mock_ctx.set_result_for(
+            'run',
+            'patchelf --force-rpath --set-rpath \\$ORIGIN:\\$ORIGIN/../confluent_kafka.libs:\\$ORIGIN/other/path/embedded/lib some/file',
+            Result(),
+        )
+        omnibus.rpath_edit(self.mock_ctx, "some/path", "some/other/path")
+        assert (
+            mock.call(
+                'patchelf --force-rpath --set-rpath \\$ORIGIN:\\$ORIGIN/../confluent_kafka.libs:\\$ORIGIN/other/path/embedded/lib some/file'
+            )
+            in self.mock_ctx.run.mock_calls
+        )
+
     def test_rpath_edit_macos(self):
         self.mock_ctx.set_result_for(
             'run',
