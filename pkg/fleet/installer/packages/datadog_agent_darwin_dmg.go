@@ -24,6 +24,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -34,8 +35,8 @@ import (
 // configuration -- stays in the preinstall script.
 
 const (
-	agentUser     = "_dd-agent"
-	agentGroup    = "admin"
+	agentUser     = config.AgentUser
+	agentGroup    = config.AgentGroup
 	guiLabel      = "com.datadoghq.gui"
 	monitorLabel  = "com.datadoghq.ai-usage-agent.desktop-monitor"
 	oldMonitor    = "com.datadoghq.ai-prompt-logger.desktop-monitor"
@@ -79,6 +80,7 @@ var defaultDmgLayout = dmgLayout{
 }
 
 func (l dmgLayout) confDir() string      { return filepath.Join(l.installDir, "etc") }
+func (l dmgLayout) expConfDir() string   { return filepath.Join(l.installDir, "etc-exp") }
 func (l dmgLayout) runDir() string       { return filepath.Join(l.installDir, "run") }
 func (l dmgLayout) logDir() string       { return filepath.Join(l.installDir, "logs") }
 func (l dmgLayout) savedConfDir() string { return filepath.Join(l.stagingDir, "saved-conf") }
@@ -111,9 +113,27 @@ func setUpDMGInstall(ctx context.Context, layout dmgLayout) error {
 	if err := setUpConfig(ctx, layout, env); err != nil {
 		return err
 	}
+	restExperimentConfig(ctx, layout)
 	installNativeMessagingHosts(layout, env)
 	installLinks(layout)
 	return nil
+}
+
+// restExperimentConfig puts the experiment configuration path back to resting on the stable one,
+// a link from etc-exp to etc. A fresh install gets the link, and an install over a host that was
+// running a configuration experiment discards it: the experiment's deadline is removed with the
+// old install files, so nothing would ever end it, and a real etc-exp left in place would have
+// the installer daemon report it as the running configuration. It runs before the jobs are loaded,
+// so the daemon never sees the experiment.
+func restExperimentConfig(ctx context.Context, layout dmgLayout) {
+	dirs := config.Directories{
+		StablePath:     layout.confDir(),
+		ExperimentPath: layout.expConfDir(),
+		StatePath:      filepath.Join(layout.packagesRunDir, config.StateFileName),
+	}
+	if err := dirs.RemoveExperiment(ctx); err != nil {
+		log.Warnf("could not rest %s on %s: %v", layout.expConfDir(), layout.confDir(), err)
+	}
 }
 
 // ensureAgentUser creates the Agent's account if it is missing, in the 450-499 range, and enforces
@@ -224,7 +244,10 @@ func removeOldInstallFiles(layout dmgLayout) {
 		filepath.Join(layout.installDir, "agent"),
 		filepath.Join(layout.installDir, "checks.d"),
 		filepath.Join(layout.installDir, "embedded", "bin", "ai-prompt-logger-native-host"),
-		// Builds that ran a configuration experiment watcher from the Agent's run directory.
+		// The deadline of a configuration experiment that was running when the install started,
+		// where builds before this one kept it. collapseConfigExperiment clears the current one.
+		// The install replaces the Agent the experiment ran, so the experiment is discarded:
+		// its deadline goes, and restExperimentConfig discards its configuration.
 		filepath.Join(layout.runDir(), "experiment-deadline"),
 		// Builds that kept the installer daemon's state and logs under the packages root. The
 		// daemon now keeps them in the Agent's run and log directories, and anything left under the
@@ -233,6 +256,9 @@ func removeOldInstallFiles(layout dmgLayout) {
 		filepath.Join(layout.packagesRunDir, "installer.sock"),
 		filepath.Join(layout.packagesRunDir, "installer_tasks.db"),
 		filepath.Join(layout.packagesRunDir, "remote-config-installer.db"),
+		// Builds that kept the installer daemon's pidfile in the Agent's run directory. It is kept
+		// in the root-only state directory now.
+		filepath.Join(layout.runDir(), "installer.pid"),
 	}
 	for _, path := range stale {
 		if err := os.RemoveAll(path); err != nil {
@@ -338,35 +364,41 @@ func readInstallEnv(layout dmgLayout) installEnv {
 // on a first install, applies what the install script was given, writes the install info, and gives
 // the configuration to the Agent's account.
 func setUpConfig(ctx context.Context, layout dmgLayout, env installEnv) error {
-	conf := layout.confDir()
-	if err := os.MkdirAll(filepath.Join(conf, "checks.d"), 0o755); err != nil {
+	confPath := layout.confDir()
+	if err := os.MkdirAll(confPath, 0o755); err != nil {
+		return err
+	}
+	conf, err := os.OpenRoot(confPath)
+	if err != nil {
+		return err
+	}
+	defer conf.Close()
+	if err := conf.MkdirAll("checks.d", 0o755); err != nil {
 		return err
 	}
 	saved := layout.savedConfDir()
-	if info, err := os.Stat(saved); err == nil && info.IsDir() {
+	if info, err := os.Lstat(saved); err == nil && info.IsDir() {
 		for _, name := range []string{"datadog.yaml", "system-probe.yaml"} {
-			_ = copyFile(filepath.Join(saved, name), filepath.Join(conf, name))
+			_ = restoreEntry(filepath.Join(saved, name), conf, name)
 		}
-		_ = copyTree(filepath.Join(saved, "conf.d"), filepath.Join(conf, "conf.d"), true)
-		_ = copyTree(filepath.Join(saved, "checks.d"), filepath.Join(conf, "checks.d"), false)
+		_ = restoreTree(filepath.Join(saved, "conf.d"), conf, "conf.d", true)
+		_ = restoreTree(filepath.Join(saved, "checks.d"), conf, "checks.d", false)
 	}
-	datadogYAML := filepath.Join(conf, "datadog.yaml")
-	if _, err := os.Stat(datadogYAML); errors.Is(err, fs.ErrNotExist) {
-		example, err := os.ReadFile(filepath.Join(conf, "datadog.yaml.example"))
+	if _, err := conf.Lstat("datadog.yaml"); errors.Is(err, fs.ErrNotExist) {
+		example, err := readConfFile(conf, "datadog.yaml.example")
 		if err != nil {
 			return fmt.Errorf("could not read the example configuration: %w", err)
 		}
-		if err := os.WriteFile(datadogYAML, replaceLines(example, `^api_key:$`, "api_key: APIKEY"), 0o660); err != nil {
+		if err := writeConfFile(conf, "datadog.yaml", replaceLines(example, `^api_key:$`, "api_key: APIKEY"), 0o660); err != nil {
 			return err
 		}
 	}
-	nativeHostYAML := filepath.Join(conf, "ai_usage_native_host.yaml")
-	if example, err := os.ReadFile(nativeHostYAML + ".example"); err == nil {
+	if example, err := readConfFile(conf, "ai_usage_native_host.yaml.example"); err == nil {
 		content := example
-		if port := apmReceiverPort(datadogYAML); port != "" && port != "8126" {
+		if port := apmReceiverPort(conf); port != "" && port != "8126" {
 			content = replaceLines(content, `^[ #]*trace_agent_url:.*`, `trace_agent_url: "http://127.0.0.1:`+port+`"`)
 		}
-		if err := os.WriteFile(nativeHostYAML, content, 0o660); err != nil {
+		if err := writeConfFile(conf, "ai_usage_native_host.yaml", content, 0o660); err != nil {
 			return err
 		}
 	}
@@ -376,12 +408,108 @@ func setUpConfig(ctx context.Context, layout dmgLayout, env installEnv) error {
 	if err := writeInstallInfo(conf, env); err != nil {
 		return err
 	}
-	return secureConfig(ctx, conf)
+	return secureConfig(ctx, confPath)
+}
+
+// errNotOwnFile is returned by readConfFile for an entry that is not a regular file with a single
+// link.
+var errNotOwnFile = errors.New("not a file of its own")
+
+// readConfFile reads a configuration file for the install. The configuration belongs to the
+// Agent's account, which can replace any entry of it while the install runs as root, so the file
+// is read through conf, an os.Root that a link cannot lead out of, without following a link, and
+// only when it is a regular file with a single link.
+func readConfFile(conf *os.Root, name string) ([]byte, error) {
+	if info, err := conf.Lstat(name); err == nil && info.Mode()&fs.ModeSymlink != 0 {
+		return nil, fmt.Errorf("refusing to read %s: %w", name, errNotOwnFile)
+	}
+	f, err := conf.OpenFile(name, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	st, ok := info.Sys().(*syscall.Stat_t)
+	if !info.Mode().IsRegular() || !ok || st.Nlink != 1 {
+		return nil, fmt.Errorf("refusing to read %s: %w", name, errNotOwnFile)
+	}
+	return io.ReadAll(f)
+}
+
+// writeConfFile replaces a configuration file with a new one holding content. Whatever stood at
+// name is removed first, and the file is created exclusively, so the write never goes through a
+// link or into a file linked from elsewhere.
+func writeConfFile(conf *os.Root, name string, content []byte, mode fs.FileMode) error {
+	if err := conf.Remove(name); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	f, err := conf.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(content); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
+}
+
+// restoreEntry restores one saved entry at name in conf: a link as a link, a regular file through
+// writeConfFile. src is in the root-only staging copy; it is never followed.
+func restoreEntry(src string, conf *os.Root, name string) error {
+	info, err := os.Lstat(src)
+	if err != nil {
+		return err
+	}
+	switch {
+	case info.Mode()&fs.ModeSymlink != 0:
+		link, err := os.Readlink(src)
+		if err != nil {
+			return err
+		}
+		if err := conf.Remove(name); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+		return conf.Symlink(link, name)
+	case info.Mode().IsRegular():
+		content, err := os.ReadFile(src)
+		if err != nil {
+			return err
+		}
+		return writeConfFile(conf, name, content, 0o660)
+	default:
+		return nil
+	}
+}
+
+// restoreTree copies the saved directory src into sub of conf, as copyTree does, keeping links as
+// links and replacing existing entries only when overwrite is set. Every write into the
+// configuration goes through conf.
+func restoreTree(src string, conf *os.Root, sub string, overwrite bool) error {
+	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(src, path)
+		target := filepath.Join(sub, rel)
+		if d.IsDir() {
+			return conf.MkdirAll(target, 0o755)
+		}
+		if !overwrite {
+			if _, err := conf.Lstat(target); err == nil {
+				return nil
+			}
+		}
+		return restoreEntry(path, conf, target)
+	})
 }
 
 // apmReceiverPort returns apm_config.receiver_port from datadog.yaml when it is a number.
-func apmReceiverPort(datadogYAML string) string {
-	content, err := os.ReadFile(datadogYAML)
+func apmReceiverPort(conf *os.Root) string {
+	content, err := readConfFile(conf, "datadog.yaml")
 	if err != nil {
 		return ""
 	}
@@ -412,23 +540,26 @@ func apmReceiverPort(datadogYAML string) string {
 }
 
 // applyInstallEnv writes what install_mac_os.sh was given into the configuration.
-func applyInstallEnv(conf string, env installEnv) error {
-	nativeHostYAML := filepath.Join(conf, "ai_usage_native_host.yaml")
+func applyInstallEnv(conf *os.Root, env installEnv) error {
 	if id := installChromeExtensionID(env); id != "" {
-		if content, err := os.ReadFile(nativeHostYAML); err == nil {
+		if content, err := readConfFile(conf, "ai_usage_native_host.yaml"); err == nil {
 			if regexp.MustCompile(`(?m)^\s*#?\s*chrome_extension_id:`).Match(content) {
 				content = replaceLines(content, `^# *chrome_extension_id:.*`, "chrome_extension_id: "+id)
 				content = replaceLines(content, `^chrome_extension_id:.*`, "chrome_extension_id: "+id)
 			} else {
 				content = append(content, []byte("\nchrome_extension_id: "+id+"\n")...)
 			}
-			if err := os.WriteFile(nativeHostYAML, content, 0o660); err != nil {
+			if err := writeConfFile(conf, "ai_usage_native_host.yaml", content, 0o660); err != nil {
 				return err
 			}
 		}
 	}
-	datadogYAML := filepath.Join(conf, "datadog.yaml")
-	content, err := os.ReadFile(datadogYAML)
+	content, err := readConfFile(conf, "datadog.yaml")
+	if errors.Is(err, errNotOwnFile) {
+		// A link, or a file linked from elsewhere: left as it is rather than written through.
+		log.Warnf("not applying the install settings to datadog.yaml: %v", err)
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -444,60 +575,54 @@ func applyInstallEnv(conf string, env installEnv) error {
 	if logs := env["DD_LOGS_ENABLED"]; logs == "true" || logs == "false" {
 		content = setOrAppend(content, `^(# *)?logs_enabled:.*`, "logs_enabled: "+logs)
 	}
-	return os.WriteFile(datadogYAML, content, 0o660)
+	return writeConfFile(conf, "datadog.yaml", content, 0o660)
 }
 
 // writeInstallInfo records how the Agent was installed.
-func writeInstallInfo(conf string, env installEnv) error {
+func writeInstallInfo(conf *os.Root, env installEnv) error {
 	method, version := "macos_dmg", "macos_dmg"
 	if m := env["DD_INSTALL_METHOD"]; m != "" {
 		method, version = m, m+"-"+env["DD_INSTALL_SCRIPT_VERSION"]
 	}
 	content := fmt.Sprintf("---\ninstall_method:\n  tool: %s\n  tool_version: %s\n  installer_version: %s\n\n", method, method, version)
-	return os.WriteFile(filepath.Join(conf, "install_info"), []byte(content), 0o660)
+	return writeConfFile(conf, "install_info", []byte(content), 0o660)
 }
 
-// secureConfig gives the configuration to the Agent's account, the admin group able to edit it, and
-// sets ACLs so the Agent keeps access to files an editor replaces: inheritable ones on directories,
-// explicit ones on files, which macOS editors carry over on an atomic save. The AI usage native host
-// runs as the logged-in user, so everyone may traverse the directory and read its one config file.
+// secureConfig gives the configuration to the Agent's account, the admin group able to edit it,
+// and the access control lists that keep that access when an editor replaces a file.
 func secureConfig(ctx context.Context, conf string) error {
-	if err := chownTree(conf, agentUser, agentGroup); err != nil {
+	uid, gid, err := lookupOwner(agentUser, agentGroup)
+	if err != nil {
 		return err
 	}
-	if err := os.Chmod(conf, 0o770); err != nil {
-		return err
-	}
-	var dirs, files []string
-	err := filepath.WalkDir(conf, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
+	dirs, files, err := secureTree(conf, uid, gid, func(rel string, dir bool) fs.FileMode {
 		switch {
-		case d.Type()&fs.ModeSymlink != 0:
-		case d.IsDir():
-			dirs = append(dirs, path)
+		case rel == ".":
+			return 0o770
+		case dir:
+			return 0
 		default:
-			files = append(files, path)
-			return os.Chmod(path, 0o660)
+			return 0o660
 		}
-		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("could not set the configuration's permissions: %w", err)
 	}
+	// The access control lists are applied by path, so as the Agent's account rather than root:
+	// everything above is that account's now, and a path redirected by a link swapped in meanwhile
+	// can only reach what it could already change itself.
 	for _, batch := range [][]string{append([]string{"+a", confDirACL}, dirs...), append([]string{"+a", confFileACL}, files...)} {
 		if len(batch) == 2 {
 			continue
 		}
-		if _, err := hostCommand(ctx, "chmod", batch...); err != nil {
+		if _, err := agentCommand(ctx, uid, gid, "/bin/chmod", batch...); err != nil {
 			log.Warnf("could not set the configuration's ACLs: %v", err)
 		}
 	}
 	nativeHostYAML := filepath.Join(conf, "ai_usage_native_host.yaml")
 	if _, err := os.Stat(nativeHostYAML); err == nil {
-		_, _ = hostCommand(ctx, "chmod", "+a", "everyone allow search,readattr,readextattr,readsecurity", conf)
-		_, _ = hostCommand(ctx, "chmod", "+a", "everyone allow read,readattr,readextattr,readsecurity", nativeHostYAML)
+		_, _ = agentCommand(ctx, uid, gid, "/bin/chmod", "+a", "everyone allow search,readattr,readextattr,readsecurity", conf)
+		_, _ = agentCommand(ctx, uid, gid, "/bin/chmod", "+a", "everyone allow read,readattr,readextattr,readsecurity", nativeHostYAML)
 	}
 	return nil
 }
@@ -740,18 +865,87 @@ func setOrAppend(content []byte, pattern string, line string) []byte {
 	return append(content, []byte("\n"+line+"\n")...)
 }
 
-// chownTree gives path, and everything under it, to owner and group without following links.
+// chownTree gives root, and everything under it, to owner and group. See secureTree.
 func chownTree(root string, owner string, group string) error {
 	uid, gid, err := lookupOwner(owner, group)
 	if err != nil {
 		return err
 	}
-	return filepath.WalkDir(root, func(path string, _ fs.DirEntry, err error) error {
+	_, _, err = secureTree(root, uid, gid, nil)
+	return err
+}
+
+// secureTree gives root, and every directory and regular file under it, to uid and gid, and the
+// mode modeFor returns for it, when it returns one. It returns the directories and files it
+// secured, as full paths.
+//
+// The tree may belong to an account that can change it while this runs, so nothing is done by
+// path: the walk goes through an os.Root, so a directory swapped for a link cannot lead it out of
+// the tree, and each entry is opened without following a link and changed through that handle,
+// so the change reaches nothing but what was opened. Links are left as they are. A regular file
+// with more than one link is skipped: the account can hard-link any file on the volume into its
+// tree, and changing that file's owner or mode would hand it the original.
+func secureTree(root string, uid, gid int, modeFor func(rel string, dir bool) fs.FileMode) (dirs, files []string, err error) {
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer r.Close()
+	err = fs.WalkDir(r.FS(), ".", func(rel string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		return os.Lchown(path, uid, gid)
+		if entry.Type()&fs.ModeSymlink != 0 {
+			return nil
+		}
+		if entry.Type()&(fs.ModeSocket|fs.ModeNamedPipe|fs.ModeDevice|fs.ModeCharDevice|fs.ModeIrregular) != 0 {
+			// Only directories and regular files are secured. A socket, such as the one the Agent's
+			// GUI keeps in the run directory for a logged-in user, cannot even be opened.
+			return nil
+		}
+		f, err := r.OpenFile(rel, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+		if err != nil {
+			if errors.Is(err, syscall.ELOOP) || errors.Is(err, fs.ErrNotExist) {
+				// Replaced by a link, or removed, since the walk listed it.
+				return nil
+			}
+			if errors.Is(err, syscall.EOPNOTSUPP) {
+				// Replaced by a socket since the walk listed it.
+				return nil
+			}
+			return fmt.Errorf("could not open %s: %w", filepath.Join(root, rel), err)
+		}
+		defer f.Close()
+		info, err := f.Stat()
+		if err != nil {
+			return err
+		}
+		dir := info.IsDir()
+		if !dir && !info.Mode().IsRegular() {
+			return nil
+		}
+		if st, ok := info.Sys().(*syscall.Stat_t); !dir && (!ok || st.Nlink != 1) {
+			log.Warnf("not securing %s: it is linked from elsewhere", filepath.Join(root, rel))
+			return nil
+		}
+		if err := f.Chown(uid, gid); err != nil {
+			return err
+		}
+		if modeFor != nil {
+			if mode := modeFor(rel, dir); mode != 0 {
+				if err := f.Chmod(mode); err != nil {
+					return err
+				}
+			}
+		}
+		if dir {
+			dirs = append(dirs, filepath.Join(root, rel))
+		} else {
+			files = append(files, filepath.Join(root, rel))
+		}
+		return nil
 	})
+	return dirs, files, err
 }
 
 // lookupOwner is indirected so the tests can chown to the current user.

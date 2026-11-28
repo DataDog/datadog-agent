@@ -16,7 +16,10 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
+	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/processmanager"
@@ -30,6 +33,13 @@ import (
 var datadogAgentPackage = hooks{
 	preRemove:   preRemoveDatadogAgent,
 	postInstall: postInstallDatadogAgent,
+
+	preStartExperiment:   preStartExperimentDatadogAgent,
+	prePromoteExperiment: prePromoteExperimentDatadogAgent,
+
+	postStartConfigExperiment:   postStartConfigExperimentDatadogAgent,
+	preStopConfigExperiment:     preStopConfigExperimentDatadogAgent,
+	postPromoteConfigExperiment: postPromoteConfigExperimentDatadogAgent,
 }
 
 // datadogAgentLaunchdJobs are the launchd jobs of the Agent package, in the shape of
@@ -41,25 +51,110 @@ type datadogAgentLaunchdJobs struct {
 	LaunchdJobsStable []string
 }
 
-// agentLaunchdJobs are the jobs the Agent package installs.
+// agentJob is the core Agent's launchd job.
+const agentJob = "com.datadoghq.agent"
+
+// installerJob is the root installer daemon, which drives experiments. It is loaded last, once the
+// Agent it reports on is up.
 //
-// The process manager is loaded first, so it is up before the processes it will supervise. It
-// is a stable job only: unlike on Linux, it will get no experiment variant, since a configuration
-// experiment swaps the Agent's own jobs, not the daemon that supervises them.
-//
-// The root installer daemon is loaded last, once the Agent it reports on is up.
-var agentLaunchdJobs = datadogAgentLaunchdJobs{
-	LaunchdMainJobStable: "com.datadoghq.agent",
-	LaunchdJobsStable: []string{
-		procmgrLabel,
-		"com.datadoghq.agent",
-		"com.datadoghq.sysprobe",
-		"com.datadoghq.data-plane",
-		"com.datadoghq.installer",
-	},
+// A configuration experiment swaps it too, so the daemon runs under the experiment configuration
+// like the Agent. It is a child of the experiment Agent, as on Linux
+// (datadog-agent-installer.service.tmpl): the unit supervisor (unit_supervisor_darwin.go), which
+// runs outside both daemon jobs, replaces it once the installer command that asked for the swap has
+// exited, so a hook never stops the daemon it runs in. A configuration experiment never changes the
+// installer binary -- version experiments are refused on macOS (preStartExperimentDatadogAgent) --
+// so both daemons and the supervisor know the same jobs the experiment swaps.
+const installerJob = "com.datadoghq.installer"
+
+// procmgrJob is the process manager. It is loaded first, so it is up before the processes it will
+// supervise. It has no experiment variant: a configuration experiment leaves it running on its
+// stable job, reading the stable configuration. When the experiment ends it is loaded again if
+// anything stopped it, and restarted on a promote so it reads the promoted configuration
+// (ensureProcmgr).
+const procmgrJob = "com.datadoghq.procmgr"
+
+// experimentJobOrder is the order the jobs a configuration experiment swaps are loaded in. A job
+// the embedded definitions add beyond these is loaded after them, in name order, and the installer
+// daemon is always last, so it is the last job to come back to the stable set.
+var experimentJobOrder = []string{agentJob, "com.datadoghq.sysprobe", "com.datadoghq.data-plane"}
+
+// configExperimentJobs are every job a configuration experiment swaps, in the order they are
+// loaded. They are the jobs the embedded definitions have an experiment variant for, not a list
+// kept beside them: the installer that runs an experiment supervises and swaps every job its own
+// definitions describe, so a service a newer version adds is covered without touching this file.
+var configExperimentJobs = orderedExperimentJobs()
+
+// agentJobs are the jobs the configuration experiment hooks swap themselves: every swapped job but
+// the installer daemon, in the order they are loaded.
+var agentJobs = withoutJob(configExperimentJobs, installerJob)
+
+// stableOnlyJobs are the jobs with no experiment variant, which an experiment leaves on their
+// stable definition: the process manager today. They are loaded before the others.
+var stableOnlyJobs = orderedStableOnlyJobs()
+
+// orderedExperimentJobs returns the labels the embedded definitions have an experiment variant
+// for, in loading order (see experimentJobOrder).
+func orderedExperimentJobs() []string {
+	labels, err := embedded.LaunchdJobs(embedded.LaunchdExperiment)
+	if err != nil {
+		// The definitions are compiled in, so this cannot happen. Fall back on the jobs known today.
+		log.Errorf("could not list the experiment job definitions: %v", err)
+		return append(append([]string{}, experimentJobOrder...), installerJob)
+	}
+	rank := func(label string) int {
+		if label == installerJob {
+			return len(experimentJobOrder) + 1
+		}
+		if i := slices.Index(experimentJobOrder, label); i >= 0 {
+			return i
+		}
+		return len(experimentJobOrder)
+	}
+	slices.SortFunc(labels, func(a, b string) int {
+		if c := rank(a) - rank(b); c != 0 {
+			return c
+		}
+		return strings.Compare(a, b)
+	})
+	return labels
 }
 
-const procmgrLabel = "com.datadoghq.procmgr"
+// orderedStableOnlyJobs returns the labels the embedded definitions describe only in their stable
+// variant, in name order, with the process manager first.
+func orderedStableOnlyJobs() []string {
+	stable, err := embedded.LaunchdJobs(embedded.LaunchdStable)
+	if err != nil {
+		log.Errorf("could not list the job definitions: %v", err)
+		return []string{procmgrJob}
+	}
+	var labels []string
+	for _, label := range stable {
+		if !slices.Contains(configExperimentJobs, label) {
+			labels = append(labels, label)
+		}
+	}
+	slices.SortFunc(labels, func(a, b string) int {
+		if (a == procmgrJob) != (b == procmgrJob) {
+			if a == procmgrJob {
+				return -1
+			}
+			return 1
+		}
+		return strings.Compare(a, b)
+	})
+	return labels
+}
+
+// withoutJob returns labels without label, keeping the order.
+func withoutJob(labels []string, label string) []string {
+	return slices.DeleteFunc(slices.Clone(labels), func(l string) bool { return l == label })
+}
+
+// agentLaunchdJobs are the jobs the Agent package installs.
+var agentLaunchdJobs = datadogAgentLaunchdJobs{
+	LaunchdMainJobStable: agentJob,
+	LaunchdJobsStable:    append(slices.Clone(stableOnlyJobs), configExperimentJobs...),
+}
 
 // ensureInstallerDataDir creates the installer's root-owned state directories. Indirected so the
 // hook tests can run unprivileged.
@@ -88,6 +183,35 @@ var (
 	removeProcmgrCatalog = processmanager.RemoveDarwinProcmgrCatalog
 )
 
+// agentJobSet is the set the hooks swap, in the system domain. It excludes the installer daemon.
+func agentJobSet() launchd.JobSet {
+	return launchd.JobSet{Labels: agentJobs, Dir: launchdJobDir, Client: launchdClient()}
+}
+
+// installerJobSet is the installer daemon alone, in the system domain.
+func installerJobSet() launchd.JobSet {
+	return launchd.JobSet{Labels: []string{installerJob}, Dir: launchdJobDir, Client: installerLaunchdClient()}
+}
+
+// configExperimentJobSet is every job a configuration experiment swaps, in the system domain. Only
+// a process outside the installer daemon's job may swap it: see installerJob.
+func configExperimentJobSet() launchd.JobSet {
+	return launchd.JobSet{Labels: configExperimentJobs, Dir: launchdJobDir, Client: installerLaunchdClient()}
+}
+
+// installerBootoutSettleTimeout bounds how long a bootout of the installer daemon waits for it to
+// leave the domain. On SIGTERM the daemon first finishes the request it is handling, and launchd
+// only kills it once the ExitTimeOut in its definition (10 seconds,
+// com.datadoghq.installer.plist.tmpl) runs out.
+const installerBootoutSettleTimeout = 30 * time.Second
+
+// installerLaunchdClient is launchdClient, waiting long enough for the installer daemon to leave.
+func installerLaunchdClient() *launchd.Client {
+	client := launchdClient()
+	client.BootoutSettleTimeout = installerBootoutSettleTimeout
+	return client
+}
+
 // installStableJobs writes and loads the stable launchd job set from the embedded definitions.
 //
 // Every job is loaded even if an earlier one fails: the jobs do not depend on one another to load,
@@ -110,7 +234,7 @@ func installStableJobs(ctx HookContext) (err error) {
 
 // loadStableJob writes one stable job definition from the embedded copy and loads it.
 func loadStableJob(ctx context.Context, client *launchd.Client, label string) error {
-	definition, err := embedded.GetLaunchdJob(label)
+	definition, err := embedded.GetLaunchdJob(label, embedded.LaunchdStable)
 	if err != nil {
 		return fmt.Errorf("failed to read job definition %s: %w", label, err)
 	}
@@ -161,6 +285,7 @@ func postInstallDatadogAgent(ctx HookContext) error {
 // without the Agent's version, and must not also leave the Agent stopped.
 func postInstallDMG(ctx HookContext) error {
 	var errs []error
+	collapseConfigExperiment(ctx)
 	env := readInstallEnv(defaultDmgLayout)
 	if err := setUpDMGInstall(ctx, defaultDmgLayout); err != nil {
 		errs = append(errs, err)
@@ -180,6 +305,7 @@ func postInstallDMG(ctx HookContext) error {
 	// could not be created, they are left unloaded and the hook fails, so the postinstall script
 	// fails the install instead of waiting on jobs that will never run.
 	if agentUserExists() {
+		unloadExperimentJobs(ctx)
 		if err := installStableJobs(ctx); err != nil {
 			errs = append(errs, err)
 		}
@@ -188,6 +314,39 @@ func postInstallDMG(ctx HookContext) error {
 	}
 	startDMGGUI(ctx, defaultDmgLayout, env)
 	return errors.Join(errs...)
+}
+
+// collapseConfigExperiment discards whatever is left of a configuration experiment before the
+// install, so running the post-install twice is harmless: it stops any helper an earlier version
+// left running, which would swap jobs back in under the install, and clears the deadline and the
+// unit supervisor's state, so nothing later takes the experiment the install discards for one still
+// running. unloadExperimentJobs then stops the unit supervisor and the experiment jobs, and
+// setUpDMGInstall discards the experiment configuration (restExperimentConfig).
+//
+// The .dmg's preinstall script already does this on an upgrade; this repeats it for a host it did
+// not run on or did not finish on. Every step is allowed to fail.
+func collapseConfigExperiment(ctx HookContext) {
+	if err := stopSurvivingHelpers(ctx); err != nil {
+		log.Warnf("could not stop a surviving experiment helper: %v", err)
+	}
+	if err := experimentDeadline().Clear(); err != nil {
+		log.Warnf("could not clear the experiment deadline: %v", err)
+	}
+	clearUnitsState()
+}
+
+// unloadExperimentJobs unloads and removes the experiment job set before the stable one is loaded,
+// so a host never ends up running both -- two Agents, or two installer daemons. Every step is
+// allowed to fail: an experiment job left behind is not loaded at boot.
+func unloadExperimentJobs(ctx HookContext) {
+	unloadUnitSupervisor(ctx)
+	jobs := configExperimentJobSet()
+	if err := jobs.Stop(ctx, launchd.Experiment); err != nil {
+		log.Warnf("could not unload the experiment jobs: %v", err)
+	}
+	if err := jobs.Remove(launchd.Experiment); err != nil {
+		log.Warnf("could not remove the experiment job definitions: %v", err)
+	}
 }
 
 // linkPackageEntry gives the Agent its entry in the package repository the shared installer code
@@ -347,6 +506,26 @@ func removeOtherEntries(dir string, keep ...string) {
 func preRemoveDatadogAgent(ctx HookContext) error {
 	client := launchdClient()
 	var errs []error
+	if !ctx.Upgrade {
+		// An uninstall stops what is left of a configuration experiment before the jobs go away, as
+		// collapseConfigExperiment does on a reinstall. The .dmg's preinstall script already does this
+		// on an upgrade.
+		collapseConfigExperiment(ctx)
+	}
+	// The unit supervisor first, so it does not read the experiment jobs going away as a failure.
+	// Then the experiment set: a leftover -exp job would otherwise keep running against a
+	// configuration that is about to be removed. Its definitions are not loaded at boot, so a job
+	// that can't be unloaded only leaves an unused file behind.
+	unloadUnitSupervisor(ctx)
+	experiment := configExperimentJobSet()
+	if err := experiment.Stop(ctx, launchd.Experiment); err != nil {
+		log.Warnf("failed to unload the experiment jobs: %v", err)
+		errs = append(errs, err)
+	}
+	if err := experiment.Remove(launchd.Experiment); err != nil {
+		log.Warnf("failed to remove the experiment job definitions: %v", err)
+		errs = append(errs, err)
+	}
 	for _, label := range slices.Backward(agentLaunchdJobs.LaunchdJobsStable) {
 		if err := client.Bootout(ctx, label); err != nil {
 			// As in loadStableJob, a job that can't be unloaded keeps its definition, so launchd is
@@ -415,6 +594,15 @@ var hostCommand = func(ctx context.Context, name string, args ...string) ([]byte
 	return telemetry.CommandContext(ctx, name, args...).Output()
 }
 
+// agentCommand runs a system command as the Agent's account, with no supplementary groups. It is
+// for the steps that act on that account's files by path, so a link it swaps in can only redirect
+// them to what it could already change. Indirected so the hook tests can run without it.
+var agentCommand = func(ctx context.Context, uid, gid int, name string, args ...string) ([]byte, error) {
+	cmd := telemetry.CommandContext(ctx, name, args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Credential: &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}}
+	return cmd.Output()
+}
+
 // uninstallAgent stops the GUI for every logged-in user and removes what the install left besides
 // the LaunchDaemons: the LaunchAgents, the application, the links and the install root. Every step
 // is allowed to fail, so one missing piece doesn't stop the rest from going.
@@ -456,4 +644,96 @@ func loggedInUIDs(ctx context.Context) []string {
 		uids = append(uids, u.Uid)
 	}
 	return uids
+}
+
+// errVersionExperimentNotSupported is returned for a version experiment: nothing on macOS swaps the
+// running binaries yet, so with no hook to refuse it the installer would switch the experiment
+// pointer, restart nothing, and report the task as done.
+var errVersionExperimentNotSupported = errors.New("version experiments are not supported on macOS")
+
+// preStartExperimentDatadogAgent refuses a version experiment before the installer sets it, so the
+// package repository is left as it was and the task is reported as failed.
+func preStartExperimentDatadogAgent(_ HookContext) error {
+	return errVersionExperimentNotSupported
+}
+
+// prePromoteExperimentDatadogAgent refuses to promote a version experiment, for the same reason
+// preStartExperimentDatadogAgent refuses to start one.
+func prePromoteExperimentDatadogAgent(_ HookContext) error {
+	return errVersionExperimentNotSupported
+}
+
+// postStartConfigExperimentDatadogAgent performs post-start steps for the config experiment, as on
+// Linux (datadog_agent_linux.go): write the experiment jobs, then start them. A failed start also
+// discards the experiment configuration the installer published, which the installer would
+// otherwise leave reported as running.
+func postStartConfigExperimentDatadogAgent(ctx HookContext) (err error) {
+	defer func() {
+		if err == nil {
+			return
+		}
+		if discardErr := discardExperimentConfig(ctx); discardErr != nil {
+			err = fmt.Errorf("%w, and %w", err, discardErr)
+		}
+	}()
+	if err := agentService.WriteExperiment(ctx); err != nil {
+		return err
+	}
+	if err := agentService.StartExperiment(ctx); err != nil {
+		return err
+	}
+	return nil
+}
+
+// preStopConfigExperimentDatadogAgent performs pre-stop steps for the config experiment, as on
+// Linux.
+func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
+	detachedCtx := context.WithoutCancel(ctx.Context)
+	ctx.Context = detachedCtx
+	if err := agentService.StopExperiment(ctx); err != nil {
+		return fmt.Errorf("failed to stop experiment unit: %s", err)
+	}
+	if err := agentService.RemoveExperiment(ctx); err != nil {
+		return fmt.Errorf("failed to remove experiment unit: %s", err)
+	}
+	return nil
+}
+
+// postPromoteConfigExperimentDatadogAgent performs post-promote steps for the config experiment, as
+// on Linux.
+func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
+	detachedCtx := context.WithoutCancel(ctx.Context)
+	ctx.Context = detachedCtx
+	err := agentService.RestartStable(ctx)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// installerExecutable returns the path of the running installer binary, with links resolved.
+func installerExecutable() (string, error) {
+	installerBin, err := exec.GetExecutable()
+	if err != nil {
+		return "", fmt.Errorf("could not get the installer executable path: %w", err)
+	}
+	installerBin, err = filepath.EvalSymlinks(installerBin)
+	if err != nil {
+		return "", fmt.Errorf("could not resolve the installer executable path: %w", err)
+	}
+	return installerBin, nil
+}
+
+// runDatadogAgentPackageCommand dispatches the package commands a launchd job runs. Registered
+// into packageCommands in packages_darwin.go.
+func runDatadogAgentPackageCommand(ctx context.Context, command string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, command)
+	defer func() { span.Finish(err) }()
+
+	switch command {
+	case superviseUnitsCommand:
+		return superviseUnits(ctx)
+	default:
+		return fmt.Errorf("unknown package command: %s", command)
+	}
 }
