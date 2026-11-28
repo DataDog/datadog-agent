@@ -749,6 +749,14 @@ func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) 
 	}()
 }
 
+// IsInstanceManaged reports whether apiKeyConfigKey is currently managed by
+// delegated auth, either as an active instance or under async startup recovery.
+func (d *delegatedAuthComponent) IsInstanceManaged(apiKeyConfigKey string) bool {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.instances[apiKeyConfigKey] != nil || d.startupRecoveries[apiKeyConfigKey] != nil
+}
+
 // GetWorkloadToken uses the selected intake instance without changing its refresh state.
 func (d *delegatedAuthComponent) GetWorkloadToken(ctx context.Context, apiKeyConfigKey string, request common.WorkloadTokenRequest) (string, error) {
 	if err := ctx.Err(); err != nil {

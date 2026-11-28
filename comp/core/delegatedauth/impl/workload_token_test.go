@@ -130,3 +130,23 @@ func TestWorkloadTokenRejectsRemovedAdditionalEndpoint(t *testing.T) {
 	require.ErrorIs(t, err, errWritebackTargetChanged)
 	require.Empty(t, token)
 }
+
+func TestIsInstanceManaged(t *testing.T) {
+	d := NewComponent().Comp.(*delegatedAuthComponent)
+	require.False(t, d.IsInstanceManaged("api_key"))
+
+	// Unrelated instance does not mark api_key as managed.
+	d.instances["logs_config.api_key"] = &authInstance{provider: workloadProvider{}}
+	require.False(t, d.IsInstanceManaged("api_key"))
+	require.True(t, d.IsInstanceManaged("logs_config.api_key"))
+
+	// Async startup recovery counts as managed even before the instance is ready.
+	d.startupRecoveries["api_key"] = &startupRecovery{}
+	require.True(t, d.IsInstanceManaged("api_key"))
+	delete(d.startupRecoveries, "api_key")
+	require.False(t, d.IsInstanceManaged("api_key"))
+
+	// Active instance counts as managed.
+	d.instances["api_key"] = &authInstance{provider: workloadProvider{}}
+	require.True(t, d.IsInstanceManaged("api_key"))
+}
