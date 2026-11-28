@@ -1,0 +1,13 @@
+--with-zlib=/tmp/opt/datadog/embedded
+--with-lzma=/tmp/opt/datadog/embedded
+--with-sax1
+--without-iconv
+--without-python
+--without-icu
+--without-debug
+--without-mem-debug
+--without-run-debug
+--without-legacy
+--without-catalog
+--without-docbook
+--enable-static
