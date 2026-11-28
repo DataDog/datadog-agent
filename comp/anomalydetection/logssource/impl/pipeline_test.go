@@ -60,14 +60,20 @@ func TestPipeline_ForwardsMessagesAndPreservesSourceMetadata(t *testing.T) {
 	}
 
 	containerMsg := newLogMessage(t, "hello", "containerd", "abc", []string{"env:prod"})
+	containerMsg.Origin.SetService("checkout")
 	customMsg := newLogMessage(t, "nginx log", "nginx", "xyz", []string{"service:web"})
 	drainMessages(p, []*message.Message{containerMsg, customMsg})
 
 	require.Len(t, handle.logs, 2)
 	assert.Equal(t, "containerd", handle.logs[0].GetSource())
+	assert.Equal(t, "checkout", handle.logs[0].GetService())
 	assert.Equal(t, "hello", handle.logs[0].GetContent())
 	assert.Equal(t, []string{"env:prod"}, handle.logs[0].Tags())
 	assert.Equal(t, "nginx", handle.logs[1].GetSource())
+	assert.Equal(t, "", handle.logs[1].GetService())
 	assert.Equal(t, "nginx log", handle.logs[1].GetContent())
 	assert.Equal(t, []string{"service:web"}, handle.logs[1].Tags())
+
+	nilOriginView := &messageLogView{msg: &message.Message{}}
+	assert.Equal(t, "", nilOriginView.GetService())
 }

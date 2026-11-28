@@ -520,7 +520,11 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 			if host == "" {
 				host = l.hostname
 			}
-			seriesKey := storageKeyForContextKey(extractor.Name(), e.contextKeyForLogComposite(m.Name, host, tags))
+			contextKey := e.contextKeyForLogComposite(m.Name, host, tags)
+			if l.service != "" {
+				contextKey ^= fnv64aString(l.service)
+			}
+			seriesKey := storageKeyForContextKey(extractor.Name(), contextKey)
 			if e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
 				if _, ok := e.baseline.mutedHashes[seriesKey]; ok {
 					continue

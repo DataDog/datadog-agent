@@ -139,6 +139,7 @@ func (*fxTestMetric) GetMetricType() metrics.MetricType { return metrics.GaugeTy
 type fxTestLog struct{}
 
 func (*fxTestLog) GetSource() string            { return "containerd" }
+func (*fxTestLog) GetService() string           { return "test" }
 func (*fxTestLog) GetContent() string           { return "hello" }
 func (*fxTestLog) GetStatus() string            { return "info" }
 func (*fxTestLog) Tags() []string               { return []string{"service:test"} }

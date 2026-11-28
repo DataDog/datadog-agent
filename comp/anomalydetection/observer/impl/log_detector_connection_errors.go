@@ -40,14 +40,26 @@ func (c *ConnectionErrorExtractor) Name() string {
 	return "connection_error_extractor"
 }
 
+func resolveLogService(log observer.LogView, tags []string) string {
+	if service := log.GetService(); service != "" {
+		return service
+	}
+	for _, tag := range tags {
+		if value, ok := strings.CutPrefix(tag, "service:"); ok {
+			return value
+		}
+	}
+	return ""
+}
+
 // ProcessLog checks if a log contains connection error patterns and returns a metric if so.
 // Anomaly detection is handled by metrics detection on the count aggregation of the emitted metric.
 func (c *ConnectionErrorExtractor) ProcessLog(log observer.LogView) observer.LogMetricsExtractorOutput {
 	content := strings.ToLower(log.GetContent())
-	tags := log.Tags()
 
 	for _, pattern := range connectionErrorPatterns {
 		if strings.Contains(content, pattern) {
+			tags := log.Tags()
 			return observer.LogMetricsExtractorOutput{
 				Metrics: []observer.MetricOutput{{
 					Name:       "connection.errors",
@@ -59,6 +71,7 @@ func (c *ConnectionErrorExtractor) ProcessLog(log observer.LogView) observer.Log
 						Pattern: pattern,
 						Example: truncate(log.GetContent(), 160),
 						Source:  "connection_error_extractor",
+						Service: resolveLogService(log, tags),
 					},
 				}},
 			}

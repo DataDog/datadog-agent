@@ -212,6 +212,9 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	}
 	message := log.GetContent()
 	groupKey := tagGroupForPatternGrouping(log.Tags(), log.GetHostname())
+	if service := log.GetService(); service != "" {
+		groupKey.Service = service
+	}
 	groupHash, cluster, ok := e.taggedClusterer.Process(groupKey, message, logUnixSec)
 	// Drain LRU evictions — from per-group MaxClusters or whole-group MaxTagGroups
 	// caps. Treated identically to GC evictions: drop engine context and decrement
@@ -251,6 +254,7 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 			Pattern:   cluster.PatternString(),
 			Example:   truncate(message, 160),
 			Source:    e.Name(),
+			Service:   groupKey.Service,
 			SplitTags: group.AsMap(),
 		},
 	}}

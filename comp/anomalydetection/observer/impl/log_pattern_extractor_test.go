@@ -485,6 +485,47 @@ func TestEngine_LogPatternLRUEvictionFreesStorage(t *testing.T) {
 	}
 }
 
+func TestLogPatternExtractor_PropagatesServiceAndPrecedence(t *testing.T) {
+	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+	e.config.MinClusterSizeBeforeEmit = 1
+
+	resA := e.ProcessLog(&mockLogView{
+		service:     "checkout",
+		content:     "GET /users/123 returned 500",
+		timestampMs: 1_000,
+	})
+	resB := e.ProcessLog(&mockLogView{
+		service:     "payments",
+		content:     "GET /users/123 returned 500",
+		timestampMs: 2_000,
+	})
+	require.Len(t, resA.Metrics, 1)
+	require.Len(t, resB.Metrics, 1)
+	assert.NotEqual(t, resA.Metrics[0].Name, resB.Metrics[0].Name)
+	assert.Equal(t, "checkout", resA.Metrics[0].Context.Service)
+	assert.Equal(t, "payments", resB.Metrics[0].Context.Service)
+	assert.Equal(t, map[string]string{"service": "checkout"}, resA.Metrics[0].Context.SplitTags)
+
+	resOriginWins := e.ProcessLog(&mockLogView{
+		service:     "origin-svc",
+		tags:        []string{"service:tag-svc"},
+		content:     "GET /users/123 returned 500",
+		timestampMs: 3_000,
+	})
+	require.Len(t, resOriginWins.Metrics, 1)
+	assert.Equal(t, "origin-svc", resOriginWins.Metrics[0].Context.Service)
+	assert.Equal(t, map[string]string{"service": "origin-svc"}, resOriginWins.Metrics[0].Context.SplitTags)
+
+	resTagFallback := e.ProcessLog(&mockLogView{
+		tags:        []string{"service:tag-svc"},
+		content:     "GET /users/123 returned 500",
+		timestampMs: 4_000,
+	})
+	require.Len(t, resTagFallback.Metrics, 1)
+	assert.Equal(t, "tag-svc", resTagFallback.Metrics[0].Context.Service)
+	assert.Equal(t, map[string]string{"service": "tag-svc"}, resTagFallback.Metrics[0].Context.SplitTags)
+}
+
 // TestEngine_LogPatternLRUEvictionFreesDetectorState extends
 // TestEngine_LogPatternLRUEvictionFreesStorage to cover the detector side.
 // Storage frees the evicted series via RemoveSeriesByKeys, but stateful
