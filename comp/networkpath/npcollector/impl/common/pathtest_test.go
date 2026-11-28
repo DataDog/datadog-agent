@@ -51,6 +51,36 @@ func TestPathtest_GetHash(t *testing.T) {
 	assert.NotEqual(t, p1.GetHash(), p5.GetHash())
 }
 
+func TestPathtest_MakeCorrelationKey(t *testing.T) {
+	base := Pathtest{
+		Hostname:          "aaa1",
+		Port:              80,
+		Protocol:          "TCP",
+		SourceContainerID: "containerID1",
+		Namespace:         "ns1",
+		Origin:            payload.PathOriginNetworkTraffic,
+	}
+
+	assert.Equal(t, "8eb9d46512bbe7e1423d9ef35f054ef6", base.MakeCorrelationKey("source-host"))
+	assert.Empty(t, base.MakeCorrelationKey(""), "no agent hostname")
+
+	differs := map[string]Pathtest{
+		"destination hostname": {Hostname: "aaa2", Port: 80, Protocol: "TCP"},
+		"destination port":     {Hostname: "aaa1", Port: 81, Protocol: "TCP"},
+		"protocol":             {Hostname: "aaa1", Port: 80, Protocol: "UDP"},
+	}
+	for name, p := range differs {
+		assert.NotEqual(t, base.MakeCorrelationKey("source-host"), p.MakeCorrelationKey("source-host"), name)
+	}
+	assert.NotEqual(t, base.MakeCorrelationKey("source-host"), base.MakeCorrelationKey("other-host"), "agent hostname")
+
+	sameKey := base
+	sameKey.SourceContainerID = "containerID2"
+	sameKey.Namespace = "ns2"
+	sameKey.Origin = payload.PathOriginNetflow
+	assert.Equal(t, base.MakeCorrelationKey("source-host"), sameKey.MakeCorrelationKey("source-host"))
+}
+
 func TestPathtest_GetHash_Netflow(t *testing.T) {
 	udp53 := Pathtest{
 		Hostname:  "10.0.0.1",

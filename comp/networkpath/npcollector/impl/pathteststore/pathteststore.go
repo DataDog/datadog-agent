@@ -202,6 +202,7 @@ func (f *Store) Add(pathtestToAdd *common.Pathtest) {
 		pathtestCtx.Pathtest.TestConfigID = pathtestToAdd.TestConfigID
 		pathtestCtx.Pathtest.TestConfigName = pathtestToAdd.TestConfigName
 		pathtestCtx.Pathtest.TestConfigSource = pathtestToAdd.TestConfigSource
+		pathtestCtx.Pathtest.CorrelationKey = pathtestToAdd.CorrelationKey
 		pathtestCtx.Pathtest.DynamicTestProfile = pathtestToAdd.DynamicTestProfile
 		pathtestCtx.Pathtest.Tags = slices.Clone(pathtestToAdd.Tags)
 		pathtestCtx.Pathtest.RunOnce = pathtestToAdd.RunOnce

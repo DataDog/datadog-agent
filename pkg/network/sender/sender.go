@@ -374,8 +374,6 @@ func (d *directSender) collect() {
 		defer dsc.cleanupProcesses()
 	}
 
-	d.npCollector.ScheduleNetworkPathTests(d.networkPathConnections(conns))
-
 	groupID := d.groupID.Add(1)
 
 	allBatches := result{payloads: make([]payload, 0, d.batchCount(conns))}
@@ -452,6 +450,9 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 	// Sort connections by remote IP/PID for more efficient resolution
 	sortConnections(conns.Conns)
 
+	// Scheduled after the sort so the returned paths pair positionally with the encode loop below.
+	networkPaths := d.npCollector.ScheduleNetworkPathTests(d.hostname, d.networkPathConnections(conns))
+
 	builder := model.NewCollectorConnectionsBuilder(io.Discard)
 	// the same for every chunk of the group
 	hostTags := d.hostTags()
@@ -466,6 +467,7 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 		defer d.resolver.removeDeadTagContainers()
 		defer d.trimCompressScratch()
 
+		connIndex := 0
 		for connsChunk := range slices.Chunk(conns.Conns, d.maxConnsPerMessage) {
 			d.rawBuf.Reset()
 			builder.Reset(&d.rawBuf)
@@ -489,8 +491,13 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 
 			for i := range connsChunk {
 				nc := &connsChunk[i]
+				var networkPath *model.NetworkPath
+				if connIndex < len(networkPaths) {
+					networkPath = &networkPaths[connIndex]
+				}
+				connIndex++
 				builder.AddConnections(func(builder *model.ConnectionBuilder) {
-					d.encodeConnection(builder, nc, conns, routeSet, resolvConfSet)
+					d.encodeConnection(builder, nc, conns, routeSet, resolvConfSet, networkPath)
 					d.addContainerTags(builder, nc.ContainerID.Source, tagsEncoder, tagCache)
 					d.addRemoteServiceTags(builder, nc, remoteServiceResolver, tagsEncoder)
 					d.addTags(builder, nc, tagsSet, usmEncoders, connectionsTagsEncoder, tagCache)

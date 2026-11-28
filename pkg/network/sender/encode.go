@@ -27,7 +27,16 @@ func (d *directSender) encodeConnection(
 	conns *network.Connections,
 	routeSet *indexedset.IndexedSet[network.Via],
 	resolvConfSet *indexedset.IndexedSet[network.ResolvConf],
+	networkPath *model.NetworkPath,
 ) {
+	if networkPath != nil {
+		builder.SetNetworkPath(func(w *model.NetworkPathBuilder) {
+			w.SetTestEligible(networkPath.TestEligible)
+			if networkPath.TestEligible {
+				w.SetCorrelationKey(networkPath.CorrelationKey)
+			}
+		})
+	}
 	builder.SetPid(int32(nc.Pid))
 	builder.SetLaddr(func(w *model.AddrBuilder) {
 		w.SetIp(unique.Make(nc.Source.Addr.String()).Value())

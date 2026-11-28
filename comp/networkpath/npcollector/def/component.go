@@ -9,6 +9,8 @@ package npcollector
 import (
 	"iter"
 
+	model "github.com/DataDog/agent-payload/v5/process"
+
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 )
 
@@ -16,6 +18,11 @@ import (
 
 // Component is the component type.
 type Component interface {
-	ScheduleNetworkPathTests(conns iter.Seq[npmodel.NetworkPathConnection])
+	// ScheduleNetworkPathTests returns nil when it did not evaluate the batch (collector
+	// disabled, or the VPC subnet lookup failed). Otherwise it returns one entry per
+	// connection consumed from conns, in the same order, so callers pair them by index.
+	// TestEligible means policy admitted the path; a test may still not run (basic-mode
+	// ranking, full input channel).
+	ScheduleNetworkPathTests(sourceHostname string, conns iter.Seq[npmodel.NetworkPathConnection]) []model.NetworkPath
 	ScheduleNetflowPathTests(conns iter.Seq[npmodel.NetworkPathConnection])
 }

@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    CNM connection payloads now carry Network Path metadata. Connections the
+    Network Path collector evaluates are stamped with whether policy admitted a
+    dynamic test, and, when admitted, with a correlation key. Admission does not
+    guarantee a test runs. When one does, the Network Path event carries the
+    same key, so the two can be correlated.
