@@ -32,14 +32,16 @@ type testDeps struct {
 	Log    log.Component
 	Config config.Component
 
-	Providers []runner.MetadataProvider `group:"metadata_provider"`
+	PrimaryProviders []runner.MetadataProvider `group:"metadata_provider_primary"`
+	Providers        []runner.MetadataProvider `group:"metadata_provider"`
 }
 
 func makeRequires(_ *testing.T, deps testDeps) Requires {
 	return Requires{
-		Log:       deps.Log,
-		Config:    deps.Config,
-		Providers: deps.Providers,
+		Log:              deps.Log,
+		Config:           deps.Config,
+		PrimaryProviders: deps.PrimaryProviders,
+		Providers:        deps.Providers,
 	}
 }
 
@@ -155,4 +157,56 @@ func TestRunnerCreation(t *testing.T) {
 	wg.Wait()
 
 	assert.NoError(t, lc.Stop(ctx))
+}
+
+func TestPrimaryProviderOrdering(t *testing.T) {
+	newRunner := func(primary, secondary runner.MetadataProvider, timeout time.Duration) *runnerImpl {
+		r := createRunner(makeRequires(t, fxutil.Test[testDeps](
+			t,
+			fx.Provide(func() log.Component { return logmock.New(t) }),
+			fx.Provide(func() config.Component { return config.NewMock(t) }),
+			fx.Supply(runner.NewPrimaryProvider(primary)),
+			fx.Supply(runner.NewProvider(secondary)),
+		)))
+		r.primaryWaitTimeout = timeout
+		return r
+	}
+
+	t.Run("secondary waits for primary", func(t *testing.T) {
+		release, secondaryRan := make(chan struct{}), make(chan struct{})
+		r := newRunner(
+			func(context.Context) time.Duration { <-release; return time.Minute },
+			func(context.Context) time.Duration { close(secondaryRan); return time.Minute },
+			5*time.Second,
+		)
+		require.NoError(t, r.start())
+		select {
+		case <-secondaryRan:
+			require.Fail(t, "secondary ran before primary finished")
+		case <-time.After(30 * time.Millisecond):
+		}
+		close(release)
+		select {
+		case <-secondaryRan:
+		case <-time.After(time.Second):
+			require.Fail(t, "secondary did not run after primary finished")
+		}
+		assert.NoError(t, r.stop())
+	})
+
+	t.Run("timeout fallback and stop", func(t *testing.T) {
+		secondaryRan := make(chan struct{})
+		r := newRunner(
+			func(ctx context.Context) time.Duration { <-ctx.Done(); return time.Minute },
+			func(context.Context) time.Duration { close(secondaryRan); return time.Minute },
+			30*time.Millisecond,
+		)
+		require.NoError(t, r.start())
+		select {
+		case <-secondaryRan:
+		case <-time.After(time.Second):
+			require.Fail(t, "secondary did not start after primaryWaitTimeout")
+		}
+		assert.NoError(t, r.stop())
+	})
 }

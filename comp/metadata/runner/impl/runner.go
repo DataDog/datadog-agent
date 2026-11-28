@@ -17,11 +17,15 @@ import (
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 )
 
+const defaultPrimaryWaitTimeout = 15 * time.Second
+
 type runnerImpl struct {
 	log    log.Component
 	config config.Component
 
-	providers []runner.MetadataProvider
+	primaryProviders   []runner.MetadataProvider
+	providers          []runner.MetadataProvider
+	primaryWaitTimeout time.Duration
 
 	wg       sync.WaitGroup
 	stopChan chan struct{}
@@ -35,7 +39,8 @@ type Requires struct {
 	Log    log.Component
 	Config config.Component
 
-	Providers []runner.MetadataProvider `group:"metadata_provider"`
+	PrimaryProviders []runner.MetadataProvider `group:"metadata_provider_primary"`
+	Providers        []runner.MetadataProvider `group:"metadata_provider"`
 }
 
 // Provides defines the output of the runner component
@@ -48,10 +53,12 @@ type Provides struct {
 // createRunner instantiates a runner object
 func createRunner(deps Requires) *runnerImpl {
 	return &runnerImpl{
-		log:       deps.Log,
-		config:    deps.Config,
-		providers: runner.GetAndFilterProviders(deps.Providers),
-		stopChan:  make(chan struct{}),
+		log:                deps.Log,
+		config:             deps.Config,
+		primaryProviders:   runner.GetAndFilterProviders(deps.PrimaryProviders),
+		providers:          runner.GetAndFilterProviders(deps.Providers),
+		primaryWaitTimeout: defaultPrimaryWaitTimeout,
+		stopChan:           make(chan struct{}),
 	}
 }
 
@@ -75,9 +82,18 @@ func NewComponent(deps Requires) Provides {
 	return Provides{Comp: r}
 }
 
-// handleProvider runs a provider at regular interval until the runner is stopped
-func (r *runnerImpl) handleProvider(p runner.MetadataProvider) {
+// handleProvider runs a provider at regular interval until the runner is stopped.
+// If onFirstRun is non-nil, it is called once after the first collection returns.
+func (r *runnerImpl) handleProvider(p runner.MetadataProvider, onFirstRun func()) {
 	r.log.Debugf("Starting runner for MetadataProvider %#v", p)
+
+	var firstRunOnce sync.Once
+	markDone := func() {
+		if onFirstRun != nil {
+			firstRunOnce.Do(onFirstRun)
+		}
+	}
+	defer markDone()
 
 	intervalChan := make(chan time.Duration)
 	var interval time.Duration
@@ -95,6 +111,7 @@ func (r *runnerImpl) handleProvider(p runner.MetadataProvider) {
 
 		select {
 		case interval = <-intervalChan:
+			markDone()
 		case <-r.stopChan:
 			cancel()
 
@@ -116,18 +133,54 @@ func (r *runnerImpl) handleProvider(p runner.MetadataProvider) {
 	}
 }
 
-// start is called by FX when the application starts. Lifecycle hooks are blocking and called sequentially. We should
-// not block here.
-func (r *runnerImpl) start() error {
-	r.log.Debugf("Starting metadata runner with %d providers", len(r.providers))
-
-	for _, provider := range r.providers {
+func (r *runnerImpl) startProviders(providers []runner.MetadataProvider, onFirstRun func()) {
+	for _, provider := range providers {
 		r.wg.Add(1)
 		go func() {
 			defer r.wg.Done()
-			r.handleProvider(provider)
+			r.handleProvider(provider, onFirstRun)
 		}()
 	}
+}
+
+// start is called by FX when the application starts. Lifecycle hooks are blocking and called sequentially. We should
+// not block here.
+func (r *runnerImpl) start() error {
+	r.log.Debugf("Starting metadata runner with %d primary and %d regular providers", len(r.primaryProviders), len(r.providers))
+
+	if len(r.primaryProviders) == 0 {
+		r.startProviders(r.providers, nil)
+		return nil
+	}
+
+	primaryDone := make(chan struct{})
+	var primaryWG sync.WaitGroup
+	primaryWG.Add(len(r.primaryProviders))
+	r.startProviders(r.primaryProviders, primaryWG.Done)
+	go func() {
+		primaryWG.Wait()
+		close(primaryDone)
+	}()
+
+	r.wg.Add(1)
+	go func() {
+		defer r.wg.Done()
+		timer := time.NewTimer(r.primaryWaitTimeout)
+		defer timer.Stop()
+		select {
+		case <-primaryDone:
+		case <-timer.C:
+			r.log.Warnf("Timed out after %s waiting for primary metadata providers; starting regular providers", r.primaryWaitTimeout)
+		case <-r.stopChan:
+			return
+		}
+		select {
+		case <-r.stopChan:
+			return
+		default:
+			r.startProviders(r.providers, nil)
+		}
+	}()
 
 	return nil
 }
