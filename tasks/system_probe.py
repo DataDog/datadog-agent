@@ -324,7 +324,7 @@ def test(
         )
 
     if not skip_object_files:
-        build_object_files(ctx)
+        build_object_files(ctx, tests=True)
 
     build_tags = get_sysprobe_test_buildtags(is_windows, bundle_ebpf)
 
@@ -392,7 +392,7 @@ def test_debug(
         )
 
     if not skip_object_files:
-        build_object_files(ctx)
+        build_object_files(ctx, tests=True)
 
     build_tags = [NPM_TAG]
     build_tags.extend(UNIT_TEST_TAGS)
@@ -710,6 +710,9 @@ _EBPF_DEBUG_INSTALL_TARGET = "//pkg/ebpf:install_debug_object_files"
 # The filegroups it installs, with their directory under get_ebpf_build_dir().
 _EBPF_DEBUG_GROUPS = (("//pkg/ebpf:prebuilt_debug_objects", ""), ("//pkg/ebpf:co_re_debug_objects", "co-re"))
 
+# Test-only eBPF objects and runtime sources, installed only on request.
+_EBPF_TEST_INSTALL_TARGET = "//pkg/ebpf:install_test_object_files"
+
 
 def _staged_debug_objects() -> list[str]:
     """Return the staging paths of the debug variants, relative to the build dir."""
@@ -775,6 +778,7 @@ def bazel_build_ebpf(
     *,
     verify: bool = False,
     debug: bool = False,
+    tests: bool = False,
     extra_targets: list[str] | tuple[str, ...] = (),
     install_target: str = _EBPF_INSTALL_TARGET,
     fips_backend: FipsBackend = FipsBackend.none,
@@ -782,8 +786,13 @@ def bazel_build_ebpf(
     """Build all eBPF artifacts in one Bazel invocation, then install them into the repository.
 
     With debug, the <name>-debug.o variants are built and installed as well.
+    With tests, the test-only objects and runtime sources are built and installed as well.
     """
-    install_targets = [install_target, _EBPF_DEBUG_INSTALL_TARGET] if debug else [install_target]
+    install_targets = [install_target]
+    if debug:
+        install_targets.append(_EBPF_DEBUG_INSTALL_TARGET)
+    if tests:
+        install_targets.append(_EBPF_TEST_INSTALL_TARGET)
     targets = [*install_targets, *extra_targets]
     if verify:
         targets.append("//pkg/ebpf:verify_generated_files")
@@ -852,12 +861,16 @@ def _rust_install_targets(output_dir: Path | None = None, packages: list[str] | 
 
 @task(
     aliases=["object-files"],
-    help={"debug": "Also build and stage the DEBUG=1 <name>-debug.o variants"},
+    help={
+        "debug": "Also build and stage the DEBUG=1 <name>-debug.o variants",
+        "tests": "Also build and stage the test-only objects and runtime sources, and dyninst_event-debug.o",
+    },
 )
 def build_object_files(
     ctx,
     arch: str = CURRENT_ARCH,
     debug: bool = False,
+    tests: bool = False,
     fips_backend: FipsBackend = FipsBackend.none,
 ) -> None:
     arch_obj = Arch.from_str(arch)
@@ -877,7 +890,13 @@ def build_object_files(
             extra_targets.extend(t for t, _ in _rust_install_targets())
 
         bazel_build_ebpf(
-            ctx, arch_obj, verify=True, debug=debug, extra_targets=extra_targets, fips_backend=fips_backend
+            ctx,
+            arch_obj,
+            verify=True,
+            debug=debug,
+            tests=tests,
+            extra_targets=extra_targets,
+            fips_backend=fips_backend,
         )
         for rel in stale_debug:
             stale = os.path.join(build_dir, rel)
