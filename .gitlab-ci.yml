@@ -1207,6 +1207,21 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
+.on_windows_vdi_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/vdi/**/*
+        - pkg/collector/corechecks/vdi/**/*
+        - cmd/agent/dist/conf.d/vdi.d/**/*
+        - cmd/agent/subcommands/run/dependent_services_windows.go
+        - cmd/system-probe/modules/vdi_windows.go
+        - pkg/system-probe/config/**/*
+        - pkg/config/schema/yaml/core_schema.yaml
+        - test/new-e2e/tests/windows/vdi/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
 .on_windows_certificate_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:

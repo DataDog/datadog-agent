@@ -133,6 +133,7 @@ func load() (*types.Config, error) {
 	gpuEBPFProbesEnabled := gpuEnabled && cfg.GetBool(gpuNS("enable_ebpf_probes"))
 	diEnabled := cfg.GetBool(diNS("enabled"))
 	swEnabled := coreCfg.GetBool(swNS("enabled"))
+	vdiEnabled := coreCfg.GetBool("vdi.enabled")
 	discoveryServiceMapEnabled := cfg.GetBool(discoveryNS("service_map", "enabled"))
 
 	if npmEnabled || usmEnabled || ccmEnabled || eudmEnabled || discoveryServiceMapEnabled || (csmEnabled && cfg.GetBool(secNS("network_monitoring.enabled"))) {
@@ -218,6 +219,9 @@ func load() (*types.Config, error) {
 	}
 
 	if runtime.GOOS == "windows" {
+		if vdiEnabled {
+			c.EnabledModules[types.VDIModule] = struct{}{}
+		}
 		if c.ModuleIsEnabled(types.NetworkTracerModule) || c.ModuleIsEnabled(types.EventMonitorModule) {
 			// enable the windows crash detection module if the network tracer
 			// module is enabled, to allow the core agent to detect our own crash
@@ -247,7 +251,6 @@ func load() (*types.Config, error) {
 			c.EnabledModules[types.InjectorModule] = struct{}{}
 		}
 	}
-
 	c.Enabled = len(c.EnabledModules) > 0
 	// only allowed raw config adjustments here, otherwise use Adjust function
 	cfg.Set(spNS("enabled"), c.Enabled, pkgconfigmodel.SourceAgentRuntime)

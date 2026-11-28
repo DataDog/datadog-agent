@@ -7,7 +7,8 @@ init_config:
 instances:
   -
     ## @param provider - string - required
-    ## VDI provider running on this host. The initial release supports only `aws_workspaces`.
+    ## VDI provider running on this host. Supported values are `aws_workspaces` and `azure_virtual_desktop`.
+    ## AVD inventory requires `vdi.enabled: true` in datadog.yaml.
     #
     provider: aws_workspaces
 
@@ -28,3 +29,17 @@ instances:
     # tags:
     #   - <KEY_1>:<VALUE_1>
     #   - <KEY_2>:<VALUE_2>
+
+    ## @param collect_user_tags - boolean - optional - default: true
+    ## Attach vdi_session_user to AVD session metrics when the user is available.
+    # collect_user_tags: true
+
+    ## @param collect_session_tags - boolean - optional - default: true
+    ## Emit individual AVD session metrics with session identifiers.
+    ## When disabled, only aggregate AVD counts are emitted.
+    # collect_session_tags: true
+
+    ## @param inventory_stale_ttl - integer - optional - default: 300
+    ## Seconds before unavailable AVD inventory is reported as critical.
+    ## Failed inventory never emits stale identities or a false zero count.
+    # inventory_stale_ttl: 300
