@@ -1,3 +1,7 @@
+# Consumed by deps/msodbcsql18.BUILD.bazel, which is the BUILD file of the
+# downloaded per-architecture repositories.
+exports_files(["odbcinst.ini.in"])
+
 alias(
     name = "msodbcsql_pkg",
     actual = select({

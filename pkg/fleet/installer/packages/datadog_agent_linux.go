@@ -404,6 +404,9 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	if err := restoreODBCConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore ODBC config: %s", err)
 	}
+	if err := ensureODBCDriverConfig(ctx.PackagePath); err != nil {
+		log.Warnf("failed to configure ODBC drivers: %s", err)
+	}
 	if err := restoreLogsRegistry(ctx); err != nil {
 		log.Warnf("failed to restore logs registry: %s", err)
 	}
@@ -535,6 +538,9 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 	}
 	if err := restoreODBCConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore ODBC config: %s", err)
+	}
+	if err := ensureODBCDriverConfig(ctx.PackagePath); err != nil {
+		log.Warnf("failed to configure ODBC drivers: %s", err)
 	}
 	if err := restoreLogsRegistry(ctx); err != nil {
 		log.Warnf("failed to restore logs registry: %s", err)
