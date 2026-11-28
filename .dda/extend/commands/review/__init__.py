@@ -29,7 +29,11 @@ class ReviewGroup(DynamicGroup):
     cls=ReviewGroup,
 )
 @click.option("--base", default=None, help="Base branch or ref. Defaults to the repository default branch.")
-@click.option("--provider", default="codex", help="Review provider: codex, claude, gemini, or all.")
+@click.option(
+    "--provider",
+    default="codex",
+    help="Review provider: codex, claude, gemini, all, or auto (the first available one other than the AI agent running this).",
+)
 @click.option("--override-prompt", default=None, help="Full prompt override. Cannot be combined with extra prompt.")
 @click.pass_context
 @pass_app
@@ -46,6 +50,7 @@ def cmd(
 
     Examples:
         dda review --provider claude "Please also check shutdown paths"
+        dda review --provider auto
         dda review --override-prompt "Check the CI config for validity"
     """
     if context.invoked_subcommand is not None and "review_extra_prompt" not in context.meta:
