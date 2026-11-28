@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units/linuxunits"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -72,7 +72,7 @@ type procmgrLinuxSuite struct {
 
 func TestProcmgrSmokeLinuxSuite(t *testing.T) {
 	t.Parallel()
-	ddotConfig, err := embedded.GetProcmgrProcess("datadog-agent-ddot.yaml")
+	ddotConfig, err := linuxunits.Content(linuxunits.Procmgr.DDOT, linuxunits.Flavor{}, false)
 	require.NoError(t, err)
 	s := &procmgrLinuxSuite{}
 	s.platform = linuxPlatform

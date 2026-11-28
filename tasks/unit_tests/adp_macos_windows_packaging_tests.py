@@ -51,7 +51,7 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         # which installs the stable jobs from the definitions embedded in the installer -- see
         # postInstallDatadogAgent and installStableJobs in
         # pkg/fleet/installer/packages/datadog_agent_darwin.go. Go-side coverage for the rendered
-        # job content itself lives in pkg/fleet/installer/packages/embedded/embed_test.go.
+        # job content itself lives in pkg/fleet/installer/units/darwinunits/registry_test.go.
         preinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/preinst").read_text()
         postinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/postinst").read_text()
         uninstall = (REPO_ROOT / "cmd/agent/macos/uninstall_mac_os.sh").read_text()
@@ -117,21 +117,17 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         self.assertNotIn("aws_lc_fips", omnibus_project)
 
     def test_windows_adp_procmgr_config_is_embedded_for_fleet_installer(self):
-        generated_path = (
-            REPO_ROOT / "pkg/fleet/installer/packages/embedded/tmpl/gen/windows/datadog-agent-data-plane.yaml"
-        )
-        generated = generated_path.read_text()
-        embed_go = (REPO_ROOT / "pkg/fleet/installer/packages/embedded/embed.go").read_text()
-        adp_procmgr = (
-            REPO_ROOT / "pkg/fleet/installer/packages/processmanager/adp_procmgr_config_windows.go"
+        generated = (
+            REPO_ROOT / "pkg/fleet/installer/units/windowsunits/gen/pm/processes.d/datadog-agent-data-plane.yaml"
         ).read_text()
+        registry = (REPO_ROOT / "pkg/fleet/installer/units/windowsunits/registry.go").read_text()
+        agent_hooks = (REPO_ROOT / "pkg/fleet/installer/packages/datadog_agent_windows.go").read_text()
 
-        self.assertIn("__ADP_INSTALL_ROOT__", generated)
-        self.assertIn("__ADP_ETC_ROOT__", generated)
+        self.assertIn("__INSTALL_ROOT__", generated)
+        self.assertIn("__ETC_ROOT__", generated)
         self.assertIn("agent-data-plane.exe", generated)
-        self.assertIn("tmpl/gen/windows/datadog-agent-data-plane.yaml", embed_go)
-        self.assertIn("ADPWindowsProcmgrConfig", embed_go)
-        self.assertIn("embedded.ADPWindowsProcmgrConfig", adp_procmgr)
+        self.assertIn('procmgr("datadog-agent-data-plane", "bin/agent/agent-data-plane.exe")', registry)
+        self.assertIn("windowsunits.Procmgr.DataPlane", agent_hooks)
 
     def test_postinst_fails_the_install_when_the_installer_fails(self):
         # postinst hands the whole install to `installer postinst datadog-agent dmg`, as deb and rpm
@@ -161,6 +157,6 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         ]:
             with self.subTest(job=label):
                 definition = (
-                    REPO_ROOT / f"pkg/fleet/installer/packages/embedded/tmpl/gen/darwin/{label}.plist"
+                    REPO_ROOT / f"pkg/fleet/installer/units/darwinunits/gen/launchd/{label}.plist"
                 ).read_text()
                 self.assertRegex(definition, r"<key>RunAtLoad</key>\s*<true/>")

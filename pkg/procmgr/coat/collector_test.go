@@ -10,7 +10,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -124,7 +123,7 @@ func setupDDOTInstallFixture(t *testing.T) string {
 	require.NoError(t, os.WriteFile(marker, []byte("bin"), 0o644))
 	require.NoError(t, os.MkdirAll(filepath.Join(root, processesDirRel), 0o755))
 	require.NoError(t, os.WriteFile(
-		filepath.Join(root, processesDirRel, ddot.ProcmgrConfigFile),
+		filepath.Join(root, processesDirRel, ddot.ProcmgrConfigFile()),
 		[]byte("cfg"),
 		0o644,
 	))
@@ -141,7 +140,7 @@ func TestCollectInstalledViaStandaloneMarkerOnly(t *testing.T) {
 	require.NoError(t, os.WriteFile(standalone, []byte("bin"), 0o644))
 	require.NoError(t, os.MkdirAll(filepath.Join(root, processesDirRel), 0o755))
 	require.NoError(t, os.WriteFile(
-		filepath.Join(root, processesDirRel, ddot.ProcmgrConfigFile),
+		filepath.Join(root, processesDirRel, ddot.ProcmgrConfigFile()),
 		[]byte("cfg"),
 		0o644,
 	))
@@ -232,7 +231,6 @@ func TestCollectADPProcmgrRunning(t *testing.T) {
 func TestCollectProcessProcmgrRunning(t *testing.T) {
 	process, ok := serviceByID("process")
 	require.True(t, ok)
-	assert.Equal(t, "datadog-process-agent", process.LegacyWindowsService)
 
 	root := t.TempDir()
 	marker := installMarkerForTest(t, root, process, 0)
@@ -240,7 +238,7 @@ func TestCollectProcessProcmgrRunning(t *testing.T) {
 	require.NoError(t, os.WriteFile(marker, []byte("bin"), 0o644))
 	require.NoError(t, os.MkdirAll(filepath.Join(root, processesDirRel), 0o755))
 	require.NoError(t, os.WriteFile(
-		filepath.Join(root, processesDirRel, process.ProcmgrConfigFile),
+		filepath.Join(root, processesDirRel, process.ProcmgrConfigFile()),
 		[]byte("cfg"),
 		0o644,
 	))
@@ -262,14 +260,8 @@ func TestCollectProcessProcmgrRunning(t *testing.T) {
 	assert.Equal(t, ManagementModeProcmgr, service.ManagementMode)
 }
 
-// Catalog entries must name the same process the processes.d basename implies. A mismatch would
-// leave management_mode stuck at none even when dd-procmgrd is supervising the service.
-func TestMigratableServicesProcessNameMatchesConfigFile(t *testing.T) {
+func TestMigratableServicesHaveAnInstallMarker(t *testing.T) {
 	for _, service := range migratableServices {
-		want := strings.TrimSuffix(service.ProcmgrConfigFile, ".yaml")
-		assert.Equal(t, want, service.ProcmgrProcessName,
-			"service %q: ProcmgrProcessName must be the processes.d basename without .yaml", service.ID)
-		assert.NotEmpty(t, service.ProcmgrConfigFile)
 		assert.NotEmpty(t, service.InstallMarkerRels, "service %q needs an install marker", service.ID)
 	}
 }
@@ -284,7 +276,7 @@ func TestCollectActionProcmgrRunning(t *testing.T) {
 	require.NoError(t, os.WriteFile(marker, []byte("bin"), 0o644))
 	require.NoError(t, os.MkdirAll(filepath.Join(root, processesDirRel), 0o755))
 	require.NoError(t, os.WriteFile(
-		filepath.Join(root, processesDirRel, action.ProcmgrConfigFile),
+		filepath.Join(root, processesDirRel, action.ProcmgrConfigFile()),
 		[]byte("cfg"),
 		0o644,
 	))
@@ -313,7 +305,7 @@ func TestCollectPARControlProcmgrRunningWithoutLegacyUnit(t *testing.T) {
 	require.NoError(t, os.WriteFile(marker, []byte("bin"), 0o644))
 	require.NoError(t, os.MkdirAll(filepath.Join(root, processesDirRel), 0o755))
 	require.NoError(t, os.WriteFile(
-		filepath.Join(root, processesDirRel, control.ProcmgrConfigFile),
+		filepath.Join(root, processesDirRel, control.ProcmgrConfigFile()),
 		[]byte("cfg"),
 		0o644,
 	))
@@ -368,7 +360,7 @@ func TestCollectInstallMarkerAbsent(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(root, processesDirRel), 0o755))
 	require.NoError(t, os.WriteFile(
-		filepath.Join(root, processesDirRel, ddot.ProcmgrConfigFile),
+		filepath.Join(root, processesDirRel, ddot.ProcmgrConfigFile()),
 		[]byte("cfg"),
 		0o644,
 	))
@@ -391,7 +383,7 @@ func TestCollectInstallMarkerAbsentButProcmgrSupervises(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(root, processesDirRel), 0o755))
 	require.NoError(t, os.WriteFile(
-		filepath.Join(root, processesDirRel, ddot.ProcmgrConfigFile),
+		filepath.Join(root, processesDirRel, ddot.ProcmgrConfigFile()),
 		[]byte("cfg"),
 		0o644,
 	))

@@ -25,6 +25,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units/darwinunits"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -36,9 +38,6 @@ import (
 const (
 	agentUser     = "_dd-agent"
 	agentGroup    = "admin"
-	guiLabel      = "com.datadoghq.gui"
-	monitorLabel  = "com.datadoghq.ai-usage-agent.desktop-monitor"
-	oldMonitor    = "com.datadoghq.ai-prompt-logger.desktop-monitor"
 	nativeHost    = "com.datadoghq.ai_usage_agent.native_host"
 	oldNativeHost = "com.datadoghq.ai_prompt_logger.native_host"
 	// defaultChromeExtensionID is the AI usage Chrome extension the native host talks to unless the
@@ -245,7 +244,7 @@ func removeOldInstallFiles(layout dmgLayout) {
 // be replaced, and waits up to 10 seconds for the GUI to quit.
 func stopGUI(ctx context.Context, layout dmgLayout) {
 	for _, uid := range loggedInUIDs(ctx) {
-		for _, label := range []string{guiLabel, monitorLabel, oldMonitor} {
+		for _, label := range units.Names(guiAgents, false) {
 			_, _ = hostCommand(ctx, "launchctl", "bootout", "gui/"+uid+"/"+label)
 		}
 	}
@@ -700,15 +699,15 @@ func startDMGGUI(ctx context.Context, layout dmgLayout, env installEnv) {
 			log.Warnf("could not load %s: %v", label, err)
 		}
 	}
-	install(guiLabel, filepath.Join(layout.confDir(), guiLabel+".plist.example"), func(content []byte) []byte {
+	install(darwinunits.LaunchdGUI.GUI.Name, filepath.Join(layout.confDir(), darwinunits.LaunchdGUI.GUI.Name+".plist.example"), func(content []byte) []byte {
 		if env["DD_GUI_APP_MENU_ENABLED"] == "true" {
 			return regexp.MustCompile(`(?m)^.*<string>--headless</string>.*\n`).ReplaceAll(content, nil)
 		}
 		return content
 	})
-	_ = os.Remove(filepath.Join(layout.launchAgentsDir, oldMonitor+".plist"))
-	_ = os.Remove(filepath.Join(layout.confDir(), oldMonitor+".plist.example"))
-	install(monitorLabel, filepath.Join(layout.confDir(), monitorLabel+".plist.example"), nil)
+	_ = os.Remove(filepath.Join(layout.launchAgentsDir, darwinunits.LaunchdGUI.OldMonitor.Name+".plist"))
+	_ = os.Remove(filepath.Join(layout.confDir(), darwinunits.LaunchdGUI.OldMonitor.Name+".plist.example"))
+	install(darwinunits.LaunchdGUI.Monitor.Name, filepath.Join(layout.confDir(), darwinunits.LaunchdGUI.Monitor.Name+".plist.example"), nil)
 	if err := os.RemoveAll(layout.stagingDir); err != nil {
 		log.Warnf("could not remove %s: %v", layout.stagingDir, err)
 	}

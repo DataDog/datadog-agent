@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units/darwinunits"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -221,7 +222,7 @@ func TestInstallLinks(t *testing.T) {
 func TestSetUpDMGInstall(t *testing.T) {
 	layout := stubDmgLayout(t)
 	require.NoError(t, os.MkdirAll(filepath.Join(layout.installDir, layout.appName()), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(layout.confDir(), guiLabel+".plist.example"),
+	require.NoError(t, os.WriteFile(filepath.Join(layout.confDir(), darwinunits.LaunchdGUI.GUI.Name+".plist.example"),
 		[]byte("<array>\n    <string>gui</string>\n    <string>--headless</string>\n</array>\n"), 0o644))
 	require.NoError(t, os.MkdirAll(layout.stagingDir, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(layout.stagingDir, "env"), []byte("DD_API_KEY=k\nDD_GUI_APP_MENU_ENABLED=true\n"), 0o600))
@@ -237,7 +238,7 @@ func TestSetUpDMGInstall(t *testing.T) {
 	datadogYAML, err := os.ReadFile(filepath.Join(layout.confDir(), "datadog.yaml"))
 	require.NoError(t, err)
 	assert.Contains(t, string(datadogYAML), "api_key: k\n")
-	gui, err := os.ReadFile(filepath.Join(layout.launchAgentsDir, guiLabel+".plist"))
+	gui, err := os.ReadFile(filepath.Join(layout.launchAgentsDir, darwinunits.LaunchdGUI.GUI.Name+".plist"))
 	require.NoError(t, err)
 	assert.NotContains(t, string(gui), "--headless")
 	assert.NoDirExists(t, layout.stagingDir, "the staging directory must be removed")
@@ -252,7 +253,7 @@ func TestStartDMGGUILoadsForTheConsoleSession(t *testing.T) {
 	require.NoError(t, err)
 	for _, hasSession := range []bool{true, false} {
 		layout := stubDmgLayout(t)
-		require.NoError(t, os.WriteFile(filepath.Join(layout.confDir(), guiLabel+".plist.example"), []byte("<plist/>\n"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(layout.confDir(), darwinunits.LaunchdGUI.GUI.Name+".plist.example"), []byte("<plist/>\n"), 0o644))
 		var commands [][]string
 		hostCommand = func(_ context.Context, name string, args ...string) ([]byte, error) {
 			commands = append(commands, append([]string{name}, args...))
@@ -265,7 +266,7 @@ func TestStartDMGGUILoadsForTheConsoleSession(t *testing.T) {
 		startDMGGUI(t.Context(), layout, installEnv{})
 
 		assert.Contains(t, commands, []string{"launchctl", "print", "gui/" + current.Uid})
-		bootstrap := []string{"launchctl", "bootstrap", "gui/" + current.Uid, filepath.Join(layout.launchAgentsDir, guiLabel+".plist")}
+		bootstrap := []string{"launchctl", "bootstrap", "gui/" + current.Uid, filepath.Join(layout.launchAgentsDir, darwinunits.LaunchdGUI.GUI.Name+".plist")}
 		if hasSession {
 			assert.Contains(t, commands, bootstrap, "the GUI must be loaded into the console session")
 		} else {
@@ -274,7 +275,7 @@ func TestStartDMGGUILoadsForTheConsoleSession(t *testing.T) {
 		for _, c := range commands {
 			assert.NotContains(t, c, "managername")
 		}
-		assert.FileExists(t, filepath.Join(layout.launchAgentsDir, guiLabel+".plist"))
+		assert.FileExists(t, filepath.Join(layout.launchAgentsDir, darwinunits.LaunchdGUI.GUI.Name+".plist"))
 	}
 }
 

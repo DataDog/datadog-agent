@@ -16,6 +16,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units/linuxunits"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.yaml.in/yaml/v3"
 )
@@ -98,17 +100,10 @@ func (a *InjectorInstaller) configureSocketsEnv(ctx context.Context) (retErr err
 		return fmt.Errorf("failed to check if systemd is running: %w", err)
 	}
 	if systemdRunning {
-		if err = addSystemDEnvOverrides(ctx, "datadog-agent.service"); err != nil {
-			return err
-		}
-		if err = addSystemDEnvOverrides(ctx, "datadog-agent-exp.service"); err != nil {
-			return err
-		}
-		if err = addSystemDEnvOverrides(ctx, "datadog-agent-trace.service"); err != nil {
-			return err
-		}
-		if err = addSystemDEnvOverrides(ctx, "datadog-agent-trace-exp.service"); err != nil {
-			return err
+		for _, unit := range units.StableAndExpNames(linuxunits.Systemd.Agent, linuxunits.Systemd.Trace) {
+			if err = addSystemDEnvOverrides(ctx, unit); err != nil {
+				return err
+			}
 		}
 		if err = systemd.Reload(ctx); err != nil {
 			return err

@@ -181,7 +181,7 @@ mod tests {
         ($name:literal) => {
             include_str!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/../../../pkg/fleet/installer/packages/embedded/tmpl/",
+                "/../../../pkg/fleet/installer/units/generator/tmpl/",
                 $name
             ))
         };

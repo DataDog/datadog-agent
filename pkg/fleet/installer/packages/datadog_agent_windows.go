@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/processmanager"
 	windowssvc "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/windows"
 	windowsuser "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user/windows"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -34,6 +33,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/msi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units/windowsunits"
 )
 
 // datadogAgentPackage is the package for the Datadog Agent
@@ -144,10 +145,8 @@ func postInstallDatadogAgent(ctx HookContext) error {
 		}
 	}
 
-	for _, cfg := range procmgrConfigs {
-		if err := ensureProcmgrConfig(cfg); err != nil {
-			return fmt.Errorf("failed to write %s process manager config: %w", cfg.label, err)
-		}
+	if err := ensureAgentProcmgrConfigs(); err != nil {
+		return err
 	}
 
 	// No need to explicitly start the Agent here
@@ -200,35 +199,34 @@ func resolveDatadogProgramFilesInstallRoot() (string, error) {
 	return installRoot, nil
 }
 
-// procmgrConfig is a processes.d definition managed at install time.
-type procmgrConfig struct {
-	label  string
-	write  func(installRoot string) error
-	remove func(installRoot string) error
+// agentProcmgrConfigs are the processes.d entries of the Agent package.
+var agentProcmgrConfigs = []units.Unit{
+	windowsunits.Procmgr.DataPlane,
+	windowsunits.Procmgr.Action,
+	windowsunits.Procmgr.ActionExecutor,
+	windowsunits.Procmgr.ParControl,
+	windowsunits.Procmgr.Process,
+	windowsunits.Procmgr.Sysprobe,
+	windowsunits.Procmgr.Trace,
+	windowsunits.Procmgr.Security,
 }
 
-var procmgrConfigs = []procmgrConfig{
-	{"ADP", processmanager.WriteADPProcmgrConfig, processmanager.RemoveADPProcmgrConfig},
-	{"PAR", processmanager.WritePARProcmgrConfig, processmanager.RemovePARProcmgrConfig},
-	{"PAR executor", processmanager.WritePARExecutorProcmgrConfig, processmanager.RemovePARExecutorProcmgrConfig},
-	{"PAR control plane", processmanager.WritePARControlProcmgrConfig, processmanager.RemovePARControlProcmgrConfig},
-	{"process-agent", processmanager.WriteProcessProcmgrConfig, processmanager.RemoveProcessProcmgrConfig},
-	{"system-probe", processmanager.WriteSysprobeProcmgrConfig, processmanager.RemoveSysprobeProcmgrConfig},
-	{"trace-agent", processmanager.WriteTraceProcmgrConfig, processmanager.RemoveTraceProcmgrConfig},
-	{"security-agent", processmanager.WriteSecurityProcmgrConfig, processmanager.RemoveSecurityProcmgrConfig},
-}
-
-func ensureProcmgrConfig(cfg procmgrConfig) error {
+func ensureAgentProcmgrConfigs() error {
 	installRoot, err := resolveDatadogProgramFilesInstallRoot()
 	if err != nil {
 		return err
 	}
-
-	if env.FromEnv().ProcessManagerEnabled {
-		return cfg.write(installRoot)
+	processesDir := procmgrConfigDir(installRoot)
+	if !env.FromEnv().ProcessManagerEnabled {
+		if err := removeProcmgrConfigs(processesDir, agentProcmgrConfigs...); err != nil {
+			log.Warnf("could not remove stale process manager configs: %v", err)
+		}
+		return nil
 	}
-	if err := cfg.remove(installRoot); err != nil {
-		log.Warnf("%s: could not remove stale process manager config: %v", cfg.label, err)
+	for _, u := range agentProcmgrConfigs {
+		if err := writeProcmgrConfig(u, installRoot, processesDir); err != nil {
+			return fmt.Errorf("failed to write %s process manager config: %w", u.Name, err)
+		}
 	}
 	return nil
 }
@@ -447,13 +445,13 @@ func startWatchdog(_ context.Context, timeout time.Time) error {
 	}
 	defer m.Disconnect()
 
-	instService, err := winutil.OpenService(m, "Datadog Installer", windows.SERVICE_QUERY_STATUS|windows.SERVICE_START)
+	instService, err := winutil.OpenService(m, windowsunits.SCM.Installer.Name, windows.SERVICE_QUERY_STATUS|windows.SERVICE_START)
 	if err != nil {
 		return fmt.Errorf("could not access service: %w", err)
 	}
 	defer instService.Close()
 
-	dataDogService, err := winutil.OpenService(m, "datadogagent", windows.SERVICE_QUERY_STATUS|windows.SERVICE_START)
+	dataDogService, err := winutil.OpenService(m, windowsunits.SCM.CoreAgent.Name, windows.SERVICE_QUERY_STATUS|windows.SERVICE_START)
 	if err != nil {
 		return fmt.Errorf("could not access service: %w", err)
 	}

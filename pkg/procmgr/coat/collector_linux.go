@@ -11,6 +11,9 @@ import (
 	"context"
 	"os/exec"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units/linuxunits"
 )
 
 // linuxDaemonServiceUnits are the systemd units that may run dd-procmgrd, in
@@ -19,14 +22,29 @@ var linuxDaemonServiceUnits = []struct {
 	unit string
 	kind daemonServiceCandidateKind
 }{
-	{"datadog-agent-procmgr.service", daemonCandidateStable},
-	{"datadog-agent-procmgr-exp.service", daemonCandidateExp},
-	{"datadog-agent-procmgrd.service", daemonCandidateLegacy},
-	{"datadog-agent-procmgrd-exp.service", daemonCandidateLegacyExp},
+	{linuxunits.Procmgr.Procmgr.Name, daemonCandidateStable},
+	{linuxunits.Procmgr.Procmgr.ExpName(), daemonCandidateExp},
+	{linuxunits.Systemd.LegacyProcmgrd.Name, daemonCandidateLegacy},
+	{linuxunits.Systemd.LegacyProcmgrd.ExpName(), daemonCandidateLegacyExp},
+}
+
+// legacySupervisors are the systemd units supervising a service when procmgr does not, by service ID.
+var legacySupervisors = map[string]units.Unit{
+	"ddot":             linuxunits.Systemd.DDOT,
+	"agent-data-plane": linuxunits.Systemd.DataPlane,
+	"process":          linuxunits.Systemd.Process,
+	"sysprobe":         linuxunits.Systemd.Sysprobe,
+	"trace":            linuxunits.Systemd.Trace,
+	"security":         linuxunits.Systemd.Security,
+	"action":           linuxunits.Systemd.Action,
 }
 
 func detectLegacySupervisor(ctx context.Context, service MigratableService) ManagementMode {
-	for _, unit := range service.LegacySystemdUnits {
+	legacy, ok := legacySupervisors[service.ID]
+	if !ok {
+		return ManagementModeNone
+	}
+	for _, unit := range units.StableAndExpNames(legacy) {
 		if isSystemdUnitActive(ctx, unit) {
 			return ManagementModeSystemd
 		}

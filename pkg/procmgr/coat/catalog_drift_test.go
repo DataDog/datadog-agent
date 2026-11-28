@@ -6,12 +6,16 @@
 package coat
 
 import (
+	"path"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units/darwinunits"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units/linuxunits"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units/windowsunits"
 )
 
 // Every processes.d YAML the installer ships must be registered in migratableServices.
@@ -22,22 +26,19 @@ import (
 // Lives here (root module) rather than in pkg/fleet/installer: that module cannot import the root
 // package, and go mod tidy would otherwise resolve coat via the published datadog-agent module.
 func TestShippedProcmgrConfigsAreInTheCOATCatalog(t *testing.T) {
-	shipped, err := embedded.ShippedProcmgrConfigFiles()
-	require.NoError(t, err)
-	require.NotEmpty(t, shipped, "installer embeds must ship at least one processes.d entry")
-
-	registered := map[string]struct{}{}
-	for _, name := range ProcmgrConfigFiles() {
-		registered[name] = struct{}{}
-	}
-
-	var missing []string
-	for _, name := range shipped {
-		if _, ok := registered[name]; !ok {
-			missing = append(missing, name)
+	var shipped []string
+	for _, u := range slices.Concat(linuxunits.All(), darwinunits.All(), windowsunits.All()) {
+		if u.Manager == units.Procmgr && u.Template != "" && path.Ext(u.Name) == ".yaml" {
+			shipped = append(shipped, u.Name)
 		}
 	}
-	assert.Empty(t, missing,
-		"processes.d configs shipped by the installer but absent from migratableServices: %v",
-		missing)
+	assert.NotEmpty(t, shipped)
+	assert.Subset(t, ProcmgrConfigFiles(), shipped)
+}
+
+func TestLegacySupervisorsAreInTheCOATCatalog(t *testing.T) {
+	for id := range legacySupervisors {
+		_, ok := serviceByID(id)
+		assert.True(t, ok, "legacy supervisor of unknown service %q", id)
+	}
 }

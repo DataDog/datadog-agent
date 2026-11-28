@@ -9,7 +9,6 @@
 package service
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -81,42 +80,6 @@ func isProcmgrInstalled(installRoot string) bool {
 // ConfigDir returns the processes.d directory for an install root.
 func ConfigDir(installRoot string) string {
 	return filepath.Join(installRoot, ProcessesDirName)
-}
-
-// WriteProcess writes a single processes.d entry, creating the directory if needed.
-// The write lands with rename, so a reader never sees a truncated definition.
-func WriteProcess(installRoot string, name string, content []byte) error {
-	dir := ConfigDir(installRoot)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create %s: %w", dir, err)
-	}
-	path := filepath.Join(dir, name)
-	f, err := os.CreateTemp(dir, ".tmp-"+name+"-*")
-	if err != nil {
-		return fmt.Errorf("failed to create temporary file for %s: %w", path, err)
-	}
-	tempPath := f.Name()
-	removeTemp := true
-	defer func() {
-		_ = f.Close()
-		if removeTemp {
-			_ = os.Remove(tempPath)
-		}
-	}()
-	if _, err := f.Write(content); err != nil {
-		return fmt.Errorf("failed to write %s: %w", path, err)
-	}
-	if err := f.Chmod(0644); err != nil {
-		return fmt.Errorf("failed to chmod %s: %w", path, err)
-	}
-	if err := f.Close(); err != nil {
-		return fmt.Errorf("failed to close %s: %w", path, err)
-	}
-	if err := os.Rename(tempPath, path); err != nil {
-		return fmt.Errorf("failed to replace %s: %w", path, err)
-	}
-	removeTemp = false
-	return nil
 }
 
 func detectInitSystem() Type {

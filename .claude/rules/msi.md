@@ -56,7 +56,7 @@ elaborate justification.
   `ConfigCustomActions`** (`CustomActions/ConfigCustomActions.cs`). Config
   file/layout setup should be done via `pkg/fleet/installer/setup` instead.
 - **New Windows SCM services must be justified.** Prefer `procmgr` — see
-  `pkg/fleet/installer/packages/processmanager`. procmgr already handles
+  the `Procmgr` table of `pkg/fleet/installer/units/windowsunits`. procmgr already handles
   restart/recovery, dependency ordering, run-as account, and supervision, and
   does them better than SCM. If a native SCM entry is genuinely needed, create
   it from a Go install hook (like APM SSI), not the MSI.
@@ -65,7 +65,7 @@ elaborate justification.
 
 - Installation/uninstallation **operations** → `pkg/fleet/installer` (postinst / prerm hooks).
 - **Config files / layout** (`APPLICATIONDATADIRECTORY`) → `pkg/fleet/installer/setup`, not `ConfigCustomActions`.
-- **Managed processes / services** → `procmgr` (`pkg/fleet/installer/packages/processmanager`), not new SCM services (justify any exception).
+- **Managed processes / services** → `procmgr` (`pkg/fleet/installer/units/windowsunits`), not new SCM services (justify any exception).
 - **New installable component (new binary/feature)** → deliver as an **agent extension** (version-locked to the agent, flag-gated; model on DDOT's `ddot` extension) or a **standalone OCI package** (independent version; model on `datadog-apm-inject`).
 - **Install-dir binaries/files** (`PROJECTLOCATION`) → MSI is fine.
 - MSI **plumbing** to trigger or configure Go-installer operations (properties, passing

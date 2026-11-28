@@ -34,7 +34,7 @@ func writeProcmgrConfigFixture(t *testing.T, root string, service MigratableServ
 
 	require.NoError(t, os.MkdirAll(filepath.Join(root, processesDirRel), 0o755))
 	require.NoError(t, os.WriteFile(
-		filepath.Join(root, processesDirRel, service.ProcmgrConfigFile),
+		filepath.Join(root, processesDirRel, service.ProcmgrConfigFile()),
 		[]byte("cfg"),
 		0o644,
 	))
@@ -268,7 +268,6 @@ func TestReportSeparatesCrashLoopFromFailedSpawn(t *testing.T) {
 func TestReportServicesExplainStoppedLegacyService(t *testing.T) {
 	sysprobe, ok := serviceByID("sysprobe")
 	require.True(t, ok, "system-probe must be in the migratable catalog or its flare row is silent")
-	assert.Equal(t, "datadog-system-probe", sysprobe.LegacyWindowsService)
 
 	root := t.TempDir()
 	writeProcmgrConfigFixture(t, root, sysprobe)

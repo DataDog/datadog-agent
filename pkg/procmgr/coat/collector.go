@@ -144,7 +144,7 @@ func (c *Collector) collectService(ctx context.Context, service MigratableServic
 		}
 	}
 
-	if _, err := os.Stat(procmgrConfigPath(c.installRoot, service.ProcmgrConfigFile)); err == nil {
+	if _, err := os.Stat(procmgrConfigPath(c.installRoot, service.ProcmgrConfigFile())); err == nil {
 		status.ProcmgrConfigured = true
 	}
 

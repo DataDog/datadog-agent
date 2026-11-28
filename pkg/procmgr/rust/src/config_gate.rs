@@ -2226,34 +2226,34 @@ process_config:
     fn private_action_runner_split_gate_is_not_used_by_host_catalogs() {
         let host_templates = [
             include_str!(
-                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-action-executor.yaml.tmpl"
+                "../../../../pkg/fleet/installer/units/generator/tmpl/datadog-agent-action-executor.yaml.tmpl"
             ),
             include_str!(
-                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-action-executor-windows.yaml.tmpl"
+                "../../../../pkg/fleet/installer/units/generator/tmpl/datadog-agent-action-executor-windows.yaml.tmpl"
             ),
             include_str!(
-                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-action-windows.yaml.tmpl"
+                "../../../../pkg/fleet/installer/units/generator/tmpl/datadog-agent-action-windows.yaml.tmpl"
             ),
             include_str!(
-                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-data-plane-windows.yaml.tmpl"
+                "../../../../pkg/fleet/installer/units/generator/tmpl/datadog-agent-data-plane-windows.yaml.tmpl"
             ),
             include_str!(
-                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-par-control.yaml.tmpl"
+                "../../../../pkg/fleet/installer/units/generator/tmpl/datadog-agent-par-control.yaml.tmpl"
             ),
             include_str!(
-                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-par-control-windows.yaml.tmpl"
+                "../../../../pkg/fleet/installer/units/generator/tmpl/datadog-agent-par-control-windows.yaml.tmpl"
             ),
             include_str!(
-                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-process-windows.yaml.tmpl"
+                "../../../../pkg/fleet/installer/units/generator/tmpl/datadog-agent-process-windows.yaml.tmpl"
             ),
             include_str!(
-                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-security-windows.yaml.tmpl"
+                "../../../../pkg/fleet/installer/units/generator/tmpl/datadog-agent-security-windows.yaml.tmpl"
             ),
             include_str!(
-                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-sysprobe-windows.yaml.tmpl"
+                "../../../../pkg/fleet/installer/units/generator/tmpl/datadog-agent-sysprobe-windows.yaml.tmpl"
             ),
             include_str!(
-                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-trace-windows.yaml.tmpl"
+                "../../../../pkg/fleet/installer/units/generator/tmpl/datadog-agent-trace-windows.yaml.tmpl"
             ),
         ];
         for template in host_templates {

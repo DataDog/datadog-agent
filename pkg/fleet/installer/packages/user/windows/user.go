@@ -23,6 +23,7 @@ import (
 	"golang.org/x/sys/windows/registry"
 
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/units/windowsunits"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
@@ -381,7 +382,7 @@ func GetAgentUserKeepRightsFromRegistry() (string, error) {
 //   - service username -> SID
 //   - SID -> fully qualified username
 func GetAgentUserFromService() (string, error) {
-	sid, errService := winutil.GetServiceUserSID("datadogagent")
+	sid, errService := winutil.GetServiceUserSID(windowsunits.SCM.CoreAgent.Name)
 	if errService != nil {
 		return "", fmt.Errorf("cannot get service user SID: %w", errService)
 	}
