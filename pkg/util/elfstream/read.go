@@ -140,6 +140,7 @@ func (s *ELFStream) readSections(ctx context.Context, inputSize int64) error {
 		return errors.New("invalid ELF section name table")
 	}
 	nameTableText := string(nameTable)
+	s.inputSectionNames = nameTable
 	s.sections = make([]outputSection, len(sectionHeaders))
 	for i, sectionHeader := range sectionHeaders {
 		if err := ctx.Err(); err != nil {
@@ -158,17 +159,17 @@ func (s *ELFStream) readSections(ctx context.Context, inputSize int64) error {
 	return nil
 }
 
-// checkRetainedSections validates the sections Write will copy: links name an
-// input section, alignment is a power of two, bytes are inside the input, and
-// compressed sections hold a compression header. Metadata of omitted sections
-// is deliberately not checked.
+// checkRetainedSections validates the sections Write will copy, after
+// replacements: links name an input section, alignment is a power of two, bytes
+// are inside the input, and compressed sections hold a compression header.
+// Metadata of omitted sections is deliberately not checked.
 func (s *ELFStream) checkRetainedSections(inputSize int64) error {
 	for i := range s.sections {
 		sec := &s.sections[i]
 		if sec.typ() == elf.SHT_NOBITS {
 			continue
 		}
-		// Links must target input slots.
+		// Links must target input slots; replacement sections have none.
 		if sec.header.Link >= uint32(s.elfHeader.Shnum) {
 			return fmt.Errorf("invalid retained section %d link", i)
 		}

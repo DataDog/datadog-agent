@@ -46,33 +46,61 @@ const (
 	maxSectionNames = 16 << 20
 )
 
+// StreamSection supplies an already-extracted section, without copying its data.
+type StreamSection struct {
+	Name    string
+	Address uint64
+	Data    []byte
+}
+
+// StreamSymbol supplies an absolute symbol value and its owning section.
+type StreamSymbol struct {
+	Name    string
+	Section string
+	Value   uint64
+}
+
 // StreamOptions selects extra content. Debug sections, notes and static symbol
 // tables are always retained; GNU version payloads are always omitted.
 type StreamOptions struct {
-	KeepSections []string // Extra input sections to retain, by name.
+	KeepSections []string        // Extra input sections to retain, by name.
+	Sections     []StreamSection // Sections to add or replace.
+	Symbols      []StreamSymbol  // Symbols to add, or to patch when they exist.
 }
 
-// outputSection is one output section: its header and where its bytes come from.
+// symbolOverride replaces one entry of the input symbol table while it is copied.
+type symbolOverride struct {
+	offset uint64 // Byte offset of the entry within the input symbol table.
+	entry  elf.Sym64
+}
+
+// outputSection describes the bytes to emit for one section, not a copy of them:
+// the input range with its symbol overrides, then its own bytes, then the
+// appended bytes.
 type outputSection struct {
-	header      elf.Section64 // Output header; Off is the output offset.
-	name        string
-	inputOffset uint64 // Start of the input range to copy.
-	inputSize   uint64 // Length of the input range; 0 copies nothing.
+	header          elf.Section64 // Output header; Off is the output offset.
+	name            string
+	inputOffset     uint64           // Start of the input range to copy.
+	inputSize       uint64           // Length of the input range; 0 copies nothing.
+	ownBytes        []byte           // Supplied section bytes, or the rebuilt name table.
+	appended        []byte           // Symbol entries or names added after the input range.
+	symbolOverrides []symbolOverride // Entries written instead of the input's, in offset order.
 }
 
 func (sec *outputSection) typ() elf.SectionType { return elf.SectionType(sec.header.Type) }
 
-// ELFStream writes a debug ELF in one forward pass. Keep its input unchanged
-// until writing is done. Code and data bytes are omitted unless selected;
-// retained section bytes, including existing compressed sections, are copied
-// unchanged.
+// ELFStream writes a debug ELF in one forward pass. Keep its input, and any
+// supplied StreamSection.Data, unchanged until writing is done. Code and data
+// bytes are omitted unless selected; retained section bytes, including existing
+// compressed sections, are copied unchanged.
 type ELFStream struct {
-	input          io.ReaderAt
-	byteOrder      binary.ByteOrder
-	elfHeader      elf.Header64
-	programHeaders []elf.Prog64
-	sections       []outputSection
-	outputSize     uint64
+	input             io.ReaderAt
+	inputSectionNames []byte // Input section-name table; the output appends to a copy.
+	byteOrder         binary.ByteOrder
+	elfHeader         elf.Header64
+	programHeaders    []elf.Prog64
+	sections          []outputSection
+	outputSize        uint64
 }
 
 // NewELFStream validates the input and plans every output offset. It reads
@@ -85,7 +113,13 @@ func NewELFStream(ctx context.Context, input io.ReaderAt, inputSize int64, opts 
 	if err := s.selectSections(opts.KeepSections); err != nil {
 		return nil, err
 	}
+	if err := s.applySections(opts.Sections); err != nil {
+		return nil, err
+	}
 	if err := s.checkRetainedSections(inputSize); err != nil {
+		return nil, err
+	}
+	if err := s.addSymbols(ctx, opts.Symbols); err != nil {
 		return nil, err
 	}
 	if err := s.planProgramHeaders(); err != nil {
@@ -100,6 +134,15 @@ func NewELFStream(ctx context.Context, input io.ReaderAt, inputSize int64, opts 
 		return nil, err
 	}
 	return s, nil
+}
+
+func (s *ELFStream) sectionIndex(name string) int {
+	for i := range s.sections {
+		if s.sections[i].name == name {
+			return i
+		}
+	}
+	return -1
 }
 
 // Size is the exact number of ELF bytes Write will emit.
@@ -143,8 +186,24 @@ func (s *ELFStream) Write(ctx context.Context, output io.Writer) error {
 			}
 			return err
 		}
-		if err := copyInput(0, sec.inputSize); err != nil {
+		var copied uint64
+		for _, override := range sec.symbolOverrides {
+			if err := copyInput(copied, override.offset-copied); err != nil {
+				return err
+			}
+			if err := binary.Write(out, s.byteOrder, override.entry); err != nil {
+				return err
+			}
+			copied = override.offset + symSize
+		}
+		if err := copyInput(copied, sec.inputSize-copied); err != nil {
 			return fmt.Errorf("copy section %q: %w", sec.name, err)
+		}
+		if _, err := out.Write(sec.ownBytes); err != nil {
+			return err
+		}
+		if _, err := out.Write(sec.appended); err != nil {
+			return err
 		}
 	}
 	if out.position != s.outputSize {

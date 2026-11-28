@@ -16,12 +16,40 @@ import (
 // planLayout sets the output header fields and every section offset. Output
 // order: ELF header, program headers, section headers, then section payloads.
 func (s *ELFStream) planLayout() error {
+	// Added sections may need extended numbering, which is not implemented.
+	if len(s.sections) >= int(elf.SHN_LORESERVE) {
+		return unsupported("too many output sections")
+	}
+	if err := s.appendSectionNames(); err != nil {
+		return err
+	}
 	hdr := &s.elfHeader
 	hdr.Phoff, hdr.Phentsize, hdr.Shoff, hdr.Shnum = 0, phdrSize, ehdrSize+uint64(len(s.programHeaders))*phdrSize, uint16(len(s.sections))
 	if len(s.programHeaders) != 0 {
 		hdr.Phoff = ehdrSize
 	}
 	return s.assignSectionOffsets()
+}
+
+// appendSectionNames keeps the input name table, so existing Name offsets stay
+// valid, and appends names only for added or replaced sections. Input sections
+// keep the offset their name was read at; offset 0 is the empty name, so a named
+// section there has a name the table doesn't hold.
+func (s *ELFStream) appendSectionNames() error {
+	outputNames := s.inputSectionNames
+	for i := 1; i < len(s.sections); i++ {
+		sec := &s.sections[i]
+		if sec.header.Name != 0 || sec.name == "" {
+			continue
+		}
+		sec.header.Name = uint32(len(outputNames))
+		outputNames = append(outputNames, sec.name...)
+		outputNames = append(outputNames, 0)
+	}
+	nameTableSection := &s.sections[s.elfHeader.Shstrndx]
+	nameTableSection.ownBytes, nameTableSection.inputSize = outputNames, 0
+	nameTableSection.header.Size = uint64(len(outputNames))
+	return nil
 }
 
 // assignSectionOffsets aligns payloads after the header tables and computes the
