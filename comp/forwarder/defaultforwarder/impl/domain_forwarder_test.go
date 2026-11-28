@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 func TestNewDomainForwarder(t *testing.T) {
@@ -252,6 +253,136 @@ func TestDomainForwarderHAFailover(t *testing.T) {
 
 	// Reset `forwarder.workers` otherwise `defer forwarder.Stop(false)` will timeout.
 	forwarder.workers = nil
+}
+
+func TestDomainForwarderMRFServiceChecks(t *testing.T) {
+	boolPtr := func(b bool) *bool { return &b }
+
+	tests := []struct {
+		name                  string
+		mrfEnabled            bool
+		failoverMetrics       bool
+		failoverServiceChecks *bool
+		wantSeries            bool
+		wantCheckRuns         bool
+		wantServiceChecks     bool
+		wantEvents            bool
+		wantMetadata          bool
+		wantState             uint32
+	}{
+		{
+			name:                  "MRF disabled drops all non-metadata even when flags are true",
+			mrfEnabled:            false,
+			failoverMetrics:       true,
+			failoverServiceChecks: boolPtr(true),
+			wantMetadata:          true,
+			wantState:             Disabled,
+		},
+		{
+			name:            "metrics false and service checks unset drops check runs",
+			mrfEnabled:      true,
+			failoverMetrics: false,
+			wantMetadata:    true,
+			wantState:       Disabled,
+		},
+		{
+			name:              "metrics true and service checks unset preserves existing behavior",
+			mrfEnabled:        true,
+			failoverMetrics:   true,
+			wantSeries:        true,
+			wantCheckRuns:     true,
+			wantServiceChecks: true,
+			wantEvents:        true,
+			wantMetadata:      true,
+			wantState:         Started,
+		},
+		{
+			name:                  "metrics true and service checks false drops check runs only",
+			mrfEnabled:            true,
+			failoverMetrics:       true,
+			failoverServiceChecks: boolPtr(false),
+			wantSeries:            true,
+			wantCheckRuns:         false,
+			wantServiceChecks:     false,
+			wantEvents:            true,
+			wantMetadata:          true,
+			wantState:             Started,
+		},
+		{
+			name:                  "metrics false and service checks true forwards check runs only",
+			mrfEnabled:            true,
+			failoverMetrics:       false,
+			failoverServiceChecks: boolPtr(true),
+			wantSeries:            false,
+			wantCheckRuns:         true,
+			wantServiceChecks:     true,
+			wantEvents:            false,
+			wantMetadata:          true,
+			wantState:             Started,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := mock.New(t)
+			mockConfig.Set("multi_region_failover.enabled", tt.mrfEnabled, pkgconfigmodel.SourceFile)
+			mockConfig.Set("multi_region_failover.failover_metrics", tt.failoverMetrics, pkgconfigmodel.SourceFile)
+			if tt.failoverServiceChecks != nil {
+				mockConfig.Set("multi_region_failover.failover_service_checks", *tt.failoverServiceChecks, pkgconfigmodel.SourceFile)
+			}
+
+			log := logmock.New(t)
+			forwarder := newDomainForwarderForTest(t, mockConfig, log, 0, true)
+			defer forwarder.Stop(false)
+			forwarder.Start()
+			forwarder.workers[0].Stop(false)
+			defer func() { forwarder.workers = nil }()
+
+			assert.Equal(t, tt.wantSeries, forwarder.shouldSendHTTPTransaction(newTestTransactionWithKindDomainForwarder(transaction.Series)))
+			assert.Equal(t, tt.wantCheckRuns, forwarder.shouldSendHTTPTransaction(newTestTransactionWithKindDomainForwarder(transaction.CheckRuns)))
+			assert.Equal(t, tt.wantServiceChecks, forwarder.shouldSendHTTPTransaction(newTestTransactionWithKindDomainForwarder(transaction.ServiceChecks)))
+			assert.Equal(t, tt.wantEvents, forwarder.shouldSendHTTPTransaction(newTestTransactionWithKindDomainForwarder(transaction.Events)))
+			assert.Equal(t, tt.wantMetadata, forwarder.shouldSendHTTPTransaction(newTestTransactionWithKindDomainForwarder(transaction.Metadata)))
+			assert.Equal(t, tt.wantState, forwarder.State())
+		})
+	}
+}
+
+func TestDomainForwarderMRFServiceChecksDynamicToggle(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.Set("multi_region_failover.enabled", true, pkgconfigmodel.SourceFile)
+	mockConfig.Set("multi_region_failover.failover_metrics", true, pkgconfigmodel.SourceRC)
+	mockConfig.Set("multi_region_failover.failover_service_checks", false, pkgconfigmodel.SourceRC)
+
+	log := logmock.New(t)
+	forwarder := newDomainForwarderForTest(t, mockConfig, log, 0, true)
+	defer forwarder.Stop(false)
+	forwarder.Start()
+	forwarder.workers[0].Stop(false)
+	defer func() { forwarder.workers = nil }()
+
+	trCheckRun := newTestTransactionWithKindDomainForwarder(transaction.CheckRuns)
+	trSeries := newTestTransactionWithKindDomainForwarder(transaction.Series)
+
+	// Service checks disabled via RC while metrics are active.
+	assert.False(t, forwarder.shouldSendHTTPTransaction(trCheckRun))
+	assert.True(t, forwarder.shouldSendHTTPTransaction(trSeries))
+	assert.Equal(t, Started, forwarder.State())
+
+	// Unsetting RC override falls back to failover_metrics (true).
+	mockConfig.UnsetForSource("multi_region_failover.failover_service_checks", pkgconfigmodel.SourceRC)
+	assert.True(t, forwarder.shouldSendHTTPTransaction(trCheckRun))
+
+	// Disabling metrics disables the forwarder; enabling service checks alone re-enables it.
+	mockConfig.Set("multi_region_failover.failover_metrics", false, pkgconfigmodel.SourceRC)
+	assert.False(t, forwarder.shouldSendHTTPTransaction(trCheckRun))
+	assert.Equal(t, Disabled, forwarder.State())
+
+	mockConfig.Set("multi_region_failover.failover_service_checks", true, pkgconfigmodel.SourceRC)
+	assert.True(t, forwarder.shouldSendHTTPTransaction(trCheckRun))
+	assert.Equal(t, Started, forwarder.State())
+	assert.False(t, forwarder.shouldSendHTTPTransaction(trSeries))
+	assert.Equal(t, Started, forwarder.State())
 }
 
 func TestRequeueTransaction(t *testing.T) {

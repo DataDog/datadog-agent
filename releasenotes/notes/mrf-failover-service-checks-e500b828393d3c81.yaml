@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Add ``multi_region_failover.failover_service_checks`` to control whether service checks
+    (check runs) are forwarded to the Multi-Region Failover site, configurable locally and
+    through ``AGENT_FAILOVER`` Remote Configuration. When not explicitly configured, it falls
+    back to ``multi_region_failover.failover_metrics`` to preserve existing behavior.

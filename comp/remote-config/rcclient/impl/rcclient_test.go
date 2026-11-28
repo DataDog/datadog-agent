@@ -250,6 +250,7 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 
 	allInactive := state.RawConfig{Config: []byte(`{"name": "none"}`)}
 	noLogs := state.RawConfig{Config: []byte(`{"name": "nologs", "failover_logs": false}`)}
+	noServiceChecks := state.RawConfig{Config: []byte(`{"name": "noservicechecks", "failover_service_checks": false}`)}
 	activeMetrics := state.RawConfig{Config: []byte(`{"name": "yesmetrics", "failover_metrics": true}`)}
 	activeAPM := state.RawConfig{Config: []byte(`{"name": "yesapm", "failover_apm": true}`)}
 	activeAllowlist := state.RawConfig{Config: []byte(`{"name": "yesallowlist", "metrics_allowlist": ["system.cpu.usage"]}`)}
@@ -274,24 +275,27 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 		client.WithPollInterval(time.Hour),
 	)
 
-	// Should enable metrics failover and disable logs failover,
+	// Should enable metrics failover, disable service checks and logs failover,
 	// set the metrics allowlist and merge the logs service allowlists
 	rc.mrfUpdateCallback(map[string]state.RawConfig{
-		"datadog/2/AGENT_FAILOVER/none/configname":         allInactive,
-		"datadog/2/AGENT_FAILOVER/nologs/configname":       noLogs,
-		"datadog/2/AGENT_FAILOVER/yesmetrics/configname":   activeMetrics,
-		"datadog/2/AGENT_FAILOVER/yesapm/configname":       activeAPM,
-		"datadog/2/AGENT_FAILOVER/yesallowlist/configname": activeAllowlist,
-		"datadog/2/AGENT_FAILOVER/yesservices/configname":  activeServices,
-		"datadog/2/AGENT_FAILOVER/moreservices/configname": moreServices,
+		"datadog/2/AGENT_FAILOVER/none/configname":            allInactive,
+		"datadog/2/AGENT_FAILOVER/nologs/configname":          noLogs,
+		"datadog/2/AGENT_FAILOVER/noservicechecks/configname": noServiceChecks,
+		"datadog/2/AGENT_FAILOVER/yesmetrics/configname":      activeMetrics,
+		"datadog/2/AGENT_FAILOVER/yesapm/configname":          activeAPM,
+		"datadog/2/AGENT_FAILOVER/yesallowlist/configname":    activeAllowlist,
+		"datadog/2/AGENT_FAILOVER/yesservices/configname":     activeServices,
+		"datadog/2/AGENT_FAILOVER/moreservices/configname":    moreServices,
 	}, applyEmpty)
 
 	metricsVal, _ := settingsComp.GetRuntimeSetting("multi_region_failover.failover_metrics")
+	serviceChecksVal, _ := settingsComp.GetRuntimeSetting("multi_region_failover.failover_service_checks")
 	logsVal, _ := settingsComp.GetRuntimeSetting("multi_region_failover.failover_logs")
 	apmVal, _ := settingsComp.GetRuntimeSetting("multi_region_failover.failover_apm")
 	allowlistVal, _ := settingsComp.GetRuntimeSetting("multi_region_failover.metric_allowlist")
 	servicesVal, _ := settingsComp.GetRuntimeSetting("multi_region_failover.logs_service_allowlist")
 	assert.True(t, metricsVal.(bool))
+	assert.False(t, serviceChecksVal.(bool))
 	assert.False(t, logsVal.(bool))
 	assert.True(t, apmVal.(bool))
 	assert.ElementsMatch(t, []string{"system.cpu.usage"}, allowlistVal.([]string))
@@ -615,4 +619,157 @@ func TestAgentMRFConfigStatusStaysErrorAcrossSettings(t *testing.T) {
 		assert.True(t, cfg.GetBool(failoverLogsSetting), "the logs pair is still applied")
 		assert.True(t, cfg.GetBool(failoverAPMSetting), "the APM flag is still applied")
 	})
+
+	t.Run("service checks failure prevents enabling metrics", func(t *testing.T) {
+		cfg := configmock.New(t)
+		rc := &rcClient{settingsComponent: &writeThroughSettings{cfg: cfg, failOn: failoverServiceChecksSetting, err: errors.New("cannot set")}}
+		statuses := map[string]state.ApplyStatus{}
+		rc.mrfUpdateCallback(map[string]state.RawConfig{
+			cfgPath: {Config: []byte(`{"failover_metrics": true, "failover_service_checks": false}`)},
+		}, func(cfgPath string, status state.ApplyStatus) { statuses[cfgPath] = status })
+
+		assert.Equal(t, state.ApplyStateError, statuses[cfgPath].State)
+		assert.False(t, cfg.GetBool(failoverMetricsSetting), "metrics failover must not turn on when disabling service checks failed")
+	})
+
+	t.Run("metrics disable failure keeps service checks disabled", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.Set(failoverMetricsSetting, true, model.SourceRC)
+		cfg.Set(failoverServiceChecksSetting, false, model.SourceRC)
+		rc := &rcClient{settingsComponent: &writeThroughSettings{cfg: cfg, failOn: failoverMetricsSetting, err: errors.New("cannot set")}}
+		statuses := map[string]state.ApplyStatus{}
+		rc.mrfUpdateCallback(map[string]state.RawConfig{
+			cfgPath: {Config: []byte(`{"failover_metrics": false}`)},
+		}, func(cfgPath string, status state.ApplyStatus) { statuses[cfgPath] = status })
+
+		assert.Equal(t, state.ApplyStateError, statuses[cfgPath].State)
+		assert.True(t, cfg.IsConfigured(failoverServiceChecksSetting), "service checks override must stay set while metrics failover is still active")
+		assert.False(t, cfg.GetBool(failoverServiceChecksSetting))
+	})
+}
+
+// While the callback switches failover_metrics and failover_service_checks, no intermediate state
+// may forward service checks when neither the previous nor the new configuration forwards them.
+func TestAgentMRFServiceChecksTransitions(t *testing.T) {
+	serviceChecksForward := func(cfg model.Reader) bool {
+		if cfg.IsConfigured(failoverServiceChecksSetting) {
+			return cfg.GetBool(failoverServiceChecksSetting)
+		}
+		return cfg.GetBool(failoverMetricsSetting)
+	}
+	boolPtr := func(b bool) *bool { return &b }
+
+	tests := []struct {
+		name              string
+		fileMetrics       bool
+		fileServiceChecks *bool
+		rcMetrics         *bool
+		rcServiceChecks   *bool
+		updates           map[string]string
+		wantMetrics       bool
+		wantSCConfigured  bool
+		wantSCValue       bool
+		wantSCForwarded   bool
+	}{
+		{
+			name:             "enable metrics with service checks disabled",
+			rcMetrics:        boolPtr(false),
+			updates:          map[string]string{"c1": `{"failover_metrics": true, "failover_service_checks": false}`},
+			wantMetrics:      true,
+			wantSCConfigured: true,
+			wantSCValue:      false,
+			wantSCForwarded:  false,
+		},
+		{
+			name:             "disable metrics and remove service checks override",
+			rcMetrics:        boolPtr(true),
+			rcServiceChecks:  boolPtr(false),
+			updates:          map[string]string{"c1": `{"failover_metrics": false}`},
+			wantMetrics:      false,
+			wantSCConfigured: false,
+			wantSCValue:      false,
+			wantSCForwarded:  false,
+		},
+		{
+			name:             "disable metrics by falling back to file and remove service checks override",
+			fileMetrics:      false,
+			rcMetrics:        boolPtr(true),
+			rcServiceChecks:  boolPtr(false),
+			updates:          map[string]string{"c1": `{}`},
+			wantMetrics:      false,
+			wantSCConfigured: false,
+			wantSCValue:      false,
+			wantSCForwarded:  false,
+		},
+		{
+			name:             "enable service checks independently of metrics",
+			updates:          map[string]string{"c1": `{"failover_service_checks": true}`},
+			wantMetrics:      false,
+			wantSCConfigured: true,
+			wantSCValue:      true,
+			wantSCForwarded:  true,
+		},
+		{
+			name:              "fall back to file service checks false when omitted from RC",
+			fileServiceChecks: boolPtr(false),
+			rcServiceChecks:   boolPtr(true),
+			updates:           map[string]string{"c1": `{"failover_metrics": true}`},
+			wantMetrics:       true,
+			wantSCConfigured:  true,
+			wantSCValue:       false,
+			wantSCForwarded:   false,
+		},
+		{
+			name: "OR merge across multiple configs prefers true",
+			updates: map[string]string{
+				"c1": `{"failover_service_checks": false}`,
+				"c2": `{"failover_service_checks": true}`,
+			},
+			wantMetrics:      false,
+			wantSCConfigured: true,
+			wantSCValue:      true,
+			wantSCForwarded:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			cfg.Set(failoverMetricsSetting, tt.fileMetrics, model.SourceFile)
+			if tt.fileServiceChecks != nil {
+				cfg.Set(failoverServiceChecksSetting, *tt.fileServiceChecks, model.SourceFile)
+			}
+			if tt.rcMetrics != nil {
+				cfg.Set(failoverMetricsSetting, *tt.rcMetrics, model.SourceRC)
+			}
+			if tt.rcServiceChecks != nil {
+				cfg.Set(failoverServiceChecksSetting, *tt.rcServiceChecks, model.SourceRC)
+			}
+			wasForwarding := serviceChecksForward(cfg)
+
+			var leaked []string
+			cfg.OnUpdate(func(setting string, _ model.Source, _, _ any, _ uint64, _ model.Source) {
+				if setting != failoverMetricsSetting && setting != failoverServiceChecksSetting {
+					return
+				}
+				if serviceChecksForward(cfg) && !wasForwarding && !tt.wantSCForwarded {
+					leaked = append(leaked, "forwarded service checks after "+setting)
+				}
+			})
+
+			rawUpdates := make(map[string]state.RawConfig, len(tt.updates))
+			for id, body := range tt.updates {
+				rawUpdates["datadog/2/AGENT_FAILOVER/"+id+"/configname"] = state.RawConfig{Config: []byte(body)}
+			}
+
+			rc := &rcClient{settingsComponent: &writeThroughSettings{cfg: cfg}}
+			rc.mrfUpdateCallback(rawUpdates, applyEmpty)
+
+			assert.Equal(t, tt.wantMetrics, cfg.GetBool(failoverMetricsSetting))
+			assert.Equal(t, tt.wantSCConfigured, cfg.IsConfigured(failoverServiceChecksSetting))
+			assert.Equal(t, tt.wantSCValue, cfg.GetBool(failoverServiceChecksSetting))
+			assert.Equal(t, tt.wantSCForwarded, serviceChecksForward(cfg))
+			assert.Empty(t, leaked, "service checks leaked in an intermediate state")
+		})
+	}
 }

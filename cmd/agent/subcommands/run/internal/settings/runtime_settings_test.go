@@ -124,3 +124,29 @@ func TestMultiRegionFailoverAllowlistRuntimeSettings(t *testing.T) {
 		})
 	}
 }
+
+func TestMultiRegionFailoverBoolRuntimeSettings(t *testing.T) {
+	for _, name := range []string{
+		"multi_region_failover.failover_metrics",
+		"multi_region_failover.failover_service_checks",
+		"multi_region_failover.failover_logs",
+		"multi_region_failover.failover_apm",
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg := config.NewMock(t)
+			s := NewMultiRegionFailoverRuntimeSetting(name, "")
+
+			assert.NoError(t, s.Set(cfg, true, model.SourceRC))
+			v, err := s.Get(cfg)
+			assert.NoError(t, err)
+			assert.Equal(t, true, v)
+			assert.Equal(t, model.SourceRC, cfg.GetSource(name))
+
+			assert.NoError(t, s.Set(cfg, false, model.SourceRC))
+			v, err = s.Get(cfg)
+			assert.NoError(t, err)
+			assert.Equal(t, false, v)
+			assert.Equal(t, model.SourceRC, cfg.GetSource(name))
+		})
+	}
+}
