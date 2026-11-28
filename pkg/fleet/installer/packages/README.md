@@ -56,9 +56,9 @@ The installer supports a safer upgrade path for `oci` packages called "experimen
 
 ### Promote experiment
 
-1. v2's `PrePromoteExperiment` hook is executed.
+1. v1's `PrePromoteExperiment` hook is executed.
 2. v1's files are removed from disk. v2's files are kept intact.
-3. v1's `PostPromoteExperiment` hook is executed.
+3. v2's `PostPromoteExperiment` hook is executed.
 
 # Extensions installation hooks
 
