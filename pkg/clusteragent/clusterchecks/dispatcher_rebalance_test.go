@@ -80,7 +80,7 @@ func TestMoveCheck(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
 			fakeTagger := taggerfxmock.SetupFakeTagger(t)
-			dispatcher := newDispatcher(fakeTagger)
+			dispatcher := newDispatcher(fakeTagger, nil)
 
 			// setup check id
 			id := checkid.BuildID(tc.check.config.Name, tc.check.config.FastDigest(), tc.check.config.Instances[0], tc.check.config.InitConfig)
@@ -117,7 +117,7 @@ func TestMoveCheck(t *testing.T) {
 
 func TestMoveConfigNotOnSource(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	dispatcher := newDispatcher(fakeTagger)
+	dispatcher := newDispatcher(fakeTagger, nil)
 	config := integration.Config{
 		Name:       "check1",
 		Instances:  []integration.Data{integration.Data("")},
@@ -148,7 +148,7 @@ func TestMoveConfigNotOnSource(t *testing.T) {
 
 func TestRebalanceAlreadyInProgress(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	dispatcher := newDispatcher(fakeTagger)
+	dispatcher := newDispatcher(fakeTagger, nil)
 
 	dispatcher.rebalanceMu.Lock()
 	_, err := dispatcher.rebalance(true)
@@ -171,7 +171,7 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 
 	configmock.New(t).SetInTest("cluster_checks.stickiness_enabled", false)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	testDispatcher := newDispatcher(fakeTagger)
+	testDispatcher := newDispatcher(fakeTagger, nil)
 
 	// Create a mock CLC runner client to avoid nil pointer errors
 	mockClient := &rebalanceTestClcRunnerClient{
@@ -268,7 +268,7 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 func TestRebalanceUsingUtilization_GroupsAndSpreadsMultiInstanceConfigs(t *testing.T) {
 	configmock.New(t).SetInTest("cluster_checks.stickiness_enabled", false)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	testDispatcher := newDispatcher(fakeTagger)
+	testDispatcher := newDispatcher(fakeTagger, nil)
 
 	mockClient := &rebalanceTestClcRunnerClient{
 		testStats: make(map[string]types.CLCRunnersStats),
@@ -391,7 +391,7 @@ func TestRebalanceUsingUtilization_GroupsAndSpreadsMultiInstanceConfigs(t *testi
 // execution-time data remains eligible to move.
 func TestRebalanceUsingUtilization_PinsChecksWithoutExecutionTime(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	testDispatcher := newDispatcher(fakeTagger)
+	testDispatcher := newDispatcher(fakeTagger, nil)
 
 	mockClient := &rebalanceTestClcRunnerClient{
 		testStats: make(map[string]types.CLCRunnersStats),
@@ -469,7 +469,7 @@ func TestRebalanceUsingUtilization_PinsChecksWithoutExecutionTime(t *testing.T) 
 func TestRebalanceUsingUtilization_PinnedLoadAccountedBeforeGreedyPlacement(t *testing.T) {
 	configmock.New(t).SetInTest("cluster_checks.stickiness_enabled", false)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	testDispatcher := newDispatcher(fakeTagger)
+	testDispatcher := newDispatcher(fakeTagger, nil)
 
 	mockClient := &rebalanceTestClcRunnerClient{
 		testStats: make(map[string]types.CLCRunnersStats),
@@ -534,7 +534,7 @@ func TestRebalanceUsingUtilization_PinnedLoadAccountedBeforeGreedyPlacement(t *t
 // distribution entries and are moved independently.
 func TestCurrentDistribution_SeparatesConfigsByDigest(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	testDispatcher := newDispatcher(fakeTagger)
+	testDispatcher := newDispatcher(fakeTagger, nil)
 	testDispatcher.store.active = true
 	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "10.0.0.1")
 	testDispatcher.store.nodes["node1"].workers = constants.DefaultNumWorkers

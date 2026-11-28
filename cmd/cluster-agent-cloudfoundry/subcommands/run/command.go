@@ -369,7 +369,9 @@ func initializeBBSCache(ctx context.Context, config config.Component, ccCache cl
 }
 
 func setupClusterCheck(ctx context.Context, ac autodiscovery.Component, tagger tagger.Component) (*clusterchecksHandler.Handler, error) {
-	handler, err := clusterchecksHandler.NewHandler(ac, tagger)
+	// The cloudfoundry cluster agent does not wire the health platform, so no
+	// health issue is reported for missing cluster check runners.
+	handler, err := clusterchecksHandler.NewHandler(ac, tagger, nil)
 	if err != nil {
 		return nil, err
 	}

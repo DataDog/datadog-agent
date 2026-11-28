@@ -55,7 +55,7 @@ func TestHandlerWarmupSpan(t *testing.T) {
 		leaderStatusFreq:     50 * time.Millisecond,
 		warmupDuration:       100 * time.Millisecond,
 		leadershipChan:       make(chan state, 1),
-		dispatcher:           newDispatcher(fakeTagger),
+		dispatcher:           newDispatcher(fakeTagger, nil),
 		leaderStatusCallback: le.get,
 	}
 	ctx, cancelRun := context.WithCancel(context.Background())
