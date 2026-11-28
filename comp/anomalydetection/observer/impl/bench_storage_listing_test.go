@@ -59,3 +59,20 @@ func buildSeriesListingBenchmarkStorage(numSeries int) *timeSeriesStorage {
 	storage.Add(observer.TelemetryNamespace, "observer.internal", 1, 1, nil)
 	return storage
 }
+
+var benchmarkTraversalChecksum int
+
+func BenchmarkDetectorStatusSearch(b *testing.B) {
+	buckets := make([]pointBucket, 120)
+	for i := range buckets {
+		buckets[i].timestamp = int64(i + 1)
+	}
+	for _, timestamp := range []int64{0, 60, 120, 121} {
+		b.Run(fmt.Sprintf("timestamp=%d", timestamp), func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				benchmarkTraversalChecksum = searchAfter(buckets, timestamp)
+			}
+		})
+	}
+}
