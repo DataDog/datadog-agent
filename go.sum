@@ -134,8 +134,8 @@ github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20261027183534-cfa24f1802f
 github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20261027183534-cfa24f1802f2/go.mod h1:oPuhDZCT1we/kWoN8ZTCDe+t5iIozE2tQ4/hN+NPuFk=
 github.com/DataDog/sketches-go v1.4.8 h1:pFk9BNn+Rzv8IMIoPUttoOpOr3bJOqU3P6EP5wK+Lv8=
 github.com/DataDog/sketches-go v1.4.8/go.mod h1:a/wjRUqzqtGS8qRHRPDCs4EAQfmvPDZGDlMIF5mxXOE=
-github.com/DataDog/trivy v0.76.3-0.20261120175539-df87a6225efc h1:MAmxWkgcbVr6H0R3u5UTfQKZOFWaE8pz0YLWIb4re64=
-github.com/DataDog/trivy v0.76.3-0.20261120175539-df87a6225efc/go.mod h1:O+38LOykiDWNuWpiC0OZ4W4o5rEovONUc46KnDFaBD0=
+github.com/DataDog/trivy v0.76.3-0.20261125100339-eea73948877d h1:tiVWwF07YpCvjK4UpBVBQoMjT52HlSOATFW543c5XEs=
+github.com/DataDog/trivy v0.76.3-0.20261125100339-eea73948877d/go.mod h1:O+38LOykiDWNuWpiC0OZ4W4o5rEovONUc46KnDFaBD0=
 github.com/DataDog/vault/api/auth/aws v0.0.0-20250716193101-44fb30472101 h1:aatle7zFb175XJ6iJvyr9a7Ipr1Dvpw4oy4MqL9v4GA=
 github.com/DataDog/vault/api/auth/aws v0.0.0-20250716193101-44fb30472101/go.mod h1:GRki58GuFuDh0GFVg280DZt3oCYxZG02ldDPtQ5FBoo=
 github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20260917081843-fe016948e308 h1:b3VjehTlxexLv/O6rJcqlzlbYO3AmPGwBBPayUrWPeg=

@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    Fixed SBOMs of hosts and images whose rpm database is a SQLite one
+    leaving out the packages of the transactions its write-ahead log still
+    holds, and listing the packages those transactions removed.
+  - |
+    Fixed the SBOM scan of an image or host failing when the ``md5sums``
+    file of a Debian package holds a line that dpkg would write otherwise,
+    such as one with a single space between the digest and the path.
