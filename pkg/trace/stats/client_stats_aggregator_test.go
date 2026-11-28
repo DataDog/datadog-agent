@@ -1303,3 +1303,32 @@ func TestAggregatorAddRecovers(t *testing.T) {
 	require.Len(t, stats, 1)
 	assert.Equal(t, uint64(11), stats[0].Hits)
 }
+
+// TestAggregationPubSubIdentityPeerTags checks that client-computed stats keep topic-only,
+// subscription-only and both-known observations apart, including cross-project pairs.
+func TestAggregationPubSubIdentityPeerTags(t *testing.T) {
+	const (
+		topic        = "gcp.pubsub.topic.name:projects/commerce/topics/orders"
+		subscription = "gcp.pubsub.subscription.name:projects/analytics/subscriptions/warehouse-orders"
+	)
+	a := newTestAggregator()
+	msw := &mockStatsWriter{}
+	a.writer = msw
+	testTime := time.Unix(time.Now().Unix(), 0)
+	p := payloadWithCounts(testTime, BucketsAggregationKey{Service: "svc", Name: "pubsub.request", SpanKind: "consumer"}, "", "v", "img", "sha", "go", 1, 0, 10)
+	base := p.Stats[0].Stats[0]
+	p.Stats[0].Stats = nil
+	for _, peerTags := range [][]string{{topic}, {subscription}, {subscription, topic}} {
+		g := proto.Clone(base).(*pb.ClientGroupedStats)
+		g.PeerTags = peerTags
+		p.Stats[0].Stats = append(p.Stats[0].Stats, g)
+	}
+	a.add(testTime, p)
+	a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+	require.Len(t, msw.payloads, 1)
+	var got [][]string
+	for _, g := range msw.payloads[0].Stats[0].Stats[0].Stats {
+		got = append(got, g.PeerTags)
+	}
+	assert.ElementsMatch(t, [][]string{{topic}, {subscription}, {subscription, topic}}, got)
+}
