@@ -66,7 +66,7 @@ func (r *remoteagentImpl) GetStatusDetails(_ context.Context, req *pbcore.GetSta
 The `helper` package handles the complex parts of remote Agent setup:
 
 - **TLS Configuration**: Automatic TLS setup using the IPC component
-- **Authentication**: Token-based authentication with the Core Agent
+- **Authentication**: The gRPC server requires mTLS: only clients presenting a certificate signed by the IPC CA can connect (outbound registration calls to the Core Agent still use token authentication)
 - **Registration**: Automatic registration and periodic refresh with the Core Agent  
 - **Session Management**: Session ID handling for proper Agent identification
 - **Lifecycle**: Proper startup/shutdown hooks and gRPC server management

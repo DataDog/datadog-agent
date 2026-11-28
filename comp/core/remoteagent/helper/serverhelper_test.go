@@ -7,8 +7,15 @@ package helper
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	crypto_rand "crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"errors"
 	"io"
+	"math/big"
 	"net"
 	"os"
 	"path/filepath"
@@ -22,11 +29,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/examples/features/proto/echo"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -224,9 +229,10 @@ func TestNoSessionIDReturnsError(t *testing.T) {
 	assert.Contains(t, err.Error(), "remote agent is not registered yet")
 }
 
-// TestAuthTokenIsChecked tests that the auth_token is properly validated
-// for incoming requests to the remote agent server
-func TestAuthTokenIsChecked(t *testing.T) {
+// TestClientCertIsRequired tests that connections without a client certificate
+// are rejected at the TLS handshake, now that the remote agent server requires
+// mTLS instead of bearer-token authentication
+func TestClientCertIsRequired(t *testing.T) {
 	lc := compdef.NewTestLifecycle(t)
 	ipcComp := ipcmock.New(t)
 	logComp := logmock.New(t)
@@ -260,53 +266,99 @@ func TestAuthTokenIsChecked(t *testing.T) {
 	server.Start()
 	defer lc.Stop(context.Background())
 
-	tests := []struct {
-		name             string
-		authToken        string
-		shouldSucceed    bool
-		expectedGRPCCode codes.Code
-	}{
-		{
-			name:             "invalid auth token should fail",
-			authToken:        "invalid-token",
-			shouldSucceed:    false,
-			expectedGRPCCode: codes.Unauthenticated,
-		},
-		{
-			name:          "valid auth token should succeed",
-			authToken:     ipcComp.GetAuthToken(), // will be set to valid token
-			shouldSucceed: true,
-		},
+	// TLS client config that trusts the server but presents no client certificate.
+	noCertConfig := ipcComp.GetTLSClientConfig()
+	noCertConfig.Certificates = nil
+
+	// TLS client config that presents a certificate the IPC CA does not trust.
+	foreignCertConfig := ipcComp.GetTLSClientConfig()
+	foreignCertConfig.Certificates = []tls.Certificate{generateSelfSignedCert(t)}
+
+	// assertHandshakeRejection asserts that the RPC never succeeds: connections
+	// rejected during the TLS handshake surface as transport or deadline errors whose
+	// exact shape varies with the race between the TLS alert and the connection
+	// reset, so the assertion is deliberately on failure alone. The paired
+	// "client with certificate succeeds" subtest is the liveness control that
+	// distinguishes a handshake rejection from an unreachable server.
+	assertHandshakeRejection := func(c *assert.CollectT, err error) {
+		require.Error(c, err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create client with the specified auth token
-			conn, err := grpc.NewClient(
-				server.listener.Addr().String(),
-				grpc.WithTransportCredentials(credentials.NewTLS(ipcComp.GetTLSClientConfig())),
-				grpc.WithPerRPCCredentials(grpcutil.NewBearerTokenAuth(tt.authToken)),
-			)
-			require.NoError(t, err)
-			defer conn.Close()
+	newClient := func(tlsConfig *tls.Config, token string) (pbcore.StatusProviderClient, *grpc.ClientConn) {
+		conn, err := grpc.NewClient(
+			server.listener.Addr().String(),
+			grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+			grpc.WithPerRPCCredentials(grpcutil.NewBearerTokenAuth(token)),
+		)
+		require.NoError(t, err)
+		return pbcore.NewStatusProviderClient(conn), conn
+	}
 
-			client := pbcore.NewStatusProviderClient(conn)
+	t.Run("client without certificate is rejected", func(t *testing.T) {
+		// Send the valid auth token to prove it no longer authenticates by itself.
+		client, conn := newClient(noCertConfig, ipcComp.GetAuthToken())
+		defer conn.Close()
+
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
 
-			require.EventuallyWithT(t, func(c *assert.CollectT) {
-				resp, err := client.GetStatusDetails(ctx, &pbcore.GetStatusDetailsRequest{}, grpc.WaitForReady(true))
-				if tt.shouldSucceed {
-					require.NoError(c, err)
-					assert.NotNil(c, resp)
-				} else {
-					require.Error(c, err)
-					st, ok := status.FromError(err)
-					require.True(c, ok)
-					assert.Equal(c, tt.expectedGRPCCode, st.Code())
-				}
-			}, 5*time.Second, 100*time.Millisecond)
-		})
+			_, err := client.GetStatusDetails(ctx, &pbcore.GetStatusDetailsRequest{})
+			assertHandshakeRejection(c, err)
+		}, 5*time.Second, 100*time.Millisecond)
+	})
+
+	t.Run("client with untrusted certificate is rejected", func(t *testing.T) {
+		client, conn := newClient(foreignCertConfig, ipcComp.GetAuthToken())
+		defer conn.Close()
+
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+
+			_, err := client.GetStatusDetails(ctx, &pbcore.GetStatusDetailsRequest{})
+			assertHandshakeRejection(c, err)
+		}, 5*time.Second, 100*time.Millisecond)
+	})
+
+	t.Run("client with certificate succeeds regardless of token", func(t *testing.T) {
+		// Send an invalid auth token to prove mTLS alone authenticates the client.
+		client, conn := newClient(ipcComp.GetTLSClientConfig(), "invalid-token")
+		defer conn.Close()
+
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+
+			resp, err := client.GetStatusDetails(ctx, &pbcore.GetStatusDetailsRequest{}, grpc.WaitForReady(true))
+			require.NoError(c, err)
+			assert.NotNil(c, resp)
+		}, 5*time.Second, 100*time.Millisecond)
+	})
+}
+
+// generateSelfSignedCert returns a throwaway client certificate that the IPC CA
+// does not sign, to exercise the verification half of mTLS enforcement.
+func generateSelfSignedCert(t *testing.T) tls.Certificate {
+	t.Helper()
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), crypto_rand.Reader)
+	require.NoError(t, err)
+
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{Organization: []string{"Untrusted Test Cert"}},
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+	}
+	der, err := x509.CreateCertificate(crypto_rand.Reader, template, template, &key.PublicKey, key)
+	require.NoError(t, err)
+
+	return tls.Certificate{
+		Certificate: [][]byte{der},
+		PrivateKey:  key,
 	}
 }
 
@@ -414,13 +466,23 @@ func TestCommandProviderStreamAuthSessionAndFrames(t *testing.T) {
 		return pbcore.NewRemoteCommandProviderClient(conn), conn
 	}
 
-	t.Run("rejects invalid bearer token", func(t *testing.T) {
-		client, conn := newClient("invalid-token")
-		defer conn.Close()
-		stream, err := client.ExecuteCommand(context.Background(), &pbcore.ExecuteCommandRequest{})
+	t.Run("rejects client without certificate", func(t *testing.T) {
+		// TLS config that trusts the server but presents no client certificate; the
+		// valid auth token proves it no longer authenticates by itself.
+		noCertConfig := ipcComp.GetTLSClientConfig()
+		noCertConfig.Certificates = nil
+		conn, err := grpc.NewClient(server.listener.Addr().String(), grpc.WithTransportCredentials(credentials.NewTLS(noCertConfig)), grpc.WithPerRPCCredentials(grpcutil.NewBearerTokenAuth(ipcComp.GetAuthToken())))
 		require.NoError(t, err)
-		_, err = stream.Recv()
-		require.Equal(t, codes.Unauthenticated, status.Code(err))
+		defer conn.Close()
+		client := pbcore.NewRemoteCommandProviderClient(conn)
+		stream, err := client.ExecuteCommand(context.Background(), &pbcore.ExecuteCommandRequest{})
+		if err == nil {
+			// The handshake failure can surface either on the initial call or on Recv.
+			_, err = stream.Recv()
+		}
+		// Exact error shape varies (TLS alert vs connection reset); the positive path
+		// below proves the server is alive, so any error here is a handshake rejection.
+		require.Error(t, err)
 	})
 
 	client, conn := newClient(ipcComp.GetAuthToken())
