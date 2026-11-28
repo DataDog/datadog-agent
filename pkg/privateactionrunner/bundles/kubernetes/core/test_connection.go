@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/redact"
 	authv1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -81,6 +82,7 @@ func (h *TestConnectionHandler) Run(
 		}, nil
 	}
 
+	redact.ScrubUserInfo(&result.Status.UserInfo, redact.NewDefaultDataScrubber())
 	extra := make(map[string]string)
 	if result.Status.UserInfo.Extra != nil {
 		for key, values := range result.Status.UserInfo.Extra {

@@ -17,6 +17,7 @@ import (
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/redact"
 )
 
 type UpdateCronJobScheduleHandler struct {
@@ -87,7 +88,8 @@ func (h *UpdateCronJobScheduleHandler) Run(
 		return nil, err
 	}
 
-	return &UpdateCronJobScheduleOutputs{CronJob: response}, nil
+	redact.ScrubCronJob(response, redact.NewDefaultDataScrubber())
+	return map[string]interface{}{"cronJob": response}, nil
 }
 
 func (h *UpdateCronJobScheduleHandler) getClient(credential *privateconnection.PrivateCredentials) (kubernetes.Interface, error) {

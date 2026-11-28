@@ -17,6 +17,7 @@ import (
 
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/redact"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	typesv1 "k8s.io/apimachinery/pkg/types"
@@ -73,6 +74,7 @@ func (h *PatchControllerRevisionHandler) Run(
 		return nil, err
 	}
 
+	redact.ScrubControllerRevision(response, redact.NewDefaultDataScrubber())
 	return &PatchControllerRevisionOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Data:       response.Data,

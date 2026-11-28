@@ -15,6 +15,7 @@ import (
 
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/redact"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -55,6 +56,7 @@ func (h *ListEventHandler) Run(
 		return nil, err
 	}
 
+	support.ScrubItems(response.Items, redact.ScrubEvent)
 	return &ListEventOutputs{
 		Items:    response.Items,
 		ListMeta: response.ListMeta,

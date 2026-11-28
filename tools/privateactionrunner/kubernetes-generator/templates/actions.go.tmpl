@@ -18,6 +18,9 @@ import (
 
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	{{ if not (list "Delete" "DeleteCollection" | mustHas .SDKMethod) -}}
+	"github.com/DataDog/datadog-agent/pkg/redact"
+	{{ end -}}
 	{{ range .RequiredImports -}}
 	{{ . }}
 	{{ end -}}
@@ -97,6 +100,14 @@ func (h *{{ .Name | title }}Handler) Run(
 		return nil, err
 	}
 
+	{{ if list "Delete" "DeleteCollection" | mustHas .SDKMethod -}}
+	return &{{ .Name | title }}Outputs{}, nil
+	{{ else -}}
+	{{ if .SDKMethod | eq "List" -}}
+	support.ScrubItems(response.Items, redact.Scrub{{ .Resource.Name }})
+	{{ else -}}
+	redact.Scrub{{ .Resource.Name }}(response, redact.NewDefaultDataScrubber())
+	{{ end -}}
 	return &{{ .Name | title }}Outputs{
 	{{ if .SDKMethod | eq "List" -}}
 		Items:    response.Items,
@@ -107,4 +118,5 @@ func (h *{{ .Name | title }}Handler) Run(
 		{{end -}}
 	{{ end -}}
 	}, nil
+	{{ end -}}
 }

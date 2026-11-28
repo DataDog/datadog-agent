@@ -16,6 +16,7 @@ import (
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/redact"
 )
 
 type ScaleDeploymentHandler struct{}
@@ -65,6 +66,7 @@ func (h *ScaleDeploymentHandler) Run(
 		return nil, err
 	}
 
+	redact.ScrubDeployment(response, redact.NewDefaultDataScrubber())
 	return &ScaleDeploymentOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,

@@ -53,6 +53,7 @@ go_library(
         "//pkg/privateactionrunner/bundle-support/kubernetes",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
+        "//pkg/redact",
         "@io_k8s_api//apps/v1:apps",
         "@io_k8s_apimachinery//pkg/api/resource",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",

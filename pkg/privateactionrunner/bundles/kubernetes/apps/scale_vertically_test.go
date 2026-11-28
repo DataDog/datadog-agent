@@ -6,6 +6,8 @@
 package com_datadoghq_kubernetes_apps
 
 import (
+	"encoding/json"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -135,12 +137,15 @@ func (suite *AppsTestSuite) TestScaleVerticallyContainerTypes() {
 					suite.Require().Len(client.Actions(), 2)
 					patchAction := client.Actions()[1].(ktesting.PatchAction)
 					suite.Equal(types.StrategicMergePatchType, patchAction.GetPatchType())
-					var actualPodSpec corev1.PodSpec
-					if kind == "deployment" {
-						actualPodSpec = output.(*ScaleDeploymentVerticallyOutputs).Spec.Template.Spec
-					} else {
-						actualPodSpec = output.(*ScaleStatefulSetVerticallyOutputs).Spec.Template.Spec
+					encoded, err := json.Marshal(output)
+					suite.Require().NoError(err)
+					var returned struct {
+						Spec struct {
+							Template corev1.PodTemplateSpec `json:"template"`
+						} `json:"spec"`
 					}
+					suite.Require().NoError(json.Unmarshal(encoded, &returned))
+					actualPodSpec := returned.Spec.Template.Spec
 					// Check the merged result, including untouched resources, containers, and restart policy.
 					suite.Equal(*expectedPodSpec, actualPodSpec)
 				})

@@ -108,8 +108,10 @@ func (suite *AutoscalingTestSuite) TestUpdateAutoscalerLimits() {
 				suite.Nil(outputs)
 			} else {
 				suite.Require().NoError(err)
-				output, ok := outputs.(*UpdateAutoscalerLimitsOutputs)
-				suite.Require().True(ok)
+				encoded, err := json.Marshal(outputs)
+				suite.Require().NoError(err)
+				var output UpdateAutoscalerLimitsOutputs
+				suite.Require().NoError(json.Unmarshal(encoded, &output))
 				suite.Equal(test.expectedMinimum, *output.HorizontalPodAutoscaler.Spec.MinReplicas)
 				suite.Equal(test.expectedMaximum, output.HorizontalPodAutoscaler.Spec.MaxReplicas)
 			}

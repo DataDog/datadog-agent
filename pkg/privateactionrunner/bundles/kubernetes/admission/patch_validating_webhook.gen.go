@@ -17,6 +17,7 @@ import (
 
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/redact"
 	v1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	typesv1 "k8s.io/apimachinery/pkg/types"
@@ -68,6 +69,7 @@ func (h *PatchValidatingWebhookConfigurationHandler) Run(
 		return nil, err
 	}
 
+	redact.ScrubValidatingWebhookConfiguration(response, redact.NewDefaultDataScrubber())
 	return &PatchValidatingWebhookConfigurationOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Webhooks:   response.Webhooks,

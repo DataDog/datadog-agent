@@ -14,6 +14,7 @@ import (
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/redact"
 )
 
 type PatchClusterCustomObjectHandler struct{ policy resourcePolicy }
@@ -61,5 +62,6 @@ func (h *PatchClusterCustomObjectHandler) Run(
 		return nil, err
 	}
 
+	redact.ScrubUnstructured(resp, redact.NewDefaultDataScrubber())
 	return resp.Object, nil
 }

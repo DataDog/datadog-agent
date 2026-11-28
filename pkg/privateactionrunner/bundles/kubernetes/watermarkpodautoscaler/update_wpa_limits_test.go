@@ -149,8 +149,10 @@ func (suite *WatermarkPodAutoscalerTestSuite) TestUpdateWatermarkAutoscalerLimit
 				suite.Nil(outputs)
 			} else {
 				suite.Require().NoError(err)
-				output, ok := outputs.(*UpdateWatermarkAutoscalerLimitsOutputs)
-				suite.Require().True(ok)
+				encoded, err := json.Marshal(outputs)
+				suite.Require().NoError(err)
+				var output UpdateWatermarkAutoscalerLimitsOutputs
+				suite.Require().NoError(json.Unmarshal(encoded, &output))
 				suite.Require().NotNil(output.WatermarkPodAutoscaler.Spec.MinReplicas)
 				suite.Equal(test.expectedMinimum, *output.WatermarkPodAutoscaler.Spec.MinReplicas)
 				suite.Equal(test.expectedMaximum, output.WatermarkPodAutoscaler.Spec.MaxReplicas)

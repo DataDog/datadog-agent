@@ -16,6 +16,7 @@ import (
 
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/redact"
 	v1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -60,6 +61,7 @@ func (h *GetClusterRoleBindingHandler) Run(
 		return nil, err
 	}
 
+	redact.ScrubClusterRoleBinding(response, redact.NewDefaultDataScrubber())
 	return &GetClusterRoleBindingOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Subjects:   response.Subjects,

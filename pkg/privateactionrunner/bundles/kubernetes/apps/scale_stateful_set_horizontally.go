@@ -17,6 +17,7 @@ import (
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/redact"
 )
 
 type ScaleStatefulSetHorizontallyHandler struct {
@@ -68,6 +69,7 @@ func (h *ScaleStatefulSetHorizontallyHandler) Run(
 		return nil, err
 	}
 
+	redact.ScrubStatefulSet(response, redact.NewDefaultDataScrubber())
 	return &ScaleStatefulSetHorizontallyOutputs{
 		ObjectMeta: response.ObjectMeta,
 		Spec:       response.Spec,
