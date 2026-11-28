@@ -1,0 +1,32 @@
+"""Kernel BTFs from BTFHub and the bpftool that minimizes them for the CO-RE objects."""
+
+btfhub_archive = use_repo_rule("//deps/btfhub:btfhub.bzl", "btfhub_archive")
+
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+BTFHUB_ARCHIVE_COMMIT = "cb6ccd2a94b2aacb1bc946cb91006e956bb13736"
+
+btfhub_archive(
+    name = "btfhub_archive",
+    commit = BTFHUB_ARCHIVE_COMMIT,
+    remote = "https://github.com/DataDog/btfhub-archive",
+)
+
+BPFTOOL_VERSION = "7.8.1"
+
+# The release binaries are static but not executable in the archives.
+http_archive(
+    name = "bpftool_amd64",
+    build_file_content = 'exports_files(["bpftool"])',
+    patch_cmds = ["chmod +x bpftool"],
+    sha256 = "112026bbdf48d0d00ccfc4926e59878d47943f97c197f959f110abe29c898ddc",
+    urls = ["https://github.com/libbpf/bpftool/releases/download/v{0}/bpftool-v{0}-amd64.tar.gz".format(BPFTOOL_VERSION)],
+)
+
+http_archive(
+    name = "bpftool_arm64",
+    build_file_content = 'exports_files(["bpftool"])',
+    patch_cmds = ["chmod +x bpftool"],
+    sha256 = "678cc6fdc545f6baf9fc80bbca3ab4cb0efcd3f4d814c6fada00ca0987a4c6b0",
+    urls = ["https://github.com/libbpf/bpftool/releases/download/v{0}/bpftool-v{0}-arm64.tar.gz".format(BPFTOOL_VERSION)],
+)

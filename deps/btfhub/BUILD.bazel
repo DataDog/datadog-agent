@@ -1,0 +1,9 @@
+alias(
+    name = "bpftool",
+    actual = select({
+        "@platforms//cpu:aarch64": "@bpftool_arm64//:bpftool",
+        "//conditions:default": "@bpftool_amd64//:bpftool",
+    }),
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)

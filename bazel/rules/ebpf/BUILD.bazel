@@ -1,4 +1,4 @@
-load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
 load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_test.bzl", "py_test")
 load("//bazel/rules/ebpf:cgo_godefs_test.bzl", "cgo_godefs_test_suite")
@@ -18,10 +18,31 @@ py_test(
     main = "clang_with_unused_inputs_test.py",
 )
 
+exports_files(
+    [
+        "minimize_btfs.sh",
+        "minimized_btfs_test.sh",
+    ],
+    visibility = ["//pkg/ebpf:__pkg__"],
+)
+
 string_flag(
     name = "target_arch",
     build_setting_default = "",
     visibility = ["//visibility:public"],
+)
+
+# Off until CI builds the BTFs: they need GitHub and minimize every BTFHub kernel.
+bool_flag(
+    name = "package_minimized_btfs",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "package_minimized_btfs_linux",
+    constraint_values = ["@platforms//os:linux"],
+    flag_values = {":package_minimized_btfs": "true"},
+    visibility = ["//packages/agent/product:__pkg__"],
 )
 
 config_setting(
@@ -33,6 +54,7 @@ config_setting(
 config_setting(
     name = "target_arch_x86_64",
     flag_values = {":target_arch": "x86_64"},
+    visibility = ["//pkg/ebpf:__pkg__"],
 )
 
 cgo_godefs_test_suite(name = "cgo_godefs_tests")

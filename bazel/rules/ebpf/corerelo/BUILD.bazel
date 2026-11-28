@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "corerelo_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/bazel/rules/ebpf/corerelo",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//pkg/util/safeelf",
+        "@com_github_cilium_ebpf//btf",
+    ],
+)
+
+go_binary(
+    name = "corerelo",
+    embed = [":corerelo_lib"],
+    visibility = ["//visibility:public"],
+)
+
+# Objects with many, few and no CO-RE relocations.
+filegroup(
+    name = "test_objects",
+    srcs = [
+        "//pkg/dyninst/ebpf:dyninst_event.stripped",
+        "//pkg/ebpf/testdata/c:uprobe_attacher-test.stripped",
+        "//pkg/network/ebpf/c:tracer.stripped",
+        "//pkg/network/ebpf/c/runtime:usm.stripped",
+    ],
+)
+
+dd_agent_go_test(
+    name = "corerelo_test",
+    srcs = ["main_test.go"],
+    args = ["$(rootpaths :test_objects)"],
+    data = [":test_objects"],
+    embed = [":corerelo_lib"],
+    rundir = ".",
+    deps = [
+        "@com_github_cilium_ebpf//btf",
+        "@com_github_stretchr_testify//require",
+    ],
+)

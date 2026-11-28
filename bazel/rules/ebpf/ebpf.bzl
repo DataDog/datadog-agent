@@ -6,6 +6,7 @@ load("@linux_headers//:defs.bzl", "KERNEL_ARCH", "KERNEL_HEADER_DIRS")
 load("@linux_headers_aarch64//:defs.bzl", _KHD_AARCH64 = "KERNEL_HEADER_DIRS")
 load("@linux_headers_x86_64//:defs.bzl", _KHD_X86_64 = "KERNEL_HEADER_DIRS")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("//bazel/rules/ebpf:cc_helpers.bzl", "collect_headers", "collect_include_dirs")
 
 _TOOLCHAIN_TYPE = "@@//bazel/toolchains/llvm_bpf:llvm_bpf_toolchain_type"
@@ -381,3 +382,161 @@ ebpf_program_suite = macro(
     },
     implementation = _ebpf_program_suite_impl,
 )
+
+def _ebpf_core_objects_impl(ctx):
+    relocations = ctx.actions.declare_file(ctx.label.name + ".relocations.o")
+    args = ctx.actions.args()
+    args.add("-o", relocations)
+    args.add_all(ctx.files.srcs)
+    ctx.actions.run(
+        inputs = ctx.files.srcs,
+        outputs = [relocations],
+        executable = ctx.executable._corerelo,
+        arguments = [args],
+        mnemonic = "EbpfCoreRelocs",
+        progress_message = "Extracting CO-RE relocations of %{label}",
+    )
+    return [
+        DefaultInfo(files = depset(ctx.files.srcs + ctx.files.exclude_from_btf)),
+        OutputGroupInfo(
+            btf_objects = depset(ctx.files.srcs),
+            core_relocations = depset([relocations]),
+        ),
+    ]
+
+ebpf_core_objects = rule(
+    implementation = _ebpf_core_objects_impl,
+    doc = """Groups the shipped CO-RE objects and extracts their CO-RE relocations.
+
+    The `core_relocations` output group holds one stub ELF with the merged
+    relocations of `srcs`, which is all `bpftool gen min_core_btf` reads, or an
+    empty file when `srcs` have no CO-RE relocations. The stub changes only with
+    the relocations, their order within a local type, or the local types they
+    reference, so BTF minimization keyed on it is not invalidated by logic-only
+    changes to the objects. The `btf_objects` output group holds `srcs`.
+    """,
+    attrs = {
+        "srcs": attr.label_list(
+            allow_files = [".o"],
+            doc = "CO-RE objects the minimized BTFs must cover.",
+        ),
+        "exclude_from_btf": attr.label_list(
+            allow_files = [".o"],
+            doc = "CO-RE objects shipped with `srcs` but left out of BTF minimization.",
+        ),
+        "_corerelo": attr.label(
+            default = "//bazel/rules/ebpf/corerelo",
+            executable = True,
+            cfg = "exec",
+        ),
+    },
+)
+
+def _ebpf_minimized_btfs_impl(ctx):
+    target_arch = ctx.attr._target_arch_flag[BuildSettingInfo].value
+    if not target_arch:
+        target_arch = "aarch64" if KERNEL_ARCH == "arm64" else "x86_64"
+    manifests = ctx.files.arm64_manifests if target_arch == "aarch64" else ctx.files.x86_64_manifests
+    stubs = ctx.attr.objects[OutputGroupInfo].core_relocations
+
+    buckets = []
+    for manifest in manifests:
+        bucket = ctx.actions.declare_directory("{}.d/{}".format(ctx.label.name, manifest.basename.removesuffix(".txt")))
+        args = ctx.actions.args()
+        args.add_all([ctx.executable._bpftool, manifest, ctx.file.remote])
+        args.add(bucket.path)
+        args.add_all(stubs)
+        ctx.actions.run(
+            inputs = depset([manifest, ctx.file.remote], transitive = [stubs]),
+            outputs = [bucket],
+            executable = ctx.executable._minimize,
+            tools = [ctx.executable._bpftool],
+            arguments = [args],
+            # Kernel BTFs are fetched from the BTFHub remote by git blob id;
+            # the default shell env lets --action_env pass proxy settings.
+            use_default_shell_env = True,
+            execution_requirements = {"requires-network": "", "no-remote-exec": ""},
+            mnemonic = "MinimizeBtfs",
+            progress_message = "Minimizing BTFs of %{label} (" + manifest.short_path + ")",
+        )
+        buckets.append(bucket)
+
+    tree = ctx.actions.declare_directory(ctx.label.name + ".tree")
+    ctx.actions.run_shell(
+        inputs = buckets,
+        outputs = [tree],
+        command = """set -euo pipefail
+out=$1; shift
+for b; do cp -RL --no-preserve=mode "$b/." "$out"; done
+[[ -n $(ls -A "$out") ]] || { echo "no minimized BTFs" >&2; exit 1; }
+""",
+        arguments = [tree.path] + [b.path for b in buckets],
+        mnemonic = "MergeBtfs",
+        progress_message = "Merging minimized BTFs of %{label}",
+    )
+    return [DefaultInfo(files = depset([tree]))]
+
+_ebpf_minimized_btfs_tree = rule(
+    implementation = _ebpf_minimized_btfs_impl,
+    doc = "Minimizes the BTFHub kernel BTFs into `<name>.tree`; see ebpf_minimized_btfs.",
+    attrs = {
+        "arm64_manifests": attr.label_list(allow_files = [".txt"]),
+        "objects": attr.label(
+            mandatory = True,
+            doc = "An `ebpf_core_objects` target.",
+        ),
+        "remote": attr.label(
+            mandatory = True,
+            allow_single_file = True,
+            doc = "File holding the BTFHub git remote.",
+        ),
+        "x86_64_manifests": attr.label_list(allow_files = [".txt"]),
+        "_bpftool": attr.label(
+            default = "//deps/btfhub:bpftool",
+            allow_single_file = True,
+            executable = True,
+            cfg = "exec",
+        ),
+        "_minimize": attr.label(
+            default = "//bazel/rules/ebpf:minimize_btfs.sh",
+            allow_single_file = True,
+            executable = True,
+            cfg = "exec",
+        ),
+        "_target_arch_flag": attr.label(default = "//bazel/rules/ebpf:target_arch"),
+    },
+)
+
+def ebpf_minimized_btfs(name, tags = None, target_compatible_with = None, visibility = None, **kwargs):
+    """Minimizes the BTFHub kernel BTFs of the target arch for CO-RE objects.
+
+    Produces `<name>.tar.xz` with one minimized BTF per kernel, laid out as
+    pkg/ebpf/btf.go expects. Each manifest bucket is minimized by one action
+    keyed on its kernel blob ids and the CO-RE relocation stub of `objects`.
+    Linux-only: minimization runs the static Linux bpftool, and git, xz and
+    tar from the host to unpack kernel BTFs.
+
+    Args:
+      name: name of the `pkg_tar` target producing `<name>.tar.xz`.
+      tags: tags of both targets; the minimization target is always manual.
+      target_compatible_with: constraints of both targets.
+      visibility: visibility of the archive.
+      **kwargs: `arm64_manifests`, `objects`, `remote` and `x86_64_manifests`.
+    """
+    _ebpf_minimized_btfs_tree(
+        name = name + "_tree",
+        tags = (tags or []) + ["manual"],
+        target_compatible_with = target_compatible_with,
+        visibility = ["//visibility:private"],
+        **kwargs
+    )
+    pkg_tar(
+        name = name,
+        srcs = [name + "_tree"],
+        extension = "tar.xz",
+        mode = "0644",
+        strip_prefix = name + "_tree.tree",
+        tags = tags,
+        target_compatible_with = target_compatible_with,
+        visibility = visibility,
+    )

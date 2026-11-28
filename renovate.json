@@ -26,6 +26,11 @@
         "schedule": ["* 2-6 * * 1,3"]
       },
       {
+        "matchDepNames": ["btfhub-archive"],
+        "changelogUrl": "https://github.com/DataDog/btfhub-archive/compare/{{currentDigest}}..{{newDigest}}",
+        "schedule": ["* 2-6 * * 1"]
+      },
+      {
         "matchDepNames": ["omnibus-ruby"],
         "changelogUrl": "https://github.com/DataDog/omnibus-ruby/compare/{{currentDigest}}..{{newDigest}}",
         "matchUpdateTypes": ["major", "minor", "patch"],
@@ -345,6 +350,18 @@
         "currentValueTemplate": "master",
         "depNameTemplate": "integrations-core",
         "packageNameTemplate": "https://github.com/DataDog/integrations-core",
+        "datasourceTemplate": "git-refs",
+        "registryUrlTemplate": ""
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/btfhub/btfhub.MODULE.bazel"],
+        "matchStrings": [
+          "BTFHUB_ARCHIVE_COMMIT = \"(?<currentDigest>[0-9a-f]{40})\""
+        ],
+        "currentValueTemplate": "main",
+        "depNameTemplate": "btfhub-archive",
+        "packageNameTemplate": "https://github.com/DataDog/btfhub-archive",
         "datasourceTemplate": "git-refs",
         "registryUrlTemplate": ""
       },
