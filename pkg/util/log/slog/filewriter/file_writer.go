@@ -30,6 +30,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/user"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -37,10 +38,22 @@ import (
 	"sync"
 )
 
-// File and directory permitions.
+// File and directory permissions. The log files under logDir are readable
+// by their owner and group only, as the CIS Benchmarks require of the files
+// under /var/log. The log files at other paths keep the mode of earlier
+// versions, which their readers may rely on.
 const (
 	defaultFilePermissions      = 0666
+	logDirFilePermissions       = 0640
 	defaultDirectoryPermissions = 0767
+)
+
+// logDir is the directory where the Agent packages put the Agent logs.
+// agentUser is the user the Agent runs as. A writer that runs as root gives
+// its log files under logDir to the primary group of agentUser.
+var (
+	logDir    = "/var/log/datadog"
+	agentUser = "dd-agent"
 )
 
 // Common constants
@@ -163,10 +176,20 @@ func (rw *rollingFileWriter) createFileAndFolderIfNeeded() error {
 	}
 	rw.currentName = rw.self.getCurrentFileName()
 	filePath := filepath.Join(rw.currentDirPath, rw.currentName)
+	inLogDir := strings.HasPrefix(filePath, logDir+"/")
+	perm := os.FileMode(defaultFilePermissions)
+	if inLogDir {
+		perm = logDirFilePermissions
+	}
 
 	// This will either open the existing file (without truncating it) or
 	// create if necessary. Append mode avoids any race conditions.
-	rw.currentFile, err = os.OpenFile(filePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, defaultFilePermissions)
+	direct := false
+	if inLogDir {
+		rw.currentFile, direct, err = openLogDirFile(filePath, perm)
+	} else {
+		rw.currentFile, err = os.OpenFile(filePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, perm)
+	}
 	if err != nil {
 		return err
 	}
@@ -178,8 +201,47 @@ func (rw *rollingFileWriter) createFileAndFolderIfNeeded() error {
 		return err
 	}
 
+	if direct {
+		setAccess(rw.currentFile, stat)
+	}
+
 	rw.currentFileSize = stat.Size()
 	return nil
+}
+
+// setAccess takes away the permissions of the log file f, described by fi,
+// beyond logDirFilePermissions and, when the writer runs as root, gives f
+// to the group of agentUser. It changes a regular file of the writer's user
+// with a single name alone, so a device or a file that another user links
+// into logDir keeps its access.
+func setAccess(f *os.File, fi os.FileInfo) {
+	if !isRegular(fi.Mode()) || !ownFile(fi) {
+		return
+	}
+
+	// A file that an earlier version created keeps its mode when opened.
+	if perm := fi.Mode().Perm(); perm&^logDirFilePermissions != 0 {
+		if err := f.Chmod(perm & logDirFilePermissions); err != nil {
+			fmt.Fprintf(os.Stderr, "log: filewriter internal error: %v\n", err)
+		}
+	}
+
+	// The Agent, which runs as agentUser, copies the logs of the services
+	// that run as root, such as system-probe, into a flare.
+	if os.Geteuid() != 0 {
+		return
+	}
+	u, err := user.Lookup(agentUser)
+	if err != nil {
+		return
+	}
+	gid, err := strconv.Atoi(u.Gid)
+	if err != nil {
+		return
+	}
+	if err := f.Chown(-1, gid); err != nil {
+		fmt.Fprintf(os.Stderr, "log: filewriter internal error: %v\n", err)
+	}
 }
 
 func (rw *rollingFileWriter) deleteOldRolls(history []string) error {
