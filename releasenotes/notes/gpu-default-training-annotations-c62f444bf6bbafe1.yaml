@@ -1,0 +1,11 @@
+---
+enhancements:
+  - |
+    GPU Monitoring now reads the pod annotations
+    ``training.datadoghq.com/run-id`` and ``training.datadoghq.com/group-id``
+    by default to add ``training_run_id`` and ``training_group_id`` tags to GPU
+    hardware metrics. When GPU tracer injection is enabled, these annotations
+    also supply training identifiers to traces. Override ``gpu.jobs.run`` or
+    ``gpu.jobs.group`` to use another source, or set an identifier's ``key`` to
+    an empty string to disable it. The default source ``type`` is now
+    ``annotation``; set ``type: label`` explicitly when using a pod label.
