@@ -69,7 +69,7 @@ func podsRequiredAtStartup(cfg config.Reader) bool {
 		// The kube metadata stream sends each node the KAI PodGroups and Kueue
 		// Workloads of its pods, and the autoscalers of its workloads.
 		shouldHaveKAIMetadata(cfg) ||
-		shouldScopeKueueWorkloadsPerNode(cfg) ||
+		shouldHaveKueueMetadata(cfg) ||
 		shouldHaveAutoscalerStores(cfg) ||
 		len(metadataAsTags.GetPodLabelsAsTags()) > 0 ||
 		len(metadataAsTags.GetPodAnnotationsAsTags()) > 0

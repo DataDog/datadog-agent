@@ -16,13 +16,11 @@ import (
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
-	"google.golang.org/protobuf/reflect/protoreflect"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -42,12 +40,6 @@ const (
 	// Keep a bounded history of shared diffs. Streams that fall behind receive
 	// a full state instead, so coalesced notifications cannot lose deletions.
 	metadataHistorySize = 128
-	// KueueCheckName is the check that needs every Kueue Workload on the Agent
-	// running it, to tag Workload events.
-	KueueCheckName = "kueue"
-	// kueueCheckNodesRefreshInterval is how often the nodes running a Kueue
-	// check are read from the cluster check dispatcher.
-	kueueCheckNodesRefreshInterval = 10 * time.Second
 )
 
 var metadataStreamHistoryResyncs = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
@@ -137,9 +129,7 @@ type nodeIndex struct {
 
 // nodeMetadataState is the metadata scoped to a node that a stream sent.
 type nodeMetadataState struct {
-	kaiPodGroups map[string]kaiPodGroupEntry
-	// kueueWorkloads is nil when the node receives every Kueue Workload
-	// through the shared history.
+	kaiPodGroups   map[string]kaiPodGroupEntry
 	kueueWorkloads map[string]kueueWorkloadEntry
 	// autoscalers is keyed by autoscaler entity ID. It's nil when
 	// autoscalersPerNodeEnabled is false.
@@ -172,8 +162,10 @@ type metadataSnapshot struct {
 	namespaces           map[string]namespaceEntry
 	kueueQueues          map[string]kueueQueueEntry
 	kueueResourceFlavors map[string]kueueResourceFlavorEntry
-	kueueWorkloads       map[string]kueueWorkloadEntry
-	autoscalers          map[string]autoscalerEntry
+	// kueueWorkloads is not cloned or diffed: each node only gets the
+	// Workloads of its pods, see nodeMetadataState.
+	kueueWorkloads map[string]kueueWorkloadEntry
+	autoscalers    map[string]autoscalerEntry
 }
 
 // KubeMetadataStreamServer streams pod-to-service mappings and namespace
@@ -187,16 +179,12 @@ type KubeMetadataStreamServer struct {
 	metadataVersion uint64
 	// Responses are immutable after publication and shared by all streams.
 	metadataHistory [metadataHistorySize]*pb.KubeMetadataStreamResponse
-	// scopedMetadataHistory holds the same diffs without their Kueue
-	// Workloads, or nil when nothing else changed, for the nodes that receive
-	// only the Workloads of their pods.
-	scopedMetadataHistory [metadataHistorySize]*pb.KubeMetadataStreamResponse
 	// namespaceSubscribers holds notification channels per node name. A node
 	// can have multiple subscribers because more than one process (for example,
 	// the running agent plus "agent diagnose", "agent check", etc.) may stream
 	// metadata for the same node concurrently. Subscribers are also notified
 	// when the KAI PodGroups, Kueue Workloads or autoscalers of their node's
-	// pods change, and when the nodes running the Kueue check change.
+	// pods change.
 	namespaceSubscribers map[string][]chan struct{}
 	// nodeStateVersions counts, per node with subscribers, the changes to the
 	// metadata scoped to the node. A stream rebuilds that metadata only when its
@@ -215,18 +203,10 @@ type KubeMetadataStreamServer struct {
 	kaiPodGroupIndex   nodeIndex
 	kueueWorkloadIndex nodeIndex
 
-	// Kueue Workloads stay in the shared history, but with
-	// kueueWorkloadsPerNode a node that does not run the Kueue check only
-	// needs the Workloads of its pods. The nodes running it come from the
-	// cluster check dispatcher, which only knows them on the leader.
-	// kueueCheckNodes is nil while they are unknown, and then every node
-	// receives every Workload.
-	kueueWorkloadsPerNode   bool
-	kueueCheckNodesProvider func() (map[string]struct{}, bool)
-	kueueCheckNodes         map[string]struct{}
-	// kueueRefreshMutex orders refreshes, which call the provider without
-	// metadataMutex.
-	kueueRefreshMutex sync.Mutex
+	// Kueue Workloads are kept out of the shared history: each stream sends
+	// only the Workloads of its node's pods, like KAI PodGroups. Pods are
+	// indexed to find them when kueueEnabled is true.
+	kueueEnabled bool
 
 	// With autoscalersPerNodeEnabled, each node only gets the autoscalers of
 	// its workloads.
@@ -254,20 +234,11 @@ func NewKubeMetadataStreamServer(store *controllers.MetaBundleStore, wmeta workl
 		pods:                      make(map[string]podRef),
 		kaiPodGroupIndex:          newNodeIndex(),
 		kueueWorkloadIndex:        newNodeIndex(),
-		kueueWorkloadsPerNode:     kueueWorkloadsPerNodeEnabled(pkgconfigsetup.Datadog()),
+		kueueEnabled:              pkgconfigsetup.Datadog().GetBool("cluster_agent.kueue.enabled"),
 		autoscalersPerNodeEnabled: pkgconfigsetup.Datadog().GetBool("cluster_agent.autoscaler_tags.enabled"),
 		workloadIndex:             newNodeIndex(),
 		autoscalersByWorkload:     make(map[string]sets.Set[string]),
 	}
-}
-
-// kueueWorkloadsPerNodeEnabled returns whether nodes receive only the Kueue Workloads
-// of their pods. It needs the cluster check dispatcher to find the nodes
-// running the Kueue check.
-func kueueWorkloadsPerNodeEnabled(cfg model.Reader) bool {
-	return cfg.GetBool("cluster_agent.kueue.enabled") &&
-		cfg.GetBool("cluster_agent.kueue.workloads_per_node") &&
-		cfg.GetBool("cluster_checks.enabled")
 }
 
 func newNodeIndex() nodeIndex {
@@ -275,15 +246,6 @@ func newNodeIndex() nodeIndex {
 		nodeKeys: make(map[string]map[string]int),
 		keyNodes: make(map[string]map[string]int),
 	}
-}
-
-// SetKueueCheckNodesProvider sets the function that returns the nodes running
-// a Kueue check, and false when they are unknown.
-func (srv *KubeMetadataStreamServer) SetKueueCheckNodesProvider(provider func() (map[string]struct{}, bool)) {
-	srv.metadataMutex.Lock()
-	srv.kueueCheckNodesProvider = provider
-	srv.metadataMutex.Unlock()
-	srv.refreshKueueCheckNodes()
 }
 
 func newMetadataSnapshot() metadataSnapshot {
@@ -302,23 +264,8 @@ func (srv *KubeMetadataStreamServer) Start(ctx context.Context) {
 	ch := srv.wmeta.Subscribe(
 		wmetaSubscriberName,
 		workloadmeta.NormalPriority,
-		kubeMetadataStreamFilter(srv.kaiEnabled, srv.kueueWorkloadsPerNode, srv.autoscalersPerNodeEnabled),
+		kubeMetadataStreamFilter(srv.kaiEnabled, srv.kueueEnabled, srv.autoscalersPerNodeEnabled),
 	)
-
-	if srv.kueueWorkloadsPerNode {
-		go func() {
-			ticker := time.NewTicker(kueueCheckNodesRefreshInterval)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					srv.refreshKueueCheckNodes()
-				}
-			}
-		}()
-	}
 
 	go func() {
 		defer srv.wmeta.Unsubscribe(ch)
@@ -394,18 +341,12 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 			ticker.Reset(keepAliveInterval)
 
 		case <-namespacesNotifyCh:
-			updatesSince := srv.metadataUpdatesSince
-			if lastSentNodeState.scopesKueueWorkloads() {
-				updatesSince = srv.scopedMetadataUpdatesSince
-			}
-			updates, version, ok := updatesSince(lastSentMetadataVersion)
+			updates, version, ok := srv.metadataUpdatesSince(lastSentMetadataVersion)
 			currentNodeState := srv.nodeMetadataStateSince(nodeName, lastSentNodeState)
-			if !ok || currentNodeState.scopesKueueWorkloads() != lastSentNodeState.scopesKueueWorkloads() {
+			if !ok {
 				// A full state replaces all client caches, including pod-service
 				// mappings and the metadata scoped to the node. Refresh their
-				// baselines along with the metadata cursor. It is also sent when
-				// the node switches between receiving every Kueue Workload and
-				// only the Workloads of its pods.
+				// baselines along with the metadata cursor.
 				lastSentPodServicesState = srv.buildPodServiceMappingsSnapshot(nodeName)
 				var fullState *pb.KubeMetadataStreamResponse
 				fullState, version, currentNodeState = srv.nodeFullStateResponse(nodeName, lastSentPodServicesState)
@@ -480,15 +421,14 @@ func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Ev
 				changed = true
 			}
 		case *workloadmeta.KubernetesKueueWorkload:
-			snapshotShared()
 			previousPodUID := srv.metadata.kueueWorkloads[entity.ID].labels[kubernetes.KueueJobUIDLabelKey]
 			if srv.metadata.processKueueWorkloadEvent(event.Type, entity) {
-				changed = true
+				// Workloads are in the metadata scoped to each node.
 				for nodeName := range srv.kueueWorkloadIndex.keyNodes[entity.EntityID.ID] {
 					scopedNodes[nodeName] = struct{}{}
 				}
 			}
-			if srv.kueueWorkloadsPerNode {
+			if srv.kueueEnabled {
 				// A plain managed pod can precede its Workload and has no
 				// name reference. Refresh its routing when the UID claim changes,
 				// including removals and ambiguity clearing. Use the previous
@@ -539,9 +479,6 @@ func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Ev
 			srv.metadataVersion++
 			resp := diff.response(false)
 			srv.metadataHistory[srv.metadataVersion%metadataHistorySize] = resp
-			if srv.kueueWorkloadsPerNode {
-				srv.scopedMetadataHistory[srv.metadataVersion%metadataHistorySize] = withoutKueueWorkloads(resp)
-			}
 			// Notifying all subscribers also covers the nodes in scopedNodes.
 			srv.notifyNamespaceSubscribers()
 			return
@@ -553,15 +490,6 @@ func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Ev
 // metadataUpdatesSince returns shared, ordered diffs up to the current version.
 // A false result means the cursor is too old and needs a full-state resync.
 func (srv *KubeMetadataStreamServer) metadataUpdatesSince(version uint64) ([]*pb.KubeMetadataStreamResponse, uint64, bool) {
-	return srv.historyUpdatesSince(version, &srv.metadataHistory)
-}
-
-// scopedMetadataUpdatesSince is metadataUpdatesSince without Kueue Workloads.
-func (srv *KubeMetadataStreamServer) scopedMetadataUpdatesSince(version uint64) ([]*pb.KubeMetadataStreamResponse, uint64, bool) {
-	return srv.historyUpdatesSince(version, &srv.scopedMetadataHistory)
-}
-
-func (srv *KubeMetadataStreamServer) historyUpdatesSince(version uint64, history *[metadataHistorySize]*pb.KubeMetadataStreamResponse) ([]*pb.KubeMetadataStreamResponse, uint64, bool) {
 	srv.metadataMutex.RLock()
 	defer srv.metadataMutex.RUnlock()
 
@@ -573,7 +501,7 @@ func (srv *KubeMetadataStreamServer) historyUpdatesSince(version uint64, history
 	}
 	updates := make([]*pb.KubeMetadataStreamResponse, 0, srv.metadataVersion-version)
 	for next := version + 1; next <= srv.metadataVersion; next++ {
-		if resp := history[next%metadataHistorySize]; resp != nil {
+		if resp := srv.metadataHistory[next%metadataHistorySize]; resp != nil {
 			updates = append(updates, resp)
 		}
 	}
@@ -749,7 +677,7 @@ func (srv *KubeMetadataStreamServer) processPodEvent(eventType workloadmeta.Even
 		if podGroupName := pod.Annotations[kubernetes.KAIPodGroupAnnotationKey]; podGroupName != "" {
 			current.kaiPodGroupKey = workloadmeta.GenerateKAIPodGroupEntityID(pod.Namespace, podGroupName)
 		}
-		if srv.kueueWorkloadsPerNode {
+		if srv.kueueEnabled {
 			if workloadName := kueue.WorkloadName(pod); workloadName != "" {
 				// Keep explicit references even before the Workload is collected.
 				current.kueueWorkloadKey = workloadmeta.GenerateKueueWorkloadEntityID(pod.Namespace, workloadName)
@@ -962,10 +890,6 @@ func (srv *KubeMetadataStreamServer) buildKueueResourceFlavorsSnapshot() map[str
 	return srv.buildMetadataSnapshot().kueueResourceFlavors
 }
 
-func (srv *KubeMetadataStreamServer) buildKueueWorkloadsSnapshot() map[string]kueueWorkloadEntry {
-	return srv.buildMetadataSnapshot().kueueWorkloads
-}
-
 func (srv *KubeMetadataStreamServer) buildAutoscalersSnapshot() map[string]autoscalerEntry {
 	return srv.buildMetadataSnapshot().autoscalers
 }
@@ -983,8 +907,8 @@ func (srv *KubeMetadataStreamServer) buildMetadataSnapshotWithVersion() (metadat
 }
 
 // buildNodeMetadataState returns the KAI PodGroups of the pods scheduled on a
-// node, the autoscalers of their workloads and, if the node does not run the
-// Kueue check, the Kueue Workloads of those pods.
+// node, the Kueue Workloads of those pods and the autoscalers of their
+// workloads.
 func (srv *KubeMetadataStreamServer) buildNodeMetadataState(nodeName string) nodeMetadataState {
 	srv.metadataMutex.RLock()
 	defer srv.metadataMutex.RUnlock()
@@ -1007,11 +931,9 @@ func (srv *KubeMetadataStreamServer) nodeMetadataStateSince(nodeName string, pre
 // buildNodeMetadataStateLocked must be called with metadataMutex held.
 func (srv *KubeMetadataStreamServer) buildNodeMetadataStateLocked(nodeName string) nodeMetadataState {
 	state := nodeMetadataState{
-		kaiPodGroups: entriesForKeys(srv.kaiPodGroups, srv.kaiPodGroupIndex.nodeKeys[nodeName]),
-		version:      srv.nodeStateVersions[nodeName],
-	}
-	if _, runsKueueCheck := srv.kueueCheckNodes[nodeName]; srv.kueueCheckNodes != nil && !runsKueueCheck {
-		state.kueueWorkloads = entriesForKeys(srv.metadata.kueueWorkloads, srv.kueueWorkloadIndex.nodeKeys[nodeName])
+		kaiPodGroups:   entriesForKeys(srv.kaiPodGroups, srv.kaiPodGroupIndex.nodeKeys[nodeName]),
+		kueueWorkloads: entriesForKeys(srv.metadata.kueueWorkloads, srv.kueueWorkloadIndex.nodeKeys[nodeName]),
+		version:        srv.nodeStateVersions[nodeName],
 	}
 	if srv.autoscalersPerNodeEnabled {
 		state.autoscalers = make(map[string]autoscalerEntry)
@@ -1044,10 +966,6 @@ func (srv *KubeMetadataStreamServer) nodeFullStateResponse(nodeName string, podS
 	return fullStateResponse(podServices, metadata, nodeState), version, nodeState
 }
 
-func (s nodeMetadataState) scopesKueueWorkloads() bool {
-	return s.kueueWorkloads != nil
-}
-
 func (s nodeMetadataState) autoscalersPerNode() bool {
 	return s.autoscalers != nil
 }
@@ -1059,10 +977,8 @@ func (s nodeMetadataState) diffResponse(previous nodeMetadataState) *pb.KubeMeta
 		return nil
 	}
 	resp := &pb.KubeMetadataStreamResponse{
-		KaiPodGroups: computeKAIPodGroupsDiff(previous.kaiPodGroups, s.kaiPodGroups),
-	}
-	if s.scopesKueueWorkloads() {
-		resp.KueueWorkloads = computeKueueWorkloadDiff(previous.kueueWorkloads, s.kueueWorkloads)
+		KaiPodGroups:   computeKAIPodGroupsDiff(previous.kaiPodGroups, s.kaiPodGroups),
+		KueueWorkloads: computeKueueWorkloadDiff(previous.kueueWorkloads, s.kueueWorkloads),
 	}
 	if s.autoscalersPerNode() {
 		resp.KubernetesAutoscalers = computeAutoscalerDiff(previous.autoscalers, s.autoscalers)
@@ -1073,76 +989,11 @@ func (s nodeMetadataState) diffResponse(previous nodeMetadataState) *pb.KubeMeta
 	return resp
 }
 
-// kueueWorkloadsField is the field that withoutKueueWorkloads leaves out.
-var kueueWorkloadsField = (&pb.KubeMetadataStreamResponse{}).ProtoReflect().Descriptor().Fields().ByName("kueue_workloads")
-
-// withoutKueueWorkloads returns a shared diff without its Kueue Workloads, or
-// nil if nothing else changed.
-func withoutKueueWorkloads(resp *pb.KubeMetadataStreamResponse) *pb.KubeMetadataStreamResponse {
-	if len(resp.KueueWorkloads) == 0 {
-		return resp
-	}
-	// Shared responses are immutable, so a shallow copy can reuse every other
-	// field without cloning it. Copying the populated fields generically keeps
-	// fields added to the message later.
-	scoped := &pb.KubeMetadataStreamResponse{}
-	dst := scoped.ProtoReflect()
-	empty := true
-	resp.ProtoReflect().Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
-		if fd != kueueWorkloadsField {
-			dst.Set(fd, v)
-			empty = false
-		}
-		return true
-	})
-	if empty {
-		return nil
-	}
-	return scoped
-}
-
-// refreshKueueCheckNodes reads the nodes running a Kueue check and notifies
-// every node when they change, so that nodes switching between every Workload
-// and only their pods' Workloads get a full state.
-func (srv *KubeMetadataStreamServer) refreshKueueCheckNodes() {
-	if !srv.kueueWorkloadsPerNode {
-		return
-	}
-	srv.kueueRefreshMutex.Lock()
-	defer srv.kueueRefreshMutex.Unlock()
-
-	srv.metadataMutex.RLock()
-	provider := srv.kueueCheckNodesProvider
-	srv.metadataMutex.RUnlock()
-
-	// Called without metadataMutex: the provider takes the dispatcher locks.
-	var nodes map[string]struct{}
-	if provider != nil {
-		if checkNodes, ok := provider(); ok {
-			nodes = checkNodes
-		}
-	}
-
-	srv.metadataMutex.Lock()
-	defer srv.metadataMutex.Unlock()
-
-	// maps.Equal does not tell nil, which means unknown, from empty.
-	if (srv.kueueCheckNodes == nil) == (nodes == nil) && maps.Equal(srv.kueueCheckNodes, nodes) {
-		return
-	}
-	srv.kueueCheckNodes = nodes
-	for nodeName := range srv.namespaceSubscribers {
-		srv.nodeStateVersions[nodeName]++
-	}
-	srv.notifyNamespaceSubscribers()
-}
-
 func (s metadataSnapshot) clone() metadataSnapshot {
 	snapshot := newMetadataSnapshot()
 	maps.Copy(snapshot.namespaces, s.namespaces)
 	maps.Copy(snapshot.kueueQueues, s.kueueQueues)
 	maps.Copy(snapshot.kueueResourceFlavors, s.kueueResourceFlavors)
-	maps.Copy(snapshot.kueueWorkloads, s.kueueWorkloads)
 	maps.Copy(snapshot.autoscalers, s.autoscalers)
 	return snapshot
 }
@@ -1157,7 +1008,7 @@ func (srv *KubeMetadataStreamServer) buildPodServiceMappingsSnapshot(nodeName st
 	return bundleToPodServiceMappingsSnapshot(bundle)
 }
 
-func kubeMetadataStreamFilter(kaiEnabled, kueueWorkloadsPerNode, autoscalersPerNodeEnabled bool) *workloadmeta.Filter {
+func kubeMetadataStreamFilter(kaiEnabled, kueueEnabled, autoscalersPerNodeEnabled bool) *workloadmeta.Filter {
 	builder := workloadmeta.NewFilterBuilder().AddKindWithEntityFilter(
 		workloadmeta.KindKubernetesMetadata,
 		func(entity workloadmeta.Entity) bool {
@@ -1168,7 +1019,7 @@ func kubeMetadataStreamFilter(kaiEnabled, kueueWorkloadsPerNode, autoscalersPerN
 	if kaiEnabled {
 		builder = builder.AddKind(workloadmeta.KindKubernetesKAIPodGroup)
 	}
-	if kaiEnabled || kueueWorkloadsPerNode || autoscalersPerNodeEnabled {
+	if kaiEnabled || kueueEnabled || autoscalersPerNodeEnabled {
 		// Pods map each KAI PodGroup, Kueue Workload and autoscaler to the
 		// nodes that need it.
 		builder = builder.AddKind(workloadmeta.KindKubernetesPod)
@@ -1204,17 +1055,13 @@ func fullStateResponse(podServices map[string]podServiceEntry, metadata metadata
 		})
 	}
 
-	if nodeState.scopesKueueWorkloads() {
-		// metadata is a copy: select the node's Workloads so the others are
-		// never converted.
-		metadata.kueueWorkloads = nodeState.kueueWorkloads
-	}
 	if nodeState.autoscalersPerNode() {
 		metadata.autoscalers = nodeState.autoscalers
 	}
 	resp := computeMetadataDiff(newMetadataSnapshot(), metadata).response(true)
 	resp.Mappings = mappings
 	resp.KaiPodGroups = computeKAIPodGroupsDiff(nil, nodeState.kaiPodGroups)
+	resp.KueueWorkloads = computeKueueWorkloadDiff(nil, nodeState.kueueWorkloads)
 	return resp
 }
 
@@ -1222,7 +1069,6 @@ type metadataDiff struct {
 	namespaces           []*pb.NamespaceMetadata
 	kueueQueues          []*pb.KueueQueue
 	kueueResourceFlavors []*pb.KueueResourceFlavor
-	kueueWorkloads       []*pb.KueueWorkload
 	autoscalers          []*pb.KubernetesAutoscaler
 }
 
@@ -1231,13 +1077,12 @@ func computeMetadataDiff(old, current metadataSnapshot) metadataDiff {
 		namespaces:           computeNamespacesDiff(old.namespaces, current.namespaces),
 		kueueQueues:          computeKueueQueueDiff(old.kueueQueues, current.kueueQueues),
 		kueueResourceFlavors: computeKueueResourceFlavorDiff(old.kueueResourceFlavors, current.kueueResourceFlavors),
-		kueueWorkloads:       computeKueueWorkloadDiff(old.kueueWorkloads, current.kueueWorkloads),
 		autoscalers:          computeAutoscalerDiff(old.autoscalers, current.autoscalers),
 	}
 }
 
 func (d metadataDiff) isEmpty() bool {
-	return len(d.namespaces)+len(d.kueueQueues)+len(d.kueueResourceFlavors)+len(d.kueueWorkloads)+len(d.autoscalers) == 0
+	return len(d.namespaces)+len(d.kueueQueues)+len(d.kueueResourceFlavors)+len(d.autoscalers) == 0
 }
 
 func (d metadataDiff) response(isFullState bool) *pb.KubeMetadataStreamResponse {
@@ -1246,7 +1091,6 @@ func (d metadataDiff) response(isFullState bool) *pb.KubeMetadataStreamResponse 
 		NamespaceMetadata:     d.namespaces,
 		KueueQueues:           d.kueueQueues,
 		KueueResourceFlavors:  d.kueueResourceFlavors,
-		KueueWorkloads:        d.kueueWorkloads,
 		KubernetesAutoscalers: d.autoscalers,
 	}
 }
