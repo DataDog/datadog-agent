@@ -23,11 +23,30 @@ go_library(
 
 dd_agent_go_test(
     name = "report_test",
-    srcs = ["sender_test.go"],
+    srcs = [
+        "lab_replay_test.go",
+        "sender_test.go",
+    ],
+    data = [
+        "testdata/lab/cos_tableData.json",
+        "testdata/lab/cos_timeseries.json",
+        "testdata/lab/dia_tableData.json",
+        "testdata/lab/dia_timeseries.json",
+        "testdata/lab/intfutil_tableData.json",
+        "testdata/lab/intfutil_timeseries.json",
+        "testdata/lab/linkusage_tableData.json",
+        "testdata/lab/linkusage_timeseries.json",
+        "testdata/lab/site_tableData.json",
+        "testdata/lab/sla_tableData.json",
+        "testdata/lab/sla_timeseries.json",
+    ],
     embed = [":report"],
     deps = [
         "//pkg/aggregator/mocksender",
         "//pkg/collector/corechecks/network-devices/versa/client",
+        "//pkg/networkdevice/sender",
+        "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
     ],
 )

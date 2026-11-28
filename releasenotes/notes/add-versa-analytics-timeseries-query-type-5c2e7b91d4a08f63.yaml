@@ -1,0 +1,45 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Add an ``analytics_query_type`` option to the Versa integration, selecting how Versa
+    Analytics metrics are queried. The default, ``tableData``, keeps the existing behavior
+    of one aggregate value per entity covering the whole lookback window. Setting it to
+    ``timeseries`` queries Versa for one value per time bucket instead, so short-lived
+    spikes inside the lookback window are preserved rather than averaged away. The
+    companion ``analytics_gap`` option sets the requested bucket size, defaulting to
+    ``1MINUTE``, which Versa renders at whatever resolution the tenant is configured for.
+
+    SLA, path QoS, circuit QoS, interface utilization, SDWAN link usage
+    (``collect_link_metrics``) and DIA (``collect_dia_metrics``) metrics collected this
+    way are submitted with the timestamp of their own bucket and deduplicated per tenant
+    and entity, so a lookback window longer than the check interval does not double
+    report. The newest bucket in the response is held back until a newer bucket appears in
+    a later response, which is normally the next collection, because Versa's buckets are
+    wall-clock aligned and the current one is still accumulating, so
+    set ``lookback_time_window_minutes`` to 45 or more on a tenant with 15 minute buckets;
+    the check logs a warning below 45, including the default of 30, when an enabled query
+    uses timeseries. SLA, circuit QoS, interface, SDWAN link usage and DIA are validated
+    against Versa responses from our lab and a customer environment, circuit QoS
+    ``percent_drop`` including nonzero drops in our lab, and path QoS against a customer
+    environment. Link status, site, tunnel, application and top user metrics use
+    ``tableData``. The tunnel
+    query returned no rows in our lab, so tunnel timeseries is pending validation against
+    a response with tunnel data, as is the tunnel ``tableData`` column order for
+    ``volume-tx`` and ``volume-rx``.
+
+    A timeseries query falls back to its ``tableData`` result for that collection, with a
+    warning giving the reason, when Versa rejects the timeseries request with an error
+    response or returns a body that cannot be parsed (the warning includes the HTTP
+    status and, when Versa returns one, its numeric error code), or when its entity names
+    do not have the expected number of fields. Authentication, connection and server
+    errors are reported as errors, as in ``tableData`` mode. Each fallback is counted as
+    ``versa.timeseries.fallback``, tagged by ``tenant``, ``query`` and ``reason``, so it can
+    be monitored. With debug logging, a fallback also logs sample series names and
+    ``tableData`` keys, which contain site, circuit and IP names.

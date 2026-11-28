@@ -8,9 +8,13 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -27,10 +31,36 @@ func (client *Client) newRequest(method, uri string, body io.Reader, useSessionA
 	return http.NewRequestWithContext(context.Background(), method, fmt.Sprintf("%s:%d%s", client.directorEndpoint, client.directorAPIPort, uri), body)
 }
 
+// requestTarget renders the request target for logging: the path plus the query string
+// when there is one. Only the URL is rendered, never headers or the request body, so
+// that credentials sent by the authentication calls are not written to the log.
+func requestTarget(req *http.Request) string {
+	if req.URL.RawQuery == "" {
+		return req.URL.Path
+	}
+	return req.URL.Path + "?" + req.URL.RawQuery
+}
+
+// executeRequest performs an HTTP request and logs it at debug level. Every Versa API call
+// the Agent makes goes through here, so enabling debug logs yields one line per call with
+// the method, path, query parameters, response code, and how long it took.
+func (client *Client) executeRequest(req *http.Request, httpClient *http.Client) (*http.Response, error) {
+	start := timeNow()
+	resp, err := httpClient.Do(req)
+	elapsed := timeNow().Sub(start).Round(time.Millisecond)
+
+	if err != nil {
+		log.Debugf("Versa API call %s %s failed after %s: %v", req.Method, requestTarget(req), elapsed, err)
+		return nil, err
+	}
+
+	log.Debugf("Versa API call %s %s responded %d in %s", req.Method, requestTarget(req), resp.StatusCode, elapsed)
+	return resp, nil
+}
+
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
 // do exec a request with authentication
 func (client *Client) do(req *http.Request, timeout time.Duration) ([]byte, int, error) {
-	log.Tracef("Executing Versa api request %s %s", req.Method, req.URL.Path)
 	httpClient := client.httpClient
 	if timeout > 0 && timeout != httpClient.Timeout {
 		// shallow copy shares the transport (TLS config, connection pool) and cookie jar
@@ -38,17 +68,16 @@ func (client *Client) do(req *http.Request, timeout time.Duration) ([]byte, int,
 		withTimeout.Timeout = timeout
 		httpClient = &withTimeout
 	}
-	resp, err := httpClient.Do(req)
+	resp, err := client.executeRequest(req, httpClient)
 	if err != nil {
 		return nil, 0, err
 	}
-	log.Tracef("Executed Versa api request %d %s %s", resp.StatusCode, req.Method, req.URL.Path)
 
 	defer resp.Body.Close()
 
 	// TODO: should we bring this back with OAuth?
 	if !isAuthenticated(resp.Header) {
-		log.Tracef("Versa api request responded with invalid auth %s %s", req.Method, req.URL.Path)
+		log.Debugf("Versa API call %s %s returned an HTML response, treating it as unauthenticated", req.Method, requestTarget(req))
 		// clear auth to trigger re-authentication
 		client.clearAuth()
 		// Return 401 on auth errors
@@ -124,8 +153,113 @@ func (client *Client) get(endpoint string, params map[string]string, useSessionA
 		lastErr = err
 	}
 
-	log.Tracef("%d error code hitting endpoint %q with error %+v and response: %s", statusCode, endpoint, lastErr, string(bytes))
-	return nil, fmt.Errorf("%s http responded with %d code and error %v", endpoint, statusCode, lastErr)
+	// The response body is not logged: Versa error text can echo request values.
+	log.Tracef("%d error code hitting endpoint %q with error %+v", statusCode, endpoint, lastErr)
+	return nil, &requestError{
+		endpoint:   endpoint,
+		statusCode: statusCode,
+		cause:      lastErr,
+		apiError:   isAPIErrorBody(bytes),
+		apiCode:    apiErrorCode(bytes),
+	}
+}
+
+// requestError is a request that did not get a valid response after every attempt. Its
+// message is unchanged from before it carried the status and Versa's error message.
+type requestError struct {
+	endpoint   string
+	statusCode int
+	cause      error
+	// apiError is true when the body is a Versa JSON error object with a code or error field.
+	apiError bool
+	// apiCode is the numeric "code" field of a Versa JSON error body, if any. The free
+	// text "error" and "message" fields are never kept, so they cannot reach a log line.
+	apiCode *int64
+}
+
+func (e *requestError) Error() string {
+	return fmt.Sprintf("%s http responded with %d code and error %v", e.endpoint, e.statusCode, e.cause)
+}
+
+// apiErrorCode returns the numeric "code" field of a Versa JSON error body, or nil when
+// there is none or it is not an integer.
+func apiErrorCode(body []byte) *int64 {
+	var parsed struct {
+		Code json.RawMessage `json:"code"`
+	}
+	if json.Unmarshal(body, &parsed) != nil || parsed.Code == nil {
+		return nil
+	}
+	// Only a JSON integer within int64 range is a code: null, fractions, exponents,
+	// strings and out of range values mean there is none.
+	if !jsonInteger.Match(parsed.Code) {
+		return nil
+	}
+	code, err := strconv.ParseInt(string(parsed.Code), 10, 64)
+	if err != nil {
+		return nil
+	}
+	return &code
+}
+
+// jsonInteger matches a JSON number literal without fraction or exponent.
+var jsonInteger = regexp.MustCompile(`^-?(0|[1-9][0-9]*)$`)
+
+// versaErrorDescriptions describes the Versa error codes seen on timeseries requests, in
+// our own words, so the warning never repeats Versa's free text.
+var versaErrorDescriptions = map[int64]string{
+	-3: "joined queries are not allowed for this report",
+	-8: "invalid metric",
+}
+
+// rejectionReason describes a rejected timeseries request from its HTTP status and Versa
+// error code only.
+func rejectionReason(status int, code *int64) string {
+	reason := fmt.Sprintf("Versa rejected the timeseries request with HTTP %d", status)
+	if code == nil {
+		return reason
+	}
+	if description, ok := versaErrorDescriptions[*code]; ok {
+		return fmt.Sprintf("%s (Versa error code %d: %s)", reason, *code, description)
+	}
+	return fmt.Sprintf("%s (Versa error code %d)", reason, *code)
+}
+
+// isAPIErrorBody reports whether body is a Versa JSON error object, carrying a code or
+// an error field.
+func isAPIErrorBody(body []byte) bool {
+	var parsed map[string]json.RawMessage
+	if json.Unmarshal(body, &parsed) != nil {
+		return false
+	}
+	_, hasCode := parsed["code"]
+	_, hasError := parsed["error"]
+	return hasCode || hasError
+}
+
+// timeseriesRejection returns the HTTP status and Versa's numeric error code, if any,
+// when err is Versa rejecting the request itself: a 4xx other than 401 and 403, with a
+// Versa JSON error body. Authentication failures, HTML responses (reported as 401),
+// transport errors, timeouts and 5xx responses are not rejections and keep their usual
+// error handling.
+func timeseriesRejection(err error) (int, *int64, bool) {
+	var reqErr *requestError
+	if !errors.As(err, &reqErr) {
+		return 0, nil, false
+	}
+	status := reqErr.statusCode
+	if status < 400 || status >= 500 || status == 401 || status == 403 || !reqErr.apiError {
+		return 0, nil, false
+	}
+	return status, reqErr.apiCode, true
+}
+
+// isBodyParseError reports whether err is a response body that is not valid JSON for the
+// expected type.
+func isBodyParseError(err error) bool {
+	var syntaxErr *json.SyntaxError
+	var typeErr *json.UnmarshalTypeError
+	return errors.As(err, &syntaxErr) || errors.As(err, &typeErr)
 }
 
 // TODO: can we move this to a common package? Cisco SD-WAN and Versa use this
@@ -140,9 +274,8 @@ func get[T Content](client *Client, endpoint string, params map[string]string, u
 
 	err = json.Unmarshal(bytes, &data)
 	if err != nil {
-		log.Tracef("Failed to unmarshal response: %s", err)
-		// Log the response body for debugging
-		log.Tracef("Response body: %s", string(bytes))
+		// Neither the body nor the error text is logged: both can echo response content.
+		log.Tracef("Failed to unmarshal response from %s: %T", strings.SplitN(endpoint, "?", 2)[0], err)
 		return nil, err
 	}
 
@@ -166,6 +299,34 @@ func getPaginatedAnalytics[T any](
 	filterQuery string,
 	joinQuery string,
 	metrics []string,
+	layout *timeseriesLayout,
+	parser func([][]interface{}) ([]T, error),
+) ([]T, error) {
+	// An endpoint without a layout has not been verified against a real timeseries
+	// response, so it stays on tableData even when the instance asks for timeseries.
+	// Silently reshaping its rows would either mis-index the parser or drop every row.
+	if client.analyticsQueryType == QueryTypeTimeseries {
+		if layout == nil {
+			log.Debugf("Query %q does not support timeseries collection, using tableData", query)
+		} else {
+			return getTimeseriesAnalytics(client, cfg, tenant, feature, lookback, query, filterQuery, joinQuery, metrics, layout, parser)
+		}
+	}
+
+	return getTableDataAnalytics(client, cfg, tenant, feature, lookback, query, filterQuery, joinQuery, metrics, parser)
+}
+
+// getTableDataAnalytics runs a tableData query, paging through the results.
+func getTableDataAnalytics[T any](
+	client *Client,
+	cfg EndpointConfig,
+	tenant string,
+	feature string,
+	lookback string,
+	query string,
+	filterQuery string,
+	joinQuery string,
+	metrics []string,
 	parser func([][]interface{}) ([]T, error),
 ) ([]T, error) {
 	var allMetrics []T
@@ -173,7 +334,18 @@ func getPaginatedAnalytics[T any](
 	// Paginate through the results
 	for page := 0; page < cfg.MaxPages; page++ {
 		fromCount := page * cfg.MaxCount
-		analyticsURL := buildAnalyticsPath(tenant, feature, lookback, query, "tableData", filterQuery, joinQuery, metrics, cfg.MaxCount, fromCount)
+		analyticsURL := buildAnalyticsPath(analyticsQuery{
+			tenant:      tenant,
+			feature:     feature,
+			queryType:   QueryTypeTableData,
+			query:       query,
+			lookback:    lookback,
+			filterQuery: filterQuery,
+			joinQuery:   joinQuery,
+			metrics:     metrics,
+			count:       cfg.MaxCount,
+			fromCount:   fromCount,
+		})
 
 		resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true, cfg.Timeout)
 		if err != nil {
@@ -194,4 +366,178 @@ func getPaginatedAnalytics[T any](
 	}
 
 	return allMetrics, nil
+}
+
+// fetchTableDataRows returns the raw rows of a tableData query, paging through the
+// results, for answering a timeseries call from tableData.
+func fetchTableDataRows(
+	client *Client,
+	cfg EndpointConfig,
+	tenant string,
+	feature string,
+	lookback string,
+	query string,
+	filterQuery string,
+	joinQuery string,
+	metrics []string,
+) ([][]interface{}, error) {
+	return getTableDataAnalytics(client, cfg, tenant, feature, lookback, query, filterQuery, joinQuery, metrics,
+		func(rows [][]interface{}) ([][]interface{}, error) { return rows, nil })
+}
+
+// getTimeseriesAnalytics runs the same query as getPaginatedAnalytics with qt=timeseries,
+// which returns a point per time bucket per entity instead of one aggregate row covering
+// the whole lookback window. The response is flattened back into tableData shaped rows so
+// the endpoint's existing parser is reused unchanged, and each parsed entry is stamped
+// with its bucket time when the metric type has somewhere to put it.
+func getTimeseriesAnalytics[T any](
+	client *Client,
+	cfg EndpointConfig,
+	tenant string,
+	feature string,
+	lookback string,
+	query string,
+	filterQuery string,
+	joinQuery string,
+	metrics []string,
+	layout *timeseriesLayout,
+	parser func([][]interface{}) ([]T, error),
+) ([]T, error) {
+	// Deliberately a single request. A timeseries body is a list of series rather than of
+	// rows, and how count and from-count apply to it (by entity, by series or not at all)
+	// is still to be confirmed against a customer Director. Paging on
+	// the wrong unit would either silently truncate the fleet or re-fetch and re-submit
+	// the same buckets on every page, so instead we ask for everything once and say so
+	// when the response looks like it was capped.
+	analyticsURL := buildAnalyticsPath(analyticsQuery{
+		tenant:      tenant,
+		feature:     feature,
+		queryType:   QueryTypeTimeseries,
+		query:       query,
+		lookback:    lookback,
+		endDate:     timeseriesEndDate,
+		gap:         client.analyticsGap,
+		filterQuery: filterQuery,
+		joinQuery:   joinQuery,
+		metrics:     metrics,
+		count:       cfg.MaxCount,
+		fromCount:   0,
+	})
+
+	// useTableData answers the call from the tableData request for the same query, as
+	// it would be answered with analytics_query_type set to tableData, and logs why.
+	useTableData := func(code FallbackReason, reason string, series []AnalyticsTimeseries) ([]T, error) {
+		client.recordFallback(tenant, query, code)
+		client.warnRateLimited("fallback:"+query+":"+string(code), "Timeseries query %s: %s, using tableData for it instead", shortQueryName(query), reason)
+		tableRows, err := fetchTableDataRows(client, cfg, tenant, feature, lookback, query, filterQuery, joinQuery, metrics)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get analytics metrics: %v", err)
+		}
+		client.debugSamples(query, series, tableRows)
+		parsed, err := parser(tableRows)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse analytics metrics: %v", err)
+		}
+		return parsed, nil
+	}
+
+	resp, err := get[AnalyticsTimeseriesResponse](client, analyticsURL, nil, true, cfg.Timeout)
+	if err != nil {
+		if status, code, ok := timeseriesRejection(err); ok {
+			return useTableData(FallbackHTTPError, rejectionReason(status, code), nil)
+		}
+		if isBodyParseError(err) {
+			return useTableData(FallbackHTTPError, "the timeseries response could not be parsed", nil)
+		}
+		return nil, fmt.Errorf("failed to get analytics timeseries: %v", err)
+	}
+	log.Debugf("Timeseries query %q returned %d series for %d entities", query, len(resp.Data), countEntities(resp.Data))
+
+	if layout.strictKeyParts {
+		if name, mismatch := keyPartsMismatch(resp.Data, layout); mismatch {
+			return useTableData(FallbackKeyParts, fmt.Sprintf("an entity key has %d parts where %d were expected", len(strings.Split(name, ",")), layout.drillKeyFields), resp.Data)
+		}
+	}
+
+	if entities := countEntities(resp.Data); entities >= cfg.MaxCount {
+		log.Warnf("Timeseries query %q returned %d entities, at or above max_count %d: raise max_count, results may be truncated", query, entities, cfg.MaxCount)
+	}
+
+	rows, dropped := flattenTimeseries(resp.Data, metrics, layout.drillKeyFields)
+	if dropped > 0 {
+		if len(rows) == 0 {
+			// Every bucket was unusable. Most likely a requested metric is not returned
+			// as a series on this tenant, and the endpoint reports nothing at all.
+			log.Warnf("Dropped all %d timeseries buckets for query %q, no metrics will be reported for it", dropped, query)
+		} else {
+			log.Debugf("Dropped %d incomplete timeseries buckets for query %q", dropped, query)
+		}
+	}
+
+	rebuildDrillKeys(rows, layout)
+
+	rawRows := make([][]interface{}, 0, len(rows))
+	for _, row := range rows {
+		rawRows = append(rawRows, row.row)
+	}
+
+	parsed, err := parser(rawRows)
+	if err != nil {
+		return useTableData(FallbackHTTPError, "the timeseries response could not be parsed", resp.Data)
+	}
+	// flattenTimeseries and the parsers are both order preserving and all or nothing, so
+	// parsed[i] is the entry built from rows[i].
+	if len(parsed) != len(rows) {
+		return nil, fmt.Errorf("parsed %d entries from %d timeseries buckets", len(parsed), len(rows))
+	}
+	for i := range parsed {
+		if entry, ok := any(&parsed[i]).(timestamped); ok {
+			entry.setTimestamp(rows[i].timestamp)
+		}
+	}
+
+	return parsed, nil
+}
+
+// maxNameSamples is how many timeseries series names and tableData keys a fallback logs.
+const maxNameSamples = 3
+
+// debugSamples logs, at debug level and at most once an hour per query, up to
+// maxNameSamples distinct timeseries series names and tableData row keys with their part
+// counts, so a debug log shows how the two responses name entities. These are Versa
+// entity names (sites, circuits, IPs), never request details or credentials.
+func (client *Client) debugSamples(query string, series []AnalyticsTimeseries, tableRows [][]interface{}) {
+	var names, keys []string
+	seen := make(map[string]bool)
+	for _, s := range series {
+		if len(names) == maxNameSamples {
+			break
+		}
+		if !seen[s.Name] {
+			seen[s.Name] = true
+			names = append(names, fmt.Sprintf("%q (%d parts)", s.Name, len(strings.Split(s.Name, ","))))
+		}
+	}
+	for _, row := range tableRows {
+		if len(keys) == maxNameSamples {
+			break
+		}
+		if len(row) == 0 {
+			continue
+		}
+		if key, ok := row[0].(string); ok {
+			keys = append(keys, fmt.Sprintf("%q (%d parts)", key, len(strings.Split(key, ","))))
+		}
+	}
+	client.limiter().Debugf("samples:"+query, "Timeseries query %q fell back to tableData; timeseries series names: [%s]; tableData keys: [%s]", query, strings.Join(names, ", "), strings.Join(keys, ", "))
+}
+
+// countEntities returns the number of distinct entities across the series of a timeseries
+// response.
+func countEntities(series []AnalyticsTimeseries) int {
+	names := make(map[string]struct{}, len(series))
+	for _, s := range series {
+		names[s.Name] = struct{}{}
+	}
+	return len(names)
 }

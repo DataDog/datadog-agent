@@ -71,13 +71,15 @@ func (s *Sender) SendDeviceMetrics(appliances []client.Appliance) {
 			log.Warnf("Error parsing timestamp %s: %s. Sending device metrics...", appliance.LastUpdatedTime, err)
 			lastUpdatedTime = float64(TimeNow().UnixMilli())
 		}
-		if !s.ShouldSendEntry(key, lastUpdatedTime) {
+		ts := lastUpdatedTime / 1000 // convert to seconds
+		// The watermark is stored in seconds for the same reason as in bucketTimestamp:
+		// expireTimeSent compares it against an epoch seconds cutoff.
+		if !s.ShouldSendEntry(key, ts) {
 			// If the timestamp is before the max timestamp already sent, do not re-send
 			continue
 		}
-		ndmsender.SetNewSentTimestamp(newTimestamps, key, lastUpdatedTime)
+		ndmsender.SetNewSentTimestamp(newTimestamps, key, ts)
 
-		ts := lastUpdatedTime / 1000 // convert to seconds
 		cpuLoad := appliance.Hardware.CPULoad
 
 		// Parse memory metrics
@@ -146,7 +148,9 @@ func (s *Sender) SendUptimeMetrics(uptimes map[string]float64) {
 }
 
 // SendSLAMetrics sends SLA metrics retrieved from Versa Analytics
-func (s *Sender) SendSLAMetrics(slaMetrics []client.SLAMetrics, deviceNameToIDMap map[string]string) {
+func (s *Sender) SendSLAMetrics(tenant string, slaMetrics []client.SLAMetrics, deviceNameToIDMap map[string]string) {
+	newTimestamps := make(map[string]float64)
+
 	for _, slaMetricsResponse := range slaMetrics {
 		var tags = []string{
 			"local_site:" + slaMetricsResponse.LocalSite,
@@ -155,20 +159,81 @@ func (s *Sender) SendSLAMetrics(slaMetrics []client.SLAMetrics, deviceNameToIDMa
 			"remote_access_circuit:" + slaMetricsResponse.RemoteAccessCircuit,
 			"forwarding_class:" + slaMetricsResponse.ForwardingClass,
 		}
-		if deviceIP, ok := deviceNameToIDMap[slaMetricsResponse.LocalSite]; ok {
+		if deviceIP, ok := deviceNameToIDMap[strings.ToLower(slaMetricsResponse.LocalSite)]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
-		s.Gauge(versaMetricPrefix+"sla.delay", slaMetricsResponse.Delay, "", tags)
-		s.Gauge(versaMetricPrefix+"sla.fwd_delay_var", slaMetricsResponse.FwdDelayVar, "", tags)
-		s.Gauge(versaMetricPrefix+"sla.rev_delay_var", slaMetricsResponse.RevDelayVar, "", tags)
-		s.Gauge(versaMetricPrefix+"sla.fwd_loss_ratio", slaMetricsResponse.FwdLossRatio, "", tags)
-		s.Gauge(versaMetricPrefix+"sla.rev_loss_ratio", slaMetricsResponse.RevLossRatio, "", tags)
-		s.Gauge(versaMetricPrefix+"sla.pdu_loss_ratio", slaMetricsResponse.PDULossRatio, "", tags)
+
+		ts, send := s.bucketTimestamp("sla_metrics", tenant, slaMetricsResponse.DrillKey, slaMetricsResponse.Timestamp, newTimestamps)
+		if !send {
+			continue
+		}
+
+		s.sendBucketGauge("sla.delay", slaMetricsResponse.Delay, tags, ts)
+		s.sendBucketGauge("sla.fwd_delay_var", slaMetricsResponse.FwdDelayVar, tags, ts)
+		s.sendBucketGauge("sla.rev_delay_var", slaMetricsResponse.RevDelayVar, tags, ts)
+		s.sendBucketGauge("sla.fwd_loss_ratio", slaMetricsResponse.FwdLossRatio, tags, ts)
+		s.sendBucketGauge("sla.rev_loss_ratio", slaMetricsResponse.RevLossRatio, tags, ts)
+		s.sendBucketGauge("sla.pdu_loss_ratio", slaMetricsResponse.PDULossRatio, tags, ts)
+	}
+
+	s.UpdateTimestamps(newTimestamps)
+}
+
+// SendTimeseriesFallbacks counts, as versa.timeseries.fallback, each timeseries call that
+// was answered from tableData this run, tagged by tenant, query and reason, so a fallback
+// can be monitored rather than only seen in the log.
+func (s *Sender) SendTimeseriesFallbacks(fallbacks []client.Fallback) {
+	for _, f := range fallbacks {
+		s.Count(versaMetricPrefix+"timeseries.fallback", 1, "", []string{
+			"tenant:" + f.Tenant,
+			"query:" + f.Query,
+			"reason:" + string(f.Reason),
+		})
 	}
 }
 
+// bucketTimestamp decides how one entry of a timeseries capable endpoint should be
+// submitted. A zero entry timestamp means the row came from a tableData query, which
+// aggregates the whole lookback window and carries no bucket time, so it is sent at
+// collection time as it always has been. Otherwise the returned timestamp is in seconds
+// for GaugeWithTimestamp, and the entry is skipped when that bucket has already been sent
+// by an earlier run, which happens whenever the lookback window is longer than the check
+// interval.
+func (s *Sender) bucketTimestamp(metric string, tenant string, drillKey string, timestampMillis int64, newTimestamps map[string]float64) (float64, bool) {
+	if timestampMillis == 0 {
+		return 0, true
+	}
+	// The tenant belongs in the key: Run calls the senders once per organization, each
+	// call commits its timestamps, and templated site naming means two organizations can
+	// produce the same drill key. Without it the second organization's buckets would look
+	// like ones already sent and be dropped on every run.
+	key := ndmsender.GetMetricKey(metric, tenant, drillKey)
+	// Seconds, not milliseconds: IntegrationSender.expireTimeSent drops watermarks older
+	// than six hours by comparing them against an epoch seconds cutoff, so a millisecond
+	// watermark is always in the future and the key is never expired. Buckets are minutes
+	// apart, so second resolution still tells two of them apart.
+	seconds := float64(timestampMillis) / 1000
+	if !s.ShouldSendEntry(key, seconds) {
+		return 0, false
+	}
+	ndmsender.SetNewSentTimestamp(newTimestamps, key, seconds)
+	return seconds, true
+}
+
+// sendBucketGauge sends a gauge at the given bucket timestamp, or at collection time when
+// the timestamp is zero.
+func (s *Sender) sendBucketGauge(name string, value float64, tags []string, ts float64) {
+	if ts == 0 {
+		s.Gauge(versaMetricPrefix+name, value, "", tags)
+		return
+	}
+	s.GaugeWithTimestampWrapper(versaMetricPrefix+name, value, tags, ts)
+}
+
 // SendLinkUsageMetrics sends link usage metrics retrieved from Versa Analytics
-func (s *Sender) SendLinkUsageMetrics(linkUsageMetrics []client.LinkUsageMetrics, deviceNameToIDMap map[string]string) {
+func (s *Sender) SendLinkUsageMetrics(tenant string, linkUsageMetrics []client.LinkUsageMetrics, deviceNameToIDMap map[string]string) {
+	newTimestamps := make(map[string]float64)
+
 	for _, linkMetric := range linkUsageMetrics {
 		var tags = []string{
 			"interface:" + linkMetric.Site,
@@ -179,18 +244,28 @@ func (s *Sender) SendLinkUsageMetrics(linkUsageMetrics []client.LinkUsageMetrics
 			"ip:" + linkMetric.IP,
 			"isp:" + linkMetric.ISP,
 		}
-		if deviceIP, ok := deviceNameToIDMap[linkMetric.Site]; ok {
+		if deviceIP, ok := deviceNameToIDMap[strings.ToLower(linkMetric.Site)]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
-		s.Gauge(versaMetricPrefix+"link.volume_tx", linkMetric.VolumeTx, "", tags)
-		s.Gauge(versaMetricPrefix+"link.volume_rx", linkMetric.VolumeRx, "", tags)
-		s.Gauge(versaMetricPrefix+"link.bandwidth_tx", linkMetric.BandwidthTx, "", tags)
-		s.Gauge(versaMetricPrefix+"link.bandwidth_rx", linkMetric.BandwidthRx, "", tags)
+
+		ts, send := s.bucketTimestamp("link_usage_metrics", tenant, linkMetric.DrillKey, linkMetric.Timestamp, newTimestamps)
+		if !send {
+			continue
+		}
+
+		s.sendBucketGauge("link.volume_tx", linkMetric.VolumeTx, tags, ts)
+		s.sendBucketGauge("link.volume_rx", linkMetric.VolumeRx, tags, ts)
+		s.sendBucketGauge("link.bandwidth_tx", linkMetric.BandwidthTx, tags, ts)
+		s.sendBucketGauge("link.bandwidth_rx", linkMetric.BandwidthRx, tags, ts)
 	}
+
+	s.UpdateTimestamps(newTimestamps)
 }
 
 // SendSiteMetrics sends site metrics retrieved from Versa Analytics
-func (s *Sender) SendSiteMetrics(siteMetrics []client.SiteMetrics, deviceNameToIDMap map[string]string) {
+func (s *Sender) SendSiteMetrics(tenant string, siteMetrics []client.SiteMetrics, deviceNameToIDMap map[string]string) {
+	newTimestamps := make(map[string]float64)
+
 	for _, siteMetric := range siteMetrics {
 		var tags = []string{
 			"site:" + siteMetric.Site,
@@ -199,29 +274,46 @@ func (s *Sender) SendSiteMetrics(siteMetrics []client.SiteMetrics, deviceNameToI
 			"longitude:" + siteMetric.Longitude,
 			"location_source:" + siteMetric.LocationSource,
 		}
-		if deviceIP, ok := deviceNameToIDMap[siteMetric.Site]; ok {
+		if deviceIP, ok := deviceNameToIDMap[strings.ToLower(siteMetric.Site)]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
-		s.Gauge(versaMetricPrefix+"site.volume_tx", siteMetric.VolumeTx, "", tags)
-		s.Gauge(versaMetricPrefix+"site.volume_rx", siteMetric.VolumeRx, "", tags)
-		s.Gauge(versaMetricPrefix+"site.bandwidth_tx", siteMetric.BandwidthTx, "", tags)
-		s.Gauge(versaMetricPrefix+"site.bandwidth_rx", siteMetric.BandwidthRx, "", tags)
-		s.Gauge(versaMetricPrefix+"site.availability", siteMetric.Availability, "", tags)
+
+		// Site metrics have no drill key column; the site name is the entity key.
+		ts, send := s.bucketTimestamp("site_metrics", tenant, siteMetric.Site, siteMetric.Timestamp, newTimestamps)
+		if !send {
+			continue
+		}
+		s.sendBucketGauge("site.volume_tx", siteMetric.VolumeTx, tags, ts)
+		s.sendBucketGauge("site.volume_rx", siteMetric.VolumeRx, tags, ts)
+		s.sendBucketGauge("site.bandwidth_tx", siteMetric.BandwidthTx, tags, ts)
+		s.sendBucketGauge("site.bandwidth_rx", siteMetric.BandwidthRx, tags, ts)
+		s.sendBucketGauge("site.availability", siteMetric.Availability, tags, ts)
 	}
+
+	s.UpdateTimestamps(newTimestamps)
 }
 
 // SendLinkStatusMetrics sends link status metrics retrieved from Versa Analytics
-func (s *Sender) SendLinkStatusMetrics(linkStatusMetrics []client.LinkStatusMetrics, deviceNameToIDMap map[string]string) {
+func (s *Sender) SendLinkStatusMetrics(tenant string, linkStatusMetrics []client.LinkStatusMetrics, deviceNameToIDMap map[string]string) {
+	newTimestamps := make(map[string]float64)
+
 	for _, linkMetric := range linkStatusMetrics {
 		var tags = []string{
 			"site:" + linkMetric.Site,
 			"access_circuit:" + linkMetric.AccessCircuit,
 		}
-		if deviceIP, ok := deviceNameToIDMap[linkMetric.Site]; ok {
+		if deviceIP, ok := deviceNameToIDMap[strings.ToLower(linkMetric.Site)]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
-		s.Gauge(versaMetricPrefix+"link.availability", linkMetric.Availability, "", tags)
+
+		ts, send := s.bucketTimestamp("link_status_metrics", tenant, linkMetric.DrillKey, linkMetric.Timestamp, newTimestamps)
+		if !send {
+			continue
+		}
+		s.sendBucketGauge("link.availability", linkMetric.Availability, tags, ts)
 	}
+
+	s.UpdateTimestamps(newTimestamps)
 }
 
 // SendApplicationsByApplianceMetrics sends applications by appliance metrics retrieved from Versa Analytics
@@ -231,7 +323,7 @@ func (s *Sender) SendApplicationsByApplianceMetrics(appsByApplianceMetrics []cli
 			"site:" + appMetric.Site,
 			"app_id:" + appMetric.AppID,
 		}
-		if deviceIP, ok := deviceNameToIDMap[appMetric.Site]; ok {
+		if deviceIP, ok := deviceNameToIDMap[strings.ToLower(appMetric.Site)]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
 		s.Gauge(versaMetricPrefix+"app.sessions", appMetric.Sessions, "", tags)
@@ -251,7 +343,7 @@ func (s *Sender) SendTopUserMetrics(topUserMetrics []client.TopUserMetrics, devi
 			"site:" + topUser.Site,
 			"user:" + topUser.User,
 		}
-		if deviceIP, ok := deviceNameToIDMap[topUser.Site]; ok {
+		if deviceIP, ok := deviceNameToIDMap[strings.ToLower(topUser.Site)]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
 		s.Gauge(versaMetricPrefix+"user.sessions", topUser.Sessions, "", tags)
@@ -264,7 +356,9 @@ func (s *Sender) SendTopUserMetrics(topUserMetrics []client.TopUserMetrics, devi
 }
 
 // SendTunnelMetrics sends tunnel metrics retrieved from Versa Analytics
-func (s *Sender) SendTunnelMetrics(tunnelMetrics []client.TunnelMetrics, deviceNameToIDMap map[string]string) {
+func (s *Sender) SendTunnelMetrics(tenant string, tunnelMetrics []client.TunnelMetrics, deviceNameToIDMap map[string]string) {
+	newTimestamps := make(map[string]float64)
+
 	for _, tunnelMetric := range tunnelMetrics {
 		var tags = []string{
 			"appliance:" + tunnelMetric.Appliance,
@@ -272,97 +366,182 @@ func (s *Sender) SendTunnelMetrics(tunnelMetrics []client.TunnelMetrics, deviceN
 			"remote_ip:" + tunnelMetric.RemoteIP,
 			"vpn_prof_name:" + tunnelMetric.VpnProfName,
 		}
-		if deviceIP, ok := deviceNameToIDMap[tunnelMetric.Appliance]; ok {
+		if deviceIP, ok := deviceNameToIDMap[strings.ToLower(tunnelMetric.Appliance)]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
-		s.Gauge(versaMetricPrefix+"tunnel.volume_tx", tunnelMetric.VolumeTx, "", tags)
-		s.Gauge(versaMetricPrefix+"tunnel.volume_rx", tunnelMetric.VolumeRx, "", tags)
+
+		ts, send := s.bucketTimestamp("tunnel_metrics", tenant, tunnelMetric.DrillKey, tunnelMetric.Timestamp, newTimestamps)
+		if !send {
+			continue
+		}
+		s.sendBucketGauge("tunnel.volume_tx", tunnelMetric.VolumeTx, tags, ts)
+		s.sendBucketGauge("tunnel.volume_rx", tunnelMetric.VolumeRx, tags, ts)
 	}
+
+	s.UpdateTimestamps(newTimestamps)
 }
 
 // SendPathQoSMetrics sends QoS (Class of Service) metrics retrieved from Versa Analytics
-func (s *Sender) SendPathQoSMetrics(qosMetrics []client.QoSMetrics, deviceNameToIDMap map[string]string) {
+func (s *Sender) SendPathQoSMetrics(tenant string, qosMetrics []client.QoSMetrics, deviceNameToIDMap map[string]string) {
+	newTimestamps := make(map[string]float64)
+
 	for _, qosMetric := range qosMetrics {
 		var tags = []string{
 			"local_site:" + qosMetric.LocalSiteName,
 			"remote_site:" + qosMetric.RemoteSiteName,
 		}
-		if deviceIP, ok := deviceNameToIDMap[qosMetric.LocalSiteName]; ok {
+		if deviceIP, ok := deviceNameToIDMap[strings.ToLower(qosMetric.LocalSiteName)]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
 
+		ts, send := s.bucketTimestamp("path_qos_metrics", tenant, qosMetric.DrillKey, qosMetric.Timestamp, newTimestamps)
+		if !send {
+			continue
+		}
+
 		// Send byte-based metrics
-		s.Gauge(versaMetricPrefix+"qos.best_effort_tx", qosMetric.BestEffortTx, "", tags)
-		s.Gauge(versaMetricPrefix+"qos.best_effort_tx_drop", qosMetric.BestEffortTxDrop, "", tags)
-		s.Gauge(versaMetricPrefix+"qos.expedited_forward_tx", qosMetric.ExpeditedForwardTx, "", tags)
-		s.Gauge(versaMetricPrefix+"qos.expedited_forward_drop", qosMetric.ExpeditedForwardDrop, "", tags)
-		s.Gauge(versaMetricPrefix+"qos.assured_forward_tx", qosMetric.AssuredForwardTx, "", tags)
-		s.Gauge(versaMetricPrefix+"qos.assured_forward_drop", qosMetric.AssuredForwardDrop, "", tags)
-		s.Gauge(versaMetricPrefix+"qos.network_control_tx", qosMetric.NetworkControlTx, "", tags)
-		s.Gauge(versaMetricPrefix+"qos.network_control_drop", qosMetric.NetworkControlDrop, "", tags)
+		s.sendBucketGauge("qos.best_effort_tx", qosMetric.BestEffortTx, tags, ts)
+		s.sendBucketGauge("qos.best_effort_tx_drop", qosMetric.BestEffortTxDrop, tags, ts)
+		s.sendBucketGauge("qos.expedited_forward_tx", qosMetric.ExpeditedForwardTx, tags, ts)
+		s.sendBucketGauge("qos.expedited_forward_drop", qosMetric.ExpeditedForwardDrop, tags, ts)
+		s.sendBucketGauge("qos.assured_forward_tx", qosMetric.AssuredForwardTx, tags, ts)
+		s.sendBucketGauge("qos.assured_forward_drop", qosMetric.AssuredForwardDrop, tags, ts)
+		s.sendBucketGauge("qos.network_control_tx", qosMetric.NetworkControlTx, tags, ts)
+		s.sendBucketGauge("qos.network_control_drop", qosMetric.NetworkControlDrop, tags, ts)
 
 		// Send bandwidth metrics (bps)
-		s.Gauge(versaMetricPrefix+"qos.best_effort_bandwidth", qosMetric.BestEffortBandwidth, "", tags)
-		s.Gauge(versaMetricPrefix+"qos.expedited_forward_bw", qosMetric.ExpeditedForwardBW, "", tags)
-		s.Gauge(versaMetricPrefix+"qos.assured_forward_bw", qosMetric.AssuredForwardBW, "", tags)
-		s.Gauge(versaMetricPrefix+"qos.network_control_bw", qosMetric.NetworkControlBW, "", tags)
+		s.sendBucketGauge("qos.best_effort_bandwidth", qosMetric.BestEffortBandwidth, tags, ts)
+		s.sendBucketGauge("qos.expedited_forward_bw", qosMetric.ExpeditedForwardBW, tags, ts)
+		s.sendBucketGauge("qos.assured_forward_bw", qosMetric.AssuredForwardBW, tags, ts)
+		s.sendBucketGauge("qos.network_control_bw", qosMetric.NetworkControlBW, tags, ts)
 
 		// Send aggregate metrics
-		s.Gauge(versaMetricPrefix+"qos.volume_tx", qosMetric.VolumeTx, "", tags)
-		s.Gauge(versaMetricPrefix+"qos.total_drop", qosMetric.TotalDrop, "", tags)
-		s.Gauge(versaMetricPrefix+"qos.percent_drop", qosMetric.PercentDrop, "", tags)
-		s.Gauge(versaMetricPrefix+"qos.bandwidth", qosMetric.Bandwidth, "", tags)
+		s.sendBucketGauge("qos.volume_tx", qosMetric.VolumeTx, tags, ts)
+		s.sendBucketGauge("qos.total_drop", qosMetric.TotalDrop, tags, ts)
+		if !qosMetric.PercentDropUnset {
+			s.sendBucketGauge("qos.percent_drop", qosMetric.PercentDrop, tags, ts)
+		}
+		s.sendBucketGauge("qos.bandwidth", qosMetric.Bandwidth, tags, ts)
 	}
+
+	s.UpdateTimestamps(newTimestamps)
+}
+
+// SendCircuitQoSMetrics sends per access circuit QoS (Class of Service) metrics retrieved
+// from Versa Analytics. These are the branch side counterpart to SendPathQoSMetrics: the
+// same four forwarding classes, reported for each access circuit of a site rather than for
+// a pair of sites.
+func (s *Sender) SendCircuitQoSMetrics(tenant string, qosMetrics []client.CircuitQoSMetrics, deviceNameToIDMap map[string]string) {
+	newTimestamps := make(map[string]float64)
+
+	for _, qosMetric := range qosMetrics {
+		var tags = []string{
+			"site:" + qosMetric.Site,
+			"access_circuit:" + qosMetric.AccessCircuit,
+		}
+		if deviceIP, ok := deviceNameToIDMap[strings.ToLower(qosMetric.Site)]; ok {
+			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
+		}
+
+		ts, send := s.bucketTimestamp("circuit_qos_metrics", tenant, qosMetric.DrillKey, qosMetric.Timestamp, newTimestamps)
+		if !send {
+			continue
+		}
+
+		// Send byte-based metrics
+		s.sendBucketGauge("circuit_qos.best_effort_tx", qosMetric.BestEffortTx, tags, ts)
+		s.sendBucketGauge("circuit_qos.best_effort_tx_drop", qosMetric.BestEffortTxDrop, tags, ts)
+		s.sendBucketGauge("circuit_qos.expedited_forward_tx", qosMetric.ExpeditedForwardTx, tags, ts)
+		s.sendBucketGauge("circuit_qos.expedited_forward_drop", qosMetric.ExpeditedForwardDrop, tags, ts)
+		s.sendBucketGauge("circuit_qos.assured_forward_tx", qosMetric.AssuredForwardTx, tags, ts)
+		s.sendBucketGauge("circuit_qos.assured_forward_drop", qosMetric.AssuredForwardDrop, tags, ts)
+		s.sendBucketGauge("circuit_qos.network_control_tx", qosMetric.NetworkControlTx, tags, ts)
+		s.sendBucketGauge("circuit_qos.network_control_drop", qosMetric.NetworkControlDrop, tags, ts)
+
+		// Send bandwidth metrics (bps)
+		s.sendBucketGauge("circuit_qos.best_effort_bandwidth", qosMetric.BestEffortBandwidth, tags, ts)
+		s.sendBucketGauge("circuit_qos.expedited_forward_bw", qosMetric.ExpeditedForwardBW, tags, ts)
+		s.sendBucketGauge("circuit_qos.assured_forward_bw", qosMetric.AssuredForwardBW, tags, ts)
+		s.sendBucketGauge("circuit_qos.network_control_bw", qosMetric.NetworkControlBW, tags, ts)
+
+		// Send aggregate metrics
+		s.sendBucketGauge("circuit_qos.volume_tx", qosMetric.VolumeTx, tags, ts)
+		s.sendBucketGauge("circuit_qos.total_drop", qosMetric.TotalDrop, tags, ts)
+		if !qosMetric.PercentDropUnset {
+			s.sendBucketGauge("circuit_qos.percent_drop", qosMetric.PercentDrop, tags, ts)
+		}
+		s.sendBucketGauge("circuit_qos.bandwidth", qosMetric.Bandwidth, tags, ts)
+	}
+
+	s.UpdateTimestamps(newTimestamps)
 }
 
 // SendDIAMetrics sends DIA (Direct Internet Access) metrics retrieved from Versa Analytics
-func (s *Sender) SendDIAMetrics(diaMetrics []client.DIAMetrics, deviceNameToIDMap map[string]string) {
+func (s *Sender) SendDIAMetrics(tenant string, diaMetrics []client.DIAMetrics, deviceNameToIDMap map[string]string) {
+	newTimestamps := make(map[string]float64)
+
 	for _, diaMetric := range diaMetrics {
 		var tags = []string{
 			"site:" + diaMetric.Site,
 			"access_circuit:" + diaMetric.AccessCircuit,
 			"ip:" + diaMetric.IP,
 		}
-		if deviceIP, ok := deviceNameToIDMap[diaMetric.Site]; ok {
+		if deviceIP, ok := deviceNameToIDMap[strings.ToLower(diaMetric.Site)]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
 
+		ts, send := s.bucketTimestamp("dia_metrics", tenant, diaMetric.DrillKey, diaMetric.Timestamp, newTimestamps)
+		if !send {
+			continue
+		}
+
 		// Send volume metrics
-		s.Gauge(versaMetricPrefix+"dia.volume_tx", diaMetric.VolumeTx, "", tags)
-		s.Gauge(versaMetricPrefix+"dia.volume_rx", diaMetric.VolumeRx, "", tags)
+		s.sendBucketGauge("dia.volume_tx", diaMetric.VolumeTx, tags, ts)
+		s.sendBucketGauge("dia.volume_rx", diaMetric.VolumeRx, tags, ts)
 
 		// Send bandwidth metrics
-		s.Gauge(versaMetricPrefix+"dia.bandwidth_tx", diaMetric.BandwidthTx, "", tags)
-		s.Gauge(versaMetricPrefix+"dia.bandwidth_rx", diaMetric.BandwidthRx, "", tags)
+		s.sendBucketGauge("dia.bandwidth_tx", diaMetric.BandwidthTx, tags, ts)
+		s.sendBucketGauge("dia.bandwidth_rx", diaMetric.BandwidthRx, tags, ts)
 	}
+
+	s.UpdateTimestamps(newTimestamps)
 }
 
 // SendAnalyticsInterfaceMetrics sends analytics interface metrics retrieved from Versa Analytics
-func (s *Sender) SendAnalyticsInterfaceMetrics(analyticsInterfaceMetrics []client.AnalyticsInterfaceMetrics, deviceNameToIDMap map[string]string) {
+func (s *Sender) SendAnalyticsInterfaceMetrics(tenant string, analyticsInterfaceMetrics []client.AnalyticsInterfaceMetrics, deviceNameToIDMap map[string]string) {
+	newTimestamps := make(map[string]float64)
+
 	for _, ifaceMetric := range analyticsInterfaceMetrics {
 		var tags = []string{
 			"site:" + ifaceMetric.Site,
 			"access_circuit:" + ifaceMetric.AccessCkt,
 			"interface:" + ifaceMetric.Interface,
 		}
-		if deviceIP, ok := deviceNameToIDMap[ifaceMetric.Site]; ok {
+		if deviceIP, ok := deviceNameToIDMap[strings.ToLower(ifaceMetric.Site)]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
 
+		ts, send := s.bucketTimestamp("analytics_interface_metrics", tenant, ifaceMetric.DrillKey, ifaceMetric.Timestamp, newTimestamps)
+		if !send {
+			continue
+		}
+
 		// Send bandwidth utilization metrics
-		s.Gauge(versaMetricPrefix+"interface.rx_util", ifaceMetric.RxUtil, "", tags)
-		s.Gauge(versaMetricPrefix+"interface.tx_util", ifaceMetric.TxUtil, "", tags)
+		s.sendBucketGauge("interface.rx_util", ifaceMetric.RxUtil, tags, ts)
+		s.sendBucketGauge("interface.tx_util", ifaceMetric.TxUtil, tags, ts)
 
 		// Send volume metrics
-		s.Gauge(versaMetricPrefix+"interface.volume_rx", ifaceMetric.VolumeRx, "", tags)
-		s.Gauge(versaMetricPrefix+"interface.volume_tx", ifaceMetric.VolumeTx, "", tags)
-		s.Gauge(versaMetricPrefix+"interface.volume", ifaceMetric.Volume, "", tags)
+		s.sendBucketGauge("interface.volume_rx", ifaceMetric.VolumeRx, tags, ts)
+		s.sendBucketGauge("interface.volume_tx", ifaceMetric.VolumeTx, tags, ts)
+		s.sendBucketGauge("interface.volume", ifaceMetric.Volume, tags, ts)
 
 		// Send bandwidth metrics
-		s.Gauge(versaMetricPrefix+"interface.bandwidth_rx", ifaceMetric.BandwidthRx, "", tags)
-		s.Gauge(versaMetricPrefix+"interface.bandwidth_tx", ifaceMetric.BandwidthTx, "", tags)
-		s.Gauge(versaMetricPrefix+"interface.bandwidth", ifaceMetric.Bandwidth, "", tags)
+		s.sendBucketGauge("interface.bandwidth_rx", ifaceMetric.BandwidthRx, tags, ts)
+		s.sendBucketGauge("interface.bandwidth_tx", ifaceMetric.BandwidthTx, tags, ts)
+		s.sendBucketGauge("interface.bandwidth", ifaceMetric.Bandwidth, tags, ts)
 	}
+
+	s.UpdateTimestamps(newTimestamps)
 }
 
 // SendInterfaceMetrics sends interface metrics
@@ -509,7 +688,7 @@ func (s *Sender) SendDirectorDeviceMetrics(director *client.DirectorStatus) {
 func (s *Sender) SendInterfaceStatus(interfaces []client.Interface, deviceNameToIPMap map[string]string) {
 	for _, iface := range interfaces {
 		// Get device IP from the deviceNameToIPMap
-		deviceIP, ok := deviceNameToIPMap[iface.DeviceName]
+		deviceIP, ok := deviceNameToIPMap[strings.ToLower(iface.DeviceName)]
 		if !ok {
 			log.Warnf("device IP not found for device %s, skipping interface status", iface.DeviceName)
 			continue

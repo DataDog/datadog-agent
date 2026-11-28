@@ -125,8 +125,13 @@ func SetupMockAPIServer() *httptest.Server {
 		// Check if this is a SLA metrics request or Link Extended metrics request
 		queryParams := r.URL.Query()
 		query := queryParams.Get("q")
+		timeseries := queryParams.Get("qt") == QueryTypeTimeseries
 		if strings.Contains(query, "slam(") {
-			fixtureHandler(fixtures.GetSLAMetrics)(w, r)
+			if timeseries {
+				fixtureHandler(fixtures.GetSLAMetricsTimeseries)(w, r)
+			} else {
+				fixtureHandler(fixtures.GetSLAMetrics)(w, r)
+			}
 		} else if strings.Contains(query, "linkusage(site,site.address") {
 			fixtureHandler(fixtures.GetSiteMetrics)(w, r)
 		} else if strings.Contains(query, "linkusage(") {
@@ -137,8 +142,18 @@ func SetupMockAPIServer() *httptest.Server {
 			fixtureHandler(fixtures.GetApplicationsByApplianceMetrics)(w, r)
 		} else if strings.Contains(query, "appUser(") {
 			fixtureHandler(fixtures.GetTopUsers)(w, r)
+		} else if strings.Contains(query, "pathcos(") {
+			if timeseries {
+				fixtureHandler(fixtures.GetPathQoSMetricsTimeseries)(w, r)
+			} else {
+				fixtureHandler(fixtures.GetPathQoSMetrics)(w, r)
+			}
 		} else if strings.Contains(query, "cos(") {
-			fixtureHandler(fixtures.GetPathQoSMetrics)(w, r)
+			if timeseries {
+				fixtureHandler(fixtures.GetCircuitQoSMetricsTimeseries)(w, r)
+			} else {
+				fixtureHandler(fixtures.GetCircuitQoSMetrics)(w, r)
+			}
 		} else if strings.Contains(query, "usage(") {
 			fixtureHandler(fixtures.GetDIAMetrics)(w, r)
 		} else if strings.Contains(query, "intfUtil(") {
@@ -224,8 +239,10 @@ func SetupPaginationMockAPIServer() *httptest.Server {
 				fixtureHandler(fixtures.GetApplicationsByApplianceMetrics)(w, r)
 			} else if strings.Contains(query, "appUser(") {
 				fixtureHandler(fixtures.GetTopUsers)(w, r)
-			} else if strings.Contains(query, "cos(") {
+			} else if strings.Contains(query, "pathcos(") {
 				fixtureHandler(fixtures.GetPathQoSMetrics)(w, r)
+			} else if strings.Contains(query, "cos(") {
+				fixtureHandler(fixtures.GetCircuitQoSMetrics)(w, r)
 			} else if strings.Contains(query, "usage(") {
 				fixtureHandler(fixtures.GetDIAMetrics)(w, r)
 			} else if strings.Contains(query, "intfUtil(") {
@@ -282,4 +299,15 @@ func combineAnalyticsFixtures(fixtures ...string) (string, error) {
 	}
 
 	return string(combinedBytes), nil
+}
+
+// NewTestClient returns a client wired to a mock API server, for tests outside this
+// package that need to exercise the real HTTP, parsing and sending path together.
+func NewTestClient(server *httptest.Server, options ...ClientOptions) (*Client, error) {
+	client, err := testClient(server, options...)
+	if err != nil {
+		return nil, err
+	}
+	client.directorEndpoint = server.URL
+	return client, nil
 }
