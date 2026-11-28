@@ -5,6 +5,14 @@ load("@rules_go//proto:def.bzl", "go_proto_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
 
+# tools/retry_file_dump needs the generated pb.go source to build its standalone
+# "package main" copy (see tools/retry_file_dump/BUILD.bazel); it cannot depend
+# on :retry directly since that library is scoped to defaultforwarder subpackages.
+exports_files(
+    ["HttpTransactionProto.pb.go"],
+    visibility = ["//tools/retry_file_dump:__pkg__"],
+)
+
 proto_library(
     name = "retry_proto",
     srcs = ["HttpTransactionProto.proto"],
