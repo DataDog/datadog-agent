@@ -124,3 +124,97 @@ lint_config_schema:
         compare_to: $COMPARE_TO_BRANCH
   script:
     - dda inv -- -e schema.lint
+
+# Fails a PR that changes files which only release automation may refresh. The `changes:` rule of
+# each job covers its whole folder, so new files are checked too. `changes:` can't exclude paths,
+# so the script lists the files changed since the merge base with $COMPARE_TO_BRANCH under
+# $PROTECTED_PATHSPECS (git pathspecs separated by spaces, with `:(exclude)` entries for the files
+# maintained by hand), then prints $FAILURE_MESSAGE.
+# Release refresh PRs are exempted (see .on_release_refreshed_files_changes).
+.lint_release_refreshed_files:
+  extends: .lint
+  variables:
+    GIT_DEPTH: 0  # Full history: diffs against the merge base with $COMPARE_TO_BRANCH
+  script:
+    - git fetch origin "+refs/heads/$COMPARE_TO_BRANCH:refs/remotes/origin/$COMPARE_TO_BRANCH"
+    - CHANGED_FILES="$(git diff --name-only "origin/$COMPARE_TO_BRANCH...HEAD" -- $PROTECTED_PATHSPECS)"
+    - |
+      if [ -n "$CHANGED_FILES" ]; then
+        echo "This PR changes files that must not be edited by hand:"
+        echo "$CHANGED_FILES" | sed 's/^/  - /'
+        echo
+        echo "$FAILURE_MESSAGE"
+        exit 1
+      fi
+    - echo "Only files maintained by hand changed."
+
+.on_release_refreshed_files_changes:
+  - !reference [.except_main_release_or_mq]
+  # Branches of the release automation's PRs. The patterns are strict so that no other branch
+  # matches them by accident.
+  # Config templates refresh PRs, e.g. `7.86.0/refresh-config-templates-<uuid>_<n>`.
+  - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.[0-9]+\/refresh-config-templates-[0-9a-f-]+(_[0-9]+)?$/
+    when: never
+  # release.json and Go modules PRs of each RC and final version, which also regenerate the
+  # generatedsettings snapshot, e.g. `7.87.0-rc.1/update-release-json-<workflow ID>`.
+  - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?\/update-release-json-[A-Za-z0-9._-]+$/
+    when: never
+
+lint_config_examples_not_edited:
+  extends: .lint_release_refreshed_files
+  rules:
+    - !reference [.on_release_refreshed_files_changes]
+    - changes:
+        paths:
+          - pkg/config/example/**/*
+        compare_to: $COMPARE_TO_BRANCH
+  variables:
+    # README.md and the two static examples are maintained by hand (see pkg/config/example/README.md).
+    PROTECTED_PATHSPECS: >-
+      pkg/config/example/
+      :(exclude)pkg/config/example/README.md
+      :(exclude)pkg/config/example/security-agent.yaml.example
+      :(exclude)pkg/config/example/application_monitoring.yaml.example
+    FAILURE_MESSAGE: |
+      The <build-type>_<os>.yaml.example files in pkg/config/example/ must not be edited. Remove
+      your changes to the files listed above from this PR.
+
+      These files are generated from the config schema (pkg/config/schema/yaml/) and refreshed
+      only by release automation, in a "[release] Refresh config templates for <version>" PR after
+      each Agent release. The Agent packages don't read them: they render their example config from
+      the schema at build time, so editing these files changes nothing that ships.
+
+      To change an example config, edit the schema instead (doc/how-to/agent-schema/settings.md).
+      `dda inv schema.template-all` rewrites these files: don't commit what it changes.
+
+      security-agent.yaml.example and application_monitoring.yaml.example are maintained by hand
+      and can be edited. See pkg/config/example/README.md.
+
+lint_generatedsettings_not_edited:
+  extends: .lint_release_refreshed_files
+  rules:
+    - !reference [.on_release_refreshed_files_changes]
+    - changes:
+        paths:
+          - pkg/config/setup/generatedsettings/**/*
+        compare_to: $COMPARE_TO_BRANCH
+  variables:
+    # Not generated: go.mod and go.sum are kept up to date by `dda inv tidy` and Renovate, and
+    # `schema.codegen-snapshot` copies doc.go from generatedsettings_local, where it is written by hand.
+    PROTECTED_PATHSPECS: >-
+      pkg/config/setup/generatedsettings/
+      :(exclude)pkg/config/setup/generatedsettings/README.md
+      :(exclude)pkg/config/setup/generatedsettings/doc.go
+      :(exclude)pkg/config/setup/generatedsettings/go.mod
+      :(exclude)pkg/config/setup/generatedsettings/go.sum
+    FAILURE_MESSAGE: |
+      The generated files in pkg/config/setup/generatedsettings/ must not be edited. Remove your
+      changes to the files listed above from this PR, and don't run `dda inv schema.codegen-snapshot`.
+
+      This directory is a snapshot of the settings code generated from the config schema, for
+      external consumers of pkg/config/setup (such as the OTel Collector) at released tags. It is
+      refreshed only as part of the Agent release, not in regular PRs. In-repo builds never use it:
+      they build pkg/config/setup/generatedsettings_local, which every `dda inv` task regenerates
+      from the schema, so your schema change already takes effect without this snapshot.
+
+      See pkg/config/setup/generatedsettings/README.md.
